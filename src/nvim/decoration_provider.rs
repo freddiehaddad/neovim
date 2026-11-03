@@ -144,7 +144,7 @@ fn decor_provider_invoke(
     g_st().textlock += 1;
     let ret = nlua_call_ref(
         ref_,
-        name.as_ptr(),
+        Some(name),
         args,
         if res.is_some() {
             K_RET_MULTI

@@ -4544,7 +4544,10 @@ pub fn readdir_core(
             let p_bytes = crate::memory::cstr_as_bytes(p);
             let mut ignore = p_bytes == b"." || p_bytes == b"..";
             if !ignore && context.is_some() {
-                let r = crate::eval::fs::readdir_checkitem(context.as_deref_mut().unwrap(), p);
+                let r = crate::eval::fs::readdir_checkitem(
+                    context.as_deref_mut().unwrap(),
+                    crate::memory::cstr_from_ptr(p),
+                );
                 if r < 0 {
                     break;
                 }

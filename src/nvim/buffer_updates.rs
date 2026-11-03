@@ -161,11 +161,7 @@ pub fn buf_updates_unload(buf: &mut FileBuf, can_reload: bool) {
             textlock_wrap(|| {
                 nlua_call_ref(
                     thecb,
-                    if keep {
-                        c"reload".as_ptr()
-                    } else {
-                        c"detach".as_ptr()
-                    },
+                    Some(if keep { c"reload" } else { c"detach" }),
                     args,
                     0,
                     None,
@@ -286,7 +282,7 @@ pub fn buf_updates_send_changes(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_lines, c"lines", args, K_RET_NIL_BOOL, None, None);
+                res = nlua_call_ref(on_lines, Some(c"lines"), args, K_RET_NIL_BOOL, None, None);
             });
 
             if luaret_truthy(res) {
@@ -344,7 +340,7 @@ pub fn buf_updates_send_splice(
 
             let mut res = OBJECT_NIL;
             textlock_wrap(|| {
-                res = nlua_call_ref(on_bytes, c"bytes", args, K_RET_NIL_BOOL, None, None);
+                res = nlua_call_ref(on_bytes, Some(c"bytes"), args, K_RET_NIL_BOOL, None, None);
             });
 
             if luaret_truthy(res) {
@@ -384,7 +380,7 @@ pub fn buf_updates_changedtick(buf: &mut FileBuf) {
             textlock_wrap(|| {
                 res = nlua_call_ref(
                     on_changedtick,
-                    c"changedtick",
+                    Some(c"changedtick"),
                     args,
                     K_RET_NIL_BOOL,
                     None,

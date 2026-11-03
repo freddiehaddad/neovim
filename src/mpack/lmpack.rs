@@ -1239,19 +1239,19 @@ pub fn luaopen_mpack(l: *mut lua_State) -> i32 {
         luaL_newmetatable(l, UNPACKER_META_NAME);
         lua_pushvalue(l, -1);
         lua_setfield(l, -2, c"__index");
-        luaL_register(l, ptr::null(), UNPACKER_METHODS.as_ptr());
+        luaL_register(l, None, &UNPACKER_METHODS);
         lua_pop(l, 1);
 
         luaL_newmetatable(l, PACKER_META_NAME);
         lua_pushvalue(l, -1);
         lua_setfield(l, -2, c"__index");
-        luaL_register(l, ptr::null(), PACKER_METHODS.as_ptr());
+        luaL_register(l, None, &PACKER_METHODS);
         lua_pop(l, 1);
 
         luaL_newmetatable(l, SESSION_META_NAME);
         lua_pushvalue(l, -1);
         lua_setfield(l, -2, c"__index");
-        luaL_register(l, ptr::null(), SESSION_METHODS.as_ptr());
+        luaL_register(l, None, &SESSION_METHODS);
         lua_pop(l, 1);
 
         lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
@@ -1267,7 +1267,7 @@ pub fn luaopen_mpack(l: *mut lua_State) -> i32 {
         lua_pop(l, 1);
 
         lua_newtable(l);
-        luaL_register(l, ptr::null(), MPACK_FUNCTIONS.as_ptr());
+        luaL_register(l, None, &MPACK_FUNCTIONS);
         lua_getfield(l, LUA_REGISTRYINDEX, NIL_NAME);
         lua_setfield(l, -2, c"NIL");
         1

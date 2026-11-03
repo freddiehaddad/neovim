@@ -37,7 +37,7 @@ pub fn gc_unregister_dict(idx: usize) {
     if idx < gc_st().gc_dicts.len() {
         let moved = gc_st().gc_dicts.as_slice()[idx];
 
-        crate::globals::gptr(moved).dv_gc_idx = Some(idx);
+        unsafe { (*moved).dv_gc_idx = Some(idx) };
     }
 }
 
@@ -52,7 +52,7 @@ pub fn gc_register_list(l: &mut TvList) {
     let ptr: *mut TvList = l;
     gc_st().gc_lists.push(ptr);
     l.lv_gc_idx = Some(idx);
-    *crate::globals::gptr(gc_first_list.as_ptr()) = ptr;
+    *gc_first_list.as_mut() = ptr;
 }
 
 #[inline]
@@ -61,10 +61,10 @@ pub fn gc_unregister_list(idx: usize) {
     if idx < gc_st().gc_lists.len() {
         let moved = gc_st().gc_lists.as_slice()[idx];
 
-        crate::globals::gptr(moved).lv_gc_idx = Some(idx);
+        unsafe { (*moved).lv_gc_idx = Some(idx) };
     }
 
-    *crate::globals::gptr(gc_first_list.as_ptr()) = gc_st()
+    *gc_first_list.as_mut() = gc_st()
         .gc_lists
         .last()
         .copied()
@@ -72,11 +72,31 @@ pub fn gc_unregister_list(idx: usize) {
 }
 
 #[inline]
-pub fn gc_dicts_slice() -> &'static [*mut TvDict] {
-    gc_st().gc_dicts.as_slice()
+pub fn gc_dicts_len() -> usize {
+    gc_st().gc_dicts.len()
 }
 
 #[inline]
-pub fn gc_lists_slice() -> &'static [*mut TvList] {
-    gc_st().gc_lists.as_slice()
+pub fn gc_dict_at(idx: usize) -> &'static mut TvDict {
+    unsafe { &mut *gc_st().gc_dicts[idx] }
+}
+
+#[inline]
+pub fn gc_free_dict_at(idx: usize) {
+    drop(unsafe { Box::from_raw(gc_st().gc_dicts[idx]) });
+}
+
+#[inline]
+pub fn gc_lists_len() -> usize {
+    gc_st().gc_lists.len()
+}
+
+#[inline]
+pub fn gc_list_at(idx: usize) -> &'static mut TvList {
+    unsafe { &mut *gc_st().gc_lists[idx] }
+}
+
+#[inline]
+pub fn gc_free_list_at(idx: usize) {
+    drop(unsafe { Box::from_raw(gc_st().gc_lists[idx]) });
 }

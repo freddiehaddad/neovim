@@ -859,7 +859,7 @@ pub fn ui_call_event(name: &'static std::ffi::CStr, args: Array) {
         let res = nlua_call_ref_ctx(
             fast,
             cb_ref,
-            name.as_ptr(),
+            Some(name),
             args,
             K_RET_NIL_BOOL,
             None,

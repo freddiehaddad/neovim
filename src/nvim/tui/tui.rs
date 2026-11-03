@@ -676,7 +676,7 @@ fn apply_termdefs(tui: &mut TUIData) {
     };
     let rv = nlua_exec(
         static_cstr_as_string(c"return require('vim.tty')._get_termdefs()"),
-        ptr::null(),
+        None,
         empty_args,
         K_RET_OBJECT,
         None,

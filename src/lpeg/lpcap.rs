@@ -199,7 +199,7 @@ fn findback(cs: &mut CapState, r#ref: *mut Capture) -> *mut Capture {
         luaL_error(
             l,
             c"back reference '%s' not found".as_ptr(),
-            lua_tostring(l, -1),
+            lua_tostring(l, -1).map_or(ptr::null(), std::ffi::CStr::as_ptr),
         );
         ptr::null_mut()
     }
@@ -511,7 +511,7 @@ fn addonestring(b: &mut luaL_Buffer, cs: &mut CapState, what: &std::ffi::CStr) -
                             l,
                             c"invalid %s value (a %s)".as_ptr(),
                             what.as_ptr(),
-                            luaL_typename(l, -1),
+                            luaL_typename(l, -1).as_ptr(),
                         );
                     }
                     luaL_addvalue(b);

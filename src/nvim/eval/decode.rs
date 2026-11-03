@@ -46,7 +46,7 @@ struct JsonContainerStackItem {
 impl JsonContainerStackItem {
     #[inline]
     fn special_val_opt(&self) -> Option<&'static mut TvList> {
-        crate::globals::gopt_mut(self.special_val)
+        unsafe { self.special_val.as_mut() }
     }
 }
 
@@ -960,9 +960,10 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
     let mut result: *mut TypVal = std::ptr::null_mut();
     let parent = mpack_parent_node(&raw mut *node);
     if !parent.is_null() {
-        match crate::globals::gptr(parent).tok.r#type {
+        let parent = unsafe { &mut *parent };
+        match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
-                let list = crate::globals::gptr(parent).data[1].list();
+                let list = parent.data[1].list();
                 result = tv_list_append_owned_tv(
                     &mut *list,
                     TypVal {
@@ -973,9 +974,9 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 );
             }
             MpackTokenType::MpackTokenMap => {
-                let pos = crate::globals::gptr(parent).pos;
-                let key_visited = crate::globals::gptr(parent).key_visited as usize;
-                let items = crate::globals::gmut(parent).data[1].map_pairs_mut();
+                let pos = parent.pos;
+                let key_visited = parent.key_visited as usize;
+                let items = parent.data[1].map_pairs_mut();
                 result = &raw mut items[pos][key_visited];
             }
             MpackTokenType::MpackTokenStr
@@ -993,63 +994,67 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
     node.data[1] = MpackData::Null;
 
     match node.tok.r#type {
-        MpackTokenType::MpackTokenNil => {
-            *crate::globals::gptr(result) = TypVal {
+        MpackTokenType::MpackTokenNil => unsafe {
+            *result = TypVal {
                 v_type: VarType::VarSpecial,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
             }
-        }
+        },
         MpackTokenType::MpackTokenBoolean => {
             let b = mpack_unpack_boolean(node.tok);
 
-            *crate::globals::gptr(result) = TypVal {
-                v_type: VarType::VarBool,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
+            unsafe {
+                *result = TypVal {
+                    v_type: VarType::VarBool,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
+                }
             };
         }
-        MpackTokenType::MpackTokenSint => {
-            *crate::globals::gptr(result) = TypVal {
+        MpackTokenType::MpackTokenSint => unsafe {
+            *result = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(mpack_unpack_sint(node.tok)),
             }
+        },
+        MpackTokenType::MpackTokenUint => {
+            positive_integer_to_special_typval(unsafe { &mut *result }, mpack_unpack_uint(node.tok))
         }
-        MpackTokenType::MpackTokenUint => positive_integer_to_special_typval(
-            crate::globals::gmut(result),
-            mpack_unpack_uint(node.tok),
-        ),
-        MpackTokenType::MpackTokenFloat => {
-            *crate::globals::gptr(result) = TypVal {
+        MpackTokenType::MpackTokenFloat => unsafe {
+            *result = TypVal {
                 v_type: VarType::VarFloat,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Float(mpack_unpack_float_fast(node.tok)),
             }
-        }
+        },
         MpackTokenType::MpackTokenBin
         | MpackTokenType::MpackTokenStr
         | MpackTokenType::MpackTokenExt => {
             node.data[1] = MpackData::OwnedBytes(vec![0u8; node.tok.length as usize]);
         }
         MpackTokenType::MpackTokenChunk => {
-            let data = crate::globals::gmut(parent).data[1].owned_bytes_mut();
+            let parent = unsafe { &mut *parent };
+            let pos = parent.pos;
+            let data = parent.data[1].owned_bytes_mut();
             let len = node.tok.length as usize;
             if len > 0 {
                 let chunk = node.tok.data.chunk_bytes(len);
 
-                data[crate::globals::gptr(parent).pos..(crate::globals::gptr(parent).pos + len)]
-                    .copy_from_slice(chunk);
+                data[pos..(pos + len)].copy_from_slice(chunk);
             }
         }
         MpackTokenType::MpackTokenArray => {
             let list = tv_list_alloc(node.tok.length as isize);
             tv_list_ref(Some(&mut *list));
 
-            *crate::globals::gptr(result) = TypVal {
-                v_type: VarType::VarList,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(list),
+            unsafe {
+                *result = TypVal {
+                    v_type: VarType::VarList,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::List(list),
+                }
             };
 
             node.data[1] = MpackData::List(list);
@@ -1161,23 +1166,27 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
 }
 
 /// Parse msgpack data into a `TypVal` using `parser` (`mpack_parse_typval`).
-pub fn mpack_parse_typval(parser: &mut MpackParser, data: &mut *const u8, size: &mut usize) -> i32 {
-    mpack_parse(
+pub fn mpack_parse_typval(parser: &mut MpackParser, buf: &mut &[u8]) -> i32 {
+    let mut data = buf.as_ptr();
+    let mut size = buf.len();
+    let ret = mpack_parse(
         parser,
-        data,
-        size,
+        &mut data,
+        &mut size,
         Some(typval_parse_enter),
         Some(typval_parse_exit),
-    )
+    );
+    *buf = unsafe { std::slice::from_raw_parts(data, size) };
+    ret
 }
 
-/// Unpack msgpack buffer `*data[..*size]` into `*ret` (`unpack_typval`).
-pub fn unpack_typval(data: &mut *const u8, size: &mut usize, ret: &mut TypVal) -> i32 {
+/// Unpack msgpack buffer `buf` into `*ret` (`unpack_typval`).
+pub fn unpack_typval(buf: &mut &[u8], ret: &mut TypVal) -> i32 {
     ret.v_type = VarType::VarUnknown;
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
     parser.data = MpackData::Typval(ret);
-    let status = mpack_parse_typval(&mut parser, data, size);
+    let status = mpack_parse_typval(&mut parser, buf);
     if status != MPACK_OK {
         typval_parser_error_free(&mut parser);
         tv_clear(&mut *ret);

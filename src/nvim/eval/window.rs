@@ -78,19 +78,21 @@ pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &mut TabPageInfo) -> bool {
     ptr::eq(wp, cur) || (!wp.w_config.hide && wp.w_config.focusable)
 }
 
-pub fn win_find_nr(mut nr: i32, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo {
-    if tp.is_null() {
-        debug_assert!(!g_st().curtab.is_null());
-        tp = g_st().curtab;
-    }
-    let tp_ref = crate::globals::gmut(tp);
-    for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
-        nr -= i32::from(win_has_winnr(&mut *wp, tp_ref));
+pub fn win_find_nr(mut nr: i32, tp: Option<&mut TabPageInfo>) -> Option<&'static mut WinInfoInfo> {
+    let tp_ref = match tp {
+        Some(tp) => tp,
+        None => {
+            debug_assert!(!g_st().curtab.is_null());
+            curtab_mut()
+        }
+    };
+    for wp in win_iter_mut(first_win_in_tab(tp_ref)) {
+        nr -= i32::from(win_has_winnr(wp, tp_ref));
         if nr <= 0 {
-            return wp;
+            return Some(wp);
         }
     }
-    ptr::null_mut()
+    None
 }
 
 fn win_getid(argvars: &mut [TypVal]) -> i32 {
@@ -119,9 +121,9 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         if tp.is_null() {
             return -1;
         }
-        wp = first_win_in_tab(crate::globals::gmut(tp));
+        wp = first_win_in_tab(unsafe { &mut *tp });
     }
-    let tp_ref = crate::globals::gmut(tp);
+    let tp_ref = unsafe { &mut *tp };
     for wp_ref in win_iter_mut(wp) {
         winnr -= i32::from(win_has_winnr(wp_ref, tp_ref));
         if winnr == 0 {
@@ -143,23 +145,26 @@ fn win_id2tabwin(argvars: &mut [TypVal], rettv: &mut TypVal) {
     tv_list_append_number(&mut *list, winnr as Varnumber);
 }
 
-pub fn win_id2wp(id: i32) -> *mut WinInfoInfo {
+pub fn win_id2wp(id: i32) -> Option<&'static mut WinInfoInfo> {
     win_id2wp_tp(id, None)
 }
 
 /// Return the window and tab pointer of window `id` (`win_id2wp_tp`).
-pub fn win_id2wp_tp(id: i32, tpp: Option<&mut *mut TabPageInfo>) -> *mut WinInfoInfo {
-    for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
+pub fn win_id2wp_tp(
+    id: i32,
+    tpp: Option<&mut Option<&'static mut TabPageInfo>>,
+) -> Option<&'static mut WinInfoInfo> {
+    for tp in for_all_tabpages_mut() {
+        for wp in win_iter_mut(first_win_in_tab(tp)) {
             if wp.handle == id {
                 if let Some(tpp) = tpp {
-                    *tpp = tp;
+                    *tpp = Some(tp);
                 }
-                return wp;
+                return Some(wp);
             }
         }
     }
-    ptr::null_mut()
+    None
 }
 
 fn win_id2win(argvars: &mut [TypVal]) -> i32 {
@@ -182,8 +187,8 @@ fn win_id2win(argvars: &mut [TypVal]) -> i32 {
 pub fn win_findbuf(argvars: &mut [TypVal], list: &mut TvList) {
     let bufnr = tv_get_number(&argvars[0]) as i32;
 
-    for tp in for_all_tabpages_ptr() {
-        for wp in win_iter_mut(first_win_in_tab(&mut *tp)) {
+    for tp in for_all_tabpages_mut() {
+        for wp in win_iter_mut(first_win_in_tab(tp)) {
             if wp.buf_mut().b_fnum == bufnr {
                 tv_list_append_number(list, wp.handle as Varnumber);
             }
@@ -192,73 +197,72 @@ pub fn win_findbuf(argvars: &mut [TypVal], list: &mut TvList) {
 }
 
 /// Find window specified by `vp` in tabpage `tp` (`find_win_by_nr`).
-pub fn find_win_by_nr(vp: &TypVal, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo {
+pub fn find_win_by_nr(
+    vp: &TypVal,
+    tp: Option<&mut TabPageInfo>,
+) -> Option<&'static mut WinInfoInfo> {
     let nr = tv_get_number_chk(vp, None) as i32;
 
     if nr < 0 {
-        return ptr::null_mut();
+        return None;
     }
 
     if nr == 0 {
-        return curwin_ptr();
+        return Some(curwin_mut());
     }
 
-    if tp.is_null() {
-        tp = g_st().curtab;
-    }
+    let tp_ref = match tp {
+        Some(tp) => tp,
+        None => curtab_mut(),
+    };
 
     if nr >= LOWEST_WIN_ID {
-        for wp in win_iter_ptr(first_win_in_tab(crate::globals::gmut(tp))) {
+        for wp in win_iter_mut(first_win_in_tab(tp_ref)) {
             if wp.handle == nr {
-                return wp;
+                return Some(wp);
             }
         }
-        return ptr::null_mut();
+        return None;
     }
 
-    win_find_nr(nr, tp)
+    win_find_nr(nr, Some(tp_ref))
 }
 
 /// Find a window: When using a Window ID in any tab page, when using a number
 /// in the current tab page (`find_win_by_nr_or_id`).
-pub fn find_win_by_nr_or_id(vp: &TypVal) -> *mut WinInfoInfo {
+pub fn find_win_by_nr_or_id(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
     let nr = tv_get_number_chk(vp, None) as i32;
 
     if nr >= LOWEST_WIN_ID {
         return win_id2wp(tv_get_number(vp) as i32);
     }
 
-    find_win_by_nr(vp, ptr::null_mut())
+    find_win_by_nr(vp, None)
 }
 
 #[inline]
 pub fn find_win_by_nr_or_id_opt(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
-    unsafe { find_win_by_nr_or_id(vp).as_mut() }
+    find_win_by_nr_or_id(vp)
 }
 
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
-pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> *mut WinInfoInfo {
-    let mut wp: *mut WinInfoInfo = ptr::null_mut();
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
-
+pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<&'static mut WinInfoInfo> {
     if wvp.v_type != VarType::VarUnknown {
-        if tvp.v_type != VarType::VarUnknown {
+        let tp = if tvp.v_type != VarType::VarUnknown {
             let n = tv_get_number(tvp) as i32;
             if n >= 0 {
-                tp = find_tabpage(n);
+                unsafe { find_tabpage(n).as_mut() }
+            } else {
+                None
             }
         } else {
-            tp = g_st().curtab;
-        }
+            Some(curtab_mut())
+        };
 
-        if !tp.is_null() {
-            wp = find_win_by_nr(wvp, tp);
-        }
+        tp.and_then(|tp| find_win_by_nr(wvp, Some(tp)))
     } else {
-        wp = curwin_ptr();
+        Some(curwin_mut())
     }
-
-    wp
 }
 
 /// Get the layout of the given tab page for `winlayout()` (`get_framelayout`).
@@ -331,7 +335,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !rem.is_empty() {
                     let tail = rem;
-                    let twin_ref = crate::globals::gmut(twin);
+                    let twin_ref = unsafe { &mut *twin };
                     if tail == b"j" {
                         twin = win_vert_neighbor(tp, twin_ref, false, count);
                     } else if tail == b"k" {
@@ -354,7 +358,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
         } else {
             nr = 0;
         }
-    } else if !win_has_winnr(crate::globals::gmut(twin), tp) {
+    } else if !win_has_winnr(unsafe { &mut *twin }, tp) {
         nr = 0;
     }
 
@@ -480,23 +484,23 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
 
     if argvars[0].v_type != VarType::VarUnknown {
-        wparg = win_id2wp(tv_get_number(&argvars[0]) as i32);
-        if wparg.is_null() {
+        let Some(wp) = win_id2wp(tv_get_number(&argvars[0]) as i32) else {
             return;
-        }
+        };
+        wparg = wp;
     }
 
     let mut tabnr: i16 = 0;
-    for tp in for_all_tabpages_ptr() {
+    for tp in for_all_tabpages_mut() {
         tabnr = tabnr.wrapping_add(1);
         let mut winnr: i16 = 0;
-        for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
-            let has_winnr = win_has_winnr(&mut *wp, &mut *tp);
+        for wp in win_iter_mut(first_win_in_tab(tp)) {
+            let has_winnr = win_has_winnr(wp, tp);
             winnr = winnr.wrapping_add(i16::from(has_winnr));
             if !wparg.is_null() && !std::ptr::eq(wp, wparg) {
                 continue;
             }
-            let d = get_win_info(&mut *wp, tabnr, if has_winnr { winnr } else { 0 });
+            let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });
             tv_list_append_dict(rettv.vval.v_list_ref(), d);
             if !wparg.is_null() {
                 return;
@@ -553,7 +557,7 @@ pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let nr = if tp.is_null() {
         0
     } else {
-        get_winnr(crate::globals::gmut(tp), &mut argvars[1])
+        get_winnr(unsafe { &mut *tp }, &mut argvars[1])
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }
@@ -564,17 +568,19 @@ pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
     let id = tv_get_number(&argvars[0]) as i32;
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
-    let wp = win_id2wp_tp(id, Some(&mut tp));
-    if wp.is_null() || tp.is_null() {
+    let mut tp: Option<&'static mut TabPageInfo> = None;
+    let Some(wp) = win_id2wp_tp(id, Some(&mut tp)) else {
         return;
-    }
+    };
+    let Some(tp) = tp else {
+        return;
+    };
 
     let mut cs: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut cs,
-        unsafe { wp.as_mut() },
-        unsafe { tp.as_mut() },
+        Some(wp),
+        Some(tp),
         None,
         K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
     ) {
@@ -633,7 +639,7 @@ pub fn f_win_id2win(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let Some(wp) = crate::globals::gopt_mut(find_win_by_nr_or_id(&argvars[0])) else {
+    let Some(wp) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
     if wp.w_floating {
@@ -653,7 +659,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
 pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let Some(wp) = crate::globals::gopt_mut(find_win_by_nr_or_id(&argvars[0])) else {
+    let Some(wp) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
     };
     if wp.w_floating {
@@ -672,10 +678,10 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
 /// `win_screenpos()` function (`f_win_screenpos`).
 pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
-    let wp = crate::globals::gopt(find_win_by_nr_or_id(&argvars[0]));
+    let wp = find_win_by_nr_or_id(&argvars[0]);
     tv_list_append_number(
         rettv.vval.v_list_ref(),
-        wp.map_or(0, |w| (w.w_winrow + 1) as Varnumber),
+        wp.as_ref().map_or(0, |w| (w.w_winrow + 1) as Varnumber),
     );
     tv_list_append_number(
         rettv.vval.v_list_ref(),
@@ -685,8 +691,9 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_splitmove()` function (`f_win_splitmove`).
 pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    let targetwin = find_win_by_nr_or_id(&argvars[1]);
+    let wp: *mut WinInfoInfo = find_win_by_nr_or_id(&argvars[0]).map_or(ptr::null_mut(), |w| w);
+    let targetwin: *mut WinInfoInfo =
+        find_win_by_nr_or_id(&argvars[1]).map_or(ptr::null_mut(), |w| w);
     let oldwin = curwin_ptr();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -696,7 +703,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         || wp == targetwin
         || !win_valid(wp)
         || !win_valid(targetwin)
-        || crate::globals::gptr(targetwin).w_floating
+        || unsafe { (*targetwin).w_floating }
     {
         emsg(gettext(E_INVALWINDOW));
         return;
@@ -747,28 +754,28 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
 pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp = curwin_ptr();
+    let mut wp: &mut WinInfoInfo = curwin_mut();
 
     tv_set_string(rettv, ptr::null());
     if argvars[0].v_type != VarType::VarUnknown {
-        wp = find_win_by_nr_or_id(&argvars[0]);
-        if wp.is_null() {
+        let Some(found) = find_win_by_nr_or_id(&argvars[0]) else {
             tv_set_string(rettv, c"unknown");
             return;
-        }
+        };
+        wp = found;
     }
-    if is_ctx_win(unsafe { &*wp }) {
+    if is_ctx_win(wp) {
         tv_set_string(rettv, c"autocmd");
-    } else if crate::globals::gptr(wp).w_onebuf_opt.wo_pvw != 0 {
+    } else if wp.w_onebuf_opt.wo_pvw != 0 {
         tv_set_string(rettv, c"preview");
-    } else if crate::globals::gptr(wp).w_floating {
+    } else if wp.w_floating {
         tv_set_string(rettv, c"popup");
-    } else if bt_cmdwin(crate::globals::gptr(wp).w_buffer) {
+    } else if bt_cmdwin(wp.w_buffer) {
         tv_set_string(rettv, c"command");
-    } else if bt_quickfix(crate::globals::gopt(crate::globals::gptr(wp).w_buffer)) {
+    } else if bt_quickfix(wp.buf_opt()) {
         tv_set_string(
             rettv,
-            if !crate::globals::gptr(wp).w_llist_ref.is_null() {
+            if !wp.w_llist_ref.is_null() {
                 c"loclist".as_ptr()
             } else {
                 c"quickfix".as_ptr()
@@ -790,11 +797,8 @@ pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 /// `winbufnr(nr)` function (`f_winbufnr`).
 pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-        -1
-    } else {
-        crate::globals::gptr(wp).buf_mut().b_fnum as Varnumber
-    });
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.buf_mut().b_fnum as Varnumber));
 }
 
 /// `wincol()` function (`f_wincol`).
@@ -806,11 +810,8 @@ pub fn f_wincol(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// `winheight(nr)` function (`f_winheight`).
 pub fn f_winheight(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-        -1
-    } else {
-        crate::globals::gptr(wp).w_view_height as Varnumber
-    });
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.w_view_height as Varnumber));
 }
 
 /// `winlayout()` function (`f_winlayout`).
@@ -818,17 +819,17 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     tv_list_alloc_ret(rettv, 2);
 
     let tp = if argvars[0].v_type == VarType::VarUnknown {
-        g_st().curtab
+        curtab_mut()
     } else {
-        let found = find_tabpage(tv_get_number(&argvars[0]) as i32);
-        if found.is_null() {
+        let Some(found) = (unsafe { find_tabpage(tv_get_number(&argvars[0]) as i32).as_mut() })
+        else {
             return;
-        }
+        };
         found
     };
 
     get_framelayout(
-        crate::globals::gopt(crate::globals::gptr(tp).tp_topframe),
+        unsafe { tp.tp_topframe.as_ref() },
         rettv.vval.v_list_ref(),
         true,
     );
@@ -940,9 +941,6 @@ pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// `winwidth(nr)` function (`f_winwidth`).
 pub fn f_winwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-        -1
-    } else {
-        crate::globals::gptr(wp).w_view_width as Varnumber
-    });
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(wp.map_or(-1, |w| w.w_view_width as Varnumber));
 }

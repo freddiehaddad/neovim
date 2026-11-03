@@ -1597,7 +1597,12 @@ fn call_user_func_check(
     selfdict: *mut TvDict,
 ) -> i32 {
     if (fp.uf_flags & FC_LUAREF) != 0 {
-        return nlua_exec_typval_callable(fp.uf_luaref, argcount, argvars, rettv);
+        let argslice = if argvars.is_null() || argcount <= 0 {
+            &mut []
+        } else {
+            unsafe { std::slice::from_raw_parts_mut(argvars, argcount as usize) }
+        };
+        return nlua_exec_typval_callable(fp.uf_luaref, argslice, rettv);
     }
 
     if (fp.uf_flags & FC_RANGE) != 0 {
@@ -1923,7 +1928,16 @@ pub fn call_func(
                         argv.as_mut_ptr(),
                         &mut argv_base,
                     );
-                    nlua_call_vlua(funcname, len as usize, argvars, argcount, rettv);
+                    let argslice = if argvars.is_null() || argcount <= 0 {
+                        &mut []
+                    } else {
+                        unsafe { std::slice::from_raw_parts_mut(argvars, argcount as usize) }
+                    };
+                    nlua_call_vlua(
+                        crate::memory::cstr_slice(funcname, len as usize),
+                        argslice,
+                        rettv,
+                    );
                 } else {
                     name_owned = None;
                     funcname = c"v:lua".as_ptr();
@@ -2018,15 +2032,7 @@ pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> i32 {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let mut argvars: [TypVal; 1] = [TypVal::new(); 1];
-    argvars[0].v_type = VarType::VarUnknown;
-    nlua_call_vlua(
-        funcname.as_ptr().cast(),
-        funcname.len(),
-        argvars.as_mut_ptr(),
-        0,
-        &mut *rettv,
-    );
+    nlua_call_vlua(funcname, &mut [], &mut *rettv);
     OK
 }
 

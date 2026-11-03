@@ -1056,25 +1056,30 @@ pub fn home_replace<T>(
     if !homedir_env_mod.is_null() && crate::memory::cstr_first_byte(homedir_env_mod.cast()) == b'~'
     {
         let mut usedlen: usize = 0;
-        let mut flen = crate::memory::cstr_len(homedir_env_mod.cast());
-        let mut fbuf: Option<Vec<u8>> = None;
+        let mut fbuf = crate::memory::cstr_to_cstring(homedir_env_mod.cast()).into_bytes_with_nul();
+        let mut fname_off = 0usize;
+        let mut flen = fbuf.len() - 1;
         let _ = modify_fname(
-            c":p",
+            b":p",
             false,
             &mut usedlen,
-            &raw mut homedir_env_mod,
             &mut fbuf,
+            &mut fname_off,
             &mut flen,
             false,
         );
-        flen = crate::memory::cstr_len(homedir_env_mod.cast());
-        assert_ne!(homedir_env_mod, homedir_env.cast());
-        if let Some(mut mod_vec) = fbuf {
-            if flen > 0 && vim_ispathsep(i32::from(mod_vec[flen - 1])) {
-                mod_vec[flen - 1] = 0;
+        if !fbuf.is_empty() {
+            if fname_off > 0 {
+                fbuf.drain(..fname_off);
             }
-            homedir_env_mod_vec = mod_vec;
+            flen = crate::memory::cstr_len(fbuf.as_ptr().cast());
+            if flen > 0 && vim_ispathsep(i32::from(fbuf[flen - 1])) {
+                fbuf[flen - 1] = 0;
+            }
+            homedir_env_mod_vec = fbuf;
             homedir_env_mod = homedir_env_mod_vec.as_mut_ptr();
+        } else {
+            homedir_env_mod = ptr::null_mut();
         }
     }
 

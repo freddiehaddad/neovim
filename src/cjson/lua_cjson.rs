@@ -589,7 +589,9 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 };
                 if keytype == LUA_TSTRING {
                     json_append_string_contents(l, ctx, -2, true);
-                    key_entry.raw = KeyEntryRaw::String(lua_tostring(l, -2));
+                    key_entry.raw = KeyEntryRaw::String(
+                        lua_tostring(l, -2).map_or(ptr::null(), std::ffi::CStr::as_ptr),
+                    );
                 } else if keytype == LUA_TNUMBER {
                     json_append_number(l, ctx, -2, true);
                     key_entry.raw = KeyEntryRaw::Number(lua_tointeger(l, -2) as lua_Number);
@@ -632,7 +634,9 @@ fn json_append_object(l: *mut lua_State, ctx: &mut JsonEncode, current_depth: i3
                 }
 
                 match current_key.raw {
-                    KeyEntryRaw::String(s) => lua_pushstring(l, s),
+                    KeyEntryRaw::String(s) => {
+                        lua_pushstring(l, crate::memory::cstr_from_ptr(s));
+                    }
                     KeyEntryRaw::Number(n) => lua_pushnumber(l, n),
                 }
 
@@ -839,7 +843,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> i32 {
 
                 lua_getfield(l, 2, c"indent");
                 if !lua_isnil(l, -1) {
-                    options.indent = luaL_checkstring(l, -1);
+                    options.indent = luaL_checkstring(l, -1).as_ptr();
                     if *options.indent == 0 {
                         options.indent = ptr::null();
                     }
@@ -1483,7 +1487,7 @@ fn compat_lua_l_setfuncs(l: *mut lua_State, reg: &[luaL_Reg], nup: i32) {
                 lua_pushvalue(l, -nup);
             }
             lua_pushcclosure(l, entry.func, nup);
-            lua_setfield(l, -(nup + 2), entry.name);
+            lua_setfield(l, -(nup + 2), crate::memory::cstr_from_ptr(entry.name));
         }
         lua_pop(l, nup);
     }

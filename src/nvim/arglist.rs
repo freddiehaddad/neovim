@@ -1238,13 +1238,11 @@ pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as Varnumber);
     } else {
         let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(
-            if let Some(wp_ref) = crate::globals::gopt(wp) {
-                wargcount(wp_ref) as Varnumber
-            } else {
-                -1
-            },
-        );
+        rettv.vval = crate::eval::typval::TypvalVval::Number(if let Some(wp_ref) = wp {
+            wargcount(wp_ref) as Varnumber
+        } else {
+            -1
+        });
     }
 }
 
@@ -1256,8 +1254,7 @@ pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// `arglistid()` function (`f_arglistid`).
 pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
-    let wp = find_tabwin(&argvars[0], &argvars[1]);
-    if let Some(wp_ref) = crate::globals::gopt(wp) {
+    if let Some(wp_ref) = find_tabwin(&argvars[0], &argvars[1]) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(win_alist(wp_ref).id as Varnumber);
     }
 }
@@ -1289,11 +1286,8 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         entries = Some(&arglist_slice()[..(argcount() as usize)]);
     } else if argvars[1].v_type == VarType::VarNumber && tv_get_number(&argvars[1]) == -1 {
         entries = Some(&garglist_slice()[..(gargcount() as usize)]);
-    } else {
-        let wp = find_win_by_nr_or_id(&argvars[1]);
-        if let Some(wp_ref) = crate::globals::gopt(wp) {
-            entries = Some(&warglist_slice(wp_ref)[..(wargcount(wp_ref) as usize)]);
-        }
+    } else if let Some(wp_ref) = find_win_by_nr_or_id(&argvars[1]) {
+        entries = Some(&warglist_slice(wp_ref)[..(wargcount(wp_ref) as usize)]);
     }
 
     tv_set_string(rettv, ptr::null());

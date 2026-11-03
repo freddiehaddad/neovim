@@ -77,7 +77,7 @@ pub unsafe extern "C" fn luaopen_base64(lstate: *mut lua_State) -> i32 {
     unsafe {
         {
             lua_createtable(lstate, 0, 0);
-            luaL_register(lstate, std::ptr::null(), BASE64_FUNCTIONS.as_ptr());
+            luaL_register(lstate, None, &BASE64_FUNCTIONS);
         }
         1
     }

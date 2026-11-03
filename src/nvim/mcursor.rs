@@ -1312,7 +1312,7 @@ fn mc_lua_enable(enable: bool) {
             vval: TypvalVval::Number(0),
         },
     ];
-    nlua_call_typval(c"vim._core.mcursor", c"enable", tv_args.as_mut_ptr(), None);
+    nlua_call_typval(c"vim._core.mcursor", c"enable", &mut tv_args, None);
 }
 
 pub fn mc_mark_at(buf: &mut FileBuf, pos: CursorPos, skip: u32) -> u32 {
@@ -1642,7 +1642,7 @@ pub fn mc_counter(count1: i64) {
             vval: TypvalVval::Number(0),
         },
     ];
-    nlua_call_typval(c"vim._core.mcursor", c"number", tv_args.as_mut_ptr(), None);
+    nlua_call_typval(c"vim._core.mcursor", c"number", &mut tv_args, None);
 }
 
 pub fn mc_follow_set(on: TriState) {

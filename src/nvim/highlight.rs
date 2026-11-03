@@ -497,7 +497,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
         hl_st().ns_get_hl_recursive += 1;
         let ret = nlua_call_ref(
             p.hl_def,
-            c"hl_def",
+            Some(c"hl_def"),
             args,
             K_RET_OBJECT,
             None,

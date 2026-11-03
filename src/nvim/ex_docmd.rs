@@ -9159,7 +9159,7 @@ fn ex_exmode(_eap: &mut Exarg) {
         v_lock: 0,
         vval: TypvalVval::Number(0),
     }];
-    nlua_call_typval(c"vim._core.exmode", c"open", args.as_mut_ptr(), None);
+    nlua_call_typval(c"vim._core.exmode", c"open", &mut args, None);
 }
 
 fn ex_restart(eap: &mut Exarg) {
@@ -9305,7 +9305,7 @@ fn ex_restart(eap: &mut Exarg) {
                 cstr_as_string(Some(
                     c"return require('vim._core.server').restart_canonical_addr",
                 )),
-                ptr::null(),
+                None,
                 Array {
                     items: ptr::null_mut(),
                     size: 0,
@@ -9599,12 +9599,12 @@ fn ex_restart(eap: &mut Exarg) {
 fn ex_close(eap: &mut Exarg) {
     if !text_locked() && !curbuf_locked() {
         let win = if eap.addr_count == 0 {
-            curwin_ptr()
+            curwin_mut()
         } else {
-            let w = win_find_nr(eap.line2, g_st().curtab);
-            if w.is_null() { g_st().lastwin } else { w }
+            win_find_nr(eap.line2, Some(curtab_mut()))
+                .unwrap_or_else(|| unsafe { &mut *g_st().lastwin })
         };
-        ex_win_close(eap.forceit, crate::globals::gmut(win), ptr::null_mut());
+        ex_win_close(eap.forceit, win, ptr::null_mut());
     }
 }
 
@@ -9834,11 +9834,10 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    let win = if eap.addr_count == 0 {
+    let win: *mut WinInfoInfo = if eap.addr_count == 0 {
         curwin_ptr()
     } else {
-        let w = win_find_nr(eap.line2, g_st().curtab);
-        if w.is_null() { g_st().lastwin } else { w }
+        win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin, |w| w)
     };
 
     if !crate::globals::gptr(win).w_floating && window_layout_locked(Cmdidx::CmdHide) {
@@ -12218,21 +12217,27 @@ pub fn eval_vars(
                     resultlen = (s as usize) - (result as usize);
                 }
             } else if !skip_mod {
-                let mut res_u8 = result.cast::<u8>();
-                valid |= modify_fname(
-                    src,
+                let mut fbuf = match resultbuf.take() {
+                    Some(v) => v,
+                    None => crate::memory::cstr_to_cstring(result).into_bytes_with_nul(),
+                };
+                let mut fname_off = 0usize;
+                let mod_res = modify_fname(
+                    crate::memory::cstr_as_bytes(src),
                     tilde_file,
                     usedlen,
-                    &raw mut res_u8,
-                    &mut resultbuf,
+                    &mut fbuf,
+                    &mut fname_off,
                     &mut resultlen,
                     use_shellslash,
                 );
-                result = res_u8.cast();
-                if result.is_null() {
+                if mod_res == -1 {
                     *errormsg = Some(c"");
                     return None;
                 }
+                valid |= mod_res;
+                result = unsafe { fbuf.as_mut_ptr().add(fname_off).cast() };
+                resultbuf = Some(fbuf);
             }
         }
 

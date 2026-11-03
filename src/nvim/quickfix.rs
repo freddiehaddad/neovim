@@ -2978,7 +2978,7 @@ fn qf_jump_edit_buffer(
 
     if qfl_type == QFLT_LOCATION {
         let wp = win_id2wp(prev_winid);
-        if wp.is_null() && curwin_mut().w_llist != qi {
+        if wp.is_none() && curwin_mut().w_llist != qi {
             emsg(gettext(c"E924: Current window was closed"));
             *opened_window = false;
             return QF_ABORT;
@@ -7417,7 +7417,7 @@ fn get_qf_loc_list(
 
 pub fn f_getloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    get_qf_loc_list(false, crate::globals::gopt(wp), &mut argvars[1], rettv);
+    get_qf_loc_list(false, wp.as_deref(), &mut argvars[1], rettv);
 }
 
 pub fn f_getqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -7490,8 +7490,7 @@ fn set_qf_ll_list(wp: *mut WinInfoInfo, args: &mut [TypVal], rettv: &mut TypVal)
 pub fn f_setloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let win = find_win_by_nr_or_id(&argvars[0]);
-    if !win.is_null() {
+    if let Some(win) = find_win_by_nr_or_id(&argvars[0]) {
         set_qf_ll_list(win, &mut argvars[1..], rettv);
     }
 }

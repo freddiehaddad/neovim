@@ -107,7 +107,9 @@ use crate::cmdexpand::{
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::eval::encode::{encode_list_write, encode_tv2echo, encode_tv2string};
 use crate::eval::executor::eexe_mod_op;
-use crate::eval::gc::{gc_dicts_slice, gc_lists_slice};
+use crate::eval::gc::{
+    gc_dict_at, gc_dicts_len, gc_free_dict_at, gc_free_list_at, gc_list_at, gc_lists_len,
+};
 use crate::event::multiqueue::{multiqueue_free, multiqueue_new_child};
 use crate::event::time::{
     TimeWatcher, TimeWatcherData, time_watcher_close, time_watcher_init, time_watcher_start,
@@ -4534,16 +4536,16 @@ fn free_unref_items(copy_id: i32) -> i32 {
 
     tv_st().tv_in_free_unref_items = true;
 
-    for &dd in gc_dicts_slice().iter().rev() {
-        let dd_ref = crate::globals::gmut(dd);
+    for idx in (0..gc_dicts_len()).rev() {
+        let dd_ref = gc_dict_at(idx);
         if (dd_ref.dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
             tv_dict_free_contents(dd_ref);
             did_free = true;
         }
     }
 
-    for &ll in gc_lists_slice().iter().rev() {
-        let ll_ref = crate::globals::gmut(ll);
+    for idx in (0..gc_lists_len()).rev() {
+        let ll_ref = gc_list_at(idx);
         if (tv_list_copyid(ll_ref) & COPYID_MASK) != (copy_id & COPYID_MASK)
             && !tv_list_has_watchers(ll_ref)
         {
@@ -4552,24 +4554,22 @@ fn free_unref_items(copy_id: i32) -> i32 {
         }
     }
 
-    let mut i = gc_dicts_slice().len();
+    let mut i = gc_dicts_len();
     while i > 0 {
         i -= 1;
-        let dd_cur = gc_dicts_slice()[i];
-        if (crate::globals::gptr(dd_cur).dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
-            drop(unsafe { Box::from_raw(dd_cur) });
+        if (gc_dict_at(i).dv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK) {
+            gc_free_dict_at(i);
         }
     }
 
-    let mut j = gc_lists_slice().len();
+    let mut j = gc_lists_len();
     while j > 0 {
         j -= 1;
-        let ll_cur = gc_lists_slice()[j];
-        let ll_ref = crate::globals::gref(ll_cur);
+        let ll_ref = gc_list_at(j);
         if (ll_ref.lv_copy_id & COPYID_MASK) != (copy_id & COPYID_MASK)
             && !tv_list_has_watchers(ll_ref)
         {
-            drop(unsafe { Box::from_raw(ll_cur) });
+            gc_free_list_at(j);
         }
     }
 
@@ -5274,7 +5274,7 @@ pub fn callback_call(
             eval_st().callback_depth += 1;
             let result = nlua_call_ref(
                 luaref,
-                ptr::null(),
+                None,
                 luaargs,
                 K_RET_OBJECT,
                 Some(&mut arena),

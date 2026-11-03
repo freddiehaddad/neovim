@@ -15497,7 +15497,7 @@ extern "C-unwind" fn nlua_finish_api_call(
             lua_pushstring(lstate, err_param);
             lua_pushstring(lstate, c"': ");
         }
-        lua_pushstring(lstate, err.msg_cstr());
+        crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
         api_clear_error(err);
 
         unsafe { lua_concat(lstate, if err_param.is_some() { 5 } else { 2 }) };
@@ -15532,7 +15532,7 @@ extern "C-unwind" fn nlua_api_nvim_get_autocmds(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_get_autocmds_get_field),
                     &mut err_param,
                     &mut arena,
@@ -15576,7 +15576,7 @@ extern "C-unwind" fn nlua_api_nvim_create_autocmd(lstate: *mut lua_State) -> i32
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_create_autocmd_get_field),
                     &mut err_param,
                     &mut arena,
@@ -15658,7 +15658,7 @@ extern "C-unwind" fn nlua_api_nvim_clear_autocmds(lstate: *mut lua_State) -> i32
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_clear_autocmds_get_field),
                     &mut err_param,
                     &mut arena,
@@ -15700,7 +15700,7 @@ extern "C-unwind" fn nlua_api_nvim_create_augroup(lstate: *mut lua_State) -> i32
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_create_augroup_get_field),
                     &mut err_param,
                     &mut arena,
@@ -15812,7 +15812,7 @@ extern "C-unwind" fn nlua_api_nvim_exec_autocmds(lstate: *mut lua_State) -> i32 
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_exec_autocmds_get_field),
                     &mut err_param,
                     &mut arena,
@@ -15897,7 +15897,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_attach(lstate: *mut lua_State) -> i32 {
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_buf_attach_get_field),
                         &mut err_param,
                         &mut arena,
@@ -16199,7 +16199,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_text(lstate: *mut lua_State) -> i32 {
                             if nlua_gettop(lstate) == 6 {
                                 nlua_pop_keydict(
                                     lstate,
-                                    (&raw mut arg6).cast(),
+                                    &mut arg6,
                                     Some(key_dict_empty_get_field),
                                     &mut err_param,
                                     &mut arena,
@@ -16342,7 +16342,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_var(lstate: *mut lua_State) -> i32 {
             let mut ret = nvim_buf_get_var(arg1, arg2, &mut arena, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -16457,7 +16457,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_keymap(lstate: *mut lua_State) -> i32
                         if nlua_gettop(lstate) == 5 {
                             nlua_pop_keydict(
                                 lstate,
-                                (&raw mut arg5).cast(),
+                                &mut arg5,
                                 Some(key_dict_keymap_get_field),
                                 &mut err_param,
                                 &mut arena,
@@ -16534,7 +16534,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_del_keymap(lstate: *mut lua_State) -> i32
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_keymap_del_get_field),
                             &mut err_param,
                             &mut arena,
@@ -16794,7 +16794,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_delete(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_buf_delete_get_field),
                     &mut err_param,
                     &mut arena,
@@ -16925,7 +16925,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_mark(lstate: *mut lua_State) -> i32 {
                         if nlua_gettop(lstate) == 5 {
                             nlua_pop_keydict(
                                 lstate,
-                                (&raw mut arg5).cast(),
+                                &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
                                 &mut arena,
@@ -17110,7 +17110,7 @@ extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
                     &mut arena,
@@ -17127,12 +17127,8 @@ extern "C-unwind" fn nlua_api_nvim_parse_cmd(lstate: *mut lua_State) -> i32 {
             }
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
-            let mut ret = nvim_parse_cmd(arg1, &mut arg2, &mut arena, &mut err);
-            nlua_push_keydict(
-                lstate,
-                (&raw mut ret).cast(),
-                (&raw const CMD_TABLE).cast_mut().cast(),
-            );
+            let ret = nvim_parse_cmd(arg1, &mut arg2, &mut arena, &mut err);
+            nlua_push_keydict(lstate, &ret, &CMD_TABLE);
             nlua_st().active_lstate = save_active_lstate;
         }
         api_luarefs_free_keydict(&arg2, &EMPTY_TABLE);
@@ -17163,7 +17159,7 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
                 if nlua_gettop(lstate) == 2 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg2).cast(),
+                        &mut arg2,
                         Some(key_dict_cmd_opts_get_field),
                         &mut err_param,
                         &mut arena,
@@ -17175,7 +17171,7 @@ extern "C-unwind" fn nlua_api_nvim_cmd(lstate: *mut lua_State) -> i32 {
                 }
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_cmd_get_field),
                     &mut err_param,
                     &mut arena,
@@ -17231,7 +17227,7 @@ extern "C-unwind" fn nlua_api_nvim_create_user_command(lstate: *mut lua_State) -
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_user_command_get_field),
                         &mut err_param,
                         &mut arena,
@@ -17322,7 +17318,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_create_user_command(lstate: *mut lua_Stat
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_user_command_get_field),
                             &mut err_param,
                             &mut arena,
@@ -17426,7 +17422,7 @@ extern "C-unwind" fn nlua_api_nvim_get_commands(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
                     &mut arena,
@@ -17473,7 +17469,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_commands(lstate: *mut lua_State) -> i
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_get_commands_get_field),
                     &mut err_param,
                     &mut arena,
@@ -17783,7 +17779,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_virtual_text(lstate: *mut lua_State) 
                         if nlua_gettop(lstate) == 5 {
                             nlua_pop_keydict(
                                 lstate,
-                                (&raw mut arg5).cast(),
+                                &mut arg5,
                                 Some(key_dict_empty_get_field),
                                 &mut err_param,
                                 &mut arena,
@@ -18019,7 +18015,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_get_option(arg1, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -18062,7 +18058,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_option(lstate: *mut lua_State) -> i32
             let mut ret = nvim_buf_get_option(arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -18153,7 +18149,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_option(lstate: *mut lua_State) -> i32
             let mut ret = nvim_win_get_option(arg1, arg2, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -18341,7 +18337,7 @@ extern "C-unwind" fn nlua_api_nvim_notify(lstate: *mut lua_State) -> i32 {
                 let mut ret = nvim_notify(arg1, arg2, arg3, &mut arena, &mut err);
                 nlua_push_object(
                     lstate,
-                    &raw mut ret,
+                    &mut ret,
                     K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
                 );
                 nlua_st().active_lstate = save_active_lstate;
@@ -18517,7 +18513,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmark_by_id(lstate: *mut lua_State)
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_get_extmark_get_field),
                             &mut err_param,
                             &mut arena,
@@ -18589,7 +18585,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_get_extmarks(lstate: *mut lua_State) -> i
                         if nlua_gettop(lstate) == 5 {
                             nlua_pop_keydict(
                                 lstate,
-                                (&raw mut arg5).cast(),
+                                &mut arg5,
                                 Some(key_dict_get_extmarks_get_field),
                                 &mut err_param,
                                 &mut arena,
@@ -18669,7 +18665,7 @@ extern "C-unwind" fn nlua_api_nvim_buf_set_extmark(lstate: *mut lua_State) -> i3
                         if nlua_gettop(lstate) == 5 {
                             nlua_pop_keydict(
                                 lstate,
-                                (&raw mut arg5).cast(),
+                                &mut arg5,
                                 Some(key_dict_set_extmark_get_field),
                                 &mut err_param,
                                 &mut arena,
@@ -18844,7 +18840,7 @@ extern "C-unwind" fn nlua_api_nvim_set_decoration_provider(lstate: *mut lua_Stat
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_set_decoration_provider_get_field),
                     &mut err_param,
                     &mut arena,
@@ -18979,7 +18975,7 @@ extern "C-unwind" fn nlua_api_nvim_ns_set(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_ns_opts_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19028,12 +19024,8 @@ extern "C-unwind" fn nlua_api_nvim_ns_get(lstate: *mut lua_State) -> i32 {
         }
         let save_active_lstate = nlua_st().active_lstate;
         nlua_st().active_lstate = lstate;
-        let mut ret = nvim_ns_get(arg1, &mut arena, &mut err);
-        nlua_push_keydict(
-            lstate,
-            (&raw mut ret).cast(),
-            (&raw const NS_OPTS_TABLE).cast_mut().cast(),
-        );
+        let ret = nvim_ns_get(arg1, &mut arena, &mut err);
+        nlua_push_keydict(lstate, &ret, &NS_OPTS_TABLE);
         nlua_st().active_lstate = save_active_lstate;
     }
     nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -19071,7 +19063,7 @@ extern "C-unwind" fn nlua_api_nvim_option_to_object(lstate: *mut lua_State) -> i
             let save_active_lstate = nlua_st().active_lstate;
             nlua_st().active_lstate = lstate;
             let mut ret = nvim_option_to_object(arg1, arg2, &mut arena, &mut err);
-            nlua_push_object(lstate, &raw mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
+            nlua_push_object(lstate, &mut ret, K_NLUA_PUSH_FREE_REFS_CONST);
             nlua_st().active_lstate = save_active_lstate;
         }
         api_luarefs_free_object(arg2);
@@ -19101,7 +19093,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19121,7 +19113,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option_value(lstate: *mut lua_State) -> i
             let mut ret = nvim_get_option_value(arg1, &mut arg2, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -19156,7 +19148,7 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_option_get_field),
                         &mut err_param,
                         &mut arena,
@@ -19188,7 +19180,7 @@ extern "C-unwind" fn nlua_api_nvim_set_option_value(lstate: *mut lua_State) -> i
                 );
                 nlua_push_object(
                     lstate,
-                    &raw mut ret,
+                    &mut ret,
                     K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
                 );
                 nlua_st().active_lstate = save_active_lstate;
@@ -19251,7 +19243,7 @@ extern "C-unwind" fn nlua_api_nvim_get_option_info2(lstate: *mut lua_State) -> i
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_option_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19346,7 +19338,7 @@ extern "C-unwind" fn nlua_api_nvim_tabpage_get_var(lstate: *mut lua_State) -> i3
             let mut ret = nvim_tabpage_get_var(arg1, arg2, &mut arena, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -19614,7 +19606,7 @@ extern "C-unwind" fn nlua_api_nvim_open_tabpage(lstate: *mut lua_State) -> i32 {
                 }
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg3).cast(),
+                    &mut arg3,
                     Some(key_dict_tabpage_config_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19732,7 +19724,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_get_highlight_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19781,7 +19773,7 @@ extern "C-unwind" fn nlua_api_nvim_set_hl(lstate: *mut lua_State) -> i32 {
                 }
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg3).cast(),
+                    &mut arg3,
                     Some(key_dict_highlight_get_field),
                     &mut err_param,
                     &mut arena,
@@ -19832,7 +19824,7 @@ extern "C-unwind" fn nlua_api_nvim_get_hl_ns(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_get_ns_get_field),
                     &mut err_param,
                     &mut arena,
@@ -20296,7 +20288,7 @@ extern "C-unwind" fn nlua_api_nvim_get_runtime(lstate: *mut lua_State) -> i32 {
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_runtime_get_field),
                         &mut err_param,
                         &mut arena,
@@ -20488,7 +20480,7 @@ extern "C-unwind" fn nlua_api_nvim_get_var(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_get_var(arg1, &mut arena, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -20592,7 +20584,7 @@ extern "C-unwind" fn nlua_api_nvim_get_vvar(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_get_vvar(arg1, &mut arena, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -20663,7 +20655,7 @@ extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_echo_opts_get_field),
                         &mut err_param,
                         &mut arena,
@@ -20688,7 +20680,7 @@ extern "C-unwind" fn nlua_api_nvim_echo(lstate: *mut lua_State) -> i32 {
                 let mut ret = nvim_echo(arg1, arg2, &mut arg3, &mut err);
                 nlua_push_object(
                     lstate,
-                    &raw mut ret,
+                    &mut ret,
                     K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
                 );
                 nlua_st().active_lstate = save_active_lstate;
@@ -20964,7 +20956,7 @@ extern "C-unwind" fn nlua_api_nvim_open_term(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_open_term_get_field),
                     &mut err_param,
                     &mut arena,
@@ -21334,7 +21326,7 @@ extern "C-unwind" fn nlua_api_nvim_get_context(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_context_get_field),
                     &mut err_param,
                     &mut arena,
@@ -21386,7 +21378,7 @@ extern "C-unwind" fn nlua_api_nvim_load_context(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_load_context(arg1, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -21481,7 +21473,7 @@ extern "C-unwind" fn nlua_api_nvim_set_keymap(lstate: *mut lua_State) -> i32 {
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_keymap_get_field),
                             &mut err_param,
                             &mut arena,
@@ -21542,7 +21534,7 @@ extern "C-unwind" fn nlua_api_nvim_del_keymap(lstate: *mut lua_State) -> i32 {
                 if nlua_gettop(lstate) == 3 {
                     nlua_pop_keydict(
                         lstate,
-                        (&raw mut arg3).cast(),
+                        &mut arg3,
                         Some(key_dict_keymap_del_get_field),
                         &mut err_param,
                         &mut arena,
@@ -21591,7 +21583,7 @@ extern "C-unwind" fn nlua_api_nvim_chan_set(lstate: *mut lua_State) -> i32 {
             }
             nlua_pop_keydict(
                 lstate,
-                (&raw mut arg2).cast(),
+                &mut arg2,
                 Some(key_dict_chan_set_get_field),
                 &mut err_param,
                 &mut arena,
@@ -21744,7 +21736,7 @@ extern "C-unwind" fn nlua_api_nvim_id(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_id(arg1, &mut arena);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -21978,7 +21970,7 @@ extern "C-unwind" fn nlua_api_nvim_get_proc(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_get_proc(arg1, &mut arena, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -22012,7 +22004,7 @@ extern "C-unwind" fn nlua_api_nvim_select_popupmenu_item(lstate: *mut lua_State)
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_empty_get_field),
                             &mut err_param,
                             &mut arena,
@@ -22175,7 +22167,7 @@ extern "C-unwind" fn nlua_api_nvim_unpack(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_unpack(arg1, &mut arena, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -22240,7 +22232,7 @@ extern "C-unwind" fn nlua_api_nvim_get_mark(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_empty_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22289,7 +22281,7 @@ extern "C-unwind" fn nlua_api_nvim_eval_statusline(lstate: *mut lua_State) -> i3
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_eval_statusline_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22341,7 +22333,7 @@ extern "C-unwind" fn nlua_api_nvim_complete_set(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_complete_set_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22392,7 +22384,7 @@ extern "C-unwind" fn nlua_api_nvim_redraw(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 1 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg1).cast(),
+                    &mut arg1,
                     Some(key_dict_redraw_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22472,7 +22464,7 @@ extern "C-unwind" fn nlua_api_nvim_exec2(lstate: *mut lua_State) -> i32 {
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_exec_opts_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22556,7 +22548,7 @@ extern "C-unwind" fn nlua_api_nvim_eval(lstate: *mut lua_State) -> i32 {
         let mut ret = nvim_eval(arg1, &mut arena, &mut err);
         nlua_push_object(
             lstate,
-            &raw mut ret,
+            &mut ret,
             K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
         );
         nlua_st().active_lstate = save_active_lstate;
@@ -22598,7 +22590,7 @@ extern "C-unwind" fn nlua_api_nvim_call_function(lstate: *mut lua_State) -> i32 
             let mut ret = nvim_call_function(LUA_INTERNAL_CALL, arg1, arg2, &mut arena, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -22655,7 +22647,7 @@ extern "C-unwind" fn nlua_api_nvim_call_dict_function(lstate: *mut lua_State) ->
                 );
                 nlua_push_object(
                     lstate,
-                    &raw mut ret,
+                    &mut ret,
                     K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
                 );
                 nlua_st().active_lstate = save_active_lstate;
@@ -22745,7 +22737,7 @@ extern "C-unwind" fn nlua_api_nvim_open_win(lstate: *mut lua_State) -> i32 {
                 }
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg3).cast(),
+                    &mut arg3,
                     Some(key_dict_win_config_get_field),
                     &mut err_param,
                     &mut arena,
@@ -22801,7 +22793,7 @@ extern "C-unwind" fn nlua_api_nvim_win_set_config(lstate: *mut lua_State) -> i32
             }
             nlua_pop_keydict(
                 lstate,
-                (&raw mut arg2).cast(),
+                &mut arg2,
                 Some(key_dict_win_config_get_field),
                 &mut err_param,
                 &mut arena,
@@ -22849,12 +22841,8 @@ extern "C-unwind" fn nlua_api_nvim_win_get_config(lstate: *mut lua_State) -> i32
         }
         let save_active_lstate = nlua_st().active_lstate;
         nlua_st().active_lstate = lstate;
-        let mut ret = nvim_win_get_config(arg1, &mut arena, &mut err);
-        nlua_push_keydict(
-            lstate,
-            (&raw mut ret).cast(),
-            (&raw const WIN_CONFIG_TABLE).cast_mut().cast(),
-        );
+        let ret = nvim_win_get_config(arg1, &mut arena, &mut err);
+        nlua_push_keydict(lstate, &ret, &WIN_CONFIG_TABLE);
         nlua_st().active_lstate = save_active_lstate;
     }
     nlua_finish_api_call(lstate, &mut arena, &mut err, err_param, 1)
@@ -23118,7 +23106,7 @@ extern "C-unwind" fn nlua_api_nvim_win_get_var(lstate: *mut lua_State) -> i32 {
             let mut ret = nvim_win_get_var(arg1, arg2, &mut arena, &mut err);
             nlua_push_object(
                 lstate,
-                &raw mut ret,
+                &mut ret,
                 K_NLUA_PUSH_SPECIAL_CONST | K_NLUA_PUSH_FREE_REFS_CONST,
             );
             nlua_st().active_lstate = save_active_lstate;
@@ -23536,7 +23524,7 @@ extern "C-unwind" fn nlua_api_nvim_win_text_height(lstate: *mut lua_State) -> i3
             if nlua_gettop(lstate) == 2 {
                 nlua_pop_keydict(
                     lstate,
-                    (&raw mut arg2).cast(),
+                    &mut arg2,
                     Some(key_dict_win_text_height_get_field),
                     &mut err_param,
                     &mut arena,
@@ -23588,7 +23576,7 @@ extern "C-unwind" fn nlua_api_nvim_win_resize(lstate: *mut lua_State) -> i32 {
                     if nlua_gettop(lstate) == 4 {
                         nlua_pop_keydict(
                             lstate,
-                            (&raw mut arg4).cast(),
+                            &mut arg4,
                             Some(key_dict_win_resize_get_field),
                             &mut err_param,
                             &mut arena,

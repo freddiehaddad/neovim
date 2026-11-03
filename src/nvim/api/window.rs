@@ -402,14 +402,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {
             let args = Array::new();
-            nlua_call_ref(
-                fn_ref,
-                ptr::null(),
-                args,
-                K_RET_MULTI_STACK,
-                None,
-                Some(err),
-            );
+            nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, None, Some(err));
         }
         ctx_restore(&mut cs);
     });

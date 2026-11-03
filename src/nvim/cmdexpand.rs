@@ -4661,7 +4661,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
                 data: code.as_ptr().cast_mut(),
                 size: code.to_bytes().len(),
             },
-            ptr::null(),
+            None,
             a,
             K_RET_OBJECT,
             None,
@@ -4728,7 +4728,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         let mut err = Error::new();
         let res = nlua_exec(
             cstr_as_string(crate::memory::cstr_as_opt_cstr(lua.as_ptr())),
-            ptr::null(),
+            None,
             args,
             K_RET_OBJECT,
             None,

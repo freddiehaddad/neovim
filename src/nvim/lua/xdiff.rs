@@ -5,9 +5,9 @@ use crate::api::private::validate::{Error, ErrorType, NvimString, Object, Object
 use crate::linematch::{fastforward_buf_to_lnum, linematch_nbuffers};
 use crate::lua::converter::{
     LUA_TFUNCTION, LUA_TTABLE, lua_State, lua_concat, lua_createtable, lua_error, lua_gettop,
-    lua_isnumber, lua_objlen, lua_pcall, lua_push_bytes, lua_pushinteger, lua_pushstring,
-    lua_pushvalue, lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror,
-    luaL_error, luaL_where, nlua_pop_keydict_opt,
+    lua_isnumber, lua_objlen, lua_pcall, lua_push_bytes, lua_pushinteger, lua_pushvalue,
+    lua_rawseti, lua_settop, lua_tolstring, lua_tonumber, lua_type, luaL_argerror, luaL_error,
+    luaL_where, nlua_pop_keydict_opt,
 };
 use crate::lua::executor::{api_free_luaref, nlua_pushref};
 use crate::xdiff::xdiffi::xdl_diff;
@@ -131,16 +131,16 @@ fn lua_pushhunk(
 
 fn get_linematch_results(
     lstate: *mut lua_State,
-    ma: *mut Mmfile,
-    mb: *mut Mmfile,
+    ma: &Mmfile,
+    mb: &Mmfile,
     start_a: i32,
     count_a: i32,
     start_b: i32,
     count_b: i32,
     iwhite: bool,
 ) {
-    let ma0 = fastforward_buf_to_lnum(unsafe { *ma }, start_a + 1);
-    let mb0 = fastforward_buf_to_lnum(unsafe { *mb }, start_b + 1);
+    let ma0 = fastforward_buf_to_lnum(*ma, start_a + 1);
+    let mb0 = fastforward_buf_to_lnum(*mb, start_b + 1);
 
     let decisions = linematch_nbuffers(&[&ma0, &mb0], &[count_a, count_b], iwhite);
 
@@ -206,8 +206,8 @@ pub(crate) fn hunk_locations_cb(
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
             lstate,
-            priv_ref.ma,
-            priv_ref.mb,
+            unsafe { &*priv_ref.ma },
+            unsafe { &*priv_ref.mb },
             start_a,
             count_a,
             start_b,
@@ -297,7 +297,7 @@ fn process_xdl_diff_opts(
     {
         nlua_pop_keydict_opt(
             lstate,
-            (&raw mut opts).cast(),
+            &mut opts,
             Some(key_dict_xdl_diff_get_field),
             &mut err_param,
             None,
@@ -468,7 +468,7 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
 
     if priv_state.err.err_type != ErrorType::ErrorTypeNone {
         unsafe { luaL_where(lstate, 1) };
-        lua_pushstring(lstate, priv_state.err.msg_cstr());
+        crate::lua::converter::lua_pushstring_opt(lstate, priv_state.err.msg_cstr());
         api_clear_error(&mut priv_state.err);
         unsafe { lua_concat(lstate, 2) };
         return unsafe { lua_error(lstate) };

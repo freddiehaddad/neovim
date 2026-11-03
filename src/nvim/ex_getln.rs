@@ -5082,11 +5082,11 @@ fn cmdwin_invoke(
         ];
         nlua_call_typval(
             c"vim._core.cmdwin",
-            action,
+            crate::memory::cstr_from_ptr(action),
             if firstc != 0 {
-                tv_args.as_mut_ptr()
+                &mut tv_args
             } else {
-                tv_args.as_mut_ptr().wrapping_add(3)
+                &mut tv_args[3..]
             },
             None,
         );

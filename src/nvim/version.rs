@@ -4094,7 +4094,7 @@ pub fn list_lua_version() {
             data: CODE.as_ptr().cast_mut().cast(),
             size: CODE.len() - 1,
         },
-        ptr::null(),
+        None,
         args,
         K_RET_OBJECT,
         None,

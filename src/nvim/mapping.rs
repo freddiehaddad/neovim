@@ -1689,14 +1689,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
             size: 0,
             capacity: 0,
         };
-        let ret = nlua_call_ref(
-            luaref,
-            ptr::null(),
-            args,
-            K_RET_OBJECT,
-            None,
-            Some(&mut err),
-        );
+        let ret = nlua_call_ref(luaref, None, args, K_RET_OBJECT, None, Some(&mut err));
         if ret.obj_type == ObjectType::ObjectTypeString {
             p = Some(string_to_cstr(ret.data.string()));
         }

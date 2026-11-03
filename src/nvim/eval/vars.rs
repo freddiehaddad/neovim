@@ -3400,7 +3400,9 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     } else {
         g_st().curtab
     };
-    let win = find_win_by_nr(&argvars[off], tp);
+    let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
+        .and_then(|tp| find_win_by_nr(&argvars[off], Some(tp)))
+        .map_or(ptr::null_mut(), |w| w);
     let varname = tv_get_string_chk(&argvars[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     get_var_from(
@@ -3580,7 +3582,9 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     } else {
         g_st().curtab
     };
-    let win = find_win_by_nr(&head[off], tp);
+    let win: *mut WinInfoInfo = unsafe { tp.as_mut() }
+        .and_then(|tp| find_win_by_nr(&head[off], Some(tp)))
+        .map_or(ptr::null_mut(), |w| w);
     let varname = tv_get_string_chk(&head[off + 1]).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
     if win.is_null() || varname.is_null() {

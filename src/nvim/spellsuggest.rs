@@ -643,12 +643,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             vval: TypvalVval::Number(0),
         },
     ];
-    nlua_call_typval(
-        c"vim._core.spell",
-        c"select_suggest",
-        (&raw mut lua_args).cast(),
-        None,
-    );
+    nlua_call_typval(c"vim._core.spell", c"select_suggest", &mut lua_args, None);
     tv_clear(&mut items_tv);
     tv_clear(&mut bad_tv);
 }

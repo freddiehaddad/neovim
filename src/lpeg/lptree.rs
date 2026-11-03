@@ -41,11 +41,10 @@ fn pattern_tree_ptr(p: &mut Pattern) -> &'static mut TTree {
 
 fn val2str(l: *mut lua_State, idx: i32) -> RawCCharPtr {
     unsafe {
-        let k = lua_tostring(l, idx);
-        if !k.is_null() {
-            lua_pushfstring(l, c"%s".as_ptr(), k)
+        if let Some(k) = lua_tostring(l, idx) {
+            lua_pushfstring(l, c"%s".as_ptr(), k.as_ptr())
         } else {
-            lua_pushfstring(l, c"(a %s)".as_ptr(), luaL_typename(l, idx))
+            lua_pushfstring(l, c"(a %s)".as_ptr(), luaL_typename(l, idx).as_ptr())
         }
     }
 }
@@ -732,7 +731,7 @@ unsafe extern "C-unwind" fn lp_divcapture(l: *mut lua_State) -> i32 {
             _ => luaL_error(
                 l,
                 c"unexpected %s as 2nd operand to LPeg '/'".as_ptr(),
-                luaL_typename(l, 2),
+                luaL_typename(l, 2).as_ptr(),
             ),
         }
     }
@@ -850,7 +849,7 @@ fn getfirstrule(l: *mut lua_State, arg: i32, postab: i32) {
                 luaL_error(
                     l,
                     c"initial rule '%s' is not a pattern".as_ptr(),
-                    lua_tostring(l, -2),
+                    lua_tostring(l, -2).map_or(ptr::null(), std::ffi::CStr::as_ptr),
                 );
             }
         }
@@ -1186,7 +1185,7 @@ fn createcat(l: *mut lua_State, catname: &std::ffi::CStr, catf: fn(u8) -> bool) 
         }
     }
     newcharset(l, &buff);
-    lua_setfield(l, -2, catname.as_ptr());
+    lua_setfield(l, -2, catname);
 }
 
 unsafe extern "C-unwind" fn lp_locale(l: *mut lua_State) -> i32 {
@@ -1361,8 +1360,8 @@ pub fn luaopen_lpeg(l: *mut lua_State) -> i32 {
         luaL_newmetatable(l, PATTERN_T);
         lua_pushnumber(l, lua_Number::from(MAXBACK));
         lua_setfield(l, LUA_REGISTRYINDEX, MAXSTACKIDX);
-        luaL_register(l, ptr::null(), METAREG.as_ptr());
-        luaL_register(l, c"lpeg", PATTREG.as_ptr());
+        luaL_register(l, None, &METAREG);
+        luaL_register(l, Some(c"lpeg"), &PATTREG);
         lua_pushvalue(l, -1);
         lua_setfield(l, -3, c"__index");
         lua_pushlstring(l, LPEG_VERSION.as_ptr().cast(), LPEG_VERSION.len());

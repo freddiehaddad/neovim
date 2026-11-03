@@ -1378,7 +1378,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     let mut err = Error::new();
     let mut result = nlua_exec(
         cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),
-        ptr::null(),
+        None,
         args,
         K_RET_OBJECT,
         Some(&mut arena),
@@ -1479,7 +1479,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> *mut FileBuf {
     opt_vars().p_cpo = save_cpo;
 
     if buf.is_null() {
-        return find_buffer(tv);
+        return find_buffer(tv).map_or(ptr::null_mut(), |b| b);
     }
 
     buf
@@ -1700,13 +1700,16 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
 
     let mut wp = curwin_ptr();
     if argvars[1].v_type != VarType::VarUnknown {
-        let mut tp: *mut TabPageInfo = ptr::null_mut();
-        wp = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, Some(&mut tp));
-        if wp.is_null() || tp.is_null() {
+        let mut tp: Option<&'static mut TabPageInfo> = None;
+        let Some(wp_ref) = win_id2wp_tp(tv_get_number(&argvars[1]) as i32, Some(&mut tp)) else {
+            return;
+        };
+        if tp.is_none() {
             return;
         }
 
-        check_cursor(crate::globals::gmut(wp));
+        check_cursor(wp_ref);
+        wp = wp_ref;
     }
 
     let bp = crate::globals::gptr(wp).w_buffer;
@@ -1764,11 +1767,10 @@ pub fn get_optional_window(argvars: &mut [TypVal], idx: i32) -> *mut WinInfoInfo
     if argvars[idx as usize].v_type == VarType::VarUnknown {
         return curwin_ptr();
     }
-    let win = find_win_by_nr_or_id(&argvars[idx as usize]);
-    if win.is_null() {
+    let Some(win) = find_win_by_nr_or_id(&argvars[idx as usize]) else {
         emsg(gettext(E_INVALWINDOW));
         return ptr::null_mut();
-    }
+    };
     win
 }
 
@@ -2240,7 +2242,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         Some(&b'*') => {
             n = i32::from(if p_bytes.starts_with(b"*v:lua.") {
-                nlua_func_exists(p.wrapping_add(7))
+                nlua_func_exists(crate::memory::cstr_from_ptr(p.wrapping_add(7)))
             } else {
                 function_exists(p.wrapping_add(1), false)
             });
@@ -2912,9 +2914,11 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
 
     if getcurpos {
         if argvars[0].v_type != VarType::VarUnknown {
-            wp = find_win_by_nr_or_id(&argvars[0]);
-            if !wp.is_null() {
-                fp = (&raw mut crate::globals::gptr(wp).w_cursor).cast();
+            if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
+                fp = (&raw mut found.w_cursor).cast();
+                wp = found;
+            } else {
+                wp = ptr::null_mut();
             }
         } else {
             fp = (&raw mut curwin_mut().w_cursor).cast();
@@ -3015,13 +3019,11 @@ pub fn f_getfontname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// "getjumplist()" function
 pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    let wp = find_tabwin(&argvars[0], &argvars[1]);
-    if wp.is_null() {
+    let Some(wp) = find_tabwin(&argvars[0], &argvars[1]) else {
         return;
-    }
+    };
 
     cleanup_jumplist(wp, true);
-    let wp = crate::globals::gmut(wp);
 
     let l = tv_list_alloc(wp.w_jumplistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), l);
@@ -3537,15 +3539,15 @@ pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "gettagstack()" function
 pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut wp = curwin_ptr();
+    let mut wp: &mut WinInfoInfo = curwin_mut();
     tv_dict_alloc_ret(rettv);
     if argvars[0].v_type != VarType::VarUnknown {
-        wp = find_win_by_nr_or_id(&argvars[0]);
-        if wp.is_null() {
+        let Some(found) = find_win_by_nr_or_id(&argvars[0]) else {
             return;
-        }
+        };
+        wp = found;
     }
-    get_tagstack(crate::globals::gmut(wp), rettv.vval.v_dict_ref());
+    get_tagstack(wp, rettv.vval.v_dict_ref());
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
@@ -3873,7 +3875,7 @@ fn has_wsl() -> bool {
                 data: cmd.as_ptr().cast_mut(),
                 size: cmd.to_bytes().len(),
             },
-            ptr::null(),
+            None,
             Array {
                 items: ptr::null_mut(),
                 size: 0,
@@ -5057,10 +5059,9 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
     if argvars[1].v_type != VarType::VarUnknown {
         let id = tv_get_number(&argvars[1]) as i32;
-        let mut tp: *mut TabPageInfo = ptr::null_mut();
-        let wp = win_id2wp_tp(id, Some(&mut tp));
-        if let Some(wp_ref) = crate::globals::gopt_mut(wp)
-            && !tp.is_null()
+        let mut tp: Option<&'static mut TabPageInfo> = None;
+        if let Some(wp_ref) = win_id2wp_tp(id, Some(&mut tp))
+            && tp.is_some()
         {
             if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c'
                 || (wp_ref.w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0)
@@ -5822,9 +5823,10 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             }
             buf_size += read_bytes;
 
-            let mut ptr_ = buf.cast::<u8>().cast_const();
-            while buf_size != 0 {
-                status = mpack_parse_typval(&mut parser, &mut ptr_, &mut buf_size);
+            let mut parse_slice =
+                unsafe { std::slice::from_raw_parts(buf.cast::<u8>().cast_const(), buf_size) };
+            while !parse_slice.is_empty() {
+                status = mpack_parse_typval(&mut parser, &mut parse_slice);
                 if status == MPACK_OK {
                     tv_list_append_owned_tv(&mut *ret_list, cur_item);
                     cur_item.v_type = VarType::VarUnknown;
@@ -5832,6 +5834,8 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
                     break;
                 }
             }
+            let ptr_ = parse_slice.as_ptr();
+            buf_size = parse_slice.len();
 
             if rlret == OK {
                 break;
@@ -5861,11 +5865,10 @@ fn msgpackparse_unpack_blob(blob: Option<&TvBlob>, ret_list: &mut TvList) {
         return;
     }
 
-    let mut data = blob.unwrap().bv_ga.as_ptr();
-    let mut remaining = len as usize;
-    while remaining != 0 {
+    let mut parse_slice = &blob.unwrap().bv_ga[..len as usize];
+    while !parse_slice.is_empty() {
         let mut tv = tv_initial_value();
-        let status = unpack_typval(&mut data, &mut remaining, &mut tv);
+        let status = unpack_typval(&mut parse_slice, &mut tv);
         if status != MPACK_OK {
             emsg_mpack_error(status);
             return;
@@ -7420,7 +7423,7 @@ pub fn f_serverlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     nlua_call_typval(
         c"vim._core.server",
         c"serverlist",
-        lua_args.as_mut_ptr(),
+        &mut lua_args,
         Some(&mut *rettv),
     );
     tv_clear(&mut addrs_tv);
@@ -7786,10 +7789,10 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut action: u8 = b'r';
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
 
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    if wp.is_null() {
+    let Some(wp_ref) = find_win_by_nr_or_id(&argvars[0]) else {
         return;
-    }
+    };
+    let wp: *mut WinInfoInfo = wp_ref;
     if !tv_check_for_dict_arg(argvars, 1) {
         return;
     }
@@ -8819,14 +8822,15 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     'theend: {
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
-            let mut tp: *mut TabPageInfo = ptr::null_mut();
-            wp = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, Some(&mut tp));
-            let Some(wp_ref) = crate::globals::gopt_mut(wp) else {
+            let mut tp: Option<&'static mut TabPageInfo> = None;
+            let Some(wp_ref) = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, Some(&mut tp))
+            else {
                 break 'theend;
             };
-            if tp.is_null() {
+            if tp.is_none() {
                 break 'theend;
             }
+            wp = wp_ref;
             check_cursor(wp_ref);
         }
 

@@ -48,7 +48,7 @@ mod lua_c_api {
             let n = lua_tonumber(lstate, idx);
             let b = f64_to_ubits(n);
             if b == 0 && lua_isnumber(lstate, idx) == 0 {
-                luaL_typerror(lstate, idx, c"number".as_ptr());
+                luaL_typerror(lstate, idx, c"number");
             }
             b
         }
@@ -224,7 +224,7 @@ mod lua_c_api {
                 }
                 luaL_error(lstate, c"bit library self-test failed (%s)".as_ptr(), msg);
             }
-            luaL_register(lstate, c"bit".as_ptr(), BIT_FUNCS.as_ptr());
+            luaL_register(lstate, Some(c"bit"), &BIT_FUNCS);
             1
         }
     }

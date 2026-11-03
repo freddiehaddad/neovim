@@ -87,28 +87,17 @@ fn s_ischr(m: u64) -> bool {
 }
 
 /// Adjust a filename, according to a string of modifiers.
-/// *fnamep must be NUL terminated when called.  When returning, the length is
-/// determined by *fnamelen.
-/// Returns VALID_ flags or -1 for failure.
-#[inline]
-fn set_fname_buf(fnamep: *mut *mut u8, bufp: &mut Option<Vec<u8>>, new_vec: Vec<u8>) {
-    *bufp = Some(new_vec);
-
-    *crate::globals::gptr(fnamep) = bufp.as_mut().unwrap().as_mut_ptr();
-}
-
-/// When there is an error, *fnamep is set to NULL.
+/// When there is an error, returns -1 and clears `fbuf`.
 pub fn modify_fname(
-    src: impl crate::strings::IntoCCharPtr,
+    src_bytes: &[u8],
     tilde_file: bool,
     usedlen: &mut usize,
-    fnamep: *mut *mut u8,
-    bufp: &mut Option<Vec<u8>>,
+    fbuf: &mut Vec<u8>,
+    fname_off: &mut usize,
     fnamelen: &mut usize,
     use_shellslash: bool,
 ) -> i32 {
-    let src = src.into_c_char_ptr().cast_mut();
-    let src_bytes = crate::memory::cstr_as_bytes(src);
+    let mut fname: *mut u8 = unsafe { fbuf.as_mut_ptr().add(*fname_off) };
     {
         let mut valid: i32 = 0;
         let mut s: *mut u8 = ptr::null_mut();
@@ -131,7 +120,7 @@ pub fn modify_fname(
                 *usedlen += 2;
 
                 // Expand "~/path" for all systems and "~user/path" for Unix
-                let fname_bytes = crate::memory::cstr_as_bytes(crate::globals::gptr(fnamep).cast());
+                let fname_bytes = crate::memory::cstr_as_bytes(fname.cast());
                 let tilde_cond = fname_bytes.first() == Some(&b'~')
                     && (cfg!(unix)
                         || fname_bytes.get(1) == Some(&b'/')
@@ -139,12 +128,13 @@ pub fn modify_fname(
                         || fname_bytes.len() == 1)
                     && !(tilde_file && fname_bytes.len() == 1);
                 if tilde_cond {
-                    let exp = expand_env_save(crate::globals::gptr(fnamep).cast_const().cast());
-                    set_fname_buf(fnamep, bufp, exp.into_bytes_with_nul());
+                    let exp = expand_env_save(fname.cast_const().cast());
+                    *fbuf = exp.into_bytes_with_nul();
+                    fname = fbuf.as_mut_ptr();
                 }
 
                 // When "/." or "/.." is used: force expansion to get rid of it.
-                let fname_bytes = crate::memory::cstr_as_bytes(crate::globals::gptr(fnamep).cast());
+                let fname_bytes = crate::memory::cstr_as_bytes(fname.cast());
                 let mut p_idx = 0usize;
                 while p_idx < fname_bytes.len() {
                     let rem = &fname_bytes[p_idx..];
@@ -162,34 +152,29 @@ pub fn modify_fname(
 
                 // FullName_save() is slow, don't use it when not needed.
                 if has_dot_comp
-                    || !vim_isAbsName(crate::globals::gptr(fnamep).cast_const().cast())
+                    || !vim_isAbsName(fname.cast_const().cast())
                     || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
                 {
-                    let Some(full) = FullName_save(
-                        crate::globals::gptr(fnamep).cast_const().cast(),
-                        has_dot_comp,
-                    ) else {
-                        *crate::globals::gptr(fnamep) = ptr::null_mut();
-                        *bufp = None;
+                    let Some(full) = FullName_save(fname.cast_const().cast(), has_dot_comp) else {
+                        fbuf.clear();
+                        *fname_off = 0;
                         return -1;
                     };
-                    set_fname_buf(fnamep, bufp, full.into_bytes_with_nul());
+                    *fbuf = full.into_bytes_with_nul();
+                    fname = fbuf.as_mut_ptr();
                 }
 
                 // Append a path separator to a directory.
-                if os_isdir(crate::globals::gptr(fnamep).cast_const().cast()) {
+                if os_isdir(fname.cast_const().cast()) {
                     // Make room for one or two extra characters.
-                    let cur_len = crate::memory::cstr_len(crate::globals::gptr(fnamep).cast());
+                    let cur_len = crate::memory::cstr_len(fname.cast());
                     let mut v = vec![0u8; cur_len + 3];
                     unsafe {
-                        ptr::copy_nonoverlapping(
-                            *crate::globals::gptr(fnamep),
-                            v.as_mut_ptr(),
-                            cur_len + 1,
-                        )
-                    };
-                    set_fname_buf(fnamep, bufp, v);
-                    add_pathsep(crate::globals::gptr(fnamep).cast());
+                        ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
+                    }
+                    *fbuf = v;
+                    fname = fbuf.as_mut_ptr();
+                    add_pathsep(fname.cast());
                 }
             }
 
@@ -209,14 +194,11 @@ pub fn modify_fname(
                 pbuf = None;
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
-                    if crate::memory::cstr_first_byte(crate::globals::gptr(fnamep).cast()) == b'~' {
-                        let exp = expand_env_save(crate::globals::gptr(fnamep).cast_const().cast())
-                            .into_bytes_with_nul();
+                    if crate::memory::cstr_first_byte(fname.cast()) == b'~' {
+                        let exp = expand_env_save(fname.cast_const().cast()).into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
-                    } else if let Some(full) =
-                        FullName_save(crate::globals::gptr(fnamep).cast_const().cast(), false)
-                    {
+                    } else if let Some(full) = FullName_save(fname.cast_const().cast(), false) {
                         let full_vec = full.into_bytes_with_nul();
                         p = full_vec.as_ptr().cast_mut();
                         pbuf = Some(full_vec);
@@ -224,7 +206,7 @@ pub fn modify_fname(
                         p = ptr::null_mut();
                     }
                 } else {
-                    p = *crate::globals::gptr(fnamep);
+                    p = fname;
                 }
 
                 has_fullname = false;
@@ -265,9 +247,13 @@ pub fn modify_fname(
                                     .iter()
                                     .take_while(|&&b| vim_ispathsep(b as i32))
                                     .count();
-                                *crate::globals::gptr(fnamep) = p.wrapping_add(skip_seps);
                                 if let Some(pb) = pbuf.take() {
-                                    *bufp = Some(pb);
+                                    let off = (p.wrapping_add(skip_seps) as usize)
+                                        - (pb.as_ptr() as usize);
+                                    *fbuf = pb;
+                                    fname = unsafe { fbuf.as_mut_ptr().add(off) };
+                                } else {
+                                    fname = p.wrapping_add(skip_seps);
                                 }
                             }
                         }
@@ -289,7 +275,8 @@ pub fn modify_fname(
                                     dirnamelen,
                                 )
                             };
-                            set_fname_buf(fnamep, bufp, v);
+                            *fbuf = v;
+                            fname = fbuf.as_mut_ptr();
                             has_homerelative = true;
                         }
                     }
@@ -298,21 +285,17 @@ pub fn modify_fname(
             }
 
             let mut file_info = FileInfo::new();
-            os_fileinfo2(
-                crate::globals::gptr(fnamep).cast_const().cast(),
-                &mut file_info,
-            );
+            os_fileinfo2(fname.cast_const().cast(), &mut file_info);
             if src_bytes
                 .get(*usedlen..)
                 .is_some_and(|r| r.starts_with(b":h"))
             {
-                s = crate::globals::gptr(fnamep).wrapping_add(file_info.rest_off);
-                *crate::globals::gptr(fnamep) =
-                    crate::globals::gptr(fnamep).wrapping_add(file_info.prefix_off);
+                s = fname.wrapping_add(file_info.rest_off);
+                fname = fname.wrapping_add(file_info.prefix_off);
             }
 
-            let mut tail = path_tail(crate::globals::gptr(fnamep).cast_const().cast()).cast::<u8>();
-            *fnamelen = crate::memory::cstr_len(crate::globals::gptr(fnamep).cast());
+            let mut tail = path_tail(fname.cast_const().cast()).cast::<u8>();
+            *fnamelen = crate::memory::cstr_len(fname.cast());
 
             // ":h" - head, remove "/file_name", can be repeated
             // Don't remove the logical root, see `FileInfo`.
@@ -324,34 +307,27 @@ pub fn modify_fname(
                 *usedlen += 2;
                 while (tail as usize) > (s as usize) && after_pathsep(s.cast(), tail.cast()) != 0 {
                     tail = tail.wrapping_sub(
-                        utf_head_off(
-                            crate::globals::gptr(fnamep).cast(),
-                            tail.wrapping_sub(1).cast(),
-                        ) as usize
-                            + 1,
+                        utf_head_off(fname.cast(), tail.wrapping_sub(1).cast()) as usize + 1,
                     );
                 }
                 *fnamelen = if (tail as usize) <= (s as usize) {
-                    (s as usize).wrapping_sub((*crate::globals::gptr(fnamep)) as usize)
+                    (s as usize).wrapping_sub(fname as usize)
                 } else {
-                    (tail as usize).wrapping_sub((*crate::globals::gptr(fnamep)) as usize)
+                    (tail as usize).wrapping_sub(fname as usize)
                 };
                 if *fnamelen == 0 {
                     // Result is empty.  Turn it into "." to make ":cd %:h" work.
-                    set_fname_buf(fnamep, bufp, vec![b'.', 0]);
-                    tail = *crate::globals::gptr(fnamep);
-                    s = *crate::globals::gptr(fnamep); // s pointed into the freed buffer.
+                    *fbuf = vec![b'.', 0];
+                    fname = fbuf.as_mut_ptr();
+                    tail = fname;
+                    s = fname; // s pointed into the freed buffer.
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize)
                         && after_pathsep(s.cast(), tail.cast()) == 0
                     {
                         tail = tail.wrapping_sub(
-                            utf_head_off(
-                                crate::globals::gptr(fnamep).cast(),
-                                tail.wrapping_sub(1).cast(),
-                            ) as usize
-                                + 1,
+                            utf_head_off(fname.cast(), tail.wrapping_sub(1).cast()) as usize + 1,
                         );
                     }
                 }
@@ -371,8 +347,8 @@ pub fn modify_fname(
                 .is_some_and(|r| r.starts_with(b":t"))
             {
                 *usedlen += 2;
-                *fnamelen -= (tail as usize).wrapping_sub((*crate::globals::gptr(fnamep)) as usize);
-                *crate::globals::gptr(fnamep) = tail;
+                *fnamelen -= (tail as usize).wrapping_sub(fname as usize);
+                fname = tail;
             }
 
             // ":e" - extension, can be repeated
@@ -384,17 +360,15 @@ pub fn modify_fname(
                 // find a '.' in the tail:
                 // - for second :e: before the current fname
                 // - otherwise: The last '.'
-                let is_second_e = ((*crate::globals::gptr(fnamep)) as usize) > (tail as usize);
+                let is_second_e = (fname as usize) > (tail as usize);
                 if mod_ch == b'e' && is_second_e {
-                    s = crate::globals::gptr(fnamep).wrapping_sub(2);
+                    s = fname.wrapping_sub(2);
                 } else {
-                    s = crate::globals::gptr(fnamep)
-                        .wrapping_add(*fnamelen)
-                        .wrapping_sub(1);
+                    s = fname.wrapping_add(*fnamelen).wrapping_sub(1);
                 }
 
                 while (s as usize) > (tail as usize) {
-                    if *crate::globals::gptr(s) == b'.' {
+                    if unsafe { *s } == b'.' {
                         break;
                     }
                     s = s.wrapping_sub(1);
@@ -403,34 +377,33 @@ pub fn modify_fname(
                     if (s as usize) > (tail as usize) {
                         // we stopped at a '.' (so anchor to &'.' + 1)
                         let newstart = s.wrapping_add(1);
-                        let distance_stepped_back = ((*crate::globals::gptr(fnamep)) as usize)
-                            .wrapping_sub(newstart as usize);
+                        let distance_stepped_back =
+                            (fname as usize).wrapping_sub(newstart as usize);
                         *fnamelen = (*fnamelen).wrapping_add(distance_stepped_back);
-                        *crate::globals::gptr(fnamep) = newstart;
-                    } else if ((*crate::globals::gptr(fnamep)) as usize) <= (tail as usize) {
+                        fname = newstart;
+                    } else if (fname as usize) <= (tail as usize) {
                         *fnamelen = 0;
                     }
                 } else {
                     // :r - Remove one extension
-                    let max_ptr = if (tail as usize) > ((*crate::globals::gptr(fnamep)) as usize) {
+                    let max_ptr = if (tail as usize) > (fname as usize) {
                         tail
                     } else {
-                        *crate::globals::gptr(fnamep)
+                        fname
                     };
                     if (s as usize) > (max_ptr as usize) {
-                        *fnamelen =
-                            (s as usize).wrapping_sub((*crate::globals::gptr(fnamep)) as usize);
+                        *fnamelen = (s as usize).wrapping_sub(fname as usize);
                     }
                 }
                 *usedlen += 2;
             }
 
             #[cfg(windows)]
-            if !didit && use_shellslash && !crate::globals::gptr(fnamep).is_null() {
-                let mut v =
-                    cstr_to_cstring(crate::globals::gptr(fnamep).cast()).into_bytes_with_nul();
+            if !didit && use_shellslash && !fname.is_null() {
+                let mut v = cstr_to_cstring(fname.cast()).into_bytes_with_nul();
                 slash_adjust(v.as_mut_ptr().cast());
-                set_fname_buf(fnamep, bufp, v);
+                *fbuf = v;
+                fname = fbuf.as_mut_ptr();
             }
             #[cfg(not(windows))]
             let _ = use_shellslash;
@@ -471,7 +444,7 @@ pub fn modify_fname(
                             if *fnamelen > 0 {
                                 unsafe {
                                     ptr::copy_nonoverlapping(
-                                        *crate::globals::gptr(fnamep),
+                                        fname,
                                         str_copy.as_mut_ptr(),
                                         *fnamelen,
                                     )
@@ -487,7 +460,8 @@ pub fn modify_fname(
                                 flags.cast_mut(),
                             );
                             *fnamelen = sub_res.as_bytes().len();
-                            set_fname_buf(fnamep, bufp, sub_res.into_bytes_with_nul());
+                            *fbuf = sub_res.into_bytes_with_nul();
+                            fname = fbuf.as_mut_ptr();
                             didit = true;
                         }
                     }
@@ -506,18 +480,20 @@ pub fn modify_fname(
                 .is_some_and(|r| r.starts_with(b":S"))
             {
                 let esc = vim_strsave_shellescape(
-                    crate::memory::cstr_slice(crate::globals::gptr(fnamep).cast(), *fnamelen),
+                    crate::memory::cstr_slice(fname.cast(), *fnamelen),
                     false,
                     false,
                 );
                 *fnamelen = esc.as_bytes().len();
-                set_fname_buf(fnamep, bufp, esc.into_bytes_with_nul());
+                *fbuf = esc.into_bytes_with_nul();
+                fname = fbuf.as_mut_ptr();
                 *usedlen += 2;
             }
 
             break;
         }
 
+        *fname_off = (fname as usize).wrapping_sub(fbuf.as_ptr() as usize);
         valid
     }
 }
@@ -796,47 +772,43 @@ pub fn f_findfile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
 /// "fnamemodify({fname}, {mods})" function
 pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut fbuf: Option<Vec<u8>> = None;
-    let mut len: usize = 0;
+    let mut len: usize;
     let mut buf = [0u8; NUMBUFLEN];
-    let mut fname = tv_get_string_chk(&argvars[0])
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
-    let mods = tv_get_string_buf_chk(&argvars[1], &mut buf)
-        .map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
-    if mods.is_null() || fname.is_null() {
-        fname = ptr::null_mut();
-    } else {
-        #[cfg(windows)]
-        let initial_cstr = path_to_slash_save(fname.cast_const().cast()).unwrap_or_default();
-        #[cfg(not(windows))]
-        let initial_cstr = cstr_to_cstring(fname.cast());
-        len = initial_cstr.as_bytes().len();
-        set_fname_buf(
-            &raw mut fname,
+    let fname_cstr = tv_get_string_chk(&argvars[0]);
+    let mods_cstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
+    let (Some(fname_cstr), Some(mods_cstr)) = (fname_cstr, mods_cstr) else {
+        rettv.v_type = VarType::VarString;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        return;
+    };
+
+    #[cfg(windows)]
+    let initial_cstr = path_to_slash_save(fname_cstr.as_ptr()).unwrap_or_default();
+    #[cfg(not(windows))]
+    let initial_cstr = fname_cstr.to_owned();
+    len = initial_cstr.as_bytes().len();
+    let mut fbuf = initial_cstr.into_bytes_with_nul();
+    let mut fname_off = 0usize;
+    let mods_bytes = mods_cstr.to_bytes();
+    if !mods_bytes.is_empty() {
+        let mut usedlen: usize = 0;
+        if modify_fname(
+            mods_bytes,
+            false,
+            &mut usedlen,
             &mut fbuf,
-            initial_cstr.into_bytes_with_nul(),
-        );
-        if !crate::memory::cstr_is_empty(mods) {
-            let mut usedlen: usize = 0;
-            modify_fname(
-                mods.cast_mut(),
-                false,
-                &mut usedlen,
-                &raw mut fname,
-                &mut fbuf,
-                &mut len,
-                false,
-            );
+            &mut fname_off,
+            &mut len,
+            false,
+        ) == -1
+        {
+            rettv.v_type = VarType::VarString;
+            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            return;
         }
     }
 
-    if fname.is_null() {
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    } else {
-        crate::eval::typval::tv_set_string_len(rettv, fname.cast(), len);
-    }
-    drop(fbuf);
+    crate::eval::typval::tv_set_bytes(rettv, &fbuf[fname_off..fname_off + len]);
 }
 
 /// Resolves the `[{winnr}[, {tabnr}[, {bufnr}]]]` arguments of `getcwd()`/`haslocaldir()` to the
@@ -845,9 +817,9 @@ fn getcwd_scope_args(
     argvars: &mut [TypVal],
     default_scope: i32,
     scope: &mut i32,
-    win: *mut *mut WinInfoInfo,
-    tp: *mut *mut TabPageInfo,
-    buf: *mut *mut FileBuf,
+    win: &mut Option<&'static mut WinInfoInfo>,
+    tp: &mut Option<&'static mut TabPageInfo>,
+    buf: &mut Option<&'static mut FileBuf>,
 ) -> bool {
     const K_WIN_ARG: usize = 0;
     const K_TAB_ARG: usize = 1;
@@ -856,12 +828,9 @@ fn getcwd_scope_args(
     let mut argc: usize = 0;
 
     *scope = default_scope;
-
-    *crate::globals::gptr(win) = curwin_ptr();
-
-    *crate::globals::gptr(tp) = g_st().curtab;
-
-    *crate::globals::gptr(buf) = g_st().curbuf;
+    *win = Some(curwin_mut());
+    *tp = Some(curtab_mut());
+    *buf = Some(curbuf_mut());
 
     while argc < 3 {
         // If there is no argument there are no more scopes after it, break out.
@@ -931,10 +900,7 @@ fn getcwd_scope_args(
         }
         if argv[K_BUF_ARG] > 0 {
             let mut err = Error::new();
-
-            *crate::globals::gptr(buf) = find_buffer_by_handle(argv[K_BUF_ARG], &mut err)
-                .map_or(ptr::null_mut(), ptr::from_mut);
-
+            *buf = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
             if err.err_type != ErrorType::ErrorTypeNone {
                 emsg(gettext(c"E5007: Cannot find buffer number."));
                 crate::api::private::helpers::api_clear_error(&mut err);
@@ -945,9 +911,9 @@ fn getcwd_scope_args(
 
     // Find the tabpage by number.
     if argv[K_TAB_ARG] > 0 {
-        *crate::globals::gptr(tp) = find_tabpage(argv[K_TAB_ARG]);
+        *tp = unsafe { find_tabpage(argv[K_TAB_ARG]).as_mut() };
 
-        if crate::globals::gptr(tp).is_null() {
+        if tp.is_none() {
             emsg(gettext(c"E5000: Cannot find tab number."));
             return false;
         }
@@ -955,9 +921,9 @@ fn getcwd_scope_args(
 
     // Find the window in `tp` by number.
     if argv[K_WIN_ARG] > 0 {
-        *crate::globals::gptr(win) = find_win_by_nr(&argvars[0], *crate::globals::gptr(tp));
+        *win = find_win_by_nr(&argvars[0], tp.as_deref_mut());
 
-        if crate::globals::gptr(win).is_null() {
+        if win.is_none() {
             emsg(gettext(c"E5002: Cannot find window number."));
             return false;
         }
@@ -969,9 +935,9 @@ fn getcwd_scope_args(
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_INVALID;
-    let mut win: *mut WinInfoInfo = ptr::null_mut();
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut win: Option<&'static mut WinInfoInfo> = None;
+    let mut tp: Option<&'static mut TabPageInfo> = None;
+    let mut buf: Option<&'static mut FileBuf> = None;
 
     rettv.v_type = VarType::VarString;
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -981,9 +947,9 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         argvars,
         K_CD_SCOPE_INVALID,
         &mut scope,
-        &raw mut win,
-        &raw mut tp,
-        &raw mut buf,
+        &mut win,
+        &mut tp,
+        &mut buf,
     ) {
         return;
     }
@@ -993,14 +959,14 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     let mut cur_scope = scope;
     if cur_scope == K_CD_SCOPE_WINDOW {
-        from = crate::globals::gref(win).w_localdir.as_deref();
+        from = win.as_ref().unwrap().w_localdir.as_deref();
 
         if from.is_none() {
             cur_scope = K_CD_SCOPE_TABPAGE;
         }
     }
     if cur_scope == K_CD_SCOPE_TABPAGE {
-        from = crate::globals::gref(tp).tp_localdir.as_deref();
+        from = tp.as_ref().unwrap().tp_localdir.as_deref();
 
         if from.is_none() {
             cur_scope = K_CD_SCOPE_BUFFER;
@@ -1010,7 +976,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
         // particular window or tabpage, so it skips those and falls back to global dir.
         from = if scope == K_CD_SCOPE_BUFFER {
-            crate::globals::gref(buf).b_localdir.as_deref()
+            buf.as_ref().unwrap().b_localdir.as_deref()
         } else {
             None
         };
@@ -1255,9 +1221,9 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut scope: i32 = K_CD_SCOPE_WINDOW;
-    let mut win: *mut WinInfoInfo = ptr::null_mut();
-    let mut tp: *mut TabPageInfo = ptr::null_mut();
-    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut win: Option<&'static mut WinInfoInfo> = None;
+    let mut tp: Option<&'static mut TabPageInfo> = None;
+    let mut buf: Option<&'static mut FileBuf> = None;
 
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -1267,9 +1233,9 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         argvars,
         K_CD_SCOPE_WINDOW,
         &mut scope,
-        &raw mut win,
-        &raw mut tp,
-        &raw mut buf,
+        &mut win,
+        &mut tp,
+        &mut buf,
     ) {
         return;
     }
@@ -1277,17 +1243,17 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     match scope {
         K_CD_SCOPE_WINDOW => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                crate::globals::gptr(win).w_localdir.is_some(),
+                win.unwrap().w_localdir.is_some(),
             ))
         }
         K_CD_SCOPE_BUFFER => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                crate::globals::gptr(buf).b_localdir.is_some(),
+                buf.unwrap().b_localdir.is_some(),
             ))
         }
         K_CD_SCOPE_TABPAGE => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                crate::globals::gptr(tp).tp_localdir.is_some(),
+                tp.unwrap().tp_localdir.is_some(),
             ))
         }
         K_CD_SCOPE_GLOBAL => {
@@ -1329,8 +1295,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if crate::memory::cstr_is_empty(path_tail(dir)) {
         // Remove trailing slashes.
-
-        *crate::globals::gptr(path_tail_with_sep(dir.cast_mut())) = NUL;
+        unsafe { *path_tail_with_sep(dir.cast_mut()) = NUL };
     }
 
     let mut defer = false;
@@ -1420,11 +1385,8 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 /// Evaluate "expr" (= "context") for readdir().
-pub(crate) fn readdir_checkitem(
-    expr: &mut TypVal,
-    name: impl crate::strings::IntoCCharPtr,
-) -> Varnumber {
-    let name = name.into_c_char_ptr();
+pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
+    let name = name.as_ptr();
     let tv_init = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: VAR_UNLOCKED,
@@ -1586,10 +1548,10 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
         return;
     }
 
-    let l = rettv.vval.v_list();
+    let l = rettv.vval.v_list_ref();
     let buf_ptr = buf.as_mut_ptr();
 
-    while maxline < 0 || i64::from(tv_list_len(crate::globals::gopt(l))) < maxline {
+    while maxline < 0 || i64::from(tv_list_len(Some(&*l))) < maxline {
         let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
 
         let mut p = buf_ptr; // Position in buf.
@@ -1616,34 +1578,25 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                 if prev.is_empty() {
                     debug_assert!(len < i32::MAX as usize);
 
-                    tv_list_append_string(crate::globals::gmut(l), start.cast(), len as isize);
+                    tv_list_append_string(l, start.cast(), len as isize);
                 } else {
                     prev.extend_from_slice(unsafe { std::slice::from_raw_parts(start, len) });
 
-                    tv_list_append_string(
-                        crate::globals::gmut(l),
-                        prev.as_ptr().cast(),
-                        prev.len() as isize,
-                    );
+                    tv_list_append_string(l, prev.as_ptr().cast(), prev.len() as isize);
 
                     prev.clear();
                 }
 
                 start = p.wrapping_add(1); // Step over newline.
                 if maxline < 0 {
-                    if i64::from(tv_list_len(crate::globals::gopt(l))) > -maxline {
-                        debug_assert_eq!(
-                            i64::from(tv_list_len(crate::globals::gopt(l))),
-                            1 + (-maxline)
-                        );
+                    if i64::from(tv_list_len(Some(&*l))) > -maxline {
+                        debug_assert_eq!(i64::from(tv_list_len(Some(&*l))), 1 + (-maxline));
 
-                        tv_list_item_remove(
-                            crate::globals::gmut(l),
-                            tv_list_first(crate::globals::gopt(l)),
-                        );
+                        let first_li = tv_list_first(Some(&*l));
+                        tv_list_item_remove(l, first_li);
                     }
-                } else if i64::from(tv_list_len(crate::globals::gopt(l))) >= maxline {
-                    debug_assert_eq!(i64::from(tv_list_len(crate::globals::gopt(l))), maxline);
+                } else if i64::from(tv_list_len(Some(&*l))) >= maxline {
+                    debug_assert_eq!(i64::from(tv_list_len(Some(&*l))), maxline);
 
                     break;
                 }
@@ -1651,17 +1604,17 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
                     break;
                 }
             } else if crate::memory::cstr_is_empty(p.cast()) {
-                *crate::globals::gptr(p) = b'\n';
+                unsafe { *p = b'\n' };
             } else if crate::memory::cstr_first_byte(p.cast()) == 0xbf && !binary {
                 // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
                 // when finding the BF and check the previous two bytes.
                 let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
-                    *crate::globals::gptr(p.wrapping_sub(1))
+                    unsafe { *p.wrapping_sub(1) }
                 } else {
                     prev.last().copied().unwrap_or(0)
                 };
                 let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
-                    *crate::globals::gptr(p.wrapping_sub(2))
+                    unsafe { *p.wrapping_sub(2) }
                 } else if p == buf_ptr.wrapping_add(1) {
                     prev.last().copied().unwrap_or(0)
                 } else if prev.len() >= 2 {
@@ -1701,9 +1654,7 @@ fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bo
             p = p.wrapping_add(1);
         }
 
-        if (maxline >= 0 && i64::from(tv_list_len(crate::globals::gopt(l))) >= maxline)
-            || readlen <= 0
-        {
+        if (maxline >= 0 && i64::from(tv_list_len(Some(&*l))) >= maxline) || readlen <= 0 {
             break;
         }
         if (start as usize) < (p as usize) {
@@ -1856,7 +1807,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 q = path_tail(p.cast()).cast::<u8>();
                 if (q as usize) > (p as usize) && unsafe { *q } == 0 {
                     // Ignore trailing path separator.
-                    *crate::globals::gptr(q.wrapping_sub(1)) = 0;
+                    unsafe { *q.wrapping_sub(1) = 0 };
                     q = path_tail(p.cast()).cast::<u8>();
                 }
                 if (q as usize) > (p as usize) && !path_is_absolute(buf.cast()) {
@@ -1948,7 +1899,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if !has_trailing_pathsep {
             q = unsafe { p.add(p_len) };
             if after_pathsep(p.cast(), q.cast()) != 0 {
-                *crate::globals::gptr(path_tail_with_sep(p.cast()).cast::<u8>()) = 0;
+                unsafe { *path_tail_with_sep(p.cast()).cast::<u8>() = 0 };
             }
         }
 
@@ -1984,13 +1935,13 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
     let mut error: i32 = 0;
     let mut li = tv_list_first(list);
     'outer: while !li.is_null() {
-        let Some(s_cstr) = tv_get_string_chk(&crate::globals::gref(li).li_tv) else {
+        let Some(s_cstr) = tv_get_string_chk(unsafe { &(*li).li_tv }) else {
             return false;
         };
         let mut hunk_start = s_cstr.as_ptr();
         let mut p = hunk_start;
         loop {
-            if crate::memory::cstr_is_empty(p) || *crate::globals::gptr(p) == NL {
+            if crate::memory::cstr_is_empty(p) || unsafe { *p } == NL {
                 if p != hunk_start {
                     let hunk = crate::memory::cstr_slice(
                         hunk_start,
@@ -2015,7 +1966,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
             }
             p = p.wrapping_add(1);
         }
-        if !binary || !crate::globals::gptr(li).li_next.is_null() {
+        if !binary || !unsafe { (*li).li_next }.is_null() {
             let written = file_write(fp, b"\n");
             if written < 0 {
                 error = written as i32;
@@ -2023,7 +1974,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
             }
         }
 
-        li = crate::globals::gptr(li).li_next;
+        li = unsafe { (*li).li_next };
     }
     if error == 0 {
         error = file_flush(fp);
@@ -2039,46 +1990,35 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
     false
 }
 
-/// Write a blob to file with descriptor `fp`.
-fn write_data(
-    fp: &mut FileDescriptor,
-    data: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> bool {
-    let data = data.into_c_char_ptr();
-    {
-        if len > 0 {
-            let written = file_write(fp, crate::memory::cstr_slice(data, len));
-            if written < len as isize {
-                let error = written as i32;
-                semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
-                    uv_strerror(error)
-                },);
-                return false;
-            }
-        }
-        let error = file_flush(fp);
-        if error != 0 {
+/// Write a byte slice to file with descriptor `fp`.
+fn write_data(fp: &mut FileDescriptor, data: &[u8]) -> bool {
+    if !data.is_empty() {
+        let written = file_write(fp, data);
+        if written < data.len() as isize {
+            let error = written as i32;
             semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
                 uv_strerror(error)
             },);
             return false;
         }
-        true
     }
+    let error = file_flush(fp);
+    if error != 0 {
+        semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
+            uv_strerror(error)
+        },);
+        return false;
+    }
+    true
 }
 
 fn write_blob(fp: &mut FileDescriptor, blob: &TvBlob) -> bool {
-    write_data(
-        fp,
-        blob.bv_ga.as_ptr().cast(),
-        tv_blob_len(Some(blob)) as usize,
-    )
+    let len = tv_blob_len(Some(blob)) as usize;
+    write_data(fp, &blob.bv_ga[..len])
 }
 
-fn write_string(fp: &mut FileDescriptor, data: impl crate::strings::IntoCCharPtr) -> bool {
-    let data = data.into_c_char_ptr();
-    write_data(fp, data, crate::memory::cstr_len(data))
+fn write_string(fp: &mut FileDescriptor, data: &[u8]) -> bool {
+    write_data(fp, data)
 }
 
 /// "writefile()" function
@@ -2188,7 +2128,10 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     .v_blob_opt()
                     .is_none_or(|b| write_blob(&mut fp, b))
             } else if argvars[0].v_type == VarType::VarString {
-                write_string(&mut fp, argvars[0].vval.v_string())
+                write_string(
+                    &mut fp,
+                    crate::memory::cstr_as_bytes(argvars[0].vval.v_string()),
+                )
             } else {
                 write_list(&mut fp, argvars[0].vval.v_list_opt().as_deref(), binary)
             };

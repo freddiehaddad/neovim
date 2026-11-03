@@ -832,7 +832,7 @@ pub fn nvim_replace_termcodes(
 // DLLEXPORT Object nvim_exec_lua(String code, Array args, Arena *arena,
 //                                Error *err) FUNC_API_SINCE(7) FUNC_API_REMOTE_ONLY;
 pub fn nvim_exec_lua(code: NvimString, args: Array, arena: &mut Arena, err: &mut Error) -> Object {
-    nlua_exec(code, ptr::null(), args, K_RET_OBJECT, Some(arena), err)
+    nlua_exec(code, None, args, K_RET_OBJECT, Some(arena), err)
 }
 
 /// Like |nvim_exec_lua()|, but can be called during |api-fast| contexts.
@@ -1762,7 +1762,7 @@ pub fn nvim_paste(
     };
     let rv = nlua_exec(
         static_cstr_as_string(c"return vim.paste(...)"),
-        ptr::null(),
+        None,
         args,
         K_RET_NIL_BOOL,
         Some(arena),
@@ -2433,7 +2433,7 @@ pub fn nvim_get_proc_children(pid: Integer, arena: &mut Arena, err: &mut Error) 
             };
             let o = nlua_exec(
                 static_cstr_as_string(c"return vim._os_proc_children(...)"),
-                ptr::null(),
+                None,
                 a,
                 K_RET_OBJECT,
                 Some(arena),
@@ -2491,7 +2491,7 @@ pub fn nvim_get_proc(pid: Integer, arena: &mut Arena, err: &mut Error) -> Object
         };
         let o = nlua_exec(
             static_cstr_as_string(c"return vim._os_proc_info(...)"),
-            ptr::null(),
+            None,
             a,
             K_RET_OBJECT,
             Some(arena),

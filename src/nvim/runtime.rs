@@ -2886,7 +2886,7 @@ fn do_source_ext(
                 let mut err = Error::new();
                 let result = nlua_exec(
                     static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
-                    ptr::null(),
+                    None,
                     args,
                     K_RET_NIL_BOOL,
                     None,
@@ -2908,9 +2908,9 @@ fn do_source_ext(
                     || (!curbuf_mut().b_fname.is_null()
                         && path_with_extension(curbuf_mut().b_fname, c"lua")))
             {
-                nlua_exec_lines(&cookie.buflines, fname_exp);
+                nlua_exec_lines(&cookie.buflines, crate::memory::cstr_from_ptr(fname_exp));
             } else if !si.is_null() && crate::globals::gptr(si).sn_lua {
-                nlua_exec_file(fname_exp);
+                nlua_exec_file(crate::memory::cstr_from_ptr(fname_exp));
             } else {
                 firstline = getsourceline(0, &mut cookie, 0, true);
                 if let Some(ref fl) = firstline

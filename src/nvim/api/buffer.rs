@@ -1594,14 +1594,7 @@ pub fn nvim_buf_call(buf: Buffer, fn_ref: LuaRef, err: &mut Error) -> Object {
         let mut cs: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut cs, None, None, Some(b), 0);
         let args = Array::new();
-        nlua_call_ref(
-            fn_ref,
-            ptr::null(),
-            args,
-            K_RET_MULTI_STACK,
-            None,
-            Some(err),
-        );
+        nlua_call_ref(fn_ref, None, args, K_RET_MULTI_STACK, None, Some(err));
 
         ctx_restore(&mut cs);
     });

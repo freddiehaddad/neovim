@@ -5300,7 +5300,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
             nlua_call_typval(
                 c"vim._core.mcursor",
                 c"jump",
-                tv_args.as_mut_ptr(),
+                &mut tv_args,
                 Some(&mut rettv),
             );
             if rettv.v_type != VarType::VarBool || rettv.vval.v_bool() != K_BOOL_VAR_TRUE_CONST {
@@ -6406,7 +6406,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
                     v_lock: 0,
                     vval: TypvalVval::Number(0),
                 }];
-                nlua_call_typval(c"vim._core.mcursor", c"restore", tv_args.as_mut_ptr(), None);
+                nlua_call_typval(c"vim._core.mcursor", c"restore", &mut tv_args, None);
             }
         }
         K_BS => {
@@ -7195,7 +7195,7 @@ fn nv_q(cap: &mut Cmdarg) {
                 vval: TypvalVval::Number(0),
             },
         ];
-        nlua_call_typval(c"vim._core.cmdwin", c"open", tv_args.as_mut_ptr(), None);
+        nlua_call_typval(c"vim._core.cmdwin", c"open", &mut tv_args, None);
     } else if g_st().reg_executing == 0 && !do_record(cap.nchar) {
         clearopbeep(cap.oap_mut());
     }

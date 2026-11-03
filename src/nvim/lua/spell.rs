@@ -74,7 +74,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
             };
             assert!(!result.is_null());
 
-            lua_pushstring(lstate, result);
+            lua_pushstring(lstate, crate::memory::cstr_from_ptr(result));
             unsafe { lua_rawseti(lstate, -2, 2) };
 
             unsafe { lua_pushinteger(lstate, (pos as lua_Integer) + 1) };
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn luaopen_spell(lstate: *mut lua_State) -> i32 {
         ];
         {
             lua_createtable(lstate, 0, 0);
-            luaL_register(lstate, ptr::null(), SPELL_FUNCTIONS.as_ptr());
+            luaL_register(lstate, None, &SPELL_FUNCTIONS);
             1
         }
     }

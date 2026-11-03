@@ -3884,10 +3884,7 @@ fn shada_read_next_item(
                         }
                         gv.value = decode_string(binval.as_bytes(), is_blob);
                     } else {
-                        let mut read_ptr = read_buf.as_ptr();
-                        let mut read_size = read_buf.len();
-                        let status = unpack_typval(&mut read_ptr, &mut read_size, &mut gv.value);
-                        read_buf = unsafe { std::slice::from_raw_parts(read_ptr, read_size) };
+                        let status = unpack_typval(&mut read_buf, &mut gv.value);
                         if status != MPACK_OK {
                             semsg!(
                                     gettext(

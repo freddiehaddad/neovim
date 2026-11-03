@@ -104,7 +104,7 @@ pub fn ex_help(eap: &mut Exarg) {
         nlua_call_typval(
             c"vim._core.help",
             c"resolve_tag",
-            no_args.as_mut_ptr(),
+            &mut no_args,
             Some(&mut rettv),
         );
         if rettv.v_type == VarType::VarString
@@ -331,7 +331,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
     nlua_call_typval(
         c"vim._core.help",
         c"escape_subject",
-        tv_args.as_mut_ptr(),
+        &mut tv_args,
         Some(&mut rettv),
     );
     if rettv.v_type != VarType::VarString || rettv.vval.v_string().is_null() {
@@ -461,12 +461,7 @@ pub fn get_local_additions() {
         v_lock: 0,
         vval: TypvalVval::Number(0),
     }];
-    nlua_call_typval(
-        c"vim._core.help",
-        c"local_additions",
-        no_args.as_mut_ptr(),
-        None,
-    );
+    nlua_call_typval(c"vim._core.help", c"local_additions", &mut no_args, None);
 }
 
 /// `:exusage` (`ex_exusage`).
@@ -518,7 +513,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
             vval: TypvalVval::Number(0),
         },
     ];
-    nlua_call_typval(c"vim._core.help", c"gen_tags", tv_args.as_mut_ptr(), None);
+    nlua_call_typval(c"vim._core.help", c"gen_tags", &mut tv_args, None);
 }
 
 #[cfg(test)]

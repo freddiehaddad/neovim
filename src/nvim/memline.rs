@@ -936,12 +936,7 @@ pub fn ml_recover(checkext: bool) {
         }
         if n_swaps > 1 {
             let mut lua_args = [items_tv, TypVal::new()];
-            nlua_call_typval(
-                c"vim._core.swapfile",
-                c"select_swap",
-                (&raw mut lua_args).cast(),
-                None,
-            );
+            nlua_call_typval(c"vim._core.swapfile", c"select_swap", &mut lua_args, None);
             tv_clear(&mut items_tv);
 
             ml_recover_theend(

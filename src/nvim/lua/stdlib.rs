@@ -87,19 +87,22 @@ use crate::lpeg::lptree::luaopen_lpeg;
 use crate::lua::converter::lua_isstring;
 use crate::mpack::lmpack::luaopen_mpack;
 
-fn regex_check(lstate: *mut lua_State) -> *mut *mut Regprog {
-    luaL_checkudata(lstate, 1, c"nvim_regex").cast::<*mut Regprog>()
+#[repr(C)]
+struct LuaRegex {
+    prog: *mut Regprog,
 }
 
-fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: &CStr) -> i32 {
+fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
+    unsafe { &mut *luaL_checkudata(lstate, 1, c"nvim_regex").cast::<LuaRegex>() }
+}
+
+fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
     let str_ptr = str_.as_ptr();
     let mut rm: Regmatch = Regmatch::new();
-    rm.regprog = unsafe { *prog };
+    rm.regprog = regex.prog;
     rm.rm_ic = false;
     let matched = vim_regexec(&mut rm, str_ptr, 0);
-    unsafe {
-        *prog = rm.regprog;
-    }
+    regex.prog = rm.regprog;
 
     if matched {
         unsafe {
@@ -121,11 +124,11 @@ fn regex_match(lstate: *mut lua_State, prog: *mut *mut Regprog, str_: &CStr) -> 
 
 unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let prog = regex_check(lstate);
+        let regex = regex_check(lstate);
         let str_ = luaL_checkstring(lstate, 2);
-        let nret = regex_match(lstate, prog, crate::memory::cstr_from_ptr(str_));
+        let nret = regex_match(lstate, regex, str_);
 
-        if (*prog).is_null() {
+        if regex.prog.is_null() {
             return luaL_error(lstate, c"regex: internal error".as_ptr());
         }
 
@@ -135,7 +138,7 @@ unsafe extern "C-unwind" fn regex_match_str(lstate: *mut lua_State) -> i32 {
 
 unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let prog = regex_check(lstate);
+        let regex = regex_check(lstate);
 
         let narg = lua_gettop(lstate);
         if narg < 3 {
@@ -187,7 +190,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 
         let nret = regex_match(
             lstate,
-            prog,
+            regex,
             crate::memory::cstr_from_ptr(line.wrapping_add(start as usize)),
         );
 
@@ -195,7 +198,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
             *line.wrapping_add(end as usize) = save;
         }
 
-        if (*prog).is_null() {
+        if regex.prog.is_null() {
             return luaL_error(lstate, c"regex: internal error".as_ptr());
         }
 
@@ -204,13 +207,9 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 }
 
 unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
-    unsafe {
-        {
-            let prog = regex_check(lstate);
-            vim_regfree(*prog);
-        }
-        0
-    }
+    let regex = regex_check(lstate);
+    vim_regfree(regex.prog);
+    0
 }
 
 unsafe extern "C-unwind" fn regex_tostring(lstate: *mut lua_State) -> i32 {
@@ -342,13 +341,13 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
+        let prog = vim_regcomp(text.as_ptr(), RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
         try_leave(&tstate, &mut err);
 
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"couldn't parse regex: ".as_ptr().cast(), 22);
-            lua_pushstring(lstate, err.msg_cstr());
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
             lua_concat(lstate, 3);
             api_clear_error(&mut err);
             return lua_error(lstate);
@@ -359,8 +358,8 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
             return lua_error(lstate);
         }
 
-        let p = lua_newuserdata(lstate, size_of::<*mut Regprog>()).cast::<*mut Regprog>();
-        *p = prog;
+        let p = lua_newuserdata(lstate, size_of::<LuaRegex>()).cast::<LuaRegex>();
+        (*p).prog = prog;
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex");
         let _ = lua_setmetatable(lstate, -2);
@@ -368,14 +367,14 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
     }
 }
 
-fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
+fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
     unsafe {
         let scope = luaL_checkstring(lstate, 1);
         let handle = luaL_checkinteger(lstate, 2) as ObjHandle;
         let mut dict: *mut TvDict = ptr::null_mut();
         let mut err = Error::new();
 
-        match crate::memory::cstr_as_bytes(scope) {
+        match scope.to_bytes() {
             b"g" => dict = get_globvar_dict(),
             b"v" => dict = get_vimvar_dict(),
             b"b" => {
@@ -396,26 +395,28 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
             }
             _ => {
                 luaL_error(lstate, c"invalid scope".as_ptr());
-                return ptr::null_mut();
+                return None;
             }
         }
 
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"scoped variable: ".as_ptr().cast(), 17);
-            lua_pushstring(lstate, err.msg_cstr());
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
             lua_concat(lstate, 3);
             api_clear_error(&mut err);
             lua_error(lstate);
-            return ptr::null_mut();
+            return None;
         }
-        dict
+        dict.as_mut()
     }
 }
 
 pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let dict = nlua_get_var_scope(lstate);
+        let Some(dict) = nlua_get_var_scope(lstate) else {
+            return 0;
+        };
         let mut key_size: usize = 0;
         let key_data = luaL_checklstring(lstate, 3, &raw mut key_size).cast_mut();
         let key = NvimString {
@@ -426,31 +427,31 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let del = lua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
         let mut err = Error::new();
-        let di_opt = dict_check_writable(&mut *dict, key, del, &mut err);
+        let di_opt = dict_check_writable(dict, key, del, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_cstr());
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
             lua_concat(lstate, 2);
             api_clear_error(&mut err);
             lua_error(lstate);
             return 0;
         }
 
-        let watched = tv_dict_is_watched(dict.as_ref());
+        let watched = tv_dict_is_watched(Some(&*dict));
 
         if del {
             let Some(di) = di_opt else {
                 return 0;
             };
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, None, Some(&di.di_tv));
+                tv_dict_watcher_notify(dict, key.data, None, Some(&di.di_tv));
             }
-            tv_dict_item_remove(&mut *dict, di);
+            tv_dict_item_remove(dict, di);
         } else {
             let mut tv: TypVal = TypVal::new();
 
             lua_pushvalue(lstate, 4);
-            if !nlua_pop_typval(lstate, &raw mut tv) {
+            if !nlua_pop_typval(lstate, &mut tv) {
                 return luaL_error(lstate, c"Couldn't convert lua value".as_ptr());
             }
 
@@ -458,7 +459,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
             let di = if let Some(di) = di_opt {
                 let mut type_error = false;
-                if dict == get_vimvar_dict()
+                if ptr::eq(dict, get_vimvar_dict())
                     && !before_set_vvar(key.data, di, &mut tv, true, watched, &mut type_error)
                 {
                     tv_clear(&mut tv);
@@ -478,14 +479,14 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
                 di
             } else {
                 let new_di = tv_dict_item_alloc_len(key.as_bytes());
-                let _ = tv_dict_add(&mut *dict, new_di);
+                let _ = tv_dict_add(dict, new_di);
                 new_di
             };
 
             tv_copy(&tv, &mut di.di_tv);
 
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, Some(&tv), Some(&oldtv));
+                tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
                 tv_clear(&mut oldtv);
             }
 
@@ -497,21 +498,23 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
 pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
     unsafe {
-        let dict = nlua_get_var_scope(lstate);
+        let Some(dict) = nlua_get_var_scope(lstate) else {
+            return 0;
+        };
         let mut len: usize = 0;
         let name = luaL_checklstring(lstate, 3, &raw mut len);
 
-        let mut di = tv_dict_find(dict.as_ref(), name, len as isize);
-        if di.is_null() && dict == get_globvar_dict() {
+        let mut di = tv_dict_find(Some(&*dict), name, len as isize);
+        if di.is_null() && ptr::eq(dict, get_globvar_dict()) {
             if !script_autoload(crate::memory::cstr_slice(name, len), false) || aborting() {
                 return 0;
             }
-            di = tv_dict_find(dict.as_ref(), name, len as isize);
+            di = tv_dict_find(Some(&*dict), name, len as isize);
         }
         if di.is_null() {
             return 0;
         }
-        nlua_push_typval(lstate, &raw mut (*di).di_tv, 0);
+        nlua_push_typval(lstate, &mut (*di).di_tv, 0);
         1
     }
 }
@@ -636,7 +639,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
         lua_pushnil(lstate);
         while lua_next(lstate, 1) != 0 {
             if lua_type(lstate, -2) == LUA_TSTRING {
-                let k = crate::memory::cstr_as_bytes(lua_tostring(lstate, -2));
+                let k = lua_tostring(lstate, -2).map_or(&[][..], CStr::to_bytes);
                 let v = lua_toboolean(lstate, -1) != 0;
                 match k {
                     b"buf" => {
@@ -733,7 +736,7 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
             return lua_error(lstate);
         } else if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
-            lua_pushstring(lstate, err.msg_cstr());
+            crate::lua::converter::lua_pushstring_opt(lstate, err.msg_cstr());
             lua_concat(lstate, 2);
             api_clear_error(&mut err);
             return lua_error(lstate);
@@ -748,7 +751,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
         return luaL_argerror(lstate, 1, c"string expected");
     }
 
-    let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(lua_tostring(lstate, 1)));
+    let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1).map_or(&[], CStr::to_bytes));
     let mut rem = escaped.as_bytes();
 
     lua_newtable(lstate);
@@ -794,7 +797,7 @@ unsafe extern "C-unwind" fn nlua_path_is_url(lstate: *mut lua_State) -> i32 {
     unsafe {
         lua_pushboolean(
             lstate,
-            i32::from(path_with_url(luaL_checkstring(lstate, 1))),
+            i32::from(path_with_url(luaL_checkstring(lstate, 1).as_ptr())),
         );
     }
     1
@@ -842,7 +845,7 @@ pub fn nlua_state_add_stdlib(lstate: *mut lua_State, is_thread: bool) {
         lua_pushcfunction(lstate, Some(nlua_regex));
         lua_setfield(lstate, -2, c"regex");
         let _ = luaL_newmetatable(lstate, c"nvim_regex");
-        luaL_register(lstate, ptr::null(), (&raw const REGEX_META).cast());
+        luaL_register(lstate, None, &REGEX_META);
 
         unsafe { lua_pushvalue(lstate, -1) };
         lua_setfield(lstate, -2, c"__index");

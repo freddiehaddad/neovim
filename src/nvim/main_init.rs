@@ -652,12 +652,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             &mut *items_tv.vval.v_list()
         });
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
-        nlua_call_typval(
-            c"vim._core.swapfile",
-            c"list_swaps",
-            lua_args.as_mut_ptr(),
-            None,
-        );
+        nlua_call_typval(c"vim._core.swapfile", c"list_swaps", &mut lua_args, None);
         tv_clear(&mut items_tv);
         os_exit(0);
     }
@@ -796,7 +791,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             true,
             c"executing Lua -l script",
         );
-        let lua_ok = nlua_exec_file(luaf.as_ptr());
+        let lua_ok = nlua_exec_file(luaf.as_c_str());
         time_msg_if_enabled(c"executing Lua -l script");
         if g_st().msg_didout {
             msg_putchar(b'\n' as i32);
@@ -816,7 +811,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
                 c"executing stdin as Ex commands",
             );
             let mut args = [crate::eval::typval::TypVal::new(); 1];
-            nlua_call_typval(c"vim._core.exmode", c"run", args.as_mut_ptr(), None);
+            nlua_call_typval(c"vim._core.exmode", c"run", &mut args, None);
         }
         if g_st().msg_didout {
             msg_putchar(b'\n' as i32);
@@ -1213,7 +1208,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         data: c"return vim._cs_remote(...)".as_ptr().cast_mut(),
         size: 26,
     };
-    let o = nlua_exec(s, ptr::null(), a, K_RET_OBJECT, None, &mut err);
+    let o = nlua_exec(s, None, a, K_RET_OBJECT, None, &mut err);
     drop(args_vec);
     if err.err_type != ErrorType::ErrorTypeNone {
         fprintf!(stderr, c"%s\n", err.msg_cstr());

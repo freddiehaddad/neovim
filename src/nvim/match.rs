@@ -888,7 +888,7 @@ fn matchadd_dict_arg(
         return true;
     };
 
-    let Some(found_win) = (unsafe { find_win_by_nr_or_id(&di.di_tv).as_mut() }) else {
+    let Some(found_win) = find_win_by_nr_or_id(&di.di_tv) else {
         emsg(gettext(E_INVALWINDOW));
         return false;
     };

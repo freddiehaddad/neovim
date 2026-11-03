@@ -102,7 +102,7 @@ pub fn nvim_execute_lua(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    nlua_exec(code, ptr::null(), args, K_RET_OBJECT, Some(arena), err)
+    nlua_exec(code, None, args, K_RET_OBJECT, Some(arena), err)
 }
 
 /// Gets the buffer number
@@ -1253,7 +1253,7 @@ pub fn nvim_notify(
     };
     nlua_exec(
         static_cstr_as_string(c"return vim.notify(...)"),
-        ptr::null(),
+        None,
         args,
         K_RET_OBJECT,
         Some(arena),
