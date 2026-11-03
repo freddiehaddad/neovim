@@ -823,21 +823,22 @@ impl std::hash::Hash for PathKey {
             }
         }
         let ic = CASE_INSENSITIVE_FILENAME;
-        let start = p;
+        let bytes = crate::memory::cstr_as_bytes(p.cast());
+        let mut idx = 0usize;
         let mut len: i32 = 0;
-        while unsafe { *p != 0 } {
-            let cur = unsafe { *p };
-            let next = unsafe { *p.wrapping_add(1) };
+        while idx < bytes.len() {
+            let cur = bytes[idx];
+            let next = bytes.get(idx + 1).copied().unwrap_or(0);
             if vim_ispathsep_nocolon(i32::from(cur))
                 && next == 0
-                && !ptr::eq(start, p)
-                && unsafe { !vim_ispathsep(i32::from(*p.wrapping_sub(1))) }
+                && idx > 0
+                && !vim_ispathsep(i32::from(bytes[idx - 1]))
             {
                 break;
             }
-            let c = path_fold_char(ic, p.cast(), &mut len);
+            let c = path_fold_char(ic, &bytes[idx..], &mut len);
             h = (h << 5).wrapping_sub(h).wrapping_add(c as u32);
-            p = p.wrapping_add(len as usize);
+            idx += (len as usize).max(1);
         }
         state.write_u32(h);
     }

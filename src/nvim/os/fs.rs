@@ -1690,22 +1690,19 @@ pub fn os_file_mkdir(fname: impl crate::strings::IntoCCharPtr, mode: i32) -> i32
 }
 
 /// Create a unique temporary directory.
-pub fn os_mkdtemp<T>(templ: impl crate::strings::IntoCCharPtr, path: *mut T) -> i32 {
+pub fn os_mkdtemp(templ: impl crate::strings::IntoCCharPtr, path: &mut [u8]) -> i32 {
     let templ = templ.into_c_char_ptr();
-    {
-        let mut request: uv_fs_buf_t = [0; 80];
-        let result =
-            unsafe { uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null()) };
-        if result == 0 {
-            crate::memory::copy_bytes_to_c_buf(
-                unsafe { std::slice::from_raw_parts_mut(path.cast(), TEMP_FILE_PATH_MAXLEN) },
-                crate::memory::cstr_as_bytes(unsafe { uv_fs_get_path(&raw const request) }),
-            );
-            to_slash(path.cast());
-        }
-        unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
-        result
+    let mut request: uv_fs_buf_t = [0; 80];
+    let result = unsafe { uv_fs_mkdtemp(ptr::null_mut(), &raw mut request, templ, ptr::null()) };
+    if result == 0 {
+        crate::memory::copy_bytes_to_c_buf(
+            path,
+            crate::memory::cstr_as_bytes(unsafe { uv_fs_get_path(&raw const request) }),
+        );
+        to_slash(path.as_mut_ptr());
     }
+    unsafe { uv_fs_req_cleanup((&raw mut request).cast()) };
+    result
 }
 
 /// Remove a directory.
@@ -1945,21 +1942,24 @@ pub fn os_fileid_equal(file_id_1: &FileID, file_id_2: &FileID) -> bool {
 }
 
 /// Return the canonicalized absolute pathname.
-pub fn os_realpath<T>(name: impl crate::strings::IntoCCharPtr, buf: *mut T, len: usize) -> *mut T {
+pub fn os_realpath(name: impl crate::strings::IntoCCharPtr, buf: &mut [u8]) -> *mut u8 {
     let name = name.into_c_char_ptr();
     unsafe {
-        assert!(!buf.is_null());
         let mut request: uv_fs_buf_t = [0; 80];
         let result = uv_fs_realpath(ptr::null_mut(), &raw mut request, name, ptr::null());
         if result == 0 {
             crate::memory::copy_bytes_to_c_buf(
-                std::slice::from_raw_parts_mut(buf.cast(), len),
+                buf,
                 crate::memory::cstr_as_bytes(uv_fs_get_ptr(&raw const request).cast()),
             );
-            to_slash(buf.cast());
+            to_slash(buf.as_mut_ptr());
         }
         uv_fs_req_cleanup((&raw mut request).cast());
-        if result == 0 { buf } else { ptr::null_mut() }
+        if result == 0 {
+            buf.as_mut_ptr()
+        } else {
+            ptr::null_mut()
+        }
     }
 }
 
@@ -1970,7 +1970,7 @@ pub fn os_realpath_cstr(
 ) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
     let mut buf = vec![0u8; len];
-    if os_realpath(name, buf.as_mut_ptr(), len).is_null() {
+    if os_realpath(name, &mut buf).is_null() {
         None
     } else {
         Some(cstr_to_cstring(buf.as_ptr().cast()))

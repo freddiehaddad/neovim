@@ -574,7 +574,7 @@ pub fn ex_breakadd(eap: &mut Exarg) {
     bp.dbg_forceit = eap.forceit;
 
     if bp.dbg_type != DBG_EXPR {
-        let pat = file_pat_to_reg_pat(bp.dbg_name.as_ptr(), std::ptr::null(), None, 0);
+        let pat = file_pat_to_reg_pat(bp.dbg_name.as_bytes(), None, 0);
         if let Some(ref pat) = pat {
             bp.dbg_prog = vim_regcomp_box(pat.as_ptr(), RE_MAGIC + RE_STRING);
         }

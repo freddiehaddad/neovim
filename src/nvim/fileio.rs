@@ -4446,7 +4446,7 @@ fn vim_mktempdir() {
         ) as usize;
         debug_assert!(tmplen < tmp.len());
         let _ = tmplen;
-        let r = os_mkdtemp(tmp.as_ptr().cast(), path.as_mut_ptr());
+        let r = os_mkdtemp(tmp.as_ptr().cast(), &mut path);
         if r != 0 {
             logmsg!(
                 LOG_WARN,
@@ -4721,11 +4721,9 @@ pub fn match_file_list(
     let mut p = list;
     while !crate::memory::cstr_is_empty(p) {
         let mut buf: [u8; MAXPATHL] = [0; MAXPATHL];
-        copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), buf.len(), c",");
+        let part_len = copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), buf.len(), c",");
         let mut allow_dirs = false;
-        let Some(regpat) =
-            file_pat_to_reg_pat(buf.as_ptr().cast(), ptr::null(), Some(&mut allow_dirs), 0)
-        else {
+        let Some(regpat) = file_pat_to_reg_pat(&buf[..part_len], Some(&mut allow_dirs), 0) else {
             break;
         };
         let matched = match_file_pat(
@@ -4746,28 +4744,19 @@ pub fn match_file_list(
 /// Convert the given pattern "pat" which has shell style wildcards in it, into
 /// a regular expression, and return the result in allocated memory.
 pub fn file_pat_to_reg_pat(
-    pat: impl crate::strings::IntoCCharPtr,
-    pat_end: impl crate::strings::IntoCCharPtr,
+    pat_slice: &[u8],
     mut allow_dirs: Option<&mut bool>,
     no_bslash: i32,
 ) -> Option<std::ffi::CString> {
-    let pat = pat.into_c_char_ptr();
-    let pat_end = pat_end.into_c_char_ptr();
     if let Some(ref mut ad) = allow_dirs {
         **ad = false;
     }
 
-    let pat_len = if pat_end.is_null() {
-        crate::memory::cstr_len(pat)
-    } else {
-        crate::memory::ptr_offset_from(pat_end, pat).max(0) as usize
-    };
-
+    let pat_len = pat_slice.len();
     if pat_len == 0 {
         return Some(c"^$".to_owned());
     }
 
-    let pat_slice = crate::memory::cstr_slice(pat, pat_len);
     let mut size: usize = 2;
     for &b in pat_slice {
         match b {
@@ -5095,7 +5084,7 @@ mod tests {
     #[test]
     fn test_file_pat_to_reg_pat() {
         let check = |pat: &CStr, expected: &CStr| {
-            let res = file_pat_to_reg_pat(pat.as_ptr(), ptr::null(), None, 1);
+            let res = file_pat_to_reg_pat(pat.to_bytes(), None, 1);
             assert_eq!(res.as_deref(), Some(expected));
         };
         check(c"path", c"^path$");

@@ -2253,28 +2253,22 @@ fn exe_commands(parmp: &mut Mparm) {
 
 fn do_system_initialization() {
     if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
-        let mut iter = ptr::null();
+        let config_bytes = config_dirs.as_bytes();
+        let mut iter = None;
         let appname = get_appname(false);
         let appname_bytes = crate::memory::cstr_as_bytes(appname);
         let sysinit_suffix: [u8; 13] = [
             PATHSEP, b's', b'y', b's', b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0,
         ];
         loop {
-            let mut dir = ptr::null();
-            let mut dir_len: usize = 0;
-            iter = vim_env_iter(
-                b':' as _,
-                config_dirs.as_ptr(),
-                iter,
-                &raw mut dir,
-                &mut dir_len,
-            );
-            if dir.is_null() || dir_len == 0 {
+            let mut dir: &[u8] = &[];
+            iter = vim_env_iter(b':', config_bytes, iter, &mut dir);
+            if dir.is_empty() {
                 break;
             }
-            let path_len = dir_len + 1 + appname_bytes.len() + sysinit_suffix.len();
+            let path_len = dir.len() + 1 + appname_bytes.len() + sysinit_suffix.len();
             let mut vimrc = Vec::with_capacity(path_len);
-            vimrc.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
+            vimrc.extend_from_slice(dir);
             if vimrc.last() != Some(&PATHSEP) {
                 vimrc.push(PATHSEP);
             }
@@ -2283,7 +2277,7 @@ fn do_system_initialization() {
             if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) {
                 return;
             }
-            if iter.is_null() {
+            if iter.is_none() {
                 break;
             }
         }
@@ -2330,31 +2324,25 @@ fn do_user_initialization() -> bool {
         let init_vim_suffix: [u8; 10] =
             [PATHSEP, b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0];
 
-        let mut iter = ptr::null();
+        let config_bytes = config_dirs.as_bytes();
+        let mut iter = None;
         loop {
-            let mut dir = ptr::null();
-            let mut dir_len: usize = 0;
-            iter = vim_env_iter(
-                b':' as _,
-                config_dirs.as_ptr(),
-                iter,
-                &raw mut dir,
-                &mut dir_len,
-            );
-            if dir.is_null() || dir_len == 0 {
+            let mut dir: &[u8] = &[];
+            iter = vim_env_iter(b':', config_bytes, iter, &mut dir);
+            if dir.is_empty() {
                 break;
             }
 
-            let init_lua_len = dir_len + 1 + appname_bytes.len() + init_lua_suffix.len();
+            let init_lua_len = dir.len() + 1 + appname_bytes.len() + init_lua_suffix.len();
             let mut init_lua = Vec::with_capacity(init_lua_len);
-            init_lua.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
+            init_lua.extend_from_slice(dir);
             init_lua.push(PATHSEP);
             init_lua.extend_from_slice(appname_bytes);
             init_lua.extend_from_slice(&init_lua_suffix);
 
-            let init_vim_len = dir_len + 1 + appname_bytes.len() + init_vim_suffix.len();
+            let init_vim_len = dir.len() + 1 + appname_bytes.len() + init_vim_suffix.len();
             let mut init_vim = Vec::with_capacity(init_vim_len);
-            init_vim.extend_from_slice(crate::memory::cstr_slice(dir, dir_len));
+            init_vim.extend_from_slice(dir);
             init_vim.push(PATHSEP);
             init_vim.extend_from_slice(appname_bytes);
             init_vim.extend_from_slice(&init_vim_suffix);
@@ -2387,7 +2375,7 @@ fn do_user_initialization() -> bool {
                 return do_exrc;
             }
 
-            if iter.is_null() {
+            if iter.is_none() {
                 break;
             }
         }

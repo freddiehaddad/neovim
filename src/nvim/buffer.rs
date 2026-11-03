@@ -3163,7 +3163,15 @@ pub fn buflist_findpat(
                 match_fnum = -1;
             }
         } else {
-            let Some(pat_cstr) = file_pat_to_reg_pat(pattern, pattern_end, None, 0) else {
+            let pat_slice = if pattern_end.is_null() {
+                crate::memory::cstr_as_bytes(pattern)
+            } else {
+                crate::memory::cstr_slice(
+                    pattern,
+                    crate::memory::ptr_offset_from(pattern_end, pattern).max(0) as usize,
+                )
+            };
+            let Some(pat_cstr) = file_pat_to_reg_pat(pat_slice, None, 0) else {
                 return -1;
             };
             let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();

@@ -2321,8 +2321,7 @@ pub fn autocmd_register(
             } else {
                 let mut allow_dirs_b = false;
                 let reg_pat = file_pat_to_reg_pat(
-                    pat,
-                    pat.wrapping_add(patlen as usize),
+                    crate::memory::cstr_slice(pat, patlen.max(0) as usize),
                     Some(&mut allow_dirs_b),
                     1,
                 );

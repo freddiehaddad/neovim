@@ -5814,7 +5814,7 @@ pub fn list2fpos(
 /// Get the length of an environment variable name.
 pub fn get_env_len<T>(arg: *mut *const T) -> i32 {
     unsafe {
-        let len = env_name_len((*arg).cast());
+        let len = env_name_len(crate::memory::cstr_as_bytes((*arg).cast()));
         *arg = (*arg).wrapping_add(len);
         len as i32
     }

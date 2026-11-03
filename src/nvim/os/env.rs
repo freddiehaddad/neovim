@@ -11,7 +11,7 @@ use crate::eval::fs::modify_fname;
 use crate::eval::skip_expr;
 use crate::eval::vars::{VV_PROGPATH, get_vim_var_str};
 use crate::globals::*;
-use crate::mbyte::{utf_isalnum, utf_ptr2char, utf_ptr2len};
+use crate::mbyte::utf_isalnum;
 #[cfg(windows)]
 use crate::mbyte::{utf_valid_string, utf16_to_utf8};
 use crate::memory::{cstr_from_bytes, cstr_to_cstring};
@@ -104,8 +104,6 @@ pub(crate) fn os_environ_ptr() -> *mut *mut *mut u8 {
     }
 }
 
-#[cfg(unix)]
-use crate::globals::IOSIZE;
 use crate::os::fs::MAXPATHL;
 #[cfg(windows)]
 use crate::os::os_win_console::GetLastError;
@@ -118,9 +116,7 @@ unsafe extern "system" {
 }
 
 #[inline]
-fn env_name_valid(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(name);
+fn env_name_valid(bytes: &[u8]) -> bool {
     #[cfg(windows)]
     {
         !bytes.is_empty() && utf_valid_string(bytes)
@@ -135,38 +131,33 @@ pub fn env_init() {
     g_st().nvim_testing = os_env_exists(c"NVIM_TEST", false);
 }
 
-/// Gets the length (bytes) of the env var name at `p`.
-pub fn env_name_len(p: impl crate::strings::IntoCCharPtr) -> usize {
-    let p = p.into_c_char_ptr();
-    {
-        let mut s = p;
-        loop {
-            let b = crate::memory::cstr_first_byte(s);
-            if b < 0x80 {
-                if !b.is_ascii_alphanumeric() && b != b'_' {
-                    break;
-                }
-                s = s.wrapping_add(1);
-                continue;
-            }
-            let (len, is_alnum) = {
-                let l = utf_ptr2len(s);
-                (l, l != 1 && utf_isalnum(utf_ptr2char(s)))
-            };
-            if !is_alnum {
+/// Gets the length (bytes) of the env var name at `bytes`.
+pub fn env_name_len(bytes: &[u8]) -> usize {
+    let mut idx = 0usize;
+    while idx < bytes.len() {
+        let b = bytes[idx];
+        if b < 0x80 {
+            if !b.is_ascii_alphanumeric() && b != b'_' {
                 break;
             }
-            s = s.wrapping_add(len as usize);
+            idx += 1;
+            continue;
         }
-        (s as usize) - (p as usize)
+        let rem = &bytes[idx..];
+        let l = crate::mbyte::utf_slice2len(rem);
+        if l == 1 || !utf_isalnum(crate::mbyte::utf_slice2char(rem)) {
+            break;
+        }
+        idx += l.min(rem.len());
     }
+    idx
 }
 
 /// Like `getenv()`, but returns `None` if the variable is empty, without C heap allocations.
 pub fn os_getenv_cstr<S: crate::strings::IntoCCharPtr>(name: S) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
     {
-        if !env_name_valid(name) {
+        if !env_name_valid(crate::memory::cstr_as_bytes(name)) {
             return None;
         }
         let mut size = INIT_SIZE;
@@ -200,7 +191,7 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr, T>(
 ) -> *mut T {
     let name = name.into_c_char_ptr();
     {
-        if !env_name_valid(name) {
+        if !env_name_valid(crate::memory::cstr_as_bytes(name)) {
             return ptr::null_mut();
         }
         {
@@ -231,7 +222,7 @@ pub fn os_getenv_buf<S: crate::strings::IntoCCharPtr, T>(
 pub fn os_env_exists<S: crate::strings::IntoCCharPtr>(name: S, nonempty: bool) -> bool {
     let name = name.into_c_char_ptr();
     {
-        if !env_name_valid(name) {
+        if !env_name_valid(crate::memory::cstr_as_bytes(name)) {
             return false;
         }
         {
@@ -253,7 +244,7 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
     let name = name.into_c_char_ptr();
     let value = value.into_c_char_ptr();
     {
-        if !env_name_valid(name) {
+        if !env_name_valid(crate::memory::cstr_as_bytes(name)) {
             return -1;
         }
         #[cfg(windows)]
@@ -292,7 +283,7 @@ pub fn os_setenv<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCChar
 pub fn os_unsetenv(name: impl crate::strings::IntoCCharPtr) -> i32 {
     let name = name.into_c_char_ptr();
     {
-        if !env_name_valid(name) {
+        if !env_name_valid(crate::memory::cstr_as_bytes(name)) {
             return -1;
         }
         {
@@ -505,8 +496,7 @@ pub fn init_homedir() {
             var = os_uv_homedir();
         }
 
-        if !var.is_null() && !os_realpath(var.cast(), g_st().iobuff.as_mut_ptr(), IOSIZE).is_null()
-        {
+        if !var.is_null() && !os_realpath(var.cast(), g_st().iobuff_bytes_mut()).is_null() {
             var = g_st().iobuff.as_mut_ptr().cast();
         }
 
@@ -629,7 +619,7 @@ pub fn expand_env_esc<T>(
                         tail = tail.wrapping_add(1);
                     }
                 } else {
-                    let len = env_name_len(tail.cast()).min(c.max(0) as usize);
+                    let len = env_name_len(tail_bytes).min(c.max(0) as usize);
                     dst_slice[dst_idx..dst_idx + len].copy_from_slice(&tail_bytes[..len]);
                     var_len = len;
                     tail = tail.wrapping_add(len);
@@ -637,7 +627,7 @@ pub fn expand_env_esc<T>(
 
                 #[cfg(windows)]
                 {
-                    let len = env_name_len(tail.cast()).min(c.max(0) as usize);
+                    let len = env_name_len(tail_bytes).min(c.max(0) as usize);
                     dst_slice[dst_idx..dst_idx + len].copy_from_slice(&tail_bytes[..len]);
                     var_len = len;
                     tail = tail.wrapping_add(len);
@@ -818,103 +808,71 @@ fn vim_runtime_dir(vimdir: impl crate::strings::IntoCCharPtr) -> Option<std::ffi
     }
 }
 
-fn remove_tail(
-    path: *mut u8,
-    pend: *mut u8,
-    dirname: impl crate::strings::IntoCCharPtr,
-) -> *mut u8 {
-    let dirname = dirname.into_c_char_ptr();
-    {
-        let len = crate::memory::cstr_len(dirname);
-        if (pend as usize) > (path as usize) + len {
-            let new_tail = pend.wrapping_sub(len + 1);
-            if path_cmp(opt_vars().p_fic != 0, new_tail.cast(), dirname, len) == 0
-                && (new_tail == path || after_pathsep(path.cast(), new_tail.cast()) != 0)
-            {
-                return new_tail;
-            }
+fn remove_tail(path: *mut u8, pend: *mut u8, dirname: &[u8]) -> *mut u8 {
+    let len = dirname.len();
+    if (pend as usize) > (path as usize) + len {
+        let new_tail = pend.wrapping_sub(len + 1);
+        let dirname_cstr = cstr_from_bytes(dirname);
+        if path_cmp(
+            opt_vars().p_fic != 0,
+            new_tail.cast(),
+            dirname_cstr.as_ptr(),
+            len,
+        ) == 0
+            && (new_tail == path || after_pathsep(path.cast(), new_tail.cast()) != 0)
+        {
+            return new_tail;
         }
     }
     pend
 }
 
 /// Iterates `$PATH`-like delimited list `val`.
-pub fn vim_env_iter<T>(
+pub fn vim_env_iter<'a>(
     delim: u8,
-    val: impl crate::strings::IntoCCharPtr,
-    iter: impl crate::strings::IntoCCharPtr,
-    dir: *mut *const T,
-    len: &mut usize,
-) -> *const T {
-    let val: *const u8 = val.into_c_char_ptr().cast();
-    let iter: *const u8 = iter.into_c_char_ptr().cast();
-    {
-        let varval = if iter.is_null() { val } else { iter };
-        unsafe {
-            *dir = varval.cast();
-        }
-        let bytes = crate::memory::cstr_as_bytes(varval.cast());
-        if let Some(pos) = bytes.iter().position(|&b| b == delim) {
-            *len = pos;
-            varval.wrapping_add(pos + 1).cast()
-        } else {
-            *len = bytes.len();
-            ptr::null()
-        }
+    val: &'a [u8],
+    iter: Option<&'a [u8]>,
+    dir: &mut &'a [u8],
+) -> Option<&'a [u8]> {
+    let rem = iter.unwrap_or(val);
+    if let Some(pos) = rem.iter().position(|&b| b == delim) {
+        *dir = &rem[..pos];
+        Some(&rem[pos + 1..])
+    } else {
+        *dir = rem;
+        None
     }
 }
 
 /// Iterates `$PATH`-like delimited list `val` in reverse order.
-pub fn vim_env_iter_rev<T>(
+pub fn vim_env_iter_rev<'a>(
     delim: u8,
-    val: impl crate::strings::IntoCCharPtr,
-    iter: impl crate::strings::IntoCCharPtr,
-    dir: *mut *const T,
-    len: &mut usize,
-) -> *const T {
-    let val: *const u8 = val.into_c_char_ptr().cast();
-    let iter: *const u8 = iter.into_c_char_ptr().cast();
-    {
-        let varend = if iter.is_null() {
-            val.wrapping_add(crate::memory::cstr_len(val.cast()))
-                .wrapping_sub(1)
-        } else {
-            iter
-        };
-        let varlen = (varend as usize).wrapping_sub(val as usize).wrapping_add(1);
-        let colon: *const u8 = if varlen == 0 {
-            ptr::null()
-        } else {
-            unsafe { std::slice::from_raw_parts(val, varlen) }
-                .iter()
-                .rposition(|&_b| _b == delim)
-                .map_or(ptr::null(), |_i| val.wrapping_add(_i))
-        };
-        if colon.is_null() {
-            *len = varlen;
-            unsafe {
-                *dir = val.cast();
-            }
-            return ptr::null();
-        }
-        unsafe {
-            *dir = colon.wrapping_add(1).cast();
-        }
-        *len = (varend as usize) - (colon as usize);
-        colon.wrapping_sub(1).cast()
+    val: &'a [u8],
+    iter: Option<&'a [u8]>,
+    dir: &mut &'a [u8],
+) -> Option<&'a [u8]> {
+    let rem = iter.unwrap_or(val);
+    if let Some(pos) = rem.iter().rposition(|&b| b == delim) {
+        *dir = &rem[pos + 1..];
+        Some(&rem[..pos])
+    } else {
+        *dir = rem;
+        None
     }
 }
 
-pub fn vim_get_prefix_from_exepath<T>(exe_name: *mut T) {
-    let exe_name = exe_name.cast::<u8>();
+pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
+    crate::memory::copy_bytes_to_c_buf(
+        exe_name,
+        crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
+    );
+    let ptr = exe_name.as_mut_ptr();
+    let path_end: *mut u8 = path_tail_with_sep(ptr.cast()).cast();
     unsafe {
-        crate::memory::copy_bytes_to_c_buf(
-            std::slice::from_raw_parts_mut(exe_name, MAXPATHL),
-            crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
-        );
-        let path_end: *mut u8 = path_tail_with_sep(exe_name.cast()).cast();
         *path_end = 0;
-        let path_end2: *mut u8 = path_tail(exe_name.cast()).cast();
+    }
+    let path_end2: *mut u8 = path_tail(ptr.cast()).cast();
+    unsafe {
         *path_end2 = 0;
     }
 }
@@ -973,7 +931,7 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
                 let mut exe_name = [0u8; MAXPATHL];
                 if vim_path.is_null() {
-                    vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
+                    vim_get_prefix_from_exepath(&mut exe_name);
                     if append_path(
                         exe_name.as_mut_ptr().cast(),
                         c"share/nvim/runtime/",
@@ -986,10 +944,11 @@ pub fn vim_getenv(name: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
                 if !vim_path.is_null() {
                     let mut vim_path_end: *mut u8 = path_tail(vim_path.cast()).cast();
                     if vim_path == opt_vars().p_hf.cast() {
-                        vim_path_end = remove_tail(vim_path, vim_path_end, c"doc");
+                        vim_path_end = remove_tail(vim_path, vim_path_end, b"doc");
                     }
                     if !vimruntime {
-                        vim_path_end = remove_tail(vim_path, vim_path_end, RUNTIME_DIRNAME);
+                        vim_path_end =
+                            remove_tail(vim_path, vim_path_end, RUNTIME_DIRNAME.to_bytes());
                     }
                     if (vim_path_end as usize) > (vim_path as usize)
                         && after_pathsep(vim_path.cast(), vim_path_end.cast()) != 0
@@ -1336,25 +1295,24 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            assert_eq!(env_name_len(c"FOO_123/bar"), 7);
-            assert_eq!(env_name_len(c"-invalid"), 0);
+            assert_eq!(env_name_len(b"FOO_123/bar"), 7);
+            assert_eq!(env_name_len(b"-invalid"), 0);
 
-            let val = c"/a:/bb:/ccc";
-            let mut iter: *const u8 = ptr::null();
-            let mut dir: *const u8 = ptr::null();
-            let mut len: usize = 0;
+            let val = b"/a:/bb:/ccc";
+            let mut iter: Option<&[u8]> = None;
+            let mut dir: &[u8] = &[];
 
-            iter = vim_env_iter(b':', val.as_ptr(), iter.cast(), &raw mut dir, &mut len);
-            assert_eq!(len, 2);
-            assert!(!iter.is_null());
+            iter = vim_env_iter(b':', val, iter, &mut dir);
+            assert_eq!(dir.len(), 2);
+            assert!(iter.is_some());
 
-            iter = vim_env_iter(b':', val.as_ptr(), iter.cast(), &raw mut dir, &mut len);
-            assert_eq!(len, 3);
-            assert!(!iter.is_null());
+            iter = vim_env_iter(b':', val, iter, &mut dir);
+            assert_eq!(dir.len(), 3);
+            assert!(iter.is_some());
 
-            iter = vim_env_iter(b':', val.as_ptr(), iter.cast(), &raw mut dir, &mut len);
-            assert_eq!(len, 4);
-            assert!(iter.is_null());
+            iter = vim_env_iter(b':', val, iter, &mut dir);
+            assert_eq!(dir.len(), 4);
+            assert!(iter.is_none());
 
             if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
                 crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim", -1);

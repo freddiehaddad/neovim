@@ -8113,18 +8113,18 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
     let Some(dirs) = stdpaths_get_xdg_var(xdg) else {
         return;
     };
-    let mut iter = ptr::null();
+    let dirs_bytes = dirs.as_bytes();
+    let mut iter = None;
     let appname = get_appname(false);
     loop {
-        let mut dir_len: usize = 0;
-        let mut dir = ptr::null();
-        iter = vim_env_iter(ENV_SEPCHAR, dirs.as_ptr(), iter, &raw mut dir, &mut dir_len);
-        if !dir.is_null() && dir_len > 0 {
-            let dir_cstr = cstr_from_bytes(crate::memory::cstr_slice(dir, dir_len));
+        let mut dir: &[u8] = &[];
+        iter = vim_env_iter(ENV_SEPCHAR, dirs_bytes, iter, &mut dir);
+        if !dir.is_empty() {
+            let dir_cstr = cstr_from_bytes(dir);
             let dir_with_nvim = concat_fnames_cstr(dir_cstr.as_ptr(), appname, true);
             tv_list_append_string(&mut *list, dir_with_nvim.as_ptr(), -1);
         }
-        if iter.is_null() {
+        if iter.is_none() {
             break;
         }
     }

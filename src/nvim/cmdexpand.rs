@@ -3364,7 +3364,7 @@ fn set_context_for_wildcard_arg(
 
         if crate::memory::cstr_first_byte(xp.xp_pattern.cast()) == b'$' {
             p = xp.xp_pattern.wrapping_add(1);
-            p = p.wrapping_add(env_name_len(p.cast()));
+            p = p.wrapping_add(env_name_len(crate::memory::cstr_as_bytes(p.cast())));
             if crate::memory::cstr_is_empty(p.cast()) {
                 xp.xp_context = EXPAND_ENV_VARS;
                 xp.xp_pattern = xp.xp_pattern.wrapping_add(1);

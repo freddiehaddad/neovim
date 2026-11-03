@@ -2078,9 +2078,8 @@ pub fn ExpandPackAddDir(
     }
 }
 
-fn strcpy_comma_escaped(dest: &mut Vec<u8>, src: impl crate::strings::IntoCCharPtr, len: usize) {
-    let src = src.into_c_char_ptr();
-    for &b in crate::memory::cstr_slice(src, len) {
+fn strcpy_comma_escaped(dest: &mut Vec<u8>, src: &[u8]) {
+    for &b in src {
         if b == b',' {
             dest.push(b'\\');
         }
@@ -2093,36 +2092,32 @@ fn compute_double_env_sep_len(
     common_suf_len: usize,
     single_suf_len: usize,
 ) -> usize {
-    let val = val.into_c_char_ptr();
-    {
-        if crate::memory::cstr_is_empty(val) {
-            return 0;
-        }
-        let mut ret: usize = 0;
-        let mut iter: *const u8 = ptr::null();
-        loop {
-            let mut dir_len: usize = 0;
-            let mut dir: *const u8 = ptr::null();
-            iter = vim_env_iter(ENV_SEPCHAR, val, iter.cast(), &mut dir, &mut dir_len);
-            if !dir.is_null() && dir_len > 0 {
-                ret += (dir_len
-                    + crate::memory::cstr_slice(dir.cast(), dir_len)
-                        .iter()
-                        .filter(|&&b| b == b',')
-                        .count()
-                    + common_suf_len
-                    + usize::from(
-                        after_pathsep(dir.cast(), dir.wrapping_add(dir_len).cast()) == 0,
-                    ))
-                    * 2
-                    + single_suf_len;
-            }
-            if iter.is_null() {
-                break;
-            }
-        }
-        ret
+    let val_bytes = crate::memory::cstr_as_bytes(val);
+    if val_bytes.is_empty() {
+        return 0;
     }
+    let mut ret: usize = 0;
+    let mut iter = None;
+    loop {
+        let mut dir: &[u8] = &[];
+        iter = vim_env_iter(ENV_SEPCHAR, val_bytes, iter, &mut dir);
+        if !dir.is_empty() {
+            let has_trailing_sep = after_pathsep(
+                dir.as_ptr().cast(),
+                dir.as_ptr().wrapping_add(dir.len()).cast(),
+            ) != 0;
+            ret += (dir.len()
+                + dir.iter().filter(|&&b| b == b',').count()
+                + common_suf_len
+                + usize::from(!has_trailing_sep))
+                * 2
+                + single_suf_len;
+        }
+        if iter.is_none() {
+            break;
+        }
+    }
+    ret
 }
 
 fn add_env_sep_dirs(
@@ -2134,24 +2129,23 @@ fn add_env_sep_dirs(
     len2: usize,
     forward: bool,
 ) {
-    let val = val.into_c_char_ptr();
+    let val_bytes = crate::memory::cstr_as_bytes(val);
     let suf1 = suf1.into_c_char_ptr();
     let suf2 = suf2.into_c_char_ptr();
-    if crate::memory::cstr_is_empty(val) {
+    if val_bytes.is_empty() {
         return;
     }
-    let mut iter: *const u8 = ptr::null();
+    let mut iter = None;
     let appname_bytes = get_appname(false).to_bytes();
     loop {
-        let mut dir_len: usize = 0;
-        let mut dir: *const u8 = ptr::null();
+        let mut dir: &[u8] = &[];
         iter = if forward {
-            vim_env_iter(ENV_SEPCHAR, val, iter.cast(), &mut dir, &mut dir_len)
+            vim_env_iter(ENV_SEPCHAR, val_bytes, iter, &mut dir)
         } else {
-            vim_env_iter_rev(ENV_SEPCHAR, val, iter.cast(), &mut dir, &mut dir_len)
+            vim_env_iter_rev(ENV_SEPCHAR, val_bytes, iter, &mut dir)
         };
-        if !dir.is_null() && dir_len > 0 {
-            strcpy_comma_escaped(dest, dir.cast(), dir_len);
+        if !dir.is_empty() {
+            strcpy_comma_escaped(dest, dir);
             if !dest.last().is_some_and(|&b| vim_ispathsep(b as i32)) {
                 dest.push(PATHSEP);
             }
@@ -2166,7 +2160,7 @@ fn add_env_sep_dirs(
             }
             dest.push(b',');
         }
-        if iter.is_null() {
+        if iter.is_none() {
             break;
         }
     }
@@ -2188,7 +2182,7 @@ fn add_dir(
     if dir.is_null() || dir_len == 0 {
         return;
     }
-    strcpy_comma_escaped(dest, dir, dir_len);
+    strcpy_comma_escaped(dest, crate::memory::cstr_slice(dir, dir_len));
     let append_nvim = matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGConfigHome);
     if append_nvim {
         if !dest.last().is_some_and(|&b| vim_ispathsep(b as i32)) {
@@ -2221,7 +2215,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
     }
 
     let mut exe_name = [0u8; MAXPATHL];
-    vim_get_prefix_from_exepath(exe_name.as_mut_ptr());
+    vim_get_prefix_from_exepath(&mut exe_name);
     if append_path(exe_name.as_mut_ptr().cast(), c"lib/nvim", MAXPATHL) {
         return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr().cast()));
     }

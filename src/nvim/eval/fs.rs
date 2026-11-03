@@ -1214,7 +1214,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// "glob2regpat()" function
 pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let regpat = tv_get_string_chk(&argvars[0])
-        .and_then(|pat| file_pat_to_reg_pat(pat, ptr::null(), None, 0));
+        .and_then(|pat| file_pat_to_reg_pat(crate::memory::cstr_as_bytes(pat), None, 0));
     crate::eval::typval::tv_set_string(rettv, regpat.as_ref().map_or(ptr::null(), |s| s.as_ptr()));
 }
 
