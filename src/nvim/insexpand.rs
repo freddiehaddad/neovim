@@ -643,11 +643,10 @@ fn compl_pattern_len() -> usize {
 }
 
 #[inline]
-fn set_compl_pattern_bytes(ptr: impl crate::strings::IntoCCharPtr, len: usize) {
-    let ptr = ptr.into_c_char_ptr();
-    insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-        ptr, len,
-    )));
+fn set_compl_pattern_bytes(bytes: &[u8]) {
+    insexp().compl_pattern = Some(crate::memory::cstr_from_bytes(
+        crate::memory::bytes_until_nul(bytes),
+    ));
 }
 
 #[inline]
@@ -658,14 +657,10 @@ fn decay_compl_timeout() {
 }
 
 /// Count the string of a new match in the duplicate-check hashtab.
-fn compl_strings_add(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        let bytes = crate::memory::cstr_slice(str_ptr, len);
-        let key_len = bytes.iter().position(|&b| b == 0).unwrap_or(len);
-        let ht_ptr = &mut insexp().compl_strings_ht;
-        *ht_ptr.entry(bytes[..key_len].to_vec()).or_insert(0) += 1;
-    }
+fn compl_strings_add(bytes: &[u8]) {
+    let key = crate::memory::bytes_until_nul(bytes);
+    let ht_ptr = &mut insexp().compl_strings_ht;
+    *ht_ptr.entry(key.to_vec()).or_insert(0) += 1;
 }
 
 /// CTRL-X pressed in Insert mode.
@@ -982,101 +977,97 @@ pub fn ins_compl_commit_char(c: i32) -> bool {
 
 /// Get the completed text by inferring the case of the originally typed text.
 fn ins_compl_infercase_gettext(
-    str_ptr: impl crate::strings::IntoCCharPtr,
+    str_bytes: &[u8],
     char_len: i32,
     compl_char_len: i32,
     min_len: i32,
     tofree: &mut Vec<u8>,
 ) -> *mut u8 {
-    let str_ptr = str_ptr.into_c_char_ptr();
+    let mut has_lower = false;
+
+    let mut wca = vec![0_i32; char_len as usize];
     {
-        let mut has_lower = false;
-
-        let mut wca = vec![0_i32; char_len as usize];
-        {
-            let mut rem = crate::memory::cstr_as_bytes(str_ptr);
-            for item in &mut wca {
-                *item = mb_ptr2char_adv(&mut rem);
-            }
+        let mut rem = crate::memory::bytes_until_nul(str_bytes);
+        for item in &mut wca {
+            *item = mb_ptr2char_adv(&mut rem);
         }
+    }
 
-        let orig_bytes = insexp().compl_orig_text.as_bytes();
-        // Rule 1: Were any chars converted to lower?
-        {
-            let mut rem = orig_bytes;
-            for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&mut rem);
-                if mb_islower(c) {
-                    has_lower = true;
-                    if mb_isupper(wca[i]) {
-                        for item in &mut wca[(compl_char_len as usize)..] {
-                            *item = mb_tolower(*item);
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-
-        // Rule 2: No lower case, 2nd consecutive letter converted to upper case.
-        if !has_lower {
-            let mut was_letter = false;
-            let mut rem = orig_bytes;
-            for i in 0..(min_len as usize) {
-                let c = mb_ptr2char_adv(&mut rem);
-                if was_letter && mb_isupper(c) && mb_islower(wca[i]) {
+    let orig_bytes = insexp().compl_orig_text.as_bytes();
+    // Rule 1: Were any chars converted to lower?
+    {
+        let mut rem = orig_bytes;
+        for i in 0..(min_len as usize) {
+            let c = mb_ptr2char_adv(&mut rem);
+            if mb_islower(c) {
+                has_lower = true;
+                if mb_isupper(wca[i]) {
                     for item in &mut wca[(compl_char_len as usize)..] {
-                        *item = mb_toupper(*item);
+                        *item = mb_tolower(*item);
                     }
                     break;
                 }
-                was_letter = mb_islower(c) || mb_isupper(c);
             }
         }
+    }
 
-        // Copy the original case of the part we typed.
-        {
-            let mut rem = orig_bytes;
-            for item in &mut wca[..(min_len as usize)] {
-                let c = mb_ptr2char_adv(&mut rem);
-                if mb_islower(c) {
-                    *item = mb_tolower(*item);
-                } else if mb_isupper(c) {
+    // Rule 2: No lower case, 2nd consecutive letter converted to upper case.
+    if !has_lower {
+        let mut was_letter = false;
+        let mut rem = orig_bytes;
+        for i in 0..(min_len as usize) {
+            let c = mb_ptr2char_adv(&mut rem);
+            if was_letter && mb_isupper(c) && mb_islower(wca[i]) {
+                for item in &mut wca[(compl_char_len as usize)..] {
                     *item = mb_toupper(*item);
                 }
+                break;
             }
+            was_letter = mb_islower(c) || mb_isupper(c);
         }
-
-        // Generate encoding specific output from wide character array.
-        let iobuff = g_st().iobuff_bytes_mut();
-        let mut p_idx = 0usize;
-        let mut i: i32 = 0;
-        let mut gap: Vec<u8> = Vec::new();
-        while i < char_len {
-            if !gap.is_empty() {
-                let mut ch_buf = [0u8; 6];
-                let n = utf_char2bytes(wca[i as usize], ch_buf.as_mut_ptr().cast()) as usize;
-                gap.extend_from_slice(&ch_buf[..n]);
-                i += 1;
-            } else if p_idx + 6 >= IOSIZE {
-                gap.reserve(IOSIZE);
-                gap.extend_from_slice(&iobuff[..p_idx]);
-            } else {
-                p_idx +=
-                    utf_char2bytes(wca[i as usize], iobuff[p_idx..].as_mut_ptr().cast()) as usize;
-                i += 1;
-            }
-        }
-
-        if !gap.is_empty() {
-            gap.push(0);
-            *tofree = gap;
-            return tofree.as_mut_ptr();
-        }
-
-        iobuff[p_idx] = 0;
-        iobuff.as_mut_ptr()
     }
+
+    // Copy the original case of the part we typed.
+    {
+        let mut rem = orig_bytes;
+        for item in &mut wca[..(min_len as usize)] {
+            let c = mb_ptr2char_adv(&mut rem);
+            if mb_islower(c) {
+                *item = mb_tolower(*item);
+            } else if mb_isupper(c) {
+                *item = mb_toupper(*item);
+            }
+        }
+    }
+
+    // Generate encoding specific output from wide character array.
+    let iobuff = g_st().iobuff_bytes_mut();
+    let mut p_idx = 0usize;
+    let mut i: i32 = 0;
+    let mut gap: Vec<u8> = Vec::new();
+    while i < char_len {
+        if !gap.is_empty() {
+            let mut ch_buf = [0u8; 6];
+            let n = utf_char2bytes(wca[i as usize], ch_buf.as_mut_ptr().cast()) as usize;
+            gap.extend_from_slice(&ch_buf[..n]);
+            i += 1;
+        } else if p_idx + 6 >= IOSIZE {
+            gap.reserve(IOSIZE);
+            gap.extend_from_slice(&iobuff[..p_idx]);
+        } else {
+            p_idx += utf_char2bytes(wca[i as usize], iobuff[p_idx..].as_mut_ptr().cast()) as usize;
+            i += 1;
+        }
+    }
+
+    if !gap.is_empty() {
+        gap.push(0);
+        *tofree = gap;
+        return tofree.as_mut_ptr();
+    }
+
+    iobuff[p_idx] = 0;
+    iobuff.as_mut_ptr()
 }
 
 /// Like `ins_compl_add()`, but infers case if `'ic'` and `'inf'` are set.
@@ -1115,7 +1106,7 @@ pub fn ins_compl_add_infercase(
 
         let min_len = char_len.min(compl_char_len);
         str_ptr = ins_compl_infercase_gettext(
-            str_ptr.cast(),
+            crate::memory::cstr_slice(str_ptr.cast(), len as usize),
             char_len,
             compl_char_len,
             min_len,
@@ -1323,7 +1314,7 @@ fn ins_compl_add(
 
         let match_ptr = compl_at(insert_idx);
         if !match_at_original_text(&*match_ptr) {
-            compl_strings_add(match_ptr.cp_str.data, match_ptr.cp_str.size);
+            compl_strings_add(match_ptr.cp_str.as_bytes());
         }
 
         if insexp().compl_get_longest
@@ -1340,19 +1331,14 @@ fn ins_compl_add(
 }
 
 /// Check that "str[len]" matches with "match->cp_str", considering "match->cp_flags".
-fn ins_compl_equal(
-    match_: &mut Compl,
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> bool {
-    let str_ptr = str_ptr.into_c_char_ptr();
+fn ins_compl_equal(match_: &mut Compl, str_bytes: &[u8]) -> bool {
     if (match_.cp_flags & CP_EQUAL) != 0 {
         return true;
     }
+    let str_prefix = crate::memory::bytes_until_nul(str_bytes);
+    let len = str_prefix.len();
     let cp_b = match_.cp_str.as_bytes();
     let cp_prefix = &cp_b[..len.min(cp_b.len())];
-    let str_b = crate::memory::cstr_as_bytes(str_ptr);
-    let str_prefix = &str_b[..len.min(str_b.len())];
     if (match_.cp_flags & CP_ICASE) != 0 {
         return cp_prefix.eq_ignore_ascii_case(str_prefix);
     }
@@ -1360,44 +1346,38 @@ fn ins_compl_equal(
 }
 
 /// Like `ins_compl_equal()`, but ignore case in the `'longest'`-inserted part of the leader.
-fn ins_compl_equal_sc(
-    match_: &mut Compl,
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> bool {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
-        let typed = insexp().compl_length;
-        let longest_end =
-            if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
-                insexp().compl_longest_end_col - insexp().compl_col
-            } else {
-                typed
-            };
+fn ins_compl_equal_sc(match_: &mut Compl, str_bytes: &[u8]) -> bool {
+    let typed = insexp().compl_length;
+    let longest_end =
+        if insexp().compl_get_longest && insexp().compl_longest_end_col > insexp().compl_col {
+            insexp().compl_longest_end_col - insexp().compl_col
+        } else {
+            typed
+        };
 
-        if (match_.cp_flags & (CP_EQUAL | CP_ICASE)) != 0 || longest_end <= typed {
-            return ins_compl_equal(match_, str_ptr, len);
-        }
+    if (match_.cp_flags & (CP_EQUAL | CP_ICASE)) != 0 || longest_end <= typed {
+        return ins_compl_equal(match_, str_bytes);
+    }
 
-        if match_.cp_str.size < len {
+    let str_b = crate::memory::bytes_until_nul(str_bytes);
+    let len = str_b.len();
+    let cp_b = match_.cp_str.as_bytes();
+    if cp_b.len() < len {
+        return false;
+    }
+
+    for (i, (&c1, &c2)) in cp_b[..len].iter().zip(str_b.iter()).enumerate() {
+        let idx = i as i32;
+        let mismatch = if idx >= typed && idx < longest_end {
+            !c1.eq_ignore_ascii_case(&c2)
+        } else {
+            c1 != c2
+        };
+        if mismatch {
             return false;
         }
-
-        for i in 0..len {
-            let idx = i as i32;
-            let c1 = *match_.cp_str.data.wrapping_add(i) as u8;
-            let c2 = *str_ptr.wrapping_add(i) as u8;
-            let mismatch = if idx >= typed && idx < longest_end {
-                !c1.eq_ignore_ascii_case(&c2)
-            } else {
-                c1 != c2
-            };
-            if mismatch {
-                return false;
-            }
-        }
-        true
     }
+    true
 }
 
 fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: i32) {
@@ -1912,7 +1892,7 @@ fn ins_compl_build_pum() -> i32 {
 
         if !match_at_original_text(comp)
             && (leader.data.is_null()
-                || ins_compl_equal_sc(comp, leader.data, leader.size)
+                || ins_compl_equal_sc(comp, leader.as_bytes())
                 || (cot_fuzzy() && comp.cp_score != FUZZY_SCORE_NONE))
         {
             let mut match_limit_exceeded = false;
@@ -2192,52 +2172,47 @@ fn ins_compl_dictionaries(
 
 fn thesaurus_add_words_in_line(
     fname: impl crate::strings::IntoCCharPtr,
-    buf_arg: *mut *mut u8,
+    buf_arg: &mut *mut u8,
     dir: i32,
-    skip_word: impl crate::strings::IntoCCharPtr,
+    skip_word: *const u8,
 ) -> bool {
     let fname = fname.into_c_char_ptr().cast_mut();
-    let skip_word = skip_word.into_c_char_ptr();
-    {
-        let mut status = true;
-        let mut ptr = unsafe { *buf_arg };
+    let mut status = true;
+    let mut ptr = *buf_arg;
 
-        while !g_st().got_int {
-            ptr = find_word_start(ptr);
-            if crate::memory::cstr_is_empty(ptr.cast()) || unsafe { *ptr } == NL as u8 {
+    while !g_st().got_int {
+        ptr = find_word_start(ptr);
+        if crate::memory::cstr_is_empty(ptr.cast()) || unsafe { *ptr } == NL as u8 {
+            break;
+        }
+        let wstart = ptr;
+
+        while !crate::memory::cstr_is_empty(ptr.cast()) {
+            let l = utfc_ptr2len(ptr.cast());
+            if l < 2 && !vim_iswordc(i32::from(crate::memory::cstr_first_byte(ptr.cast()))) {
                 break;
             }
-            let wstart = ptr;
-
-            while !crate::memory::cstr_is_empty(ptr.cast()) {
-                let l = utfc_ptr2len(ptr.cast());
-                if l < 2 && !vim_iswordc(i32::from(crate::memory::cstr_first_byte(ptr.cast()))) {
-                    break;
-                }
-                ptr = ptr.wrapping_add(l as usize);
-            }
-
-            if !ptr::eq(wstart.cast_const().cast(), skip_word) {
-                status = ins_compl_add_infercase(
-                    wstart.cast(),
-                    crate::memory::ptr_offset_from(ptr, wstart) as i32,
-                    opt_vars().p_ic != 0,
-                    fname,
-                    dir,
-                    false,
-                    FUZZY_SCORE_NONE,
-                ) != FAIL;
-                if !status {
-                    break;
-                }
-            }
+            ptr = ptr.wrapping_add(l as usize);
         }
 
-        unsafe {
-            *buf_arg = ptr;
+        if !ptr::eq(wstart.cast_const(), skip_word) {
+            status = ins_compl_add_infercase(
+                wstart.cast(),
+                crate::memory::ptr_offset_from(ptr, wstart) as i32,
+                opt_vars().p_ic != 0,
+                fname,
+                dir,
+                false,
+                FUZZY_SCORE_NONE,
+            ) != FAIL;
+            if !status {
+                break;
+            }
         }
-        status
     }
+
+    *buf_arg = ptr;
+    status
 }
 
 fn ins_compl_files(
@@ -2357,9 +2332,9 @@ fn ins_compl_files(
                         ptr = buf;
                         add_r = if thesaurus_add_words_in_line(
                             file,
-                            &raw mut ptr,
+                            &mut ptr,
                             *dir,
-                            regmatch.startp[0].cast(),
+                            regmatch.startp[0],
                         ) {
                             OK
                         } else {
@@ -2624,7 +2599,7 @@ fn ins_compl_new_leader() {
     let save_w_wrow = curwin_mut().w_wrow;
     let save_w_leftcol = curwin_mut().w_leftcol;
     if insexp().compl_started {
-        ins_compl_set_original_text(insexp().compl_leader.data, insexp().compl_leader.size);
+        ins_compl_set_original_text(insexp().compl_leader.as_bytes());
         if is_cpt_func_refresh_always() {
             cpt_compl_refresh();
         }
@@ -2718,16 +2693,14 @@ fn ins_compl_restart() {
     insexp().compl_num_bests = 0;
 }
 
-fn ins_compl_set_original_text(str_ptr: impl crate::strings::IntoCCharPtr, len: usize) {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        let Some(orig_idx) = find_original_text_match_idx() else {
-            return;
-        };
-        let match_ = compl_at(orig_idx);
-        api_clear_string(&mut match_.cp_str);
-        match_.cp_str = cbuf_to_string(str_ptr, len);
-    }
+fn ins_compl_set_original_text(bytes: &[u8]) {
+    let Some(orig_idx) = find_original_text_match_idx() else {
+        return;
+    };
+    let match_ = compl_at(orig_idx);
+    api_clear_string(&mut match_.cp_str);
+    let b = crate::memory::bytes_until_nul(bytes);
+    match_.cp_str = cbuf_to_string(b.as_ptr().cast(), b.len());
 }
 
 pub fn ins_compl_addfrommatch() {
@@ -2748,11 +2721,7 @@ pub fn ins_compl_addfrommatch() {
         {
             let cp = compl_at(ci);
             if insexp().compl_leader.data.is_null()
-                || ins_compl_equal(
-                    &mut *cp,
-                    insexp().compl_leader.data,
-                    insexp().compl_leader.size,
-                )
+                || ins_compl_equal(&mut *cp, insexp().compl_leader.as_bytes())
             {
                 p = cp.cp_str.data;
                 plen = cp.cp_str.size;
@@ -4329,7 +4298,7 @@ fn get_next_filename_completion() {
                 path_len as i32,
                 leader,
             );
-            set_compl_pattern_bytes(path_with_wildcard.as_ptr().cast(), path_len + 1);
+            set_compl_pattern_bytes(&path_with_wildcard[..path_len + 1]);
 
             leader = last_sep.wrapping_add(1);
         }
@@ -5251,7 +5220,7 @@ fn ins_compl_update_shown_match() {
     };
     let mut leader = get_leader_for_startcol(Some(&*compl_at(shown_idx)), true);
 
-    while !ins_compl_equal(&mut *compl_at(shown_idx), leader.data, leader.size)
+    while !ins_compl_equal(&mut *compl_at(shown_idx), leader.as_bytes())
         && let Some(next_i) = compl_next_idx(shown_idx)
         && next_i != 0
     {
@@ -5261,10 +5230,10 @@ fn ins_compl_update_shown_match() {
     }
 
     if compl_shows_dir_backward()
-        && !ins_compl_equal(&mut *compl_at(shown_idx), leader.data, leader.size)
+        && !ins_compl_equal(&mut *compl_at(shown_idx), leader.as_bytes())
         && compl_next_idx(shown_idx).is_none_or(|ni| ni == 0)
     {
-        while !ins_compl_equal(&mut *compl_at(shown_idx), leader.data, leader.size)
+        while !ins_compl_equal(&mut *compl_at(shown_idx), leader.as_bytes())
             && let Some(prev_i) = compl_prev_idx(shown_idx)
             && prev_i != 0
         {
@@ -5396,7 +5365,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> *mut u8 {
         }
 
         if !match_at_original_text(compl)
-            && (leader.data.is_null() || ins_compl_equal_sc(compl, leader.data, leader.size))
+            && (leader.data.is_null() || ins_compl_equal_sc(compl, leader.as_bytes()))
         {
             let mut match_limit_exceeded = false;
             let cur_source = compl.cp_cpt_source_idx;
@@ -5691,7 +5660,7 @@ fn find_next_completion_match(
 
         if !match_at_original_text(unsafe { &*shown })
             && !leader.data.is_null()
-            && !ins_compl_equal(unsafe { &mut *shown }, leader.data, leader.size)
+            && !ins_compl_equal(unsafe { &mut *shown }, leader.as_bytes())
             && !(cot_fuzzy() && unsafe { (*shown).cp_score } != FUZZY_SCORE_NONE)
         {
             todo += 1;
@@ -5963,10 +5932,10 @@ fn get_normal_compl_info(
                     None,
                 );
             } else {
-                set_compl_pattern_bytes(
+                set_compl_pattern_bytes(crate::memory::cstr_slice(
                     line.wrapping_add(insexp().compl_col as usize),
                     insexp().compl_length as usize,
-                );
+                ));
             }
         } else if compl_status_adding() {
             let mut prefix = c"\\<".as_ptr();
@@ -5984,20 +5953,15 @@ fn get_normal_compl_info(
                 prefixlen = 0;
             }
 
-            let n = quote_meta(
-                ptr::null_mut(),
+            let word_slice = crate::memory::cstr_slice(
                 line.wrapping_add(insexp().compl_col as usize),
-                insexp().compl_length,
-            ) as usize
-                + prefixlen;
+                insexp().compl_length.max(0) as usize,
+            );
+            let n = quote_meta(None, word_slice) + prefixlen;
             let mut pat_vec: Vec<u8> = vec![0; n];
             pat_vec[..prefixlen].copy_from_slice(crate::memory::cstr_slice(prefix, prefixlen));
-            quote_meta(
-                pat_vec.as_mut_ptr().wrapping_add(prefixlen),
-                line.wrapping_add(insexp().compl_col as usize),
-                insexp().compl_length,
-            );
-            set_compl_pattern_bytes(pat_vec.as_ptr().cast(), n - 1);
+            quote_meta(Some(&mut pat_vec[prefixlen..]), word_slice);
+            set_compl_pattern_bytes(&pat_vec[..n - 1]);
         } else {
             startcol -= 1;
             if startcol < 0
@@ -6036,29 +6000,23 @@ fn get_normal_compl_info(
                 if insexp().compl_length == 1 {
                     let mut pat_vec = [0u8; 7];
                     pat_vec[..2].copy_from_slice(b"\\<");
-                    let qlen = (quote_meta(
-                        pat_vec.as_mut_ptr().wrapping_add(2),
+                    let word_slice = crate::memory::cstr_slice(
                         line.wrapping_add(insexp().compl_col as usize),
                         1,
-                    ) as usize)
-                        - 1;
+                    );
+                    let qlen = quote_meta(Some(&mut pat_vec[2..]), word_slice) - 1;
                     pat_vec[2 + qlen..2 + qlen + 2].copy_from_slice(b"\\k");
-                    set_compl_pattern_bytes(pat_vec.as_ptr().cast(), 4 + qlen);
+                    set_compl_pattern_bytes(&pat_vec[..4 + qlen]);
                 } else {
-                    let n = quote_meta(
-                        ptr::null_mut(),
+                    let word_slice = crate::memory::cstr_slice(
                         line.wrapping_add(insexp().compl_col as usize),
-                        insexp().compl_length,
-                    ) as usize
-                        + 2;
+                        insexp().compl_length.max(0) as usize,
+                    );
+                    let n = quote_meta(None, word_slice) + 2;
                     let mut pat_vec: Vec<u8> = vec![0; n];
                     pat_vec[..2].copy_from_slice(b"\\<");
-                    quote_meta(
-                        pat_vec.as_mut_ptr().wrapping_add(2),
-                        line.wrapping_add(insexp().compl_col as usize),
-                        insexp().compl_length,
-                    );
-                    set_compl_pattern_bytes(pat_vec.as_ptr().cast(), n - 1);
+                    quote_meta(Some(&mut pat_vec[2..]), word_slice);
+                    set_compl_pattern_bytes(&pat_vec[..n - 1]);
                 }
             }
         }
@@ -6087,10 +6045,10 @@ fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: C
                 None,
             );
         } else {
-            set_compl_pattern_bytes(
+            set_compl_pattern_bytes(crate::memory::cstr_slice(
                 line.wrapping_add(insexp().compl_col as usize),
                 insexp().compl_length as usize,
-            );
+            ));
         }
 
         true
@@ -6148,7 +6106,7 @@ fn get_filename_compl_info(
 fn get_cmdline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: Colnr) -> bool {
     let line = line.into_c_char_ptr();
     {
-        set_compl_pattern_bytes(line, curs_col as usize);
+        set_compl_pattern_bytes(crate::memory::cstr_slice(line, curs_col as usize));
         set_cmd_context(
             &mut insexp().compl_xp,
             compl_pattern_ptr(),
@@ -6195,10 +6153,7 @@ fn set_compl_globals(mut startcol: i32, curs_col: Colnr, is_cpt_compl: bool) {
         let line_slice = crate::cursor::get_cursor_line_slice();
         let len = curs_col - startcol;
 
-        set_compl_pattern_bytes(
-            line_slice[startcol as usize..].as_ptr().cast(),
-            len as usize,
-        );
+        set_compl_pattern_bytes(&line_slice[startcol as usize..(startcol + len) as usize]);
         insexp().compl_col = startcol;
         insexp().compl_length = len;
     }
@@ -6305,10 +6260,9 @@ fn get_spell_compl_info(startcol: i32, curs_col: Colnr) -> bool {
         insexp().compl_length = curs_col - insexp().compl_col;
     }
     let line_slice = crate::cursor::get_cursor_line_slice();
-    set_compl_pattern_bytes(
-        line_slice[insexp().compl_col as usize..].as_ptr().cast(),
-        insexp().compl_length as usize,
-    );
+    let start = insexp().compl_col as usize;
+    let end = start + insexp().compl_length as usize;
+    set_compl_pattern_bytes(&line_slice[start..end.min(line_slice.len())]);
 
     true
 }
@@ -6735,67 +6689,47 @@ fn show_pum(prev_w_wrow: i32, prev_w_leftcol: i32) {
     g_st().redrawing_disabled = n;
 }
 
-fn quote_meta(mut dest: *mut u8, src: impl crate::strings::IntoCCharPtr, mut len: i32) -> u32 {
-    let mut src: *const u8 = src.into_c_char_ptr().cast();
-    {
-        let mut m = (len + 1) as u32;
+fn quote_meta(mut dest: Option<&mut [u8]>, src: &[u8]) -> usize {
+    let mut m = src.len() + 1;
+    let mut out_idx = 0usize;
+    let mut idx = 0usize;
 
-        while {
-            len -= 1;
-            len >= 0
-        } {
-            let ch = crate::memory::cstr_first_byte(src.cast());
-            let quote = match ch {
-                b'.' | b'*' | b'[' => {
-                    if ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus() {
-                        false
-                    } else {
-                        opt_vars().p_magic != 0
-                    }
-                }
-                b'~' => opt_vars().p_magic != 0,
-                b'\\' => !(ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus()),
-                b'^' | b'$' => true,
-                _ => false,
-            };
-            if quote {
-                m += 1;
-                if !dest.is_null() {
-                    unsafe {
-                        *dest = b'\\';
-                    }
-                    dest = dest.wrapping_add(1);
+    while idx < src.len() {
+        let ch = src[idx];
+        let quote = match ch {
+            b'.' | b'*' | b'[' => {
+                if ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus() {
+                    false
+                } else {
+                    opt_vars().p_magic != 0
                 }
             }
-            if !dest.is_null() {
-                unsafe {
-                    *dest = *src;
-                }
-                dest = dest.wrapping_add(1);
-            }
-            let mb_len = utfc_ptr2len(src.cast()) - 1;
-            if mb_len > 0 && len >= mb_len {
-                for _ in 0..mb_len {
-                    len -= 1;
-                    src = src.wrapping_add(1);
-                    if !dest.is_null() {
-                        unsafe {
-                            *dest = *src;
-                        }
-                        dest = dest.wrapping_add(1);
-                    }
-                }
-            }
-            src = src.wrapping_add(1);
-        }
-        if !dest.is_null() {
-            unsafe {
-                *dest = 0;
+            b'~' => opt_vars().p_magic != 0,
+            b'\\' => !(ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus()),
+            b'^' | b'$' => true,
+            _ => false,
+        };
+        if quote {
+            m += 1;
+            if let Some(out) = dest.as_deref_mut() {
+                out[out_idx] = b'\\';
+                out_idx += 1;
             }
         }
-
-        m
+        let step = crate::mbyte::utfc_slice2len(&src[idx..])
+            .max(1)
+            .min(src.len() - idx);
+        if let Some(out) = dest.as_deref_mut() {
+            out[out_idx..out_idx + step].copy_from_slice(&src[idx..idx + step]);
+            out_idx += step;
+        }
+        idx += step;
     }
+    if let Some(out) = dest {
+        out[out_idx] = 0;
+    }
+
+    m
 }
 
 pub fn free_insexpand_stuff() {
