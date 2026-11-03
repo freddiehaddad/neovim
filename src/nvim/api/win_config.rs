@@ -370,7 +370,7 @@ pub fn nvim_open_win(
             parent = find_window_by_handle(fconfig.window, err);
             if parent.is_null() {
                 break 'cleanup;
-            } else if is_split && unsafe { (*parent).w_floating } {
+            } else if is_split && crate::globals::gptr(parent).w_floating {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -434,7 +434,7 @@ pub fn nvim_open_win(
                 }
             });
             if !wp.is_null() {
-                let wp = unsafe { &mut *wp };
+                let wp = crate::globals::gmut(wp);
                 wp.w_config = fconfig.clone();
                 if size > 0 {
                     if (flags & WSP_VERT) != 0 && wp.w_width != size {
@@ -486,26 +486,26 @@ pub fn nvim_open_win(
                 ptr::null_mut(),
                 false,
                 g_st().curbuf,
-                unsafe { wp.as_ref() },
+                crate::globals::gopt(wp),
             ) {
                 tp = win_find_tabpage(wp);
             }
             ctx_restore(&mut switchwin);
         }
         if !tp.is_null() && enter {
-            goto_tabpage_win(unsafe { &mut *tp }, wp);
+            goto_tabpage_win(crate::globals::gmut(tp), wp);
             tp = win_find_tabpage(wp);
         }
         if !tp.is_null()
             && bufref_valid(Some(&bufref))
-            && (&raw mut *b) != unsafe { (*wp).w_buffer }
+            && (&raw mut *b) != crate::globals::gptr(wp).w_buffer
         {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
             if au_no_enter_leave {
                 g_st().autocmd_no_enter += 1;
                 g_st().autocmd_no_leave += 1;
             }
-            win_set_buf(unsafe { &mut *wp }, b, err);
+            win_set_buf(crate::globals::gmut(wp), b, err);
             if !fconfig.noautocmd {
                 tp = win_find_tabpage(wp);
             }
@@ -525,11 +525,11 @@ pub fn nvim_open_win(
         }
 
         if fconfig.style == K_WIN_STYLE_MINIMAL {
-            win_set_minimal_style(unsafe { &mut *wp });
-            didset_window_options(unsafe { &mut *wp }, true);
-            changed_window_setting(unsafe { &mut *wp });
+            win_set_minimal_style(crate::globals::gmut(wp));
+            didset_window_options(crate::globals::gmut(wp), true);
+            changed_window_setting(crate::globals::gmut(wp));
         }
-        rv = unsafe { (*wp).handle };
+        rv = crate::globals::gptr(wp).handle;
     }
 
     if fconfig.noautocmd {
@@ -621,7 +621,7 @@ fn win_find_altwin(win: &mut WinInfoInfo, tp: &mut TabPageInfo) -> *mut WinInfoI
         &raw mut *tp
     };
     if win.w_floating {
-        win_float_find_altwin(&*win, unsafe { tp_arg.as_ref() })
+        win_float_find_altwin(&*win, crate::globals::gopt(tp_arg))
     } else {
         let mut dir: i32 = 0;
         winframe_find_altwin(&mut *win, &mut dir, tp_arg, ptr::null_mut())
@@ -679,7 +679,7 @@ fn win_config_split(
 
         let mut win_tp = win_find_tabpage(&raw mut *win);
         if !parent.is_null() {
-            if unsafe { (*parent).w_floating } {
+            if crate::globals::gptr(parent).w_floating {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -687,7 +687,7 @@ fn win_config_split(
                 );
                 return false;
             }
-            if win_tp != parent_tp && unsafe { !win_can_move_tp(win, &mut *win_tp, err) } {
+            if win_tp != parent_tp && !win_can_move_tp(win, crate::globals::gmut(win_tp), err) {
                 return false;
             }
         }
@@ -702,7 +702,7 @@ fn win_config_split(
 
         'restore_curwin: {
             if curwin_moving_tp {
-                let altwin = unsafe { win_find_altwin(win, &mut *win_tp) };
+                let altwin = win_find_altwin(win, crate::globals::gmut(win_tp));
                 assert!(!altwin.is_null());
                 win_goto(altwin);
 
@@ -724,7 +724,7 @@ fn win_config_split(
                     );
                     break 'restore_curwin;
                 }
-                if was_split == win.w_floating || unsafe { (*parent).w_floating } {
+                if was_split == win.w_floating || crate::globals::gptr(parent).w_floating {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -746,9 +746,11 @@ fn win_config_split(
                         c"Cannot move last non-floating window",
                     );
                     break 'restore_curwin;
-                } else if !parent.is_null() && unsafe { (*parent).handle == win.handle } {
+                } else if !parent.is_null() && crate::globals::gptr(parent).handle == win.handle {
                     let mut n_frames = 0;
-                    for _fr in unsafe { frame_iter_mut((*win.frame_mut().fr_parent).fr_child) } {
+                    for _fr in
+                        frame_iter_mut(crate::globals::gptr(win.frame_mut().fr_parent).fr_child)
+                    {
                         n_frames += 1;
                     }
 
@@ -756,7 +758,7 @@ fn win_config_split(
 
                     if n_frames > 2 {
                         let frame = win.frame_mut().fr_parent;
-                        if unsafe { !(*frame).fr_parent.is_null() } {
+                        if !crate::globals::gptr(frame).fr_parent.is_null() {
                             neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
                                 || fconfig.split == K_WIN_SPLIT_LEFT
                             {
@@ -809,10 +811,10 @@ fn win_config_split(
                     );
                 }
             } else {
-                unsafe {
-                    altwin =
-                        win_float_find_altwin(win, (win_tp != g_st().curtab).then(|| &*win_tp));
-                }
+                altwin = win_float_find_altwin(
+                    win,
+                    (win_tp != g_st().curtab).then(|| crate::globals::gref(win_tp)),
+                );
             }
 
             win_remove(
@@ -866,9 +868,7 @@ fn win_config_split(
             });
             if !to_split_ok {
                 if was_split {
-                    unsafe {
-                        winframe_restore(win, dir, &mut *unflat_altfr);
-                    }
+                    winframe_restore(win, dir, crate::globals::gmut(unflat_altfr));
                 }
                 if !error_set(err) {
                     api_set_error!(
@@ -881,10 +881,8 @@ fn win_config_split(
                 break 'restore_curwin;
             }
 
-            if win_tp != parent_tp && unsafe { (*win_tp).tp_curwin == (&raw mut *win) } {
-                unsafe {
-                    (*win_tp).tp_curwin = altwin;
-                }
+            if win_tp != parent_tp && crate::globals::gptr(win_tp).tp_curwin == (&raw mut *win) {
+                crate::globals::gptr(win_tp).tp_curwin = altwin;
             }
             break 'resize;
         }
@@ -931,10 +929,10 @@ fn win_config_float_tp(
 
     'restore_curwin: {
         if win_tp != parent_tp {
-            if !win_can_move_tp(win, unsafe { &mut *win_tp }, err) {
+            if !win_can_move_tp(win, crate::globals::gmut(win_tp), err) {
                 return false;
             }
-            altwin = win_find_altwin(win, unsafe { &mut *win_tp });
+            altwin = win_find_altwin(win, crate::globals::gmut(win_tp));
             assert!(!altwin.is_null());
 
             if curwin_ptr() == (&raw mut *win) {
@@ -961,10 +959,10 @@ fn win_config_float_tp(
                     );
                     break 'restore_curwin;
                 }
-                if win_tp != parent_tp && !win_can_move_tp(win, unsafe { &mut *win_tp }, err) {
+                if win_tp != parent_tp && !win_can_move_tp(win, crate::globals::gmut(win_tp), err) {
                     break 'restore_curwin;
                 }
-                altwin = win_find_altwin(win, unsafe { &mut *win_tp });
+                altwin = win_find_altwin(win, crate::globals::gmut(win_tp));
                 assert!(!altwin.is_null());
             }
         }
@@ -992,10 +990,9 @@ fn win_config_float_tp(
             };
             win_append(lastwin_nofloating(append_tp), (&raw mut *win), append_tp);
 
-            if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == (&raw mut *win) {
-                unsafe {
-                    (*win_tp).tp_curwin = altwin;
-                }
+            if win_tp != g_st().curtab && crate::globals::gptr(win_tp).tp_curwin == (&raw mut *win)
+            {
+                crate::globals::gptr(win_tp).tp_curwin = altwin;
             }
 
             ui_comp_remove_grid(&mut win.w_grid_alloc);
@@ -1655,9 +1652,8 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
             if !has_relative || is_split {
-                unsafe {
-                    generate_api_error(wp.as_ref(), c"row", err);
-                }
+                generate_api_error(crate::globals::gopt(wp), c"row", err);
+
                 break 'fail;
             }
             fconfig.row = config.row;
@@ -1665,9 +1661,8 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
             if !has_relative || is_split {
-                unsafe {
-                    generate_api_error(wp.as_ref(), c"col", err);
-                }
+                generate_api_error(crate::globals::gopt(wp), c"col", err);
+
                 break 'fail;
             }
             fconfig.col = config.col;
@@ -1675,9 +1670,8 @@ fn parse_win_config(
 
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS) {
             if !has_relative || is_split {
-                unsafe {
-                    generate_api_error(wp.as_ref(), c"bufpos", err);
-                }
+                generate_api_error(crate::globals::gopt(wp), c"bufpos", err);
+
                 break 'fail;
             } else {
                 if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
@@ -1742,13 +1736,11 @@ fn parse_win_config(
         }
 
         if relative_is_win
-            || (unsafe {
-                has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
-                    && !is_split
-                    && !wp.is_null()
-                    && (*wp).w_floating
-                    && fconfig.relative == K_FLOAT_RELATIVE_WINDOW
-            })
+            || (has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
+                && !is_split
+                && !wp.is_null()
+                && crate::globals::gptr(wp).w_floating
+                && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
         {
             let Some(target_win) =
                 crate::api::private::helpers::find_window_by_handle_mut(config.win, err)
@@ -1766,7 +1758,10 @@ fn parse_win_config(
             fconfig.window = target_win.handle;
         } else {
             if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-                if !is_split && !has_relative && (unsafe { wp.is_null() || !(*wp).w_floating }) {
+                if !is_split
+                    && !has_relative
+                    && (wp.is_null() || !crate::globals::gptr(wp).w_floating)
+                {
                     api_err_required(err, c"non-float with 'win' requires 'split' or 'vertical'");
                     break 'fail;
                 }
@@ -1809,15 +1804,13 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            if unsafe {
-                !parse_bordertext_pos(
-                    wp.as_ref(),
-                    config.title_pos,
-                    K_BORDER_TEXT_TITLE,
-                    fconfig,
-                    err,
-                )
-            } {
+            if !parse_bordertext_pos(
+                crate::globals::gopt(wp),
+                config.title_pos,
+                K_BORDER_TEXT_TITLE,
+                fconfig,
+                err,
+            ) {
                 break 'fail;
             }
         } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS) {
@@ -1836,15 +1829,13 @@ fn parse_win_config(
                 break 'fail;
             }
 
-            if unsafe {
-                !parse_bordertext_pos(
-                    wp.as_ref(),
-                    config.footer_pos,
-                    K_BORDER_TEXT_FOOTER,
-                    fconfig,
-                    err,
-                )
-            } {
+            if !parse_bordertext_pos(
+                crate::globals::gopt(wp),
+                config.footer_pos,
+                K_BORDER_TEXT_FOOTER,
+                fconfig,
+                err,
+            ) {
                 break 'fail;
             }
         } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS) {
@@ -1865,7 +1856,7 @@ fn parse_win_config(
                 }
             }
         } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
-            && (unsafe { wp.is_null() || !(*wp).w_floating })
+            && (wp.is_null() || !crate::globals::gptr(wp).w_floating)
             && !parse_winborder(
                 Some(&mut *fconfig),
                 crate::memory::cstr_as_bytes(opt_vars().p_winborder),
@@ -1909,9 +1900,7 @@ fn parse_win_config(
                 break 'fail;
             }
             if fconfig.hide && !config.hide {
-                unsafe {
-                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
-                }
+                redraw_later(crate::globals::gopt_mut(wp), UPD_NOT_VALID);
             }
             fconfig.hide = config.hide;
         }
@@ -1926,7 +1915,7 @@ fn parse_win_config(
     merge_win_config(
         fconfig,
         if !wp.is_null() {
-            unsafe { (*wp).w_config.clone() }
+            crate::globals::gptr(wp).w_config.clone()
         } else {
             WIN_CONFIG_INIT
         },

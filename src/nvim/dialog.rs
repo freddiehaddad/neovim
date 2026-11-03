@@ -52,7 +52,7 @@ static DLG_STATE: GlobalState<DialogModuleState> = GlobalState::new(DialogModule
 
 #[inline]
 pub(crate) fn dlg_st() -> &'static mut DialogModuleState {
-    unsafe { &mut *DLG_STATE.as_ptr() }
+    crate::globals::gmut(DLG_STATE.as_ptr())
 }
 
 fn copy_char(from: &[u8], to: &mut [u8], lowercase: bool) -> usize {

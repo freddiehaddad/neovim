@@ -211,22 +211,22 @@ impl Optset {
 
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.os_buf }
+        crate::globals::gmut(self.os_buf)
     }
 
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.os_win }
+        crate::globals::gmut(self.os_win)
     }
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { self.os_win.as_mut() }
+        crate::globals::gopt_mut(self.os_win)
     }
 
     #[inline]
     pub fn var_cstr_ptr(&self) -> crate::strings::RawCCharPtrMut {
-        unsafe { *(self.os_varp as *mut crate::strings::RawCCharPtrMut) }
+        *crate::globals::gptr(self.os_varp as *mut crate::strings::RawCCharPtrMut)
     }
 }
 
@@ -245,12 +245,12 @@ pub struct Optexpand {
 impl Optexpand {
     #[inline]
     pub fn regmatch_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.oe_regmatch }
+        crate::globals::gmut(self.oe_regmatch)
     }
 
     #[inline]
     pub fn xp_mut(&self) -> &'static mut ExpandCtx {
-        unsafe { &mut *self.oe_xp }
+        crate::globals::gmut(self.oe_xp)
     }
 }
 
@@ -449,7 +449,7 @@ static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrSta
 
 #[inline]
 fn optstr_st() -> &'static mut OptionStrState {
-    unsafe { &mut *OPTSTR_STATE.as_ptr() }
+    crate::globals::gmut(OPTSTR_STATE.as_ptr())
 }
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [
@@ -1026,29 +1026,22 @@ pub fn alloc_string_option_bytes<R>(bytes: &[u8]) -> *mut R {
 /// Free the string allocated for an option.
 pub fn free_string_option<T>(p: *mut T) {
     if !p.is_null() && p.cast::<u8>() != EMPTY_STRING_OPTION.as_ptr().cast::<u8>() {
-        unsafe {
-            drop(std::ffi::CString::from_raw(p.cast()));
-        }
+        drop(unsafe { std::ffi::CString::from_raw(p.cast()) });
     }
 }
 
 pub fn clear_string_option<T>(pp: *mut *mut T) {
     let empty = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
-    if unsafe { !(*pp).is_null() } && unsafe { *pp != empty } {
-        unsafe {
-            drop(std::ffi::CString::from_raw((*pp).cast()));
-        }
+    if !crate::globals::gptr(pp).is_null() && *crate::globals::gptr(pp) != empty {
+        drop(unsafe { std::ffi::CString::from_raw(crate::globals::gptr(pp).cast()) });
     }
-    unsafe {
-        *pp = empty;
-    }
+
+    *crate::globals::gptr(pp) = empty;
 }
 
 pub fn check_string_option<T>(pp: *mut *mut T) {
-    if unsafe { (*pp).is_null() } {
-        unsafe {
-            *pp = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
-        }
+    if crate::globals::gptr(pp).is_null() {
+        *crate::globals::gptr(pp) = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
     }
 }
 
@@ -1289,7 +1282,7 @@ fn check_str_opt<'a>(
     let list = (opt.flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_ONE_COMMA)) != 0;
     let values = opt_values(idx);
     opt_strings_flags(
-        unsafe { (*varp).cast() },
+        crate::globals::gptr(varp).cast(),
         values,
         opt.flags_var,
         list,
@@ -2131,9 +2124,8 @@ pub fn did_set_encoding(args: &mut Optset) -> Option<&CStr> {
 
     if let Some(prep_cstr) = args.os_prep.take_encoding() {
         free_string_option(args.var_cstr_ptr());
-        unsafe {
-            *varp = alloc_string_option(prep_cstr.as_ptr());
-        }
+
+        *crate::globals::gptr(varp) = alloc_string_option(prep_cstr.as_ptr());
     }
     if ptr::eq(varp, (&raw mut opt_vars().p_enc).cast()) {
         spell_reload();
@@ -2492,8 +2484,10 @@ pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
         ptr::null_mut(),
     )
     .cast::<OptKeyDict_mousescroll>();
-    let has_hor = (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-    let has_ver = (unsafe { (*v).is_set_mousescroll } & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+    let has_hor =
+        (crate::globals::gptr(v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+    let has_ver =
+        (crate::globals::gptr(v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     if has_hor || has_ver {
         None
     } else {
@@ -2505,7 +2499,7 @@ pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&CStr> {
     let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
         .cast::<OptKeyDict_mousescroll>();
-    let v = unsafe { &mut *v };
+    let v = crate::globals::gmut(v);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     opt_vars().p_mousescroll_hor = if has_hor {
@@ -2864,9 +2858,9 @@ fn did_set_statustabline_rulerformat<'a>(
         free_string_option(s);
         let def = get_option_default(args.os_idx, args.os_flags);
         let new_ptr = alloc_string_option(def.data.string().data);
-        unsafe {
-            *varp = new_ptr;
-        }
+
+        *crate::globals::gptr(varp) = new_ptr;
+
         optval_free_read(args.os_idx, def);
         s = new_ptr.cast();
     }
@@ -3172,9 +3166,7 @@ fn opt_strings_flags<'a>(
         }
     }
     if !flagp.is_null() {
-        unsafe {
-            *flagp = new_flags;
-        }
+        *crate::globals::gptr(flagp) = new_flags;
     }
 
     None
@@ -3214,17 +3206,18 @@ pub fn opt_strings_check<'a>(
                 }
             }
             OptSchemaKind::OptSchemaNum | OptSchemaKind::OptSchemaSNum => {
-                let Some(v_bytes) = v else {
+                let digits = v.map(|v_bytes| {
+                    if it.kind == OptSchemaKind::OptSchemaSNum {
+                        v_bytes.strip_prefix(b"-").unwrap_or(v_bytes)
+                    } else {
+                        v_bytes
+                    }
+                });
+                let Some(v_bytes) = v.filter(|_| {
+                    digits.is_some_and(|d| !d.is_empty() && d.iter().all(u8::is_ascii_digit))
+                }) else {
                     return opt_schema_err(errbuf, c"E474: '%s' requires a number", key);
                 };
-                let digits = if it.kind == OptSchemaKind::OptSchemaSNum {
-                    v_bytes.strip_prefix(b"-").unwrap_or(v_bytes)
-                } else {
-                    v_bytes
-                };
-                if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
-                    return opt_schema_err(errbuf, c"E474: '%s' requires a number", key);
-                }
                 let mut rem = v_bytes;
                 let mut n: i64 = 0;
                 if !try_getdigits(&mut rem, &mut n)
@@ -3271,24 +3264,20 @@ pub fn opt_fill(
         };
         let field = out.cast::<u8>().wrapping_add(f.ptr_off);
         if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
-            unsafe {
-                *field.cast::<Boolean>() = true;
-            }
+            *crate::globals::gptr(field.cast::<Boolean>()) = true;
         } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
             let mut rem = v.unwrap_or(&[]);
-            unsafe {
-                *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
-            }
+
+            *crate::globals::gptr(field.cast::<Integer>()) =
+                Integer::from(getdigits_int(&mut rem, false, 0));
         } else if f.key_type == ObjectType::ObjectTypeString as i32 {
             let v_bytes = v.unwrap_or(&[]);
             unsafe { ptr::copy_nonoverlapping(v_bytes.as_ptr(), field, v_bytes.len()) };
-            unsafe {
-                *field.wrapping_add(v_bytes.len()) = 0;
-            }
+
+            *crate::globals::gptr(field.wrapping_add(v_bytes.len())) = 0;
         }
-        unsafe {
-            (*out).is_set_ |= 1u64 << (f.opt_index as u32);
-        }
+
+        crate::globals::gptr(out).is_set_ |= 1u64 << (f.opt_index as u32);
     }
 }
 

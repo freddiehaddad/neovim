@@ -932,7 +932,7 @@ pub fn nvim_cmd(
                 api_err_exp(err, c"reg", c"single character", cmd.reg.data);
                 break 'end;
             }
-            let regname = unsafe { *cmd.reg.data.cast::<u8>() };
+            let regname = *crate::globals::gptr(cmd.reg.data.cast::<u8>());
             if regname == b'=' {
                 api_set_error!(
                     err,
@@ -1330,12 +1330,11 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
     };
 
     let name_bytes = crate::memory::cstr_as_bytes(name.data);
-    if let Some(i) = unsafe {
-        (*gap)
-            .iter()
-            .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
-    } {
-        let _ = unsafe { (*gap).remove(i) };
+    if let Some(i) = crate::globals::gptr(gap)
+        .iter()
+        .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
+    {
+        let _ = crate::globals::gptr(gap).remove(i);
         return;
     }
 

@@ -189,7 +189,7 @@ fn filter_map_blob(
         rettv.v_type = VarType::VarBlob;
         rettv.vval = crate::eval::typval::TypvalVval::Blob(std::ptr::null_mut());
     }
-    let Some(b) = (unsafe { blob_arg.as_mut() }) else {
+    let Some(b) = crate::globals::gopt_mut(blob_arg) else {
         return;
     };
     if filtermap == FilterMap::Filter && value_check_lock(b.bv_lock, arg_errmsg, TV_TRANSLATE) {
@@ -236,7 +236,7 @@ fn filter_map_blob(
             }
             if filtermap != FilterMap::Filter {
                 if newtv.vval.v_number() != val {
-                    tv_blob_set(unsafe { &mut *b_ret }, i, newtv.vval.v_number() as u8);
+                    tv_blob_set(crate::globals::gmut(b_ret), i, newtv.vval.v_number() as u8);
                 }
             } else if rem {
                 b.bv_ga.remove(i as usize);
@@ -336,7 +336,7 @@ fn filter_map_list(
 
         let mut idx: i64 = 0;
         let mut li = tv_list_first(l.as_deref());
-        while let Some(cur_li) = unsafe { li.as_mut() } {
+        while let Some(cur_li) = crate::globals::gopt_mut(li) {
             if filtermap == FilterMap::Map
                 && value_check_lock(cur_li.li_tv.v_lock, arg_errmsg, TV_TRANSLATE)
             {
@@ -649,7 +649,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     return;
                 }
             }
-            tv_dict_extend(unsafe { &mut *d1 }, d2, action.as_ptr());
+            tv_dict_extend(crate::globals::gmut(d1), d2, action.as_ptr());
         }
 
         if is_new {
@@ -681,7 +681,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 return;
             }
         }
-        let l1_ref = unsafe { &mut *l1 };
+        let l1_ref = crate::globals::gmut(l1);
 
         if let Some(l2) = argvars[1].vval.v_list_opt() {
             let mut item: *mut Listitem = std::ptr::null_mut();

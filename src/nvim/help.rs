@@ -158,13 +158,13 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if unsafe { !bt_help(curwin_mut().w_buffer.as_ref()) } || g_st().cmdmod.cmod_tab != 0 {
+    if !bt_help(crate::globals::gopt(curwin_mut().w_buffer)) || g_st().cmdmod.cmod_tab != 0 {
         if g_st().cmdmod.cmod_tab != 0 {
             wp = ptr::null_mut();
         } else {
             wp = ptr::null_mut();
             for wp2 in for_all_windows_ptr() {
-                if unsafe { bt_help((wp2.w_buffer).as_ref()) }
+                if bt_help(crate::globals::gopt(wp2.w_buffer))
                     && !wp2.w_config.hide
                     && wp2.w_config.focusable
                 {
@@ -173,7 +173,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 }
             }
         }
-        if !wp.is_null() && unsafe { (*wp).buf_mut().b_nwindows > 0 } {
+        if !wp.is_null() && crate::globals::gptr(wp).buf_mut().b_nwindows > 0 {
             win_enter(wp, true);
         } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
             smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
@@ -224,7 +224,7 @@ pub fn ex_help(eap: &mut Exarg) {
 
         if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
             let buf = buflist_findnr(empty_fnum);
-            if !buf.is_null() && unsafe { (*buf).b_nwindows == 0 } {
+            if !buf.is_null() && crate::globals::gptr(buf).b_nwindows == 0 {
                 wipe_buffer(buf, true);
             }
         }
@@ -242,7 +242,7 @@ pub fn ex_help(eap: &mut Exarg) {
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut Exarg) {
     for win in for_all_windows_ptr() {
-        if bt_help(unsafe { (win.w_buffer).as_ref() }) {
+        if bt_help(crate::globals::gopt(win.w_buffer)) {
             win_close(win, false, eap.forceit != 0);
             return;
         }

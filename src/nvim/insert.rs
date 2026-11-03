@@ -314,12 +314,12 @@ static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertMo
 
 #[inline]
 fn ins_st() -> &'static mut InsertModuleState {
-    unsafe { &mut *INS_MOD_STATE.as_ptr() }
+    crate::globals::gmut(INS_MOD_STATE.as_ptr())
 }
 
 #[inline]
 fn replace_stack_mut() -> &'static mut Vec<u8> {
-    unsafe { &mut (*INS_MOD_STATE.as_ptr()).replace_stack }
+    &mut crate::globals::gmut(INS_MOD_STATE.as_ptr()).replace_stack
 }
 
 #[inline]
@@ -1673,9 +1673,8 @@ pub fn truncate_spaces(line: impl crate::strings::IntoCCharPtr, len: usize) {
         }
         i -= 1;
     }
-    unsafe {
-        *line.wrapping_offset(i + 1) = NUL;
-    }
+
+    *crate::globals::gptr(line.wrapping_offset(i + 1)) = NUL;
 }
 
 /// Backspace the cursor until the given column.
@@ -1924,7 +1923,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
     if !is_special_ins(c)
         && utf_char2len(c) == 1
         && !has_event(EVENT_INSERTCHARPRE)
-        && !unsafe { *test_disable_char_avail.as_ptr() }
+        && !*crate::globals::gptr(test_disable_char_avail.as_ptr())
         && vpeekc() != NUL as i32
         && (g_st().state_global & REPLACE_FLAG) == 0
         && !cindent_on()
@@ -2138,13 +2137,13 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
             && !mc_ins_replaying()
             && (esc != 0
                 || (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INDENT)
-                    && curwin_mut().w_cursor.lnum != unsafe { (*end_insert_pos).lnum }))
-            && unsafe { (*end_insert_pos).lnum } <= curbuf_mut().b_ml.ml_line_count
+                    && curwin_mut().w_cursor.lnum != crate::globals::gptr(end_insert_pos).lnum))
+            && crate::globals::gptr(end_insert_pos).lnum <= curbuf_mut().b_ml.ml_line_count
         {
             let mut tpos = curwin_mut().w_cursor;
-            let prev_col = unsafe { (*end_insert_pos).col };
+            let prev_col = crate::globals::gptr(end_insert_pos).col;
 
-            curwin_mut().w_cursor = unsafe { *end_insert_pos };
+            curwin_mut().w_cursor = *crate::globals::gptr(end_insert_pos);
             check_cursor_col(curwin_mut());
 
             let mut strip_col = curwin_mut().w_cursor.col;
@@ -2196,7 +2195,7 @@ fn stop_insert(end_insert_pos: *mut CursorPos, esc: i32, nomove: i32) {
     if !end_insert_pos.is_null() {
         curbuf_mut().b_op_start = g_st().ins_global.start;
         curbuf_mut().b_op_start_orig = g_st().ins_global.start_orig;
-        curbuf_mut().b_op_end = unsafe { *end_insert_pos };
+        curbuf_mut().b_op_end = *crate::globals::gptr(end_insert_pos);
     }
 }
 
@@ -2680,7 +2679,7 @@ fn ins_reg() {
                     0
                 }) | PUT_CURSEND,
             );
-        } else if unsafe { (*reg).y_array.len() } > 1 && is_literal_register(regname) {
+        } else if crate::globals::gptr(reg).y_array.len() > 1 && is_literal_register(regname) {
             redo_append_char(CTRL_R_CONST);
             redo_append_char(regname);
             do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
@@ -3675,9 +3674,8 @@ fn ins_tab() -> bool {
                 break;
             }
             if crate::memory::cstr_first_byte(ptr.cast()) != b'\t' {
-                unsafe {
-                    *ptr = b'\t';
-                }
+                *crate::globals::gptr(ptr) = b'\t';
+
                 if change_col < 0 {
                     change_col = fpos.col;
                     if fpos.lnum == g_st().ins_global.start.lnum

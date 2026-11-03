@@ -91,12 +91,12 @@ impl CharsizeArg {
 
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.win }
+        crate::globals::gmut(self.win)
     }
 
     #[inline]
     pub fn extconceal_opt(&self) -> Option<&'static ConcealSpans> {
-        unsafe { self.extconceal.as_ref() }
+        crate::globals::gopt(self.extconceal)
     }
 }
 
@@ -1265,7 +1265,7 @@ pub fn getvcols(
     right: &mut Colnr,
     flags: i32,
 ) {
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     let mut from1: Colnr = 0;
     let mut from2: Colnr = 0;
     let mut to1: Colnr = 0;
@@ -1302,7 +1302,7 @@ pub fn win_get_fill(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 }
 
 pub fn plines_win(wp: *mut WinInfoInfo, lnum: Linenr, limit_winheight: bool) -> i32 {
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     plines_win_nofill(wp, lnum, limit_winheight) + win_get_fill(wp, lnum)
 }
 

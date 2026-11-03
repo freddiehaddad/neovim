@@ -64,7 +64,7 @@ static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> =
 
 #[inline]
 fn decor_prov_st() -> &'static mut DecorProviderState {
-    unsafe { &mut *DECOR_PROV_STATE.as_ptr() }
+    crate::globals::gmut(DECOR_PROV_STATE.as_ptr())
 }
 
 #[inline]
@@ -157,7 +157,7 @@ fn decor_provider_invoke(
     g_st().textlock -= 1;
 
     let provider = &raw mut providers_mut()[provider_idx as usize];
-    let provider = unsafe { &mut *provider };
+    let provider = crate::globals::gmut(provider);
     if !error_set(&err) {
         provider.error_count = 0;
         if let Some(res) = res {
@@ -393,7 +393,7 @@ pub fn decor_providers_invoke_range(
             if !status {
                 p.state = K_DECOR_PROVIDER_WIN_DISABLED;
             } else if res.size >= 1 {
-                let first = unsafe { *res.items };
+                let first = *crate::globals::gptr(res.items);
                 if matches!(first.obj_type, ObjectType::ObjectTypeBoolean) {
                     if !first.data.boolean() {
                         p.state = K_DECOR_PROVIDER_WIN_DISABLED;
@@ -494,7 +494,7 @@ pub fn get_decor_provider(ns_id: NS, force: bool) -> *mut DecorProvider {
 
 #[inline]
 pub fn get_decor_provider_opt(ns_id: NS, force: bool) -> Option<&'static mut DecorProvider> {
-    unsafe { get_decor_provider(ns_id, force).as_mut() }
+    crate::globals::gopt_mut(get_decor_provider(ns_id, force))
 }
 
 pub fn decor_provider_clear(mut p: Option<&mut DecorProvider>) {

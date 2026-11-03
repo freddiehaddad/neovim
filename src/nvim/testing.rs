@@ -141,7 +141,7 @@ fn fill_assert_error(
     atype: AssertType,
 ) {
     let exp_str = exp_str.into_c_char_ptr();
-    unsafe {
+    {
         let exp_tv = exp_tv_arg;
         let got_tv = got_tv_arg;
         let mut did_copy = false;
@@ -149,7 +149,8 @@ fn fill_assert_error(
 
         if opt_msg_tv.v_type != VarType::VarUnknown
             && !(opt_msg_tv.v_type == VarType::VarString
-                && (opt_msg_tv.vval.v_string().is_null() || *opt_msg_tv.vval.v_string() == 0))
+                && (opt_msg_tv.vval.v_string().is_null()
+                    || *crate::globals::gptr(opt_msg_tv.vval.v_string()) == 0))
         {
             let tofree = encode_tv2echo(opt_msg_tv, None);
             buf_concat_cstr(gap, tofree.as_ptr());
@@ -165,7 +166,7 @@ fn fill_assert_error(
         }
 
         if exp_str.is_null() {
-            let exp_tv = &mut *exp_tv;
+            let exp_tv = crate::globals::gmut(exp_tv);
             if atype != AssertType::NotEqual
                 && exp_tv.v_type == VarType::VarDict
                 && got_tv.v_type == VarType::VarDict
@@ -181,18 +182,24 @@ fn fill_assert_error(
                 exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
                 got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
-                let mut todo = (*exp_d).dv_hashtab.ht_used as i32;
-                let mut hi = (*exp_d).dv_hashtab.array_ptr();
+                let mut todo = crate::globals::gptr(exp_d).dv_hashtab.ht_used as i32;
+                let mut hi = crate::globals::gptr(exp_d).dv_hashtab.array_ptr();
                 while todo > 0 {
-                    if !hashitem_empty(&*hi) {
+                    if !hashitem_empty(crate::globals::gref(hi)) {
                         let di1 = crate::eval::typval::tv_dict_hi2di(hi);
-                        let hi_key = (&*hi).key_cstr();
-                        let item2 = tv_dict_find(got_d.as_ref(), hi_key, -1);
-                        if item2.is_null() || !tv_equal(&di1.di_tv, &(*item2).di_tv, false) {
+                        let hi_key = (crate::globals::gref(hi)).key_cstr();
+                        let item2 = tv_dict_find(crate::globals::gopt(got_d), hi_key, -1);
+                        if item2.is_null()
+                            || !tv_equal(&di1.di_tv, &crate::globals::gptr(item2).di_tv, false)
+                        {
                             let hi_bytes = crate::memory::cstr_as_bytes(hi_key);
                             tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
                             if !item2.is_null() {
-                                tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut (*item2).di_tv);
+                                tv_dict_add_tv(
+                                    &mut *new_got_d,
+                                    hi_bytes,
+                                    &mut crate::globals::gptr(item2).di_tv,
+                                );
                             }
                         } else {
                             omitted += 1;
@@ -202,12 +209,12 @@ fn fill_assert_error(
                     hi = hi.wrapping_add(1);
                 }
 
-                todo = (*got_d).dv_hashtab.ht_used as i32;
-                hi = (*got_d).dv_hashtab.array_ptr();
+                todo = crate::globals::gptr(got_d).dv_hashtab.ht_used as i32;
+                hi = crate::globals::gptr(got_d).dv_hashtab.array_ptr();
                 while todo > 0 {
-                    if !hashitem_empty(&*hi) {
-                        let hi_key = (&*hi).key_cstr();
-                        let item2 = tv_dict_find(exp_d.as_ref(), hi_key, -1);
+                    if !hashitem_empty(crate::globals::gref(hi)) {
+                        let hi_key = (crate::globals::gref(hi)).key_cstr();
+                        let item2 = tv_dict_find(crate::globals::gopt(exp_d), hi_key, -1);
                         if item2.is_null() {
                             let di2 = crate::eval::typval::tv_dict_hi2di(hi);
                             tv_dict_add_tv(
@@ -256,7 +263,7 @@ fn fill_assert_error(
         }
 
         if did_copy {
-            tv_clear(&mut *exp_tv);
+            tv_clear(crate::globals::gmut(exp_tv));
             tv_clear(&mut *got_tv);
         }
     }
@@ -582,7 +589,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut expected_str: Option<&CStr> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
-        let mut actual = unsafe { (&raw const g_st().emsg_assert_fails_msg).as_ref() }
+        let mut actual = crate::globals::gopt(&raw const g_st().emsg_assert_fails_msg)
             .unwrap()
             .as_ref()
             .map_or(c"[unknown]".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
@@ -669,7 +676,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
                         arg4.vval.v_string(),
-                        unsafe { (&raw const g_st().emsg_assert_fails_context).as_ref() }
+                        crate::globals::gopt(&raw const g_st().emsg_assert_fails_context)
                             .unwrap()
                             .as_ref()
                             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
@@ -699,7 +706,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             } else if error_found_index == 4 {
                 actual_tv.v_type = VarType::VarString;
                 actual_tv.vval = crate::eval::typval::TypvalVval::String(
-                    unsafe { (&raw const g_st().emsg_assert_fails_context).as_ref() }
+                    crate::globals::gopt(&raw const g_st().emsg_assert_fails_context)
                         .unwrap()
                         .as_ref()
                         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),

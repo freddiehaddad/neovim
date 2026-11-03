@@ -257,7 +257,7 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
         return ptr::null_mut();
     }
 
-    if unsafe { !ml_open(&mut *ftbuf) } {
+    if !ml_open(crate::globals::gmut(ftbuf)) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -287,26 +287,22 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
         OPT_LOCAL,
         SID_NONE,
     );
-    unsafe {
-        assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
-    }
-    unsafe {
-        (*ftbuf).b_p_swf = 0;
-    }
-    unsafe {
-        (*ftbuf).b_p_ml = 0;
-    }
-    unsafe {
-        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
-    }
+
+    assert!(crate::globals::gptr(crate::globals::gptr(ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
+
+    crate::globals::gptr(ftbuf).b_p_swf = 0;
+
+    crate::globals::gptr(ftbuf).b_p_ml = 0;
+
+    crate::globals::gptr(ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
 
     if !has_event(EVENT_FILETYPE) {
         return ftbuf;
     }
 
     let mut did_au_ft = false;
-    try_wrap(err, || unsafe {
-        did_au_ft = do_filetype_autocmd(&mut *ftbuf, true);
+    try_wrap(err, || {
+        did_au_ft = do_filetype_autocmd(crate::globals::gmut(ftbuf), true);
     });
 
     if !bufref_valid(Some(&bufref)) {
@@ -406,7 +402,7 @@ pub fn nvim_get_option_value(
     if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(unsafe { &mut *ftbuf });
+            wipe_ft_buf(crate::globals::gmut(ftbuf));
         }
         return OBJECT_NIL;
     }
@@ -420,7 +416,7 @@ pub fn nvim_get_option_value(
 
     ctx_restore(&mut aco);
     if !ftbuf.is_null() {
-        wipe_ft_buf(unsafe { &mut *ftbuf });
+        wipe_ft_buf(crate::globals::gmut(ftbuf));
     }
 
     if error_set(err) {
@@ -610,7 +606,11 @@ pub fn nvim_set_option_value(
     } else {
         curwin_ptr()
     };
-    let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
+    let varp = get_varp_from(
+        &mut *option,
+        crate::globals::gmut(buf),
+        crate::globals::gmut(win),
+    );
 
     let nitems = if is_array {
         value.data.array().size
@@ -849,7 +849,7 @@ pub fn nvim_get_option_info2(
         curwin_ptr()
     };
 
-    get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
+    get_option_info(name, opt_flags, buf, crate::globals::gmut(win), arena, err)
 }
 
 #[cfg(test)]

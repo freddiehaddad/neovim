@@ -56,7 +56,7 @@ static LOG_STATE: crate::globals::GlobalState<LogModuleState> =
 
 #[inline]
 pub(crate) fn log_st() -> &'static mut LogModuleState {
-    unsafe { &mut *LOG_STATE.as_ptr() }
+    crate::globals::gmut(LOG_STATE.as_ptr())
 }
 
 use crate::event::r#loop::{
@@ -239,15 +239,11 @@ pub fn log_init() {
 }
 
 pub fn log_lock() {
-    unsafe {
-        uv_mutex_lock((&raw mut log_st().mutex).cast());
-    }
+    unsafe { uv_mutex_lock((&raw mut log_st().mutex).cast()) };
 }
 
 pub fn log_unlock() {
-    unsafe {
-        uv_mutex_unlock((&raw mut log_st().mutex).cast());
-    }
+    unsafe { uv_mutex_unlock((&raw mut log_st().mutex).cast()) };
 }
 
 pub fn log_should_log(log_level: i32) -> bool {

@@ -52,7 +52,7 @@ struct UiCompositorState {
 impl UiCompositorState {
     #[inline]
     fn curgrid_mut(&self) -> &'static mut ScreenGrid {
-        unsafe { &mut *self.curgrid }
+        crate::globals::gmut(self.curgrid)
     }
 }
 
@@ -83,7 +83,7 @@ static COMP_STATE: GlobalState<UiCompositorState> = GlobalState::new(UiComposito
 
 #[inline]
 fn comp() -> &'static mut UiCompositorState {
-    unsafe { &mut *COMP_STATE.as_ptr() }
+    crate::globals::gmut(COMP_STATE.as_ptr())
 }
 
 #[inline]
@@ -103,7 +103,7 @@ fn attrbuf_mut() -> &'static mut Vec<Sattr> {
 
 #[inline]
 fn grid_mut(ptr: *mut ScreenGrid) -> &'static mut ScreenGrid {
-    unsafe { &mut *ptr }
+    crate::globals::gmut(ptr)
 }
 
 pub fn ui_comp_init() {
@@ -692,7 +692,7 @@ pub fn ui_comp_raw_line(
         );
         compose_debug(row, row + 1, endcol, clearcol, comp().dbghl_clear, true);
         for i in 0..((endcol - startcol) as usize) {
-            debug_assert!(unsafe { *attrs.wrapping_add(i) } >= 0);
+            debug_assert!(*crate::globals::gptr(attrs.wrapping_add(i)) >= 0);
         }
         ui_composed_call_raw_line(
             1, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,

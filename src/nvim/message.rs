@@ -222,7 +222,7 @@ static MSG_STATE: GlobalState<MessageState> = GlobalState::new(MessageState::new
 
 #[inline]
 fn msg_st() -> &'static mut MessageState {
-    unsafe { &mut *MSG_STATE.as_ptr() }
+    crate::globals::gmut(MSG_STATE.as_ptr())
 }
 
 #[macro_export]
@@ -1349,9 +1349,8 @@ pub fn msg_may_trunc<T>(force: bool, s: *mut T) -> *mut T {
         }
         n -= 1;
         s = s.wrapping_add(n);
-        unsafe {
-            *s = b'<';
-        }
+
+        *crate::globals::gptr(s) = b'<';
     }
     s.cast()
 }
@@ -1637,7 +1636,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
         ptr::null_mut(),
     )
     .cast::<OptKeyDict_mopt>();
-    let v = unsafe { &mut *v };
+    let v = crate::globals::gmut(v);
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
     let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
@@ -1657,7 +1656,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
     let v =
         opt_keyset(opt_vars().p_mopt, K_OPT_MESSAGESOPT, ptr::null_mut()).cast::<OptKeyDict_mopt>();
-    let v = unsafe { &mut *v };
+    let v = crate::globals::gmut(v);
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;
@@ -3062,7 +3061,7 @@ pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
         col = g_st().columns_global - 1 - col;
     }
     let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-    ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
+    ui_grid_cursor_goto(crate::globals::gptr(grid).handle, row, col);
 }
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
@@ -3269,7 +3268,7 @@ fn store_sb_text(
         msg_sb_eol();
         if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
             && s_ptr > sb_ptr
-            && unsafe { *sb_ptr } == b'\n'
+            && *crate::globals::gptr(sb_ptr) == b'\n'
         {
             *sb_str = (*sb_str).wrapping_add(1);
         }
@@ -3566,7 +3565,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = g_st().rows_global - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events( unsafe { &mut *g_st().resize_events });
+                    multiqueue_process_events(  crate::globals::gmut(g_st().resize_events) );
                     to_redraw = true;
                 }
                 _ => {
@@ -3880,19 +3879,17 @@ pub fn msg_ext_ui_flush() {
             let mut msg = HlMessage::new();
             for i in 0..tofree.size {
                 let chunk = tofree[i].data.array().items;
-                let text = unsafe { (*chunk.wrapping_add(1)).data.string() };
-                unsafe {
-                    (*chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
-                        data: ptr::null_mut(),
-                        size: 0,
-                    });
-                }
-                unsafe {
-                    msg.push(HlMessageChunk {
-                        text,
-                        hl_id: (*chunk.wrapping_add(2)).data.integer() as i32,
-                    });
-                }
+                let text = crate::globals::gptr(chunk.wrapping_add(1)).data.string();
+
+                crate::globals::gptr(chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
+                    data: ptr::null_mut(),
+                    size: 0,
+                });
+
+                msg.push(HlMessageChunk {
+                    text,
+                    hl_id: crate::globals::gptr(chunk.wrapping_add(2)).data.integer() as i32,
+                });
             }
             api_free_array(tofree);
             msg_hist_add_multihl(msg, true);
@@ -3939,7 +3936,7 @@ pub fn msg_check() {
 /// May write a string to the redirection file.
 fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
     let str_ = str_.into_c_char_ptr();
-    unsafe {
+    {
         let mut s = str_;
 
         if maxlen == 0 {
@@ -3955,10 +3952,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
         }
 
         if redirecting() != 0 {
-            if !matches!(*s.cast::<u8>(), b'\n' | b'\r') {
+            if !matches!(*crate::globals::gptr(s.cast::<u8>()), b'\n' | b'\r') {
                 while msg_st().redir_col < g_st().msg_col {
                     if !g_st().capture_ga.is_null() {
-                        (*g_st().capture_ga).push(b' ');
+                        crate::globals::gptr(g_st().capture_ga).push(b' ');
                     }
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, c" ", 1, 1);
@@ -3980,8 +3977,9 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 maxlen as usize
             };
             if !g_st().capture_ga.is_null() && len > 0 {
-                (*g_st().capture_ga)
-                    .extend_from_slice(std::slice::from_raw_parts(str_.cast::<u8>(), len));
+                crate::globals::gptr(g_st().capture_ga).extend_from_slice(unsafe {
+                    std::slice::from_raw_parts(str_.cast::<u8>(), len)
+                });
             }
             if g_st().redir_reg != 0 {
                 write_reg_contents(g_st().redir_reg, s, len as isize, 1);
@@ -4003,9 +4001,9 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 if let Some(ref vf) = msg_st().verbose_fd {
                     vf.putc(i32::from(crate::memory::cstr_first_byte(s)));
                 }
-                if matches!(*s.cast::<u8>(), b'\r' | b'\n') {
+                if matches!(*crate::globals::gptr(s.cast::<u8>()), b'\r' | b'\n') {
                     msg_st().redir_col = 0;
-                } else if i32::from(*s.cast::<u8>()) == TAB {
+                } else if i32::from(*crate::globals::gptr(s.cast::<u8>())) == TAB {
                     msg_st().redir_col += 8 - msg_st().redir_col % 8;
                 } else {
                     msg_st().redir_col += 1;

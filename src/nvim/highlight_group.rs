@@ -193,7 +193,7 @@ static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightG
 
 #[inline]
 fn hlg_st() -> &'static mut HighlightGroupState {
-    unsafe { &mut *HLG_STATE.as_ptr() }
+    crate::globals::gmut(HLG_STATE.as_ptr())
 }
 
 const HL_NAME_TABLE: [&CStr; 18] = [
@@ -1017,20 +1017,14 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
     for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
         if name.obj_type != ObjectType::ObjectTypeNil {
             if val < 0 {
-                unsafe {
-                    *dest = K_COLOR_IDX_NONE;
-                }
+                *crate::globals::gptr(dest) = K_COLOR_IDX_NONE;
             } else if name.obj_type == ObjectType::ObjectTypeString && name.data.string().size > 0 {
                 name_to_color(name.data.string().data, dest);
             } else {
-                unsafe {
-                    *dest = K_COLOR_IDX_HEX;
-                }
+                *crate::globals::gptr(dest) = K_COLOR_IDX_HEX;
             }
         } else if !update {
-            unsafe {
-                *dest = K_COLOR_IDX_NONE;
-            }
+            *crate::globals::gptr(dest) = K_COLOR_IDX_NONE;
         } else if old_link > 0 && val >= 0 {
             let linked = &*hl_table_at((old_link - 1) as usize);
             let linked_idx = if j == 0 {
@@ -1040,13 +1034,12 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
             } else {
                 linked.sg_rgb_sp_idx
             };
-            unsafe {
-                *dest = if linked_idx != K_COLOR_IDX_NONE {
-                    linked_idx
-                } else {
-                    K_COLOR_IDX_HEX
-                };
-            }
+
+            *crate::globals::gptr(dest) = if linked_idx != K_COLOR_IDX_NONE {
+                linked_idx
+            } else {
+                K_COLOR_IDX_HEX
+            };
         }
     }
 
@@ -1126,7 +1119,7 @@ fn set_gui_color(
 
 pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init: bool) {
     let mut line = line.into_c_char_ptr();
-    unsafe {
+    {
         if !init && ends_excmd(i32::from(crate::memory::cstr_first_byte(line))) != 0 {
             msg_ext_set_kind(c"list_cmd");
             let mut i = 1;
@@ -1189,7 +1182,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                 return;
             }
 
-            if ends_excmd(i32::from(*skipwhite(to_end) as u8)) == 0 {
+            if ends_excmd(i32::from((*crate::globals::gptr(skipwhite(to_end))) as u8)) == 0 {
                 semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\""),
                     from_start,
@@ -1207,31 +1200,32 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
             let mut hlgroup: *mut HlGroup = ptr::null_mut();
             if from_id > 0 {
                 hlgroup = hl_table_at((from_id - 1) as usize);
-                if dodefault && (forceit || (*hlgroup).sg_deflink == 0) {
-                    (*hlgroup).sg_deflink = to_id;
-                    (*hlgroup).sg_deflink_sctx = g_st().current_sctx;
-                    (*hlgroup).sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&mut (*hlgroup).sg_deflink_sctx);
+                if dodefault && (forceit || crate::globals::gptr(hlgroup).sg_deflink == 0) {
+                    crate::globals::gptr(hlgroup).sg_deflink = to_id;
+                    crate::globals::gptr(hlgroup).sg_deflink_sctx = g_st().current_sctx;
+                    crate::globals::gptr(hlgroup).sg_deflink_sctx.sc_lnum += sourcing_lnum();
+                    nlua_set_sctx(&mut crate::globals::gptr(hlgroup).sg_deflink_sctx);
                 }
             }
 
-            if from_id > 0 && (!init || (*hlgroup).sg_set == 0) {
+            if from_id > 0 && (!init || crate::globals::gptr(hlgroup).sg_set == 0) {
                 if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
                     if sourcing_name().is_none() && !dodefault {
                         emsg(gettext(E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED));
                     }
-                } else if (*hlgroup).sg_link != to_id
-                    || (*hlgroup).sg_script_ctx.sc_sid != g_st().current_sctx.sc_sid
-                    || (*hlgroup).sg_cleared
+                } else if crate::globals::gptr(hlgroup).sg_link != to_id
+                    || crate::globals::gptr(hlgroup).sg_script_ctx.sc_sid
+                        != g_st().current_sctx.sc_sid
+                    || crate::globals::gptr(hlgroup).sg_cleared
                 {
                     if !init {
-                        (*hlgroup).sg_set |= SG_LINK;
+                        crate::globals::gptr(hlgroup).sg_set |= SG_LINK;
                     }
-                    (*hlgroup).sg_link = to_id;
-                    (*hlgroup).sg_script_ctx = g_st().current_sctx;
-                    (*hlgroup).sg_script_ctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&mut (*hlgroup).sg_script_ctx);
-                    (*hlgroup).sg_cleared = false;
+                    crate::globals::gptr(hlgroup).sg_link = to_id;
+                    crate::globals::gptr(hlgroup).sg_script_ctx = g_st().current_sctx;
+                    crate::globals::gptr(hlgroup).sg_script_ctx.sc_lnum += sourcing_lnum();
+                    nlua_set_sctx(&mut crate::globals::gptr(hlgroup).sg_script_ctx);
+                    crate::globals::gptr(hlgroup).sg_cleared = false;
                     redraw_all_later(UPD_SOME_VALID);
                     g_st().need_highlight_changed = true;
                 }
@@ -1287,7 +1281,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         let mut key = [0u8; 64];
         let mut arg = [0u8; 512];
         if !doclear {
-            while ends_excmd(i32::from(*linep as u8)) == 0 {
+            while ends_excmd(i32::from((*crate::globals::gptr(linep)) as u8)) == 0 {
                 let key_start = linep;
                 let linep_bytes = crate::memory::cstr_as_bytes(linep);
                 if linep_bytes.first() == Some(&b'=') {
@@ -1323,7 +1317,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     continue;
                 }
 
-                if *linep as u8 != b'=' {
+                if (*crate::globals::gptr(linep)) as u8 != b'=' {
                     semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
@@ -1332,7 +1326,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
                 linep = skipwhite(linep);
                 let arg_start;
-                if *linep as u8 == b'\'' {
+                if (*crate::globals::gptr(linep)) as u8 == b'\'' {
                     linep = linep.wrapping_add(1);
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep)
@@ -1359,7 +1353,9 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     error = true;
                     break;
                 }
-                ptr::copy_nonoverlapping(arg_start.cast::<u8>(), arg.as_mut_ptr(), arg_len);
+                unsafe {
+                    ptr::copy_nonoverlapping(arg_start.cast::<u8>(), arg.as_mut_ptr(), arg_len)
+                };
                 arg[arg_len] = 0;
 
                 if crate::memory::cstr_first_byte(linep) == b'\'' {
@@ -2340,9 +2336,8 @@ fn combine_stl_hlt(
         hl_table_at(dst).sg_rgb_sp = hl_table_at(u_idx).sg_rgb_sp;
     }
     set_hl_attr(hlcnt + i);
-    unsafe {
-        *table.wrapping_add(i as usize) = syn_id2attr(hlcnt + i + 1);
-    }
+
+    *crate::globals::gptr(table.wrapping_add(i as usize)) = syn_id2attr(hlcnt + i + 1);
 }
 
 pub fn highlight_changed() {
@@ -2529,7 +2524,7 @@ pub fn get_highlight_name_ext(
 
 pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> RgbValue {
     let name = name.into_c_char_ptr();
-    let idx = unsafe { &mut *idx };
+    let idx = crate::globals::gmut(idx);
     let name_bytes = crate::memory::cstr_as_bytes(name);
     if name_bytes.len() == 7
         && name_bytes[0] == b'#'

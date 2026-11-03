@@ -115,7 +115,7 @@ static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphMod
 
 #[inline]
 fn digr_st() -> &'static mut DigraphModuleState {
-    unsafe { &mut *DIGR_STATE.as_ptr() }
+    crate::globals::gmut(DIGR_STATE.as_ptr())
 }
 
 const fn dg(c1: u8, c2: u8, res: DigrResult) -> DigraphEntry {

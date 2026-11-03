@@ -257,7 +257,7 @@ static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleSta
 
 #[inline]
 fn undo_st() -> &'static mut UndoModuleState {
-    unsafe { &mut *UNDO_STATE.as_ptr() }
+    crate::globals::gmut(UNDO_STATE.as_ptr())
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.
@@ -573,7 +573,7 @@ pub fn u_compute_hash(buf: &mut FileBuf, hash: *mut u8) {
         ctx.update(slice);
         ctx.update(&[0]);
     }
-    ctx.finish_into(unsafe { &mut *(hash as *mut [u8; UNDO_HASH_SIZE]) });
+    ctx.finish_into(crate::globals::gmut(hash as *mut [u8; UNDO_HASH_SIZE]));
 }
 
 /// Return an allocated string of the full path of the target undofile.
@@ -680,7 +680,7 @@ fn corruption_error(mesg: &std::ffi::CStr, file_name: impl crate::strings::IntoC
 }
 
 fn serialize_header(bi: &mut Bufinfo, hash: *mut u8) -> bool {
-    let buf = unsafe { &mut *bi.bi_buf };
+    let buf = crate::globals::gmut(bi.bi_buf);
 
     if !bi.bi_fp.write_all(&UF_START_MAGIC[..UF_START_MAGIC_LEN]) {
         return false;
@@ -736,7 +736,7 @@ fn serialize_uhp(bi: &mut Bufinfo, uhp: usize) -> bool {
         return false;
     }
 
-    let buf = unsafe { &mut *bi.bi_buf };
+    let buf = crate::globals::gmut(bi.bi_buf);
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_next);
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_prev);
     put_header_ptr(bi, uhp_ref(buf, uhp).uh_alt_next);
@@ -1514,7 +1514,7 @@ fn undo_write_bytes(bi: &mut Bufinfo, nr: u64, len: usize) -> bool {
 
 fn put_header_ptr(bi: &mut Bufinfo, uhp: Option<usize>) {
     let seq = if let Some(uh) = uhp {
-        let s = uhp_ref(unsafe { &*bi.bi_buf }, uh).uh_seq;
+        let s = uhp_ref(crate::globals::gref(bi.bi_buf), uh).uh_seq;
         assert!(s >= 0);
         s as u64
     } else {
@@ -2929,7 +2929,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if buf.is_null() {
         return;
     }
-    let buf = unsafe { &mut *buf };
+    let buf = crate::globals::gmut(buf);
 
     tv_dict_add_nr(dict, c"synced", Varnumber::from(buf.b_u_synced));
     tv_dict_add_nr(dict, c"seq_last", buf.b_u_seq_last as Varnumber);
@@ -3093,7 +3093,7 @@ mod tests {
                 1,
                 BLN_LISTED,
             );
-            let buf = unsafe { &mut *buf };
+            let buf = crate::globals::gmut(buf);
             buf.b_u_numhead = 1;
 
             let mut hash = [0u8; UNDO_HASH_SIZE];

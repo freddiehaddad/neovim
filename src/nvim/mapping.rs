@@ -255,7 +255,7 @@ static MAP_STATE: GlobalState<MappingModuleState> = GlobalState::new(MappingModu
 
 #[inline]
 fn map_st() -> &'static mut MappingModuleState {
-    unsafe { &mut *MAP_STATE.as_ptr() }
+    crate::globals::gmut(MAP_STATE.as_ptr())
 }
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
@@ -313,12 +313,12 @@ fn map_bucket_mut(
 fn get_map_buckets(buf: *const FileBuf, is_abbrev: bool) -> &'static [Vec<Mapblock>] {
     if is_abbrev {
         if !buf.is_null() {
-            std::slice::from_ref(unsafe { &(*buf).b_first_abbr })
+            std::slice::from_ref(&crate::globals::gref(buf).b_first_abbr)
         } else {
             std::slice::from_ref(&map_st().first_abbr)
         }
     } else if !buf.is_null() {
-        unsafe { &(*buf).b_maphash }
+        &crate::globals::gref(buf).b_maphash
     } else {
         &map_st().maphash
     }
@@ -2360,8 +2360,8 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 
     let (which, is_abbr, d) = if dict_only {
         let d = argvars[0].vval.v_dict();
-        let which = unsafe { tv_dict_get_string(d.as_ref(), c"mode") };
-        let is_abbr = unsafe { tv_dict_get_bool(d.as_ref(), c"abbr", -1) as i32 };
+        let which = tv_dict_get_string(crate::globals::gopt(d), c"mode");
+        let is_abbr = tv_dict_get_bool(crate::globals::gopt(d), c"abbr", -1) as i32;
         let Some(which) = which else {
             emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
             return;
@@ -2388,18 +2388,18 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     }
 
-    let lhs = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhs") };
-    let lhsraw = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsraw") };
-    let lhsrawalt = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsrawalt") };
-    let mut orig_rhs = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"rhs") };
+    let lhs = crate::eval::typval::tv_dict_get_cstring(crate::globals::gopt(d), c"lhs");
+    let lhsraw = crate::eval::typval::tv_dict_get_cstring(crate::globals::gopt(d), c"lhsraw");
+    let lhsrawalt = crate::eval::typval::tv_dict_get_cstring(crate::globals::gopt(d), c"lhsrawalt");
+    let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(crate::globals::gopt(d), c"rhs");
     let mut rhs_lua: LuaRef = LUA_NOREF;
-    let callback_di = unsafe { tv_dict_find(d.as_ref(), c"callback", 8) };
-    if !callback_di.is_null() && unsafe { (*callback_di).di_tv.v_type == VarType::VarFunc } {
-        let fp = unsafe { find_func((*callback_di).di_tv.vval.v_string()) };
-        if !fp.is_null() && unsafe { ((*fp).uf_flags & FC_LUAREF) != 0 } {
-            unsafe {
-                rhs_lua = api_new_luaref((*fp).uf_luaref);
-            }
+    let callback_di = tv_dict_find(crate::globals::gopt(d), c"callback", 8);
+    if !callback_di.is_null() && crate::globals::gptr(callback_di).di_tv.v_type == VarType::VarFunc
+    {
+        let fp = find_func(crate::globals::gptr(callback_di).di_tv.vval.v_string());
+        if !fp.is_null() && (crate::globals::gptr(fp).uf_flags & FC_LUAREF) != 0 {
+            rhs_lua = api_new_luaref(crate::globals::gptr(fp).uf_luaref);
+
             orig_rhs = Some(std::ffi::CString::default());
         }
     }
@@ -2409,34 +2409,29 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     };
 
-    let mut noremap = if unsafe { tv_dict_get_number(d.as_ref(), c"noremap") != 0 } {
+    let mut noremap = if tv_dict_get_number(crate::globals::gopt(d), c"noremap") != 0 {
         REMAP_NONE
     } else {
         0
     };
-    if unsafe { tv_dict_get_number(d.as_ref(), c"script") != 0 } {
+    if tv_dict_get_number(crate::globals::gopt(d), c"script") != 0 {
         noremap = REMAP_SCRIPT;
     }
     let mut args = MapArguments::new();
-    unsafe {
-        args.expr = tv_dict_get_number(d.as_ref(), c"expr") != 0;
-    }
-    unsafe {
-        args.silent = tv_dict_get_number(d.as_ref(), c"silent") != 0;
-    }
-    unsafe {
-        args.nowait = tv_dict_get_number(d.as_ref(), c"nowait") != 0;
-    }
-    unsafe {
-        args.replace_keycodes = tv_dict_get_number(d.as_ref(), c"replace_keycodes") != 0;
-    }
-    unsafe {
-        args.desc = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"desc");
-    }
 
-    let sid = unsafe { tv_dict_get_number(d.as_ref(), c"sid") as Scid };
-    let lnum = unsafe { tv_dict_get_number(d.as_ref(), c"lnum") as Linenr };
-    let buffer = unsafe { tv_dict_get_number(d.as_ref(), c"buffer") != 0 };
+    args.expr = tv_dict_get_number(crate::globals::gopt(d), c"expr") != 0;
+
+    args.silent = tv_dict_get_number(crate::globals::gopt(d), c"silent") != 0;
+
+    args.nowait = tv_dict_get_number(crate::globals::gopt(d), c"nowait") != 0;
+
+    args.replace_keycodes = tv_dict_get_number(crate::globals::gopt(d), c"replace_keycodes") != 0;
+
+    args.desc = crate::eval::typval::tv_dict_get_cstring(crate::globals::gopt(d), c"desc");
+
+    let sid = tv_dict_get_number(crate::globals::gopt(d), c"sid") as Scid;
+    let lnum = tv_dict_get_number(crate::globals::gopt(d), c"lnum") as Linenr;
+    let buffer = tv_dict_get_number(crate::globals::gopt(d), c"buffer") != 0;
 
     set_maparg_rhs(
         orig_rhs.as_bytes(),
@@ -3013,7 +3008,7 @@ pub fn keymap_array(mode: NvimString, buf: *mut FileBuf, arena: &mut Arena) -> A
     let buffer_value = if buf.is_null() {
         0
     } else {
-        unsafe { (*buf).b_fnum }
+        crate::globals::gptr(buf).b_fnum
     };
 
     for bucket in get_map_buckets(buf, is_abbrev) {

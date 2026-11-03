@@ -875,7 +875,7 @@ pub fn extmark_splice_impl(
             start_col,
             end_row,
             end_col,
-            unsafe { uvp.as_mut() },
+            crate::globals::gopt_mut(uvp),
             false,
             undo,
         );

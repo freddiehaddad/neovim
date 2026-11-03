@@ -4236,14 +4236,14 @@ pub fn intro_message(colon: bool) {
 fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
     let mesg = mesg_cstr.as_ptr();
     let mesg_bytes = mesg_cstr.to_bytes();
-    unsafe {
+    {
         let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
         if col < 0 {
             col = 0;
         }
 
         let grid = if !colon && ui_has(K_UIMULTIGRID) {
-            (&raw mut (*g_st().firstwin).w_grid).cast::<GridView>()
+            (&raw mut crate::globals::gptr(g_st().firstwin).w_grid).cast::<GridView>()
         } else {
             &raw mut g_st().default_gridview
         };

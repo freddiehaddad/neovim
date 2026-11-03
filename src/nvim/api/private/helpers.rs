@@ -377,6 +377,7 @@ pub fn error_set(e: &Error) -> bool {
 pub fn try_enter(tstate: &mut TryState) {
     let saved_msg_list = g_st().msg_list.replace(Vec::new());
     let saved_excp = g_st().current_exception.take();
+
     unsafe {
         ptr::write(
             tstate,
@@ -490,7 +491,7 @@ pub fn dict_check_writable(
     err: &mut Error,
 ) -> *mut Dictitem {
     let di = tv_dict_find(Some(dict), key.data, key.size as isize);
-    if let Some(di) = unsafe { di.as_ref() } {
+    if let Some(di) = crate::globals::gopt(di) {
         if (di.di_flags & DI_FLAGS_RO) != 0 {
             api_set_error!(
                 err,
@@ -550,18 +551,13 @@ pub fn dict_set_var(
             );
         } else {
             if watched {
-                unsafe {
-                    tv_dict_watcher_notify(dict, key.data, None, Some(&(*di).di_tv));
-                }
+                tv_dict_watcher_notify(dict, key.data, None, Some(&crate::globals::gptr(di).di_tv));
             }
             if retval {
-                unsafe {
-                    rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
-                }
+                rv = vim_to_object(&raw mut crate::globals::gptr(di).di_tv, arena, false);
             }
-            unsafe {
-                tv_dict_item_remove(&mut *dict, &mut *di);
-            }
+
+            tv_dict_item_remove(&mut *dict, crate::globals::gmut(di));
         }
     } else {
         let mut tv: TypVal = TypVal::new();
@@ -573,15 +569,18 @@ pub fn dict_set_var(
             tv_dict_add(dict, di);
         } else {
             if retval {
-                unsafe {
-                    rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
-                }
+                rv = vim_to_object(&raw mut crate::globals::gptr(di).di_tv, arena, false);
             }
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && unsafe {
-                    !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
-                }
+                && !before_set_vvar(
+                    key.data,
+                    crate::globals::gmut(di),
+                    &mut tv,
+                    true,
+                    watched,
+                    &mut type_error,
+                )
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -595,18 +594,14 @@ pub fn dict_set_var(
                 return rv;
             }
             if watched {
-                unsafe {
-                    tv_copy(&(*di).di_tv, &mut oldtv);
-                }
+                tv_copy(&crate::globals::gptr(di).di_tv, &mut oldtv);
             }
-            unsafe {
-                tv_clear(&mut (*di).di_tv);
-            }
+
+            tv_clear(&mut crate::globals::gptr(di).di_tv);
         }
 
-        unsafe {
-            tv_copy(&tv, &mut (*di).di_tv);
-        }
+        tv_copy(&tv, &mut crate::globals::gptr(di).di_tv);
+
         if watched {
             tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
             tv_clear(&mut oldtv);
@@ -644,7 +639,10 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
         return curwin_ptr();
     }
     let map_ptr = &raw const g_st().window_handles;
-    let rv = unsafe { (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut()) };
+    let rv = crate::globals::gptr(map_ptr)
+        .get(&window)
+        .copied()
+        .unwrap_or(ptr::null_mut());
     if rv.is_null() {
         api_set_error!(
             err,
@@ -681,7 +679,7 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo
 #[inline]
 pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     let b = find_buffer_by_handle(buffer, err);
-    (!b.is_null()).then(|| unsafe { &mut *b })
+    (!b.is_null()).then(|| crate::globals::gmut(b))
 }
 
 #[inline]
@@ -690,7 +688,7 @@ pub fn find_window_by_handle_mut(
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
     let w = find_window_by_handle(window, err);
-    (!w.is_null()).then(|| unsafe { &mut *w })
+    (!w.is_null()).then(|| crate::globals::gmut(w))
 }
 
 #[inline]
@@ -699,7 +697,7 @@ pub fn find_tab_by_handle_mut(
     err: &mut Error,
 ) -> Option<&'static mut TabPageInfo> {
     let t = find_tab_by_handle(tabpage, err);
-    (!t.is_null()).then(|| unsafe { &mut *t })
+    (!t.is_null()).then(|| crate::globals::gmut(t))
 }
 
 pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
@@ -1216,22 +1214,18 @@ pub fn api_dict_to_keydict(
         };
 
         if field.opt_index >= 0 {
-            unsafe {
-                (*retval).is_set_ |= 1u64 << field.opt_index;
-            }
+            crate::globals::gptr(retval).is_set_ |= 1u64 << field.opt_index;
         }
 
         let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
         let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
         let value: *mut Object = &raw mut dict[i].value;
-        let value = unsafe { &mut *value };
+        let value = crate::globals::gmut(value);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
         match field_type {
-            ObjectType::ObjectTypeNil => unsafe {
-                *mem.cast::<Object>() = *value;
-            },
+            ObjectType::ObjectTypeNil => *crate::globals::gptr(mem.cast::<Object>()) = *value,
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
@@ -1241,9 +1235,8 @@ pub fn api_dict_to_keydict(
                             return false;
                         }
                     }
-                    unsafe {
-                        *mem.cast::<Integer>() = Integer::from(hl_id);
-                    }
+
+                    *crate::globals::gptr(mem.cast::<Integer>()) = Integer::from(hl_id);
                 } else {
                     if value.obj_type != ObjectType::ObjectTypeInteger {
                         api_err_exp(
@@ -1254,21 +1247,16 @@ pub fn api_dict_to_keydict(
                         );
                         return false;
                     }
-                    unsafe {
-                        *mem.cast::<Integer>() = value.data.integer();
-                    }
+
+                    *crate::globals::gptr(mem.cast::<Integer>()) = value.data.integer();
                 }
             }
             ObjectType::ObjectTypeFloat => {
                 let val = mem.cast::<Float>();
                 if value.obj_type == ObjectType::ObjectTypeInteger {
-                    unsafe {
-                        *val = value.data.integer() as Float;
-                    }
+                    *crate::globals::gptr(val) = value.data.integer() as Float;
                 } else if value.obj_type == ObjectType::ObjectTypeFloat {
-                    unsafe {
-                        *val = value.data.floating();
-                    }
+                    *crate::globals::gptr(val) = value.data.floating();
                 } else {
                     api_err_exp(
                         err,
@@ -1280,9 +1268,9 @@ pub fn api_dict_to_keydict(
                 }
             }
             ObjectType::ObjectTypeBoolean => {
-                unsafe {
-                    *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err);
-                }
+                *crate::globals::gptr(mem.cast::<Boolean>()) =
+                    api_object_to_bool(*value, field_name, false, err);
+
                 if error_set(err) {
                     return false;
                 }
@@ -1297,9 +1285,8 @@ pub fn api_dict_to_keydict(
                     );
                     return false;
                 }
-                unsafe {
-                    *mem.cast::<NvimString>() = value.data.string();
-                }
+
+                *crate::globals::gptr(mem.cast::<NvimString>()) = value.data.string();
             }
             ObjectType::ObjectTypeArray => {
                 if value.obj_type != ObjectType::ObjectTypeArray {
@@ -1311,24 +1298,19 @@ pub fn api_dict_to_keydict(
                     );
                     return false;
                 }
-                unsafe {
-                    *mem.cast::<Array>() = value.data.array();
-                }
+
+                *crate::globals::gptr(mem.cast::<Array>()) = value.data.array();
             }
             ObjectType::ObjectTypeDict => {
                 let val = mem.cast::<Dict>();
                 if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
-                    unsafe {
-                        *val = Dict {
-                            items: ptr::null_mut(),
-                            size: 0,
-                            capacity: 0,
-                        };
-                    }
+                    *crate::globals::gptr(val) = Dict {
+                        items: ptr::null_mut(),
+                        size: 0,
+                        capacity: 0,
+                    };
                 } else if value.obj_type == ObjectType::ObjectTypeDict {
-                    unsafe {
-                        *val = value.data.dict();
-                    }
+                    *crate::globals::gptr(val) = value.data.dict();
                 } else {
                     api_err_exp(
                         err,
@@ -1343,9 +1325,8 @@ pub fn api_dict_to_keydict(
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => {
                 if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
-                    unsafe {
-                        *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle;
-                    }
+                    *crate::globals::gptr(mem.cast::<ObjHandle>()) =
+                        value.data.integer() as ObjHandle;
                 } else {
                     api_err_exp(
                         err,
@@ -1380,11 +1361,11 @@ pub fn api_keydict_to_dict(
 ) -> Dict {
     let mut rv = arena_dict(arena, max_size);
     let mut i: usize = 0;
-    while let Some(field_str) = unsafe { (*table.wrapping_add(i)).str } {
-        let field = unsafe { &*table.wrapping_add(i) };
+    while let Some(field_str) = crate::globals::gptr(table.wrapping_add(i)).str {
+        let field = crate::globals::gref(table.wrapping_add(i));
         let mut is_set = true;
         if field.opt_index >= 0 {
-            is_set = (unsafe { (*value).is_set_ } & (1u64 << field.opt_index)) != 0;
+            is_set = (crate::globals::gptr(value).is_set_ & (1u64 << field.opt_index)) != 0;
         }
         if !is_set {
             i += 1;
@@ -1395,36 +1376,38 @@ pub fn api_keydict_to_dict(
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         let val = match field_type {
-            ObjectType::ObjectTypeNil => unsafe { *mem.cast::<Object>() },
+            ObjectType::ObjectTypeNil => *crate::globals::gptr(mem.cast::<Object>()),
             ObjectType::ObjectTypeInteger => Object {
                 obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(unsafe { *mem.cast::<Integer>() }),
+                data: ObjectData::Integer(*crate::globals::gptr(mem.cast::<Integer>())),
             },
             ObjectType::ObjectTypeFloat => Object {
                 obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(unsafe { *mem.cast::<Float>() }),
+                data: ObjectData::Floating(*crate::globals::gptr(mem.cast::<Float>())),
             },
             ObjectType::ObjectTypeBoolean => Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(unsafe { *mem.cast::<Boolean>() }),
+                data: ObjectData::Boolean(*crate::globals::gptr(mem.cast::<Boolean>())),
             },
             ObjectType::ObjectTypeString => Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(unsafe { *mem.cast::<NvimString>() }),
+                data: ObjectData::String(*crate::globals::gptr(mem.cast::<NvimString>())),
             },
             ObjectType::ObjectTypeArray => Object {
                 obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(unsafe { *mem.cast::<Array>() }),
+                data: ObjectData::Array(*crate::globals::gptr(mem.cast::<Array>())),
             },
             ObjectType::ObjectTypeDict => Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(unsafe { *mem.cast::<Dict>() }),
+                data: ObjectData::Dict(*crate::globals::gptr(mem.cast::<Dict>())),
             },
             ObjectType::ObjectTypeBuffer
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => Object {
                 obj_type: field_type,
-                data: ObjectData::Integer(Integer::from(unsafe { *mem.cast::<ObjHandle>() })),
+                data: ObjectData::Integer(Integer::from(*crate::globals::gptr(
+                    mem.cast::<ObjHandle>(),
+                ))),
             },
             ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
             ObjectType::ObjectTypeUnset => std::process::abort(),
@@ -1451,15 +1434,21 @@ pub fn api_luarefs_free_object(value: Object) {
 
 pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
     let mut i: usize = 0;
-    while unsafe { (*table.wrapping_add(i)).str.is_some() } {
-        let field = unsafe { &*table.wrapping_add(i) };
+    while crate::globals::gptr(table.wrapping_add(i)).str.is_some() {
+        let field = crate::globals::gref(table.wrapping_add(i));
         let mem = dict.cast::<u8>().wrapping_add(field.ptr_off);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
         match field_type {
-            ObjectType::ObjectTypeNil => unsafe { api_luarefs_free_object(*mem.cast::<Object>()) },
-            ObjectType::ObjectTypeLuaRef => unsafe { api_free_luaref(*mem.cast::<LuaRef>()) },
-            ObjectType::ObjectTypeDict => unsafe { api_luarefs_free_dict(*mem.cast::<Dict>()) },
+            ObjectType::ObjectTypeNil => {
+                api_luarefs_free_object(*crate::globals::gptr(mem.cast::<Object>()))
+            }
+            ObjectType::ObjectTypeLuaRef => {
+                api_free_luaref(*crate::globals::gptr(mem.cast::<LuaRef>()))
+            }
+            ObjectType::ObjectTypeDict => {
+                api_luarefs_free_dict(*crate::globals::gptr(mem.cast::<Dict>()))
+            }
             _ => {}
         }
         i += 1;
@@ -1501,7 +1490,7 @@ pub fn set_mark(
             );
             return false;
         }
-        if line < 1 || line > i64::from(unsafe { (*buf).b_ml.ml_line_count }) {
+        if line < 1 || line > i64::from(crate::globals::gptr(buf).b_ml.ml_line_count) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -1516,7 +1505,7 @@ pub fn set_mark(
         coladd: 0,
     };
     let mark_char = name.as_bytes().first().copied().unwrap_or(0) as i32;
-    let res = setmark_pos(mark_char, &mut pos, unsafe { (*buf).b_fnum }, None);
+    let res = setmark_pos(mark_char, &mut pos, crate::globals::gptr(buf).b_fnum, None);
     if !res {
         if deleting {
             api_set_error!(
@@ -1590,7 +1579,7 @@ static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> =
 
 #[inline]
 fn api_meta_st() -> &'static mut ApiMetadataState {
-    unsafe { &mut *API_META_STATE.as_ptr() }
+    crate::globals::gmut(API_META_STATE.as_ptr())
 }
 
 struct ApiFunctionMeta {

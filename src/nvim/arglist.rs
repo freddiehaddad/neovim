@@ -122,17 +122,16 @@ static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> =
 
 #[inline]
 fn arglist_st() -> &'static mut ArglistModuleState {
-    unsafe { &mut *ARGLIST_STATE.as_ptr() }
+    crate::globals::gmut(ARGLIST_STATE.as_ptr())
 }
 
 #[inline]
 pub fn win_alist(wp: &WinInfoInfo) -> &'static mut Alist {
-    unsafe {
-        &mut *wp
-            .w_alist
+    crate::globals::gmut(
+        wp.w_alist
             .as_ref()
-            .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr())
-    }
+            .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr()),
+    )
 }
 
 #[inline]
@@ -216,21 +215,21 @@ fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: i32) {
         return;
     }
 
-    unsafe {
-        alist_clear(&mut *al);
-    }
-    unsafe {
-        (*al).al_ga.reserve(files.len());
-    }
+    alist_clear(crate::globals::gmut(al));
+
+    crate::globals::gptr(al).al_ga.reserve(files.len());
+
     for fname in files {
         if g_st().got_int {
             break;
         }
 
         if !fname.as_bytes().is_empty() {
-            unsafe {
-                alist_add(&mut *al, fname, if use_curbuf != 0 { 2 } else { 1 });
-            }
+            alist_add(
+                crate::globals::gmut(al),
+                fname,
+                if use_curbuf != 0 { 2 } else { 1 },
+            );
         }
         os_breakcheck();
     }
@@ -247,9 +246,8 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
         return;
     }
     arglist_st().arglist_locked = true;
-    unsafe {
-        (*wp).w_locked += 1;
-    }
+
+    crate::globals::gptr(wp).w_locked += 1;
 
     let ae_fnum = if set_fnum > 0 {
         buflist_add(
@@ -265,23 +263,22 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
     });
 
     arglist_st().arglist_locked = false;
-    unsafe {
-        (*wp).w_locked -= 1;
-    }
+
+    crate::globals::gptr(wp).w_locked -= 1;
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
 fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut u8 {
     let mut str_ = str_.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut p = str_;
         let mut inbacktick = false;
         while !crate::memory::cstr_is_empty(str_) {
             if rem_backslash(crate::memory::cstr_as_bytes(str_)) {
-                *p = *str_;
+                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
                 p = p.wrapping_add(1);
                 str_ = str_.wrapping_add(1);
-                *p = *str_;
+                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
                 p = p.wrapping_add(1);
             } else {
                 if !inbacktick && ascii_isspace(crate::memory::cstr_first_byte(str_)) {
@@ -290,13 +287,13 @@ fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut u8 {
                 if crate::memory::cstr_first_byte(str_) == b'`' {
                     inbacktick = !inbacktick;
                 }
-                *p = *str_;
+                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
                 p = p.wrapping_add(1);
             }
             str_ = str_.wrapping_add(1);
         }
         str_ = skipwhite(str_);
-        *p = NUL;
+        *crate::globals::gptr(p) = NUL;
         str_.cast()
     }
 }
@@ -360,12 +357,12 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
         let wp = curwin_ptr();
-        let al: *mut Alist = win_alist(unsafe { &*wp });
+        let al: *mut Alist = win_alist(crate::globals::gref(wp));
         after = after.clamp(0, old_argcount);
         arglist_st().arglist_locked = true;
-        unsafe {
-            (*wp).w_locked += 1;
-        }
+
+        crate::globals::gptr(wp).w_locked += 1;
+
         let count = files.len() as i32;
         let mut new_entries = Vec::with_capacity(files.len());
         for f in files {
@@ -380,14 +377,14 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
             new_entries.push(Aentry { ae_fname, ae_fnum });
         }
         let pos = after as usize;
-        unsafe {
-            (*al).al_ga.splice(pos..pos, new_entries);
-        }
+
+        crate::globals::gptr(al).al_ga.splice(pos..pos, new_entries);
+
         arglist_st().arglist_locked = false;
-        unsafe {
-            (*wp).w_locked -= 1;
-            if old_argcount > 0 && (*wp).w_arg_idx >= after {
-                (*wp).w_arg_idx += count;
+        {
+            crate::globals::gptr(wp).w_locked -= 1;
+            if old_argcount > 0 && crate::globals::gptr(wp).w_arg_idx >= after {
+                crate::globals::gptr(wp).w_arg_idx += count;
             }
         }
     }
@@ -912,45 +909,46 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             g_st().firstwin
         };
         while !wp.is_null() {
-            let mut wpnext = if unsafe { (*wp).w_floating } {
-                if unsafe { !(*wp).w_prev.is_null() } && unsafe { (*(*wp).w_prev).w_floating } {
-                    unsafe { (*wp).w_prev }
+            let mut wpnext = if crate::globals::gptr(wp).w_floating {
+                if !crate::globals::gptr(wp).w_prev.is_null()
+                    && crate::globals::gptr(crate::globals::gptr(wp).w_prev).w_floating
+                {
+                    crate::globals::gptr(wp).w_prev
                 } else {
                     g_st().firstwin
                 }
-            } else if unsafe { (*wp).w_next.is_null() } || unsafe { (*(*wp).w_next).w_floating } {
+            } else if crate::globals::gptr(wp).w_next.is_null()
+                || crate::globals::gptr(crate::globals::gptr(wp).w_next).w_floating
+            {
                 ptr::null_mut()
             } else {
-                unsafe { (*wp).w_next }
+                crate::globals::gptr(wp).w_next
             };
-            let buf = unsafe { (*wp).w_buffer };
-            let buf = unsafe { &mut *buf };
+            let buf = crate::globals::gptr(wp).w_buffer;
+            let buf = crate::globals::gmut(buf);
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
             if buf.b_ffname.is_null()
-                || (unsafe {
-                    !aall_ref.keep_tabs
-                        && (buf.b_nwindows > 1
-                            || (*wp).w_width != g_st().columns_global
-                            || ((*wp).w_floating && !is_ctx_win(wp)))
-                })
+                || (!aall_ref.keep_tabs
+                    && (buf.b_nwindows > 1
+                        || crate::globals::gptr(wp).w_width != g_st().columns_global
+                        || (crate::globals::gptr(wp).w_floating && !is_ctx_win(wp))))
             {
                 i = opened_len;
             } else {
                 i = 0;
                 while i < opened_len {
                     let al = aall_ref.alist;
-                    if unsafe { (i as usize) < (*al).al_ga.len() } {
-                        let entry = unsafe { aarglist(&mut *al).wrapping_add(i as usize) };
-                        if unsafe { (*entry).ae_fnum == buf.b_fnum }
-                            || unsafe {
-                                path_equal(
-                                    alist_name(&*entry).map_or(ptr::null(), CStr::as_ptr),
-                                    buf.b_ffname,
-                                    K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
-                                )
-                            }
+                    if (i as usize) < crate::globals::gptr(al).al_ga.len() {
+                        let entry = aarglist(crate::globals::gmut(al)).wrapping_add(i as usize);
+                        if crate::globals::gptr(entry).ae_fnum == buf.b_fnum
+                            || path_equal(
+                                alist_name(crate::globals::gref(entry))
+                                    .map_or(ptr::null(), CStr::as_ptr),
+                                buf.b_ffname,
+                                K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
+                            )
                         {
                             let mut weight: i32 = 1;
                             if old_curtab == g_st().curtab {
@@ -964,9 +962,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 aall_ref.opened[i as usize] = weight as u8;
                                 if i == 0 {
                                     if !aall_ref.new_curwin.is_null() {
-                                        unsafe {
-                                            (*aall_ref.new_curwin).w_arg_idx = opened_len;
-                                        }
+                                        crate::globals::gptr(aall_ref.new_curwin).w_arg_idx =
+                                            opened_len;
                                     }
                                     aall_ref.new_curwin = wp;
                                     aall_ref.new_curtab = g_st().curtab;
@@ -975,10 +972,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 i = opened_len;
                             }
 
-                            if unsafe { !ptr::eq(win_alist(&*wp), al) } {
-                                unsafe {
-                                    (*wp).w_alist = aall_ref.local_alist.clone();
-                                }
+                            if !ptr::eq(win_alist(crate::globals::gref(wp)), al) {
+                                crate::globals::gptr(wp).w_alist = aall_ref.local_alist.clone();
                             }
                             break;
                         }
@@ -986,9 +981,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     i += 1;
                 }
             }
-            unsafe {
-                (*wp).w_arg_idx = i;
-            }
+
+            crate::globals::gptr(wp).w_arg_idx = i;
 
             if i == opened_len
                 && !aall_ref.keep_tabs
@@ -1105,7 +1099,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             }
             do_ecmd(
                 0,
-                alist_name(unsafe { &(&(*aall.alist).al_ga)[i as usize] })
+                alist_name(&(&crate::globals::gptr(aall.alist).al_ga)[i as usize])
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 ptr::null_mut(),
                 None,
@@ -1244,12 +1238,13 @@ pub fn f_argc(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(gargcount() as Varnumber);
     } else {
         let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Number(if let Some(wp_ref) = unsafe { wp.as_ref() } {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(
+            if let Some(wp_ref) = crate::globals::gopt(wp) {
                 wargcount(wp_ref) as Varnumber
             } else {
                 -1
-            });
+            },
+        );
     }
 }
 
@@ -1262,7 +1257,7 @@ pub fn f_argidx(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_arglistid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     let wp = find_tabwin(&argvars[0], &argvars[1]);
-    if let Some(wp_ref) = unsafe { wp.as_ref() } {
+    if let Some(wp_ref) = crate::globals::gopt(wp) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(win_alist(wp_ref).id as Varnumber);
     }
 }
@@ -1296,7 +1291,7 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         entries = Some(&garglist_slice()[..(gargcount() as usize)]);
     } else {
         let wp = find_win_by_nr_or_id(&argvars[1]);
-        if let Some(wp_ref) = unsafe { wp.as_ref() } {
+        if let Some(wp_ref) = crate::globals::gopt(wp) {
             entries = Some(&warglist_slice(wp_ref)[..(wargcount(wp_ref) as usize)]);
         }
     }

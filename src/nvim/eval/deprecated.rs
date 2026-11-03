@@ -96,7 +96,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         std::ptr::null_mut(),
         rettv.vval.v_number_mut(),
     );
-    if let Some(chan) = unsafe { chan.as_mut() } {
+    if let Some(chan) = crate::globals::gopt_mut(chan) {
         channel_create_event(chan);
     }
 }

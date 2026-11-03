@@ -43,7 +43,7 @@ static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> =
 
 #[inline]
 fn clip_st() -> &'static mut ClipboardModuleState {
-    unsafe { &mut *CLIP_STATE.as_ptr() }
+    crate::globals::gmut(CLIP_STATE.as_ptr())
 }
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";
@@ -123,10 +123,10 @@ pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> b
         *target = reg_ptr;
         return true;
     }
-    unsafe {
-        *reg_ptr = EMPTY_YANKREG;
-    }
-    let reg = unsafe { &mut *reg_ptr };
+
+    *crate::globals::gptr(reg_ptr) = EMPTY_YANKREG;
+
+    let reg = crate::globals::gmut(reg_ptr);
 
     let args = tv_list_alloc(1);
     tv_list_append_bytes(&mut *args, &[name as u8]);
@@ -153,22 +153,27 @@ pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> b
     let res_len = if res.is_null() {
         0
     } else {
-        unsafe { (*res).lv_len }
+        crate::globals::gptr(res).lv_len
     };
     let lines: *mut TvList;
 
     if res_len == 2
-        && unsafe { !(*res).lv_first.is_null() }
-        && unsafe { (*(*res).lv_first).li_tv.v_type == VarType::VarList }
+        && !crate::globals::gptr(res).lv_first.is_null()
+        && crate::globals::gptr(crate::globals::gptr(res).lv_first)
+            .li_tv
+            .v_type
+            == VarType::VarList
     {
-        unsafe {
-            lines = (*(*res).lv_first).li_tv.vval.v_list();
-        }
-        let last_li = unsafe { (*res).lv_last };
-        if last_li.is_null() || unsafe { (*last_li).li_tv.v_type != VarType::VarString } {
+        lines = crate::globals::gptr(crate::globals::gptr(res).lv_first)
+            .li_tv
+            .vval
+            .v_list();
+
+        let last_li = crate::globals::gptr(res).lv_last;
+        if last_li.is_null() || crate::globals::gptr(last_li).li_tv.v_type != VarType::VarString {
             return fail_cleanup(reg, errmsg, target);
         }
-        let regtype = unsafe { (*last_li).li_tv.vval.v_string() };
+        let regtype = crate::globals::gptr(last_li).li_tv.vval.v_string();
         if regtype.is_null() || crate::memory::cstr_len(regtype) > 1 {
             return fail_cleanup(reg, errmsg, target);
         }
@@ -187,7 +192,7 @@ pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> b
     let lines_len = if lines.is_null() {
         0
     } else {
-        unsafe { (*lines).lv_len.max(0) as usize }
+        crate::globals::gptr(lines).lv_len.max(0) as usize
     };
     reg.y_array = Vec::with_capacity(lines_len);
     reg.y_allocated = true;
@@ -198,7 +203,7 @@ pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> b
     for li in crate::eval::typval::list_iter_mut(if lines.is_null() {
         std::ptr::null_mut()
     } else {
-        unsafe { (*lines).lv_first }
+        crate::globals::gptr(lines).lv_first
     }) {
         if li.li_tv.v_type != VarType::VarString {
             return fail_cleanup(reg, errmsg, target);
@@ -221,9 +226,8 @@ pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> b
         reg.y_type = MotionType::MtCharWise;
     }
 
-    unsafe {
-        update_yankreg_width(&mut *reg_ptr);
-    }
+    update_yankreg_width(crate::globals::gmut(reg_ptr));
+
     *target = reg_ptr;
     true
 }
@@ -280,7 +284,7 @@ pub fn end_batch_changes() {
     clip_st().clipboard_delay_update = false;
     if clip_st().clipboard_needs_update {
         clip_st().clipboard_needs_update = false;
-        set_clipboard(0, unsafe { &*get_y_previous() });
+        set_clipboard(0, crate::globals::gref(get_y_previous()));
     }
 }
 

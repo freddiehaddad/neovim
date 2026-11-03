@@ -1136,7 +1136,7 @@ pub fn nvim_buf_set_extmark(
 
         if opts.ephemeral
             && !g_st().decor_state.win.is_null()
-            && unsafe { (*g_st().decor_state.win).w_buffer } == (&raw mut *b)
+            && crate::globals::gptr(g_st().decor_state.win).w_buffer == (&raw mut *b)
         {
             let r = line as i32;
             let c = col as i32;
@@ -1451,7 +1451,7 @@ pub fn nvim_set_decoration_provider(
     opts: &mut KeyDict_set_decoration_provider,
     _err: &mut Error,
 ) {
-    let p = unsafe { &mut *get_decor_provider(ns_id as NS, true) };
+    let p = crate::globals::gmut(get_decor_provider(ns_id as NS, true));
     decor_provider_clear(Some(&mut *p));
 
     redraw_all_later(UPD_NOT_VALID);
@@ -1646,9 +1646,7 @@ pub fn parse_virt_text(chunks: Array, err: &mut Error, width: *mut i32, untab: b
         }
 
         if !width.is_null() {
-            unsafe {
-                *width = w;
-            }
+            *crate::globals::gptr(width) = w;
         }
         return virt_text;
     }
@@ -1703,7 +1701,7 @@ pub fn nvim_ns_set(ns_id: Integer, opts: &mut KeyDict_ns_opts, err: &mut Error) 
             if wp.is_null() {
                 return;
             }
-            let wp = unsafe { &mut *wp };
+            let wp = crate::globals::gmut(wp);
             windows.insert(wp);
         }
 

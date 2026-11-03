@@ -27,13 +27,13 @@ impl Hashitem {
         if self.hi_di.is_null() {
             None
         } else {
-            unsafe { CStr::from_bytes_until_nul(&(*self.hi_di).di_key).ok() }
+            CStr::from_bytes_until_nul(&crate::globals::gref(self.hi_di).di_key).ok()
         }
     }
 
     #[inline]
     pub fn di_opt(&self) -> Option<&'static mut crate::eval::typval::Dictitem> {
-        unsafe { self.hi_di.as_mut() }
+        crate::globals::gopt_mut(self.hi_di)
     }
 }
 
@@ -77,7 +77,7 @@ impl Hashtab {
                 if hi.hi_di.is_null() {
                     None
                 } else {
-                    Some((hi, unsafe { &*hi.hi_di }))
+                    Some((hi, crate::globals::gref(hi.hi_di)))
                 }
             })
             .take(self.ht_used)
@@ -98,7 +98,7 @@ impl Hashtab {
         &self,
         key: impl crate::strings::IntoCCharPtr,
     ) -> Option<&'static mut Hashitem> {
-        let hi = unsafe { &mut *hash_find(self, key) };
+        let hi = crate::globals::gmut(hash_find(self, key));
         (!hashitem_empty(hi)).then_some(hi)
     }
 
@@ -108,7 +108,7 @@ impl Hashtab {
         key: impl crate::strings::IntoCCharPtr,
         len: usize,
     ) -> Option<&'static mut Hashitem> {
-        let hi = unsafe { &mut *hash_find_len(self, key, len) };
+        let hi = crate::globals::gmut(hash_find_len(self, key, len));
         (!hashitem_empty(hi)).then_some(hi)
     }
 
@@ -196,7 +196,7 @@ pub fn hash_lookup(
 
     let mut idx = hash & ht.ht_mask;
     let mut hi = arr_ptr.wrapping_add(idx);
-    let hi_ref = unsafe { &*hi };
+    let hi_ref = crate::globals::gref(hi);
 
     if hi_ref.is_null_slot() {
         return hi;
@@ -213,7 +213,7 @@ pub fn hash_lookup(
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
         hi = arr_ptr.wrapping_add(idx & ht.ht_mask);
-        let item = unsafe { &*hi };
+        let item = crate::globals::gref(hi);
 
         if item.is_null_slot() {
             return if freeitem.is_null() { hi } else { freeitem };
@@ -240,7 +240,7 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
     let len = crate::memory::cstr_len(key);
     let hash = hash_hash(key);
     let hi = hash_lookup(ht, key, len, hash);
-    if unsafe { !hashitem_empty(&*hi) } {
+    if !hashitem_empty(crate::globals::gref(hi)) {
         siemsg!(
             c"E685: Internal error: hash_add(): duplicate key \"%s\"",
             key,
@@ -266,7 +266,7 @@ pub fn hash_add_item(
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
     }
-    let hi_ref = unsafe { &mut *hi };
+    let hi_ref = crate::globals::gmut(hi);
     ht.ht_used += 1;
     ht.ht_changed += 1;
     if hi_ref.is_null_slot() {
@@ -392,14 +392,14 @@ fn hash_may_resize(ht: &mut Hashtab, mut minitems: usize) {
 /// `key` must be a valid NUL-terminated C string.
 pub fn hash_hash(key: impl crate::strings::IntoCCharPtr) -> HashVal {
     let key = key.into_c_char_ptr();
-    let first = unsafe { *key.cast::<u8>() };
+    let first = *crate::globals::gptr(key.cast::<u8>());
     if first == 0 {
         return 0;
     }
     let mut hash = usize::from(first);
     let mut p = key.cast::<u8>().wrapping_add(1);
     loop {
-        let b = unsafe { *p };
+        let b = *crate::globals::gptr(p);
         if b == 0 {
             break;
         }
@@ -439,35 +439,35 @@ mod tests {
             .map(|i| CString::new(format!("key_{i}")).unwrap())
             .collect();
 
-        unsafe {
+        {
             let ht = &mut ht_val;
             assert_eq!(ht.ht_used, 0);
 
-            let mut items: Vec<*mut crate::eval::typval::Dictitem> = keys
+            let items: Vec<*mut crate::eval::typval::Dictitem> = keys
                 .iter()
                 .map(|k| &raw mut *crate::eval::typval::tv_dict_item_alloc(k.as_ptr()))
                 .collect();
 
             for &di in &items {
-                assert!(hash_add(ht, &mut *di));
+                assert!(hash_add(ht, crate::globals::gmut(di)));
             }
             assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert!(!hash_add(ht, &mut *items[0]));
+            assert!(!hash_add(ht, crate::globals::gmut(items[0])));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
                 let hi = hash_find(ht, k.as_ptr());
-                assert!(!hashitem_empty(&*hi));
-                assert_eq!((*hi).key_cstr(), Some(k.as_c_str()));
-                assert_eq!((*hi).hi_di, di);
+                assert!(!hashitem_empty(crate::globals::gref(hi)));
+                assert_eq!(crate::globals::gptr(hi).key_cstr(), Some(k.as_c_str()));
+                assert_eq!(crate::globals::gptr(hi).hi_di, di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
                 let hi = hash_find(ht, k.as_ptr());
-                hash_remove(ht, &mut *hi);
+                hash_remove(ht, crate::globals::gmut(hi));
             }
             assert_eq!(ht.ht_used, 0);
             assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);

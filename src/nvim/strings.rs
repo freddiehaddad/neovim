@@ -361,9 +361,7 @@ pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut RawCCharPtrM
     let bytes = crate::memory::cstr_as_bytes(nptr);
     let (val, consumed) = strtod_slice(bytes);
     if !endptr.is_null() {
-        unsafe {
-            *endptr = nptr.wrapping_add(consumed).cast_mut();
-        }
+        *crate::globals::gptr(endptr) = nptr.wrapping_add(consumed).cast_mut();
     }
     val
 }
@@ -596,7 +594,7 @@ pub fn concat_str(b1: &[u8], b2: &[u8]) -> std::ffi::CString {
 pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
     let idx = (*idxp - 1) as usize;
     let mut n: Varnumber = 0;
-    let tv = unsafe { &*tvs.wrapping_add(idx) };
+    let tv = crate::globals::gref(tvs.wrapping_add(idx));
     if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
@@ -617,20 +615,20 @@ pub fn tv_str(
 ) -> RawCCharPtr {
     let idx = (*idxp - 1) as usize;
     let mut s: RawCCharPtr = ptr::null();
-    if unsafe { (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown } {
+    if crate::globals::gptr(tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
         *idxp += 1;
         let tv = tvs.wrapping_add(idx);
-        if unsafe { (*tv).v_type == VarType::VarString }
-            || unsafe { (*tv).v_type == VarType::VarNumber }
+        if crate::globals::gptr(tv).v_type == VarType::VarString
+            || crate::globals::gptr(tv).v_type == VarType::VarNumber
         {
-            unsafe {
-                s = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
-            }
+            s = tv_get_string_chk(crate::globals::gref(tv))
+                .map_or(ptr::null(), std::ffi::CStr::as_ptr);
+
             *tofree = None;
         } else {
-            let encoded = unsafe { encode_tv2echo(&mut *tv, None) };
+            let encoded = encode_tv2echo(crate::globals::gmut(tv), None);
             s = encoded.as_ptr();
             *tofree = Some(encoded);
         }
@@ -640,18 +638,18 @@ pub fn tv_str(
 
 pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
     let idx = (*idxp - 1) as usize;
-    if unsafe { (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown } {
+    if crate::globals::gptr(tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
         return ptr::null();
     }
     *idxp += 1;
-    unsafe { (*tvs.wrapping_add(idx)).vval.v_any_ptr() }
+    crate::globals::gptr(tvs.wrapping_add(idx)).vval.v_any_ptr()
 }
 
 pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
     let idx = (*idxp - 1) as usize;
     let mut f: TvFloat = 0.0;
-    let tv = unsafe { &*tvs.wrapping_add(idx) };
+    let tv = crate::globals::gref(tvs.wrapping_add(idx));
     if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
@@ -1056,7 +1054,9 @@ pub fn parse_fmt_types(
             semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as i32, fmt,);
             fail!();
         }
-        if !tvs.is_null() && unsafe { (*tvs.wrapping_add(arg_idx)).v_type } == VarType::VarUnknown {
+        if !tvs.is_null()
+            && crate::globals::gptr(tvs.wrapping_add(arg_idx)).v_type == VarType::VarUnknown
+        {
             semsg!(
                 gettext(E_POSITIONAL_OUT_OF_BOUNDS),
                 (arg_idx + 1) as i32,
@@ -1268,7 +1268,7 @@ fn vim_vsnprintf_typval_inner(
 ) -> i32 {
     let str_out = str_out.into_c_char_ptr().cast_mut();
     let fmt = fmt.into_c_char_ptr();
-    unsafe {
+    {
         let mut str_l: usize = 0;
         let mut str_avail = str_l < str_m;
         let mut p = fmt;
@@ -1291,7 +1291,7 @@ fn vim_vsnprintf_typval_inner(
                 let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
                 if str_avail {
                     let avail = str_m - str_l;
-                    ptr::copy(p, str_out.wrapping_add(str_l), n.min(avail));
+                    unsafe { ptr::copy(p, str_out.wrapping_add(str_l), n.min(avail)) };
                     str_avail = n < avail;
                 }
                 p = p.wrapping_add(n);
@@ -1318,7 +1318,7 @@ fn vim_vsnprintf_typval_inner(
                 p = p.wrapping_add(1);
 
                 let mut ptype = p;
-                while ascii_isdigit(*ptype) {
+                while ascii_isdigit(*crate::globals::gptr(ptype)) {
                     ptype = ptype.wrapping_add(1);
                 }
 
@@ -1334,7 +1334,7 @@ fn vim_vsnprintf_typval_inner(
                 }
 
                 loop {
-                    match *p as u8 {
+                    match (*crate::globals::gptr(p)) as u8 {
                         b'0' => {
                             zero_padding = true;
                             p = p.wrapping_add(1);
@@ -1367,7 +1367,7 @@ fn vim_vsnprintf_typval_inner(
                     let digstart = p.wrapping_add(1);
                     p = p.wrapping_add(1);
 
-                    if ascii_isdigit(*p) {
+                    if ascii_isdigit(*crate::globals::gptr(p)) {
                         let mut uj: u32 = 0;
                         if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                             had_error = true;
@@ -1399,7 +1399,7 @@ fn vim_vsnprintf_typval_inner(
                         min_field_width = (-j) as usize;
                         justify_left = true;
                     }
-                } else if ascii_isdigit(*p) {
+                } else if ascii_isdigit(*crate::globals::gptr(p)) {
                     let digstart = p;
                     let mut uj: u32 = 0;
                     if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
@@ -1413,7 +1413,7 @@ fn vim_vsnprintf_typval_inner(
                     p = p.wrapping_add(1);
                     precision_specified = true;
 
-                    if ascii_isdigit(*p) {
+                    if ascii_isdigit(*crate::globals::gptr(p)) {
                         let digstart = p;
                         let mut uj: u32 = 0;
                         if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
@@ -1425,7 +1425,7 @@ fn vim_vsnprintf_typval_inner(
                         let digstart = p;
                         p = p.wrapping_add(1);
 
-                        if ascii_isdigit(*p) {
+                        if ascii_isdigit(*crate::globals::gptr(p)) {
                             let mut uj: u32 = 0;
                             if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
                                 had_error = true;
@@ -1460,16 +1460,16 @@ fn vim_vsnprintf_typval_inner(
                     }
                 }
 
-                if matches!(*p as u8, b'h' | b'l' | b'z') {
-                    length_modifier = *p as u8;
+                if matches!((*crate::globals::gptr(p)) as u8, b'h' | b'l' | b'z') {
+                    length_modifier = (*crate::globals::gptr(p)) as u8;
                     p = p.wrapping_add(1);
-                    if length_modifier == b'l' && (*p as u8) == b'l' {
+                    if length_modifier == b'l' && ((*crate::globals::gptr(p)) as u8) == b'l' {
                         length_modifier = b'L';
                         p = p.wrapping_add(1);
                     }
                 }
 
-                let mut fmt_spec: u8 = *p as u8;
+                let mut fmt_spec: u8 = (*crate::globals::gptr(p)) as u8;
                 match fmt_spec {
                     b'i' => fmt_spec = b'd',
                     b'D' => {
@@ -1852,7 +1852,9 @@ fn vim_vsnprintf_typval_inner(
                             } else {
                                 c"nan"
                             };
-                            ptr::copy_nonoverlapping(nan_s.as_ptr().cast(), tmp.as_mut_ptr(), 4);
+                            unsafe {
+                                ptr::copy_nonoverlapping(nan_s.as_ptr().cast(), tmp.as_mut_ptr(), 4)
+                            };
                             str_arg_l = 3;
                             zero_padding = false;
                         } else {
@@ -1966,11 +1968,13 @@ fn vim_vsnprintf_typval_inner(
                     let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
                     if str_avail {
                         let avail = str_m - str_l;
-                        ptr::write_bytes(
-                            str_out.wrapping_add(str_l),
-                            if zero_padding { b'0' } else { b' ' },
-                            pn.min(avail),
-                        );
+                        unsafe {
+                            ptr::write_bytes(
+                                str_out.wrapping_add(str_l),
+                                if zero_padding { b'0' } else { b' ' },
+                                pn.min(avail),
+                            )
+                        };
                         str_avail = pn < avail;
                     }
                     str_l += pn;
@@ -1983,7 +1987,9 @@ fn vim_vsnprintf_typval_inner(
                         let zn = zero_padding_insertion_ind;
                         if str_avail {
                             let avail = str_m - str_l;
-                            ptr::copy(str_arg, str_out.wrapping_add(str_l), zn.min(avail));
+                            unsafe {
+                                ptr::copy(str_arg, str_out.wrapping_add(str_l), zn.min(avail))
+                            };
                             str_avail = zn < avail;
                         }
                         str_l += zn;
@@ -1992,7 +1998,9 @@ fn vim_vsnprintf_typval_inner(
                     let zn = number_of_zeros_to_pad;
                     if str_avail {
                         let avail = str_m - str_l;
-                        ptr::write_bytes(str_out.wrapping_add(str_l), b'0', zn.min(avail));
+                        unsafe {
+                            ptr::write_bytes(str_out.wrapping_add(str_l), b'0', zn.min(avail))
+                        };
                         str_avail = zn < avail;
                     }
                     str_l += zn;
@@ -2002,11 +2010,13 @@ fn vim_vsnprintf_typval_inner(
                     let sn = str_arg_l - zero_padding_insertion_ind;
                     if str_avail {
                         let avail = str_m - str_l;
-                        ptr::copy(
-                            str_arg.wrapping_add(zero_padding_insertion_ind),
-                            str_out.wrapping_add(str_l),
-                            sn.min(avail),
-                        );
+                        unsafe {
+                            ptr::copy(
+                                str_arg.wrapping_add(zero_padding_insertion_ind),
+                                str_out.wrapping_add(str_l),
+                                sn.min(avail),
+                            )
+                        };
                         str_avail = sn < avail;
                     }
                     str_l += sn;
@@ -2016,7 +2026,9 @@ fn vim_vsnprintf_typval_inner(
                     let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
                     if str_avail {
                         let avail = str_m - str_l;
-                        ptr::write_bytes(str_out.wrapping_add(str_l), b' ', pn.min(avail));
+                        unsafe {
+                            ptr::write_bytes(str_out.wrapping_add(str_l), b' ', pn.min(avail))
+                        };
                         str_avail = pn < avail;
                     }
                     str_l += pn;
@@ -2028,7 +2040,7 @@ fn vim_vsnprintf_typval_inner(
 
         if !had_error {
             if str_m > 0 {
-                *str_out.wrapping_add(str_l.min(str_m - 1)) = NUL;
+                *crate::globals::gptr(str_out.wrapping_add(str_l.min(str_m - 1))) = NUL;
             }
 
             if !tvs.is_null() {
@@ -2037,7 +2049,7 @@ fn vim_vsnprintf_typval_inner(
                 } else {
                     (arg_idx - 1) as usize
                 };
-                if (*tvs.wrapping_add(check_idx)).v_type != VarType::VarUnknown {
+                if crate::globals::gptr(tvs.wrapping_add(check_idx)).v_type != VarType::VarUnknown {
                     emsg(gettext(E_TOO_MANY_ARGS));
                 }
             }
@@ -2086,9 +2098,8 @@ pub fn vim_snprintf_safelen_fmt(
         }
         let str_l = vim_snprintf_fmt(str_out, str_m, fmt, args);
         if str_l < 0 {
-            unsafe {
-                *str_out = NUL;
-            }
+            *crate::globals::gptr(str_out) = NUL;
+
             return 0;
         }
         let len = str_l as usize;
@@ -2977,7 +2988,7 @@ mod tests {
         assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);
         let mut end: RawCCharPtrMut = ptr::null_mut();
         assert_eq!(strtod(c"  -12.5e2px", &raw mut end), -1250.0);
-        assert_eq!(unsafe { *end } as u8, b'p');
+        assert_eq!((*crate::globals::gptr(end)) as u8, b'p');
         assert_eq!(strtod(c"0x1.8p+2", &raw mut end), 6.0);
         assert!(strtod(c"-INF", &raw mut end).is_infinite());
         assert!(strtod(c"NaN", &raw mut end).is_nan());

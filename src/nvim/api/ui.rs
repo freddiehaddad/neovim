@@ -89,7 +89,7 @@ static API_UI_STATE: crate::globals::GlobalState<ApiUiState> =
 
 #[inline]
 fn api_ui_st() -> &'static mut ApiUiState {
-    unsafe { &mut *API_UI_STATE.as_ptr() }
+    crate::globals::gmut(API_UI_STATE.as_ptr())
 }
 
 use crate::msgpack_rpc::packer::mpack_w2;
@@ -126,9 +126,9 @@ fn mpack_str_small(buf: &mut *mut u8, str_: &[u8]) {
     let len = str_.len();
     debug_assert!(len < 0x20);
     mpack_w(buf, (0xa0 | len) as u8);
-    unsafe {
-        ptr::copy_nonoverlapping(str_.as_ptr(), *buf, len);
-    }
+
+    unsafe { ptr::copy_nonoverlapping(str_.as_ptr(), *buf, len) };
+
     *buf = (*buf).wrapping_add(len);
 }
 
@@ -227,15 +227,12 @@ pub fn remote_ui_free_all_mem() {
 pub fn remote_ui_wait_for_attach() {
     while ui_active() == 0 {
         let events = loop_queues(&mut g_st().main_loop).events;
-        if unsafe { !multiqueue_empty(&*events) } {
-            unsafe {
-                multiqueue_process_events(&mut *events);
-            }
+        if !multiqueue_empty(crate::globals::gref(events)) {
+            multiqueue_process_events(crate::globals::gmut(events));
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
-            unsafe {
-                multiqueue_process_events(&mut *events);
-            }
+
+            multiqueue_process_events(crate::globals::gmut(events));
         }
     }
 }
@@ -827,31 +824,31 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
     let crate::msgpack_rpc::packer::PackerData::Ui(ui) = packer.anydata else {
         unreachable!()
     };
-    unsafe {
+    {
         if !packer.startptr.is_null() && packer.ptr != packer.startptr {
-            (*ui).incomplete_event = true;
-            if (*ui).cur_event.is_some() {
-                if let Some(off) = (*ui).ncalls_pos {
+            crate::globals::gptr(ui).incomplete_event = true;
+            if crate::globals::gptr(ui).cur_event.is_some() {
+                if let Some(off) = crate::globals::gptr(ui).ncalls_pos {
                     let mut pos = packer.startptr.wrapping_add(off);
-                    mpack_w2(&mut pos, 1 + (*ui).ncalls);
+                    mpack_w2(&mut pos, 1 + crate::globals::gptr(ui).ncalls);
                 }
-                (*ui).cur_event = None;
-                (*ui).ncalls_pos = None;
-                (*ui).ncalls = 0;
+                crate::globals::gptr(ui).cur_event = None;
+                crate::globals::gptr(ui).ncalls_pos = None;
+                crate::globals::gptr(ui).ncalls = 0;
             }
-            if let Some(off) = (*ui).nevents_pos {
+            if let Some(off) = crate::globals::gptr(ui).nevents_pos {
                 let mut pos = packer.startptr.wrapping_add(off);
-                mpack_w2(&mut pos, (*ui).nevents);
-                (*ui).nevents = 0;
-                (*ui).nevents_pos = None;
+                mpack_w2(&mut pos, crate::globals::gptr(ui).nevents);
+                crate::globals::gptr(ui).nevents = 0;
+                crate::globals::gptr(ui).nevents_pos = None;
             }
             let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
             let mut vec = std::mem::take(&mut packer.owned_buf);
             vec.truncate(len);
             let buf = wstream_new_vec_buffer(vec);
-            rpc_write_raw((*ui).channel_id, buf);
-            (*ui).flushed_events = true;
-            (*ui).ncells_pending = 0;
+            rpc_write_raw(crate::globals::gptr(ui).channel_id, buf);
+            crate::globals::gptr(ui).flushed_events = true;
+            crate::globals::gptr(ui).ncells_pending = 0;
         }
         packer.owned_buf = vec![0; UI_BUF_SIZE];
         packer.startptr = packer.owned_buf.as_mut_ptr();
@@ -1207,8 +1204,10 @@ pub fn remote_ui_raw_line(
         for i in 0..ncells {
             repeat += 1;
             if i == ncells - 1
-                || unsafe { *attrs.wrapping_add(i) != *attrs.wrapping_add(i + 1) }
-                || unsafe { *chunk.wrapping_add(i) != *chunk.wrapping_add(i + 1) }
+                || *crate::globals::gptr(attrs.wrapping_add(i))
+                    != *crate::globals::gptr(attrs.wrapping_add(i + 1))
+                || *crate::globals::gptr(chunk.wrapping_add(i))
+                    != *crate::globals::gptr(chunk.wrapping_add(i + 1))
             {
                 if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
                     || ui.ncells_pending >= 500
@@ -1239,7 +1238,7 @@ pub fn remote_ui_raw_line(
                 }
                 let csize: u32 = if repeat > 1 {
                     3
-                } else if unsafe { (*attrs.wrapping_add(i)) != last_hl } {
+                } else if *crate::globals::gptr(attrs.wrapping_add(i)) != last_hl {
                     2
                 } else {
                     1
@@ -1249,30 +1248,32 @@ pub fn remote_ui_raw_line(
                 let size_byte = ui.packer.ptr;
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
                 let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
-                let len = unsafe { schar_get_bytes(&mut cell_buf, *chunk.wrapping_add(i)) };
-                unsafe {
-                    ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len);
-                }
+                let len =
+                    schar_get_bytes(&mut cell_buf, *crate::globals::gptr(chunk.wrapping_add(i)));
+
+                unsafe { ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len) };
+
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
-                unsafe {
-                    *size_byte = (0xa0 | len) as u8;
-                }
+
+                *crate::globals::gptr(size_byte) = (0xa0 | len) as u8;
+
                 if csize >= 2 {
-                    unsafe {
-                        mpack_uint(&mut ui.packer.ptr, *attrs.wrapping_add(i) as u32);
-                    }
+                    mpack_uint(
+                        &mut ui.packer.ptr,
+                        (*crate::globals::gptr(attrs.wrapping_add(i))) as u32,
+                    );
+
                     if csize >= 3 {
                         mpack_uint(&mut ui.packer.ptr, repeat);
                     }
                 }
                 ui.ncells_pending += repeat.min(2) as usize;
-                unsafe {
-                    last_hl = *attrs.wrapping_add(i);
-                }
+
+                last_hl = *crate::globals::gptr(attrs.wrapping_add(i));
+
                 repeat = 0;
-                unsafe {
-                    was_space = *chunk.wrapping_add(i) == schar_from_ascii(b' ');
-                }
+
+                was_space = *crate::globals::gptr(chunk.wrapping_add(i)) == schar_from_ascii(b' ');
             }
         }
 
@@ -1290,11 +1291,11 @@ pub fn remote_ui_raw_line(
         let count = (endcol - startcol) as usize;
         for i in 0..count {
             remote_ui_cursor_goto(ui, row, startcol + i as Integer);
-            unsafe {
-                remote_ui_highlight_set(ui, *attrs.wrapping_add(i));
-            }
+
+            remote_ui_highlight_set(ui, *crate::globals::gptr(attrs.wrapping_add(i)));
+
             let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-            let len = unsafe { schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i)) };
+            let len = schar_get_bytes(&mut sc_buf, *crate::globals::gptr(chunk.wrapping_add(i)));
             remote_ui_put(ui, &sc_buf[..len]);
             if utf_ambiguous_width(&sc_buf[..len]) {
                 ui.client_col = -1;
@@ -1463,7 +1464,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                 let items = args[0].data.array();
                 let mut new_items = arena_array(&mut arena, items.size);
                 for i in 0..items.size {
-                    new_items[i] = unsafe { *items[i].data.array().items };
+                    new_items[i] = *crate::globals::gptr(items[i].data.array().items);
                 }
                 new_items.size = items.size;
                 let mut new_args_items: [Object; 1] = [array_obj(new_items)];

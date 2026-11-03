@@ -280,7 +280,7 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
     let mut rv: Tabpage = 0;
     let w = find_window_by_handle(win, err);
     if !w.is_null() {
-        rv = unsafe { (*win_find_tabpage(w)).handle };
+        rv = crate::globals::gptr(win_find_tabpage(w)).handle;
     }
     rv
 }
@@ -696,12 +696,12 @@ pub fn nvim_win_resize(
     }
     if height >= 0 {
         try_wrap(err, || {
-            win_setheight_win(height as i32, unsafe { &mut *w }, from_top);
+            win_setheight_win(height as i32, crate::globals::gmut(w), from_top);
         });
     }
     if !error_set(err) && width >= 0 {
         try_wrap(err, || {
-            win_setwidth_win(width as i32, unsafe { &mut *w }, from_left);
+            win_setwidth_win(width as i32, crate::globals::gmut(w), from_left);
         });
     }
 }

@@ -185,7 +185,7 @@ static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> =
 
 #[inline]
 fn charset_st() -> &'static mut CharsetModuleState {
-    unsafe { &mut *CHARSET_STATE.as_ptr() }
+    crate::globals::gmut(CHARSET_STATE.as_ptr())
 }
 
 #[inline]
@@ -1276,29 +1276,26 @@ pub fn backslash_halve(mut p: RawCCharPtrMut) {
     }
     if !crate::memory::cstr_is_empty(p) {
         let mut dst = p;
-        unsafe {
-            *dst = *p.wrapping_add(1);
-        }
+
+        *crate::globals::gptr(dst) = *crate::globals::gptr(p.wrapping_add(1));
+
         dst = dst.wrapping_add(1);
         p = p.wrapping_add(2);
         while !crate::memory::cstr_is_empty(p) {
             if rem_backslash(crate::memory::cstr_as_bytes(p)) {
-                unsafe {
-                    *dst = *p.wrapping_add(1);
-                }
+                *crate::globals::gptr(dst) = *crate::globals::gptr(p.wrapping_add(1));
+
                 dst = dst.wrapping_add(1);
                 p = p.wrapping_add(2);
             } else {
-                unsafe {
-                    *dst = *p;
-                }
+                *crate::globals::gptr(dst) = *crate::globals::gptr(p);
+
                 dst = dst.wrapping_add(1);
                 p = p.wrapping_add(1);
             }
         }
-        unsafe {
-            *dst = NUL;
-        }
+
+        *crate::globals::gptr(dst) = NUL;
     }
 }
 

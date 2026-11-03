@@ -214,7 +214,7 @@ struct TerminalState {
 impl TerminalState {
     #[inline]
     fn term_mut(&self) -> &'static mut Terminal {
-        unsafe { &mut *self.term }
+        crate::globals::gmut(self.term)
     }
 }
 
@@ -338,17 +338,17 @@ pub struct Terminal {
 impl Terminal {
     #[inline]
     pub fn from_cb_ptr(ptr: *mut Self) -> &'static mut Self {
-        unsafe { &mut *ptr }
+        crate::globals::gmut(ptr)
     }
 
     #[inline]
     fn channel_mut(&self) -> &'static mut crate::channel::Channel {
-        unsafe { &mut *self.opts.data }
+        crate::globals::gmut(self.opts.data)
     }
 
     #[inline]
     fn pending_events_mut(&self) -> &'static mut MultiQueue {
-        unsafe { &mut *self.pending.events }
+        crate::globals::gmut(self.pending.events)
     }
 }
 
@@ -380,7 +380,7 @@ static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> =
 
 #[inline]
 fn term_st() -> &'static mut TerminalModuleState {
-    unsafe { &mut *TERM_MOD_STATE.as_ptr() }
+    crate::globals::gmut(TERM_MOD_STATE.as_ptr())
 }
 
 static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
@@ -431,12 +431,12 @@ fn refresh_timer_ptr() -> &'static mut TimeWatcher {
 
 #[inline]
 fn refresh_timer_events_mut() -> &'static mut MultiQueue {
-    unsafe { &mut *refresh_timer_ptr().events }
+    crate::globals::gmut(refresh_timer_ptr().events)
 }
 
 #[inline]
 fn main_loop_events_mut() -> &'static mut MultiQueue {
-    unsafe { &mut *loop_queues(&mut g_st().main_loop).events }
+    crate::globals::gmut(loop_queues(&mut g_st().main_loop).events)
 }
 
 #[inline]
@@ -779,7 +779,7 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
         refcount: 0,
     }));
     buf.terminal = term;
-    let term_ref = unsafe { &mut *term };
+    let term_ref = crate::globals::gmut(term);
     vterm_set_utf8(&mut term_ref.vt, 1);
 
     let state = vterm_obtain_state(&mut term_ref.vt);
@@ -834,10 +834,9 @@ pub fn terminal_alloc(buf: &mut FileBuf, mut opts: TerminalOptions) -> &'static 
 }
 
 pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
-    unsafe {
-        debug_assert!(!(*termpp).is_null());
-    }
-    let term = unsafe { &mut **termpp };
+    debug_assert!(!crate::globals::gptr(termpp).is_null());
+
+    let term = crate::globals::gmut(*crate::globals::gptr(termpp));
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
@@ -879,7 +878,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
 
     ctx_restore(&mut aco);
 
-    if unsafe { (*termpp).is_null() } || term.buf_handle == 0 {
+    if crate::globals::gptr(termpp).is_null() || term.buf_handle == 0 {
         return;
     }
 
@@ -916,7 +915,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
 }
 
 pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
-    let term = unsafe { &mut **termpp };
+    let term = crate::globals::gmut(*crate::globals::gptr(termpp));
     if term.destroy {
         return;
     }
@@ -945,22 +944,19 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
     }
 
     let mut pos = if !buf.is_null() {
-        unsafe { (*buf).b_ml.ml_line_count - 1 }
+        crate::globals::gptr(buf).b_ml.ml_line_count - 1
     } else {
         0
     };
     if status == -1 || g_st().exiting {
         term.buf_handle = 0;
         if !buf.is_null() {
-            unsafe {
-                (*buf).terminal = ptr::null_mut();
-            }
+            crate::globals::gptr(buf).terminal = ptr::null_mut();
         }
         if term.refcount == 0 {
             term.destroy = true;
-            unsafe {
-                channel_term_close(&mut *term.opts.data);
-            }
+
+            channel_term_close(crate::globals::gmut(term.opts.data));
         }
     } else if !only_destroy {
         for wp in for_all_windows_mut() {
@@ -1154,13 +1150,13 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 
 pub fn terminal_enter() -> bool {
     let buf = g_st().curbuf;
-    unsafe {
-        debug_assert!(!(*buf).terminal.is_null());
-    }
+
+    debug_assert!(!crate::globals::gptr(buf).terminal.is_null());
+
     let mut s = TerminalState::new();
-    unsafe {
-        s.term = (*buf).terminal;
-    }
+
+    s.term = crate::globals::gptr(buf).terminal;
+
     s.cursor_visible = true;
     g_st().ins_global.stop_insert_mode = false;
 
@@ -1176,9 +1172,9 @@ pub fn terminal_enter() -> bool {
     set_terminal_winopts(&mut s);
 
     s.term_mut().pending.cursor = true;
-    unsafe {
-        adjust_topline_cursor(s.term_mut(), &mut *buf, 0);
-    }
+
+    adjust_topline_cursor(s.term_mut(), crate::globals::gmut(buf), 0);
+
     showmode();
     ui_cursor_shape();
 
@@ -1241,9 +1237,9 @@ pub fn terminal_enter() -> bool {
         s.term_mut().refcount -= 1;
         let buf_handle = s.term_mut().buf_handle;
         s.term_mut().destroy = true;
-        unsafe {
-            channel_term_close(&mut *s.term_mut().opts.data);
-        }
+
+        channel_term_close(crate::globals::gmut(s.term_mut().opts.data));
+
         if buf_handle != 0 {
             do_buffer(DOBUF_WIPE, DOBUF_FIRST, FORWARD, buf_handle, 1);
         }
@@ -1425,36 +1421,33 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
 }
 
 pub fn terminal_destroy(termpp: *mut *mut Terminal) {
-    let term = unsafe { *termpp };
+    let term = *crate::globals::gptr(termpp);
     if term.is_null() {
         return;
     }
-    if let Some(buf) = unsafe { handle_get_buffer_opt((*term).buf_handle) } {
-        unsafe {
-            (*term).buf_handle = 0;
-        }
+    if let Some(buf) = handle_get_buffer_opt(crate::globals::gptr(term).buf_handle) {
+        crate::globals::gptr(term).buf_handle = 0;
+
         buf.terminal = ptr::null_mut();
     }
 
-    if unsafe { (*term).refcount == 0 } {
+    if crate::globals::gptr(term).refcount == 0 {
         if let Some(pos) = term_st()
             .invalidated_terminals
             .iter()
             .position(|&t| t == term)
         {
             block_autocmds();
-            unsafe {
-                refresh_terminal(&mut *term);
-            }
+
+            refresh_terminal(crate::globals::gmut(term));
+
             unblock_autocmds();
             term_st().invalidated_terminals.swap_remove(pos);
         }
-        unsafe {
-            *termpp = ptr::null_mut();
-        }
-        unsafe {
-            drop(Box::from_raw(term));
-        }
+
+        *crate::globals::gptr(termpp) = ptr::null_mut();
+
+        drop(unsafe { Box::from_raw(term) });
     }
 }
 
@@ -1731,9 +1724,7 @@ pub fn terminal_get_line_attributes(term: &mut Terminal, linenr: i32, term_attrs
             attr_id = hl_combine_attr(attr_id, cell.uri);
         }
 
-        unsafe {
-            *term_attrs.wrapping_add(col as usize) = attr_id;
-        }
+        *crate::globals::gptr(term_attrs.wrapping_add(col as usize)) = attr_id;
     }
 }
 
@@ -1800,7 +1791,7 @@ fn term_movecursor(
 }
 
 fn buf_set_term_title(buf: *mut FileBuf, title: &[u8]) {
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = crate::globals::gopt_mut(buf) else {
         return;
     };
 
@@ -2156,7 +2147,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
     let mut grid = g_st().mouse_grid;
     let mouse_win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
     if !mouse_win.is_null() {
-        let mouse_win = unsafe { &mut *mouse_win };
+        let mouse_win = crate::globals::gmut(mouse_win);
         let offset: i32;
         if !term.suspended
             && !term.closed
@@ -2223,9 +2214,10 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
         }
     }
 
-    if (unsafe {
-        c == K_LEFTRELEASE && !mouse_win.is_null() && (*mouse_win).buf_mut().terminal == term
-    }) || c == K_MOUSEMOVE
+    if (c == K_LEFTRELEASE
+        && !mouse_win.is_null()
+        && crate::globals::gptr(mouse_win).buf_mut().terminal == term)
+        || c == K_MOUSEMOVE
     {
         return false;
     }

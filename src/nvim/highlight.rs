@@ -257,7 +257,7 @@ static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightM
 
 #[inline]
 fn hl_st() -> &'static mut HighlightModuleState {
-    unsafe { &mut *HL_STATE.as_ptr() }
+    crate::globals::gmut(HL_STATE.as_ptr())
 }
 
 #[inline]
@@ -1019,7 +1019,7 @@ pub fn hl_blend_attrs(back_attr: i32, front_attr: i32, through: &mut bool) -> i3
     } else {
         &raw mut hl_st().blend_attr_entries
     };
-    let map = unsafe { &mut *map_ptr };
+    let map = crate::globals::gmut(map_ptr);
     let mut id = map.get(&combine_tag).copied().unwrap_or(0);
     if id > 0 {
         return id;
@@ -1214,9 +1214,9 @@ pub fn hlattrs2dict(
         None => &raw mut *hl,
     };
     assert!(hl.capacity >= HLATTRS_DICT_SIZE);
-    unsafe {
-        assert!((*hl_attrs).capacity >= HLATTRS_DICT_SIZE);
-    }
+
+    assert!(crate::globals::gptr(hl_attrs).capacity >= HLATTRS_DICT_SIZE);
+
     let mask = if use_rgb {
         ae.rgb_ae_attr
     } else {
@@ -1224,69 +1224,95 @@ pub fn hlattrs2dict(
     };
 
     if (mask & HL_INVERSE) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"reverse", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"reverse",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_BOLD) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"bold", boolean_obj(true));
-        }
+        put_c(crate::globals::gmut(hl_attrs), c"bold", boolean_obj(true));
     }
     if (mask & HL_ITALIC) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"italic", boolean_obj(true));
-        }
+        put_c(crate::globals::gmut(hl_attrs), c"italic", boolean_obj(true));
     }
 
     match mask & HL_UNDERLINE_MASK {
-        HL_UNDERLINE => unsafe { put_c(&mut *hl_attrs, c"underline", boolean_obj(true)) },
-        HL_UNDERCURL => unsafe { put_c(&mut *hl_attrs, c"undercurl", boolean_obj(true)) },
-        HL_UNDERDOUBLE => unsafe { put_c(&mut *hl_attrs, c"underdouble", boolean_obj(true)) },
-        HL_UNDERDOTTED => unsafe { put_c(&mut *hl_attrs, c"underdotted", boolean_obj(true)) },
-        HL_UNDERDASHED => unsafe { put_c(&mut *hl_attrs, c"underdashed", boolean_obj(true)) },
+        HL_UNDERLINE => put_c(
+            crate::globals::gmut(hl_attrs),
+            c"underline",
+            boolean_obj(true),
+        ),
+        HL_UNDERCURL => put_c(
+            crate::globals::gmut(hl_attrs),
+            c"undercurl",
+            boolean_obj(true),
+        ),
+        HL_UNDERDOUBLE => put_c(
+            crate::globals::gmut(hl_attrs),
+            c"underdouble",
+            boolean_obj(true),
+        ),
+        HL_UNDERDOTTED => put_c(
+            crate::globals::gmut(hl_attrs),
+            c"underdotted",
+            boolean_obj(true),
+        ),
+        HL_UNDERDASHED => put_c(
+            crate::globals::gmut(hl_attrs),
+            c"underdashed",
+            boolean_obj(true),
+        ),
         _ => {}
     }
 
     if (mask & HL_STANDOUT) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"standout", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"standout",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_STRIKETHROUGH) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"strikethrough", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"strikethrough",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_ALTFONT) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"altfont", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"altfont",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_DIM) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"dim", boolean_obj(true));
-        }
+        put_c(crate::globals::gmut(hl_attrs), c"dim", boolean_obj(true));
     }
     if (mask & HL_BLINK) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"blink", boolean_obj(true));
-        }
+        put_c(crate::globals::gmut(hl_attrs), c"blink", boolean_obj(true));
     }
     if (mask & HL_CONCEALED) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"conceal", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"conceal",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_OVERLINE) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"overline", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"overline",
+            boolean_obj(true),
+        );
     }
     if (mask & HL_NOCOMBINE) != 0 {
-        unsafe {
-            put_c(&mut *hl_attrs, c"nocombine", boolean_obj(true));
-        }
+        put_c(
+            crate::globals::gmut(hl_attrs),
+            c"nocombine",
+            boolean_obj(true),
+        );
     }
 
     if use_rgb {

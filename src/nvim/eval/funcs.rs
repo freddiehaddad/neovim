@@ -1942,7 +1942,7 @@ pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
     #[cfg(not(windows))]
     {
-        uv_kill(pid, crate::os::signal::SIGINT);
+        unsafe { uv_kill(pid, crate::os::signal::SIGINT) };
     }
 }
 
@@ -4351,7 +4351,7 @@ pub fn create_environment(
                     #[cfg(windows)]
                     let mut name: *const _ = crate::globals::gptr(envitems.wrapping_add(i)).name;
                     #[cfg(not(windows))]
-                    let name: *const _ = (*envitems.wrapping_add(i)).name;
+                    let name: *const _ = crate::globals::gptr(envitems.wrapping_add(i)).name;
                     #[cfg(windows)]
                     {
                         let name_b = crate::memory::cstr_as_bytes(name);

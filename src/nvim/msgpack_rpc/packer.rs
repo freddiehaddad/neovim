@@ -23,7 +23,7 @@ impl PackerData {
     #[inline]
     pub fn as_file(self) -> &'static mut crate::os::fileio::FileDescriptor {
         match self {
-            Self::File(p) => unsafe { &mut *p },
+            Self::File(p) => crate::globals::gmut(p),
             _ => unreachable!(),
         }
     }
@@ -86,17 +86,16 @@ struct ContainerStackItem {
 
 #[inline]
 pub(crate) fn mpack_w(b: &mut *mut u8, byte: u8) {
-    unsafe {
-        **b = byte;
-    }
+    *crate::globals::gptr(*b) = byte;
+
     *b = (*b).wrapping_add(1);
 }
 
 #[inline]
 pub fn mpack_w2(b: &mut *mut u8, v: u32) {
     let bytes = (v as u16).to_be_bytes();
-    unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 2);
+    {
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 2) };
         *b = (*b).wrapping_add(2);
     }
 }
@@ -104,8 +103,8 @@ pub fn mpack_w2(b: &mut *mut u8, v: u32) {
 #[inline]
 fn mpack_w4(b: &mut *mut u8, v: u32) {
     let bytes = v.to_be_bytes();
-    unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 4);
+    {
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 4) };
         *b = (*b).wrapping_add(4);
     }
 }
@@ -113,8 +112,8 @@ fn mpack_w4(b: &mut *mut u8, v: u32) {
 #[inline]
 fn mpack_w8(b: &mut *mut u8, v: u64) {
     let bytes = v.to_be_bytes();
-    unsafe {
-        std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 8);
+    {
+        unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), *b, 8) };
         *b = (*b).wrapping_add(8);
     }
 }
@@ -286,9 +285,8 @@ pub fn mpack_raw(bytes: &[u8], packer: &mut PackerBuffer) {
         let remaining = mpack_remaining(packer);
         let to_copy = (len - pos).min(remaining);
         if to_copy > 0 {
-            unsafe {
-                std::ptr::copy_nonoverlapping(bytes[pos..].as_ptr(), packer.ptr, to_copy);
-            }
+            unsafe { std::ptr::copy_nonoverlapping(bytes[pos..].as_ptr(), packer.ptr, to_copy) };
+
             packer.ptr = packer.ptr.wrapping_add(to_copy);
             pos += to_copy;
         }
@@ -340,9 +338,9 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
         mpack_w(&mut packer.ptr, 0xc7);
         mpack_w(&mut packer.ptr, packsize as u8);
         mpack_w(&mut packer.ptr, exttype);
-        unsafe {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), packer.ptr, packsize);
-        }
+
+        unsafe { std::ptr::copy_nonoverlapping(buf.as_ptr(), packer.ptr, packsize) };
+
         packer.ptr = packer.ptr.wrapping_add(packsize);
     }
 }
@@ -386,7 +384,7 @@ pub fn mpack_object_inner(
 
     loop {
         mpack_check_buffer(packer);
-        let cur = unsafe { &mut *current };
+        let cur = crate::globals::gmut(current);
         match cur.obj_type {
             ObjectType::ObjectTypeLuaRef => {
                 let cs = nlua_funcref_str(cur.data.luaref(), true);
@@ -454,7 +452,7 @@ pub fn mpack_object_inner(
             }
         }
 
-        let cont = unsafe { &mut *container };
+        let cont = crate::globals::gmut(container);
         if cont.obj_type == ObjectType::ObjectTypeArray {
             let arr = cont.data.array();
             current = arr.items.wrapping_add(container_idx);

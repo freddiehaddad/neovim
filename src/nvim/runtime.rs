@@ -328,7 +328,7 @@ static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModul
 
 #[inline]
 pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
-    unsafe { &mut *RT_STATE.as_ptr() }
+    crate::globals::gmut(RT_STATE.as_ptr())
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
@@ -428,7 +428,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
         for entry in rt_st().exestack.iter().rev() {
             if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                 let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                    unsafe { (*entry.es_info.ufunc()).uf_script_ctx }
+                    crate::globals::gptr(entry.es_info.ufunc()).uf_script_ctx
                 } else {
                     entry.es_info.aucmd_sctx()
                 };
@@ -543,7 +543,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
             );
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
-            let sctx = unsafe { (*fp).uf_script_ctx };
+            let sctx = crate::globals::gptr(fp).uf_script_ctx;
             let filepath = if sctx.sc_sid > 0 {
                 get_scriptname(sctx, false)
             } else {
@@ -552,7 +552,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
             lnum += sctx.sc_lnum;
             stacktrace_push_item(
                 &mut *l,
-                unsafe { fp.as_mut() },
+                crate::globals::gopt_mut(fp),
                 ptr::null(),
                 lnum,
                 filepath.as_ptr(),
@@ -844,7 +844,7 @@ fn do_in_cached_path(
             verbose_leave();
         }
 
-        let path = unsafe { &*runtime_search_path_get_cached() };
+        let path = crate::globals::gref(runtime_search_path_get_cached());
 
         let do_all = (flags & DIP_ALL) != 0;
 
@@ -945,7 +945,7 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
 }
 
 pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
-    let path = unsafe { &mut *runtime_search_path_get_cached() };
+    let path = crate::globals::gmut(runtime_search_path_get_cached());
     let rv = runtime_get_named_common(
         lua,
         pat,
@@ -1392,14 +1392,13 @@ fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) 
         }
 
         p4 = p4.wrapping_add(1);
-        let c = unsafe { *p4 };
-        unsafe {
-            *p4 = NUL;
-        }
+        let c = *crate::globals::gptr(p4);
+
+        *crate::globals::gptr(p4) = NUL;
+
         let ffname_cstr = fix_fname(fname);
-        unsafe {
-            *p4 = c;
-        }
+
+        *crate::globals::gptr(p4) = c;
 
         let Some(ref ffname_owned) = ffname_cstr else {
             return false;
@@ -2653,7 +2652,7 @@ fn do_source_ext(
 ) -> bool {
     let fname = fname.into_c_char_ptr();
     let str_ptr = str_ptr.into_c_char_ptr();
-    unsafe {
+    {
         let mut cookie = SourceCookie::new();
         let mut firstline: Option<std::ffi::CString> = None;
         let mut retval = false;
@@ -2691,7 +2690,7 @@ fn do_source_ext(
                 find_script_by_name(fname_exp)
             };
             if sid > 0 && !ret_sid.is_null() {
-                *ret_sid = sid;
+                *crate::globals::gptr(ret_sid) = sid;
                 retval = true;
                 break 'block;
             }
@@ -2731,11 +2730,12 @@ fn do_source_ext(
                 {
                     let rest = crate::memory::cstr_as_bytes(p.wrapping_add(1).cast());
                     if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
-                        *p = if crate::memory::cstr_first_byte(p.cast()) == b'_' {
-                            b'.'
-                        } else {
-                            b'_'
-                        };
+                        *crate::globals::gptr(p) =
+                            if crate::memory::cstr_first_byte(p.cast()) == b'_' {
+                                b'.'
+                            } else {
+                                b'_'
+                            };
                         cookie.fp = fopen_noinh_readbin(fname_exp);
                     }
                 }
@@ -2818,9 +2818,9 @@ fn do_source_ext(
                 si = script_item(sid);
             } else if str_ptr.is_null() {
                 si = new_script_item(Some(crate::memory::cstr_to_cstring(fname_exp)), &mut sid);
-                (*si).sn_lua = path_with_extension(fname_exp, c"lua");
+                crate::globals::gptr(si).sn_lua = path_with_extension(fname_exp, c"lua");
                 if !ret_sid.is_null() {
-                    *ret_sid = sid;
+                    *crate::globals::gptr(ret_sid) = sid;
                 }
             }
             debug_assert_eq!(!si.is_null(), str_ptr.is_null());
@@ -2833,7 +2833,9 @@ fn do_source_ext(
             estack_push(
                 ETYPE_SCRIPT,
                 if !si.is_null() {
-                    (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr)
+                    crate::globals::gptr(si)
+                        .name_cstr()
+                        .map_or(ptr::null(), CStr::as_ptr)
                 } else {
                     fname_exp
                 },
@@ -2842,20 +2844,22 @@ fn do_source_ext(
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 let mut forceit = false;
-                if !(*si).sn_prof_on
+                if !crate::globals::gptr(si).sn_prof_on
                     && has_profiling(
                         true,
-                        (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr),
+                        crate::globals::gptr(si)
+                            .name_cstr()
+                            .map_or(ptr::null(), CStr::as_ptr),
                         Some(&mut forceit),
                     )
                 {
                     profile_init(si);
-                    (*si).sn_pr_force = forceit;
+                    crate::globals::gptr(si).sn_pr_force = forceit;
                 }
-                if (*si).sn_prof_on {
-                    (*si).sn_pr_count += 1;
-                    (*si).sn_pr_start = profile_start();
-                    (*si).sn_pr_children = profile_zero();
+                if crate::globals::gptr(si).sn_prof_on {
+                    crate::globals::gptr(si).sn_pr_count += 1;
+                    crate::globals::gptr(si).sn_pr_start = profile_start();
+                    crate::globals::gptr(si).sn_pr_children = profile_zero();
                 }
             }
 
@@ -2905,7 +2909,7 @@ fn do_source_ext(
                         && path_with_extension(curbuf_mut().b_fname, c"lua")))
             {
                 nlua_exec_lines(&cookie.buflines, fname_exp);
-            } else if !si.is_null() && (*si).sn_lua {
+            } else if !si.is_null() && crate::globals::gptr(si).sn_lua {
                 nlua_exec_file(fname_exp);
             } else {
                 firstline = getsourceline(0, &mut cookie, 0, true);
@@ -2931,12 +2935,20 @@ fn do_source_ext(
 
             if l_do_profiling == PROF_YES && !si.is_null() {
                 si = script_item(g_st().current_sctx.sc_sid);
-                if (*si).sn_prof_on {
-                    (*si).sn_pr_start = profile_end((*si).sn_pr_start);
-                    (*si).sn_pr_start = profile_sub_wait(wait_start, (*si).sn_pr_start);
-                    (*si).sn_pr_total = profile_add((*si).sn_pr_total, (*si).sn_pr_start);
-                    (*si).sn_pr_self =
-                        profile_self((*si).sn_pr_self, (*si).sn_pr_start, (*si).sn_pr_children);
+                if crate::globals::gptr(si).sn_prof_on {
+                    crate::globals::gptr(si).sn_pr_start =
+                        profile_end(crate::globals::gptr(si).sn_pr_start);
+                    crate::globals::gptr(si).sn_pr_start =
+                        profile_sub_wait(wait_start, crate::globals::gptr(si).sn_pr_start);
+                    crate::globals::gptr(si).sn_pr_total = profile_add(
+                        crate::globals::gptr(si).sn_pr_total,
+                        crate::globals::gptr(si).sn_pr_start,
+                    );
+                    crate::globals::gptr(si).sn_pr_self = profile_self(
+                        crate::globals::gptr(si).sn_pr_self,
+                        crate::globals::gptr(si).sn_pr_start,
+                        crate::globals::gptr(si).sn_pr_children,
+                    );
                 }
             }
 
@@ -3143,11 +3155,11 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     let l = tv_list_alloc(functbl.len() as isize);
 
     for &fp in functbl.values() {
-        if unsafe { (*fp).uf_script_ctx.sc_sid == sid } {
+        if crate::globals::gptr(fp).uf_script_ctx.sc_sid == sid {
             let name = if let Some(ref exp) = *unsafe { &((*fp).uf_name_exp) } {
                 exp.as_ptr()
             } else {
-                unsafe { (*fp).uf_name.as_ptr() }
+                crate::globals::gptr(fp).uf_name.as_ptr()
             };
             tv_list_append_string(&mut *l, name, -1);
         }

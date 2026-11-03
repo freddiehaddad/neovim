@@ -299,7 +299,7 @@ static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleSt
 
 #[inline]
 fn inp_st() -> &'static mut InputModuleState {
-    unsafe { &mut *INP_STATE.as_ptr() }
+    crate::globals::gmut(INP_STATE.as_ptr())
 }
 
 #[inline]
@@ -412,17 +412,13 @@ pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
     };
 
     let mut buf: Vec<u8> = Vec::new();
-    unsafe {
-        redo_prefix(&*spec, &mut buf, false);
-    }
-    if unsafe { !(*spec).body.is_empty() } {
-        unsafe {
-            buf.extend_from_slice(&(*spec).body);
-        }
+
+    redo_prefix(crate::globals::gref(spec), &mut buf, false);
+
+    if !crate::globals::gptr(spec).body.is_empty() {
+        buf.extend_from_slice(&crate::globals::gptr(spec).body);
     } else {
-        unsafe {
-            redo_chars(&*spec, &mut buf, false);
-        }
+        redo_chars(crate::globals::gref(spec), &mut buf, false);
     }
     if buf.is_empty() {
         None
@@ -1241,7 +1237,7 @@ fn gotchars(chars: *const u8, len: usize) {
 
     while todo > 0 {
         todo -= 1;
-        let b = unsafe { *s };
+        let b = *crate::globals::gptr(s);
         s = s.wrapping_add(1);
         if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
             continue;
@@ -1398,7 +1394,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
             .cast::<FileDescriptor>()
             .wrapping_add(inp_st().curscript as usize);
         let error = file_open(
-            unsafe { &mut *scriptin_ptr },
+            crate::globals::gmut(scriptin_ptr),
             namebuff_ptr,
             K_FILE_READ_ONLY,
             0,
@@ -1451,7 +1447,7 @@ fn closescript() {
     let scriptin_ptr = (&raw mut inp_st().scriptin)
         .cast::<FileDescriptor>()
         .wrapping_add(inp_st().curscript as usize);
-    file_close(unsafe { &mut *scriptin_ptr }, false);
+    file_close(crate::globals::gmut(scriptin_ptr), false);
     inp_st().curscript -= 1;
 }
 
@@ -1469,10 +1465,10 @@ pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
 
         let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
         let error = if crate::memory::cstr_as_bytes(scriptin_name) == b"-" {
-            file_open_stdin(unsafe { &mut *scriptin0 })
+            file_open_stdin(crate::globals::gmut(scriptin0))
         } else {
             file_open(
-                unsafe { &mut *scriptin0 },
+                crate::globals::gmut(scriptin0),
                 scriptin_name,
                 K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
                 0,
@@ -1809,7 +1805,7 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    if unsafe { *test_disable_char_avail.as_ptr() } {
+    if *crate::globals::gptr(test_disable_char_avail.as_ptr()) {
         return false;
     }
     g_st().no_mapping += 1;
@@ -1830,22 +1826,20 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
     }
 
     let arg1 = (&raw mut argvars[1]);
-    if argvars[0].v_type != VarType::VarUnknown && unsafe { (*arg1).v_type == VarType::VarDict } {
-        let d = unsafe { (*arg1).vval.v_dict() };
+    if argvars[0].v_type != VarType::VarUnknown
+        && crate::globals::gptr(arg1).v_type == VarType::VarDict
+    {
+        let d = crate::globals::gptr(arg1).vval.v_dict();
 
         if allow_number {
-            unsafe {
-                allow_number = tv_dict_get_bool(d.as_ref(), c"number", 1) != 0;
-            }
-        } else if unsafe { tv_dict_has_key(d.as_ref(), c"number") } {
+            allow_number = tv_dict_get_bool(crate::globals::gopt(d), c"number", 1) != 0;
+        } else if tv_dict_has_key(crate::globals::gopt(d), c"number") {
             semsg!(gettext(E_INVARG2), c"number");
         }
 
-        unsafe {
-            simplify = tv_dict_get_bool(d.as_ref(), c"simplify", 1) != 0;
-        }
+        simplify = tv_dict_get_bool(crate::globals::gopt(d), c"simplify", 1) != 0;
 
-        if let Some(cursor_str) = unsafe { tv_dict_get_string(d.as_ref(), c"cursor") } {
+        if let Some(cursor_str) = tv_dict_get_string(crate::globals::gopt(d), c"cursor") {
             if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
                 semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
             } else {
@@ -1881,7 +1875,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 ui_flush();
                 let events = main_loop_events();
                 input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                if input_available() == 0 && unsafe { !multiqueue_empty(&*events) } {
+                if input_available() == 0 && !multiqueue_empty(crate::globals::gref(events)) {
                     state_handle_k_event();
                     continue;
                 }
@@ -1952,20 +1946,22 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 if win.is_null() {
                     return;
                 }
-                unsafe {
-                    mouse_comp_pos(&mut *win, &mut row, &mut col, &mut lnum);
-                }
+
+                mouse_comp_pos(crate::globals::gmut(win), &mut row, &mut col, &mut lnum);
+
                 let mut wp = g_st().firstwin;
                 while wp != win {
                     winnr += 1;
-                    unsafe {
-                        wp = (*wp).w_next;
-                    }
+
+                    wp = crate::globals::gptr(wp).w_next;
                 }
                 set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
-                unsafe {
-                    set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from((*wp).handle));
-                }
+
+                set_vim_var_nr(
+                    VV_MOUSE_WINID,
+                    Varnumber::from(crate::globals::gptr(wp).handle),
+                );
+
                 set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
                 set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));
             }
@@ -2908,9 +2904,8 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
                 return -1;
             }
         } else {
-            unsafe {
-                *buf = script_char[0];
-            }
+            *crate::globals::gptr(buf) = script_char[0];
+
             len = 1;
         }
     }
@@ -2957,9 +2952,8 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
 /// Fix typed characters for use by `vgetc()`.
 pub fn fix_input_buffer(buf: *mut u8, mut len: i32) -> i32 {
     if using_script() == 0 {
-        unsafe {
-            *buf.wrapping_add(len as usize) = NUL as u8;
-        }
+        *crate::globals::gptr(buf.wrapping_add(len as usize)) = NUL as u8;
+
         return len;
     }
 
@@ -2969,29 +2963,26 @@ pub fn fix_input_buffer(buf: *mut u8, mut len: i32) -> i32 {
         i -= 1;
         i >= 0
     } {
-        if unsafe { *p == NUL as u8 }
-            || (unsafe { *p == K_SPECIAL && (i < 2 || *p.wrapping_add(1) != KS_EXTRA) })
+        if *crate::globals::gptr(p) == NUL as u8
+            || (*crate::globals::gptr(p) == K_SPECIAL
+                && (i < 2 || *crate::globals::gptr(p.wrapping_add(1)) != KS_EXTRA))
         {
-            unsafe {
-                ptr::copy(p.wrapping_add(1), p.wrapping_add(3), i as usize);
-            }
-            unsafe {
-                *p.wrapping_add(2) = k_third(*p as i32);
-            }
-            unsafe {
-                *p.wrapping_add(1) = k_second(*p as i32);
-            }
-            unsafe {
-                *p = K_SPECIAL;
-            }
+            unsafe { ptr::copy(p.wrapping_add(1), p.wrapping_add(3), i as usize) };
+
+            *crate::globals::gptr(p.wrapping_add(2)) = k_third((*crate::globals::gptr(p)) as i32);
+
+            *crate::globals::gptr(p.wrapping_add(1)) = k_second((*crate::globals::gptr(p)) as i32);
+
+            *crate::globals::gptr(p) = K_SPECIAL;
+
             p = p.wrapping_add(2);
             len += 2;
         }
         p = p.wrapping_add(1);
     }
-    unsafe {
-        *p = NUL as u8;
-    }
+
+    *crate::globals::gptr(p) = NUL as u8;
+
     len
 }
 

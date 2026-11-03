@@ -1783,7 +1783,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1 && after_pathsep(p.cast(), p.add(p_len).cast()) != 0 {
+        if p_len > 1 && after_pathsep(p.cast(), unsafe { p.add(p_len) }.cast()) != 0 {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
@@ -1791,7 +1791,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         let mut q = path_next_component(p.cast()).cast_mut().cast::<u8>();
         let mut remain_vec: Option<Vec<u8>> = None;
-        if *q != 0 {
+        if unsafe { *q } != 0 {
             // Separate the first path component in "p", and keep the
             // remainder (beginning with the path separator).
             let q_off = (q as usize) - (p as usize);
@@ -1808,7 +1808,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         loop {
             loop {
-                let len = readlink(p.cast(), buf.cast(), MAXPATHL);
+                let len = unsafe { readlink(p.cast(), buf.cast(), MAXPATHL) };
                 if len <= 0 {
                     break;
                 }
@@ -1833,14 +1833,14 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 // Separate the first path component in the link value and
                 // concatenate the remainders.
                 let start_comp = if vim_ispathsep(buf_vec[0] as i32) {
-                    buf.add(1)
+                    unsafe { buf.add(1) }
                 } else {
                     buf
                 };
                 q = path_next_component(start_comp.cast())
                     .cast_mut()
                     .cast::<u8>();
-                if *q != 0 {
+                if unsafe { *q } != 0 {
                     let q_off = (q as usize) - (buf as usize);
                     let head_bytes = &buf_vec[q_off - 1..buf_len];
                     let rem_old_len = remain_vec
@@ -1858,9 +1858,9 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 }
 
                 q = path_tail(p.cast()).cast::<u8>();
-                if (q as usize) > (p as usize) && *q == 0 {
+                if (q as usize) > (p as usize) && unsafe { *q } == 0 {
                     // Ignore trailing path separator.
-                    *q.sub(1) = 0;
+                    *crate::globals::gptr(q.wrapping_sub(1)) = 0;
                     q = path_tail(p.cast()).cast::<u8>();
                 }
                 if (q as usize) > (p as usize) && !path_is_absolute(buf.cast()) {
@@ -1868,8 +1868,10 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p as usize);
                     let mut new_p = vec![0u8; prefix_len + buf_len + 1];
-                    ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len);
-                    ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len);
+                    unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), prefix_len) };
+                    unsafe {
+                        ptr::copy_nonoverlapping(buf, new_p.as_mut_ptr().add(prefix_len), buf_len)
+                    };
                     p_len = prefix_len + buf_len;
                     p_vec = new_p;
                     p = p_vec.as_mut_ptr();
@@ -1889,22 +1891,23 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let remain = rem_v.as_mut_ptr();
 
             // Append the first path component of "remain" to "p".
-            q = path_next_component(remain.add(1).cast())
+            q = path_next_component(unsafe { remain.add(1) }.cast())
                 .cast_mut()
                 .cast::<u8>();
-            let comp_len = (q as usize).wrapping_sub(remain as usize) - usize::from(*q != 0);
+            let comp_len =
+                (q as usize).wrapping_sub(remain as usize) - usize::from(unsafe { *q } != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
-            ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len);
-            ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), comp_len);
+            unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr(), p_len) };
+            unsafe { ptr::copy_nonoverlapping(remain, new_p.as_mut_ptr().add(p_len), comp_len) };
             p_len += comp_len;
             p_vec = new_p;
             p = p_vec.as_mut_ptr();
 
             // Shorten "remain".
-            if *q != 0 {
-                let rem_tail = q.sub(1);
+            if unsafe { *q } != 0 {
+                let rem_tail = unsafe { q.sub(1) };
                 let rem_len = crate::memory::cstr_len(rem_tail.cast()) + 1;
-                ptr::copy(rem_tail, remain, rem_len);
+                unsafe { ptr::copy(rem_tail, remain, rem_len) };
             } else {
                 remain_vec = None;
             }
@@ -1924,7 +1927,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 let mut new_p = vec![0u8; p_len + 3];
                 new_p[0] = b'.';
                 new_p[1] = b'/';
-                ptr::copy_nonoverlapping(p, new_p.as_mut_ptr().add(2), p_len);
+                unsafe { ptr::copy_nonoverlapping(p, new_p.as_mut_ptr().add(2), p_len) };
                 p_len += 2;
                 p_vec = new_p;
                 p = p_vec.as_mut_ptr();
@@ -1947,9 +1950,9 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         // Ensure that the result will have no trailing path separator
         // if the argument had none.  But keep "/" or "//".
         if !has_trailing_pathsep {
-            q = p.add(p_len);
+            q = unsafe { p.add(p_len) };
             if after_pathsep(p.cast(), q.cast()) != 0 {
-                *path_tail_with_sep(p.cast()).cast::<u8>() = 0;
+                *crate::globals::gptr(path_tail_with_sep(p.cast()).cast::<u8>()) = 0;
             }
         }
 

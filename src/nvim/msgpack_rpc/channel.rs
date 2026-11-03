@@ -116,7 +116,7 @@ pub struct RequestEvent {
 impl Drop for RequestEvent {
     fn drop(&mut self) {
         arena_mem_free(arena_finish(&mut self.used_mem));
-        channel_decref(unsafe { &mut *self.channel });
+        channel_decref(crate::globals::gmut(self.channel));
     }
 }
 
@@ -183,23 +183,23 @@ pub struct Channel {
 impl Channel {
     #[inline]
     pub fn from_cb_ptr(ptr: *mut Self) -> &'static mut Self {
-        unsafe { &mut *ptr }
+        crate::globals::gmut(ptr)
     }
 
     #[inline]
     pub fn events_mut(&self) -> &'static mut MultiQueue {
-        unsafe { &mut *self.events }
+        crate::globals::gmut(self.events)
     }
 
     #[inline]
     pub fn term_mut(&self) -> &'static mut crate::terminal::Terminal {
-        unsafe { &mut *self.term }
+        crate::globals::gmut(self.term)
     }
 
     #[inline]
     pub fn unpacker_mut(&mut self) -> &'static mut Unpacker {
         let p: *mut Unpacker = self.rpc.unpacker.as_deref_mut().unwrap();
-        unsafe { &mut *p }
+        crate::globals::gmut(p)
     }
 }
 
@@ -232,7 +232,7 @@ pub fn channel_instream(chan: &mut Channel) -> *mut Stream {
 
 #[inline]
 pub fn channel_instream_mut(chan: &mut Channel) -> &'static mut Stream {
-    unsafe { &mut *channel_instream(chan) }
+    crate::globals::gmut(channel_instream(chan))
 }
 
 #[inline]
@@ -247,7 +247,7 @@ pub fn channel_outstream(chan: &mut Channel) -> *mut RStream {
 
 #[inline]
 pub fn channel_outstream_mut(chan: &mut Channel) -> &'static mut RStream {
-    unsafe { &mut *channel_outstream(chan) }
+    crate::globals::gmut(channel_outstream(chan))
 }
 
 #[inline]
@@ -257,7 +257,7 @@ pub fn find_channel(id: u64) -> *mut Channel {
 
 #[inline]
 pub fn find_channel_opt(id: u64) -> Option<&'static mut Channel> {
-    unsafe { find_channel(id).as_mut() }
+    crate::globals::gopt_mut(find_channel(id))
 }
 
 #[inline]
@@ -308,7 +308,7 @@ fn find_rpc_channel(id: u64) -> *mut Channel {
 
 #[inline]
 fn find_rpc_channel_opt(id: u64) -> Option<&'static mut Channel> {
-    unsafe { find_rpc_channel(id).as_mut() }
+    crate::globals::gopt_mut(find_rpc_channel(id))
 }
 
 pub fn rpc_send_event(id: u64, name: &CStr, args: Array) -> bool {
@@ -347,10 +347,9 @@ pub fn rpc_send_call(
         return OBJECT_NIL;
     }
 
-    unsafe {
-        channel_incref(&mut *channel);
-    }
-    let rpc = unsafe { &mut (*channel).rpc };
+    channel_incref(crate::globals::gmut(channel));
+
+    let rpc = &mut crate::globals::gptr(channel).rpc;
     let request_id = rpc.next_request_id;
     rpc.next_request_id += 1;
 
@@ -365,13 +364,11 @@ pub fn rpc_send_call(
     });
     rpc.call_stack.push(frame.clone());
 
-    while !frame.returned.get() && unsafe { !ptr::read_volatile(&raw const rpc.closed) } {
-        if unsafe { !(*channel).events.is_null() }
-            && unsafe { !multiqueue_empty(&*(*channel).events) }
+    while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } {
+        if !crate::globals::gptr(channel).events.is_null()
+            && !multiqueue_empty(crate::globals::gref(crate::globals::gptr(channel).events))
         {
-            unsafe {
-                multiqueue_process_events(&mut *(*channel).events);
-            }
+            multiqueue_process_events(crate::globals::gmut(crate::globals::gptr(channel).events));
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
         }
@@ -386,9 +383,8 @@ pub fn rpc_send_call(
                 c"Invalid channel: %llu",
                 id,
             );
-            unsafe {
-                channel_decref(&mut *channel);
-            }
+
+            channel_decref(crate::globals::gmut(channel));
         }
         return OBJECT_NIL;
     }
@@ -425,9 +421,7 @@ pub fn rpc_send_call(
         frame.result_mem.set(ptr::null_mut());
     }
 
-    unsafe {
-        channel_decref(&mut *channel);
-    }
+    channel_decref(crate::globals::gmut(channel));
 
     *result_mem = frame.result_mem.get();
 
@@ -483,80 +477,67 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
 fn parse_msgpack(channel: &mut Channel) {
     let p: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
 
-    while unsafe { unpacker_advance(&mut *p) } {
-        if unsafe { (*p).msg_type == MessageType::MessageTypeRedrawEvent } {
+    while unpacker_advance(crate::globals::gmut(p)) {
+        if crate::globals::gptr(p).msg_type == MessageType::MessageTypeRedrawEvent {
             if g_st().ui_client_attached {
-                if unsafe { (*p).has_grid_line_event } {
-                    unsafe {
-                        ui_client_event_raw_line(&mut (*p).grid_line_event);
-                    }
-                    unsafe {
-                        (*p).has_grid_line_event = false;
-                    }
-                } else if let Some(ui_fn) = unsafe { (*p).ui_handler.r#fn }
-                    && unsafe { (*p).result.obj_type == ObjectType::ObjectTypeArray }
+                if crate::globals::gptr(p).has_grid_line_event {
+                    ui_client_event_raw_line(&mut crate::globals::gptr(p).grid_line_event);
+
+                    crate::globals::gptr(p).has_grid_line_event = false;
+                } else if let Some(ui_fn) = crate::globals::gptr(p).ui_handler.r#fn
+                    && crate::globals::gptr(p).result.obj_type == ObjectType::ObjectTypeArray
                 {
-                    unsafe {
-                        ui_fn((*p).result.data.array());
-                    }
+                    ui_fn(crate::globals::gptr(p).result.data.array());
                 }
             }
-            unsafe {
-                arena_mem_free(arena_finish(&mut (*p).arena));
-            }
-        } else if unsafe { (*p).msg_type == MessageType::MessageTypeResponse } {
+
+            arena_mem_free(arena_finish(&mut crate::globals::gptr(p).arena));
+        } else if crate::globals::gptr(p).msg_type == MessageType::MessageTypeResponse {
             let frame_opt = if channel.rpc.client_type == K_CLIENT_TYPE_MSGPACK_RPC {
-                unsafe { find_call_frame(&channel.rpc, (*p).request_id) }
+                find_call_frame(&channel.rpc, crate::globals::gptr(p).request_id)
             } else {
                 channel.rpc.call_stack.last().cloned()
             };
 
             let Some(frame) = frame_opt else {
-                let msg = unsafe {
-                    format!(
-                        "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                        channel.id,
-                        channel.rpc.client_type as u32,
-                        (*p).request_id
-                    )
-                };
+                let msg = format!(
+                    "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
+                    channel.id,
+                    channel.rpc.client_type as u32,
+                    crate::globals::gptr(p).request_id
+                );
                 let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
                 chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
                 return;
             };
-            if unsafe { (*p).request_id != frame.request_id } {
-                let msg = unsafe {
-                    format!(
-                        "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                        channel.id,
-                        channel.rpc.client_type as u32,
-                        (*p).request_id
-                    )
-                };
+            if crate::globals::gptr(p).request_id != frame.request_id {
+                let msg = format!(
+                    "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
+                    channel.id,
+                    channel.rpc.client_type as u32,
+                    crate::globals::gptr(p).request_id
+                );
                 let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
                 chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
                 return;
             }
 
-            let errored = unsafe { (*p).error.obj_type != ObjectType::ObjectTypeNil };
+            let errored = crate::globals::gptr(p).error.obj_type != ObjectType::ObjectTypeNil;
             frame.returned.set(true);
             frame.errored.set(errored);
 
             if errored {
-                unsafe {
-                    frame.result.set((*p).error);
-                }
+                frame.result.set(crate::globals::gptr(p).error);
             } else {
-                unsafe {
-                    frame.result.set((*p).result);
-                }
+                frame.result.set(crate::globals::gptr(p).result);
             }
-            unsafe {
-                frame.result_mem.set(arena_finish(&mut (*p).arena));
-            }
+
+            frame
+                .result_mem
+                .set(arena_finish(&mut crate::globals::gptr(p).arena));
         } else {
-            let res = unsafe { (*p).result };
-            if unsafe { (*p).result.obj_type != ObjectType::ObjectTypeArray } {
+            let res = crate::globals::gptr(p).result;
+            if crate::globals::gptr(p).result.obj_type != ObjectType::ObjectTypeArray {
                 chan_close_on_err(
                     channel,
                     c"msgpack-rpc request args must be an array",
@@ -568,95 +549,90 @@ fn parse_msgpack(channel: &mut Channel) {
         }
     }
 
-    if unsafe { unpacker_closed(&*p) } {
-        let msg_cstr = unsafe { (*p).unpack_error.msg_cstr().unwrap_or(c"") };
+    if unpacker_closed(crate::globals::gref(p)) {
+        let msg_cstr = crate::globals::gref(p)
+            .unpack_error
+            .msg_cstr()
+            .unwrap_or(c"");
         chan_close_on_err(channel, msg_cstr, LOGLVL_INF);
-        unsafe {
-            api_clear_error(&mut (*p).unpack_error);
-        }
+
+        api_clear_error(&mut crate::globals::gptr(p).unpack_error);
     }
 }
 
 fn handle_request(channel: &mut Channel, p: *mut Unpacker, args: Array) {
-    unsafe {
-        assert!(
-            (*p).msg_type == MessageType::MessageTypeRequest
-                || (*p).msg_type == MessageType::MessageTypeNotification
-        );
-    }
+    assert!(
+        crate::globals::gptr(p).msg_type == MessageType::MessageTypeRequest
+            || crate::globals::gptr(p).msg_type == MessageType::MessageTypeNotification
+    );
 
-    if unsafe { (*p).handler.r#fn.is_none() } {
-        let handler = unsafe { (*p).handler };
-        let msg_type = unsafe { (*p).msg_type };
-        let request_id = unsafe { (*p).request_id };
-        let msg = unsafe { (*p).unpack_error.msg.take() };
+    if crate::globals::gptr(p).handler.r#fn.is_none() {
+        let handler = crate::globals::gptr(p).handler;
+        let msg_type = crate::globals::gptr(p).msg_type;
+        let request_id = crate::globals::gptr(p).request_id;
+        let msg = crate::globals::gptr(p).unpack_error.msg.take();
         send_error(channel, handler, msg_type, request_id, msg);
-        unsafe {
-            api_clear_error(&mut (*p).unpack_error);
-        }
-        unsafe {
-            arena_mem_free(arena_finish(&mut (*p).arena));
-        }
+
+        api_clear_error(&mut crate::globals::gptr(p).unpack_error);
+
+        arena_mem_free(arena_finish(&mut crate::globals::gptr(p).arena));
+
         return;
     }
-    let evdata = unsafe {
-        RequestEvent {
-            r#type: (*p).msg_type,
-            channel,
-            handler: (*p).handler,
-            args,
-            used_mem: (*p).arena,
-            request_id: (*p).request_id,
-        }
+    let evdata = RequestEvent {
+        r#type: crate::globals::gptr(p).msg_type,
+        channel,
+        handler: crate::globals::gptr(p).handler,
+        args,
+        used_mem: crate::globals::gptr(p).arena,
+        request_id: crate::globals::gptr(p).request_id,
     };
-    unsafe {
-        (*p).arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
-    }
+
+    crate::globals::gptr(p).arena = Arena {
+        cur_blk: ptr::null_mut(),
+        pos: 0,
+        size: 0,
+    };
+
     channel_incref(&mut *channel);
 
-    if unsafe { (*p).handler.fast } {
-        let is_get_mode = unsafe {
-            (*p).handler
-                .r#fn
-                .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ())
-        };
+    if crate::globals::gptr(p).handler.fast {
+        let is_get_mode = crate::globals::gptr(p)
+            .handler
+            .r#fn
+            .is_some_and(|f| f as *const () == handle_nvim_get_mode as *const ());
 
         if is_get_mode && !input_blocking() {
-            unsafe {
-                multiqueue_put_event(
-                    &mut *g_st().ch_before_blocking_events,
-                    Event::RpcRequest(Box::new(evdata)),
-                );
-            }
+            multiqueue_put_event(
+                crate::globals::gmut(g_st().ch_before_blocking_events),
+                Event::RpcRequest(Box::new(evdata)),
+            );
         } else {
             request_event(evdata);
         }
     } else {
-        let is_resize = unsafe {
-            (*p).handler
-                .r#fn
-                .is_some_and(|f| f as *const () == handle_nvim_ui_try_resize as *const ())
-        };
+        let is_resize = crate::globals::gptr(p)
+            .handler
+            .r#fn
+            .is_some_and(|f| f as *const () == handle_nvim_ui_try_resize as *const ());
 
         if is_resize {
             let oneshot = event_create_oneshot(Event::RpcRequest(Box::new(evdata)));
-            unsafe {
-                multiqueue_put_event(
-                    &mut *channel.events,
-                    Event::Oneshot(std::rc::Rc::clone(&oneshot)),
-                );
-            }
-            unsafe {
-                multiqueue_put_event(&mut *g_st().resize_events, Event::Oneshot(oneshot));
-            }
+
+            multiqueue_put_event(
+                crate::globals::gmut(channel.events),
+                Event::Oneshot(std::rc::Rc::clone(&oneshot)),
+            );
+
+            multiqueue_put_event(
+                crate::globals::gmut(g_st().resize_events),
+                Event::Oneshot(oneshot),
+            );
         } else {
-            unsafe {
-                multiqueue_put_event(&mut *channel.events, Event::RpcRequest(Box::new(evdata)));
-            }
+            multiqueue_put_event(
+                crate::globals::gmut(channel.events),
+                Event::RpcRequest(Box::new(evdata)),
+            );
         }
     }
 }
@@ -808,7 +784,7 @@ pub fn rpc_close(channel: &mut Channel) {
     {
         let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event(
-            unsafe { &mut *qc.fast_events },
+            crate::globals::gmut(qc.fast_events),
             Event::RpcClose(&raw mut *channel),
         );
     }
@@ -1012,30 +988,25 @@ pub fn rpc_set_client_info(id: u64, info: Dict) {
     }
 
     let ct = chan;
-    unsafe {
-        api_free_dict((*ct).rpc.info);
-    }
-    unsafe {
-        (*ct).rpc.info = info;
-    }
 
-    let r#type = unsafe { get_client_info(&mut *chan, c"type") };
-    unsafe {
-        (*ct).rpc.client_type = match r#type.map(CStr::to_bytes) {
-            None => K_CLIENT_TYPE_REMOTE,
-            Some(b"remote") => K_CLIENT_TYPE_REMOTE,
-            Some(b"msgpack-rpc") => K_CLIENT_TYPE_MSGPACK_RPC,
-            Some(b"ui") => K_CLIENT_TYPE_UI,
-            Some(b"embedder") => K_CLIENT_TYPE_EMBEDDER,
-            Some(b"host") => K_CLIENT_TYPE_HOST,
-            Some(b"plugin") => K_CLIENT_TYPE_PLUGIN,
-            Some(_) => K_CLIENT_TYPE_UNKNOWN,
-        };
-    }
+    api_free_dict(crate::globals::gptr(ct).rpc.info);
 
-    unsafe {
-        channel_event(&mut *chan, EVENT_CHANINFO);
-    }
+    crate::globals::gptr(ct).rpc.info = info;
+
+    let r#type = get_client_info(crate::globals::gmut(chan), c"type");
+
+    crate::globals::gptr(ct).rpc.client_type = match r#type.map(CStr::to_bytes) {
+        None => K_CLIENT_TYPE_REMOTE,
+        Some(b"remote") => K_CLIENT_TYPE_REMOTE,
+        Some(b"msgpack-rpc") => K_CLIENT_TYPE_MSGPACK_RPC,
+        Some(b"ui") => K_CLIENT_TYPE_UI,
+        Some(b"embedder") => K_CLIENT_TYPE_EMBEDDER,
+        Some(b"host") => K_CLIENT_TYPE_HOST,
+        Some(b"plugin") => K_CLIENT_TYPE_PLUGIN,
+        Some(_) => K_CLIENT_TYPE_UNKNOWN,
+    };
+
+    channel_event(crate::globals::gmut(chan), EVENT_CHANINFO);
 }
 
 pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr> {

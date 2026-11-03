@@ -109,7 +109,7 @@ static SIGN_STATE: crate::globals::GlobalState<SignModuleState> =
 
 #[inline]
 fn sign_st() -> &'static mut SignModuleState {
-    unsafe { &mut *SIGN_STATE.as_ptr() }
+    crate::globals::gmut(SIGN_STATE.as_ptr())
 }
 
 const CMDS: [&CStr; 6] = [
@@ -362,7 +362,7 @@ pub fn buf_has_signs(buf: &FileBuf) -> bool {
 
 fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr) {
     let group = group.into_c_char_ptr();
-    unsafe {
+    {
         let mut lbuf = [0u8; MSG_BUF_LEN];
         let mut namebuf = [0u8; MSG_BUF_LEN];
         let mut groupbuf = [0u8; MSG_BUF_LEN];
@@ -376,10 +376,10 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
         msg_puts_title(gettext(c"\n--- Signs ---"));
 
         while !buf.is_null() && !g_st().got_int {
-            if buf_has_signs(&*buf) {
+            if buf_has_signs(crate::globals::gref(buf)) {
                 msg_putchar(b'\n' as i32);
-                let fname = if !(*buf).b_fname.is_null() {
-                    (*buf).b_fname.cast_const()
+                let fname = if !crate::globals::gptr(buf).b_fname.is_null() {
+                    crate::globals::gptr(buf).b_fname.cast_const()
                 } else {
                     gettext(c"Untitled").as_ptr()
                 };
@@ -395,7 +395,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
             if ns >= 0 {
                 let mut itr = MarkTreeIter::new();
                 let mut signs: Vec<MTKey> = Vec::new();
-                let b = &(*buf).b_marktree;
+                let b = &crate::globals::gptr(buf).b_marktree;
                 marktree_itr_get(b, 0, 0, &mut itr);
 
                 while itr.x.is_some() {
@@ -455,7 +455,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
             if !rbuf.is_null() {
                 return;
             }
-            buf = (*buf).b_next;
+            buf = crate::globals::gptr(buf).b_next;
         }
     }
 }
@@ -866,9 +866,9 @@ fn sign_define_cmd(
             if crate::memory::cstr_is_empty(cmdline) {
                 break;
             }
-            unsafe {
-                *cmdline = NUL;
-            }
+
+            *crate::globals::gptr(cmdline) = NUL;
+
             cmdline = cmdline.wrapping_add(1);
         }
 
@@ -905,7 +905,7 @@ fn sign_place_cmd(
                 return;
             }
             let mut uid = id as u32;
-            sign_place(&mut uid, group, name, unsafe { &mut *buf }, lnum, prio);
+            sign_place(&mut uid, group, name, crate::globals::gmut(buf), lnum, prio);
         }
     }
 }
@@ -931,7 +931,7 @@ fn sign_unplace_cmd(
             buf = curwin_mut().w_buffer;
         }
 
-        if !sign_unplace(unsafe { buf.as_mut() }, id.max(0), group, lnum) && lnum > 0 {
+        if !sign_unplace(crate::globals::gopt_mut(buf), id.max(0), group, lnum) && lnum > 0 {
             emsg(gettext(c"E159: Missing sign number"));
         }
     }
@@ -976,7 +976,7 @@ fn parse_sign_cmd_args<T>(
     lnum: &mut Linenr,
 ) -> bool {
     let mut arg = arg_in.cast();
-    unsafe {
+    {
         let arg1 = arg;
         let mut filename = ptr::null_mut();
         let mut lnum_arg = false;
@@ -1015,7 +1015,7 @@ fn parse_sign_cmd_args<T>(
                 let mut namep = arg;
                 arg = skiptowhite(arg);
                 if !crate::memory::cstr_is_empty(arg) {
-                    *arg = NUL;
+                    *crate::globals::gptr(arg) = NUL;
                     arg = arg.wrapping_add(1);
                 }
                 while crate::memory::cstr_first_byte(namep) == b'0'
@@ -1029,7 +1029,7 @@ fn parse_sign_cmd_args<T>(
                 *group = arg.cast();
                 arg = skiptowhite(arg);
                 if !crate::memory::cstr_is_empty(arg) {
-                    *arg = NUL;
+                    *crate::globals::gptr(arg) = NUL;
                     arg = arg.wrapping_add(1);
                 }
             } else if arg_bytes.starts_with(b"priority=") {
@@ -1095,9 +1095,8 @@ pub fn ex_sign(eap: &mut Exarg) {
         } else {
             p = skiptowhite(arg);
             if !crate::memory::cstr_is_empty(p) {
-                unsafe {
-                    *p = NUL;
-                }
+                *crate::globals::gptr(p) = NUL;
+
                 p = p.wrapping_add(1);
             }
             while crate::memory::cstr_first_byte(arg) == b'0' && crate::memory::cstr_len(arg) > 1 {
@@ -1131,7 +1130,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         } else if idx == SIGNCMD_UNPLACE {
             sign_unplace_cmd(buf, lnum, name, id, group);
         } else if idx == SIGNCMD_JUMP {
-            sign_jump_cmd(unsafe { buf.as_mut() }, lnum, name, id, group);
+            sign_jump_cmd(crate::globals::gopt_mut(buf), lnum, name, id, group);
         }
     }
 }
@@ -1567,7 +1566,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     }
 
     sign_get_placed(
-        unsafe { buf.as_mut() },
+        crate::globals::gopt_mut(buf),
         lnum,
         sign_id,
         group,
@@ -1598,7 +1597,7 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     };
 
     let buf = get_buf_arg(&mut argvars[2]);
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = crate::globals::gopt_mut(buf) else {
         return;
     };
 
@@ -1667,7 +1666,7 @@ fn sign_place_from_dict(
         return -1;
     };
     let buf = get_buf_arg(buf_tv);
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = crate::globals::gopt_mut(buf) else {
         return -1;
     };
 
@@ -1811,7 +1810,7 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
         }
     }
 
-    if sign_unplace(unsafe { buf.as_mut() }, id, group, 0) {
+    if sign_unplace(crate::globals::gopt_mut(buf), id, group, 0) {
         0
     } else {
         -1

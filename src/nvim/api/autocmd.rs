@@ -132,7 +132,7 @@ static API_AU_STATE: crate::globals::GlobalState<ApiAutocmdState> =
 
 #[inline]
 fn api_au_st() -> &'static mut ApiAutocmdState {
-    unsafe { &mut *API_AU_STATE.as_ptr() }
+    crate::globals::gmut(API_AU_STATE.as_ptr())
 }
 
 #[inline]

@@ -256,7 +256,7 @@ static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> =
 
 #[inline]
 fn main_init_st() -> &'static mut MainInitState {
-    unsafe { &mut *MAIN_INIT_STATE.as_ptr() }
+    crate::globals::gmut(MAIN_INIT_STATE.as_ptr())
 }
 
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
@@ -318,7 +318,7 @@ fn event_teardown() -> bool {
         return true;
     }
 
-    multiqueue_process_events(unsafe { &mut *queues.events });
+    multiqueue_process_events(crate::globals::gmut(queues.events));
     loop_poll_events(&mut g_st().main_loop, 0);
     server_teardown();
     channel_teardown();
@@ -346,10 +346,10 @@ fn early_init(paramp: &mut Mparm) {
     mc_init();
 
     #[cfg(windows)]
-    unsafe {
+    {
         let mut ovi = OsVersionInfoA::new();
         ovi.dwOSVersionInfoSize = std::mem::size_of::<OsVersionInfoA>() as u32;
-        GetVersionExA(&mut ovi);
+        unsafe { GetVersionExA(&mut ovi) };
         let mut buf = Vec::with_capacity(20);
         let _ = write!(buf, "{}.{}\0", ovi.dwMajorVersion, ovi.dwMinorVersion);
         let copy_len = buf.len().min(20);
@@ -380,9 +380,11 @@ pub fn nvim_main() -> i32 {
     #[cfg(unix)]
     {
         use std::os::unix::ffi::OsStringExt;
+
         unsafe {
-            crate::os::signal::signal(13 /* SIGPIPE */, 0 /* SIG_DFL */);
-        }
+            crate::os::signal::signal(13 /* SIGPIPE */, 0 /* SIG_DFL */)
+        };
+
         let mut c_args: Vec<std::ffi::CString> = std::env::args_os()
             .map(|arg| crate::memory::cstr_from_bytes(&arg.into_vec()))
             .collect();
@@ -416,7 +418,7 @@ pub fn nvim_main() -> i32 {
 }
 
 fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
-    main_init_st().argv0 = unsafe { *argv };
+    main_init_st().argv0 = *crate::globals::gptr(argv);
     to_slash_if_needed(main_init_st().argv0);
 
     if !appname_is_valid() {
@@ -434,9 +436,9 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
     init_startuptime(&mut params);
 
     for i in 1..params.argc {
-        if crate::memory::cstr_as_opt_bytes(unsafe {
-            (*params.argv.wrapping_add(i as usize)).cast()
-        })
+        if crate::memory::cstr_as_opt_bytes(
+            crate::globals::gptr(params.argv.wrapping_add(i as usize)).cast(),
+        )
         .is_some_and(|b| b.eq_ignore_ascii_case(b"--clean"))
         {
             params.clean = true;
@@ -452,7 +454,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
     set_argf_var();
 
     let argv_vec: Vec<std::ffi::CString> = (0..argc as usize)
-        .map(|i| crate::memory::cstr_to_cstring(unsafe { (*argv.wrapping_add(i)).cast() }))
+        .map(|i| crate::memory::cstr_to_cstring(crate::globals::gptr(argv.wrapping_add(i)).cast()))
         .collect();
     nlua_init(&argv_vec, params.lua_arg0);
     time_msg_if_enabled(c"init lua interpreter");
@@ -513,7 +515,9 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
         g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
         let argv_vec: Vec<std::ffi::CString> = (0..params.argc as usize)
             .map(|i| {
-                crate::memory::cstr_to_cstring(unsafe { (*params.argv.wrapping_add(i)).cast() })
+                crate::memory::cstr_to_cstring(
+                    crate::globals::gptr(params.argv.wrapping_add(i)).cast(),
+                )
             })
             .collect();
         let rv = ui_client_start_server(
@@ -660,9 +664,11 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
     if g_st().recoverymode && fname.is_none() {
         let mut items_tv = crate::eval::typval::TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
-        recover_names(ptr::null_mut(), false, unsafe {
-            &mut *items_tv.vval.v_list()
-        });
+        recover_names(
+            ptr::null_mut(),
+            false,
+            crate::globals::gmut(items_tv.vval.v_list()),
+        );
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
         nlua_call_typval(
             c"vim._core.swapfile",
@@ -930,7 +936,7 @@ pub fn getout(mut exitval: i32) -> ! {
 
     if g_st().v_dying <= 1 {
         let mut next_tp: Option<&'static mut TabPageInfo>;
-        let mut tp_opt = unsafe { g_st().first_tabpage.as_mut() };
+        let mut tp_opt = crate::globals::gopt_mut(g_st().first_tabpage);
         while let Some(tp) = tp_opt {
             next_tp = tp.next_opt();
             let first_wp = if ptr::eq(tp, g_st().curtab) {
@@ -952,7 +958,7 @@ pub fn getout(mut exitval: i32) -> ! {
                     {
                         buf_set_changedtick(buf_now, -1);
                     }
-                    next_tp = unsafe { g_st().first_tabpage.as_mut() };
+                    next_tp = crate::globals::gopt_mut(g_st().first_tabpage);
                     break;
                 }
             }
@@ -1049,7 +1055,7 @@ pub fn getout(mut exitval: i32) -> ! {
 
 pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
     let errmsg = errmsg.into_c_char_ptr();
-    unsafe {
+    {
         if main_init_st().really_exiting {
             std::process::exit(2);
         }
@@ -1082,7 +1088,7 @@ pub fn preserve_exit(errmsg: impl crate::strings::IntoCCharPtr) -> ! {
 
         for buf in for_all_buffers_mut() {
             let mfp = buf.b_ml.mfp_ptr();
-            if !mfp.is_null() && (*mfp).mf_fname.is_some() {
+            if !mfp.is_null() && crate::globals::gptr(mfp).mf_fname.is_some() {
                 if !errmsg.is_null() {
                     fprintf!(stderr, c"Nvim: preserving files...\n");
                 }
@@ -1157,9 +1163,9 @@ fn remote_request(
 ) {
     let server_addr = server_addr.into_c_char_ptr();
     {
-        let is_ui = crate::memory::cstr_as_opt_bytes(unsafe {
-            (*argv.wrapping_add(remote_args as usize)).cast()
-        }) == Some(b"--remote-ui");
+        let is_ui = crate::memory::cstr_as_opt_bytes(
+            crate::globals::gptr(argv.wrapping_add(remote_args as usize)).cast(),
+        ) == Some(b"--remote-ui");
         if ui_only && !is_ui {
             return;
         }
@@ -1202,7 +1208,9 @@ fn remote_request(
 
         let count = (argc - remote_args).max(0) as usize;
         let mut args_vec: Vec<Object> = (remote_args..argc)
-            .map(|t_argc| cstr_as_obj(unsafe { (*argv.wrapping_add(t_argc as usize)).cast() }))
+            .map(|t_argc| {
+                cstr_as_obj(crate::globals::gptr(argv.wrapping_add(t_argc as usize)).cast())
+            })
             .collect();
         let args = Array {
             items: if count > 0 {
@@ -1738,10 +1746,12 @@ fn command_line_scan(parmp: &mut Mparm) {
             if parmp.diff_mode != 0
                 && os_isdir(p_vec.as_ptr().cast())
                 && gargcount() > 0
-                && !os_isdir(alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr))
+                && !os_isdir(
+                    alist_name(crate::globals::gref(garglist())).map_or(ptr::null(), CStr::as_ptr),
+                )
             {
                 let tail = path_tail(
-                    alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
+                    alist_name(crate::globals::gref(garglist())).map_or(ptr::null(), CStr::as_ptr),
                 );
                 let joined = concat_fnames(
                     cstr_as_string(p_vec.as_ptr().cast()),
@@ -1799,7 +1809,7 @@ fn set_argf_var() {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let count = gargcount();
     for i in 0..count {
-        if let Some(fname) = alist_name(unsafe { &*garglist().wrapping_add(i as usize) }) {
+        if let Some(fname) = alist_name(crate::globals::gref(garglist().wrapping_add(i as usize))) {
             let _ = vim_full_name(
                 fname.as_ptr(),
                 g_st().name_buff.as_mut_ptr().cast(),
@@ -1877,7 +1887,7 @@ fn init_path(exename: impl crate::strings::IntoCCharPtr) {
 }
 
 fn get_fname(_parmp: &mut Mparm) -> Option<&'static CStr> {
-    unsafe { alist_name(&*garglist()) }
+    alist_name(crate::globals::gref(garglist()))
 }
 
 fn set_window_layout(paramp: &mut Mparm) {
@@ -1961,7 +1971,7 @@ fn read_stdin() {
             true,
         );
 
-        let stdin_buf_handle: ObjHandle = unsafe { (*stdin_buf).b_fnum };
+        let stdin_buf_handle: ObjHandle = crate::globals::gptr(stdin_buf).b_fnum;
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
         let mut buf = [0u8; 100];
@@ -2011,7 +2021,8 @@ fn create_windows(parmp: &mut Mparm) {
         if parmp.window_layout == WIN_TABS {
             parmp.window_count = make_tabpages(parmp.window_count);
             time_msg_if_enabled(c"making tab pages");
-        } else if firstwin_mut().w_next.is_null() || unsafe { (*firstwin_mut().w_next).w_floating }
+        } else if firstwin_mut().w_next.is_null()
+            || crate::globals::gptr(firstwin_mut().w_next).w_floating
         {
             parmp.window_count = make_windows(parmp.window_count, parmp.window_layout == WIN_VER);
             time_msg_if_enabled(c"making windows");
@@ -2144,8 +2155,10 @@ fn edit_buffers(parmp: &mut Mparm) {
             curwin_mut().w_arg_idx = arg_idx;
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {
-                alist_name(unsafe { &*garglist().wrapping_add(arg_idx as usize) })
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                alist_name(crate::globals::gref(
+                    garglist().wrapping_add(arg_idx as usize),
+                ))
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 ptr::null_mut()
             };
@@ -2193,8 +2206,8 @@ fn edit_buffers(parmp: &mut Mparm) {
     } else {
         curwin_ptr()
     };
-    while unsafe { (*win).w_onebuf_opt.wo_pvw } != 0 {
-        win = unsafe { (*win).w_next };
+    while crate::globals::gptr(win).w_onebuf_opt.wo_pvw != 0 {
+        win = crate::globals::gptr(win).w_next;
         if win.is_null() {
             win = g_st().firstwin;
             break;

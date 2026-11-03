@@ -2152,7 +2152,7 @@ pub fn get_special_key(
     mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    let string_buf = unsafe { &mut *SPECIAL_KEY_STRING.as_ptr() };
+    let string_buf = crate::globals::gmut(SPECIAL_KEY_STRING.as_ptr());
     let string = string_buf.as_mut_ptr();
     let mut is_ascii_ctrl = false;
 

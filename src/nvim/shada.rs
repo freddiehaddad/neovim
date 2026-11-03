@@ -746,7 +746,7 @@ static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> =
 
 #[inline]
 fn shada_st() -> &'static mut ShadaModuleState {
-    unsafe { &mut *SHADA_STATE.as_ptr() }
+    crate::globals::gmut(SHADA_STATE.as_ptr())
 }
 
 use crate::api::private::dispatch::{
@@ -1285,9 +1285,8 @@ fn marklist_insert<T>(jumps: &mut [T; JUMPLISTSIZE], jl_len: i32, mut i: i32) ->
 fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
     let force = (flags & K_SHA_DA_FORCEIT) != 0;
-    let get_old_files = unsafe {
-        (flags & K_SHA_DA_GET_OLDFILES) != 0 && (force || tv_list_len(oldfiles_list.as_ref()) == 0)
-    };
+    let get_old_files = (flags & K_SHA_DA_GET_OLDFILES) != 0
+        && (force || tv_list_len(crate::globals::gopt(oldfiles_list)) == 0);
     let want_marks = (flags & K_SHA_DA_WANT_MARKS) != 0;
     let no_opt = (flags & K_SHA_DA_NO_OPT) != 0;
     let argcount = crate::arglist::argcount();
@@ -1401,12 +1400,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         off: sp.offset,
                     },
                     pat: (!sp.pat.data.is_null()).then(|| {
-                        let s = unsafe {
-                            crate::memory::cstr_from_bytes(std::slice::from_raw_parts(
-                                sp.pat.data.cast::<u8>(),
-                                sp.pat.size,
-                            ))
-                        };
+                        let s = crate::memory::cstr_from_bytes(unsafe {
+                            std::slice::from_raw_parts(sp.pat.data.cast::<u8>(), sp.pat.size)
+                        });
                         api_free_string(sp.pat);
                         s
                     }),
@@ -1479,7 +1475,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 };
                 if !force {
                     let reg = op_reg_get(r_name);
-                    if reg.is_null() || unsafe { (*reg).timestamp >= reg_ts } {
+                    if reg.is_null() || crate::globals::gptr(reg).timestamp >= reg_ts {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
                     }
@@ -1528,7 +1524,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         fnum: if buf.is_null() {
                             0
                         } else {
-                            unsafe { (*buf).b_fnum }
+                            crate::globals::gptr(buf).b_fnum
                         },
                         timestamp: cur_entry.timestamp,
                         view: INIT_FMARKV,
@@ -1589,7 +1585,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     let sfname = path_try_shorten_fname(fname_ptr);
                     let buf = buflist_new(fname_ptr, sfname, 0, BLN_LISTED);
                     if !buf.is_null() {
-                        let buf = unsafe { &mut *buf };
+                        let buf = crate::globals::gmut(buf);
                         buf.b_last_cursor = Fmark {
                             mark: item.pos,
                             fnum: 0,
@@ -1613,18 +1609,19 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
                 let fname_ptr = fname_cstr.as_ptr();
                 if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr.cast())) {
-                    unsafe {
-                        crate::eval::typval::tv_list_append_string(
-                            &mut *oldfiles_list,
-                            fname_ptr,
-                            -1,
-                        );
-                    }
-                    unsafe {
-                        oldfiles_set.insert(PathKey(
-                            (*(*oldfiles_list).lv_last).li_tv.vval.v_string().cast(),
-                        ));
-                    }
+                    crate::eval::typval::tv_list_append_string(
+                        crate::globals::gmut(oldfiles_list),
+                        fname_ptr,
+                        -1,
+                    );
+
+                    oldfiles_set.insert(PathKey(
+                        crate::globals::gptr(crate::globals::gptr(oldfiles_list).lv_last)
+                            .li_tv
+                            .vval
+                            .v_string()
+                            .cast(),
+                    ));
                 }
                 if !want_marks {
                     shada_free_shada_entry(&mut cur_entry);
@@ -1637,7 +1634,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     shada_free_shada_entry(&mut cur_entry);
                     continue;
                 }
-                let buf = unsafe { &mut *buf };
+                let buf = crate::globals::gmut(buf);
                 let fm = Fmark {
                     mark: fm_mark,
                     fnum: buf.b_fnum,
@@ -2176,7 +2173,7 @@ fn shada_read_when_writing(
                 }
                 let u_idx = idx as usize;
                 if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing
-                    && let Some(reg) = unsafe { op_reg_get(reg_name).as_ref() }
+                    && let Some(reg) = crate::globals::gopt(op_reg_get(reg_name))
                     && reg_empty(reg)
                     && reg.timestamp / NS_PER_SEC >= entry.timestamp
                 {
@@ -2388,14 +2385,12 @@ fn ignore_buf(
     buf: *const FileBuf,
     removable_bufs: &std::collections::HashSet<*mut FileBuf>,
 ) -> bool {
-    unsafe {
-        buf.is_null()
-            || (*buf).b_ffname.is_null()
-            || ((*buf).b_p_bl == 0 && (*buf).b_p_initialized)
-            || bt_quickfix(buf.as_ref())
-            || bt_terminal(buf.as_ref())
-            || removable_bufs.contains(&buf.cast_mut())
-    }
+    buf.is_null()
+        || crate::globals::gptr(buf).b_ffname.is_null()
+        || (crate::globals::gptr(buf).b_p_bl == 0 && crate::globals::gptr(buf).b_p_initialized)
+        || bt_quickfix(crate::globals::gopt(buf))
+        || bt_terminal(crate::globals::gopt(buf))
+        || removable_bufs.contains(&buf.cast_mut())
 }
 
 #[inline]
@@ -2482,7 +2477,7 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
         if name == 0 {
             break;
         }
-        let reg_ref = unsafe { &*reg };
+        let reg_ref = crate::globals::gref(reg);
         if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
             if reg_iter.is_none() {
                 break;
@@ -2592,7 +2587,7 @@ fn shada_write(
 
     let mut wms_box = WriteMergerState::new();
     let wms: *mut WriteMergerState = &raw mut *wms_box;
-    let wms = unsafe { &mut *wms };
+    let wms = crate::globals::gmut(wms);
     let mut dump_one_history = [false; HIST_COUNT];
     let dump_global_vars = find_shada_parameter(b'!' as i32).is_some();
     let mut max_reg_lines = get_shada_parameter(b'<' as i32);
@@ -2747,9 +2742,11 @@ fn shada_write(
                     VarType::VarDict => {
                         let di = vartv.vval.v_dict();
                         let copy_id = get_copy_id();
-                        if unsafe {
-                            !set_ref_in_ht(&mut (*di).dv_hashtab, copy_id, ptr::null_mut())
-                        } && unsafe { copy_id == (*di).dv_copy_id }
+                        if !set_ref_in_ht(
+                            &mut crate::globals::gptr(di).dv_hashtab,
+                            copy_id,
+                            ptr::null_mut(),
+                        ) && copy_id == crate::globals::gptr(di).dv_copy_id
                         {
                             tv_clear(&mut vartv);
                             skip = true;
@@ -2759,7 +2756,7 @@ fn shada_write(
                         let l = vartv.vval.v_list();
                         let copy_id = get_copy_id();
                         if !set_ref_in_list_items(l, copy_id, ptr::null_mut())
-                            && unsafe { copy_id == (*l).lv_copy_id }
+                            && copy_id == crate::globals::gptr(l).lv_copy_id
                         {
                             tv_clear(&mut vartv);
                             skip = true;
@@ -2865,7 +2862,7 @@ fn shada_write(
                 } else {
                     let buf = buflist_findnr(fm.fmark.fnum);
                     if buf.is_null()
-                        || unsafe { (*buf).b_ffname.is_null() }
+                        || crate::globals::gptr(buf).b_ffname.is_null()
                         || removable_bufs.contains(&buf)
                     {
                         if global_mark_iter.is_none() {
@@ -2873,7 +2870,7 @@ fn shada_write(
                         }
                         continue;
                     }
-                    unsafe { crate::memory::cstr_to_cstring((*buf).b_ffname) }
+                    crate::memory::cstr_to_cstring(crate::globals::gptr(buf).b_ffname)
                 };
                 let entry = ShadaEntry {
                     can_free_entry: false,
@@ -2913,7 +2910,7 @@ fn shada_write(
                         .file_marks
                         .entry(fname_bytes)
                         .or_insert_with(FileMarks::new);
-                    let filemarks = unsafe { &mut *filemarks };
+                    let filemarks = crate::globals::gmut(filemarks);
                     loop {
                         let mut fm = Fmark::new();
                         let mut name: u8 = 0;
@@ -3045,8 +3042,8 @@ fn shada_write(
             .map(|fm| fm as *mut FileMarks)
             .collect();
         all_file_markss.sort_by(|&a, &b| {
-            let ta = unsafe { (*a).greatest_timestamp };
-            let tb = unsafe { (*b).greatest_timestamp };
+            let ta = crate::globals::gptr(a).greatest_timestamp;
+            let tb = crate::globals::gptr(b).greatest_timestamp;
             if ta == tb {
                 Ordering::Equal
             } else if ta > tb {
@@ -3057,7 +3054,7 @@ fn shada_write(
         });
         let file_markss_to_dump = num_marked_files.min(all_file_markss.len());
         for &fm_ptr in &all_file_markss[..file_markss_to_dump] {
-            for entry in unsafe { &mut (*fm_ptr).marks } {
+            for entry in &mut crate::globals::gptr(fm_ptr).marks {
                 let entry = std::mem::replace(entry, MISSING_ENTRY);
                 if entry.entry_type != ShadaEntryType::SDItemMissing
                     && shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
@@ -3066,15 +3063,16 @@ fn shada_write(
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                 }
             }
-            for j in unsafe { 0..(*fm_ptr).changes_size } {
-                let entry = unsafe { std::mem::replace(&mut (*fm_ptr).changes[j], MISSING_ENTRY) };
+            for j in 0..crate::globals::gptr(fm_ptr).changes_size {
+                let entry =
+                    std::mem::replace(&mut crate::globals::gptr(fm_ptr).changes[j], MISSING_ENTRY);
                 if shada_pack_pfreed_entry(&mut packer, entry, max_kbyte)
                     == ShaDaWriteResult::SDWriteFailed
                 {
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
                 }
             }
-            for mut add_entry in unsafe { (*fm_ptr).additional_marks.drain(..) } {
+            for mut add_entry in crate::globals::gptr(fm_ptr).additional_marks.drain(..) {
                 if shada_pack_entry(&mut packer, &add_entry, 0) == ShaDaWriteResult::SDWriteFailed {
                     shada_free_shada_entry(&mut add_entry);
                     break 'shada_write_exit ShaDaWriteResult::SDWriteFailed;
@@ -3202,7 +3200,7 @@ pub fn shada_write_file(file: impl crate::strings::IntoCCharPtr, nomerge: bool) 
                     CStr::from_bytes_with_nul(&fname_bytes)
                         .unwrap_or_default()
                         .as_ptr(),
-                    unsafe { uv_strerror(error) },
+                     unsafe { uv_strerror(error) } ,
                 );
             }
         }
@@ -4160,8 +4158,10 @@ fn shada_init_jumps(
         }
         let fname = if fm.fmark.fnum == 0 {
             fm.fname
-        } else if !buf.is_null() && unsafe { !(*buf).b_ffname.is_null() } {
-            unsafe { Some(crate::memory::cstr_to_cstring((*buf).b_ffname)) }
+        } else if !buf.is_null() && !crate::globals::gptr(buf).b_ffname.is_null() {
+            Some(crate::memory::cstr_to_cstring(
+                crate::globals::gptr(buf).b_ffname,
+            ))
         } else {
             None
         };

@@ -75,7 +75,7 @@ static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::n
 
 #[inline]
 fn dbg_st() -> &'static mut DebuggerState {
-    unsafe { &mut *DBG_STATE.as_ptr() }
+    crate::globals::gmut(DBG_STATE.as_ptr())
 }
 
 #[inline]
@@ -311,7 +311,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
 
                     if lcmd != 0 {
                         p = p.wrapping_add(1);
-                        while unsafe { *p } != 0
+                        while *crate::globals::gptr(p) != 0
                             && !tail.is_empty()
                             && (crate::memory::cstr_first_byte(p)) == tail[0]
                         {
@@ -356,7 +356,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
                             continue;
                         }
                         CMD_FRAME => {
-                            if unsafe { *p } == 0 {
+                            if *crate::globals::gptr(p) == 0 {
                                 do_showbacktrace(cmd);
                             } else {
                                 p = skipwhite(p);

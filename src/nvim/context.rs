@@ -238,7 +238,7 @@ static CTX_STATE: GlobalState<ContextModuleState> = GlobalState::new(ContextModu
 
 #[inline]
 fn ctx_st() -> &'static mut ContextModuleState {
-    unsafe { &mut *CTX_STATE.as_ptr() }
+    crate::globals::gmut(CTX_STATE.as_ptr())
 }
 
 #[inline]
@@ -252,7 +252,7 @@ pub fn handle_get_buffer(h: ObjHandle) -> *mut FileBuf {
 
 #[inline]
 pub fn handle_get_buffer_opt(h: ObjHandle) -> Option<&'static mut FileBuf> {
-    unsafe { handle_get_buffer(h).as_mut() }
+    crate::globals::gopt_mut(handle_get_buffer(h))
 }
 
 #[inline]
@@ -266,7 +266,7 @@ pub fn handle_get_window(h: ObjHandle) -> *mut WinInfoInfo {
 
 #[inline]
 pub fn handle_get_window_opt(h: ObjHandle) -> Option<&'static mut WinInfoInfo> {
-    unsafe { handle_get_window(h).as_mut() }
+    crate::globals::gopt_mut(handle_get_window(h))
 }
 
 fn ctx_marks_ns() -> u32 {
@@ -644,7 +644,7 @@ fn ctx_dirs_save(
     cs.cs_globaldir = g_st().globaldir.clone();
 
     if (cs.cs_flags & K_CTX_KEEP_DIRS) != 0 {
-        let target_buf = unsafe { buf.as_mut() }.unwrap_or_else(|| wp.buf_mut());
+        let target_buf = crate::globals::gopt_mut(buf).unwrap_or_else(|| wp.buf_mut());
         cs.cs_dirs_tab = tp.handle;
         cs.cs_w_localdir = wp.w_localdir.clone();
         cs.cs_b_localdir = target_buf.b_localdir.clone();
@@ -720,7 +720,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> *mut WinInfoInfo {
         need_append = false;
     }
     let cw_win = g_st().ctx_win_vec.as_slice()[idx].cw_win;
-    let cw_win = unsafe { &mut *cw_win };
+    let cw_win = crate::globals::gmut(cw_win);
     g_st().ctx_win_vec.as_mut_slice()[idx].cw_used = true;
     cs.cs_ctxwin_idx = idx as i32;
 
@@ -820,7 +820,7 @@ pub fn ctx_switch(
         }
     }
 
-    if let Some(wp_ref) = unsafe { wp.as_mut() } {
+    if let Some(wp_ref) = crate::globals::gopt_mut(wp) {
         if (flags & K_CTX_VALIDATE) != 0 {
             cs.cs_target_win = wp_ref.handle;
             cs.cs_target_old_pos = wp_ref.w_cursor;
@@ -828,7 +828,7 @@ pub fn ctx_switch(
         ctx_dirs_save(
             cs,
             wp_ref,
-            unsafe { tp.as_mut() }.unwrap_or_else(curtab_mut),
+            crate::globals::gopt_mut(tp).unwrap_or_else(curtab_mut),
             buf,
         );
     }
@@ -862,7 +862,7 @@ pub fn ctx_switch(
         }
     }
 
-    if let Some(buf_ref) = unsafe { buf.as_mut() } {
+    if let Some(buf_ref) = crate::globals::gopt_mut(buf) {
         if wp.is_null() {
             wp = ctx_win_prep(cs, &mut *buf_ref);
             leaving_window(curwin_mut());
@@ -931,19 +931,16 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
             curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
         }
 
-        unsafe {
-            vars_clear(&mut (*cwp).w_vars().dv_hashtab);
-        }
+        vars_clear(&mut crate::globals::gptr(cwp).w_vars().dv_hashtab);
 
         let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
-        unsafe {
-            ctx_localdirs_restore(
-                &mut *cs,
-                cwp.as_ref(),
-                Some(crate::globals::curtab_mut()),
-                free_dirs,
-            );
-        }
+
+        ctx_localdirs_restore(
+            &mut *cs,
+            crate::globals::gopt(cwp),
+            Some(crate::globals::curtab_mut()),
+            free_dirs,
+        );
 
         if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
             curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
@@ -954,7 +951,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
         if curwin_mut().handle == cs.cs_new_curwin
             && g_st().curbuf != saved_buf
             && bufref_valid(Some(&cs.cs_new_curbuf))
-            && unsafe { (*saved_buf).b_ml.ml_mfp.is_some() }
+            && crate::globals::gptr(saved_buf).b_ml.ml_mfp.is_some()
         {
             curbuf_mut().b_nwindows -= 1;
             g_st().curbuf = saved_buf;
@@ -985,10 +982,8 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
     if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
         let wp = win_find_by_handle(cs.cs_target_win);
-        if !wp.is_null() && unsafe { !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) } {
-            unsafe {
-                (*wp).w_redr_status = true;
-            }
+        if !wp.is_null() && !equalpos(cs.cs_target_old_pos, crate::globals::gptr(wp).w_cursor) {
+            crate::globals::gptr(wp).w_redr_status = true;
         }
         check_cursor(curwin_mut());
         if g_st().visual_global.active {

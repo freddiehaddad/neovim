@@ -119,7 +119,7 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
 
     let parent = mpack_parent_node(&raw mut *node);
     if !parent.is_null() {
-        let parent = unsafe { &mut *parent };
+        let parent = crate::globals::gmut(parent);
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
                 let obj = parent.data[0].object();
@@ -150,51 +150,45 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
 
     let tok = node.tok;
     match tok.r#type {
-        MpackTokenType::MpackTokenNil => unsafe {
-            *result = nil_obj();
-        },
-        MpackTokenType::MpackTokenBoolean => unsafe {
-            *result = Object {
+        MpackTokenType::MpackTokenNil => *crate::globals::gptr(result) = nil_obj(),
+        MpackTokenType::MpackTokenBoolean => {
+            *crate::globals::gptr(result) = Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
                 data: ObjectData::Boolean(mpack_unpack_boolean(tok)),
-            };
-        },
-        MpackTokenType::MpackTokenSint => unsafe {
-            *result = Object {
+            }
+        }
+        MpackTokenType::MpackTokenSint => {
+            *crate::globals::gptr(result) = Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(mpack_unpack_sint(tok)),
-            };
-        },
-        MpackTokenType::MpackTokenUint => unsafe {
-            *result = Object {
+            }
+        }
+        MpackTokenType::MpackTokenUint => {
+            *crate::globals::gptr(result) = Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(mpack_unpack_uint(tok) as Integer),
-            };
-        },
-        MpackTokenType::MpackTokenFloat => unsafe {
-            *result = Object {
+            }
+        }
+        MpackTokenType::MpackTokenFloat => {
+            *crate::globals::gptr(result) = Object {
                 obj_type: ObjectType::ObjectTypeFloat,
                 data: ObjectData::Floating(mpack_unpack_float_fast(tok)),
-            };
-        },
+            }
+        }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
             let len = tok.length as usize;
             let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<u8>();
-            unsafe {
-                *mem.wrapping_add(len) = 0;
-            }
-            let s = unsafe { NvimString::from_bytes(std::slice::from_raw_parts(mem, len)) };
+
+            *crate::globals::gptr(mem.wrapping_add(len)) = 0;
+
+            let s = NvimString::from_bytes(unsafe { std::slice::from_raw_parts(mem, len) });
             if !key_location.is_null() {
-                unsafe {
-                    *key_location = s;
-                }
+                *crate::globals::gptr(key_location) = s;
             } else {
-                unsafe {
-                    *result = Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(s),
-                    };
-                }
+                *crate::globals::gptr(result) = Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(s),
+                };
             }
             node.data[0] = crate::mpack::object::MpackData::Bytes(mem);
         }
@@ -204,22 +198,22 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
         MpackTokenType::MpackTokenChunk => {
             assert!(!parent.is_null());
             let chunk_len = tok.length as usize;
-            if unsafe { (*parent).tok.r#type == MpackTokenType::MpackTokenStr }
-                || unsafe { (*parent).tok.r#type == MpackTokenType::MpackTokenBin }
+            if crate::globals::gptr(parent).tok.r#type == MpackTokenType::MpackTokenStr
+                || crate::globals::gptr(parent).tok.r#type == MpackTokenType::MpackTokenBin
             {
-                let data = unsafe { (*parent).data[0].bytes() };
+                let data = crate::globals::gptr(parent).data[0].bytes();
                 if chunk_len > 0 {
                     unsafe {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
-                            data.wrapping_add((*parent).pos),
+                            data.wrapping_add(crate::globals::gptr(parent).pos),
                             chunk_len,
-                        );
-                    }
+                        )
+                    };
                 }
             } else {
-                let res = unsafe { (*parent).data[0].object() };
-                let endlen = unsafe { (*parent).pos + chunk_len };
+                let res = crate::globals::gptr(parent).data[0].object();
+                let endlen = crate::globals::gptr(parent).pos + chunk_len;
                 if endlen > MAX_EXT_LEN {
                     *res = nil_obj();
                     return;
@@ -231,23 +225,23 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                             p.ext_buf
                                 .as_mut_ptr()
                                 .cast::<u8>()
-                                .wrapping_add((*parent).pos),
+                                .wrapping_add(crate::globals::gptr(parent).pos),
                             chunk_len,
-                        );
-                    }
+                        )
+                    };
                 }
-                if unsafe { endlen < ((*parent).tok.length as usize) } {
+                if endlen < (crate::globals::gptr(parent).tok.length as usize) {
                     return;
                 }
                 let mut buf: *const u8 = p.ext_buf.as_ptr();
-                let mut size = unsafe { (*parent).tok.length as usize };
+                let mut size = crate::globals::gptr(parent).tok.length as usize;
                 let mut ext_tok = MpackToken::new();
                 let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
                 if status != 0 || ext_tok.r#type != MpackTokenType::MpackTokenUint {
                     *res = nil_obj();
                     return;
                 }
-                let ext_type = unsafe { (*parent).tok.data.ext_type() };
+                let ext_type = crate::globals::gptr(parent).tok.data.ext_type();
                 if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
                     && let Some(obj_type) = ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
                 {
@@ -262,16 +256,16 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             let len = tok.length as usize;
             let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
                 .cast::<Object>();
-            unsafe {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(Array {
-                        size: len,
-                        capacity: len,
-                        items,
-                    }),
-                };
-            }
+
+            *crate::globals::gptr(result) = Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(Array {
+                    size: len,
+                    capacity: len,
+                    items,
+                }),
+            };
+
             node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
         MpackTokenType::MpackTokenMap => {
@@ -282,16 +276,16 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 true,
             )
             .cast::<KeyValuePair>();
-            unsafe {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(Dict {
-                        size: len,
-                        capacity: len,
-                        items,
-                    }),
-                };
-            }
+
+            *crate::globals::gptr(result) = Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(Dict {
+                    size: len,
+                    capacity: len,
+                    items,
+                }),
+            };
+
             node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
         MpackTokenType::MpackTokenNone => std::process::abort(),
@@ -1005,28 +999,31 @@ pub fn unpack_keydict(
 
         assert!(field.opt_index >= 0);
         let flag = 1u64 << (field.opt_index as u32);
-        if unsafe { ((*ks).is_set_ & flag) != 0 } {
+        if (crate::globals::gptr(ks).is_set_ & flag) != 0 {
             *error = Some(c"duplicate key".to_owned());
             return false;
         }
-        unsafe {
-            (*ks).is_set_ |= flag;
-        }
+
+        crate::globals::gptr(ks).is_set_ |= flag;
 
         let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
         if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
-            let cur_byte = if *size > 0 { unsafe { **data } } else { 0 };
+            let cur_byte = if *size > 0 {
+                *crate::globals::gptr(*data)
+            } else {
+                0
+            };
             if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
                 *error = alloc_key_error(key, b" key value which is not a boolean");
                 return false;
             }
-            unsafe {
-                *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
-            }
+
+            *crate::globals::gptr(mem.cast::<Boolean>()) = (cur_byte & 0x01) != 0;
+
             *data = (*data).wrapping_add(1);
             *size -= 1;
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            if unsafe { !unpack_integer(data, size, &mut *mem.cast::<Integer>()) } {
+            if !unpack_integer(data, size, crate::globals::gmut(mem.cast::<Integer>())) {
                 *error = alloc_key_error(key, b" key value which is not an integer");
                 return false;
             }
@@ -1036,16 +1033,15 @@ pub fn unpack_keydict(
                 *error = alloc_key_error(key, b" key value which is not a binary");
                 return false;
             }
-            unsafe {
-                *mem.cast::<NvimString>() = val;
-            }
+
+            *crate::globals::gptr(mem.cast::<NvimString>()) = val;
         } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
             let len = unpack_array(data, size);
             if len < 0 {
                 *error = alloc_key_error(key, b" key with non-array value");
                 return false;
             }
-            let a = unsafe { &mut *mem.cast::<StringArray>() };
+            let a = crate::globals::gmut(mem.cast::<StringArray>());
             a.reserve(len as usize);
             for _ in 0..(len as usize) {
                 let item = unpack_string(data, size);

@@ -1312,7 +1312,7 @@ static AU_STATE: GlobalState<AutocmdState> = GlobalState::new(AutocmdState::new(
 
 #[inline]
 fn au_st() -> &'static mut AutocmdState {
-    unsafe { &mut *AU_STATE.as_ptr() }
+    crate::globals::gmut(AU_STATE.as_ptr())
 }
 
 fn map_put_name_to_id(name: impl crate::strings::IntoCCharPtr, val: i32) {
@@ -1536,9 +1536,9 @@ fn au_show_for_all_events(group: i32, pat: impl crate::strings::IntoCCharPtr) {
 
 fn au_show_for_event(group: i32, event: AuEvent, pat: impl crate::strings::IntoCCharPtr) {
     let pat_in = pat.into_c_char_ptr();
-    unsafe {
+    {
         let acs = &raw mut au_st().autocmds[event as usize];
-        if (*acs).is_empty() {
+        if crate::globals::gptr(acs).is_empty() {
             return;
         }
 
@@ -1570,7 +1570,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat: impl crate::strings::IntoC
                 pat_opt = Some(norm);
             }
 
-            for ac in &mut *acs {
+            for ac in crate::globals::gmut(acs) {
                 let Some(ref ap) = ac.pat else {
                     continue;
                 };
@@ -2062,9 +2062,8 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
                 cmd = cmd.wrapping_add(1);
             }
             if !crate::memory::cstr_is_empty(cmd) {
-                unsafe {
-                    *cmd = NUL;
-                }
+                *crate::globals::gptr(cmd) = NUL;
+
                 cmd = cmd.wrapping_add(1);
             }
 
@@ -2554,7 +2553,7 @@ pub fn aucmd_defer(
         });
 
         multiqueue_put_event(
-            unsafe { &mut *g_st().deferred_events },
+            crate::globals::gmut(g_st().deferred_events),
             Event::AutoCmdDeferred(evdata),
         );
     }
@@ -2578,9 +2577,9 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
     if !buf.is_null() {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
-        if !data.is_null() && unsafe { (*data).obj_type == ObjectType::ObjectTypeDict } {
-            for i in unsafe { 0..(*data).data.dict().size } {
-                let item = unsafe { (*data).data.dict()[i] };
+        if !data.is_null() && crate::globals::gptr(data).obj_type == ObjectType::ObjectTypeDict {
+            for i in 0..crate::globals::gptr(data).data.dict().size {
+                let item = crate::globals::gptr(data).data.dict()[i];
                 let mut tv: TypVal = TypVal::new();
                 object_to_vim(item.value, &mut tv, &mut err);
                 if err.err_type != ErrorType::ErrorTypeNone {
@@ -2596,20 +2595,20 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
         let win = curwin_ptr();
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-        unsafe {
-            apply_autocmds_group(
-                event,
-                fname,
-                fname_io,
-                false,
-                group,
-                buf,
-                win.as_ref(),
-                None,
-                data,
-                false,
-            );
-        }
+
+        apply_autocmds_group(
+            event,
+            fname,
+            fname_io,
+            false,
+            group,
+            buf,
+            crate::globals::gopt(win),
+            None,
+            data,
+            false,
+        );
+
         ctx_restore(&mut aco);
 
         restore_v_event(&mut *v_event, &mut save_v_event);
@@ -2638,7 +2637,7 @@ pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
         return;
     }
     multiqueue_put_event(
-        unsafe { &mut *g_st().deferred_events },
+        crate::globals::gmut(g_st().deferred_events),
         Event::AutoCmdOptionSetModified {
             bufnr: buf.b_fnum,
             new_val,
@@ -2797,7 +2796,7 @@ pub fn apply_autocmds_group(
 ) -> bool {
     let mut fname = fname.into_c_char_ptr();
     let fname_io = fname_io.into_c_char_ptr();
-    unsafe {
+    {
         let mut retval = false;
         let mut wait_time: Proftime = 0;
         let mut did_save_redobuff = false;
@@ -2833,7 +2832,7 @@ pub fn apply_autocmds_group(
                 win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw);
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
-                && (*buf).b_nwindows > 0
+                && crate::globals::gptr(buf).b_nwindows > 0
             {
                 win_ignore = true;
                 for tp in for_all_tabpages_ptr() {
@@ -2878,10 +2877,12 @@ pub fn apply_autocmds_group(
                     || event == EVENT_MARKSET
                 {
                     ptr::null_mut()
-                } else if !fname.is_null() && ends_excmd(i32::from(*fname.cast::<u8>())) == 0 {
+                } else if !fname.is_null()
+                    && ends_excmd(i32::from(*crate::globals::gptr(fname.cast::<u8>()))) == 0
+                {
                     fname
                 } else if !buf.is_null() {
-                    (*buf).b_ffname
+                    crate::globals::gptr(buf).b_ffname
                 } else {
                     ptr::null_mut()
                 }
@@ -2898,21 +2899,27 @@ pub fn apply_autocmds_group(
             };
             g_st().autocmd_fname_full = false;
 
-            g_st().autocmd_bufnr = if buf.is_null() { 0 } else { (*buf).b_fnum };
+            g_st().autocmd_bufnr = if buf.is_null() {
+                0
+            } else {
+                crate::globals::gptr(buf).b_fnum
+            };
 
             let mut sfname_owned: Option<CString> = None;
             let fname_owned: Option<CString> = if crate::memory::cstr_is_empty(fname) {
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
-                    fname = (*buf).b_p_syn;
+                    fname = crate::globals::gptr(buf).b_p_syn;
                 } else if event == EVENT_FILETYPE {
-                    fname = (*buf).b_p_ft;
+                    fname = crate::globals::gptr(buf).b_p_ft;
                 } else {
-                    if !(*buf).b_sfname.is_null() {
-                        sfname_owned = Some(crate::memory::cstr_to_cstring((*buf).b_sfname));
+                    if !crate::globals::gptr(buf).b_sfname.is_null() {
+                        sfname_owned = Some(crate::memory::cstr_to_cstring(
+                            crate::globals::gptr(buf).b_sfname,
+                        ));
                     }
-                    fname = (*buf).b_ffname;
+                    fname = crate::globals::gptr(buf).b_ffname;
                 }
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
@@ -3037,7 +3044,7 @@ pub fn apply_autocmds_group(
 
             if patcmd.lastpat.is_some() {
                 au_st().active_apc_list.push(patcmd.arg_bufnr.clone());
-                patcmd.data = (!data.is_null()).then(|| *data);
+                patcmd.data = (!data.is_null()).then(|| *crate::globals::gptr(data));
 
                 let save_cmdbang = get_vim_var_nr(VV_CMDBANG);
                 let save_cmdarg = if let Some(eap) = eap {
@@ -3128,7 +3135,7 @@ pub fn apply_autocmds_group(
         }
 
         if event == EVENT_BUFWIPEOUT && !buf.is_null() {
-            aubuflocal_remove(&mut *buf);
+            aubuflocal_remove(crate::globals::gmut(buf));
         }
 
         if retval && event == EVENT_FILETYPE {
@@ -3369,7 +3376,7 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
 }
 
 pub fn getnextac(_c: i32, apc: *mut AutoPatCmd, _indent: i32, _do_concat: bool) -> Option<CString> {
-    let apc = unsafe { &mut *apc };
+    let apc = crate::globals::gmut(apc);
     let acs = &mut au_st().autocmds[apc.event as usize];
     aucmd_next(apc);
     apc.lastpat.as_ref()?;
@@ -3511,7 +3518,7 @@ pub fn aucmd_set_expand_context<T>(xp: &mut ExpandCtx, mut arg: *mut T, doautocm
 
     if crate::memory::cstr_is_empty(arg.cast())
         && group != AUGROUP_ALL
-        && !ascii_iswhite(unsafe { *arg.cast::<u8>().wrapping_sub(1) } as i32)
+        && !ascii_iswhite((*crate::globals::gptr(arg.cast::<u8>().wrapping_sub(1))) as i32)
     {
         arg = p;
         group = AUGROUP_ALL;
@@ -3847,7 +3854,7 @@ pub fn may_trigger_vim_suspend_resume(suspend: bool) {
     } else if !suspend && au_st().pending_vimresume == K_TRUE {
         au_st().pending_vimresume = K_NONE;
         let events = loop_queues(&mut g_st().main_loop).events;
-        multiqueue_put_event(unsafe { &mut *events }, Event::AutoCmdVimResume);
+        multiqueue_put_event(crate::globals::gmut(events), Event::AutoCmdVimResume);
     }
 }
 

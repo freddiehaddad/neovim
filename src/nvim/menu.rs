@@ -192,7 +192,7 @@ static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleSta
 
 #[inline]
 fn menu_st() -> &'static mut MenuModuleState {
-    unsafe { &mut *MENU_STATE.as_ptr() }
+    crate::globals::gmut(MENU_STATE.as_ptr())
 }
 
 use crate::eval::typval::tv_dict_len;
@@ -458,7 +458,7 @@ fn add_menu_path(
 
     let cleanup_erret = |ancestor_stack: &[(*mut Vec<Vimmenu>, usize)]| -> bool {
         for &(mp, idx) in ancestor_stack.iter().rev() {
-            let mp_ref = unsafe { &mut *mp };
+            let mp_ref = crate::globals::gmut(mp);
             if mp_ref[idx].children.is_empty() {
                 mp_ref.remove(idx);
             } else {
@@ -486,7 +486,7 @@ fn add_menu_path(
 
         let mut lower_pri_idx: usize = 0;
         let mut found_idx: Option<usize> = None;
-        let menup_vec = unsafe { &mut *menup };
+        let menup_vec = crate::globals::gmut(menup);
         for (idx, m) in menup_vec.iter_mut().enumerate() {
             if menu_name_equal(name.cast(), m) || menu_name_equal(dname.as_ptr(), m) {
                 if crate::memory::cstr_is_empty(next_name.cast()) && !m.children.is_empty() {
@@ -1031,7 +1031,7 @@ pub fn set_context_in_menu_cmd(
 ) {
     let cmd = cmd.into_c_char_ptr();
     let mut arg = arg.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut path_name: *mut u8 = ptr::null_mut();
         let mut unmenu = false;
 
@@ -1107,12 +1107,12 @@ pub fn set_context_in_menu_cmd(
                 path_name = path_name_vec.as_mut_ptr();
             }
             let mut name = path_name;
-            while !name.is_null() && *name != 0 {
+            while !name.is_null() && *crate::globals::gptr(name) != 0 {
                 let next_p = menu_name_skip(name);
                 let mut found: *const Vimmenu = ptr::null();
-                for menu in &*menu_list {
+                for menu in crate::globals::gref(menu_list) {
                     if menu_name_equal(name.cast(), menu) {
-                        if (*next_p != 0 && menu.children.is_empty())
+                        if (*crate::globals::gptr(next_p) != 0 && menu.children.is_empty())
                             || (menu.modes & menu_st().expand_modes) == 0
                         {
                             return;
@@ -1125,7 +1125,7 @@ pub fn set_context_in_menu_cmd(
                     return;
                 }
                 name = next_p;
-                menu_list = &raw const (*found).children;
+                menu_list = &raw const crate::globals::gptr(found).children;
             }
 
             xp.xp_context = if expand_menus {
@@ -1151,7 +1151,7 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = unsafe { (*menu_st().expand_menu).as_slice() };
+    let menus = crate::globals::gref(menu_st().expand_menu).as_slice();
 
     while menu_st().get_menu_name_idx < menus.len() {
         let menu = &menus[menu_st().get_menu_name_idx];
@@ -1200,7 +1200,7 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = unsafe { (*menu_st().expand_menu).as_slice() };
+    let menus = crate::globals::gref(menu_st().expand_menu).as_slice();
 
     while menu_st().get_menu_names_idx < menus.len() && {
         let dname = menus[menu_st().get_menu_names_idx]
@@ -1243,11 +1243,8 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
                 menu_st().get_menu_names_tbuffer[tlen] = 1;
                 menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
             }
-            unsafe {
-                Some(CStr::from_ptr(
-                    (&raw const menu_st().get_menu_names_tbuffer[0]).cast(),
-                ))
-            }
+
+            Some(unsafe { CStr::from_ptr((&raw const menu_st().get_menu_names_tbuffer[0]).cast()) })
         } else if menu_st().get_menu_names_advance {
             menu.en_dname.as_deref()
         } else {
@@ -1801,9 +1798,9 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         let from_arg = arg;
         arg = menu_skip_part(arg);
         let to_arg = skipwhite(arg.cast()).cast::<u8>();
-        unsafe {
-            *arg = 0;
-        }
+
+        *crate::globals::gptr(arg) = 0;
+
         arg = menu_skip_part(to_arg);
         if arg == to_arg {
             emsg(gettext(E_INVARG));

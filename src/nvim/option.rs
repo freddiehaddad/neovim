@@ -550,7 +550,7 @@ static OPT_STATE: GlobalState<OptionModuleState> = GlobalState::new(OptionModule
 
 #[inline]
 fn opt_st() -> &'static mut OptionModuleState {
-    unsafe { &mut *OPT_STATE.as_ptr() }
+    crate::globals::gmut(OPT_STATE.as_ptr())
 }
 
 const P_BIN_DEP_OPTS: &[i32] = &[
@@ -850,7 +850,7 @@ fn set_init_expand_env() {
         }
         let mut p: Option<&CStr> = None;
         if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-            let var_ptr = unsafe { *(opt.var.cast::<*const u8>()) };
+            let var_ptr = *crate::globals::gptr(opt.var.cast::<*const u8>());
             if !var_ptr.is_null() {
                 p = Some(tr(var_ptr.cast()));
             }
@@ -1066,7 +1066,7 @@ pub fn free_all_options() {
             && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
         {
             if is_callback_option(opt_idx) {
-                callback_free(unsafe { &mut *opt.var.cast::<Callback>() });
+                callback_free(crate::globals::gmut(opt.var.cast::<Callback>()));
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                 crate::optionstr::clear_string_option(opt.var.cast::<*mut u8>());
             }
@@ -1512,7 +1512,7 @@ fn stropt_get_newval<T>(
 ) -> std::ffi::CString {
     let origval = origval.into_c_char_ptr();
     {
-        let mut arg = unsafe { (*argp).cast::<u8>() };
+        let mut arg = crate::globals::gptr(argp).cast::<u8>();
         let mut op = *op_arg;
         let mut save_arg: *mut u8 = ptr::null_mut();
         let flags = get_option(opt_idx).flags;
@@ -1571,9 +1571,9 @@ fn stropt_get_newval<T>(
         if !save_arg.is_null() {
             arg = save_arg;
         }
-        unsafe {
-            *argp = arg.cast();
-        }
+
+        *crate::globals::gptr(argp) = arg.cast();
+
         *op_arg = op;
 
         crate::memory::cstring_until_nul(&newval_vec)
@@ -1717,7 +1717,7 @@ pub fn get_option_newval<T>(
     assert!(!varp.is_null());
 
     let opt = get_option(opt_idx);
-    let mut arg: *const u8 = unsafe { (*argp).cast_const().cast() };
+    let mut arg: *const u8 = crate::globals::gptr(argp).cast_const().cast();
     let mut newval = nil_obj();
 
     if nextchar == b'&' as i32 {
@@ -1758,7 +1758,7 @@ pub fn get_option_newval<T>(
                     K_TRUE
                 }
             } else if prefix == PREFIX_INV {
-                unsafe { *(varp.cast::<i32>()) ^ 1 }
+                *crate::globals::gptr(varp.cast::<i32>()) ^ 1
             } else if prefix == PREFIX_NO {
                 0
             } else {
@@ -2178,7 +2178,7 @@ fn option_expand(
         }
 
         if val.is_null() {
-            val = unsafe { *(opt.var.cast::<*const u8>()).cast() };
+            val = *crate::globals::gptr((opt.var.cast::<*const u8>()).cast());
         }
 
         if val.is_null() || crate::memory::cstr_len(val) > MAXPATHL {
@@ -2303,7 +2303,7 @@ pub fn insecure_flag(
 ) -> &'static mut u32 {
     if (opt_flags & OPT_LOCAL) != 0 {
         let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = unsafe { &mut *wp };
+        let wp = crate::globals::gmut(wp);
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
             K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
@@ -2318,7 +2318,7 @@ pub fn insecure_flag(
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
         let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = unsafe { &mut *wp };
+        let wp = crate::globals::gmut(wp);
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_allbuf_opt.wo_wrap_flags,
             K_OPT_FOLDEXPR => return &mut wp.w_allbuf_opt.wo_fde_flags,
@@ -2389,9 +2389,8 @@ pub fn parse_winhl_opt(
                 }) as i32;
             } else {
                 let dp = get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true);
-                unsafe {
-                    (*dp).hl_valid += 1;
-                }
+
+                crate::globals::gptr(dp).hl_valid += 1;
             }
             ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
             if wp.as_deref_mut().unwrap().w_ns_hl <= 0 {
@@ -3005,7 +3004,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     } else {
         win_find_tabpage(win)
     };
-    for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
+    for wp in for_all_windows_in_tab_ptr(crate::globals::gref(tab)) {
         if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
@@ -3281,9 +3280,9 @@ pub fn did_set_xhistory(args: &mut Optset) -> Option<&CStr> {
     };
 
     if is_p_chi {
-        qf_resize_stack(unsafe { *arg } as i32);
+        qf_resize_stack((*crate::globals::gptr(arg)) as i32);
     } else {
-        ll_resize_stack(args.win_mut(), unsafe { *arg } as i32);
+        ll_resize_stack(args.win_mut(), (*crate::globals::gptr(arg)) as i32);
     }
 
     None
@@ -4096,7 +4095,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
 /// Return information for option at `opt_idx` (`get_option`).
 pub fn get_option(opt_idx: OptIndex) -> &'static mut Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    unsafe { &mut (*OPTIONS.as_ptr())[opt_idx as usize] }
+    &mut (*crate::globals::gmut(OPTIONS.as_ptr()))[opt_idx as usize]
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -5011,19 +5010,17 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
     }
 
     if is_callback_option(opt_idx) {
-        return opt_from_callback(unsafe { &mut *varp.cast::<Callback>() });
+        return opt_from_callback(crate::globals::gmut(varp.cast::<Callback>()));
     }
 
     match opt.opt_type {
-        ObjectType::ObjectTypeBoolean => {
-            opt_from_tristate(tristate_from_int(OptInt::from(unsafe {
-                *(varp.cast::<i32>())
-            })))
-        }
-        ObjectType::ObjectTypeInteger => integer_obj(unsafe { *(varp.cast::<OptInt>()) }),
-        ObjectType::ObjectTypeString => string_obj(cstr_as_string(unsafe {
-            *(varp.cast::<*mut u8>()).cast::<*mut _>()
-        })),
+        ObjectType::ObjectTypeBoolean => opt_from_tristate(tristate_from_int(OptInt::from(
+            *crate::globals::gptr(varp.cast::<i32>()),
+        ))),
+        ObjectType::ObjectTypeInteger => integer_obj(*crate::globals::gptr(varp.cast::<OptInt>())),
+        ObjectType::ObjectTypeString => string_obj(cstr_as_string(*crate::globals::gptr(
+            (varp.cast::<*mut u8>()).cast::<*mut _>(),
+        ))),
         _ => std::process::abort(),
     }
 }
@@ -5037,10 +5034,10 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
 
     if is_callback_option(opt_idx) {
         let cb = varp.cast::<Callback>();
-        callback_free(unsafe { &mut *cb });
-        unsafe {
-            *cb = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
-        }
+        callback_free(crate::globals::gmut(cb));
+
+        *crate::globals::gptr(cb) = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
+
         return;
     }
 
@@ -5048,49 +5045,40 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
         ObjectType::ObjectTypeUnset => {
             assert!(option_is_global_local(opt_idx));
             if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                unsafe {
-                    *(varp.cast::<i32>()) = K_NONE;
-                }
+                *crate::globals::gptr(varp.cast::<i32>()) = K_NONE;
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                 let pp = varp.cast::<*mut u8>();
-                free_string_option(unsafe { *pp });
-                unsafe {
-                    *pp = EMPTY_STRING_OPTION.as_ptr().cast();
-                }
+                free_string_option(*crate::globals::gptr(pp));
+
+                *crate::globals::gptr(pp) = EMPTY_STRING_OPTION.as_ptr().cast();
             } else if opt_idx == K_OPT_UNDOLEVELS {
-                unsafe {
-                    *(varp.cast::<OptInt>()) = NO_LOCAL_UNDOLEVEL;
-                }
+                *crate::globals::gptr(varp.cast::<OptInt>()) = NO_LOCAL_UNDOLEVEL;
             } else {
                 assert!(
                     opt_idx == K_OPT_SCROLLOFF
                         || opt_idx == K_OPT_SCROLLOFFPAD
                         || opt_idx == K_OPT_SIDESCROLLOFF
                 );
-                unsafe {
-                    *(varp.cast::<OptInt>()) = -1;
-                }
+
+                *crate::globals::gptr(varp.cast::<OptInt>()) = -1;
             }
         }
         ObjectType::ObjectTypeBoolean => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-            unsafe {
-                *(varp.cast::<i32>()) = i32::from(value.data.boolean());
-            }
+
+            *crate::globals::gptr(varp.cast::<i32>()) = i32::from(value.data.boolean());
         }
         ObjectType::ObjectTypeInteger => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
-            unsafe {
-                *(varp.cast::<OptInt>()) = value.data.integer();
-            }
+
+            *crate::globals::gptr(varp.cast::<OptInt>()) = value.data.integer();
         }
         ObjectType::ObjectTypeString => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
             let pp = varp.cast::<*mut u8>();
-            free_string_option(unsafe { *pp });
-            unsafe {
-                *pp = copy_option_val(value.data.string().data);
-            }
+            free_string_option(*crate::globals::gptr(pp));
+
+            *crate::globals::gptr(pp) = copy_option_val(value.data.string().data);
         }
         _ => std::process::abort(),
     }
@@ -5351,6 +5339,7 @@ fn did_set_option<'a>(
         errmsg = Some(E_SECURE);
     } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
         && !is_callback_option(opt_idx)
+        && (opt.flags & (K_OPT_FLAG_NFNAME | K_OPT_FLAG_NDNAME)) != 0
         && check_illegal_path_names(crate::memory::cstr_as_bytes(args.var_cstr_ptr()), opt.flags)
     {
         errmsg = Some(E_INVARG);
@@ -5961,9 +5950,9 @@ pub fn set_option_value_for(
             );
             return;
         }
-        unsafe {
-            (*tab).tp_ch_used = value.data.integer();
-        }
+
+        crate::globals::gptr(tab).tp_ch_used = value.data.integer();
+
         return;
     }
 
@@ -6114,7 +6103,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
         } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
             i32::from(curbuf_is_changed_fn())
         } else {
-            unsafe { *(varp.cast::<i32>()) }
+            *crate::globals::gptr(varp.cast::<i32>())
         };
         if val_int == 0 {
             msg_puts(c"no");
@@ -6197,9 +6186,12 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
 
                     let mut do_endif = false;
                     if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
-                        if fprintf!(fd, c"if &%s != '%s'", opt.fullname.as_ptr(), unsafe {
-                            *(varp.cast::<*mut u8>())
-                        },) < 0
+                        if fprintf!(
+                            fd,
+                            c"if &%s != '%s'",
+                            opt.fullname.as_ptr(),
+                            *crate::globals::gptr(varp.cast::<*mut u8>()),
+                        ) < 0
                             || !put_eol(fd)
                         {
                             return false;
@@ -6403,14 +6395,12 @@ pub fn get_varp_scope_from(
 
     if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
         if option_is_window_local(opt_idx) {
-            return unsafe {
-                get_varp_from(&mut *p, buf, win)
-                    .cast::<u8>()
-                    .wrapping_add(std::mem::size_of::<Winopt>())
-                    .cast::<c_void>()
-            };
+            return get_varp_from(crate::globals::gmut(p), buf, win)
+                .cast::<u8>()
+                .wrapping_add(std::mem::size_of::<Winopt>())
+                .cast::<c_void>();
         }
-        return unsafe { (*p).var };
+        return crate::globals::gptr(p).var;
     }
 
     if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
@@ -6429,9 +6419,9 @@ pub fn get_varp_scope_from(
             K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
             K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
             K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
-            K_OPT_SIDESCROLLOFF => unsafe { (&raw mut (*win).w_onebuf_opt.wo_siso).cast() },
-            K_OPT_SCROLLOFF => unsafe { (&raw mut (*win).w_onebuf_opt.wo_so).cast() },
-            K_OPT_SCROLLOFFPAD => unsafe { (&raw mut (*win).w_onebuf_opt.wo_sop).cast() },
+            K_OPT_SIDESCROLLOFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_siso).cast(),
+            K_OPT_SCROLLOFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_so).cast(),
+            K_OPT_SCROLLOFFPAD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sop).cast(),
             K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
             K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
             K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
@@ -6440,22 +6430,22 @@ pub fn get_varp_scope_from(
             K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
             K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
             K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-            K_OPT_SHOWBREAK => unsafe { (&raw mut (*win).w_onebuf_opt.wo_sbr).cast() },
-            K_OPT_STATUSLINE => unsafe { (&raw mut (*win).w_onebuf_opt.wo_stl).cast() },
-            K_OPT_WINBAR => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wbr).cast() },
+            K_OPT_SHOWBREAK => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sbr).cast(),
+            K_OPT_STATUSLINE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stl).cast(),
+            K_OPT_WINBAR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wbr).cast(),
             K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
             K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
             K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
             K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
-            K_OPT_FILLCHARS => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fcs).cast() },
-            K_OPT_LISTCHARS => unsafe { (&raw mut (*win).w_onebuf_opt.wo_lcs).cast() },
-            K_OPT_VIRTUALEDIT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_ve).cast() },
+            K_OPT_FILLCHARS => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fcs).cast(),
+            K_OPT_LISTCHARS => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lcs).cast(),
+            K_OPT_VIRTUALEDIT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_ve).cast(),
             _ => std::process::abort(),
         };
         return ptr;
     }
 
-    unsafe { get_varp_from(&mut *p, buf, win) }
+    get_varp_from(crate::globals::gmut(p), buf, win)
 }
 
 /// Get pointer to option variable, depending on local or global scope.
@@ -6531,22 +6521,22 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_SIDESCROLLOFF => {
-            if unsafe { (*win).w_onebuf_opt.wo_siso >= 0 } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_siso).cast() }
+            if crate::globals::gptr(win).w_onebuf_opt.wo_siso >= 0 {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_siso).cast()
             } else {
                 p.var
             }
         }
         K_OPT_SCROLLOFF => {
-            if unsafe { (*win).w_onebuf_opt.wo_so >= 0 } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_so).cast() }
+            if crate::globals::gptr(win).w_onebuf_opt.wo_so >= 0 {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_so).cast()
             } else {
                 p.var
             }
         }
         K_OPT_SCROLLOFFPAD => {
-            if unsafe { (*win).w_onebuf_opt.wo_sop >= 0 } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_sop).cast() }
+            if crate::globals::gptr(win).w_onebuf_opt.wo_sop >= 0 {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sop).cast()
             } else {
                 p.var
             }
@@ -6657,22 +6647,22 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_SHOWBREAK => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_sbr) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_sbr).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_sbr) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sbr).cast()
             } else {
                 p.var
             }
         }
         K_OPT_STATUSLINE => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_stl) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_stl).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_stl) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stl).cast()
             } else {
                 p.var
             }
         }
         K_OPT_WINBAR => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_wbr) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_wbr).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_wbr) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wbr).cast()
             } else {
                 p.var
             }
@@ -6699,67 +6689,67 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_FILLCHARS => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_fcs) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_fcs).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_fcs) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fcs).cast()
             } else {
                 p.var
             }
         }
         K_OPT_LISTCHARS => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_lcs) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_lcs).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_lcs) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lcs).cast()
             } else {
                 p.var
             }
         }
         K_OPT_VIRTUALEDIT => {
-            if unsafe { !crate::memory::cstr_is_empty((*win).w_onebuf_opt.wo_ve) } {
-                unsafe { (&raw mut (*win).w_onebuf_opt.wo_ve).cast() }
+            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_ve) {
+                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_ve).cast()
             } else {
                 p.var
             }
         }
 
-        K_OPT_ARABIC => unsafe { (&raw mut (*win).w_onebuf_opt.wo_arab).cast() },
-        K_OPT_LIST => unsafe { (&raw mut (*win).w_onebuf_opt.wo_list).cast() },
-        K_OPT_SPELL => unsafe { (&raw mut (*win).w_onebuf_opt.wo_spell).cast() },
-        K_OPT_CURSORCOLUMN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_cuc).cast() },
-        K_OPT_CURSORLINE => unsafe { (&raw mut (*win).w_onebuf_opt.wo_cul).cast() },
-        K_OPT_CURSORLINEOPT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_culopt).cast() },
-        K_OPT_COLORCOLUMN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_cc).cast() },
-        K_OPT_DIFF => unsafe { (&raw mut (*win).w_onebuf_opt.wo_diff).cast() },
-        K_OPT_EVENTIGNOREWIN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_eiw).cast() },
-        K_OPT_FOLDCOLUMN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdc).cast() },
-        K_OPT_FOLDENABLE => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fen).cast() },
-        K_OPT_FOLDIGNORE => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdi).cast() },
-        K_OPT_FOLDLEVEL => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdl).cast() },
-        K_OPT_FOLDMETHOD => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdm).cast() },
-        K_OPT_FOLDMINLINES => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fml).cast() },
-        K_OPT_FOLDNESTMAX => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdn).cast() },
-        K_OPT_FOLDEXPR => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fde).cast() },
-        K_OPT_FOLDTEXT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fdt).cast() },
-        K_OPT_FOLDMARKER => unsafe { (&raw mut (*win).w_onebuf_opt.wo_fmr).cast() },
-        K_OPT_NUMBER => unsafe { (&raw mut (*win).w_onebuf_opt.wo_nu).cast() },
-        K_OPT_RELATIVENUMBER => unsafe { (&raw mut (*win).w_onebuf_opt.wo_rnu).cast() },
-        K_OPT_NUMBERWIDTH => unsafe { (&raw mut (*win).w_onebuf_opt.wo_nuw).cast() },
-        K_OPT_WINFIXBUF => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wfb).cast() },
-        K_OPT_WINFIXHEIGHT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wfh).cast() },
-        K_OPT_WINFIXWIDTH => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wfw).cast() },
-        K_OPT_WINPINNED => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wp).cast() },
-        K_OPT_PREVIEWWINDOW => unsafe { (&raw mut (*win).w_onebuf_opt.wo_pvw).cast() },
-        K_OPT_LHISTORY => unsafe { (&raw mut (*win).w_onebuf_opt.wo_lhi).cast() },
-        K_OPT_RIGHTLEFT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_rl).cast() },
-        K_OPT_RIGHTLEFTCMD => unsafe { (&raw mut (*win).w_onebuf_opt.wo_rlc).cast() },
-        K_OPT_SCROLL => unsafe { (&raw mut (*win).w_onebuf_opt.wo_scr).cast() },
-        K_OPT_SMOOTHSCROLL => unsafe { (&raw mut (*win).w_onebuf_opt.wo_sms).cast() },
-        K_OPT_WRAP => unsafe { (&raw mut (*win).w_onebuf_opt.wo_wrap).cast() },
-        K_OPT_LINEBREAK => unsafe { (&raw mut (*win).w_onebuf_opt.wo_lbr).cast() },
-        K_OPT_BREAKINDENT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_bri).cast() },
-        K_OPT_BREAKINDENTOPT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_briopt).cast() },
-        K_OPT_SCROLLBIND => unsafe { (&raw mut (*win).w_onebuf_opt.wo_scb).cast() },
-        K_OPT_CURSORBIND => unsafe { (&raw mut (*win).w_onebuf_opt.wo_crb).cast() },
-        K_OPT_CONCEALCURSOR => unsafe { (&raw mut (*win).w_onebuf_opt.wo_cocu).cast() },
-        K_OPT_CONCEALLEVEL => unsafe { (&raw mut (*win).w_onebuf_opt.wo_cole).cast() },
+        K_OPT_ARABIC => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_arab).cast(),
+        K_OPT_LIST => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_list).cast(),
+        K_OPT_SPELL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_spell).cast(),
+        K_OPT_CURSORCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cuc).cast(),
+        K_OPT_CURSORLINE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cul).cast(),
+        K_OPT_CURSORLINEOPT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_culopt).cast(),
+        K_OPT_COLORCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cc).cast(),
+        K_OPT_DIFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_diff).cast(),
+        K_OPT_EVENTIGNOREWIN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_eiw).cast(),
+        K_OPT_FOLDCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdc).cast(),
+        K_OPT_FOLDENABLE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fen).cast(),
+        K_OPT_FOLDIGNORE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdi).cast(),
+        K_OPT_FOLDLEVEL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdl).cast(),
+        K_OPT_FOLDMETHOD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdm).cast(),
+        K_OPT_FOLDMINLINES => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fml).cast(),
+        K_OPT_FOLDNESTMAX => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdn).cast(),
+        K_OPT_FOLDEXPR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fde).cast(),
+        K_OPT_FOLDTEXT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdt).cast(),
+        K_OPT_FOLDMARKER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fmr).cast(),
+        K_OPT_NUMBER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_nu).cast(),
+        K_OPT_RELATIVENUMBER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rnu).cast(),
+        K_OPT_NUMBERWIDTH => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_nuw).cast(),
+        K_OPT_WINFIXBUF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfb).cast(),
+        K_OPT_WINFIXHEIGHT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfh).cast(),
+        K_OPT_WINFIXWIDTH => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfw).cast(),
+        K_OPT_WINPINNED => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wp).cast(),
+        K_OPT_PREVIEWWINDOW => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_pvw).cast(),
+        K_OPT_LHISTORY => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lhi).cast(),
+        K_OPT_RIGHTLEFT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rl).cast(),
+        K_OPT_RIGHTLEFTCMD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rlc).cast(),
+        K_OPT_SCROLL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scr).cast(),
+        K_OPT_SMOOTHSCROLL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sms).cast(),
+        K_OPT_WRAP => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wrap).cast(),
+        K_OPT_LINEBREAK => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lbr).cast(),
+        K_OPT_BREAKINDENT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_bri).cast(),
+        K_OPT_BREAKINDENTOPT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_briopt).cast(),
+        K_OPT_SCROLLBIND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scb).cast(),
+        K_OPT_CURSORBIND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_crb).cast(),
+        K_OPT_CONCEALCURSOR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cocu).cast(),
+        K_OPT_CONCEALLEVEL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cole).cast(),
 
         K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
         K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
@@ -6821,7 +6811,7 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             let ws = if win.is_null() {
                 &mut buf.b_s
             } else {
-                unsafe { (*win).w_s_ptr() }
+                crate::globals::gptr(win).w_s_ptr()
             };
             (&raw mut ws.b_p_spc).cast()
         }
@@ -6829,7 +6819,7 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             let ws = if win.is_null() {
                 &mut buf.b_s
             } else {
-                unsafe { (*win).w_s_ptr() }
+                crate::globals::gptr(win).w_s_ptr()
             };
             (&raw mut ws.b_p_spf).cast()
         }
@@ -6837,7 +6827,7 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             let ws = if win.is_null() {
                 &mut buf.b_s
             } else {
-                unsafe { (*win).w_s_ptr() }
+                crate::globals::gptr(win).w_s_ptr()
             };
             (&raw mut ws.b_p_spl).cast()
         }
@@ -6845,7 +6835,7 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             let ws = if win.is_null() {
                 &mut buf.b_s
             } else {
-                unsafe { (*win).w_s_ptr() }
+                crate::globals::gptr(win).w_s_ptr()
             };
             (&raw mut ws.b_p_spo).cast()
         }
@@ -6858,10 +6848,10 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
         K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
         K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
         K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
-        K_OPT_SIGNCOLUMN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_scl).cast() },
-        K_OPT_WINHIGHLIGHT => unsafe { (&raw mut (*win).w_onebuf_opt.wo_winhl).cast() },
-        K_OPT_WINBLEND => unsafe { (&raw mut (*win).w_onebuf_opt.wo_winbl).cast() },
-        K_OPT_STATUSCOLUMN => unsafe { (&raw mut (*win).w_onebuf_opt.wo_stc).cast() },
+        K_OPT_SIGNCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scl).cast(),
+        K_OPT_WINHIGHLIGHT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_winhl).cast(),
+        K_OPT_WINBLEND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_winbl).cast(),
+        K_OPT_STATUSCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stc).cast(),
         _ => {
             iemsg(tr(c"E356: get_varp ERROR"));
             (&raw mut buf.b_p_wm).cast()
@@ -7800,15 +7790,15 @@ pub fn expand_setting_subtract(
         return expand_old_setting(matches);
     }
 
-    let option_val = unsafe {
-        *(get_option_varp_scope_from(
+    let option_val = *crate::globals::gptr(
+        get_option_varp_scope_from(
             opt_st().expand_option_idx,
             opt_st().expand_option_flags,
             curbuf_mut(),
             curwin_ptr(),
         )
-        .cast::<*mut u8>())
-    };
+        .cast::<*mut u8>(),
+    );
 
     let option_flags = get_option(opt_st().expand_option_idx).flags;
 
@@ -7833,9 +7823,8 @@ pub fn expand_setting_subtract(
                 comma = vim_strchr(comma.wrapping_add(1).cast(), b',' as i32).cast::<u8>();
             }
             if !comma.is_null() {
-                unsafe {
-                    *comma = 0;
-                }
+                *crate::globals::gptr(comma) = 0;
+
                 next_val = comma.wrapping_add(1);
             } else {
                 next_val = ptr::null_mut();
@@ -7908,7 +7897,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     {
         home_replace(
             None,
-            unsafe { *(varp.cast::<*mut u8>()).cast::<*mut _>() },
+            *crate::globals::gptr((varp.cast::<*mut u8>()).cast::<*mut _>()),
             namebuf_ptr,
             MAXPATHL,
             false,
@@ -7924,7 +7913,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
 
 fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> i32 {
     if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
-        *wcp = unsafe { *p };
+        *wcp = *crate::globals::gptr(p);
         if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
             return 1;
         }
@@ -8184,12 +8173,9 @@ pub fn copy_option_part<T>(
     sep_chars: &std::ffi::CStr,
 ) -> usize {
     let mut len: usize = 0;
-    let (p_start, out) = unsafe {
-        (
-            (*option).cast::<u8>(),
-            std::slice::from_raw_parts_mut(buf, maxlen),
-        )
-    };
+    let (p_start, out) = (crate::globals::gptr(option).cast::<u8>(), unsafe {
+        std::slice::from_raw_parts_mut(buf, maxlen)
+    });
     let p_bytes = crate::memory::cstr_as_bytes(p_start.cast());
     let mut rem = p_bytes;
     let sep = sep_chars.to_bytes();
@@ -8224,9 +8210,8 @@ pub fn copy_option_part<T>(
     }
     rem = skip_to_option_part_slice(rem);
 
-    unsafe {
-        *option = p_start.wrapping_add(p_bytes.len() - rem.len()).cast();
-    }
+    *crate::globals::gptr(option) = p_start.wrapping_add(p_bytes.len() - rem.len()).cast();
+
     len
 }
 
@@ -8348,7 +8333,7 @@ pub fn get_option_info(
     option_info_dict(
         &mut *get_option(opt_idx),
         opt_flags,
-        unsafe { &mut *buf },
+        crate::globals::gmut(buf),
         win,
         arena,
     )

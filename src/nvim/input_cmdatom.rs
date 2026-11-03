@@ -101,7 +101,7 @@ impl Cmdarg {
 
     #[inline]
     pub fn oap_mut(&self) -> &'static mut Oparg {
-        unsafe { &mut *self.oap }
+        crate::globals::gmut(self.oap)
     }
 }
 
@@ -402,7 +402,7 @@ static ATOM_STATE: GlobalState<CmdAtomModuleState> = GlobalState::new(CmdAtomMod
 
 #[inline]
 pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
-    unsafe { &mut *ATOM_STATE.as_ptr() }
+    crate::globals::gmut(ATOM_STATE.as_ptr())
 }
 
 #[inline]
@@ -500,7 +500,7 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
         && win_valid(origin.win)
-        && (unsafe { origin.win.as_ref() })
+        && crate::globals::gopt(origin.win)
             .is_some_and(|w| w.w_buffer == origin.buf.br_buf && !equalpos(origin.pos, w.w_cursor))
 }
 
@@ -747,7 +747,7 @@ fn atom_emit(atom: &CmdAtom) {
         TYPE_NAMES[atom.r#type as usize].as_ptr().cast_mut(),
         ptr::null_mut(),
         AUGROUP_ALL,
-        unsafe { &mut *buf },
+        crate::globals::gmut(buf),
         Some(&mut obj),
     );
     api_free_dict(data);

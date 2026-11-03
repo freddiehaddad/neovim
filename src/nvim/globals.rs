@@ -1077,9 +1077,9 @@ impl<T> GraphPtr<T> {
 }
 
 #[repr(transparent)]
-pub struct DerefPtr<T>(pub *mut T);
+pub struct DerefPtr<T: ?Sized>(pub *mut T);
 
-impl<T> std::ops::Deref for DerefPtr<T> {
+impl<T: ?Sized> std::ops::Deref for DerefPtr<T> {
     type Target = T;
 
     #[inline]
@@ -1089,7 +1089,7 @@ impl<T> std::ops::Deref for DerefPtr<T> {
     }
 }
 
-impl<T> std::ops::DerefMut for DerefPtr<T> {
+impl<T: ?Sized> std::ops::DerefMut for DerefPtr<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut T {
         debug_assert!(!self.0.is_null());
@@ -1098,9 +1098,9 @@ impl<T> std::ops::DerefMut for DerefPtr<T> {
 }
 
 #[repr(transparent)]
-pub struct DerefRef<T>(pub *const T);
+pub struct DerefRef<T: ?Sized>(pub *const T);
 
-impl<T> std::ops::Deref for DerefRef<T> {
+impl<T: ?Sized> std::ops::Deref for DerefRef<T> {
     type Target = T;
 
     #[inline]
@@ -1115,7 +1115,7 @@ pub trait IntoGraphPtr {
     fn into_gptr(self) -> Self::Handle;
 }
 
-impl<T> IntoGraphPtr for *mut T {
+impl<T: ?Sized> IntoGraphPtr for *mut T {
     type Handle = DerefPtr<T>;
 
     #[inline]
@@ -1124,7 +1124,7 @@ impl<T> IntoGraphPtr for *mut T {
     }
 }
 
-impl<T> IntoGraphPtr for *const T {
+impl<T: ?Sized> IntoGraphPtr for *const T {
     type Handle = DerefRef<T>;
 
     #[inline]
@@ -1133,7 +1133,7 @@ impl<T> IntoGraphPtr for *const T {
     }
 }
 
-impl<T> IntoGraphPtr for &*mut T {
+impl<T: ?Sized> IntoGraphPtr for &*mut T {
     type Handle = DerefPtr<T>;
 
     #[inline]
@@ -1142,7 +1142,7 @@ impl<T> IntoGraphPtr for &*mut T {
     }
 }
 
-impl<T> IntoGraphPtr for &*const T {
+impl<T: ?Sized> IntoGraphPtr for &*const T {
     type Handle = DerefRef<T>;
 
     #[inline]
@@ -1157,55 +1157,55 @@ pub fn gptr<P: IntoGraphPtr>(p: P) -> P::Handle {
 }
 
 #[inline]
-pub fn gmut<'a, T>(p: *mut T) -> &'a mut T {
+pub fn gmut<'a, T: ?Sized>(p: *mut T) -> &'a mut T {
     debug_assert!(!p.is_null());
     unsafe { &mut *p }
 }
 
-pub trait IntoConstPtr<T> {
+pub trait IntoConstPtr<T: ?Sized> {
     fn into_const_ptr(self) -> *const T;
 }
 
-impl<T> IntoConstPtr<T> for *const T {
+impl<T: ?Sized> IntoConstPtr<T> for *const T {
     #[inline]
     fn into_const_ptr(self) -> *const T {
         self
     }
 }
 
-impl<T> IntoConstPtr<T> for *mut T {
+impl<T: ?Sized> IntoConstPtr<T> for *mut T {
     #[inline]
     fn into_const_ptr(self) -> *const T {
         self.cast_const()
     }
 }
 
-impl<T> IntoConstPtr<T> for &*const T {
+impl<T: ?Sized> IntoConstPtr<T> for &*const T {
     #[inline]
     fn into_const_ptr(self) -> *const T {
         *self
     }
 }
 
-impl<T> IntoConstPtr<T> for &*mut T {
+impl<T: ?Sized> IntoConstPtr<T> for &*mut T {
     #[inline]
     fn into_const_ptr(self) -> *const T {
         (*self).cast_const()
     }
 }
 
-pub trait IntoMutPtr<T> {
+pub trait IntoMutPtr<T: ?Sized> {
     fn into_mut_ptr(self) -> *mut T;
 }
 
-impl<T> IntoMutPtr<T> for *mut T {
+impl<T: ?Sized> IntoMutPtr<T> for *mut T {
     #[inline]
     fn into_mut_ptr(self) -> *mut T {
         self
     }
 }
 
-impl<T> IntoMutPtr<T> for &*mut T {
+impl<T: ?Sized> IntoMutPtr<T> for &*mut T {
     #[inline]
     fn into_mut_ptr(self) -> *mut T {
         *self
@@ -1213,19 +1213,19 @@ impl<T> IntoMutPtr<T> for &*mut T {
 }
 
 #[inline]
-pub fn gref<'a, T, P: IntoConstPtr<T>>(p: P) -> &'a T {
+pub fn gref<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> &'a T {
     let ptr = p.into_const_ptr();
     debug_assert!(!ptr.is_null());
     unsafe { &*ptr }
 }
 
 #[inline]
-pub fn gopt<'a, T, P: IntoConstPtr<T>>(p: P) -> Option<&'a T> {
+pub fn gopt<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> Option<&'a T> {
     unsafe { p.into_const_ptr().as_ref() }
 }
 
 #[inline]
-pub fn gopt_mut<'a, T, P: IntoMutPtr<T>>(p: P) -> Option<&'a mut T> {
+pub fn gopt_mut<'a, T: ?Sized, P: IntoMutPtr<T>>(p: P) -> Option<&'a mut T> {
     unsafe { p.into_mut_ptr().as_mut() }
 }
 

@@ -146,7 +146,7 @@ static PATH_STATE: crate::globals::GlobalState<PathModuleState> =
 
 #[inline]
 fn path_st() -> &'static mut PathModuleState {
-    unsafe { &mut *PATH_STATE.as_ptr() }
+    crate::globals::gmut(PATH_STATE.as_ptr())
 }
 
 #[cfg(windows)]
@@ -408,24 +408,21 @@ pub fn shorten_dir_len(str_: *mut u8, trim_len: i32) {
     let mut s = str_;
     loop {
         if s >= tail {
-            unsafe {
-                *d = *s;
-            }
+            *crate::globals::gptr(d) = *crate::globals::gptr(s);
+
             d = d.wrapping_add(1);
             if crate::memory::cstr_is_empty(s.cast()) {
                 break;
             }
         } else if vim_ispathsep(crate::memory::cstr_first_byte(s.cast())) {
-            unsafe {
-                *d = *s;
-            }
+            *crate::globals::gptr(d) = *crate::globals::gptr(s);
+
             d = d.wrapping_add(1);
             skip = false;
             dirchunk_len = 0;
         } else if !skip {
-            unsafe {
-                *d = *s;
-            }
+            *crate::globals::gptr(d) = *crate::globals::gptr(s);
+
             d = d.wrapping_add(1);
             if crate::memory::cstr_first_byte(s.cast()) != b'~'
                 && crate::memory::cstr_first_byte(s.cast()) != b'.'
@@ -441,9 +438,9 @@ pub fn shorten_dir_len(str_: *mut u8, trim_len: i32) {
                 l > 0
             } {
                 s = s.wrapping_add(1);
-                unsafe {
-                    *d = *s;
-                }
+
+                *crate::globals::gptr(d) = *crate::globals::gptr(s);
+
                 d = d.wrapping_add(1);
             }
         }
@@ -460,14 +457,14 @@ pub fn dir_of_file_exists(fname: *mut u8) -> bool {
     if p == fname {
         return true;
     }
-    let c = unsafe { *p };
-    unsafe {
-        *p = 0;
-    }
+    let c = *crate::globals::gptr(p);
+
+    *crate::globals::gptr(p) = 0;
+
     let retval = os_isdir(fname.cast());
-    unsafe {
-        *p = c;
-    }
+
+    *crate::globals::gptr(p) = c;
+
     retval
 }
 
@@ -621,9 +618,8 @@ fn do_path_expand(
 
         while !crate::memory::cstr_is_empty(path_end) {
             if path_end >= wild_start && rem_backslash(crate::memory::cstr_as_bytes(path_end)) {
-                unsafe {
-                    *p = *path_end;
-                }
+                *crate::globals::gptr(p) = *crate::globals::gptr(path_end);
+
                 p = p.wrapping_add(1);
                 path_end = path_end.wrapping_add(1);
             } else if vim_ispathsep_nocolon(crate::memory::cstr_first_byte(path_end)) {
@@ -652,9 +648,8 @@ fn do_path_expand(
             path_end = path_end.wrapping_add(charlen);
         }
         e = p;
-        unsafe {
-            *e = NUL;
-        }
+
+        *crate::globals::gptr(e) = NUL;
 
         p = buf.wrapping_add(wildoff);
         while p < s {
@@ -724,9 +719,8 @@ fn do_path_expand(
             do_path_expand(gap, buf, len, flags, true);
             path_st().stardepth -= 1;
         }
-        unsafe {
-            *s = NUL;
-        }
+
+        *crate::globals::gptr(s) = NUL;
 
         let mut dir = Directory::new();
         let dirpath = if crate::memory::cstr_is_empty(buf) {
@@ -888,9 +882,7 @@ fn expand_path_option(
                     continue;
                 }
                 if buf_bytes.len() == 1 {
-                    unsafe {
-                        *buf.wrapping_add(plen) = 0;
-                    }
+                    *crate::globals::gptr(buf.wrapping_add(plen)) = 0;
                 } else {
                     unsafe {
                         ptr::copy(
@@ -920,9 +912,9 @@ fn expand_path_option(
                 }
                 unsafe { ptr::copy(buf, buf.wrapping_add(curdirlen + 1), buflen + 1) };
                 unsafe { ptr::copy_nonoverlapping(curdir.cast::<u8>(), buf, curdirlen) };
-                unsafe {
-                    *buf.wrapping_add(curdirlen) = PATHSEP;
-                }
+
+                *crate::globals::gptr(buf.wrapping_add(curdirlen)) = PATHSEP;
+
                 buflen = simplify_filename(buf);
             }
 
@@ -1268,7 +1260,9 @@ pub fn gen_expand_wildcards_vec(
 
     #[cfg(unix)]
     for i in 0..num_pat {
-        let pi = unsafe { (*pat.wrapping_add(i as usize)).cast_const().cast() };
+        let pi = (*crate::globals::gptr(pat.wrapping_add(i as usize)))
+            .cast_const()
+            .cast();
         let pi_bytes = crate::memory::cstr_as_bytes(pi);
         if has_special_wildchar(pi_bytes, flags)
             && !(vim_backtick(pi_bytes) && pi_bytes.get(1) == Some(&b'='))
@@ -1284,7 +1278,7 @@ pub fn gen_expand_wildcards_vec(
             break;
         }
         let mut add_pat: i32 = -1;
-        let mut p: RawCCharPtrMut = unsafe { (*pat.wrapping_add(i as usize)).cast() };
+        let mut p: RawCCharPtrMut = crate::globals::gptr(pat.wrapping_add(i as usize)).cast();
         let mut p_owned: Option<std::ffi::CString> = None;
         let p_bytes = crate::memory::cstr_as_bytes(p);
 
@@ -1444,7 +1438,7 @@ fn expand_backtick(gap: &mut Vec<std::ffi::CString>, pat_bytes: &[u8], flags: i3
         if end > idx {
             let saved = cmd_buf[end];
             cmd_buf[end] = NUL as u8;
-            addfile(gap, unsafe { cmd_buf.as_mut_ptr().add(idx).cast() }, flags);
+            addfile(gap, cmd_buf.as_mut_ptr().wrapping_add(idx).cast(), flags);
             cmd_buf[end] = saved;
             cnt += 1;
         }
@@ -1594,9 +1588,9 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
     #[cfg(unix)]
     if start > filename.wrapping_add(2) {
         let move_len = crate::memory::ptr_offset_from(p_end, p) as usize + 1;
-        unsafe {
-            ptr::copy(p, filename.wrapping_add(1), move_len);
-        }
+
+        unsafe { ptr::copy(p, filename.wrapping_add(1), move_len) };
+
         p_end = p_end
             .wrapping_sub(crate::memory::ptr_offset_from(p, filename.wrapping_add(1)) as usize);
         p = filename.wrapping_add(1);
@@ -1606,9 +1600,9 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
     loop {
         if vim_ispathsep(crate::memory::cstr_first_byte(p.cast())) {
             let move_len = crate::memory::ptr_offset_from(p_end, p.wrapping_add(1)) as usize + 1;
-            unsafe {
-                ptr::copy(p.wrapping_add(1), p, move_len);
-            }
+
+            unsafe { ptr::copy(p.wrapping_add(1), p, move_len) };
+
             p_end = p_end.wrapping_sub(1);
         } else if crate::memory::cstr_first_byte(p.cast()) == b'.'
             && crate::memory::cstr_as_bytes(p.cast())
@@ -1626,9 +1620,9 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                     p = p.wrapping_sub(1);
                 }
                 let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                unsafe {
-                    ptr::copy(tail, p, move_len);
-                }
+
+                unsafe { ptr::copy(tail, p, move_len) };
+
                 p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
             }
         } else if crate::memory::cstr_as_bytes(p.cast()).starts_with(b"..")
@@ -1642,17 +1636,16 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                 let mut do_strip = false;
 
                 if !stripping_disabled {
-                    let saved_char = unsafe { *p.wrapping_sub(1) };
-                    unsafe {
-                        *p.wrapping_sub(1) = 0;
-                    }
+                    let saved_char = *crate::globals::gptr(p.wrapping_sub(1));
+
+                    *crate::globals::gptr(p.wrapping_sub(1)) = 0;
+
                     let mut file_info: FileInfo = FileInfo::new();
                     if !os_fileinfo_link(filename.cast(), &mut file_info) {
                         do_strip = true;
                     }
-                    unsafe {
-                        *p.wrapping_sub(1) = saved_char;
-                    }
+
+                    *crate::globals::gptr(p.wrapping_sub(1)) = saved_char;
 
                     p = p.wrapping_sub(1);
                     while p > start && after_pathsep(start.cast(), p.cast()) == 0 {
@@ -1661,31 +1654,30 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                     }
 
                     if !do_strip {
-                        let saved_char = unsafe { *tail };
-                        unsafe {
-                            *tail = 0;
-                        }
+                        let saved_char = *crate::globals::gptr(tail);
+
+                        *crate::globals::gptr(tail) = 0;
+
                         if os_fileinfo(filename.cast(), &mut file_info) {
                             do_strip = true;
                         } else {
                             stripping_disabled = true;
                         }
-                        unsafe {
-                            *tail = saved_char;
-                        }
+
+                        *crate::globals::gptr(tail) = saved_char;
+
                         if do_strip {
                             let mut new_file_info: FileInfo = FileInfo::new();
                             if p == start && relative {
                                 os_fileinfo(c".", &mut new_file_info);
                             } else {
-                                let saved_char = unsafe { *p };
-                                unsafe {
-                                    *p = 0;
-                                }
+                                let saved_char = *crate::globals::gptr(p);
+
+                                *crate::globals::gptr(p) = 0;
+
                                 os_fileinfo(filename.cast(), &mut new_file_info);
-                                unsafe {
-                                    *p = saved_char;
-                                }
+
+                                *crate::globals::gptr(p) = saved_char;
                             }
 
                             if !os_fileinfo_id_equal(&file_info, &new_file_info) {
@@ -1699,22 +1691,21 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                     p = tail;
                     components = 0;
                 } else {
-                    if p == start && relative && unsafe { *tail.wrapping_sub(1) == b'.' } {
-                        unsafe {
-                            *p = b'.';
-                        }
+                    if p == start && relative && *crate::globals::gptr(tail.wrapping_sub(1)) == b'.'
+                    {
+                        *crate::globals::gptr(p) = b'.';
+
                         p = p.wrapping_add(1);
-                        unsafe {
-                            *p = 0;
-                        }
+
+                        *crate::globals::gptr(p) = 0;
                     } else {
-                        if p > start && unsafe { *tail.wrapping_sub(1) == b'.' } {
+                        if p > start && *crate::globals::gptr(tail.wrapping_sub(1)) == b'.' {
                             p = p.wrapping_sub(1);
                         }
                         let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                        unsafe {
-                            ptr::copy(tail, p, move_len);
-                        }
+
+                        unsafe { ptr::copy(tail, p, move_len) };
+
                         p_end =
                             p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
                     }
@@ -1722,16 +1713,16 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                 }
             } else if p == start && !relative {
                 let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                unsafe {
-                    ptr::copy(tail, p, move_len);
-                }
+
+                unsafe { ptr::copy(tail, p, move_len) };
+
                 p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
             } else {
-                if p == start.wrapping_add(2) && unsafe { *p.wrapping_sub(2) == b'.' } {
+                if p == start.wrapping_add(2) && *crate::globals::gptr(p.wrapping_sub(2)) == b'.' {
                     let move_len = crate::memory::ptr_offset_from(p_end, p) as usize + 1;
-                    unsafe {
-                        ptr::copy(p, p.wrapping_sub(2), move_len);
-                    }
+
+                    unsafe { ptr::copy(p, p.wrapping_sub(2), move_len) };
+
                     p_end = p_end.wrapping_sub(2);
                     tail = tail.wrapping_sub(2);
                 }
@@ -1824,9 +1815,8 @@ pub fn vim_full_name(
 ) -> bool {
     let fname = fname.into_c_char_ptr();
     {
-        unsafe {
-            *buf = 0;
-        }
+        *crate::globals::gptr(buf) = 0;
+
         if fname.is_null() {
             return false;
         }
@@ -1892,13 +1882,13 @@ pub fn path_fix_case(name: *mut u8) {
     let mut dir = Directory::new();
     let (ok, tail) = if let Some(pos) = slash_pos {
         let slash = name.wrapping_add(pos);
-        unsafe {
-            *slash = 0;
-        }
+
+        *crate::globals::gptr(slash) = 0;
+
         let ok = os_scandir(&mut dir, name.cast());
-        unsafe {
-            *slash = b'/';
-        }
+
+        *crate::globals::gptr(slash) = b'/';
+
         (ok, slash.wrapping_add(1))
     } else {
         let ok = os_scandir(&mut dir, c".");
@@ -1943,7 +1933,7 @@ pub fn after_pathsep(
     {
         i32::from(
             p > b
-                && vim_ispathsep(unsafe { *p.wrapping_sub(1) } as i32)
+                && vim_ispathsep((*crate::globals::gptr(p.wrapping_sub(1))) as i32)
                 && utf_head_off(b, p.wrapping_sub(1)) == 0,
         )
     }
@@ -2123,7 +2113,7 @@ pub fn expand_wildcards_eval(
     let mut ret = false;
     let mut eval_pat: Option<std::ffi::CString> = None;
     let mut exp_pat_owned: Option<std::ffi::CString> = None;
-    let mut exp_pat = unsafe { *pat };
+    let mut exp_pat = *crate::globals::gptr(pat);
     let mut ignored_msg = None;
     let mut usedlen: usize = 0;
     let is_cur_alt_file = crate::memory::cstr_first_byte(exp_pat.cast()) == b'%'
@@ -2287,9 +2277,8 @@ fn path_to_absolute(
     force: i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
-    unsafe {
-        *buf = 0;
-    }
+
+    *crate::globals::gptr(buf) = 0;
 
     #[cfg(windows)]
     let is_abs =

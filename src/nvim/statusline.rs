@@ -331,7 +331,7 @@ static STL_STATE: GlobalState<StatuslineState> = GlobalState::new(StatuslineStat
 
 #[inline]
 fn stl_st() -> &'static mut StatuslineState {
-    unsafe { &mut *STL_STATE.as_ptr() }
+    crate::globals::gmut(STL_STATE.as_ptr())
 }
 
 /// Redraw the status line of window `wp`.
@@ -391,17 +391,16 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
 /// line of the window right of it. If not, then it's a vertical separator.
 pub fn stl_connected(wp: &mut WinInfoInfo) -> bool {
     let mut fr = wp.w_frame;
-    while unsafe { !(*fr).fr_parent.is_null() } {
-        if unsafe { (*(*fr).fr_parent).fr_layout == FR_COL } {
-            if unsafe { !(*fr).fr_next.is_null() } {
+    while !crate::globals::gptr(fr).fr_parent.is_null() {
+        if crate::globals::gptr(crate::globals::gptr(fr).fr_parent).fr_layout == FR_COL {
+            if !crate::globals::gptr(fr).fr_next.is_null() {
                 break;
             }
-        } else if unsafe { !(*fr).fr_next.is_null() } {
+        } else if !crate::globals::gptr(fr).fr_next.is_null() {
             return true;
         }
-        unsafe {
-            fr = (*fr).fr_parent;
-        }
+
+        fr = crate::globals::gptr(fr).fr_parent;
     }
     false
 }
@@ -431,7 +430,7 @@ pub fn stl_fill_click_defs(
     tabline: bool,
 ) {
     let mut buf: *const u8 = buf.into_c_char_ptr().cast();
-    unsafe {
+    {
         if click_defs.is_null() {
             return;
         }
@@ -445,20 +444,27 @@ pub fn stl_fill_click_defs(
             func: None,
         };
         let mut i: usize = 0;
-        while !(*click_recs.wrapping_add(i)).start.is_null() {
+        while !crate::globals::gptr(click_recs.wrapping_add(i))
+            .start
+            .is_null()
+        {
             len += vim_strnsize(
                 buf.cast_mut().cast(),
-                crate::memory::ptr_offset_from((*click_recs.wrapping_add(i)).start, buf) as i32,
+                crate::memory::ptr_offset_from(
+                    crate::globals::gptr(click_recs.wrapping_add(i)).start,
+                    buf,
+                ) as i32,
             );
             debug_assert!(len <= width);
             if col < len {
                 while col < len {
-                    *click_defs.wrapping_add(col as usize) = cur_click_def.clone();
+                    *crate::globals::gptr(click_defs.wrapping_add(col as usize)) =
+                        cur_click_def.clone();
                     col += 1;
                 }
             }
-            buf = (*click_recs.wrapping_add(i)).start;
-            cur_click_def = (*click_recs.wrapping_add(i)).def.clone();
+            buf = crate::globals::gptr(click_recs.wrapping_add(i)).start;
+            cur_click_def = crate::globals::gptr(click_recs.wrapping_add(i)).def.clone();
             if !tabline
                 && !(cur_click_def.type_ == K_STL_CLICK_DISABLED
                     || cur_click_def.type_ == K_STL_CLICK_FUNC_RUN)
@@ -469,7 +475,8 @@ pub fn stl_fill_click_defs(
         }
         if col < width {
             while col < width {
-                *click_defs.wrapping_add(col as usize) = cur_click_def.clone();
+                *crate::globals::gptr(click_defs.wrapping_add(col as usize)) =
+                    cur_click_def.clone();
                 col += 1;
             }
         }
@@ -494,13 +501,13 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
     let is_stl_global = global_stl_height() > 0;
 
     let mut grid: *mut ScreenGrid =
-        if !wp.is_null() && unsafe { (*wp).w_floating } && !is_stl_global {
-            unsafe { &raw mut (*wp).w_grid_alloc }
+        if !wp.is_null() && crate::globals::gptr(wp).w_floating && !is_stl_global {
+            &raw mut crate::globals::gptr(wp).w_grid_alloc
         } else {
             &raw mut g_st().default_grid
         };
 
-    if !is_stl_global && !wp.is_null() && unsafe { (*wp).w_config.hide } {
+    if !is_stl_global && !wp.is_null() && crate::globals::gptr(wp).w_config.hide {
         return;
     }
 
@@ -530,7 +537,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         opt_idx = K_OPT_TABLINE;
         click_defs = g_st().tab_page_click_defs.as_mut_ptr();
     } else if draw_winbar {
-        let wp = unsafe { &mut *wp };
+        let wp = crate::globals::gmut(wp);
         opt_idx = K_OPT_WINBAR;
         stl = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
             wp.w_onebuf_opt.wo_wbr.cast()
@@ -550,9 +557,8 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             stl_st().stl_expr_entered = false;
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                unsafe {
-                    g_st().curbuf = (*restore_curwin).w_buffer;
-                }
+
+                g_st().curbuf = crate::globals::gptr(restore_curwin).w_buffer;
             }
             return;
         }
@@ -590,7 +596,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     stl = stl.wrapping_add(1);
                 }
             }
-            let ch = unsafe { *stl };
+            let ch = *crate::globals::gptr(stl);
             stl = stl.wrapping_add(1);
             if ch != b'(' {
                 stl = opt_vars().p_ruf.cast();
@@ -605,13 +611,13 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         attr = hl_attr(group);
         click_defs = ptr::null_mut();
     } else {
-        stl = if unsafe { !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) } {
-            unsafe { (*wp).w_onebuf_opt.wo_stl.cast() }
+        stl = if !crate::memory::cstr_is_empty(crate::globals::gptr(wp).w_onebuf_opt.wo_stl) {
+            crate::globals::gptr(wp).w_onebuf_opt.wo_stl.cast()
         } else {
             opt_vars().p_stl.cast()
         };
         opt_idx = K_OPT_STATUSLINE;
-        opt_scope = if unsafe { !crate::memory::cstr_is_empty((*wp).w_onebuf_opt.wo_stl) } {
+        opt_scope = if !crate::memory::cstr_is_empty(crate::globals::gptr(wp).w_onebuf_opt.wo_stl) {
             OPT_LOCAL
         } else {
             0
@@ -620,53 +626,41 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             row = g_st().rows_global - (opt_vars().p_ch as i32) - 1;
             col = 0;
             maxwidth = g_st().columns_global;
-        } else if unsafe { (*wp).w_status_height == 0 } {
+        } else if crate::globals::gptr(wp).w_status_height == 0 {
             stl_st().stl_expr_entered = false;
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                unsafe {
-                    g_st().curbuf = (*restore_curwin).w_buffer;
-                }
+
+                g_st().curbuf = crate::globals::gptr(restore_curwin).w_buffer;
             }
             return;
-        } else if unsafe { (*wp).w_floating } {
-            unsafe {
-                row = (*wp).w_winrow_off + (*wp).w_view_height;
-            }
-            unsafe {
-                col = (*wp).w_wincol_off;
-            }
-            unsafe {
-                maxwidth = (*wp).w_view_width;
-            }
+        } else if crate::globals::gptr(wp).w_floating {
+            row = crate::globals::gptr(wp).w_winrow_off + crate::globals::gptr(wp).w_view_height;
+
+            col = crate::globals::gptr(wp).w_wincol_off;
+
+            maxwidth = crate::globals::gptr(wp).w_view_width;
         } else {
-            unsafe {
-                row = w_endrow(&*wp);
-            }
-            unsafe {
-                col = (*wp).w_wincol;
-            }
-            unsafe {
-                maxwidth = (*wp).w_width;
-            }
+            row = w_endrow(crate::globals::gref(wp));
+
+            col = crate::globals::gptr(wp).w_wincol;
+
+            maxwidth = crate::globals::gptr(wp).w_width;
         }
-        unsafe {
-            fillchar = fillchar_status(&mut group, &mut *wp);
-        }
-        unsafe {
-            attr = win_hl_attr(&mut *wp, group);
-        }
-        unsafe {
-            stl_clear_click_defs(&mut (*wp).w_status_click_defs);
-        }
-        unsafe {
-            click_defs = stl_alloc_click_defs(&mut (*wp).w_status_click_defs, maxwidth);
-        }
+
+        fillchar = fillchar_status(&mut group, crate::globals::gmut(wp));
+
+        attr = win_hl_attr(crate::globals::gmut(wp), group);
+
+        stl_clear_click_defs(&mut crate::globals::gptr(wp).w_status_click_defs);
+
+        click_defs =
+            stl_alloc_click_defs(&mut crate::globals::gptr(wp).w_status_click_defs, maxwidth);
     }
 
     if maxwidth > 0 {
         let ewp = if wp.is_null() { curwin_ptr() } else { wp };
-        let ewp = unsafe { &mut *ewp };
+        let ewp = crate::globals::gmut(ewp);
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
         ewp.w_onebuf_opt.wo_crb = 0;
 
@@ -708,9 +702,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         let start_col = col;
 
         if !ui_event {
-            unsafe {
-                screengrid_line_start(&mut *grid, row, 0);
-            }
+            screengrid_line_start(crate::globals::gmut(grid), row, 0);
         }
 
         let mut p = buf.as_mut_ptr();
@@ -719,8 +711,8 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         let mut content = Array::new();
         let mut sp = hltab;
         loop {
-            let textlen = if unsafe { !(*sp).start.is_null() } {
-                unsafe { crate::memory::ptr_offset_from((*sp).start, p) }
+            let textlen = if !crate::globals::gptr(sp).start.is_null() {
+                crate::memory::ptr_offset_from(crate::globals::gptr(sp).start, p)
             } else {
                 crate::memory::ptr_offset_from(buf.as_mut_ptr().wrapping_add(len), p)
             };
@@ -754,38 +746,44 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     data: ObjectData::Array(chunk),
                 });
             }
-            unsafe {
-                p = (*sp).start;
-            }
+
+            p = crate::globals::gptr(sp).start;
 
             if p.is_null() {
                 break;
-            } else if unsafe { (*sp).userhl == 0 } {
+            } else if crate::globals::gptr(sp).userhl == 0 {
                 curattr = attr;
                 curgroup = group;
-            } else if unsafe { (*sp).userhl < 0 } {
-                let new_attr = unsafe { syn_id2attr(-(*sp).userhl) };
-                if unsafe { (*sp).item == i32::from(STL_HIGHLIGHT_COMB) } {
+            } else if crate::globals::gptr(sp).userhl < 0 {
+                let new_attr = syn_id2attr(-crate::globals::gptr(sp).userhl);
+                if crate::globals::gptr(sp).item == i32::from(STL_HIGHLIGHT_COMB) {
                     curattr = hl_combine_attr(curattr, new_attr);
                 } else {
                     curattr = new_attr;
                 }
-                unsafe {
-                    curgroup = -(*sp).userhl;
-                }
+
+                curgroup = -crate::globals::gptr(sp).userhl;
             } else {
-                let userhl =
-                    if !wp.is_null() && wp != curwin_ptr() && unsafe { (*wp).w_status_height != 0 }
-                    {
-                        &raw const g_st().highlight_stlnc[0]
-                    } else {
-                        &raw const g_st().highlight_user[0]
-                    };
-                let userbuf: [u8; 5] =
-                    unsafe { [b'U', b's', b'e', b'r', (*sp).userhl as u8 + b'0'] };
-                unsafe {
-                    curattr = *userhl.wrapping_add(((*sp).userhl - 1) as usize);
-                }
+                let userhl = if !wp.is_null()
+                    && wp != curwin_ptr()
+                    && crate::globals::gptr(wp).w_status_height != 0
+                {
+                    &raw const g_st().highlight_stlnc[0]
+                } else {
+                    &raw const g_st().highlight_user[0]
+                };
+                let userbuf: [u8; 5] = [
+                    b'U',
+                    b's',
+                    b'e',
+                    b'r',
+                    crate::globals::gptr(sp).userhl as u8 + b'0',
+                ];
+
+                curattr = *crate::globals::gptr(
+                    userhl.wrapping_add((crate::globals::gptr(sp).userhl - 1) as usize),
+                );
+
                 curgroup = syn_name2id_len(userbuf.as_ptr().cast(), 5);
             }
             if curattr != attr {
@@ -813,9 +811,8 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        unsafe {
-            g_st().curbuf = (*restore_curwin).w_buffer;
-        }
+
+        g_st().curbuf = crate::globals::gptr(restore_curwin).w_buffer;
     }
 }
 
@@ -841,7 +838,7 @@ pub fn redraw_ruler() {
     } else {
         lastwin_nofloating(ptr::null_mut())
     };
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     let is_stl_global = global_stl_height() > 0;
 
     let part_of_status = wp.w_status_height != 0 || is_stl_global;
@@ -891,34 +888,32 @@ fn ui_ext_tabline_update() {
     let mut tp = g_st().first_tabpage;
     while !tp.is_null() {
         n_tabs += 1;
-        unsafe {
-            tp = (*tp).tp_next;
-        }
+
+        tp = crate::globals::gptr(tp).tp_next;
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
     tp = g_st().first_tabpage;
     while !tp.is_null() {
         let mut tab_info = arena_dict(&mut arena, 2);
-        unsafe {
-            put_c(
-                &mut tab_info,
-                c"tab",
-                Object {
-                    obj_type: ObjectType::ObjectTypeTabpage,
-                    data: ObjectData::Integer(i64::from((*tp).handle)),
-                },
-            );
-        }
+
+        put_c(
+            &mut tab_info,
+            c"tab",
+            Object {
+                obj_type: ObjectType::ObjectTypeTabpage,
+                data: ObjectData::Integer(i64::from(crate::globals::gptr(tp).handle)),
+            },
+        );
 
         let cwp = if tp == g_st().curtab {
             curwin_ptr()
         } else {
-            unsafe { (*tp).tp_curwin }
+            crate::globals::gptr(tp).tp_curwin
         };
-        unsafe {
-            get_trans_bufname((*cwp).buf_mut());
-        }
+
+        get_trans_bufname(crate::globals::gptr(cwp).buf_mut());
+
         put_c(
             &mut tab_info,
             c"name",
@@ -935,41 +930,37 @@ fn ui_ext_tabline_update() {
                 data: ObjectData::Dict(tab_info),
             },
         );
-        unsafe {
-            tp = (*tp).tp_next;
-        }
+
+        tp = crate::globals::gptr(tp).tp_next;
     }
 
     let mut n_buffers: usize = 0;
     let mut buf = g_st().firstbuf;
     while !buf.is_null() {
-        if unsafe { (*buf).b_p_bl != 0 } {
+        if crate::globals::gptr(buf).b_p_bl != 0 {
             n_buffers += 1;
         }
-        unsafe {
-            buf = (*buf).b_next;
-        }
+
+        buf = crate::globals::gptr(buf).b_next;
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
     buf = g_st().firstbuf;
     while !buf.is_null() {
-        if unsafe { (*buf).b_p_bl != 0 } {
+        if crate::globals::gptr(buf).b_p_bl != 0 {
             let mut buffer_info = arena_dict(&mut arena, 2);
-            unsafe {
-                put_c(
-                    &mut buffer_info,
-                    c"buffer",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeBuffer,
-                        data: ObjectData::Integer(i64::from((*buf).b_fnum)),
-                    },
-                );
-            }
 
-            unsafe {
-                get_trans_bufname(&mut *buf);
-            }
+            put_c(
+                &mut buffer_info,
+                c"buffer",
+                Object {
+                    obj_type: ObjectType::ObjectTypeBuffer,
+                    data: ObjectData::Integer(i64::from(crate::globals::gptr(buf).b_fnum)),
+                },
+            );
+
+            get_trans_bufname(crate::globals::gmut(buf));
+
             put_c(
                 &mut buffer_info,
                 c"name",
@@ -987,9 +978,8 @@ fn ui_ext_tabline_update() {
                 },
             );
         }
-        unsafe {
-            buf = (*buf).b_next;
-        }
+
+        buf = crate::globals::gptr(buf).b_next;
     }
 
     ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);
@@ -1029,9 +1019,8 @@ pub fn draw_tabline() {
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             tabcount += 1;
-            unsafe {
-                tp = (*tp).tp_next;
-            }
+
+            tp = crate::globals::gptr(tp).tp_next;
         }
 
         let tabwidth = (if tabcount > 0 {
@@ -1054,23 +1043,22 @@ pub fn draw_tabline() {
             let (cwp, mut wp) = if tp == g_st().curtab {
                 (curwin_ptr(), g_st().firstwin)
             } else {
-                unsafe { ((*tp).tp_curwin, (*tp).tp_firstwin) }
+                (
+                    crate::globals::gptr(tp).tp_curwin,
+                    crate::globals::gptr(tp).tp_firstwin,
+                )
             };
 
-            if unsafe { (*tp).tp_topframe == g_st().topframe } {
-                unsafe {
-                    attr = hl_combine_attr(attr_fill, win_hl_attr(&mut *cwp, HLF_TPS));
-                }
+            if crate::globals::gptr(tp).tp_topframe == g_st().topframe {
+                attr = hl_combine_attr(attr_fill, win_hl_attr(crate::globals::gmut(cwp), HLF_TPS));
             }
             if use_sep_chars && col > 0 {
                 grid_line_put_schar(col, schar_from_ascii(b'|'), attr);
                 col += 1;
             }
 
-            if unsafe { (*tp).tp_topframe != g_st().topframe } {
-                unsafe {
-                    attr = hl_combine_attr(attr_fill, win_hl_attr(&mut *cwp, HLF_TP));
-                }
+            if crate::globals::gptr(tp).tp_topframe != g_st().topframe {
+                attr = hl_combine_attr(attr_fill, win_hl_attr(crate::globals::gmut(cwp), HLF_TP));
             }
 
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1079,14 +1067,16 @@ pub fn draw_tabline() {
             let mut modified = false;
             let mut wincount: i32 = 0;
             while !wp.is_null() {
-                if unsafe { !(*wp).w_config.focusable } || unsafe { (*wp).w_config.hide } {
+                if !crate::globals::gptr(wp).w_config.focusable
+                    || crate::globals::gptr(wp).w_config.hide
+                {
                     wincount -= 1;
-                } else if unsafe { buf_is_changed_fn((*wp).buf_mut()) } {
+                } else if buf_is_changed_fn(crate::globals::gptr(wp).buf_mut()) {
                     modified = true;
                 }
-                unsafe {
-                    wp = (*wp).w_next;
-                }
+
+                wp = crate::globals::gptr(wp).w_next;
+
                 wincount += 1;
             }
 
@@ -1096,14 +1086,14 @@ pub fn draw_tabline() {
                     if col + len >= g_st().columns_global - 3 {
                         break;
                     }
-                    unsafe {
-                        grid_line_puts(
-                            col,
-                            name_buff,
-                            len,
-                            hl_combine_attr(attr, win_hl_attr(&mut *cwp, HLF_T)),
-                        );
-                    }
+
+                    grid_line_puts(
+                        col,
+                        name_buff,
+                        len,
+                        hl_combine_attr(attr, win_hl_attr(crate::globals::gmut(cwp), HLF_T)),
+                    );
+
                     col += len;
                 }
                 if modified {
@@ -1116,9 +1106,8 @@ pub fn draw_tabline() {
 
             let room = scol - col + tabwidth - 1;
             if room > 0 {
-                unsafe {
-                    get_trans_bufname((*cwp).buf_mut());
-                }
+                get_trans_bufname(crate::globals::gptr(cwp).buf_mut());
+
                 shorten_dir(name_buff);
                 let mut len = vim_strsize(name_buff);
                 let mut p = name_buff;
@@ -1145,9 +1134,7 @@ pub fn draw_tabline() {
                 scol += 1;
             }
 
-            unsafe {
-                tp = (*tp).tp_next;
-            }
+            tp = crate::globals::gptr(tp).tp_next;
         }
 
         for scol in col..g_st().columns_global {
@@ -1236,15 +1223,14 @@ pub fn build_statuscol_str(
     stcp.hlrec.clear();
     if !hlrec_ptr.is_null() {
         let mut sp = hlrec_ptr;
-        while unsafe { !(*sp).start.is_null() } {
-            unsafe {
-                stcp.hlrec.push(*sp);
-            }
+        while !crate::globals::gptr(sp).start.is_null() {
+            stcp.hlrec.push(*crate::globals::gptr(sp));
+
             sp = sp.wrapping_add(1);
         }
     }
 
-    if unsafe { !(*clickrec).start.is_null() } {
+    if !crate::globals::gptr(clickrec).start.is_null() {
         let clicks = wp.w_statuscol_click_defs.entry(lnum).or_default();
         let click_defs = clicks.entry(virtnum).or_default();
         stl_clear_click_defs(click_defs);
@@ -1310,9 +1296,8 @@ fn stl_truncate(
             }
         }
 
-        unsafe {
-            *trunc_p = b'>';
-        }
+        *crate::globals::gptr(trunc_p) = b'>';
+
         trunc_p = trunc_p.wrapping_add(1);
         *out_p = trunc_p;
     } else {
@@ -1324,17 +1309,15 @@ fn stl_truncate(
 
         let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
         let move_len = crate::memory::ptr_offset_from(*out_p, trunc_end_p) as usize + 1;
-        unsafe {
-            ptr::copy(trunc_end_p, trunc_p.wrapping_add(1), move_len);
-        }
+
+        unsafe { ptr::copy(trunc_end_p, trunc_p.wrapping_add(1), move_len) };
+
         *out_p = (*out_p)
             .wrapping_sub(
                 crate::memory::ptr_offset_from(trunc_end_p, trunc_p.wrapping_add(1)) as usize,
             );
 
-        unsafe {
-            *trunc_p = b'<';
-        }
+        *crate::globals::gptr(trunc_p) = b'<';
 
         let item_offset = (trunc_len - 1) as isize;
         for item in &mut stl_items[(item_idx as usize)..(*curitem as usize)] {
@@ -1353,9 +1336,8 @@ fn stl_truncate(
         }
         schar_get_adv(out_p, fillchar);
     }
-    unsafe {
-        **out_p = 0;
-    }
+
+    *crate::globals::gptr(*out_p) = 0;
 }
 
 /// Expands the statusline at separation markers (`%=`) if present,
@@ -1403,9 +1385,9 @@ fn stl_expand(
                 let start = item.start;
                 let seploc = start.wrapping_add(dislocation as usize);
                 let len = crate::memory::cstr_len(start.cast()) + 1;
-                unsafe {
-                    ptr::copy(start, seploc, len);
-                }
+
+                unsafe { ptr::copy(start, seploc, len) };
+
                 let mut s = start;
                 while s < seploc {
                     schar_get_adv(&mut s, fillchar);
@@ -1427,8 +1409,8 @@ fn stl_expand(
                 start_p,
                 start_p.wrapping_add(added_bytes as usize),
                 crate::memory::ptr_offset_from(*out_p, start_p) as usize,
-            );
-        }
+            )
+        };
 
         let orig_added_cells = added_cells;
         while added_cells > 0 {
@@ -1460,7 +1442,7 @@ pub extern "C" fn build_stl_str_hl(
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
 ) -> i32 {
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
     let mut owned_usefmt: Option<std::ffi::CString> = None;
     let mut usefmt = fmt;
@@ -1480,25 +1462,25 @@ pub extern "C" fn build_stl_str_hl(
     let tabtab_vec_ptr = &raw mut stl_st().stl_tabtab_vec;
     macro_rules! stl_items {
         () => {
-            unsafe { (&mut *items_vec_ptr) }
+            (&mut *crate::globals::gmut(items_vec_ptr))
         };
     }
     macro_rules! stl_groupitems {
         () => {
-            unsafe { (&mut *groupitems_vec_ptr) }
+            (&mut *crate::globals::gmut(groupitems_vec_ptr))
         };
     }
     macro_rules! stl_hltab {
         () => {
-            unsafe { (&mut *hltab_vec_ptr) }
+            (&mut *crate::globals::gmut(hltab_vec_ptr))
         };
     }
     macro_rules! stl_tabtab {
         () => {
-            unsafe { (&mut *tabtab_vec_ptr) }
+            (&mut *crate::globals::gmut(tabtab_vec_ptr))
         };
     }
-    if unsafe { (*items_vec_ptr).is_empty() } {
+    if crate::globals::gptr(items_vec_ptr).is_empty() {
         const INIT_LEN: usize = 20;
         stl_items!().resize(INIT_LEN, StlItem::new());
         stl_groupitems!().resize(INIT_LEN, 0);
@@ -1563,8 +1545,8 @@ pub extern "C" fn build_stl_str_hl(
 
     macro_rules! may_grow_stl_items_len {
         () => {
-            if unsafe { stl_st().curitem as usize == (*items_vec_ptr).len() } {
-                let new_len = unsafe { (*items_vec_ptr).len() * 3 / 2 };
+            if stl_st().curitem as usize == crate::globals::gptr(items_vec_ptr).len() {
+                let new_len = crate::globals::gptr(items_vec_ptr).len() * 3 / 2;
                 stl_items!().resize(new_len, StlItem::new());
                 stl_groupitems!().resize(new_len, 0);
                 stl_hltab!().resize(new_len + 1, StlHlrec::new());
@@ -1574,35 +1556,36 @@ pub extern "C" fn build_stl_str_hl(
     }
 
     let mut fmt_p = usefmt;
-    while unsafe { *fmt_p != 0 } {
+    while *crate::globals::gptr(fmt_p) != 0 {
         may_grow_stl_items_len!();
 
-        if unsafe { *fmt_p != b'%' } {
+        if *crate::globals::gptr(fmt_p) != b'%' {
             prevchar_isflag = false;
             prevchar_isitem = false;
         }
 
-        while unsafe { *fmt_p != 0 } && unsafe { *fmt_p != b'%' } && out_p < out_end_p {
-            unsafe {
-                *out_p = *fmt_p;
-            }
+        while *crate::globals::gptr(fmt_p) != 0
+            && *crate::globals::gptr(fmt_p) != b'%'
+            && out_p < out_end_p
+        {
+            *crate::globals::gptr(out_p) = *crate::globals::gptr(fmt_p);
+
             out_p = out_p.wrapping_add(1);
             fmt_p = fmt_p.wrapping_add(1);
         }
 
-        if unsafe { *fmt_p == 0 } || out_p >= out_end_p {
+        if *crate::globals::gptr(fmt_p) == 0 || out_p >= out_end_p {
             break;
         }
 
         fmt_p = fmt_p.wrapping_add(1);
-        if unsafe { *fmt_p == 0 } {
+        if *crate::globals::gptr(fmt_p) == 0 {
             break;
         }
 
-        if unsafe { *fmt_p == b'%' } {
-            unsafe {
-                *out_p = *fmt_p;
-            }
+        if *crate::globals::gptr(fmt_p) == b'%' {
+            *crate::globals::gptr(out_p) = *crate::globals::gptr(fmt_p);
+
             out_p = out_p.wrapping_add(1);
             fmt_p = fmt_p.wrapping_add(1);
             prevchar_isflag = false;
@@ -1610,7 +1593,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == STL_SEPARATE } {
+        if *crate::globals::gptr(fmt_p) == STL_SEPARATE {
             fmt_p = fmt_p.wrapping_add(1);
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Separate;
             stl_items!()[stl_st().curitem as usize].start = out_p;
@@ -1618,7 +1601,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == STL_TRUNCMARK } {
+        if *crate::globals::gptr(fmt_p) == STL_TRUNCMARK {
             fmt_p = fmt_p.wrapping_add(1);
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Trunc;
             stl_items!()[stl_st().curitem as usize].start = out_p;
@@ -1626,7 +1609,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == b')' } {
+        if *crate::globals::gptr(fmt_p) == b')' {
             fmt_p = fmt_p.wrapping_add(1);
             if groupdepth < 1 {
                 continue;
@@ -1638,9 +1621,9 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             let t = stl_items!()[gidx as usize].start;
-            unsafe {
-                *out_p = 0;
-            }
+
+            *crate::globals::gptr(out_p) = 0;
+
             let mut group_len = vim_strsize(t.cast());
 
             if stl_st().curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
@@ -1737,24 +1720,24 @@ pub extern "C" fn build_stl_str_hl(
         let mut left_align_num = false;
         let mut left_align = false;
 
-        let zeropad = unsafe { *fmt_p == b'0' };
+        let zeropad = *crate::globals::gptr(fmt_p) == b'0';
         if zeropad {
             fmt_p = fmt_p.wrapping_add(1);
         }
 
-        if unsafe { *fmt_p == b'-' } {
+        if *crate::globals::gptr(fmt_p) == b'-' {
             fmt_p = fmt_p.wrapping_add(1);
             left_align = true;
         }
 
-        if unsafe { (*fmt_p).is_ascii_digit() } {
+        if crate::globals::gptr(fmt_p).is_ascii_digit() {
             let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
             let mut rem = fmt_bytes;
             minwid = getdigits_int(&mut rem, false, 0);
             fmt_p = fmt_p.wrapping_add(fmt_bytes.len() - rem.len());
         }
 
-        if unsafe { *fmt_p == STL_USER_HL } {
+        if *crate::globals::gptr(fmt_p) == STL_USER_HL {
             curr_hl_pos = stl_st().curitem;
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Highlight;
             stl_items!()[stl_st().curitem as usize].start = out_p;
@@ -1764,8 +1747,10 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == STL_TABPAGENR } || unsafe { *fmt_p == STL_TABCLOSENR } {
-            if unsafe { *fmt_p == STL_TABCLOSENR } {
+        if *crate::globals::gptr(fmt_p) == STL_TABPAGENR
+            || *crate::globals::gptr(fmt_p) == STL_TABCLOSENR
+        {
+            if *crate::globals::gptr(fmt_p) == STL_TABCLOSENR {
                 if minwid == 0 {
                     let mut n = stl_st().curitem - 1;
                     while n >= 0 {
@@ -1789,13 +1774,15 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == STL_CLICK_FUNC } {
+        if *crate::globals::gptr(fmt_p) == STL_CLICK_FUNC {
             fmt_p = fmt_p.wrapping_add(1);
             let t = fmt_p;
-            while unsafe { *fmt_p != STL_CLICK_FUNC } && unsafe { *fmt_p != 0 } {
+            while *crate::globals::gptr(fmt_p) != STL_CLICK_FUNC
+                && *crate::globals::gptr(fmt_p) != 0
+            {
                 fmt_p = fmt_p.wrapping_add(1);
             }
-            if unsafe { *fmt_p != STL_CLICK_FUNC } {
+            if *crate::globals::gptr(fmt_p) != STL_CLICK_FUNC {
                 break;
             }
             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::ClickFunc;
@@ -1815,9 +1802,9 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == b'.' } {
+        if *crate::globals::gptr(fmt_p) == b'.' {
             fmt_p = fmt_p.wrapping_add(1);
-            if unsafe { (*fmt_p).is_ascii_digit() } {
+            if crate::globals::gptr(fmt_p).is_ascii_digit() {
                 let fmt_bytes = crate::memory::cstr_as_bytes(fmt_p.cast());
                 let mut rem = fmt_bytes;
                 maxwid = getdigits_int(&mut rem, false, 50);
@@ -1867,7 +1854,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        if unsafe { *fmt_p == STL_HIGHLIGHT } {
+        if *crate::globals::gptr(fmt_p) == STL_HIGHLIGHT {
             let next_b = crate::memory::cstr_first_byte(fmt_p.wrapping_add(1).cast());
             if next_b == b'(' {
                 fmt_p = fmt_p.wrapping_add(2);
@@ -1925,7 +1912,7 @@ pub extern "C" fn build_stl_str_hl(
             continue;
         }
 
-        let opt = unsafe { *fmt_p };
+        let opt = *crate::globals::gptr(fmt_p);
         fmt_p = fmt_p.wrapping_add(1);
 
         let mut base = NumberBase::NumBaseDecimal;
@@ -1939,7 +1926,7 @@ pub extern "C" fn build_stl_str_hl(
         match opt {
             STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                 fillable = false;
-                if let Some(name) = unsafe { buf_spname(&*(wp.w_buffer)) } {
+                if let Some(name) = buf_spname(crate::globals::gref(wp.w_buffer)) {
                     crate::memory::copy_bytes_to_c_buf(
                         g_st().name_buff_bytes_mut(),
                         name.to_bytes(),
@@ -1950,9 +1937,14 @@ pub extern "C" fn build_stl_str_hl(
                     } else {
                         (*wp).buf_mut().b_fname
                     };
-                    unsafe {
-                        home_replace((wp.w_buffer).as_ref(), t, name_buff, MAXPATHL, true);
-                    }
+
+                    home_replace(
+                        crate::globals::gopt(wp.w_buffer),
+                        t,
+                        name_buff,
+                        MAXPATHL,
+                        true,
+                    );
                 }
                 trans_characters(g_st().name_buff_bytes_mut());
                 if opt != STL_FILENAME {
@@ -1970,28 +1962,22 @@ pub extern "C" fn build_stl_str_hl(
                 itemisflag = !zeropad;
 
                 let t = out_p;
-                while (unsafe {
-                    crate::memory::cstr_first_byte(fmt_p.cast()) != b'}'
-                        || (reevaluate && *fmt_p.wrapping_sub(1) != b'%')
-                }) && !crate::memory::cstr_is_empty(fmt_p.cast())
+                while (crate::memory::cstr_first_byte(fmt_p.cast()) != b'}'
+                    || (reevaluate && *crate::globals::gptr(fmt_p.wrapping_sub(1)) != b'%'))
+                    && !crate::memory::cstr_is_empty(fmt_p.cast())
                     && out_p < out_end_p
                 {
-                    unsafe {
-                        *out_p = *fmt_p;
-                    }
+                    *crate::globals::gptr(out_p) = *crate::globals::gptr(fmt_p);
+
                     out_p = out_p.wrapping_add(1);
                     fmt_p = fmt_p.wrapping_add(1);
                 }
                 if crate::memory::cstr_first_byte(fmt_p.cast()) == b'}' {
                     fmt_p = fmt_p.wrapping_add(1);
                     if reevaluate && out_p > out.data {
-                        unsafe {
-                            *out_p.wrapping_sub(1) = 0;
-                        }
+                        *crate::globals::gptr(out_p.wrapping_sub(1)) = 0;
                     } else {
-                        unsafe {
-                            *out_p = 0;
-                        }
+                        *crate::globals::gptr(out_p) = 0;
                     }
 
                     out_p = t;
@@ -2035,7 +2021,7 @@ pub extern "C" fn build_stl_str_hl(
 
                     if !zeropad
                         && !crate::memory::cstr_is_empty(str.cast())
-                        && unsafe { *skipdigits(str.cast()) == NUL }
+                        && *crate::globals::gptr(skipdigits(str.cast())) == NUL
                     {
                         num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
                             str.cast(),
@@ -2057,12 +2043,11 @@ pub extern "C" fn build_stl_str_hl(
                         let mut new_bytes = Vec::with_capacity(
                             parsed_usefmt + str_bytes.len() + fmt_bytes.len() + 2,
                         );
-                        unsafe {
-                            new_bytes.extend_from_slice(std::slice::from_raw_parts(
-                                usefmt,
-                                parsed_usefmt,
-                            ));
-                        }
+
+                        new_bytes.extend_from_slice(unsafe {
+                            std::slice::from_raw_parts(usefmt, parsed_usefmt)
+                        });
+
                         new_bytes.extend_from_slice(str_bytes);
                         new_bytes.extend_from_slice(b"%}");
                         new_bytes.extend_from_slice(fmt_bytes);
@@ -2083,7 +2068,9 @@ pub extern "C" fn build_stl_str_hl(
                     && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
                     && get_vim_var_nr(VV_VIRTNUM) == 0
                 {
-                    if wp.w_maxscwidth == SCL_NUM && unsafe { (*stcp).sattrs[0].text[0] != 0 } {
+                    if wp.w_maxscwidth == SCL_NUM
+                        && crate::globals::gptr(stcp).sattrs[0].text[0] != 0
+                    {
                         handle_stcsign = true;
                     } else {
                         let relnum = get_vim_var_nr(VV_RELNUM) as i32;
@@ -2232,10 +2219,9 @@ pub extern "C" fn build_stl_str_hl(
                 if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 2 {
                     vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c",%s", ft);
                     let mut t = buf_tmp.as_mut_ptr();
-                    while unsafe { *t != 0 } {
-                        unsafe {
-                            *t = (*t).to_ascii_uppercase();
-                        }
+                    while *crate::globals::gptr(t) != 0 {
+                        *crate::globals::gptr(t) = crate::globals::gptr(t).to_ascii_uppercase();
+
                         t = t.wrapping_add(1);
                     }
                     str = buf_tmp.as_mut_ptr();
@@ -2252,7 +2238,7 @@ pub extern "C" fn build_stl_str_hl(
                 }
             }
             STL_QUICKFIX => {
-                if unsafe { bt_quickfix((wp.w_buffer).as_ref()) } {
+                if bt_quickfix(crate::globals::gopt(wp.w_buffer)) {
                     str = if !wp.w_llist_ref.is_null() {
                         tr(MSG_LOCLIST).as_ptr().cast_mut().cast()
                     } else {
@@ -2277,10 +2263,12 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_HIGHLIGHT_COMB | STL_HIGHLIGHT => {
                 let t = fmt_p;
-                while unsafe { *fmt_p != opt } && !crate::memory::cstr_is_empty(fmt_p.cast()) {
+                while *crate::globals::gptr(fmt_p) != opt
+                    && !crate::memory::cstr_is_empty(fmt_p.cast())
+                {
                     fmt_p = fmt_p.wrapping_add(1);
                 }
-                if unsafe { *fmt_p == opt } {
+                if *crate::globals::gptr(fmt_p) == opt {
                     if opt == STL_HIGHLIGHT {
                         curr_hl_pos = stl_st().curitem;
                         stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Highlight;
@@ -2321,19 +2309,19 @@ pub extern "C" fn build_stl_str_hl(
 
                 if fdc > 0 {
                     let mut fold_buf: [Schar; 9] = [0; 9];
-                    unsafe {
-                        fill_foldcolumn(
-                            &mut *wp,
-                            (*stcp).foldinfo,
-                            (*stcp).lnum,
-                            0,
-                            fdc,
-                            get_vim_var_nr(VV_VIRTNUM) < 0,
-                            ptr::null_mut(),
-                            (*stcp).fold_vcol.as_mut_ptr(),
-                            fold_buf.as_mut_ptr(),
-                        );
-                    }
+
+                    fill_foldcolumn(
+                        &mut *wp,
+                        crate::globals::gptr(stcp).foldinfo,
+                        crate::globals::gptr(stcp).lnum,
+                        0,
+                        fdc,
+                        get_vim_var_nr(VV_VIRTNUM) < 0,
+                        ptr::null_mut(),
+                        crate::globals::gptr(stcp).fold_vcol.as_mut_ptr(),
+                        fold_buf.as_mut_ptr(),
+                    );
+
                     stl_items!()[stl_st().curitem as usize].minwid =
                         -if use_cursor_line_highlight(&mut *wp, lnum) {
                             HLF_CLF
@@ -2350,12 +2338,12 @@ pub extern "C" fn build_stl_str_hl(
                 for i in 0..width {
                     stl_items!()[stl_st().curitem as usize].start = out_p.wrapping_add(signlen);
                     if fdc == 0 {
-                        let sattr = unsafe { (*stcp).sattrs[i as usize] };
+                        let sattr = crate::globals::gptr(stcp).sattrs[i as usize];
                         if sattr.text[0] != 0 && get_vim_var_nr(VV_VIRTNUM) == 0 {
                             signlen += describe_sign_text(&mut buf_tmp[signlen..], &sattr.text);
                             stl_items!()[stl_st().curitem as usize].minwid =
-                                -if unsafe { (*stcp).sign_cul_id != 0 } {
-                                    unsafe { (*stcp).sign_cul_id }
+                                -if crate::globals::gptr(stcp).sign_cul_id != 0 {
+                                    crate::globals::gptr(stcp).sign_cul_id
                                 } else {
                                     sattr.hl_id
                                 };
@@ -2380,9 +2368,8 @@ pub extern "C" fn build_stl_str_hl(
             }
         }
 
-        unsafe {
-            debug_assert!((stl_st().curitem as usize) < (*items_vec_ptr).len());
-        }
+        debug_assert!((stl_st().curitem as usize) < crate::globals::gptr(items_vec_ptr).len());
+
         stl_items!()[stl_st().curitem as usize].start = out_p;
         stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Normal;
 
@@ -2411,9 +2398,9 @@ pub extern "C" fn build_stl_str_hl(
                 if out_p >= out_end_p {
                     break;
                 }
-                unsafe {
-                    *out_p = b'<';
-                }
+
+                *crate::globals::gptr(out_p) = b'<';
+
                 out_p = out_p.wrapping_add(1);
             }
 
@@ -2423,9 +2410,8 @@ pub extern "C" fn build_stl_str_hl(
                         && fillchar == schar_from_ascii(b'-')
                         && ascii_isdigit(crate::memory::cstr_first_byte(t.cast()))
                     {
-                        unsafe {
-                            *out_p = b' ';
-                        }
+                        *crate::globals::gptr(out_p) = b' ';
+
                         out_p = out_p.wrapping_add(1);
                     } else {
                         schar_get_adv(&mut out_p, fillchar);
@@ -2456,9 +2442,8 @@ pub extern "C" fn build_stl_str_hl(
                 {
                     schar_get_adv(&mut out_p, fillchar);
                 } else {
-                    unsafe {
-                        *out_p = *t;
-                    }
+                    *crate::globals::gptr(out_p) = *crate::globals::gptr(t);
+
                     out_p = out_p.wrapping_add(1);
                 }
                 t = t.wrapping_add(1);
@@ -2483,36 +2468,32 @@ pub extern "C" fn build_stl_str_hl(
             let mut nstr: [u8; 20] = [0; 20];
             let mut t = nstr.as_mut_ptr();
             if opt == STL_VIRTCOL_ALT {
-                unsafe {
-                    *t = b'-';
-                }
+                *crate::globals::gptr(t) = b'-';
+
                 t = t.wrapping_add(1);
                 minwid -= 1;
             }
-            unsafe {
-                *t = b'%';
-            }
+
+            *crate::globals::gptr(t) = b'%';
+
             t = t.wrapping_add(1);
             if zeropad {
-                unsafe {
-                    *t = b'0';
-                }
+                *crate::globals::gptr(t) = b'0';
+
                 t = t.wrapping_add(1);
             }
-            unsafe {
-                *t = b'*';
-            }
+
+            *crate::globals::gptr(t) = b'*';
+
             t = t.wrapping_add(1);
-            unsafe {
-                *t = if base == NumberBase::NumBaseHexadecimal {
-                    b'X'
-                } else {
-                    b'd'
-                };
-            }
-            unsafe {
-                *t.wrapping_add(1) = 0;
-            }
+
+            *crate::globals::gptr(t) = if base == NumberBase::NumBaseHexadecimal {
+                b'X'
+            } else {
+                b'd'
+            };
+
+            *crate::globals::gptr(t.wrapping_add(1)) = 0;
 
             let mut num_chars: i32 = 1;
             let mut n_tmp = num;
@@ -2532,20 +2513,16 @@ pub extern "C" fn build_stl_str_hl(
                     num /= base as i32;
                     num_chars -= 1;
                 }
-                let base_ch = unsafe { *t };
+                let base_ch = *crate::globals::gptr(t);
                 t = t.wrapping_add(1);
-                unsafe {
-                    *t = b'>';
-                }
-                unsafe {
-                    *t.wrapping_add(1) = b'%';
-                }
-                unsafe {
-                    *t.wrapping_add(2) = base_ch;
-                }
-                unsafe {
-                    *t.wrapping_add(3) = 0;
-                }
+
+                *crate::globals::gptr(t) = b'>';
+
+                *crate::globals::gptr(t.wrapping_add(1)) = b'%';
+
+                *crate::globals::gptr(t.wrapping_add(2)) = base_ch;
+
+                *crate::globals::gptr(t.wrapping_add(3)) = 0;
 
                 out_p = out_p.wrapping_add(vim_snprintf_safelen!(
                     out_p.cast(),
@@ -2583,9 +2560,8 @@ pub extern "C" fn build_stl_str_hl(
         }
     }
 
-    unsafe {
-        *out_p = 0;
-    }
+    *crate::globals::gptr(out_p) = 0;
+
     drop(owned_usefmt);
 
     let mut width = vim_strsize(out.data.cast());
@@ -2618,9 +2594,9 @@ pub extern "C" fn build_stl_str_hl(
 
     if !hltab.is_null() {
         let hltab_ptr = stl_hltab!().as_mut_ptr();
-        unsafe {
-            *hltab = hltab_ptr;
-        }
+
+        *crate::globals::gptr(hltab) = hltab_ptr;
+
         let mut sp_idx: usize = 0;
         for item in &stl_items!()[(evalstart as usize)..(stl_st().curitem as usize)] {
             if matches!(
@@ -2645,16 +2621,14 @@ pub extern "C" fn build_stl_str_hl(
         stl_hltab!()[sp_idx].userhl = 0;
     }
     if !hltab_len.is_null() {
-        unsafe {
-            *hltab_len = (stl_st().curitem - evalstart) as usize;
-        }
+        *crate::globals::gptr(hltab_len) = (stl_st().curitem - evalstart) as usize;
     }
 
     if !tabtab.is_null() {
         let tabtab_ptr = stl_tabtab!().as_mut_ptr();
-        unsafe {
-            *tabtab = tabtab_ptr;
-        }
+
+        *crate::globals::gptr(tabtab) = tabtab_ptr;
+
         let mut tab_idx: usize = 0;
         for item in &mut stl_items!()[(evalstart as usize)..(stl_st().curitem as usize)] {
             if item.type_ == StlItemType::TabPage {

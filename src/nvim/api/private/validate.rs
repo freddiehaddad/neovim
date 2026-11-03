@@ -186,7 +186,7 @@ impl Array {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut Object {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(self.size) }
+        crate::globals::gmut(self.items.wrapping_add(self.size))
     }
 
     #[inline]
@@ -199,9 +199,9 @@ impl Array {
             };
             self.items = realloc_items(self.items, self.capacity);
         }
-        unsafe {
-            std::ptr::write(self.items.wrapping_add(self.size), value);
-        }
+
+        unsafe { std::ptr::write(self.items.wrapping_add(self.size), value) };
+
         self.size += 1;
     }
 }
@@ -212,7 +212,7 @@ impl std::ops::Index<usize> for Array {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.wrapping_add(index) }
+        crate::globals::gref(self.items.wrapping_add(index))
     }
 }
 
@@ -220,7 +220,7 @@ impl std::ops::IndexMut<usize> for Array {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(index) }
+        crate::globals::gmut(self.items.wrapping_add(index))
     }
 }
 
@@ -270,7 +270,7 @@ impl Dict {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(self.size) }
+        crate::globals::gmut(self.items.wrapping_add(self.size))
     }
 
     #[inline]
@@ -283,9 +283,9 @@ impl Dict {
             };
             self.items = realloc_items(self.items, self.capacity);
         }
-        unsafe {
-            std::ptr::write(self.items.wrapping_add(self.size), value);
-        }
+
+        unsafe { std::ptr::write(self.items.wrapping_add(self.size), value) };
+
         self.size += 1;
     }
 }
@@ -296,7 +296,7 @@ impl std::ops::Index<usize> for Dict {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &*self.items.wrapping_add(index) }
+        crate::globals::gref(self.items.wrapping_add(index))
     }
 }
 
@@ -304,7 +304,7 @@ impl std::ops::IndexMut<usize> for Dict {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        unsafe { &mut *self.items.wrapping_add(index) }
+        crate::globals::gmut(self.items.wrapping_add(index))
     }
 }
 
@@ -502,7 +502,7 @@ pub fn api_err_invalid<S1: crate::strings::IntoCCharPtr, S2: crate::strings::Int
     let name_str = cstr_lossy(name);
     let has_space = name_str.as_bytes().contains(&b' ');
 
-    let msg = if !val_s.is_null() && unsafe { *val_s == 0 } {
+    let msg = if !val_s.is_null() && *crate::globals::gptr(val_s) == 0 {
         if has_space {
             format!("Invalid {name_str}")
         } else {
@@ -617,7 +617,7 @@ pub fn check_string_array(
     let name = name.into_c_char_ptr().cast_mut();
     let name_str = cstr_lossy(name);
     for i in 0..arr.size {
-        let item = unsafe { &*arr.items.wrapping_add(i) };
+        let item = crate::globals::gref(arr.items.wrapping_add(i));
         if item.obj_type != ObjectType::ObjectTypeString {
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",

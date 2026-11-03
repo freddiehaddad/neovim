@@ -238,7 +238,7 @@ static FIO_STATE: GlobalState<FileioModuleState> = GlobalState::new(FileioModule
 
 #[inline]
 fn fio_st() -> &'static mut FileioModuleState {
-    unsafe { &mut *FIO_STATE.as_ptr() }
+    crate::globals::gmut(FIO_STATE.as_ptr())
 }
 
 use crate::arglist::ML_EMPTY;
@@ -798,19 +798,19 @@ mod win_iconv {
         let tocode = tocode.into_c_char_ptr();
         let fromcode = fromcode.into_c_char_ptr();
         if tocode.is_null() || fromcode.is_null() {
-            unsafe { *errno_ptr() = EINVAL };
+            *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
             return usize::MAX as *mut c_void;
         }
         let Ok(to_str) = ({ crate::memory::cstr_from_ptr(tocode) }).to_str() else {
-            unsafe { *errno_ptr() = EINVAL };
+            *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
             return usize::MAX as *mut c_void;
         };
         let Ok(from_str) = ({ crate::memory::cstr_from_ptr(fromcode) }).to_str() else {
-            unsafe { *errno_ptr() = EINVAL };
+            *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
             return usize::MAX as *mut c_void;
         };
         let (Some(to), Some(from)) = (parse_win_enc(to_str), parse_win_enc(from_str)) else {
-            unsafe { *errno_ptr() = EINVAL };
+            *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
             return usize::MAX as *mut c_void;
         };
         let boxed = Box::new(WinIconvDesc {
@@ -831,49 +831,61 @@ mod win_iconv {
         let inbuf = inbuf.cast::<*const u8>();
         let outbuf = outbuf.cast::<*mut u8>();
         if cd == -1 || cd == 0 {
-            unsafe { *errno_ptr() = EINVAL };
+            *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
             return usize::MAX;
         }
-        let desc = unsafe { &mut *(cd as *mut WinIconvDesc) };
-        if inbuf.is_null() || unsafe { (*inbuf).is_null() } {
+        let desc = crate::globals::gmut(cd as *mut WinIconvDesc);
+        if inbuf.is_null() || crate::globals::gptr(inbuf).is_null() {
             desc.from_resolved = None;
             return 0;
         }
-        unsafe {
-            while *inbytesleft > 0 {
-                let src = crate::memory::cstr_slice((*inbuf).cast(), *inbytesleft);
-                match decode_one(desc, src) {
-                    StepResult::SkipBom(consumed) => {
-                        *inbuf = (*inbuf).wrapping_add(consumed);
-                        *inbytesleft -= consumed;
-                    }
-                    StepResult::Char(ch, consumed) => {
-                        let mut encoded = [0u8; 8];
-                        let Some(enc_len) = encode_one(desc.to, ch, &mut encoded) else {
-                            *errno_ptr() = EILSEQ;
-                            return usize::MAX;
-                        };
-                        if enc_len > *outbytesleft {
-                            *errno_ptr() = E2BIG;
-                            return usize::MAX;
-                        }
-                        ptr::copy_nonoverlapping(encoded.as_ptr(), *outbuf, enc_len);
-                        *outbuf = (*outbuf).wrapping_add(enc_len);
-                        *outbytesleft -= enc_len;
-                        *inbuf = (*inbuf).wrapping_add(consumed);
-                        *inbytesleft -= consumed;
-                    }
-                    StepResult::Incomplete => {
-                        *errno_ptr() = EINVAL;
+
+        while *crate::globals::gptr(inbytesleft) > 0 {
+            let src = crate::memory::cstr_slice(
+                crate::globals::gptr(inbuf).cast(),
+                *crate::globals::gptr(inbytesleft),
+            );
+            match decode_one(desc, src) {
+                StepResult::SkipBom(consumed) => {
+                    *crate::globals::gptr(inbuf) =
+                        crate::globals::gptr(inbuf).wrapping_add(consumed);
+                    *crate::globals::gptr(inbytesleft) -= consumed;
+                }
+                StepResult::Char(ch, consumed) => {
+                    let mut encoded = [0u8; 8];
+                    let Some(enc_len) = encode_one(desc.to, ch, &mut encoded) else {
+                        *crate::globals::gptr(unsafe { errno_ptr() }) = EILSEQ;
+                        return usize::MAX;
+                    };
+                    if enc_len > *crate::globals::gptr(outbytesleft) {
+                        *crate::globals::gptr(unsafe { errno_ptr() }) = E2BIG;
                         return usize::MAX;
                     }
-                    StepResult::Invalid => {
-                        *errno_ptr() = EILSEQ;
-                        return usize::MAX;
-                    }
+                    unsafe {
+                        ptr::copy_nonoverlapping(
+                            encoded.as_ptr(),
+                            *crate::globals::gptr(outbuf),
+                            enc_len,
+                        )
+                    };
+                    *crate::globals::gptr(outbuf) =
+                        crate::globals::gptr(outbuf).wrapping_add(enc_len);
+                    *crate::globals::gptr(outbytesleft) -= enc_len;
+                    *crate::globals::gptr(inbuf) =
+                        crate::globals::gptr(inbuf).wrapping_add(consumed);
+                    *crate::globals::gptr(inbytesleft) -= consumed;
+                }
+                StepResult::Incomplete => {
+                    *crate::globals::gptr(unsafe { errno_ptr() }) = EINVAL;
+                    return usize::MAX;
+                }
+                StepResult::Invalid => {
+                    *crate::globals::gptr(unsafe { errno_ptr() }) = EILSEQ;
+                    return usize::MAX;
                 }
             }
         }
+
         0
     }
 
@@ -1054,9 +1066,9 @@ fn readfile_progress(
     let status = status.into_c_char_ptr();
     {
         let buf = g_st().curbuf;
-        unsafe {
-            (*buf).b_locked += 1;
-        }
+
+        crate::globals::gptr(buf).b_locked += 1;
+
         let rv = msg_progress(
             s.cast_mut(),
             msg_id.cast_mut(),
@@ -1067,9 +1079,9 @@ fn readfile_progress(
             !s.is_null(),
             false,
         );
-        unsafe {
-            (*buf).b_locked -= 1;
-        }
+
+        crate::globals::gptr(buf).b_locked -= 1;
+
         rv.cast()
     }
 }
@@ -1089,7 +1101,7 @@ pub fn readfile(
     let mut sfname: *mut u8 = sfname.into_c_char_ptr().cast_mut().cast();
     #[cfg(unix)]
     let mut fname = fname;
-    unsafe {
+    {
         let mut retval = FAIL;
         let mut fd: i32 = if g_st().stdin_fd >= 0 {
             g_st().stdin_fd
@@ -1466,7 +1478,7 @@ pub fn readfile(
                 {
                     emsg(tr(E_AUCHANGEDBUF));
                     if !read_buffer {
-                        close(fd);
+                        unsafe { close(fd) };
                     }
                     break 'theend;
                 }
@@ -1475,7 +1487,7 @@ pub fn readfile(
                     let mfp = curbuf_mut().b_ml.mfp_ptr();
                     if swap_mode > 0
                         && !mfp.is_null()
-                        && let Some(ref swap_fname) = (*mfp).mf_fname
+                        && let Some(ref swap_fname) = crate::globals::gref(mfp).mf_fname
                     {
                         let swap_fname = swap_fname.as_ptr();
                         if (swap_mode & 0o44) == 0o40 {
@@ -1483,7 +1495,7 @@ pub fn readfile(
                             if os_fileinfo(swap_fname, &mut swap_info)
                                 && file_info.stat.st_gid != swap_info.stat.st_gid
                                 && os_fchown(
-                                    (*mfp).mf_fd,
+                                    crate::globals::gptr(mfp).mf_fd,
                                     u32::MAX as uv_uid_t,
                                     file_info.stat.st_gid as uv_gid_t,
                                 ) == -1
@@ -1498,7 +1510,7 @@ pub fn readfile(
 
             if g_st().swap_exists_action == SEA_QUIT {
                 if !read_buffer && !read_stdin {
-                    close(fd);
+                    unsafe { close(fd) };
                 }
                 break 'theend;
             }
@@ -1518,7 +1530,7 @@ pub fn readfile(
                 let n = g_st().msg_scrolled;
 
                 if !read_stdin {
-                    close(fd);
+                    unsafe { close(fd) };
                 }
 
                 g_st().msg_scroll = 1;
@@ -1656,7 +1668,7 @@ pub fn readfile(
                     if read_buffer {
                         read_buf_lnum = 1;
                         read_buf_col = 0;
-                    } else if read_stdin || vim_lseek(fd, 0, SEEK_SET) != 0 {
+                    } else if read_stdin || unsafe { vim_lseek(fd, 0, SEEK_SET) } != 0 {
                         error = true;
                         break 'retry;
                     }
@@ -1787,18 +1799,20 @@ pub fn readfile(
 
                         if size < 0 || size + linerest + 1 < 0 || linerest >= MAXCOL - size {
                             split += 1;
-                            *ptr = b'\n';
+                            *crate::globals::gptr(ptr) = b'\n';
                             size = 1;
                         } else if !skip_read {
                             let mut new_buffer_vec: Vec<u8> =
                                 vec![0; (size as usize) + (linerest as usize) + 1];
                             let new_buffer = new_buffer_vec.as_mut_ptr();
                             if linerest != 0 {
-                                ptr::copy(
-                                    ptr.wrapping_offset(-linerest),
-                                    new_buffer,
-                                    linerest as usize,
-                                );
+                                unsafe {
+                                    ptr::copy(
+                                        ptr.wrapping_offset(-linerest),
+                                        new_buffer,
+                                        linerest as usize,
+                                    )
+                                };
                             }
                             buffer_vec = new_buffer_vec;
                             buffer = buffer_vec.as_mut_ptr();
@@ -1819,7 +1833,9 @@ pub fn readfile(
                             }
 
                             if conv_restlen > 0 {
-                                ptr::copy(conv_rest.as_ptr(), ptr, conv_restlen as usize);
+                                unsafe {
+                                    ptr::copy(conv_rest.as_ptr(), ptr, conv_restlen as usize)
+                                };
                                 ptr = ptr.wrapping_offset(conv_restlen as isize);
                                 size -= conv_restlen as isize;
                             }
@@ -1838,8 +1854,9 @@ pub fn readfile(
                                         if tlen + n + 1 > size {
                                             n = size - tlen;
                                             for ni in 0..n {
-                                                let ch = *p.wrapping_offset(ni);
-                                                *ptr.wrapping_offset(tlen) =
+                                                let ch =
+                                                    *crate::globals::gptr(p.wrapping_offset(ni));
+                                                *crate::globals::gptr(ptr.wrapping_offset(tlen)) =
                                                     if ch == b'\n' { 0 } else { ch };
                                                 tlen += 1;
                                             }
@@ -1848,12 +1865,12 @@ pub fn readfile(
                                         }
 
                                         for ni in 0..n {
-                                            let ch = *p.wrapping_offset(ni);
-                                            *ptr.wrapping_offset(tlen) =
+                                            let ch = *crate::globals::gptr(p.wrapping_offset(ni));
+                                            *crate::globals::gptr(ptr.wrapping_offset(tlen)) =
                                                 if ch == b'\n' { 0 } else { ch };
                                             tlen += 1;
                                         }
-                                        *ptr.wrapping_offset(tlen) = b'\n';
+                                        *crate::globals::gptr(ptr.wrapping_offset(tlen)) = b'\n';
                                         tlen += 1;
                                         read_buf_col = 0;
                                         read_buf_lnum += 1;
@@ -1898,7 +1915,9 @@ pub fn readfile(
                                             curbuf_mut().b_ml.ml_line_count - linecnt + 1;
                                     }
                                     if bad_char_behavior == BAD_DROP {
-                                        *ptr.wrapping_offset(-(conv_restlen as isize)) = 0;
+                                        *crate::globals::gptr(
+                                            ptr.wrapping_offset(-(conv_restlen as isize)),
+                                        ) = 0;
                                         conv_restlen = 0;
                                     } else {
                                         if bad_char_behavior != BAD_KEEP
@@ -1906,7 +1925,8 @@ pub fn readfile(
                                         {
                                             while conv_restlen > 0 {
                                                 ptr = ptr.wrapping_sub(1);
-                                                *ptr = bad_char_behavior as u8;
+                                                *crate::globals::gptr(ptr) =
+                                                    bad_char_behavior as u8;
                                                 conv_restlen -= 1;
                                             }
                                         }
@@ -1934,7 +1954,7 @@ pub fn readfile(
                                 None
                             } else {
                                 check_for_bom(
-                                    std::slice::from_raw_parts(ptr, size as usize),
+                                    unsafe { std::slice::from_raw_parts(ptr, size as usize) },
                                     &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
@@ -1946,7 +1966,13 @@ pub fn readfile(
                             if ccname.is_some() {
                                 filesize += i64::from(blen);
                                 size -= blen as isize;
-                                ptr::copy(ptr.wrapping_offset(blen as isize), ptr, size as usize);
+                                unsafe {
+                                    ptr::copy(
+                                        ptr.wrapping_offset(blen as isize),
+                                        ptr,
+                                        size as usize,
+                                    )
+                                };
                                 if set_options {
                                     curbuf_mut().b_p_bomb = 1;
                                     curbuf_mut().b_start_bomb = 1;
@@ -2002,36 +2028,36 @@ pub fn readfile(
                                     continue 'retry;
                                 }
                                 if conv_error == 0 {
-                                    conv_error = readfile_linenr(
-                                        linecnt,
+                                    conv_error = readfile_linenr(linecnt, unsafe {
                                         std::slice::from_raw_parts(
                                             ptr,
                                             crate::memory::ptr_offset_from(top, ptr).max(0)
                                                 as usize,
-                                        ),
-                                    );
+                                        )
+                                    });
                                 }
 
                                 fromp = fromp.wrapping_add(1);
                                 from_size -= 1;
                                 if bad_char_behavior == BAD_KEEP {
-                                    *top = *fromp.wrapping_sub(1);
+                                    *crate::globals::gptr(top) =
+                                        *crate::globals::gptr(fromp.wrapping_sub(1));
                                     top = top.wrapping_add(1);
                                     to_size -= 1;
                                 } else if bad_char_behavior != BAD_DROP {
-                                    *top = bad_char_behavior as u8;
+                                    *crate::globals::gptr(top) = bad_char_behavior as u8;
                                     top = top.wrapping_add(1);
                                     to_size -= 1;
                                 }
                             }
 
                             if from_size > 0 {
-                                ptr::copy(fromp, conv_rest.as_mut_ptr(), from_size);
+                                unsafe { ptr::copy(fromp, conv_rest.as_mut_ptr(), from_size) };
                                 conv_restlen = from_size as i32;
                             }
 
                             line_start = ptr.wrapping_offset(-linerest);
-                            ptr::copy(buffer, line_start, linerest as usize);
+                            unsafe { ptr::copy(buffer, line_start, linerest as usize) };
                             size = crate::memory::ptr_offset_from(top, ptr);
                         }
 
@@ -2044,10 +2070,14 @@ pub fn readfile(
                                 p = ptr.wrapping_offset(size);
                                 if fio_flags == FIO_UTF8 {
                                     tail = ptr.wrapping_offset(size - 1);
-                                    while tail > ptr && (*tail & 0xc0) == 0x80 {
+                                    while tail > ptr && (*crate::globals::gptr(tail) & 0xc0) == 0x80
+                                    {
                                         tail = tail.wrapping_sub(1);
                                     }
-                                    if tail.wrapping_offset(utf_byte2len(*tail as i32) as isize)
+                                    if tail.wrapping_offset(utf_byte2len(
+                                        (*crate::globals::gptr(tail)) as i32,
+                                    )
+                                        as isize)
                                         <= ptr.wrapping_offset(size)
                                     {
                                         tail = ptr::null_mut();
@@ -2063,14 +2093,14 @@ pub fn readfile(
                                 if (fio_flags & FIO_UTF16) != 0 && p > ptr {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p) << 8;
+                                        u8c = u32::from(*crate::globals::gptr(p)) << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p);
+                                        u8c += u32::from(*crate::globals::gptr(p));
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p);
+                                        u8c = u32::from(*crate::globals::gptr(p));
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 8;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 8;
                                     }
                                     if (0xd800..=0xdbff).contains(&u8c) {
                                         tail = p;
@@ -2089,25 +2119,27 @@ pub fn readfile(
                                 conv_restlen =
                                     crate::memory::ptr_offset_from(ptr.wrapping_offset(size), tail)
                                         as i32;
-                                ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize);
+                                unsafe {
+                                    ptr::copy(tail, conv_rest.as_mut_ptr(), conv_restlen as usize)
+                                };
                                 size -= conv_restlen as isize;
                             }
 
                             while p > ptr {
                                 if (fio_flags & FIO_LATIN1) != 0 {
                                     p = p.wrapping_sub(1);
-                                    u8c = u32::from(*p);
+                                    u8c = u32::from(*crate::globals::gptr(p));
                                 } else if (fio_flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p) << 8;
+                                        u8c = u32::from(*crate::globals::gptr(p)) << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p);
+                                        u8c += u32::from(*crate::globals::gptr(p));
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p);
+                                        u8c = u32::from(*crate::globals::gptr(p));
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 8;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 8;
                                     }
                                     if (fio_flags & FIO_UTF16) != 0
                                         && (0xdc00..=0xdfff).contains(&u8c)
@@ -2127,15 +2159,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(
-                                                    linecnt,
+                                                conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
                                                         crate::memory::ptr_offset_from(p, ptr)
                                                             .max(0)
                                                             as usize,
-                                                    ),
-                                                );
+                                                    )
+                                                });
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2148,14 +2179,14 @@ pub fn readfile(
                                         let mut u16c: i32;
                                         if (fio_flags & FIO_ENDIAN_L) != 0 {
                                             p = p.wrapping_sub(1);
-                                            u16c = i32::from(*p) << 8;
+                                            u16c = i32::from(*crate::globals::gptr(p)) << 8;
                                             p = p.wrapping_sub(1);
-                                            u16c += i32::from(*p);
+                                            u16c += i32::from(*crate::globals::gptr(p));
                                         } else {
                                             p = p.wrapping_sub(1);
-                                            u16c = i32::from(*p);
+                                            u16c = i32::from(*crate::globals::gptr(p));
                                             p = p.wrapping_sub(1);
-                                            u16c += i32::from(*p) << 8;
+                                            u16c += i32::from(*crate::globals::gptr(p)) << 8;
                                         }
                                         u8c = 0x10000
                                             + (((u16c as u32) & 0x3ff) << 10)
@@ -2176,15 +2207,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(
-                                                    linecnt,
+                                                conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
                                                         crate::memory::ptr_offset_from(p, ptr)
                                                             .max(0)
                                                             as usize,
-                                                    ),
-                                                );
+                                                    )
+                                                });
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2197,30 +2227,30 @@ pub fn readfile(
                                 } else if (fio_flags & FIO_UCS4) != 0 {
                                     if (fio_flags & FIO_ENDIAN_L) != 0 {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p) << 24;
+                                        u8c = u32::from(*crate::globals::gptr(p)) << 24;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 16;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 16;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 8;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p);
+                                        u8c += u32::from(*crate::globals::gptr(p));
                                     } else {
                                         p = p.wrapping_sub(1);
-                                        u8c = u32::from(*p);
+                                        u8c = u32::from(*crate::globals::gptr(p));
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 8;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 8;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 16;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 16;
                                         p = p.wrapping_sub(1);
-                                        u8c += u32::from(*p) << 24;
+                                        u8c += u32::from(*crate::globals::gptr(p)) << 24;
                                     }
                                     if u8c > i32::MAX as u32 {
                                         u8c = 0xfffd;
                                     }
                                 } else {
                                     p = p.wrapping_sub(1);
-                                    if *p < 0x80 {
-                                        u8c = u32::from(*p);
+                                    if *crate::globals::gptr(p) < 0x80 {
+                                        u8c = u32::from(*crate::globals::gptr(p));
                                     } else {
                                         let len = utf_head_off(ptr.cast(), p.cast());
                                         p = p.wrapping_offset(-(len as isize));
@@ -2240,15 +2270,14 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error = readfile_linenr(
-                                                    linecnt,
+                                                conv_error = readfile_linenr(linecnt, unsafe {
                                                     std::slice::from_raw_parts(
                                                         ptr,
                                                         crate::memory::ptr_offset_from(p, ptr)
                                                             .max(0)
                                                             as usize,
-                                                    ),
-                                                );
+                                                    )
+                                                });
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2265,7 +2294,7 @@ pub fn readfile(
                             }
 
                             line_start = dest.wrapping_offset(-linerest);
-                            ptr::copy(buffer, line_start, linerest as usize);
+                            unsafe { ptr::copy(buffer, line_start, linerest as usize) };
                             size = crate::memory::ptr_offset_from(
                                 ptr.wrapping_offset(real_size as isize),
                                 dest,
@@ -2281,13 +2310,13 @@ pub fn readfile(
                                     while crate::memory::ptr_offset_from(ascii_end, p)
                                         >= size_of::<u64>() as isize
                                     {
-                                        let word = ptr::read_unaligned(p.cast::<u64>());
+                                        let word = unsafe { ptr::read_unaligned(p.cast::<u64>()) };
                                         if (word & NONASCII_MASK) != 0 {
                                             break;
                                         }
                                         p = p.wrapping_add(size_of::<u64>());
                                     }
-                                    while p < ascii_end && *p < 0x80 {
+                                    while p < ascii_end && *crate::globals::gptr(p) < 0x80 {
                                         p = p.wrapping_add(1);
                                     }
                                 }
@@ -2298,7 +2327,7 @@ pub fn readfile(
                                 if todo <= 0 {
                                     break;
                                 }
-                                if *p >= 0x80 {
+                                if *crate::globals::gptr(p) >= 0x80 {
                                     let l = utf_ptr2len_len(p.cast(), todo);
                                     if l > todo && !incomplete_tail {
                                         if p > ptr || filesize > 0 {
@@ -2306,11 +2335,13 @@ pub fn readfile(
                                         }
                                         if p > ptr {
                                             conv_restlen = todo;
-                                            ptr::copy(
-                                                p,
-                                                conv_rest.as_mut_ptr(),
-                                                conv_restlen as usize,
-                                            );
+                                            unsafe {
+                                                ptr::copy(
+                                                    p,
+                                                    conv_rest.as_mut_ptr(),
+                                                    conv_restlen as usize,
+                                                )
+                                            };
                                             size -= conv_restlen as isize;
                                             break;
                                         }
@@ -2320,10 +2351,13 @@ pub fn readfile(
                                             break;
                                         }
 
-                                        let err_slice = std::slice::from_raw_parts(
-                                            ptr,
-                                            crate::memory::ptr_offset_from(p, ptr).max(0) as usize,
-                                        );
+                                        let err_slice = unsafe {
+                                            std::slice::from_raw_parts(
+                                                ptr,
+                                                crate::memory::ptr_offset_from(p, ptr).max(0)
+                                                    as usize,
+                                            )
+                                        };
                                         if iconv_fd != -1 && conv_error == 0 {
                                             conv_error = readfile_linenr(linecnt, err_slice);
                                         }
@@ -2333,11 +2367,13 @@ pub fn readfile(
                                         }
 
                                         if bad_char_behavior == BAD_DROP {
-                                            ptr::copy(p.wrapping_add(1), p, (todo - 1) as usize);
+                                            unsafe {
+                                                ptr::copy(p.wrapping_add(1), p, (todo - 1) as usize)
+                                            };
                                             size -= 1;
                                         } else {
                                             if bad_char_behavior != BAD_KEEP {
-                                                *p = bad_char_behavior as u8;
+                                                *crate::globals::gptr(p) = bad_char_behavior as u8;
                                             }
                                             p = p.wrapping_add(1);
                                         }
@@ -2371,18 +2407,19 @@ pub fn readfile(
                                 p = ptr;
                                 let end_p = ptr.wrapping_offset(size);
                                 while p < end_p {
-                                    if *p == b'\n' {
+                                    if *crate::globals::gptr(p) == b'\n' {
                                         if try_unix == 0
                                             || (try_dos != 0
                                                 && p > ptr
-                                                && *p.wrapping_sub(1) == b'\r')
+                                                && *crate::globals::gptr(p.wrapping_sub(1))
+                                                    == b'\r')
                                         {
                                             fileformat = EOL_DOS;
                                         } else {
                                             fileformat = EOL_UNIX;
                                         }
                                         break;
-                                    } else if *p == b'\r' && try_mac != 0 {
+                                    } else if *crate::globals::gptr(p) == b'\r' && try_mac != 0 {
                                         try_mac += 1;
                                     }
                                     p = p.wrapping_add(1);
@@ -2391,15 +2428,15 @@ pub fn readfile(
                                 if fileformat == EOL_UNIX && try_mac != 0 {
                                     try_mac = 1;
                                     try_unix = 1;
-                                    while p >= ptr && *p != b'\r' {
+                                    while p >= ptr && *crate::globals::gptr(p) != b'\r' {
                                         p = p.wrapping_sub(1);
                                     }
                                     if p >= ptr {
                                         p = ptr;
                                         while p < end_p {
-                                            if *p == b'\n' {
+                                            if *crate::globals::gptr(p) == b'\n' {
                                                 try_unix += 1;
-                                            } else if *p == b'\r' {
+                                            } else if *crate::globals::gptr(p) == b'\r' {
                                                 try_mac += 1;
                                             }
                                             p = p.wrapping_add(1);
@@ -2435,17 +2472,17 @@ pub fn readfile(
                             if size < 0 {
                                 break;
                             }
-                            let c = *ptr;
+                            let c = *crate::globals::gptr(ptr);
                             if c != 0 && c != CAR && c != b'\n' {
                                 continue;
                             }
                             if c == 0 {
-                                *ptr = b'\n';
+                                *crate::globals::gptr(ptr) = b'\n';
                             } else if c == b'\n' {
-                                *ptr = CAR;
+                                *crate::globals::gptr(ptr) = CAR;
                             } else {
                                 if skip_count == 0 {
-                                    *ptr = 0;
+                                    *crate::globals::gptr(ptr) = 0;
                                     let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1)
                                         as Colnr;
                                     if !ml_append(lnum, line_start.cast(), len, newfile) {
@@ -2453,10 +2490,9 @@ pub fn readfile(
                                         break;
                                     }
                                     if read_undo_file && len > 0 {
-                                        sha_ctx.update(std::slice::from_raw_parts(
-                                            line_start,
-                                            len as usize,
-                                        ));
+                                        sha_ctx.update(unsafe {
+                                            std::slice::from_raw_parts(line_start, len as usize)
+                                        });
                                     }
                                     lnum += 1;
                                     read_count -= 1;
@@ -2478,7 +2514,7 @@ pub fn readfile(
                             let rem = crate::memory::ptr_offset_from(end, ptr) as usize;
                             let slice = crate::memory::cstr_slice(ptr.cast(), rem);
                             let Some(nl_pos) = slice.iter().position(|&b| b == b'\n') else {
-                                let rem_slice = std::slice::from_raw_parts_mut(ptr, rem);
+                                let rem_slice = unsafe { std::slice::from_raw_parts_mut(ptr, rem) };
                                 for b in rem_slice {
                                     if *b == 0 {
                                         *b = b'\n';
@@ -2490,7 +2526,8 @@ pub fn readfile(
 
                             let nl = ptr.wrapping_add(nl_pos);
                             if nl_pos > 0 {
-                                let scan_slice = std::slice::from_raw_parts_mut(ptr, nl_pos);
+                                let scan_slice =
+                                    unsafe { std::slice::from_raw_parts_mut(ptr, nl_pos) };
                                 for b in scan_slice {
                                     if *b == 0 {
                                         *b = b'\n';
@@ -2500,17 +2537,20 @@ pub fn readfile(
 
                             ptr = nl;
                             if skip_count == 0 {
-                                *ptr = 0;
+                                *crate::globals::gptr(ptr) = 0;
                                 let mut len =
                                     (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
                                 if fileformat == EOL_DOS {
-                                    if ptr > line_start && *ptr.wrapping_sub(1) == CAR {
-                                        *ptr.wrapping_sub(1) = 0;
+                                    if ptr > line_start
+                                        && *crate::globals::gptr(ptr.wrapping_sub(1)) == CAR
+                                    {
+                                        *crate::globals::gptr(ptr.wrapping_sub(1)) = 0;
                                         len -= 1;
                                     } else if ff_error != EOL_DOS {
                                         if try_unix != 0
                                             && !read_stdin
-                                            && (read_buffer || vim_lseek(fd, 0, SEEK_SET) == 0)
+                                            && (read_buffer
+                                                || unsafe { vim_lseek(fd, 0, SEEK_SET) } == 0)
                                         {
                                             fileformat = EOL_UNIX;
                                             if set_options {
@@ -2528,10 +2568,9 @@ pub fn readfile(
                                     break;
                                 }
                                 if read_undo_file && len > 0 {
-                                    sha_ctx.update(std::slice::from_raw_parts(
-                                        line_start,
-                                        len as usize,
-                                    ));
+                                    sha_ctx.update(unsafe {
+                                        std::slice::from_raw_parts(line_start, len as usize)
+                                    });
                                 }
                                 lnum += 1;
                                 read_count -= 1;
@@ -2592,7 +2631,7 @@ pub fn readfile(
             if linerest != 0
                 && curbuf_mut().b_p_bin == 0
                 && fileformat == EOL_DOS
-                && *ptr.wrapping_sub(1) == CTRL_Z
+                && *crate::globals::gptr(ptr.wrapping_sub(1)) == CTRL_Z
             {
                 ptr = ptr.wrapping_sub(1);
                 linerest -= 1;
@@ -2605,13 +2644,15 @@ pub fn readfile(
                 if set_options {
                     curbuf_mut().b_p_eol = 0;
                 }
-                *ptr = 0;
+                *crate::globals::gptr(ptr) = 0;
                 let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
                 if !ml_append(lnum, line_start.cast(), len, newfile) {
                     error = true;
                 } else {
                     if read_undo_file && len > 0 {
-                        sha_ctx.update(std::slice::from_raw_parts(line_start, len as usize));
+                        sha_ctx.update(unsafe {
+                            std::slice::from_raw_parts(line_start, len as usize)
+                        });
                     }
                     lnum += 1;
                     read_no_eol_lnum = lnum;
@@ -2628,18 +2669,18 @@ pub fn readfile(
             }
 
             if !read_buffer && !read_stdin {
-                close(fd);
+                unsafe { close(fd) };
             } else {
                 os_set_cloexec(fd);
             }
             drop(buffer_vec);
 
             if read_stdin {
-                close(fd);
+                unsafe { close(fd) };
                 if g_st().stdin_fd < 0 {
                     #[cfg(not(windows))]
                     {
-                        g_st().vim_ignored = dup(2);
+                        g_st().vim_ignored = unsafe { dup(2) };
                     }
                     #[cfg(windows)]
                     {
@@ -2706,7 +2747,7 @@ pub fn readfile(
                     {
                         if s_isfifo(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.offset(buflen as isize),
+                                unsafe { iobuf_ptr.offset(buflen as isize) },
                                 (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[fifo]"),
@@ -2715,7 +2756,7 @@ pub fn readfile(
                         }
                         if s_issock(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.offset(buflen as isize),
+                                unsafe { iobuf_ptr.offset(buflen as isize) },
                                 (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[socket]"),
@@ -2731,7 +2772,7 @@ pub fn readfile(
                         ))]
                         if s_ischr(perm as u64) {
                             buflen += vim_snprintf!(
-                                iobuf_ptr.offset(buflen as isize),
+                                iobuf_ptr.wrapping_offset(buflen as isize),
                                 (IOSIZE as i32 - buflen) as usize,
                                 c"%s",
                                 tr(c"[character special]"),
@@ -2992,8 +3033,8 @@ pub fn readfile(
         }
 
         let mfp = curbuf_mut().b_ml.mfp_ptr();
-        if !mfp.is_null() && (*mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
-            (*mfp).mf_dirty = MF_DIRTY_YES;
+        if !mfp.is_null() && crate::globals::gptr(mfp).mf_dirty == MF_DIRTY_YES_NOSYNC {
+            crate::globals::gptr(mfp).mf_dirty = MF_DIRTY_YES;
         }
 
         retval
@@ -3079,21 +3120,25 @@ pub fn set_forced_fenc(eap: &Exarg) {
 /// Find next fileencoding to use from 'fileencodings'.
 fn next_fenc<T>(pp: *mut *mut T) -> std::ffi::CString {
     let pp: *mut *mut u8 = pp.cast();
-    unsafe {
-        if **pp == 0 {
-            *pp = ptr::null_mut();
+    {
+        if *crate::globals::gptr(*crate::globals::gptr(pp)) == 0 {
+            *crate::globals::gptr(pp) = ptr::null_mut();
             return std::ffi::CString::default();
         }
-        let p: *mut u8 = vim_strchr((*pp).cast(), b',' as i32).cast();
+        let p: *mut u8 = vim_strchr(crate::globals::gptr(pp).cast(), b',' as i32).cast();
         if p.is_null() {
-            let res = enc_canonize((*pp).cast());
-            *pp = (*pp).wrapping_add(crate::memory::cstr_len((*pp).cast()));
+            let res = enc_canonize(crate::globals::gptr(pp).cast());
+            *crate::globals::gptr(pp) = crate::globals::gptr(pp)
+                .wrapping_add(crate::memory::cstr_len(crate::globals::gptr(pp).cast()));
             res
         } else {
-            let len = crate::memory::ptr_offset_from(p, *pp) as usize;
-            let tmp = std::ffi::CString::new(crate::memory::cstr_slice((*pp).cast(), len))
-                .unwrap_or_default();
-            *pp = p.wrapping_add(1);
+            let len = crate::memory::ptr_offset_from(p, *crate::globals::gptr(pp)) as usize;
+            let tmp = std::ffi::CString::new(crate::memory::cstr_slice(
+                crate::globals::gptr(pp).cast(),
+                len,
+            ))
+            .unwrap_or_default();
+            *crate::globals::gptr(pp) = p.wrapping_add(1);
             enc_canonize(tmp.as_ptr())
         }
     }
@@ -3227,7 +3272,7 @@ pub fn add_quoted_fname(
     ret_buf[0] = b'"';
     let mut len: usize = 1;
     len += home_replace(
-        unsafe { buf.cast_mut().as_ref() },
+        crate::globals::gopt(buf.cast_mut()),
         fname,
         ret_buf[len..].as_mut_ptr(),
         bufsize.saturating_sub(4),
@@ -3811,15 +3856,15 @@ pub fn vim_copyfile(
     let from = from.into_c_char_ptr();
     let to = to.into_c_char_ptr();
     #[cfg(not(windows))]
-    unsafe {
+    {
         let mut from_info: FileInfo = FileInfo::new();
         if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
             let mut ret = -1;
             let mut linkbuf: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
-            let len = readlink(from.cast(), linkbuf.as_mut_ptr(), MAXPATHL);
+            let len = unsafe { readlink(from.cast(), linkbuf.as_mut_ptr(), MAXPATHL) };
             if len > 0 {
                 linkbuf[len as usize] = 0;
-                ret = symlink(linkbuf.as_ptr(), to.cast());
+                ret = unsafe { symlink(linkbuf.as_ptr(), to.cast()) };
             }
             return ret == 0;
         }
@@ -3863,7 +3908,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
         g_st().no_wait_return += 1;
         g_st().did_check_timestamps = true;
         fio_st().already_warned = false;
-        let mut buf_opt = unsafe { g_st().firstbuf.as_mut() };
+        let mut buf_opt = crate::globals::gopt_mut(g_st().firstbuf);
         while let Some(buf) = buf_opt {
             let next_ptr = buf.b_next;
             if buf.b_nwindows > 0 {
@@ -3872,11 +3917,11 @@ pub fn check_timestamps(focus: i32) -> i32 {
                 let n = buf_check_timestamp(buf);
                 didit = didit.max(n);
                 if n > 0 && !bufref_valid(Some(&bufref)) {
-                    buf_opt = unsafe { g_st().firstbuf.as_mut() };
+                    buf_opt = crate::globals::gopt_mut(g_st().firstbuf);
                     continue;
                 }
             }
-            buf_opt = unsafe { next_ptr.as_mut() };
+            buf_opt = crate::globals::gopt_mut(next_ptr);
         }
         g_st().no_wait_return -= 1;
         g_st().need_check_timestamps = false;
@@ -4565,9 +4610,8 @@ fn vim_opentempdir() {
     }
 
     fio_st().vim_tempdir_dp = dp;
-    unsafe {
-        flock(dirfd(fio_st().vim_tempdir_dp), LOCK_SH);
-    }
+
+    unsafe { flock(dirfd(fio_st().vim_tempdir_dp), LOCK_SH) };
 }
 
 #[cfg(unix)]
@@ -4576,9 +4620,8 @@ fn vim_closetempdir() {
         return;
     }
 
-    unsafe {
-        closedir(fio_st().vim_tempdir_dp);
-    }
+    unsafe { closedir(fio_st().vim_tempdir_dp) };
+
     fio_st().vim_tempdir_dp = ptr::null_mut();
 }
 

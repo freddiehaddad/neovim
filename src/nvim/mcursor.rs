@@ -200,7 +200,7 @@ static MC_STATE: GlobalState<McursorState> = GlobalState::new(McursorState::new(
 
 #[inline]
 fn mc_st() -> &'static mut McursorState {
-    unsafe { &mut *MC_STATE.as_ptr() }
+    crate::globals::gmut(MC_STATE.as_ptr())
 }
 
 #[inline]
@@ -345,19 +345,19 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     let mut topline_valid = false;
     if !buf.is_null() {
         extmark_get_pos(
-            unsafe { &mut *buf },
+            crate::globals::gmut(buf),
             mc_session_ns(),
             sb.cursor_mark,
             &mut sb.primary.pos,
         );
-        extmark_del_id(unsafe { &mut *buf }, mc_session_ns(), sb.cursor_mark);
+        extmark_del_id(crate::globals::gmut(buf), mc_session_ns(), sb.cursor_mark);
         topline_valid = extmark_get_pos(
-            unsafe { &mut *buf },
+            crate::globals::gmut(buf),
             mc_session_ns(),
             sb.topline_mark,
             &mut topline,
         );
-        extmark_del_id(unsafe { &mut *buf }, mc_session_ns(), sb.topline_mark);
+        extmark_del_id(crate::globals::gmut(buf), mc_session_ns(), sb.topline_mark);
     }
     if buf == g_st().curbuf {
         restore_viewstate(curwin_mut(), &sb.view);
@@ -602,7 +602,7 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
         let buf = handle_get_buffer(ctx.buf);
         if buf.is_null()
             || (ctx.mark != 0
-                && !extmark_get_pos(unsafe { &mut *buf }, mc_ns(), ctx.mark, &mut ctx.pos))
+                && !extmark_get_pos(crate::globals::gmut(buf), mc_ns(), ctx.mark, &mut ctx.pos))
         {
             ctx_free(&mut ctx);
             continue;
@@ -613,9 +613,9 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
                 && buf == g_st().curbuf
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)
-                || mc_mark_at(unsafe { &mut *buf }, ctx.pos, 0) != ctx.mark);
+                || mc_mark_at(crate::globals::gmut(buf), ctx.pos, 0) != ctx.mark);
         if dup {
-            extmark_del_id(unsafe { &mut *buf }, mc_ns(), ctx.mark);
+            extmark_del_id(crate::globals::gmut(buf), mc_ns(), ctx.mark);
             ctx_free(&mut ctx);
         } else {
             cursors_mut()[n] = ctx;
@@ -1104,7 +1104,7 @@ fn mc_reg_gather() {
                 0,
             );
             if r == b'"' as i32 {
-                set_clipboard(NUL, unsafe { &*get_y_previous() });
+                set_clipboard(NUL, crate::globals::gref(get_y_previous()));
             }
         }
         idx += 1;
@@ -1114,8 +1114,22 @@ fn mc_reg_gather() {
 pub fn mc_vsel_clear() {
     let buf = handle_get_buffer(mc_st().mc_vsel_buf);
     if !buf.is_null() {
-        extmark_clear(unsafe { &mut *buf }, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
-        extmark_clear(unsafe { &mut *buf }, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear(
+            crate::globals::gmut(buf),
+            mc_vsel_ns(),
+            0,
+            0,
+            MAXLNUM,
+            MAXCOL,
+        );
+        extmark_clear(
+            crate::globals::gmut(buf),
+            mc_vcur_ns(),
+            0,
+            0,
+            MAXLNUM,
+            MAXCOL,
+        );
     }
     mc_st().mc_vsel_buf = 0;
 }
@@ -1470,9 +1484,12 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
     let mut step = first;
     let curswant = curwin_mut().w_curswant;
     while !g_st().got_int {
-        mc_zq_target(step, search, motion_type, unsafe {
-            (mc_add(curbuf_mut(), step)).as_mut()
-        });
+        mc_zq_target(
+            step,
+            search,
+            motion_type,
+            crate::globals::gopt_mut(mc_add(curbuf_mut(), step)),
+        );
         placed += 1;
         let prev = step;
         let mut from = prev;
@@ -1537,8 +1554,8 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
         },
     ];
     if oap.from_visual {
-        bounds[0] = unsafe { (*mark_get_visual(curbuf_mut(), b'<' as i32)).mark };
-        bounds[1] = unsafe { (*mark_get_visual(curbuf_mut(), b'>' as i32)).mark };
+        bounds[0] = crate::globals::gptr(mark_get_visual(curbuf_mut(), b'<' as i32)).mark;
+        bounds[1] = crate::globals::gptr(mark_get_visual(curbuf_mut(), b'>' as i32)).mark;
     }
 
     let lines = oap.motion_type == MT_LINE_WISE;

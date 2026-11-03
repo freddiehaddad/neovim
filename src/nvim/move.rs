@@ -838,7 +838,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 /// fold column and sign column.
 #[unsafe(no_mangle)]
 pub extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     let num_off = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
         || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
@@ -1186,7 +1186,7 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if wp.is_null() {
         return;
     }
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
 
     let mut pos = CursorPos {
         lnum: tv_get_number(&argvars[1]) as Linenr,
@@ -1241,7 +1241,7 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     if wp.is_null() {
         return;
     }
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
 
     let mut error = false;
     let lnum = tv_get_number_chk(&argvars[1], Some(&mut error)) as Linenr;
@@ -2569,7 +2569,7 @@ pub fn do_check_cursorbind() {
 
     #[inline]
     fn move_cb_st() -> &'static mut MoveCursorbindState {
-        unsafe { &mut *MOVE_CB_STATE.as_ptr() }
+        crate::globals::gmut(MOVE_CB_STATE.as_ptr())
     }
 
     debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());

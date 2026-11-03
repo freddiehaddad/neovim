@@ -77,7 +77,7 @@ static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::n
 
 #[inline]
 fn uic_st() -> &'static mut UiClientState {
-    unsafe { &mut *UIC_STATE.as_ptr() }
+    crate::globals::gmut(UIC_STATE.as_ptr())
 }
 
 #[inline]
@@ -134,7 +134,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         }
     }
 
-    unsafe { *(channel.cast::<u64>()) }
+    *crate::globals::gptr(channel.cast::<u64>())
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
@@ -288,11 +288,11 @@ pub fn ui_client_run() -> ! {
 
     loop {
         let events = loop_queues(&mut g_st().main_loop).events;
-        if !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !multiqueue_empty(crate::globals::gref(events)) {
+            multiqueue_process_events(crate::globals::gmut(events));
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
-            multiqueue_process_events(unsafe { &mut *events });
+            multiqueue_process_events(crate::globals::gmut(events));
         }
     }
 }
@@ -432,7 +432,7 @@ pub fn ui_client_event_connect(args: Array) {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
     multiqueue_put_event(
-        unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
+        crate::globals::gmut(loop_queues(&mut g_st().main_loop).fast_events),
         Event::UiClientConnect(server_addr),
     );
     g_st().ui_client_channel_id = u64::MAX;

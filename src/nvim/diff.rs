@@ -243,7 +243,7 @@ static DIFF_STATE: GlobalState<DiffState> = GlobalState::new(DiffState::new());
 
 #[inline]
 fn diff_st() -> &'static mut DiffState {
-    unsafe { &mut *DIFF_STATE.as_ptr() }
+    crate::globals::gmut(DIFF_STATE.as_ptr())
 }
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
@@ -670,7 +670,7 @@ pub fn diff_redraw(dofold: bool) {
             check_topfill(&mut *wp, false);
         }
     }
-    if let Some(wp_other) = unsafe { wp_other.as_mut() }
+    if let Some(wp_other) = crate::globals::gopt_mut(wp_other)
         && curwin_mut().w_onebuf_opt.wo_scb != 0
     {
         if used_max_fill_curwin {
@@ -1323,7 +1323,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 do_exedit(eap, old_curwin);
                 if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                     diff_win_options(curwin_mut(), true);
-                    diff_win_options(unsafe { &mut *old_curwin }, true);
+                    diff_win_options(crate::globals::gmut(old_curwin), true);
                     if !newname_vec.is_empty() {
                         eap.arg = newname_vec.as_mut_ptr().cast();
                         ex_file(eap);
@@ -1371,12 +1371,12 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     }
     diff_win_options(curwin_mut(), true);
     if win_valid(old_curwin) {
-        diff_win_options(unsafe { &mut *old_curwin }, true);
+        diff_win_options(crate::globals::gmut(old_curwin), true);
         if bufref_valid(Some(&old_curbuf)) {
-            curwin_mut().w_cursor.lnum =
-                diff_get_corresponding_line(old_curbuf.br_buf.cast(), unsafe {
-                    (*old_curwin).w_cursor.lnum
-                });
+            curwin_mut().w_cursor.lnum = diff_get_corresponding_line(
+                old_curbuf.br_buf.cast(),
+                crate::globals::gptr(old_curwin).w_cursor.lnum,
+            );
         }
     }
     scroll_to_fraction(curwin_mut(), curwin_mut().w_height);
@@ -2305,9 +2305,9 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v = unsafe {
-        &*opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>()
-    };
+    let v = crate::globals::gref(
+        opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>(),
+    );
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })
         | (if v.iblank { DIFF_IBLANK } else { 0 })
@@ -2470,7 +2470,7 @@ fn diff_find_change_simple(
                 break;
             }
             let line_new = ml_get_buf(
-                unsafe { &mut *curtab_mut().tp_diffbuf[i] },
+                crate::globals::gmut(curtab_mut().tp_diffbuf[i]),
                 dp.df_lnum[i] + off,
             );
             let org_bytes = crate::memory::cstr_from_ptr(line_org).to_bytes_with_nul();

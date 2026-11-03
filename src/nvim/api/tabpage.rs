@@ -51,7 +51,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     let first = if tab == g_st().curtab {
         g_st().firstwin
     } else {
-        unsafe { (*tab).tp_firstwin }
+        crate::globals::gptr(tab).tp_firstwin
     };
     let n = win_iter_mut(first).count();
 
@@ -126,8 +126,8 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     if tab == g_st().curtab {
         return nvim_get_current_win();
     }
-    for wp in win_iter_ptr(unsafe { (*tab).tp_firstwin }) {
-        if std::ptr::eq(wp, unsafe { (*tab).tp_curwin }) {
+    for wp in win_iter_ptr(crate::globals::gptr(tab).tp_firstwin) {
+        if std::ptr::eq(wp, crate::globals::gptr(tab).tp_curwin) {
             return wp.handle;
         }
     }
@@ -251,13 +251,13 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp, wp) && unsafe { (*wp).w_buffer } != (&raw mut *b) {
+    if tabpage_win_valid(tp, wp) && crate::globals::gptr(wp).w_buffer != (&raw mut *b) {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st().autocmd_no_enter += 1;
             g_st().autocmd_no_leave += 1;
         }
-        win_set_buf(unsafe { &mut *wp }, b, err);
+        win_set_buf(crate::globals::gmut(wp), b, err);
         if au_no_enter_leave {
             g_st().autocmd_no_enter -= 1;
             g_st().autocmd_no_leave -= 1;
@@ -273,7 +273,7 @@ pub fn nvim_open_tabpage(
         }
     }
 
-    unsafe { (*tp).handle }
+    crate::globals::gptr(tp).handle
 }
 
 #[cfg(test)]

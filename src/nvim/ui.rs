@@ -159,12 +159,12 @@ static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
 
 #[inline]
 fn ui_state() -> &'static mut UiState {
-    unsafe { &mut *UI_STATE.as_ptr() }
+    crate::globals::gmut(UI_STATE.as_ptr())
 }
 
 #[inline]
 fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    ui_state().uis.iter().map(|&p| unsafe { &mut *p })
+    ui_state().uis.iter().map(|&p| crate::globals::gmut(p))
 }
 
 pub fn ui_init() {
@@ -323,7 +323,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(unsafe { &mut *g_st().resize_events }, Event::UiRefresh);
+    multiqueue_put_event(crate::globals::gmut(g_st().resize_events), Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {
@@ -780,7 +780,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
         return;
     }
 
-    let Some(wp) = (unsafe { get_win_by_grid_handle(grid_handle).as_mut() }) else {
+    let Some(wp) = crate::globals::gopt_mut(get_win_by_grid_handle(grid_handle)) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,

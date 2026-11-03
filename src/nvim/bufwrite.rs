@@ -122,31 +122,21 @@ fn ucs2bytes(mut c: u32, pp: &mut *mut u8, flags: i32) -> bool {
 
     if (flags & FIO_UCS4) != 0 {
         if (flags & FIO_ENDIAN_L) != 0 {
-            unsafe {
-                *p = c as u8;
-            }
-            unsafe {
-                *p.wrapping_add(1) = (c >> 8) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(2) = (c >> 16) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(3) = (c >> 24) as u8;
-            }
+            *crate::globals::gptr(p) = c as u8;
+
+            *crate::globals::gptr(p.wrapping_add(1)) = (c >> 8) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(2)) = (c >> 16) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(3)) = (c >> 24) as u8;
         } else {
-            unsafe {
-                *p = (c >> 24) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(1) = (c >> 16) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(2) = (c >> 8) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(3) = c as u8;
-            }
+            *crate::globals::gptr(p) = (c >> 24) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(1)) = (c >> 16) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(2)) = (c >> 8) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(3)) = c as u8;
         }
         p = p.wrapping_add(4);
     } else if (flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
@@ -158,19 +148,13 @@ fn ucs2bytes(mut c: u32, pp: &mut *mut u8, flags: i32) -> bool {
                 }
                 let cc = ((c >> 10) & 0x3ff) + 0xd800;
                 if (flags & FIO_ENDIAN_L) != 0 {
-                    unsafe {
-                        *p = cc as u8;
-                    }
-                    unsafe {
-                        *p.wrapping_add(1) = (cc >> 8) as u8;
-                    }
+                    *crate::globals::gptr(p) = cc as u8;
+
+                    *crate::globals::gptr(p.wrapping_add(1)) = (cc >> 8) as u8;
                 } else {
-                    unsafe {
-                        *p = (cc >> 8) as u8;
-                    }
-                    unsafe {
-                        *p.wrapping_add(1) = cc as u8;
-                    }
+                    *crate::globals::gptr(p) = (cc >> 8) as u8;
+
+                    *crate::globals::gptr(p.wrapping_add(1)) = cc as u8;
                 }
                 p = p.wrapping_add(2);
                 c = (c & 0x3ff) + 0xdc00;
@@ -179,31 +163,24 @@ fn ucs2bytes(mut c: u32, pp: &mut *mut u8, flags: i32) -> bool {
             }
         }
         if (flags & FIO_ENDIAN_L) != 0 {
-            unsafe {
-                *p = c as u8;
-            }
-            unsafe {
-                *p.wrapping_add(1) = (c >> 8) as u8;
-            }
+            *crate::globals::gptr(p) = c as u8;
+
+            *crate::globals::gptr(p.wrapping_add(1)) = (c >> 8) as u8;
         } else {
-            unsafe {
-                *p = (c >> 8) as u8;
-            }
-            unsafe {
-                *p.wrapping_add(1) = c as u8;
-            }
+            *crate::globals::gptr(p) = (c >> 8) as u8;
+
+            *crate::globals::gptr(p.wrapping_add(1)) = c as u8;
         }
         p = p.wrapping_add(2);
     } else if c >= 0x100 {
         error = true;
-        unsafe {
-            *p = 0xbf;
-        }
+
+        *crate::globals::gptr(p) = 0xbf;
+
         p = p.wrapping_add(1);
     } else {
-        unsafe {
-            *p = c as u8;
-        }
+        *crate::globals::gptr(p) = c as u8;
+
         p = p.wrapping_add(1);
     }
 
@@ -275,7 +252,7 @@ fn buf_write_convert(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut i32) -> i32
             let c: u32 = if n > 1 {
                 utf_ptr2char((*bufp).wrapping_add(wlen as usize).cast()) as u32
             } else {
-                unsafe { u32::from(*(*bufp).wrapping_add(wlen as usize)) }
+                u32::from(*crate::globals::gptr((*bufp).wrapping_add(wlen as usize)))
             };
 
             if (flags & FIO_LATIN1) == 0 {
@@ -378,10 +355,10 @@ fn make_bom(buf_in: *mut u8, name: impl crate::strings::IntoCCharPtr) -> i32 {
             return 0;
         }
         if flags == FIO_UTF8 {
-            unsafe {
-                *buf = 0xef;
-                *buf.wrapping_add(1) = 0xbb;
-                *buf.wrapping_add(2) = 0xbf;
+            {
+                *crate::globals::gptr(buf) = 0xef;
+                *crate::globals::gptr(buf.wrapping_add(1)) = 0xbb;
+                *crate::globals::gptr(buf.wrapping_add(2)) = 0xbf;
             }
             return 3;
         }
@@ -410,25 +387,25 @@ fn buf_write_do_autocmds<T>(
     let fnamep = fnamep.cast();
     let sfnamep = sfnamep.cast();
     let ffnamep = ffnamep.cast();
-    unsafe {
-        let old_line_count = (*buf).b_ml.ml_line_count;
+    {
+        let old_line_count = crate::globals::gptr(buf).b_ml.ml_line_count;
         let msg_save = g_st().msg_scroll;
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         let mut did_cmd = false;
         let mut nofile_err = false;
-        let empty_memline = (*buf).b_ml.ml_mfp.is_none();
+        let empty_memline = crate::globals::gptr(buf).b_ml.ml_mfp.is_none();
         let mut bufref = Bufref {
             br_buf: ptr::null_mut(),
             br_fnum: 0,
             br_buf_free_count: 0,
         };
 
-        let sfname = *sfnamep;
-        let buf_ffname = *ffnamep == (*buf).b_ffname;
-        let buf_sfname = sfname == (*buf).b_sfname;
-        let buf_fname_f = *fnamep == (*buf).b_ffname;
-        let buf_fname_s = *fnamep == (*buf).b_sfname;
+        let sfname = *crate::globals::gptr(sfnamep);
+        let buf_ffname = *crate::globals::gptr(ffnamep) == crate::globals::gptr(buf).b_ffname;
+        let buf_sfname = sfname == crate::globals::gptr(buf).b_sfname;
+        let buf_fname_f = *crate::globals::gptr(fnamep) == crate::globals::gptr(buf).b_ffname;
+        let buf_fname_s = *crate::globals::gptr(fnamep) == crate::globals::gptr(buf).b_sfname;
 
         let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
         set_bufref(&mut bufref, buf);
@@ -523,14 +500,14 @@ fn buf_write_do_autocmds<T>(
             buf = ptr::null_mut();
         }
         if buf.is_null()
-            || ((*buf).b_ml.ml_mfp.is_none() && !empty_memline)
+            || (crate::globals::gptr(buf).b_ml.ml_mfp.is_none() && !empty_memline)
             || did_cmd
             || nofile_err
             || aborting()
         {
             if !buf.is_null() && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) != 0 {
-                (*buf).b_op_start = orig_start;
-                (*buf).b_op_end = orig_end;
+                crate::globals::gptr(buf).b_op_start = orig_start;
+                crate::globals::gptr(buf).b_op_end = orig_end;
             }
 
             g_st().no_wait_return -= 1;
@@ -550,15 +527,15 @@ fn buf_write_do_autocmds<T>(
                     return OK;
                 }
                 if overwriting {
-                    ml_timestamp(&mut *buf);
+                    ml_timestamp(crate::globals::gmut(buf));
                     if append {
-                        (*buf).b_flags &= !BF_NEW;
+                        crate::globals::gptr(buf).b_flags &= !BF_NEW;
                     } else {
-                        (*buf).b_flags &= !BF_WRITE_MASK;
+                        crate::globals::gptr(buf).b_flags &= !BF_WRITE_MASK;
                     }
                 }
                 if reset_changed
-                    && (*buf).b_changed != 0
+                    && crate::globals::gptr(buf).b_changed != 0
                     && !append
                     && (overwriting || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_PLUS))
                 {
@@ -574,13 +551,13 @@ fn buf_write_do_autocmds<T>(
             return FAIL;
         }
 
-        if (*buf).b_ml.ml_line_count != old_line_count {
+        if crate::globals::gptr(buf).b_ml.ml_line_count != old_line_count {
             if whole {
-                *endp = (*buf).b_ml.ml_line_count;
-            } else if (*buf).b_ml.ml_line_count > old_line_count {
-                *endp += (*buf).b_ml.ml_line_count - old_line_count;
+                *endp = crate::globals::gptr(buf).b_ml.ml_line_count;
+            } else if crate::globals::gptr(buf).b_ml.ml_line_count > old_line_count {
+                *endp += crate::globals::gptr(buf).b_ml.ml_line_count - old_line_count;
             } else {
-                *endp -= old_line_count - (*buf).b_ml.ml_line_count;
+                *endp -= old_line_count - crate::globals::gptr(buf).b_ml.ml_line_count;
                 if *endp < start {
                     g_st().no_wait_return -= 1;
                     g_st().msg_scroll = msg_save;
@@ -593,16 +570,16 @@ fn buf_write_do_autocmds<T>(
         }
 
         if buf_ffname {
-            *ffnamep = (*buf).b_ffname;
+            *crate::globals::gptr(ffnamep) = crate::globals::gptr(buf).b_ffname;
         }
         if buf_sfname {
-            *sfnamep = (*buf).b_fname;
+            *crate::globals::gptr(sfnamep) = crate::globals::gptr(buf).b_fname;
         }
         if buf_fname_f {
-            *fnamep = (*buf).b_ffname;
+            *crate::globals::gptr(fnamep) = crate::globals::gptr(buf).b_ffname;
         }
         if buf_fname_s {
-            *fnamep = (*buf).b_fname;
+            *crate::globals::gptr(fnamep) = crate::globals::gptr(buf).b_fname;
         }
     }
     NOTDONE
@@ -1176,19 +1153,19 @@ pub fn buf_write(
 ) -> i32 {
     let mut fname = fname.into_c_char_ptr().cast_mut();
     let mut sfname = sfname.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut retval = OK;
         let msg_save = g_st().msg_scroll;
         let mut prev_got_int = g_st().got_int;
-        let whole = start == 1 && end == (*buf).b_ml.ml_line_count;
+        let whole = start == 1 && end == crate::globals::gptr(buf).b_ml.ml_line_count;
         let mut write_undo_file = false;
         let mut sha_ctx = ContextSha256::new();
-        let bkc = get_bkc_flags(&mut *buf);
+        let bkc = get_bkc_flags(crate::globals::gmut(buf));
 
         if crate::memory::cstr_is_empty(fname) {
             return FAIL;
         }
-        if (*buf).b_ml.ml_mfp.is_none() {
+        if crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
             emsg(gettext(E_EMPTY_BUFFER));
             return FAIL;
         }
@@ -1213,11 +1190,11 @@ pub fn buf_write(
             bw_iconv_fd: -1,
         };
 
-        if (*buf).b_ffname.is_null()
+        if crate::globals::gptr(buf).b_ffname.is_null()
             && reset_changed
             && whole
             && buf == g_st().curbuf
-            && !bt_nofilename(buf.as_ref())
+            && !bt_nofilename(crate::globals::gopt(buf))
             && !filtering
             && (!append || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEAPP))
             && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEW)
@@ -1237,21 +1214,25 @@ pub fn buf_write(
             fname = sfname;
         }
 
-        let overwriting =
-            !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, K_PATH_CMP_LITERAL);
+        let overwriting = !crate::globals::gptr(buf).b_ffname.is_null()
+            && path_equal(
+                ffname,
+                crate::globals::gptr(buf).b_ffname,
+                K_PATH_CMP_LITERAL,
+            );
 
         g_st().no_wait_return += 1;
 
-        let orig_start = (*buf).b_op_start;
-        let orig_end = (*buf).b_op_end;
+        let orig_start = crate::globals::gptr(buf).b_op_start;
+        let orig_end = crate::globals::gptr(buf).b_op_end;
 
-        (*buf).b_op_start.lnum = start;
-        (*buf).b_op_start.col = 0;
-        (*buf).b_op_end.lnum = end;
-        (*buf).b_op_end.col = 0;
+        crate::globals::gptr(buf).b_op_start.lnum = start;
+        crate::globals::gptr(buf).b_op_start.col = 0;
+        crate::globals::gptr(buf).b_op_end.lnum = end;
+        crate::globals::gptr(buf).b_op_end.col = 0;
 
         let res = buf_write_do_autocmds(
-            &mut *buf,
+            crate::globals::gmut(buf),
             &raw mut fname,
             &raw mut sfname,
             &raw mut ffname,
@@ -1269,7 +1250,7 @@ pub fn buf_write(
         if res != NOTDONE {
             return res;
         }
-        let buf = &mut *buf;
+        let buf = crate::globals::gmut(buf);
 
         let fname_copy = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
         let sfname_copy = (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname));
@@ -1390,7 +1371,7 @@ pub fn buf_write(
                 if forceit
                     && perm >= 0
                     && (perm & 0o200) == 0
-                    && file_info_old.stat.st_uid == u64::from(getuid())
+                    && file_info_old.stat.st_uid == u64::from(unsafe { getuid() })
                     && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE)
                 {
                     perm |= 0o200;
@@ -1556,9 +1537,10 @@ pub fn buf_write(
                                                     made_writable = true;
                                                 }
                                                 perm |= 0o200;
-                                                if file_info_old.stat.st_uid != u64::from(getuid())
+                                                if file_info_old.stat.st_uid
+                                                    != u64::from(unsafe { getuid() })
                                                     || file_info_old.stat.st_gid
-                                                        != u64::from(getgid())
+                                                        != u64::from(unsafe { getgid() })
                                                 {
                                                     perm &= 0o777;
                                                 }
@@ -1647,16 +1629,16 @@ pub fn buf_write(
                             }
                             loop {
                                 ptr = ptr.wrapping_add(1);
-                                let c = *ptr as u8;
+                                let c = (*crate::globals::gptr(ptr)) as u8;
                                 if c == 0 {
                                     break;
                                 }
                                 if c == NL_CHAR {
-                                    *s = 0;
+                                    *crate::globals::gptr(s) = 0;
                                 } else if c == CAR_CHAR && fileformat == EOL_MAC {
-                                    *s = NL_CHAR;
+                                    *crate::globals::gptr(s) = NL_CHAR;
                                 } else {
-                                    *s = c;
+                                    *crate::globals::gptr(s) = c;
                                 }
                                 s = s.wrapping_add(1);
                                 write_info.bw_len += 1;
@@ -1682,10 +1664,10 @@ pub fn buf_write(
                                 break;
                             }
                             if fileformat == EOL_UNIX {
-                                *s = NL_CHAR;
+                                *crate::globals::gptr(s) = NL_CHAR;
                                 s = s.wrapping_add(1);
                             } else {
-                                *s = CAR_CHAR;
+                                *crate::globals::gptr(s) = CAR_CHAR;
                                 s = s.wrapping_add(1);
                                 if fileformat == EOL_DOS {
                                     write_info.bw_len += 1;
@@ -1697,7 +1679,7 @@ pub fn buf_write(
                                         nchars += i64::from(bufsize - write_info.bw_len);
                                         s = buffer.wrapping_add(write_info.bw_len as usize);
                                     }
-                                    *s = NL_CHAR;
+                                    *crate::globals::gptr(s) = NL_CHAR;
                                     s = s.wrapping_add(1);
                                 }
                             }

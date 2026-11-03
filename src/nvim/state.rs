@@ -95,7 +95,7 @@ static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> =
 
 #[inline]
 fn state_mod_st() -> &'static mut StateModuleState {
-    unsafe { &mut *STATE_MOD_STATE.as_ptr() }
+    crate::globals::gmut(STATE_MOD_STATE.as_ptr())
 }
 
 pub fn state_enter<S: EditorState>(s: &mut S) {
@@ -113,7 +113,7 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                 let events = main_loop_events();
                 if vpeekc() != 0 || g_st().typebuf.tb_len > 0 {
                     break safe_vgetc();
-                } else if !multiqueue_empty(unsafe { &*events }) {
+                } else if !multiqueue_empty(crate::globals::gref(events)) {
                     ui_flush();
                     break K_EVENT;
                 } else {
@@ -126,7 +126,8 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     }
                     ui_flush();
                     input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                    if input_available() == 0 && !multiqueue_empty(unsafe { &*main_loop_events() })
+                    if input_available() == 0
+                        && !multiqueue_empty(crate::globals::gref(main_loop_events()))
                     {
                         break K_EVENT;
                     }
@@ -169,9 +170,9 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 pub fn state_handle_k_event() {
     loop {
         let events = main_loop_events();
-        multiqueue_get(unsafe { &mut *events }).dispatch();
+        multiqueue_get(crate::globals::gmut(events)).dispatch();
 
-        if multiqueue_empty(unsafe { &*main_loop_events() }) {
+        if multiqueue_empty(crate::globals::gref(main_loop_events())) {
             return;
         }
 

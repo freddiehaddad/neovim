@@ -67,7 +67,7 @@ static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> =
 
 #[inline]
 fn api_dep_st() -> &'static mut ApiDeprecatedState {
-    unsafe { &mut *API_DEP_STATE.as_ptr() }
+    crate::globals::gmut(API_DEP_STATE.as_ptr())
 }
 
 /// @deprecated Use nvim_exec2() instead.
@@ -293,7 +293,7 @@ pub fn nvim_buf_set_virtual_text(
 
     let existing = decor_find_virttext(buf, line as i32, u64::from(ns_id));
     if !existing.is_null() {
-        let existing = unsafe { &mut *existing };
+        let existing = crate::globals::gmut(existing);
         existing.data = DecorVirtTextData::VirtText(virt_text);
         existing.width = width;
         return src_id;

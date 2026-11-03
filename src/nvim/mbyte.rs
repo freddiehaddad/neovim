@@ -860,7 +860,7 @@ static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> =
 
 #[inline]
 fn mbyte_st() -> &'static mut MbyteModuleState {
-    unsafe { &mut *MBYTE_STATE.as_ptr() }
+    crate::globals::gmut(MBYTE_STATE.as_ptr())
 }
 
 unsafe extern "C" {
@@ -949,13 +949,13 @@ unsafe fn raw_utf8_prefix_len(p: *const u8, max_size: usize) -> &'static [u8] {
     if max_size == 0 {
         return &[];
     }
-    let b0 = unsafe { *p };
+    let b0 = *crate::globals::gptr(p);
     if b0 < 0x80 {
         return unsafe { std::slice::from_raw_parts(p, 1) };
     }
     let max_len = usize::from(UTF8LEN_TAB[b0 as usize]).min(max_size);
     let mut n = 1;
-    while n < max_len && unsafe { *p.wrapping_add(n) } != 0 {
+    while n < max_len && *crate::globals::gptr(p.wrapping_add(n)) != 0 {
         n += 1;
     }
     unsafe { std::slice::from_raw_parts(p, n) }
@@ -1119,12 +1119,12 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
         };
     }
     let next = cur.ptr.wrapping_add(cur.chr.len as usize);
-    if unsafe { *next.cast::<u8>() } < 0x80 {
+    if *crate::globals::gptr(next.cast::<u8>()) < 0x80 {
         return ClusterInfo {
             next: StrCharInfo {
                 ptr: next,
                 chr: CharInfo {
-                    value: i32::from(unsafe { *next.cast::<u8>() }),
+                    value: i32::from(*crate::globals::gptr(next.cast::<u8>())),
                     len: 1,
                 },
             },
@@ -1143,7 +1143,7 @@ pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
     let nextval = if *size == 0 {
         -1
     } else {
-        i32::from(unsafe { *nextptr.cast::<u8>() })
+        i32::from(*crate::globals::gptr(nextptr.cast::<u8>()))
     };
     if nextval < 0x80 {
         return ClusterInfo {
@@ -1445,13 +1445,12 @@ pub fn utf_composinglike(
 ) -> bool {
     let p1 = p1.into_c_char_ptr();
     let p2 = p2.into_c_char_ptr();
-    unsafe {
-        utf_composinglike_slice(
-            raw_utf8_prefix(p1.cast()),
-            raw_utf8_prefix(p2.cast()),
-            state,
-        )
-    }
+
+    utf_composinglike_slice(
+        unsafe { raw_utf8_prefix(p1.cast()) },
+        unsafe { raw_utf8_prefix(p2.cast()) },
+        state,
+    )
 }
 
 pub fn utf_iscomposing(c1: i32, c2: i32, state: &mut GraphemeState) -> bool {
@@ -1486,7 +1485,7 @@ fn utf_slice2len_incomplete(bytes: &[u8]) -> usize {
 
 pub fn utf_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 {
     let bytes = p.into_c_char_ptr().cast::<u8>();
-    let len = usize::from(UTF8LEN_TAB[unsafe { *bytes } as usize]);
+    let len = usize::from(UTF8LEN_TAB[(*crate::globals::gptr(bytes)) as usize]);
     if size <= 0 || len == 1 {
         return len as i32;
     }
@@ -1566,11 +1565,11 @@ pub fn utfc_ptr2len_len(p: impl crate::strings::IntoCCharPtr, size: i32) -> i32 
     if size < 1 {
         return 0;
     }
-    let b0 = unsafe { *p };
+    let b0 = *crate::globals::gptr(p);
     if b0 == 0 {
         return 0;
     }
-    if b0 < 0x80 && (size == 1 || unsafe { *p.wrapping_add(1) } < 0x80) {
+    if b0 < 0x80 && (size == 1 || *crate::globals::gptr(p.wrapping_add(1)) < 0x80) {
         return 1;
     }
     let slice = unsafe { std::slice::from_raw_parts(p, size as usize) };
@@ -2178,7 +2177,7 @@ unsafe fn cstr_prefix_slice(p: *const u8, max_len: usize) -> &'static [u8] {
         return &[];
     }
     let mut n = 0usize;
-    while n < max_len && unsafe { *p.wrapping_add(n) } != 0 {
+    while n < max_len && *crate::globals::gptr(p.wrapping_add(n)) != 0 {
         n += 1;
     }
     unsafe { std::slice::from_raw_parts(p, n) }
@@ -2261,18 +2260,20 @@ pub fn utf8_to_utf16(
     utf16: &mut Vec<u16>,
 ) -> i32 {
     let utf8: *const u8 = utf8.into_c_char_ptr().cast();
-    unsafe {
+    {
         utf16.clear();
-        let mut bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0);
+        let mut bufsize =
+            unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, ptr::null_mut(), 0) };
         if bufsize == 0 {
-            return uv_translate_sys_error(GetLastError() as i32);
+            return unsafe { uv_translate_sys_error(GetLastError() as i32) };
         }
 
         utf16.resize((bufsize as usize) + 1, 0);
-        bufsize = MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, utf16.as_mut_ptr(), bufsize);
+        bufsize =
+            unsafe { MultiByteToWideChar(CP_UTF8, 0, utf8, utf8len, utf16.as_mut_ptr(), bufsize) };
         if bufsize == 0 {
             utf16.clear();
-            return uv_translate_sys_error(GetLastError() as i32);
+            return unsafe { uv_translate_sys_error(GetLastError() as i32) };
         }
 
         utf16[bufsize as usize] = 0;
@@ -2524,12 +2525,12 @@ pub fn utf_head_off(
 ) -> i32 {
     let base = base_in.into_c_char_ptr().cast::<u8>();
     let p = p_in.into_c_char_ptr().cast::<u8>();
-    if p < base || unsafe { *p } < 0x80 {
+    if p < base || *crate::globals::gptr(p) < 0x80 {
         return 0;
     }
     let idx = (p as usize) - (base as usize);
     let mut tail_len = 1usize;
-    while tail_len < MB_MAXCHAR as usize && unsafe { *p.wrapping_add(tail_len) } != 0 {
+    while tail_len < MB_MAXCHAR as usize && *crate::globals::gptr(p.wrapping_add(tail_len)) != 0 {
         tail_len += 1;
     }
     let bytes = unsafe { std::slice::from_raw_parts(base, idx + tail_len) };
@@ -3031,13 +3032,13 @@ pub fn enc_canonize(enc: impl crate::strings::IntoCCharPtr) -> std::ffi::CString
 
 pub fn enc_locale() -> Option<std::ffi::CString> {
     #[cfg(unix)]
-    let mut s: crate::strings::RawCCharPtr = unsafe { nl_langinfo(CODESET).cast() };
+    let mut s: crate::strings::RawCCharPtr = unsafe { nl_langinfo(CODESET) }.cast();
     #[cfg(not(unix))]
     let mut s: crate::strings::RawCCharPtr = ptr::null();
 
     let mut env_buf = [0u8; 64];
     if crate::memory::cstr_is_empty(s) {
-        s = unsafe { setlocale(LC_CTYPE, ptr::null()).cast() };
+        s = unsafe { setlocale(LC_CTYPE, ptr::null()) }.cast();
         if crate::memory::cstr_is_empty(s) {
             s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr().cast(), env_buf.len());
             if s.is_null() {
@@ -3062,11 +3063,11 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
             && p_bytes[1..4].eq_ignore_ascii_case(b"EUC")
             && !p_bytes.get(4).is_some_and(u8::is_ascii_alphanumeric)
             && p_bytes.get(4) != Some(&b'-')
-            && (unsafe { *p.wrapping_sub(3) } as u8) == b'_'
+            && ((*crate::globals::gptr(p.wrapping_sub(3))) as u8) == b'_'
         {
             buf[..4].copy_from_slice(b"euc-");
-            let c2 = unsafe { *p.wrapping_sub(2) } as u8;
-            let c1 = unsafe { *p.wrapping_sub(1) } as u8;
+            let c2 = (*crate::globals::gptr(p.wrapping_sub(2))) as u8;
+            let c1 = (*crate::globals::gptr(p.wrapping_sub(1))) as u8;
             buf[4] = if c2.is_ascii_alphanumeric() {
                 tolower_asc(i32::from(c2)) as u8
             } else {
@@ -3169,30 +3170,26 @@ fn iconv_string(
                 &raw mut tolen,
             ) != usize::MAX
             {
-                unsafe {
-                    *to = 0;
-                }
+                *crate::globals::gptr(to) = 0;
+
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             }
 
             let err = os_errno();
             if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
-                unsafe {
-                    *to = 0;
-                }
+                *crate::globals::gptr(to) = 0;
+
                 *unconvlenp.as_deref_mut().unwrap() = fromlen;
                 done = crate::memory::ptr_offset_from(to, result) as usize;
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
-                unsafe {
-                    *to = b'?';
-                }
+                *crate::globals::gptr(to) = b'?';
+
                 to = to.wrapping_add(1);
                 if utf_ptr2cells(from) > 1 {
-                    unsafe {
-                        *to = b'?';
-                    }
+                    *crate::globals::gptr(to) = b'?';
+
                     to = to.wrapping_add(1);
                 }
                 let l = utfc_ptr2len_len(from, fromlen as i32) as usize;
