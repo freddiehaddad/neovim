@@ -1573,11 +1573,9 @@ pub(super) fn get_cpo_flags() {
     re_st().reg_cpo_lit = (crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LITERAL)) as i32;
 }
 
-/// Skip over a `[]` range.
-pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
-    let p_ptr: *const u8 = p.cast();
-    let bytes = crate::memory::cstr_as_bytes(p_ptr.cast());
-    let mut rem = bytes;
+/// Skip over a `[]` range in a byte slice.
+pub(super) fn skip_anyof_slice(bytes: &[u8]) -> &[u8] {
+    let mut rem = crate::memory::bytes_until_nul(bytes);
     if let Some(rest) = rem.strip_prefix(b"^") {
         rem = rest;
     }
@@ -1617,15 +1615,61 @@ pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
             rem = &rem[1..];
         }
     }
+    rem
+}
+
+/// Skip over a `[]` range.
+pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
+    let p_ptr: *const u8 = p.cast();
+    let bytes = crate::memory::cstr_as_bytes(p_ptr.cast());
+    let rem = skip_anyof_slice(bytes);
     p_ptr
         .wrapping_add(bytes.len() - rem.len())
         .cast_mut()
         .cast()
 }
 
+/// Skip past regular expression in a byte slice.
+pub fn skip_regexp_slice(start: &[u8], dirc: i32, magic: i32) -> &[u8] {
+    let mut rem = crate::memory::bytes_until_nul(start);
+    let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
+
+    get_cpo_flags();
+
+    while let Some(&b0) = rem.first() {
+        if i32::from(b0) == dirc {
+            break;
+        }
+        if (b0 == b'[' && mymagic >= MAGIC_ON) || (rem.starts_with(b"\\[") && mymagic <= MAGIC_OFF)
+        {
+            rem = skip_anyof_slice(&rem[1..]);
+            if rem.is_empty() {
+                break;
+            }
+        } else if b0 == b'\\' && rem.len() > 1 {
+            rem = &rem[1..];
+            let next_b = rem.first().copied().unwrap_or(0);
+            if next_b == b'v' {
+                mymagic = MAGIC_ALL;
+            } else if next_b == b'V' {
+                mymagic = MAGIC_NONE;
+            }
+        }
+        let step = crate::mbyte::utfc_slice2len(rem).max(1);
+        rem = &rem[step.min(rem.len())..];
+    }
+    rem
+}
+
 /// Skip past regular expression.
 pub fn skip_regexp<T>(startp: *mut T, delim: i32, magic: i32) -> *mut T {
-    skip_regexp_ex(startp, delim, magic, false, None, None, None)
+    let start_ptr: *const u8 = startp.cast();
+    let bytes = crate::memory::cstr_as_bytes(start_ptr.cast());
+    let rem = skip_regexp_slice(bytes, delim, magic);
+    start_ptr
+        .wrapping_add(bytes.len() - rem.len())
+        .cast_mut()
+        .cast()
 }
 
 /// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.

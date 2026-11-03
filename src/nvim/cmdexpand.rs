@@ -5475,61 +5475,40 @@ fn expand_user_defined(
         ) else {
             return false;
         };
-        let mut retstr_bytes = retstr_cstr.into_bytes_with_nul();
-        let retstr = retstr_bytes.as_mut_ptr();
-
         let mut str_ga: Vec<CString> = Vec::new();
         let mut fuz_ga: Vec<FuzmatchStr> = Vec::new();
 
-        let mut s = retstr;
-        while !crate::memory::cstr_is_empty(s.cast()) {
-            let mut e: *mut u8 = vim_strchr(s.cast(), b'\n' as i32).cast();
-            if e.is_null() {
-                e = s.wrapping_add(crate::memory::cstr_len(s.cast()));
-            }
-            let keep = unsafe { *e };
-            unsafe {
-                *e = 0;
-            }
+        let mut rem = retstr_cstr.to_bytes();
+        while !rem.is_empty() {
+            let line_len = rem.iter().position(|&b| b == b'\n').unwrap_or(rem.len());
+            let line_cstr = cstr_from_bytes(&rem[..line_len]);
 
             let match_ok: bool;
             let mut score: i32 = 0;
             if !crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
                 if !fuzzy {
-                    match_ok = vim_regexec(regmatch, s.cast(), 0);
+                    match_ok = vim_regexec(regmatch, line_cstr.as_ptr(), 0);
                 } else {
-                    score = fuzzy_match_str(s.cast(), pat);
+                    score = fuzzy_match_str(line_cstr.as_ptr(), pat);
                     match_ok = score != FUZZY_SCORE_NONE;
                 }
             } else {
                 match_ok = true;
             }
 
-            unsafe {
-                *e = keep;
-            }
-
             if match_ok {
-                let p = cstr_from_bytes(crate::memory::cstr_slice(
-                    s.cast(),
-                    crate::memory::ptr_offset_from(e, s) as usize,
-                ));
-
                 if !fuzzy {
-                    str_ga.push(p);
+                    str_ga.push(line_cstr);
                 } else {
                     fuz_ga.push(FuzmatchStr {
                         idx: fuz_ga.len() as i32,
-                        str_cstr: p,
+                        str_cstr: line_cstr,
                         score,
                     });
                 }
             }
 
-            if !crate::memory::cstr_is_empty(e.cast()) {
-                e = e.wrapping_add(1);
-            }
-            s = e;
+            rem = &rem[(line_len + 1).min(rem.len())..];
         }
 
         if (!fuzzy && str_ga.is_empty()) || (fuzzy && fuz_ga.is_empty()) {

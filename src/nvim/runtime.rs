@@ -33,7 +33,7 @@ use crate::ex_docmd::{Exarg, do_cmdline, do_cmdline_cmd, do_exedit};
 use crate::ex_eval::{
     CSTP_FINISH, PendingVal, aborting, cleanup_conditionals, report_make_pending,
 };
-use crate::fileio::{EINTR, FILE, O_RDONLY, fdopen, fgets};
+use crate::fileio::{EINTR, O_RDONLY};
 #[cfg(windows)]
 use crate::fileio::{EOL_DOS, EOL_UNIX, EOL_UNKNOWN};
 use crate::globals::IOSIZE;
@@ -2490,22 +2490,22 @@ pub fn source_level(sp: &mut SourceCookie) -> i32 {
     sp.level
 }
 
-fn fopen_noinh_readbin(filename: impl crate::strings::IntoCCharPtr) -> *mut FILE {
+fn fopen_noinh_readbin(
+    filename: impl crate::strings::IntoCCharPtr,
+) -> Option<crate::os::fs::CFile> {
     let filename = filename.into_c_char_ptr();
-    {
-        #[cfg(windows)]
-        let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
-        #[cfg(not(windows))]
-        let fd_tmp = os_open(filename, O_RDONLY, 0);
+    #[cfg(windows)]
+    let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
+    #[cfg(not(windows))]
+    let fd_tmp = os_open(filename, O_RDONLY, 0);
 
-        if fd_tmp < 0 {
-            return ptr::null_mut();
-        }
-
-        os_set_cloexec(fd_tmp);
-
-        unsafe { fdopen(fd_tmp, c"rb".as_ptr()) }
+    if fd_tmp < 0 {
+        return None;
     }
+
+    os_set_cloexec(fd_tmp);
+
+    crate::os::fs::CFile::from_fd(fd_tmp, c"rb")
 }
 
 fn concat_continued_line(
@@ -2746,7 +2746,7 @@ fn do_source_ext(
             }
 
             if !cookie.source_from_buf_or_str {
-                cookie.fp = crate::os::fs::CFile::from_raw(fopen_noinh_readbin(fname_exp));
+                cookie.fp = fopen_noinh_readbin(fname_exp);
             }
             if cookie.fp.is_none() && check_other {
                 let p = path_tail(fname_exp).cast::<u8>();
@@ -2760,7 +2760,7 @@ fn do_source_ext(
                         } else {
                             b'_'
                         };
-                        cookie.fp = crate::os::fs::CFile::from_raw(fopen_noinh_readbin(fname_exp));
+                        cookie.fp = fopen_noinh_readbin(fname_exp);
                     }
                 }
             }
@@ -3360,10 +3360,10 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
             let start = buf.len();
             buf.resize(start + 120, 0);
             let mut eof = false;
-            let fp = sp.fp.as_ref().unwrap().as_ptr();
+            let fp = sp.fp.as_ref().unwrap();
             loop {
                 crate::os::fs::os_set_errno(0);
-                if unsafe { fgets(buf.as_mut_ptr().wrapping_add(start), 120, fp) }.is_null() {
+                if !fp.gets(&mut buf[start..start + 120]) {
                     if crate::os::fs::os_errno() == EINTR {
                         continue;
                     }
@@ -3375,7 +3375,9 @@ fn get_one_sourceline(sp: &mut SourceCookie) -> Option<Vec<u8>> {
                 buf.truncate(start);
                 break;
             }
-            let read_len = crate::memory::cstr_len(buf.as_ptr().wrapping_add(start).cast());
+            let read_len = crate::memory::cstr_until_nul(&buf[start..])
+                .to_bytes()
+                .len();
             filled_chunk = read_len == 119;
             len = start + read_len;
             buf.truncate(len);

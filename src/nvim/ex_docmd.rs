@@ -8523,8 +8523,8 @@ pub fn skip_cmd_arg<T>(p: *mut T, rembs: bool) -> *mut T {
     p_ptr.wrapping_add(idx).cast()
 }
 
-pub fn get_bad_opt(p: impl crate::strings::IntoCCharPtr, eap: &mut Exarg) -> bool {
-    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+pub fn get_bad_opt(bytes: &[u8], eap: &mut Exarg) -> bool {
+    let bytes = crate::memory::bytes_until_nul(bytes);
     if bytes.eq_ignore_ascii_case(b"keep") {
         eap.bad_char = BAD_KEEP;
     } else if bytes.eq_ignore_ascii_case(b"drop") {
@@ -8622,7 +8622,10 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
             }
             p = p.wrapping_add(1);
         }
-    } else if !get_bad_opt(eap.cmd.wrapping_add(bad_char_idx as usize), eap) {
+    } else if !get_bad_opt(
+        crate::memory::cstr_as_bytes(eap.cmd.wrapping_add(bad_char_idx as usize)),
+        eap,
+    ) {
         return false;
     }
 
@@ -9175,6 +9178,7 @@ fn ex_restart(eap: &mut Exarg) {
         }
 
         let mut startreason = c"restart!".as_ptr();
+        let quit_cmd_cstr: std::ffi::CString;
         let mut quit_cmd = if !eap.do_ecmd_cmd.is_null() {
             eap.do_ecmd_cmd
         } else {
@@ -9187,8 +9191,8 @@ fn ex_restart(eap: &mut Exarg) {
             if eap.args.len() > 1 {
                 let arg1 = eap.args.as_slice()[1];
                 let arglen1 = eap.arglens.as_slice()[1];
-                *arg1.wrapping_add(arglen1) = NUL;
-                quit_cmd = arg1;
+                quit_cmd_cstr = cstr_from_bytes(crate::memory::cstr_slice(arg1, arglen1));
+                quit_cmd = quit_cmd_cstr.as_ptr().cast_mut();
                 after_cmd = if eap.args.len() > 2 {
                     eap.args.as_slice()[2]
                 } else {
@@ -9973,25 +9977,20 @@ pub fn expand_findfunc(
     true
 }
 
-fn findfunc_find_file<T>(
-    findarg: *mut T,
-    findarg_len: usize,
-    count: i32,
-) -> Option<std::ffi::CString> {
-    let findarg = findarg.cast::<u8>();
+fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
+    let findarg_cstr = cstr_from_bytes(crate::memory::bytes_until_nul(findarg));
     let mut ret_fname: Option<std::ffi::CString> = None;
-    let cc = unsafe { *findarg.wrapping_add(findarg_len) };
-    unsafe {
-        *findarg.wrapping_add(findarg_len) = 0;
-    }
 
-    let mut fname_list = call_findfunc(findarg.cast(), K_BOOL_VAR_FALSE_CONST);
+    let mut fname_list = call_findfunc(findarg_cstr.as_ptr(), K_BOOL_VAR_FALSE_CONST);
     let fname_count = fname_list.as_ref().map_or(0, |l| l.lv_len);
 
     if fname_count == 0 {
-        let _ = semsg!(gettext(E_CANT_FIND_FILE_STR_IN_PATH), findarg);
+        let _ = semsg!(gettext(E_CANT_FIND_FILE_STR_IN_PATH), findarg_cstr.as_ptr());
     } else if count > fname_count {
-        let _ = semsg!(gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH), findarg);
+        let _ = semsg!(
+            gettext(E_NO_MORE_FILE_STR_FOUND_IN_PATH),
+            findarg_cstr.as_ptr()
+        );
     } else if let Some(li) =
         crate::eval::typval::tv_list_find_opt(fname_list.as_deref_mut(), count - 1)
     {
@@ -10009,9 +10008,6 @@ fn findfunc_find_file<T>(
         tv_list_free(l);
     }
 
-    unsafe {
-        *findarg.wrapping_add(findarg_len) = cc;
-    }
     if let Some(ref rf) = ret_fname {
         to_slash(rf.as_ptr().cast_mut().cast());
     }
@@ -10065,8 +10061,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
         if eap.cmdidx == Cmdidx::CmdSfind as i32 || eap.cmdidx == Cmdidx::CmdTabfind as i32 {
             if get_findfunc().cb_type() != K_CALLBACK_NONE_CONST {
                 fname = findfunc_find_file(
-                    eap.arg,
-                    crate::memory::cstr_len(eap.arg),
+                    crate::memory::cstr_as_bytes(eap.arg),
                     if eap.addr_count > 0 { eap.line2 } else { 1 },
                 );
             } else {
@@ -10401,8 +10396,7 @@ fn ex_find(eap: &mut Exarg) {
     let mut fname: Option<std::ffi::CString>;
     if get_findfunc().cb_type() != K_CALLBACK_NONE_CONST {
         fname = findfunc_find_file(
-            eap.arg,
-            crate::memory::cstr_len(eap.arg),
+            crate::memory::cstr_as_bytes(eap.arg),
             if eap.addr_count > 0 { eap.line2 } else { 1 },
         );
     } else {
