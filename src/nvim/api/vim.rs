@@ -595,14 +595,14 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
     } else {
         None
     };
-    let keys_esc = owned_keys_esc
-        .as_ref()
-        .map_or(keys.data, |cs| cs.as_ptr().cast_mut());
+    let keys_cstr = owned_keys_esc
+        .as_deref()
+        .unwrap_or_else(|| crate::memory::cstr_from_ptr(keys.data));
     if lowlevel {
-        input_enqueue_raw(crate::memory::cstr_as_bytes(keys_esc));
+        input_enqueue_raw(keys_cstr.to_bytes());
     } else {
         ins_typebuf(
-            keys_esc,
+            keys_cstr,
             if remap { REMAP_YES } else { REMAP_NONE },
             if insert { 0 } else { g_st().typebuf.tb_len },
             !typed,
@@ -2021,7 +2021,7 @@ pub fn nvim_get_mode(arena: &mut Arena) -> Dict {
 ///          The "buf" key is always zero.
 // DLLEXPORT ArrayOf(DictAs(get_keymap)) nvim_get_keymap(String mode, Arena *arena) FUNC_API_SINCE(3);
 pub fn nvim_get_keymap(mode: NvimString, arena: &mut Arena) -> Array {
-    keymap_array(mode, ptr::null_mut(), arena)
+    keymap_array(mode, None, arena)
 }
 
 /// Sets a global |mapping| for the given mode.
@@ -2689,7 +2689,6 @@ pub fn nvim_get_mark(
     }
 
     let mark = mark_get_global(false, i32::from(crate::memory::cstr_first_byte(name.data)));
-    let mark = unsafe { &mut *mark };
     let pos = mark.fmark.mark;
     let mut bufnr: i32;
 

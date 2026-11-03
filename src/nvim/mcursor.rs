@@ -879,7 +879,7 @@ pub fn mc_ins_cascade_restart() {
     {
         return;
     }
-    let ins = redo_keys(ptr::null());
+    let ins = redo_keys(None);
     mc_st().mc_ins_span.done_len = ins.as_ref().map_or(0, |s| s.as_bytes().len());
     mc_ins_preview_rebase();
 }
@@ -907,7 +907,7 @@ pub fn mc_ins_cascade() {
 
     let mut start = INIT_POS;
     let mut end = INIT_POS;
-    let ins_cstr = redo_keys(ptr::null());
+    let ins_cstr = redo_keys(None);
     let ins = NvimString {
         data: ins_cstr
             .as_ref()
@@ -1241,7 +1241,7 @@ pub fn mc_ins_commit() -> bool {
     mc_st().mc_ins_span.active = false;
     mc_st().mc_ins_span.vsel = None;
 
-    if ins_cascaded && let Some(ins_cstr) = redo_keys(ptr::null()) {
+    if ins_cascaded && let Some(ins_cstr) = redo_keys(None) {
         let ins = NvimString {
             data: ins_cstr.as_ptr().cast_mut(),
             size: ins_cstr.as_bytes().len(),
@@ -1571,7 +1571,7 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
     let keys_cstr = if search {
         c"/\n".to_owned()
     } else {
-        redo_keys(&spec).unwrap_or_default()
+        redo_keys(Some(&spec)).unwrap_or_default()
     };
     if !oap.from_visual && search {
         first = mc_zq_target(primary, true, oap.motion_type, None).vi_start;

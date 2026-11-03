@@ -3523,7 +3523,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
             used_typed_char = NUL as i32;
             ch
         } else {
-            get_keystroke(g_st().resize_events)
+            get_keystroke(crate::globals::gopt(g_st().resize_events))
         };
 
         let mut toscroll = 0;

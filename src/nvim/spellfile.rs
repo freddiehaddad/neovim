@@ -502,11 +502,7 @@ pub fn spell_load_file(
             let lang_cstr = lang
                 .as_deref()
                 .map(|b| crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(b)));
-            let mut new_lp = slang_alloc(
-                lang_cstr
-                    .as_ref()
-                    .map_or(ptr::null(), |s| s.as_ptr().cast()),
-            );
+            let mut new_lp = slang_alloc(lang_cstr.as_deref());
             new_lp.sl_fname = Some(crate::memory::cstr_to_cstring(fname));
             new_lp.sl_add = crate::memory::cstr_as_bytes(path_tail(fname))
                 .windows(SPL_FNAME_ADD.len())
@@ -1179,7 +1175,7 @@ fn read_words_section(fd: &CFile, lp: &mut Slang, len: i32) -> i32 {
             i += 1;
         }
 
-        count_common_word(lp, word.as_mut_ptr().cast(), -1, 10);
+        count_common_word(lp, &word, -1, 10);
         done += (i + 1) as i32;
     }
     0
@@ -4533,7 +4529,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
         arg = skipwhite(arg.wrapping_add(6));
     }
 
-    if !get_arglist_exp(arg, &mut fnames, false) {
+    if !get_arglist_exp(crate::memory::cstr_as_bytes(arg), &mut fnames, false) {
         return;
     }
 

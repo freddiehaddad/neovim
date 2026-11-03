@@ -3353,9 +3353,9 @@ fn op_colon(oap: &mut Oparg) {
         stuff_readbuff(c"\n");
     } else if oap.op_type == OP_FORMAT {
         if !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
-            stuff_readbuff(curbuf_mut().b_p_fp);
+            stuff_readbuff(crate::memory::cstr_from_ptr(curbuf_mut().b_p_fp));
         } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) {
-            stuff_readbuff(opt_vars().p_fp);
+            stuff_readbuff(crate::memory::cstr_from_ptr(opt_vars().p_fp));
         } else {
             stuff_readbuff(c"fmt");
         }
@@ -3451,7 +3451,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
         return;
     }
 
-    mark_mb_adjustpos(curwin_mut().w_buffer, &mut oap.end);
+    mark_mb_adjustpos(curwin_mut().buf_mut(), &mut oap.end);
 
     getvvcol(
         curwin_mut(),
@@ -3863,7 +3863,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             OP_FILTER | OP_INDENT | OP_COLON => {
                 if oap.op_type == OP_FILTER {
                     if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FILTER) {
-                        redo_append_str(c"!\r", 2);
+                        redo_append_str(b"!\r");
                     } else {
                         g_st().bangredo = true;
                     }

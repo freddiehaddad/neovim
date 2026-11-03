@@ -524,11 +524,11 @@ pub fn atom_origin_pos(buf: &mut FileBuf) -> CursorPos {
 
 fn atom_redo_keys(spec: &CmdSpec) -> std::ffi::CString {
     assert!(!mc_replaying());
-    redo_keys(spec).expect("atom_redo_keys must be non-empty")
+    redo_keys(Some(spec)).expect("atom_redo_keys must be non-empty")
 }
 
 fn atom_from_redo(r#type: CmdAtomType) -> CmdAtom {
-    let keys_cstr = redo_keys(ptr::null());
+    let keys_cstr = redo_keys(None);
     let mut atom = CmdAtom::new();
     atom.r#type = r#type;
     atom.spec = redo_spec();
@@ -551,7 +551,7 @@ fn atom_from_cmdline(
     cmdline: Option<&CStr>,
     vis: bool,
 ) -> CmdAtom {
-    let cmdline_ptr = cmdline.map_or(ptr::null(), CStr::as_ptr);
+    let cmdline_bytes = cmdline.map_or(&[][..], CStr::to_bytes);
     let mut sb: Vec<u8> = Vec::new();
     if ca.cmdchar != b':' as i32 && ca.count0 != 0 {
         let mut num_buf = [0u8; 32];
@@ -565,9 +565,9 @@ fn atom_from_cmdline(
         sb_add_char(&mut sb, CTRL_U);
     }
     if is_special(ca.cmdchar) {
-        sb_add_spec(&mut sb, cmdline_ptr);
+        sb_add_spec(&mut sb, cmdline_bytes);
     } else {
-        sb_add_lit(&mut sb, cmdline_ptr, -1);
+        sb_add_lit(&mut sb, cmdline_bytes);
     }
     sb_add_char(&mut sb, NL);
     let mut atom = CmdAtom::new();
@@ -1316,14 +1316,14 @@ fn atom_visual_end_suffix(
 
     if prepped {
         let use_redo_keys = atom_visual_redoable();
-        let (redo_ptr, redo_len) = if use_redo_keys && let Some(ref vc) = v {
-            (vc.as_ptr(), vc.as_bytes().len())
+        let redo_bytes = if use_redo_keys && let Some(ref vc) = v {
+            vc.as_bytes()
         } else {
-            (c"1v".as_ptr(), 2)
+            b"1v"
         };
-        prep_redo_visual(redo_ptr, redo_len, CmdSpec::default());
+        prep_redo_visual(redo_bytes, CmdSpec::default());
         if let Some(ref suf) = suffix {
-            redo_append_str(suf.as_ptr(), -1);
+            redo_append_str(suf.as_bytes());
         }
     }
 
@@ -1482,18 +1482,18 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
         );
         if cap.cmdchar == b'/' as i32 || cap.cmdchar == b'?' as i32 {
             if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REDO) {
-                redo_append_lit(cap.searchbuf_cstr().map_or(ptr::null(), CStr::as_ptr), -1);
+                redo_append_lit(cap.searchbuf_cstr().map_or(&[][..], CStr::to_bytes));
             }
-            redo_append_str(c"\n", 1);
+            redo_append_str(b"\n");
         } else if excmd {
             let rc = g_st().repeat_cmdline.take();
             if let Some(ref rc) = rc {
                 if cap.cmdchar == b':' as i32 {
-                    redo_append_lit(rc.as_ptr(), -1);
+                    redo_append_lit(rc.as_bytes());
                 } else {
-                    redo_append_spec(rc.as_ptr());
+                    redo_append_spec(rc.as_bytes());
                 }
-                redo_append_str(c"\n", 1);
+                redo_append_str(b"\n");
             } else {
                 redo_new(CmdSpec::default());
             }
@@ -1505,8 +1505,8 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
                 c"%d",
                 g_st().repeat_luamap,
             );
-            redo_append_str(lua_id.as_ptr().cast(), n as isize);
-            redo_append_str(c"\n", 1);
+            redo_append_str(&lua_id[..n.max(0) as usize]);
+            redo_append_str(b"\n");
         }
     } else if g_st().visual_global.active && redoable && oap.motion_force == NUL {
         if op_self_select(cap) {
@@ -1530,14 +1530,13 @@ pub fn atom_capture_op(oap: &mut Oparg, cap: &mut Cmdarg, redo_yank: bool) {
             } else {
                 None
             };
-            let (v_ptr, v_len) = if let Some(ref vc) = v {
-                (vc.as_ptr(), vc.as_bytes().len())
+            let v_bytes = if let Some(ref vc) = v {
+                vc.as_bytes()
             } else {
-                (c"1v".as_ptr(), 2)
+                b"1v"
             };
             prep_redo_visual(
-                v_ptr,
-                v_len,
+                v_bytes,
                 CmdSpec {
                     regname: oap.regname,
                     op: get_op_char(oap.op_type),

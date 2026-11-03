@@ -276,13 +276,13 @@ pub fn prompt_for_input(
     g_st().allow_keys += 1;
     let resp = getcmdline_prompt(
         -1,
-        prompt_ptr,
+        crate::memory::cstr_as_opt_cstr(prompt_ptr),
         hl_id,
         EXPAND_NOTHING,
-        std::ptr::null(),
+        None,
         Callback::NONE,
         one_key,
-        mouse_used.map_or(std::ptr::null_mut(), |p| &raw mut *p),
+        mouse_used,
     );
     g_st().allow_keys -= 1;
     g_st().no_mapping -= 1;

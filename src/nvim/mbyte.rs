@@ -2880,7 +2880,7 @@ pub fn utf_valid_string(bytes: &[u8]) -> bool {
 }
 
 pub fn mb_adjust_cursor() {
-    mark_mb_adjustpos(g_st().curbuf.cast(), &mut curwin_mut().w_cursor);
+    mark_mb_adjustpos(curbuf_mut(), &mut curwin_mut().w_cursor);
 }
 
 pub fn mb_check_adjust_col(win: &mut WinInfoInfo) {

@@ -7,7 +7,7 @@ use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, NvimString, Object, ObjectData, ObjectType,
 };
 use crate::api::ui::remote_ui_wait_for_attach;
-use crate::arglist::{alist_add, alist_name, gargcount, garglist};
+use crate::arglist::{alist_add, alist_name, gargcount, garglist_slice};
 use crate::autocmd::{
     EVENT_BUFENTER, EVENT_BUFUNLOAD, EVENT_BUFWINLEAVE, EVENT_VIMENTER, EVENT_VIMLEAVE,
     EVENT_VIMLEAVEPRE, apply_autocmds, autocmd_init, block_autocmds, is_autocmd_blocked,
@@ -596,7 +596,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
 
     if let Some(ref scriptin) = params.scriptin
-        && !open_scriptin(scriptin.as_ptr().cast_mut())
+        && !open_scriptin(scriptin)
     {
         os_exit(2);
     }
@@ -1726,11 +1726,10 @@ fn command_line_scan(parmp: &mut Mparm) {
             if parmp.diff_mode != 0
                 && os_isdir(p_vec.as_ptr().cast())
                 && gargcount() > 0
-                && !os_isdir(alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr))
+                && !os_isdir(alist_name(&garglist_slice()[0]).map_or(ptr::null(), CStr::as_ptr))
             {
-                let tail = path_tail(
-                    alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
-                );
+                let tail =
+                    path_tail(alist_name(&garglist_slice()[0]).map_or(ptr::null(), CStr::as_ptr));
                 let joined = concat_fnames(
                     cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr().cast())),
                     cstr_as_string(crate::memory::cstr_as_opt_cstr(tail)),
@@ -1784,7 +1783,7 @@ fn set_argf_var() {
     let list = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     let count = gargcount();
     for i in 0..count {
-        if let Some(fname) = alist_name(unsafe { &*garglist().wrapping_add(i as usize) }) {
+        if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
             let _ = vim_full_name(
                 fname.as_ptr(),
                 g_st().name_buff.as_mut_ptr().cast(),
@@ -1859,7 +1858,7 @@ fn init_path(exename: &CStr) {
 }
 
 fn get_fname(_parmp: &mut Mparm) -> Option<&'static CStr> {
-    alist_name(unsafe { &*garglist() })
+    alist_name(&garglist_slice()[0])
 }
 
 fn set_window_layout(paramp: &mut Mparm) {
@@ -2134,7 +2133,7 @@ fn edit_buffers(parmp: &mut Mparm) {
             curwin_mut().w_arg_idx = arg_idx;
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {
-                alist_name(unsafe { &*garglist().wrapping_add(arg_idx as usize) })
+                alist_name(&garglist_slice()[arg_idx as usize])
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
                 ptr::null_mut()

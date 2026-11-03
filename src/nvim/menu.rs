@@ -1582,7 +1582,7 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
             restore_current_state(&mut save_state);
             g_st().ex_normal_busy -= 1;
         } else {
-            ins_typebuf(cmd_ptr, menu.noremap[u_idx], 0, true, menu.silent[u_idx]);
+            ins_typebuf(cmd_str, menu.noremap[u_idx], 0, true, menu.silent[u_idx]);
         }
     } else {
         let mode = match idx {

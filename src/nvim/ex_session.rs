@@ -286,7 +286,7 @@ fn ses_escape_fname(name: Option<&CStr>) -> CString {
         idx += crate::mbyte::utfc_slice2len(&sname_vec[idx..]).max(1);
     }
 
-    vim_strsave_fnameescape(sname_vec.as_ptr().cast(), VSE_NONE)
+    vim_strsave_fnameescape(&sname_vec, VSE_NONE)
 }
 
 fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &mut u32) -> bool {
@@ -391,7 +391,7 @@ fn put_view(
     }
 
     if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0
-        && !makemap(fd, wp.w_buffer)
+        && !makemap(fd, wp.buf_opt())
     {
         return false;
     }
@@ -1001,7 +1001,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
                 flags |= OPT_SKIPRTP;
             }
-            failed |= !makemap(&fd, ptr::null_mut()) || !makeset(&fd, flags, 0);
+            failed |= !makemap(&fd, None) || !makeset(&fd, flags, 0);
         }
 
         if !failed && view_session {

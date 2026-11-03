@@ -536,7 +536,7 @@ fn insert_enter(s: &mut InsertState) {
     ui_cursor_shape();
     do_digraph(-1);
 
-    let redo = redo_keys(ptr::null());
+    let redo = redo_keys(None);
     g_st().ins_global.new_insert_skip = redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32);
 
     g_st().old_indent = 0;
@@ -1261,7 +1261,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                         }
                         p = p.wrapping_add(utfc_ptr2len(p) as usize);
                     }
-                    redo_append_lit(str_ptr, -1);
+                    redo_append_lit(str_.as_bytes());
                 }
                 s.c = NUL as i32;
             }
@@ -1470,7 +1470,7 @@ fn ins_ctrl_v() {
         edit_putchar(b'^' as i32, true);
         did_putchar = true;
     }
-    redo_append_str(c"\x16", 1);
+    redo_append_str(b"\x16");
 
     add_to_showcmd_c(CTRL_V_CONST);
 
@@ -1817,9 +1817,8 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
             if !stop_arrow() {
                 return;
             }
-            let prefix = std::ffi::CString::new(&p[..len - 1]).unwrap();
             ins_str(&p[..len - 1], len - 1);
-            redo_append_lit(prefix.as_c_str(), -1);
+            redo_append_lit(&p[..len - 1]);
             ctrlv = 0;
         }
     }
@@ -1968,7 +1967,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             0
         };
         if buf[start_idx] != 0 {
-            redo_append_lit(buf[start_idx..].as_ptr().cast(), -1);
+            redo_append_lit(&buf[start_idx..i]);
         }
     } else {
         let cc = utf_char2len(c);
@@ -1992,8 +1991,8 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
 fn redo_literal(c: i32) {
     if ascii_isdigit(c) {
         let mut buf = [0u8; 10];
-        vim_snprintf!(buf.as_mut_ptr().cast(), size_of_val(&buf), c"%03d", c);
-        redo_append_str(buf.as_ptr().cast(), -1);
+        let n = vim_snprintf!(buf.as_mut_ptr().cast(), size_of_val(&buf), c"%03d", c);
+        redo_append_str(&buf[..n.max(0) as usize]);
     } else {
         redo_append_char(c);
     }
@@ -2006,7 +2005,7 @@ pub fn start_arrow(end_insert_pos: Option<CursorPos>, end_change: bool, move_key
     }
     if g_st().ins_global.moved != K_INS_JUMP {
         if move_key == NUL as i32 {
-            redo_append_str(c"\x1b", 1);
+            redo_append_str(b"\x1b");
             g_st().ins_global.moved = K_INS_JUMP;
         } else {
             if !is_special_fn(move_key) {
@@ -2070,7 +2069,7 @@ pub fn stop_arrow() -> bool {
             g_st().ins_global.new_insert_skip = 2;
             mc_ins_cascade_restart();
         } else {
-            let redo = redo_keys(ptr::null());
+            let redo = redo_keys(None);
             g_st().ins_global.new_insert_skip =
                 redo.as_ref().map_or(0, |s| s.as_bytes().len() as i32);
         }
@@ -2092,7 +2091,7 @@ fn stop_insert(end_insert_pos: Option<CursorPos>, esc: i32, nomove: i32) {
     stop_redo_ins();
     ins_st().replace_stack = Vec::new();
 
-    let redo_cstr = redo_keys(ptr::null());
+    let redo_cstr = redo_keys(None);
     let added = match redo_cstr {
         None => 0,
         Some(ref s) => (s.as_bytes().len() as i32) - g_st().ins_global.new_insert_skip,
@@ -2451,11 +2450,11 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     }
 
     loop {
-        stuff_readbuff_len(insert.data, insert.size as isize);
+        stuff_readbuff_len(crate::memory::cstr_slice(insert.data, insert.size));
         if last == b'0' {
-            stuff_readbuff_len(c"\x16048", 4);
+            stuff_readbuff_len(b"\x16048");
         } else if last == b'^' {
-            stuff_readbuff_len(c"\x16^", 2);
+            stuff_readbuff_len(b"\x16^");
         }
         count -= 1;
         if count <= 0 {
@@ -2506,7 +2505,7 @@ fn echeck_abbr(c: i32) -> bool {
     }
     check_abbr(
         c,
-        get_cursor_line_ptr(),
+        crate::memory::cstr_from_ptr(get_cursor_line_ptr()),
         curwin_mut().w_cursor.col,
         if curwin_mut().w_cursor.lnum == g_st().ins_global.start.lnum {
             g_st().ins_global.start.col
@@ -2770,7 +2769,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
     }
     if g_st().ins_global.moved == K_INS_NONE {
         if cmdchar != b'r' as i32 && cmdchar != b'v' as i32 {
-            redo_append_str(c"\x1b", 1);
+            redo_append_str(b"\x1b");
         }
 
         if *count > 0 {
@@ -2800,7 +2799,7 @@ fn ins_esc(count: &mut i32, cmdchar: i32, nomove: bool) -> bool {
         && cmdchar != b'r' as i32
         && cmdchar != b'v' as i32
     {
-        redo_append_str(c"\x1b", 1);
+        redo_append_str(b"\x1b");
     }
 
     if cmdchar != b'r' as i32 && cmdchar != b'v' as i32 {
@@ -2897,8 +2896,8 @@ fn ins_start_select(c: i32) -> bool {
             start_selection();
             stuffchar_readbuff(CTRL_O);
             if g_st().mod_mask != 0 {
-                let buf: [u8; 4] = [K_SPECIAL, KS_MODIFIER, g_st().mod_mask as u8, 0];
-                stuff_readbuff_len(buf.as_ptr().cast(), 3);
+                let buf: [u8; 3] = [K_SPECIAL, KS_MODIFIER, g_st().mod_mask as u8];
+                stuff_readbuff_len(&buf);
             }
             stuffchar_readbuff(c);
             true
@@ -3569,7 +3568,7 @@ fn ins_tab() -> bool {
     g_st().ins_global.did_si = false;
     g_st().ins_global.can_si = false;
     g_st().ins_global.can_si_back = false;
-    redo_append_str(c"\t", 1);
+    redo_append_str(b"\t");
 
     let mut temp: i32 = if opt_vars().p_sta != 0 && ind {
         let sw = get_sw_value(curbuf_mut());
@@ -3794,7 +3793,7 @@ pub fn ins_eol(c: i32) -> bool {
         curwin_mut().w_cursor.col += get_cursor_pos_len();
     }
 
-    redo_append_str(c"\n", 1);
+    redo_append_str(b"\n");
     let i = open_line(
         FORWARD,
         if has_format_option(K_FO_RET_COMS) {
@@ -3856,7 +3855,7 @@ fn ins_digraph() -> i32 {
             edit_unputchar();
         }
         if cc != ESC {
-            redo_append_str(c"\x16", 1);
+            redo_append_str(b"\x16");
             c = digraph_get(c, cc, true);
             clear_showcmd();
             return c;
@@ -3919,7 +3918,7 @@ fn ins_ctrl_ey(tc: i32) -> i32 {
         c = ins_copychar(curwin_mut().w_cursor.lnum + if c == CTRL_Y { -1 } else { 1 });
         if c != NUL as i32 {
             if c < 256 && !(c as u8).is_ascii_alphanumeric() {
-                redo_append_str(c"\x16", 1);
+                redo_append_str(b"\x16");
             }
             let tw_save = curbuf_mut().b_p_tw;
             curbuf_mut().b_p_tw = -1;

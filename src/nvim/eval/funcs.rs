@@ -2513,7 +2513,7 @@ pub fn f_fmod(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
 /// "fnameescape({string})" function
 pub fn f_fnameescape(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let escaped = vim_strsave_fnameescape(tv_get_string(&argvars[0]), VSE_NONE);
+    let escaped = vim_strsave_fnameescape(tv_get_string(&argvars[0]).to_bytes(), VSE_NONE);
     crate::eval::typval::tv_set_string_len(rettv, escaped.as_ptr(), escaped.as_bytes().len());
 }
 
@@ -8015,7 +8015,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut attr: Hlf = HLF_COUNT;
     let mut len: usize = 0;
     if argvars[0].v_type == VarType::VarUnknown {
-        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, &raw mut attr);
+        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
             word = get_cursor_pos_ptr();
             curwin_mut().w_set_curswant = true;
@@ -8027,7 +8027,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             while !crate::memory::cstr_is_empty(str_) {
                 len = spell_check(
                     curwin_mut(),
-                    str_.cast_mut(),
+                    crate::memory::cstr_from_ptr(str_),
                     &mut attr,
                     Some(&mut capcol),
                     false,
@@ -8093,7 +8093,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             maxcount = 25;
         }
 
-        ga = spell_suggest_list(str_.as_ptr().cast_mut(), maxcount, need_capital, false);
+        ga = spell_suggest_list(str_, maxcount, need_capital, false);
     }
 
     tv_list_alloc_ret(rettv, ga.len() as isize);

@@ -302,11 +302,6 @@ fn inp_st() -> &'static mut InputModuleState {
     INP_STATE.as_mut()
 }
 
-#[inline]
-fn tb_buf_ptr() -> *mut u8 {
-    g_st().typebuf.tb_buf.as_mut_ptr()
-}
-
 use crate::api::buffer::LUA_INTERNAL_CALL;
 use crate::cmdexpand::{CTRL_N, CTRL_P, MB_MAXBYTES};
 use crate::keycodes::{k_second, k_third};
@@ -403,22 +398,19 @@ fn redo_chars(spec: &CmdSpec, buf: &mut Vec<u8>, arg_meta: bool) {
     }
 }
 
-/// Gets `spec` (or current pending change, if `spec` is NULL), composed into a "redo" keyseq.
-pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
-    let spec = if !spec.is_null() {
-        spec
-    } else {
-        &raw const inp_st().redobuff.cur
-    };
+/// Gets `spec` (or current pending change, if `spec` is `None`), composed into a "redo" keyseq.
+pub fn redo_keys(spec: Option<&CmdSpec>) -> Option<std::ffi::CString> {
+    let cur_ptr: *const CmdSpec = &raw const inp_st().redobuff.cur;
+    let spec = spec.unwrap_or(unsafe { &*cur_ptr });
 
     let mut buf: Vec<u8> = Vec::new();
 
-    redo_prefix(crate::globals::gref(spec), &mut buf, false);
+    redo_prefix(spec, &mut buf, false);
 
-    if !crate::globals::gptr(spec).body.is_empty() {
-        buf.extend_from_slice(&crate::globals::gptr(spec).body);
+    if !spec.body.is_empty() {
+        buf.extend_from_slice(&spec.body);
     } else {
-        redo_chars(crate::globals::gref(spec), &mut buf, false);
+        redo_chars(spec, &mut buf, false);
     }
     if buf.is_empty() {
         None
@@ -432,27 +424,19 @@ pub fn redo_spec() -> CmdSpec {
     inp_st().redobuff.cur.without_body()
 }
 
-fn add_buff(buf: &mut StuffBuf, s: impl crate::strings::IntoCCharPtr, mut slen: isize) {
-    let s = s.into_c_char_ptr();
-    {
-        if slen < 0 {
-            slen = crate::memory::cstr_len(s) as isize;
-        }
-        if slen == 0 {
-            return;
-        }
-        let slen_u = slen as usize;
-        let slice = crate::memory::cstr_slice(s, slen_u);
-        let insert = buf.insert;
-        buf.keys.splice(insert..insert, slice.iter().copied());
-        buf.insert += slen_u;
+fn add_buff(buf: &mut StuffBuf, slice: &[u8]) {
+    if slice.is_empty() {
+        return;
     }
+    let insert = buf.insert;
+    buf.keys.splice(insert..insert, slice.iter().copied());
+    buf.insert += slice.len();
 }
 
 fn add_num_buff(buf: &mut StuffBuf, n: i32) {
     let mut number = [0u8; 32];
-    let numberlen = vim_snprintf!(number.as_mut_ptr().cast(), number.len(), c"%d", n);
-    add_buff(&mut *buf, number.as_ptr().cast(), numberlen as isize);
+    let numberlen = vim_snprintf!(number.as_mut_ptr().cast(), number.len(), c"%d", n) as usize;
+    add_buff(&mut *buf, &number[..numberlen]);
 }
 
 fn key_byte_encode(c: i32, temp: &mut [u8; 4]) -> isize {
@@ -489,7 +473,7 @@ fn key_char_encode(c: i32, buf: &mut [u8]) -> usize {
 fn add_char_buff(buf: &mut StuffBuf, c: i32) {
     let mut temp = [0u8; MB_MAXBYTES * 3 + 1];
     let len = key_char_encode(c, &mut temp);
-    add_buff(buf, temp.as_ptr().cast(), len as isize);
+    add_buff(buf, &temp[..len]);
 }
 
 fn sb_add_byte(sb: &mut Vec<u8>, c: i32) {
@@ -581,7 +565,7 @@ pub fn flush_buffers(flush_typeahead: FlushBuffers) {
     } else {
         if flush_typeahead == FLUSH_INPUT {
             init_typebuf();
-            while inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 10) != 0 {}
+            while inchar(0, g_st().typebuf.tb_buflen - 1, 10) != 0 {}
         }
         g_st().typebuf.tb_off = MAXMAPLEN as i32;
         g_st().typebuf.tb_len = 0;
@@ -642,27 +626,20 @@ pub fn prep_redo(as_atom: bool, arg_meta: bool, spec: CmdSpec) {
 }
 
 /// Prepare for redo of a Visual-mode command.
-pub fn prep_redo_visual(keys: impl crate::strings::IntoCCharPtr, len: usize, spec: CmdSpec) {
-    let keys = keys.into_c_char_ptr();
-    {
-        let mut stored = spec.without_body();
-        stored.regname = 0;
-        stored.count = 0;
-        atom_redo_prepped();
-        redo_new(stored);
-        if inp_st().block_redo {
-            return;
-        }
-        if !keys.is_null() && len > 0 {
-            inp_st()
-                .redobuff
-                .cur
-                .body
-                .extend_from_slice(crate::memory::cstr_slice(keys, len));
-        }
-        redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
-        redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
+pub fn prep_redo_visual(keys: &[u8], spec: CmdSpec) {
+    let mut stored = spec.without_body();
+    stored.regname = 0;
+    stored.count = 0;
+    atom_redo_prepped();
+    redo_new(stored);
+    if inp_st().block_redo {
+        return;
     }
+    if !keys.is_empty() {
+        inp_st().redobuff.cur.body.extend_from_slice(keys);
+    }
+    redo_prefix(&spec, &mut inp_st().redobuff.cur.body, false);
+    redo_chars(&spec, &mut inp_st().redobuff.cur.body, false);
 }
 
 /// Discard the contents of the redo buffer and restore the previous redo buffer.
@@ -688,74 +665,43 @@ pub fn restore_redobuff(save_redo: &mut RedoState) {
     inp_st().redobuff = std::mem::take(&mut *save_redo);
 }
 
-/// Append `len` bytes of `s` (-1: up to the NUL) to the redo buffer.
-pub fn redo_append_str<S: crate::strings::IntoCCharPtr>(s: S, len: isize) {
-    let s = s.into_c_char_ptr();
-    {
-        if !inp_st().block_redo {
-            let slen = if len < 0 {
-                crate::memory::cstr_len(s)
-            } else {
-                len as usize
-            };
-            if !s.is_null() && slen > 0 {
-                inp_st()
-                    .redobuff
-                    .cur
-                    .body
-                    .extend_from_slice(crate::memory::cstr_slice(s, slen));
-            }
-        }
+/// Append `s` to the redo buffer.
+pub fn redo_append_str(s: &[u8]) {
+    if !inp_st().block_redo && !s.is_empty() {
+        inp_st().redobuff.cur.body.extend_from_slice(s);
     }
 }
 
-/// Appends `str` to `buf` literally, escaping special characters with CTRL-V.
-pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, len: i32) {
-    let str_ = str_.into_c_char_ptr();
-    let mut s = str_;
-    while if len < 0 {
-        !crate::memory::cstr_is_empty(s)
-    } else {
-        crate::memory::ptr_offset_from(s, str_) < len as isize
-    } {
-        let start = s;
-        while (b' '..DEL as u8).contains(&crate::memory::cstr_first_byte(s))
-            && (len < 0 || crate::memory::ptr_offset_from(s, str_) < len as isize)
-        {
-            s = s.wrapping_add(1);
+/// Appends `str_bytes` to `buf` literally, escaping special characters with CTRL-V.
+pub fn sb_add_lit(buf: &mut Vec<u8>, str_bytes: &[u8]) {
+    let mut idx = 0usize;
+    let total = str_bytes.len();
+    while idx < total {
+        let start = idx;
+        while idx < total && (b' '..DEL as u8).contains(&str_bytes[idx]) {
+            idx += 1;
         }
 
-        if crate::memory::cstr_is_empty(s)
-            && matches!(
-                crate::memory::cstr_first_byte(s.wrapping_sub(1)),
-                b'0' | b'^'
-            )
-        {
-            s = s.wrapping_sub(1);
+        if idx == total && idx > 0 && matches!(str_bytes[idx - 1], b'0' | b'^') {
+            idx -= 1;
         }
-        if s > start {
-            let n = crate::memory::ptr_offset_from(s, start) as usize;
-            buf.extend_from_slice(crate::memory::cstr_slice(start, n));
+        if idx > start {
+            buf.extend_from_slice(&str_bytes[start..idx]);
         }
 
-        if crate::memory::cstr_is_empty(s)
-            || (len >= 0 && crate::memory::ptr_offset_from(s, str_) >= len as isize)
-        {
+        if idx >= total {
             break;
         }
 
-        let rem_bytes = crate::memory::cstr_as_bytes(s);
+        let rem_bytes = &str_bytes[idx..];
         let mut rem = rem_bytes;
         let c = mb_cptr2char_adv(&mut rem);
-        s = s.wrapping_add((rem_bytes.len() - rem.len()).max(1));
-        if c < b' ' as i32
-            || c == DEL
-            || (crate::memory::cstr_is_empty(s) && (c == b'0' as i32 || c == b'^' as i32))
-        {
+        idx += (rem_bytes.len() - rem.len()).max(1);
+        if c < b' ' as i32 || c == DEL || (idx >= total && (c == b'0' as i32 || c == b'^' as i32)) {
             sb_add_char(buf, CTRL_V_CONST);
         }
 
-        if crate::memory::cstr_is_empty(s) && c == b'0' as i32 {
+        if idx >= total && c == b'0' as i32 {
             buf.extend_from_slice(b"048");
         } else {
             sb_add_char(buf, c);
@@ -764,19 +710,15 @@ pub fn sb_add_lit(buf: &mut Vec<u8>, str_: impl crate::strings::IntoCCharPtr, le
 }
 
 /// Append to redo literally; no-op if `inp_st().block_redo` is set.
-pub fn redo_append_lit(str_: impl crate::strings::IntoCCharPtr, len: i32) {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if inp_st().block_redo {
-            return;
-        }
-        sb_add_lit(&mut inp_st().redobuff.cur.body, str_, len);
+pub fn redo_append_lit(s: &[u8]) {
+    if inp_st().block_redo {
+        return;
     }
+    sb_add_lit(&mut inp_st().redobuff.cur.body, s);
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub fn sb_add_spec(buf: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let mut rem = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+pub fn sb_add_spec(buf: &mut Vec<u8>, mut rem: &[u8]) {
     while !rem.is_empty() {
         if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
             buf.extend_from_slice(&rem[..3]);
@@ -789,14 +731,11 @@ pub fn sb_add_spec(buf: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
 }
 
 /// Append `s` to the redo buffer.
-pub fn redo_append_spec(s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    {
-        if inp_st().block_redo {
-            return;
-        }
-        sb_add_spec(&mut inp_st().redobuff.cur.body, s);
+pub fn redo_append_spec(s: &[u8]) {
+    if inp_st().block_redo {
+        return;
     }
+    sb_add_spec(&mut inp_st().redobuff.cur.body, s);
 }
 
 /// Appends character `c` to the redo buffer, translated to typeahead encoding.
@@ -807,34 +746,28 @@ pub fn redo_append_char(c: i32) {
 }
 
 /// Appends string `s` (must be typeahead encoding) to the stuff buffer.
-pub fn stuff_readbuff(s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    add_buff(&mut inp_st().readbuf1, s, -1);
+pub fn stuff_readbuff(s: &CStr) {
+    add_buff(&mut inp_st().readbuf1, s.to_bytes());
 }
 
 /// Appends string `s` (must be typeahead encoding) to the redo stuff buffer.
 pub fn stuff_redo_readbuff(s: &std::ffi::CStr) {
-    add_buff(&mut inp_st().readbuf2, s.as_ptr(), -1);
+    add_buff(&mut inp_st().readbuf2, s.to_bytes());
 }
 
-pub fn stuff_readbuff_len(s: impl crate::strings::IntoCCharPtr, len: isize) {
-    let s = s.into_c_char_ptr();
-    {
-        if g_st().add_last_insert == 1 && len > 0 {
-            g_st()
-                .last_insert_ga
-                .extend_from_slice(crate::memory::cstr_slice(s, len as usize));
-        }
-        add_buff(&mut inp_st().readbuf1, s, len);
+pub fn stuff_readbuff_len(s: &[u8]) {
+    if g_st().add_last_insert == 1 && !s.is_empty() {
+        g_st().last_insert_ga.extend_from_slice(s);
     }
+    add_buff(&mut inp_st().readbuf1, s);
 }
 
 /// Stuff `s` into the stuff buffer, leaving special key codes unmodified.
-pub fn stuff_readbuff_special(s: impl crate::strings::IntoCCharPtr) {
-    let mut rem = crate::memory::cstr_as_bytes(s.into_c_char_ptr());
+pub fn stuff_readbuff_special(s: &CStr) {
+    let mut rem = s.to_bytes();
     while !rem.is_empty() {
         if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
-            stuff_readbuff_len(rem[..3].as_ptr().cast(), 3);
+            stuff_readbuff_len(&rem[..3]);
             rem = &rem[3..];
         } else {
             let mut c = mb_cptr2char_adv(&mut rem);
@@ -857,15 +790,14 @@ pub fn stuffnum_readbuff(n: i32) {
 }
 
 /// Stuff a string into the typeahead buffer.
-pub fn stuffescaped(arg: impl crate::strings::IntoCCharPtr, literally: bool) {
-    let mut rem = crate::memory::cstr_as_bytes(arg.into_c_char_ptr());
+pub fn stuffescaped(mut rem: &[u8], literally: bool) {
     while !rem.is_empty() {
         let span_len = rem
             .iter()
             .take_while(|&&b| (b' '..DEL as u8).contains(&b) || (b == K_SPECIAL && !literally))
             .count();
         if span_len > 0 {
-            stuff_readbuff_len(rem[..span_len].as_ptr().cast(), span_len as isize);
+            stuff_readbuff_len(&rem[..span_len]);
             rem = &rem[span_len..];
         }
 
@@ -899,21 +831,14 @@ pub fn start_redo(count: i32, old_redo: bool) -> bool {
     }
     let mut prefix: Vec<u8> = Vec::new();
     redo_prefix(&spec, &mut prefix, true);
-    add_buff(
-        &mut inp_st().readbuf2,
-        prefix.as_ptr().cast(),
-        prefix.len() as isize,
-    );
+    add_buff(&mut inp_st().readbuf2, &prefix);
     drop(prefix);
     if spec.regname == b'=' as i32 {
         g_st().cmd_silent = true;
     }
 
-    add_buff(
-        &mut inp_st().readbuf2,
-        rd.body.as_ptr().cast(),
-        rd.body.len() as isize,
-    );
+    let body = rd.body.clone();
+    add_buff(&mut inp_st().readbuf2, &body);
     true
 }
 
@@ -943,12 +868,11 @@ pub fn start_redo_ins() -> bool {
         pos += 1;
     }
     if add_nl {
-        add_buff(&mut inp_st().readbuf2, NL_STR, -1);
+        add_buff(&mut inp_st().readbuf2, NL_STR.to_bytes());
     }
 
-    let rem_ptr = inp_st().redobuff.cur.body[pos..].as_ptr().cast();
-    let rem_len = (len - pos) as isize;
-    add_buff(&mut inp_st().readbuf2, rem_ptr, rem_len);
+    let rem = inp_st().redobuff.cur.body[pos..].to_vec();
+    add_buff(&mut inp_st().readbuf2, &rem);
     inp_st().block_redo = true;
     true
 }
@@ -976,14 +900,7 @@ pub fn noremap_keys() -> bool {
 }
 
 /// Insert a string in position `offset` in the typeahead buffer.
-pub fn ins_typebuf(
-    str_: impl crate::strings::IntoCCharPtr,
-    noremap: i32,
-    offset: i32,
-    nottyped: bool,
-    silent: bool,
-) -> bool {
-    let str_ = str_.into_c_char_ptr();
+pub fn ins_typebuf(str_: &CStr, noremap: i32, offset: i32, nottyped: bool, silent: bool) -> bool {
     init_typebuf();
     g_st().typebuf.tb_change_cnt = g_st().typebuf.tb_change_cnt.wrapping_add(1);
     if g_st().typebuf.tb_change_cnt == 0 {
@@ -991,9 +908,9 @@ pub fn ins_typebuf(
     }
     state_no_longer_safe(Some(c"ins_typebuf()"));
 
-    let addlen = crate::memory::cstr_len(str_) as i32;
-    let add_usize = addlen as usize;
-    let str_slice = crate::memory::cstr_slice(str_, add_usize);
+    let str_slice = str_.to_bytes();
+    let add_usize = str_slice.len();
+    let addlen = add_usize as i32;
 
     if offset == 0 && addlen <= g_st().typebuf.tb_off {
         g_st().typebuf.tb_off -= addlen;
@@ -1091,7 +1008,7 @@ pub fn requeue_key(c: i32, modifiers: i32, extra_consumed: i32, recorded: bool) 
     assert!(len < buf.len());
     buf[len] = 0;
     ins_typebuf(
-        buf.as_mut_ptr().cast(),
+        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
         inp_st().key_noremap,
         0,
         !g_st().key_typed,
@@ -1231,14 +1148,8 @@ fn gotchars_add_byte(state: &mut GotcharsState, byte: u8) -> bool {
     retval
 }
 
-fn gotchars(chars: *const u8, len: usize) {
-    let mut s = chars;
-    let mut todo = len;
-
-    while todo > 0 {
-        todo -= 1;
-        let b = *crate::globals::gptr(s);
-        s = s.wrapping_add(1);
+fn gotchars(chars: &[u8]) {
+    for &b in chars {
         if !gotchars_add_byte(&mut inp_st().gotchars_state, b) {
             continue;
         }
@@ -1277,7 +1188,7 @@ fn gotchars(chars: *const u8, len: usize) {
 pub fn gotchars_ignore() {
     let nop_buf: [u8; 3] = [K_SPECIAL, KS_EXTRA, KE_IGNORE];
     inp_st().on_key_ignore_len += 3;
-    gotchars(nop_buf.as_ptr(), 3);
+    gotchars(&nop_buf);
 }
 
 fn ungetchars(len: i32, recorded: bool) {
@@ -1368,8 +1279,8 @@ pub fn restore_typeahead(tp: &mut Tasave) {
 }
 
 /// Open a new script file for the `":source!"` command.
-pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
-    let name = name.into_c_char_ptr();
+pub fn openscript(name: &CStr, directly: bool) {
+    let name_ptr = name.as_ptr();
     {
         if inp_st().curscript + 1 == NSCRIPT as i32 {
             emsg(gettext(E_NESTING));
@@ -1386,18 +1297,18 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
 
         inp_st().curscript += 1;
         let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-        expand_env(name, namebuff_ptr, MAXPATHL as i32);
-        let scriptin_ptr = (&raw mut inp_st().scriptin)
-            .cast::<FileDescriptor>()
-            .wrapping_add(inp_st().curscript as usize);
+        expand_env(name_ptr, namebuff_ptr, MAXPATHL as i32);
+        let cur_idx = inp_st().curscript as usize;
         let error = file_open(
-            crate::globals::gmut(scriptin_ptr),
+            &mut inp_st().scriptin[cur_idx],
             crate::memory::cstr_as_opt_cstr(namebuff_ptr.cast()),
             K_FILE_READ_ONLY,
             0,
         );
         if error != 0 {
-            semsg!(gettext(E_NOTOPEN_2), name, unsafe { uv_strerror(error) },);
+            semsg!(gettext(E_NOTOPEN_2), name_ptr, unsafe {
+                uv_strerror(error)
+            },);
             inp_st().curscript -= 1;
             return;
         }
@@ -1441,10 +1352,8 @@ fn closescript() {
         Typebuf::ZERO,
     );
 
-    let scriptin_ptr = (&raw mut inp_st().scriptin)
-        .cast::<FileDescriptor>()
-        .wrapping_add(inp_st().curscript as usize);
-    file_close(crate::globals::gmut(scriptin_ptr), false);
+    let cur_idx = inp_st().curscript as usize;
+    file_close(&mut inp_st().scriptin[cur_idx], false);
     inp_st().curscript -= 1;
 }
 
@@ -1454,43 +1363,39 @@ pub fn close_all_scripts() {
     }
 }
 
-pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
-    let scriptin_name = scriptin_name.into_c_char_ptr();
-    {
-        assert!(inp_st().curscript == -1);
-        inp_st().curscript += 1;
+pub fn open_scriptin(scriptin_name: &CStr) -> bool {
+    assert!(inp_st().curscript == -1);
+    inp_st().curscript += 1;
 
-        let scriptin0 = (&raw mut inp_st().scriptin).cast::<FileDescriptor>();
-        let error = if crate::memory::cstr_as_bytes(scriptin_name) == b"-" {
-            file_open_stdin(crate::globals::gmut(scriptin0))
-        } else {
-            file_open(
-                crate::globals::gmut(scriptin0),
-                crate::memory::cstr_as_opt_cstr(scriptin_name),
-                K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
-                0,
-            )
-        };
-        if error != 0 {
-            let mut errbuf = [0u8; 1024];
-            let n = vim_snprintf!(
-                errbuf.as_mut_ptr().cast(),
-                errbuf.len(),
-                gettext(c"Cannot open for reading: \"%s\": %s\n"),
-                scriptin_name,
-                unsafe { uv_strerror(error) },
-            );
-            if n > 0 {
-                let slice = &errbuf[..(n as usize).min(errbuf.len() - 1)];
-                let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
-            }
-            inp_st().curscript -= 1;
-            return false;
+    let error = if scriptin_name.to_bytes() == b"-" {
+        file_open_stdin(&mut inp_st().scriptin[0])
+    } else {
+        file_open(
+            &mut inp_st().scriptin[0],
+            Some(scriptin_name),
+            K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
+            0,
+        )
+    };
+    if error != 0 {
+        let mut errbuf = [0u8; 1024];
+        let n = vim_snprintf!(
+            errbuf.as_mut_ptr().cast(),
+            errbuf.len(),
+            gettext(c"Cannot open for reading: \"%s\": %s\n"),
+            scriptin_name.as_ptr(),
+            unsafe { uv_strerror(error) },
+        );
+        if n > 0 {
+            let slice = &errbuf[..(n as usize).min(errbuf.len() - 1)];
+            let _ = std::io::Write::write_all(&mut std::io::stderr(), slice);
         }
-        save_typebuf();
-
-        true
+        inp_st().curscript -= 1;
+        return false;
     }
+    save_typebuf();
+
+    true
 }
 
 /// Return true when reading keys from a script file.
@@ -1768,7 +1673,7 @@ pub fn vgetc() -> i32 {
 pub fn safe_vgetc() -> i32 {
     let mut c = vgetc();
     if c == NUL {
-        c = get_keystroke(ptr::null_mut());
+        c = get_keystroke(None);
     }
     c
 }
@@ -1802,7 +1707,7 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    if *crate::globals::gptr(test_disable_char_avail.as_ptr()) {
+    if *test_disable_char_avail.as_mut() {
         return false;
     }
     g_st().no_mapping += 1;
@@ -1822,21 +1727,18 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
         return;
     }
 
-    let arg1 = (&raw mut argvars[1]);
-    if argvars[0].v_type != VarType::VarUnknown
-        && crate::globals::gptr(arg1).v_type == VarType::VarDict
-    {
-        let d = crate::globals::gptr(arg1).vval.v_dict();
+    if argvars[0].v_type != VarType::VarUnknown && argvars[1].v_type == VarType::VarDict {
+        let d = argvars[1].vval.v_dict_opt();
 
         if allow_number {
-            allow_number = tv_dict_get_bool(crate::globals::gopt(d), c"number", 1) != 0;
-        } else if tv_dict_has_key(crate::globals::gopt(d), c"number") {
+            allow_number = tv_dict_get_bool(d.as_deref(), c"number", 1) != 0;
+        } else if tv_dict_has_key(d.as_deref(), c"number") {
             semsg!(gettext(E_INVARG2), c"number");
         }
 
-        simplify = tv_dict_get_bool(crate::globals::gopt(d), c"simplify", 1) != 0;
+        simplify = tv_dict_get_bool(d.as_deref(), c"simplify", 1) != 0;
 
-        if let Some(cursor_str) = tv_dict_get_string(crate::globals::gopt(d), c"cursor") {
+        if let Some(cursor_str) = tv_dict_get_string(d.as_deref(), c"cursor") {
             if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
                 semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
             } else {
@@ -1954,10 +1856,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 }
                 set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
 
-                set_vim_var_nr(
-                    VV_MOUSE_WINID,
-                    Varnumber::from(crate::globals::gptr(wp).handle),
-                );
+                set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from(unsafe { (*wp).handle }));
 
                 set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
                 set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));
@@ -1992,7 +1891,7 @@ fn put_string_in_typebuf(offset: i32, slen: i32, string: &mut [u8], new_slen: i3
         del_typebuf(-extra, offset);
     } else if extra > 0
         && !ins_typebuf(
-            string[slen as usize..].as_ptr().cast(),
+            CStr::from_bytes_until_nul(&string[slen as usize..]).unwrap_or_default(),
             REMAP_YES,
             offset,
             false,
@@ -2073,9 +1972,9 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
     0
 }
 
-fn char_iter(itp: &mut *const u8, nomap: i32) -> i32 {
+fn char_iter(itp: &mut &[u8], nomap: i32) -> i32 {
     let mut it = *itp;
-    let mut c = i32::from(crate::memory::cstr_first_byte(it.cast()));
+    let mut c = i32::from(it.first().copied().unwrap_or(0));
     if c == NUL {
         return 0;
     }
@@ -2088,15 +1987,15 @@ fn char_iter(itp: &mut *const u8, nomap: i32) -> i32 {
             let mut i: i32 = 1;
 
             loop {
-                it = it.wrapping_add(1);
-                buf[i as usize] = crate::memory::cstr_first_byte(it.cast());
+                it = &it[1.min(it.len())..];
+                buf[i as usize] = it.first().copied().unwrap_or(0);
                 if buf[i as usize] == K_SPECIAL {
-                    it = it.wrapping_add(1);
-                    if crate::memory::cstr_is_empty(it.cast()) {
+                    it = &it[1.min(it.len())..];
+                    if it.first().copied().unwrap_or(0) == 0 {
                         break;
                     }
-                    it = it.wrapping_add(1);
-                    if crate::memory::cstr_is_empty(it.cast()) {
+                    it = &it[1.min(it.len())..];
+                    if it.first().copied().unwrap_or(0) == 0 {
                         break;
                     }
                 }
@@ -2121,8 +2020,7 @@ fn char_iter(itp: &mut *const u8, nomap: i32) -> i32 {
         }
     }
 
-    it = it.wrapping_add(1);
-    *itp = it;
+    *itp = &it[1.min(it.len())..];
     c
 }
 
@@ -2137,7 +2035,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     let mut is_plug_map = false;
 
     let tb_off = g_st().typebuf.tb_off as usize;
-    let tb_start = tb_buf_ptr().wrapping_add(tb_off);
+    let tb_len_u = g_st().typebuf.tb_len.max(0) as usize;
     if g_st().typebuf.tb_len >= 3
         && g_st().typebuf.tb_buf[tb_off..tb_off + 3] == [K_SPECIAL, KS_EXTRA, KE_PLUG]
     {
@@ -2157,11 +2055,12 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     {
         let nolmaplen: i32;
         let mut tb_c1 = tb_b1;
-        let mut tb_iter: *const u8 = tb_start.cast_const();
+        let tb_full_slice = &g_st().typebuf.tb_buf[tb_off..tb_off + tb_len_u];
+        let mut tb_iter: &[u8] = tb_full_slice;
 
         if tb_b1 == K_SPECIAL as i32 {
             nolmaplen = 2;
-            tb_iter = tb_iter.wrapping_add(1);
+            tb_iter = &tb_iter[1.min(tb_iter.len())..];
         } else {
             tb_c1 = char_iter(&mut tb_iter, 0);
             if tb_c1 == 0 {
@@ -2192,8 +2091,8 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             .iter()
             .chain(get_maphash_list(local_state, tb_b1))
         {
-            let m_keys_start = cand.m_keys.as_ptr().cast::<u8>();
-            let mut key_iter: *const u8 = m_keys_start;
+            let m_keys_slice = cand.m_keys.as_bytes();
+            let mut key_iter: &[u8] = m_keys_slice;
 
             if char_iter(&mut key_iter, 0) == tb_c1
                 && (cand.m_mode & local_state) != 0
@@ -2202,10 +2101,8 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                 let mut nomap = nolmaplen;
                 let mut modifiers: i32 = 0;
                 let mut tmp_tb_iter = tb_iter;
-                let mut mlen = crate::memory::ptr_offset_from(key_iter, m_keys_start) as i32;
-                let mut tb_mlen = (crate::memory::ptr_offset_from(tmp_tb_iter, tb_buf_ptr())
-                    as i32)
-                    - g_st().typebuf.tb_off;
+                let mut mlen = (m_keys_slice.len() - key_iter.len()) as i32;
+                let mut tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
 
                 loop {
                     let mut c2 = char_iter(&mut tmp_tb_iter, nomap);
@@ -2234,9 +2131,8 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
                         break;
                     }
 
-                    mlen = crate::memory::ptr_offset_from(key_iter, m_keys_start) as i32;
-                    tb_mlen = (crate::memory::ptr_offset_from(tmp_tb_iter, tb_buf_ptr()) as i32)
-                        - g_st().typebuf.tb_off;
+                    mlen = (m_keys_slice.len() - key_iter.len()) as i32;
+                    tb_mlen = (tb_full_slice.len() - tmp_tb_iter.len()) as i32;
                 }
 
                 keylen = cand.m_keylen;
@@ -2322,11 +2218,10 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
     if keylen >= 0 && keylen <= g_st().typebuf.tb_len {
         let mp = mp.unwrap();
         if keylen > g_st().typebuf.tb_maplen && (mp.m_mode & MODE_LANGMAP) == 0 {
-            gotchars(
-                tb_buf_ptr()
-                    .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize),
-                (keylen - g_st().typebuf.tb_maplen) as usize,
-            );
+            let start = (g_st().typebuf.tb_off + g_st().typebuf.tb_maplen) as usize;
+            let count = (keylen - g_st().typebuf.tb_maplen) as usize;
+            let chunk = g_st().typebuf.tb_buf[start..start + count].to_vec();
+            gotchars(&chunk);
             atom_map_start(&mp.m_keys.as_bytes()[..mp.m_keylen as usize], !advance);
         }
 
@@ -2353,7 +2248,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         {
             g_st().visual_global.select = false;
             ins_typebuf(
-                K_SELECT_STRING.as_ptr().cast_mut().cast(),
+                CStr::from_bytes_with_nul(K_SELECT_STRING).unwrap(),
                 REMAP_NONE,
                 0,
                 true,
@@ -2400,18 +2295,13 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         } else {
             Some(mp.m_str.clone())
         };
-        let map_str = owned_map_str
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
-        let i = if map_str.is_null() {
-            false
-        } else {
+        let i = if let Some(ref map_cstr) = owned_map_str {
+            let map_b = map_cstr.as_bytes();
             if keylen > g_st().typebuf.tb_maplen && (save_m_mode & MODE_LANGMAP) != 0 {
-                gotchars(map_str.cast::<u8>(), crate::memory::cstr_len(map_str));
+                gotchars(map_b);
             }
 
-            let map_b = crate::memory::cstr_as_bytes(map_str);
             let k_b = save_m_keys.as_bytes();
             let k_len = keylen as usize;
             let noremap = if save_m_noremap != REMAP_YES {
@@ -2429,12 +2319,14 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             };
 
             ins_typebuf(
-                map_str,
+                map_cstr.as_c_str(),
                 noremap,
                 0,
                 true,
                 g_st().cmd_silent || save_m_silent,
             )
+        } else {
+            false
         };
         drop(owned_map_str);
         drop(save_m_keys);
@@ -2528,7 +2420,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                 }
                 let mut keylen: i32 = 0;
                 if g_st().got_int {
-                    c = inchar(tb_buf_ptr(), g_st().typebuf.tb_buflen - 1, 0);
+                    c = inchar(0, g_st().typebuf.tb_buflen - 1, 0);
                     if (c != 0 || g_st().typebuf.tb_maplen != 0)
                         && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0
                     {
@@ -2540,7 +2432,7 @@ fn vgetorpeek(advance: bool) -> i32 {
 
                     if advance {
                         g_st().typebuf.tb_buf[0] = c as u8;
-                        gotchars(tb_buf_ptr(), 1);
+                        gotchars(&[c as u8]);
                     }
                     g_st().cmd_silent = false;
 
@@ -2567,7 +2459,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 g_st().key_typed = false;
                             } else {
                                 g_st().key_typed = true;
-                                gotchars(tb_buf_ptr().wrapping_add(tb_off), 1);
+                                gotchars(&[c as u8]);
                             }
                             inp_st().key_noremap = i32::from(g_st().typebuf.tb_noremap[tb_off]);
                             del_typebuf(1, 0);
@@ -2590,9 +2482,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
                     && {
                         c = inchar(
-                            tb_buf_ptr().wrapping_add(
-                                (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
-                            ),
+                            (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
                             3,
                             25,
                         );
@@ -2731,7 +2621,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
                         if (g_st().state_global & MODE_INSERT) != 0
-                            && utf_ptr2cells(tb_buf_ptr().wrapping_add(last_idx).cast()) == 1
+                            && utf_ptr2cells(g_st().typebuf.tb_buf[last_idx..].as_ptr().cast()) == 1
                         {
                             edit_putchar(i32::from(g_st().typebuf.tb_buf[last_idx]), false);
                             setcursor();
@@ -2758,11 +2648,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                         && !get_cmdline_info().cmdbuff.is_null()
                         && g_st().cmdline_star == 0
                     {
-                        let p = tb_buf_ptr()
-                            .wrapping_add(
-                                (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize,
-                            )
-                            .cast();
+                        let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
+                        let p = g_st().typebuf.tb_buf[last_idx..].as_ptr().cast();
                         if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
                             putcmdline(crate::memory::cstr_first_byte(p), false);
                             showing_partial = true;
@@ -2790,8 +2677,7 @@ fn vgetorpeek(advance: bool) -> i32 {
 
                 let wait_tb_len = g_st().typebuf.tb_len;
                 c = inchar(
-                    tb_buf_ptr()
-                        .wrapping_add((g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize),
+                    (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
                     g_st().typebuf.tb_buflen - g_st().typebuf.tb_off - g_st().typebuf.tb_len - 1,
                     wait_time,
                 );
@@ -2870,7 +2756,7 @@ fn vgetorpeek(advance: bool) -> i32 {
     c
 }
 
-fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
+fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
     let mut len: i32 = 0;
     let mut retesc: i32 = 0;
     let tb_change_cnt = g_st().typebuf.tb_change_cnt;
@@ -2887,11 +2773,9 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
     let mut read_size: isize = -1;
     while inp_st().curscript >= 0 && read_size <= 0 && !g_st().ignore_script {
         let mut script_char = [0u8; 1];
-        let scriptin_ptr = (&raw mut inp_st().scriptin)
-            .cast::<FileDescriptor>()
-            .wrapping_add(inp_st().curscript as usize);
+        let cur_idx = inp_st().curscript as usize;
         if g_st().got_int || {
-            read_size = file_read(unsafe { &mut *scriptin_ptr }, &mut script_char);
+            read_size = file_read(&mut inp_st().scriptin[cur_idx], &mut script_char);
             read_size != 1
         } {
             closescript();
@@ -2901,7 +2785,7 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
                 return -1;
             }
         } else {
-            *crate::globals::gptr(buf) = script_char[0];
+            g_st().typebuf.tb_buf[tb_idx] = script_char[0];
 
             len = 1;
         }
@@ -2923,9 +2807,9 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
             ui_flush();
         }
 
+        let max_read = (maxlen / 3).max(0) as usize;
         len = input_get(
-            (maxlen / 3 > 0 && !buf.is_null())
-                .then(|| unsafe { std::slice::from_raw_parts_mut(buf, (maxlen / 3) as usize) }),
+            (max_read > 0).then(|| &mut g_st().typebuf.tb_buf[tb_idx..tb_idx + max_read]),
             wait_time as i32,
             tb_change_cnt,
             None,
@@ -2943,48 +2827,42 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
         }
     }
 
-    fix_input_buffer(buf, len)
+    fix_input_buffer(&mut g_st().typebuf.tb_buf[tb_idx..], len)
 }
 
 /// Fix typed characters for use by `vgetc()`.
-pub fn fix_input_buffer(buf: *mut u8, mut len: i32) -> i32 {
+pub fn fix_input_buffer(buf: &mut [u8], mut len: i32) -> i32 {
     if using_script() == 0 {
-        *crate::globals::gptr(buf.wrapping_add(len as usize)) = NUL as u8;
+        buf[len as usize] = NUL as u8;
 
         return len;
     }
 
-    let mut p = buf;
+    let mut idx = 0usize;
     let mut i = len;
     while {
         i -= 1;
         i >= 0
     } {
-        if *crate::globals::gptr(p) == NUL as u8
-            || (*crate::globals::gptr(p) == K_SPECIAL
-                && (i < 2 || *crate::globals::gptr(p.wrapping_add(1)) != KS_EXTRA))
-        {
-            unsafe { ptr::copy(p.wrapping_add(1), p.wrapping_add(3), i as usize) };
-
-            *crate::globals::gptr(p.wrapping_add(2)) = k_third((*crate::globals::gptr(p)) as i32);
-
-            *crate::globals::gptr(p.wrapping_add(1)) = k_second((*crate::globals::gptr(p)) as i32);
-
-            *crate::globals::gptr(p) = K_SPECIAL;
-
-            p = p.wrapping_add(2);
+        if buf[idx] == NUL as u8 || (buf[idx] == K_SPECIAL && (i < 2 || buf[idx + 1] != KS_EXTRA)) {
+            buf.copy_within(idx + 1..idx + 1 + i as usize, idx + 3);
+            let orig = i32::from(buf[idx]);
+            buf[idx + 2] = k_third(orig);
+            buf[idx + 1] = k_second(orig);
+            buf[idx] = K_SPECIAL;
+            idx += 2;
             len += 2;
         }
-        p = p.wrapping_add(1);
+        idx += 1;
     }
 
-    *crate::globals::gptr(p) = NUL as u8;
+    buf[idx] = NUL as u8;
 
     len
 }
 
 /// Get a key stroke directly from the user.
-pub fn get_keystroke(events: *mut MultiQueue) -> i32 {
+pub fn get_keystroke(events: Option<&MultiQueue>) -> i32 {
     let mut buf: Vec<u8> = vec![0; 150];
     let mut buflen: i32 = 150;
     let mut len: i32 = 0;
@@ -3006,10 +2884,10 @@ pub fn get_keystroke(events: *mut MultiQueue) -> i32 {
             (maxlen > 0).then(|| &mut buf[len as usize..len as usize + maxlen as usize]),
             if len == 0 { -1 } else { 100 },
             0,
-            unsafe { events.as_ref() },
+            events,
         );
         if n > 0 {
-            n = fix_input_buffer(buf.as_mut_ptr().wrapping_add(len as usize), n);
+            n = fix_input_buffer(&mut buf[len as usize..], n);
             len += n;
         }
 

@@ -2685,7 +2685,7 @@ fn get_function_body(
             }
             if show_block {
                 debug_assert!(indent >= 0);
-                ui_ext_cmdline_block_append(indent as usize, theline);
+                ui_ext_cmdline_block_append(indent as usize, crate::memory::cstr_as_bytes(theline));
             }
 
             let mut sourcing_lnum_off = get_sourced_lnum(eap.ea_getline);
@@ -3090,7 +3090,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
     if g_st().key_typed && ui_has(K_UICMDLINE) {
         show_block = true;
-        ui_ext_cmdline_block_append(0, eap.cmd);
+        ui_ext_cmdline_block_append(0, crate::memory::cstr_as_bytes(eap.cmd));
     }
 
     loop {

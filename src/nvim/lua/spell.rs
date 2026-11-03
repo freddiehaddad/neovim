@@ -52,7 +52,7 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
         let mut attr: Hlf = HLF_COUNT;
         let len = spell_check(
             curwin_mut(),
-            str_.cast_mut(),
+            crate::memory::cstr_from_ptr(str_),
             &mut attr,
             Some(&mut capcol),
             false,

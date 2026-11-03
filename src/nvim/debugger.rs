@@ -256,13 +256,13 @@ pub fn do_debug(cmd: &CStr) {
 
             cmdline_cstr = getcmdline_prompt(
                 b'>' as i32,
-                std::ptr::null(),
+                None,
                 0,
                 EXPAND_NOTHING,
-                std::ptr::null(),
+                None,
                 Callback::NONE,
                 false,
-                std::ptr::null_mut(),
+                None,
             );
             let cmdline = cmdline_cstr
                 .as_ref()

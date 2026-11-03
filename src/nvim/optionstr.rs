@@ -2694,7 +2694,10 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let errmsg = compile_cap_prog(args.os_newval.data.string().data, &mut prog);
+    let errmsg = compile_cap_prog(
+        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        &mut prog,
+    );
     try_leave(&tstate, &mut err);
 
     g_st().emsg_silent = save_emsg_silent;
@@ -2726,7 +2729,9 @@ pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'spellfile' option.
 pub fn validate_spellfile(args: &mut Optset) -> Option<&CStr> {
-    if valid_spellfile(args.os_newval.data.string().data) {
+    if valid_spellfile(crate::memory::cstr_from_ptr(
+        args.os_newval.data.string().data,
+    )) {
         None
     } else {
         Some(E_INVARG)
@@ -2740,7 +2745,9 @@ pub fn did_set_spellfile(_args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'spelllang' option.
 pub fn validate_spelllang(args: &mut Optset) -> Option<&CStr> {
-    if valid_spelllang(args.os_newval.data.string().data) {
+    if valid_spelllang(crate::memory::cstr_from_ptr(
+        args.os_newval.data.string().data,
+    )) {
         None
     } else {
         Some(E_INVARG)
@@ -2789,7 +2796,11 @@ pub fn did_set_spelloptions(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_spellsuggest(args: &mut Optset) -> Option<&CStr> {
     let mut sps: [i32; 2] = [0, 0];
     let [s0, s1] = &mut sps;
-    if !spell_check_sps(args.os_newval.data.string().data, s0, s1) {
+    if !spell_check_sps(
+        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        s0,
+        s1,
+    ) {
         return Some(E_INVARG);
     }
     args.os_prep = OptSetPrep::Spellsuggest(sps);

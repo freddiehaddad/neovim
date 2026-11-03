@@ -2812,10 +2812,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                             re_st().rex.input = re_st().rex.line.wrapping_add(col);
                         }
-                        if fm.is_null() || crate::globals::gptr(fm).mark.lnum <= 0 {
+                        if fm.as_ref().is_none_or(|f| f.mark.lnum <= 0) {
                             status = RA_NOMATCH;
                         } else {
-                            let pos = &raw const crate::globals::gptr(fm).mark;
+                            let fm = fm.unwrap();
+                            let pos = &raw const fm.mark;
                             let pos_col = if crate::globals::gptr(pos).lnum
                                 == re_st().rex.lnum + re_st().rex.reg_firstlnum
                                 && crate::globals::gptr(pos).col == MAXCOL

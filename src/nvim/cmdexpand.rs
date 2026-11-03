@@ -1898,12 +1898,12 @@ fn wildescape(
 
                 #[cfg(windows)]
                 {
-                    *file_slot = vim_strsave_fnameescape(file_slot.as_ptr(), vse_what);
+                    *file_slot = vim_strsave_fnameescape(file_slot.to_bytes(), vse_what);
                 }
                 #[cfg(not(windows))]
                 {
                     *file_slot = vim_strsave_fnameescape(
-                        file_slot.as_ptr(),
+                        file_slot.to_bytes(),
                         if xp.xp_shell { VSE_SHELL } else { vse_what },
                     );
                 }
@@ -1938,7 +1938,7 @@ fn expand_escape(
 ) {
     let str_arg = str_arg.into_c_char_ptr();
     if (options & WILD_HOME_REPLACE) != 0 && !files.is_empty() {
-        tilde_replace(str_arg, files);
+        tilde_replace(crate::memory::cstr_as_bytes(str_arg), files);
     }
 
     if (options & WILD_ESCAPE) != 0 {
@@ -3447,7 +3447,7 @@ fn set_context_in_match_cmd(
         if crate::memory::cstr_is_empty(arg.cast())
             || ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0
         {
-            set_context_in_echohl_cmd(xp, arg.cast());
+            set_context_in_echohl_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             arg = skipwhite(skiptowhite(arg.cast())).cast();
             if !crate::memory::cstr_is_empty(arg.cast()) {
                 xp.xp_context = EXPAND_NOTHING;
@@ -3910,7 +3910,7 @@ fn set_context_by_cmdname(
                 xp.xp_pattern = arg.cast_mut();
             }
             Cmdidx::CmdSyntax => {
-                set_context_in_syntax_cmd(xp, arg.cast());
+                set_context_in_syntax_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             }
             Cmdidx::CmdConst
             | Cmdidx::CmdLet
@@ -3941,13 +3941,13 @@ fn set_context_by_cmdname(
                 xp.xp_pattern = arg.cast_mut();
             }
             Cmdidx::CmdEchohl => {
-                set_context_in_echohl_cmd(xp, arg.cast());
+                set_context_in_echohl_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             }
             Cmdidx::CmdHighlight => {
                 set_context_in_highlight_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             }
             Cmdidx::CmdSign => {
-                set_context_in_sign_cmd(xp, arg.cast_mut().cast());
+                set_context_in_sign_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             }
             Cmdidx::CmdBdelete | Cmdidx::CmdBwipeout | Cmdidx::CmdBunload => {
                 while {
@@ -3999,14 +3999,14 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdXnoremap => {
                 return set_context_in_map_cmd(
                     xp,
-                    cmd.cast(),
-                    arg.cast_mut(),
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
                     forceit,
                     false,
                     false,
                     cmdidx,
                 )
-                .cast();
+                .map_or(ptr::null(), |s| s.as_ptr().cast());
             }
             Cmdidx::CmdUnmap
             | Cmdidx::CmdNunmap
@@ -4019,14 +4019,14 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdXunmap => {
                 return set_context_in_map_cmd(
                     xp,
-                    cmd.cast(),
-                    arg.cast_mut(),
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
                     forceit,
                     false,
                     true,
                     cmdidx,
                 )
-                .cast();
+                .map_or(ptr::null(), |s| s.as_ptr().cast());
             }
             Cmdidx::CmdMapclear
             | Cmdidx::CmdNmapclear
@@ -4048,26 +4048,26 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdInoreabbrev => {
                 return set_context_in_map_cmd(
                     xp,
-                    cmd.cast(),
-                    arg.cast_mut(),
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
                     forceit,
                     true,
                     false,
                     cmdidx,
                 )
-                .cast();
+                .map_or(ptr::null(), |s| s.as_ptr().cast());
             }
             Cmdidx::CmdUnabbreviate | Cmdidx::CmdCunabbrev | Cmdidx::CmdIunabbrev => {
                 return set_context_in_map_cmd(
                     xp,
-                    cmd.cast(),
-                    arg.cast_mut(),
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
                     forceit,
                     true,
                     true,
                     cmdidx,
                 )
-                .cast();
+                .map_or(ptr::null(), |s| s.as_ptr().cast());
             }
             Cmdidx::CmdMenu
             | Cmdidx::CmdNoremenu
@@ -5189,7 +5189,7 @@ fn expand_from_context(
         } else if xp.xp_context == EXPAND_SETTING_SUBTRACT {
             expand_setting_subtract(xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_MAPPINGS {
-            expand_mappings(pat, &mut regmatch, matches)
+            expand_mappings(crate::memory::cstr_from_ptr(pat), &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_ARGOPT {
             expand_argopt(pat, xp, &mut regmatch, matches)
         } else if xp.xp_context == EXPAND_USER_DEFINED {
@@ -5909,7 +5909,7 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
 
         if j > 0 {
             cmdline_del(cclp, j);
-            put_on_cmdline(upseg.as_ptr().wrapping_add(1).cast(), 3, false);
+            put_on_cmdline(&upseg[1..], 3, false);
         } else if cclp.cmdpos > i {
             cmdline_del(cclp, i);
         }
@@ -6056,7 +6056,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             }
             EXPAND_SIGN => {
                 let pat_p = xpc.xp_pattern;
-                set_context_in_sign_cmd(&mut xpc, pat_p.cast());
+                set_context_in_sign_cmd(&mut xpc, crate::memory::cstr_from_ptr(pat_p.cast()));
                 xpc.xp_pattern_len -=
                     crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
             }

@@ -4,7 +4,7 @@ use crate::buffer::{
     BLN_CURBUF, BLN_LISTED, Bufref, buf_hide, buf_is_empty, buflist_add, buflist_findnr_opt,
     bufref_valid, curbuf_reusable, first_win_in_tab, maketitle, otherfile, set_bufref,
 };
-use crate::charset::{NUL, ascii_isspace, rem_backslash, skipwhite};
+use crate::charset::{ascii_isspace, rem_backslash};
 use crate::context::is_ctx_win;
 use crate::errors::*;
 use crate::eval::typval::{
@@ -127,21 +127,11 @@ fn arglist_st() -> &'static mut ArglistModuleState {
 
 #[inline]
 pub fn win_alist(wp: &WinInfoInfo) -> &'static mut Alist {
-    crate::globals::gmut(
-        wp.w_alist
-            .as_ref()
-            .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr()),
-    )
-}
-
-#[inline]
-fn aarglist(al: &mut Alist) -> *mut Aentry {
-    al.al_ga.as_mut_ptr()
-}
-
-#[inline]
-fn warglist(wp: &WinInfoInfo) -> *mut Aentry {
-    aarglist(&mut *win_alist(wp))
+    let ptr = wp
+        .w_alist
+        .as_ref()
+        .map_or(&raw mut g_st().global_alist, |rc| rc.as_ptr());
+    unsafe { &mut *ptr }
 }
 
 #[inline]
@@ -155,11 +145,6 @@ fn wargcount(wp: &WinInfoInfo) -> i32 {
 }
 
 #[inline]
-pub fn arglist() -> *mut Aentry {
-    warglist(curwin_mut())
-}
-
-#[inline]
 pub fn arglist_slice() -> &'static [Aentry] {
     warglist_slice(curwin_mut())
 }
@@ -167,11 +152,6 @@ pub fn arglist_slice() -> &'static [Aentry] {
 #[inline]
 pub fn argcount() -> i32 {
     wargcount(curwin_mut())
-}
-
-#[inline]
-pub fn garglist() -> *mut Aentry {
-    aarglist(&mut g_st().global_alist)
 }
 
 #[inline]
@@ -210,14 +190,15 @@ pub fn alist_new() {
 }
 
 /// Set the argument list for the current window (`alist_set`).
-fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: i32) {
+fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
     if !check_arglist_locked() {
         return;
     }
 
-    alist_clear(crate::globals::gmut(al));
+    let al_ptr: *mut Alist = al;
+    alist_clear(unsafe { &mut *al_ptr });
 
-    crate::globals::gptr(al).al_ga.reserve(files.len());
+    unsafe { (*al_ptr).al_ga.reserve(files.len()) };
 
     for fname in files {
         if g_st().got_int {
@@ -226,7 +207,7 @@ fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: i32) {
 
         if !fname.as_bytes().is_empty() {
             alist_add(
-                crate::globals::gmut(al),
+                unsafe { &mut *al_ptr },
                 fname,
                 if use_curbuf != 0 { 2 } else { 1 },
             );
@@ -234,7 +215,7 @@ fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: i32) {
         os_breakcheck();
     }
 
-    if ptr::eq(al, &raw const g_st().global_alist) {
+    if ptr::eq(al_ptr, &raw const g_st().global_alist) {
         g_st().arg_had_last = false;
     }
 }
@@ -247,7 +228,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
     }
     arglist_st().arglist_locked = true;
 
-    crate::globals::gptr(wp).w_locked += 1;
+    unsafe { (*wp).w_locked += 1 };
 
     let ae_fnum = if set_fnum > 0 {
         buflist_add(
@@ -264,77 +245,69 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
 
     arglist_st().arglist_locked = false;
 
-    crate::globals::gptr(wp).w_locked -= 1;
+    unsafe { (*wp).w_locked -= 1 };
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
-fn do_one_arg(str_: impl crate::strings::IntoCCharPtr) -> *mut u8 {
-    let mut str_ = str_.into_c_char_ptr().cast_mut();
-    {
-        let mut p = str_;
-        let mut inbacktick = false;
-        while !crate::memory::cstr_is_empty(str_) {
-            if rem_backslash(crate::memory::cstr_as_bytes(str_)) {
-                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
-                p = p.wrapping_add(1);
-                str_ = str_.wrapping_add(1);
-                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
-                p = p.wrapping_add(1);
-            } else {
-                if !inbacktick && ascii_isspace(crate::memory::cstr_first_byte(str_)) {
-                    break;
-                }
-                if crate::memory::cstr_first_byte(str_) == b'`' {
-                    inbacktick = !inbacktick;
-                }
-                *crate::globals::gptr(p) = *crate::globals::gptr(str_);
-                p = p.wrapping_add(1);
+fn do_one_arg(str_: &[u8]) -> (CString, &[u8]) {
+    let bytes = crate::memory::bytes_until_nul(str_);
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut idx = 0;
+    let mut inbacktick = false;
+    while idx < bytes.len() {
+        if rem_backslash(&bytes[idx..]) && idx + 1 < bytes.len() {
+            out.push(bytes[idx]);
+            idx += 1;
+            out.push(bytes[idx]);
+            idx += 1;
+        } else {
+            if !inbacktick && ascii_isspace(i32::from(bytes[idx])) {
+                break;
             }
-            str_ = str_.wrapping_add(1);
+            if bytes[idx] == b'`' {
+                inbacktick = !inbacktick;
+            }
+            out.push(bytes[idx]);
+            idx += 1;
         }
-        str_ = skipwhite(str_);
-        *crate::globals::gptr(p) = NUL;
-        str_.cast()
     }
+    let rest = crate::charset::skipwhite_slice(&bytes[idx..]);
+    (CString::new(out).unwrap_or_default(), rest)
 }
 
-/// Separate the arguments in `str` and return a list of pointers in `gap` (`get_arglist`).
-fn get_arglist(gap: &mut Vec<*mut u8>, str_: impl crate::strings::IntoCCharPtr, escaped: bool) {
-    let mut str_ = str_.into_c_char_ptr().cast_mut().cast::<u8>();
-    {
-        gap.clear();
-        gap.reserve(20);
-        while !crate::memory::cstr_is_empty(str_.cast()) {
-            gap.push(str_);
-
-            if !escaped {
-                return;
-            }
-            str_ = do_one_arg(str_.cast());
+/// Separate the arguments in `str` and return a list of strings in `gap` (`get_arglist`).
+fn get_arglist(gap: &mut Vec<CString>, str_: &[u8], escaped: bool) {
+    let mut rem = crate::memory::bytes_until_nul(str_);
+    gap.clear();
+    gap.reserve(20);
+    while !rem.is_empty() {
+        if !escaped {
+            gap.push(CString::new(rem).unwrap_or_default());
+            return;
         }
+        let (arg, next_rem) = do_one_arg(rem);
+        gap.push(arg);
+        rem = next_rem;
     }
 }
 
 /// Parse a list of arguments (file names), expand them and return in `fnames` (`get_arglist_exp`).
-pub fn get_arglist_exp(
-    str_: impl crate::strings::IntoCCharPtr,
-    fnames: &mut Vec<CString>,
-    wig: bool,
-) -> bool {
-    let mut ga: Vec<*mut u8> = Vec::new();
+pub fn get_arglist_exp(str_: &[u8], fnames: &mut Vec<CString>, wig: bool) -> bool {
+    let mut ga: Vec<CString> = Vec::new();
     get_arglist(&mut ga, str_, true);
+    let mut ptrs: Vec<*mut u8> = ga.iter().map(|s| s.as_ptr().cast_mut().cast()).collect();
 
     if wig {
         expand_wildcards_vec(
-            ga.len() as i32,
-            ga.as_mut_ptr().cast(),
+            ptrs.len() as i32,
+            ptrs.as_mut_ptr().cast(),
             fnames,
             EW_FILE | EW_NOTFOUND | EW_NOTWILD,
         )
     } else {
         gen_expand_wildcards_vec(
-            ga.len() as i32,
-            ga.as_mut_ptr().cast(),
+            ptrs.len() as i32,
+            ptrs.as_mut_ptr().cast(),
             fnames,
             EW_FILE | EW_NOTFOUND | EW_NOTWILD,
         )
@@ -357,11 +330,11 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
         let wp = curwin_ptr();
-        let al: *mut Alist = win_alist(crate::globals::gref(wp));
+        let al: *mut Alist = win_alist(unsafe { &*wp });
         after = after.clamp(0, old_argcount);
         arglist_st().arglist_locked = true;
 
-        crate::globals::gptr(wp).w_locked += 1;
+        unsafe { (*wp).w_locked += 1 };
 
         let count = files.len() as i32;
         let mut new_entries = Vec::with_capacity(files.len());
@@ -378,29 +351,28 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         }
         let pos = after as usize;
 
-        crate::globals::gptr(al).al_ga.splice(pos..pos, new_entries);
+        unsafe { (*al).al_ga.splice(pos..pos, new_entries) };
 
         arglist_st().arglist_locked = false;
-        {
-            crate::globals::gptr(wp).w_locked -= 1;
-            if old_argcount > 0 && crate::globals::gptr(wp).w_arg_idx >= after {
-                crate::globals::gptr(wp).w_arg_idx += count;
+        unsafe {
+            (*wp).w_locked -= 1;
+            if old_argcount > 0 && (*wp).w_arg_idx >= after {
+                (*wp).w_arg_idx += count;
             }
         }
     }
 }
 
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
-fn arglist_del_files(alist_ga: &[*mut u8]) {
+fn arglist_del_files(alist_ga: &[CString]) {
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.rm_ic = opt_vars().p_fic != 0;
 
-    for &orig_p in alist_ga {
+    for orig_p in alist_ga {
         if g_st().got_int {
             break;
         }
-        let Some(p) = file_pat_to_reg_pat(crate::memory::cstr_as_bytes(orig_p.cast()), None, 0)
-        else {
+        let Some(p) = file_pat_to_reg_pat(orig_p.to_bytes(), None, 0) else {
             break;
         };
         regmatch.regprog = vim_regcomp(
@@ -431,67 +403,65 @@ fn arglist_del_files(alist_ga: &[*mut u8]) {
 
         vim_regfree(regmatch.regprog);
         if !didone {
-            semsg!(gettext(E_NOMATCH2), orig_p);
+            semsg!(gettext(E_NOMATCH2), orig_p.as_ptr());
         }
     }
 }
 
-fn do_arglist(
-    str_: impl crate::strings::IntoCCharPtr,
-    what: i32,
-    after: i32,
-    will_edit: bool,
-) -> bool {
-    let mut str_ = str_.into_c_char_ptr().cast_mut();
-    {
-        let mut new_ga: Vec<*mut u8> = Vec::new();
-        let mut exp_files: Vec<CString> = Vec::new();
-        let mut arg_escaped = true;
+fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
+    let mut str_bytes = str_cstr.to_bytes();
+    let mut new_ga: Vec<CString> = Vec::new();
+    let mut exp_files: Vec<CString> = Vec::new();
+    let mut arg_escaped = true;
 
-        if !check_arglist_locked() {
+    if !check_arglist_locked() {
+        return false;
+    }
+
+    if what == AL_ADD && str_bytes.is_empty() {
+        if curbuf_mut().b_ffname.is_null() {
+            return false;
+        }
+        str_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
+        arg_escaped = false;
+    }
+
+    get_arglist(&mut new_ga, str_bytes, arg_escaped);
+
+    if what == AL_DEL {
+        arglist_del_files(&new_ga);
+    } else {
+        let mut ptrs: Vec<*mut u8> = new_ga
+            .iter()
+            .map(|s| s.as_ptr().cast_mut().cast())
+            .collect();
+        let i = expand_wildcards_vec(
+            ptrs.len() as i32,
+            ptrs.as_mut_ptr().cast(),
+            &mut exp_files,
+            EW_DIR | EW_FILE | EW_ADDSLASH | EW_NOTFOUND,
+        );
+        drop(ptrs);
+        drop(new_ga);
+        if !i || exp_files.is_empty() {
+            emsg(gettext(E_NOMATCH));
             return false;
         }
 
-        if what == AL_ADD && crate::memory::cstr_is_empty(str_) {
-            if curbuf_mut().b_ffname.is_null() {
-                return false;
-            }
-            str_ = curbuf_mut().b_fname;
-            arg_escaped = false;
-        }
-
-        get_arglist(&mut new_ga, str_, arg_escaped);
-
-        if what == AL_DEL {
-            arglist_del_files(&new_ga);
+        if what == AL_ADD {
+            alist_add_list(exp_files, after, will_edit);
         } else {
-            let i = expand_wildcards_vec(
-                new_ga.len() as i32,
-                new_ga.as_mut_ptr().cast(),
-                &mut exp_files,
-                EW_DIR | EW_FILE | EW_ADDSLASH | EW_NOTFOUND,
-            );
-            drop(new_ga);
-            if !i || exp_files.is_empty() {
-                emsg(gettext(E_NOMATCH));
-                return false;
-            }
-
-            if what == AL_ADD {
-                alist_add_list(exp_files, after, will_edit);
-            } else {
-                debug_assert_eq!(what, AL_SET);
-                alist_set(win_alist(curwin_mut()), exp_files, i32::from(will_edit));
-            }
+            debug_assert_eq!(what, AL_SET);
+            alist_set(win_alist(curwin_mut()), exp_files, i32::from(will_edit));
         }
-
-        alist_check_arg_idx();
-        true
     }
+
+    alist_check_arg_idx();
+    true
 }
 
 /// Redefine the argument list (`set_arglist`).
-pub fn set_arglist(str_: impl crate::strings::IntoCCharPtr) {
+pub fn set_arglist(str_: &CStr) {
     do_arglist(str_, AL_SET, 0, true);
 }
 
@@ -723,7 +693,7 @@ pub fn ex_next(eap: &mut Exarg) {
         )
     {
         let i = if !crate::memory::cstr_is_empty(eap.arg) {
-            if !do_arglist(eap.arg, AL_SET, 0, true) {
+            if !do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_SET, 0, true) {
                 return;
             }
             0
@@ -788,7 +758,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
     };
     let curbuf_is_reusable = curbuf_reusable();
 
-    if !do_arglist(eap.arg, AL_ADD, i, true) {
+    if !do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_ADD, i, true) {
         return;
     }
     maketitle();
@@ -807,7 +777,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
 /// `:argadd` (`ex_argadd`).
 pub fn ex_argadd(eap: &mut Exarg) {
     do_arglist(
-        eap.arg,
+        crate::memory::cstr_from_ptr(eap.arg),
         AL_ADD,
         if eap.addr_count > 0 {
             eap.line2
@@ -857,7 +827,7 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             curwin_mut().w_arg_idx = eap.line1;
         }
     } else {
-        do_arglist(eap.arg, AL_DEL, 0, false);
+        do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_DEL, 0, false);
     }
 
     let new_len = argcount();
@@ -909,43 +879,37 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             g_st().firstwin
         };
         while !wp.is_null() {
-            let mut wpnext = if crate::globals::gptr(wp).w_floating {
-                if !crate::globals::gptr(wp).w_prev.is_null()
-                    && crate::globals::gptr(crate::globals::gptr(wp).w_prev).w_floating
-                {
-                    crate::globals::gptr(wp).w_prev
+            let mut wpnext = if unsafe { (*wp).w_floating } {
+                if !unsafe { (*wp).w_prev }.is_null() && unsafe { (*(*wp).w_prev).w_floating } {
+                    unsafe { (*wp).w_prev }
                 } else {
                     g_st().firstwin
                 }
-            } else if crate::globals::gptr(wp).w_next.is_null()
-                || crate::globals::gptr(crate::globals::gptr(wp).w_next).w_floating
-            {
+            } else if unsafe { (*wp).w_next }.is_null() || unsafe { (*(*wp).w_next).w_floating } {
                 ptr::null_mut()
             } else {
-                crate::globals::gptr(wp).w_next
+                unsafe { (*wp).w_next }
             };
-            let buf = crate::globals::gptr(wp).w_buffer;
-            let buf = crate::globals::gmut(buf);
+            let buf = unsafe { &mut *(*wp).w_buffer };
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
             if buf.b_ffname.is_null()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows > 1
-                        || crate::globals::gptr(wp).w_width != g_st().columns_global
-                        || (crate::globals::gptr(wp).w_floating && !is_ctx_win(unsafe { &*wp }))))
+                        || unsafe { (*wp).w_width } != g_st().columns_global
+                        || (unsafe { (*wp).w_floating } && !is_ctx_win(unsafe { &*wp }))))
             {
                 i = opened_len;
             } else {
                 i = 0;
                 while i < opened_len {
                     let al = aall_ref.alist;
-                    if (i as usize) < crate::globals::gptr(al).al_ga.len() {
-                        let entry = aarglist(crate::globals::gmut(al)).wrapping_add(i as usize);
-                        if crate::globals::gptr(entry).ae_fnum == buf.b_fnum
+                    if (i as usize) < unsafe { (*al).al_ga.len() } {
+                        let entry = unsafe { &(&(*al).al_ga)[i as usize] };
+                        if entry.ae_fnum == buf.b_fnum
                             || path_equal(
-                                alist_name(crate::globals::gref(entry))
-                                    .map_or(ptr::null(), CStr::as_ptr),
+                                alist_name(entry).map_or(ptr::null(), CStr::as_ptr),
                                 buf.b_ffname,
                                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                             )
@@ -962,8 +926,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 aall_ref.opened[i as usize] = weight as u8;
                                 if i == 0 {
                                     if !aall_ref.new_curwin.is_null() {
-                                        crate::globals::gptr(aall_ref.new_curwin).w_arg_idx =
-                                            opened_len;
+                                        unsafe { (*aall_ref.new_curwin).w_arg_idx = opened_len };
                                     }
                                     aall_ref.new_curwin = wp;
                                     aall_ref.new_curtab = g_st().curtab;
@@ -972,8 +935,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 i = opened_len;
                             }
 
-                            if !ptr::eq(win_alist(crate::globals::gref(wp)), al) {
-                                crate::globals::gptr(wp).w_alist = aall_ref.local_alist.clone();
+                            if !ptr::eq(win_alist(unsafe { &*wp }), al) {
+                                unsafe { (*wp).w_alist = aall_ref.local_alist.clone() };
                             }
                             break;
                         }
@@ -982,7 +945,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 }
             }
 
-            crate::globals::gptr(wp).w_arg_idx = i;
+            unsafe { (*wp).w_arg_idx = i };
 
             if i == opened_len
                 && !aall_ref.keep_tabs
@@ -1099,7 +1062,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             }
             do_ecmd(
                 0,
-                alist_name(&(&crate::globals::gptr(aall.alist).al_ga)[i as usize])
+                alist_name(unsafe { &(&(*aall.alist).al_ga)[i as usize] })
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 ptr::null_mut(),
                 None,

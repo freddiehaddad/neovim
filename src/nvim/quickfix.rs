@@ -5428,7 +5428,9 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    if !get_arglist_exp(p, &mut args.fnames, true) || args.fnames.is_empty() {
+    if !get_arglist_exp(crate::memory::cstr_as_bytes(p), &mut args.fnames, true)
+        || args.fnames.is_empty()
+    {
         emsg(gettext(E_NOMATCH));
         return false;
     }

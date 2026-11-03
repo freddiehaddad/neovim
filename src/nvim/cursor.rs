@@ -300,7 +300,7 @@ fn coladvance2(
         }
     }
 
-    mark_mb_adjustpos(wp.w_buffer, pos);
+    mark_mb_adjustpos(wp.buf_mut(), pos);
 
     if wcol < 0 || col < wcol {
         return false;
@@ -387,7 +387,7 @@ pub fn check_cursor_col(win: &mut WinInfoInfo) {
             win.w_cursor.col = len;
         } else {
             win.w_cursor.col = len - 1;
-            mark_mb_adjustpos(win.w_buffer, &mut win.w_cursor);
+            mark_mb_adjustpos(win.buf_mut(), &mut win.w_cursor);
         }
     } else if win.w_cursor.col < 0 {
         win.w_cursor.col = 0;

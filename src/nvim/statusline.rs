@@ -2343,9 +2343,8 @@ pub extern "C" fn build_stl_str_hl(
                         0,
                         fdc,
                         get_vim_var_nr(VV_VIRTNUM) < 0,
-                        ptr::null_mut(),
-                        crate::globals::gptr(stcp).fold_vcol.as_mut_ptr(),
-                        fold_buf.as_mut_ptr(),
+                        None,
+                        Some((&mut crate::globals::gptr(stcp).fold_vcol, &mut fold_buf)),
                     );
 
                     stl_items!()[stl_st().curitem as usize].minwid =

@@ -159,7 +159,7 @@ impl WinInfo {
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        crate::globals::gopt_mut(self.wi_win)
+        unsafe { self.wi_win.as_mut() }
     }
 }
 
@@ -524,63 +524,62 @@ pub fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub fn get_jumplist(win: *mut WinInfoInfo, mut count: i32) -> *mut Fmark {
+pub fn get_jumplist(win: &mut WinInfoInfo, mut count: i32) -> Option<&'static mut Fmark> {
     cleanup_jumplist(win, true);
 
-    if crate::globals::gptr(win).w_jumplistlen == 0 {
-        return ptr::null_mut();
+    if win.w_jumplistlen == 0 {
+        return None;
     }
 
     loop {
-        if crate::globals::gptr(win).w_jumplistidx + count < 0
-            || crate::globals::gptr(win).w_jumplistidx + count
-                >= crate::globals::gptr(win).w_jumplistlen
-        {
-            return ptr::null_mut();
+        if win.w_jumplistidx + count < 0 || win.w_jumplistidx + count >= win.w_jumplistlen {
+            return None;
         }
 
-        if crate::globals::gptr(win).w_jumplistidx == crate::globals::gptr(win).w_jumplistlen {
+        if win.w_jumplistidx == win.w_jumplistlen {
             setpcmark();
 
-            crate::globals::gptr(win).w_jumplistidx -= 1;
+            win.w_jumplistidx -= 1;
 
-            if crate::globals::gptr(win).w_jumplistidx + count < 0 {
-                return ptr::null_mut();
+            if win.w_jumplistidx + count < 0 {
+                return None;
             }
         }
 
-        crate::globals::gptr(win).w_jumplistidx += count;
+        win.w_jumplistidx += count;
 
-        let jmp = &raw mut crate::globals::gptr(win).w_jumplist
-            [crate::globals::gptr(win).w_jumplistidx as usize];
-        if crate::globals::gptr(jmp).fmark.fnum == 0 {
+        let jmp = &mut win.w_jumplist[win.w_jumplistidx as usize];
+        if jmp.fmark.fnum == 0 {
             fname2fnum(jmp);
         }
-        if crate::globals::gptr(jmp).fmark.fnum != curbuf_mut().b_fnum
-            && buflist_findnr(crate::globals::gptr(jmp).fmark.fnum).is_null()
-        {
+        if jmp.fmark.fnum != curbuf_mut().b_fnum && buflist_findnr(jmp.fmark.fnum).is_null() {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return &raw mut crate::globals::gptr(jmp).fmark;
+        let fmp: *mut Fmark = &mut jmp.fmark;
+        return Some(unsafe { &mut *fmp });
     }
 }
 
 /// Get mark in `count` position in the changelist relative to the current index (`get_changelist`).
-pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *mut Fmark {
+pub fn get_changelist(
+    buf: &mut FileBuf,
+    win: &mut WinInfoInfo,
+    count: i32,
+) -> Option<&'static mut Fmark> {
     if buf.b_changelistlen == 0 {
-        return ptr::null_mut();
+        return None;
     }
 
     let mut n = win.w_changelistidx;
     if n + count < 0 {
         if n == 0 {
-            return ptr::null_mut();
+            return None;
         }
         n = 0;
     } else if n + count >= buf.b_changelistlen {
         if n == buf.b_changelistlen - 1 {
-            return ptr::null_mut();
+            return None;
         }
         n = buf.b_changelistlen - 1;
     } else {
@@ -590,7 +589,8 @@ pub fn get_changelist(buf: &mut FileBuf, win: &mut WinInfoInfo, count: i32) -> *
     let cur_fnum = curbuf_mut().b_fnum;
     let fm = &mut buf.b_changelist[n as usize];
     fm.fnum = cur_fnum;
-    fm
+    let fmp: *mut Fmark = fm;
+    Some(unsafe { &mut *fmp })
 }
 
 /// Get a named mark (`mark_get`).
@@ -600,15 +600,13 @@ pub fn mark_get(
     fmp: Option<&mut Fmark>,
     flag: MarkGet,
     name: i32,
-) -> *mut Fmark {
-    let mut fm: *mut Fmark = ptr::null_mut();
+) -> Option<&'static mut Fmark> {
+    let mut fm: Option<&'static mut Fmark> = None;
     if ascii_isupper(name) || ascii_isdigit(name) {
         let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
 
-        fm = &raw mut crate::globals::gptr(xfm).fmark;
-
-        if flag == K_MARK_BUF_LOCAL && crate::globals::gptr(xfm).fmark.fnum != buf.b_fnum {
-            return pos_to_mark(
+        if flag == K_MARK_BUF_LOCAL && xfm.fmark.fnum != buf.b_fnum {
+            return Some(pos_to_mark(
                 &*buf,
                 None,
                 CursorPos {
@@ -616,23 +614,25 @@ pub fn mark_get(
                     col: 0,
                     coladd: 0,
                 },
-            );
+            ));
         }
+
+        fm = Some(&mut xfm.fmark);
     } else if name > 0 && name < NMARK_LOCAL_MAX {
         fm = mark_get_local(buf, win, name);
     }
     if let Some(fmp) = fmp
-        && !fm.is_null()
+        && let Some(ref fm_ref) = fm
     {
-        *fmp = crate::globals::gptr(fm).clone();
-
-        return &raw mut *fmp;
+        *fmp = (*fm_ref).clone();
+        let ptr: *mut Fmark = fmp;
+        return Some(unsafe { &mut *ptr });
     }
     fm
 }
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
-pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
+pub fn mark_get_global(resolve: bool, mut name: i32) -> &'static mut Xfmark {
     if ascii_isdigit(name) {
         name = name - b'0' as i32 + NMARKS as i32;
     } else if ascii_isupper(name) {
@@ -642,15 +642,19 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> *mut Xfmark {
     }
     let idx = name as usize;
     if resolve && g_st().namedfm[idx].fmark.fnum == 0 {
-        fname2fnum(&raw mut g_st().namedfm[idx]);
+        fname2fnum(&mut g_st().namedfm[idx]);
     }
-    &raw mut g_st().namedfm[idx]
+    &mut g_st().namedfm[idx]
 }
 
 /// Get a local mark (`mark_get_local`).
-pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
+pub fn mark_get_local(
+    buf: &mut FileBuf,
+    win: &mut WinInfoInfo,
+    name: i32,
+) -> Option<&'static mut Fmark> {
     let fnum = buf.b_fnum;
-    let mark = if ascii_islower(name) {
+    let mark: *mut Fmark = if ascii_islower(name) {
         &raw mut buf.b_namedm[(name - b'a' as i32) as usize]
     } else if name == b'[' as i32 {
         pos_to_mark(buf, None, buf.b_op_start)
@@ -669,19 +673,24 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *m
     } else if name == b':' as i32 && bt_prompt(Some(&*buf)) {
         &raw mut buf.b_prompt_start
     } else {
-        mark_get_motion(&mut *buf, win, name)
+        mark_get_motion(&mut *buf, win, name).map_or(ptr::null_mut(), ptr::from_mut)
     };
 
-    if let Some(mark_ref) = crate::globals::gopt_mut(mark) {
+    if let Some(mark_ref) = unsafe { mark.as_mut() } {
         mark_ref.fnum = fnum;
+        Some(mark_ref)
+    } else {
+        None
     }
-
-    mark
 }
 
 /// Get marks that are actually motions (`mark_get_motion`).
-pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *mut Fmark {
-    let mut mark: *mut Fmark = ptr::null_mut();
+pub fn mark_get_motion(
+    buf: &mut FileBuf,
+    win: &mut WinInfoInfo,
+    name: i32,
+) -> Option<&'static mut Fmark> {
+    let mut mark: Option<&'static mut Fmark> = None;
     let pos = curwin_mut().w_cursor;
     let slcb = g_st().listcmd_busy;
     g_st().listcmd_busy = true;
@@ -698,7 +707,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *
             0,
             false,
         ) {
-            mark = pos_to_mark(&*buf, None, win.w_cursor);
+            mark = Some(pos_to_mark(&*buf, None, win.w_cursor));
         }
     } else if (name == b'(' as i32 || name == b')' as i32)
         && findsent(
@@ -710,7 +719,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *
             1,
         )
     {
-        mark = pos_to_mark(&*buf, None, win.w_cursor);
+        mark = Some(pos_to_mark(&*buf, None, win.w_cursor));
     }
     curwin_mut().w_cursor = pos;
     g_st().listcmd_busy = slcb;
@@ -760,31 +769,28 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 }
 
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
-pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
+pub fn mark_move_to(mut fm: Option<&mut Fmark>, flags: MarkMove) -> MarkMoveRes {
     let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
     let mut errormsg: Option<&'static CStr> = None;
-    if !mark_check(crate::globals::gopt_mut(fm), &mut errormsg) {
+    if !mark_check(fm.as_deref_mut(), &mut errormsg) {
         if let Some(err) = errormsg {
             emsg(err);
         }
         return K_MARK_MOVE_FAILED;
     }
 
-    if crate::globals::gptr(fm).fnum != curbuf_mut().b_fnum {
-        mark_st().mark_move_to_fm_copy = crate::globals::gptr(fm).clone();
+    let mut fm_ref = fm.unwrap();
+    if fm_ref.fnum != curbuf_mut().b_fnum {
+        mark_st().mark_move_to_fm_copy = fm_ref.clone();
 
-        fm = &raw mut mark_st().mark_move_to_fm_copy;
+        fm_ref = &mut mark_st().mark_move_to_fm_copy;
 
-        res |= switch_to_mark_buf(crate::globals::gmut(fm), (flags & K_MARK_JUMP_LIST) == 0);
+        res |= switch_to_mark_buf(fm_ref, (flags & K_MARK_JUMP_LIST) == 0);
 
         if (res & K_MARK_MOVE_FAILED) != 0 {
             return res;
         }
-        if !mark_check_line_bounds(
-            Some(crate::globals::curbuf_mut()),
-            crate::globals::gmut(fm),
-            &mut errormsg,
-        ) {
+        if !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), fm_ref, &mut errormsg) {
             if let Some(err) = errormsg {
                 emsg(err);
             }
@@ -796,9 +802,9 @@ pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
     }
 
     let prev_pos = curwin_mut().w_cursor;
-    let pos = crate::globals::gptr(fm).mark;
+    let pos = fm_ref.mark;
 
-    curwin_mut().w_cursor = crate::globals::gptr(fm).mark;
+    curwin_mut().w_cursor = fm_ref.mark;
 
     if (flags & K_MARK_BEGIN_LINE) != 0 {
         beginline(BL_WHITE | BL_FIX);
@@ -810,7 +816,7 @@ pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
         res |= K_MARK_CHANGED_COL | K_MARK_CHANGED_CURSOR;
     }
     if (flags & K_MARK_SET_VIEW) != 0 {
-        mark_view_restore(crate::globals::gopt(fm));
+        mark_view_restore(Some(&*fm_ref));
     }
 
     if (res & K_MARK_SWITCHED_BUF) != 0 || (res & K_MARK_CHANGED_CURSOR) != 0 {
@@ -847,7 +853,11 @@ pub fn mark_view_make(wp: &WinInfoInfo, pos: CursorPos) -> Fmarkv {
 }
 
 /// Search for the next named mark in the current file from a start position (`getnextmark`).
-pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut Fmark {
+pub fn getnextmark(
+    startpos: &mut CursorPos,
+    dir: i32,
+    begin_line: i32,
+) -> Option<&'static mut Fmark> {
     let mut result_idx: Option<usize> = None;
     let mut pos = *startpos;
 
@@ -874,13 +884,13 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut 
         }
     }
 
-    result_idx.map_or(ptr::null_mut(), |i| &raw mut curbuf_mut().b_namedm[i])
+    result_idx.map(|i| &mut curbuf_mut().b_namedm[i])
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
-fn fname2fnum(fm: *mut Xfmark) {
+fn fname2fnum(fm: &mut Xfmark) {
     {
-        let Some(ref fname_cstr) = (*unsafe { &((*fm).fname) }) else {
+        let Some(ref fname_cstr) = fm.fname else {
             return;
         };
         let fname = fname_cstr.as_ptr();
@@ -912,10 +922,9 @@ fn fname2fnum(fm: *mut Xfmark) {
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
 pub fn fmarks_check_names(buf: &mut FileBuf) {
-    let name = buf.b_ffname;
-    if name.is_null() {
+    let Some(name) = crate::memory::cstr_as_opt_cstr(buf.b_ffname) else {
         return;
-    }
+    };
 
     for i in 0..NGLOBALMARKS {
         fmarks_check_one(&mut g_st().namedfm[i], name, buf);
@@ -928,18 +937,15 @@ pub fn fmarks_check_names(buf: &mut FileBuf) {
     }
 }
 
-fn fmarks_check_one(fm: &mut Xfmark, name: impl crate::strings::IntoCCharPtr, buf: &mut FileBuf) {
-    let name = name.into_c_char_ptr();
+fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
+    if fm.fmark.fnum == 0
+        && fm
+            .fname
+            .as_ref()
+            .is_some_and(|f| path_equal(name.as_ptr(), f.as_ptr(), K_PATH_CMP_LITERAL))
     {
-        if fm.fmark.fnum == 0
-            && fm
-                .fname
-                .as_ref()
-                .is_some_and(|f| path_equal(name, f.as_ptr(), K_PATH_CMP_LITERAL))
-        {
-            fm.fmark.fnum = buf.b_fnum;
-            fm.fname = None;
-        }
+        fm.fmark.fnum = buf.b_fnum;
+        fm.fname = None;
     }
 }
 
@@ -1179,7 +1185,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
 
 /// Print the jumplist (`ex_jumps`).
 pub fn ex_jumps(_eap: &mut Exarg) {
-    cleanup_jumplist(curwin_ptr(), true);
+    cleanup_jumplist(curwin_mut(), true);
     msg_ext_set_kind(c"list_cmd");
     msg_puts_title(gettext(c"\n jump line  col file/text"));
     let mut i: i32 = 0;
@@ -1811,18 +1817,15 @@ pub fn mark_col_adjust(
 }
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
-pub fn cleanup_jumplist(wp: *mut WinInfoInfo, loadfiles: bool) {
+pub fn cleanup_jumplist(wp: &mut WinInfoInfo, loadfiles: bool) {
     if loadfiles {
-        for i in 0..(crate::globals::gptr(wp).w_jumplistlen as usize) {
-            if crate::globals::gptr(wp).w_jumplist[i].fmark.fnum == 0
-                && crate::globals::gptr(wp).w_jumplist[i].fmark.mark.lnum != 0
-            {
-                fname2fnum(&raw mut crate::globals::gptr(wp).w_jumplist[i]);
+        for i in 0..(wp.w_jumplistlen as usize) {
+            if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
+                fname2fnum(&mut wp.w_jumplist[i]);
             }
         }
     }
 
-    let wp = crate::globals::gmut(wp);
     let mut to: i32 = 0;
     for from in 0..wp.w_jumplistlen {
         let from_u = from as usize;
@@ -2047,9 +2050,8 @@ pub fn free_all_marks() {
 }
 
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
-pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
+pub fn mark_mb_adjustpos(buf: &mut FileBuf, lp: &mut CursorPos) {
     if lp.col > 0 || lp.coladd > 1 {
-        let buf = crate::globals::gmut(buf);
         let line_slice = crate::memline::ml_get_buf_slice(buf, lp.lnum);
         if line_slice.is_empty() || (line_slice.len() as Colnr) < lp.col {
             lp.col = 0;
@@ -2068,49 +2070,45 @@ pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
 }
 
 /// Add information about mark `mname` to list `l` (`add_mark`).
-fn add_mark<S: crate::strings::IntoCCharPtr>(
+fn add_mark(
     l: &mut TvList,
-    mname: S,
+    mname: &CStr,
     pos: &CursorPos,
     bufnr: i32,
-    fname: impl crate::strings::IntoCCharPtr,
+    fname: Option<&CStr>,
 ) -> bool {
-    let fname = fname.into_c_char_ptr();
-    let mname = mname.into_c_char_ptr();
-    {
-        if pos.lnum <= 0 {
-            return true;
-        }
-
-        let d = tv_dict_alloc();
-        tv_list_append_dict(l, d);
-
-        let lpos = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        tv_list_append_number(&mut *lpos, i64::from(bufnr));
-        tv_list_append_number(&mut *lpos, i64::from(pos.lnum));
-        tv_list_append_number(
-            &mut *lpos,
-            i64::from(if pos.col < MAXCOL {
-                pos.col + 1
-            } else {
-                MAXCOL
-            }),
-        );
-        tv_list_append_number(&mut *lpos, i64::from(pos.coladd));
-
-        if !tv_dict_add_str_len(
-            &mut *d,
-            c"mark",
-            mname,
-            crate::memory::cstr_len(mname) as i32,
-        ) || !tv_dict_add_list(&mut *d, c"pos", lpos)
-            || (!fname.is_null() && !tv_dict_add_str(&mut *d, c"file", fname))
-        {
-            return false;
-        }
-
-        true
+    if pos.lnum <= 0 {
+        return true;
     }
+
+    let d = tv_dict_alloc();
+    tv_list_append_dict(l, d);
+
+    let lpos = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
+    tv_list_append_number(&mut *lpos, i64::from(bufnr));
+    tv_list_append_number(&mut *lpos, i64::from(pos.lnum));
+    tv_list_append_number(
+        &mut *lpos,
+        i64::from(if pos.col < MAXCOL {
+            pos.col + 1
+        } else {
+            MAXCOL
+        }),
+    );
+    tv_list_append_number(&mut *lpos, i64::from(pos.coladd));
+
+    if !tv_dict_add_str_len(
+        &mut *d,
+        c"mark",
+        mname.as_ptr(),
+        mname.to_bytes().len() as i32,
+    ) || !tv_dict_add_list(&mut *d, c"pos", lpos)
+        || (fname.is_some_and(|f| !tv_dict_add_str(&mut *d, c"file", f.as_ptr())))
+    {
+        return false;
+    }
+
+    true
 }
 
 /// Get information about marks local to a buffer (`get_buf_local_marks`).
@@ -2124,27 +2122,21 @@ pub fn get_buf_local_marks(buf: &FileBuf, l: &mut TvList) {
             CStr::from_bytes_with_nul(&mname).unwrap_or_default(),
             &buf.b_namedm[i].mark,
             buf.b_fnum,
-            ptr::null(),
+            None,
         );
     }
 
-    add_mark(
-        l,
-        c"''",
-        &curwin_mut().w_pcmark,
-        curbuf_mut().b_fnum,
-        ptr::null(),
-    );
-    add_mark(l, c"'\"", &buf.b_last_cursor.mark, buf.b_fnum, ptr::null());
-    add_mark(l, c"'[", &buf.b_op_start, buf.b_fnum, ptr::null());
-    add_mark(l, c"']", &buf.b_op_end, buf.b_fnum, ptr::null());
-    add_mark(l, c"'^", &buf.b_last_insert.mark, buf.b_fnum, ptr::null());
-    add_mark(l, c"'.", &buf.b_last_change.mark, buf.b_fnum, ptr::null());
+    add_mark(l, c"''", &curwin_mut().w_pcmark, curbuf_mut().b_fnum, None);
+    add_mark(l, c"'\"", &buf.b_last_cursor.mark, buf.b_fnum, None);
+    add_mark(l, c"'[", &buf.b_op_start, buf.b_fnum, None);
+    add_mark(l, c"']", &buf.b_op_end, buf.b_fnum, None);
+    add_mark(l, c"'^", &buf.b_last_insert.mark, buf.b_fnum, None);
+    add_mark(l, c"'.", &buf.b_last_change.mark, buf.b_fnum, None);
     if bt_prompt(Some(buf)) {
-        add_mark(l, c"':", &buf.b_prompt_start.mark, buf.b_fnum, ptr::null());
+        add_mark(l, c"':", &buf.b_prompt_start.mark, buf.b_fnum, None);
     }
-    add_mark(l, c"'<", &buf.b_visual.vi_start, buf.b_fnum, ptr::null());
-    add_mark(l, c"'>", &buf.b_visual.vi_end, buf.b_fnum, ptr::null());
+    add_mark(l, c"'<", &buf.b_visual.vi_start, buf.b_fnum, None);
+    add_mark(l, c"'>", &buf.b_visual.vi_end, buf.b_fnum, None);
 }
 
 /// Get a global mark (`get_raw_global_mark`).
@@ -2180,7 +2172,7 @@ pub fn get_global_marks(l: &mut TvList) {
                 CStr::from_bytes_with_nul(&mname).unwrap_or_default(),
                 &fm.fmark.mark,
                 fm.fmark.fnum,
-                name,
+                Some(name),
             );
         }
     }

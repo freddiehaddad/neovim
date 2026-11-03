@@ -4096,7 +4096,7 @@ fn shada_init_jumps(
     let mut jumps_size = 0usize;
     let mut jump_iter: Option<usize> = None;
     setpcmark();
-    cleanup_jumplist(curwin_ptr(), false);
+    cleanup_jumplist(curwin_mut(), false);
     loop {
         let mut fm = Xfmark::new();
         jump_iter = mark_jumplist_iter(jump_iter, curwin_mut(), &mut fm);

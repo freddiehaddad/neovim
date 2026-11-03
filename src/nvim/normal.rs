@@ -2693,7 +2693,7 @@ fn prep_redo_cmd(cap: &mut Cmdarg) {
     let composing = cap.nchar_len > 0;
     prep_redo(true, composing, atom_cmd_spec(cap));
     if composing {
-        redo_append_str(cap.nchar_composing.as_ptr().cast(), -1);
+        redo_append_str(crate::memory::bytes_until_nul(&cap.nchar_composing));
     }
 }
 
@@ -3626,7 +3626,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
         let pos = curwin_mut().w_cursor;
 
         g_st().emsg_off += 1;
-        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, ptr::null_mut());
+        len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, None);
         g_st().emsg_off -= 1;
         if len != 0 && curwin_mut().w_cursor.col <= pos.col {
             ptr = ml_get_pos(&curwin_mut().w_cursor).cast_const();
@@ -4117,7 +4117,7 @@ fn nv_clear(cap: &mut Cmdarg) {
         return;
     }
 
-    syn_stack_free_all(curwin_mut().w_s_ptr());
+    syn_stack_free_all(&mut *curwin_mut().w_s_ptr());
     for wp in for_all_windows_mut() {
         wp.w_s_ptr().b_syn_slow = false;
     }
@@ -4375,7 +4375,7 @@ fn nv_ident(cap: &mut Cmdarg) {
     } else if cmdchar == b'K' as i32 && !kp_help {
         let ptr_cstr = std::ffi::CString::new(ident_slice).unwrap_or_default();
         let p = if kp_ex {
-            vim_strsave_fnameescape(ptr_cstr.as_ptr(), VSE_NONE)
+            vim_strsave_fnameescape(ptr_cstr.as_bytes(), VSE_NONE)
         } else {
             vim_strsave_shellescape(ptr_cstr.as_bytes(), true, true)
         };
@@ -5218,7 +5218,8 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     FORWARD
                 },
                 i32::from(cap.nchar == b'\'' as i32),
-            );
+            )
+            .map_or(ptr::null_mut(), ptr::from_mut);
             if fm.is_null() {
                 break;
             }
@@ -5326,7 +5327,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
                     SMT_BAD
                 },
                 false,
-                ptr::null_mut(),
+                None,
             ) == 0
             {
                 clearopbeep(cap.oap_mut());
@@ -5592,7 +5593,7 @@ fn nv_replace(cap: &mut Cmdarg) {
         let old_state = g_st().state_global;
 
         if cap.nchar_len > 0 {
-            redo_append_str(cap.nchar_composing.as_ptr().cast(), -1);
+            redo_append_str(crate::memory::bytes_until_nul(&cap.nchar_composing));
         } else {
             redo_append_char(cap.nchar);
         }
@@ -5801,7 +5802,7 @@ fn n_swapchar(cap: &mut Cmdarg) {
 }
 
 fn nv_mark_move_to(cap: &mut Cmdarg, flags: MarkMove, fm: Option<&mut Fmark>) -> MarkMoveRes {
-    let res = mark_move_to(fm.map_or(ptr::null_mut(), ptr::from_mut), flags);
+    let res = mark_move_to(fm, flags);
     if (res & K_MARK_MOVE_FAILED) != 0 {
         clearop(cap.oap_mut());
     }
@@ -5874,7 +5875,7 @@ fn nv_optrans(cap: &mut Cmdarg) {
             .iter()
             .position(|&b| b == cap.cmdchar as u8)
             .unwrap();
-        stuff_readbuff(AR[idx].as_ptr());
+        stuff_readbuff(AR[idx]);
         exec_stuffed(Some(cap));
     }
     cap.opcount = 0;
@@ -5906,7 +5907,7 @@ fn nv_gomark(cap: &mut Cmdarg) {
     }
 
     let fm = mark_get(curbuf_mut(), curwin_mut(), None, K_MARK_ALL, name);
-    let move_res = nv_mark_move_to(cap, flags, unsafe { fm.as_mut() });
+    let move_res = nv_mark_move_to(cap, flags, fm);
 
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
@@ -5946,10 +5947,10 @@ fn nv_pcmark(cap: &mut Cmdarg) {
         get_changelist(curbuf_mut(), curwin_mut(), cap.count1)
     } else {
         flags |= KMARK_NO_CONTEXT | K_MARK_JUMP_LIST;
-        get_jumplist(curwin_ptr(), cap.count1)
+        get_jumplist(curwin_mut(), cap.count1)
     };
 
-    if let Some(fm) = unsafe { fm.as_mut() } {
+    if let Some(fm) = fm {
         move_res = nv_mark_move_to(cap, flags, Some(fm));
     } else if cap.cmdchar == b'g' as i32 {
         if curbuf_mut().b_changelistlen == 0 {
@@ -6904,7 +6905,7 @@ pub fn unadjust_for_sel_inner(pp: &mut CursorPos) -> bool {
         pp.coladd -= 1;
     } else if pp.col > 0 {
         pp.col -= 1;
-        mark_mb_adjustpos(g_st().curbuf, pp);
+        mark_mb_adjustpos(curbuf_mut(), pp);
         if virtual_active(curwin_mut()) {
             let mut cs: Colnr = 0;
             let mut ce: Colnr = 0;

@@ -2434,7 +2434,7 @@ fn cmd_source(fname: impl crate::strings::IntoCCharPtr, mut eap: Option<&mut Exa
             && eap.forceit != 0
         {
             openscript(
-                fname,
+                crate::memory::cstr_from_ptr(fname),
                 g_st().global_busy != 0
                     || g_st().listcmd_busy
                     || !eap.nextcmd.is_null()

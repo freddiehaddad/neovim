@@ -77,8 +77,8 @@ fn curwin_argcount() -> i32 {
 }
 
 #[inline]
-fn curwin_arglist() -> &'static mut Aentry {
-    unsafe { &mut *crate::arglist::arglist() }
+fn curwin_arglist() -> &'static Aentry {
+    &crate::arglist::arglist_slice()[0]
 }
 
 pub fn ex_ruby(eap: &mut Exarg) {
@@ -820,7 +820,7 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
 pub fn ex_drop(eap: &mut Exarg) {
     let mut split = false;
 
-    set_arglist(eap.arg);
+    set_arglist(crate::memory::cstr_from_ptr(eap.arg));
 
     if curwin_argcount() == 0 {
         return;

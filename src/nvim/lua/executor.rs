@@ -1487,7 +1487,10 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
                     c"lua_debug> %s",
                     input.vval.v_string(),
                 );
-                ui_ext_cmdline_block_append(0, g_st().iobuff.as_ptr());
+                ui_ext_cmdline_block_append(
+                    0,
+                    crate::memory::cstr_as_bytes(g_st().iobuff.as_ptr()),
+                );
             } else {
                 msg_putchar(b'\n' as i32);
             }

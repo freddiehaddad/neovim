@@ -395,16 +395,15 @@ pub fn set_context_in_user_cmdarg<'a>(
         return Some(arg_in);
     }
     if context == EXPAND_MAPPINGS {
-        let p = set_context_in_map_cmd(
+        return set_context_in_map_cmd(
             xp,
             c"map",
-            arg.cast_mut(),
+            arg_in,
             forceit,
             false,
             false,
             crate::cmdexpand::Cmdidx::CmdMap,
         );
-        return (!p.is_null()).then(|| unsafe { CStr::from_ptr(p.cast()) });
     }
     if (argt & EX_ARGSPACE) == 0 {
         let arg_base = arg;

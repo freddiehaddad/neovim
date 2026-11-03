@@ -5769,15 +5769,17 @@ pub fn var2fpos(
     } else if name_bytes.first() == Some(&b'\'') {
         let mname_b = name_bytes.get(1).copied().unwrap_or(0);
         let mname = i32::from(mname_b);
-        let fm = mark_get(crate::globals::gmut(bp), wp, None, K_MARK_ALL, mname);
-        if fm.is_null() || crate::globals::gptr(fm).mark.lnum <= 0 {
+        let Some(fm) = mark_get(crate::globals::gmut(bp), wp, None, K_MARK_ALL, mname) else {
+            return ptr::null_mut();
+        };
+        if fm.mark.lnum <= 0 {
             return ptr::null_mut();
         }
 
-        eval_st().var2_fpos_pos = crate::globals::gptr(fm).mark;
+        eval_st().var2_fpos_pos = fm.mark;
 
         if mname_b.is_ascii_uppercase() || mname_b.is_ascii_digit() {
-            *ret_fnum = crate::globals::gptr(fm).fnum;
+            *ret_fnum = fm.fnum;
         }
     }
     if eval_st().var2_fpos_pos.lnum != 0 {

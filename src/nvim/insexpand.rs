@@ -2145,7 +2145,12 @@ fn ins_compl_dictionaries(
                 } else {
                     pat
                 };
-                spell_dump_compl(ptr, i32::from(regmatch.rm_ic), Some(&mut dir), 0);
+                spell_dump_compl(
+                    crate::memory::cstr_as_opt_cstr(ptr),
+                    i32::from(regmatch.rm_ic),
+                    Some(&mut dir),
+                    0,
+                );
             } else if count > 0 {
                 if flags == DICT_EXACT {
                     ins_compl_files(
@@ -3099,7 +3104,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: impl crate::strings::IntoCCharPtr)
                 mb_ptr_adv_const(&raw mut p);
             }
         }
-        redo_append_lit(ptr.wrapping_add(len), -1);
+        redo_append_lit(crate::memory::cstr_as_bytes(ptr.wrapping_add(len)));
     }
 }
 
@@ -4339,7 +4344,10 @@ fn get_next_filename_completion() {
         return;
     }
 
-    tilde_replace(compl_pattern_ptr().cast(), &mut matches);
+    tilde_replace(
+        crate::memory::cstr_as_bytes(compl_pattern_ptr().cast()),
+        &mut matches,
+    );
     #[cfg(windows)]
     {
         if (crate::memory::cstr_is_empty(curbuf_mut().b_p_csl) && opt_vars().p_ssl == 0)
@@ -4484,7 +4492,11 @@ fn get_next_cmdline_completion() {
 
 fn get_next_spell_completion(lnum: Linenr) {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
-    expand_spelling(lnum, compl_pattern_ptr().cast(), &mut matches);
+    expand_spelling(
+        lnum,
+        crate::memory::cstr_from_ptr(compl_pattern_ptr().cast()),
+        &mut matches,
+    );
     if !matches.is_empty() {
         ins_compl_add_matches(&mut matches, opt_vars().p_ic);
     }
@@ -6768,7 +6780,7 @@ pub fn free_insexpand_stuff() {
 
 fn spell_back_to_badword() {
     let tpos = curwin_mut().w_cursor;
-    insexp().spell_bad_len = spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, ptr::null_mut());
+    insexp().spell_bad_len = spell_move_to(curwin_mut(), BACKWARD, SMT_ALL, true, None);
     if curwin_mut().w_cursor.col != tpos.col {
         start_arrow(Some(tpos), true, NUL as i32);
     }

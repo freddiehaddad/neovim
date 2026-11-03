@@ -2225,11 +2225,15 @@ fn didset_options() {
 
     let mut sps_flags: i32 = 0;
     let mut sps_limit: i32 = 0;
-    if spell_check_sps(opt_vars().p_sps, &mut sps_flags, &mut sps_limit) {
+    if spell_check_sps(
+        crate::memory::cstr_from_ptr(opt_vars().p_sps),
+        &mut sps_flags,
+        &mut sps_limit,
+    ) {
         spell_apply_sps(sps_flags, sps_limit);
     }
     let ws = curwin_mut().w_s_ptr();
-    compile_cap_prog(ws.b_p_spc, &mut ws.b_cap_prog);
+    compile_cap_prog(crate::memory::cstr_from_ptr(ws.b_p_spc), &mut ws.b_cap_prog);
     did_set_spell_option();
     let mut dummy = Optset::new();
     did_set_cedit(&mut dummy);
@@ -6373,7 +6377,7 @@ fn put_set_value(
                         if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
                             return false;
                         }
-                    } else if !put_escstr(fd, value_str, 2) {
+                    } else if !put_escstr(fd, crate::memory::cstr_from_ptr(value_str), 2) {
                         return false;
                     }
                 }
@@ -7245,7 +7249,10 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_s.b_syn_isk = None;
             buf.b_s.b_p_spc = alloc_string_option(opt_vars().p_spc);
             copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
-            compile_cap_prog(buf.b_s.b_p_spc, &mut buf.b_s.b_cap_prog);
+            compile_cap_prog(
+                crate::memory::cstr_from_ptr(buf.b_s.b_p_spc),
+                &mut buf.b_s.b_cap_prog,
+            );
             buf.b_s.b_p_spf = alloc_string_option(opt_vars().p_spf);
             copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
             buf.b_s.b_p_spl = alloc_string_option(opt_vars().p_spl);

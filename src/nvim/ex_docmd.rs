@@ -5145,7 +5145,7 @@ pub fn do_cmdline(
                             g_st()
                                 .last_cmdline
                                 .as_ref()
-                                .map_or(ptr::null(), |s| s.as_ptr()),
+                                .map_or(&[][..], |s| s.to_bytes()),
                         );
                         did_block = true;
                     }
@@ -5173,7 +5173,10 @@ pub fn do_cmdline(
                 used_getline = true;
 
                 if ui_has(K_UICMDLINE) && count > 0 && fgetline.is_exline() {
-                    ui_ext_cmdline_block_append(indent as usize, next_cmdline);
+                    ui_ext_cmdline_block_append(
+                        indent as usize,
+                        crate::memory::cstr_as_bytes(next_cmdline),
+                    );
                 }
 
                 if (flags & DOCMD_KEEPLINE) != 0 {
@@ -7795,7 +7798,7 @@ pub fn get_address(
                         } else {
                             K_MARK_BUF_LOCAL
                         };
-                        let fm = mark_get(
+                        let mut fm = mark_get(
                             curbuf_mut(),
                             curwin_mut(),
                             None,
@@ -7803,16 +7806,15 @@ pub fn get_address(
                             i32::from(crate::memory::cstr_first_byte(cmd)),
                         );
                         cmd = cmd.wrapping_add(1);
-                        if !fm.is_null() && crate::globals::gptr(fm).fnum != curbuf_mut().b_fnum {
+                        if fm.as_ref().is_some_and(|f| f.fnum != curbuf_mut().b_fnum) {
                             mark_move_to(fm, 0);
                             lnum = curwin_mut().w_cursor.lnum;
                         } else {
-                            if !mark_check(crate::globals::gopt_mut(fm), errormsg) {
+                            if !mark_check(fm.as_deref_mut(), errormsg) {
                                 cmd = ptr::null_mut();
                                 break 'error;
                             }
-
-                            lnum = crate::globals::gptr(fm).mark.lnum;
+                            lnum = fm.unwrap().mark.lnum;
                         }
                     }
                 }
@@ -11713,7 +11715,7 @@ fn ex_stopinsert(_eap: &mut Exarg) {
 
 pub fn exec_normal_cmd(cmd: impl crate::strings::IntoCCharPtr, remap: i32, silent: bool) {
     let cmd = cmd.into_c_char_ptr();
-    let _ = ins_typebuf(cmd, remap, 0, true, silent);
+    let _ = ins_typebuf(crate::memory::cstr_from_ptr(cmd), remap, 0, true, silent);
     exec_normal(false, false);
 }
 

@@ -4283,8 +4283,10 @@ fn nfa_regmatch(
                         re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                         re_st().rex.input = re_st().rex.line.wrapping_add(col);
                     }
-                    if !fm.is_null() && crate::globals::gptr(fm).mark.lnum > 0 {
-                        let pos = &crate::globals::gptr(fm).mark;
+                    if let Some(fm) = fm
+                        && fm.mark.lnum > 0
+                    {
+                        let pos = &fm.mark;
                         let pos_col = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
                             && pos.col == MAXCOL
                         {

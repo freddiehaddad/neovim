@@ -1174,7 +1174,7 @@ pub fn nvim_buf_get_keymap(
     let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return Array::new();
     };
-    keymap_array(mode, b, arena)
+    keymap_array(mode, Some(&*b), arena)
 }
 
 /// Sets a buffer-local |mapping| for the given mode.
@@ -1434,14 +1434,13 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         return res;
     }
 
-    let fm = mark_get(
+    let Some(fm) = mark_get(
         b,
         curwin_mut(),
         None,
         K_MARK_ALL_NO_RESOLVE,
         i32::from(unsafe { *name.data.cast::<u8>() }),
-    );
-    let Some(fm) = (unsafe { fm.as_mut() }) else {
+    ) else {
         api_err_invalid(
             err,
             c"mark name",
@@ -1541,8 +1540,7 @@ pub fn nvim_buf_get_mark(
     }
 
     let mark = i32::from(unsafe { *name.data.cast::<u8>() });
-    let fm = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark);
-    let Some(fm) = (unsafe { fm.as_ref() }) else {
+    let Some(fm) = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark) else {
         api_err_invalid(
             err,
             c"mark name",

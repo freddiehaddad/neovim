@@ -1471,8 +1471,8 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
 
             let prev_bytes = excmds_st().prevcmd.as_ref().unwrap().as_bytes();
             let cmd = vim_strsave_escaped(prev_bytes, b"%#");
-            redo_append_lit(cmd.as_ptr().cast_mut(), -1);
-            redo_append_str(c"\n", 1);
+            redo_append_lit(cmd.to_bytes());
+            redo_append_str(b"\n");
             g_st().bangredo = false;
         }
         if !crate::memory::cstr_is_empty(opt_vars().p_shq) {

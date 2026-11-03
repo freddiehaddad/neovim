@@ -639,7 +639,7 @@ fn put_in_typebuf(
             retval = false;
         } else {
             retval = ins_typebuf(
-                p,
+                crate::memory::cstr_from_ptr(p),
                 if esc { REMAP_NONE } else { REMAP_YES },
                 0,
                 true,
@@ -801,7 +801,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
                 }
             }
             let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(str_));
-            retval = ins_typebuf(escaped.as_ptr().cast_mut(), remap, 0, true, is_silent);
+            retval = ins_typebuf(&escaped, remap, 0, true, is_silent);
             drop(escaped);
             if !retval {
                 return false;
@@ -841,7 +841,7 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
         if arg.is_null() {
             return false;
         }
-        stuffescaped(arg.cast_const().cast(), literally);
+        stuffescaped(crate::memory::cstr_as_bytes(arg.cast()), literally);
     } else {
         if reg.is_null() {
             reg = get_yank_register(regname, YREG_PASTE);
@@ -876,7 +876,7 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
                     redo_append_char(regname);
                     do_put(regname, ptr::null_mut(), dir, 1, PUT_CURSEND);
                 } else {
-                    stuffescaped(reg_ref.y_array[i].data, literally);
+                    stuffescaped(reg_ref.y_array[i].as_bytes(), literally);
                     if reg_ref.y_type == MotionType::MtLineWise || i < reg_ref.y_array.len() - 1 {
                         stuffchar_readbuff(i32::from(b'\n'));
                     }
@@ -1003,10 +1003,10 @@ pub fn cmdline_paste_reg(regname: i32, literally_arg: bool, remcr: bool) -> bool
     }
 
     for i in 0..reg.y_array.len() {
-        cmdline_paste_str(reg.y_array[i].data, literally);
+        cmdline_paste_str(reg.y_array[i].as_bytes(), literally);
 
         if i < reg.y_array.len() - 1 && !remcr {
-            cmdline_paste_str(c"\r", literally);
+            cmdline_paste_str(b"\r", literally);
         }
 
         os_breakcheck();
@@ -1557,9 +1557,9 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
             g_st().add_last_insert = 0;
             stuffchar_readbuff(K_COMMAND);
             if dir == FORWARD {
-                stuff_readbuff_len(c"put _", 5);
+                stuff_readbuff_len(b"put _");
             } else {
-                stuff_readbuff_len(c"put! _", 6);
+                stuff_readbuff_len(b"put! _");
             }
             stuffchar_readbuff(i32::from(CAR));
             g_st().add_last_insert = save_add_last_insert;
@@ -1570,8 +1570,8 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
             while count > 0 {
                 stuff_inserted(0, 1, i32::from(count != 1));
                 if count != 1 {
-                    let s: [u8; 4] = [b'\n', b' ', CTRL_U_CONST, 0];
-                    stuff_readbuff_len(s.as_ptr().cast(), 3);
+                    let s: [u8; 3] = [b'\n', b' ', CTRL_U_CONST];
+                    stuff_readbuff_len(&s);
                 }
                 count -= 1;
             }

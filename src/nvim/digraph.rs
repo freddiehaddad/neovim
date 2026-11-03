@@ -2147,7 +2147,12 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
             kp.from.as_ptr(),
             kp.to.as_ptr(),
         );
-        do_map(MAPTYPE_MAP, buf.as_mut_ptr().cast(), MODE_LANGMAP, false);
+        do_map(
+            MAPTYPE_MAP,
+            std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+            MODE_LANGMAP,
+            false,
+        );
     }
 
     opt_vars().p_cpo = save_cpo;
@@ -2174,7 +2179,12 @@ fn keymap_unload() {
             c"<buffer> %s",
             entry.from.as_ptr(),
         );
-        do_map(MAPTYPE_UNMAP, buf.as_mut_ptr().cast(), MODE_LANGMAP, false);
+        do_map(
+            MAPTYPE_UNMAP,
+            std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+            MODE_LANGMAP,
+            false,
+        );
     }
     curbuf_mut().b_kmap_ga.clear();
 
