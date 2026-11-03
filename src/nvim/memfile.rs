@@ -81,10 +81,8 @@ pub struct Memfile {
 
 #[inline]
 fn perror_msg(msg: &std::ffi::CStr) {
-    unsafe {
-        let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-        let _ = semsg!(c"%s: %s", gettext(msg.as_ptr()), strerror(err));
-    }
+    let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+    let _ = unsafe { semsg!(c"%s: %s", gettext(msg.as_ptr()), strerror(err)) };
 }
 
 #[inline]
@@ -182,25 +180,27 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
 pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
+    let mfp = buf.b_ml.mfp_ptr();
+    if mfp.is_null() || unsafe { (*mfp).mf_fd < 0 } {
+        return;
+    }
+
+    if getlines {
+        for lnum in 1..=buf.b_ml.ml_line_count {
+            ml_get_buf(buf, lnum);
+        }
+    }
+
+    if unsafe { close((*mfp).mf_fd) < 0 } {
+        emsg(gettext(E_SWAPCLOSE));
+    }
     unsafe {
-        let mfp = buf.b_ml.mfp_ptr();
-        if mfp.is_null() || (*mfp).mf_fd < 0 {
-            return;
-        }
-
-        if getlines {
-            for lnum in 1..=buf.b_ml.ml_line_count {
-                ml_get_buf(buf, lnum);
-            }
-        }
-
-        if close((*mfp).mf_fd) < 0 {
-            emsg(gettext(E_SWAPCLOSE));
-        }
         (*mfp).mf_fd = -1;
+    }
 
-        if let Some(ref fname) = (*mfp).mf_fname {
-            os_remove(fname.as_ptr());
+    if let Some(ref fname) = *unsafe { &((*mfp).mf_fname) } {
+        os_remove(fname.as_ptr());
+        unsafe {
             mf_free_fnames(&mut *mfp);
         }
     }
@@ -449,90 +449,90 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 }
 
 fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
-    unsafe {
-        if mfp.mf_fd < 0 && !mfp.mf_reopen {
-            return false;
-        }
+    if mfp.mf_fd < 0 && !mfp.mf_reopen {
+        return false;
+    }
 
-        if hp.bh_bnum < 0 && !mf_trans_add(&mut *mfp, hp) {
-            return false;
-        }
+    if hp.bh_bnum < 0 && !mf_trans_add(&mut *mfp, hp) {
+        return false;
+    }
 
-        let page_size = mfp.mf_page_size;
+    let page_size = mfp.mf_page_size;
 
-        loop {
-            let mut nr = hp.bh_bnum;
-            let hp2: *mut Bhdr = if nr > mfp.mf_infile_count {
-                nr = mfp.mf_infile_count;
-                pmap_get_bhdr(&mfp.mf_hash, nr)
-            } else {
-                (&raw mut *hp)
-            };
+    loop {
+        let mut nr = hp.bh_bnum;
+        let hp2: *mut Bhdr = if nr > mfp.mf_infile_count {
+            nr = mfp.mf_infile_count;
+            pmap_get_bhdr(&mfp.mf_hash, nr)
+        } else {
+            (&raw mut *hp)
+        };
 
-            let offset = i64::from(page_size).wrapping_mul(nr);
-            let page_count = if hp2.is_null() {
-                1
-            } else {
-                (*hp2).bh_page_count
-            };
-            let size = (page_size * page_count) as usize;
+        let offset = i64::from(page_size).wrapping_mul(nr);
+        let page_count = if hp2.is_null() {
+            1
+        } else {
+            unsafe { (*hp2).bh_page_count }
+        };
+        let size = (page_size * page_count) as usize;
 
-            for attempt in 1..=2 {
-                if mfp.mf_fd >= 0 {
-                    if vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset {
-                        perror_msg(c"E296: Seek error in swap file write");
-                        return false;
-                    }
-                    let data = if hp2.is_null() {
-                        hp.data_ptr()
-                    } else {
-                        (*hp2).data_ptr()
-                    };
-                    let nwritten = write_eintr(mfp.mf_fd, data.cast(), size);
-                    if (nwritten as usize) == size {
-                        break;
-                    }
-                }
-
-                if attempt == 1 {
-                    if mfp.mf_fd >= 0 {
-                        let _ = close(mfp.mf_fd);
-                    }
-                    {
-                        mfp.mf_fd = os_open(
-                            mfp.mf_fname.as_ref().unwrap().as_ptr(),
-                            mfp.mf_flags,
-                            S_IREAD | S_IWRITE,
-                        );
-                    }
-                    mfp.mf_reopen = mfp.mf_fd < 0;
-                }
-                if attempt == 2 || mfp.mf_fd < 0 {
-                    {
-                        if !g_st().did_swapwrite_msg {
-                            emsg(gettext(c"E297: Write error in swap file"));
-                        }
-                        g_st().did_swapwrite_msg = true;
-                    }
+        for attempt in 1..=2 {
+            if mfp.mf_fd >= 0 {
+                if unsafe { vim_lseek(mfp.mf_fd, offset, SEEK_SET) != offset } {
+                    perror_msg(c"E296: Seek error in swap file write");
                     return false;
                 }
+                let data = if hp2.is_null() {
+                    hp.data_ptr()
+                } else {
+                    unsafe { (*hp2).data_ptr() }
+                };
+                let nwritten = write_eintr(mfp.mf_fd, data.cast(), size);
+                if (nwritten as usize) == size {
+                    break;
+                }
             }
 
-            {
-                g_st().did_swapwrite_msg = false;
+            if attempt == 1 {
+                if mfp.mf_fd >= 0 {
+                    let _ = unsafe { close(mfp.mf_fd) };
+                }
+                {
+                    mfp.mf_fd = os_open(
+                        mfp.mf_fname.as_ref().unwrap().as_ptr(),
+                        mfp.mf_flags,
+                        S_IREAD | S_IWRITE,
+                    );
+                }
+                mfp.mf_reopen = mfp.mf_fd < 0;
             }
-            if !hp2.is_null() {
-                (*hp2).bh_flags &= !BH_DIRTY;
-            }
-            if nr + i64::from(page_count) > mfp.mf_infile_count {
-                mfp.mf_infile_count = nr + i64::from(page_count);
-            }
-            if nr == hp.bh_bnum {
-                break;
+            if attempt == 2 || mfp.mf_fd < 0 {
+                {
+                    if !g_st().did_swapwrite_msg {
+                        emsg(gettext(c"E297: Write error in swap file"));
+                    }
+                    g_st().did_swapwrite_msg = true;
+                }
+                return false;
             }
         }
-        true
+
+        {
+            g_st().did_swapwrite_msg = false;
+        }
+        if !hp2.is_null() {
+            unsafe {
+                (*hp2).bh_flags &= !BH_DIRTY;
+            }
+        }
+        if nr + i64::from(page_count) > mfp.mf_infile_count {
+            mfp.mf_infile_count = nr + i64::from(page_count);
+        }
+        if nr == hp.bh_bnum {
+            break;
+        }
     }
+    true
 }
 
 fn mf_trans_add(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {

@@ -88,8 +88,8 @@ struct ContainerStackItem {
 pub(crate) fn mpack_w(b: &mut *mut u8, byte: u8) {
     unsafe {
         **b = byte;
-        *b = (*b).wrapping_add(1);
     }
+    *b = (*b).wrapping_add(1);
 }
 
 #[inline]

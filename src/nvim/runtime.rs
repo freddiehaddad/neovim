@@ -3139,23 +3139,21 @@ pub fn get_sourced_lnum(fgetline: LineGetter) -> Linenr {
 }
 
 fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
-    unsafe {
-        let functbl = func_tbl_get();
-        let l = tv_list_alloc(functbl.len() as isize);
+    let functbl = func_tbl_get();
+    let l = tv_list_alloc(functbl.len() as isize);
 
-        for &fp in functbl.values() {
-            if (*fp).uf_script_ctx.sc_sid == sid {
-                let name = if let Some(ref exp) = (*fp).uf_name_exp {
-                    exp.as_ptr()
-                } else {
-                    (*fp).uf_name.as_ptr()
-                };
-                tv_list_append_string(&mut *l, name, -1);
-            }
+    for &fp in functbl.values() {
+        if unsafe { (*fp).uf_script_ctx.sc_sid == sid } {
+            let name = if let Some(ref exp) = *unsafe { &((*fp).uf_name_exp) } {
+                exp.as_ptr()
+            } else {
+                unsafe { (*fp).uf_name.as_ptr() }
+            };
+            tv_list_append_string(&mut *l, name, -1);
         }
-
-        l
     }
+
+    l
 }
 
 /// "getscriptinfo()" function

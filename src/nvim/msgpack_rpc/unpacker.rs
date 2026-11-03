@@ -111,113 +111,121 @@ const fn empty_arena() -> Arena {
 }
 
 fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
-    unsafe {
-        let parser = &mut *parser;
-        let node = &mut *node;
-        let p = parser.data.unpacker();
-        let mut result: *mut Object = std::ptr::null_mut();
-        let mut key_location: *mut NvimString = std::ptr::null_mut();
+    let parser = &mut *parser;
+    let node = &mut *node;
+    let p = parser.data.unpacker();
+    let mut result: *mut Object = std::ptr::null_mut();
+    let mut key_location: *mut NvimString = std::ptr::null_mut();
 
-        let parent = mpack_parent_node(&raw mut *node);
-        if !parent.is_null() {
-            let parent = &mut *parent;
-            match parent.tok.r#type {
-                MpackTokenType::MpackTokenArray => {
-                    let obj = parent.data[0].object();
-                    result = obj.data.array().items.wrapping_add(parent.pos);
-                }
-                MpackTokenType::MpackTokenMap => {
-                    let obj = parent.data[0].object();
-                    let kv = &mut obj.data.dict()[parent.pos];
-                    if parent.key_visited == 0 {
-                        kv.key = NvimString {
-                            data: std::ptr::null_mut(),
-                            size: 0,
-                        };
-                        key_location = &mut kv.key;
-                    }
-                    result = &mut kv.value;
-                }
-                MpackTokenType::MpackTokenStr
-                | MpackTokenType::MpackTokenBin
-                | MpackTokenType::MpackTokenExt => {
-                    assert_eq!(node.tok.r#type, MpackTokenType::MpackTokenChunk);
-                }
-                _ => std::process::abort(),
+    let parent = mpack_parent_node(&raw mut *node);
+    if !parent.is_null() {
+        let parent = unsafe { &mut *parent };
+        match parent.tok.r#type {
+            MpackTokenType::MpackTokenArray => {
+                let obj = parent.data[0].object();
+                result = obj.data.array().items.wrapping_add(parent.pos);
             }
-        } else {
-            result = &mut p.result;
+            MpackTokenType::MpackTokenMap => {
+                let obj = parent.data[0].object();
+                let kv = &mut obj.data.dict()[parent.pos];
+                if parent.key_visited == 0 {
+                    kv.key = NvimString {
+                        data: std::ptr::null_mut(),
+                        size: 0,
+                    };
+                    key_location = &mut kv.key;
+                }
+                result = &mut kv.value;
+            }
+            MpackTokenType::MpackTokenStr
+            | MpackTokenType::MpackTokenBin
+            | MpackTokenType::MpackTokenExt => {
+                assert_eq!(node.tok.r#type, MpackTokenType::MpackTokenChunk);
+            }
+            _ => std::process::abort(),
         }
+    } else {
+        result = &mut p.result;
+    }
 
-        let tok = node.tok;
-        match tok.r#type {
-            MpackTokenType::MpackTokenNil => {
-                *result = nil_obj();
-            }
-            MpackTokenType::MpackTokenBoolean => {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeBoolean,
-                    data: ObjectData::Boolean(mpack_unpack_boolean(tok)),
-                };
-            }
-            MpackTokenType::MpackTokenSint => {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(mpack_unpack_sint(tok)),
-                };
-            }
-            MpackTokenType::MpackTokenUint => {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(mpack_unpack_uint(tok) as Integer),
-                };
-            }
-            MpackTokenType::MpackTokenFloat => {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeFloat,
-                    data: ObjectData::Floating(mpack_unpack_float_fast(tok)),
-                };
-            }
-            MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
-                let len = tok.length as usize;
-                let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<u8>();
+    let tok = node.tok;
+    match tok.r#type {
+        MpackTokenType::MpackTokenNil => unsafe {
+            *result = nil_obj();
+        },
+        MpackTokenType::MpackTokenBoolean => unsafe {
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(mpack_unpack_boolean(tok)),
+            };
+        },
+        MpackTokenType::MpackTokenSint => unsafe {
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(mpack_unpack_sint(tok)),
+            };
+        },
+        MpackTokenType::MpackTokenUint => unsafe {
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeInteger,
+                data: ObjectData::Integer(mpack_unpack_uint(tok) as Integer),
+            };
+        },
+        MpackTokenType::MpackTokenFloat => unsafe {
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeFloat,
+                data: ObjectData::Floating(mpack_unpack_float_fast(tok)),
+            };
+        },
+        MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
+            let len = tok.length as usize;
+            let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<u8>();
+            unsafe {
                 *mem.wrapping_add(len) = 0;
-                let s = NvimString::from_bytes(std::slice::from_raw_parts(mem, len));
-                if !key_location.is_null() {
+            }
+            let s = unsafe { NvimString::from_bytes(std::slice::from_raw_parts(mem, len)) };
+            if !key_location.is_null() {
+                unsafe {
                     *key_location = s;
-                } else {
+                }
+            } else {
+                unsafe {
                     *result = Object {
                         obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(s),
                     };
                 }
-                node.data[0] = crate::mpack::object::MpackData::Bytes(mem);
             }
-            MpackTokenType::MpackTokenExt => {
-                node.data[0] = crate::mpack::object::MpackData::Object(result);
-            }
-            MpackTokenType::MpackTokenChunk => {
-                assert!(!parent.is_null());
-                let chunk_len = tok.length as usize;
-                if (*parent).tok.r#type == MpackTokenType::MpackTokenStr
-                    || (*parent).tok.r#type == MpackTokenType::MpackTokenBin
-                {
-                    let data = (*parent).data[0].bytes();
-                    if chunk_len > 0 {
+            node.data[0] = crate::mpack::object::MpackData::Bytes(mem);
+        }
+        MpackTokenType::MpackTokenExt => {
+            node.data[0] = crate::mpack::object::MpackData::Object(result);
+        }
+        MpackTokenType::MpackTokenChunk => {
+            assert!(!parent.is_null());
+            let chunk_len = tok.length as usize;
+            if unsafe { (*parent).tok.r#type == MpackTokenType::MpackTokenStr }
+                || unsafe { (*parent).tok.r#type == MpackTokenType::MpackTokenBin }
+            {
+                let data = unsafe { (*parent).data[0].bytes() };
+                if chunk_len > 0 {
+                    unsafe {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
                             data.wrapping_add((*parent).pos),
                             chunk_len,
                         );
                     }
-                } else {
-                    let res = (*parent).data[0].object();
-                    let endlen = (*parent).pos + chunk_len;
-                    if endlen > MAX_EXT_LEN {
-                        *res = nil_obj();
-                        return;
-                    }
-                    if chunk_len > 0 {
+                }
+            } else {
+                let res = unsafe { (*parent).data[0].object() };
+                let endlen = unsafe { (*parent).pos + chunk_len };
+                if endlen > MAX_EXT_LEN {
+                    *res = nil_obj();
+                    return;
+                }
+                if chunk_len > 0 {
+                    unsafe {
                         std::ptr::copy_nonoverlapping(
                             tok.data.chunk_ptr().cast::<u8>(),
                             p.ext_buf
@@ -227,33 +235,34 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                             chunk_len,
                         );
                     }
-                    if endlen < ((*parent).tok.length as usize) {
-                        return;
-                    }
-                    let mut buf: *const u8 = p.ext_buf.as_ptr();
-                    let mut size = (*parent).tok.length as usize;
-                    let mut ext_tok = MpackToken::new();
-                    let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
-                    if status != 0 || ext_tok.r#type != MpackTokenType::MpackTokenUint {
-                        *res = nil_obj();
-                        return;
-                    }
-                    let ext_type = (*parent).tok.data.ext_type();
-                    if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
-                        && let Some(obj_type) =
-                            ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
-                    {
-                        res.obj_type = obj_type;
-                        res.data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
-                    } else {
-                        *res = nil_obj();
-                    }
+                }
+                if unsafe { endlen < ((*parent).tok.length as usize) } {
+                    return;
+                }
+                let mut buf: *const u8 = p.ext_buf.as_ptr();
+                let mut size = unsafe { (*parent).tok.length as usize };
+                let mut ext_tok = MpackToken::new();
+                let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
+                if status != 0 || ext_tok.r#type != MpackTokenType::MpackTokenUint {
+                    *res = nil_obj();
+                    return;
+                }
+                let ext_type = unsafe { (*parent).tok.data.ext_type() };
+                if (0..=EXT_OBJECT_TYPE_MAX).contains(&ext_type)
+                    && let Some(obj_type) = ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
+                {
+                    res.obj_type = obj_type;
+                    res.data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
+                } else {
+                    *res = nil_obj();
                 }
             }
-            MpackTokenType::MpackTokenArray => {
-                let len = tok.length as usize;
-                let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
-                    .cast::<Object>();
+        }
+        MpackTokenType::MpackTokenArray => {
+            let len = tok.length as usize;
+            let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
+                .cast::<Object>();
+            unsafe {
                 *result = Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(Array {
@@ -262,16 +271,18 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                         items,
                     }),
                 };
-                node.data[0] = crate::mpack::object::MpackData::Object(result);
             }
-            MpackTokenType::MpackTokenMap => {
-                let len = tok.length as usize;
-                let items = arena_alloc(
-                    &mut p.arena,
-                    std::mem::size_of::<KeyValuePair>() * len,
-                    true,
-                )
-                .cast::<KeyValuePair>();
+            node.data[0] = crate::mpack::object::MpackData::Object(result);
+        }
+        MpackTokenType::MpackTokenMap => {
+            let len = tok.length as usize;
+            let items = arena_alloc(
+                &mut p.arena,
+                std::mem::size_of::<KeyValuePair>() * len,
+                true,
+            )
+            .cast::<KeyValuePair>();
+            unsafe {
                 *result = Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(Dict {
@@ -280,10 +291,10 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                         items,
                     }),
                 };
-                node.data[0] = crate::mpack::object::MpackData::Object(result);
             }
-            MpackTokenType::MpackTokenNone => std::process::abort(),
+            node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
+        MpackTokenType::MpackTokenNone => std::process::abort(),
     }
 }
 
@@ -946,106 +957,109 @@ pub fn unpack_keydict(
     size: &mut usize,
     error: &mut Option<std::ffi::CString>,
 ) -> bool {
-    unsafe {
-        let ks = retval;
-        let mut tok = MpackToken::new();
+    let ks = retval;
+    let mut tok = MpackToken::new();
 
-        let result = mpack_rtoken(data, size, &mut tok);
-        if result != 0 || tok.r#type != MpackTokenType::MpackTokenMap {
-            *error = Some(c"is not a dict".to_owned());
+    let result = mpack_rtoken(data, size, &mut tok);
+    if result != 0 || tok.r#type != MpackTokenType::MpackTokenMap {
+        *error = Some(c"is not a dict".to_owned());
+        return false;
+    }
+
+    let map_size = tok.length as usize;
+    let hashy_fn = hashy.unwrap();
+
+    let alloc_key_error = |key: NvimString, suffix: &[u8]| -> Option<std::ffi::CString> {
+        let key_bytes = key.as_bytes();
+        let mut out = Vec::with_capacity(4 + key.size + suffix.len());
+        out.extend_from_slice(b"has ");
+        out.extend_from_slice(key_bytes);
+        out.extend_from_slice(suffix);
+        Some(std::ffi::CString::new(out).unwrap_or_default())
+    };
+
+    for _ in 0..map_size {
+        let item_start = *data;
+        let key = unpack_string(data, size);
+        if key.data.is_null() {
+            *error = Some(c"has key value which is not a string".to_owned());
+            return false;
+        } else if key.size == 0 {
+            *error = Some(c"has empty key".to_owned());
             return false;
         }
+        let key_bytes = key.as_bytes();
+        let field_opt = hashy_fn(key_bytes);
 
-        let map_size = tok.length as usize;
-        let hashy_fn = hashy.unwrap();
-
-        let alloc_key_error = |key: NvimString, suffix: &[u8]| -> Option<std::ffi::CString> {
-            let key_bytes = key.as_bytes();
-            let mut out = Vec::with_capacity(4 + key.size + suffix.len());
-            out.extend_from_slice(b"has ");
-            out.extend_from_slice(key_bytes);
-            out.extend_from_slice(suffix);
-            Some(std::ffi::CString::new(out).unwrap_or_default())
+        let Some(field) = field_opt else {
+            let status = unpack_skip(data, size);
+            if status != 0 {
+                return false;
+            }
+            let skipped = unsafe {
+                std::slice::from_raw_parts(item_start, (*data as usize) - (item_start as usize))
+            };
+            push_additional_data(ad, skipped);
+            continue;
         };
 
-        for _ in 0..map_size {
-            let item_start = *data;
-            let key = unpack_string(data, size);
-            if key.data.is_null() {
-                *error = Some(c"has key value which is not a string".to_owned());
-                return false;
-            } else if key.size == 0 {
-                *error = Some(c"has empty key".to_owned());
-                return false;
-            }
-            let key_bytes = key.as_bytes();
-            let field_opt = hashy_fn(key_bytes);
-
-            let Some(field) = field_opt else {
-                let status = unpack_skip(data, size);
-                if status != 0 {
-                    return false;
-                }
-                let skipped = std::slice::from_raw_parts(
-                    item_start,
-                    (*data as usize) - (item_start as usize),
-                );
-                push_additional_data(ad, skipped);
-                continue;
-            };
-
-            assert!(field.opt_index >= 0);
-            let flag = 1u64 << (field.opt_index as u32);
-            if ((*ks).is_set_ & flag) != 0 {
-                *error = Some(c"duplicate key".to_owned());
-                return false;
-            }
-            (*ks).is_set_ |= flag;
-
-            let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
-            if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
-                let cur_byte = if *size > 0 { **data } else { 0 };
-                if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
-                    *error = alloc_key_error(key, b" key value which is not a boolean");
-                    return false;
-                }
-                *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
-                *data = (*data).wrapping_add(1);
-                *size -= 1;
-            } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-                if !unpack_integer(data, size, &mut *mem.cast::<Integer>()) {
-                    *error = alloc_key_error(key, b" key value which is not an integer");
-                    return false;
-                }
-            } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
-                let val = unpack_string(data, size);
-                if val.data.is_null() {
-                    *error = alloc_key_error(key, b" key value which is not a binary");
-                    return false;
-                }
-                *mem.cast::<NvimString>() = val;
-            } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
-                let len = unpack_array(data, size);
-                if len < 0 {
-                    *error = alloc_key_error(key, b" key with non-array value");
-                    return false;
-                }
-                let a = &mut *mem.cast::<StringArray>();
-                a.reserve(len as usize);
-                for _ in 0..(len as usize) {
-                    let item = unpack_string(data, size);
-                    if item.data.is_null() {
-                        *error = alloc_key_error(key, b" array with non-binary value");
-                        return false;
-                    }
-                    a.push(item);
-                }
-            } else {
-                std::process::abort();
-            }
+        assert!(field.opt_index >= 0);
+        let flag = 1u64 << (field.opt_index as u32);
+        if unsafe { ((*ks).is_set_ & flag) != 0 } {
+            *error = Some(c"duplicate key".to_owned());
+            return false;
         }
-        true
+        unsafe {
+            (*ks).is_set_ |= flag;
+        }
+
+        let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
+        if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
+            let cur_byte = if *size > 0 { unsafe { **data } } else { 0 };
+            if *size == 0 || (cur_byte & 0xfe) != 0xc2 {
+                *error = alloc_key_error(key, b" key value which is not a boolean");
+                return false;
+            }
+            unsafe {
+                *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0;
+            }
+            *data = (*data).wrapping_add(1);
+            *size -= 1;
+        } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
+            if unsafe { !unpack_integer(data, size, &mut *mem.cast::<Integer>()) } {
+                *error = alloc_key_error(key, b" key value which is not an integer");
+                return false;
+            }
+        } else if field.key_type == (ObjectType::ObjectTypeString as i32) {
+            let val = unpack_string(data, size);
+            if val.data.is_null() {
+                *error = alloc_key_error(key, b" key value which is not a binary");
+                return false;
+            }
+            unsafe {
+                *mem.cast::<NvimString>() = val;
+            }
+        } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
+            let len = unpack_array(data, size);
+            if len < 0 {
+                *error = alloc_key_error(key, b" key with non-array value");
+                return false;
+            }
+            let a = unsafe { &mut *mem.cast::<StringArray>() };
+            a.reserve(len as usize);
+            for _ in 0..(len as usize) {
+                let item = unpack_string(data, size);
+                if item.data.is_null() {
+                    *error = alloc_key_error(key, b" array with non-binary value");
+                    return false;
+                }
+                a.push(item);
+            }
+        } else {
+            std::process::abort();
+        }
     }
+    true
 }
 
 #[cfg(test)]

@@ -456,17 +456,19 @@ pub fn shorten_dir<T>(str_: *mut T) {
 }
 
 pub fn dir_of_file_exists(fname: *mut u8) -> bool {
-    unsafe {
-        let p = path_tail_with_sep(fname.cast()).cast::<u8>();
-        if p == fname {
-            return true;
-        }
-        let c = *p;
-        *p = 0;
-        let retval = os_isdir(fname.cast());
-        *p = c;
-        retval
+    let p = path_tail_with_sep(fname.cast()).cast::<u8>();
+    if p == fname {
+        return true;
     }
+    let c = unsafe { *p };
+    unsafe {
+        *p = 0;
+    }
+    let retval = os_isdir(fname.cast());
+    unsafe {
+        *p = c;
+    }
+    retval
 }
 
 #[inline]
@@ -1569,157 +1571,183 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
 }
 
 pub fn simplify_filename(filename: *mut u8) -> usize {
-    unsafe {
-        let mut components: i32 = 0;
-        let mut stripping_disabled = false;
-        let mut relative = true;
+    let mut components: i32 = 0;
+    let mut stripping_disabled = false;
+    let mut relative = true;
 
-        let mut p = filename;
-        #[cfg(windows)]
-        if crate::memory::cstr_as_bytes(p.cast()).get(1) == Some(&b':') {
-            p = p.wrapping_add(2);
+    let mut p = filename;
+    #[cfg(windows)]
+    if crate::memory::cstr_as_bytes(p.cast()).get(1) == Some(&b':') {
+        p = p.wrapping_add(2);
+    }
+
+    if vim_ispathsep(crate::memory::cstr_first_byte(p.cast())) {
+        relative = false;
+        p = path_skip_sep(p.cast(), true).cast();
+    }
+    #[cfg(unix)]
+    let mut start = p;
+    #[cfg(not(unix))]
+    let start = p;
+    let mut p_end = p.wrapping_add(crate::memory::cstr_len(p.cast()));
+
+    #[cfg(unix)]
+    if start > filename.wrapping_add(2) {
+        let move_len = crate::memory::ptr_offset_from(p_end, p) as usize + 1;
+        unsafe {
+            ptr::copy(p, filename.wrapping_add(1), move_len);
         }
+        p_end = p_end
+            .wrapping_sub(crate::memory::ptr_offset_from(p, filename.wrapping_add(1)) as usize);
+        p = filename.wrapping_add(1);
+        start = p;
+    }
 
+    loop {
         if vim_ispathsep(crate::memory::cstr_first_byte(p.cast())) {
-            relative = false;
-            p = path_skip_sep(p.cast(), true).cast();
-        }
-        #[cfg(unix)]
-        let mut start = p;
-        #[cfg(not(unix))]
-        let start = p;
-        let mut p_end = p.wrapping_add(crate::memory::cstr_len(p.cast()));
-
-        #[cfg(unix)]
-        if start > filename.add(2) {
-            let move_len = p_end.offset_from(p) as usize + 1;
-            ptr::copy(p, filename.add(1), move_len);
-            p_end = p_end.sub(p.offset_from(filename.add(1)) as usize);
-            p = filename.add(1);
-            start = p;
-        }
-
-        loop {
-            if vim_ispathsep(crate::memory::cstr_first_byte(p.cast())) {
-                let move_len =
-                    crate::memory::ptr_offset_from(p_end, p.wrapping_add(1)) as usize + 1;
+            let move_len = crate::memory::ptr_offset_from(p_end, p.wrapping_add(1)) as usize + 1;
+            unsafe {
                 ptr::copy(p.wrapping_add(1), p, move_len);
-                p_end = p_end.wrapping_sub(1);
-            } else if crate::memory::cstr_first_byte(p.cast()) == b'.'
-                && crate::memory::cstr_as_bytes(p.cast())
-                    .get(1)
-                    .is_none_or(|&b| vim_ispathsep(i32::from(b)))
-            {
-                let has_b1 = crate::memory::cstr_len(p.cast()) > 1;
-                if p == start && relative {
-                    p = p.wrapping_add(1 + usize::from(has_b1));
-                } else {
-                    let mut tail = p.wrapping_add(1);
-                    if has_b1 {
-                        tail = path_skip_sep(tail.cast(), true).cast();
-                    } else if p > start {
-                        p = p.wrapping_sub(1);
-                    }
-                    let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                    ptr::copy(tail, p, move_len);
-                    p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
+            }
+            p_end = p_end.wrapping_sub(1);
+        } else if crate::memory::cstr_first_byte(p.cast()) == b'.'
+            && crate::memory::cstr_as_bytes(p.cast())
+                .get(1)
+                .is_none_or(|&b| vim_ispathsep(i32::from(b)))
+        {
+            let has_b1 = crate::memory::cstr_len(p.cast()) > 1;
+            if p == start && relative {
+                p = p.wrapping_add(1 + usize::from(has_b1));
+            } else {
+                let mut tail = p.wrapping_add(1);
+                if has_b1 {
+                    tail = path_skip_sep(tail.cast(), true).cast();
+                } else if p > start {
+                    p = p.wrapping_sub(1);
                 }
-            } else if crate::memory::cstr_as_bytes(p.cast()).starts_with(b"..")
-                && crate::memory::cstr_as_bytes(p.cast())
-                    .get(2)
-                    .is_none_or(|&b| vim_ispathsep(i32::from(b)))
-            {
-                let mut tail = path_skip_sep(p.wrapping_add(2).cast(), true).cast::<u8>();
+                let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
+                unsafe {
+                    ptr::copy(tail, p, move_len);
+                }
+                p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
+            }
+        } else if crate::memory::cstr_as_bytes(p.cast()).starts_with(b"..")
+            && crate::memory::cstr_as_bytes(p.cast())
+                .get(2)
+                .is_none_or(|&b| vim_ispathsep(i32::from(b)))
+        {
+            let mut tail = path_skip_sep(p.wrapping_add(2).cast(), true).cast::<u8>();
 
-                if components > 0 {
-                    let mut do_strip = false;
+            if components > 0 {
+                let mut do_strip = false;
 
-                    if !stripping_disabled {
-                        let saved_char = *p.wrapping_sub(1);
+                if !stripping_disabled {
+                    let saved_char = unsafe { *p.wrapping_sub(1) };
+                    unsafe {
                         *p.wrapping_sub(1) = 0;
-                        let mut file_info: FileInfo = FileInfo::new();
-                        if !os_fileinfo_link(filename.cast(), &mut file_info) {
-                            do_strip = true;
-                        }
+                    }
+                    let mut file_info: FileInfo = FileInfo::new();
+                    if !os_fileinfo_link(filename.cast(), &mut file_info) {
+                        do_strip = true;
+                    }
+                    unsafe {
                         *p.wrapping_sub(1) = saved_char;
+                    }
 
-                        p = p.wrapping_sub(1);
-                        while p > start && after_pathsep(start.cast(), p.cast()) == 0 {
-                            let off = utf_head_off(start.cast(), p.wrapping_sub(1).cast()) + 1;
-                            p = p.wrapping_sub(off as usize);
-                        }
-
-                        if !do_strip {
-                            let saved_char = *tail;
-                            *tail = 0;
-                            if os_fileinfo(filename.cast(), &mut file_info) {
-                                do_strip = true;
-                            } else {
-                                stripping_disabled = true;
-                            }
-                            *tail = saved_char;
-                            if do_strip {
-                                let mut new_file_info: FileInfo = FileInfo::new();
-                                if p == start && relative {
-                                    os_fileinfo(c".", &mut new_file_info);
-                                } else {
-                                    let saved_char = *p;
-                                    *p = 0;
-                                    os_fileinfo(filename.cast(), &mut new_file_info);
-                                    *p = saved_char;
-                                }
-
-                                if !os_fileinfo_id_equal(&file_info, &new_file_info) {
-                                    do_strip = false;
-                                }
-                            }
-                        }
+                    p = p.wrapping_sub(1);
+                    while p > start && after_pathsep(start.cast(), p.cast()) == 0 {
+                        let off = utf_head_off(start.cast(), p.wrapping_sub(1).cast()) + 1;
+                        p = p.wrapping_sub(off as usize);
                     }
 
                     if !do_strip {
-                        p = tail;
-                        components = 0;
-                    } else {
-                        if p == start && relative && *tail.wrapping_sub(1) == b'.' {
-                            *p = b'.';
-                            p = p.wrapping_add(1);
-                            *p = 0;
-                        } else {
-                            if p > start && *tail.wrapping_sub(1) == b'.' {
-                                p = p.wrapping_sub(1);
-                            }
-                            let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                            ptr::copy(tail, p, move_len);
-                            p_end = p_end
-                                .wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
+                        let saved_char = unsafe { *tail };
+                        unsafe {
+                            *tail = 0;
                         }
-                        components -= 1;
-                    }
-                } else if p == start && !relative {
-                    let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
-                    ptr::copy(tail, p, move_len);
-                    p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
-                } else {
-                    if p == start.wrapping_add(2) && *p.wrapping_sub(2) == b'.' {
-                        let move_len = crate::memory::ptr_offset_from(p_end, p) as usize + 1;
-                        ptr::copy(p, p.wrapping_sub(2), move_len);
-                        p_end = p_end.wrapping_sub(2);
-                        tail = tail.wrapping_sub(2);
-                    }
-                    p = tail;
-                }
-            } else {
-                components += 1;
-                p = path_next_component(p.cast()).cast_mut().cast();
-            }
+                        if os_fileinfo(filename.cast(), &mut file_info) {
+                            do_strip = true;
+                        } else {
+                            stripping_disabled = true;
+                        }
+                        unsafe {
+                            *tail = saved_char;
+                        }
+                        if do_strip {
+                            let mut new_file_info: FileInfo = FileInfo::new();
+                            if p == start && relative {
+                                os_fileinfo(c".", &mut new_file_info);
+                            } else {
+                                let saved_char = unsafe { *p };
+                                unsafe {
+                                    *p = 0;
+                                }
+                                os_fileinfo(filename.cast(), &mut new_file_info);
+                                unsafe {
+                                    *p = saved_char;
+                                }
+                            }
 
-            if crate::memory::cstr_is_empty(p.cast()) {
-                break;
+                            if !os_fileinfo_id_equal(&file_info, &new_file_info) {
+                                do_strip = false;
+                            }
+                        }
+                    }
+                }
+
+                if !do_strip {
+                    p = tail;
+                    components = 0;
+                } else {
+                    if p == start && relative && unsafe { *tail.wrapping_sub(1) == b'.' } {
+                        unsafe {
+                            *p = b'.';
+                        }
+                        p = p.wrapping_add(1);
+                        unsafe {
+                            *p = 0;
+                        }
+                    } else {
+                        if p > start && unsafe { *tail.wrapping_sub(1) == b'.' } {
+                            p = p.wrapping_sub(1);
+                        }
+                        let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
+                        unsafe {
+                            ptr::copy(tail, p, move_len);
+                        }
+                        p_end =
+                            p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
+                    }
+                    components -= 1;
+                }
+            } else if p == start && !relative {
+                let move_len = crate::memory::ptr_offset_from(p_end, tail) as usize + 1;
+                unsafe {
+                    ptr::copy(tail, p, move_len);
+                }
+                p_end = p_end.wrapping_sub(crate::memory::ptr_offset_from(tail, p) as usize);
+            } else {
+                if p == start.wrapping_add(2) && unsafe { *p.wrapping_sub(2) == b'.' } {
+                    let move_len = crate::memory::ptr_offset_from(p_end, p) as usize + 1;
+                    unsafe {
+                        ptr::copy(p, p.wrapping_sub(2), move_len);
+                    }
+                    p_end = p_end.wrapping_sub(2);
+                    tail = tail.wrapping_sub(2);
+                }
+                p = tail;
             }
+        } else {
+            components += 1;
+            p = path_next_component(p.cast()).cast_mut().cast();
         }
 
-        crate::memory::ptr_offset_from(p_end, filename) as usize
+        if crate::memory::cstr_is_empty(p.cast()) {
+            break;
+        }
     }
+
+    crate::memory::ptr_offset_from(p_end, filename) as usize
 }
 
 pub fn path_has_drive_letter(bytes: &[u8]) -> bool {

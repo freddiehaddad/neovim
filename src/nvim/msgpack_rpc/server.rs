@@ -119,12 +119,11 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
 }
 
 fn set_vservername(srvs: &[*mut SocketWatcher]) {
-    unsafe {
-        let default_server = srvs
-            .first()
-            .map_or(ptr::null(), |&first| (*first).addr_cstr().as_ptr());
-        set_vim_var_string(VV_SEND_SERVER, default_server, -1);
-    }
+    let default_server = unsafe {
+        srvs.first()
+            .map_or(ptr::null(), |&first| (*first).addr_cstr().as_ptr())
+    };
+    set_vim_var_string(VV_SEND_SERVER, default_server, -1);
 }
 
 pub fn server_teardown() {
@@ -185,57 +184,57 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 }
 
 pub fn server_owns_pipe_address(address: &CStr) -> bool {
-    unsafe {
-        let path = fix_fname(address.as_ptr());
-        for &watcher in watchers_mut().iter() {
-            let addr = fix_fname((*watcher).addr_cstr().as_ptr());
-            if path == addr {
-                return true;
-            }
+    let path = fix_fname(address.as_ptr());
+    for &watcher in watchers_mut().iter() {
+        let addr = unsafe { fix_fname((*watcher).addr_cstr().as_ptr()) };
+        if path == addr {
+            return true;
         }
-        false
     }
+    false
 }
 
 pub fn server_start(addr: Option<&CStr>) -> i32 {
-    unsafe {
-        let Some(addr) = addr.filter(|s| !s.to_bytes().is_empty()) else {
-            logmsg!(
-                LOGLVL_WRN,
-                ptr::null(),
-                c"server_start",
-                167,
-                true,
-                c"Empty or NULL address",
-            );
-            return 1;
-        };
+    let Some(addr) = addr.filter(|s| !s.to_bytes().is_empty()) else {
+        logmsg!(
+            LOGLVL_WRN,
+            ptr::null(),
+            c"server_start",
+            167,
+            true,
+            c"Empty or NULL address",
+        );
+        return 1;
+    };
 
-        let isname = !addr
-            .to_bytes()
-            .iter()
-            .any(|b| matches!(b, b':' | b'/' | b'\\'));
-        let addr_gen = if isname {
-            Some(server_address_new(Some(addr)))
-        } else {
-            None
-        };
-        let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
-        let endpoint = addr_gen.as_deref().unwrap_or(addr);
-        let mut result = socket_watcher_init(
+    let isname = !addr
+        .to_bytes()
+        .iter()
+        .any(|b| matches!(b, b':' | b'/' | b'\\'));
+    let addr_gen = if isname {
+        Some(server_address_new(Some(addr)))
+    } else {
+        None
+    };
+    let watcher = Box::into_raw(Box::new(SocketWatcher::new()));
+    let endpoint = addr_gen.as_deref().unwrap_or(addr);
+    let mut result = unsafe {
+        socket_watcher_init(
             &mut *ptr::addr_of_mut!(g_st().main_loop).cast(),
             &mut *watcher,
             endpoint,
-        );
-        drop(addr_gen);
-        if result < 0 {
-            let _ = Box::from_raw(watcher);
-            return result;
-        }
+        )
+    };
+    drop(addr_gen);
+    if result < 0 {
+        let _ = unsafe { Box::from_raw(watcher) };
+        return result;
+    }
 
-        let w = watchers_mut();
-        for &existing in w.iter() {
-            if (*watcher).addr_bytes() == (*existing).addr_bytes() {
+    let w = watchers_mut();
+    for &existing in w.iter() {
+        if unsafe { (*watcher).addr_bytes() == (*existing).addr_bytes() } {
+            unsafe {
                 logmsg!(
                     LOGLVL_ERR,
                     ptr::null(),
@@ -245,16 +244,24 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                     c"Already listening on %s",
                     (*watcher).addr_cstr().as_ptr(),
                 );
-                if uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP {
+            }
+            if unsafe { uv_handle_get_type((*watcher).stream_ptr().cast()) == UV_TCP } {
+                unsafe {
                     uv_freeaddrinfo((*watcher).tcp_addrinfo.cast());
                 }
-                socket_watcher_close(&mut *watcher);
-                return 2;
             }
+            unsafe {
+                socket_watcher_close(&mut *watcher);
+            }
+            return 2;
         }
+    }
 
+    unsafe {
         result = socket_watcher_start(&mut *watcher, MAX_CONNECTIONS);
-        if result < 0 {
+    }
+    if result < 0 {
+        unsafe {
             logmsg!(
                 LOGLVL_WRN,
                 ptr::null(),
@@ -265,57 +272,59 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 uv_strerror(result),
                 (*watcher).addr_cstr().as_ptr(),
             );
+        }
+        unsafe {
             socket_watcher_close(&mut *watcher);
-            return result;
         }
-
-        w.push(watcher);
-
-        if crate::memory::cstr_as_bytes(get_vim_var_str(VV_SEND_SERVER)).is_empty() {
-            set_vservername(w);
-        }
-
-        0
+        return result;
     }
+
+    w.push(watcher);
+
+    if crate::memory::cstr_as_bytes(get_vim_var_str(VV_SEND_SERVER)).is_empty() {
+        set_vservername(w);
+    }
+
+    0
 }
 
 pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
-    unsafe {
-        let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
+    let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
-        crate::memory::copy_bytes_to_c_buf(&mut addr, endpoint.to_bytes());
-        to_slash(addr.as_mut_ptr().cast());
-        let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
-        let addr_bytes = addr_cstr.to_bytes();
+    crate::memory::copy_bytes_to_c_buf(&mut addr, endpoint.to_bytes());
+    to_slash(addr.as_mut_ptr().cast());
+    let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
+    let addr_bytes = addr_cstr.to_bytes();
 
-        let w = watchers_mut();
-        let Some(idx) = w
-            .iter()
+    let w = watchers_mut();
+    let Some(idx) = (unsafe {
+        w.iter()
             .position(|&watcher| addr_bytes == (*watcher).addr_bytes())
-        else {
-            logmsg!(
-                LOGLVL_WRN,
-                ptr::null(),
-                c"server_stop",
-                238,
-                true,
-                c"Not listening on %s",
-                addr_cstr.as_ptr(),
-            );
-            return false;
-        };
+    }) else {
+        logmsg!(
+            LOGLVL_WRN,
+            ptr::null(),
+            c"server_stop",
+            238,
+            true,
+            c"Not listening on %s",
+            addr_cstr.as_ptr(),
+        );
+        return false;
+    };
 
-        let watcher = w.swap_remove(idx);
+    let watcher = w.swap_remove(idx);
+    unsafe {
         socket_watcher_close(&mut *watcher);
-
-        if !keep_vservername
-            && Some(addr_bytes) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))
-        {
-            set_vservername(w);
-        }
-
-        true
     }
+
+    if !keep_vservername
+        && Some(addr_bytes) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))
+    {
+        set_vservername(w);
+    }
+
+    true
 }
 
 pub fn server_address_list() -> Vec<std::ffi::CString> {

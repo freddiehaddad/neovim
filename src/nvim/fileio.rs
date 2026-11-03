@@ -4552,34 +4552,34 @@ pub fn delete_recursive(name: impl crate::strings::IntoCCharPtr) -> i32 {
 
 #[cfg(unix)]
 fn vim_opentempdir() {
+    if !fio_st().vim_tempdir_dp.is_null() {
+        return;
+    }
+
+    let Some(ref td) = fio_st().vim_tempdir else {
+        return;
+    };
+    let dp = unsafe { opendir(td.as_ptr().cast()) };
+    if dp.is_null() {
+        return;
+    }
+
+    fio_st().vim_tempdir_dp = dp;
     unsafe {
-        if !fio_st().vim_tempdir_dp.is_null() {
-            return;
-        }
-
-        let Some(ref td) = fio_st().vim_tempdir else {
-            return;
-        };
-        let dp = opendir(td.as_ptr().cast());
-        if dp.is_null() {
-            return;
-        }
-
-        fio_st().vim_tempdir_dp = dp;
         flock(dirfd(fio_st().vim_tempdir_dp), LOCK_SH);
     }
 }
 
 #[cfg(unix)]
 fn vim_closetempdir() {
-    unsafe {
-        if fio_st().vim_tempdir_dp.is_null() {
-            return;
-        }
-
-        closedir(fio_st().vim_tempdir_dp);
-        fio_st().vim_tempdir_dp = ptr::null_mut();
+    if fio_st().vim_tempdir_dp.is_null() {
+        return;
     }
+
+    unsafe {
+        closedir(fio_st().vim_tempdir_dp);
+    }
+    fio_st().vim_tempdir_dp = ptr::null_mut();
 }
 
 /// Delete the temp directory and all files it contains.

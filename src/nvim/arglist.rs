@@ -212,27 +212,31 @@ pub fn alist_new() {
 
 /// Set the argument list for the current window (`alist_set`).
 fn alist_set(al: *mut Alist, files: Vec<CString>, use_curbuf: i32) {
+    if !check_arglist_locked() {
+        return;
+    }
+
     unsafe {
-        if !check_arglist_locked() {
-            return;
+        alist_clear(&mut *al);
+    }
+    unsafe {
+        (*al).al_ga.reserve(files.len());
+    }
+    for fname in files {
+        if g_st().got_int {
+            break;
         }
 
-        alist_clear(&mut *al);
-        (*al).al_ga.reserve(files.len());
-        for fname in files {
-            if g_st().got_int {
-                break;
-            }
-
-            if !fname.as_bytes().is_empty() {
+        if !fname.as_bytes().is_empty() {
+            unsafe {
                 alist_add(&mut *al, fname, if use_curbuf != 0 { 2 } else { 1 });
             }
-            os_breakcheck();
         }
+        os_breakcheck();
+    }
 
-        if ptr::eq(al, &raw const g_st().global_alist) {
-            g_st().arg_had_last = false;
-        }
+    if ptr::eq(al, &raw const g_st().global_alist) {
+        g_st().arg_had_last = false;
     }
 }
 
@@ -892,141 +896,148 @@ pub fn alist_name(aep: &Aentry) -> Option<&'static CStr> {
 
 /// Close all the windows containing files which are not in the argument list (`arg_all_close_unused_windows`).
 fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
-    unsafe {
-        let old_curwin = curwin_ptr();
-        let old_curtab = g_st().curtab;
+    let old_curwin = curwin_ptr();
+    let old_curtab = g_st().curtab;
 
-        if aall.had_tab > 0 {
-            goto_tabpage_tp(g_st().first_tabpage, true, true);
-        }
+    if aall.had_tab > 0 {
+        goto_tabpage_tp(g_st().first_tabpage, true, true);
+    }
 
-        g_st().tabpage_move_disallowed += 1;
-        loop {
-            let mut tpnext = curtab_mut().tp_next;
-            let mut wp = if lastwin_mut().w_floating {
-                g_st().lastwin
-            } else {
-                g_st().firstwin
-            };
-            while !wp.is_null() {
-                let mut wpnext = if (*wp).w_floating {
-                    if !(*wp).w_prev.is_null() && (*(*wp).w_prev).w_floating {
-                        (*wp).w_prev
-                    } else {
-                        g_st().firstwin
-                    }
-                } else if (*wp).w_next.is_null() || (*(*wp).w_next).w_floating {
-                    ptr::null_mut()
+    g_st().tabpage_move_disallowed += 1;
+    loop {
+        let mut tpnext = curtab_mut().tp_next;
+        let mut wp = if lastwin_mut().w_floating {
+            g_st().lastwin
+        } else {
+            g_st().firstwin
+        };
+        while !wp.is_null() {
+            let mut wpnext = if unsafe { (*wp).w_floating } {
+                if unsafe { !(*wp).w_prev.is_null() } && unsafe { (*(*wp).w_prev).w_floating } {
+                    unsafe { (*wp).w_prev }
                 } else {
-                    (*wp).w_next
-                };
-                let buf = (*wp).w_buffer;
-                let buf = &mut *buf;
-                let aall_ref = &mut *aall;
-                let opened_len = aall_ref.opened.len() as i32;
-                let mut i: i32;
-                if buf.b_ffname.is_null()
-                    || (!aall_ref.keep_tabs
+                    g_st().firstwin
+                }
+            } else if unsafe { (*wp).w_next.is_null() } || unsafe { (*(*wp).w_next).w_floating } {
+                ptr::null_mut()
+            } else {
+                unsafe { (*wp).w_next }
+            };
+            let buf = unsafe { (*wp).w_buffer };
+            let buf = unsafe { &mut *buf };
+            let aall_ref = &mut *aall;
+            let opened_len = aall_ref.opened.len() as i32;
+            let mut i: i32;
+            if buf.b_ffname.is_null()
+                || (unsafe {
+                    !aall_ref.keep_tabs
                         && (buf.b_nwindows > 1
                             || (*wp).w_width != g_st().columns_global
-                            || ((*wp).w_floating && !is_ctx_win(wp))))
-                {
-                    i = opened_len;
-                } else {
-                    i = 0;
-                    while i < opened_len {
-                        let al = aall_ref.alist;
-                        if (i as usize) < (*al).al_ga.len() {
-                            let entry = aarglist(&mut *al).wrapping_add(i as usize);
-                            if (*entry).ae_fnum == buf.b_fnum
-                                || path_equal(
+                            || ((*wp).w_floating && !is_ctx_win(wp)))
+                })
+            {
+                i = opened_len;
+            } else {
+                i = 0;
+                while i < opened_len {
+                    let al = aall_ref.alist;
+                    if unsafe { (i as usize) < (*al).al_ga.len() } {
+                        let entry = unsafe { aarglist(&mut *al).wrapping_add(i as usize) };
+                        if unsafe { (*entry).ae_fnum == buf.b_fnum }
+                            || unsafe {
+                                path_equal(
                                     alist_name(&*entry).map_or(ptr::null(), CStr::as_ptr),
                                     buf.b_ffname,
                                     K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                                 )
-                            {
-                                let mut weight: i32 = 1;
-                                if old_curtab == g_st().curtab {
+                            }
+                        {
+                            let mut weight: i32 = 1;
+                            if old_curtab == g_st().curtab {
+                                weight += 1;
+                                if old_curwin == wp {
                                     weight += 1;
-                                    if old_curwin == wp {
-                                        weight += 1;
-                                    }
                                 }
+                            }
 
-                                if weight > i32::from(aall_ref.opened[i as usize]) {
-                                    aall_ref.opened[i as usize] = weight as u8;
-                                    if i == 0 {
-                                        if !aall_ref.new_curwin.is_null() {
+                            if weight > i32::from(aall_ref.opened[i as usize]) {
+                                aall_ref.opened[i as usize] = weight as u8;
+                                if i == 0 {
+                                    if !aall_ref.new_curwin.is_null() {
+                                        unsafe {
                                             (*aall_ref.new_curwin).w_arg_idx = opened_len;
                                         }
-                                        aall_ref.new_curwin = wp;
-                                        aall_ref.new_curtab = g_st().curtab;
                                     }
-                                } else if aall_ref.keep_tabs {
-                                    i = opened_len;
+                                    aall_ref.new_curwin = wp;
+                                    aall_ref.new_curtab = g_st().curtab;
                                 }
+                            } else if aall_ref.keep_tabs {
+                                i = opened_len;
+                            }
 
-                                if !ptr::eq(win_alist(&*wp), al) {
+                            if unsafe { !ptr::eq(win_alist(&*wp), al) } {
+                                unsafe {
                                     (*wp).w_alist = aall_ref.local_alist.clone();
                                 }
-                                break;
                             }
+                            break;
                         }
-                        i += 1;
                     }
+                    i += 1;
                 }
+            }
+            unsafe {
                 (*wp).w_arg_idx = i;
+            }
 
-                if i == opened_len
-                    && !aall_ref.keep_tabs
-                    && (buf_hide(&*buf)
-                        || aall_ref.forceit
-                        || buf.b_nwindows > 1
-                        || !buf_is_changed_fn(&mut *buf))
-                {
-                    if !buf_hide(&*buf) && buf.b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
-                        let mut bufref: Bufref = Bufref::new();
-                        set_bufref(&mut bufref, buf);
-                        autowrite(&mut *buf, false);
-                        if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
-                            wp = if lastwin_mut().w_floating {
-                                g_st().lastwin
-                            } else {
-                                g_st().firstwin
-                            };
-                            continue;
-                        }
-                    }
-                    if g_st().firstwin == g_st().lastwin
-                        && (crate::globals::first_tabpage_mut().tp_next.is_null()
-                            || aall.had_tab == 0)
-                    {
-                        aall.use_firstwin = true;
-                    } else {
-                        win_close(wp, !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf), false);
-                        if !win_valid(wpnext) {
-                            wpnext = if lastwin_mut().w_floating {
-                                g_st().lastwin
-                            } else {
-                                g_st().firstwin
-                            };
-                        }
+            if i == opened_len
+                && !aall_ref.keep_tabs
+                && (buf_hide(&*buf)
+                    || aall_ref.forceit
+                    || buf.b_nwindows > 1
+                    || !buf_is_changed_fn(&mut *buf))
+            {
+                if !buf_hide(&*buf) && buf.b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
+                    let mut bufref: Bufref = Bufref::new();
+                    set_bufref(&mut bufref, buf);
+                    autowrite(&mut *buf, false);
+                    if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
+                        wp = if lastwin_mut().w_floating {
+                            g_st().lastwin
+                        } else {
+                            g_st().firstwin
+                        };
+                        continue;
                     }
                 }
-                wp = wpnext;
+                if g_st().firstwin == g_st().lastwin
+                    && (crate::globals::first_tabpage_mut().tp_next.is_null() || aall.had_tab == 0)
+                {
+                    aall.use_firstwin = true;
+                } else {
+                    win_close(wp, !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf), false);
+                    if !win_valid(wpnext) {
+                        wpnext = if lastwin_mut().w_floating {
+                            g_st().lastwin
+                        } else {
+                            g_st().firstwin
+                        };
+                    }
+                }
             }
-
-            if aall.had_tab == 0 || tpnext.is_null() {
-                break;
-            }
-
-            if !valid_tabpage(tpnext) {
-                tpnext = g_st().first_tabpage;
-            }
-            goto_tabpage_tp(tpnext, true, true);
+            wp = wpnext;
         }
-        g_st().tabpage_move_disallowed -= 1;
+
+        if aall.had_tab == 0 || tpnext.is_null() {
+            break;
+        }
+
+        if !valid_tabpage(tpnext) {
+            tpnext = g_st().first_tabpage;
+        }
+        goto_tabpage_tp(tpnext, true, true);
     }
+    g_st().tabpage_move_disallowed -= 1;
 }
 
 /// Open up to `count` windows for the files in the argument list `aall->alist` (`arg_all_open_windows`).

@@ -415,8 +415,8 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
 }
 
 pub fn free_channel_event(chan: *mut Channel) {
+    let _ = unsafe { g_st().channels.remove(&(*chan).id) };
     unsafe {
-        let _ = g_st().channels.remove(&(*chan).id);
         drop(Box::from_raw(chan));
     }
 }
@@ -459,131 +459,167 @@ pub fn channel_job_start(
     env: *mut TvDict,
     status_out: *mut Varnumber,
 ) -> *mut Channel {
-    unsafe {
-        let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-        let chan = &mut *chan;
-        chan.on_data = on_stdout;
-        chan.on_stderr = on_stderr;
-        chan.on_exit = on_exit;
+    let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
+    let chan = unsafe { &mut *chan };
+    chan.on_data = on_stdout;
+    chan.on_stderr = on_stderr;
+    chan.on_exit = on_exit;
 
-        let proc_ptr = &raw mut chan.uv.proc_;
-        if pty {
-            if detach {
-                {
-                    semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
-                    if !env.is_null() {
-                        tv_dict_free(env);
-                    }
+    let proc_ptr = &raw mut chan.uv.proc_;
+    if pty {
+        if detach {
+            {
+                semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
+                if !env.is_null() {
+                    tv_dict_free(env);
                 }
-                drop(argv);
-                channel_destroy_early(&mut *chan);
+            }
+            drop(argv);
+            channel_destroy_early(&mut *chan);
+            unsafe {
                 *status_out = 0;
-                return ptr::null_mut();
             }
-            chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
-            chan.uv.proc_.data = chan;
-            {
-                chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
-            }
-            chan.uv.proc_.status = -1;
-            chan.uv.proc_.out.s.fd = STDOUT_FILENO;
-            chan.uv.proc_.err.s.fd = STDERR_FILENO;
-            chan.uv.proc_.width = if pty_width > 0 { pty_width } else { 80 };
-            chan.uv.proc_.height = if pty_height > 0 { pty_height } else { 24 };
-            #[cfg(not(windows))]
-            {
-                chan.uv.proc_.tty_fd = -1;
-            }
-        } else {
-            chan.uv.proc_.r#type = K_PROC_TYPE_UV;
-            chan.uv.proc_.data = chan;
-            {
-                chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
-            }
-            chan.uv.proc_.status = -1;
-            chan.uv.proc_.out.s.fd = STDOUT_FILENO;
-            chan.uv.proc_.err.s.fd = STDERR_FILENO;
+            return ptr::null_mut();
         }
-
-        let ph = proc_ptr;
-        let pt = proc_ptr;
-        (*ph).argv = argv;
-        (*ph).exepath = exepath.map(CStr::to_owned);
-        (*pt).events = chan.events;
-        (*pt).detach = detach;
-        (*ph).cwd = cwd.map(CStr::to_owned);
-        (*ph).env = env;
-        (*pt).overlapped = overlapped;
-        #[cfg(windows)]
+        chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
+        chan.uv.proc_.data = chan;
         {
+            chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
+        }
+        chan.uv.proc_.status = -1;
+        chan.uv.proc_.out.s.fd = STDOUT_FILENO;
+        chan.uv.proc_.err.s.fd = STDERR_FILENO;
+        chan.uv.proc_.width = if pty_width > 0 { pty_width } else { 80 };
+        chan.uv.proc_.height = if pty_height > 0 { pty_height } else { 24 };
+        #[cfg(not(windows))]
+        {
+            chan.uv.proc_.tty_fd = -1;
+        }
+    } else {
+        chan.uv.proc_.r#type = K_PROC_TYPE_UV;
+        chan.uv.proc_.data = chan;
+        {
+            chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
+        }
+        chan.uv.proc_.status = -1;
+        chan.uv.proc_.out.s.fd = STDOUT_FILENO;
+        chan.uv.proc_.err.s.fd = STDERR_FILENO;
+    }
+
+    let ph = proc_ptr;
+    let pt = proc_ptr;
+    unsafe {
+        (*ph).argv = argv;
+    }
+    unsafe {
+        (*ph).exepath = exepath.map(CStr::to_owned);
+    }
+    unsafe {
+        (*pt).events = chan.events;
+    }
+    unsafe {
+        (*pt).detach = detach;
+    }
+    unsafe {
+        (*ph).cwd = cwd.map(CStr::to_owned);
+    }
+    unsafe {
+        (*ph).env = env;
+    }
+    unsafe {
+        (*pt).overlapped = overlapped;
+    }
+    #[cfg(windows)]
+    {
+        unsafe {
             (*pt).stdio_noinherit = true;
         }
+    }
 
-        let cmd = (*ph)
+    let cmd = unsafe {
+        (*ph)
             .exepath
             .clone()
-            .unwrap_or_else(|| (*ph).argv.as_slice()[0].clone());
+            .unwrap_or_else(|| (*ph).argv.as_slice()[0].clone())
+    };
 
-        let (has_out, has_err) = if (*ph).r#type == K_PROC_TYPE_PTY {
-            (true, false)
-        } else {
-            let out = rpc || callback_reader_set(&chan.on_data);
-            #[cfg(windows)]
-            let mut err = callback_reader_set(&chan.on_stderr);
-            #[cfg(not(windows))]
-            let err = callback_reader_set(&chan.on_stderr);
+    let (has_out, has_err) = if unsafe { (*ph).r#type == K_PROC_TYPE_PTY } {
+        (true, false)
+    } else {
+        let out = rpc || callback_reader_set(&chan.on_data);
+        #[cfg(windows)]
+        let mut err = callback_reader_set(&chan.on_stderr);
+        #[cfg(not(windows))]
+        let err = callback_reader_set(&chan.on_stderr);
+        unsafe {
             (*pt).fwd_err = chan.on_stderr.fwd_err;
-            #[cfg(windows)]
-            if !err && (*pt).fwd_err && (*pt).detach {
-                err = true;
+        }
+        #[cfg(windows)]
+        if !err && unsafe { (*pt).fwd_err } && unsafe { (*pt).detach } {
+            err = true;
+            unsafe {
                 (*pt).fwd_err = false;
             }
-            (out, err)
-        };
+        }
+        (out, err)
+    };
 
-        let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
+    let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
 
-        let status = proc_spawn(&mut *proc_ptr, has_in, has_out, has_err);
-        if status != 0 {
-            {
+    let status = unsafe { proc_spawn(&mut *proc_ptr, has_in, has_out, has_err) };
+    if status != 0 {
+        {
+            unsafe {
                 semsg!(gettext(E_JOBSPAWN), uv_strerror(status), cmd.as_ptr(),);
-                if !(*ph).env.is_null() {
+            }
+            if unsafe { !(*ph).env.is_null() } {
+                unsafe {
                     tv_dict_free((*ph).env);
                 }
             }
-            channel_destroy_early(&mut *chan);
-            *status_out = Varnumber::from((*ph).status);
-            return ptr::null_mut();
         }
+        channel_destroy_early(&mut *chan);
+        unsafe {
+            *status_out = Varnumber::from((*ph).status);
+        }
+        return ptr::null_mut();
+    }
 
-        drop(cmd);
-        if !(*ph).env.is_null() {
+    drop(cmd);
+    if unsafe { !(*ph).env.is_null() } {
+        unsafe {
             tv_dict_free((*ph).env);
         }
+    }
 
-        if has_in {
-            wstream_init(&mut chan.uv.proc_.r#in, 0);
-        }
-        if has_out {
-            rstream_init(&mut chan.uv.proc_.out);
-        }
+    if has_in {
+        wstream_init(&mut chan.uv.proc_.r#in, 0);
+    }
+    if has_out {
+        rstream_init(&mut chan.uv.proc_.out);
+    }
 
-        if rpc {
-            rpc_start(&mut *chan);
-        } else if has_out {
-            callback_reader_start(&mut chan.on_data, c"stdout");
+    if rpc {
+        rpc_start(&mut *chan);
+    } else if has_out {
+        callback_reader_start(&mut chan.on_data, c"stdout");
+        unsafe {
             rstream_start(&mut (*proc_ptr).out, StreamCbData::ChannelData(chan));
         }
+    }
 
-        if has_err {
-            callback_reader_start(&mut chan.on_stderr, c"stderr");
-            rstream_init(&mut chan.uv.proc_.err);
+    if has_err {
+        callback_reader_start(&mut chan.on_stderr, c"stderr");
+        rstream_init(&mut chan.uv.proc_.err);
+        unsafe {
             rstream_start(&mut (*proc_ptr).err, StreamCbData::ChannelStderr(chan));
         }
-
-        *status_out = chan.id as Varnumber;
-        chan
     }
+
+    unsafe {
+        *status_out = chan.id as Varnumber;
+    }
+    chan
 }
 
 pub fn channel_connect(
@@ -937,10 +973,8 @@ pub(crate) fn channel_proc_exit_cb(proc_: *mut Proc, status: i32, chan: &mut Cha
 
 #[cfg(unix)]
 pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mut Channel) {
-    unsafe {
-        if !chan.term.is_null() {
-            terminal_set_state(&mut *chan.term, suspended);
-        }
+    if let Some(term) = unsafe { chan.term.as_mut() } {
+        terminal_set_state(term, suspended);
     }
 }
 
@@ -1159,18 +1193,18 @@ pub fn channel_job_running(id: u64) -> bool {
 }
 
 pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
+    let chan = find_channel(id);
+    if chan.is_null() {
+        return Dict {
+            items: ptr::null_mut(),
+            size: 0,
+            capacity: 0,
+        };
+    }
+
+    let mut info = arena_dict(arena, 9);
+
     unsafe {
-        let chan = find_channel(id);
-        if chan.is_null() {
-            return Dict {
-                items: ptr::null_mut(),
-                size: 0,
-                capacity: 0,
-            };
-        }
-
-        let mut info = arena_dict(arena, 9);
-
         put_c(
             &mut info,
             c"id",
@@ -1179,83 +1213,83 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 data: ObjectData::Integer((*chan).id as Integer),
             },
         );
+    }
 
-        let stream_desc: &'static CStr = match (*chan).streamtype {
-            K_CHANNEL_STREAM_PROC => {
-                let proc_ptr = &raw mut (*chan).uv.proc_;
-                let ph = proc_ptr;
-                if (*ph).r#type == K_PROC_TYPE_PTY {
-                    let s = match pty_proc_tty_name(&mut *proc_ptr.cast()) {
-                        Some(name) => {
-                            crate::api::private::helpers::arena_bytes(arena, name.to_bytes())
-                        }
-                        None => NvimString::from_bytes(b""),
-                    };
-                    put_c(
-                        &mut info,
-                        c"pty",
+    let stream_desc: &'static CStr = match unsafe { (*chan).streamtype } {
+        K_CHANNEL_STREAM_PROC => {
+            let proc_ptr = unsafe { &raw mut (*chan).uv.proc_ };
+            let ph = proc_ptr;
+            if unsafe { (*ph).r#type == K_PROC_TYPE_PTY } {
+                let s = match unsafe { pty_proc_tty_name(&mut *proc_ptr.cast()) } {
+                    Some(name) => crate::api::private::helpers::arena_bytes(arena, name.to_bytes()),
+                    None => NvimString::from_bytes(b""),
+                };
+                put_c(
+                    &mut info,
+                    c"pty",
+                    Object {
+                        obj_type: ObjectType::ObjectTypeString,
+                        data: ObjectData::String(s),
+                    },
+                );
+            }
+
+            let args = unsafe { (*ph).argv.as_slice() };
+            let mut argv = Array {
+                items: ptr::null_mut(),
+                size: 0,
+                capacity: 0,
+            };
+            if !args.is_empty() {
+                let n = args.len();
+                argv = arena_array(arena, n);
+                for arg in args {
+                    add_c(
+                        &mut argv,
                         Object {
                             obj_type: ObjectType::ObjectTypeString,
-                            data: ObjectData::String(s),
+                            data: ObjectData::String(cstr_as_string(arg.as_ptr())),
                         },
                     );
                 }
-
-                let args = (*ph).argv.as_slice();
-                let mut argv = Array {
-                    items: ptr::null_mut(),
-                    size: 0,
-                    capacity: 0,
-                };
-                if !args.is_empty() {
-                    let n = args.len();
-                    argv = arena_array(arena, n);
-                    for arg in args {
-                        add_c(
-                            &mut argv,
-                            Object {
-                                obj_type: ObjectType::ObjectTypeString,
-                                data: ObjectData::String(cstr_as_string(arg.as_ptr())),
-                            },
-                        );
-                    }
-                }
-                put_c(
-                    &mut info,
-                    c"argv",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeArray,
-                        data: ObjectData::Array(argv),
-                    },
-                );
-                c"job"
             }
-            K_CHANNEL_STREAM_STDIO => c"stdio",
-            K_CHANNEL_STREAM_STDERR => c"stderr",
-            K_CHANNEL_STREAM_INTERNAL => {
-                put_c(
-                    &mut info,
-                    c"internal",
-                    Object {
-                        obj_type: ObjectType::ObjectTypeBoolean,
-                        data: ObjectData::Boolean(true),
-                    },
-                );
-                c"socket"
-            }
-            _ => c"socket",
-        };
+            put_c(
+                &mut info,
+                c"argv",
+                Object {
+                    obj_type: ObjectType::ObjectTypeArray,
+                    data: ObjectData::Array(argv),
+                },
+            );
+            c"job"
+        }
+        K_CHANNEL_STREAM_STDIO => c"stdio",
+        K_CHANNEL_STREAM_STDERR => c"stderr",
+        K_CHANNEL_STREAM_INTERNAL => {
+            put_c(
+                &mut info,
+                c"internal",
+                Object {
+                    obj_type: ObjectType::ObjectTypeBoolean,
+                    data: ObjectData::Boolean(true),
+                },
+            );
+            c"socket"
+        }
+        _ => c"socket",
+    };
 
-        put_c(
-            &mut info,
-            c"stream",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(stream_desc.as_ptr())),
-            },
-        );
+    put_c(
+        &mut info,
+        c"stream",
+        Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(cstr_as_string(stream_desc.as_ptr())),
+        },
+    );
 
-        let mode_desc: &'static CStr = if (*chan).is_rpc {
+    let mode_desc: &'static CStr = if unsafe { (*chan).is_rpc } {
+        unsafe {
             put_c(
                 &mut info,
                 c"client",
@@ -1264,6 +1298,8 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                     data: ObjectData::Dict((*chan).rpc.info),
                 },
             );
+        }
+        unsafe {
             put_c(
                 &mut info,
                 c"detach",
@@ -1272,25 +1308,27 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                     data: ObjectData::Boolean((*chan).detach),
                 },
             );
-            c"rpc"
-        } else if !(*chan).term.is_null() {
-            let tbuf = terminal_buf(&*(*chan).term);
-            put_c(
-                &mut info,
-                c"buf",
-                Object {
-                    obj_type: ObjectType::ObjectTypeBuffer,
-                    data: ObjectData::Integer(i64::from(tbuf)),
-                },
-            );
-            put_c(
-                &mut info,
-                c"buffer",
-                Object {
-                    obj_type: ObjectType::ObjectTypeBuffer,
-                    data: ObjectData::Integer(i64::from(tbuf)),
-                },
-            );
+        }
+        c"rpc"
+    } else if unsafe { !(*chan).term.is_null() } {
+        let tbuf = unsafe { terminal_buf(&*(*chan).term) };
+        put_c(
+            &mut info,
+            c"buf",
+            Object {
+                obj_type: ObjectType::ObjectTypeBuffer,
+                data: ObjectData::Integer(i64::from(tbuf)),
+            },
+        );
+        put_c(
+            &mut info,
+            c"buffer",
+            Object {
+                obj_type: ObjectType::ObjectTypeBuffer,
+                data: ObjectData::Integer(i64::from(tbuf)),
+            },
+        );
+        unsafe {
             put_c(
                 &mut info,
                 c"exitcode",
@@ -1299,22 +1337,22 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                     data: ObjectData::Integer(i64::from((*chan).exit_status)),
                 },
             );
-            c"terminal"
-        } else {
-            c"bytes"
-        };
+        }
+        c"terminal"
+    } else {
+        c"bytes"
+    };
 
-        put_c(
-            &mut info,
-            c"mode",
-            Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(mode_desc.as_ptr())),
-            },
-        );
+    put_c(
+        &mut info,
+        c"mode",
+        Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(cstr_as_string(mode_desc.as_ptr())),
+        },
+    );
 
-        info
-    }
+    info
 }
 
 pub fn channel_all_info(arena: &mut Arena) -> Array {

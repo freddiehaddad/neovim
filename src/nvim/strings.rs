@@ -615,37 +615,37 @@ pub fn tv_str(
     idxp: &mut i32,
     tofree: &mut Option<std::ffi::CString>,
 ) -> RawCCharPtr {
-    unsafe {
-        let idx = (*idxp - 1) as usize;
-        let mut s: RawCCharPtr = ptr::null();
-        if (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
-            emsg(gettext(E_PRINTF));
-        } else {
-            *idxp += 1;
-            let tv = tvs.wrapping_add(idx);
-            if (*tv).v_type == VarType::VarString || (*tv).v_type == VarType::VarNumber {
+    let idx = (*idxp - 1) as usize;
+    let mut s: RawCCharPtr = ptr::null();
+    if unsafe { (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown } {
+        emsg(gettext(E_PRINTF));
+    } else {
+        *idxp += 1;
+        let tv = tvs.wrapping_add(idx);
+        if unsafe { (*tv).v_type == VarType::VarString }
+            || unsafe { (*tv).v_type == VarType::VarNumber }
+        {
+            unsafe {
                 s = tv_get_string_chk(&*tv).map_or(ptr::null(), std::ffi::CStr::as_ptr);
-                *tofree = None;
-            } else {
-                let encoded = encode_tv2echo(&mut *tv, None);
-                s = encoded.as_ptr();
-                *tofree = Some(encoded);
             }
+            *tofree = None;
+        } else {
+            let encoded = unsafe { encode_tv2echo(&mut *tv, None) };
+            s = encoded.as_ptr();
+            *tofree = Some(encoded);
         }
-        s
     }
+    s
 }
 
 pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
-    unsafe {
-        let idx = (*idxp - 1) as usize;
-        if (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
-            emsg(gettext(E_PRINTF));
-            return ptr::null();
-        }
-        *idxp += 1;
-        (*tvs.wrapping_add(idx)).vval.v_any_ptr()
+    let idx = (*idxp - 1) as usize;
+    if unsafe { (*tvs.wrapping_add(idx)).v_type == VarType::VarUnknown } {
+        emsg(gettext(E_PRINTF));
+        return ptr::null();
     }
+    *idxp += 1;
+    unsafe { (*tvs.wrapping_add(idx)).vval.v_any_ptr() }
 }
 
 pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {

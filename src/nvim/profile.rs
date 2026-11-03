@@ -633,27 +633,27 @@ pub fn func_line_end(fcp: &mut Funccall) {
 }
 
 fn func_dump_profile(fd: &CFile) {
-    unsafe {
-        let functbl = func_tbl_get();
-        let todo = functbl.len();
-        if todo == 0 {
-            return;
-        }
+    let functbl = func_tbl_get();
+    let todo = functbl.len();
+    if todo == 0 {
+        return;
+    }
 
-        let mut sorttab: Vec<*mut UserFunc> = Vec::with_capacity(todo);
+    let mut sorttab: Vec<*mut UserFunc> = Vec::with_capacity(todo);
 
-        for &fp in functbl.values() {
-            if (*fp).uf_prof_initialized != 0 {
-                sorttab.push(fp);
+    for &fp in functbl.values() {
+        if unsafe { (*fp).uf_prof_initialized != 0 } {
+            sorttab.push(fp);
 
-                let name_ptr = (*fp).uf_name.as_ptr();
-                if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
-                    fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
-                } else {
-                    fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
-                }
-                if (*fp).uf_script_ctx.sc_sid != 0 {
-                    let p = get_scriptname((*fp).uf_script_ctx, true);
+            let name_ptr = unsafe { (*fp).uf_name.as_ptr() };
+            if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
+                fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
+            } else {
+                fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
+            }
+            if unsafe { (*fp).uf_script_ctx.sc_sid != 0 } {
+                let p = unsafe { get_scriptname((*fp).uf_script_ctx, true) };
+                unsafe {
                     fprintf!(
                         fd,
                         c"    Defined: %s:%d\n",
@@ -661,29 +661,37 @@ fn func_dump_profile(fd: &CFile) {
                         (*fp).uf_script_ctx.sc_lnum,
                     );
                 }
-                if (*fp).uf_tm_count == 1 {
-                    fprintf!(fd, c"Called 1 time\n");
-                } else {
+            }
+            if unsafe { (*fp).uf_tm_count == 1 } {
+                fprintf!(fd, c"Called 1 time\n");
+            } else {
+                unsafe {
                     fprintf!(fd, c"Called %d times\n", (*fp).uf_tm_count);
                 }
+            }
+            unsafe {
                 fprintf!(
                     fd,
                     c"Total time: %s\n",
                     profile_msg((*fp).uf_tm_total).as_ptr()
                 );
+            }
+            unsafe {
                 fprintf!(
                     fd,
                     c" Self time: %s\n",
                     profile_msg((*fp).uf_tm_self).as_ptr()
                 );
-                fprintf!(fd, c"\n");
-                fprintf!(fd, c"count  total (s)   self (s)\n");
+            }
+            fprintf!(fd, c"\n");
+            fprintf!(fd, c"count  total (s)   self (s)\n");
 
-                for i in 0..(*fp).uf_lines.len() as i32 {
-                    let Some(ref line) = (&(*fp).uf_lines)[i as usize] else {
-                        continue;
-                    };
-                    let idx = i as usize;
+            for i in unsafe { 0..(*fp).uf_lines.len() as i32 } {
+                let Some(ref line) = (*unsafe { &((&(*fp).uf_lines)[i as usize]) }) else {
+                    continue;
+                };
+                let idx = i as usize;
+                unsafe {
                     prof_func_line(
                         fd,
                         (*fp).uf_tml_count.as_slice()[idx],
@@ -691,18 +699,18 @@ fn func_dump_profile(fd: &CFile) {
                         &(*fp).uf_tml_self.as_slice()[idx],
                         true,
                     );
-                    fprintf!(fd, c"%s\n", line.as_ptr());
                 }
-                fprintf!(fd, c"\n");
+                fprintf!(fd, c"%s\n", line.as_ptr());
             }
+            fprintf!(fd, c"\n");
         }
+    }
 
-        if !sorttab.is_empty() {
-            sorttab.sort_unstable_by(prof_total_cmp);
-            prof_sort_list(fd, &sorttab, c"TOTAL", false);
-            sorttab.sort_unstable_by(prof_self_cmp);
-            prof_sort_list(fd, &sorttab, c"SELF", true);
-        }
+    if !sorttab.is_empty() {
+        sorttab.sort_unstable_by(prof_total_cmp);
+        prof_sort_list(fd, &sorttab, c"TOTAL", false);
+        sorttab.sort_unstable_by(prof_self_cmp);
+        prof_sort_list(fd, &sorttab, c"SELF", true);
     }
 }
 

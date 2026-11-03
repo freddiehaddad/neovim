@@ -405,25 +405,29 @@ fn redo_chars(spec: &CmdSpec, buf: &mut Vec<u8>, arg_meta: bool) {
 
 /// Gets `spec` (or current pending change, if `spec` is NULL), composed into a "redo" keyseq.
 pub fn redo_keys(spec: *const CmdSpec) -> Option<std::ffi::CString> {
-    unsafe {
-        let spec = if !spec.is_null() {
-            spec
-        } else {
-            &raw const inp_st().redobuff.cur
-        };
+    let spec = if !spec.is_null() {
+        spec
+    } else {
+        &raw const inp_st().redobuff.cur
+    };
 
-        let mut buf: Vec<u8> = Vec::new();
+    let mut buf: Vec<u8> = Vec::new();
+    unsafe {
         redo_prefix(&*spec, &mut buf, false);
-        if !(*spec).body.is_empty() {
+    }
+    if unsafe { !(*spec).body.is_empty() } {
+        unsafe {
             buf.extend_from_slice(&(*spec).body);
-        } else {
+        }
+    } else {
+        unsafe {
             redo_chars(&*spec, &mut buf, false);
         }
-        if buf.is_empty() {
-            None
-        } else {
-            Some(crate::memory::cstr_from_bytes(&buf))
-        }
+    }
+    if buf.is_empty() {
+        None
+    } else {
+        Some(crate::memory::cstr_from_bytes(&buf))
     }
 }
 
@@ -1815,154 +1819,161 @@ pub fn char_avail() -> bool {
 }
 
 fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: bool) {
-    unsafe {
-        let mut n: Varnumber;
-        let called_emsg_start = g_st().called_emsg;
-        let mut error = false;
-        let mut simplify = true;
-        let mut cursor_flag: u8 = 0;
+    let mut n: Varnumber;
+    let called_emsg_start = g_st().called_emsg;
+    let mut error = false;
+    let mut simplify = true;
+    let mut cursor_flag: u8 = 0;
 
-        if argvars[0].v_type != VarType::VarUnknown && !tv_check_for_opt_dict_arg(argvars, 1) {
-            return;
-        }
+    if argvars[0].v_type != VarType::VarUnknown && !tv_check_for_opt_dict_arg(argvars, 1) {
+        return;
+    }
 
-        let arg1 = (&raw mut argvars[1]);
-        if argvars[0].v_type != VarType::VarUnknown && (*arg1).v_type == VarType::VarDict {
-            let d = (*arg1).vval.v_dict();
+    let arg1 = (&raw mut argvars[1]);
+    if argvars[0].v_type != VarType::VarUnknown && unsafe { (*arg1).v_type == VarType::VarDict } {
+        let d = unsafe { (*arg1).vval.v_dict() };
 
-            if allow_number {
+        if allow_number {
+            unsafe {
                 allow_number = tv_dict_get_bool(d.as_ref(), c"number", 1) != 0;
-            } else if tv_dict_has_key(d.as_ref(), c"number") {
-                semsg!(gettext(E_INVARG2), c"number");
             }
+        } else if unsafe { tv_dict_has_key(d.as_ref(), c"number") } {
+            semsg!(gettext(E_INVARG2), c"number");
+        }
 
+        unsafe {
             simplify = tv_dict_get_bool(d.as_ref(), c"simplify", 1) != 0;
-
-            if let Some(cursor_str) = tv_dict_get_string(d.as_ref(), c"cursor") {
-                if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
-                    semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
-                } else {
-                    cursor_flag = cursor_str.to_bytes()[0];
-                }
-            }
         }
 
-        if g_st().called_emsg != called_emsg_start {
-            return;
-        }
-
-        if cursor_flag == b'h' {
-            ui_busy_start();
-        }
-
-        g_st().no_mapping += 1;
-        g_st().allow_keys += 1;
-        block_on_key();
-        if !simplify {
-            inp_st().no_reduce_keys += 1;
-        }
-        atom_payload_start();
-        loop {
-            if cursor_flag == b'm' || (cursor_flag == 0 && g_st().msg_col > 0) {
-                ui_cursor_goto(g_st().msg_row, g_st().msg_col);
-            }
-
-            if argvars[0].v_type == VarType::VarUnknown
-                || (argvars[0].v_type == VarType::VarNumber && argvars[0].vval.v_number() == -1)
-            {
-                if !char_avail() {
-                    ui_flush();
-                    let events = main_loop_events();
-                    input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                    if input_available() == 0 && !multiqueue_empty(&*events) {
-                        state_handle_k_event();
-                        continue;
-                    }
-                }
-                n = Varnumber::from(safe_vgetc());
-            } else if tv_get_bool_chk(&argvars[0], Some(&mut error)) != 0 {
-                n = Varnumber::from(vpeekc_any());
-            } else if error || vpeekc_any() == NUL {
-                n = 0;
+        if let Some(cursor_str) = unsafe { tv_dict_get_string(d.as_ref(), c"cursor") } {
+            if cursor_str != c"hide" && cursor_str != c"keep" && cursor_str != c"msg" {
+                semsg!(gettext(E_INVARG_NVAL), c"cursor", cursor_str,);
             } else {
-                n = Varnumber::from(safe_vgetc());
+                cursor_flag = cursor_str.to_bytes()[0];
             }
+        }
+    }
 
-            let ni = n as i32;
-            if ni == K_IGNORE || ni == K_MOUSEMOVE || ni == K_VER_SCROLLBAR || ni == K_HOR_SCROLLBAR
-            {
-                continue;
+    if g_st().called_emsg != called_emsg_start {
+        return;
+    }
+
+    if cursor_flag == b'h' {
+        ui_busy_start();
+    }
+
+    g_st().no_mapping += 1;
+    g_st().allow_keys += 1;
+    block_on_key();
+    if !simplify {
+        inp_st().no_reduce_keys += 1;
+    }
+    atom_payload_start();
+    loop {
+        if cursor_flag == b'm' || (cursor_flag == 0 && g_st().msg_col > 0) {
+            ui_cursor_goto(g_st().msg_row, g_st().msg_col);
+        }
+
+        if argvars[0].v_type == VarType::VarUnknown
+            || (argvars[0].v_type == VarType::VarNumber && argvars[0].vval.v_number() == -1)
+        {
+            if !char_avail() {
+                ui_flush();
+                let events = main_loop_events();
+                input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
+                if input_available() == 0 && unsafe { !multiqueue_empty(&*events) } {
+                    state_handle_k_event();
+                    continue;
+                }
             }
-            break;
+            n = Varnumber::from(safe_vgetc());
+        } else if tv_get_bool_chk(&argvars[0], Some(&mut error)) != 0 {
+            n = Varnumber::from(vpeekc_any());
+        } else if error || vpeekc_any() == NUL {
+            n = 0;
+        } else {
+            n = Varnumber::from(safe_vgetc());
         }
-        atom_payload_end();
-        g_st().no_mapping -= 1;
-        g_st().allow_keys -= 1;
-        unblock_on_key();
-        if !simplify {
-            inp_st().no_reduce_keys -= 1;
-        }
-
-        if cursor_flag == b'h' {
-            ui_busy_stop();
-        }
-
-        set_vim_var_nr(VV_MOUSE_WIN, 0);
-        set_vim_var_nr(VV_MOUSE_WINID, 0);
-        set_vim_var_nr(VV_MOUSE_LNUM, 0);
-        set_vim_var_nr(VV_MOUSE_COL, 0);
 
         let ni = n as i32;
-        if n != 0 && (!allow_number || is_special(ni) || g_st().mod_mask != 0) {
-            let mut temp = [0u8; 10];
-            let mut i: usize = 0;
+        if ni == K_IGNORE || ni == K_MOUSEMOVE || ni == K_VER_SCROLLBAR || ni == K_HOR_SCROLLBAR {
+            continue;
+        }
+        break;
+    }
+    atom_payload_end();
+    g_st().no_mapping -= 1;
+    g_st().allow_keys -= 1;
+    unblock_on_key();
+    if !simplify {
+        inp_st().no_reduce_keys -= 1;
+    }
 
-            if g_st().mod_mask != 0 {
-                temp[i] = K_SPECIAL;
-                temp[i + 1] = KS_MODIFIER;
-                temp[i + 2] = g_st().mod_mask as u8;
-                i += 3;
-            }
-            if is_special(ni) {
-                temp[i] = K_SPECIAL;
-                temp[i + 1] = k_second(ni);
-                temp[i + 2] = k_third(ni);
-                i += 3;
-            } else {
-                i += utf_char2bytes(ni, temp[i..].as_mut_ptr().cast()) as usize;
-            }
-            assert!(i < 10);
-            crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);
+    if cursor_flag == b'h' {
+        ui_busy_stop();
+    }
 
-            if is_mouse_key(ni) {
-                let mut row = g_st().mouse_row;
-                let mut col = g_st().mouse_col;
-                let mut grid = g_st().mouse_grid;
-                let mut lnum: Linenr = 0;
+    set_vim_var_nr(VV_MOUSE_WIN, 0);
+    set_vim_var_nr(VV_MOUSE_WINID, 0);
+    set_vim_var_nr(VV_MOUSE_LNUM, 0);
+    set_vim_var_nr(VV_MOUSE_COL, 0);
 
-                if row >= 0 && col >= 0 {
-                    let mut winnr: i32 = 1;
-                    let win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
-                    if win.is_null() {
-                        return;
-                    }
+    let ni = n as i32;
+    if n != 0 && (!allow_number || is_special(ni) || g_st().mod_mask != 0) {
+        let mut temp = [0u8; 10];
+        let mut i: usize = 0;
+
+        if g_st().mod_mask != 0 {
+            temp[i] = K_SPECIAL;
+            temp[i + 1] = KS_MODIFIER;
+            temp[i + 2] = g_st().mod_mask as u8;
+            i += 3;
+        }
+        if is_special(ni) {
+            temp[i] = K_SPECIAL;
+            temp[i + 1] = k_second(ni);
+            temp[i + 2] = k_third(ni);
+            i += 3;
+        } else {
+            i += utf_char2bytes(ni, temp[i..].as_mut_ptr().cast()) as usize;
+        }
+        assert!(i < 10);
+        crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);
+
+        if is_mouse_key(ni) {
+            let mut row = g_st().mouse_row;
+            let mut col = g_st().mouse_col;
+            let mut grid = g_st().mouse_grid;
+            let mut lnum: Linenr = 0;
+
+            if row >= 0 && col >= 0 {
+                let mut winnr: i32 = 1;
+                let win = mouse_find_win_inner(&mut grid, &mut row, &mut col);
+                if win.is_null() {
+                    return;
+                }
+                unsafe {
                     mouse_comp_pos(&mut *win, &mut row, &mut col, &mut lnum);
-                    let mut wp = g_st().firstwin;
-                    while wp != win {
-                        winnr += 1;
+                }
+                let mut wp = g_st().firstwin;
+                while wp != win {
+                    winnr += 1;
+                    unsafe {
                         wp = (*wp).w_next;
                     }
-                    set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
-                    set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from((*wp).handle));
-                    set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
-                    set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));
                 }
+                set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
+                unsafe {
+                    set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from((*wp).handle));
+                }
+                set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
+                set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));
             }
-        } else if !allow_number {
-            rettv.v_type = VarType::VarString;
-        } else {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(n);
         }
+    } else if !allow_number {
+        rettv.v_type = VarType::VarString;
+    } else {
+        rettv.vval = crate::eval::typval::TypvalVval::Number(n);
     }
 }
 
@@ -2945,31 +2956,43 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
 
 /// Fix typed characters for use by `vgetc()`.
 pub fn fix_input_buffer(buf: *mut u8, mut len: i32) -> i32 {
-    unsafe {
-        if using_script() == 0 {
+    if using_script() == 0 {
+        unsafe {
             *buf.wrapping_add(len as usize) = NUL as u8;
-            return len;
         }
-
-        let mut p = buf;
-        let mut i = len;
-        while {
-            i -= 1;
-            i >= 0
-        } {
-            if *p == NUL as u8 || (*p == K_SPECIAL && (i < 2 || *p.wrapping_add(1) != KS_EXTRA)) {
-                ptr::copy(p.wrapping_add(1), p.wrapping_add(3), i as usize);
-                *p.wrapping_add(2) = k_third(*p as i32);
-                *p.wrapping_add(1) = k_second(*p as i32);
-                *p = K_SPECIAL;
-                p = p.wrapping_add(2);
-                len += 2;
-            }
-            p = p.wrapping_add(1);
-        }
-        *p = NUL as u8;
-        len
+        return len;
     }
+
+    let mut p = buf;
+    let mut i = len;
+    while {
+        i -= 1;
+        i >= 0
+    } {
+        if unsafe { *p == NUL as u8 }
+            || (unsafe { *p == K_SPECIAL && (i < 2 || *p.wrapping_add(1) != KS_EXTRA) })
+        {
+            unsafe {
+                ptr::copy(p.wrapping_add(1), p.wrapping_add(3), i as usize);
+            }
+            unsafe {
+                *p.wrapping_add(2) = k_third(*p as i32);
+            }
+            unsafe {
+                *p.wrapping_add(1) = k_second(*p as i32);
+            }
+            unsafe {
+                *p = K_SPECIAL;
+            }
+            p = p.wrapping_add(2);
+            len += 2;
+        }
+        p = p.wrapping_add(1);
+    }
+    unsafe {
+        *p = NUL as u8;
+    }
+    len
 }
 
 /// Get a key stroke directly from the user.

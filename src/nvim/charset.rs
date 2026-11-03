@@ -1271,26 +1271,32 @@ pub fn rem_backslash(bytes: &[u8]) -> bool {
 }
 
 pub fn backslash_halve(mut p: RawCCharPtrMut) {
-    unsafe {
-        while !crate::memory::cstr_is_empty(p) && !rem_backslash(crate::memory::cstr_as_bytes(p)) {
-            p = p.wrapping_add(1);
-        }
-        if !crate::memory::cstr_is_empty(p) {
-            let mut dst = p;
+    while !crate::memory::cstr_is_empty(p) && !rem_backslash(crate::memory::cstr_as_bytes(p)) {
+        p = p.wrapping_add(1);
+    }
+    if !crate::memory::cstr_is_empty(p) {
+        let mut dst = p;
+        unsafe {
             *dst = *p.wrapping_add(1);
-            dst = dst.wrapping_add(1);
-            p = p.wrapping_add(2);
-            while !crate::memory::cstr_is_empty(p) {
-                if rem_backslash(crate::memory::cstr_as_bytes(p)) {
+        }
+        dst = dst.wrapping_add(1);
+        p = p.wrapping_add(2);
+        while !crate::memory::cstr_is_empty(p) {
+            if rem_backslash(crate::memory::cstr_as_bytes(p)) {
+                unsafe {
                     *dst = *p.wrapping_add(1);
-                    dst = dst.wrapping_add(1);
-                    p = p.wrapping_add(2);
-                } else {
-                    *dst = *p;
-                    dst = dst.wrapping_add(1);
-                    p = p.wrapping_add(1);
                 }
+                dst = dst.wrapping_add(1);
+                p = p.wrapping_add(2);
+            } else {
+                unsafe {
+                    *dst = *p;
+                }
+                dst = dst.wrapping_add(1);
+                p = p.wrapping_add(1);
             }
+        }
+        unsafe {
             *dst = NUL;
         }
     }

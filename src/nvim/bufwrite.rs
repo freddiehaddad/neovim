@@ -117,64 +117,98 @@ struct BwInfo {
 
 /// Convert a Unicode character to bytes.
 fn ucs2bytes(mut c: u32, pp: &mut *mut u8, flags: i32) -> bool {
-    unsafe {
-        let mut p = *pp;
-        let mut error = false;
+    let mut p = *pp;
+    let mut error = false;
 
-        if (flags & FIO_UCS4) != 0 {
-            if (flags & FIO_ENDIAN_L) != 0 {
+    if (flags & FIO_UCS4) != 0 {
+        if (flags & FIO_ENDIAN_L) != 0 {
+            unsafe {
                 *p = c as u8;
+            }
+            unsafe {
                 *p.wrapping_add(1) = (c >> 8) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(2) = (c >> 16) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(3) = (c >> 24) as u8;
-            } else {
+            }
+        } else {
+            unsafe {
                 *p = (c >> 24) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(1) = (c >> 16) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(2) = (c >> 8) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(3) = c as u8;
             }
-            p = p.wrapping_add(4);
-        } else if (flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
-            if c >= 0x10000 {
-                if (flags & FIO_UTF16) != 0 {
-                    c -= 0x10000;
-                    if c >= 0x100000 {
-                        error = true;
-                    }
-                    let cc = ((c >> 10) & 0x3ff) + 0xd800;
-                    if (flags & FIO_ENDIAN_L) != 0 {
-                        *p = cc as u8;
-                        *p.wrapping_add(1) = (cc >> 8) as u8;
-                    } else {
-                        *p = (cc >> 8) as u8;
-                        *p.wrapping_add(1) = cc as u8;
-                    }
-                    p = p.wrapping_add(2);
-                    c = (c & 0x3ff) + 0xdc00;
-                } else {
+        }
+        p = p.wrapping_add(4);
+    } else if (flags & (FIO_UCS2 | FIO_UTF16)) != 0 {
+        if c >= 0x10000 {
+            if (flags & FIO_UTF16) != 0 {
+                c -= 0x10000;
+                if c >= 0x100000 {
                     error = true;
                 }
-            }
-            if (flags & FIO_ENDIAN_L) != 0 {
-                *p = c as u8;
-                *p.wrapping_add(1) = (c >> 8) as u8;
+                let cc = ((c >> 10) & 0x3ff) + 0xd800;
+                if (flags & FIO_ENDIAN_L) != 0 {
+                    unsafe {
+                        *p = cc as u8;
+                    }
+                    unsafe {
+                        *p.wrapping_add(1) = (cc >> 8) as u8;
+                    }
+                } else {
+                    unsafe {
+                        *p = (cc >> 8) as u8;
+                    }
+                    unsafe {
+                        *p.wrapping_add(1) = cc as u8;
+                    }
+                }
+                p = p.wrapping_add(2);
+                c = (c & 0x3ff) + 0xdc00;
             } else {
+                error = true;
+            }
+        }
+        if (flags & FIO_ENDIAN_L) != 0 {
+            unsafe {
+                *p = c as u8;
+            }
+            unsafe {
+                *p.wrapping_add(1) = (c >> 8) as u8;
+            }
+        } else {
+            unsafe {
                 *p = (c >> 8) as u8;
+            }
+            unsafe {
                 *p.wrapping_add(1) = c as u8;
             }
-            p = p.wrapping_add(2);
-        } else if c >= 0x100 {
-            error = true;
-            *p = 0xbf;
-            p = p.wrapping_add(1);
-        } else {
-            *p = c as u8;
-            p = p.wrapping_add(1);
         }
-
-        *pp = p;
-        error
+        p = p.wrapping_add(2);
+    } else if c >= 0x100 {
+        error = true;
+        unsafe {
+            *p = 0xbf;
+        }
+        p = p.wrapping_add(1);
+    } else {
+        unsafe {
+            *p = c as u8;
+        }
+        p = p.wrapping_add(1);
     }
+
+    *pp = p;
+    error
 }
 
 fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut i32) -> i32 {
@@ -221,63 +255,61 @@ fn buf_write_convert_with_iconv(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut 
 }
 
 fn buf_write_convert(ip: &mut BwInfo, bufp: &mut *mut u8, lenp: &mut i32) -> i32 {
-    unsafe {
-        let flags = ip.bw_flags;
-        let mut wlen = *lenp;
-        let conv_buflen = ip.bw_conv_buf.len();
-        let conv_buf = ip.bw_conv_buf.as_mut_ptr();
+    let flags = ip.bw_flags;
+    let mut wlen = *lenp;
+    let conv_buflen = ip.bw_conv_buf.len();
+    let conv_buf = ip.bw_conv_buf.as_mut_ptr();
 
-        if (flags & (FIO_UCS4 | FIO_UTF16 | FIO_UCS2 | FIO_LATIN1)) != 0 {
-            let mut p = if (flags & FIO_LATIN1) != 0 {
-                *bufp
+    if (flags & (FIO_UCS4 | FIO_UTF16 | FIO_UCS2 | FIO_LATIN1)) != 0 {
+        let mut p = if (flags & FIO_LATIN1) != 0 {
+            *bufp
+        } else {
+            conv_buf
+        };
+        wlen = 0;
+        while wlen < *lenp {
+            let n = utf_ptr2len_len((*bufp).wrapping_add(wlen as usize).cast(), *lenp - wlen);
+            if n > *lenp - wlen {
+                break;
+            }
+            let c: u32 = if n > 1 {
+                utf_ptr2char((*bufp).wrapping_add(wlen as usize).cast()) as u32
             } else {
-                conv_buf
+                unsafe { u32::from(*(*bufp).wrapping_add(wlen as usize)) }
             };
-            wlen = 0;
-            while wlen < *lenp {
-                let n = utf_ptr2len_len((*bufp).wrapping_add(wlen as usize).cast(), *lenp - wlen);
-                if n > *lenp - wlen {
-                    break;
-                }
-                let c: u32 = if n > 1 {
-                    utf_ptr2char((*bufp).wrapping_add(wlen as usize).cast()) as u32
-                } else {
-                    u32::from(*(*bufp).wrapping_add(wlen as usize))
-                };
 
-                if (flags & FIO_LATIN1) == 0 {
-                    let mut need: usize = if (flags & FIO_UCS4) != 0 { 4 } else { 2 };
-                    if (flags & FIO_UTF16) != 0 && c >= 0x10000 {
-                        need = 4;
-                    }
-                    if ((p as usize) - (conv_buf as usize)) + need > conv_buflen {
-                        return FAIL;
-                    }
+            if (flags & FIO_LATIN1) == 0 {
+                let mut need: usize = if (flags & FIO_UCS4) != 0 { 4 } else { 2 };
+                if (flags & FIO_UTF16) != 0 && c >= 0x10000 {
+                    need = 4;
                 }
-
-                if ucs2bytes(c, &mut p, flags) && ip.bw_conv_error == 0 {
-                    ip.bw_conv_error = 1;
-                    ip.bw_conv_error_lnum = ip.bw_start_lnum;
+                if ((p as usize) - (conv_buf as usize)) + need > conv_buflen {
+                    return FAIL;
                 }
-                if c == NL {
-                    ip.bw_start_lnum += 1;
-                }
-                wlen += n;
             }
-            if (flags & FIO_LATIN1) != 0 {
-                *lenp = ((p as usize) - (*bufp as usize)) as i32;
-            } else {
-                *bufp = conv_buf;
-                *lenp = ((p as usize) - (conv_buf as usize)) as i32;
+
+            if ucs2bytes(c, &mut p, flags) && ip.bw_conv_error == 0 {
+                ip.bw_conv_error = 1;
+                ip.bw_conv_error_lnum = ip.bw_start_lnum;
             }
+            if c == NL {
+                ip.bw_start_lnum += 1;
+            }
+            wlen += n;
         }
-
-        if ip.bw_iconv_fd != -1 {
-            return buf_write_convert_with_iconv(ip, bufp, lenp);
+        if (flags & FIO_LATIN1) != 0 {
+            *lenp = ((p as usize) - (*bufp as usize)) as i32;
+        } else {
+            *bufp = conv_buf;
+            *lenp = ((p as usize) - (conv_buf as usize)) as i32;
         }
-
-        wlen
     }
+
+    if ip.bw_iconv_fd != -1 {
+        return buf_write_convert_with_iconv(ip, bufp, lenp);
+    }
+
+    wlen
 }
 
 fn buf_write_bytes(ip: &mut BwInfo) -> bool {
