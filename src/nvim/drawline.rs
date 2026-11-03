@@ -1884,11 +1884,7 @@ pub fn win_line(
             nextline[SPWORDLEN] = 0;
             if lnum < wp.buf_mut().b_ml.ml_line_count {
                 let line = ml_get_buf(wp.buf_mut(), lnum + 1);
-                spell_cat_line(
-                    nextline_ptr.wrapping_add(SPWORDLEN).cast(),
-                    line,
-                    SPWORDLEN as i32,
-                );
+                spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], line);
             }
             let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
             let rem_sw = crate::charset::skipwhite_slice(line_slice);
