@@ -1264,13 +1264,7 @@ pub fn buf_write(
         #[cfg(not(windows))]
         let msgname = fname;
 
-        fname_msg_id(
-            msg_id.as_mut_ptr(),
-            msg_id.len(),
-            c"nvim.bufwrite",
-            buf,
-            msgname,
-        );
+        fname_msg_id(&mut msg_id, c"nvim.bufwrite", buf, msgname);
 
         let show_msg = !filtering && g_st().msg_silent == 0;
         if show_msg {
@@ -1700,7 +1694,7 @@ pub fn buf_write(
                                 {
                                     progress = percent;
                                     let iobuf = g_st().iobuff.as_mut_ptr();
-                                    add_quoted_fname(iobuf, IOSIZE, buf, msgname);
+                                    add_quoted_fname(g_st().iobuff_bytes_mut(), buf, msgname);
                                     let _ = msg_progress(
                                         iobuf,
                                         msg_id.as_mut_ptr().cast(),
@@ -1877,7 +1871,7 @@ pub fn buf_write(
                                 src.to_bytes(),
                             );
                         };
-                        add_quoted_fname(iobuf, IOSIZE, buf, fname);
+                        add_quoted_fname(g_st().iobuff_bytes_mut(), buf, fname);
                         let mut insert_space = false;
                         if write_info.bw_conv_error != 0 {
                             iobuf_append(gettext(c" CONVERSION ERROR"));
@@ -2067,7 +2061,7 @@ pub fn buf_write(
         os_free_acl(acl);
 
         if err.msg.is_some() {
-            add_quoted_fname(g_st().iobuff.as_mut_ptr(), IOSIZE - 100, buf, msgname);
+            add_quoted_fname(&mut g_st().iobuff_bytes_mut()[..IOSIZE - 100], buf, msgname);
             emit_err(
                 &mut err,
                 if progress >= 0 {

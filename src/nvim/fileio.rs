@@ -976,7 +976,7 @@ fn filemess(
         }
 
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-        add_quoted_fname(iobuf_ptr, IOSIZE - 100, buf, name);
+        add_quoted_fname(&mut g_st().iobuff_bytes_mut()[..IOSIZE - 100], buf, name);
 
         crate::memory::append_bytes_to_c_buf(
             g_st().iobuff_bytes_mut(),
@@ -1291,7 +1291,8 @@ pub fn readfile(
                 target_os = "dragonfly",
                 target_os = "macos"
             ))]
-            let is_chr_dev = s_ischr(perm as u64) && is_dev_fd_file(fname.cast());
+            let is_chr_dev =
+                s_ischr(perm as u64) && is_dev_fd_file(crate::memory::cstr_as_bytes(fname.cast()));
             #[cfg(not(any(
                 target_os = "freebsd",
                 target_os = "openbsd",
@@ -1611,13 +1612,7 @@ pub fn readfile(
             }
 
             let mut msg_id = [0u8; MAXPATHL + 32];
-            fname_msg_id(
-                msg_id.as_mut_ptr(),
-                msg_id.len(),
-                c"nvim.bufread",
-                g_st().curbuf,
-                sfname.cast(),
-            );
+            fname_msg_id(&mut msg_id, c"nvim.bufread", g_st().curbuf, sfname.cast());
             let mut progress = false;
             let mut percent: i32 = -1;
             let read_start = os_hrtime();
@@ -1939,8 +1934,7 @@ pub fn readfile(
                                 None
                             } else {
                                 check_for_bom(
-                                    ptr.cast(),
-                                    size as i32,
+                                    std::slice::from_raw_parts(ptr, size as usize),
                                     &mut blen,
                                     if fio_flags == FIO_UCSBOM {
                                         FIO_ALL
@@ -2008,7 +2002,14 @@ pub fn readfile(
                                     continue 'retry;
                                 }
                                 if conv_error == 0 {
-                                    conv_error = readfile_linenr(linecnt, ptr.cast(), top.cast());
+                                    conv_error = readfile_linenr(
+                                        linecnt,
+                                        std::slice::from_raw_parts(
+                                            ptr,
+                                            crate::memory::ptr_offset_from(top, ptr).max(0)
+                                                as usize,
+                                        ),
+                                    );
                                 }
 
                                 fromp = fromp.wrapping_add(1);
@@ -2126,8 +2127,15 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error =
-                                                    readfile_linenr(linecnt, ptr.cast(), p.cast());
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    std::slice::from_raw_parts(
+                                                        ptr,
+                                                        crate::memory::ptr_offset_from(p, ptr)
+                                                            .max(0)
+                                                            as usize,
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2168,8 +2176,15 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error =
-                                                    readfile_linenr(linecnt, ptr.cast(), p.cast());
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    std::slice::from_raw_parts(
+                                                        ptr,
+                                                        crate::memory::ptr_offset_from(p, ptr)
+                                                            .max(0)
+                                                            as usize,
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2225,8 +2240,15 @@ pub fn readfile(
                                                 continue 'retry;
                                             }
                                             if conv_error == 0 {
-                                                conv_error =
-                                                    readfile_linenr(linecnt, ptr.cast(), p.cast());
+                                                conv_error = readfile_linenr(
+                                                    linecnt,
+                                                    std::slice::from_raw_parts(
+                                                        ptr,
+                                                        crate::memory::ptr_offset_from(p, ptr)
+                                                            .max(0)
+                                                            as usize,
+                                                    ),
+                                                );
                                             }
                                             if bad_char_behavior == BAD_DROP {
                                                 continue;
@@ -2298,14 +2320,16 @@ pub fn readfile(
                                             break;
                                         }
 
+                                        let err_slice = std::slice::from_raw_parts(
+                                            ptr,
+                                            crate::memory::ptr_offset_from(p, ptr).max(0) as usize,
+                                        );
                                         if iconv_fd != -1 && conv_error == 0 {
-                                            conv_error =
-                                                readfile_linenr(linecnt, ptr.cast(), p.cast());
+                                            conv_error = readfile_linenr(linecnt, err_slice);
                                         }
 
                                         if conv_error == 0 && illegal_byte == 0 {
-                                            illegal_byte =
-                                                readfile_linenr(linecnt, ptr.cast(), p.cast());
+                                            illegal_byte = readfile_linenr(linecnt, err_slice);
                                         }
 
                                         if bad_char_behavior == BAD_DROP {
@@ -2540,7 +2564,11 @@ pub fn readfile(
                             progress = true;
                             percent = pct;
                             let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-                            add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname.cast());
+                            add_quoted_fname(
+                                g_st().iobuff_bytes_mut(),
+                                g_st().curbuf,
+                                sfname.cast(),
+                            );
                             let _ = readfile_progress(
                                 iobuf_ptr,
                                 msg_id.as_ptr().cast(),
@@ -2670,7 +2698,7 @@ pub fn readfile(
 
                 if !filtering && (flags & READ_DUMMY) == 0 && !silent {
                     let iobuf_ptr = g_st().iobuff.as_mut_ptr();
-                    add_quoted_fname(iobuf_ptr, IOSIZE, g_st().curbuf, sfname.cast());
+                    add_quoted_fname(g_st().iobuff_bytes_mut(), g_st().curbuf, sfname.cast());
                     let mut c = false;
 
                     let mut buflen = crate::memory::cstr_len(iobuf_ptr) as i32;
@@ -2981,9 +3009,7 @@ pub fn readfile(
     target_os = "macos",
     test
 ))]
-pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
-    let fname = fname.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(fname);
+pub fn is_dev_fd_file(bytes: &[u8]) -> bool {
     bytes.starts_with(b"/dev/fd/")
         && bytes.len() > 8
         && bytes[8..].iter().all(|&b| ascii_isdigit(b as i32))
@@ -2991,15 +3017,7 @@ pub fn is_dev_fd_file(fname: impl crate::strings::IntoCCharPtr) -> bool {
 }
 
 /// Estimate the line number where we are now.
-fn readfile_linenr(
-    linecnt: Linenr,
-    p: impl crate::strings::IntoCCharPtr,
-    endp: impl crate::strings::IntoCCharPtr,
-) -> Linenr {
-    let p = p.into_c_char_ptr();
-    let endp = endp.into_c_char_ptr();
-    let len = crate::memory::ptr_offset_from(endp, p).max(0) as usize;
-    let slice = crate::memory::cstr_slice(p, len);
+fn readfile_linenr(linecnt: Linenr, slice: &[u8]) -> Linenr {
     let newlines = slice.iter().filter(|&&b| b == b'\n').count() as Linenr;
     curbuf_mut().b_ml.ml_line_count - linecnt + 1 + newlines
 }
@@ -3196,60 +3214,47 @@ pub fn set_rw_fname(
 }
 
 /// Put file name into the specified buffer with quotes.
-pub fn add_quoted_fname<T>(
-    ret_buf: *mut T,
-    bufsize: usize,
+pub fn add_quoted_fname(
+    ret_buf: &mut [u8],
     buf: *const FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
 ) {
-    let ret_buf: *mut u8 = ret_buf.cast();
     let mut fname = fname.into_c_char_ptr();
-    {
-        if fname.is_null() {
-            fname = c"-stdin-".as_ptr();
-        }
-        let mut len: usize = 0;
-        unsafe {
-            *ret_buf.wrapping_add(len) = b'"';
-        }
-        len += 1;
-        len += home_replace(
-            unsafe { buf.cast_mut().as_ref() },
-            fname,
-            ret_buf.wrapping_add(len),
-            bufsize - 4,
-            true,
-        );
-        crate::memory::copy_bytes_to_c_buf(
-            unsafe { std::slice::from_raw_parts_mut(ret_buf.wrapping_add(len), bufsize - len) },
-            b"\" ",
-        );
+    if fname.is_null() {
+        fname = c"-stdin-".as_ptr();
     }
+    let bufsize = ret_buf.len();
+    ret_buf[0] = b'"';
+    let mut len: usize = 1;
+    len += home_replace(
+        unsafe { buf.cast_mut().as_ref() },
+        fname,
+        ret_buf[len..].as_mut_ptr(),
+        bufsize.saturating_sub(4),
+        true,
+    );
+    crate::memory::copy_bytes_to_c_buf(&mut ret_buf[len..], b"\" ");
 }
 
 /// Sets progress-message id of reading/writing file `fname`, e.g. `nvim.bufread "foo.txt"`.
-pub fn fname_msg_id<T>(
-    msg_id: *mut T,
-    size: usize,
+pub fn fname_msg_id(
+    msg_slice: &mut [u8],
     prefix: &std::ffi::CStr,
     buf: *const FileBuf,
     fname: impl crate::strings::IntoCCharPtr,
 ) {
-    let msg_id: *mut u8 = msg_id.cast();
     let fname = fname.into_c_char_ptr();
-    {
-        let msg_slice = unsafe { std::slice::from_raw_parts_mut(msg_id, size) };
-        let mut len = crate::memory::copy_bytes_to_c_buf(msg_slice, prefix.to_bytes());
-        if len < size {
-            len += crate::memory::copy_bytes_to_c_buf(&mut msg_slice[len..], b" ");
-        }
-        if len < size {
-            add_quoted_fname(msg_id.wrapping_add(len), size - len, buf, fname);
-        }
-        let total = crate::memory::cstr_len(msg_id.cast());
-        if total > 0 {
-            msg_slice[total - 1] = 0;
-        }
+    let size = msg_slice.len();
+    let mut len = crate::memory::copy_bytes_to_c_buf(msg_slice, prefix.to_bytes());
+    if len < size {
+        len += crate::memory::copy_bytes_to_c_buf(&mut msg_slice[len..], b" ");
+    }
+    if len < size {
+        add_quoted_fname(&mut msg_slice[len..], buf, fname);
+    }
+    let total = crate::memory::bytes_until_nul(msg_slice).len();
+    if total > 0 {
+        msg_slice[total - 1] = 0;
     }
 }
 
@@ -3387,15 +3392,8 @@ pub fn get_fio_flags(name: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-/// Check for a Unicode BOM (Byte Order Mark) at the start of p[size].
-fn check_for_bom(
-    p_in: impl crate::strings::IntoCCharPtr,
-    size: i32,
-    lenp: &mut i32,
-    flags: i32,
-) -> Option<&'static CStr> {
-    let p_in = p_in.into_c_char_ptr();
-    let bytes = crate::memory::cstr_slice(p_in, size.max(0) as usize);
+/// Check for a Unicode BOM (Byte Order Mark) at the start of `bytes`.
+fn check_for_bom(bytes: &[u8], lenp: &mut i32, flags: i32) -> Option<&'static CStr> {
     let mut name: Option<&'static CStr> = None;
     let mut len: i32 = 2;
 
@@ -5053,30 +5051,30 @@ mod tests {
 
     #[test]
     fn test_is_dev_fd_file() {
-        assert!(!is_dev_fd_file(c"/dev/fd/0"));
-        assert!(!is_dev_fd_file(c"/dev/fd/1"));
-        assert!(!is_dev_fd_file(c"/dev/fd/2"));
-        assert!(is_dev_fd_file(c"/dev/fd/3"));
-        assert!(is_dev_fd_file(c"/dev/fd/10"));
-        assert!(!is_dev_fd_file(c"/dev/fd/10a"));
-        assert!(!is_dev_fd_file(c"/tmp/foo"));
+        assert!(!is_dev_fd_file(b"/dev/fd/0"));
+        assert!(!is_dev_fd_file(b"/dev/fd/1"));
+        assert!(!is_dev_fd_file(b"/dev/fd/2"));
+        assert!(is_dev_fd_file(b"/dev/fd/3"));
+        assert!(is_dev_fd_file(b"/dev/fd/10"));
+        assert!(!is_dev_fd_file(b"/dev/fd/10a"));
+        assert!(!is_dev_fd_file(b"/tmp/foo"));
     }
 
     #[test]
     fn test_check_for_bom() {
         let mut len = 0;
         let utf8_bom = [0xefu8, 0xbb, 0xbf, b'a'];
-        let enc = check_for_bom(utf8_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        let enc = check_for_bom(&utf8_bom, &mut len, FIO_ALL);
         assert_eq!(enc, Some(c"utf-8"));
         assert_eq!(len, 3);
 
         let utf16le_bom = [0xffu8, 0xfe, b'a', 0];
-        let enc = check_for_bom(utf16le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        let enc = check_for_bom(&utf16le_bom, &mut len, FIO_ALL);
         assert_eq!(enc, Some(c"utf-16le"));
         assert_eq!(len, 2);
 
         let ucs4le_bom = [0xffu8, 0xfe, 0x00, 0x00];
-        let enc = check_for_bom(ucs4le_bom.as_ptr().cast(), 4, &mut len, FIO_ALL);
+        let enc = check_for_bom(&ucs4le_bom, &mut len, FIO_ALL);
         assert_eq!(enc, Some(c"ucs-4le"));
         assert_eq!(len, 4);
     }

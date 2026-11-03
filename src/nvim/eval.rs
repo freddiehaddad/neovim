@@ -7006,7 +7006,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
             c"provider#%s#bogus",
             name.as_ptr(),
         );
-        script_autoload(buf.as_ptr().cast(), len as usize, false);
+        script_autoload(&buf[..len as usize], false);
 
         len = vim_snprintf!(
             buf.as_mut_ptr().cast(),

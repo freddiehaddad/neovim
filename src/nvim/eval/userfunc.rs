@@ -1946,7 +1946,7 @@ pub fn call_func(
                     fp = find_func(rfname.cast());
                 }
                 if fp.is_null()
-                    && script_autoload(rfname.cast(), crate::memory::cstr_len(rfname.cast()), true)
+                    && script_autoload(crate::memory::cstr_as_bytes(rfname.cast()), true)
                     && !aborting()
                 {
                     fp = find_func(rfname.cast());
@@ -3201,7 +3201,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if fudi.fd_dict.is_null() && !vim_strchr(name, AUTOLOAD_CHAR as i32).is_null() {
                 let mut j = FAIL;
                 if let Some(sname) = sourcing_name() {
-                    let sn = autoload_name(name, crate::memory::cstr_len(name));
+                    let sn = autoload_name(crate::memory::cstr_as_bytes(name));
                     p = vim_strchr(sn.as_ptr(), b'/' as i32);
                     let plen = crate::memory::cstr_len(p) as i32;
                     let slen = sname.to_bytes().len() as i32;

@@ -2730,7 +2730,9 @@ pub fn find_var_in_ht(
         let mut hi = hash_find_len(ht, varname, varname_len);
         if hashitem_empty(&*hi) {
             if (&raw mut *ht) == get_globvar_ht() && no_autoload == 0 {
-                if !script_autoload(varname, varname_len, false) || aborting() {
+                if !script_autoload(crate::memory::cstr_slice(varname, varname_len), false)
+                    || aborting()
+                {
                     return ptr::null_mut();
                 }
                 hi = hash_find_len(ht, varname, varname_len);

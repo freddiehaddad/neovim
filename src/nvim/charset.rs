@@ -866,13 +866,6 @@ pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
     p.wrapping_add(bytes.len() - rem.len()).cast_mut()
 }
 
-pub fn skipwhite_len(p: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCharPtrMut {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_slice(p, len);
-    let rem = skipwhite_slice(bytes);
-    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
-}
-
 pub fn getwhitecols_curline() -> isize {
     getwhitecols(crate::cursor::get_cursor_line_slice())
 }

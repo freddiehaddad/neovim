@@ -1126,7 +1126,8 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
                     target_os = "dragonfly",
                     target_os = "macos"
                 ))]
-                let is_chr_fd = fmt == 0o020000 && is_dev_fd_file(curbuf_mut().b_ffname);
+                let is_chr_fd = fmt == 0o020000
+                    && is_dev_fd_file(crate::memory::cstr_as_bytes(curbuf_mut().b_ffname));
                 #[cfg(not(any(
                     target_os = "freebsd",
                     target_os = "netbsd",

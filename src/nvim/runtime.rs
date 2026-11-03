@@ -10,9 +10,7 @@ use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
     PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
 };
-use crate::charset::{
-    CTRL_V_CONST, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite, skipwhite_len,
-};
+use crate::charset::{CTRL_V_CONST, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite};
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
@@ -739,7 +737,7 @@ pub fn do_in_path(
                 let buflen = copy_option_part(&mut rtp, buf.cast(), MAXPATHL, c",");
 
                 if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
-                    let is_after = path_is_after(buf.cast(), buflen);
+                    let is_after = path_is_after(crate::memory::cstr_slice(buf.cast(), buflen));
                     if (is_after && (flags & DIP_NOAFTER) != 0)
                         || (!is_after && (flags & DIP_AFTER) != 0)
                     {
@@ -1134,41 +1132,34 @@ fn expand_pack_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
     after_path: &mut Vec<std::ffi::CString>,
-    pack_entry: impl crate::strings::IntoCCharPtr,
-    pack_entry_len: usize,
+    pack_entry_bytes: &[u8],
     pos_in_rtp: usize,
 ) {
-    let pack_entry = pack_entry.into_c_char_ptr();
-    {
-        let buf: *mut u8 = (&raw mut rt_st().pack_entry_buf).cast();
-        let pack_entry_bytes = crate::memory::cstr_as_bytes(pack_entry);
-        let start_pats = [c"/pack/*/start/*", c"/start/*"];
-        for pat in &start_pats {
-            let pat_len = pat.to_bytes().len();
-            if pack_entry_len + pat_len + 1 > MAXPATHL {
-                continue;
-            }
-            crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_entry_buf, pack_entry_bytes);
-            crate::memory::copy_bytes_to_c_buf(
-                &mut rt_st().pack_entry_buf[pack_entry_len..],
-                pat.to_bytes(),
-            );
-            expand_rtp_entry(search_path, rtp_used, buf.cast(), false, pos_in_rtp);
-            let mut after_bytes = Vec::from(crate::memory::cstr_as_bytes(buf.cast()));
-            after_bytes.extend_from_slice(b"/after");
-            after_path.push(cstr_from_bytes(&after_bytes));
+    let pack_entry_len = pack_entry_bytes.len();
+    let buf: *mut u8 = (&raw mut rt_st().pack_entry_buf).cast();
+    let start_pats = [c"/pack/*/start/*", c"/start/*"];
+    for pat in &start_pats {
+        let pat_len = pat.to_bytes().len();
+        if pack_entry_len + pat_len + 1 > MAXPATHL {
+            continue;
         }
+        crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_entry_buf, pack_entry_bytes);
+        crate::memory::copy_bytes_to_c_buf(
+            &mut rt_st().pack_entry_buf[pack_entry_len..],
+            pat.to_bytes(),
+        );
+        expand_rtp_entry(search_path, rtp_used, buf.cast(), false, pos_in_rtp);
+        let mut after_bytes = Vec::from(crate::memory::cstr_as_bytes(buf.cast()));
+        after_bytes.extend_from_slice(b"/after");
+        after_path.push(cstr_from_bytes(&after_bytes));
     }
 }
 
-fn path_is_after(buf: impl crate::strings::IntoCCharPtr, buflen: usize) -> bool {
-    let buf = buf.into_c_char_ptr();
-    {
-        let buf_slice = crate::memory::cstr_slice(buf, buflen);
-        buflen >= 5
-            && (buflen < 6 || vim_ispathsep(i32::from(buf_slice[buflen - 6])))
-            && crate::memory::cstr_as_bytes(buf.wrapping_add(buflen - 5)) == b"after"
-    }
+fn path_is_after(buf_slice: &[u8]) -> bool {
+    let buflen = buf_slice.len();
+    buflen >= 5
+        && (buflen < 6 || vim_ispathsep(i32::from(buf_slice[buflen - 6])))
+        && &buf_slice[buflen - 5..] == b"after"
 }
 
 fn runtime_search_path_build() -> RuntimeSearchPath {
@@ -1197,8 +1188,9 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     while !crate::memory::cstr_is_empty(rtp_entry) {
         let cur_entry = rtp_entry;
         let buflen = copy_option_part(&mut rtp_entry, buf.cast(), MAXPATHL, c",");
+        let buf_slice = crate::memory::cstr_slice(buf.cast(), buflen);
 
-        if path_is_after(buf.cast(), buflen) {
+        if path_is_after(buf_slice) {
             rtp_entry = cur_entry;
             break;
         }
@@ -1213,14 +1205,14 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
             pos_in_rtp,
         );
 
-        if let Some(h) = pack_used.get_mut(crate::memory::cstr_as_bytes(buf.cast())) {
+        let buf_slice = crate::memory::cstr_slice(buf.cast(), buflen);
+        if let Some(h) = pack_used.get_mut(buf_slice) {
             *h += 1;
             expand_pack_entry(
                 &mut search_path,
                 &mut rtp_used,
                 &mut after_path,
-                buf.cast(),
-                buflen,
+                buf_slice,
                 pos_in_rtp,
             );
         }
@@ -1237,8 +1229,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
                 &mut search_path,
                 &mut rtp_used,
                 &mut after_path,
-                item.data,
-                item.size,
+                item_bytes,
                 sentinel_pos_in_rtp,
             );
         }
@@ -1262,7 +1253,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
             &mut search_path,
             &mut rtp_used,
             buf.cast(),
-            path_is_after(buf.cast(), buflen),
+            path_is_after(crate::memory::cstr_slice(buf.cast(), buflen)),
             pos_in_rtp,
         );
     }
@@ -2502,27 +2493,18 @@ fn fopen_noinh_readbin(
     crate::os::fs::CFile::from_fd(fd_tmp, c"rb")
 }
 
-fn concat_continued_line(
-    ga: &mut Vec<u8>,
-    p: impl crate::strings::IntoCCharPtr,
-    mut len: usize,
-) -> bool {
-    let p = p.into_c_char_ptr();
-    {
-        let line = skipwhite_len(p, len);
-        len -= (line as usize) - (p as usize);
-        let slice = crate::memory::cstr_slice(line, len);
-        if slice.starts_with(b"\"\\ ") {
-            return true;
-        }
-        if slice.is_empty() || slice[0] != b'\\' {
-            return false;
-        }
-        if len > 1 {
-            ga.extend_from_slice(&slice[1..]);
-        }
-        true
+fn concat_continued_line(ga: &mut Vec<u8>, slice: &[u8]) -> bool {
+    let slice = crate::charset::skipwhite_slice(slice);
+    if slice.starts_with(b"\"\\ ") {
+        return true;
     }
+    if slice.is_empty() || slice[0] != b'\\' {
+        return false;
+    }
+    if slice.len() > 1 {
+        ga.extend_from_slice(&slice[1..]);
+    }
+    true
 }
 
 /// Create a new script item and allocate script-local vars.
@@ -3291,11 +3273,7 @@ pub fn getsourceline(
                 }
                 buf.reserve(400);
                 while let Some(ref next) = sp.nextline
-                    && concat_continued_line(
-                        buf,
-                        next.as_ptr().cast(),
-                        crate::memory::cstr_len(next.as_ptr().cast()),
-                    )
+                    && concat_continued_line(buf, crate::memory::bytes_until_nul(next))
                 {
                     sp.nextline = get_one_sourceline(sp);
                 }
@@ -3502,74 +3480,61 @@ pub fn source_finished(fgetline: LineGetter) -> bool {
 }
 
 /// Return the autoload script name for a function or variable name.
-pub fn autoload_name(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
-) -> std::ffi::CString {
-    let name = name.into_c_char_ptr();
-    {
-        const PREFIX: &[u8] = b"autoload/";
-        const SUFFIX: &[u8] = b".vim";
-        let mut scriptname = Vec::with_capacity(name_len + PREFIX.len() + SUFFIX.len());
-        scriptname.extend_from_slice(PREFIX);
-        scriptname.extend_from_slice(crate::memory::cstr_slice(name, name_len));
-        let mut auchar_idx: usize = 0;
-        let mut i = PREFIX.len();
-        while i - PREFIX.len() < name_len {
-            if scriptname[i] == AUTOLOAD_CHAR {
-                scriptname[i] = b'/';
-                auchar_idx = i;
-            }
-            i += 1;
+pub fn autoload_name(name: &[u8]) -> std::ffi::CString {
+    const PREFIX: &[u8] = b"autoload/";
+    const SUFFIX: &[u8] = b".vim";
+    let name_len = name.len();
+    let mut scriptname = Vec::with_capacity(name_len + PREFIX.len() + SUFFIX.len());
+    scriptname.extend_from_slice(PREFIX);
+    scriptname.extend_from_slice(name);
+    let mut auchar_idx: usize = 0;
+    let mut i = PREFIX.len();
+    while i - PREFIX.len() < name_len {
+        if scriptname[i] == AUTOLOAD_CHAR {
+            scriptname[i] = b'/';
+            auchar_idx = i;
         }
-        scriptname.truncate(auchar_idx);
-        scriptname.extend_from_slice(SUFFIX);
-
-        cstr_from_bytes(&scriptname)
+        i += 1;
     }
+    scriptname.truncate(auchar_idx);
+    scriptname.extend_from_slice(SUFFIX);
+
+    cstr_from_bytes(&scriptname)
 }
 
 /// If name has a package name try autoloading the script for it.
-pub fn script_autoload(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
-    reload: bool,
-) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let slice = crate::memory::cstr_slice(name, name_len);
-        let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {
-            return false;
-        };
-        if pos == 0 {
-            return false;
-        }
-
-        let mut ret = false;
-        let scriptname_cstr = autoload_name(name, name_len);
-        let scriptname = scriptname_cstr.as_ptr().cast_mut();
-
-        let target_tail = &scriptname_cstr.as_bytes()[9..];
-        let already_loaded = rt_st()
-            .ga_loaded
-            .iter()
-            .any(|entry| &entry.as_bytes()[9..] == target_tail);
-        if reload || !already_loaded {
-            if !already_loaded {
-                rt_st().ga_loaded.push(scriptname_cstr.clone());
-            }
-
-            if do_in_runtimepath(
-                scriptname,
-                DIP_START,
-                &mut RuntimeCallback::Source {
-                    skip_if_loaded: true,
-                },
-            ) {
-                ret = true;
-            }
-        }
-
-        ret
+pub fn script_autoload(slice: &[u8], reload: bool) -> bool {
+    let Some(pos) = slice.iter().position(|&b| b == AUTOLOAD_CHAR) else {
+        return false;
+    };
+    if pos == 0 {
+        return false;
     }
+
+    let mut ret = false;
+    let scriptname_cstr = autoload_name(slice);
+    let scriptname = scriptname_cstr.as_ptr().cast_mut();
+
+    let target_tail = &scriptname_cstr.as_bytes()[9..];
+    let already_loaded = rt_st()
+        .ga_loaded
+        .iter()
+        .any(|entry| &entry.as_bytes()[9..] == target_tail);
+    if reload || !already_loaded {
+        if !already_loaded {
+            rt_st().ga_loaded.push(scriptname_cstr.clone());
+        }
+
+        if do_in_runtimepath(
+            scriptname,
+            DIP_START,
+            &mut RuntimeCallback::Source {
+                skip_if_loaded: true,
+            },
+        ) {
+            ret = true;
+        }
+    }
+
+    ret
 }

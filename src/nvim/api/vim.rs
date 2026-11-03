@@ -1055,7 +1055,7 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
 pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
     let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
     if di.is_null() {
-        let found = script_autoload(name.data, name.size, false) && !aborting();
+        let found = script_autoload(name.as_bytes(), false) && !aborting();
         if !found {
             api_set_error!(
                 err,

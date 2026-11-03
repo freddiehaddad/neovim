@@ -503,7 +503,7 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
 
         let mut di = tv_dict_find(dict.as_ref(), name, len as isize);
         if di.is_null() && dict == get_globvar_dict() {
-            if !script_autoload(name, len, false) || aborting() {
+            if !script_autoload(crate::memory::cstr_slice(name, len), false) || aborting() {
                 return 0;
             }
             di = tv_dict_find(dict.as_ref(), name, len as isize);
