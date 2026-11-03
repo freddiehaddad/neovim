@@ -890,7 +890,10 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
         drop(newp_vec);
     } else {
-        ml_add_deleted_len(curbuf_mut().b_ml.ml_line_ptr, oldlen as isize);
+        ml_add_deleted_len(crate::memory::cstr_slice(
+            curbuf_mut().b_ml.ml_line_ptr,
+            oldlen as usize,
+        ));
         unsafe {
             ptr::copy(
                 oldp.wrapping_add((col + count) as usize).cast::<u8>(),

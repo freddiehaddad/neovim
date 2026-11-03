@@ -1464,8 +1464,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> *mut FileBuf {
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
     let buf = buflist_findnr(buflist_findpat(
-        name,
-        name.wrapping_add(crate::memory::cstr_len(name)),
+        crate::memory::cstr_as_bytes(name),
         true,
         false,
         curtab_only != 0,

@@ -883,7 +883,8 @@ pub fn buf_get_backup_name(
         if dir_len > 1
             && after_pathsep(iobuf, p) != 0
             && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
-            && let Some(swname) = make_percent_swname(iobuf, p, fname)
+            && let Some(swname) =
+                make_percent_swname(&g_st().iobuff_bytes_mut()[..dir_len - 1], fname)
         {
             backup = modname(swname.as_ptr(), backup_ext, no_prepend_dot);
         }

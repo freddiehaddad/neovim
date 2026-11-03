@@ -1186,13 +1186,7 @@ pub fn do_tags(_eap: &mut Exarg) {
     }
 }
 
-fn tag_strnicmp(
-    s1: impl crate::strings::IntoCCharPtr,
-    s2: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> i32 {
-    let b1 = crate::memory::cstr_from_ptr(s1.into_c_char_ptr()).to_bytes_with_nul();
-    let b2 = crate::memory::cstr_from_ptr(s2.into_c_char_ptr()).to_bytes_with_nul();
+fn tag_strnicmp(b1: &[u8], b2: &[u8], len: usize) -> i32 {
     for idx in 0..len {
         let c1 = b1.get(idx).copied().unwrap_or(0);
         let c2 = b2.get(idx).copied().unwrap_or(0);
@@ -1821,7 +1815,11 @@ fn findtags_parse_line(
             }
 
             let mut tagcmp = if margs.sortic {
-                tag_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize)
+                tag_strnicmp(
+                    crate::memory::cstr_as_bytes(tagpp.tagname.cast()),
+                    crate::memory::cstr_as_bytes(st.orgpat.head.cast()),
+                    cmplen as usize,
+                )
             } else {
                 let tn_b = crate::memory::cstr_as_bytes(tagpp.tagname.cast());
                 let hd_b = crate::memory::cstr_as_bytes(st.orgpat.head.cast());
@@ -3193,44 +3191,32 @@ pub fn expand_tags(
 
 fn add_tag_field(
     dict: Option<&mut TvDict>,
-    field_name: impl crate::strings::IntoCCharPtr,
-    start: impl crate::strings::IntoCCharPtr,
-    end: impl crate::strings::IntoCCharPtr,
+    field_name: &std::ffi::CStr,
+    val: Option<&[u8]>,
 ) -> bool {
-    let start = start.into_c_char_ptr();
-    let mut end = end.into_c_char_ptr();
-    let field_name = field_name.into_c_char_ptr();
-    {
-        if !tv_dict_find(dict.as_deref(), field_name, -1).is_null() {
-            if opt_vars().p_verbose > 0 {
-                verbose_enter();
-                smsg!(0, gettext(c"Duplicate field name: %s"), field_name);
-                verbose_leave();
-            }
-            return false;
+    if !tv_dict_find(dict.as_deref(), field_name.as_ptr(), -1).is_null() {
+        if opt_vars().p_verbose > 0 {
+            verbose_enter();
+            smsg!(0, gettext(c"Duplicate field name: %s"), field_name.as_ptr());
+            verbose_leave();
         }
-        let mut len: i32 = 0;
-        let mut buf_vec = vec![0u8; MAXPATHL];
-        if !start.is_null() {
-            if end.is_null() {
-                end = start.wrapping_add(crate::memory::cstr_len(start));
-                while end > start
-                    && (crate::memory::cstr_first_byte(end.wrapping_sub(1)) == b'\r'
-                        || crate::memory::cstr_first_byte(end.wrapping_sub(1)) == b'\n')
-                {
-                    end = end.wrapping_sub(1);
-                }
-            }
-            len = (crate::memory::ptr_offset_from(end, start) as i32).min(MAXPATHL as i32 - 1);
-            buf_vec[..len as usize].copy_from_slice(crate::memory::cstr_slice(start, len as usize));
-        }
-        buf_vec[len as usize] = 0;
-        tv_dict_add_str(
-            dict.unwrap(),
-            field_name,
-            CStr::from_bytes_until_nul(&buf_vec).unwrap_or_default(),
-        )
+        return false;
     }
+    let mut len: usize = 0;
+    let mut buf_vec = vec![0u8; MAXPATHL];
+    if let Some(mut slice) = val {
+        while slice.last().is_some_and(|&b| b == b'\r' || b == b'\n') {
+            slice = &slice[..slice.len() - 1];
+        }
+        len = slice.len().min(MAXPATHL - 1);
+        buf_vec[..len].copy_from_slice(&slice[..len]);
+    }
+    buf_vec[len] = 0;
+    tv_dict_add_str(
+        dict.unwrap(),
+        field_name.as_ptr(),
+        CStr::from_bytes_until_nul(&buf_vec).unwrap_or_default(),
+    )
 }
 
 /// Add the tags matching the specified pattern `pat` to the list `list`
@@ -3267,31 +3253,29 @@ pub fn get_tags(
             tv_list_append_dict(&mut *list, dict);
 
             let full_fname = tag_full_fname(&mut tp);
-            if !add_tag_field(
-                Some(&mut *dict),
-                c"name",
-                tp.tagname.cast(),
-                tp.tagname_end.cast(),
-            ) || !add_tag_field(
-                Some(&mut *dict),
-                c"filename",
-                full_fname.as_ptr().cast_mut(),
-                ptr::null(),
-            ) || !add_tag_field(
-                Some(&mut *dict),
-                c"cmd",
-                tp.command.cast(),
-                tp.command_end.cast(),
-            ) || !add_tag_field(
-                Some(&mut *dict),
-                c"kind",
-                tp.tagkind.cast(),
-                if !tp.tagkind.is_null() {
-                    tp.tagkind_end.cast_const().cast()
-                } else {
-                    ptr::null()
-                },
-            ) || !tv_dict_add_nr(&mut *dict, c"static", Varnumber::from(is_static))
+            let tag_slice = (!tp.tagname.is_null()).then(|| {
+                crate::memory::cstr_slice(
+                    tp.tagname.cast(),
+                    crate::memory::ptr_offset_from(tp.tagname_end, tp.tagname).max(0) as usize,
+                )
+            });
+            let cmd_slice = (!tp.command.is_null()).then(|| {
+                crate::memory::cstr_slice(
+                    tp.command.cast(),
+                    crate::memory::ptr_offset_from(tp.command_end, tp.command).max(0) as usize,
+                )
+            });
+            let kind_slice = (!tp.tagkind.is_null()).then(|| {
+                crate::memory::cstr_slice(
+                    tp.tagkind.cast(),
+                    crate::memory::ptr_offset_from(tp.tagkind_end, tp.tagkind).max(0) as usize,
+                )
+            });
+            if !add_tag_field(Some(&mut *dict), c"name", tag_slice)
+                || !add_tag_field(Some(&mut *dict), c"filename", Some(full_fname.as_bytes()))
+                || !add_tag_field(Some(&mut *dict), c"cmd", cmd_slice)
+                || !add_tag_field(Some(&mut *dict), c"kind", kind_slice)
+                || !tv_dict_add_nr(&mut *dict, c"static", Varnumber::from(is_static))
             {
                 ret = false;
             }
@@ -3326,9 +3310,8 @@ pub fn get_tags(
                                 std::ffi::CString::new(&p_bytes[..name_len]).unwrap_or_default();
                             if !add_tag_field(
                                 Some(&mut *dict),
-                                field_name.as_ptr(),
-                                val_start.cast(),
-                                val_end.cast(),
+                                &field_name,
+                                Some(&p_bytes[name_len + 1..name_len + 1 + val_len]),
                             ) {
                                 ret = false;
                             }
@@ -3534,7 +3517,7 @@ mod tests {
 
     #[test]
     fn tag_strnicmp_compares_ascii_case_folded_to_uppercase() {
-        assert_eq!(tag_strnicmp(c"abc", c"ABC", 3), 0);
-        assert!(tag_strnicmp(c"abc", c"_bc", 3) < 0);
+        assert_eq!(tag_strnicmp(b"abc", b"ABC", 3), 0);
+        assert!(tag_strnicmp(b"abc", b"_bc", 3) < 0);
     }
 }

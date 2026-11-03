@@ -1993,7 +1993,15 @@ pub fn do_bufdel(
                 }
                 if !ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
                     let p = skiptowhite_esc(arg);
-                    bnr = buflist_findpat(arg, p, command == DOBUF_WIPE, false, false);
+                    bnr = buflist_findpat(
+                        crate::memory::cstr_slice(
+                            arg,
+                            crate::memory::ptr_offset_from(p, arg).max(0) as usize,
+                        ),
+                        command == DOBUF_WIPE,
+                        false,
+                        false,
+                    );
                     if bnr < 0 {
                         break;
                     }
@@ -2751,7 +2759,7 @@ pub fn buflist_new(
     let mut sfname = sfname_arg.into_c_char_ptr().cast_mut();
     let mut buf: *mut FileBuf;
 
-    let ffname_cstr = fname_expand(g_st().curbuf, &raw mut ffname, &raw mut sfname);
+    let ffname_cstr = fname_expand(g_st().curbuf, &mut ffname, &mut sfname);
 
     let mut file_id: FileID = FileID::new();
     let file_id_valid = !sfname.is_null() && os_fileid(sfname, &mut file_id);
@@ -3138,111 +3146,99 @@ fn buflist_findname_file_id(
 }
 
 /// Find file in buffer list by a regexp pattern.
-pub fn buflist_findpat(
-    pattern: impl crate::strings::IntoCCharPtr,
-    pattern_end: impl crate::strings::IntoCCharPtr,
-    unlisted: bool,
-    diffmode: bool,
-    curtab_only: bool,
-) -> i32 {
-    let pattern = pattern.into_c_char_ptr();
-    let pattern_end = pattern_end.into_c_char_ptr();
-    {
-        let mut match_fnum = -1;
+pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_only: bool) -> i32 {
+    let mut match_fnum = -1;
 
-        if pattern_end == pattern.wrapping_add(1)
-            && (crate::memory::cstr_first_byte(pattern) == b'%'
-                || crate::memory::cstr_first_byte(pattern) == b'#')
-        {
-            match_fnum = if crate::memory::cstr_first_byte(pattern) == b'%' {
-                curbuf_mut().b_fnum
-            } else {
-                curwin_mut().w_alt_fnum
-            };
-            let found_buf = buflist_findnr(match_fnum);
-            if diffmode && (found_buf.is_null() || !diff_mode_buf(found_buf)) {
-                match_fnum = -1;
-            }
+    if pat_slice == b"%" || pat_slice == b"#" {
+        match_fnum = if pat_slice[0] == b'%' {
+            curbuf_mut().b_fnum
         } else {
-            let pat_slice = if pattern_end.is_null() {
-                crate::memory::cstr_as_bytes(pattern)
-            } else {
-                crate::memory::cstr_slice(
-                    pattern,
-                    crate::memory::ptr_offset_from(pattern_end, pattern).max(0) as usize,
-                )
-            };
-            let Some(pat_cstr) = file_pat_to_reg_pat(pat_slice, None, 0) else {
-                return -1;
-            };
-            let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
-            let pat_end_idx = crate::memory::cstr_until_nul(&pat_vec)
-                .to_bytes()
-                .len()
-                .saturating_sub(1);
-            let toggledollar = pat_end_idx > 0 && pat_vec[pat_end_idx] == b'$';
+            curwin_mut().w_alt_fnum
+        };
+        let found_buf = buflist_findnr(match_fnum);
+        if diffmode && (found_buf.is_null() || !diff_mode_buf(found_buf)) {
+            match_fnum = -1;
+        }
+    } else {
+        let Some(pat_cstr) = file_pat_to_reg_pat(pat_slice, None, 0) else {
+            return -1;
+        };
+        let mut pat_vec: Vec<u8> = pat_cstr.into_bytes_with_nul();
+        let pat_end_idx = crate::memory::cstr_until_nul(&pat_vec)
+            .to_bytes()
+            .len()
+            .saturating_sub(1);
+        let toggledollar = pat_end_idx > 0 && pat_vec[pat_end_idx] == b'$';
 
-            let mut find_listed = 1;
-            loop {
-                for attempt in 0..=3 {
-                    if toggledollar {
-                        pat_vec[pat_end_idx] = if attempt < 2 { 0 } else { b'$' };
+        let mut find_listed = 1;
+        loop {
+            for attempt in 0..=3 {
+                if toggledollar {
+                    pat_vec[pat_end_idx] = if attempt < 2 { 0 } else { b'$' };
+                }
+                let pat_start = usize::from(pat_vec[0] == b'^' && (attempt & 1) == 0);
+                let p = pat_vec[pat_start..].as_ptr();
+
+                let mut regmatch: Regmatch = Regmatch::new();
+                regmatch.regprog =
+                    vim_regcomp(p.cast(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+
+                for buf in for_all_buffers_rev_ptr() {
+                    if regmatch.regprog.is_null() {
+                        return -1;
                     }
-                    let pat_start = usize::from(pat_vec[0] == b'^' && (attempt & 1) == 0);
-                    let p = pat_vec[pat_start..].as_ptr();
-
-                    let mut regmatch: Regmatch = Regmatch::new();
-                    regmatch.regprog =
-                        vim_regcomp(p.cast(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
-
-                    for buf in for_all_buffers_rev_ptr() {
-                        if regmatch.regprog.is_null() {
-                            return -1;
-                        }
-                        if buf.b_p_bl == find_listed
-                            && (!diffmode || diff_mode_buf(buf))
-                            && buflist_match(&mut regmatch, &mut *buf, false).is_some()
-                        {
-                            if curtab_only {
-                                let mut found_window = false;
-                                for wp in for_all_windows_mut() {
-                                    if wp.w_buffer == buf {
-                                        found_window = true;
-                                        break;
-                                    }
-                                }
-                                if !found_window {
-                                    continue;
+                    if buf.b_p_bl == find_listed
+                        && (!diffmode || diff_mode_buf(buf))
+                        && buflist_match(&mut regmatch, &mut *buf, false).is_some()
+                    {
+                        if curtab_only {
+                            let mut found_window = false;
+                            for wp in for_all_windows_mut() {
+                                if wp.w_buffer == buf {
+                                    found_window = true;
+                                    break;
                                 }
                             }
-                            if match_fnum >= 0 {
-                                match_fnum = -2;
-                                break;
+                            if !found_window {
+                                continue;
                             }
-                            match_fnum = buf.b_fnum;
                         }
-                    }
-
-                    vim_regfree(regmatch.regprog);
-                    if match_fnum >= 0 {
-                        break;
+                        if match_fnum >= 0 {
+                            match_fnum = -2;
+                            break;
+                        }
+                        match_fnum = buf.b_fnum;
                     }
                 }
 
-                if !unlisted || find_listed == 0 || match_fnum != -1 {
+                vim_regfree(regmatch.regprog);
+                if match_fnum >= 0 {
                     break;
                 }
-                find_listed = 0;
             }
-        }
 
-        if match_fnum == -2 {
-            semsg!(gettext(c"E93: More than one match for %s"), pattern,);
-        } else if match_fnum < 0 {
-            semsg!(gettext(c"E94: No matching buffer for %s"), pattern);
+            if !unlisted || find_listed == 0 || match_fnum != -1 {
+                break;
+            }
+            find_listed = 0;
         }
-        match_fnum
     }
+
+    if match_fnum < 0 {
+        let pat_cstr = crate::memory::cstr_from_bytes(pat_slice);
+        if match_fnum == -2 {
+            semsg!(
+                gettext(c"E93: More than one match for %s"),
+                pat_cstr.as_ptr()
+            );
+        } else {
+            semsg!(
+                gettext(c"E94: No matching buffer for %s"),
+                pat_cstr.as_ptr()
+            );
+        }
+    }
+    match_fnum
 }
 
 fn buf_time_compare(buf1: &FileBuf, buf2: &FileBuf) -> std::cmp::Ordering {
@@ -3770,8 +3766,7 @@ pub fn setfname(
     if crate::memory::cstr_is_empty(ffname) {
         buf.clear_fnames();
     } else {
-        let Some(ffname_cstr) = fname_expand(&raw mut *buf, &raw mut ffname, &raw mut sfname)
-        else {
+        let Some(ffname_cstr) = fname_expand(&raw mut *buf, &mut ffname, &mut sfname) else {
             return false;
         };
 
@@ -3829,7 +3824,7 @@ pub fn buf_set_name(fnum: i32, name: &std::ffi::CStr) {
     let name_cstr = name.to_owned();
     let mut ffname = name_cstr.as_ptr().cast_mut();
     let mut sfname: RawCCharPtrMut = ptr::null_mut();
-    let ffname_cstr = fname_expand(&raw mut *buf, &raw mut ffname, &raw mut sfname);
+    let ffname_cstr = fname_expand(&raw mut *buf, &mut ffname, &mut sfname);
     let sfname_cstr = if sfname.is_null() {
         None
     } else if ptr::eq(sfname, name_cstr.as_ptr()) {
@@ -4336,8 +4331,8 @@ pub fn append_arg_number(wp: &mut WinInfoInfo, buf: &mut [u8]) -> i32 {
 /// Make `*ffname` a full file name, set `*sfname` to `*ffname` if not NULL.
 pub fn fname_expand<T, U>(
     buf: *mut FileBuf,
-    ffname: *mut *mut T,
-    sfname: *mut *mut U,
+    ffname: &mut *mut T,
+    sfname: &mut *mut U,
 ) -> Option<std::ffi::CString> {
     unsafe {
         #[cfg(not(windows))]
@@ -5071,7 +5066,7 @@ mod tests {
             assert!(!buf_valid(buf));
 
             let findpat = |pat: &CStr, allow_unlisted: bool| -> i32 {
-                buflist_findpat(pat.as_ptr(), ptr::null(), allow_unlisted, false, false)
+                buflist_findpat(pat.to_bytes(), allow_unlisted, false, false)
             };
 
             let buf1 = buflist_new(

@@ -460,11 +460,7 @@ fn sign_list_placed(rbuf: *mut FileBuf, group: impl crate::strings::IntoCCharPtr
     }
 }
 
-fn sign_cmd_idx<T>(begin_cmd: impl crate::strings::IntoCCharPtr, end_cmd: *mut T) -> i32 {
-    let begin_cmd = begin_cmd.into_c_char_ptr();
-    let end_cmd = end_cmd.cast::<u8>();
-    let len = crate::memory::ptr_offset_from(end_cmd, begin_cmd.cast()) as usize;
-    let begin_bytes = crate::memory::cstr_slice(begin_cmd, len);
+fn sign_cmd_idx(begin_bytes: &[u8]) -> i32 {
     let idx = CMDS
         .iter()
         .position(|cmd| cmd.to_bytes() == begin_bytes)
@@ -972,16 +968,14 @@ fn sign_jump_cmd(
 fn parse_sign_cmd_args<T>(
     cmd: i32,
     arg_in: *mut T,
-    name: *mut *mut T,
+    name: &mut *mut T,
     id: &mut i32,
-    group: *mut *mut T,
+    group: &mut *mut T,
     prio: &mut i32,
-    buf: *mut *mut FileBuf,
+    buf: &mut *mut FileBuf,
     lnum: &mut Linenr,
 ) -> bool {
     let mut arg = arg_in.cast();
-    let name = name.cast();
-    let group = group.cast();
     unsafe {
         let arg1 = arg;
         let mut filename = ptr::null_mut();
@@ -1029,10 +1023,10 @@ fn parse_sign_cmd_args<T>(
                 {
                     namep = namep.wrapping_add(1);
                 }
-                *name = namep;
+                *name = namep.cast();
             } else if arg_bytes.starts_with(b"group=") {
                 arg = arg.wrapping_add(6);
-                *group = arg;
+                *group = arg.cast();
                 arg = skiptowhite(arg);
                 if !crate::memory::cstr_is_empty(arg) {
                     *arg = NUL;
@@ -1081,7 +1075,10 @@ pub fn ex_sign(eap: &mut Exarg) {
     let mut arg = eap.arg;
 
     let mut p = skiptowhite(arg);
-    let idx = sign_cmd_idx(arg, p);
+    let idx = sign_cmd_idx(crate::memory::cstr_slice(
+        arg,
+        crate::memory::ptr_offset_from(p, arg).max(0) as usize,
+    ));
     if idx == SIGNCMD_LAST {
         semsg!(gettext(c"E160: Unknown sign command: %s"), arg);
         return;
@@ -1124,14 +1121,7 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut buf: *mut FileBuf = ptr::null_mut();
 
         if !parse_sign_cmd_args(
-            idx,
-            arg,
-            &raw mut name,
-            &mut id,
-            &raw mut group,
-            &mut prio,
-            &raw mut buf,
-            &mut lnum,
+            idx, arg, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,
         ) {
             return;
         }
@@ -1355,7 +1345,10 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::Int
         return;
     }
 
-    let cmd_idx = sign_cmd_idx(arg, end_subcmd);
+    let cmd_idx = sign_cmd_idx(crate::memory::cstr_slice(
+        arg,
+        crate::memory::ptr_offset_from(end_subcmd, arg).max(0) as usize,
+    ));
     let begin_subcmd_args = skipwhite(end_subcmd);
 
     let mut last;
@@ -1870,11 +1863,8 @@ mod tests {
 
     #[test]
     fn sign_cmd_idx_and_describe_sign_text_work() {
-        let mut cmd = *b"define\0";
-        assert_eq!(
-            sign_cmd_idx(cmd.as_mut_ptr().cast(), cmd.as_mut_ptr().wrapping_add(6)),
-            SIGNCMD_DEFINE
-        );
+        let cmd = *b"define\0";
+        assert_eq!(sign_cmd_idx(&cmd[..6]), SIGNCMD_DEFINE);
         let st = [schar_from_ascii(b'>'), schar_from_ascii(b'>')];
         let mut buf = [0u8; 16];
         let len = describe_sign_text(&mut buf, &st);

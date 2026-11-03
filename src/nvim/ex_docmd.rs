@@ -6114,15 +6114,22 @@ fn execute_cmd0(
                     p = p.wrapping_sub(1);
                 }
             }
-            eap.line2 = buflist_findpat(eap.arg, p, (eap.argt & EX_BUFUNL) != 0, false, false);
+            eap.line2 = buflist_findpat(
+                crate::memory::cstr_slice(
+                    eap.arg,
+                    crate::memory::ptr_offset_from(p, eap.arg).max(0) as usize,
+                ),
+                (eap.argt & EX_BUFUNL) != 0,
+                false,
+                false,
+            );
             eap.addr_count = 1;
             eap.arg = skipwhite(p);
         } else {
             let arg0 = eap.args.as_slice()[0];
             let arglen0 = eap.arglens.as_slice()[0];
             eap.line2 = buflist_findpat(
-                arg0,
-                arg0.wrapping_add(arglen0),
+                crate::memory::cstr_slice(arg0, arglen0),
                 (eap.argt & EX_BUFUNL) != 0,
                 false,
                 false,

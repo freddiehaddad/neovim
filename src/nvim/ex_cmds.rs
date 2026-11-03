@@ -2603,7 +2603,7 @@ pub fn getfile(
     }
 
     if fnum == 0 {
-        free_me = fname_expand(g_st().curbuf, &raw mut ffname, &raw mut sfname);
+        free_me = fname_expand(g_st().curbuf, &mut ffname, &mut sfname);
         other = otherfile(ffname);
     } else {
         other = fnum != curbuf_mut().b_fnum;

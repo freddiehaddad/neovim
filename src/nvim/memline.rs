@@ -1598,7 +1598,7 @@ pub fn recover_names(
                 && dir_bytes.len() > 1
                 && dir_bytes[dir_bytes.len() - 1] == dir_bytes[dir_bytes.len() - 2]
             {
-                make_percent_swname(dir_name.data, p, fname_res)
+                make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], fname_res)
             } else {
                 let t = path_tail(fname_res);
                 Some(concat_fnames(dir_name, cstr_as_string(t), true))
@@ -1657,14 +1657,11 @@ pub fn recover_names(
     }
 }
 
-/// Append the full path to `name` with path separators made into percent signs to `dir`.
+/// Append the full path to `name` with path separators made into percent signs to `dir_slice`.
 pub fn make_percent_swname(
-    dir: impl crate::strings::IntoCCharPtr,
-    dir_end: impl crate::strings::IntoCCharPtr,
+    dir_slice: &[u8],
     name: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
-    let dir = dir.into_c_char_ptr().cast_mut();
-    let dir_end = dir_end.into_c_char_ptr().cast_mut();
     let name = name.into_c_char_ptr();
     let fname = fix_fname(if !name.is_null() { name } else { c"".as_ptr() })?;
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
@@ -1692,14 +1689,10 @@ pub fn make_percent_swname(
         size: idx - fixed_off,
     };
 
-    let last_sep = dir_end.wrapping_offset(-1);
-    unsafe {
-        *last_sep = NUL;
-    }
     Some(concat_fnames(
         NvimString {
-            data: dir,
-            size: crate::memory::ptr_offset_from(last_sep, dir) as usize,
+            data: dir_slice.as_ptr().cast_mut().cast(),
+            size: dir_slice.len(),
         },
         fixed_fname,
         true,
@@ -2178,7 +2171,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
     }
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
-        ml_add_deleted_len_buf(buf, buf.b_ml.ml_line_ptr, -1);
+        ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(buf.b_ml.ml_line_ptr));
     }
 
     buf.b_ml.ml_line_ptr
@@ -2666,38 +2659,26 @@ pub fn ml_append_buf(
     }
 }
 
-pub fn ml_add_deleted_len(ptr: impl crate::strings::IntoCCharPtr, len: isize) {
-    let ptr = ptr.into_c_char_ptr();
-    ml_add_deleted_len_buf(curbuf_mut(), ptr, len);
+pub fn ml_add_deleted_len(bytes: &[u8]) {
+    ml_add_deleted_len_buf(curbuf_mut(), bytes);
 }
 
-pub fn ml_add_deleted_len_buf(
-    buf: &mut FileBuf,
-    ptr: impl crate::strings::IntoCCharPtr,
-    mut len: isize,
-) {
-    let ptr = ptr.into_c_char_ptr();
-    {
-        if g_st().inhibit_delete_count != 0 {
-            return;
-        }
-        let bytes = crate::memory::cstr_as_bytes(ptr);
-        let maxlen = bytes.len() as isize;
-        if len == -1 || len > maxlen {
-            len = maxlen;
-        }
-        buf.deleted_bytes += (len as usize) + 1;
-        buf.deleted_bytes2 += (len as usize) + 1;
-        if buf.update_need_codepoints {
-            mb_utflen(
-                bytes,
-                len as usize,
-                &mut buf.deleted_codepoints,
-                &mut buf.deleted_codeunits,
-            );
-            buf.deleted_codepoints += 1;
-            buf.deleted_codeunits += 1;
-        }
+pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, bytes: &[u8]) {
+    if g_st().inhibit_delete_count != 0 {
+        return;
+    }
+    let len = bytes.len();
+    buf.deleted_bytes += len + 1;
+    buf.deleted_bytes2 += len + 1;
+    if buf.update_need_codepoints {
+        mb_utflen(
+            bytes,
+            len,
+            &mut buf.deleted_codepoints,
+            &mut buf.deleted_codeunits,
+        );
+        buf.deleted_codepoints += 1;
+        buf.deleted_codeunits += 1;
     }
 }
 
@@ -2774,7 +2755,7 @@ pub fn ml_replace_buf_len(
 
         if !buf.update_callbacks.is_empty() {
             let old_line = ml_get_buf(buf, lnum);
-            ml_add_deleted_len_buf(buf, old_line, -1);
+            ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(old_line));
         }
 
         if let Some(mut v) = new_buf {
@@ -2858,8 +2839,10 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     assert!(line_size >= 1);
     ml_add_deleted_len_buf(
         buf,
-        dp.as_char_ptr().wrapping_add(line_start as usize),
-        (line_size - 1) as isize,
+        crate::memory::cstr_slice(
+            dp.as_char_ptr().wrapping_add(line_start as usize),
+            (line_size - 1) as usize,
+        ),
     );
 
     if count == 1 {
@@ -3395,7 +3378,7 @@ pub fn makeswapname(
         let len = dir_bytes.len();
         let s = dir_name.wrapping_add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
-            let sw = make_percent_swname(dir_name, s, fname_res)?;
+            let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
             return modname(sw.as_ptr(), c".swp", false);
         }
 

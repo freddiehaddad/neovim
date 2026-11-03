@@ -2948,8 +2948,7 @@ pub fn write_reg_contents_ex(
                 b
             } else {
                 buflist_findnr(buflist_findpat(
-                    str_,
-                    str_.wrapping_add(len as usize),
+                    crate::memory::cstr_slice(str_, len as usize),
                     true,
                     false,
                     false,

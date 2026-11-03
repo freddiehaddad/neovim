@@ -3156,7 +3156,12 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         let bufnr = if arg_bytes[..p_idx].iter().all(u8::is_ascii_digit) {
             crate::charset::parse_i64_prefix(arg_bytes) as i32
         } else {
-            let nr = buflist_findpat(eap.arg, eap.arg.wrapping_add(p_idx), false, true, false);
+            let nr = buflist_findpat(
+                crate::memory::cstr_slice(eap.arg, p_idx),
+                false,
+                true,
+                false,
+            );
             if nr < 0 {
                 return;
             }
