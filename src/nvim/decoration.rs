@@ -870,26 +870,26 @@ pub fn next_virt_text_chunk<'a>(
 }
 
 pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> *mut DecorVirtText {
-    unsafe {
-        let mut itr = MarkTreeIter::new();
-        marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
-        loop {
-            let mark = marktree_itr_current(&buf.b_marktree, &itr);
-            if mark.pos.row < 0 || mark.pos.row > row {
-                break;
-            } else if !mt_invalid(mark) {
-                let mut decor = mt_decor_virt(mark);
-                while !decor.is_null() && ((*decor).flags & K_VTIS_LINES) != 0 {
+    let mut itr = MarkTreeIter::new();
+    marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
+    loop {
+        let mark = marktree_itr_current(&buf.b_marktree, &itr);
+        if mark.pos.row < 0 || mark.pos.row > row {
+            break;
+        } else if !mt_invalid(mark) {
+            let mut decor = mt_decor_virt(mark);
+            while !decor.is_null() && unsafe { ((*decor).flags & K_VTIS_LINES) != 0 } {
+                unsafe {
                     decor = (*decor).next_ptr();
                 }
-                if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
-                    return decor;
-                }
             }
-            marktree_itr_next(&buf.b_marktree, &mut itr);
+            if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
+                return decor;
+            }
         }
-        ptr::null_mut()
+        marktree_itr_next(&buf.b_marktree, &mut itr);
     }
+    ptr::null_mut()
 }
 
 pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool {
@@ -989,14 +989,12 @@ pub fn decor_redraw_line(wp: &mut WinInfoInfo, row: i32, state: &mut DecorState)
 }
 
 pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
-    unsafe {
-        if state.current_end != 0 || state.future_begin != state.ranges_i.len() as i32 {
-            return true;
-        }
-
-        let k = marktree_itr_current(&(*(*state.win).w_buffer).b_marktree, &state.itr);
-        k.pos.row >= 0 && k.pos.row <= row
+    if state.current_end != 0 || state.future_begin != state.ranges_i.len() as i32 {
+        return true;
     }
+
+    let k = unsafe { marktree_itr_current(&(*(*state.win).w_buffer).b_marktree, &state.itr) };
+    k.pos.row >= 0 && k.pos.row <= row
 }
 
 fn decor_range_add_from_inline(
@@ -1221,193 +1219,192 @@ pub fn decor_redraw_col_impl(
     state: &mut DecorState,
     max_col_last: i32,
 ) -> i32 {
-    unsafe {
-        let buf = wp.w_buffer;
-        let buf = &mut *buf;
-        let row = state.row;
-        let mut col_last = max_col_last;
+    let buf = wp.w_buffer;
+    let buf = unsafe { &mut *buf };
+    let row = state.row;
+    let mut col_last = max_col_last;
 
-        if !state.itr_valid {
-            marktree_itr_get(&buf.b_marktree, row, state.col_last + 1, &mut state.itr);
-            state.itr_valid = true;
+    if !state.itr_valid {
+        marktree_itr_get(&buf.b_marktree, row, state.col_last + 1, &mut state.itr);
+        state.itr_valid = true;
+    }
+
+    loop {
+        let mark = marktree_itr_current(&buf.b_marktree, &state.itr);
+        if mark.pos.row < 0 || mark.pos.row > row {
+            break;
+        } else if mark.pos.row == row && mark.pos.col > col {
+            col_last = col_last.min(mark.pos.col - 1);
+            break;
         }
 
-        loop {
-            let mark = marktree_itr_current(&buf.b_marktree, &state.itr);
-            if mark.pos.row < 0 || mark.pos.row > row {
-                break;
-            } else if mark.pos.row == row && mark.pos.col > col {
-                col_last = col_last.min(mark.pos.col - 1);
-                break;
-            }
+        if !mt_invalid(mark) && !mt_end(mark) && mt_decor_any(mark) && ns_in_win(mark.ns, &mut *wp)
+        {
+            let endpos = marktree_get_altpos(&buf.b_marktree, mark, None);
+            decor_range_add_from_inline(
+                state,
+                mark.pos.row,
+                mark.pos.col,
+                endpos.row,
+                endpos.col,
+                mt_decor(mark),
+                false,
+                mark.ns,
+                mark.id,
+            );
+        }
 
-            if !mt_invalid(mark)
-                && !mt_end(mark)
-                && mt_decor_any(mark)
-                && ns_in_win(mark.ns, &mut *wp)
+        marktree_itr_next(&buf.b_marktree, &mut state.itr);
+    }
+
+    let mut count = state.ranges_i.len() as i32;
+    let mut cur_end = state.current_end;
+    let mut fut_beg = state.future_begin;
+
+    while fut_beg < count {
+        let index = (&state.ranges_i)[fut_beg as usize];
+        let r = (&state.slots)[index as usize].range();
+        if r.start_row > row || (r.start_row == row && r.start_col > col) {
+            break;
+        }
+        let ordering = r.ordering;
+        let priority = r.priority_internal;
+
+        let mut begin: i32 = 0;
+        let mut end = cur_end;
+        while begin < end {
+            let mid = begin + ((end - begin) >> 1);
+            let mi = (&state.ranges_i)[mid as usize] as usize;
+            let mr = (&state.slots)[mi].range();
+            if mr.priority_internal < priority
+                || (mr.priority_internal == priority && mr.ordering < ordering)
             {
-                let endpos = marktree_get_altpos(&buf.b_marktree, mark, None);
-                decor_range_add_from_inline(
-                    state,
-                    mark.pos.row,
-                    mark.pos.col,
-                    endpos.row,
-                    endpos.col,
-                    mt_decor(mark),
-                    false,
-                    mark.ns,
-                    mark.id,
-                );
+                begin = mid + 1;
+            } else {
+                end = mid;
             }
-
-            marktree_itr_next(&buf.b_marktree, &mut state.itr);
         }
 
-        let mut count = state.ranges_i.len() as i32;
-        let mut cur_end = state.current_end;
-        let mut fut_beg = state.future_begin;
+        state
+            .ranges_i
+            .copy_within(begin as usize..cur_end as usize, (begin + 1) as usize);
+        (&mut state.ranges_i)[begin as usize] = index;
+        cur_end += 1;
+        fut_beg += 1;
+    }
 
-        while fut_beg < count {
-            let index = (&state.ranges_i)[fut_beg as usize];
-            let r = (&state.slots)[index as usize].range();
-            if r.start_row > row || (r.start_row == row && r.start_col > col) {
-                break;
+    if fut_beg < count {
+        let r_idx = (&state.ranges_i)[fut_beg as usize] as usize;
+        let r = (&state.slots)[r_idx].range();
+        if r.start_row == row {
+            col_last = col_last.min(r.start_col - 1);
+        }
+    }
+
+    let mut new_cur_end: i32 = 0;
+
+    let mut attr: i32 = 0;
+    let mut hl_eol_attr: i32 = 0;
+    let mut conceal: i32 = 0;
+    let mut conceal_slot_i: i32 = -1;
+    let mut conceal_char: Schar = 0;
+    let mut conceal_attr: i32 = 0;
+    let mut spell: TriState = K_NONE;
+
+    for i in 0..cur_end {
+        let index = (&state.ranges_i)[i as usize];
+        let slot = &raw mut (&mut state.slots)[index as usize];
+        let r = unsafe { (*slot).range_mut() };
+
+        let keep: bool;
+        if r.end_row < row || (r.end_row == row && r.end_col <= col) {
+            keep = r.start_row >= row && decor_virt_pos(r);
+        } else {
+            keep = true;
+
+            if r.end_row == row && r.end_col > col {
+                col_last = col_last.min(r.end_col - 1);
             }
-            let ordering = r.ordering;
-            let priority = r.priority_internal;
 
-            let mut begin: i32 = 0;
-            let mut end = cur_end;
-            while begin < end {
-                let mid = begin + ((end - begin) >> 1);
-                let mi = (&state.ranges_i)[mid as usize] as usize;
-                let mr = (&state.slots)[mi].range();
-                if mr.priority_internal < priority
-                    || (mr.priority_internal == priority && mr.ordering < ordering)
+            if r.attr_id > 0 {
+                attr = hl_combine_attr(attr, r.attr_id);
+                if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
+                    hl_eol_attr = hl_combine_attr(hl_eol_attr, r.attr_id);
+                }
+            }
+
+            if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
+                conceal = 1;
+                if !r.owned {
+                    conceal_slot_i = index;
+                }
+                if r.start_row == row
+                    && r.start_col == col
+                    && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0
                 {
-                    begin = mid + 1;
-                } else {
-                    end = mid;
+                    conceal = 2;
+                    conceal_char = r.data.sh().text[0];
+                    col_last = col_last.min(r.start_col);
+                    conceal_attr = r.attr_id;
                 }
             }
 
-            state
-                .ranges_i
-                .copy_within(begin as usize..cur_end as usize, (begin + 1) as usize);
-            (&mut state.ranges_i)[begin as usize] = index;
-            cur_end += 1;
-            fut_beg += 1;
+            if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
+                conceal = 0;
+                if !r.owned {
+                    conceal_slot_i = -1;
+                }
+            }
+
+            if r.data.is_sh() {
+                if (r.data.sh().flags & K_SHSPELL_ON) != 0 {
+                    spell = K_TRUE;
+                } else if (r.data.sh().flags & K_SHSPELL_OFF) != 0 {
+                    spell = K_FALSE;
+                }
+                if let Some(ref url) = r.data.sh().url {
+                    attr = hl_add_url(attr, url);
+                }
+            }
         }
 
-        if fut_beg < count {
-            let r_idx = (&state.ranges_i)[fut_beg as usize] as usize;
-            let r = (&state.slots)[r_idx].range();
-            if r.start_row == row {
-                col_last = col_last.min(r.start_col - 1);
-            }
+        if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
+            decor_init_draw_col(win_col, hidden, &mut *r);
         }
 
-        let mut new_cur_end: i32 = 0;
-
-        let mut attr: i32 = 0;
-        let mut hl_eol_attr: i32 = 0;
-        let mut conceal: i32 = 0;
-        let mut conceal_slot_i: i32 = -1;
-        let mut conceal_char: Schar = 0;
-        let mut conceal_attr: i32 = 0;
-        let mut spell: TriState = K_NONE;
-
-        for i in 0..cur_end {
-            let index = (&state.ranges_i)[i as usize];
-            let slot = &raw mut (&mut state.slots)[index as usize];
-            let r = (*slot).range_mut();
-
-            let keep: bool;
-            if r.end_row < row || (r.end_row == row && r.end_col <= col) {
-                keep = r.start_row >= row && decor_virt_pos(r);
-            } else {
-                keep = true;
-
-                if r.end_row == row && r.end_col > col {
-                    col_last = col_last.min(r.end_col - 1);
-                }
-
-                if r.attr_id > 0 {
-                    attr = hl_combine_attr(attr, r.attr_id);
-                    if r.data.is_sh() && (r.data.sh().flags & K_SHHL_EOL) != 0 {
-                        hl_eol_attr = hl_combine_attr(hl_eol_attr, r.attr_id);
-                    }
-                }
-
-                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL) != 0 {
-                    conceal = 1;
-                    if !r.owned {
-                        conceal_slot_i = index;
-                    }
-                    if r.start_row == row
-                        && r.start_col == col
-                        && (r.data.sh().flags & K_SHCONCEAL_CONT) == 0
-                    {
-                        conceal = 2;
-                        conceal_char = r.data.sh().text[0];
-                        col_last = col_last.min(r.start_col);
-                        conceal_attr = r.attr_id;
-                    }
-                }
-
-                if r.data.is_sh() && (r.data.sh().flags & K_SHCONCEAL_OFF) != 0 {
-                    conceal = 0;
-                    if !r.owned {
-                        conceal_slot_i = -1;
-                    }
-                }
-
-                if r.data.is_sh() {
-                    if (r.data.sh().flags & K_SHSPELL_ON) != 0 {
-                        spell = K_TRUE;
-                    } else if (r.data.sh().flags & K_SHSPELL_OFF) != 0 {
-                        spell = K_FALSE;
-                    }
-                    if let Some(ref url) = r.data.sh().url {
-                        attr = hl_add_url(attr, url);
-                    }
-                }
-            }
-
-            if r.start_row == row && r.start_col <= col && decor_virt_pos(r) && r.draw_col == -10 {
-                decor_init_draw_col(win_col, hidden, &mut *r);
-            }
-
-            if keep {
-                (&mut state.ranges_i)[new_cur_end as usize] = index;
-                new_cur_end += 1;
-            } else {
-                let fi = &raw mut state.free_slot_i;
+        if keep {
+            (&mut state.ranges_i)[new_cur_end as usize] = index;
+            new_cur_end += 1;
+        } else {
+            let fi = &raw mut state.free_slot_i;
+            unsafe {
                 *slot = DecorRangeSlot::Free(*fi);
+            }
+            unsafe {
                 *fi = index;
             }
         }
-        cur_end = new_cur_end;
-
-        if fut_beg == count {
-            fut_beg = cur_end;
-            count = cur_end;
-        }
-
-        state.ranges_i.truncate(count as usize);
-        state.future_begin = fut_beg;
-        state.current_end = cur_end;
-        state.col_last = col_last;
-
-        state.current = attr;
-        state.current_hl_eol = hl_eol_attr;
-        state.conceal = conceal;
-        state.conceal_slot_i = conceal_slot_i;
-        state.conceal_char = conceal_char;
-        state.conceal_attr = conceal_attr;
-        state.spell = spell;
-        attr
     }
+    cur_end = new_cur_end;
+
+    if fut_beg == count {
+        fut_beg = cur_end;
+        count = cur_end;
+    }
+
+    state.ranges_i.truncate(count as usize);
+    state.future_begin = fut_beg;
+    state.current_end = cur_end;
+    state.col_last = col_last;
+
+    state.current = attr;
+    state.current_hl_eol = hl_eol_attr;
+    state.conceal = conceal;
+    state.conceal_slot_i = conceal_slot_i;
+    state.conceal_char = conceal_char;
+    state.conceal_attr = conceal_attr;
+    state.spell = spell;
+    attr
 }
 
 fn decor_row_has_mark(wp: &mut WinInfoInfo, row: i32, meta: usize, flag: u32) -> bool {
@@ -1767,75 +1764,75 @@ pub fn decor_virt_lines(
     mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> i32 {
-    unsafe {
-        let buf = wp.w_buffer;
-        if buf_meta_total(&*buf, K_MTMETA_LINES) == 0 {
-            return 0;
-        }
+    let buf = wp.w_buffer;
+    if unsafe { buf_meta_total(&*buf, K_MTMETA_LINES) == 0 } {
+        return 0;
+    }
 
-        let mut itr = MarkTreeIter::new();
-        let b = &(*buf).b_marktree;
-        if !marktree_itr_get_filter(
-            b,
-            (start_row - 1).max(0),
-            0,
-            end_row,
-            0,
-            &LINES_FILTER,
-            &mut itr,
-        ) {
-            return 0;
-        }
+    let mut itr = MarkTreeIter::new();
+    let b = unsafe { &(*buf).b_marktree };
+    if !marktree_itr_get_filter(
+        b,
+        (start_row - 1).max(0),
+        0,
+        end_row,
+        0,
+        &LINES_FILTER,
+        &mut itr,
+    ) {
+        return 0;
+    }
 
-        assert!(start_row >= 0);
+    assert!(start_row >= 0);
 
-        let mut n_virt_lines: i32 = 0;
-        loop {
-            let mark = marktree_itr_current(b, &itr);
-            let mut vt = mt_decor_virt(mark);
-            if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
-                while !vt.is_null() {
-                    let virt_lines = (*vt).data.virt_lines();
-                    if ((*vt).flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
-                        let above = ((*vt).flags & K_VTLINES_ABOVE) != 0;
-                        let mrow = mark.pos.row;
-                        let draw_row = mrow + if above { 0 } else { 1 };
-                        if draw_row >= start_row
-                            && draw_row < end_row
-                            && (!apply_folds
-                                || !(has_folding(wp, mrow + 1, None, ptr::null_mut())
-                                    || decor_conceal_line(wp, mrow, false)))
-                        {
-                            if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
-                                for item in virt_lines {
-                                    let rows = decor_virt_line_rows(&mut *wp, item, 0, None);
-                                    n_virt_lines += rows;
-                                    if num_below.is_some() && !above {
-                                        *num_below.as_deref_mut().unwrap() += rows;
-                                    }
-                                }
-                            } else {
-                                n_virt_lines += virt_lines.len() as i32;
+    let mut n_virt_lines: i32 = 0;
+    loop {
+        let mark = marktree_itr_current(b, &itr);
+        let mut vt = mt_decor_virt(mark);
+        if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
+            while !vt.is_null() {
+                let virt_lines = unsafe { (*vt).data.virt_lines() };
+                if unsafe { ((*vt).flags & K_VTIS_LINES) != 0 } && !virt_lines.is_empty() {
+                    let above = unsafe { ((*vt).flags & K_VTLINES_ABOVE) != 0 };
+                    let mrow = mark.pos.row;
+                    let draw_row = mrow + if above { 0 } else { 1 };
+                    if draw_row >= start_row
+                        && draw_row < end_row
+                        && (!apply_folds
+                            || !(has_folding(wp, mrow + 1, None, ptr::null_mut())
+                                || decor_conceal_line(wp, mrow, false)))
+                    {
+                        if decor_virt_line_wrap(wp, virt_lines[0].overflow) {
+                            for item in virt_lines {
+                                let rows = decor_virt_line_rows(&mut *wp, item, 0, None);
+                                n_virt_lines += rows;
                                 if num_below.is_some() && !above {
-                                    *num_below.as_deref_mut().unwrap() += virt_lines.len() as i32;
+                                    *num_below.as_deref_mut().unwrap() += rows;
                                 }
                             }
-                            if lines.is_some() {
-                                lines.as_deref_mut().unwrap().extend_from_slice(virt_lines);
+                        } else {
+                            n_virt_lines += virt_lines.len() as i32;
+                            if num_below.is_some() && !above {
+                                *num_below.as_deref_mut().unwrap() += virt_lines.len() as i32;
                             }
                         }
+                        if lines.is_some() {
+                            lines.as_deref_mut().unwrap().extend_from_slice(virt_lines);
+                        }
                     }
+                }
+                unsafe {
                     vt = (*vt).next_ptr();
                 }
             }
-
-            if !marktree_itr_next_filter(b, &mut itr, end_row, 0, &LINES_FILTER) {
-                break;
-            }
         }
 
-        n_virt_lines
+        if !marktree_itr_next_filter(b, &mut itr, end_row, 0, &LINES_FILTER) {
+            break;
+        }
     }
+
+    n_virt_lines
 }
 
 pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, arena: &mut Arena) {

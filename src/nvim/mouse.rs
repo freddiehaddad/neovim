@@ -292,56 +292,56 @@ fn mouse_tab_close(c1: i32) {
 /// Call click definition function for column "col" in the "click_defs" array for button
 /// "which_button".
 fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_button: i32) {
-    unsafe {
-        let clicks = if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
-            4
-        } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
-            3
-        } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-            2
+    let clicks = if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+        4
+    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+        3
+    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+        2
+    } else {
+        1
+    };
+
+    let btn_str = if which_button == MOUSE_LEFT {
+        c"l".as_ptr()
+    } else if which_button == MOUSE_RIGHT {
+        c"r".as_ptr()
+    } else if which_button == MOUSE_MIDDLE {
+        c"m".as_ptr()
+    } else if which_button == MOUSE_X1 {
+        c"x1".as_ptr()
+    } else if which_button == MOUSE_X2 {
+        c"x2".as_ptr()
+    } else {
+        c"?".as_ptr()
+    };
+
+    let mut mod_str: [u8; 5] = [
+        if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
+            b's'
         } else {
-            1
-        };
-
-        let btn_str = if which_button == MOUSE_LEFT {
-            c"l".as_ptr()
-        } else if which_button == MOUSE_RIGHT {
-            c"r".as_ptr()
-        } else if which_button == MOUSE_MIDDLE {
-            c"m".as_ptr()
-        } else if which_button == MOUSE_X1 {
-            c"x1".as_ptr()
-        } else if which_button == MOUSE_X2 {
-            c"x2".as_ptr()
+            b' '
+        },
+        if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
+            b'c'
         } else {
-            c"?".as_ptr()
-        };
+            b' '
+        },
+        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+            b'a'
+        } else {
+            b' '
+        },
+        if (g_st().mod_mask & MOD_MASK_META) != 0 {
+            b'm'
+        } else {
+            b' '
+        },
+        0,
+    ];
 
-        let mut mod_str: [u8; 5] = [
-            if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
-                b's'
-            } else {
-                b' '
-            },
-            if (g_st().mod_mask & MOD_MASK_CTRL) != 0 {
-                b'c'
-            } else {
-                b' '
-            },
-            if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                b'a'
-            } else {
-                b' '
-            },
-            if (g_st().mod_mask & MOD_MASK_META) != 0 {
-                b'm'
-            } else {
-                b' '
-            },
-            0,
-        ];
-
-        let mut argv: [TypVal; 4] = [
+    let mut argv: [TypVal; 4] = unsafe {
+        [
             TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_FIXED,
@@ -364,9 +364,11 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
                 v_lock: VAR_FIXED,
                 vval: TypvalVval::String(mod_str.as_mut_ptr().cast()),
             },
-        ];
+        ]
+    };
 
-        let mut rettv: TypVal = TypVal::new();
+    let mut rettv: TypVal = TypVal::new();
+    unsafe {
         call_vim_function(
             (*click_defs.wrapping_add(col as usize))
                 .func
@@ -376,9 +378,9 @@ fn call_click_def_func(click_defs: *mut StlClickDefinition, col: i32, which_butt
             argv.as_mut_ptr(),
             &mut rettv,
         );
-        tv_clear(&mut rettv);
-        mouse_st().got_click = false;
     }
+    tv_clear(&mut rettv);
+    mouse_st().got_click = false;
 }
 
 /// Translate window coordinates to buffer position without any side effects.
@@ -511,683 +513,681 @@ pub fn do_mouse(
     count: i32,
     fixindent: bool,
 ) -> bool {
-    unsafe {
-        let mut which_button: i32;
-        let mut is_click = false;
-        let mut is_drag = false;
+    let mut which_button: i32;
+    let mut is_click = false;
+    let mut is_drag = false;
 
-        loop {
-            which_button = get_mouse_button(key2termcap1(c), &mut is_click, &mut is_drag);
-            if is_drag && g_st().key_stuffed == 0 && vpeekc() != 0 {
-                let save_mouse_grid = g_st().mouse_grid;
-                let save_mouse_row = g_st().mouse_row;
-                let save_mouse_col = g_st().mouse_col;
+    loop {
+        which_button = get_mouse_button(key2termcap1(c), &mut is_click, &mut is_drag);
+        if is_drag && g_st().key_stuffed == 0 && vpeekc() != 0 {
+            let save_mouse_grid = g_st().mouse_grid;
+            let save_mouse_row = g_st().mouse_row;
+            let save_mouse_col = g_st().mouse_col;
 
-                let nc = safe_vgetc();
-                if c == nc {
-                    continue;
-                }
-                vungetc(nc);
-                g_st().mouse_grid = save_mouse_grid;
-                g_st().mouse_row = save_mouse_row;
-                g_st().mouse_col = save_mouse_col;
+            let nc = safe_vgetc();
+            if c == nc {
+                continue;
             }
-            break;
+            vungetc(nc);
+            g_st().mouse_grid = save_mouse_grid;
+            g_st().mouse_row = save_mouse_row;
+            g_st().mouse_col = save_mouse_col;
         }
+        break;
+    }
 
-        if c == K_MOUSEMOVE {
+    if c == K_MOUSEMOVE {
+        return false;
+    }
+
+    if is_click {
+        mouse_st().got_click = true;
+        mouse_st().in_tab_line = false;
+    } else {
+        if !mouse_st().got_click {
             return false;
         }
-
-        if is_click {
-            mouse_st().got_click = true;
-            mouse_st().in_tab_line = false;
-        } else {
-            if !mouse_st().got_click {
-                return false;
-            }
-            if !is_drag {
-                mouse_st().got_click = false;
-                if mouse_st().in_tab_line {
-                    mouse_st().in_tab_line = false;
-                    return false;
-                }
-            }
-        }
-
-        if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
-            if (g_st().state_global & MODE_INSERT) != 0 {
-                stuffchar_readbuff(CTRL_O);
-            }
-            if count > 1 {
-                stuffnum_readbuff(count);
-            }
-            stuffchar_readbuff(CTRL_T_CONST);
+        if !is_drag {
             mouse_st().got_click = false;
-            if (g_st().state_global & MODE_INSERT) == 0 {
-                exec_stuffed(None);
-            }
-            return false;
-        }
-
-        if (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
-            return false;
-        }
-
-        if (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META)) != 0
-            && (!is_click
-                || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
-                || which_button == MOUSE_MIDDLE)
-            && !((g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
-                && mouse_model_popup()
-                && which_button == MOUSE_LEFT)
-            && !((g_st().mod_mask & MOD_MASK_ALT) != 0
-                && !mouse_model_popup()
-                && which_button == MOUSE_RIGHT)
-        {
-            return false;
-        }
-
-        if !is_click && which_button == MOUSE_MIDDLE {
-            return false;
-        }
-
-        let mut regname = if oap.is_some() {
-            oap.as_deref_mut().unwrap().regname
-        } else {
-            0
-        };
-        if which_button == MOUSE_MIDDLE {
-            if g_st().state_global == MODE_NORMAL {
-                if oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
-                    clearopbeep(oap.as_deref_mut().unwrap());
-                    return false;
-                }
-
-                if g_st().visual_global.active {
-                    if g_st().visual_global.select {
-                        stuffchar_readbuff(CTRL_G);
-                        stuff_readbuff(c"\"+p");
-                    } else {
-                        if regname != 0 {
-                            stuffchar_readbuff(b'"' as i32);
-                            stuffchar_readbuff(regname);
-                        }
-                        stuffchar_readbuff(b'y' as i32);
-                        stuffchar_readbuff(K_MIDDLEMOUSE);
-                    }
-                    exec_stuffed(None);
-                    return false;
-                }
-            } else if (g_st().state_global & MODE_INSERT) == 0 {
-                return false;
-            }
-
-            if (g_st().state_global & MODE_INSERT) != 0 {
-                if regname == b'.' as i32 {
-                    insert_reg(regname, ptr::null_mut(), true);
-                } else {
-                    if regname == 0 && eval_has_provider(c"clipboard", false) {
-                        regname = b'*' as i32;
-                    }
-                    let mut reg: *mut Yankreg = ptr::null_mut();
-                    if (g_st().state_global & REPLACE_FLAG) != 0
-                        && !yank_register_mline(regname, &mut reg)
-                    {
-                        insert_reg(regname, reg, true);
-                    } else {
-                        do_put(
-                            regname,
-                            reg,
-                            BACKWARD,
-                            1,
-                            (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
-                        );
-
-                        redo_append_char(CTRL_R_CONST);
-                        redo_append_char(if fixindent { CTRL_P } else { CTRL_O });
-                        redo_append_char(if regname == 0 { b'"' as i32 } else { regname });
-                    }
-                }
+            if mouse_st().in_tab_line {
+                mouse_st().in_tab_line = false;
                 return false;
             }
         }
+    }
 
-        let mut jump_flags = if is_click {
-            0
-        } else {
-            MOUSE_FOCUS | MOUSE_DID_MOVE
-        };
-        let old_curwin = curwin_ptr();
-
-        if !g_st().tab_page_click_defs.is_empty() {
-            if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow > 0 {
-                if is_drag {
-                    if mouse_st().in_tab_line {
-                        move_tab_to_mouse();
-                    }
-                    return false;
-                }
-
-                if is_click && g_st().mouse_col < g_st().columns_global {
-                    let tabnr =
-                        g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
-                    mouse_st().in_tab_line = true;
-
-                    match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
-                        K_STL_CLICK_DISABLED => {}
-                        K_STL_CLICK_TAB_SWITCH => {
-                            if which_button != MOUSE_MIDDLE {
-                                if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                                    end_visual_mode();
-                                    tabpage_new();
-                                    tabpage_move(if tabnr == 0 { 9999 } else { tabnr - 1 });
-                                } else {
-                                    goto_tabpage(tabnr);
-                                    if curwin_ptr() != old_curwin {
-                                        end_visual_mode();
-                                    }
-                                }
-                            } else {
-                                mouse_tab_close(tabnr);
-                            }
-                        }
-                        K_STL_CLICK_TAB_CLOSE => {
-                            mouse_tab_close(tabnr);
-                        }
-                        K_STL_CLICK_FUNC_RUN => {
-                            call_click_def_func(
-                                g_st().tab_page_click_defs.as_mut_ptr(),
-                                g_st().mouse_col,
-                                which_button,
-                            );
-                        }
-                        _ => {}
-                    }
-                }
-                return true;
-            } else if is_drag && mouse_st().in_tab_line {
-                move_tab_to_mouse();
-                return false;
-            }
-        }
-
-        if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
-            let mut pos = ZERO_POS;
-            let mut wp: *mut WinInfoInfo = ptr::null_mut();
-            if get_fpos_of_mouse(&mut pos, &raw mut wp) == IN_BUFFER
-                && !bt_quickfix(((*wp).w_buffer).as_ref())
-            {
-                mouse_st().got_click = false;
-                if (g_st().state_global & MODE_INSERT) == 0 {
-                    pos.coladd = 0;
-                    mc_toggle((*wp).buf_mut(), pos, false, K_NONE);
-                }
-                return false;
-            }
-        }
-
-        let mut m_pos_flag = 0;
-        let mut m_pos = ZERO_POS;
-        if mouse_model_popup() {
-            m_pos_flag = get_fpos_of_mouse(&mut m_pos, ptr::null_mut());
-            if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
-                && which_button == MOUSE_RIGHT
-                && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
-            {
-                if !is_click {
-                    return false;
-                }
-                return (do_popup(which_button, m_pos_flag, m_pos) & CURSOR_MOVED) != 0;
-            }
-            if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
-                && which_button == MOUSE_LEFT
-                && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
-            {
-                which_button = MOUSE_RIGHT;
-                g_st().mod_mask &= !MOD_MASK_SHIFT;
-            }
-        }
-
-        let mut end_visual = ZERO_POS;
-        let mut start_visual = ZERO_POS;
-        let mouse_can_visual = ui_mouse_has(K_MOUSE_VISUAL);
-        if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
-            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
-        {
-            if which_button == MOUSE_LEFT && mouse_can_visual {
-                if is_click {
-                    if g_st().visual_global.active {
-                        jump_flags |= MOUSE_MAY_STOP_VIS;
-                    }
-                } else {
-                    jump_flags |= MOUSE_MAY_VIS;
-                }
-            } else if which_button == MOUSE_RIGHT && mouse_can_visual {
-                if is_click && g_st().visual_global.active {
-                    if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
-                        start_visual = curwin_mut().w_cursor;
-                        end_visual = g_st().visual_global.start;
-                    } else {
-                        start_visual = g_st().visual_global.start;
-                        end_visual = curwin_mut().w_cursor;
-                    }
-                }
-                jump_flags |= MOUSE_MAY_VIS;
-                jump_flags |= MOUSE_FOCUS;
-            } else if which_button == MOUSE_RIGHT {
-                jump_flags |= MOUSE_FOCUS;
-            }
-        }
-
-        if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
-            mouse_st().got_click = false;
-            oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
-        }
-
-        if !is_click && !is_drag {
-            jump_flags |= MOUSE_RELEASED;
-        }
-
-        let old_active = g_st().visual_global.active;
-        let save_cursor = curwin_mut().w_cursor;
-
-        if !g_st().visual_global.active || mouse_can_visual {
-            jump_flags = jump_to_mouse(
-                jump_flags,
-                if oap.is_none() {
-                    ptr::null_mut()
-                } else {
-                    &raw mut oap.as_deref_mut().unwrap().inclusive
-                },
-                which_button,
-            );
-        }
-
-        if g_st().mod_mask == 0
-            && !is_drag
-            && (jump_flags & (MOUSE_FOLD_CLOSE | MOUSE_FOLD_OPEN)) != 0
-            && which_button == MOUSE_LEFT
-        {
-            if (jump_flags & MOUSE_FOLD_OPEN) != 0 {
-                open_fold(curwin_mut().w_cursor, 1);
-            } else {
-                close_fold(curwin_mut().w_cursor, 1);
-            }
-            if curwin_ptr() == old_curwin {
-                curwin_mut().w_cursor = save_cursor;
-            }
-        }
-
-        let moved = (jump_flags & CURSOR_MOVED) != 0;
-        let in_winbar = (jump_flags & MOUSE_WINBAR) != 0;
-        let in_statuscol = (jump_flags & MOUSE_STATUSCOL) != 0;
-        let in_status_line = (jump_flags & IN_STATUS_LINE) != 0;
-        let in_global_statusline = in_status_line && global_stl_height() > 0;
-        let in_sep_line = (jump_flags & IN_SEP_LINE) != 0;
-
-        if (in_winbar || in_status_line || in_statuscol) && is_click {
-            let mut click_grid = g_st().mouse_grid;
-            let mut click_row = g_st().mouse_row;
-            let mut click_col = g_st().mouse_col;
-            let wp = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col);
-            if wp.is_null() {
-                return false;
-            }
-            let wp = &mut *wp;
-
-            let mut click_defs: *mut StlClickDefinition = if in_status_line {
-                if wp.w_status_click_defs.is_empty() {
-                    ptr::null_mut()
-                } else {
-                    wp.w_status_click_defs.as_mut_ptr()
-                }
-            } else if in_winbar {
-                if wp.w_winbar_click_defs.is_empty() {
-                    ptr::null_mut()
-                } else {
-                    wp.w_winbar_click_defs.as_mut_ptr()
-                }
-            } else {
-                ptr::null_mut()
-            };
-            if in_statuscol && wp.w_onebuf_opt.wo_rl != 0 {
-                click_col = wp.w_view_width - click_col - 1;
-            }
-
-            if in_statuscol {
-                let lnum = get_vim_var_nr(VV_LNUM) as i32;
-                let virtnum = get_vim_var_nr(VV_VIRTNUM) as i32;
-                let Some(row_click_defs) = wp
-                    .w_statuscol_click_defs
-                    .get_mut(&lnum)
-                    .and_then(|m| m.get_mut(&virtnum))
-                else {
-                    return false;
-                };
-                if click_col >= row_click_defs.len() as i32 {
-                    return false;
-                }
-                click_defs = row_click_defs.as_mut_ptr();
-            }
-
-            if in_global_statusline {
-                click_defs = if curwin_mut().w_status_click_defs.is_empty() {
-                    ptr::null_mut()
-                } else {
-                    curwin_mut().w_status_click_defs.as_mut_ptr()
-                };
-                click_col = g_st().mouse_col;
-            }
-
-            if in_status_line {
-                let stl_wp = if in_global_statusline {
-                    curwin_ptr()
-                } else {
-                    wp
-                };
-                if click_col >= (*stl_wp).w_status_click_defs.len() as i32 {
-                    return false;
-                }
-            }
-
-            if !click_defs.is_null() {
-                match (*click_defs.wrapping_add(click_col as usize)).type_ {
-                    K_STL_CLICK_DISABLED => {
-                        if in_statuscol
-                            && mouse_model_popup()
-                            && which_button == MOUSE_RIGHT
-                            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
-                        {
-                            do_popup(which_button, m_pos_flag, m_pos);
-                        }
-                    }
-                    K_STL_CLICK_FUNC_RUN => {
-                        call_click_def_func(click_defs, click_col, which_button);
-                    }
-                    _ => {
-                        debug_assert!(
-                            false,
-                            "winbar, statusline and statuscolumn only support %@ for clicks"
-                        );
-                    }
-                }
-            }
-            return false;
-        } else if in_winbar || in_statuscol {
-            return false;
-        }
-
-        if curwin_ptr() != old_curwin
-            && oap.is_some()
-            && oap.as_deref_mut().unwrap().op_type != OP_NOP
-        {
-            clearop(oap.as_deref_mut().unwrap());
-        }
-
-        if g_st().visual_global.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
-            if g_st().mouse_row == 0 {
-                g_st().mouse_dragging = 2;
-            } else {
-                g_st().mouse_dragging = 1;
-            }
-        }
-
-        if is_drag && g_st().mouse_row < 0 && !in_status_line {
-            scroll_redraw(0, 1);
-            g_st().mouse_row = 0;
-        }
-
-        let old_mode = g_st().visual_global.mode;
-        if start_visual.lnum != 0 {
-            if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                g_st().visual_global.mode = CTRL_V_CONST;
-            }
-
-            if g_st().visual_global.mode == CTRL_V_CONST {
-                let mut leftcol: Colnr = 0;
-                let mut rightcol: Colnr = 0;
-                getvcols(
-                    curwin_ptr(),
-                    &mut start_visual,
-                    &mut end_visual,
-                    &mut leftcol,
-                    &mut rightcol,
-                    0,
-                );
-                if curwin_mut().w_curswant > (leftcol + rightcol) / 2 {
-                    end_visual.col = leftcol;
-                } else {
-                    end_visual.col = rightcol;
-                }
-                if curwin_mut().w_cursor.lnum >= (start_visual.lnum + end_visual.lnum) / 2 {
-                    end_visual.lnum = start_visual.lnum;
-                }
-
-                start_visual = curwin_mut().w_cursor;
-                curwin_mut().w_cursor = end_visual;
-                coladvance(curwin_mut(), end_visual.col);
-                g_st().visual_global.start = curwin_mut().w_cursor;
-                curwin_mut().w_cursor = start_visual;
-            } else if lt(curwin_mut().w_cursor, start_visual) {
-                g_st().visual_global.start = end_visual;
-            } else if lt(end_visual, curwin_mut().w_cursor) {
-                g_st().visual_global.start = start_visual;
-            } else if end_visual.lnum == start_visual.lnum {
-                if curwin_mut().w_cursor.col - start_visual.col
-                    > end_visual.col - curwin_mut().w_cursor.col
-                {
-                    g_st().visual_global.start = start_visual;
-                } else {
-                    g_st().visual_global.start = end_visual;
-                }
-            } else {
-                let diff = (curwin_mut().w_cursor.lnum - start_visual.lnum)
-                    - (end_visual.lnum - curwin_mut().w_cursor.lnum);
-
-                if diff > 0 {
-                    g_st().visual_global.start = start_visual;
-                } else if diff < 0
-                    || curwin_mut().w_cursor.col < (start_visual.col + end_visual.col) / 2
-                {
-                    g_st().visual_global.start = end_visual;
-                } else {
-                    g_st().visual_global.start = start_visual;
-                }
-            }
-        } else if (g_st().state_global & MODE_INSERT) != 0 && g_st().visual_global.active {
+    if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_RIGHT {
+        if (g_st().state_global & MODE_INSERT) != 0 {
             stuffchar_readbuff(CTRL_O);
         }
+        if count > 1 {
+            stuffnum_readbuff(count);
+        }
+        stuffchar_readbuff(CTRL_T_CONST);
+        mouse_st().got_click = false;
+        if (g_st().state_global & MODE_INSERT) == 0 {
+            exec_stuffed(None);
+        }
+        return false;
+    }
 
-        if which_button == MOUSE_MIDDLE {
-            if regname == 0 && eval_has_provider(c"clipboard", false) {
-                regname = b'*' as i32;
+    if (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button != MOUSE_LEFT {
+        return false;
+    }
+
+    if (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL | MOD_MASK_ALT | MOD_MASK_META)) != 0
+        && (!is_click
+            || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
+            || which_button == MOUSE_MIDDLE)
+        && !((g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+            && mouse_model_popup()
+            && which_button == MOUSE_LEFT)
+        && !((g_st().mod_mask & MOD_MASK_ALT) != 0
+            && !mouse_model_popup()
+            && which_button == MOUSE_RIGHT)
+    {
+        return false;
+    }
+
+    if !is_click && which_button == MOUSE_MIDDLE {
+        return false;
+    }
+
+    let mut regname = if oap.is_some() {
+        oap.as_deref_mut().unwrap().regname
+    } else {
+        0
+    };
+    if which_button == MOUSE_MIDDLE {
+        if g_st().state_global == MODE_NORMAL {
+            if oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
+                clearopbeep(oap.as_deref_mut().unwrap());
+                return false;
             }
-            let mut reg: *mut Yankreg = ptr::null_mut();
-            if yank_register_mline(regname, &mut reg) {
-                if g_st().mouse_past_bottom {
-                    dir = FORWARD;
+
+            if g_st().visual_global.active {
+                if g_st().visual_global.select {
+                    stuffchar_readbuff(CTRL_G);
+                    stuff_readbuff(c"\"+p");
+                } else {
+                    if regname != 0 {
+                        stuffchar_readbuff(b'"' as i32);
+                        stuffchar_readbuff(regname);
+                    }
+                    stuffchar_readbuff(b'y' as i32);
+                    stuffchar_readbuff(K_MIDDLEMOUSE);
                 }
-            } else if g_st().mouse_past_eol {
+                exec_stuffed(None);
+                return false;
+            }
+        } else if (g_st().state_global & MODE_INSERT) == 0 {
+            return false;
+        }
+
+        if (g_st().state_global & MODE_INSERT) != 0 {
+            if regname == b'.' as i32 {
+                insert_reg(regname, ptr::null_mut(), true);
+            } else {
+                if regname == 0 && eval_has_provider(c"clipboard", false) {
+                    regname = b'*' as i32;
+                }
+                let mut reg: *mut Yankreg = ptr::null_mut();
+                if (g_st().state_global & REPLACE_FLAG) != 0
+                    && !yank_register_mline(regname, &mut reg)
+                {
+                    insert_reg(regname, reg, true);
+                } else {
+                    do_put(
+                        regname,
+                        reg,
+                        BACKWARD,
+                        1,
+                        (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
+                    );
+
+                    redo_append_char(CTRL_R_CONST);
+                    redo_append_char(if fixindent { CTRL_P } else { CTRL_O });
+                    redo_append_char(if regname == 0 { b'"' as i32 } else { regname });
+                }
+            }
+            return false;
+        }
+    }
+
+    let mut jump_flags = if is_click {
+        0
+    } else {
+        MOUSE_FOCUS | MOUSE_DID_MOVE
+    };
+    let old_curwin = curwin_ptr();
+
+    if !g_st().tab_page_click_defs.is_empty() {
+        if g_st().mouse_grid <= 1 && g_st().mouse_row == 0 && firstwin_mut().w_winrow > 0 {
+            if is_drag {
+                if mouse_st().in_tab_line {
+                    move_tab_to_mouse();
+                }
+                return false;
+            }
+
+            if is_click && g_st().mouse_col < g_st().columns_global {
+                let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
+                mouse_st().in_tab_line = true;
+
+                match g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].type_ {
+                    K_STL_CLICK_DISABLED => {}
+                    K_STL_CLICK_TAB_SWITCH => {
+                        if which_button != MOUSE_MIDDLE {
+                            if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+                                end_visual_mode();
+                                tabpage_new();
+                                tabpage_move(if tabnr == 0 { 9999 } else { tabnr - 1 });
+                            } else {
+                                goto_tabpage(tabnr);
+                                if curwin_ptr() != old_curwin {
+                                    end_visual_mode();
+                                }
+                            }
+                        } else {
+                            mouse_tab_close(tabnr);
+                        }
+                    }
+                    K_STL_CLICK_TAB_CLOSE => {
+                        mouse_tab_close(tabnr);
+                    }
+                    K_STL_CLICK_FUNC_RUN => {
+                        call_click_def_func(
+                            g_st().tab_page_click_defs.as_mut_ptr(),
+                            g_st().mouse_col,
+                            which_button,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            return true;
+        } else if is_drag && mouse_st().in_tab_line {
+            move_tab_to_mouse();
+            return false;
+        }
+    }
+
+    if is_click && (g_st().mod_mask & MOD_MASK_CTRL) != 0 && which_button == MOUSE_LEFT {
+        let mut pos = ZERO_POS;
+        let mut wp: *mut WinInfoInfo = ptr::null_mut();
+        if get_fpos_of_mouse(&mut pos, &raw mut wp) == IN_BUFFER
+            && unsafe { !bt_quickfix(((*wp).w_buffer).as_ref()) }
+        {
+            mouse_st().got_click = false;
+            if (g_st().state_global & MODE_INSERT) == 0 {
+                pos.coladd = 0;
+                unsafe {
+                    mc_toggle((*wp).buf_mut(), pos, false, K_NONE);
+                }
+            }
+            return false;
+        }
+    }
+
+    let mut m_pos_flag = 0;
+    let mut m_pos = ZERO_POS;
+    if mouse_model_popup() {
+        m_pos_flag = get_fpos_of_mouse(&mut m_pos, ptr::null_mut());
+        if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
+            && which_button == MOUSE_RIGHT
+            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+        {
+            if !is_click {
+                return false;
+            }
+            return (do_popup(which_button, m_pos_flag, m_pos) & CURSOR_MOVED) != 0;
+        }
+        if (m_pos_flag & (IN_STATUS_LINE | MOUSE_WINBAR | MOUSE_STATUSCOL)) == 0
+            && which_button == MOUSE_LEFT
+            && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_ALT)) != 0
+        {
+            which_button = MOUSE_RIGHT;
+            g_st().mod_mask &= !MOD_MASK_SHIFT;
+        }
+    }
+
+    let mut end_visual = ZERO_POS;
+    let mut start_visual = ZERO_POS;
+    let mouse_can_visual = ui_mouse_has(K_MOUSE_VISUAL);
+    if (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
+        && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+    {
+        if which_button == MOUSE_LEFT && mouse_can_visual {
+            if is_click {
+                if g_st().visual_global.active {
+                    jump_flags |= MOUSE_MAY_STOP_VIS;
+                }
+            } else {
+                jump_flags |= MOUSE_MAY_VIS;
+            }
+        } else if which_button == MOUSE_RIGHT && mouse_can_visual {
+            if is_click && g_st().visual_global.active {
+                if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
+                    start_visual = curwin_mut().w_cursor;
+                    end_visual = g_st().visual_global.start;
+                } else {
+                    start_visual = g_st().visual_global.start;
+                    end_visual = curwin_mut().w_cursor;
+                }
+            }
+            jump_flags |= MOUSE_MAY_VIS;
+            jump_flags |= MOUSE_FOCUS;
+        } else if which_button == MOUSE_RIGHT {
+            jump_flags |= MOUSE_FOCUS;
+        }
+    }
+
+    if !is_drag && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP {
+        mouse_st().got_click = false;
+        oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
+    }
+
+    if !is_click && !is_drag {
+        jump_flags |= MOUSE_RELEASED;
+    }
+
+    let old_active = g_st().visual_global.active;
+    let save_cursor = curwin_mut().w_cursor;
+
+    if !g_st().visual_global.active || mouse_can_visual {
+        jump_flags = jump_to_mouse(
+            jump_flags,
+            if oap.is_none() {
+                ptr::null_mut()
+            } else {
+                &raw mut oap.as_deref_mut().unwrap().inclusive
+            },
+            which_button,
+        );
+    }
+
+    if g_st().mod_mask == 0
+        && !is_drag
+        && (jump_flags & (MOUSE_FOLD_CLOSE | MOUSE_FOLD_OPEN)) != 0
+        && which_button == MOUSE_LEFT
+    {
+        if (jump_flags & MOUSE_FOLD_OPEN) != 0 {
+            open_fold(curwin_mut().w_cursor, 1);
+        } else {
+            close_fold(curwin_mut().w_cursor, 1);
+        }
+        if curwin_ptr() == old_curwin {
+            curwin_mut().w_cursor = save_cursor;
+        }
+    }
+
+    let moved = (jump_flags & CURSOR_MOVED) != 0;
+    let in_winbar = (jump_flags & MOUSE_WINBAR) != 0;
+    let in_statuscol = (jump_flags & MOUSE_STATUSCOL) != 0;
+    let in_status_line = (jump_flags & IN_STATUS_LINE) != 0;
+    let in_global_statusline = in_status_line && global_stl_height() > 0;
+    let in_sep_line = (jump_flags & IN_SEP_LINE) != 0;
+
+    if (in_winbar || in_status_line || in_statuscol) && is_click {
+        let mut click_grid = g_st().mouse_grid;
+        let mut click_row = g_st().mouse_row;
+        let mut click_col = g_st().mouse_col;
+        let wp = mouse_find_win_inner(&mut click_grid, &mut click_row, &mut click_col);
+        if wp.is_null() {
+            return false;
+        }
+        let wp = unsafe { &mut *wp };
+
+        let mut click_defs: *mut StlClickDefinition = if in_status_line {
+            if wp.w_status_click_defs.is_empty() {
+                ptr::null_mut()
+            } else {
+                wp.w_status_click_defs.as_mut_ptr()
+            }
+        } else if in_winbar {
+            if wp.w_winbar_click_defs.is_empty() {
+                ptr::null_mut()
+            } else {
+                wp.w_winbar_click_defs.as_mut_ptr()
+            }
+        } else {
+            ptr::null_mut()
+        };
+        if in_statuscol && wp.w_onebuf_opt.wo_rl != 0 {
+            click_col = wp.w_view_width - click_col - 1;
+        }
+
+        if in_statuscol {
+            let lnum = get_vim_var_nr(VV_LNUM) as i32;
+            let virtnum = get_vim_var_nr(VV_VIRTNUM) as i32;
+            let Some(row_click_defs) = wp
+                .w_statuscol_click_defs
+                .get_mut(&lnum)
+                .and_then(|m| m.get_mut(&virtnum))
+            else {
+                return false;
+            };
+            if click_col >= row_click_defs.len() as i32 {
+                return false;
+            }
+            click_defs = row_click_defs.as_mut_ptr();
+        }
+
+        if in_global_statusline {
+            click_defs = if curwin_mut().w_status_click_defs.is_empty() {
+                ptr::null_mut()
+            } else {
+                curwin_mut().w_status_click_defs.as_mut_ptr()
+            };
+            click_col = g_st().mouse_col;
+        }
+
+        if in_status_line {
+            let stl_wp = if in_global_statusline {
+                curwin_ptr()
+            } else {
+                wp
+            };
+            if unsafe { click_col >= (*stl_wp).w_status_click_defs.len() as i32 } {
+                return false;
+            }
+        }
+
+        if !click_defs.is_null() {
+            match unsafe { (*click_defs.wrapping_add(click_col as usize)).type_ } {
+                K_STL_CLICK_DISABLED => {
+                    if in_statuscol
+                        && mouse_model_popup()
+                        && which_button == MOUSE_RIGHT
+                        && (g_st().mod_mask & (MOD_MASK_SHIFT | MOD_MASK_CTRL)) == 0
+                    {
+                        do_popup(which_button, m_pos_flag, m_pos);
+                    }
+                }
+                K_STL_CLICK_FUNC_RUN => {
+                    call_click_def_func(click_defs, click_col, which_button);
+                }
+                _ => {
+                    debug_assert!(
+                        false,
+                        "winbar, statusline and statuscolumn only support %@ for clicks"
+                    );
+                }
+            }
+        }
+        return false;
+    } else if in_winbar || in_statuscol {
+        return false;
+    }
+
+    if curwin_ptr() != old_curwin && oap.is_some() && oap.as_deref_mut().unwrap().op_type != OP_NOP
+    {
+        clearop(oap.as_deref_mut().unwrap());
+    }
+
+    if g_st().visual_global.active && is_drag && get_scrolloff_value(curwin_mut()) != 0 {
+        if g_st().mouse_row == 0 {
+            g_st().mouse_dragging = 2;
+        } else {
+            g_st().mouse_dragging = 1;
+        }
+    }
+
+    if is_drag && g_st().mouse_row < 0 && !in_status_line {
+        scroll_redraw(0, 1);
+        g_st().mouse_row = 0;
+    }
+
+    let old_mode = g_st().visual_global.mode;
+    if start_visual.lnum != 0 {
+        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+            g_st().visual_global.mode = CTRL_V_CONST;
+        }
+
+        if g_st().visual_global.mode == CTRL_V_CONST {
+            let mut leftcol: Colnr = 0;
+            let mut rightcol: Colnr = 0;
+            getvcols(
+                curwin_ptr(),
+                &mut start_visual,
+                &mut end_visual,
+                &mut leftcol,
+                &mut rightcol,
+                0,
+            );
+            if curwin_mut().w_curswant > (leftcol + rightcol) / 2 {
+                end_visual.col = leftcol;
+            } else {
+                end_visual.col = rightcol;
+            }
+            if curwin_mut().w_cursor.lnum >= (start_visual.lnum + end_visual.lnum) / 2 {
+                end_visual.lnum = start_visual.lnum;
+            }
+
+            start_visual = curwin_mut().w_cursor;
+            curwin_mut().w_cursor = end_visual;
+            coladvance(curwin_mut(), end_visual.col);
+            g_st().visual_global.start = curwin_mut().w_cursor;
+            curwin_mut().w_cursor = start_visual;
+        } else if lt(curwin_mut().w_cursor, start_visual) {
+            g_st().visual_global.start = end_visual;
+        } else if lt(end_visual, curwin_mut().w_cursor) {
+            g_st().visual_global.start = start_visual;
+        } else if end_visual.lnum == start_visual.lnum {
+            if curwin_mut().w_cursor.col - start_visual.col
+                > end_visual.col - curwin_mut().w_cursor.col
+            {
+                g_st().visual_global.start = start_visual;
+            } else {
+                g_st().visual_global.start = end_visual;
+            }
+        } else {
+            let diff = (curwin_mut().w_cursor.lnum - start_visual.lnum)
+                - (end_visual.lnum - curwin_mut().w_cursor.lnum);
+
+            if diff > 0 {
+                g_st().visual_global.start = start_visual;
+            } else if diff < 0
+                || curwin_mut().w_cursor.col < (start_visual.col + end_visual.col) / 2
+            {
+                g_st().visual_global.start = end_visual;
+            } else {
+                g_st().visual_global.start = start_visual;
+            }
+        }
+    } else if (g_st().state_global & MODE_INSERT) != 0 && g_st().visual_global.active {
+        stuffchar_readbuff(CTRL_O);
+    }
+
+    if which_button == MOUSE_MIDDLE {
+        if regname == 0 && eval_has_provider(c"clipboard", false) {
+            regname = b'*' as i32;
+        }
+        let mut reg: *mut Yankreg = ptr::null_mut();
+        if yank_register_mline(regname, &mut reg) {
+            if g_st().mouse_past_bottom {
                 dir = FORWARD;
             }
+        } else if g_st().mouse_past_eol {
+            dir = FORWARD;
+        }
 
-            let (c1, c2) = if fixindent {
-                (
-                    if dir == BACKWARD {
-                        b'[' as i32
-                    } else {
-                        b']' as i32
-                    },
-                    b'p' as i32,
-                )
-            } else {
-                (
-                    if dir == FORWARD {
-                        b'p' as i32
-                    } else {
-                        b'P' as i32
-                    },
-                    0,
-                )
-            };
-            prep_redo(
-                true,
-                false,
-                CmdSpec {
-                    regname,
-                    count: count as i64,
-                    cmd: c1,
-                    cmd2: c2,
-                    ..CmdSpec::default()
-                },
-            );
-
-            if g_st().restart_edit != 0 {
-                g_st().where_paste_started = curwin_mut().w_cursor;
-            }
-            do_put(
-                regname,
-                reg,
-                dir,
-                count,
-                (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
-            );
-        } else if ((g_st().mod_mask & MOD_MASK_CTRL) != 0
-            || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
-            && bt_quickfix(Some(crate::globals::curbuf_mut()))
-        {
-            if curwin_mut().w_llist_ref.is_null() {
-                do_cmdline_cmd(c".cc");
-            } else {
-                do_cmdline_cmd(c".ll");
-            }
-            mouse_st().got_click = false;
-        } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK
-        {
-            if (g_st().state_global & MODE_INSERT) != 0 {
-                stuffchar_readbuff(CTRL_O);
-            }
-            stuffchar_readbuff(CTRL_RSB_CONST);
-            mouse_st().got_click = false;
-            if (g_st().state_global & MODE_INSERT) == 0 {
-                exec_stuffed(None);
-            }
-        } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
-            if (g_st().state_global & MODE_INSERT) != 0
-                || (g_st().visual_global.active && g_st().visual_global.select)
-            {
-                stuffchar_readbuff(CTRL_O);
-            }
-            if which_button == MOUSE_LEFT {
-                stuffchar_readbuff(b'*' as i32);
-            } else {
-                stuffchar_readbuff(b'#' as i32);
-            }
-            if (g_st().state_global & MODE_INSERT) == 0 {
-                exec_stuffed(None);
-            }
-        } else if in_status_line || in_sep_line {
-            // Do nothing if on status line or vertical separator
-        } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
-            && (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
-            && mouse_can_visual
-        {
-            if is_click || !g_st().visual_global.active {
-                if g_st().visual_global.active {
-                    mouse_st().orig_cursor = g_st().visual_global.start;
+        let (c1, c2) = if fixindent {
+            (
+                if dir == BACKWARD {
+                    b'[' as i32
                 } else {
-                    g_st().visual_global.start = curwin_mut().w_cursor;
-                    mouse_st().orig_cursor = g_st().visual_global.start;
-                    g_st().visual_global.active = true;
-                    g_st().visual_global.reselect = 1;
-                    may_start_select(b'o' as i32);
-                    setmouse();
-                }
-                if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                    if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                        g_st().visual_global.mode = CTRL_V_CONST;
-                    } else {
-                        g_st().visual_global.mode = b'v' as i32;
-                    }
-                } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
-                    g_st().visual_global.mode = b'V' as i32;
-                } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
-                    g_st().visual_global.mode = CTRL_V_CONST;
-                }
+                    b']' as i32
+                },
+                b'p' as i32,
+            )
+        } else {
+            (
+                if dir == FORWARD {
+                    b'p' as i32
+                } else {
+                    b'P' as i32
+                },
+                0,
+            )
+        };
+        prep_redo(
+            true,
+            false,
+            CmdSpec {
+                regname,
+                count: count as i64,
+                cmd: c1,
+                cmd2: c2,
+                ..CmdSpec::default()
+            },
+        );
+
+        if g_st().restart_edit != 0 {
+            g_st().where_paste_started = curwin_mut().w_cursor;
+        }
+        do_put(
+            regname,
+            reg,
+            dir,
+            count,
+            (if fixindent { PUT_FIXINDENT } else { 0 }) | PUT_CURSEND,
+        );
+    } else if ((g_st().mod_mask & MOD_MASK_CTRL) != 0
+        || (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK)
+        && bt_quickfix(Some(crate::globals::curbuf_mut()))
+    {
+        if curwin_mut().w_llist_ref.is_null() {
+            do_cmdline_cmd(c".cc");
+        } else {
+            do_cmdline_cmd(c".ll");
+        }
+        mouse_st().got_click = false;
+    } else if curbuf_mut().b_help && (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+        if (g_st().state_global & MODE_INSERT) != 0 {
+            stuffchar_readbuff(CTRL_O);
+        }
+        stuffchar_readbuff(CTRL_RSB_CONST);
+        mouse_st().got_click = false;
+        if (g_st().state_global & MODE_INSERT) == 0 {
+            exec_stuffed(None);
+        }
+    } else if (g_st().mod_mask & MOD_MASK_SHIFT) != 0 {
+        if (g_st().state_global & MODE_INSERT) != 0
+            || (g_st().visual_global.active && g_st().visual_global.select)
+        {
+            stuffchar_readbuff(CTRL_O);
+        }
+        if which_button == MOUSE_LEFT {
+            stuffchar_readbuff(b'*' as i32);
+        } else {
+            stuffchar_readbuff(b'#' as i32);
+        }
+        if (g_st().state_global & MODE_INSERT) == 0 {
+            exec_stuffed(None);
+        }
+    } else if in_status_line || in_sep_line {
+        // Do nothing if on status line or vertical separator
+    } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) != 0
+        && (g_st().state_global & (MODE_NORMAL | MODE_INSERT)) != 0
+        && mouse_can_visual
+    {
+        if is_click || !g_st().visual_global.active {
+            if g_st().visual_global.active {
+                mouse_st().orig_cursor = g_st().visual_global.start;
+            } else {
+                g_st().visual_global.start = curwin_mut().w_cursor;
+                mouse_st().orig_cursor = g_st().visual_global.start;
+                g_st().visual_global.active = true;
+                g_st().visual_global.reselect = 1;
+                may_start_select(b'o' as i32);
+                setmouse();
             }
             if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-                let mut pos: *mut CursorPos = ptr::null_mut();
+                if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+                    g_st().visual_global.mode = CTRL_V_CONST;
+                } else {
+                    g_st().visual_global.mode = b'v' as i32;
+                }
+            } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_3CLICK {
+                g_st().visual_global.mode = b'V' as i32;
+            } else if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_4CLICK {
+                g_st().visual_global.mode = CTRL_V_CONST;
+            }
+        }
+        if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
+            let mut pos: *mut CursorPos = ptr::null_mut();
 
-                if is_click {
-                    end_visual = curwin_mut().w_cursor;
-                    while ascii_iswhite(gchar_pos(&mut end_visual)) {
-                        inc(&mut end_visual);
-                    }
-                    if oap.is_some() {
-                        oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
-                    }
-                    if oap.is_some()
-                        && g_st().visual_global.mode == b'v' as i32
-                        && !vim_iswordc(gchar_pos(&mut end_visual))
-                        && equalpos(curwin_mut().w_cursor, g_st().visual_global.start)
-                    {
-                        pos = findmatch(oap.as_deref_mut(), 0);
-                        if !pos.is_null() {
+            if is_click {
+                end_visual = curwin_mut().w_cursor;
+                while ascii_iswhite(gchar_pos(&mut end_visual)) {
+                    inc(&mut end_visual);
+                }
+                if oap.is_some() {
+                    oap.as_deref_mut().unwrap().motion_type = MT_CHAR_WISE;
+                }
+                if oap.is_some()
+                    && g_st().visual_global.mode == b'v' as i32
+                    && !vim_iswordc(gchar_pos(&mut end_visual))
+                    && equalpos(curwin_mut().w_cursor, g_st().visual_global.start)
+                {
+                    pos = findmatch(oap.as_deref_mut(), 0);
+                    if !pos.is_null() {
+                        unsafe {
                             curwin_mut().w_cursor = *pos;
-                            if oap.unwrap().motion_type == MT_LINE_WISE {
-                                g_st().visual_global.mode = b'V' as i32;
-                            } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                                if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
-                                    g_st().visual_global.start.col += 1;
-                                } else {
-                                    curwin_mut().w_cursor.col += 1;
-                                }
+                        }
+                        if oap.unwrap().motion_type == MT_LINE_WISE {
+                            g_st().visual_global.mode = b'V' as i32;
+                        } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                            if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
+                                g_st().visual_global.start.col += 1;
+                            } else {
+                                curwin_mut().w_cursor.col += 1;
                             }
                         }
                     }
                 }
+            }
 
-                if pos.is_null() && (is_click || is_drag) {
-                    if lt(curwin_mut().w_cursor, mouse_st().orig_cursor) {
-                        find_start_of_word(&mut curwin_mut().w_cursor);
-                        find_end_of_word(&mut g_st().visual_global.start);
-                    } else {
-                        find_start_of_word(&mut g_st().visual_global.start);
-                        let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
-                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                            && !cur_pos_slice.is_empty()
-                        {
-                            curwin_mut().w_cursor.col +=
-                                crate::mbyte::utfc_slice2len(cur_pos_slice) as i32;
-                        }
-                        find_end_of_word(&mut curwin_mut().w_cursor);
+            if pos.is_null() && (is_click || is_drag) {
+                if lt(curwin_mut().w_cursor, mouse_st().orig_cursor) {
+                    find_start_of_word(&mut curwin_mut().w_cursor);
+                    find_end_of_word(&mut g_st().visual_global.start);
+                } else {
+                    find_start_of_word(&mut g_st().visual_global.start);
+                    let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
+                    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                        && !cur_pos_slice.is_empty()
+                    {
+                        curwin_mut().w_cursor.col +=
+                            crate::mbyte::utfc_slice2len(cur_pos_slice) as i32;
                     }
+                    find_end_of_word(&mut curwin_mut().w_cursor);
                 }
-                curwin_mut().w_set_curswant = true;
             }
-            if is_click {
-                redraw_curbuf_later(UPD_INVERTED);
-            }
-        } else if g_st().visual_global.active && !old_active {
-            if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
-                g_st().visual_global.mode = CTRL_V_CONST;
-            } else {
-                g_st().visual_global.mode = b'v' as i32;
-            }
+            curwin_mut().w_set_curswant = true;
         }
-
-        if (!g_st().visual_global.active && old_active && g_st().mode_displayed)
-            || (g_st().visual_global.active
-                && opt_vars().p_smd != 0
-                && g_st().msg_silent == 0
-                && (!old_active || g_st().visual_global.mode != old_mode))
-        {
-            g_st().redraw_cmdline = true;
+        if is_click {
+            redraw_curbuf_later(UPD_INVERTED);
         }
-
-        moved
+    } else if g_st().visual_global.active && !old_active {
+        if (g_st().mod_mask & MOD_MASK_ALT) != 0 {
+            g_st().visual_global.mode = CTRL_V_CONST;
+        } else {
+            g_st().visual_global.mode = b'v' as i32;
+        }
     }
+
+    if (!g_st().visual_global.active && old_active && g_st().mode_displayed)
+        || (g_st().visual_global.active
+            && opt_vars().p_smd != 0
+            && g_st().msg_silent == 0
+            && (!old_active || g_st().visual_global.mode != old_mode))
+    {
+        g_st().redraw_cmdline = true;
+    }
+
+    moved
 }
 
 pub fn ins_mouse(c: i32) {

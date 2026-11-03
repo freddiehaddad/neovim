@@ -1403,1047 +1403,1039 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
 }
 
 fn win_update(wp: &mut WinInfoInfo) {
-    unsafe {
-        if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid)
-            && wp.w_wincol >= g_st().columns_global
-        {
-            return;
-        }
+    if ptr::eq(wp.w_grid.target, &raw mut g_st().default_grid)
+        && wp.w_wincol >= g_st().columns_global
+    {
+        return;
+    }
 
-        let mut top_end: i32 = 0;
-        let mut mid_start: i32 = 999;
-        let mut mid_end: i32 = 0;
-        let mut bot_start: i32 = 999;
-        let mut scrolled_down = false;
-        let mut scrolled_for_mod = false;
-        let mut top_to_mod = false;
-        let mut bot_scroll_start: i32 = 999;
-        let mut did_update = DidUpdate::None;
+    let mut top_end: i32 = 0;
+    let mut mid_start: i32 = 999;
+    let mut mid_end: i32 = 0;
+    let mut bot_start: i32 = 999;
+    let mut scrolled_down = false;
+    let mut scrolled_for_mod = false;
+    let mut top_to_mod = false;
+    let mut bot_scroll_start: i32 = 999;
+    let mut did_update = DidUpdate::None;
 
-        let mut syntax_last_parsed: Linenr = 0;
-        let mut mod_top: Linenr = 0;
-        let mut mod_bot: Linenr = 0;
+    let mut syntax_last_parsed: Linenr = 0;
+    let mut mod_top: Linenr = 0;
+    let mut mod_bot: Linenr = 0;
 
-        let mut type_ = wp.w_redr_type;
+    let mut type_ = wp.w_redr_type;
 
-        if type_ >= UPD_NOT_VALID {
-            wp.w_redr_status = true;
-            wp.w_lines_valid = 0;
-        }
+    if type_ >= UPD_NOT_VALID {
+        wp.w_redr_status = true;
+        wp.w_lines_valid = 0;
+    }
 
-        if wp.w_view_height == 0 {
-            draw_vsep_win(wp);
-            draw_hsep_win(wp);
-            wp.w_redr_type = 0;
-            return;
-        }
+    if wp.w_view_height == 0 {
+        draw_vsep_win(wp);
+        draw_hsep_win(wp);
+        wp.w_redr_type = 0;
+        return;
+    }
 
-        if wp.w_view_width == 0 {
-            draw_vsep_win(wp);
-            wp.w_redr_type = 0;
-            return;
-        }
+    if wp.w_view_width == 0 {
+        draw_vsep_win(wp);
+        wp.w_redr_type = 0;
+        return;
+    }
 
-        let buf = wp.buf_mut();
+    let buf = wp.buf_mut();
 
-        let save_got_int = g_st().got_int;
-        g_st().got_int = false;
-        let syntax_tm = profile_setlimit(opt_vars().p_rdt);
-        syn_set_timeout(Some(syntax_tm));
+    let save_got_int = g_st().got_int;
+    g_st().got_int = false;
+    let syntax_tm = profile_setlimit(opt_vars().p_rdt);
+    syn_set_timeout(Some(syntax_tm));
 
-        g_st().win_extmark_arr.clear();
+    g_st().win_extmark_arr.clear();
 
-        decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
-        decor_providers_invoke_win(wp);
+    decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+    decor_providers_invoke_win(wp);
 
-        if !buf.terminal.is_null() && terminal_suspended(&*buf.terminal) {
-            let svt_ptr = &raw mut ds_st().suspended_virt_text;
-            if (*svt_ptr).data.virt_text().is_empty() {
+    if !buf.terminal.is_null() && unsafe { terminal_suspended(&*buf.terminal) } {
+        let svt_ptr = &raw mut ds_st().suspended_virt_text;
+        if unsafe { (*svt_ptr).data.virt_text().is_empty() } {
+            unsafe {
                 (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
                     text: Some(c"[Process suspended]".to_owned()),
                     hl_id: -1,
                 });
             }
-            decor_range_add_virt(
-                &mut g_st().decor_state,
-                buf.b_ml.ml_line_count - 1,
-                0,
-                buf.b_ml.ml_line_count - 1,
-                0,
-                svt_ptr,
-                false,
-            );
         }
+        decor_range_add_virt(
+            &mut g_st().decor_state,
+            buf.b_ml.ml_line_count - 1,
+            0,
+            buf.b_ml.ml_line_count - 1,
+            0,
+            svt_ptr,
+            false,
+        );
+    }
 
-        for win in for_all_windows_ptr() {
-            if ptr::eq(win.w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
-                changed_line_abv_curs_win(&mut *win);
-                redraw_later(Some(&mut *win), UPD_NOT_VALID);
-            }
+    for win in for_all_windows_ptr() {
+        if ptr::eq(win.w_buffer, wp.w_buffer) && win_redraw_signcols(&mut *win) {
+            changed_line_abv_curs_win(&mut *win);
+            redraw_later(Some(&mut *win), UPD_NOT_VALID);
         }
-        buf.b_signcols.last_max = buf.b_signcols.max;
+    }
+    buf.b_signcols.last_max = buf.b_signcols.max;
 
-        validate_virtcol(wp);
-        type_ = wp.w_redr_type;
+    validate_virtcol(wp);
+    type_ = wp.w_redr_type;
 
-        init_search_hl(wp, &mut g_st().screen_search_hl);
+    init_search_hl(wp, &mut g_st().screen_search_hl);
 
-        if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(&raw mut *wp) {
-            let mut w: i32 = 0;
-            let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
-            let width2 = width1 + win_col_off2(wp);
-            let mut add = width1;
+    if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(&raw mut *wp) {
+        let mut w: i32 = 0;
+        let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+        let width2 = width1 + win_col_off2(wp);
+        let mut add = width1;
 
-            while w < wp.w_skipcol {
-                if w > 0 {
-                    add = width2;
-                }
-                w += add;
+        while w < wp.w_skipcol {
+            if w > 0 {
+                add = width2;
             }
-            if w != wp.w_skipcol {
-                wp.w_skipcol = w - add;
-            }
+            w += add;
         }
-        if wp.w_skipcol > 0 && wp.w_cursor.lnum != wp.w_topline {
-            let tl = wp.w_topline;
-            if linetabsize_disp_eol(&mut *wp, tl) <= wp.w_skipcol {
-                wp.w_skipcol = 0;
-            }
+        if w != wp.w_skipcol {
+            wp.w_skipcol = w - add;
         }
+    }
+    if wp.w_skipcol > 0 && wp.w_cursor.lnum != wp.w_topline {
+        let tl = wp.w_topline;
+        if linetabsize_disp_eol(&mut *wp, tl) <= wp.w_skipcol {
+            wp.w_skipcol = 0;
+        }
+    }
 
-        let nrwidth_before = wp.w_nrwidth;
-        let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
-            || wp.w_onebuf_opt.wo_rnu != 0
-            || *wp.w_onebuf_opt.wo_stc != 0
-        {
-            number_width(&mut *wp)
+    let nrwidth_before = wp.w_nrwidth;
+    let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
+        || wp.w_onebuf_opt.wo_rnu != 0
+        || unsafe { *wp.w_onebuf_opt.wo_stc != 0 }
+    {
+        number_width(&mut *wp)
+    } else {
+        0
+    };
+
+    if wp.w_nrwidth != nrwidth_new {
+        type_ = UPD_NOT_VALID;
+        changed_line_abv_curs_win(&mut *wp);
+        wp.w_nrwidth = nrwidth_new;
+    } else {
+        mod_top = wp.w_redraw_top;
+        mod_bot = if wp.w_redraw_bot != 0 {
+            wp.w_redraw_bot + 1
         } else {
             0
         };
+        if buf.b_mod_set {
+            if mod_top == 0 || mod_top > buf.b_mod_top {
+                mod_top = buf.b_mod_top;
+                if syntax_present(&mut *wp) {
+                    mod_top -= buf.b_s.b_syn_sync_linebreaks;
+                    mod_top = mod_top.max(1);
+                }
+            }
+            if mod_bot == 0 || mod_bot < buf.b_mod_bot {
+                mod_bot = buf.b_mod_bot;
+            }
 
-        if wp.w_nrwidth != nrwidth_new {
-            type_ = UPD_NOT_VALID;
-            changed_line_abv_curs_win(&mut *wp);
-            wp.w_nrwidth = nrwidth_new;
-        } else {
-            mod_top = wp.w_redraw_top;
-            mod_bot = if wp.w_redraw_bot != 0 {
-                wp.w_redraw_bot + 1
+            if !g_st().screen_search_hl.rm.regprog.is_null()
+                && unsafe { re_multiline(&*g_st().screen_search_hl.rm.regprog) != 0 }
+            {
+                top_to_mod = true;
             } else {
-                0
-            };
-            if buf.b_mod_set {
-                if mod_top == 0 || mod_top > buf.b_mod_top {
-                    mod_top = buf.b_mod_top;
-                    if syntax_present(&mut *wp) {
-                        mod_top -= buf.b_s.b_syn_sync_linebreaks;
-                        mod_top = mod_top.max(1);
-                    }
-                }
-                if mod_bot == 0 || mod_bot < buf.b_mod_bot {
-                    mod_bot = buf.b_mod_bot;
-                }
-
-                if !g_st().screen_search_hl.rm.regprog.is_null()
-                    && re_multiline(&*g_st().screen_search_hl.rm.regprog) != 0
-                {
-                    top_to_mod = true;
-                } else {
-                    top_to_mod = wp.w_match_head.iter().any(|cur| {
-                        !cur.mit_match.regprog.is_null()
-                            && re_multiline(&*cur.mit_match.regprog) != 0
-                    });
-                }
-            }
-
-            if g_st().search_hl_has_cursor_lnum > 0 {
-                if mod_top == 0 || mod_top > g_st().search_hl_has_cursor_lnum {
-                    mod_top = g_st().search_hl_has_cursor_lnum;
-                }
-                if mod_bot == 0 || mod_bot < g_st().search_hl_has_cursor_lnum + 1 {
-                    mod_bot = g_st().search_hl_has_cursor_lnum + 1;
-                }
-            }
-
-            if mod_top != 0 && win_lines_concealed(&mut *wp) {
-                let mut lnumt = wp.w_topline;
-                let mut lnumb = MAXLNUM;
-                for i in 0..wp.w_lines_valid {
-                    let wl = *w_lines_at(&mut *wp, i as usize);
-                    if wl.wl_valid {
-                        if wl.wl_lastlnum < mod_top {
-                            lnumt = wl.wl_lastlnum + 1;
-                        }
-                        if lnumb == MAXLNUM && wl.wl_lnum >= mod_bot {
-                            lnumb = wl.wl_lnum;
-                            if compute_foldcolumn(wp, 0) > 0 {
-                                lnumb += 1;
-                            }
-                        }
-                    }
-                }
-
-                has_folding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
-                mod_top = mod_top.min(lnumt);
-
-                mod_bot -= 1;
-                has_folding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
-                mod_bot += 1;
-                mod_bot = mod_bot.max(lnumb);
-            }
-
-            if mod_top != 0 && mod_top < wp.w_topline {
-                if mod_bot > wp.w_topline {
-                    mod_top = wp.w_topline;
-                } else if syntax_present(&mut *wp) {
-                    top_end = 1;
-                }
+                top_to_mod = wp.w_match_head.iter().any(|cur| unsafe {
+                    !cur.mit_match.regprog.is_null() && re_multiline(&*cur.mit_match.regprog) != 0
+                });
             }
         }
 
-        wp.w_redraw_top = 0;
-        wp.w_redraw_bot = 0;
-        g_st().search_hl_has_cursor_lnum = 0;
+        if g_st().search_hl_has_cursor_lnum > 0 {
+            if mod_top == 0 || mod_top > g_st().search_hl_has_cursor_lnum {
+                mod_top = g_st().search_hl_has_cursor_lnum;
+            }
+            if mod_bot == 0 || mod_bot < g_st().search_hl_has_cursor_lnum + 1 {
+                mod_bot = g_st().search_hl_has_cursor_lnum + 1;
+            }
+        }
 
-        if type_ == UPD_REDRAW_TOP {
-            let mut j: i32 = 0;
+        if mod_top != 0 && win_lines_concealed(&mut *wp) {
+            let mut lnumt = wp.w_topline;
+            let mut lnumb = MAXLNUM;
             for i in 0..wp.w_lines_valid {
-                j += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
-                if j >= wp.w_upd_rows {
-                    top_end = j;
+                let wl = *w_lines_at(&mut *wp, i as usize);
+                if wl.wl_valid {
+                    if wl.wl_lastlnum < mod_top {
+                        lnumt = wl.wl_lastlnum + 1;
+                    }
+                    if lnumb == MAXLNUM && wl.wl_lnum >= mod_bot {
+                        lnumb = wl.wl_lnum;
+                        if compute_foldcolumn(wp, 0) > 0 {
+                            lnumb += 1;
+                        }
+                    }
+                }
+            }
+
+            has_folding(&raw mut *wp, mod_top, Some(&mut mod_top), ptr::null_mut());
+            mod_top = mod_top.min(lnumt);
+
+            mod_bot -= 1;
+            has_folding(&raw mut *wp, mod_bot, None, &raw mut mod_bot);
+            mod_bot += 1;
+            mod_bot = mod_bot.max(lnumb);
+        }
+
+        if mod_top != 0 && mod_top < wp.w_topline {
+            if mod_bot > wp.w_topline {
+                mod_top = wp.w_topline;
+            } else if syntax_present(&mut *wp) {
+                top_end = 1;
+            }
+        }
+    }
+
+    wp.w_redraw_top = 0;
+    wp.w_redraw_bot = 0;
+    g_st().search_hl_has_cursor_lnum = 0;
+
+    if type_ == UPD_REDRAW_TOP {
+        let mut j: i32 = 0;
+        for i in 0..wp.w_lines_valid {
+            j += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
+            if j >= wp.w_upd_rows {
+                top_end = j;
+                break;
+            }
+        }
+        if top_end == 0 {
+            type_ = UPD_NOT_VALID;
+        } else {
+            type_ = UPD_VALID;
+        }
+    }
+
+    let mut topline_conceal = wp.w_topline;
+    while topline_conceal < buf.b_ml.ml_line_count
+        && decor_conceal_line(&mut *wp, topline_conceal - 1, false)
+    {
+        topline_conceal += 1;
+        has_folding(
+            &raw mut *wp,
+            topline_conceal,
+            None,
+            &raw mut topline_conceal,
+        );
+    }
+
+    if (type_ == UPD_VALID
+        || type_ == UPD_SOME_VALID
+        || type_ == UPD_INVERTED
+        || type_ == UPD_INVERTED_ALL)
+        && !wp.w_botfill
+        && !wp.w_old_botfill
+    {
+        let wl0 = *w_lines_at(&mut *wp, 0);
+        if mod_top != 0
+            && wp.w_topline == mod_top
+            && (!wl0.wl_valid || topline_conceal == wl0.wl_lnum)
+        {
+            // w_topline is the first changed line and window is not scrolled
+        } else if wl0.wl_valid
+            && (topline_conceal < wl0.wl_lnum
+                || (topline_conceal == wl0.wl_lnum && wp.w_topfill > wp.w_old_topfill))
+        {
+            let mut j: i32;
+            if win_lines_concealed(&mut *wp) {
+                j = 0;
+                let mut ln = wp.w_topline;
+                while ln < wl0.wl_lnum {
+                    j += i32::from(!decor_conceal_line(&mut *wp, ln - 1, false));
+                    if j >= wp.w_view_height - 2 {
+                        break;
+                    }
+                    has_folding(&raw mut *wp, ln, None, &raw mut ln);
+                    ln += 1;
+                }
+            } else {
+                j = wl0.wl_lnum - wp.w_topline;
+            }
+            if j < wp.w_view_height - 2 {
+                let mut i = plines_m_win(wp, wp.w_topline, wl0.wl_lnum - 1, wp.w_view_height);
+                if wl0.wl_lnum != wp.w_topline {
+                    i += win_get_fill(wp, wl0.wl_lnum) - wp.w_old_topfill;
+                }
+                if i != 0 && i < wp.w_view_height - 2 {
+                    win_scroll_lines(wp, 0, i);
+                    bot_scroll_start = 0;
+                    if wp.w_lines_valid != 0 {
+                        top_end = i;
+                        scrolled_down = true;
+
+                        wp.w_lines_valid += j;
+                        if wp.w_lines_valid > wp.w_view_height {
+                            wp.w_lines_valid = wp.w_view_height;
+                        }
+                        let mut idx = wp.w_lines_valid;
+                        while idx - j >= 0 {
+                            *w_lines_at(&mut *wp, idx as usize) =
+                                *w_lines_at(&mut *wp, (idx - j) as usize);
+                            idx -= 1;
+                        }
+                        while idx >= 0 {
+                            w_lines_at(&mut *wp, idx as usize).wl_valid = false;
+                            idx -= 1;
+                        }
+                    }
+                } else {
+                    mid_start = 0;
+                }
+            } else {
+                mid_start = 0;
+            }
+        } else {
+            let mut j: i32 = -1;
+            let mut row: i32 = 0;
+            for i in 0..wp.w_lines_valid {
+                let wl = *w_lines_at(&mut *wp, i as usize);
+                if wl.wl_valid && wl.wl_lnum == wp.w_topline {
+                    j = i;
                     break;
                 }
+                row += i32::from(wl.wl_size);
             }
-            if top_end == 0 {
-                type_ = UPD_NOT_VALID;
+            if j == -1 {
+                mid_start = 0;
             } else {
-                type_ = UPD_VALID;
-            }
-        }
-
-        let mut topline_conceal = wp.w_topline;
-        while topline_conceal < buf.b_ml.ml_line_count
-            && decor_conceal_line(&mut *wp, topline_conceal - 1, false)
-        {
-            topline_conceal += 1;
-            has_folding(
-                &raw mut *wp,
-                topline_conceal,
-                None,
-                &raw mut topline_conceal,
-            );
-        }
-
-        if (type_ == UPD_VALID
-            || type_ == UPD_SOME_VALID
-            || type_ == UPD_INVERTED
-            || type_ == UPD_INVERTED_ALL)
-            && !wp.w_botfill
-            && !wp.w_old_botfill
-        {
-            let wl0 = *w_lines_at(&mut *wp, 0);
-            if mod_top != 0
-                && wp.w_topline == mod_top
-                && (!wl0.wl_valid || topline_conceal == wl0.wl_lnum)
-            {
-                // w_topline is the first changed line and window is not scrolled
-            } else if wl0.wl_valid
-                && (topline_conceal < wl0.wl_lnum
-                    || (topline_conceal == wl0.wl_lnum && wp.w_topfill > wp.w_old_topfill))
-            {
-                let mut j: i32;
-                if win_lines_concealed(&mut *wp) {
-                    j = 0;
-                    let mut ln = wp.w_topline;
-                    while ln < wl0.wl_lnum {
-                        j += i32::from(!decor_conceal_line(&mut *wp, ln - 1, false));
-                        if j >= wp.w_view_height - 2 {
+                if wl0.wl_lnum == wp.w_topline {
+                    row += wp.w_old_topfill;
+                } else {
+                    row += win_get_fill(wp, wp.w_topline);
+                }
+                row -= wp.w_topfill;
+                if row > 0 {
+                    win_scroll_lines(wp, 0, -row);
+                    bot_start = wp.w_view_height - row;
+                    bot_scroll_start = bot_start;
+                }
+                if (row == 0 || bot_start < 999) && wp.w_lines_valid != 0 {
+                    bot_start = 0;
+                    let mut idx: i32 = 0;
+                    loop {
+                        let wlj = *w_lines_at(&mut *wp, j as usize);
+                        *w_lines_at(&mut *wp, idx as usize) = wlj;
+                        if row > 0 && bot_start + row + i32::from(wlj.wl_size) > wp.w_view_height {
+                            wp.w_lines_valid = idx + 1;
                             break;
                         }
-                        has_folding(&raw mut *wp, ln, None, &raw mut ln);
-                        ln += 1;
-                    }
-                } else {
-                    j = wl0.wl_lnum - wp.w_topline;
-                }
-                if j < wp.w_view_height - 2 {
-                    let mut i = plines_m_win(wp, wp.w_topline, wl0.wl_lnum - 1, wp.w_view_height);
-                    if wl0.wl_lnum != wp.w_topline {
-                        i += win_get_fill(wp, wl0.wl_lnum) - wp.w_old_topfill;
-                    }
-                    if i != 0 && i < wp.w_view_height - 2 {
-                        win_scroll_lines(wp, 0, i);
-                        bot_scroll_start = 0;
-                        if wp.w_lines_valid != 0 {
-                            top_end = i;
-                            scrolled_down = true;
+                        bot_start += i32::from(wlj.wl_size);
+                        idx += 1;
 
-                            wp.w_lines_valid += j;
-                            if wp.w_lines_valid > wp.w_view_height {
-                                wp.w_lines_valid = wp.w_view_height;
-                            }
-                            let mut idx = wp.w_lines_valid;
-                            while idx - j >= 0 {
-                                *w_lines_at(&mut *wp, idx as usize) =
-                                    *w_lines_at(&mut *wp, (idx - j) as usize);
-                                idx -= 1;
-                            }
-                            while idx >= 0 {
-                                w_lines_at(&mut *wp, idx as usize).wl_valid = false;
-                                idx -= 1;
-                            }
+                        j += 1;
+                        if j >= wp.w_lines_valid {
+                            wp.w_lines_valid = idx;
+                            break;
                         }
-                    } else {
-                        mid_start = 0;
                     }
-                } else {
-                    mid_start = 0;
+
+                    if win_may_fill(&mut *wp) && bot_start > 0 {
+                        w_lines_at(&mut *wp, 0).wl_size =
+                            plines_correct_topline(wp, wp.w_topline, None, true, None) as u16;
+                    }
                 }
+            }
+        }
+
+        if mid_start == 0 {
+            mid_end = wp.w_view_height;
+        }
+    } else {
+        mid_start = 0;
+        mid_end = wp.w_view_height;
+    }
+
+    if type_ == UPD_SOME_VALID {
+        mid_start = 0;
+        mid_end = wp.w_view_height;
+        type_ = UPD_NOT_VALID;
+    }
+
+    if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer))
+        || (wp.w_old_cursor_lnum != 0 && type_ != UPD_NOT_VALID)
+    {
+        let mut from: Linenr;
+        let mut to: Linenr;
+
+        if g_st().visual_global.active {
+            if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode)
+                || type_ == UPD_INVERTED_ALL
+            {
+                if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
+                    from = curwin_mut().w_cursor.lnum;
+                    to = g_st().visual_global.start.lnum;
+                } else {
+                    from = g_st().visual_global.start.lnum;
+                    to = curwin_mut().w_cursor.lnum;
+                }
+                from = from.min(wp.w_old_cursor_lnum).min(wp.w_old_visual_lnum);
+                to = to.max(wp.w_old_cursor_lnum).max(wp.w_old_visual_lnum);
             } else {
-                let mut j: i32 = -1;
-                let mut row: i32 = 0;
-                for i in 0..wp.w_lines_valid {
-                    let wl = *w_lines_at(&mut *wp, i as usize);
-                    if wl.wl_valid && wl.wl_lnum == wp.w_topline {
-                        j = i;
-                        break;
-                    }
-                    row += i32::from(wl.wl_size);
-                }
-                if j == -1 {
-                    mid_start = 0;
+                if curwin_mut().w_cursor.lnum < wp.w_old_cursor_lnum {
+                    from = curwin_mut().w_cursor.lnum;
+                    to = wp.w_old_cursor_lnum;
                 } else {
-                    if wl0.wl_lnum == wp.w_topline {
-                        row += wp.w_old_topfill;
-                    } else {
-                        row += win_get_fill(wp, wp.w_topline);
-                    }
-                    row -= wp.w_topfill;
-                    if row > 0 {
-                        win_scroll_lines(wp, 0, -row);
-                        bot_start = wp.w_view_height - row;
-                        bot_scroll_start = bot_start;
-                    }
-                    if (row == 0 || bot_start < 999) && wp.w_lines_valid != 0 {
-                        bot_start = 0;
-                        let mut idx: i32 = 0;
-                        loop {
-                            let wlj = *w_lines_at(&mut *wp, j as usize);
-                            *w_lines_at(&mut *wp, idx as usize) = wlj;
-                            if row > 0
-                                && bot_start + row + i32::from(wlj.wl_size) > wp.w_view_height
-                            {
-                                wp.w_lines_valid = idx + 1;
-                                break;
-                            }
-                            bot_start += i32::from(wlj.wl_size);
-                            idx += 1;
-
-                            j += 1;
-                            if j >= wp.w_lines_valid {
-                                wp.w_lines_valid = idx;
-                                break;
-                            }
-                        }
-
-                        if win_may_fill(&mut *wp) && bot_start > 0 {
-                            w_lines_at(&mut *wp, 0).wl_size =
-                                plines_correct_topline(wp, wp.w_topline, None, true, None) as u16;
-                        }
+                    from = wp.w_old_cursor_lnum;
+                    to = curwin_mut().w_cursor.lnum;
+                    if from == 0 {
+                        from = to;
                     }
                 }
-            }
 
-            if mid_start == 0 {
-                mid_end = wp.w_view_height;
-            }
-        } else {
-            mid_start = 0;
-            mid_end = wp.w_view_height;
-        }
-
-        if type_ == UPD_SOME_VALID {
-            mid_start = 0;
-            mid_end = wp.w_view_height;
-            type_ = UPD_NOT_VALID;
-        }
-
-        if (g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer))
-            || (wp.w_old_cursor_lnum != 0 && type_ != UPD_NOT_VALID)
-        {
-            let mut from: Linenr;
-            let mut to: Linenr;
-
-            if g_st().visual_global.active {
-                if g_st().visual_global.mode != i32::from(wp.w_old_visual_mode)
-                    || type_ == UPD_INVERTED_ALL
+                if g_st().visual_global.start.lnum != wp.w_old_visual_lnum
+                    || g_st().visual_global.start.col != wp.w_old_visual_col
                 {
-                    if curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum {
-                        from = curwin_mut().w_cursor.lnum;
-                        to = g_st().visual_global.start.lnum;
-                    } else {
-                        from = g_st().visual_global.start.lnum;
-                        to = curwin_mut().w_cursor.lnum;
+                    if wp.w_old_visual_lnum < from && wp.w_old_visual_lnum != 0 {
+                        from = wp.w_old_visual_lnum;
                     }
-                    from = from.min(wp.w_old_cursor_lnum).min(wp.w_old_visual_lnum);
-                    to = to.max(wp.w_old_cursor_lnum).max(wp.w_old_visual_lnum);
-                } else {
-                    if curwin_mut().w_cursor.lnum < wp.w_old_cursor_lnum {
-                        from = curwin_mut().w_cursor.lnum;
-                        to = wp.w_old_cursor_lnum;
-                    } else {
-                        from = wp.w_old_cursor_lnum;
-                        to = curwin_mut().w_cursor.lnum;
-                        if from == 0 {
-                            from = to;
-                        }
-                    }
-
-                    if g_st().visual_global.start.lnum != wp.w_old_visual_lnum
-                        || g_st().visual_global.start.col != wp.w_old_visual_col
-                    {
-                        if wp.w_old_visual_lnum < from && wp.w_old_visual_lnum != 0 {
-                            from = wp.w_old_visual_lnum;
-                        }
-                        to = to
-                            .max(wp.w_old_visual_lnum)
-                            .max(g_st().visual_global.start.lnum);
-                        from = from.min(g_st().visual_global.start.lnum);
-                    }
+                    to = to
+                        .max(wp.w_old_visual_lnum)
+                        .max(g_st().visual_global.start.lnum);
+                    from = from.min(g_st().visual_global.start.lnum);
                 }
+            }
 
-                if g_st().visual_global.mode == CTRL_V_CONST {
-                    let mut fromc: Colnr = 0;
-                    let mut toc: Colnr = 0;
-                    getvcols(
-                        &raw mut *wp,
-                        &mut g_st().visual_global.start,
-                        &mut curwin_mut().w_cursor,
-                        &mut fromc,
-                        &mut toc,
-                        GETVCOL_END_EXCL_LBR,
-                    );
-                    toc += 1;
-                    if curwin_mut().w_curswant == MAXCOL {
-                        if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
-                            let cursor_above =
-                                curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum;
-                            toc = 0;
-                            let mut pos = CursorPos {
-                                lnum: curwin_mut().w_cursor.lnum,
-                                col: 0,
-                                coladd: 0,
-                            };
-                            while if cursor_above {
-                                pos.lnum <= g_st().visual_global.start.lnum
-                            } else {
-                                pos.lnum >= g_st().visual_global.start.lnum
-                            } {
-                                let mut t: Colnr = 0;
-                                pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
-                                getvvcol(&mut *wp, &mut pos, None, None, Some(&mut t), 0);
-                                toc = toc.max(t);
-                                pos.lnum += if cursor_above { 1 } else { -1 };
-                            }
-                            toc += 1;
+            if g_st().visual_global.mode == CTRL_V_CONST {
+                let mut fromc: Colnr = 0;
+                let mut toc: Colnr = 0;
+                getvcols(
+                    &raw mut *wp,
+                    &mut g_st().visual_global.start,
+                    &mut curwin_mut().w_cursor,
+                    &mut fromc,
+                    &mut toc,
+                    GETVCOL_END_EXCL_LBR,
+                );
+                toc += 1;
+                if curwin_mut().w_curswant == MAXCOL {
+                    if (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_BLOCK) != 0 {
+                        let cursor_above =
+                            curwin_mut().w_cursor.lnum < g_st().visual_global.start.lnum;
+                        toc = 0;
+                        let mut pos = CursorPos {
+                            lnum: curwin_mut().w_cursor.lnum,
+                            col: 0,
+                            coladd: 0,
+                        };
+                        while if cursor_above {
+                            pos.lnum <= g_st().visual_global.start.lnum
                         } else {
-                            toc = MAXCOL;
+                            pos.lnum >= g_st().visual_global.start.lnum
+                        } {
+                            let mut t: Colnr = 0;
+                            pos.col = ml_get_buf_len(wp.buf_mut(), pos.lnum);
+                            getvvcol(&mut *wp, &mut pos, None, None, Some(&mut t), 0);
+                            toc = toc.max(t);
+                            pos.lnum += if cursor_above { 1 } else { -1 };
+                        }
+                        toc += 1;
+                    } else {
+                        toc = MAXCOL;
+                    }
+                }
+
+                if fromc != wp.w_old_cursor_fcol || toc != wp.w_old_cursor_lcol {
+                    from = from.min(g_st().visual_global.start.lnum);
+                    to = to.max(g_st().visual_global.start.lnum);
+                }
+                wp.w_old_cursor_fcol = fromc;
+                wp.w_old_cursor_lcol = toc;
+            }
+        } else if wp.w_old_cursor_lnum < wp.w_old_visual_lnum {
+            from = wp.w_old_cursor_lnum;
+            to = wp.w_old_visual_lnum;
+        } else {
+            from = wp.w_old_visual_lnum;
+            to = wp.w_old_cursor_lnum;
+        }
+
+        from = from.max(wp.w_topline);
+
+        if (wp.w_valid & VALID_BOTLINE) != 0 {
+            from = from.min(wp.w_botline);
+            to = to.min(wp.w_botline);
+        }
+
+        if mid_start > 0 {
+            let mut lnum = wp.w_topline;
+            let mut idx: i32 = 0;
+            let mut srow: i32 = 0;
+            mid_start = if scrolled_down { top_end } else { 0 };
+            while lnum < from && idx < wp.w_lines_valid {
+                let wl = *w_lines_at(&mut *wp, idx as usize);
+                if wl.wl_valid {
+                    mid_start += i32::from(wl.wl_size);
+                } else if !scrolled_down {
+                    srow += i32::from(wl.wl_size);
+                }
+                idx += 1;
+                if idx < wp.w_lines_valid && w_lines_at(&mut *wp, idx as usize).wl_valid {
+                    lnum = w_lines_at(&mut *wp, idx as usize).wl_lnum;
+                } else {
+                    lnum += 1;
+                }
+            }
+            srow += mid_start;
+            mid_end = wp.w_view_height;
+            while idx < wp.w_lines_valid {
+                let wl = *w_lines_at(&mut *wp, idx as usize);
+                if wl.wl_valid && wl.wl_lnum > to {
+                    mid_end = srow;
+                    break;
+                }
+                srow += i32::from(wl.wl_size);
+                idx += 1;
+            }
+        }
+    }
+
+    if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer) {
+        wp.w_old_visual_mode = g_st().visual_global.mode as u8;
+        wp.w_old_cursor_lnum = curwin_mut().w_cursor.lnum;
+        wp.w_old_visual_lnum = g_st().visual_global.start.lnum;
+        wp.w_old_visual_col = g_st().visual_global.start.col;
+        wp.w_old_curswant = curwin_mut().w_curswant;
+    } else {
+        wp.w_old_visual_mode = 0;
+        wp.w_old_cursor_lnum = 0;
+        wp.w_old_visual_lnum = 0;
+        wp.w_old_visual_col = 0;
+    }
+
+    let mut cursorline_fi = Foldinfo::new();
+    win_update_cursorline(wp, &mut cursorline_fi);
+    if ptr::eq(wp, curwin_ptr()) {
+        ds_st().conceal_cursor_used = conceal_cursor_line(curwin_mut());
+    }
+
+    win_check_ns_hl(Some(&*wp));
+
+    let mut spv = Spellvars::default();
+    let mut lnum = wp.w_topline;
+    if spell_check_window(wp) {
+        spv.spv_has_spell = true;
+        spv.spv_unchanged = mod_top == 0;
+    }
+
+    let mut idx: i32 = 0;
+    let mut row: i32 = 0;
+    let mut srow: i32 = 0;
+
+    let mut eof = false;
+    let mut didline = false;
+
+    'statuscol_retry: loop {
+        loop {
+            if row == wp.w_view_height {
+                didline = true;
+                break;
+            }
+
+            if lnum > buf.b_ml.ml_line_count {
+                eof = true;
+                break;
+            }
+
+            srow = row;
+
+            if row < top_end
+                || (row >= mid_start && row < mid_end)
+                || top_to_mod
+                || idx >= wp.w_lines_valid
+                || (row + i32::from(w_lines_at(&mut *wp, idx as usize).wl_size) > bot_start)
+                || (mod_top != 0
+                    && (lnum == mod_top
+                        || (lnum >= mod_top
+                            && (lnum < mod_bot
+                                || did_update == DidUpdate::Fold
+                                || (did_update == DidUpdate::Line
+                                    && syntax_present(&mut *wp)
+                                    && ((foldmethod_is_syntax(&mut *wp)
+                                        && has_any_folding(&mut *wp) != 0)
+                                        || syntax_check_changed(lnum)))
+                                || (!wp.w_match_head.is_empty()
+                                    && buf.b_mod_set
+                                    && buf.b_mod_xlines != 0)))))
+                || lnum == wp.w_cursorline
+                || lnum == wp.w_last_cursorline
+            {
+                if lnum == mod_top {
+                    top_to_mod = false;
+                }
+
+                let foldinfo = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
+                    cursorline_fi
+                } else {
+                    fold_info(wp, lnum)
+                };
+
+                let concealed = decor_conceal_line(&mut *wp, lnum - 1, false);
+                if concealed && win_get_fill(wp, lnum) == 0 {
+                    let step = if foldinfo.fi_lines != 0 {
+                        foldinfo.fi_lines
+                    } else {
+                        1
+                    };
+                    if lnum == mod_top && lnum < mod_bot {
+                        mod_top += step;
+                    }
+                    lnum += step;
+                    spv.spv_capcol_lnum = 0;
+                    continue;
+                }
+
+                if !scrolled_for_mod
+                    && mod_bot != MAXLNUM
+                    && lnum >= mod_top
+                    && lnum < mod_bot.max(mod_top + 1)
+                    && (!scrolled_down || row >= top_end)
+                {
+                    scrolled_for_mod = true;
+
+                    let mut old_cline_height: i32 = 0;
+                    let mut old_rows: i32 = 0;
+                    let mut i = idx;
+
+                    while i < wp.w_lines_valid {
+                        let wli = *w_lines_at(&mut *wp, i as usize);
+                        if wli.wl_valid && wli.wl_lnum == mod_bot {
+                            break;
+                        }
+                        if wli.wl_lnum == wp.w_cursor.lnum {
+                            old_cline_height = i32::from(wli.wl_size);
+                        }
+                        old_rows += i32::from(wli.wl_size);
+                        if wli.wl_valid && wli.wl_lastlnum + 1 == mod_bot {
+                            i += 1;
+                            while i < wp.w_lines_valid && !w_lines_at(&mut *wp, i as usize).wl_valid
+                            {
+                                old_rows += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
+                                i += 1;
+                            }
+                            break;
+                        }
+                        i += 1;
+                    }
+
+                    if i >= wp.w_lines_valid {
+                        bot_start = 0;
+                        bot_scroll_start = 0;
+                    } else {
+                        let mut new_rows: i32 = 0;
+                        let mut j = idx;
+                        let mut l = lnum;
+                        while l < mod_bot {
+                            if g_st().dollar_vcol >= 0
+                                && ptr::eq(wp, curwin_ptr())
+                                && old_cline_height > 0
+                                && l == wp.w_cursor.lnum
+                            {
+                                new_rows += old_cline_height;
+                                j += 1;
+                            } else {
+                                let n =
+                                    plines_correct_topline(&mut *wp, l, Some(&mut l), true, None);
+                                new_rows += n;
+                                j += i32::from(n > 0);
+                            }
+                            if new_rows > wp.w_view_height - row - 2 {
+                                new_rows = 9999;
+                                break;
+                            }
+                            l += 1;
+                        }
+                        let xtra_rows = new_rows - old_rows;
+                        if xtra_rows < 0 {
+                            if row - xtra_rows >= wp.w_view_height - 2 {
+                                mod_bot = MAXLNUM;
+                            } else {
+                                win_scroll_lines(wp, row, xtra_rows);
+                                bot_start = wp.w_view_height + xtra_rows;
+                                bot_scroll_start = bot_start;
+                            }
+                        } else if xtra_rows > 0 {
+                            if row + xtra_rows >= wp.w_view_height - 2 {
+                                mod_bot = MAXLNUM;
+                            } else {
+                                win_scroll_lines(wp, row + old_rows, xtra_rows);
+                                bot_scroll_start = 0;
+                                if top_end > row + old_rows {
+                                    top_end += xtra_rows;
+                                }
+                            }
+                        }
+
+                        if mod_bot != MAXLNUM && i != j {
+                            if j < i {
+                                let mut x = row + new_rows;
+                                loop {
+                                    if i >= wp.w_lines_valid {
+                                        wp.w_lines_valid = j;
+                                        break;
+                                    }
+                                    let wli = *w_lines_at(&mut *wp, i as usize);
+                                    *w_lines_at(&mut *wp, j as usize) = wli;
+                                    if x + i32::from(wli.wl_size) > wp.w_view_height {
+                                        wp.w_lines_valid = j + 1;
+                                        break;
+                                    }
+                                    x += i32::from(wli.wl_size);
+                                    j += 1;
+                                    i += 1;
+                                }
+                                bot_start = bot_start.min(x);
+                            } else {
+                                j -= i;
+                                wp.w_lines_valid += j;
+                                wp.w_lines_valid = wp.w_lines_valid.min(wp.w_view_height);
+                                i = wp.w_lines_valid;
+                                while i - j >= idx {
+                                    *w_lines_at(&mut *wp, i as usize) =
+                                        *w_lines_at(&mut *wp, (i - j) as usize);
+                                    i -= 1;
+                                }
+                                while i >= idx {
+                                    w_lines_at(&mut *wp, i as usize).wl_size = 0;
+                                    w_lines_at(&mut *wp, i as usize).wl_valid = false;
+                                    i -= 1;
+                                }
+                            }
                         }
                     }
-
-                    if fromc != wp.w_old_cursor_fcol || toc != wp.w_old_cursor_lcol {
-                        from = from.min(g_st().visual_global.start.lnum);
-                        to = to.max(g_st().visual_global.start.lnum);
-                    }
-                    wp.w_old_cursor_fcol = fromc;
-                    wp.w_old_cursor_lcol = toc;
-                }
-            } else if wp.w_old_cursor_lnum < wp.w_old_visual_lnum {
-                from = wp.w_old_cursor_lnum;
-                to = wp.w_old_visual_lnum;
-            } else {
-                from = wp.w_old_visual_lnum;
-                to = wp.w_old_cursor_lnum;
-            }
-
-            from = from.max(wp.w_topline);
-
-            if (wp.w_valid & VALID_BOTLINE) != 0 {
-                from = from.min(wp.w_botline);
-                to = to.min(wp.w_botline);
-            }
-
-            if mid_start > 0 {
-                let mut lnum = wp.w_topline;
-                let mut idx: i32 = 0;
-                let mut srow: i32 = 0;
-                mid_start = if scrolled_down { top_end } else { 0 };
-                while lnum < from && idx < wp.w_lines_valid {
-                    let wl = *w_lines_at(&mut *wp, idx as usize);
-                    if wl.wl_valid {
-                        mid_start += i32::from(wl.wl_size);
-                    } else if !scrolled_down {
-                        srow += i32::from(wl.wl_size);
-                    }
-                    idx += 1;
-                    if idx < wp.w_lines_valid && w_lines_at(&mut *wp, idx as usize).wl_valid {
-                        lnum = w_lines_at(&mut *wp, idx as usize).wl_lnum;
-                    } else {
-                        lnum += 1;
-                    }
-                }
-                srow += mid_start;
-                mid_end = wp.w_view_height;
-                while idx < wp.w_lines_valid {
-                    let wl = *w_lines_at(&mut *wp, idx as usize);
-                    if wl.wl_valid && wl.wl_lnum > to {
-                        mid_end = srow;
-                        break;
-                    }
-                    srow += i32::from(wl.wl_size);
-                    idx += 1;
-                }
-            }
-        }
-
-        if g_st().visual_global.active && ptr::eq(buf, curwin_mut().w_buffer) {
-            wp.w_old_visual_mode = g_st().visual_global.mode as u8;
-            wp.w_old_cursor_lnum = curwin_mut().w_cursor.lnum;
-            wp.w_old_visual_lnum = g_st().visual_global.start.lnum;
-            wp.w_old_visual_col = g_st().visual_global.start.col;
-            wp.w_old_curswant = curwin_mut().w_curswant;
-        } else {
-            wp.w_old_visual_mode = 0;
-            wp.w_old_cursor_lnum = 0;
-            wp.w_old_visual_lnum = 0;
-            wp.w_old_visual_col = 0;
-        }
-
-        let mut cursorline_fi = Foldinfo::new();
-        win_update_cursorline(wp, &mut cursorline_fi);
-        if ptr::eq(wp, curwin_ptr()) {
-            ds_st().conceal_cursor_used = conceal_cursor_line(curwin_mut());
-        }
-
-        win_check_ns_hl(Some(&*wp));
-
-        let mut spv = Spellvars::default();
-        let mut lnum = wp.w_topline;
-        if spell_check_window(wp) {
-            spv.spv_has_spell = true;
-            spv.spv_unchanged = mod_top == 0;
-        }
-
-        let mut idx: i32 = 0;
-        let mut row: i32 = 0;
-        let mut srow: i32 = 0;
-
-        let mut eof = false;
-        let mut didline = false;
-
-        'statuscol_retry: loop {
-            loop {
-                if row == wp.w_view_height {
-                    didline = true;
-                    break;
                 }
 
-                if lnum > buf.b_ml.ml_line_count {
-                    eof = true;
-                    break;
-                }
-
-                srow = row;
-
-                if row < top_end
-                    || (row >= mid_start && row < mid_end)
-                    || top_to_mod
-                    || idx >= wp.w_lines_valid
-                    || (row + i32::from(w_lines_at(&mut *wp, idx as usize).wl_size) > bot_start)
-                    || (mod_top != 0
-                        && (lnum == mod_top
-                            || (lnum >= mod_top
-                                && (lnum < mod_bot
-                                    || did_update == DidUpdate::Fold
-                                    || (did_update == DidUpdate::Line
-                                        && syntax_present(&mut *wp)
-                                        && ((foldmethod_is_syntax(&mut *wp)
-                                            && has_any_folding(&mut *wp) != 0)
-                                            || syntax_check_changed(lnum)))
-                                    || (!wp.w_match_head.is_empty()
-                                        && buf.b_mod_set
-                                        && buf.b_mod_xlines != 0)))))
-                    || lnum == wp.w_cursorline
-                    || lnum == wp.w_last_cursorline
+                let wl_cur = *w_lines_at(&mut *wp, idx as usize);
+                if foldinfo.fi_lines == 0
+                    && idx < wp.w_lines_valid
+                    && wl_cur.wl_valid
+                    && wl_cur.wl_lnum == lnum
+                    && lnum > wp.w_topline
+                    && (opt_vars().dy_flags & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE))
+                        == 0
+                    && srow + i32::from(wl_cur.wl_size) > wp.w_view_height
+                    && win_get_fill(wp, lnum) == 0
                 {
-                    if lnum == mod_top {
-                        top_to_mod = false;
+                    row = wp.w_view_height + 1;
+                } else {
+                    prepare_search_hl(wp, &mut g_st().screen_search_hl, lnum);
+                    if syntax_last_parsed != 0
+                        && syntax_last_parsed + 1 < lnum
+                        && syntax_present(&mut *wp)
+                    {
+                        syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
                     }
 
-                    let foldinfo = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
+                    let display_buf_line = !concealed
+                        && (foldinfo.fi_lines == 0
+                            || wp.w_onebuf_opt.wo_fdt.cb_type() == K_CALLBACK_NONE_CONST);
+
+                    if display_buf_line {
+                        decor_providers_invoke_conceal(wp, lnum - 1, false);
+                    }
+
+                    let mut zero_spv = Spellvars::default();
+                    row = win_line(
+                        wp,
+                        lnum,
+                        srow,
+                        wp.w_view_height,
+                        0,
+                        concealed,
+                        if display_buf_line {
+                            &mut spv
+                        } else {
+                            &mut zero_spv
+                        },
+                        foldinfo,
+                    );
+
+                    if display_buf_line {
+                        syntax_last_parsed = lnum;
+                    } else {
+                        spv.spv_capcol_lnum = 0;
+                    }
+
+                    let lastlnum = lnum + foldinfo.fi_lines - Linenr::from(foldinfo.fi_lines > 0);
+                    let wl_ptr = w_lines_at(&mut *wp, idx as usize);
+                    wl_ptr.wl_folded = foldinfo.fi_lines > 0;
+                    wl_ptr.wl_foldend = lastlnum;
+                    wl_ptr.wl_lastlnum = lastlnum;
+                    did_update = if foldinfo.fi_lines > 0 {
+                        DidUpdate::Fold
+                    } else {
+                        DidUpdate::Line
+                    };
+
+                    let mut virt_below =
+                        decor_virt_lines(&mut *wp, lastlnum, lastlnum + 1, None, None, true) > 0;
+                    while !virt_below
+                        && w_lines_at(&mut *wp, idx as usize).wl_lastlnum < buf.b_ml.ml_line_count
+                        && {
+                            let lastlnum = w_lines_at(wp, idx as usize).wl_lastlnum;
+                            decor_conceal_line(wp, lastlnum, false)
+                        }
+                    {
+                        virt_below = false;
+                        w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
+                        let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
+                        unsafe {
+                            has_folding(&raw mut *wp, *last_ptr, None, last_ptr);
+                        }
+                    }
+                }
+
+                w_lines_at(&mut *wp, idx as usize).wl_lnum = lnum;
+                w_lines_at(&mut *wp, idx as usize).wl_valid = true;
+
+                let is_curline = ptr::eq(wp, curwin_ptr()) && lnum == wp.w_cursor.lnum;
+
+                if row > wp.w_view_height {
+                    if g_st().dollar_vcol == -1 || !is_curline {
+                        w_lines_at(&mut *wp, idx as usize).wl_size =
+                            plines_win(&raw mut *wp, lnum, true) as u16;
+                    }
+                    idx += 1;
+                    break;
+                }
+                if g_st().dollar_vcol == -1 || !is_curline {
+                    w_lines_at(&mut *wp, idx as usize).wl_size = (row - srow) as u16;
+                }
+                lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
+                idx += 1;
+            } else {
+                if (wp.w_onebuf_opt.wo_nu != 0
+                    && mod_top != 0
+                    && lnum >= mod_bot
+                    && buf.b_mod_set
+                    && buf.b_mod_xlines != 0)
+                    || (wp.w_onebuf_opt.wo_rnu != 0
+                        && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
+                {
+                    let info = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
                         cursorline_fi
                     } else {
                         fold_info(wp, lnum)
                     };
-
-                    let concealed = decor_conceal_line(&mut *wp, lnum - 1, false);
-                    if concealed && win_get_fill(wp, lnum) == 0 {
-                        let step = if foldinfo.fi_lines != 0 {
-                            foldinfo.fi_lines
-                        } else {
-                            1
-                        };
-                        if lnum == mod_top && lnum < mod_bot {
-                            mod_top += step;
-                        }
-                        lnum += step;
-                        spv.spv_capcol_lnum = 0;
-                        continue;
-                    }
-
-                    if !scrolled_for_mod
-                        && mod_bot != MAXLNUM
-                        && lnum >= mod_top
-                        && lnum < mod_bot.max(mod_top + 1)
-                        && (!scrolled_down || row >= top_end)
-                    {
-                        scrolled_for_mod = true;
-
-                        let mut old_cline_height: i32 = 0;
-                        let mut old_rows: i32 = 0;
-                        let mut i = idx;
-
-                        while i < wp.w_lines_valid {
-                            let wli = *w_lines_at(&mut *wp, i as usize);
-                            if wli.wl_valid && wli.wl_lnum == mod_bot {
-                                break;
-                            }
-                            if wli.wl_lnum == wp.w_cursor.lnum {
-                                old_cline_height = i32::from(wli.wl_size);
-                            }
-                            old_rows += i32::from(wli.wl_size);
-                            if wli.wl_valid && wli.wl_lastlnum + 1 == mod_bot {
-                                i += 1;
-                                while i < wp.w_lines_valid
-                                    && !w_lines_at(&mut *wp, i as usize).wl_valid
-                                {
-                                    old_rows += i32::from(w_lines_at(&mut *wp, i as usize).wl_size);
-                                    i += 1;
-                                }
-                                break;
-                            }
-                            i += 1;
-                        }
-
-                        if i >= wp.w_lines_valid {
-                            bot_start = 0;
-                            bot_scroll_start = 0;
-                        } else {
-                            let mut new_rows: i32 = 0;
-                            let mut j = idx;
-                            let mut l = lnum;
-                            while l < mod_bot {
-                                if g_st().dollar_vcol >= 0
-                                    && ptr::eq(wp, curwin_ptr())
-                                    && old_cline_height > 0
-                                    && l == wp.w_cursor.lnum
-                                {
-                                    new_rows += old_cline_height;
-                                    j += 1;
-                                } else {
-                                    let n = plines_correct_topline(
-                                        &mut *wp,
-                                        l,
-                                        Some(&mut l),
-                                        true,
-                                        None,
-                                    );
-                                    new_rows += n;
-                                    j += i32::from(n > 0);
-                                }
-                                if new_rows > wp.w_view_height - row - 2 {
-                                    new_rows = 9999;
-                                    break;
-                                }
-                                l += 1;
-                            }
-                            let xtra_rows = new_rows - old_rows;
-                            if xtra_rows < 0 {
-                                if row - xtra_rows >= wp.w_view_height - 2 {
-                                    mod_bot = MAXLNUM;
-                                } else {
-                                    win_scroll_lines(wp, row, xtra_rows);
-                                    bot_start = wp.w_view_height + xtra_rows;
-                                    bot_scroll_start = bot_start;
-                                }
-                            } else if xtra_rows > 0 {
-                                if row + xtra_rows >= wp.w_view_height - 2 {
-                                    mod_bot = MAXLNUM;
-                                } else {
-                                    win_scroll_lines(wp, row + old_rows, xtra_rows);
-                                    bot_scroll_start = 0;
-                                    if top_end > row + old_rows {
-                                        top_end += xtra_rows;
-                                    }
-                                }
-                            }
-
-                            if mod_bot != MAXLNUM && i != j {
-                                if j < i {
-                                    let mut x = row + new_rows;
-                                    loop {
-                                        if i >= wp.w_lines_valid {
-                                            wp.w_lines_valid = j;
-                                            break;
-                                        }
-                                        let wli = *w_lines_at(&mut *wp, i as usize);
-                                        *w_lines_at(&mut *wp, j as usize) = wli;
-                                        if x + i32::from(wli.wl_size) > wp.w_view_height {
-                                            wp.w_lines_valid = j + 1;
-                                            break;
-                                        }
-                                        x += i32::from(wli.wl_size);
-                                        j += 1;
-                                        i += 1;
-                                    }
-                                    bot_start = bot_start.min(x);
-                                } else {
-                                    j -= i;
-                                    wp.w_lines_valid += j;
-                                    wp.w_lines_valid = wp.w_lines_valid.min(wp.w_view_height);
-                                    i = wp.w_lines_valid;
-                                    while i - j >= idx {
-                                        *w_lines_at(&mut *wp, i as usize) =
-                                            *w_lines_at(&mut *wp, (i - j) as usize);
-                                        i -= 1;
-                                    }
-                                    while i >= idx {
-                                        w_lines_at(&mut *wp, i as usize).wl_size = 0;
-                                        w_lines_at(&mut *wp, i as usize).wl_valid = false;
-                                        i -= 1;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    let wl_cur = *w_lines_at(&mut *wp, idx as usize);
-                    if foldinfo.fi_lines == 0
-                        && idx < wp.w_lines_valid
-                        && wl_cur.wl_valid
-                        && wl_cur.wl_lnum == lnum
-                        && lnum > wp.w_topline
-                        && (opt_vars().dy_flags & (K_OPT_DY_FLAG_LASTLINE | K_OPT_DY_FLAG_TRUNCATE))
-                            == 0
-                        && srow + i32::from(wl_cur.wl_size) > wp.w_view_height
-                        && win_get_fill(wp, lnum) == 0
-                    {
-                        row = wp.w_view_height + 1;
-                    } else {
-                        prepare_search_hl(wp, &mut g_st().screen_search_hl, lnum);
-                        if syntax_last_parsed != 0
-                            && syntax_last_parsed + 1 < lnum
-                            && syntax_present(&mut *wp)
-                        {
-                            syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
-                        }
-
-                        let display_buf_line = !concealed
-                            && (foldinfo.fi_lines == 0
-                                || wp.w_onebuf_opt.wo_fdt.cb_type() == K_CALLBACK_NONE_CONST);
-
-                        if display_buf_line {
-                            decor_providers_invoke_conceal(wp, lnum - 1, false);
-                        }
-
-                        let mut zero_spv = Spellvars::default();
-                        row = win_line(
-                            wp,
-                            lnum,
-                            srow,
-                            wp.w_view_height,
-                            0,
-                            concealed,
-                            if display_buf_line {
-                                &mut spv
-                            } else {
-                                &mut zero_spv
-                            },
-                            foldinfo,
-                        );
-
-                        if display_buf_line {
-                            syntax_last_parsed = lnum;
-                        } else {
-                            spv.spv_capcol_lnum = 0;
-                        }
-
-                        let lastlnum =
-                            lnum + foldinfo.fi_lines - Linenr::from(foldinfo.fi_lines > 0);
-                        let wl_ptr = w_lines_at(&mut *wp, idx as usize);
-                        wl_ptr.wl_folded = foldinfo.fi_lines > 0;
-                        wl_ptr.wl_foldend = lastlnum;
-                        wl_ptr.wl_lastlnum = lastlnum;
-                        did_update = if foldinfo.fi_lines > 0 {
-                            DidUpdate::Fold
-                        } else {
-                            DidUpdate::Line
-                        };
-
-                        let mut virt_below =
-                            decor_virt_lines(&mut *wp, lastlnum, lastlnum + 1, None, None, true)
-                                > 0;
-                        while !virt_below
-                            && w_lines_at(&mut *wp, idx as usize).wl_lastlnum
-                                < buf.b_ml.ml_line_count
-                            && {
-                                let lastlnum = w_lines_at(wp, idx as usize).wl_lastlnum;
-                                decor_conceal_line(wp, lastlnum, false)
-                            }
-                        {
-                            virt_below = false;
-                            w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
-                            let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
-                            has_folding(&raw mut *wp, *last_ptr, None, last_ptr);
-                        }
-                    }
-
-                    w_lines_at(&mut *wp, idx as usize).wl_lnum = lnum;
-                    w_lines_at(&mut *wp, idx as usize).wl_valid = true;
-
-                    let is_curline = ptr::eq(wp, curwin_ptr()) && lnum == wp.w_cursor.lnum;
-
-                    if row > wp.w_view_height {
-                        if g_st().dollar_vcol == -1 || !is_curline {
-                            w_lines_at(&mut *wp, idx as usize).wl_size =
-                                plines_win(&raw mut *wp, lnum, true) as u16;
-                        }
-                        idx += 1;
-                        break;
-                    }
-                    if g_st().dollar_vcol == -1 || !is_curline {
-                        w_lines_at(&mut *wp, idx as usize).wl_size = (row - srow) as u16;
-                    }
-                    lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
-                    idx += 1;
-                } else {
-                    if (wp.w_onebuf_opt.wo_nu != 0
-                        && mod_top != 0
-                        && lnum >= mod_bot
-                        && buf.b_mod_set
-                        && buf.b_mod_xlines != 0)
-                        || (wp.w_onebuf_opt.wo_rnu != 0
-                            && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
-                    {
-                        let info = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
-                            cursorline_fi
-                        } else {
-                            fold_info(wp, lnum)
-                        };
-                        let view_height = wp.w_view_height;
-                        let wl_size = i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
-                        win_line(wp, lnum, srow, view_height, wl_size, false, &mut spv, info);
-                    }
-
-                    row += i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
-                    idx += 1;
-                    if row > wp.w_view_height {
-                        break;
-                    }
-                    lnum = w_lines_at(&mut *wp, (idx - 1) as usize).wl_lastlnum + 1;
-                    did_update = DidUpdate::None;
-                    spv.spv_capcol_lnum = 0;
+                    let view_height = wp.w_view_height;
+                    let wl_size = i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
+                    win_line(wp, lnum, srow, view_height, wl_size, false, &mut spv, info);
                 }
 
-                if wp.w_redr_statuscol {
-                    wp.w_redr_statuscol = false;
-                    idx = 0;
-                    row = 0;
-                    lnum = wp.w_topline;
-                    wp.w_lines_valid = 0;
-                    wp.w_valid &= !VALID_WCOL;
-                    decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
-                    decor_providers_invoke_win(wp);
-                    continue;
-                }
-
-                if lnum > buf.b_ml.ml_line_count {
-                    eof = true;
+                row += i32::from(w_lines_at(&mut *wp, idx as usize).wl_size);
+                idx += 1;
+                if row > wp.w_view_height {
                     break;
                 }
+                lnum = w_lines_at(&mut *wp, (idx - 1) as usize).wl_lastlnum + 1;
+                did_update = DidUpdate::None;
+                spv.spv_capcol_lnum = 0;
             }
 
-            wp.w_last_cursorline = wp.w_cursorline;
-            wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu != 0 {
-                wp.w_cursor.lnum
-            } else {
-                0
-            };
-            wp.w_lines_valid = wp.w_lines_valid.max(idx);
-            wp.w_display_tick = display_tick_val();
-
-            if syntax_last_parsed != 0 && syntax_present(&mut *wp) {
-                syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
+            if wp.w_redr_statuscol {
+                wp.w_redr_statuscol = false;
+                idx = 0;
+                row = 0;
+                lnum = wp.w_topline;
+                wp.w_lines_valid = 0;
+                wp.w_valid &= !VALID_WCOL;
+                decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+                decor_providers_invoke_win(wp);
+                continue;
             }
 
-            let old_botline = wp.w_botline;
+            if lnum > buf.b_ml.ml_line_count {
+                eof = true;
+                break;
+            }
+        }
 
-            wp.w_empty_rows = 0;
-            wp.w_filler_rows = 0;
-            if !eof && !didline {
-                let at_attr = hl_combine_attr(win_bg_attr(wp), win_hl_attr(&mut *wp, HLF_AT));
-                if lnum == wp.w_topline {
-                    wp.w_botline = lnum + 1;
-                } else if win_get_fill(wp, lnum) >= wp.w_view_height - srow {
-                    wp.w_botline = lnum;
-                    wp.w_filler_rows = wp.w_view_height - srow;
-                } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_TRUNCATE) != 0 {
-                    grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
-                    grid_line_fill(
-                        0,
-                        wp.w_view_width.min(3),
-                        wp.w_p_fcs_chars.lastline,
-                        at_attr,
-                    );
-                    grid_line_fill(3, wp.w_view_width, schar_from_ascii(b' '), at_attr);
-                    grid_line_flush();
-                    set_empty_rows(&mut *wp, srow);
-                    wp.w_botline = lnum;
-                } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_LASTLINE) != 0 {
-                    grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
-                    let width = if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0 {
-                        4
-                    } else {
-                        3
-                    };
-                    grid_line_fill(
-                        (wp.w_view_width - width).max(0),
-                        wp.w_view_width,
-                        wp.w_p_fcs_chars.lastline,
-                        at_attr,
-                    );
-                    grid_line_flush();
-                    set_empty_rows(&mut *wp, srow);
-                    wp.w_botline = lnum;
+        wp.w_last_cursorline = wp.w_cursorline;
+        wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu != 0 {
+            wp.w_cursor.lnum
+        } else {
+            0
+        };
+        wp.w_lines_valid = wp.w_lines_valid.max(idx);
+        wp.w_display_tick = display_tick_val();
+
+        if syntax_last_parsed != 0 && syntax_present(&mut *wp) {
+            syntax_end_parsing(&mut *wp, syntax_last_parsed + 1);
+        }
+
+        let old_botline = wp.w_botline;
+
+        wp.w_empty_rows = 0;
+        wp.w_filler_rows = 0;
+        if !eof && !didline {
+            let at_attr = hl_combine_attr(win_bg_attr(wp), win_hl_attr(&mut *wp, HLF_AT));
+            if lnum == wp.w_topline {
+                wp.w_botline = lnum + 1;
+            } else if win_get_fill(wp, lnum) >= wp.w_view_height - srow {
+                wp.w_botline = lnum;
+                wp.w_filler_rows = wp.w_view_height - srow;
+            } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_TRUNCATE) != 0 {
+                grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
+                grid_line_fill(
+                    0,
+                    wp.w_view_width.min(3),
+                    wp.w_p_fcs_chars.lastline,
+                    at_attr,
+                );
+                grid_line_fill(3, wp.w_view_width, schar_from_ascii(b' '), at_attr);
+                grid_line_flush();
+                set_empty_rows(&mut *wp, srow);
+                wp.w_botline = lnum;
+            } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_LASTLINE) != 0 {
+                grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
+                let width = if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0 {
+                    4
                 } else {
-                    win_draw_end(
-                        wp,
-                        wp.w_p_fcs_chars.lastline,
-                        true,
-                        srow,
-                        wp.w_view_height,
-                        HLF_AT,
-                    );
-                    set_empty_rows(&mut *wp, srow);
-                    wp.w_botline = lnum;
-                }
+                    3
+                };
+                grid_line_fill(
+                    (wp.w_view_width - width).max(0),
+                    wp.w_view_width,
+                    wp.w_p_fcs_chars.lastline,
+                    at_attr,
+                );
+                grid_line_flush();
+                set_empty_rows(&mut *wp, srow);
+                wp.w_botline = lnum;
             } else {
-                if eof {
-                    wp.w_botline = buf.b_ml.ml_line_count + 1;
-                    let j = win_get_fill(wp, wp.w_botline);
-                    if j > 0 && !wp.w_botfill && row < wp.w_view_height {
-                        let mut zero_spv = Spellvars::default();
-                        let zero_foldinfo = Foldinfo::new();
-                        row = win_line(
-                            wp,
-                            wp.w_botline,
-                            row,
-                            wp.w_view_height,
-                            0,
-                            false,
-                            &mut zero_spv,
-                            zero_foldinfo,
-                        );
-                        if wp.w_redr_statuscol {
-                            eof = false;
-                            didline = false;
-                            wp.w_redr_statuscol = false;
-                            idx = 0;
-                            row = 0;
-                            lnum = wp.w_topline;
-                            wp.w_lines_valid = 0;
-                            wp.w_valid &= !VALID_WCOL;
-                            decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
-                            decor_providers_invoke_win(wp);
-                            continue 'statuscol_retry;
-                        }
-                    }
-                } else if g_st().dollar_vcol == -1 || !ptr::eq(wp, curwin_ptr()) {
-                    wp.w_botline = lnum;
-                }
-
-                let mut lastline = bot_scroll_start;
-                if mid_end >= row {
-                    lastline = lastline.min(mid_start);
-                }
-                if mod_bot > buf.b_ml.ml_line_count {
-                    lastline = 0;
-                }
-
                 win_draw_end(
                     wp,
-                    wp.w_p_fcs_chars.eob,
-                    false,
-                    lastline.max(row),
+                    wp.w_p_fcs_chars.lastline,
+                    true,
+                    srow,
                     wp.w_view_height,
-                    HLF_EOB,
+                    HLF_AT,
                 );
-                set_empty_rows(&mut *wp, row);
+                set_empty_rows(&mut *wp, srow);
+                wp.w_botline = lnum;
             }
-
-            if wp.w_redr_type >= UPD_REDRAW_TOP {
-                draw_vsep_win(wp);
-                draw_hsep_win(wp);
-            }
-            syn_set_timeout(None);
-
-            wp.w_redr_type = 0;
-            wp.w_old_topfill = wp.w_topfill;
-            wp.w_old_botfill = wp.w_botfill;
-
-            for n in 0..g_st().win_extmark_arr.len() {
-                let item = g_st().win_extmark_arr.as_slice()[n];
-                ui_call_win_extmark(
-                    Integer::from(wp.w_grid_alloc.handle),
-                    wp.handle,
-                    Integer::from(item.ns_id),
-                    item.mark_id as Integer,
-                    Integer::from(item.win_row),
-                    Integer::from(item.win_col),
-                );
-            }
-
-            if g_st().dollar_vcol == -1 || !ptr::eq(wp, curwin_ptr()) {
-                wp.w_valid |= VALID_BOTLINE;
-                wp.w_viewport_invalid = true;
-                if ptr::eq(wp, curwin_ptr())
-                    && wp.w_botline != old_botline
-                    && !ds_st().win_update_recursive
-                {
-                    ds_st().win_update_recursive = true;
-                    curwin_mut().w_valid &= !VALID_TOPLINE;
-                    update_topline(curwin_mut());
-                    if g_st().must_redraw != 0 {
-                        let mod_set = curbuf_mut().b_mod_set;
-                        curbuf_mut().b_mod_set = false;
-                        curs_columns(curwin_mut(), 1);
-                        win_update(curwin_mut());
-                        g_st().must_redraw = 0;
-                        curbuf_mut().b_mod_set = mod_set;
+        } else {
+            if eof {
+                wp.w_botline = buf.b_ml.ml_line_count + 1;
+                let j = win_get_fill(wp, wp.w_botline);
+                if j > 0 && !wp.w_botfill && row < wp.w_view_height {
+                    let mut zero_spv = Spellvars::default();
+                    let zero_foldinfo = Foldinfo::new();
+                    row = win_line(
+                        wp,
+                        wp.w_botline,
+                        row,
+                        wp.w_view_height,
+                        0,
+                        false,
+                        &mut zero_spv,
+                        zero_foldinfo,
+                    );
+                    if wp.w_redr_statuscol {
+                        eof = false;
+                        didline = false;
+                        wp.w_redr_statuscol = false;
+                        idx = 0;
+                        row = 0;
+                        lnum = wp.w_topline;
+                        wp.w_lines_valid = 0;
+                        wp.w_valid &= !VALID_WCOL;
+                        decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
+                        decor_providers_invoke_win(wp);
+                        continue 'statuscol_retry;
                     }
-                    ds_st().win_update_recursive = false;
                 }
+            } else if g_st().dollar_vcol == -1 || !ptr::eq(wp, curwin_ptr()) {
+                wp.w_botline = lnum;
             }
 
-            if nrwidth_before != wp.w_nrwidth && !buf.terminal.is_null() {
+            let mut lastline = bot_scroll_start;
+            if mid_end >= row {
+                lastline = lastline.min(mid_start);
+            }
+            if mod_bot > buf.b_ml.ml_line_count {
+                lastline = 0;
+            }
+
+            win_draw_end(
+                wp,
+                wp.w_p_fcs_chars.eob,
+                false,
+                lastline.max(row),
+                wp.w_view_height,
+                HLF_EOB,
+            );
+            set_empty_rows(&mut *wp, row);
+        }
+
+        if wp.w_redr_type >= UPD_REDRAW_TOP {
+            draw_vsep_win(wp);
+            draw_hsep_win(wp);
+        }
+        syn_set_timeout(None);
+
+        wp.w_redr_type = 0;
+        wp.w_old_topfill = wp.w_topfill;
+        wp.w_old_botfill = wp.w_botfill;
+
+        for n in 0..g_st().win_extmark_arr.len() {
+            let item = g_st().win_extmark_arr.as_slice()[n];
+            ui_call_win_extmark(
+                Integer::from(wp.w_grid_alloc.handle),
+                wp.handle,
+                Integer::from(item.ns_id),
+                item.mark_id as Integer,
+                Integer::from(item.win_row),
+                Integer::from(item.win_col),
+            );
+        }
+
+        if g_st().dollar_vcol == -1 || !ptr::eq(wp, curwin_ptr()) {
+            wp.w_valid |= VALID_BOTLINE;
+            wp.w_viewport_invalid = true;
+            if ptr::eq(wp, curwin_ptr())
+                && wp.w_botline != old_botline
+                && !ds_st().win_update_recursive
+            {
+                ds_st().win_update_recursive = true;
+                curwin_mut().w_valid &= !VALID_TOPLINE;
+                update_topline(curwin_mut());
+                if g_st().must_redraw != 0 {
+                    let mod_set = curbuf_mut().b_mod_set;
+                    curbuf_mut().b_mod_set = false;
+                    curs_columns(curwin_mut(), 1);
+                    win_update(curwin_mut());
+                    g_st().must_redraw = 0;
+                    curbuf_mut().b_mod_set = mod_set;
+                }
+                ds_st().win_update_recursive = false;
+            }
+        }
+
+        if nrwidth_before != wp.w_nrwidth && !buf.terminal.is_null() {
+            unsafe {
                 terminal_check_size(&mut *buf.terminal);
             }
-
-            if !g_st().got_int {
-                g_st().got_int = save_got_int;
-            }
-            break 'statuscol_retry;
         }
+
+        if !g_st().got_int {
+            g_st().got_int = save_got_int;
+        }
+        break 'statuscol_retry;
     }
 }
 
@@ -2757,21 +2749,27 @@ pub fn redraw_statuslines() {
 }
 
 pub fn win_redraw_last_status(mut frp: *const Frame) {
-    unsafe {
-        if (*frp).fr_layout == FR_LEAF {
+    if unsafe { (*frp).fr_layout == FR_LEAF } {
+        unsafe {
             (*(*frp).fr_win).w_redr_status = true;
-        } else if (*frp).fr_layout == FR_ROW {
-            for child in frame_iter_ptr((*frp).fr_child) {
-                win_redraw_last_status(child);
-            }
-        } else {
+        }
+    } else if unsafe { (*frp).fr_layout == FR_ROW } {
+        for child in unsafe { frame_iter_ptr((*frp).fr_child) } {
+            win_redraw_last_status(child);
+        }
+    } else {
+        unsafe {
             assert!((*frp).fr_layout == FR_COL);
+        }
+        unsafe {
             frp = (*frp).fr_child;
-            while !(*frp).fr_next.is_null() {
+        }
+        while unsafe { !(*frp).fr_next.is_null() } {
+            unsafe {
                 frp = (*frp).fr_next;
             }
-            win_redraw_last_status(frp);
         }
+        win_redraw_last_status(frp);
     }
 }
 

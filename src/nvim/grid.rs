@@ -270,22 +270,24 @@ pub fn schar_get_bytes(buf_out: &mut [u8], sc: Schar) -> usize {
 
 /// Advance `buf_out`. Do NOT set final NUL (`schar_get_adv`).
 pub fn schar_get_adv(buf_out: &mut *mut u8, sc: Schar) -> usize {
-    unsafe {
-        let len: usize;
-        if schar_high(sc) {
-            let idx = schar_idx(sc) as usize;
-            assert!(idx < grid_st().glyph_cache_keys.len());
-            let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
-            len = crate::memory::cstr_len(key_ptr.cast());
+    let len: usize;
+    if schar_high(sc) {
+        let idx = schar_idx(sc) as usize;
+        assert!(idx < grid_st().glyph_cache_keys.len());
+        let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
+        len = crate::memory::cstr_len(key_ptr.cast());
+        unsafe {
             ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
-        } else {
-            let sc_ptr = (&raw const sc).cast::<u8>();
-            len = strnlen_4(sc_ptr);
+        }
+    } else {
+        let sc_ptr = (&raw const sc).cast::<u8>();
+        len = strnlen_4(sc_ptr);
+        unsafe {
             ptr::copy_nonoverlapping(sc_ptr, *buf_out, len);
         }
-        *buf_out = (*buf_out).wrapping_add(len);
-        len
     }
+    *buf_out = (*buf_out).wrapping_add(len);
+    len
 }
 
 pub fn schar_cells(sc: Schar) -> i32 {

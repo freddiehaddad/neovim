@@ -303,7 +303,9 @@ fn coladvance2(
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
 pub fn getvpos(wp: *mut WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
-    unsafe { coladvance2(&mut *wp, pos, false, virtual_active(&mut *wp), wcol) }
+    let wp = crate::globals::WinPtr::new(wp);
+    let addspaces = virtual_active(wp.borrow_mut());
+    coladvance2(wp.borrow_mut(), pos, false, addspaces, wcol)
 }
 
 /// Increment the cursor position (`inc_cursor`).

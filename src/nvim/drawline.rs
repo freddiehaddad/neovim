@@ -1198,83 +1198,84 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
 }
 
 fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
-    unsafe {
-        while wlv.n_extra == 0 {
-            if wlv.virt_inline_i >= wlv.virt_inline.len() {
-                wlv.virt_inline = &[];
-                wlv.virt_inline_i = 0;
-                let end = g_st().decor_state.current_end;
+    while wlv.n_extra == 0 {
+        if wlv.virt_inline_i >= wlv.virt_inline.len() {
+            wlv.virt_inline = &[];
+            wlv.virt_inline_i = 0;
+            let end = g_st().decor_state.current_end;
 
-                for i in 0..end {
-                    let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
-                    let item: *mut DecorRange =
-                        (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-                    let item = &mut *item;
-                    if item.draw_col == -3 {
-                        decor_init_draw_col(wlv.off, selected, &mut *item);
-                    }
-                    if item.start_row != g_st().decor_state.row
-                        || !item.data.is_vt()
-                        || (*item.data.vt()).pos != K_VPOS_INLINE
-                        || (*item.data.vt()).width == 0
-                    {
-                        continue;
-                    }
-                    if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
-                        wlv.virt_inline = (*item.data.vt()).data.virt_text().as_slice();
-                        wlv.virt_inline_hl_mode = (*item.data.vt()).hl_mode;
-                        item.draw_col = i32::MIN;
-                        break;
-                    }
+            for i in 0..end {
+                let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
+                let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
+                let item = unsafe { &mut *item };
+                if item.draw_col == -3 {
+                    decor_init_draw_col(wlv.off, selected, &mut *item);
                 }
-                if wlv.virt_inline.is_empty() {
+                if item.start_row != g_st().decor_state.row
+                    || !item.data.is_vt()
+                    || unsafe { (*item.data.vt()).pos != K_VPOS_INLINE }
+                    || unsafe { (*item.data.vt()).width == 0 }
+                {
+                    continue;
+                }
+                if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
+                    unsafe {
+                        wlv.virt_inline = (*item.data.vt()).data.virt_text().as_slice();
+                    }
+                    unsafe {
+                        wlv.virt_inline_hl_mode = (*item.data.vt()).hl_mode;
+                    }
+                    item.draw_col = i32::MIN;
                     break;
                 }
-            } else {
-                let mut attr: i32 = 0;
-                let Some(text) =
-                    next_virt_text_chunk(wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr)
-                else {
-                    continue;
-                };
-                wlv.p_extra = text.as_ptr().cast_mut().cast();
-                wlv.n_extra = text.to_bytes().len() as i32;
-                if wlv.n_extra == 0 {
-                    continue;
-                }
-                wlv.sc_extra = 0;
-                wlv.sc_final = 0;
-                wlv.extra_attr = attr;
-                wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes(text));
-                if wlv.skip_cells > 0 {
-                    let virt_text_width =
-                        mb_string2cells(crate::memory::cstr_as_bytes(wlv.p_extra.cast())) as i32;
-                    if virt_text_width > wlv.skip_cells {
-                        let mut skip_cells_remaining = wlv.skip_cells;
-                        while skip_cells_remaining > 0 {
-                            let cells = utf_ptr2cells(wlv.p_extra.cast());
-                            if cells > skip_cells_remaining {
-                                break;
-                            }
-                            let c_len = utfc_ptr2len(wlv.p_extra.cast());
-                            skip_cells_remaining -= cells;
-                            wlv.p_extra = wlv.p_extra.wrapping_add(c_len as usize);
-                            wlv.n_extra -= c_len;
-                            wlv.n_attr -= 1;
-                        }
-                        wlv.skipped_cells += wlv.skip_cells - skip_cells_remaining;
-                        wlv.skip_cells = skip_cells_remaining;
-                    } else {
-                        wlv.skip_cells -= virt_text_width;
-                        wlv.skipped_cells += virt_text_width;
-                        wlv.n_attr = 0;
-                        wlv.n_extra = 0;
-                        continue;
-                    }
-                }
-                debug_assert!(wlv.n_extra > 0);
-                wlv.extra_for_extmark = true;
             }
+            if wlv.virt_inline.is_empty() {
+                break;
+            }
+        } else {
+            let mut attr: i32 = 0;
+            let Some(text) =
+                next_virt_text_chunk(wlv.virt_inline, &mut wlv.virt_inline_i, &mut attr)
+            else {
+                continue;
+            };
+            wlv.p_extra = text.as_ptr().cast_mut().cast();
+            wlv.n_extra = text.to_bytes().len() as i32;
+            if wlv.n_extra == 0 {
+                continue;
+            }
+            wlv.sc_extra = 0;
+            wlv.sc_final = 0;
+            wlv.extra_attr = attr;
+            wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes(text));
+            if wlv.skip_cells > 0 {
+                let virt_text_width =
+                    mb_string2cells(crate::memory::cstr_as_bytes(wlv.p_extra.cast())) as i32;
+                if virt_text_width > wlv.skip_cells {
+                    let mut skip_cells_remaining = wlv.skip_cells;
+                    while skip_cells_remaining > 0 {
+                        let cells = utf_ptr2cells(wlv.p_extra.cast());
+                        if cells > skip_cells_remaining {
+                            break;
+                        }
+                        let c_len = utfc_ptr2len(wlv.p_extra.cast());
+                        skip_cells_remaining -= cells;
+                        wlv.p_extra = wlv.p_extra.wrapping_add(c_len as usize);
+                        wlv.n_extra -= c_len;
+                        wlv.n_attr -= 1;
+                    }
+                    wlv.skipped_cells += wlv.skip_cells - skip_cells_remaining;
+                    wlv.skip_cells = skip_cells_remaining;
+                } else {
+                    wlv.skip_cells -= virt_text_width;
+                    wlv.skipped_cells += virt_text_width;
+                    wlv.n_attr = 0;
+                    wlv.n_extra = 0;
+                    continue;
+                }
+            }
+            debug_assert!(wlv.n_extra > 0);
+            wlv.extra_for_extmark = true;
         }
     }
 }
@@ -1443,204 +1444,206 @@ pub fn win_line(
     spv: &mut Spellvars,
     foldinfo: Foldinfo,
 ) -> i32 {
-    unsafe {
-        let grid: *mut GridView = &raw mut wp.w_grid;
-        let grid = &mut *grid;
-        let view_width = wp.w_view_width;
-        let view_height = wp.w_view_height;
+    let grid: *mut GridView = &raw mut wp.w_grid;
+    let grid = unsafe { &mut *grid };
+    let view_width = wp.w_view_width;
+    let view_height = wp.w_view_height;
 
-        let in_curline = ptr::eq(wp, curwin_ptr()) && lnum == curwin_mut().w_cursor.lnum;
-        let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
-        let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST;
+    let in_curline = ptr::eq(wp, curwin_ptr()) && lnum == curwin_mut().w_cursor.lnum;
+    let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
+    let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST;
 
-        let is_wrapped = wp.w_onebuf_opt.wo_wrap != 0 && !has_fold;
+    let is_wrapped = wp.w_onebuf_opt.wo_wrap != 0 && !has_fold;
 
-        let mut saved_attr2: i32 = 0;
-        let mut n_attr3: i32 = 0;
-        let mut saved_attr3: i32 = 0;
+    let mut saved_attr2: i32 = 0;
+    let mut n_attr3: i32 = 0;
+    let mut saved_attr3: i32 = 0;
 
-        let mut lnum_in_visual_area = false;
+    let mut lnum_in_visual_area = false;
 
-        let mut char_attr_pri: i32 = 0;
-        let mut char_attr_base: i32;
-        let mut area_highlighting = false;
-        let mut vi_attr: i32 = 0;
-        let mut area_attr: i32 = 0;
-        let mut search_attr: i32 = 0;
-        let mut vcol_save_attr: i32;
-        let mut decor_attr: i32 = 0;
-        let mut syntax_attr: i32;
-        let mut gap_attr_save: i32 = 0;
-        let mut has_syntax = false;
-        let mut folded_attr: i32 = 0;
-        let mut eol_hl_off: i32 = 0;
-        let mut nextline = [0u8; SPWORDLEN * 2];
-        let nextline_ptr = nextline.as_mut_ptr();
-        let mut nextlinecol: i32 = 0;
-        let mut nextline_idx: i32 = 0;
-        let mut spell_attr: i32 = 0;
-        let mut word_end: i32 = 0;
-        let mut cur_checked_col: i32 = 0;
-        let mut extra_check = false;
-        let mut multi_attr: i32 = 0;
-        let mut mb_schar: Schar;
-        let mut mb_schar_width: i32 = 0;
-        let mut change_start: i32 = MAXCOL;
-        let mut change_end: i32 = -1;
-        let mut in_multispace = false;
-        let mut multispace_pos: usize = 0;
+    let mut char_attr_pri: i32 = 0;
+    let mut char_attr_base: i32;
+    let mut area_highlighting = false;
+    let mut vi_attr: i32 = 0;
+    let mut area_attr: i32 = 0;
+    let mut search_attr: i32 = 0;
+    let mut vcol_save_attr: i32;
+    let mut decor_attr: i32 = 0;
+    let mut syntax_attr: i32;
+    let mut gap_attr_save: i32 = 0;
+    let mut has_syntax = false;
+    let mut folded_attr: i32 = 0;
+    let mut eol_hl_off: i32 = 0;
+    let mut nextline = [0u8; SPWORDLEN * 2];
+    let nextline_ptr = nextline.as_mut_ptr();
+    let mut nextlinecol: i32 = 0;
+    let mut nextline_idx: i32 = 0;
+    let mut spell_attr: i32 = 0;
+    let mut word_end: i32 = 0;
+    let mut cur_checked_col: i32 = 0;
+    let mut extra_check = false;
+    let mut multi_attr: i32 = 0;
+    let mut mb_schar: Schar;
+    let mut mb_schar_width: i32 = 0;
+    let mut change_start: i32 = MAXCOL;
+    let mut change_end: i32 = -1;
+    let mut in_multispace = false;
+    let mut multispace_pos: usize = 0;
 
-        let mut n_extra_next: i32 = 0;
-        let mut extra_attr_next: i32 = -1;
+    let mut n_extra_next: i32 = 0;
+    let mut extra_attr_next: i32 = -1;
 
-        let mut search_attr_from_match = false;
-        let mut has_decor = false;
-        let mut conceal_spans = ConcealSpans::new();
-        let cursor_vcol = if lnum == wp.w_cursor.lnum && !has_fold {
-            cursor_disp_vcol(wp)
-        } else {
-            wp.w_virtcol
-        };
+    let mut search_attr_from_match = false;
+    let mut has_decor = false;
+    let mut conceal_spans = ConcealSpans::new();
+    let cursor_vcol = if lnum == wp.w_cursor.lnum && !has_fold {
+        cursor_disp_vcol(wp)
+    } else {
+        wp.w_virtcol
+    };
 
-        let mut saved_search_attr: i32 = 0;
-        let mut saved_area_attr: i32 = 0;
-        let mut saved_decor_attr: i32 = 0;
-        let mut saved_search_attr_from_match = false;
+    let mut saved_search_attr: i32 = 0;
+    let mut saved_area_attr: i32 = 0;
+    let mut saved_decor_attr: i32 = 0;
+    let mut saved_search_attr_from_match = false;
 
-        let mut win_col_offset: i32 = 0;
-        let mut area_active = false;
-        let mut decor_need_recheck = false;
+    let mut win_col_offset: i32 = 0;
+    let mut area_active = false;
+    let mut decor_need_recheck = false;
 
-        let mut fold_vt: VirtText = Vec::new();
-        let mut foldtext_free: Option<std::ffi::CString> = None;
+    let mut fold_vt: VirtText = Vec::new();
+    let mut foldtext_free: Option<std::ffi::CString> = None;
 
-        let mut cul_screenline = false;
-        let mut left_curline_col: i32 = 0;
-        let mut right_curline_col: i32 = 0;
+    let mut cul_screenline = false;
+    let mut left_curline_col: i32 = 0;
+    let mut right_curline_col: i32 = 0;
 
-        let mut match_conc: i32 = 0;
-        let mut on_last_col = false;
-        let mut syntax_flags: i32 = 0;
-        let mut syntax_seqnr: i32 = 0;
-        let mut prev_syntax_id: i32 = 0;
-        let conceal_attr = win_hl_attr(&mut *wp, HLF_CONCEAL);
-        let mut is_concealing = false;
-        let mut did_wcol = false;
+    let mut match_conc: i32 = 0;
+    let mut on_last_col = false;
+    let mut syntax_flags: i32 = 0;
+    let mut syntax_seqnr: i32 = 0;
+    let mut prev_syntax_id: i32 = 0;
+    let conceal_attr = win_hl_attr(&mut *wp, HLF_CONCEAL);
+    let mut is_concealing = false;
+    let mut did_wcol = false;
 
-        debug_assert!(startrow < endrow);
+    debug_assert!(startrow < endrow);
 
-        let mut wlv = Winlinevars {
-            lnum,
-            foldinfo,
-            startrow,
-            row: startrow,
-            vcol: 0,
-            col: 0,
-            boguscols: 0,
-            old_boguscols: 0,
-            vcol_off_co: 0,
-            extconceal_off: 0,
-            off: 0,
-            cul_attr: 0,
-            line_attr: 0,
-            line_attr_lowprio: 0,
-            sign_num_attr: 0,
-            prev_num_attr: -1,
-            sign_cul_attr: 0,
-            fromcol: -10,
-            tocol: MAXCOL,
-            need_showbreak: false,
-            breakindent: -1,
-            char_attr: 0,
-            n_extra: 0,
-            n_attr: 0,
-            p_extra: ptr::null_mut(),
-            extra_attr: 0,
-            sc_extra: 0,
-            sc_final: 0,
-            extra_for_extmark: false,
-            extra: [0; 11],
-            diff_hlf: 0,
-            n_virt_lines: 0,
-            n_virt_below: 0,
-            filler_lines: 0,
-            filler_todo: 0,
-            virt_below_skip: 0,
-            filler_lines_skip: 0,
-            sattrs: [SignTextAttrs {
-                text: [0, 0],
-                hl_id: 0,
-            }; SIGN_SHOW_MAX],
-            virt_inline: &[],
-            virt_inline_i: 0,
-            virt_inline_hl_mode: 0,
-            reset_extra_attr: false,
-            skip_cells: 0,
-            skipped_cells: 0,
-            color_cols: &[],
-        };
+    let mut wlv = Winlinevars {
+        lnum,
+        foldinfo,
+        startrow,
+        row: startrow,
+        vcol: 0,
+        col: 0,
+        boguscols: 0,
+        old_boguscols: 0,
+        vcol_off_co: 0,
+        extconceal_off: 0,
+        off: 0,
+        cul_attr: 0,
+        line_attr: 0,
+        line_attr_lowprio: 0,
+        sign_num_attr: 0,
+        prev_num_attr: -1,
+        sign_cul_attr: 0,
+        fromcol: -10,
+        tocol: MAXCOL,
+        need_showbreak: false,
+        breakindent: -1,
+        char_attr: 0,
+        n_extra: 0,
+        n_attr: 0,
+        p_extra: ptr::null_mut(),
+        extra_attr: 0,
+        sc_extra: 0,
+        sc_final: 0,
+        extra_for_extmark: false,
+        extra: [0; 11],
+        diff_hlf: 0,
+        n_virt_lines: 0,
+        n_virt_below: 0,
+        filler_lines: 0,
+        filler_todo: 0,
+        virt_below_skip: 0,
+        filler_lines_skip: 0,
+        sattrs: [SignTextAttrs {
+            text: [0, 0],
+            hl_id: 0,
+        }; SIGN_SHOW_MAX],
+        virt_inline: &[],
+        virt_inline_i: 0,
+        virt_inline_hl_mode: 0,
+        reset_extra_attr: false,
+        skip_cells: 0,
+        skipped_cells: 0,
+        color_cols: &[],
+    };
 
-        let buf = wp.w_buffer;
-        let draw_text = !concealed && (lnum != (*buf).b_ml.ml_line_count + 1);
+    let buf = wp.w_buffer;
+    let draw_text = unsafe { !concealed && (lnum != (*buf).b_ml.ml_line_count + 1) };
 
-        let mut decor_provider_end_col: i32 = 0;
-        let mut check_decor_providers = false;
+    let mut decor_provider_end_col: i32 = 0;
+    let mut check_decor_providers = false;
 
-        if col_rows == 0 && draw_text {
-            extra_check = wp.w_onebuf_opt.wo_lbr != 0;
-            let w_s = wp.w_s_ptr();
-            if syntax_present(&mut *wp) && !w_s.b_syn_error && !w_s.b_syn_slow && !has_foldtext {
-                let save_did_emsg = g_st().did_emsg;
-                g_st().did_emsg = 0;
-                syntax_start(wp, lnum);
-                if g_st().did_emsg != 0 {
-                    w_s.b_syn_error = true;
-                } else {
-                    g_st().did_emsg = save_did_emsg;
-                    if !w_s.b_syn_slow {
-                        has_syntax = true;
-                        extra_check = true;
-                    }
+    if col_rows == 0 && draw_text {
+        extra_check = wp.w_onebuf_opt.wo_lbr != 0;
+        let w_s = wp.w_s_ptr();
+        if syntax_present(&mut *wp) && !w_s.b_syn_error && !w_s.b_syn_slow && !has_foldtext {
+            let save_did_emsg = g_st().did_emsg;
+            g_st().did_emsg = 0;
+            syntax_start(wp, lnum);
+            if g_st().did_emsg != 0 {
+                w_s.b_syn_error = true;
+            } else {
+                g_st().did_emsg = save_did_emsg;
+                if !w_s.b_syn_slow {
+                    has_syntax = true;
+                    extra_check = true;
                 }
             }
+        }
 
-            check_decor_providers = true;
+        check_decor_providers = true;
 
-            wlv.color_cols = if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
-                &[]
+        wlv.color_cols = if !wp.buf_mut().terminal.is_null() || wp.w_p_cc_cols.is_empty() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len()) }
+        };
+        let hlc = vcol_hlc(&wlv);
+        advance_color_col(&mut wlv, hlc);
+
+        if g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer {
+            let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
+                (
+                    &raw mut curwin_mut().w_cursor,
+                    &raw mut g_st().visual_global.start,
+                )
             } else {
-                std::slice::from_raw_parts(wp.w_p_cc_cols.as_ptr(), wp.w_p_cc_cols.len())
+                (
+                    &raw mut g_st().visual_global.start,
+                    &raw mut curwin_mut().w_cursor,
+                )
             };
-            let hlc = vcol_hlc(&wlv);
-            advance_color_col(&mut wlv, hlc);
-
-            if g_st().visual_global.active && wp.w_buffer == curwin_mut().w_buffer {
-                let (top, bot) = if ltoreq(curwin_mut().w_cursor, g_st().visual_global.start) {
-                    (
-                        &raw mut curwin_mut().w_cursor,
-                        &raw mut g_st().visual_global.start,
-                    )
-                } else {
-                    (
-                        &raw mut g_st().visual_global.start,
-                        &raw mut curwin_mut().w_cursor,
-                    )
-                };
+            unsafe {
                 lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
-                if g_st().visual_global.mode == CTRL_V_CONST {
-                    if lnum_in_visual_area {
-                        let fcol = wp.w_old_cursor_fcol;
-                        let lcol = wp.w_old_cursor_lcol;
-                        wlv.fromcol = vcol2disp_vcol(&mut *wp, lnum, fcol);
-                        wlv.tocol = vcol2disp_vcol(&mut *wp, lnum, lcol);
-                    }
-                } else {
-                    if lnum > (*top).lnum && lnum <= (*bot).lnum {
+            }
+            if g_st().visual_global.mode == CTRL_V_CONST {
+                if lnum_in_visual_area {
+                    let fcol = wp.w_old_cursor_fcol;
+                    let lcol = wp.w_old_cursor_lcol;
+                    wlv.fromcol = vcol2disp_vcol(&mut *wp, lnum, fcol);
+                    wlv.tocol = vcol2disp_vcol(&mut *wp, lnum, lcol);
+                }
+            } else {
+                if unsafe { lnum > (*top).lnum } && unsafe { lnum <= (*bot).lnum } {
+                    wlv.fromcol = 0;
+                } else if unsafe { lnum == (*top).lnum } {
+                    if g_st().visual_global.mode == b'V' as i32 {
                         wlv.fromcol = 0;
-                    } else if lnum == (*top).lnum {
-                        if g_st().visual_global.mode == b'V' as i32 {
-                            wlv.fromcol = 0;
-                        } else {
+                    } else {
+                        unsafe {
                             getvvcol(
                                 &mut *wp,
                                 &mut *top,
@@ -1649,1462 +1652,1465 @@ pub fn win_line(
                                 None,
                                 GETVCOL_DISP,
                             );
-                            if gchar_pos(&mut *top) == i32::from(NUL) {
-                                wlv.tocol = wlv.fromcol + 1;
-                            }
                         }
-                    }
-                    if g_st().visual_global.mode != b'V' as i32 && lnum == (*bot).lnum {
-                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                            && (*bot).col == 0
-                            && (*bot).coladd == 0
-                        {
-                            wlv.fromcol = -10;
-                            wlv.tocol = MAXCOL;
-                        } else if (*bot).col == MAXCOL {
-                            wlv.tocol = MAXCOL;
-                        } else {
-                            let mut pos = *bot;
-                            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
-                                getvvcol(
-                                    &mut *wp,
-                                    &mut pos,
-                                    Some(&mut wlv.tocol),
-                                    None,
-                                    None,
-                                    GETVCOL_DISP,
-                                );
-                            } else {
-                                getvvcol(
-                                    &mut *wp,
-                                    &mut pos,
-                                    None,
-                                    None,
-                                    Some(&mut wlv.tocol),
-                                    GETVCOL_DISP,
-                                );
-                                wlv.tocol += 1;
-                            }
+                        if unsafe { gchar_pos(&mut *top) == i32::from(NUL) } {
+                            wlv.tocol = wlv.fromcol + 1;
                         }
                     }
                 }
-
-                if wlv.fromcol >= 0 {
-                    area_highlighting = true;
-                    vi_attr = win_hl_attr(&mut *wp, HLF_V);
-                }
-            } else if g_st().search_global.hl_match
-                && ptr::eq(wp, curwin_ptr())
-                && !has_foldtext
-                && lnum >= curwin_mut().w_cursor.lnum
-                && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
-            {
-                if lnum == curwin_mut().w_cursor.lnum {
-                    getvcol(
-                        curwin_mut(),
-                        &mut curwin_mut().w_cursor,
-                        Some(&mut wlv.fromcol),
-                        None,
-                        None,
-                        GETVCOL_DISP,
-                    );
-                } else {
-                    wlv.fromcol = 0;
-                }
-                if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines {
-                    let mut pos = CursorPos {
-                        lnum,
-                        col: g_st().search_global.match_endcol,
-                        coladd: 0,
-                    };
-                    getvcol(
-                        curwin_mut(),
-                        &mut pos,
-                        Some(&mut wlv.tocol),
-                        None,
-                        None,
-                        GETVCOL_DISP,
-                    );
-                }
-                if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol != 0 {
-                    wlv.tocol = wlv.fromcol + 1;
-                }
-                area_highlighting = true;
-                vi_attr = win_hl_attr(&mut *wp, HLF_I);
-            }
-        }
-
-        let bg_attr = win_bg_attr(wp);
-
-        let mut linestatus: i32 = 0;
-        wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, Some(&mut linestatus));
-        let mut line_changes = Diffline::default();
-        let mut change_index: i32 = -1;
-        if linestatus < 0 {
-            if linestatus == -1 {
-                if diff_find_change(wp, lnum, &mut line_changes) {
-                    wlv.diff_hlf = HLF_ADD;
-                } else if !line_changes.changes.is_empty() {
-                    let added = diff_change_parse(
-                        &line_changes,
-                        &line_changes.changes[0],
-                        &mut change_start,
-                        &mut change_end,
-                    );
-                    if change_start == 0 {
-                        if added {
-                            wlv.diff_hlf = HLF_TXA;
-                        } else {
-                            wlv.diff_hlf = HLF_TXD;
-                        }
+                if g_st().visual_global.mode != b'V' as i32 && unsafe { lnum == (*bot).lnum } {
+                    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                        && unsafe { (*bot).col == 0 }
+                        && unsafe { (*bot).coladd == 0 }
+                    {
+                        wlv.fromcol = -10;
+                        wlv.tocol = MAXCOL;
+                    } else if unsafe { (*bot).col == MAXCOL } {
+                        wlv.tocol = MAXCOL;
                     } else {
-                        wlv.diff_hlf = HLF_CHD;
+                        let mut pos = unsafe { *bot };
+                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                            getvvcol(
+                                &mut *wp,
+                                &mut pos,
+                                Some(&mut wlv.tocol),
+                                None,
+                                None,
+                                GETVCOL_DISP,
+                            );
+                        } else {
+                            getvvcol(
+                                &mut *wp,
+                                &mut pos,
+                                None,
+                                None,
+                                Some(&mut wlv.tocol),
+                                GETVCOL_DISP,
+                            );
+                            wlv.tocol += 1;
+                        }
                     }
-                    change_index = 0;
-                } else {
-                    wlv.diff_hlf = HLF_CHD;
-                    change_index = 0;
                 }
-            } else {
-                wlv.diff_hlf = HLF_ADD;
             }
-            area_highlighting = true;
-        }
-        let mut virt_lines: VirtLines = Vec::new();
-        wlv.n_virt_lines = decor_virt_lines(
-            &mut *wp,
-            lnum - 1,
-            lnum,
-            Some(&mut wlv.n_virt_below),
-            Some(&mut virt_lines),
-            true,
-        );
-        let total_virt_rows = wlv.n_virt_lines;
-        wlv.filler_lines += wlv.n_virt_lines;
-        if lnum == wp.w_topline {
-            wlv.virt_below_skip = wlv.n_virt_below.min(wlv.n_virt_lines - wp.w_topfill);
-            wlv.n_virt_below -= wlv.virt_below_skip;
-            wlv.filler_lines_skip = wlv.filler_lines - wlv.virt_below_skip - wp.w_topfill;
-            wlv.filler_lines = wp.w_topfill;
-            wlv.n_virt_lines = wlv.n_virt_lines.min(wlv.filler_lines);
-        }
-        wlv.filler_todo = wlv.filler_lines;
 
-        if wp.w_onebuf_opt.wo_cul != 0
-            && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
-            && lnum == wp.w_cursorline
-            && !(ptr::eq(wp, curwin_ptr()) && g_st().visual_global.active)
+            if wlv.fromcol >= 0 {
+                area_highlighting = true;
+                vi_attr = win_hl_attr(&mut *wp, HLF_V);
+            }
+        } else if g_st().search_global.hl_match
+            && ptr::eq(wp, curwin_ptr())
+            && !has_foldtext
+            && lnum >= curwin_mut().w_cursor.lnum
+            && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
         {
-            cul_screenline =
-                is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
-            if !cul_screenline {
-                apply_cursorline_highlight(wp, &mut wlv);
+            if lnum == curwin_mut().w_cursor.lnum {
+                getvcol(
+                    curwin_mut(),
+                    &mut curwin_mut().w_cursor,
+                    Some(&mut wlv.fromcol),
+                    None,
+                    None,
+                    GETVCOL_DISP,
+                );
             } else {
-                margin_columns_win(
-                    &mut *wp,
-                    cursor_vcol,
-                    &mut left_curline_col,
-                    &mut right_curline_col,
+                wlv.fromcol = 0;
+            }
+            if lnum == curwin_mut().w_cursor.lnum + g_st().search_global.match_lines {
+                let mut pos = CursorPos {
+                    lnum,
+                    col: g_st().search_global.match_endcol,
+                    coladd: 0,
+                };
+                getvcol(
+                    curwin_mut(),
+                    &mut pos,
+                    Some(&mut wlv.tocol),
+                    None,
+                    None,
+                    GETVCOL_DISP,
                 );
             }
+            if wlv.fromcol == wlv.tocol && g_st().search_global.match_endcol != 0 {
+                wlv.tocol = wlv.fromcol + 1;
+            }
             area_highlighting = true;
+            vi_attr = win_hl_attr(&mut *wp, HLF_I);
         }
+    }
 
-        let mut sign_line_attr: i32 = 0;
-        decor_redraw_signs(
-            &raw mut *wp,
-            buf,
-            wlv.lnum - 1,
-            (&raw mut wlv.sattrs).cast::<SignTextAttrs>(),
-            Some(&mut sign_line_attr),
-            Some(&mut wlv.sign_cul_attr),
-            Some(&mut wlv.sign_num_attr),
-        );
+    let bg_attr = win_bg_attr(wp);
 
-        let mut statuscol = Statuscol::new();
-        if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
-            statuscol.draw = true;
-            statuscol.sattrs = wlv.sattrs;
-            statuscol.lnum = lnum;
-            statuscol.foldinfo = foldinfo;
-            statuscol.width = win_col_off(&raw mut *wp);
-            statuscol.sign_cul_id = if use_cursor_line_highlight(&mut *wp, lnum) {
-                wlv.sign_cul_attr
-            } else {
-                0
-            };
-        } else if wlv.sign_cul_attr > 0 {
-            wlv.sign_cul_attr = if use_cursor_line_highlight(&mut *wp, lnum) {
-                syn_id2attr(wlv.sign_cul_attr)
-            } else {
-                0
-            };
-        }
-        if wlv.sign_num_attr > 0 {
-            wlv.sign_num_attr = syn_id2attr(wlv.sign_num_attr);
-        }
-        if sign_line_attr > 0 {
-            wlv.line_attr = syn_id2attr(sign_line_attr);
-        }
-
-        if bt_quickfix(wp.w_buffer.as_ref()) && qf_current_entry(wp) == lnum {
-            wlv.line_attr = win_hl_attr(&mut *wp, HLF_QFL);
-        }
-
-        if wlv.line_attr_lowprio != 0 || wlv.line_attr != 0 {
-            area_highlighting = true;
-        }
-
-        let line_attr_save = wlv.line_attr;
-        let line_attr_lowprio_save = wlv.line_attr_lowprio;
-
-        if spv.spv_has_spell && col_rows == 0 && draw_text {
-            extra_check = true;
-
-            if lnum == spv.spv_checked_lnum {
-                cur_checked_col = spv.spv_checked_col;
-            }
-            if spv.spv_capcol_lnum == 0 && check_need_cap(wp, lnum, 0) {
-                spv.spv_cap_col = 0;
-            } else if lnum != spv.spv_capcol_lnum {
-                spv.spv_cap_col = -1;
-            }
-            spv.spv_checked_lnum = 0;
-
-            nextline[SPWORDLEN] = 0;
-            if lnum < wp.buf_mut().b_ml.ml_line_count {
-                let line = ml_get_buf(wp.buf_mut(), lnum + 1);
-                spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], line);
-            }
-            let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
-            let rem_sw = crate::charset::skipwhite_slice(line_slice);
-            if rem_sw.is_empty() {
-                spv.spv_cap_col = 0;
-                spv.spv_capcol_lnum = lnum + 1;
-            } else if spv.spv_cap_col == 0 {
-                spv.spv_cap_col = (line_slice.len() - rem_sw.len()) as i32;
-            }
-
-            if nextline[SPWORDLEN] == 0 {
-                nextlinecol = MAXCOL;
-                nextline_idx = 0;
-            } else {
-                let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
-                let line_len = line_slice.len() as i32;
-                if (line_len as usize) < SPWORDLEN {
-                    nextlinecol = 0;
-                    nextline[..line_len as usize].copy_from_slice(line_slice);
-                    let tail_len = crate::memory::cstr_until_nul(&nextline[SPWORDLEN..])
-                        .to_bytes()
-                        .len();
-                    nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
-                    nextline_idx = line_len + 1;
-                } else {
-                    nextlinecol = line_len - SPWORDLEN as i32;
-                    nextline[..SPWORDLEN].copy_from_slice(
-                        &line_slice[nextlinecol as usize..nextlinecol as usize + SPWORDLEN],
-                    );
-                    nextline_idx = SPWORDLEN as i32 + 1;
-                }
-            }
-        }
-
-        let mut line = if draw_text {
-            ml_get_buf(wp.buf_mut(), lnum)
-        } else {
-            c"".as_ptr().cast_mut()
-        };
-        let mut ptr = line.cast_const();
-
-        let mut trailcol: Colnr = MAXCOL;
-        let mut leadcol: Colnr = 0;
-
-        let mut lcs_eol_todo = true;
-        let lcs_eol = wp.w_p_lcs_chars.eol;
-        let mut lcs_prec_todo = wp.w_p_lcs_chars.prec;
-
-        if wp.w_onebuf_opt.wo_list != 0 && !has_foldtext && draw_text {
-            if wp.w_p_lcs_chars.space != 0
-                || !wp.w_p_lcs_chars.multispace.is_empty()
-                || !wp.w_p_lcs_chars.leadmultispace.is_empty()
-                || wp.w_p_lcs_chars.trail != 0
-                || wp.w_p_lcs_chars.lead != 0
-                || wp.w_p_lcs_chars.nbsp != 0
-            {
-                extra_check = true;
-            }
-            if wp.w_p_lcs_chars.trail != 0 {
-                trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
-                while trailcol > 0 && ascii_iswhite(*ptr.wrapping_add((trailcol - 1) as usize)) {
-                    trailcol -= 1;
-                }
-                trailcol += crate::memory::ptr_offset_from(ptr, line) as Colnr;
-            }
-            if wp.w_p_lcs_chars.lead != 0
-                || !wp.w_p_lcs_chars.leadmultispace.is_empty()
-                || wp.w_p_lcs_chars.leadtab1 != 0
-            {
-                let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
-                let rem = crate::charset::skipwhite_slice(ptr_bytes);
-                leadcol = if rem.is_empty() {
-                    0
-                } else {
-                    (ptr_bytes.len() - rem.len()) as Colnr
-                        + crate::memory::ptr_offset_from(ptr, line) as Colnr
-                        + 1
-                };
-            }
-        }
-
-        let start_vcol = if wp.w_onebuf_opt.wo_wrap != 0 {
-            if startrow == 0 { wp.w_skipcol } else { 0 }
-        } else {
-            wp.w_leftcol
-        };
-
-        if has_foldtext {
-            wlv.vcol = start_vcol;
-        } else if start_vcol > 0 && col_rows == 0 {
-            ptr = win_line_skip_columns(
-                &mut *wp,
-                &mut wlv,
-                &mut line,
-                start_vcol,
-                leadcol,
-                &mut in_multispace,
-                &mut multispace_pos,
-            );
-            if spv.spv_has_spell {
-                let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
-                let mut spell_hlf: Hlf = HLF_COUNT;
-
-                let pos = wp.w_cursor;
-                wp.w_cursor.lnum = lnum;
-                wp.w_cursor.col = linecol;
-                let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, &raw mut spell_hlf);
-
-                line = ml_get_buf(wp.buf_mut(), lnum);
-                ptr = line.wrapping_add(linecol as usize);
-
-                if len == 0 || wp.w_cursor.col > linecol {
-                    word_end = crate::memory::ptr_offset_from(
-                        spell_to_word_end(ptr, &mut *wp).cast(),
-                        line,
-                    ) as i32
-                        + 1;
-                } else {
-                    debug_assert!(len <= i32::MAX as usize);
-                    word_end = wp.w_cursor.col + len as i32 + 1;
-
-                    if spell_hlf != HLF_COUNT {
-                        spell_attr = g_st().highlight_attr[spell_hlf as usize];
+    let mut linestatus: i32 = 0;
+    wlv.filler_lines = diff_check_with_linestatus(&mut *wp, lnum, Some(&mut linestatus));
+    let mut line_changes = Diffline::default();
+    let mut change_index: i32 = -1;
+    if linestatus < 0 {
+        if linestatus == -1 {
+            if diff_find_change(wp, lnum, &mut line_changes) {
+                wlv.diff_hlf = HLF_ADD;
+            } else if !line_changes.changes.is_empty() {
+                let added = diff_change_parse(
+                    &line_changes,
+                    &line_changes.changes[0],
+                    &mut change_start,
+                    &mut change_end,
+                );
+                if change_start == 0 {
+                    if added {
+                        wlv.diff_hlf = HLF_TXA;
+                    } else {
+                        wlv.diff_hlf = HLF_TXD;
                     }
+                } else {
+                    wlv.diff_hlf = HLF_CHD;
                 }
-                wp.w_cursor = pos;
+                change_index = 0;
+            } else {
+                wlv.diff_hlf = HLF_CHD;
+                change_index = 0;
+            }
+        } else {
+            wlv.diff_hlf = HLF_ADD;
+        }
+        area_highlighting = true;
+    }
+    let mut virt_lines: VirtLines = Vec::new();
+    wlv.n_virt_lines = decor_virt_lines(
+        &mut *wp,
+        lnum - 1,
+        lnum,
+        Some(&mut wlv.n_virt_below),
+        Some(&mut virt_lines),
+        true,
+    );
+    let total_virt_rows = wlv.n_virt_lines;
+    wlv.filler_lines += wlv.n_virt_lines;
+    if lnum == wp.w_topline {
+        wlv.virt_below_skip = wlv.n_virt_below.min(wlv.n_virt_lines - wp.w_topfill);
+        wlv.n_virt_below -= wlv.virt_below_skip;
+        wlv.filler_lines_skip = wlv.filler_lines - wlv.virt_below_skip - wp.w_topfill;
+        wlv.filler_lines = wp.w_topfill;
+        wlv.n_virt_lines = wlv.n_virt_lines.min(wlv.filler_lines);
+    }
+    wlv.filler_todo = wlv.filler_lines;
 
-                if has_syntax {
-                    syntax_start(wp, lnum);
-                }
+    if wp.w_onebuf_opt.wo_cul != 0
+        && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
+        && lnum == wp.w_cursorline
+        && !(ptr::eq(wp, curwin_ptr()) && g_st().visual_global.active)
+    {
+        cul_screenline = is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
+        if !cul_screenline {
+            apply_cursorline_highlight(wp, &mut wlv);
+        } else {
+            margin_columns_win(
+                &mut *wp,
+                cursor_vcol,
+                &mut left_curline_col,
+                &mut right_curline_col,
+            );
+        }
+        area_highlighting = true;
+    }
+
+    let mut sign_line_attr: i32 = 0;
+    decor_redraw_signs(
+        &raw mut *wp,
+        buf,
+        wlv.lnum - 1,
+        (&raw mut wlv.sattrs).cast::<SignTextAttrs>(),
+        Some(&mut sign_line_attr),
+        Some(&mut wlv.sign_cul_attr),
+        Some(&mut wlv.sign_num_attr),
+    );
+
+    let mut statuscol = Statuscol::new();
+    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+        statuscol.draw = true;
+        statuscol.sattrs = wlv.sattrs;
+        statuscol.lnum = lnum;
+        statuscol.foldinfo = foldinfo;
+        statuscol.width = win_col_off(&raw mut *wp);
+        statuscol.sign_cul_id = if use_cursor_line_highlight(&mut *wp, lnum) {
+            wlv.sign_cul_attr
+        } else {
+            0
+        };
+    } else if wlv.sign_cul_attr > 0 {
+        wlv.sign_cul_attr = if use_cursor_line_highlight(&mut *wp, lnum) {
+            syn_id2attr(wlv.sign_cul_attr)
+        } else {
+            0
+        };
+    }
+    if wlv.sign_num_attr > 0 {
+        wlv.sign_num_attr = syn_id2attr(wlv.sign_num_attr);
+    }
+    if sign_line_attr > 0 {
+        wlv.line_attr = syn_id2attr(sign_line_attr);
+    }
+
+    if unsafe { bt_quickfix(wp.w_buffer.as_ref()) } && qf_current_entry(wp) == lnum {
+        wlv.line_attr = win_hl_attr(&mut *wp, HLF_QFL);
+    }
+
+    if wlv.line_attr_lowprio != 0 || wlv.line_attr != 0 {
+        area_highlighting = true;
+    }
+
+    let line_attr_save = wlv.line_attr;
+    let line_attr_lowprio_save = wlv.line_attr_lowprio;
+
+    if spv.spv_has_spell && col_rows == 0 && draw_text {
+        extra_check = true;
+
+        if lnum == spv.spv_checked_lnum {
+            cur_checked_col = spv.spv_checked_col;
+        }
+        if spv.spv_capcol_lnum == 0 && check_need_cap(wp, lnum, 0) {
+            spv.spv_cap_col = 0;
+        } else if lnum != spv.spv_capcol_lnum {
+            spv.spv_cap_col = -1;
+        }
+        spv.spv_checked_lnum = 0;
+
+        nextline[SPWORDLEN] = 0;
+        if lnum < wp.buf_mut().b_ml.ml_line_count {
+            let line = ml_get_buf(wp.buf_mut(), lnum + 1);
+            spell_cat_line(&mut nextline[SPWORDLEN..SPWORDLEN * 2], line);
+        }
+        let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
+        let rem_sw = crate::charset::skipwhite_slice(line_slice);
+        if rem_sw.is_empty() {
+            spv.spv_cap_col = 0;
+            spv.spv_capcol_lnum = lnum + 1;
+        } else if spv.spv_cap_col == 0 {
+            spv.spv_cap_col = (line_slice.len() - rem_sw.len()) as i32;
+        }
+
+        if nextline[SPWORDLEN] == 0 {
+            nextlinecol = MAXCOL;
+            nextline_idx = 0;
+        } else {
+            let line_slice = crate::memline::ml_get_buf_slice(wp.buf_mut(), lnum);
+            let line_len = line_slice.len() as i32;
+            if (line_len as usize) < SPWORDLEN {
+                nextlinecol = 0;
+                nextline[..line_len as usize].copy_from_slice(line_slice);
+                let tail_len = crate::memory::cstr_until_nul(&nextline[SPWORDLEN..])
+                    .to_bytes()
+                    .len();
+                nextline.copy_within(SPWORDLEN..=SPWORDLEN + tail_len, line_len as usize);
+                nextline_idx = line_len + 1;
+            } else {
+                nextlinecol = line_len - SPWORDLEN as i32;
+                nextline[..SPWORDLEN].copy_from_slice(
+                    &line_slice[nextlinecol as usize..nextlinecol as usize + SPWORDLEN],
+                );
+                nextline_idx = SPWORDLEN as i32 + 1;
             }
         }
+    }
 
-        if check_decor_providers {
-            let col = crate::memory::ptr_offset_from(ptr, line) as i32;
-            decor_provider_end_col =
-                decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
-            line = ml_get_buf(wp.buf_mut(), lnum);
-            ptr = line.wrapping_add(col as usize);
-        }
+    let mut line = if draw_text {
+        ml_get_buf(wp.buf_mut(), lnum)
+    } else {
+        c"".as_ptr().cast_mut()
+    };
+    let mut ptr = line.cast_const();
 
-        decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state);
-        if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
-            has_decor = true;
+    let mut trailcol: Colnr = MAXCOL;
+    let mut leadcol: Colnr = 0;
+
+    let mut lcs_eol_todo = true;
+    let lcs_eol = wp.w_p_lcs_chars.eol;
+    let mut lcs_prec_todo = wp.w_p_lcs_chars.prec;
+
+    if wp.w_onebuf_opt.wo_list != 0 && !has_foldtext && draw_text {
+        if wp.w_p_lcs_chars.space != 0
+            || !wp.w_p_lcs_chars.multispace.is_empty()
+            || !wp.w_p_lcs_chars.leadmultispace.is_empty()
+            || wp.w_p_lcs_chars.trail != 0
+            || wp.w_p_lcs_chars.lead != 0
+            || wp.w_p_lcs_chars.nbsp != 0
+        {
             extra_check = true;
         }
-        if wp.w_onebuf_opt.wo_lbr != 0 && line_has_extconceal(&mut *wp, lnum) {
-            let len = ml_get_buf_len(wp.buf_mut(), lnum);
-            conceal_spans_collect(&mut *wp, lnum - 1, len, &mut conceal_spans);
+        if wp.w_p_lcs_chars.trail != 0 {
+            trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
+            while trailcol > 0
+                && unsafe { ascii_iswhite(*ptr.wrapping_add((trailcol - 1) as usize)) }
+            {
+                trailcol -= 1;
+            }
+            trailcol += crate::memory::ptr_offset_from(ptr, line) as Colnr;
         }
-
-        if wlv.fromcol >= wlv.tocol {
-            wlv.fromcol = -1;
-        }
-
-        if col_rows == 0 && draw_text && !has_foldtext {
-            let v = crate::memory::ptr_offset_from(ptr, line) as i32;
-            area_highlighting |= prepare_search_hl_line(
-                wp,
-                lnum,
-                v,
-                &mut g_st().screen_search_hl,
-                &mut search_attr,
-                &mut search_attr_from_match,
-            );
-            line = ml_get_buf(wp.buf_mut(), lnum);
-            ptr = line.wrapping_add(v as usize);
-        }
-
-        if (g_st().state_global & MODE_INSERT) != 0
-            && ins_compl_win_active(wp)
-            && (in_curline || ins_compl_lnum_in_range(lnum))
+        if wp.w_p_lcs_chars.lead != 0
+            || !wp.w_p_lcs_chars.leadmultispace.is_empty()
+            || wp.w_p_lcs_chars.leadtab1 != 0
         {
-            area_highlighting = true;
+            let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
+            let rem = crate::charset::skipwhite_slice(ptr_bytes);
+            leadcol = if rem.is_empty() {
+                0
+            } else {
+                (ptr_bytes.len() - rem.len()) as Colnr
+                    + crate::memory::ptr_offset_from(ptr, line) as Colnr
+                    + 1
+            };
         }
+    }
 
-        win_line_start(wp, &mut wlv);
-        let mut draw_cols = true;
-        let mut leftcols_width: i32 = 0;
+    let start_vcol = if wp.w_onebuf_opt.wo_wrap != 0 {
+        if startrow == 0 { wp.w_skipcol } else { 0 }
+    } else {
+        wp.w_leftcol
+    };
 
-        let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
-        if !wp.buf_mut().terminal.is_null() {
+    if has_foldtext {
+        wlv.vcol = start_vcol;
+    } else if start_vcol > 0 && col_rows == 0 {
+        ptr = win_line_skip_columns(
+            &mut *wp,
+            &mut wlv,
+            &mut line,
+            start_vcol,
+            leadcol,
+            &mut in_multispace,
+            &mut multispace_pos,
+        );
+        if spv.spv_has_spell {
+            let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
+            let mut spell_hlf: Hlf = HLF_COUNT;
+
+            let pos = wp.w_cursor;
+            wp.w_cursor.lnum = lnum;
+            wp.w_cursor.col = linecol;
+            let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, &raw mut spell_hlf);
+
+            line = ml_get_buf(wp.buf_mut(), lnum);
+            ptr = line.wrapping_add(linecol as usize);
+
+            if len == 0 || wp.w_cursor.col > linecol {
+                word_end =
+                    crate::memory::ptr_offset_from(spell_to_word_end(ptr, &mut *wp).cast(), line)
+                        as i32
+                        + 1;
+            } else {
+                debug_assert!(len <= i32::MAX as usize);
+                word_end = wp.w_cursor.col + len as i32 + 1;
+
+                if spell_hlf != HLF_COUNT {
+                    spell_attr = g_st().highlight_attr[spell_hlf as usize];
+                }
+            }
+            wp.w_cursor = pos;
+
+            if has_syntax {
+                syntax_start(wp, lnum);
+            }
+        }
+    }
+
+    if check_decor_providers {
+        let col = crate::memory::ptr_offset_from(ptr, line) as i32;
+        decor_provider_end_col =
+            decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
+        line = ml_get_buf(wp.buf_mut(), lnum);
+        ptr = line.wrapping_add(col as usize);
+    }
+
+    decor_redraw_line(&mut *wp, lnum - 1, &mut g_st().decor_state);
+    if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
+        has_decor = true;
+        extra_check = true;
+    }
+    if wp.w_onebuf_opt.wo_lbr != 0 && line_has_extconceal(&mut *wp, lnum) {
+        let len = ml_get_buf_len(wp.buf_mut(), lnum);
+        conceal_spans_collect(&mut *wp, lnum - 1, len, &mut conceal_spans);
+    }
+
+    if wlv.fromcol >= wlv.tocol {
+        wlv.fromcol = -1;
+    }
+
+    if col_rows == 0 && draw_text && !has_foldtext {
+        let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+        area_highlighting |= prepare_search_hl_line(
+            wp,
+            lnum,
+            v,
+            &mut g_st().screen_search_hl,
+            &mut search_attr,
+            &mut search_attr_from_match,
+        );
+        line = ml_get_buf(wp.buf_mut(), lnum);
+        ptr = line.wrapping_add(v as usize);
+    }
+
+    if (g_st().state_global & MODE_INSERT) != 0
+        && ins_compl_win_active(wp)
+        && (in_curline || ins_compl_lnum_in_range(lnum))
+    {
+        area_highlighting = true;
+    }
+
+    win_line_start(wp, &mut wlv);
+    let mut draw_cols = true;
+    let mut leftcols_width: i32 = 0;
+
+    let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
+    if !wp.buf_mut().terminal.is_null() {
+        unsafe {
             terminal_get_line_attributes(
                 &mut *wp.buf_mut().terminal,
                 lnum,
                 (&raw mut term_attrs).cast::<i32>(),
             );
-            extra_check = true;
+        }
+        extra_check = true;
+    }
+
+    let may_have_inline_virt = !has_foldtext && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) > 0;
+    let conceal_enabled = wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_reveals_line(&*wp, lnum);
+    let mut has_virt_line = false;
+    let mut virt_line_flags: i32 = 0;
+    let mut virt_line_index: i32 = 0;
+    let mut virt_line_start_row: i32 = 0;
+    let mut virt_line_skip_cells: i32 = 0;
+    let mut conceal_tab_vcol: Colnr = -1;
+    let mut prefix_vcol: Colnr = -1;
+    let mut prefix_width: i32 = 0;
+    let mut disp_len: i32 = -1;
+
+    loop {
+        let mut has_match_conc: i32 = 0;
+        let mut decor_conceal: i32 = 0;
+        let mut conceal_replacement_extra: i32 = 0;
+        let mut conceal_lbr_body: i32 = 0;
+        let mut conceal_lbr_tail: i32 = 0;
+        let mut conceal_reflow = false;
+        let mut extconceal_char: Schar = 0;
+        let mut extconceal_attr: i32 = 0;
+
+        let mut did_decrement_ptr = false;
+        let mut cell_hidden = false;
+
+        if check_decor_providers
+            && (crate::memory::ptr_offset_from(ptr, line) as i32) >= decor_provider_end_col
+        {
+            let col = crate::memory::ptr_offset_from(ptr, line) as i32;
+            decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
+            line = ml_get_buf(wp.buf_mut(), lnum);
+            ptr = line.wrapping_add(col as usize);
+            if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
+                has_decor = true;
+                extra_check = true;
+            }
         }
 
-        let may_have_inline_virt =
-            !has_foldtext && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) > 0;
-        let conceal_enabled =
-            wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_reveals_line(&*wp, lnum);
-        let mut has_virt_line = false;
-        let mut virt_line_flags: i32 = 0;
-        let mut virt_line_index: i32 = 0;
-        let mut virt_line_start_row: i32 = 0;
-        let mut virt_line_skip_cells: i32 = 0;
-        let mut conceal_tab_vcol: Colnr = -1;
-        let mut prefix_vcol: Colnr = -1;
-        let mut prefix_width: i32 = 0;
-        let mut disp_len: i32 = -1;
-
-        loop {
-            let mut has_match_conc: i32 = 0;
-            let mut decor_conceal: i32 = 0;
-            let mut conceal_replacement_extra: i32 = 0;
-            let mut conceal_lbr_body: i32 = 0;
-            let mut conceal_lbr_tail: i32 = 0;
-            let mut conceal_reflow = false;
-            let mut extconceal_char: Schar = 0;
-            let mut extconceal_attr: i32 = 0;
-
-            let mut did_decrement_ptr = false;
-            let mut cell_hidden = false;
-
-            if check_decor_providers
-                && (crate::memory::ptr_offset_from(ptr, line) as i32) >= decor_provider_end_col
-            {
-                let col = crate::memory::ptr_offset_from(ptr, line) as i32;
-                decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
-                line = ml_get_buf(wp.buf_mut(), lnum);
-                ptr = line.wrapping_add(col as usize);
-                if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
-                    has_decor = true;
-                    extra_check = true;
-                }
+        let mut skip_to_end_check = false;
+        if draw_cols {
+            if cul_screenline {
+                wlv.cul_attr = 0;
+                wlv.line_attr = line_attr_save;
+                wlv.line_attr_lowprio = line_attr_lowprio_save;
             }
 
-            let mut skip_to_end_check = false;
-            if draw_cols {
-                if cul_screenline {
-                    wlv.cul_attr = 0;
-                    wlv.line_attr = line_attr_save;
-                    wlv.line_attr_lowprio = line_attr_lowprio_save;
-                }
+            debug_assert!(wlv.off == 0);
 
-                debug_assert!(wlv.off == 0);
-
-                if wlv.filler_todo > 0 {
-                    let virt_rows_todo = wlv.filler_todo - (wlv.filler_lines - wlv.n_virt_lines);
-                    if virt_rows_todo > 0 {
-                        let target_row = total_virt_rows - virt_rows_todo;
-                        while (virt_line_index as usize) < virt_lines.len() {
-                            let vl_ptr = &raw const virt_lines[virt_line_index as usize];
-                            let line_rows = decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, None);
-                            if target_row < virt_line_start_row + line_rows {
-                                has_virt_line = true;
+            if wlv.filler_todo > 0 {
+                let virt_rows_todo = wlv.filler_todo - (wlv.filler_lines - wlv.n_virt_lines);
+                if virt_rows_todo > 0 {
+                    let target_row = total_virt_rows - virt_rows_todo;
+                    while (virt_line_index as usize) < virt_lines.len() {
+                        let vl_ptr = &raw const virt_lines[virt_line_index as usize];
+                        let line_rows =
+                            unsafe { decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, None) };
+                        if target_row < virt_line_start_row + line_rows {
+                            has_virt_line = true;
+                            unsafe {
                                 virt_line_flags = (*vl_ptr).flags;
+                            }
+                            unsafe {
                                 decor_virt_line_rows(
                                     &mut *wp,
                                     &*vl_ptr,
                                     target_row - virt_line_start_row,
                                     Some(&mut virt_line_skip_cells),
                                 );
-                                break;
                             }
-                            virt_line_start_row += line_rows;
-                            virt_line_index += 1;
-                        }
-                    }
-                }
-
-                if has_virt_line && (virt_line_flags & K_VLLEFTCOL) != 0 {
-                    // skip columns
-                } else if statuscol.draw {
-                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
-                    draw_statuscol(&mut *wp, &mut wlv, col_rows, &mut statuscol);
-                    if wp.w_redr_statuscol {
-                        break;
-                    }
-                    if draw_text {
-                        line = ml_get_buf(wp.buf_mut(), lnum);
-                        ptr = line.wrapping_add(v as usize);
-                    }
-                } else {
-                    draw_foldcolumn(&mut *wp, &mut wlv);
-
-                    for sign_idx in 0..wp.w_scwidth {
-                        draw_sign(false, &mut *wp, &mut wlv, sign_idx);
-                    }
-
-                    draw_lnum_col(wp, &mut wlv);
-                }
-
-                win_col_offset = wlv.off;
-
-                if col_rows > 0 {
-                    wlv_put_linebuf(wp, &wlv, wlv.off.min(view_width), false, bg_attr, 0);
-                    if (wlv.row + 1 - wlv.startrow < col_rows
-                        && (statuscol.draw
-                            || win_hl_attr(&mut *wp, HLF_LNA) != win_hl_attr(&mut *wp, HLF_N)
-                            || win_hl_attr(&mut *wp, HLF_LNB) != win_hl_attr(&mut *wp, HLF_N)))
-                        || wlv.filler_todo > 0
-                    {
-                        wlv.row += 1;
-                        if wlv.row == endrow {
                             break;
                         }
-                        wlv.filler_todo -= 1;
-                        has_virt_line = false;
-                        if wlv.filler_todo == 0 && (wp.w_botfill || !draw_text) {
-                            break;
-                        }
-                        wlv.col = 0;
-                        wlv.off = 0;
-                        continue;
-                    } else {
-                        break;
+                        virt_line_start_row += line_rows;
+                        virt_line_index += 1;
                     }
-                }
-
-                let gap_decor_attr = if attr_has_line_deco(gap_attr_save) {
-                    0
-                } else {
-                    gap_attr_save
-                };
-                prefix_vcol = wlv.vcol;
-                if !wp.w_briopt_sbr {
-                    handle_breakindent(wp, &mut wlv, gap_decor_attr);
-                }
-                handle_showbreak_and_filler(wp, &mut wlv, gap_decor_attr);
-                if wp.w_briopt_sbr {
-                    handle_breakindent(wp, &mut wlv, gap_decor_attr);
-                }
-                prefix_width = wlv.vcol - prefix_vcol;
-
-                wlv.col = wlv.off;
-                draw_cols = false;
-                if wlv.filler_todo <= 0 {
-                    leftcols_width = wlv.off;
-                }
-                if has_decor && wlv.row == startrow + wlv.filler_lines {
-                    decor_redraw_col(
-                        &mut *wp,
-                        (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
-                        wlv.off,
-                        true,
-                        &mut g_st().decor_state,
-                        decor_provider_end_col - 1,
-                    );
-                }
-                if wlv.col >= view_width {
-                    wlv.col = view_width;
-                    wlv.off = view_width;
-                    skip_to_end_check = true;
                 }
             }
 
-            if !skip_to_end_check {
-                if cul_screenline
-                    && wlv.filler_todo <= 0
-                    && wlv.vcol >= left_curline_col
-                    && wlv.vcol < right_curline_col
-                {
-                    apply_cursorline_highlight(wp, &mut wlv);
-                }
-
-                if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
-                    draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
-                    wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
-                    if wp.w_onebuf_opt.wo_cuc != 0 {
-                        wlv.row = wp.w_cline_row + wp.w_cline_height;
-                    } else {
-                        wlv.row = view_height;
-                    }
+            if has_virt_line && (virt_line_flags & K_VLLEFTCOL) != 0 {
+                // skip columns
+            } else if statuscol.draw {
+                let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+                draw_statuscol(&mut *wp, &mut wlv, col_rows, &mut statuscol);
+                if wp.w_redr_statuscol {
                     break;
                 }
-
-                let draw_folded = has_fold && wlv.row == startrow + wlv.filler_lines;
-                if draw_folded && wlv.n_extra == 0 {
-                    folded_attr = win_hl_attr(&mut *wp, HLF_FL);
-                    wlv.char_attr = folded_attr;
-                    decor_attr = 0;
-                }
-
-                let mut extmark_attr: i32 = 0;
-                if wlv.filler_todo <= 0 && (area_highlighting || spv.spv_has_spell || extra_check) {
-                    if wlv.n_extra == 0 || !wlv.extra_for_extmark {
-                        wlv.reset_extra_attr = false;
-                    }
-
-                    if has_decor && wlv.n_extra == 0 {
-                        if wlv.vcol == wlv.fromcol
-                            || (wlv.vcol + 1 == wlv.fromcol
-                                && (wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1))
-                        {
-                            area_active = true;
-                        } else if area_active && wlv.vcol == wlv.tocol {
-                            area_active = false;
-                        }
-
-                        let selected = area_active;
-                        if decor_need_recheck {
-                            if !may_have_inline_virt {
-                                decor_recheck_draw_col(wlv.off, selected, &mut g_st().decor_state);
-                            }
-                            decor_need_recheck = false;
-                        }
-                        extmark_attr = decor_redraw_col(
-                            &mut *wp,
-                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
-                            if may_have_inline_virt { -3 } else { wlv.off },
-                            selected,
-                            &mut g_st().decor_state,
-                            decor_provider_end_col - 1,
-                        );
-                        if may_have_inline_virt {
-                            handle_inline_virtual_text(
-                                &mut wlv,
-                                crate::memory::ptr_offset_from(ptr, line),
-                                selected,
-                            );
-                            if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
-                                saved_search_attr = search_attr;
-                                saved_area_attr = area_attr;
-                                saved_decor_attr = decor_attr;
-                                saved_search_attr_from_match = search_attr_from_match;
-                                search_attr = 0;
-                                area_attr = 0;
-                                decor_attr = 0;
-                                search_attr_from_match = false;
-                            }
-                        }
-                    }
-
-                    let area_attr_p =
-                        if wlv.extra_for_extmark && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
-                            &raw mut saved_area_attr
-                        } else {
-                            &raw mut area_attr
-                        };
-
-                    if wlv.vcol == wlv.fromcol
-                        || (wlv.vcol + 1 == wlv.fromcol
-                            && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
-                                || (wlv.n_extra > 0
-                                    && !wlv.p_extra.is_null()
-                                    && utf_ptr2cells(wlv.p_extra.cast()) > 1)))
-                    {
-                        *area_attr_p = vi_attr;
-                        area_active = true;
-                    } else if *area_attr_p != 0 && wlv.vcol == wlv.tocol {
-                        *area_attr_p = 0;
-                        area_active = false;
-                    }
-
-                    if !has_foldtext && wlv.n_extra == 0 {
-                        let v = crate::memory::ptr_offset_from(ptr, line) as i32;
-                        search_attr = update_search_hl(
-                            wp,
-                            lnum,
-                            v,
-                            &mut g_st().screen_search_hl,
-                            &mut has_match_conc,
-                            &mut match_conc,
-                            lcs_eol_todo,
-                            &mut on_last_col,
-                            &mut search_attr_from_match,
-                        );
-                        line = ml_get_buf(wp.buf_mut(), lnum);
-                        ptr = line.wrapping_add(v as usize);
-
-                        if crate::memory::cstr_is_empty(ptr) {
-                            has_match_conc = 0;
-                        }
-
-                        if (g_st().state_global & MODE_INSERT) != 0
-                            && ins_compl_win_active(wp)
-                            && (in_curline || ins_compl_lnum_in_range(lnum))
-                        {
-                            let ins_match_attr = ins_compl_col_range_attr(
-                                lnum,
-                                crate::memory::ptr_offset_from(ptr, line) as i32,
-                            );
-                            if ins_match_attr > 0 {
-                                search_attr = hl_combine_attr(search_attr, ins_match_attr);
-                            }
-                        }
-                    }
-
-                    if wlv.diff_hlf != 0 {
-                        let num_changes = line_changes.changes.len() as i32;
-                        if num_changes > 0 && change_index >= 0 && change_index < num_changes - 1 {
-                            let next_change = &line_changes.changes[(change_index + 1) as usize];
-                            if (crate::memory::ptr_offset_from(ptr, line) as i32)
-                                >= next_change.dc_start[line_changes.bufidx as usize]
-                            {
-                                change_index += 1;
-                            }
-                        }
-                        let mut added = false;
-                        if num_changes > 0 && change_index >= 0 && change_index < num_changes {
-                            added = diff_change_parse(
-                                &line_changes,
-                                &line_changes.changes[change_index as usize],
-                                &mut change_start,
-                                &mut change_end,
-                            );
-                        }
-                        if wlv.diff_hlf == HLF_CHD
-                            && (crate::memory::ptr_offset_from(ptr, line) as i32) >= change_start
-                            && wlv.n_extra == 0
-                        {
-                            wlv.diff_hlf = if added { HLF_TXA } else { HLF_TXD };
-                        }
-                        if (wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
-                            && (((crate::memory::ptr_offset_from(ptr, line) as i32) >= change_end
-                                && wlv.n_extra == 0)
-                                || (wlv.n_extra > 0 && wlv.extra_for_extmark))
-                        {
-                            wlv.diff_hlf = HLF_CHD;
-                        }
-                        set_line_attr_for_diff(&mut *wp, &mut wlv);
-                    }
-
-                    if area_attr != 0 {
-                        char_attr_pri = hl_combine_attr(wlv.line_attr, area_attr);
-                        if !g_st().search_global.hl_match {
-                            char_attr_pri = hl_combine_attr(search_attr, char_attr_pri);
-                        }
-                    } else if search_attr != 0 {
-                        char_attr_pri = hl_combine_attr(wlv.line_attr, search_attr);
-                    } else if wlv.line_attr != 0
-                        && ((wlv.fromcol == -10 && wlv.tocol == MAXCOL)
-                            || wlv.vcol < wlv.fromcol
-                            || wlv.vcol >= wlv.tocol)
-                    {
-                        char_attr_pri = wlv.line_attr;
-                    } else {
-                        char_attr_pri = 0;
-                    }
-                    char_attr_base = hl_combine_attr(folded_attr, decor_attr);
-                    wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
-                }
-
-                if draw_folded && has_foldtext && wlv.n_extra == 0 && wlv.col == win_col_offset {
-                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
-                    let lnume = lnum + foldinfo.fi_lines - 1;
-                    debug_assert!(foldtext_free.is_none());
-                    let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
-                    wlv.n_extra = fdt.to_bytes().len() as i32;
-                    foldtext_free = Some(fdt);
-                    wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut().cast();
-                    wlv.sc_extra = 0;
-                    wlv.sc_final = 0;
-
+                if draw_text {
                     line = ml_get_buf(wp.buf_mut(), lnum);
                     ptr = line.wrapping_add(v as usize);
                 }
+            } else {
+                draw_foldcolumn(&mut *wp, &mut wlv);
 
-                if draw_folded
-                    && wlv.n_extra == 0
-                    && wlv.col < view_width
-                    && (has_foldtext
-                        || (crate::memory::cstr_is_empty(ptr)
-                            && (wp.w_onebuf_opt.wo_list == 0 || !lcs_eol_todo || lcs_eol == 0)))
+                for sign_idx in 0..wp.w_scwidth {
+                    draw_sign(false, &mut *wp, &mut wlv, sign_idx);
+                }
+
+                draw_lnum_col(wp, &mut wlv);
+            }
+
+            win_col_offset = wlv.off;
+
+            if col_rows > 0 {
+                wlv_put_linebuf(wp, &wlv, wlv.off.min(view_width), false, bg_attr, 0);
+                if (wlv.row + 1 - wlv.startrow < col_rows
+                    && (statuscol.draw
+                        || win_hl_attr(&mut *wp, HLF_LNA) != win_hl_attr(&mut *wp, HLF_N)
+                        || win_hl_attr(&mut *wp, HLF_LNB) != win_hl_attr(&mut *wp, HLF_N)))
+                    || wlv.filler_todo > 0
                 {
-                    wlv.sc_extra = wp.w_p_fcs_chars.fold;
-                    wlv.sc_final = 0;
-                    wlv.n_extra = view_width - wlv.col;
-                    search_attr = 0;
-                }
-
-                if draw_folded && wlv.n_extra != 0 && wlv.col >= view_width {
-                    wlv.n_extra = 0;
-                }
-
-                if wlv.n_extra > 0 {
-                    if wlv.sc_extra != 0 || (wlv.n_extra == 1 && wlv.sc_final != 0) {
-                        mb_schar = if wlv.n_extra == 1 && wlv.sc_final != 0 {
-                            wlv.sc_final
-                        } else {
-                            wlv.sc_extra
-                        };
-                        mb_schar_width = schar_get_single_width(mb_schar);
-                        wlv.n_extra -= 1;
-                    } else {
-                        debug_assert!(!wlv.p_extra.is_null());
-                        let ci = utf_ptr2_str_char_info(wlv.p_extra.cast());
-                        let cli = utf_cluster_info(ci);
-                        let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
-                        mb_schar = schar_from_cluster(ci, cli);
-                        mb_schar_width = cli.cells;
-                        if mb_l > wlv.n_extra || mb_l == 0 {
-                            mb_l = 1;
-                        }
-
-                        if wlv.col >= view_width - 1 && mb_schar_width == 2 {
-                            mb_l = 1;
-                            mb_schar = schar_from_ascii(b'>');
-                            mb_schar_width = 1;
-                            multi_attr = win_hl_attr(&mut *wp, HLF_AT);
-
-                            if wlv.cul_attr != 0 {
-                                multi_attr = if wlv.line_attr_lowprio != 0 {
-                                    hl_combine_attr(wlv.cul_attr, multi_attr)
-                                } else {
-                                    hl_combine_attr(multi_attr, wlv.cul_attr)
-                                };
-                            }
-                        } else {
-                            wlv.n_extra -= mb_l;
-                            wlv.p_extra = wlv.p_extra.wrapping_add(mb_l as usize);
-                        }
-
-                        if wlv.filler_todo <= 0 && wlv.skip_cells > 0 && mb_l > 1 {
-                            if wlv.n_extra > 0 {
-                                n_extra_next = wlv.n_extra;
-                                extra_attr_next = wlv.extra_attr;
-                            }
-                            wlv.n_extra = 1;
-                            wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
-                            wlv.sc_final = 0;
-                            mb_schar = schar_from_ascii(b' ');
-                            mb_schar_width = 1;
-                            wlv.n_attr += 1;
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
-                        }
+                    wlv.row += 1;
+                    if wlv.row == endrow {
+                        break;
                     }
-
-                    if wlv.n_extra <= 0 {
-                        if n_extra_next <= 0 {
-                            if search_attr == 0 {
-                                search_attr = saved_search_attr;
-                                saved_search_attr = 0;
-                            }
-                            if area_attr == 0 && !crate::memory::cstr_is_empty(ptr) {
-                                area_attr = saved_area_attr;
-                                saved_area_attr = 0;
-                            }
-                            if decor_attr == 0 {
-                                decor_attr = saved_decor_attr;
-                                saved_decor_attr = 0;
-                            }
-                            if wlv.extra_for_extmark {
-                                wlv.reset_extra_attr = true;
-                                extra_attr_next = -1;
-                            }
-                            wlv.extra_for_extmark = false;
-                        } else {
-                            debug_assert!(wlv.sc_extra != 0 || wlv.sc_final != 0);
-                            debug_assert!(!wlv.p_extra.is_null());
-                            wlv.sc_extra = 0;
-                            wlv.sc_final = 0;
-                            wlv.n_extra = n_extra_next;
-                            n_extra_next = 0;
-                            wlv.reset_extra_attr = true;
-                            debug_assert!(extra_attr_next >= 0);
-                        }
+                    wlv.filler_todo -= 1;
+                    has_virt_line = false;
+                    if wlv.filler_todo == 0 && (wp.w_botfill || !draw_text) {
+                        break;
                     }
-                } else if wlv.filler_todo > 0 {
-                    mb_schar = schar_from_ascii(b' ');
-                    mb_schar_width = 1;
-                } else if has_foldtext || (has_fold && wlv.col >= view_width) {
-                    mb_schar = 0;
+                    wlv.col = 0;
+                    wlv.off = 0;
+                    continue;
                 } else {
-                    let mut prev_ptr = ptr;
+                    break;
+                }
+            }
+
+            let gap_decor_attr = if attr_has_line_deco(gap_attr_save) {
+                0
+            } else {
+                gap_attr_save
+            };
+            prefix_vcol = wlv.vcol;
+            if !wp.w_briopt_sbr {
+                handle_breakindent(wp, &mut wlv, gap_decor_attr);
+            }
+            handle_showbreak_and_filler(wp, &mut wlv, gap_decor_attr);
+            if wp.w_briopt_sbr {
+                handle_breakindent(wp, &mut wlv, gap_decor_attr);
+            }
+            prefix_width = wlv.vcol - prefix_vcol;
+
+            wlv.col = wlv.off;
+            draw_cols = false;
+            if wlv.filler_todo <= 0 {
+                leftcols_width = wlv.off;
+            }
+            if has_decor && wlv.row == startrow + wlv.filler_lines {
+                decor_redraw_col(
+                    &mut *wp,
+                    (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
+                    wlv.off,
+                    true,
+                    &mut g_st().decor_state,
+                    decor_provider_end_col - 1,
+                );
+            }
+            if wlv.col >= view_width {
+                wlv.col = view_width;
+                wlv.off = view_width;
+                skip_to_end_check = true;
+            }
+        }
+
+        if !skip_to_end_check {
+            if cul_screenline
+                && wlv.filler_todo <= 0
+                && wlv.vcol >= left_curline_col
+                && wlv.vcol < right_curline_col
+            {
+                apply_cursorline_highlight(wp, &mut wlv);
+            }
+
+            if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
+                unsafe {
+                    draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
+                }
+                wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
+                if wp.w_onebuf_opt.wo_cuc != 0 {
+                    wlv.row = wp.w_cline_row + wp.w_cline_height;
+                } else {
+                    wlv.row = view_height;
+                }
+                break;
+            }
+
+            let draw_folded = has_fold && wlv.row == startrow + wlv.filler_lines;
+            if draw_folded && wlv.n_extra == 0 {
+                folded_attr = win_hl_attr(&mut *wp, HLF_FL);
+                wlv.char_attr = folded_attr;
+                decor_attr = 0;
+            }
+
+            let mut extmark_attr: i32 = 0;
+            if wlv.filler_todo <= 0 && (area_highlighting || spv.spv_has_spell || extra_check) {
+                if wlv.n_extra == 0 || !wlv.extra_for_extmark {
+                    wlv.reset_extra_attr = false;
+                }
+
+                if has_decor && wlv.n_extra == 0 {
+                    if wlv.vcol == wlv.fromcol
+                        || (wlv.vcol + 1 == wlv.fromcol
+                            && (wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1))
+                    {
+                        area_active = true;
+                    } else if area_active && wlv.vcol == wlv.tocol {
+                        area_active = false;
+                    }
+
+                    let selected = area_active;
+                    if decor_need_recheck {
+                        if !may_have_inline_virt {
+                            decor_recheck_draw_col(wlv.off, selected, &mut g_st().decor_state);
+                        }
+                        decor_need_recheck = false;
+                    }
+                    extmark_attr = decor_redraw_col(
+                        &mut *wp,
+                        crate::memory::ptr_offset_from(ptr, line) as Colnr,
+                        if may_have_inline_virt { -3 } else { wlv.off },
+                        selected,
+                        &mut g_st().decor_state,
+                        decor_provider_end_col - 1,
+                    );
+                    if may_have_inline_virt {
+                        handle_inline_virtual_text(
+                            &mut wlv,
+                            crate::memory::ptr_offset_from(ptr, line),
+                            selected,
+                        );
+                        if wlv.n_extra > 0 && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
+                            saved_search_attr = search_attr;
+                            saved_area_attr = area_attr;
+                            saved_decor_attr = decor_attr;
+                            saved_search_attr_from_match = search_attr_from_match;
+                            search_attr = 0;
+                            area_attr = 0;
+                            decor_attr = 0;
+                            search_attr_from_match = false;
+                        }
+                    }
+                }
+
+                let area_attr_p =
+                    if wlv.extra_for_extmark && wlv.virt_inline_hl_mode <= K_HL_MODE_REPLACE {
+                        &raw mut saved_area_attr
+                    } else {
+                        &raw mut area_attr
+                    };
+
+                if wlv.vcol == wlv.fromcol
+                    || (wlv.vcol + 1 == wlv.fromcol
+                        && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
+                            || (wlv.n_extra > 0
+                                && !wlv.p_extra.is_null()
+                                && utf_ptr2cells(wlv.p_extra.cast()) > 1)))
+                {
+                    unsafe {
+                        *area_attr_p = vi_attr;
+                    }
+                    area_active = true;
+                } else if unsafe { *area_attr_p != 0 } && wlv.vcol == wlv.tocol {
+                    unsafe {
+                        *area_attr_p = 0;
+                    }
+                    area_active = false;
+                }
+
+                if !has_foldtext && wlv.n_extra == 0 {
+                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+                    search_attr = update_search_hl(
+                        wp,
+                        lnum,
+                        v,
+                        &mut g_st().screen_search_hl,
+                        &mut has_match_conc,
+                        &mut match_conc,
+                        lcs_eol_todo,
+                        &mut on_last_col,
+                        &mut search_attr_from_match,
+                    );
+                    line = ml_get_buf(wp.buf_mut(), lnum);
+                    ptr = line.wrapping_add(v as usize);
 
                     if crate::memory::cstr_is_empty(ptr) {
-                        wlv.skip_cells = 0;
+                        has_match_conc = 0;
                     }
 
-                    let ci = utf_ptr2_str_char_info(ptr);
+                    if (g_st().state_global & MODE_INSERT) != 0
+                        && ins_compl_win_active(wp)
+                        && (in_curline || ins_compl_lnum_in_range(lnum))
+                    {
+                        let ins_match_attr = ins_compl_col_range_attr(
+                            lnum,
+                            crate::memory::ptr_offset_from(ptr, line) as i32,
+                        );
+                        if ins_match_attr > 0 {
+                            search_attr = hl_combine_attr(search_attr, ins_match_attr);
+                        }
+                    }
+                }
+
+                if wlv.diff_hlf != 0 {
+                    let num_changes = line_changes.changes.len() as i32;
+                    if num_changes > 0 && change_index >= 0 && change_index < num_changes - 1 {
+                        let next_change = &line_changes.changes[(change_index + 1) as usize];
+                        if (crate::memory::ptr_offset_from(ptr, line) as i32)
+                            >= next_change.dc_start[line_changes.bufidx as usize]
+                        {
+                            change_index += 1;
+                        }
+                    }
+                    let mut added = false;
+                    if num_changes > 0 && change_index >= 0 && change_index < num_changes {
+                        added = diff_change_parse(
+                            &line_changes,
+                            &line_changes.changes[change_index as usize],
+                            &mut change_start,
+                            &mut change_end,
+                        );
+                    }
+                    if wlv.diff_hlf == HLF_CHD
+                        && (crate::memory::ptr_offset_from(ptr, line) as i32) >= change_start
+                        && wlv.n_extra == 0
+                    {
+                        wlv.diff_hlf = if added { HLF_TXA } else { HLF_TXD };
+                    }
+                    if (wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA)
+                        && (((crate::memory::ptr_offset_from(ptr, line) as i32) >= change_end
+                            && wlv.n_extra == 0)
+                            || (wlv.n_extra > 0 && wlv.extra_for_extmark))
+                    {
+                        wlv.diff_hlf = HLF_CHD;
+                    }
+                    set_line_attr_for_diff(&mut *wp, &mut wlv);
+                }
+
+                if area_attr != 0 {
+                    char_attr_pri = hl_combine_attr(wlv.line_attr, area_attr);
+                    if !g_st().search_global.hl_match {
+                        char_attr_pri = hl_combine_attr(search_attr, char_attr_pri);
+                    }
+                } else if search_attr != 0 {
+                    char_attr_pri = hl_combine_attr(wlv.line_attr, search_attr);
+                } else if wlv.line_attr != 0
+                    && ((wlv.fromcol == -10 && wlv.tocol == MAXCOL)
+                        || wlv.vcol < wlv.fromcol
+                        || wlv.vcol >= wlv.tocol)
+                {
+                    char_attr_pri = wlv.line_attr;
+                } else {
+                    char_attr_pri = 0;
+                }
+                char_attr_base = hl_combine_attr(folded_attr, decor_attr);
+                wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
+            }
+
+            if draw_folded && has_foldtext && wlv.n_extra == 0 && wlv.col == win_col_offset {
+                let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+                let lnume = lnum + foldinfo.fi_lines - 1;
+                debug_assert!(foldtext_free.is_none());
+                let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
+                wlv.n_extra = fdt.to_bytes().len() as i32;
+                foldtext_free = Some(fdt);
+                wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut().cast();
+                wlv.sc_extra = 0;
+                wlv.sc_final = 0;
+
+                line = ml_get_buf(wp.buf_mut(), lnum);
+                ptr = line.wrapping_add(v as usize);
+            }
+
+            if draw_folded
+                && wlv.n_extra == 0
+                && wlv.col < view_width
+                && (has_foldtext
+                    || (crate::memory::cstr_is_empty(ptr)
+                        && (wp.w_onebuf_opt.wo_list == 0 || !lcs_eol_todo || lcs_eol == 0)))
+            {
+                wlv.sc_extra = wp.w_p_fcs_chars.fold;
+                wlv.sc_final = 0;
+                wlv.n_extra = view_width - wlv.col;
+                search_attr = 0;
+            }
+
+            if draw_folded && wlv.n_extra != 0 && wlv.col >= view_width {
+                wlv.n_extra = 0;
+            }
+
+            if wlv.n_extra > 0 {
+                if wlv.sc_extra != 0 || (wlv.n_extra == 1 && wlv.sc_final != 0) {
+                    mb_schar = if wlv.n_extra == 1 && wlv.sc_final != 0 {
+                        wlv.sc_final
+                    } else {
+                        wlv.sc_extra
+                    };
+                    mb_schar_width = schar_get_single_width(mb_schar);
+                    wlv.n_extra -= 1;
+                } else {
+                    debug_assert!(!wlv.p_extra.is_null());
+                    let ci = utf_ptr2_str_char_info(wlv.p_extra.cast());
                     let cli = utf_cluster_info(ci);
                     let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
-                    let mb_c = ci.chr.value;
-                    let mut unprintable_ascii = false;
-
-                    if mb_c < 0 || (mb_l >= 1 && mb_c == 0) || (mb_l > 1 && !vim_isprintc(mb_c)) {
-                        transchar_hex(
-                            &mut wlv.extra,
-                            if mb_c < 0 {
-                                i32::from(crate::memory::cstr_first_byte(ptr))
-                            } else {
-                                mb_c
-                            },
-                        );
-                        if wp.w_onebuf_opt.wo_rl != 0 {
-                            rl_mirror_ascii(&mut wlv.extra);
-                        }
-                        let extra_ptr = wlv.extra.as_mut_ptr();
-
-                        wlv.p_extra = extra_ptr.wrapping_add(1);
-                        mb_schar = schar_from_ascii(wlv.extra[0]);
-                        mb_schar_width = 1;
-                        wlv.n_extra = crate::memory::cstr_len(wlv.p_extra.cast()) as i32;
-                        wlv.sc_extra = 0;
-                        wlv.sc_final = 0;
-                        if area_attr == 0 && search_attr == 0 {
-                            wlv.n_attr = wlv.n_extra + 1;
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
-                            saved_attr2 = wlv.char_attr;
-                        }
-                    } else if mb_l == 0 {
+                    mb_schar = schar_from_cluster(ci, cli);
+                    mb_schar_width = cli.cells;
+                    if mb_l > wlv.n_extra || mb_l == 0 {
                         mb_l = 1;
-                        mb_schar = 0;
-                        mb_schar_width = 1;
-                        unprintable_ascii = true;
-                    } else {
-                        mb_schar = schar_from_cluster(ci, cli);
-                        mb_schar_width = cli.cells;
-                        unprintable_ascii = mb_c < 0x80 && !vim_isprintc(mb_c);
                     }
-                    conceal_reflow =
-                        is_wrapped && conceal_enabled && g_st().decor_state.conceal_slot_i >= 0;
-                    if conceal_reflow {
-                        extconceal_char = decor_extconceal_char(
-                            &*wp,
-                            &g_st().decor_state,
-                            crate::memory::ptr_offset_from(ptr, line) as i32,
-                            Some(&mut extconceal_attr),
-                        );
-                    }
-                    let extconceal = conceal_enabled
-                        && g_st().decor_state.conceal_slot_i >= 0
-                        && (is_wrapped || g_st().decor_state.conceal != 0);
-                    let disp_char = if !extconceal {
-                        mb_schar
-                    } else if conceal_reflow {
-                        extconceal_char
-                    } else {
-                        decor_conceal_char(&*wp, &g_st().decor_state)
-                    };
-                    if wlv.col >= view_width - 1 && disp_char != 0 && schar_cells(disp_char) == 2 {
-                        if extconceal && mb_c == i32::from(TAB) {
-                            conceal_tab_vcol = wlv.vcol;
-                        }
+
+                    if wlv.col >= view_width - 1 && mb_schar_width == 2 {
+                        mb_l = 1;
                         mb_schar = schar_from_ascii(b'>');
                         mb_schar_width = 1;
-                        unprintable_ascii = false;
-                        mb_l = 1;
                         multi_attr = win_hl_attr(&mut *wp, HLF_AT);
-                        ptr = ptr.wrapping_sub(1);
-                        did_decrement_ptr = true;
-                    } else if !crate::memory::cstr_is_empty(ptr) {
-                        ptr = ptr.wrapping_add((mb_l - 1) as usize);
+
+                        if wlv.cul_attr != 0 {
+                            multi_attr = if wlv.line_attr_lowprio != 0 {
+                                hl_combine_attr(wlv.cul_attr, multi_attr)
+                            } else {
+                                hl_combine_attr(multi_attr, wlv.cul_attr)
+                            };
+                        }
+                    } else {
+                        wlv.n_extra -= mb_l;
+                        wlv.p_extra = wlv.p_extra.wrapping_add(mb_l as usize);
                     }
 
-                    if wlv.skip_cells > 0 && mb_l > 1 && wlv.n_extra == 0 {
+                    if wlv.filler_todo <= 0 && wlv.skip_cells > 0 && mb_l > 1 {
+                        if wlv.n_extra > 0 {
+                            n_extra_next = wlv.n_extra;
+                            extra_attr_next = wlv.extra_attr;
+                        }
                         wlv.n_extra = 1;
                         wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                         wlv.sc_final = 0;
                         mb_schar = schar_from_ascii(b' ');
                         mb_schar_width = 1;
-                        mb_l = 1;
-                        if area_attr == 0 && search_attr == 0 {
-                            wlv.n_attr = wlv.n_extra + 1;
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
-                            saved_attr2 = wlv.char_attr;
+                        wlv.n_attr += 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
+                    }
+                }
+
+                if wlv.n_extra <= 0 {
+                    if n_extra_next <= 0 {
+                        if search_attr == 0 {
+                            search_attr = saved_search_attr;
+                            saved_search_attr = 0;
+                        }
+                        if area_attr == 0 && !crate::memory::cstr_is_empty(ptr) {
+                            area_attr = saved_area_attr;
+                            saved_area_attr = 0;
+                        }
+                        if decor_attr == 0 {
+                            decor_attr = saved_decor_attr;
+                            saved_decor_attr = 0;
+                        }
+                        if wlv.extra_for_extmark {
+                            wlv.reset_extra_attr = true;
+                            extra_attr_next = -1;
+                        }
+                        wlv.extra_for_extmark = false;
+                    } else {
+                        debug_assert!(wlv.sc_extra != 0 || wlv.sc_final != 0);
+                        debug_assert!(!wlv.p_extra.is_null());
+                        wlv.sc_extra = 0;
+                        wlv.sc_final = 0;
+                        wlv.n_extra = n_extra_next;
+                        n_extra_next = 0;
+                        wlv.reset_extra_attr = true;
+                        debug_assert!(extra_attr_next >= 0);
+                    }
+                }
+            } else if wlv.filler_todo > 0 {
+                mb_schar = schar_from_ascii(b' ');
+                mb_schar_width = 1;
+            } else if has_foldtext || (has_fold && wlv.col >= view_width) {
+                mb_schar = 0;
+            } else {
+                let mut prev_ptr = ptr;
+
+                if crate::memory::cstr_is_empty(ptr) {
+                    wlv.skip_cells = 0;
+                }
+
+                let ci = utf_ptr2_str_char_info(ptr);
+                let cli = utf_cluster_info(ci);
+                let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
+                let mb_c = ci.chr.value;
+                let mut unprintable_ascii = false;
+
+                if mb_c < 0 || (mb_l >= 1 && mb_c == 0) || (mb_l > 1 && !vim_isprintc(mb_c)) {
+                    transchar_hex(
+                        &mut wlv.extra,
+                        if mb_c < 0 {
+                            i32::from(crate::memory::cstr_first_byte(ptr))
+                        } else {
+                            mb_c
+                        },
+                    );
+                    if wp.w_onebuf_opt.wo_rl != 0 {
+                        rl_mirror_ascii(&mut wlv.extra);
+                    }
+                    let extra_ptr = wlv.extra.as_mut_ptr();
+
+                    wlv.p_extra = extra_ptr.wrapping_add(1);
+                    mb_schar = schar_from_ascii(wlv.extra[0]);
+                    mb_schar_width = 1;
+                    wlv.n_extra = crate::memory::cstr_len(wlv.p_extra.cast()) as i32;
+                    wlv.sc_extra = 0;
+                    wlv.sc_final = 0;
+                    if area_attr == 0 && search_attr == 0 {
+                        wlv.n_attr = wlv.n_extra + 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
+                        saved_attr2 = wlv.char_attr;
+                    }
+                } else if mb_l == 0 {
+                    mb_l = 1;
+                    mb_schar = 0;
+                    mb_schar_width = 1;
+                    unprintable_ascii = true;
+                } else {
+                    mb_schar = schar_from_cluster(ci, cli);
+                    mb_schar_width = cli.cells;
+                    unprintable_ascii = mb_c < 0x80 && !vim_isprintc(mb_c);
+                }
+                conceal_reflow =
+                    is_wrapped && conceal_enabled && g_st().decor_state.conceal_slot_i >= 0;
+                if conceal_reflow {
+                    extconceal_char = decor_extconceal_char(
+                        &*wp,
+                        &g_st().decor_state,
+                        crate::memory::ptr_offset_from(ptr, line) as i32,
+                        Some(&mut extconceal_attr),
+                    );
+                }
+                let extconceal = conceal_enabled
+                    && g_st().decor_state.conceal_slot_i >= 0
+                    && (is_wrapped || g_st().decor_state.conceal != 0);
+                let disp_char = if !extconceal {
+                    mb_schar
+                } else if conceal_reflow {
+                    extconceal_char
+                } else {
+                    decor_conceal_char(&*wp, &g_st().decor_state)
+                };
+                if wlv.col >= view_width - 1 && disp_char != 0 && schar_cells(disp_char) == 2 {
+                    if extconceal && mb_c == i32::from(TAB) {
+                        conceal_tab_vcol = wlv.vcol;
+                    }
+                    mb_schar = schar_from_ascii(b'>');
+                    mb_schar_width = 1;
+                    unprintable_ascii = false;
+                    mb_l = 1;
+                    multi_attr = win_hl_attr(&mut *wp, HLF_AT);
+                    ptr = ptr.wrapping_sub(1);
+                    did_decrement_ptr = true;
+                } else if !crate::memory::cstr_is_empty(ptr) {
+                    ptr = ptr.wrapping_add((mb_l - 1) as usize);
+                }
+
+                if wlv.skip_cells > 0 && mb_l > 1 && wlv.n_extra == 0 {
+                    wlv.n_extra = 1;
+                    wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
+                    wlv.sc_final = 0;
+                    mb_schar = schar_from_ascii(b' ');
+                    mb_schar_width = 1;
+                    mb_l = 1;
+                    if area_attr == 0 && search_attr == 0 {
+                        wlv.n_attr = wlv.n_extra + 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
+                        saved_attr2 = wlv.char_attr;
+                    }
+                }
+                ptr = ptr.wrapping_add(1);
+
+                decor_attr = 0;
+                syntax_attr = 0;
+                if extra_check {
+                    let w_s = wp.w_s_ptr();
+                    let no_plain_buffer = (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
+                    let mut can_spell = !no_plain_buffer;
+
+                    let v = crate::memory::ptr_offset_from(ptr, line) as i32;
+                    let prev_v = crate::memory::ptr_offset_from(prev_ptr, line);
+                    if has_syntax && v > 0 {
+                        let save_did_emsg = g_st().did_emsg;
+                        g_st().did_emsg = 0;
+
+                        decor_attr = get_syntax_attr(
+                            v - 1,
+                            spv.spv_has_spell.then_some(&mut can_spell),
+                            false,
+                        );
+
+                        if g_st().did_emsg != 0 {
+                            w_s.b_syn_error = true;
+                            has_syntax = false;
+                        } else {
+                            g_st().did_emsg = save_did_emsg;
+                        }
+
+                        if w_s.b_syn_slow {
+                            has_syntax = false;
+                        }
+
+                        line = ml_get_buf(wp.buf_mut(), lnum);
+                        ptr = line.wrapping_add(v as usize);
+                        prev_ptr = line.wrapping_offset(prev_v);
+
+                        syntax_flags = if mb_schar == 0 {
+                            0
+                        } else {
+                            get_syntax_info(&mut syntax_seqnr)
+                        };
+                    }
+
+                    if has_decor && v > 0 {
+                        syntax_attr = decor_attr;
+                        decor_attr = hl_combine_attr(decor_attr, extmark_attr);
+                        decor_conceal = g_st().decor_state.conceal;
+                        can_spell = tristate_to_bool(g_st().decor_state.spell, can_spell);
+                    }
+
+                    char_attr_base = hl_combine_attr(folded_attr, decor_attr);
+                    wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
+
+                    let mut v1 = crate::memory::ptr_offset_from(ptr, line) as i32;
+                    if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
+                        spell_attr = 0;
+                        if mb_schar != 0 && unsafe { *skipwhite(prev_ptr) != NUL } && can_spell {
+                            let mut spell_hlf: Hlf = HLF_COUNT;
+                            v1 -= mb_l - 1;
+
+                            let p = if (crate::memory::ptr_offset_from(prev_ptr, line) as i32)
+                                - nextlinecol
+                                >= 0
+                            {
+                                nextline_ptr.wrapping_add(
+                                    ((crate::memory::ptr_offset_from(prev_ptr, line) as i32)
+                                        - nextlinecol) as usize,
+                                )
+                            } else {
+                                prev_ptr.cast_mut().cast()
+                            };
+                            spv.spv_cap_col -=
+                                crate::memory::ptr_offset_from(prev_ptr, line) as i32;
+                            let tmplen = spell_check(
+                                wp,
+                                p.cast(),
+                                &mut spell_hlf,
+                                Some(&mut spv.spv_cap_col),
+                                spv.spv_unchanged,
+                            );
+                            debug_assert!(tmplen <= i32::MAX as usize);
+                            let len = tmplen as i32;
+                            word_end = v1 + len;
+
+                            if spell_hlf != HLF_COUNT
+                                && (g_st().state_global & MODE_INSERT) != 0
+                                && wp.w_cursor.lnum == lnum
+                                && wp.w_cursor.col
+                                    >= (crate::memory::ptr_offset_from(prev_ptr, line) as Colnr)
+                                && wp.w_cursor.col < word_end
+                            {
+                                spell_hlf = HLF_COUNT;
+                                g_st().spell_redraw_lnum = lnum;
+                            }
+
+                            if spell_hlf == HLF_COUNT
+                                && !ptr::eq(p, prev_ptr.cast())
+                                && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32) + len
+                                    > nextline_idx
+                            {
+                                spv.spv_checked_lnum = lnum + 1;
+                                spv.spv_checked_col =
+                                    (crate::memory::ptr_offset_from(p, nextline_ptr) as i32) + len
+                                        - nextline_idx;
+                            }
+
+                            if spell_hlf != HLF_COUNT {
+                                spell_attr = g_st().highlight_attr[spell_hlf as usize];
+                            }
+
+                            if spv.spv_cap_col > 0 {
+                                if !ptr::eq(p, prev_ptr.cast())
+                                    && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
+                                        + spv.spv_cap_col
+                                        >= nextline_idx
+                                {
+                                    spv.spv_capcol_lnum = lnum + 1;
+                                    spv.spv_cap_col =
+                                        (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
+                                            + spv.spv_cap_col
+                                            - nextline_idx;
+                                } else {
+                                    spv.spv_cap_col +=
+                                        crate::memory::ptr_offset_from(prev_ptr, line) as i32;
+                                }
+                            }
                         }
                     }
-                    ptr = ptr.wrapping_add(1);
-
-                    decor_attr = 0;
-                    syntax_attr = 0;
-                    if extra_check {
-                        let w_s = wp.w_s_ptr();
-                        let no_plain_buffer =
-                            (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_NOPLAINBUFFER) != 0;
-                        let mut can_spell = !no_plain_buffer;
-
-                        let v = crate::memory::ptr_offset_from(ptr, line) as i32;
-                        let prev_v = crate::memory::ptr_offset_from(prev_ptr, line);
-                        if has_syntax && v > 0 {
-                            let save_did_emsg = g_st().did_emsg;
-                            g_st().did_emsg = 0;
-
-                            decor_attr = get_syntax_attr(
-                                v - 1,
-                                spv.spv_has_spell.then_some(&mut can_spell),
-                                false,
-                            );
-
-                            if g_st().did_emsg != 0 {
-                                w_s.b_syn_error = true;
-                                has_syntax = false;
-                            } else {
-                                g_st().did_emsg = save_did_emsg;
-                            }
-
-                            if w_s.b_syn_slow {
-                                has_syntax = false;
-                            }
-
-                            line = ml_get_buf(wp.buf_mut(), lnum);
-                            ptr = line.wrapping_add(v as usize);
-                            prev_ptr = line.wrapping_offset(prev_v);
-
-                            syntax_flags = if mb_schar == 0 {
-                                0
-                            } else {
-                                get_syntax_info(&mut syntax_seqnr)
-                            };
-                        }
-
-                        if has_decor && v > 0 {
-                            syntax_attr = decor_attr;
-                            decor_attr = hl_combine_attr(decor_attr, extmark_attr);
-                            decor_conceal = g_st().decor_state.conceal;
-                            can_spell = tristate_to_bool(g_st().decor_state.spell, can_spell);
-                        }
-
-                        char_attr_base = hl_combine_attr(folded_attr, decor_attr);
+                    if spell_attr != 0 {
+                        char_attr_base = hl_combine_attr(char_attr_base, spell_attr);
                         wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
+                    }
 
-                        let mut v1 = crate::memory::ptr_offset_from(ptr, line) as i32;
-                        if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
-                            spell_attr = 0;
-                            if mb_schar != 0 && *skipwhite(prev_ptr) != NUL && can_spell {
-                                let mut spell_hlf: Hlf = HLF_COUNT;
-                                v1 -= mb_l - 1;
+                    if !wp.buf_mut().terminal.is_null() {
+                        wlv.char_attr = hl_combine_attr(
+                            if (wlv.vcol as usize) < TERM_ATTRS_MAX {
+                                term_attrs[wlv.vcol as usize]
+                            } else {
+                                0
+                            },
+                            wlv.char_attr,
+                        );
+                    }
 
-                                let p = if (crate::memory::ptr_offset_from(prev_ptr, line) as i32)
-                                    - nextlinecol
-                                    >= 0
-                                {
-                                    nextline_ptr.wrapping_add(
-                                        ((crate::memory::ptr_offset_from(prev_ptr, line) as i32)
-                                            - nextlinecol)
-                                            as usize,
-                                    )
+                    gap_attr_save = if has_decor {
+                        hl_combine_attr(syntax_attr, g_st().decor_state.current_hl_eol)
+                    } else {
+                        decor_attr
+                    };
+
+                    let mut lbr_char = mb_c;
+                    if extconceal {
+                        lbr_char = if disp_char == 0 {
+                            0
+                        } else {
+                            schar_get_first_codepoint(disp_char)
+                        };
+                    }
+                    if wp.w_onebuf_opt.wo_lbr != 0
+                        && lbr_char > 0
+                        && lbr_char < 128
+                        && vim_isbreak(lbr_char)
+                    {
+                        let mb_off = utf_head_off(line, ptr.wrapping_sub(1));
+                        let p = ptr.wrapping_sub((mb_off + 1) as usize);
+
+                        let has_conceal = !conceal_spans.is_empty();
+                        if has_conceal
+                            || !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
+                        {
+                            let mut csarg = CharsizeArg::new();
+                            let mut cstype =
+                                init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
+                            if has_conceal {
+                                csarg.extconceal = &raw const conceal_spans;
+                                csarg.extconceal_off = wlv.extconceal_off;
+                                cstype = false;
+                            }
+                            let lbr_ci = utf_ptr2_str_char_info(p);
+                            let lbr_cli = utf_cluster_info(lbr_ci);
+                            let lbr_size = win_charsize(
+                                cstype,
+                                wlv.vcol + csarg.extconceal_off,
+                                p,
+                                lbr_ci.chr.value,
+                                &mut csarg,
+                                lbr_cli.cells,
+                            );
+                            if lbr_size.linebreak {
+                                wlv.n_extra = lbr_size.width - 1;
+                                conceal_lbr_body = lbr_size.body;
+                                conceal_lbr_tail = lbr_size.tail;
+
+                                if mb_c != i32::from(TAB) {
+                                    if on_last_col || attr_has_line_deco(search_attr) {
+                                        search_attr = 0;
+                                    }
+                                    if has_decor {
+                                        decor_attr = gap_attr_save;
+                                    }
+                                    if attr_has_line_deco(decor_attr) {
+                                        decor_attr = 0;
+                                    }
+                                    if attr_has_line_deco(area_attr) {
+                                        area_attr = 0;
+                                    }
+                                }
+
+                                if mb_c == i32::from(TAB) && wlv.n_extra + wlv.col > view_width {
+                                    wlv.n_extra = tabstop_padding(
+                                        wlv.vcol + wlv.extconceal_off,
+                                        wp.buf_mut().b_p_ts,
+                                        &wp.buf_mut().b_p_vts_array,
+                                    ) - 1;
+                                }
+                                wlv.sc_extra = schar_from_ascii(if mb_off > 0 {
+                                    MB_FILLER_CHAR
                                 } else {
-                                    prev_ptr.cast_mut().cast()
-                                };
-                                spv.spv_cap_col -=
-                                    crate::memory::ptr_offset_from(prev_ptr, line) as i32;
-                                let tmplen = spell_check(
-                                    wp,
-                                    p.cast(),
-                                    &mut spell_hlf,
-                                    Some(&mut spv.spv_cap_col),
-                                    spv.spv_unchanged,
-                                );
-                                debug_assert!(tmplen <= i32::MAX as usize);
-                                let len = tmplen as i32;
-                                word_end = v1 + len;
-
-                                if spell_hlf != HLF_COUNT
-                                    && (g_st().state_global & MODE_INSERT) != 0
-                                    && wp.w_cursor.lnum == lnum
-                                    && wp.w_cursor.col
-                                        >= (crate::memory::ptr_offset_from(prev_ptr, line) as Colnr)
-                                    && wp.w_cursor.col < word_end
-                                {
-                                    spell_hlf = HLF_COUNT;
-                                    g_st().spell_redraw_lnum = lnum;
-                                }
-
-                                if spell_hlf == HLF_COUNT
-                                    && !ptr::eq(p, prev_ptr.cast())
-                                    && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
-                                        + len
-                                        > nextline_idx
-                                {
-                                    spv.spv_checked_lnum = lnum + 1;
-                                    spv.spv_checked_col =
-                                        (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
-                                            + len
-                                            - nextline_idx;
-                                }
-
-                                if spell_hlf != HLF_COUNT {
-                                    spell_attr = g_st().highlight_attr[spell_hlf as usize];
-                                }
-
-                                if spv.spv_cap_col > 0 {
-                                    if !ptr::eq(p, prev_ptr.cast())
-                                        && (crate::memory::ptr_offset_from(p, nextline_ptr) as i32)
-                                            + spv.spv_cap_col
-                                            >= nextline_idx
-                                    {
-                                        spv.spv_capcol_lnum = lnum + 1;
-                                        spv.spv_cap_col =
-                                            (crate::memory::ptr_offset_from(p, nextline_ptr)
-                                                as i32)
-                                                + spv.spv_cap_col
-                                                - nextline_idx;
-                                    } else {
-                                        spv.spv_cap_col +=
-                                            crate::memory::ptr_offset_from(prev_ptr, line) as i32;
+                                    b' '
+                                });
+                                wlv.sc_final = 0;
+                                if mb_c < 128 && ascii_iswhite(mb_c) {
+                                    if mb_c == i32::from(TAB) {
+                                        fix_for_boguscols(&mut wlv);
+                                        if !extconceal && wp.w_onebuf_opt.wo_list == 0 {
+                                            tab_absorb_extconceal(&mut wlv);
+                                        } else if !extconceal
+                                            && wp.w_p_lcs_chars.tab1 != 0
+                                            && wlv.extconceal_off > 0
+                                        {
+                                            wlv.n_extra += wlv.extconceal_off;
+                                        }
+                                    }
+                                    if wp.w_onebuf_opt.wo_list == 0 {
+                                        mb_schar = schar_from_ascii(b' ');
+                                        mb_schar_width = 1;
+                                        unprintable_ascii = false;
                                     }
                                 }
                             }
                         }
-                        if spell_attr != 0 {
-                            char_attr_base = hl_combine_attr(char_attr_base, spell_attr);
-                            wlv.char_attr = hl_combine_attr(char_attr_base, char_attr_pri);
-                        }
+                    }
 
-                        if !wp.buf_mut().terminal.is_null() {
-                            wlv.char_attr = hl_combine_attr(
-                                if (wlv.vcol as usize) < TERM_ATTRS_MAX {
-                                    term_attrs[wlv.vcol as usize]
-                                } else {
-                                    0
-                                },
-                                wlv.char_attr,
-                            );
+                    if wp.w_onebuf_opt.wo_list != 0 {
+                        in_multispace = mb_c == b' ' as i32
+                            && (crate::memory::cstr_first_byte(ptr) == b' '
+                                || (prev_ptr > line.cast_const()
+                                    && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1))
+                                        == b' '));
+                        if !in_multispace {
+                            multispace_pos = 0;
                         }
+                    }
 
-                        gap_attr_save = if has_decor {
-                            hl_combine_attr(syntax_attr, g_st().decor_state.current_hl_eol)
+                    if wp.w_onebuf_opt.wo_list != 0
+                        && ((((mb_c == 160 && mb_l == 2) || (mb_c == 0x202f && mb_l == 3))
+                            && wp.w_p_lcs_chars.nbsp != 0)
+                            || (mb_c == b' ' as i32
+                                && mb_l == 1
+                                && (wp.w_p_lcs_chars.space != 0
+                                    || (in_multispace && !wp.w_p_lcs_chars.multispace.is_empty()))
+                                && (crate::memory::ptr_offset_from(ptr, line) as Colnr) >= leadcol
+                                && (crate::memory::ptr_offset_from(ptr, line) as Colnr)
+                                    <= trailcol))
+                    {
+                        if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
+                            mb_schar = wp.w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                            multispace_pos += 1;
+                            if multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
+                                multispace_pos = 0;
+                            }
                         } else {
-                            decor_attr
-                        };
-
-                        let mut lbr_char = mb_c;
-                        if extconceal {
-                            lbr_char = if disp_char == 0 {
-                                0
+                            mb_schar = if mb_c == b' ' as i32 {
+                                wp.w_p_lcs_chars.space
                             } else {
-                                schar_get_first_codepoint(disp_char)
+                                wp.w_p_lcs_chars.nbsp
                             };
                         }
-                        if wp.w_onebuf_opt.wo_lbr != 0
-                            && lbr_char > 0
-                            && lbr_char < 128
-                            && vim_isbreak(lbr_char)
+                        wlv.n_attr = 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_0);
+                        saved_attr2 = wlv.char_attr;
+                        mb_schar_width = schar_get_single_width(mb_schar);
+                    }
+
+                    if mb_c == b' ' as i32
+                        && mb_l == 1
+                        && ((trailcol != MAXCOL
+                            && ptr > line.cast_const().wrapping_add(trailcol as usize))
+                            || (leadcol != 0
+                                && ptr < line.cast_const().wrapping_add(leadcol as usize)))
+                    {
+                        if leadcol != 0
+                            && in_multispace
+                            && ptr < line.cast_const().wrapping_add(leadcol as usize)
+                            && !wp.w_p_lcs_chars.leadmultispace.is_empty()
                         {
-                            let mb_off = utf_head_off(line, ptr.wrapping_sub(1));
-                            let p = ptr.wrapping_sub((mb_off + 1) as usize);
+                            mb_schar = wp.w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
+                            multispace_pos += 1;
+                            if multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
+                                multispace_pos = 0;
+                            }
+                        } else if ptr > line.cast_const().wrapping_add(trailcol as usize)
+                            && wp.w_p_lcs_chars.trail != 0
+                        {
+                            mb_schar = wp.w_p_lcs_chars.trail;
+                        } else if ptr < line.cast_const().wrapping_add(leadcol as usize)
+                            && wp.w_p_lcs_chars.lead != 0
+                        {
+                            mb_schar = wp.w_p_lcs_chars.lead;
+                        } else if leadcol != 0 && wp.w_p_lcs_chars.space != 0 {
+                            mb_schar = wp.w_p_lcs_chars.space;
+                        }
 
-                            let has_conceal = !conceal_spans.is_empty();
-                            if has_conceal
-                                || !vim_isbreak(i32::from(crate::memory::cstr_first_byte(ptr)))
+                        wlv.n_attr = 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_0);
+                        saved_attr2 = wlv.char_attr;
+                        mb_schar_width = schar_get_single_width(mb_schar);
+                    }
+                }
+
+                if unprintable_ascii {
+                    if mb_c == i32::from(TAB)
+                        && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
+                    {
+                        let mut tab_len: i32;
+                        let mut vcol_adjusted = wlv.vcol;
+                        let mut lcs_tab1 = wp.w_p_lcs_chars.tab1;
+                        let mut lcs_tab2 = wp.w_p_lcs_chars.tab2;
+                        let mut lcs_tab3 = wp.w_p_lcs_chars.tab3;
+                        if wp.w_onebuf_opt.wo_list != 0
+                            && wp.w_p_lcs_chars.leadtab1 != 0
+                            && ptr < line.cast_const().wrapping_add(leadcol as usize)
+                        {
+                            lcs_tab1 = wp.w_p_lcs_chars.leadtab1;
+                            lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
+                            lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
+                        }
+                        if wlv.vcol == prefix_vcol + prefix_width && wp.w_onebuf_opt.wo_wrap != 0 {
+                            vcol_adjusted = prefix_vcol;
+                        }
+                        if conceal_tab_vcol >= 0 {
+                            vcol_adjusted = conceal_tab_vcol;
+                            conceal_tab_vcol = -1;
+                        }
+                        vcol_adjusted += wlv.extconceal_off;
+                        tab_len = tabstop_padding(
+                            vcol_adjusted,
+                            wp.buf_mut().b_p_ts,
+                            &wp.buf_mut().b_p_vts_array,
+                        ) - 1;
+
+                        if wp.w_onebuf_opt.wo_lbr == 0 || wp.w_onebuf_opt.wo_list == 0 {
+                            wlv.n_extra = tab_len;
+                        } else {
+                            let saved_nextra = wlv.n_extra;
+
+                            if wlv.vcol_off_co + wlv.extconceal_off > 0 {
+                                tab_len += wlv.vcol_off_co + wlv.extconceal_off;
+                            }
+                            if lcs_tab1 != 0 && wlv.old_boguscols > 0 && wlv.n_extra > tab_len {
+                                tab_len += wlv.n_extra - tab_len;
+                            }
+
+                            if tab_len > 0 {
+                                let tab2_len = schar_len(lcs_tab2);
+                                let mut len = (tab_len as usize) * tab2_len;
+                                if lcs_tab3 != 0 {
+                                    len = len + schar_len(lcs_tab3) - tab2_len;
+                                }
+                                if wlv.n_extra > 0 {
+                                    len = len.wrapping_add_signed((wlv.n_extra - tab_len) as isize);
+                                }
+                                let mut p = get_extra_buf(len + 1);
+                                unsafe {
+                                    ptr::write_bytes(p, b' ', len);
+                                }
+                                unsafe {
+                                    *p.wrapping_add(len) = 0;
+                                }
+                                wlv.p_extra = p;
+                                for i in 0..tab_len {
+                                    if unsafe { *p == 0 } {
+                                        tab_len = i;
+                                        break;
+                                    }
+                                    let mut lcs = lcs_tab2;
+                                    if lcs_tab3 != 0 && i == tab_len - 1 {
+                                        lcs = lcs_tab3;
+                                    }
+                                    let slen = schar_get_adv(&mut p, lcs);
+                                    wlv.n_extra +=
+                                        slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
+                                }
+
+                                if wlv.vcol_off_co + wlv.extconceal_off > 0 {
+                                    wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
+                                }
+                            }
+                        }
+
+                        {
+                            let vc_saved = wlv.vcol_off_co + wlv.extconceal_off;
+                            fix_for_boguscols(&mut wlv);
+                            if !extconceal {
+                                tab_absorb_extconceal(&mut wlv);
+                            }
+                            if wlv.n_extra == tab_len + vc_saved
+                                && wp.w_onebuf_opt.wo_list != 0
+                                && wp.w_p_lcs_chars.tab1 != 0
                             {
-                                let mut csarg = CharsizeArg::new();
-                                let mut cstype =
-                                    init_charsize_arg_skip_cur_text(&mut csarg, wp, lnum, line);
-                                if has_conceal {
-                                    csarg.extconceal = &raw const conceal_spans;
-                                    csarg.extconceal_off = wlv.extconceal_off;
-                                    cstype = false;
-                                }
-                                let lbr_ci = utf_ptr2_str_char_info(p);
-                                let lbr_cli = utf_cluster_info(lbr_ci);
-                                let lbr_size = win_charsize(
-                                    cstype,
-                                    wlv.vcol + csarg.extconceal_off,
-                                    p,
-                                    lbr_ci.chr.value,
-                                    &mut csarg,
-                                    lbr_cli.cells,
-                                );
-                                if lbr_size.linebreak {
-                                    wlv.n_extra = lbr_size.width - 1;
-                                    conceal_lbr_body = lbr_size.body;
-                                    conceal_lbr_tail = lbr_size.tail;
-
-                                    if mb_c != i32::from(TAB) {
-                                        if on_last_col || attr_has_line_deco(search_attr) {
-                                            search_attr = 0;
-                                        }
-                                        if has_decor {
-                                            decor_attr = gap_attr_save;
-                                        }
-                                        if attr_has_line_deco(decor_attr) {
-                                            decor_attr = 0;
-                                        }
-                                        if attr_has_line_deco(area_attr) {
-                                            area_attr = 0;
-                                        }
-                                    }
-
-                                    if mb_c == i32::from(TAB) && wlv.n_extra + wlv.col > view_width
-                                    {
-                                        wlv.n_extra = tabstop_padding(
-                                            wlv.vcol + wlv.extconceal_off,
-                                            wp.buf_mut().b_p_ts,
-                                            &wp.buf_mut().b_p_vts_array,
-                                        ) - 1;
-                                    }
-                                    wlv.sc_extra = schar_from_ascii(if mb_off > 0 {
-                                        MB_FILLER_CHAR
-                                    } else {
-                                        b' '
-                                    });
-                                    wlv.sc_final = 0;
-                                    if mb_c < 128 && ascii_iswhite(mb_c) {
-                                        if mb_c == i32::from(TAB) {
-                                            fix_for_boguscols(&mut wlv);
-                                            if !extconceal && wp.w_onebuf_opt.wo_list == 0 {
-                                                tab_absorb_extconceal(&mut wlv);
-                                            } else if !extconceal
-                                                && wp.w_p_lcs_chars.tab1 != 0
-                                                && wlv.extconceal_off > 0
-                                            {
-                                                wlv.n_extra += wlv.extconceal_off;
-                                            }
-                                        }
-                                        if wp.w_onebuf_opt.wo_list == 0 {
-                                            mb_schar = schar_from_ascii(b' ');
-                                            mb_schar_width = 1;
-                                            unprintable_ascii = false;
-                                        }
-                                    }
-                                }
+                                tab_len += vc_saved;
                             }
                         }
 
                         if wp.w_onebuf_opt.wo_list != 0 {
-                            in_multispace = mb_c == b' ' as i32
-                                && (crate::memory::cstr_first_byte(ptr) == b' '
-                                    || (prev_ptr > line.cast_const()
-                                        && crate::memory::cstr_first_byte(
-                                            prev_ptr.wrapping_sub(1),
-                                        ) == b' '));
-                            if !in_multispace {
-                                multispace_pos = 0;
-                            }
-                        }
-
-                        if wp.w_onebuf_opt.wo_list != 0
-                            && ((((mb_c == 160 && mb_l == 2) || (mb_c == 0x202f && mb_l == 3))
-                                && wp.w_p_lcs_chars.nbsp != 0)
-                                || (mb_c == b' ' as i32
-                                    && mb_l == 1
-                                    && (wp.w_p_lcs_chars.space != 0
-                                        || (in_multispace
-                                            && !wp.w_p_lcs_chars.multispace.is_empty()))
-                                    && (crate::memory::ptr_offset_from(ptr, line) as Colnr)
-                                        >= leadcol
-                                    && (crate::memory::ptr_offset_from(ptr, line) as Colnr)
-                                        <= trailcol))
-                        {
-                            if in_multispace && !wp.w_p_lcs_chars.multispace.is_empty() {
-                                mb_schar = wp.w_p_lcs_chars.multispace.as_slice()[multispace_pos];
-                                multispace_pos += 1;
-                                if multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
-                                    multispace_pos = 0;
-                                }
+                            mb_schar = if wlv.n_extra == 0 && lcs_tab3 != 0 {
+                                lcs_tab3
                             } else {
-                                mb_schar = if mb_c == b' ' as i32 {
-                                    wp.w_p_lcs_chars.space
-                                } else {
-                                    wp.w_p_lcs_chars.nbsp
-                                };
+                                lcs_tab1
+                            };
+                            if wp.w_onebuf_opt.wo_lbr != 0
+                                && !crate::memory::cstr_is_empty(wlv.p_extra.cast())
+                            {
+                                wlv.sc_extra = 0;
+                            } else {
+                                wlv.sc_extra = lcs_tab2;
                             }
-                            wlv.n_attr = 1;
+                            wlv.sc_final = lcs_tab3;
+                            wlv.n_attr = tab_len + 1;
                             wlv.extra_attr = win_hl_attr(&mut *wp, HLF_0);
                             saved_attr2 = wlv.char_attr;
-                            mb_schar_width = schar_get_single_width(mb_schar);
+                        } else {
+                            wlv.sc_final = 0;
+                            wlv.sc_extra = schar_from_ascii(b' ');
+                            mb_schar = schar_from_ascii(b' ');
                         }
-
-                        if mb_c == b' ' as i32
-                            && mb_l == 1
-                            && ((trailcol != MAXCOL
-                                && ptr > line.cast_const().wrapping_add(trailcol as usize))
-                                || (leadcol != 0
-                                    && ptr < line.cast_const().wrapping_add(leadcol as usize)))
-                        {
-                            if leadcol != 0
-                                && in_multispace
-                                && ptr < line.cast_const().wrapping_add(leadcol as usize)
-                                && !wp.w_p_lcs_chars.leadmultispace.is_empty()
+                        mb_schar_width = schar_get_single_width(mb_schar);
+                    } else if mb_schar == 0
+                        && (wp.w_onebuf_opt.wo_list != 0
+                            || (wlv.fromcol >= 0
+                                && wlv.tocol > wlv.vcol
+                                && g_st().visual_global.mode != CTRL_V_CONST
+                                && wlv.col < view_width))
+                        && lcs_eol_todo
+                        && lcs_eol != 0
+                    {
+                        if wlv.diff_hlf == 0 && wlv.line_attr == 0 && wlv.line_attr_lowprio == 0 {
+                            if !(area_highlighting
+                                && virtual_active(wp)
+                                && wlv.tocol != MAXCOL
+                                && wlv.vcol < wlv.tocol)
                             {
-                                mb_schar =
-                                    wp.w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
-                                multispace_pos += 1;
-                                if multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
-                                    multispace_pos = 0;
-                                }
-                            } else if ptr > line.cast_const().wrapping_add(trailcol as usize)
-                                && wp.w_p_lcs_chars.trail != 0
-                            {
-                                mb_schar = wp.w_p_lcs_chars.trail;
-                            } else if ptr < line.cast_const().wrapping_add(leadcol as usize)
-                                && wp.w_p_lcs_chars.lead != 0
-                            {
-                                mb_schar = wp.w_p_lcs_chars.lead;
-                            } else if leadcol != 0 && wp.w_p_lcs_chars.space != 0 {
-                                mb_schar = wp.w_p_lcs_chars.space;
+                                wlv.p_extra = c"".as_ptr().cast_mut().cast();
                             }
-
-                            wlv.n_attr = 1;
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_0);
-                            saved_attr2 = wlv.char_attr;
-                            mb_schar_width = schar_get_single_width(mb_schar);
+                            wlv.n_extra = 0;
                         }
-                    }
-
-                    if unprintable_ascii {
-                        if mb_c == i32::from(TAB)
-                            && (wp.w_onebuf_opt.wo_list == 0 || wp.w_p_lcs_chars.tab1 != 0)
-                        {
-                            let mut tab_len: i32;
-                            let mut vcol_adjusted = wlv.vcol;
-                            let mut lcs_tab1 = wp.w_p_lcs_chars.tab1;
-                            let mut lcs_tab2 = wp.w_p_lcs_chars.tab2;
-                            let mut lcs_tab3 = wp.w_p_lcs_chars.tab3;
-                            if wp.w_onebuf_opt.wo_list != 0
-                                && wp.w_p_lcs_chars.leadtab1 != 0
-                                && ptr < line.cast_const().wrapping_add(leadcol as usize)
-                            {
-                                lcs_tab1 = wp.w_p_lcs_chars.leadtab1;
-                                lcs_tab2 = wp.w_p_lcs_chars.leadtab2;
-                                lcs_tab3 = wp.w_p_lcs_chars.leadtab3;
-                            }
-                            if wlv.vcol == prefix_vcol + prefix_width
-                                && wp.w_onebuf_opt.wo_wrap != 0
-                            {
-                                vcol_adjusted = prefix_vcol;
-                            }
-                            if conceal_tab_vcol >= 0 {
-                                vcol_adjusted = conceal_tab_vcol;
-                                conceal_tab_vcol = -1;
-                            }
-                            vcol_adjusted += wlv.extconceal_off;
-                            tab_len = tabstop_padding(
-                                vcol_adjusted,
-                                wp.buf_mut().b_p_ts,
-                                &wp.buf_mut().b_p_vts_array,
-                            ) - 1;
-
-                            if wp.w_onebuf_opt.wo_lbr == 0 || wp.w_onebuf_opt.wo_list == 0 {
-                                wlv.n_extra = tab_len;
-                            } else {
-                                let saved_nextra = wlv.n_extra;
-
-                                if wlv.vcol_off_co + wlv.extconceal_off > 0 {
-                                    tab_len += wlv.vcol_off_co + wlv.extconceal_off;
-                                }
-                                if lcs_tab1 != 0 && wlv.old_boguscols > 0 && wlv.n_extra > tab_len {
-                                    tab_len += wlv.n_extra - tab_len;
-                                }
-
-                                if tab_len > 0 {
-                                    let tab2_len = schar_len(lcs_tab2);
-                                    let mut len = (tab_len as usize) * tab2_len;
-                                    if lcs_tab3 != 0 {
-                                        len = len + schar_len(lcs_tab3) - tab2_len;
-                                    }
-                                    if wlv.n_extra > 0 {
-                                        len = len
-                                            .wrapping_add_signed((wlv.n_extra - tab_len) as isize);
-                                    }
-                                    let mut p = get_extra_buf(len + 1);
-                                    ptr::write_bytes(p, b' ', len);
-                                    *p.wrapping_add(len) = 0;
-                                    wlv.p_extra = p;
-                                    for i in 0..tab_len {
-                                        if *p == 0 {
-                                            tab_len = i;
-                                            break;
-                                        }
-                                        let mut lcs = lcs_tab2;
-                                        if lcs_tab3 != 0 && i == tab_len - 1 {
-                                            lcs = lcs_tab3;
-                                        }
-                                        let slen = schar_get_adv(&mut p, lcs);
-                                        wlv.n_extra +=
-                                            slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
-                                    }
-
-                                    if wlv.vcol_off_co + wlv.extconceal_off > 0 {
-                                        wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
-                                    }
-                                }
-                            }
-
-                            {
-                                let vc_saved = wlv.vcol_off_co + wlv.extconceal_off;
-                                fix_for_boguscols(&mut wlv);
-                                if !extconceal {
-                                    tab_absorb_extconceal(&mut wlv);
-                                }
-                                if wlv.n_extra == tab_len + vc_saved
-                                    && wp.w_onebuf_opt.wo_list != 0
-                                    && wp.w_p_lcs_chars.tab1 != 0
-                                {
-                                    tab_len += vc_saved;
-                                }
-                            }
-
-                            if wp.w_onebuf_opt.wo_list != 0 {
-                                mb_schar = if wlv.n_extra == 0 && lcs_tab3 != 0 {
-                                    lcs_tab3
-                                } else {
-                                    lcs_tab1
-                                };
-                                if wp.w_onebuf_opt.wo_lbr != 0
-                                    && !crate::memory::cstr_is_empty(wlv.p_extra.cast())
-                                {
-                                    wlv.sc_extra = 0;
-                                } else {
-                                    wlv.sc_extra = lcs_tab2;
-                                }
-                                wlv.sc_final = lcs_tab3;
-                                wlv.n_attr = tab_len + 1;
-                                wlv.extra_attr = win_hl_attr(&mut *wp, HLF_0);
-                                saved_attr2 = wlv.char_attr;
-                            } else {
-                                wlv.sc_final = 0;
-                                wlv.sc_extra = schar_from_ascii(b' ');
-                                mb_schar = schar_from_ascii(b' ');
-                            }
-                            mb_schar_width = schar_get_single_width(mb_schar);
-                        } else if mb_schar == 0
-                            && (wp.w_onebuf_opt.wo_list != 0
-                                || (wlv.fromcol >= 0
-                                    && wlv.tocol > wlv.vcol
-                                    && g_st().visual_global.mode != CTRL_V_CONST
-                                    && wlv.col < view_width))
-                            && lcs_eol_todo
-                            && lcs_eol != 0
-                        {
-                            if wlv.diff_hlf == 0 && wlv.line_attr == 0 && wlv.line_attr_lowprio == 0
-                            {
-                                if !(area_highlighting
-                                    && virtual_active(wp)
-                                    && wlv.tocol != MAXCOL
-                                    && wlv.vcol < wlv.tocol)
-                                {
-                                    wlv.p_extra = c"".as_ptr().cast_mut().cast();
-                                }
-                                wlv.n_extra = 0;
-                            }
-                            if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol > 0 {
-                                mb_schar = wp.w_p_lcs_chars.eol;
-                            } else {
-                                mb_schar = schar_from_ascii(b' ');
-                            }
-                            lcs_eol_todo = false;
-                            ptr = ptr.wrapping_sub(1);
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
-                            wlv.n_attr = 1;
-                            mb_schar_width = schar_get_single_width(mb_schar);
-                        } else if mb_schar != 0 {
+                        if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol > 0 {
+                            mb_schar = wp.w_p_lcs_chars.eol;
+                        } else {
+                            mb_schar = schar_from_ascii(b' ');
+                        }
+                        lcs_eol_todo = false;
+                        ptr = ptr.wrapping_sub(1);
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
+                        wlv.n_attr = 1;
+                        mb_schar_width = schar_get_single_width(mb_schar);
+                    } else if mb_schar != 0 {
+                        unsafe {
                             crate::memory::copy_bytes_to_c_buf(
                                 &mut wlv.extra,
                                 crate::memory::cstr_as_bytes(transchar_buf(
@@ -3112,353 +3118,360 @@ pub fn win_line(
                                     mb_c,
                                 )),
                             );
-                            if wlv.n_extra == 0 {
-                                wlv.n_extra = opt_vars().dy_escape_width - 1;
-                            }
-                            if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0
-                                && wp.w_onebuf_opt.wo_rl != 0
-                            {
-                                rl_mirror_ascii(&mut wlv.extra);
-                            }
-                            wlv.p_extra = wlv.extra.as_mut_ptr();
-                            wlv.sc_extra = 0;
-                            wlv.sc_final = 0;
-                            mb_schar = schar_from_ascii(*wlv.p_extra);
-                            mb_schar_width = 1;
-                            if wp.w_onebuf_opt.wo_lbr != 0 {
-                                let p = get_extra_buf((wlv.n_extra as usize) + 1);
-                                ptr::write_bytes(p, b' ', wlv.n_extra as usize);
-                                let rem_len =
-                                    crate::memory::cstr_len(wlv.p_extra.cast()).saturating_sub(1);
-                                ptr::copy_nonoverlapping(wlv.p_extra.wrapping_add(1), p, rem_len);
-                                *p.wrapping_add(wlv.n_extra as usize) = 0;
-                                wlv.p_extra = p;
-                            } else {
-                                wlv.n_extra = opt_vars().dy_escape_width - 1;
-                                wlv.p_extra = wlv.p_extra.wrapping_add(1);
-                            }
-                            wlv.n_attr = wlv.n_extra + 1;
-                            wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
-                            saved_attr2 = wlv.char_attr;
-                        } else if g_st().visual_global.active
-                            && (g_st().visual_global.mode == CTRL_V_CONST
-                                || g_st().visual_global.mode == b'v' as i32)
-                            && virtual_active(wp)
-                            && wlv.tocol != MAXCOL
-                            && wlv.vcol < wlv.tocol
-                            && wlv.col < view_width
+                        }
+                        if wlv.n_extra == 0 {
+                            wlv.n_extra = opt_vars().dy_escape_width - 1;
+                        }
+                        if (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX) != 0
+                            && wp.w_onebuf_opt.wo_rl != 0
                         {
-                            mb_schar = schar_from_ascii(b' ');
-                            mb_schar_width = 1;
-                            ptr = ptr.wrapping_sub(1);
+                            rl_mirror_ascii(&mut wlv.extra);
                         }
-                    }
-
-                    if conceal_enabled
-                        && !(extconceal && did_decrement_ptr)
-                        && (conceal_reflow
-                            || (syntax_flags & HL_CONCEAL) != 0
-                            || has_match_conc > 0
-                            || decor_conceal > 0)
-                    {
-                        let syntax_conceal = (syntax_flags & HL_CONCEAL) != 0;
-                        wlv.char_attr = conceal_attr;
-                        let decor_cchar = !(has_match_conc != 0 && match_conc != 0)
-                            && decor_conceal != 0
-                            && g_st().decor_state.conceal_char != 0;
-                        let cchar = if has_match_conc != 0 && match_conc != 0 {
-                            schar_from_char(match_conc)
-                        } else if decor_cchar {
-                            g_st().decor_state.conceal_char
-                        } else if syntax_conceal && syn_get_sub_char() != i32::from(NUL) {
-                            schar_from_char(syn_get_sub_char())
-                        } else {
-                            0
-                        };
-                        let is_start = (prev_syntax_id != syntax_seqnr && syntax_conceal)
-                            || has_match_conc > 1
-                            || decor_conceal > 1;
-                        let replacement = if conceal_reflow {
-                            extconceal_char
-                        } else {
-                            conceal_replacement(&*wp, is_start, cchar)
-                        };
-                        if replacement != 0 {
-                            if extconceal && conceal_lbr_body > 0 {
-                                wlv.n_extra = conceal_lbr_body - 1;
-                            } else if mb_schar_width > 1 {
-                                wlv.n_extra += 1;
-                            }
-
-                            mb_schar = replacement;
-                            if (decor_cchar
-                                || (conceal_reflow && g_st().decor_state.conceal_char != 0))
-                                && g_st().decor_state.conceal_attr != 0
-                            {
-                                wlv.char_attr = g_st().decor_state.conceal_attr;
-                            } else if conceal_reflow && extconceal_attr != 0 {
-                                wlv.char_attr = extconceal_attr;
-                            }
-
-                            mb_schar_width = schar_cells(mb_schar);
-                            if conceal_reflow
-                                || (decor_conceal > 0 && g_st().decor_state.conceal_slot_i >= 0)
-                            {
-                                conceal_replacement_extra = mb_schar_width - 1;
-                            }
-
-                            prev_syntax_id = syntax_seqnr;
-
-                            if conceal_reflow {
-                                wlv.extconceal_off += wlv.n_extra - conceal_replacement_extra;
-                            } else {
-                                if wlv.n_extra > 0 {
-                                    wlv.vcol_off_co += wlv.n_extra;
-                                }
-                                wlv.vcol += wlv.n_extra;
-                                if is_wrapped && wlv.n_extra > 0 {
-                                    wlv.boguscols += wlv.n_extra;
-                                    wlv.col += wlv.n_extra;
-                                }
-                            }
-                            wlv.n_extra = if extconceal { conceal_lbr_tail } else { 0 };
-                            if wlv.n_extra > 0 {
-                                wlv.sc_extra = schar_from_ascii(b' ');
-                                wlv.sc_final = 0;
-                            }
-                            wlv.n_attr = 0;
-                        } else if wlv.skip_cells == 0 {
-                            is_concealing = true;
-                            wlv.skip_cells = 1;
-                        }
-                    } else {
-                        prev_syntax_id = 0;
-                        is_concealing = false;
-                    }
-
-                    if wlv.skip_cells > 0 && did_decrement_ptr {
-                        ptr = ptr.wrapping_add(1);
-                    }
-                }
-
-                let skip_cells = if conceal_reflow { 0 } else { wlv.skip_cells };
-                if !did_wcol
-                    && wlv.filler_todo <= 0
-                    && in_curline
-                    && conceal_cursor_line(&*wp)
-                    && (wlv.vcol + skip_cells >= cursor_vcol || mb_schar == 0)
-                {
-                    wp.w_wcol = wlv.col - wlv.boguscols;
-                    wp.w_wcol_conceal_off = wlv.vcol_off_co + skip_cells;
-                    if wlv.vcol + skip_cells < cursor_vcol {
-                        wp.w_wcol += cursor_vcol - wlv.vcol - skip_cells;
-                    }
-                    wp.w_wrow = wlv.row;
-                    did_wcol = true;
-                    wp.w_valid |= VALID_WCOL | VALID_WROW | VALID_VIRTCOL;
-                }
-
-                if wlv.n_attr > 0 && !search_attr_from_match {
-                    wlv.char_attr = hl_combine_attr(wlv.char_attr, wlv.extra_attr);
-                    if wlv.reset_extra_attr {
-                        wlv.reset_extra_attr = false;
-                        if extra_attr_next >= 0 {
-                            wlv.extra_attr = extra_attr_next;
-                            extra_attr_next = -1;
-                        } else {
-                            wlv.extra_attr = 0;
-                            search_attr_from_match = saved_search_attr_from_match;
-                        }
-                    }
-                }
-
-                if lcs_prec_todo != 0
-                    && wp.w_onebuf_opt.wo_list != 0
-                    && (if wp.w_onebuf_opt.wo_wrap != 0 {
-                        wp.w_skipcol > 0 && wlv.row == 0
-                    } else {
-                        wp.w_leftcol > 0
-                    })
-                    && wlv.filler_todo <= 0
-                    && wlv.skip_cells <= 0
-                    && mb_schar != 0
-                {
-                    lcs_prec_todo = 0;
-                    if mb_schar_width > 1 {
-                        wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
+                        wlv.p_extra = wlv.extra.as_mut_ptr();
+                        wlv.sc_extra = 0;
                         wlv.sc_final = 0;
-                        if wlv.n_extra > 0 {
-                            debug_assert!(!wlv.p_extra.is_null());
-                            n_extra_next = wlv.n_extra;
-                            extra_attr_next = wlv.extra_attr;
-                            wlv.n_attr = (wlv.n_attr + 1).max(2);
-                        } else {
-                            wlv.n_attr = 2;
+                        unsafe {
+                            mb_schar = schar_from_ascii(*wlv.p_extra);
                         }
-                        wlv.n_extra = 1;
-                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
-                    }
-                    mb_schar = wp.w_p_lcs_chars.prec;
-                    mb_schar_width = schar_get_single_width(mb_schar);
-                    saved_attr3 = wlv.char_attr;
-                    wlv.char_attr = win_hl_attr(&mut *wp, HLF_AT);
-                    n_attr3 = 1;
-                }
-
-                if mb_schar == 0 && eol_hl_off == 0 {
-                    let prevcol_hl_flag = get_prevcol_hl_flag(
-                        wp,
-                        &mut g_st().screen_search_hl,
-                        (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
-                    );
-
-                    if lcs_eol_todo
-                        && ((area_attr != 0
-                            && wlv.vcol == wlv.fromcol
-                            && (g_st().visual_global.mode != CTRL_V_CONST
-                                || lnum == g_st().visual_global.start.lnum
-                                || lnum == curwin_mut().w_cursor.lnum))
-                            || prevcol_hl_flag)
+                        mb_schar_width = 1;
+                        if wp.w_onebuf_opt.wo_lbr != 0 {
+                            let p = get_extra_buf((wlv.n_extra as usize) + 1);
+                            unsafe {
+                                ptr::write_bytes(p, b' ', wlv.n_extra as usize);
+                            }
+                            let rem_len =
+                                crate::memory::cstr_len(wlv.p_extra.cast()).saturating_sub(1);
+                            unsafe {
+                                ptr::copy_nonoverlapping(wlv.p_extra.wrapping_add(1), p, rem_len);
+                            }
+                            unsafe {
+                                *p.wrapping_add(wlv.n_extra as usize) = 0;
+                            }
+                            wlv.p_extra = p;
+                        } else {
+                            wlv.n_extra = opt_vars().dy_escape_width - 1;
+                            wlv.p_extra = wlv.p_extra.wrapping_add(1);
+                        }
+                        wlv.n_attr = wlv.n_extra + 1;
+                        wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
+                        saved_attr2 = wlv.char_attr;
+                    } else if g_st().visual_global.active
+                        && (g_st().visual_global.mode == CTRL_V_CONST
+                            || g_st().visual_global.mode == b'v' as i32)
+                        && virtual_active(wp)
+                        && wlv.tocol != MAXCOL
+                        && wlv.vcol < wlv.tocol
+                        && wlv.col < view_width
                     {
-                        let n = if wlv.col >= view_width { -1 } else { 0 };
-                        if n != 0 {
-                            wlv.off += n;
-                            wlv.col += n;
-                        } else {
-                            g_st().linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
-                        }
-                        if area_attr == 0 && !has_fold {
-                            get_search_match_hl(
-                                wp,
-                                &mut g_st().screen_search_hl,
-                                crate::memory::ptr_offset_from(ptr, line) as Colnr,
-                                &mut wlv.char_attr,
-                            );
-                        }
-
-                        let eol_attr = if wlv.cul_attr != 0 {
-                            hl_combine_attr(wlv.cul_attr, wlv.char_attr)
-                        } else {
-                            wlv.char_attr
-                        };
-
-                        g_st().linebuf_attr[wlv.off as usize] = eol_attr;
-                        g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
-                        wlv.col += 1;
-                        wlv.off += 1;
-                        wlv.vcol += 1;
-                        eol_hl_off = 1;
+                        mb_schar = schar_from_ascii(b' ');
+                        mb_schar_width = 1;
+                        ptr = ptr.wrapping_sub(1);
                     }
                 }
 
-                if mb_schar == 0 {
-                    if in_curline && wlv.col >= view_width {
-                        wp.w_wcol = wp.w_wcol.min(view_width - 1);
-                    }
-                    wlv.vcol = wlv
-                        .vcol
-                        .max(start_vcol + wlv.col - win_col_off(&raw mut *wp));
-                    wlv.col -= wlv.boguscols;
-                    wlv.boguscols = 0;
+                if conceal_enabled
+                    && !(extconceal && did_decrement_ptr)
+                    && (conceal_reflow
+                        || (syntax_flags & HL_CONCEAL) != 0
+                        || has_match_conc > 0
+                        || decor_conceal > 0)
+                {
+                    let syntax_conceal = (syntax_flags & HL_CONCEAL) != 0;
+                    wlv.char_attr = conceal_attr;
+                    let decor_cchar = !(has_match_conc != 0 && match_conc != 0)
+                        && decor_conceal != 0
+                        && g_st().decor_state.conceal_char != 0;
+                    let cchar = if has_match_conc != 0 && match_conc != 0 {
+                        schar_from_char(match_conc)
+                    } else if decor_cchar {
+                        g_st().decor_state.conceal_char
+                    } else if syntax_conceal && syn_get_sub_char() != i32::from(NUL) {
+                        schar_from_char(syn_get_sub_char())
+                    } else {
+                        0
+                    };
+                    let is_start = (prev_syntax_id != syntax_seqnr && syntax_conceal)
+                        || has_match_conc > 1
+                        || decor_conceal > 1;
+                    let replacement = if conceal_reflow {
+                        extconceal_char
+                    } else {
+                        conceal_replacement(&*wp, is_start, cchar)
+                    };
+                    if replacement != 0 {
+                        if extconceal && conceal_lbr_body > 0 {
+                            wlv.n_extra = conceal_lbr_body - 1;
+                        } else if mb_schar_width > 1 {
+                            wlv.n_extra += 1;
+                        }
 
-                    let hlc = vcol_hlc(&wlv);
-                    advance_color_col(&mut wlv, hlc);
+                        mb_schar = replacement;
+                        if (decor_cchar || (conceal_reflow && g_st().decor_state.conceal_char != 0))
+                            && g_st().decor_state.conceal_attr != 0
+                        {
+                            wlv.char_attr = g_st().decor_state.conceal_attr;
+                        } else if conceal_reflow && extconceal_attr != 0 {
+                            wlv.char_attr = extconceal_attr;
+                        }
 
-                    let eol_skip =
-                        if eol_hl_off == 0 && (lcs_eol_todo || wp.w_onebuf_opt.wo_list != 0) {
-                            1
+                        mb_schar_width = schar_cells(mb_schar);
+                        if conceal_reflow
+                            || (decor_conceal > 0 && g_st().decor_state.conceal_slot_i >= 0)
+                        {
+                            conceal_replacement_extra = mb_schar_width - 1;
+                        }
+
+                        prev_syntax_id = syntax_seqnr;
+
+                        if conceal_reflow {
+                            wlv.extconceal_off += wlv.n_extra - conceal_replacement_extra;
                         } else {
-                            0
-                        };
+                            if wlv.n_extra > 0 {
+                                wlv.vcol_off_co += wlv.n_extra;
+                            }
+                            wlv.vcol += wlv.n_extra;
+                            if is_wrapped && wlv.n_extra > 0 {
+                                wlv.boguscols += wlv.n_extra;
+                                wlv.col += wlv.n_extra;
+                            }
+                        }
+                        wlv.n_extra = if extconceal { conceal_lbr_tail } else { 0 };
+                        if wlv.n_extra > 0 {
+                            wlv.sc_extra = schar_from_ascii(b' ');
+                            wlv.sc_final = 0;
+                        }
+                        wlv.n_attr = 0;
+                    } else if wlv.skip_cells == 0 {
+                        is_concealing = true;
+                        wlv.skip_cells = 1;
+                    }
+                } else {
+                    prev_syntax_id = 0;
+                    is_concealing = false;
+                }
 
-                    if has_decor {
-                        decor_redraw_eol(
-                            &mut *wp,
-                            &mut g_st().decor_state,
-                            &mut wlv.line_attr,
-                            wlv.col + eol_skip,
+                if wlv.skip_cells > 0 && did_decrement_ptr {
+                    ptr = ptr.wrapping_add(1);
+                }
+            }
+
+            let skip_cells = if conceal_reflow { 0 } else { wlv.skip_cells };
+            if !did_wcol
+                && wlv.filler_todo <= 0
+                && in_curline
+                && conceal_cursor_line(&*wp)
+                && (wlv.vcol + skip_cells >= cursor_vcol || mb_schar == 0)
+            {
+                wp.w_wcol = wlv.col - wlv.boguscols;
+                wp.w_wcol_conceal_off = wlv.vcol_off_co + skip_cells;
+                if wlv.vcol + skip_cells < cursor_vcol {
+                    wp.w_wcol += cursor_vcol - wlv.vcol - skip_cells;
+                }
+                wp.w_wrow = wlv.row;
+                did_wcol = true;
+                wp.w_valid |= VALID_WCOL | VALID_WROW | VALID_VIRTCOL;
+            }
+
+            if wlv.n_attr > 0 && !search_attr_from_match {
+                wlv.char_attr = hl_combine_attr(wlv.char_attr, wlv.extra_attr);
+                if wlv.reset_extra_attr {
+                    wlv.reset_extra_attr = false;
+                    if extra_attr_next >= 0 {
+                        wlv.extra_attr = extra_attr_next;
+                        extra_attr_next = -1;
+                    } else {
+                        wlv.extra_attr = 0;
+                        search_attr_from_match = saved_search_attr_from_match;
+                    }
+                }
+            }
+
+            if lcs_prec_todo != 0
+                && wp.w_onebuf_opt.wo_list != 0
+                && (if wp.w_onebuf_opt.wo_wrap != 0 {
+                    wp.w_skipcol > 0 && wlv.row == 0
+                } else {
+                    wp.w_leftcol > 0
+                })
+                && wlv.filler_todo <= 0
+                && wlv.skip_cells <= 0
+                && mb_schar != 0
+            {
+                lcs_prec_todo = 0;
+                if mb_schar_width > 1 {
+                    wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
+                    wlv.sc_final = 0;
+                    if wlv.n_extra > 0 {
+                        debug_assert!(!wlv.p_extra.is_null());
+                        n_extra_next = wlv.n_extra;
+                        extra_attr_next = wlv.extra_attr;
+                        wlv.n_attr = (wlv.n_attr + 1).max(2);
+                    } else {
+                        wlv.n_attr = 2;
+                    }
+                    wlv.n_extra = 1;
+                    wlv.extra_attr = win_hl_attr(&mut *wp, HLF_AT);
+                }
+                mb_schar = wp.w_p_lcs_chars.prec;
+                mb_schar_width = schar_get_single_width(mb_schar);
+                saved_attr3 = wlv.char_attr;
+                wlv.char_attr = win_hl_attr(&mut *wp, HLF_AT);
+                n_attr3 = 1;
+            }
+
+            if mb_schar == 0 && eol_hl_off == 0 {
+                let prevcol_hl_flag = get_prevcol_hl_flag(
+                    wp,
+                    &mut g_st().screen_search_hl,
+                    (crate::memory::ptr_offset_from(ptr, line) as Colnr) - 1,
+                );
+
+                if lcs_eol_todo
+                    && ((area_attr != 0
+                        && wlv.vcol == wlv.fromcol
+                        && (g_st().visual_global.mode != CTRL_V_CONST
+                            || lnum == g_st().visual_global.start.lnum
+                            || lnum == curwin_mut().w_cursor.lnum))
+                        || prevcol_hl_flag)
+                {
+                    let n = if wlv.col >= view_width { -1 } else { 0 };
+                    if n != 0 {
+                        wlv.off += n;
+                        wlv.col += n;
+                    } else {
+                        g_st().linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
+                    }
+                    if area_attr == 0 && !has_fold {
+                        get_search_match_hl(
+                            wp,
+                            &mut g_st().screen_search_hl,
+                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
+                            &mut wlv.char_attr,
                         );
                     }
 
-                    for i in wlv.col..view_width {
-                        g_st().linebuf_vcol[(wlv.off + (i - wlv.col)) as usize] =
-                            wlv.vcol + (i - wlv.col);
+                    let eol_attr = if wlv.cul_attr != 0 {
+                        hl_combine_attr(wlv.cul_attr, wlv.char_attr)
+                    } else {
+                        wlv.char_attr
+                    };
+
+                    g_st().linebuf_attr[wlv.off as usize] = eol_attr;
+                    g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+                    wlv.col += 1;
+                    wlv.off += 1;
+                    wlv.vcol += 1;
+                    eol_hl_off = 1;
+                }
+            }
+
+            if mb_schar == 0 {
+                if in_curline && wlv.col >= view_width {
+                    wp.w_wcol = wp.w_wcol.min(view_width - 1);
+                }
+                wlv.vcol = wlv
+                    .vcol
+                    .max(start_vcol + wlv.col - win_col_off(&raw mut *wp));
+                wlv.col -= wlv.boguscols;
+                wlv.boguscols = 0;
+
+                let hlc = vcol_hlc(&wlv);
+                advance_color_col(&mut wlv, hlc);
+
+                let eol_skip = if eol_hl_off == 0 && (lcs_eol_todo || wp.w_onebuf_opt.wo_list != 0)
+                {
+                    1
+                } else {
+                    0
+                };
+
+                if has_decor {
+                    decor_redraw_eol(
+                        &mut *wp,
+                        &mut g_st().decor_state,
+                        &mut wlv.line_attr,
+                        wlv.col + eol_skip,
+                    );
+                }
+
+                for i in wlv.col..view_width {
+                    g_st().linebuf_vcol[(wlv.off + (i - wlv.col)) as usize] =
+                        wlv.vcol + (i - wlv.col);
+                }
+
+                if (wp.w_onebuf_opt.wo_cuc != 0
+                    && wp.w_virtcol >= vcol_hlc(&wlv) - eol_hl_off
+                    && i64::from(wp.w_virtcol)
+                        < i64::from(view_width) * i64::from(wlv.row - startrow + 1)
+                            + i64::from(start_vcol)
+                    && lnum != wp.w_cursor.lnum)
+                    || !wlv.color_cols.is_empty()
+                    || wlv.line_attr_lowprio != 0
+                    || wlv.line_attr != 0
+                    || wlv.diff_hlf != 0
+                    || !wp.buf_mut().terminal.is_null()
+                {
+                    let mut rightmost_vcol = get_rightmost_vcol(wp, wlv.color_cols);
+                    let cuc_attr = win_hl_attr(&mut *wp, HLF_CUC);
+                    let mc_attr = win_hl_attr(&mut *wp, HLF_MC);
+
+                    if wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA {
+                        wlv.diff_hlf = HLF_CHD;
+                        set_line_attr_for_diff(&mut *wp, &mut wlv);
                     }
 
-                    if (wp.w_onebuf_opt.wo_cuc != 0
-                        && wp.w_virtcol >= vcol_hlc(&wlv) - eol_hl_off
-                        && i64::from(wp.w_virtcol)
-                            < i64::from(view_width) * i64::from(wlv.row - startrow + 1)
-                                + i64::from(start_vcol)
-                        && lnum != wp.w_cursor.lnum)
-                        || !wlv.color_cols.is_empty()
-                        || wlv.line_attr_lowprio != 0
-                        || wlv.line_attr != 0
-                        || wlv.diff_hlf != 0
-                        || !wp.buf_mut().terminal.is_null()
-                    {
-                        let mut rightmost_vcol = get_rightmost_vcol(wp, wlv.color_cols);
-                        let cuc_attr = win_hl_attr(&mut *wp, HLF_CUC);
-                        let mc_attr = win_hl_attr(&mut *wp, HLF_MC);
+                    let diff_attr = if wlv.diff_hlf != 0 {
+                        win_hl_attr(&mut *wp, wlv.diff_hlf)
+                    } else {
+                        0
+                    };
 
-                        if wlv.diff_hlf == HLF_TXD || wlv.diff_hlf == HLF_TXA {
-                            wlv.diff_hlf = HLF_CHD;
-                            set_line_attr_for_diff(&mut *wp, &mut wlv);
-                        }
+                    let base_attr = hl_combine_attr(wlv.line_attr_lowprio, diff_attr);
+                    if base_attr != 0 || wlv.line_attr != 0 || !wp.buf_mut().terminal.is_null() {
+                        rightmost_vcol = i32::MAX;
+                    }
 
-                        let diff_attr = if wlv.diff_hlf != 0 {
-                            win_hl_attr(&mut *wp, wlv.diff_hlf)
-                        } else {
-                            0
-                        };
+                    while wlv.col < view_width {
+                        g_st().linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
 
-                        let base_attr = hl_combine_attr(wlv.line_attr_lowprio, diff_attr);
-                        if base_attr != 0 || wlv.line_attr != 0 || !wp.buf_mut().terminal.is_null()
+                        let hlc = vcol_hlc(&wlv);
+                        advance_color_col(&mut wlv, hlc);
+
+                        let mut col_attr = base_attr;
+
+                        if wp.w_onebuf_opt.wo_cuc != 0
+                            && vcol_hlc(&wlv) == wp.w_virtcol
+                            && lnum != wp.w_cursor.lnum
                         {
-                            rightmost_vcol = i32::MAX;
+                            col_attr = hl_combine_attr(col_attr, cuc_attr);
+                        } else if wlv
+                            .color_cols
+                            .first()
+                            .is_some_and(|&cc| cc == vcol_hlc(&wlv))
+                        {
+                            col_attr = hl_combine_attr(col_attr, mc_attr);
                         }
 
-                        while wlv.col < view_width {
-                            g_st().linebuf_char[wlv.off as usize] = schar_from_ascii(b' ');
+                        if !wp.buf_mut().terminal.is_null() && (wlv.vcol as usize) < TERM_ATTRS_MAX
+                        {
+                            col_attr = hl_combine_attr(col_attr, term_attrs[wlv.vcol as usize]);
+                        }
 
-                            let hlc = vcol_hlc(&wlv);
-                            advance_color_col(&mut wlv, hlc);
+                        col_attr = hl_combine_attr(col_attr, wlv.line_attr);
 
-                            let mut col_attr = base_attr;
+                        g_st().linebuf_attr[wlv.off as usize] = col_attr;
+                        wlv.off += 1;
+                        wlv.col += 1;
+                        wlv.vcol += 1;
 
-                            if wp.w_onebuf_opt.wo_cuc != 0
-                                && vcol_hlc(&wlv) == wp.w_virtcol
-                                && lnum != wp.w_cursor.lnum
-                            {
-                                col_attr = hl_combine_attr(col_attr, cuc_attr);
-                            } else if wlv
-                                .color_cols
-                                .first()
-                                .is_some_and(|&cc| cc == vcol_hlc(&wlv))
-                            {
-                                col_attr = hl_combine_attr(col_attr, mc_attr);
-                            }
-
-                            if !wp.buf_mut().terminal.is_null()
-                                && (wlv.vcol as usize) < TERM_ATTRS_MAX
-                            {
-                                col_attr = hl_combine_attr(col_attr, term_attrs[wlv.vcol as usize]);
-                            }
-
-                            col_attr = hl_combine_attr(col_attr, wlv.line_attr);
-
-                            g_st().linebuf_attr[wlv.off as usize] = col_attr;
-                            wlv.off += 1;
-                            wlv.col += 1;
-                            wlv.vcol += 1;
-
-                            if vcol_hlc(&wlv) > rightmost_vcol {
-                                break;
-                            }
+                        if vcol_hlc(&wlv) > rightmost_vcol {
+                            break;
                         }
                     }
+                }
 
-                    if !fold_vt.is_empty() {
+                if !fold_vt.is_empty() {
+                    unsafe {
                         draw_virt_text_item(
                             &mut *buf,
                             win_col_offset,
@@ -3470,302 +3483,287 @@ pub fn win_line(
                             false,
                         );
                     }
+                }
+                unsafe {
                     draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
-                    wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
-                    wlv.row += 1;
+                }
+                wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
+                wlv.row += 1;
 
-                    if in_curline {
-                        curwin_mut().w_cline_row = startrow;
-                        curwin_mut().w_cline_height = wlv.row - startrow;
-                        curwin_mut().w_cline_folded = has_fold;
-                        curwin_mut().w_valid |= VALID_CHEIGHT | VALID_CROW;
-                    }
-
-                    break;
+                if in_curline {
+                    curwin_mut().w_cline_row = startrow;
+                    curwin_mut().w_cline_height = wlv.row - startrow;
+                    curwin_mut().w_cline_folded = has_fold;
+                    curwin_mut().w_valid |= VALID_CHEIGHT | VALID_CROW;
                 }
 
-                let lcs_ext = get_lcs_ext(wp);
-                if lcs_ext != 0
-                    && wlv.filler_todo <= 0
-                    && wlv.col == view_width - 1
-                    && !has_foldtext
+                break;
+            }
+
+            let lcs_ext = get_lcs_ext(wp);
+            if lcs_ext != 0 && wlv.filler_todo <= 0 && wlv.col == view_width - 1 && !has_foldtext {
+                if has_decor && crate::memory::cstr_is_empty(ptr) && lcs_eol == 0 && lcs_eol_todo {
+                    decor_redraw_col(
+                        &mut *wp,
+                        crate::memory::ptr_offset_from(ptr, line) as Colnr,
+                        -1,
+                        false,
+                        &mut g_st().decor_state,
+                        decor_provider_end_col - 1,
+                    );
+                }
+                if !crate::memory::cstr_is_empty(ptr)
+                    || (lcs_eol > 0 && lcs_eol_todo)
+                    || (wlv.n_extra > 0
+                        && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
+                    || (may_have_inline_virt
+                        && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line)))
                 {
-                    if has_decor
-                        && crate::memory::cstr_is_empty(ptr)
-                        && lcs_eol == 0
-                        && lcs_eol_todo
-                    {
-                        decor_redraw_col(
-                            &mut *wp,
-                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
-                            -1,
-                            false,
-                            &mut g_st().decor_state,
-                            decor_provider_end_col - 1,
-                        );
-                    }
-                    if !crate::memory::cstr_is_empty(ptr)
-                        || (lcs_eol > 0 && lcs_eol_todo)
-                        || (wlv.n_extra > 0
-                            && (wlv.sc_extra != 0
-                                || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
-                        || (may_have_inline_virt
-                            && has_more_inline_virt(
-                                &wlv,
-                                crate::memory::ptr_offset_from(ptr, line),
-                            ))
-                    {
-                        mb_schar = lcs_ext;
-                        mb_schar_width = schar_get_single_width(mb_schar);
-                        wlv.char_attr = win_hl_attr(&mut *wp, HLF_AT);
-                    }
-                }
-
-                let hlc = vcol_hlc(&wlv);
-                advance_color_col(&mut wlv, hlc);
-
-                vcol_save_attr = -1;
-                if !lnum_in_visual_area
-                    && search_attr == 0
-                    && area_attr == 0
-                    && wlv.filler_todo <= 0
-                {
-                    if wp.w_onebuf_opt.wo_cuc != 0
-                        && vcol_hlc(&wlv) == wp.w_virtcol
-                        && lnum != wp.w_cursor.lnum
-                    {
-                        vcol_save_attr = wlv.char_attr;
-                        wlv.char_attr =
-                            hl_combine_attr(win_hl_attr(&mut *wp, HLF_CUC), wlv.char_attr);
-                    } else if wlv
-                        .color_cols
-                        .first()
-                        .is_some_and(|&cc| cc == vcol_hlc(&wlv))
-                    {
-                        vcol_save_attr = wlv.char_attr;
-                        wlv.char_attr =
-                            hl_combine_attr(win_hl_attr(&mut *wp, HLF_MC), wlv.char_attr);
-                    }
-                }
-
-                if wlv.filler_todo <= 0 {
-                    let mut low = wlv.line_attr_lowprio;
-                    let mut high = wlv.char_attr;
-
-                    if wlv.line_attr_lowprio != 0 {
-                        let line_ae = syn_attr2entry(wlv.line_attr_lowprio);
-                        let char_ae = syn_attr2entry(wlv.char_attr);
-                        let mut win_normal_bg = g_st().normal_bg;
-                        let mut win_normal_cterm_bg = g_st().cterm_normal_bg_color;
-
-                        if bg_attr != 0 {
-                            let norm_ae = syn_attr2entry(bg_attr);
-                            win_normal_bg = norm_ae.rgb_bg_color;
-                            win_normal_cterm_bg = i32::from(norm_ae.cterm_bg_color);
-                        }
-                        let char_is_normal_bg = if ui_rgb_attached() {
-                            char_ae.rgb_bg_color == win_normal_bg
-                        } else {
-                            i32::from(char_ae.cterm_bg_color) == win_normal_cterm_bg
-                        };
-
-                        if (line_ae.rgb_bg_color >= 0 || line_ae.cterm_bg_color > 0)
-                            && char_is_normal_bg
-                        {
-                            low = wlv.char_attr;
-                            high = wlv.line_attr_lowprio;
-                        }
-                    }
-                    wlv.char_attr = hl_combine_attr(low, high);
-                }
-
-                if wlv.filler_todo > 0 {
-                    // nothing
-                } else if wlv.skip_cells <= 0 {
-                    g_st().linebuf_char[wlv.off as usize] = mb_schar;
-                    if multi_attr != 0 {
-                        g_st().linebuf_attr[wlv.off as usize] = multi_attr;
-                        multi_attr = 0;
-                    } else {
-                        g_st().linebuf_attr[wlv.off as usize] = wlv.char_attr;
-                    }
-
-                    g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
-
-                    if mb_schar_width > 1 {
-                        wlv.off += 1;
-                        wlv.col += 1;
-                        g_st().linebuf_char[wlv.off as usize] = 0;
-                        g_st().linebuf_attr[wlv.off as usize] =
-                            g_st().linebuf_attr[(wlv.off - 1) as usize];
-
-                        if conceal_replacement_extra > 0 && !conceal_reflow {
-                            g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
-                            wlv.vcol_off_co -= conceal_replacement_extra;
-                        } else {
-                            wlv.vcol += 1;
-                            g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
-                        }
-
-                        if wlv.tocol == wlv.vcol {
-                            wlv.tocol += 1;
-                        }
-                    }
-                    wlv.off += 1;
-                    wlv.col += 1;
-                } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing && conceal_reflow {
-                    wlv.skip_cells -= 1;
-                    wlv.extconceal_off += 1 + i32::from(mb_schar_width > 1) + wlv.n_extra.max(0);
-                    wlv.n_extra = 0;
-                    wlv.n_attr = 0;
-                    cell_hidden = true;
-                } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing {
-                    let concealed_wide = mb_schar_width > 1;
-
-                    wlv.skip_cells -= 1;
-                    wlv.vcol_off_co += 1;
-                    if concealed_wide {
-                        wlv.vcol += 1;
-                        wlv.vcol_off_co += 1;
-                    }
-
-                    if wlv.n_extra > 0 {
-                        wlv.vcol_off_co += wlv.n_extra;
-                    }
-
-                    if is_wrapped {
-                        if wlv.n_extra > 0 {
-                            wlv.vcol += wlv.n_extra;
-                            wlv.col += wlv.n_extra;
-                            wlv.boguscols += wlv.n_extra;
-                            wlv.n_extra = 0;
-                            wlv.n_attr = 0;
-                        }
-
-                        if concealed_wide {
-                            wlv.boguscols += 1;
-                            wlv.col += 1;
-                        }
-
-                        wlv.boguscols += 1;
-                        wlv.col += 1;
-                    } else if wlv.n_extra > 0 {
-                        wlv.vcol += wlv.n_extra;
-                        wlv.n_extra = 0;
-                        wlv.n_attr = 0;
-                    }
-                } else {
-                    wlv.skip_cells -= 1;
-                }
-
-                if wlv.skipped_cells > 0 {
-                    wlv.vcol += wlv.skipped_cells;
-                    wlv.skipped_cells = 0;
-                }
-
-                if wlv.filler_todo <= 0 && !cell_hidden {
-                    wlv.vcol += 1;
-                }
-
-                if vcol_save_attr >= 0 {
-                    wlv.char_attr = vcol_save_attr;
-                }
-
-                if n_attr3 > 0 {
-                    n_attr3 -= 1;
-                    if n_attr3 == 0 {
-                        wlv.char_attr = saved_attr3;
-                    }
-                }
-
-                if wlv.n_attr > 0 {
-                    wlv.n_attr -= 1;
-                    if wlv.n_attr == 0 {
-                        wlv.char_attr = saved_attr2;
-                    }
-                }
-
-                if has_decor && wlv.filler_todo <= 0 && wlv.col >= view_width {
-                    if is_wrapped && wlv.n_extra == 0 {
-                        decor_redraw_col(
-                            &mut *wp,
-                            crate::memory::ptr_offset_from(ptr, line) as Colnr,
-                            -3,
-                            false,
-                            &mut g_st().decor_state,
-                            decor_provider_end_col - 1,
-                        );
-                        decor_need_recheck = true;
-                        if conceal_enabled && g_st().decor_state.conceal_slot_i >= 0 {
-                            if disp_len < 0 {
-                                let col = crate::memory::ptr_offset_from(ptr, line);
-                                disp_len = linetabsize_disp_eol(&mut *wp, lnum);
-                                line = ml_get_buf(wp.buf_mut(), lnum);
-                                ptr = line.wrapping_offset(col);
-                            }
-                            if wlv.vcol >= disp_len {
-                                ptr = ptr.wrapping_add(crate::memory::cstr_len(ptr));
-                            }
-                        }
-                    } else if !is_wrapped {
-                        decor_recheck_draw_col(-1, true, &mut g_st().decor_state);
-                        decor_redraw_col(
-                            &mut *wp,
-                            MAXCOL,
-                            -1,
-                            true,
-                            &mut g_st().decor_state,
-                            decor_provider_end_col - 1,
-                        );
-                    }
+                    mb_schar = lcs_ext;
+                    mb_schar_width = schar_get_single_width(mb_schar);
+                    wlv.char_attr = win_hl_attr(&mut *wp, HLF_AT);
                 }
             }
 
-            // end_check:
-            if wlv.col >= view_width
-                && (!has_foldtext || wlv.filler_todo > 0)
-                && (wlv.col <= leftcols_width
-                    || !crate::memory::cstr_is_empty(ptr)
-                    || wlv.filler_todo > 0
-                    || (wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
-                    || (wlv.n_extra != 0
-                        && (wlv.sc_extra != 0
-                            || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
-                    || (may_have_inline_virt
-                        && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
-            {
-                let grid_width = (*wp.w_grid.target).cols;
-                let wrap = is_wrapped
-                    && wlv.filler_todo <= 0
-                    && lcs_eol_todo
-                    && wlv.row != endrow - 1
-                    && view_width == grid_width
-                    && wp.w_onebuf_opt.wo_rl == 0;
+            let hlc = vcol_hlc(&wlv);
+            advance_color_col(&mut wlv, hlc);
 
-                let mut draw_col = wlv.col - wlv.boguscols;
-
-                for i in draw_col..view_width {
-                    g_st().linebuf_vcol[(wlv.off + (i - draw_col)) as usize] = wlv.vcol - 1;
+            vcol_save_attr = -1;
+            if !lnum_in_visual_area && search_attr == 0 && area_attr == 0 && wlv.filler_todo <= 0 {
+                if wp.w_onebuf_opt.wo_cuc != 0
+                    && vcol_hlc(&wlv) == wp.w_virtcol
+                    && lnum != wp.w_cursor.lnum
+                {
+                    vcol_save_attr = wlv.char_attr;
+                    wlv.char_attr = hl_combine_attr(win_hl_attr(&mut *wp, HLF_CUC), wlv.char_attr);
+                } else if wlv
+                    .color_cols
+                    .first()
+                    .is_some_and(|&cc| cc == vcol_hlc(&wlv))
+                {
+                    vcol_save_attr = wlv.char_attr;
+                    wlv.char_attr = hl_combine_attr(win_hl_attr(&mut *wp, HLF_MC), wlv.char_attr);
                 }
+            }
 
-                if wlv.boguscols != 0 && (wlv.line_attr_lowprio != 0 || wlv.line_attr != 0) {
-                    let attr = hl_combine_attr(wlv.line_attr_lowprio, wlv.line_attr);
-                    while draw_col < view_width {
-                        g_st().linebuf_char[wlv.off as usize] = schar_from_char(b' ' as i32);
-                        g_st().linebuf_attr[wlv.off as usize] = attr;
-                        wlv.off += 1;
-                        draw_col += 1;
+            if wlv.filler_todo <= 0 {
+                let mut low = wlv.line_attr_lowprio;
+                let mut high = wlv.char_attr;
+
+                if wlv.line_attr_lowprio != 0 {
+                    let line_ae = syn_attr2entry(wlv.line_attr_lowprio);
+                    let char_ae = syn_attr2entry(wlv.char_attr);
+                    let mut win_normal_bg = g_st().normal_bg;
+                    let mut win_normal_cterm_bg = g_st().cterm_normal_bg_color;
+
+                    if bg_attr != 0 {
+                        let norm_ae = syn_attr2entry(bg_attr);
+                        win_normal_bg = norm_ae.rgb_bg_color;
+                        win_normal_cterm_bg = i32::from(norm_ae.cterm_bg_color);
+                    }
+                    let char_is_normal_bg = if ui_rgb_attached() {
+                        char_ae.rgb_bg_color == win_normal_bg
+                    } else {
+                        i32::from(char_ae.cterm_bg_color) == win_normal_cterm_bg
+                    };
+
+                    if (line_ae.rgb_bg_color >= 0 || line_ae.cterm_bg_color > 0)
+                        && char_is_normal_bg
+                    {
+                        low = wlv.char_attr;
+                        high = wlv.line_attr_lowprio;
                     }
                 }
+                wlv.char_attr = hl_combine_attr(low, high);
+            }
 
-                if has_virt_line {
-                    let vl = &virt_lines[virt_line_index as usize];
-                    let overflow = vl.overflow;
-                    let virt_row_scroll = overflow == K_VLOVERFLOW_SCROLL
-                        || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap == 0);
-                    if virt_row_scroll {
-                        virt_line_skip_cells = wp.w_leftcol;
+            if wlv.filler_todo > 0 {
+                // nothing
+            } else if wlv.skip_cells <= 0 {
+                g_st().linebuf_char[wlv.off as usize] = mb_schar;
+                if multi_attr != 0 {
+                    g_st().linebuf_attr[wlv.off as usize] = multi_attr;
+                    multi_attr = 0;
+                } else {
+                    g_st().linebuf_attr[wlv.off as usize] = wlv.char_attr;
+                }
+
+                g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+
+                if mb_schar_width > 1 {
+                    wlv.off += 1;
+                    wlv.col += 1;
+                    g_st().linebuf_char[wlv.off as usize] = 0;
+                    g_st().linebuf_attr[wlv.off as usize] =
+                        g_st().linebuf_attr[(wlv.off - 1) as usize];
+
+                    if conceal_replacement_extra > 0 && !conceal_reflow {
+                        g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
+                        wlv.vcol_off_co -= conceal_replacement_extra;
+                    } else {
+                        wlv.vcol += 1;
+                        g_st().linebuf_vcol[wlv.off as usize] = wlv.vcol;
                     }
+
+                    if wlv.tocol == wlv.vcol {
+                        wlv.tocol += 1;
+                    }
+                }
+                wlv.off += 1;
+                wlv.col += 1;
+            } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing && conceal_reflow {
+                wlv.skip_cells -= 1;
+                wlv.extconceal_off += 1 + i32::from(mb_schar_width > 1) + wlv.n_extra.max(0);
+                wlv.n_extra = 0;
+                wlv.n_attr = 0;
+                cell_hidden = true;
+            } else if wp.w_onebuf_opt.wo_cole > 0 && is_concealing {
+                let concealed_wide = mb_schar_width > 1;
+
+                wlv.skip_cells -= 1;
+                wlv.vcol_off_co += 1;
+                if concealed_wide {
+                    wlv.vcol += 1;
+                    wlv.vcol_off_co += 1;
+                }
+
+                if wlv.n_extra > 0 {
+                    wlv.vcol_off_co += wlv.n_extra;
+                }
+
+                if is_wrapped {
+                    if wlv.n_extra > 0 {
+                        wlv.vcol += wlv.n_extra;
+                        wlv.col += wlv.n_extra;
+                        wlv.boguscols += wlv.n_extra;
+                        wlv.n_extra = 0;
+                        wlv.n_attr = 0;
+                    }
+
+                    if concealed_wide {
+                        wlv.boguscols += 1;
+                        wlv.col += 1;
+                    }
+
+                    wlv.boguscols += 1;
+                    wlv.col += 1;
+                } else if wlv.n_extra > 0 {
+                    wlv.vcol += wlv.n_extra;
+                    wlv.n_extra = 0;
+                    wlv.n_attr = 0;
+                }
+            } else {
+                wlv.skip_cells -= 1;
+            }
+
+            if wlv.skipped_cells > 0 {
+                wlv.vcol += wlv.skipped_cells;
+                wlv.skipped_cells = 0;
+            }
+
+            if wlv.filler_todo <= 0 && !cell_hidden {
+                wlv.vcol += 1;
+            }
+
+            if vcol_save_attr >= 0 {
+                wlv.char_attr = vcol_save_attr;
+            }
+
+            if n_attr3 > 0 {
+                n_attr3 -= 1;
+                if n_attr3 == 0 {
+                    wlv.char_attr = saved_attr3;
+                }
+            }
+
+            if wlv.n_attr > 0 {
+                wlv.n_attr -= 1;
+                if wlv.n_attr == 0 {
+                    wlv.char_attr = saved_attr2;
+                }
+            }
+
+            if has_decor && wlv.filler_todo <= 0 && wlv.col >= view_width {
+                if is_wrapped && wlv.n_extra == 0 {
+                    decor_redraw_col(
+                        &mut *wp,
+                        crate::memory::ptr_offset_from(ptr, line) as Colnr,
+                        -3,
+                        false,
+                        &mut g_st().decor_state,
+                        decor_provider_end_col - 1,
+                    );
+                    decor_need_recheck = true;
+                    if conceal_enabled && g_st().decor_state.conceal_slot_i >= 0 {
+                        if disp_len < 0 {
+                            let col = crate::memory::ptr_offset_from(ptr, line);
+                            disp_len = linetabsize_disp_eol(&mut *wp, lnum);
+                            line = ml_get_buf(wp.buf_mut(), lnum);
+                            ptr = line.wrapping_offset(col);
+                        }
+                        if wlv.vcol >= disp_len {
+                            ptr = ptr.wrapping_add(crate::memory::cstr_len(ptr));
+                        }
+                    }
+                } else if !is_wrapped {
+                    decor_recheck_draw_col(-1, true, &mut g_st().decor_state);
+                    decor_redraw_col(
+                        &mut *wp,
+                        MAXCOL,
+                        -1,
+                        true,
+                        &mut g_st().decor_state,
+                        decor_provider_end_col - 1,
+                    );
+                }
+            }
+        }
+
+        // end_check:
+        if wlv.col >= view_width
+            && (!has_foldtext || wlv.filler_todo > 0)
+            && (wlv.col <= leftcols_width
+                || !crate::memory::cstr_is_empty(ptr)
+                || wlv.filler_todo > 0
+                || (wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
+                || (wlv.n_extra != 0
+                    && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
+                || (may_have_inline_virt
+                    && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
+        {
+            let grid_width = unsafe { (*wp.w_grid.target).cols };
+            let wrap = is_wrapped
+                && wlv.filler_todo <= 0
+                && lcs_eol_todo
+                && wlv.row != endrow - 1
+                && view_width == grid_width
+                && wp.w_onebuf_opt.wo_rl == 0;
+
+            let mut draw_col = wlv.col - wlv.boguscols;
+
+            for i in draw_col..view_width {
+                g_st().linebuf_vcol[(wlv.off + (i - draw_col)) as usize] = wlv.vcol - 1;
+            }
+
+            if wlv.boguscols != 0 && (wlv.line_attr_lowprio != 0 || wlv.line_attr != 0) {
+                let attr = hl_combine_attr(wlv.line_attr_lowprio, wlv.line_attr);
+                while draw_col < view_width {
+                    g_st().linebuf_char[wlv.off as usize] = schar_from_char(b' ' as i32);
+                    g_st().linebuf_attr[wlv.off as usize] = attr;
+                    wlv.off += 1;
+                    draw_col += 1;
+                }
+            }
+
+            if has_virt_line {
+                let vl = &virt_lines[virt_line_index as usize];
+                let overflow = vl.overflow;
+                let virt_row_scroll = overflow == K_VLOVERFLOW_SCROLL
+                    || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap == 0);
+                if virt_row_scroll {
+                    virt_line_skip_cells = wp.w_leftcol;
+                }
+                unsafe {
                     draw_virt_text_item(
                         &mut *buf,
                         if (virt_line_flags & K_VLLEFTCOL) != 0 {
@@ -3780,81 +3778,83 @@ pub fn win_line(
                         virt_line_skip_cells,
                         true,
                     );
-                } else if wlv.filler_todo <= 0 {
+                }
+            } else if wlv.filler_todo <= 0 {
+                unsafe {
                     draw_virt_text(wp, &mut *buf, win_col_offset, &mut draw_col, wlv.row);
                 }
+            }
 
-                wlv_put_linebuf(
+            wlv_put_linebuf(
+                wp,
+                &wlv,
+                draw_col,
+                true,
+                bg_attr,
+                if wrap { SLF_WRAP } else { 0 },
+            );
+            if wrap {
+                let mut current_row = wlv.row;
+                let mut dummy_col: i32 = 0;
+                let current_grid =
+                    unsafe { &mut *grid_adjust(&mut *grid, &mut current_row, &mut dummy_col) };
+
+                let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
+                current_grid.attrs[next_row_off] = -1;
+            }
+
+            wlv.boguscols = 0;
+            wlv.vcol_off_co = 0;
+            wlv.row += 1;
+
+            if !is_wrapped && wlv.filler_todo <= 0 {
+                break;
+            }
+
+            if wlv.col <= leftcols_width {
+                win_draw_end(
                     wp,
-                    &wlv,
-                    draw_col,
+                    schar_from_ascii(b'@'),
                     true,
-                    bg_attr,
-                    if wrap { SLF_WRAP } else { 0 },
+                    wlv.row,
+                    wp.w_view_height,
+                    HLF_AT,
                 );
-                if wrap {
-                    let mut current_row = wlv.row;
-                    let mut dummy_col: i32 = 0;
-                    let current_grid =
-                        &mut *grid_adjust(&mut *grid, &mut current_row, &mut dummy_col);
+                set_empty_rows(&mut *wp, wlv.row);
+                wlv.row = endrow;
+            }
 
-                    let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
-                    current_grid.attrs[next_row_off] = -1;
-                }
-
-                wlv.boguscols = 0;
-                wlv.vcol_off_co = 0;
+            if wlv.row == endrow {
                 wlv.row += 1;
+                break;
+            }
 
-                if !is_wrapped && wlv.filler_todo <= 0 {
-                    break;
-                }
+            win_line_start(wp, &mut wlv);
+            draw_cols = true;
 
-                if wlv.col <= leftcols_width {
-                    win_draw_end(
-                        wp,
-                        schar_from_ascii(b'@'),
-                        true,
-                        wlv.row,
-                        wp.w_view_height,
-                        HLF_AT,
-                    );
-                    set_empty_rows(&mut *wp, wlv.row);
-                    wlv.row = endrow;
-                }
-
-                if wlv.row == endrow {
-                    wlv.row += 1;
-                    break;
-                }
-
-                win_line_start(wp, &mut wlv);
-                draw_cols = true;
-
-                lcs_prec_todo = wp.w_p_lcs_chars.prec;
-                if wlv.filler_todo <= 0 {
-                    wlv.need_showbreak = true;
-                }
-                if statuscol.draw
-                    && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
-                    && wlv.row > startrow + wlv.filler_lines
-                {
-                    statuscol.draw = false;
-                }
-                wlv.filler_todo -= 1;
-                has_virt_line = false;
-                virt_line_flags = 0;
-                if wlv.filler_todo == 0 && (wp.w_botfill || !draw_text) {
-                    break;
-                }
+            lcs_prec_todo = wp.w_p_lcs_chars.prec;
+            if wlv.filler_todo <= 0 {
+                wlv.need_showbreak = true;
+            }
+            if statuscol.draw
+                && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
+                && wlv.row > startrow + wlv.filler_lines
+            {
+                statuscol.draw = false;
+            }
+            wlv.filler_todo -= 1;
+            has_virt_line = false;
+            virt_line_flags = 0;
+            if wlv.filler_todo == 0 && (wp.w_botfill || !draw_text) {
+                break;
             }
         }
-
-        drop(fold_vt);
-        drop(virt_lines);
-        drop(foldtext_free);
-        wlv.row
     }
+
+    drop(fold_vt);
+    drop(virt_lines);
+    drop(foldtext_free);
+    wlv.row
 }
 
 fn wlv_put_linebuf(
