@@ -17,6 +17,20 @@ const BENCH_SPECS: &[&str] = &[
 ];
 
 pub fn resolve_upstream_sha(root: &Path, explicit_rev: Option<&str>) -> String {
+    if let Some(rev) = explicit_rev
+        && let Ok(out) = Command::new("git")
+            .current_dir(root)
+            .args([
+                "rev-parse",
+                "--verify",
+                "--short=10",
+                &format!("{rev}^{{commit}}"),
+            ])
+            .output()
+        && out.status.success()
+    {
+        return String::from_utf8_lossy(&out.stdout).trim().to_string();
+    }
     let rev = explicit_rev.unwrap_or("master");
     let status = Command::new("git")
         .current_dir(root)
@@ -209,13 +223,15 @@ fn build_windows_upstream_c(root: &Path, target_dir: &Path, sha: &str) -> PathBu
     .find(|p| Path::new(p).exists())
     .expect("could not locate vcvars64.bat for Windows C Release build");
 
-    let cmd_line = format!(
-        "set \"PATH=%PATH%;C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\" && call \"{vcvars}\" >nul && cd /d \"{}\" && cmake -S cmake.deps -B .deps -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build .deps && cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build",
-        worktree.display()
+    let bat_script = format!(
+        "@echo off\r\nset \"PATH=%PATH%;C:\\Program Files (x86)\\Microsoft Visual Studio\\Installer\"\r\ncall \"{vcvars}\" >nul || exit /b 1\r\ncmake -S cmake.deps -B .deps -G Ninja -DCMAKE_BUILD_TYPE=Release || exit /b 1\r\ncmake --build .deps || exit /b 1\r\ncmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release || exit /b 1\r\ncmake --build build || exit /b 1\r\n"
     );
+    let bat_path = worktree.join("build_upstream.bat");
+    fs::write(&bat_path, bat_script).expect("failed to write build_upstream.bat");
     let status = Command::new("cmd.exe")
+        .current_dir(&worktree)
         .env_remove("NoDefaultCurrentDirectoryInExePath")
-        .args(["/d", "/s", "/c", &cmd_line])
+        .args(["/c", "build_upstream.bat"])
         .status()
         .expect("failed to build Windows upstream C");
     assert!(status.success(), "Windows upstream C Release build failed");
@@ -449,19 +465,19 @@ pub fn generate_svg(
 
   <!-- Header -->
   <text class="title" x="28" y="38">Head-to-Head Editor Benchmarks: Rust Port vs. Upstream C (neovim@{sha})</text>
-  <text class="subtitle" x="28" y="58">Execution time in Release mode (shorter bar = faster; 3-run interleaved median via cargo xtask benchmark).</text>
+  <text class="subtitle" x="28" y="58">Execution time in Release mode (shorter bar = faster; right badges show Rust speedup vs. C).</text>
 
   <!-- Legend -->
   <rect x="28" y="70" width="12" height="12" rx="3" fill="url(#rustLinuxBar)"/>
-  <text class="legend" x="46" y="80">Rust Port · Linux (rustc)</text>
+  <text class="legend" x="46" y="80">Rust / Linux (rustc)</text>
   <rect x="210" y="70" width="12" height="12" rx="3" fill="url(#cLinuxBar)"/>
-  <text class="legend" x="228" y="80">Upstream C · Linux (GCC)</text>
-  <rect x="405" y="70" width="12" height="12" rx="3" fill="url(#rustWinBar)"/>
-  <text class="legend" x="423" y="80">Rust Port · Windows (rustc)</text>
-  <rect x="605" y="70" width="12" height="12" rx="3" fill="url(#cWinBar)"/>
-  <text class="legend" x="623" y="80">Upstream C · Windows (MSVC)</text>
+  <text class="legend" x="228" y="80">Upstream C / Linux (GCC)</text>
+  <rect x="415" y="70" width="12" height="12" rx="3" fill="url(#rustWinBar)"/>
+  <text class="legend" x="433" y="80">Rust / Windows (rustc)</text>
+  <rect x="615" y="70" width="12" height="12" rx="3" fill="url(#cWinBar)"/>
+  <text class="legend" x="633" y="80">Upstream C / Windows (MSVC)</text>
 
-  <line class="divider" x1="24" y1="92" x2="936" y2="92"/>
+  <line class="divider" x1="28" y1="92" x2="932" y2="92"/>
 "##
     );
 
@@ -470,13 +486,13 @@ pub fn generate_svg(
             "Cold Startup",
             "nvim --clean --headless +q (25-run median)",
             "startup_ms",
-            |v| format!("{v:.2} ms"),
+            |v| format!("{v:.1} ms"),
         ),
         (
             "Screen Layout &amp; UTF-8 Wrapping",
             "screenpos_spec.lua (24-test suite total)",
             "screenpos_suite_s",
-            |v| format!("{v:.2} s"),
+            |v| format!("{v:.1} s"),
         ),
         (
             "Long UTF-8 Line Layout",
@@ -486,13 +502,13 @@ pub fn generate_svg(
         ),
         (
             "Regex Search Engine",
-            "bench_regexp_spec.lua (backtracking engine)",
+            "bench_regexp_spec.lua (backtracking)",
             "regexp_bt_ms",
-            |v| format!("{v:.2} ms"),
+            |v| format!("{v:.1} ms"),
         ),
         (
             "Virtual Line Cursor Motion",
-            "extmark_spec.lua (step over 2,000 virtual lines)",
+            "extmark_spec.lua (2,000 virtual lines)",
             "extmark_cursor_us",
             |v| format!("{v:.1} µs"),
         ),
@@ -504,9 +520,9 @@ pub fn generate_svg(
         ),
         (
             "Plugin Autocmd Lifecycle",
-            "autocmd_spec.lua (create, exec &amp; delete 10k)",
+            "autocmd_spec.lua (create/exec/del 10k)",
             "autocmd_suite_ms",
-            |v| format!("{v:.0} ms"),
+            |v| format!("{v:.1} ms"),
         ),
         (
             "Delete 10k Autocmds",
@@ -516,20 +532,20 @@ pub fn generate_svg(
         ),
         (
             "Extmarks &amp; Inline Diagnostics",
-            "extmark_spec.lua (clear ns + 2k virt redraw)",
+            "extmark_spec.lua (clear ns + 2k redraw)",
             "extmark_suite_ms",
-            |v| format!("{v:.0} ms"),
+            |v| format!("{v:.1} ms"),
         ),
         (
             "Option &amp; Buffer Configuration",
-            "option_spec.lua (140,000 vim.o / vim.opt sets)",
+            "option_spec.lua (140k vim.o / vim.opt sets)",
             "option_suite_ms",
-            |v| format!("{v:.0} ms"),
+            |v| format!("{v:.1} ms"),
         ),
     ];
 
-    let bar_x = 310_i32;
-    let max_bar_w = 395.0_f64;
+    let bar_x = 350_i32;
+    let max_bar_w = 405.0_f64;
     let base_y = 100_i32;
     let row_h = 82_i32;
 
@@ -559,30 +575,30 @@ pub fn generate_svg(
     <text class="metric-title" x="28" y="28">{title}</text>
     <text class="metric-desc" x="28" y="46">{desc}</text>
 
-    <text class="row-tag" x="301" y="15">Rust · Linux</text>
-    <rect class="track" x="{bar_x}" y="5" width="395" height="11" rx="3"/>
+    <text class="row-tag" x="340" y="15">Rust / Linux</text>
+    <rect class="track" x="{bar_x}" y="5" width="405" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="5" width="{w_rl}" height="11" rx="3" fill="url(#rustLinuxBar)"/>
     <text class="val-rl b{row_num}" x="{}" y="14">{}</text>
 
-    <text class="row-tag" x="301" y="31">C · Linux</text>
-    <rect class="track" x="{bar_x}" y="21" width="395" height="11" rx="3"/>
+    <text class="row-tag" x="340" y="31">C / Linux</text>
+    <rect class="track" x="{bar_x}" y="21" width="405" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="21" width="{w_cl}" height="11" rx="3" fill="url(#cLinuxBar)"/>
     <text class="val-cl b{row_num}" x="{}" y="30">{}</text>
 
-    <text class="row-tag" x="301" y="47">Rust · Win</text>
-    <rect class="track" x="{bar_x}" y="37" width="395" height="11" rx="3"/>
+    <text class="row-tag" x="340" y="47">Rust / Win</text>
+    <rect class="track" x="{bar_x}" y="37" width="405" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="37" width="{w_rw}" height="11" rx="3" fill="url(#rustWinBar)"/>
     <text class="val-rw b{row_num}" x="{}" y="46">{}</text>
 
-    <text class="row-tag" x="301" y="63">C · Win</text>
-    <rect class="track" x="{bar_x}" y="53" width="395" height="11" rx="3"/>
+    <text class="row-tag" x="340" y="63">C / Win</text>
+    <rect class="track" x="{bar_x}" y="53" width="405" height="11" rx="3"/>
     <rect class="bar d{row_num}" x="{bar_x}" y="53" width="{w_cw}" height="11" rx="3" fill="url(#cWinBar)"/>
     <text class="val-cw b{row_num}" x="{}" y="62">{}</text>
 
-    <rect class="badge-{cls_l} b{row_num}" x="772" y="8" width="156" height="24" rx="12"/>
-    <text class="badge-label-{cls_l} b{row_num}" x="850" y="24">Linux: {spd_l:.2}× speedup</text>
-    <rect class="badge-{cls_w} b{row_num}" x="772" y="38" width="156" height="24" rx="12"/>
-    <text class="badge-label-{cls_w} b{row_num}" x="850" y="54">Win: {spd_w:.2}× speedup</text>
+    <rect class="badge-{cls_l} b{row_num}" x="826" y="8" width="106" height="24" rx="12"/>
+    <text class="badge-label-{cls_l} b{row_num}" x="879" y="24">Linux: {spd_l:.2}x</text>
+    <rect class="badge-{cls_w} b{row_num}" x="826" y="38" width="106" height="24" rx="12"/>
+    <text class="badge-label-{cls_w} b{row_num}" x="879" y="54">Win: {spd_w:.2}x</text>
   </g>
 "#,
             title.replace("&amp;", "&"),
