@@ -2810,7 +2810,7 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
         if let Some(ref s) = ti.defs[i] {
             let prefix = format!("  {name:<31} = ");
             data.extend_from_slice(prefix.as_bytes());
-            kv_transstr(&mut data, s.as_ptr(), false);
+            kv_transstr(&mut data, s.to_bytes(), false);
             data.push(b'\n');
         }
     }
@@ -2819,11 +2819,11 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
         if let Some(ref s) = ti.keys[i][0] {
             let prefix = format!("  key_{name:<27} = ");
             data.extend_from_slice(prefix.as_bytes());
-            kv_transstr(&mut data, s.as_ptr(), false);
+            kv_transstr(&mut data, s.to_bytes(), false);
             if let Some(ref ss) = ti.keys[i][1] {
                 let sprefix = format!(", key_s{name} = ");
                 data.extend_from_slice(sprefix.as_bytes());
-                kv_transstr(&mut data, ss.as_ptr(), false);
+                kv_transstr(&mut data, ss.to_bytes(), false);
             }
             data.push(b'\n');
         }
@@ -2833,7 +2833,7 @@ pub fn terminfo_info_msg(ti: &TerminfoEntry, termname: Option<&CStr>, from_db: b
         if let Some(ref s) = ti.f_keys[i] {
             let prefix = format!("  key_{name:<27} = ");
             data.extend_from_slice(prefix.as_bytes());
-            kv_transstr(&mut data, s.as_ptr(), false);
+            kv_transstr(&mut data, s.to_bytes(), false);
             data.push(b'\n');
         }
     }

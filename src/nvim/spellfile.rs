@@ -1752,7 +1752,9 @@ fn spell_read_aff(
                 }
                 items[itemcnt] = p;
                 itemcnt += 1;
-                let item_len = if itemcnt == 2 && spell_info_item(items[0].cast()) {
+                let item_len = if itemcnt == 2
+                    && spell_info_item(crate::memory::cstr_as_bytes(items[0].cast()))
+                {
                     p_bytes
                         .iter()
                         .take_while(|&&b| b >= b' ' || b == TAB)
@@ -1825,7 +1827,9 @@ fn spell_read_aff(
                             items[1].cast::<std::ffi::c_void>(),
                         );
                     }
-                } else if spell_info_item(items[0].cast()) && itemcnt > 1 {
+                } else if spell_info_item(crate::memory::cstr_as_bytes(items[0].cast()))
+                    && itemcnt > 1
+                {
                     let mut bytes = spin
                         .si_info
                         .as_ref()
@@ -2422,15 +2426,16 @@ fn spell_read_aff(
                     }
                 } else if is_aff_rule(&items, itemcnt_i, c"SAL", 3) {
                     if do_sal {
+                        let item2_bytes = crate::memory::cstr_as_bytes(items[2].cast());
                         if crate::memory::cstr_as_bytes(items[1].cast()) == b"followup" {
-                            spin.si_followup = i32::from(sal_to_bool(items[2].cast()));
+                            spin.si_followup = i32::from(sal_to_bool(item2_bytes));
                         } else if crate::memory::cstr_as_bytes(items[1].cast())
                             == b"collapse_result"
                         {
-                            spin.si_collapse = i32::from(sal_to_bool(items[2].cast()));
+                            spin.si_collapse = i32::from(sal_to_bool(item2_bytes));
                         } else if crate::memory::cstr_as_bytes(items[1].cast()) == b"remove_accents"
                         {
-                            spin.si_rem_accents = i32::from(sal_to_bool(items[2].cast()));
+                            spin.si_rem_accents = i32::from(sal_to_bool(item2_bytes));
                         } else {
                             let to_s = if crate::memory::cstr_as_bytes(items[2].cast()) == b"_" {
                                 c"".as_ptr()
@@ -2581,16 +2586,11 @@ fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
     }
 }
 
-fn spell_info_item(s: impl crate::strings::IntoCCharPtr) -> bool {
-    let s = s.into_c_char_ptr();
-    {
-        crate::memory::cstr_as_bytes(s) == b"NAME"
-            || crate::memory::cstr_as_bytes(s) == b"HOME"
-            || crate::memory::cstr_as_bytes(s) == b"VERSION"
-            || crate::memory::cstr_as_bytes(s) == b"AUTHOR"
-            || crate::memory::cstr_as_bytes(s) == b"EMAIL"
-            || crate::memory::cstr_as_bytes(s) == b"COPYRIGHT"
-    }
+fn spell_info_item(s: &[u8]) -> bool {
+    matches!(
+        s,
+        b"NAME" | b"HOME" | b"VERSION" | b"AUTHOR" | b"EMAIL" | b"COPYRIGHT"
+    )
 }
 
 fn affitem2flag(
@@ -2820,9 +2820,8 @@ fn add_fromto(
     }
 }
 
-fn sal_to_bool(s: impl crate::strings::IntoCCharPtr) -> bool {
-    let s = s.into_c_char_ptr();
-    crate::memory::cstr_as_bytes(s) == b"1" || crate::memory::cstr_as_bytes(s) == b"true"
+fn sal_to_bool(s: &[u8]) -> bool {
+    s == b"1" || s == b"true"
 }
 
 fn spell_read_dic(
@@ -5077,34 +5076,21 @@ pub fn ex_spell(eap: &mut Exarg) {
         SPELL_ADD_GOOD
     };
     spell_add_word(
-        eap.arg,
-        crate::memory::cstr_len(eap.arg) as i32,
+        crate::memory::cstr_as_bytes(eap.arg),
         what,
         if eap.forceit != 0 { 0 } else { eap.line2 },
         eap.cmdidx == CMD_SPELLUNDO,
     );
 }
 
-/// Add "word[len]" to 'spellfile' as a good or bad word.
-pub fn spell_add_word(
-    word: impl crate::strings::IntoCCharPtr,
-    len: i32,
-    what: SpellAddType,
-    idx: i32,
-    undo: bool,
-) {
-    let word = word.into_c_char_ptr();
+/// Add `word_bytes` to 'spellfile' as a good or bad word.
+pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: bool) {
     unsafe {
         let mut buf: *mut FileBuf = ptr::null_mut();
         let mut new_spf = false;
         let mut fnamebuf_arr = [0u8; MAXPATHL];
         let mut line = [0u8; MAXWLEN * 2];
 
-        let word_bytes = if len <= 0 || word.is_null() {
-            &[][..]
-        } else {
-            std::slice::from_raw_parts(word.cast::<u8>(), len as usize)
-        };
         if !valid_spell_word(word_bytes) {
             emsg(gettext(E_ILLEGAL_CHARACTER_IN_WORD));
             return;
@@ -5168,6 +5154,7 @@ pub fn spell_add_word(
             let mut fpos_next: i64 = 0;
             let mut fd = CFile::open(fname.cast(), c"r");
             did_open = fd.is_some();
+            let ulen = word_bytes.len();
             while let Some(ref cur_fd) = fd
                 && !vim_fgets(&mut line, cur_fd)
             {
@@ -5177,9 +5164,8 @@ pub fn spell_add_word(
                     break;
                 }
                 let linelen = crate::memory::cstr_until_nul(&line).to_bytes().len();
-                let ulen = len as usize;
                 if linelen >= ulen
-                    && crate::memory::cstr_slice(word, ulen) == &line[..ulen]
+                    && word_bytes == &line[..ulen]
                     && (line[ulen] == b'/' || line[ulen] < b' ')
                 {
                     drop(fd.take());
@@ -5198,11 +5184,12 @@ pub fn spell_add_word(
                                 MAXPATHL,
                                 true,
                             );
+                            let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
                             smsg!(
                                 0,
                                 gettext(c"Word '%.*s' removed from %s"),
-                                len,
-                                word,
+                                ulen as i32,
+                                word_cstr.as_ptr(),
                                 g_st().name_buff.as_ptr(),
                             );
                         }
@@ -5237,8 +5224,7 @@ pub fn spell_add_word(
 
             did_open = fd.is_some();
             if let Some(fd) = fd {
-                let wlen = crate::memory::cstr_as_bytes(word).len().min(len as usize);
-                fd.write_all(crate::memory::cstr_slice(word, wlen));
+                fd.write_all(word_bytes);
                 if what == SPELL_ADD_BAD {
                     fd.write_all(b"/!\n");
                 } else if what == SPELL_ADD_RARE {
@@ -5255,11 +5241,12 @@ pub fn spell_add_word(
                     MAXPATHL,
                     true,
                 );
+                let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
                 smsg!(
                     0,
                     gettext(c"Word '%.*s' added to %s"),
-                    len,
-                    word,
+                    word_bytes.len() as i32,
+                    word_cstr.as_ptr(),
                     g_st().name_buff.as_ptr(),
                 );
             } else {

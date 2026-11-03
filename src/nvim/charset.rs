@@ -369,9 +369,7 @@ pub fn trans_characters(buf: &mut [u8]) {
     }
 }
 
-pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize {
-    let s = s.into_c_char_ptr();
-    let mut bytes = crate::memory::cstr_as_bytes(s);
+pub fn transstr_len(mut bytes: &[u8], untab: bool) -> usize {
     let mut len: usize = 0;
 
     while !bytes.is_empty() {
@@ -405,25 +403,13 @@ pub fn transstr_len(s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize 
     len
 }
 
-pub fn transstr_buf(
-    s: impl crate::strings::IntoCCharPtr,
-    slen: isize,
-    buf_slice: &mut [u8],
-    untab: bool,
-) -> usize {
-    let s = s.into_c_char_ptr();
+pub fn transstr_buf(mut bytes: &[u8], buf_slice: &mut [u8], untab: bool) -> usize {
     let max_out = buf_slice.len().saturating_sub(1);
     let mut out = 0usize;
-    if slen == 0 || s.is_null() {
+    if bytes.is_empty() {
         buf_slice[0] = 0;
         return 0;
     }
-    let full_bytes = crate::memory::cstr_as_bytes(s);
-    let mut bytes = if slen < 0 {
-        full_bytes
-    } else {
-        &full_bytes[..(slen as usize).min(full_bytes.len())]
-    };
 
     while !bytes.is_empty() && out < max_out {
         let l = utfc_slice2len(bytes);
@@ -470,28 +456,23 @@ pub fn transstr_buf(
 }
 
 pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString {
-    let s = s.into_c_char_ptr();
-    {
-        let len = transstr_len(s, untab) + 1;
-        let mut buf = vec![0u8; len];
-        let written = transstr_buf(s, -1, &mut buf, untab);
-        cstr_from_bytes(&buf[..written])
-    }
+    let bytes = crate::memory::cstr_as_bytes(s);
+    let len = transstr_len(bytes, untab) + 1;
+    let mut buf = vec![0u8; len];
+    let written = transstr_buf(bytes, &mut buf, untab);
+    cstr_from_bytes(&buf[..written])
 }
 
-pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, untab: bool) -> usize {
-    let s = s.into_c_char_ptr();
-    {
-        if s.is_null() {
-            return 0;
-        }
-        let len = transstr_len(s, untab);
-        let old_len = str_.len();
-        str_.resize(old_len + len + 1, 0);
-        transstr_buf(s, -1, &mut str_[old_len..], untab);
-        str_.truncate(old_len + len);
-        len
+pub fn kv_transstr(str_: &mut Vec<u8>, bytes: &[u8], untab: bool) -> usize {
+    if bytes.is_empty() {
+        return 0;
     }
+    let len = transstr_len(bytes, untab);
+    let old_len = str_.len();
+    str_.resize(old_len + len + 1, 0);
+    transstr_buf(bytes, &mut str_[old_len..], untab);
+    str_.truncate(old_len + len);
+    len
 }
 
 pub fn str_foldcase(src: &[u8], mut buf: Option<&mut [u8]>) -> Option<CString> {

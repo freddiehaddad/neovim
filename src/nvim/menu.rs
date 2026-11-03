@@ -470,7 +470,7 @@ fn add_menu_path(
 
     while !crate::memory::cstr_is_empty(name.cast()) {
         let next_name = menu_name_skip(name);
-        let map_to = menutrans_lookup(name, crate::memory::cstr_len(name.cast()) as i32);
+        let map_to = menutrans_lookup(crate::memory::cstr_as_bytes(name.cast()));
         let en_name = if !map_to.is_null() {
             let orig = name;
             name = map_to;
@@ -1853,11 +1853,10 @@ fn menu_skip_part(mut p: *mut u8) -> *mut u8 {
 }
 
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
-fn menutrans_lookup(name: *mut u8, len: i32) -> *mut u8 {
+fn menutrans_lookup(name_slice: &[u8]) -> *mut u8 {
     let menutrans = &menu_st().menutrans_ga;
-    let u_len = len as usize;
+    let u_len = name_slice.len();
 
-    let name_slice = crate::memory::cstr_slice(name.cast(), u_len);
     for entry in menutrans {
         let from_bytes = entry.from.as_bytes();
         if from_bytes.len() == u_len && name_slice.eq_ignore_ascii_case(from_bytes) {
@@ -1865,8 +1864,7 @@ fn menutrans_lookup(name: *mut u8, len: i32) -> *mut u8 {
         }
     }
 
-    let name_slice = name_slice.to_vec();
-    let name_cstr = crate::memory::cstr_from_bytes(&name_slice);
+    let name_cstr = crate::memory::cstr_from_bytes(name_slice);
     let dname = menu_text(name_cstr.as_ptr(), None, None);
     for entry in menutrans {
         if crate::memory::cstr_as_bytes(dname.as_ptr())

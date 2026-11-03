@@ -3661,8 +3661,7 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
     }
     assert!(len <= i32::MAX as usize);
     spell_add_word(
-        ptr,
-        len as i32,
+        crate::memory::cstr_slice(ptr, len),
         if nchar == b'w' as i32 || nchar == b'W' as i32 {
             SPELL_ADD_BAD
         } else {

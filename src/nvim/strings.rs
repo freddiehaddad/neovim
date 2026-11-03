@@ -687,8 +687,7 @@ pub fn infinity_str(
     TABLE[idx]
 }
 
-pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
-    let bytes = crate::memory::cstr_as_bytes(type_.into_c_char_ptr());
+pub fn format_typeof(bytes: &[u8]) -> i32 {
     let mut idx = 0usize;
     let mut length_modifier: u8 = 0;
     let first = bytes.first().copied().unwrap_or(0);
@@ -747,8 +746,7 @@ pub fn format_typeof(type_: impl crate::strings::IntoCCharPtr) -> i32 {
     }
 }
 
-fn format_typename(type_: impl crate::strings::IntoCCharPtr) -> &'static CStr {
-    let type_ = type_.into_c_char_ptr();
+fn format_typename(type_: &[u8]) -> &'static CStr {
     match format_typeof(type_) {
         TYPE_INT => c"int",
         TYPE_LONGINT => c"long int",
@@ -784,28 +782,29 @@ fn adjust_types(
 
     let prev = ap_types[(arg - 1) as usize];
     if !prev.is_null() {
-        if crate::memory::cstr_first_byte(prev) == b'*'
-            || crate::memory::cstr_first_byte(type_) == b'*'
-        {
-            let mut pt = type_;
-            if crate::memory::cstr_first_byte(pt) == b'*' {
-                pt = prev;
-            }
-            if !matches!(crate::memory::cstr_first_byte(pt), b'*' | b'd' | b'i') {
+        let prev_bytes = crate::memory::cstr_as_bytes(prev);
+        let type_bytes = crate::memory::cstr_as_bytes(type_);
+        if prev_bytes.first() == Some(&b'*') || type_bytes.first() == Some(&b'*') {
+            let pt_bytes = if type_bytes.first() == Some(&b'*') {
+                prev_bytes
+            } else {
+                type_bytes
+            };
+            if !matches!(pt_bytes.first(), Some(&b'*' | &b'd' | &b'i')) {
                 semsg!(
                     gettext(E_POSITIONAL_FIELD_SPEC_REUSED),
                     arg,
-                    format_typename(prev),
-                    format_typename(type_),
+                    format_typename(prev_bytes),
+                    format_typename(type_bytes),
                 );
                 return false;
             }
-        } else if format_typeof(type_) != format_typeof(prev) {
+        } else if format_typeof(type_bytes) != format_typeof(prev_bytes) {
             semsg!(
                 gettext(E_POSITIONAL_TYPE_INCONSISTENT),
                 arg,
-                format_typename(type_),
-                format_typename(prev),
+                format_typename(type_bytes),
+                format_typename(prev_bytes),
             );
             return false;
         }
@@ -2971,8 +2970,8 @@ mod tests {
         let cat = concat_str(b"hello ", b"world");
         assert_eq!(cat.to_str().unwrap(), "hello world");
 
-        assert_eq!(format_typeof(c"lld"), TYPE_LONGLONGINT);
-        assert_eq!(format_typeof(c"zu"), TYPE_SIZET);
+        assert_eq!(format_typeof(b"lld"), TYPE_LONGLONGINT);
+        assert_eq!(format_typeof(b"zu"), TYPE_SIZET);
 
         assert_eq!(crate::charset::parse_i64_prefix(b"  -1234px"), -1234);
         assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);

@@ -698,12 +698,12 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 } else {
                     crate::memory::ptr_offset_from(buf.as_mut_ptr().wrapping_add(len), p)
                 };
-                let src_p = if p >= buf.as_mut_ptr().wrapping_add(len) {
-                    c"".as_ptr()
+                let src_slice = if p >= buf.as_mut_ptr().wrapping_add(len) || textlen <= 0 {
+                    &[][..]
                 } else {
-                    p.cast_const().cast()
+                    crate::memory::cstr_slice(p.cast(), textlen as usize)
                 };
-                let tsize = transstr_buf(src_p, textlen, &mut transbuf, true);
+                let tsize = transstr_buf(src_slice, &mut transbuf, true);
                 if !ui_event {
                     col += grid_line_puts(col, transbuf.as_ptr().cast(), tsize as i32, curattr);
                 } else {

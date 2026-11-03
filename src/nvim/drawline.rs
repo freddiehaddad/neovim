@@ -985,8 +985,12 @@ fn draw_statuscol(
     let mut cur_attr = num_attr;
 
     for sp in &stcp.hlrec {
-        let textlen = crate::memory::ptr_offset_from(sp.start, p);
-        let translen = transstr_buf(p.cast(), textlen, &mut transbuf, true);
+        let textlen = crate::memory::ptr_offset_from(sp.start, p).max(0) as usize;
+        let translen = transstr_buf(
+            crate::memory::cstr_slice(p.cast(), textlen),
+            &mut transbuf,
+            true,
+        );
         draw_col_buf(
             wp,
             wlv,
@@ -1018,9 +1022,9 @@ fn draw_statuscol(
         };
         p = sp.start;
     }
+    let rem_len = crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p).max(0) as usize;
     let translen = transstr_buf(
-        p.cast(),
-        crate::memory::ptr_offset_from(buf_ptr.wrapping_add(len), p),
+        crate::memory::cstr_slice(p.cast(), rem_len),
         &mut transbuf,
         true,
     );
