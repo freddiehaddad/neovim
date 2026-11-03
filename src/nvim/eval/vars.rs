@@ -1483,8 +1483,7 @@ fn skip_var_one<T>(arg: *const T) -> *const T {
             } else {
                 arg
             },
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
             FNE_INCL_BR | FNE_CHECK_START,
         )
         .cast()
@@ -1559,12 +1558,7 @@ fn list_arg_vars<T>(eap: &mut Exarg, arg: *const T, first: &mut i32) -> *const T
 
         while ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0 && !g_st().got_int {
             if error || eap.skip != 0 {
-                arg = find_name_end(
-                    arg,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    FNE_INCL_BR | FNE_CHECK_START,
-                );
+                arg = find_name_end(arg, None, FNE_INCL_BR | FNE_CHECK_START);
                 if !ascii_iswhite(crate::memory::cstr_first_byte(arg.cast()))
                     && ends_excmd(crate::memory::cstr_first_byte(arg.cast())) == 0
                 {
@@ -1767,10 +1761,10 @@ fn ex_let_option(
             *p = 0;
         }
 
-        let is_tty_opt = is_tty_option(arg_name.cast());
+        let is_tty_opt = is_tty_option(crate::memory::cstr_as_bytes(arg_name.cast()));
         let hidden = is_option_hidden(opt_idx);
         let curval = if is_tty_opt {
-            get_tty_option(arg_name.cast())
+            get_tty_option(crate::memory::cstr_as_bytes(arg_name.cast()))
         } else {
             get_option_value(opt_idx, opt_flags)
         };
@@ -3453,7 +3447,7 @@ fn opt_from_tv(
         let mut value = nil_obj();
         let mut nbuf = [0u8; NUMBUFLEN];
         let mut err = false;
-        let is_tty_opt = is_tty_option(option);
+        let is_tty_opt = is_tty_option(crate::memory::cstr_as_bytes(option));
         let option_has_bool =
             !is_tty_opt && option_has_type(opt_idx, ObjectType::ObjectTypeBoolean);
         let option_has_num = !is_tty_opt && option_has_type(opt_idx, ObjectType::ObjectTypeInteger);

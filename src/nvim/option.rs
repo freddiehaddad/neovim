@@ -1687,13 +1687,12 @@ fn validate_opt_idx(
 }
 
 /// Skip over the name of a TTY option or keycode option.
-fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const u8 {
-    let arg = arg.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(arg);
+fn find_tty_option_len(bytes: &[u8]) -> Option<usize> {
+    let bytes = crate::memory::bytes_until_nul(bytes);
     if bytes == b"term" {
-        return arg.wrapping_add("term".len()).cast();
+        return Some("term".len());
     } else if bytes == b"ttytype" {
-        return arg.wrapping_add("ttytype".len()).cast();
+        return Some("ttytype".len());
     }
 
     let mut rem = bytes;
@@ -1709,17 +1708,10 @@ fn find_tty_option_end(arg: impl crate::strings::IntoCCharPtr) -> *const u8 {
         rem = &rem[pos..];
     }
     if delimit {
-        let Some(after_gt) = rem.strip_prefix(b">") else {
-            return ptr::null();
-        };
-        rem = after_gt;
+        rem = rem.strip_prefix(b">")?;
     }
 
-    if rem.len() == bytes.len() {
-        ptr::null()
-    } else {
-        arg.wrapping_add(bytes.len() - rem.len()).cast()
-    }
+    (rem.len() != bytes.len()).then_some(bytes.len() - rem.len())
 }
 
 /// Skip over the name of an option.
@@ -1728,12 +1720,11 @@ pub fn find_option_end(
     opt_idxp: &mut OptIndex,
 ) -> *const u8 {
     let arg = arg.into_c_char_ptr();
-    let p = find_tty_option_end(arg);
-    if !p.is_null() {
-        *opt_idxp = K_OPT_INVALID;
-        return p;
-    }
     let bytes = crate::memory::cstr_as_bytes(arg);
+    if let Some(tty_len) = find_tty_option_len(bytes) {
+        *opt_idxp = K_OPT_INVALID;
+        return arg.wrapping_add(tty_len).cast();
+    }
     let alpha_len = bytes
         .iter()
         .take_while(|&&b| b.is_ascii_alphabetic())
@@ -1914,7 +1905,7 @@ fn do_one_set_option<'a>(
 
     if opt_idx != K_OPT_INVALID {
         assert!(option_end >= arg);
-    } else if is_tty_option(arg.cast()) {
+    } else if is_tty_option(crate::memory::cstr_as_bytes(arg.cast())) {
         return None;
     } else {
         return Some(E_UNKNOWN_OPTION);
@@ -3630,42 +3621,39 @@ pub fn check_redraw(flags: u32) {
     check_redraw_for(g_st().curbuf, curwin_mut(), flags);
 }
 
-pub fn is_tty_option(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    !find_tty_option_end(name).is_null()
+pub fn is_tty_option(name: &[u8]) -> bool {
+    find_tty_option_len(name).is_some()
 }
 
 /// Get value of TTY option.
-pub fn get_tty_option(name: impl crate::strings::IntoCCharPtr) -> Object {
-    let name = name.into_c_char_ptr();
-    {
-        if crate::memory::cstr_as_opt_bytes(name) == Some(b"t_Co") {
-            if g_st().t_colors <= 1 {
-                cstr_to_obj(c"")
-            } else {
-                let mut value = [0u8; NUMBUFLEN];
-                vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
-                cstr_to_obj(crate::memory::cstr_until_nul(&value))
-            }
-        } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"term") {
-            cstr_to_obj(
-                opt_st()
-                    .p_term
-                    .as_ref()
-                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-            )
-        } else if crate::memory::cstr_as_opt_bytes(name) == Some(b"ttytype") {
-            cstr_to_obj(
-                opt_st()
-                    .p_ttytype
-                    .as_ref()
-                    .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-            )
-        } else if is_tty_option(name) {
+pub fn get_tty_option(name: &[u8]) -> Object {
+    let name = crate::memory::bytes_until_nul(name);
+    if name == b"t_Co" {
+        if g_st().t_colors <= 1 {
             cstr_to_obj(c"")
         } else {
-            nil_obj()
+            let mut value = [0u8; NUMBUFLEN];
+            vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
+            cstr_to_obj(crate::memory::cstr_until_nul(&value))
         }
+    } else if name == b"term" {
+        cstr_to_obj(
+            opt_st()
+                .p_term
+                .as_ref()
+                .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+        )
+    } else if name == b"ttytype" {
+        cstr_to_obj(
+            opt_st()
+                .p_ttytype
+                .as_ref()
+                .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
+        )
+    } else if is_tty_option(name) {
+        cstr_to_obj(c"")
+    } else {
+        nil_obj()
     }
 }
 

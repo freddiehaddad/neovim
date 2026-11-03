@@ -2250,9 +2250,7 @@ pub fn trans_function_name<T>(
                     semsg!(gettext(E_INVARG2), start);
                 }
             } else {
-                *pp = find_name_end(start, ptr::null_mut(), ptr::null_mut(), FNE_INCL_BR)
-                    .cast_mut()
-                    .cast();
+                *pp = find_name_end(start, None, FNE_INCL_BR).cast_mut().cast();
             }
             return None;
         }
