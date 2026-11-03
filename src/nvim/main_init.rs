@@ -1019,7 +1019,9 @@ pub fn getout(mut exitval: i32) -> ! {
     }
 
     if opt_vars().p_title != 0 && !crate::memory::cstr_is_empty(opt_vars().p_titleold) {
-        ui_call_set_title(cstr_as_string(opt_vars().p_titleold));
+        ui_call_set_title(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+            opt_vars().p_titleold,
+        )));
     }
 
     if g_st().garbage_collect_at_exit {
@@ -1176,7 +1178,11 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
 
     let count = (argc - remote_args).max(0) as usize;
     let mut args_vec: Vec<Object> = (remote_args..argc)
-        .map(|t_argc| cstr_as_obj(params.argv[t_argc as usize].as_ptr()))
+        .map(|t_argc| {
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+                params.argv[t_argc as usize].as_ptr(),
+            ))
+        })
         .collect();
     let args = Array {
         items: if count > 0 {
@@ -1191,8 +1197,8 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
     let mut err = Error::new();
     let mut a_items: [Object; 4] = [
         integer_obj(Integer::from(chan as i32)),
-        cstr_as_obj(server_addr.map_or(ptr::null(), CStr::as_ptr)),
-        cstr_as_obj(connect_error.map_or(ptr::null(), CStr::as_ptr)),
+        cstr_as_obj(server_addr),
+        cstr_as_obj(connect_error),
         Object {
             obj_type: ObjectType::ObjectTypeArray,
             data: ObjectData::Array(args),
@@ -1387,7 +1393,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     } else if strnicmp_ascii(sub, b"clean") {
                         parmp.use_vimrc = Some(c"NONE".to_owned());
                         parmp.clean = true;
-                        set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
+                        set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(Some(c"NONE")), 0);
                     } else if strnicmp_ascii(sub, b"luamod-dev") {
                         g_st().nlua_disable_preload = true;
                     } else {
@@ -1426,7 +1432,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     os_exit(0);
                 }
                 b'H' => {
-                    set_option_value_give_err(K_OPT_KEYMAP, cstr_as_obj(c"hebrew"), 0);
+                    set_option_value_give_err(K_OPT_KEYMAP, cstr_as_obj(Some(c"hebrew")), 0);
                     set_option_value_give_err(K_OPT_RIGHTLEFT, boolean_obj(true), 0);
                 }
                 b'M' => {
@@ -1480,7 +1486,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                         if opt_vars().p_shadafile.is_null()
                             || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
                         {
-                            set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
+                            set_option_value_give_err(
+                                K_OPT_SHADAFILE,
+                                cstr_as_obj(Some(c"NONE")),
+                                0,
+                            );
                         }
                     } else {
                         want_argument = true;
@@ -1508,7 +1518,9 @@ fn command_line_scan(parmp: &mut Mparm) {
                     if (argv_idx as usize) < arg0.len() {
                         set_option_value_give_err(
                             K_OPT_VERBOSEFILE,
-                            cstr_as_obj(arg0_ptr.wrapping_add(argv_idx as usize)),
+                            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+                                arg0_ptr.wrapping_add(argv_idx as usize),
+                            )),
                             0,
                         );
                         argv_idx = arg0.len() as i32;
@@ -1612,7 +1624,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                     b'i' => {
                         set_option_value_give_err(
                             K_OPT_SHADAFILE,
-                            cstr_as_obj(cur_cstr_opt.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+                            cstr_as_obj(cur_cstr_opt.as_deref()),
                             0,
                         );
                     }
@@ -1627,7 +1639,11 @@ fn command_line_scan(parmp: &mut Mparm) {
                         if opt_vars().p_shadafile.is_null()
                             || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
                         {
-                            set_option_value_give_err(K_OPT_SHADAFILE, cstr_as_obj(c"NONE"), 0);
+                            set_option_value_give_err(
+                                K_OPT_SHADAFILE,
+                                cstr_as_obj(Some(c"NONE")),
+                                0,
+                            );
                         }
                         parmp.luaf = Some(crate::memory::cstr_from_bytes(cur_bytes));
                         if arg_idx < raw_len {
@@ -1721,8 +1737,8 @@ fn command_line_scan(parmp: &mut Mparm) {
                     alist_name(unsafe { &*garglist() }).map_or(ptr::null(), CStr::as_ptr),
                 );
                 let joined = concat_fnames(
-                    cstr_as_string(p_vec.as_ptr().cast()),
-                    cstr_as_string(tail),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr().cast())),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(tail)),
                     true,
                 );
                 p_vec = joined.as_bytes_with_nul().to_vec();
@@ -1864,7 +1880,12 @@ fn set_window_layout(paramp: &mut Mparm) {
 fn handle_quickfix(paramp: &mut Mparm) {
     if paramp.edit_type == EDIT_QF {
         if let Some(ref use_ef) = paramp.use_ef {
-            set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(use_ef.as_ptr()), 0, SID_CARG);
+            set_option_direct(
+                K_OPT_ERRORFILE,
+                cstr_as_obj(crate::memory::cstr_as_opt_cstr(use_ef.as_ptr())),
+                0,
+                SID_CARG,
+            );
         }
         vim_snprintf!(
             g_st().iobuff.as_mut_ptr(),
@@ -2099,7 +2120,11 @@ fn edit_buffers(parmp: &mut Mparm) {
                     let mut buf = [0u8; 100];
                     p_shm_save = Some(crate::memory::cstr_to_cstring(opt_vars().p_shm));
                     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"F%s", opt_vars().p_shm);
-                    set_option_value_give_err(K_OPT_SHORTMESS, cstr_as_obj(buf.as_ptr().cast()), 0);
+                    set_option_value_give_err(
+                        K_OPT_SHORTMESS,
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),
+                        0,
+                    );
                 }
             } else {
                 if curwin_mut().w_next.is_null() {
@@ -2150,7 +2175,11 @@ fn edit_buffers(parmp: &mut Mparm) {
     }
 
     if let Some(ref p_shm_save) = p_shm_save {
-        set_option_value_give_err(K_OPT_SHORTMESS, cstr_as_obj(p_shm_save.as_ptr()), 0);
+        set_option_value_give_err(
+            K_OPT_SHORTMESS,
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p_shm_save.as_ptr())),
+            0,
+        );
     }
 
     if parmp.window_layout == WIN_TABS {

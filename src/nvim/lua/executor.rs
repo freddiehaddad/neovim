@@ -1386,8 +1386,10 @@ unsafe extern "C-unwind" fn nlua_print(lstate: *mut lua_State) -> i32 {
         lua_pop(lstate, 1);
         curargidx += 1;
     }
-    let msg_str =
-        crate::api::private::helpers::cbuf_to_string(msg_vec.as_ptr().cast(), msg_vec.len());
+    let msg_str = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
+        msg_vec.as_ptr().cast(),
+        msg_vec.len(),
+    ));
     drop(msg_vec);
 
     lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim.thread");

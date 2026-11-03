@@ -443,12 +443,12 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
 
     let beeps = g_st().did_beep;
     let tick = buf_get_changedtick(curbuf_mut());
-    let mode_str = if atom_remap {
-        c"ix".as_ptr()
-    } else {
-        c"nix".as_ptr()
-    };
-    nvim_feedkeys(cstr_as_string(atom_keys), cstr_as_string(mode_str), false);
+    let mode_str = if atom_remap { c"ix" } else { c"nix" };
+    nvim_feedkeys(
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(atom_keys)),
+        cstr_as_string(Some(mode_str)),
+        false,
+    );
 
     if atom_type == K_AINSERT_SPAN
         && mc_st().mc_ins_span.first
@@ -1166,7 +1166,7 @@ pub fn mc_vsel_refresh() {
         check_cursor(curwin_mut());
         g_st().visual_global.active = false;
         g_st().visual_global.select = false;
-        nvim_feedkeys(span, cstr_as_string(c"nix"), false);
+        nvim_feedkeys(span, cstr_as_string(Some(c"nix")), false);
         if !g_st().visual_global.active {
             continue;
         }

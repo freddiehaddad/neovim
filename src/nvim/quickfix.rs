@@ -2418,14 +2418,22 @@ fn qf_get_fnum(
         return 0;
     }
 
-    let fname_str = cstr_as_string(fname);
+    let fname_str = cstr_as_string(crate::memory::cstr_as_opt_cstr(fname));
     let bufname_ptr = if !directory.is_null() && !vim_isAbsName(fname) {
-        let mut joined = concat_fnames(cstr_as_string(directory), fname_str, true);
+        let mut joined = concat_fnames(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(directory)),
+            fname_str,
+            true,
+        );
         if !os_path_exists(joined.as_ptr()) {
             directory =
                 qf_guess_filepath(qfl, fname).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             joined = if !directory.is_null() {
-                concat_fnames(cstr_as_string(directory), fname_str, true)
+                concat_fnames(
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(directory)),
+                    fname_str,
+                    true,
+                )
             } else {
                 crate::memory::cstr_to_cstring(fname)
             };
@@ -2480,7 +2488,7 @@ fn qf_push_dir(
         let mut new_dirname: Option<std::ffi::CString> = None;
         for i in (0..stack.len()).rev() {
             let dirname_cstr = concat_fnames(
-                cstr_as_string(stack[i].as_ptr()),
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(stack[i].as_ptr())),
                 cbuf_as_string(dirbuf, dirbuf_len),
                 true,
             );
@@ -2518,9 +2526,13 @@ fn qf_guess_filepath(
 
     let top_idx = stack.len() - 1;
     let mut found_idx: Option<usize> = None;
-    let filename_str = cstr_as_string(filename);
+    let filename_str = cstr_as_string(crate::memory::cstr_as_opt_cstr(filename));
     for i in (0..top_idx).rev() {
-        let fullname_cstr = concat_fnames(cstr_as_string(stack[i].as_ptr()), filename_str, true);
+        let fullname_cstr = concat_fnames(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(stack[i].as_ptr())),
+            filename_str,
+            true,
+        );
         if os_path_exists(fullname_cstr.as_ptr()) {
             found_idx = Some(i);
             break;
@@ -3792,11 +3804,11 @@ fn qf_goto_cwindow(qi: &QfInfo, resize: bool, sz: i32, vertsplit: bool) -> bool 
 
 fn qf_set_cwindow_options() {
     set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
-    set_option_value_give_err(K_OPT_BUFTYPE, cstr_as_obj(c"quickfix"), OPT_LOCAL);
-    set_option_value_give_err(K_OPT_BUFHIDDEN, cstr_as_obj(c"hide"), OPT_LOCAL);
+    set_option_value_give_err(K_OPT_BUFTYPE, cstr_as_obj(Some(c"quickfix")), OPT_LOCAL);
+    set_option_value_give_err(K_OPT_BUFHIDDEN, cstr_as_obj(Some(c"hide")), OPT_LOCAL);
     reset_binding(curwin_mut());
     curwin_mut().w_onebuf_opt.wo_diff = 0;
-    set_option_value_give_err(K_OPT_FOLDMETHOD, cstr_as_obj(c"manual"), OPT_LOCAL);
+    set_option_value_give_err(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL);
 }
 
 fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
@@ -4348,7 +4360,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
 
     if old_count == 0 {
         curbuf_mut().b_ro_locked += 1;
-        set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj(c"qf"), OPT_LOCAL);
+        set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj(Some(c"qf")), OPT_LOCAL);
         curbuf_mut().b_p_ma = 0;
 
         curbuf_mut().b_keep_filetype = true;
@@ -5074,7 +5086,12 @@ pub fn ex_cfile(eap: &mut Exarg) {
         return;
     }
     if !crate::memory::cstr_is_empty(eap.arg) {
-        set_option_direct(K_OPT_ERRORFILE, cstr_as_obj(eap.arg), 0, 0);
+        set_option_direct(
+            K_OPT_ERRORFILE,
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(eap.arg)),
+            0,
+            0,
+        );
     }
 
     let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
@@ -7311,7 +7328,11 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         opt_vars().p_cpo = save_cpo;
     } else {
         if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
-            set_option_value_give_err(K_OPT_CPOPTIONS, cstr_as_obj(save_cpo), 0);
+            set_option_value_give_err(
+                K_OPT_CPOPTIONS,
+                cstr_as_obj(crate::memory::cstr_as_opt_cstr(save_cpo)),
+                0,
+            );
         }
         free_string_option(save_cpo);
     }

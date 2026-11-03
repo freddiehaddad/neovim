@@ -620,7 +620,7 @@ fn format_progress_message(
             hl_id,
         });
         updated_msg.push(HlMessageChunk {
-            text: cstr_to_string(c": "),
+            text: cstr_to_string(Some(c": ")),
             hl_id: 0,
         });
     }
@@ -632,7 +632,7 @@ fn format_progress_message(
             c"%3ld%% ",
             msg_data.unwrap().percent,
         );
-        let percent = cstr_to_string(percent_buf.as_ptr().cast());
+        let percent = cstr_to_string(crate::memory::cstr_as_opt_cstr(percent_buf.as_ptr().cast()));
         let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
             text: percent,
@@ -797,7 +797,13 @@ pub fn msg_keep(
 
         let mut need_clear = true;
         if multiline {
-            msg_multiline(cstr_as_string(s), hl_id, false, false, &mut need_clear);
+            msg_multiline(
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(s)),
+                hl_id,
+                false,
+                false,
+                &mut need_clear,
+            );
         } else {
             msg_outtrans(s, hl_id, false);
         }
@@ -1376,13 +1382,13 @@ pub fn msg_progress<T>(
     let status = status.into_c_char_ptr().cast_mut();
     let id = id.into_c_char_ptr().cast_mut();
     let mut data = MessageData {
-        source: cstr_as_string(c"nvim"),
+        source: cstr_as_string(Some(c"nvim")),
         percent: Integer::from(percent),
         title: NvimString {
             data: ptr::null_mut(),
             size: 0,
         },
-        status: cstr_as_string(status),
+        status: cstr_as_string(crate::memory::cstr_as_opt_cstr(status)),
         data: Dict::new(),
     };
     msg_with_id(s, id, c"progress", Some(&mut data), hl_id, hist, trunc, err)
@@ -1410,14 +1416,14 @@ pub fn msg_with_id<T>(
             s = msg_may_trunc(false, s);
         }
         chunks.push(HlMessageChunk {
-            text: cstr_to_string(s.cast()),
+            text: cstr_to_string(crate::memory::cstr_as_opt_cstr(s.cast())),
             hl_id,
         });
     }
     msg_ext_no_fast();
     let id_obj = Object {
         obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(cstr_as_string(id)),
+        data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(id))),
     };
     msg_multihl(
         id_obj,
@@ -1456,7 +1462,7 @@ fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
         if size == 0 {
             return;
         }
-        let text = crate::api::private::helpers::cbuf_to_string(s, size);
+        let text = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(s, size));
 
         let msg = vec![HlMessageChunk { text, hl_id }];
         msg_hist_add_multihl(msg, false);
@@ -1713,9 +1719,7 @@ pub fn ex_messages(eap: &mut Exarg) {
             let mut entry = Array::new();
             entry.push(Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(
-                    p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
-                )),
+                data: ObjectData::String(cstr_to_string(p.kind.as_deref())),
             });
             let mut content = Array::new();
             for chunk in &p.msg {
@@ -2780,7 +2784,7 @@ pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: 
             if crate::memory::cstr_is_empty(str_) && ui_has(K_UIMESSAGES) {
                 msg_ext_no_fast();
                 ui_call_msg_show(
-                    cstr_as_string(c"empty"),
+                    cstr_as_string(Some(c"empty")),
                     Array::new(),
                     false,
                     false,
@@ -2838,10 +2842,10 @@ fn msg_ext_emit_chunk() {
         data: ObjectData::Integer(msg_st().msg_ext_last_attr as Integer),
     });
     msg_st().msg_ext_last_attr = -1;
-    let text = crate::api::private::helpers::cbuf_to_string(
+    let text = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
         msg_st().msg_ext_last_chunk.as_ptr().cast(),
         msg_st().msg_ext_last_chunk.len(),
-    );
+    ));
     msg_st().msg_ext_last_chunk = Vec::new();
     chunk.push(Object {
         obj_type: ObjectType::ObjectTypeString,
@@ -3252,7 +3256,7 @@ fn inc_msg_scrolled() {
             );
             NvimString { data: tofree, size }
         } else {
-            cstr_as_string(gettext(c"Unknown"))
+            cstr_as_string(Some(gettext(c"Unknown")))
         };
         set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
     }
@@ -3873,13 +3877,17 @@ pub fn msg_ext_ui_flush() {
         let tofree = msg_ext_init_chunks();
 
         ui_call_msg_show(
-            cstr_as_string(msg_st().msg_ext_kind.cast()),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                msg_st().msg_ext_kind.cast(),
+            )),
             tofree,
             g_st().msg_ext_overwrite,
             msg_st().msg_ext_history,
             msg_st().msg_ext_append,
             msg_st().msg_ext_id,
-            cstr_as_string(msg_st().msg_ext_trigger.cast()),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                msg_st().msg_ext_trigger.cast(),
+            )),
         );
         if msg_st().msg_ext_history {
             api_free_array(tofree);

@@ -789,7 +789,10 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
         }
         frame.returned.set(true);
         frame.errored.set(true);
-        let s = arena_string(&mut p.arena, cstr_as_string(msg));
+        let s = arena_string(
+            &mut p.arena,
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(msg)),
+        );
         frame.result.set(Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(s),
@@ -820,7 +823,7 @@ fn serialize_request(chan_id: u64, request_id: u32, method: &CStr, args: Array) 
         mpack_uint(&mut packer, request_id);
     }
 
-    mpack_str(cstr_as_string(method), &mut packer);
+    mpack_str(cstr_as_string(Some(method)), &mut packer);
     mpack_object_array(args, &mut packer);
 
     packer_buffer_finish_channels(&mut packer);

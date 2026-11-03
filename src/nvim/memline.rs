@@ -1235,7 +1235,9 @@ pub fn ml_recover(checkext: bool) {
     if let Some(ref fenc) = b0_fenc {
         let fenc_obj = Object {
             obj_type: ObjectType::ObjectTypeString,
-            data: ObjectData::String(cstr_as_string(fenc.as_ptr())),
+            data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                fenc.as_ptr(),
+            ))),
         };
         set_option_value_give_err(K_OPT_FILEENCODING, fenc_obj, OPT_LOCAL);
     }
@@ -1652,7 +1654,11 @@ pub fn recover_names(
             }
         } else if fname.is_null() {
             for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
-                names_vec.push(concat_fnames(dir_name, cstr_as_string(pat.as_ptr()), true));
+                names_vec.push(concat_fnames(
+                    dir_name,
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(pat.as_ptr())),
+                    true,
+                ));
             }
         } else {
             let p = dir_name.data.wrapping_add(dir_name.size);
@@ -1663,7 +1669,11 @@ pub fn recover_names(
                 make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], fname_res)
             } else {
                 let t = path_tail(fname_res);
-                Some(concat_fnames(dir_name, cstr_as_string(t), true))
+                Some(concat_fnames(
+                    dir_name,
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(t)),
+                    true,
+                ))
             };
             if let Some(ref tail) = tail {
                 recov_file_names(&mut names_vec, tail.as_ptr().cast_mut(), false);
@@ -1972,7 +1982,7 @@ fn recov_file_names(
     }
 
     let cur = concat_fnames(
-        cstr_as_string(path),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(path)),
         NvimString {
             data: c".sw?".as_ptr().cast_mut(),
             size: 4,
@@ -3506,7 +3516,7 @@ pub fn get_file_in_dir(
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr().cast_mut();
     let dname = dname.into_c_char_ptr().cast_mut();
-    let tail = cstr_as_string(path_tail(fname));
+    let tail = cstr_as_string(crate::memory::cstr_as_opt_cstr(path_tail(fname)));
     let dname_bytes = crate::memory::cstr_as_bytes(dname);
 
     if dname_bytes == b"." {
@@ -3541,7 +3551,11 @@ pub fn get_file_in_dir(
                 },
                 true,
             );
-            concat_fnames(cstr_as_string(tmp.as_ptr()), tail, true)
+            concat_fnames(
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(tmp.as_ptr())),
+                tail,
+                true,
+            )
         }
     } else {
         concat_fnames(

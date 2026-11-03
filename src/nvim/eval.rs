@@ -1029,11 +1029,11 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
         };
     } else {
         if tv.v_type == VarType::VarList {
-            retval = vim_to_object(&raw mut tv, None, false);
+            retval = vim_to_object(&mut tv, None, false);
         } else {
             retval = Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_to_string(tv_get_string(&tv))),
+                data: ObjectData::String(cstr_to_string(Some(tv_get_string(&tv)))),
             };
         }
         tv_clear(&mut tv);
@@ -5262,8 +5262,11 @@ pub fn callback_call(
             };
             let mut luaargs = arena_array(&mut arena, argcount_in as usize);
             for i in 0..(argcount_in as usize) {
-                *luaargs.next_slot_mut() =
-                    vim_to_object(argvars_in.wrapping_add(i), Some(&mut arena), false);
+                *luaargs.next_slot_mut() = vim_to_object(
+                    unsafe { &mut *argvars_in.wrapping_add(i) },
+                    Some(&mut arena),
+                    false,
+                );
                 luaargs.size += 1;
             }
             let mut err = Error::new();
@@ -6582,7 +6585,7 @@ pub fn ex_echo(eap: &mut Exarg) {
             }
             let tofree = encode_tv2echo(&mut rettv, None);
             msg_multiline(
-                cstr_as_string(tofree.as_ptr()),
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(tofree.as_ptr())),
                 eval_st().echo_hl_id,
                 true,
                 false,
@@ -6871,7 +6874,9 @@ pub fn do_string_sub(
             if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
                 let obj = Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(save_cpo)),
+                    data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                        save_cpo,
+                    ))),
                 };
                 set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
             }

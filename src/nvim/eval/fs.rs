@@ -932,7 +932,8 @@ fn getcwd_scope_args(
         if argv[K_BUF_ARG] > 0 {
             let mut err = Error::new();
 
-            *crate::globals::gptr(buf) = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
+            *crate::globals::gptr(buf) = find_buffer_by_handle(argv[K_BUF_ARG], &mut err)
+                .map_or(ptr::null_mut(), ptr::from_mut);
 
             if err.err_type != ErrorType::ErrorTypeNone {
                 emsg(gettext(c"E5007: Cannot find buffer number."));

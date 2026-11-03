@@ -737,8 +737,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                 chunk.push(Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(crate::api::private::helpers::cbuf_to_string(
-                        transbuf.as_ptr().cast(),
-                        tsize,
+                        crate::memory::cstr_slice(transbuf.as_ptr().cast(), tsize),
                     )),
                 });
                 chunk.push(Object {
@@ -923,7 +922,10 @@ fn ui_ext_tabline_update() {
             c"name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
+                data: ObjectData::String(arena_string(
+                    &mut arena,
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(name_buff)),
+                )),
             },
         );
 
@@ -970,7 +972,10 @@ fn ui_ext_tabline_update() {
                 c"name",
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(arena_string(&mut arena, cstr_as_string(name_buff))),
+                    data: ObjectData::String(arena_string(
+                        &mut arena,
+                        cstr_as_string(crate::memory::cstr_as_opt_cstr(name_buff)),
+                    )),
                 },
             );
 

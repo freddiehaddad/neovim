@@ -4709,11 +4709,15 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         let mut args_items = [
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(xp.xp_pattern.cast())),
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    xp.xp_pattern.cast(),
+                ))),
             },
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(xp.xp_line.cast())),
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    xp.xp_line.cast(),
+                ))),
             },
         ];
         let args = Array {
@@ -4723,7 +4727,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
         };
         let mut err = Error::new();
         let res = nlua_exec(
-            cstr_as_string(lua.as_ptr()),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(lua.as_ptr())),
             ptr::null(),
             args,
             K_RET_OBJECT,

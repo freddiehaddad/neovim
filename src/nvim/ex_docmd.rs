@@ -7117,7 +7117,7 @@ pub fn apply_cmdmod(cmod: &mut Cmdmod) {
 
     if (cmod.cmod_flags & CMOD_NOAUTOCMD) != 0 && cmod.cmod_save_ei.is_none() {
         cmod.cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
-        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(c"all"), 0, SID_NONE);
+        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(Some(c"all")), 0, SID_NONE);
     }
 }
 
@@ -7135,7 +7135,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     if let Some(save_ei) = cmod.cmod_save_ei.take() {
         set_option_direct(
             K_OPT_EVENTIGNORE,
-            cstr_as_obj(save_ei.as_ptr()),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(save_ei.as_ptr())),
             0,
             SID_NONE,
         );
@@ -9302,7 +9302,9 @@ fn ex_restart(eap: &mut Exarg) {
         if listen_arg.is_none() {
             let mut lua_err = error_init();
             let rv = nlua_exec(
-                cstr_as_string(c"return require('vim._core.server').restart_canonical_addr"),
+                cstr_as_string(Some(
+                    c"return require('vim._core.server').restart_canonical_addr",
+                )),
                 ptr::null(),
                 Array {
                     items: ptr::null_mut(),
@@ -9380,7 +9382,7 @@ fn ex_restart(eap: &mut Exarg) {
 
     'fail_2: {
         let mut detach_kv = [KeyValuePair {
-            key: cstr_as_string(c"detach"),
+            key: cstr_as_string(Some(c"detach")),
             value: boolean_obj(true),
         }];
         let detach_opts = Dict {
@@ -9416,16 +9418,16 @@ fn ex_restart(eap: &mut Exarg) {
         if !crate::memory::cstr_is_empty(after_cmd) {
             let mut autocmd_kv = [
                 KeyValuePair {
-                    key: cstr_as_string(c"once"),
+                    key: cstr_as_string(Some(c"once")),
                     value: boolean_obj(true),
                 },
                 KeyValuePair {
-                    key: cstr_as_string(c"nested"),
+                    key: cstr_as_string(Some(c"nested")),
                     value: boolean_obj(true),
                 },
                 KeyValuePair {
-                    key: cstr_as_string(c"command"),
-                    value: cstr_as_obj(after_cmd),
+                    key: cstr_as_string(Some(c"command")),
+                    value: cstr_as_obj(crate::memory::cstr_as_opt_cstr(after_cmd)),
                 },
             ];
             let autocmd_opts = Dict {
@@ -9434,7 +9436,7 @@ fn ex_restart(eap: &mut Exarg) {
                 capacity: 3,
             };
             let mut autocmd_items = [
-                cstr_as_obj(c"UIEnter"),
+                cstr_as_obj(Some(c"UIEnter")),
                 Object {
                     obj_type: ObjectType::ObjectTypeDict,
                     data: ObjectData::Dict(autocmd_opts),
@@ -9459,7 +9461,7 @@ fn ex_restart(eap: &mut Exarg) {
             result_mem = ptr::null_mut();
         }
 
-        let mut servername_items = [cstr_as_obj(c"servername")];
+        let mut servername_items = [cstr_as_obj(Some(c"servername"))];
         let servername_args = Array {
             items: servername_items.as_mut_ptr(),
             size: 1,
@@ -9489,7 +9491,7 @@ fn ex_restart(eap: &mut Exarg) {
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
             let mut handoff_items = [
-                cstr_as_obj(la.as_ptr()),
+                cstr_as_obj(crate::memory::cstr_as_opt_cstr(la.as_ptr())),
                 integer_obj(ui_active() as Integer),
             ];
             let handoff_params = Array {
@@ -9498,7 +9500,9 @@ fn ex_restart(eap: &mut Exarg) {
                 capacity: 3,
             };
             let mut lua_items = [
-                cstr_as_obj(c"return require('vim._core.server').rebind_after_restart(...)"),
+                cstr_as_obj(Some(
+                    c"return require('vim._core.server').rebind_after_restart(...)",
+                )),
                 Object {
                     obj_type: ObjectType::ObjectTypeArray,
                     data: ObjectData::Array(handoff_params),
@@ -9523,7 +9527,9 @@ fn ex_restart(eap: &mut Exarg) {
             result_mem = ptr::null_mut();
         }
 
-        remote_ui_restart(cstr_as_string(listen_addr.as_ptr()));
+        remote_ui_restart(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+            listen_addr.as_ptr(),
+        )));
         ui_flush();
         drop(listen_addr);
 
@@ -9537,7 +9543,10 @@ fn ex_restart(eap: &mut Exarg) {
             quit_cmd = cstr.as_ptr().cast_mut();
             quit_cmd_copy = Some(cstr);
         }
-        nvim_command(cstr_as_string(quit_cmd), &mut err);
+        nvim_command(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(quit_cmd)),
+            &mut err,
+        );
 
         if error_set(&err) {
             let _ = emsg(err.msg_cstr());
@@ -9558,7 +9567,7 @@ fn ex_restart(eap: &mut Exarg) {
     #[cfg(not(windows))]
     {
         result_mem = ptr::null_mut();
-        let mut chanclose_items = [cstr_as_obj(c"chanclose(v:stderr)")];
+        let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
         let chanclose_args = Array {
             items: chanclose_items.as_mut_ptr(),
             size: 1,
@@ -12438,7 +12447,11 @@ fn ex_setfiletype(eap: &mut Exarg) {
         arg = arg.wrapping_add(9);
     }
 
-    set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj(arg), OPT_LOCAL);
+    set_option_value_give_err(
+        K_OPT_FILETYPE,
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(arg)),
+        OPT_LOCAL,
+    );
     if arg != eap.arg {
         curbuf_mut().b_did_filetype = false;
     }

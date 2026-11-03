@@ -123,17 +123,15 @@ use crate::state::MODE_INSERT;
 
 /// Ensures that a buffer is loaded.
 // DLLEXPORT FileBuf *api_buf_ensure_loaded(Buffer buf, Error *err);
-pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
-    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-        return ptr::null_mut();
-    };
+pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
+    let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err)?;
 
     if b.b_ml.ml_mfp.is_none() && !buf_ensure_loaded(b) {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to load buffer",);
-        return ptr::null_mut();
+        return None;
     }
 
-    (&raw mut *b)
+    Some(b)
 }
 
 /// Returns the number of lines in the given buffer.
@@ -144,11 +142,13 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
 // DLLEXPORT Integer nvim_buf_line_count(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
-    let b = find_buffer_by_handle(buf, err);
-    if b.is_null() || crate::globals::gptr(b).b_ml.ml_mfp.is_none() {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return 0;
+    };
+    if b.b_ml.ml_mfp.is_none() {
         return 0;
     }
-    i64::from(crate::globals::gptr(b).b_ml.ml_line_count)
+    i64::from(b.b_ml.ml_line_count)
 }
 
 /// Activates |api-buffer-updates| events on a channel, or as Lua callbacks.
@@ -325,7 +325,7 @@ pub fn nvim_buf_get_lines(
     mut end: Integer,
     strict_indexing: Boolean,
     arena: &mut Arena,
-    lstate: *mut lua_State,
+    mut lstate: Option<&mut lua_State>,
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
@@ -358,7 +358,7 @@ pub fn nvim_buf_get_lines(
         0
     };
 
-    init_line_array(lstate, &mut rv, size, arena);
+    init_line_array(lstate.as_deref_mut(), &mut rv, size, arena);
 
     buf_collect_lines(
         &mut *b,
@@ -410,7 +410,7 @@ pub fn nvim_buf_set_lines(
     arena: &mut Arena,
     err: &mut Error,
 ) {
-    let Some(b) = crate::globals::gopt_mut(api_buf_ensure_loaded(buf, err)) else {
+    let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return;
     };
 
@@ -638,29 +638,29 @@ pub fn nvim_buf_set_text(
         };
     }
 
-    let b = api_buf_ensure_loaded(buf, err);
-    if b.is_null() {
+    let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return;
-    }
+    };
+    let b_ptr: *mut FileBuf = b;
 
     let mut oob = false;
 
-    start_row = normalize_index(crate::globals::gmut(b), start_row, false, &mut oob);
+    start_row = normalize_index(b, start_row, false, &mut oob);
 
     if oob {
         api_err_range(err, c"start_row");
         return;
     }
 
-    end_row = normalize_index(crate::globals::gmut(b), end_row, false, &mut oob);
+    end_row = normalize_index(b, end_row, false, &mut oob);
 
     if oob {
         api_err_range(err, c"end_row");
         return;
     }
 
-    let str_at_start_raw = ml_get_buf(crate::globals::gmut(b), start_row as Linenr);
-    let len_at_start = ml_get_buf_len(crate::globals::gmut(b), start_row as Linenr);
+    let str_at_start_raw = ml_get_buf(b, start_row as Linenr);
+    let len_at_start = ml_get_buf_len(b, start_row as Linenr);
     let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
     if start_col < 0 {
         start_col = i64::from(len_at_start) + start_col + 1;
@@ -670,8 +670,8 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_end_raw = ml_get_buf(crate::globals::gmut(b), end_row as Linenr);
-    let len_at_end = ml_get_buf_len(crate::globals::gmut(b), end_row as Linenr);
+    let str_at_end_raw = ml_get_buf(b, end_row as Linenr);
+    let len_at_end = ml_get_buf_len(b, end_row as Linenr);
     let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
     if end_col < 0 {
         end_col = i64::from(len_at_end) + end_col + 1;
@@ -707,7 +707,7 @@ pub fn nvim_buf_set_text(
         for i in 1..(end_row - start_row) {
             let lnum = start_row + i;
 
-            old_byte += (ml_get_buf_len(crate::globals::gmut(b), lnum as Linenr) as Bcount) + 1;
+            old_byte += (ml_get_buf_len(b, lnum as Linenr) as Bcount) + 1;
         }
         old_byte += (end_col as Bcount) + 1;
     }
@@ -793,7 +793,7 @@ pub fn nvim_buf_set_text(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if crate::globals::gptr(b).b_p_ma == 0 {
+        if b.b_p_ma == 0 {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -802,11 +802,7 @@ pub fn nvim_buf_set_text(
             break 'end;
         }
 
-        if !u_save_buf(
-            crate::globals::gmut(b),
-            (start_row as Linenr) - 1,
-            (end_row as Linenr) + 1,
-        ) {
+        if !u_save_buf(b, (start_row as Linenr) - 1, (end_row as Linenr) + 1) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -820,7 +816,7 @@ pub fn nvim_buf_set_text(
 
         let to_delete = old_len.saturating_sub(new_len);
         for _ in 0..to_delete {
-            if !ml_delete_buf(crate::globals::gmut(b), start_row as Linenr, false) {
+            if !ml_delete_buf(b, start_row as Linenr, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
                 break 'end;
             }
@@ -843,13 +839,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_replace_buf(
-                crate::globals::gmut(b),
-                lnum as Linenr,
-                line.cast(),
-                false,
-                true,
-            ) {
+            if !ml_replace_buf(b, lnum as Linenr, line.cast(), false, true) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -871,13 +861,7 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_append_buf(
-                crate::globals::gmut(b),
-                lnum as Linenr,
-                line.cast(),
-                0,
-                false,
-            ) {
+            if !ml_append_buf(b, lnum as Linenr, line.cast(), 0, false) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
@@ -894,7 +878,7 @@ pub fn nvim_buf_set_text(
         };
 
         mark_adjust_buf(
-            crate::globals::gmut(b),
+            b,
             start_row as Linenr,
             (end_row as Linenr) - 1,
             adjust,
@@ -905,11 +889,11 @@ pub fn nvim_buf_set_text(
         );
 
         if g_st().visual_global.active
-            && b == g_st().curbuf
+            && b_ptr == g_st().curbuf
             && g_st().visual_global.mode != CTRL_V_CONST
         {
             fix_pos_col(
-                crate::globals::gmut(b),
+                b,
                 &mut g_st().visual_global.start,
                 start_row as Linenr,
                 start_col as Colnr,
@@ -924,7 +908,7 @@ pub fn nvim_buf_set_text(
         }
 
         extmark_splice(
-            crate::globals::gmut(b),
+            b,
             (start_row as i32) - 1,
             start_col as Colnr,
             (end_row - start_row) as i32,
@@ -937,7 +921,7 @@ pub fn nvim_buf_set_text(
         );
 
         changed_lines(
-            crate::globals::gmut(b),
+            b,
             start_row as Linenr,
             start_col as Colnr,
             (end_row as Linenr) + 1,
@@ -947,7 +931,7 @@ pub fn nvim_buf_set_text(
 
         for tp in for_all_tabpages_ptr() {
             for win in for_all_windows_in_tab_mut(&*tp) {
-                if win.w_buffer == b {
+                if win.w_buffer == b_ptr {
                     if i64::from(win.w_cursor.lnum) >= start_row
                         && i64::from(win.w_cursor.lnum) <= end_row
                     {
@@ -999,7 +983,7 @@ pub fn nvim_buf_get_text(
     end_col: Integer,
     _opts: &mut KeyDict_empty,
     arena: &mut Arena,
-    lstate: *mut lua_State,
+    mut lstate: Option<&mut lua_State>,
     err: &mut Error,
 ) -> Array {
     let mut rv = Array::new();
@@ -1039,7 +1023,7 @@ pub fn nvim_buf_get_text(
     let replace_nl = channel_id != VIML_INTERNAL_CALL;
     let size = ((end_row - start_row) as usize) + 1;
 
-    init_line_array(lstate, &mut rv, size, arena);
+    init_line_array(lstate.as_deref_mut(), &mut rv, size, arena);
 
     if start_row == end_row {
         let line = buf_get_text(&mut *b, start_row, start_col, end_col, err);
@@ -1055,7 +1039,14 @@ pub fn nvim_buf_get_text(
         return Array::new();
     }
 
-    push_linestr(lstate, &mut rv, str_val.as_bytes(), 0, replace_nl, arena);
+    push_linestr(
+        lstate.as_deref_mut(),
+        &mut rv,
+        str_val.as_bytes(),
+        0,
+        replace_nl,
+        arena,
+    );
 
     if size > 2 {
         buf_collect_lines(
@@ -1065,7 +1056,7 @@ pub fn nvim_buf_get_text(
             1,
             replace_nl,
             &mut rv,
-            lstate,
+            lstate.as_deref_mut(),
             arena,
         );
     }
@@ -1180,11 +1171,9 @@ pub fn nvim_buf_get_keymap(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    let b = find_buffer_by_handle(buf, err);
-    if b.is_null() {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
         return Array::new();
-    }
-    let b = crate::globals::gmut(b);
+    };
     keymap_array(mode, b, arena)
 }
 
@@ -1286,14 +1275,19 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
 // DLLEXPORT String nvim_buf_get_name(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
-    let b = find_buffer_by_handle(buf, err);
-    if b.is_null() || crate::globals::gptr(b).b_ffname.is_null() {
+    let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+        return NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        };
+    };
+    if b.b_ffname.is_null() {
         return NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
     }
-    cstr_as_string(crate::globals::gptr(b).b_ffname)
+    cstr_as_string(crate::memory::cstr_as_opt_cstr(b.b_ffname))
 }
 
 /// Sets the full file name for a buffer, like |:file_f|
@@ -1304,14 +1298,14 @@ pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
 // DLLEXPORT void nvim_buf_set_name(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
-    let b = find_buffer_by_handle(buf, err);
-    if b.is_null() {
+    let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
-    }
+    };
+    let b_ptr: *mut FileBuf = b;
 
     let mut ren_ret = OK;
     try_wrap(err, || {
-        let is_curbuf = b == g_st().curbuf;
+        let is_curbuf = b_ptr == g_st().curbuf;
         let save_acd = opt_vars().p_acd;
         if !is_curbuf {
             g_st().redrawing_disabled += 1;
@@ -1319,13 +1313,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         }
 
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(
-            &mut aco,
-            None,
-            None,
-            unsafe { b.cast::<FileBuf>().as_mut() },
-            0,
-        );
+        ctx_switch(&mut aco, None, None, Some(b), 0);
         ren_ret = if rename_buffer(name.data) { OK } else { FAIL };
         ctx_restore(&mut aco);
 
@@ -1357,9 +1345,9 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 //   FUNC_API_SINCE(5);
 pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
     let mut stub = Error::new();
-    let b = find_buffer_by_handle(buf, &mut stub);
+    let b = crate::api::private::helpers::find_buffer_by_handle_mut(buf, &mut stub);
     api_clear_error(&mut stub);
-    !b.is_null() && crate::globals::gptr(b).b_ml.ml_mfp.is_some()
+    b.is_some_and(|b| b.b_ml.ml_mfp.is_some())
 }
 
 /// Deletes a buffer and its metadata (like |:bwipeout|).
@@ -1413,7 +1401,7 @@ pub fn nvim_buf_delete(buf: Buffer, opts: &mut KeyDict_buf_delete, err: &mut Err
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_is_valid(buf: Buffer) -> Boolean {
     let mut stub = Error::new();
-    let ret = !find_buffer_by_handle(buf, &mut stub).is_null();
+    let ret = find_buffer_by_handle(buf, &mut stub).is_some();
     api_clear_error(&mut stub);
     ret
 }
@@ -1439,7 +1427,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            name.data,
+            crate::memory::cstr_as_opt_cstr(name.data),
             0,
             true,
         );
@@ -1451,16 +1439,21 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         curwin_mut(),
         None,
         K_MARK_ALL_NO_RESOLVE,
-        i32::from(*crate::globals::gptr(name.data.cast::<u8>())),
+        i32::from(unsafe { *name.data.cast::<u8>() }),
     );
-    if fm.is_null() {
-        api_err_invalid(err, c"mark name", name.data, 0, true);
+    let Some(fm) = (unsafe { fm.as_mut() }) else {
+        api_err_invalid(
+            err,
+            c"mark name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return res;
-    }
-    let fm = crate::globals::gmut(fm);
+    };
 
     if fm.mark.lnum != 0 && fm.fnum == b.b_fnum {
-        res = set_mark((&raw mut *b), name, 0, 0, err);
+        res = set_mark(Some(b), name, 0, 0, err);
     }
 
     res
@@ -1492,23 +1485,22 @@ pub fn nvim_buf_set_mark(
     _opts: &mut KeyDict_empty,
     err: &mut Error,
 ) -> Boolean {
-    let b = api_buf_ensure_loaded(buf, err);
-    if b.is_null() {
+    let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return false;
-    }
+    };
 
     if name.size != 1 {
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            name.data,
+            crate::memory::cstr_as_opt_cstr(name.data),
             0,
             true,
         );
         return false;
     }
 
-    set_mark(b, name, line, col, err)
+    set_mark(Some(b), name, line, col, err)
 }
 
 /// Returns a `(row,col)` tuple representing the position of the named mark.
@@ -1541,27 +1533,30 @@ pub fn nvim_buf_get_mark(
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            name.data,
+            crate::memory::cstr_as_opt_cstr(name.data),
             0,
             true,
         );
         return rv;
     }
 
-    let mark = i32::from(*crate::globals::gptr(name.data.cast::<u8>()));
+    let mark = i32::from(unsafe { *name.data.cast::<u8>() });
     let fm = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark);
-    if fm.is_null() {
-        api_err_invalid(err, c"mark name", name.data, 0, true);
+    let Some(fm) = (unsafe { fm.as_ref() }) else {
+        api_err_invalid(
+            err,
+            c"mark name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return rv;
-    }
+    };
 
-    let (lnum, col) = if crate::globals::gptr(fm).fnum != b.b_fnum {
+    let (lnum, col) = if fm.fnum != b.b_fnum {
         (0, 0)
     } else {
-        (
-            crate::globals::gptr(fm).mark.lnum,
-            crate::globals::gptr(fm).mark.col,
-        )
+        (fm.mark.lnum, fm.mark.col)
     };
 
     rv = arena_array(arena, 2);
@@ -1590,26 +1585,14 @@ pub fn nvim_buf_get_mark(
 // DLLEXPORT Object nvim_buf_call(Buffer buf, LuaRef fn, lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_buf_call(
-    buf: Buffer,
-    fn_ref: LuaRef,
-    _lstate: *mut lua_State,
-    err: &mut Error,
-) -> Object {
-    let b = find_buffer_by_handle(buf, err);
-    if b.is_null() {
+pub fn nvim_buf_call(buf: Buffer, fn_ref: LuaRef, err: &mut Error) -> Object {
+    let Some(b) = find_buffer_by_handle(buf, err) else {
         return OBJECT_NIL;
-    }
+    };
 
     try_wrap_err(err, |err| {
         let mut cs: CtxSwitch = CtxSwitch::new();
-        ctx_switch(
-            &mut cs,
-            None,
-            None,
-            unsafe { b.cast::<FileBuf>().as_mut() },
-            0,
-        );
+        ctx_switch(&mut cs, None, None, Some(b), 0);
         let args = Array::new();
         nlua_call_ref(
             fn_ref,
@@ -1784,8 +1767,8 @@ fn fix_cursor_cols(
 }
 
 #[inline]
-fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &mut Arena) {
-    if !lstate.is_null() {
+fn init_line_array(lstate: Option<&mut lua_State>, a: &mut Array, size: usize, arena: &mut Arena) {
+    if let Some(lstate) = lstate {
         unsafe { lua_createtable(lstate, size as i32, 0) };
     } else {
         *a = arena_array(arena, size);
@@ -1793,14 +1776,14 @@ fn init_line_array(lstate: *mut lua_State, a: &mut Array, size: usize, arena: &m
 }
 
 fn push_linestr(
-    lstate: *mut lua_State,
+    lstate: Option<&mut lua_State>,
     a: &mut Array,
     s: &[u8],
     idx: i32,
     replace_nl: bool,
     arena: &mut Arena,
 ) {
-    if !lstate.is_null() {
+    if let Some(lstate) = lstate {
         if replace_nl && s.contains(&b'\n') {
             let mut tmp: Vec<u8> = s.to_vec();
             for b in &mut tmp {
@@ -1852,14 +1835,14 @@ pub fn buf_collect_lines(
     start_idx: i32,
     replace_nl: bool,
     l: &mut Array,
-    lstate: *mut lua_State,
+    mut lstate: Option<&mut lua_State>,
     arena: &mut Arena,
 ) {
     for i in 0..n {
         let lnum = start + (i as Linenr);
         let line_bytes = crate::memline::ml_get_buf_slice(buf, lnum);
         push_linestr(
-            lstate,
+            lstate.as_deref_mut(),
             l,
             line_bytes,
             start_idx + (i as i32),

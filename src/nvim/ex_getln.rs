@@ -1324,7 +1324,9 @@ fn command_line_enter(
 
         set_option_direct(
             K_OPT_INCCOMMAND,
-            cstr_as_obj(s.save_p_icm.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr())),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+                s.save_p_icm.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+            )),
             0,
             SID_NONE,
         );
@@ -3181,7 +3183,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     if icm_split {
         cmdpreview_buf = cmdpreview_open_buf();
         if cmdpreview_buf.is_null() {
-            set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(c"nosplit"), 0, SID_NONE);
+            set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"nosplit")), 0, SID_NONE);
             icm_split = false;
         }
     }
@@ -4057,7 +4059,10 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     } else {
         let mut item = arena_array(&mut arena, 3);
         add_c(&mut item, integer_obj(0));
-        add_c(&mut item, cstr_as_obj(line.cmdbuff.cast()));
+        add_c(
+            &mut item,
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(line.cmdbuff.cast())),
+        );
         add_c(&mut item, integer_obj(0));
         content = arena_array(&mut arena, 1);
         add_c(&mut content, array_obj(item));
@@ -4066,8 +4071,8 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     ui_call_cmdline_show(
         content,
         line.cmdpos as Integer,
-        cstr_as_string(charbuf.as_ptr().cast()),
-        cstr_as_string(line.cmdprompt.as_ref().map_or(ptr::null(), |p| p.as_ptr())),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr().cast())),
+        cstr_as_string(line.cmdprompt.as_deref()),
         line.cmdindent as Integer,
         line.level as Integer,
         if line.cmdprompt.is_some() {
@@ -4079,7 +4084,7 @@ fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
     if line.special_char != 0 {
         charbuf[0] = line.special_char;
         ui_call_cmdline_special_char(
-            cstr_as_string(charbuf.as_ptr().cast()),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr().cast())),
             line.special_shift,
             line.level as Integer,
         );
@@ -4104,8 +4109,7 @@ pub fn ui_ext_cmdline_block_append(indent: usize, line: impl crate::strings::Int
         array_add(
             &mut item,
             string_obj(crate::api::private::helpers::cbuf_to_string(
-                buf.as_ptr().cast(),
-                buf.len(),
+                crate::memory::cstr_slice(buf.as_ptr().cast(), buf.len()),
             )),
         );
         array_add(&mut item, integer_obj(0));
@@ -4215,7 +4219,7 @@ pub fn putcmdline(c: u8, shift: bool) {
     } else if getln_st().ccline.redraw_state != K_CMD_REDRAW_ALL {
         let charbuf: [u8; 2] = [c, 0];
         ui_call_cmdline_special_char(
-            cstr_as_string(charbuf.as_ptr().cast()),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(charbuf.as_ptr().cast())),
             shift,
             getln_st().ccline.level as Integer,
         );

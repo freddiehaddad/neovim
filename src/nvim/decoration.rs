@@ -1873,7 +1873,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     }
 
     if (sh_hl.flags & K_SHCONCEAL_LINES) != 0 {
-        put_c(dict, c"conceal_lines", cstr_as_obj(c""));
+        put_c(dict, c"conceal_lines", cstr_as_obj(Some(c"")));
     }
 
     if (sh_hl.flags & K_SHSPELL_ON) != 0 {
@@ -1887,13 +1887,13 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     }
 
     if let Some(ref url) = sh_hl.url {
-        put_c(dict, c"url", cstr_as_obj(url.as_ptr()));
+        put_c(dict, c"url", cstr_as_obj(Some(url.as_c_str())));
     }
 
     if let Some(virt_text) = virt_text {
         if virt_text.hl_mode != 0 {
-            let mode_str = HL_MODE_STR[virt_text.hl_mode as usize].as_ptr();
-            put_c(dict, c"hl_mode", cstr_as_obj(mode_str));
+            let mode_str = HL_MODE_STR[virt_text.hl_mode as usize];
+            put_c(dict, c"hl_mode", cstr_as_obj(Some(mode_str)));
         }
 
         let chunks = virt_text_to_array(virt_text.data.virt_text(), hl_name, arena);
@@ -1915,8 +1915,8 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
                 integer_obj(Integer::from(virt_text.col)),
             );
         }
-        let pos_str = VIRT_TEXT_POS_STR[virt_text.pos as usize].as_ptr();
-        put_c(dict, c"virt_text_pos", cstr_as_obj(pos_str));
+        let pos_str = VIRT_TEXT_POS_STR[virt_text.pos as usize];
+        put_c(dict, c"virt_text_pos", cstr_as_obj(Some(pos_str)));
         priority = i32::from(virt_text.priority);
     }
 
@@ -1944,12 +1944,12 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         );
 
         let overflow = match virt_lines_overflow {
-            K_VLOVERFLOW_SCROLL => c"scroll".as_ptr(),
-            K_VLOVERFLOW_WRAP => c"wrap".as_ptr(),
-            K_VLOVERFLOW_AUTO => c"auto".as_ptr(),
-            _ => c"trunc".as_ptr(),
+            K_VLOVERFLOW_SCROLL => c"scroll",
+            K_VLOVERFLOW_WRAP => c"wrap",
+            K_VLOVERFLOW_AUTO => c"auto",
+            _ => c"trunc",
         };
-        put_c(dict, c"virt_lines_overflow", cstr_as_obj(overflow));
+        put_c(dict, c"virt_lines_overflow", cstr_as_obj(Some(overflow)));
         priority = i32::from(virt_lines.priority);
     }
 
@@ -1965,7 +1965,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
         }
 
         if let Some(ref sign_name) = sh_sign.sign_name {
-            put_c(dict, c"sign_name", cstr_as_obj(sign_name.as_ptr()));
+            put_c(dict, c"sign_name", cstr_as_obj(Some(sign_name.as_c_str())));
         }
 
         let hls = [
@@ -2017,7 +2017,7 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
 
 pub fn hl_group_name(hl_id: i32, hl_name: bool) -> Object {
     if hl_name {
-        cstr_as_obj(syn_id2name(hl_id))
+        cstr_as_obj(Some(syn_id2name(hl_id)))
     } else {
         integer_obj(Integer::from(hl_id))
     }

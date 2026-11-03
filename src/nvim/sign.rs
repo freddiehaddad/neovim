@@ -186,11 +186,13 @@ fn buf_set_sign(
     {
         if !group.is_null() && find_ns_by_name(group) == 0 {
             let ns_vec = &mut sign_st().sign_ns;
-            ns_vec.push(nvim_create_namespace(cstr_as_string(group)));
+            ns_vec.push(nvim_create_namespace(cstr_as_string(
+                crate::memory::cstr_as_opt_cstr(group),
+            )));
         }
 
         let ns = if !group.is_null() {
-            nvim_create_namespace(cstr_as_string(group)) as u32
+            nvim_create_namespace(cstr_as_string(crate::memory::cstr_as_opt_cstr(group))) as u32
         } else {
             0
         };

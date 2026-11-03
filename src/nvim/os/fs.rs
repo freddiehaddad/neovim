@@ -507,7 +507,7 @@ pub fn os_chdir(path: impl crate::strings::IntoCCharPtr) -> i32 {
         }
         let err = unsafe { uv_chdir(path) };
         if err == 0 {
-            ui_call_chdir(cstr_as_string(path));
+            ui_call_chdir(cstr_as_string(crate::memory::cstr_as_opt_cstr(path)));
         }
         err
     }

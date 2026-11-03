@@ -209,9 +209,13 @@ pub fn vim_findfile_init(
                 expand_buf[..len].copy_from_slice(crate::memory::cstr_slice(rel_fname, len));
                 expand_buf[len] = 0;
                 let full = FullName_save(expand_buf.as_mut_ptr().cast(), false).unwrap_or_default();
-                search_ctx.ffsc_start_dir = cbuf_to_string(full.as_ptr(), full.as_bytes().len());
+                search_ctx.ffsc_start_dir = cbuf_to_string(crate::memory::cstr_slice(
+                    full.as_ptr(),
+                    full.as_bytes().len(),
+                ));
             } else {
-                search_ctx.ffsc_start_dir = cbuf_to_string(rel_fname, len);
+                search_ctx.ffsc_start_dir =
+                    cbuf_to_string(crate::memory::cstr_slice(rel_fname, len));
             }
             path = path.wrapping_add(1 + usize::from(path_bytes.len() > 1));
         } else if path_bytes.is_empty() || !vim_isAbsName(path) {
@@ -286,7 +290,7 @@ pub fn vim_findfile_init(
         let path_bytes = crate::memory::cstr_as_bytes(path);
         let mut expand_size: usize;
         if let Some(star_pos) = path_bytes.iter().position(|&b| b == b'*') {
-            search_ctx.ffsc_fix_path = cbuf_to_string(path, star_pos);
+            search_ctx.ffsc_fix_path = cbuf_to_string(crate::memory::cstr_slice(path, star_pos));
 
             expand_size = 0;
             let mut wc_rem = &path_bytes[star_pos..];
@@ -336,7 +340,7 @@ pub fn vim_findfile_init(
                 None,
             );
         } else {
-            search_ctx.ffsc_fix_path = cstr_to_string(path);
+            search_ctx.ffsc_fix_path = cstr_to_string(crate::memory::cstr_as_opt_cstr(path));
         }
 
         if search_ctx.ffsc_start_dir.data.is_null() {
@@ -454,7 +458,10 @@ pub fn vim_findfile_init(
                         search_ctx.ffsc_wc_path.data,
                     ) as usize;
                     api_clear_string(&mut search_ctx.ffsc_wc_path);
-                    search_ctx.ffsc_wc_path = cbuf_to_string(temp_vec.as_ptr().cast(), temp_len);
+                    search_ctx.ffsc_wc_path = cbuf_to_string(crate::memory::cstr_slice(
+                        temp_vec.as_ptr().cast(),
+                        temp_len,
+                    ));
                 }
             }
         }
@@ -467,7 +474,10 @@ pub fn vim_findfile_init(
         );
 
         ff_push(&mut search_ctx, sptr);
-        search_ctx.ffsc_file_to_search = cbuf_to_string(fn_slice.as_ptr().cast(), fn_slice.len());
+        search_ctx.ffsc_file_to_search = cbuf_to_string(crate::memory::cstr_slice(
+            fn_slice.as_ptr().cast(),
+            fn_slice.len(),
+        ));
         Some(search_ctx)
     }
 }
@@ -1032,8 +1042,14 @@ fn ff_create_stack_element(
 ) -> FfStack {
     let fix_bytes = crate::memory::bytes_until_nul(fix_part);
     let wc_bytes = crate::memory::bytes_until_nul(wc_part);
-    let ffs_fix_path = cbuf_to_string(fix_bytes.as_ptr().cast(), fix_bytes.len());
-    let ffs_wc_path = cbuf_to_string(wc_bytes.as_ptr().cast(), wc_bytes.len());
+    let ffs_fix_path = cbuf_to_string(crate::memory::cstr_slice(
+        fix_bytes.as_ptr().cast(),
+        fix_bytes.len(),
+    ));
+    let ffs_wc_path = cbuf_to_string(crate::memory::cstr_slice(
+        wc_bytes.as_ptr().cast(),
+        wc_bytes.len(),
+    ));
 
     FfStack {
         ffs_fix_path,

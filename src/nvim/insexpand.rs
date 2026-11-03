@@ -1246,7 +1246,10 @@ fn ins_compl_add(
         };
 
         let match_ = Compl {
-            cp_str: crate::api::private::helpers::cbuf_to_string(str_ptr, len as usize),
+            cp_str: crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(
+                str_ptr,
+                len as usize,
+            )),
             cp_text,
             cp_user_data,
             cp_fname,
@@ -1697,7 +1700,7 @@ fn prepend_startcol_text(dest: &mut NvimString, src: &NvimString, startcol: i32)
     buf[..prepend_len]
         .copy_from_slice(&line_slice[startcol as usize..startcol as usize + prepend_len]);
     buf[prepend_len..new_length].copy_from_slice(crate::memory::cstr_slice(src.data, src.size));
-    *dest = cbuf_to_string(buf.as_ptr().cast(), new_length);
+    *dest = cbuf_to_string(crate::memory::cstr_slice(buf.as_ptr().cast(), new_length));
 }
 
 fn get_leader_for_startcol(match_: Option<&Compl>, cached: bool) -> NvimString {
@@ -2538,10 +2541,10 @@ pub fn ins_compl_bs() -> i32 {
     let line_slice = crate::cursor::get_cursor_line_slice();
 
     api_clear_string(&mut insexp().compl_leader);
-    insexp().compl_leader = cbuf_to_string(
+    insexp().compl_leader = cbuf_to_string(crate::memory::cstr_slice(
         line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         (p_off - insexp().compl_col as isize) as usize,
-    );
+    ));
 
     if insexp().compl_autocomplete && !insexp().compl_list.is_empty() && !ins_compl_has_preinsert()
     {
@@ -2688,10 +2691,10 @@ pub fn ins_compl_addleader(c: i32) {
 
     api_clear_string(&mut insexp().compl_leader);
     let line_slice = crate::cursor::get_cursor_line_slice();
-    insexp().compl_leader = cbuf_to_string(
+    insexp().compl_leader = cbuf_to_string(crate::memory::cstr_slice(
         line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         (curwin_mut().w_cursor.col - insexp().compl_col) as usize,
-    );
+    ));
     ins_compl_new_leader();
 }
 
@@ -2716,7 +2719,7 @@ fn ins_compl_set_original_text(bytes: &[u8]) {
     let match_ = compl_at(orig_idx);
     api_clear_string(&mut match_.cp_str);
     let b = crate::memory::bytes_until_nul(bytes);
-    match_.cp_str = cbuf_to_string(b.as_ptr().cast(), b.len());
+    match_.cp_str = cbuf_to_string(crate::memory::cstr_slice(b.as_ptr().cast(), b.len()));
 }
 
 pub fn ins_compl_addfrommatch() {
@@ -3555,10 +3558,10 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
     insexp().compl_lnum = curwin_mut().w_cursor.lnum;
     insexp().compl_length = curwin_mut().w_cursor.col - startcol;
     let line_slice = crate::cursor::get_cursor_line_slice();
-    insexp().compl_orig_text = cbuf_to_string(
+    insexp().compl_orig_text = cbuf_to_string(crate::memory::cstr_slice(
         line_slice[insexp().compl_col as usize..].as_ptr().cast(),
         insexp().compl_length as usize,
-    );
+    ));
     save_orig_extmarks();
     if opt_vars().p_ic != 0 {
         flags |= CP_ICASE;
@@ -6457,10 +6460,10 @@ fn ins_compl_start() -> bool {
 
     crate::globals::gptr(extmarks).clear();
 
-    insexp().compl_orig_text = cbuf_to_string(
+    insexp().compl_orig_text = cbuf_to_string(crate::memory::cstr_slice(
         line.wrapping_add(insexp().compl_col as usize),
         insexp().compl_length as usize,
-    );
+    ));
     save_orig_extmarks();
     let mut flags = CP_ORIGINAL_TEXT;
     if opt_vars().p_ic != 0 {

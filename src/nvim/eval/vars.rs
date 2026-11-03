@@ -1822,7 +1822,9 @@ fn ex_let_option(
                         crate::memory::cstr_as_bytes(curval_data),
                         crate::memory::cstr_as_bytes(newval_data),
                     );
-                    newval = crate::api::private::helpers::cstr_to_obj(joined.as_ptr());
+                    newval = crate::api::private::helpers::cstr_to_obj(
+                        crate::memory::cstr_as_opt_cstr(joined.as_ptr()),
+                    );
                     optval_free(newval_old);
                 }
             }
@@ -3432,7 +3434,9 @@ fn opt_from_tv(
 
         if !is_tty_opt && (get_option(opt_idx).flags & K_OPT_FLAG_FUNC) != 0 && tv_is_func(tv) {
             let strval = encode_tv2string(tv, None);
-            value = crate::api::private::helpers::cstr_to_obj(strval.as_ptr());
+            value = crate::api::private::helpers::cstr_to_obj(crate::memory::cstr_as_opt_cstr(
+                strval.as_ptr(),
+            ));
         } else if option_has_bool || option_has_num {
             let n = if option_has_num {
                 tv_get_number_chk(&*tv, Some(&mut err))
@@ -3463,9 +3467,7 @@ fn opt_from_tv(
             if tv.v_type != VarType::VarBool && tv.v_type != VarType::VarSpecial {
                 let strval = tv_get_string_buf_chk(&*tv, &mut nbuf);
                 err = strval.is_none();
-                value = string_obj(cstr_to_string(
-                    strval.map_or(ptr::null(), std::ffi::CStr::as_ptr),
-                ));
+                value = string_obj(cstr_to_string(strval));
             } else {
                 err = true;
                 emsg(gettext(E_STRING_REQUIRED));

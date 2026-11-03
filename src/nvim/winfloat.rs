@@ -507,7 +507,7 @@ pub fn win_float_special(
         buf.b_p_bl = 0; // unlist
         set_option_direct_for(
             K_OPT_BUFHIDDEN,
-            cstr_as_obj(c"wipe"),
+            cstr_as_obj(Some(c"wipe")),
             OPT_LOCAL,
             0,
             OptTarget::Buf(&raw mut *buf),
@@ -558,7 +558,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
         wp.w_config.title_chunks.clear();
         let mut err = error_init();
         parse_bordertext(
-            cstr_as_obj(wp.buf_mut().b_fname),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(wp.buf_mut().b_fname)),
             K_BORDER_TEXT_TITLE,
             &mut wp.w_config,
             &mut err,

@@ -42,16 +42,19 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
         size: 0,
         capacity: 0,
     };
-    let tab = find_tab_by_handle(tabpage, err);
+    let Some(tab) = find_tab_by_handle(tabpage, err) else {
+        return rv;
+    };
+    let tab_ptr = std::ptr::from_ref(tab);
 
-    if tab.is_null() || !valid_tabpage(tab) {
+    if !valid_tabpage(tab_ptr) {
         return rv;
     }
 
-    let first = if tab == g_st().curtab {
+    let first = if std::ptr::eq(tab_ptr, g_st().curtab) {
         g_st().firstwin
     } else {
-        crate::globals::gptr(tab).tp_firstwin
+        tab.tp_firstwin
     };
     let n = win_iter_mut(first).count();
 
@@ -119,15 +122,18 @@ pub fn nvim_tabpage_del_var(tabpage: Tabpage, name: NvimString, err: &mut Error)
 /// @return |window-ID|
 // DLLEXPORT Window nvim_tabpage_get_win(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
-    let tab = find_tab_by_handle(tabpage, err);
-    if tab.is_null() || !valid_tabpage(tab) {
+    let Some(tab) = find_tab_by_handle(tabpage, err) else {
+        return 0;
+    };
+    let tab_ptr = std::ptr::from_ref(tab);
+    if !valid_tabpage(tab_ptr) {
         return 0;
     }
-    if tab == g_st().curtab {
+    if std::ptr::eq(tab_ptr, g_st().curtab) {
         return nvim_get_current_win();
     }
-    for wp in win_iter_ptr(crate::globals::gptr(tab).tp_firstwin) {
-        if std::ptr::eq(wp, crate::globals::gptr(tab).tp_curwin) {
+    for wp in win_iter_ptr(tab.tp_firstwin) {
+        if std::ptr::eq(wp, tab.tp_curwin) {
             return wp.handle;
         }
     }
@@ -175,10 +181,9 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
 /// @return Tabpage number
 // DLLEXPORT Integer nvim_tabpage_get_number(Tabpage tabpage, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
-    let tab = find_tab_by_handle(tabpage, err);
-    if tab.is_null() {
+    let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return 0;
-    }
+    };
     i64::from(tabpage_index(tab))
 }
 
@@ -189,7 +194,7 @@ pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
 // DLLEXPORT Boolean nvim_tabpage_is_valid(Tabpage tabpage) FUNC_API_SINCE(1);
 pub fn nvim_tabpage_is_valid(tabpage: Tabpage) -> Boolean {
     let mut stub = Error::new();
-    let ret = !find_tab_by_handle(tabpage, &mut stub).is_null();
+    let ret = find_tab_by_handle(tabpage, &mut stub).is_some();
     api_clear_error(&mut stub);
     ret
 }
@@ -251,13 +256,13 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp, wp) && crate::globals::gptr(wp).w_buffer != (&raw mut *b) {
+    if tabpage_win_valid(tp, wp) && unsafe { (*wp).w_buffer } != (&raw mut *b) {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st().autocmd_no_enter += 1;
             g_st().autocmd_no_leave += 1;
         }
-        win_set_buf(crate::globals::gmut(wp), b, err);
+        win_set_buf(unsafe { &mut *wp }, b, err);
         if au_no_enter_leave {
             g_st().autocmd_no_enter -= 1;
             g_st().autocmd_no_leave -= 1;
@@ -273,7 +278,7 @@ pub fn nvim_open_tabpage(
         }
     }
 
-    crate::globals::gptr(tp).handle
+    unsafe { (*tp).handle }
 }
 
 #[cfg(test)]

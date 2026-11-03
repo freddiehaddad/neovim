@@ -248,7 +248,10 @@ pub fn ui_refresh() {
         let val = widget | ui_state().ui_cb_ext[i];
         ui_state().ui_ext[i] = val;
         if i < K_UIGLOBAL_COUNT {
-            ui_call_option_set(cstr_as_string(UI_EXT_NAMES[i].as_ptr()), boolean_obj(val));
+            ui_call_option_set(
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(UI_EXT_NAMES[i].as_ptr())),
+                boolean_obj(val),
+            );
         }
     }
 
@@ -470,7 +473,11 @@ pub fn ui_set_ext_option(ui: &mut RemoteUI, ext: UIExtension, active: bool) {
     }
     let name = UI_EXT_NAMES[idx].as_ptr();
     if crate::memory::cstr_first_byte(name) != b'_' || active {
-        remote_ui_option_set(ui, cstr_as_string(name), boolean_obj(active));
+        remote_ui_option_set(
+            ui,
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(name)),
+            boolean_obj(active),
+        );
     }
     if idx == K_UITERM_COLORS {
         ui_default_colors_set();
@@ -614,7 +621,10 @@ pub fn ui_flush() {
             ui_state().ui_mode_idx
         };
         let full_name = (*shape_table_mut())[idx as usize].full_name;
-        ui_call_mode_change(cstr_as_string(full_name.as_ptr()), Integer::from(idx));
+        ui_call_mode_change(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(full_name.as_ptr())),
+            Integer::from(idx),
+        );
         ui_state().pending_mode_update = false;
         ui_state().ui_flush_cursor_was_obscured = cursor_obscured;
     }
@@ -727,7 +737,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
         let mut info = arena_dict(arena, 10 + K_UIEXT_COUNT);
         let mut put_info = |k: &std::ffi::CStr, v: Object| {
             *info.next_slot_mut() = KeyValuePair {
-                key: cstr_as_string(k),
+                key: cstr_as_string(Some(k)),
                 value: v,
             };
             info.size += 1;
@@ -741,9 +751,7 @@ pub fn ui_array(arena: &mut Arena) -> Array {
             c"term_name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(
-                    ui.term_name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                )),
+                data: ObjectData::String(cstr_as_string(ui.term_name.as_deref())),
             },
         );
         put_info(

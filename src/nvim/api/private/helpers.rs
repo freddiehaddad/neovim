@@ -9,8 +9,8 @@ use crate::api::tabpage::{Buffer, Tabpage, Window};
 use crate::buffer::FileBuf;
 use crate::cursor::{Colnr, CursorPos, Linenr};
 use crate::eval::typval::{
-    Dictitem, TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find, tv_dict_item_alloc_len,
-    tv_dict_item_remove, tv_dict_watcher_notify,
+    Dictitem, TvDict, TypVal, tv_clear, tv_copy, tv_dict_add, tv_dict_find_opt,
+    tv_dict_item_alloc_len, tv_dict_item_remove, tv_dict_watcher_notify,
 };
 use crate::eval::vars::MAXCOL;
 use crate::eval::vars::{Scid, before_set_vvar, get_vimvar_dict};
@@ -26,7 +26,7 @@ use crate::mark::setmark_pos;
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{
     Arena, ArenaMem, alloc_cstring, alloc_cstring_len, arena_alloc, arena_alloc_opt, arena_finish,
-    arena_memdupz, arena_memdupz_opt, free_cstring, free_items, xstrnlen,
+    arena_memdupz, arena_memdupz_opt, free_cstring, free_items,
 };
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
 use crate::msgpack_rpc::unpacker::unpack;
@@ -152,8 +152,8 @@ pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 }
 
 #[inline]
-pub fn cstr_as_obj<S: crate::strings::IntoCCharPtr>(s: S) -> Object {
-    string_obj(cstr_as_string(s.into_c_char_ptr()))
+pub fn cstr_as_obj(s: Option<&CStr>) -> Object {
+    string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(s)))
 }
 
 #[inline]
@@ -209,13 +209,9 @@ impl Drop for HlMessageChunk {
 
 use crate::api::vim::HlMessage;
 
-pub fn api_set_error_str<S: crate::strings::IntoCCharPtr>(
-    err: &mut Error,
-    err_type: ErrorType,
-    msg: S,
-) {
+pub fn api_set_error_str(err: &mut Error, err_type: ErrorType, msg: &CStr) {
     debug_assert!(!matches!(err_type, ErrorType::ErrorTypeNone));
-    err.msg = Some(crate::memory::cstr_to_cstring(msg.into_c_char_ptr()));
+    err.msg = Some(msg.to_owned());
     err.err_type = err_type;
 }
 
@@ -227,8 +223,8 @@ macro_rules! api_set_error {
     ($err:expr, $err_type:expr, $fmt:expr, $($arg:expr),+ $(,)?) => {{
         let err_ref: &mut $crate::api::private::validate::Error = $err;
         let et: $crate::api::private::validate::ErrorType = $err_type;
-        let fmt_ptr: $crate::strings::RawCCharPtr =
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
+        let fmt_cstr: &::std::ffi::CStr = $fmt;
+        let fmt_ptr: $crate::strings::RawCCharPtr = fmt_cstr.as_ptr();
         {
             let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
@@ -252,15 +248,16 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 }
 
 #[inline]
-pub fn cstr_to_obj(s: impl crate::strings::IntoCCharPtr) -> Object {
-    let s = s.into_c_char_ptr();
-    string_obj(cstr_to_string(s))
+pub fn cstr_to_obj(s: Option<&CStr>) -> Object {
+    string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(s)))
 }
 
 #[inline]
-pub fn cstr_to_arena_obj(arena: &mut Arena, s: impl crate::strings::IntoCCharPtr) -> Object {
-    let s = s.into_c_char_ptr();
-    string_obj(arena_string(arena, cstr_as_string(s)))
+pub fn cstr_to_arena_obj(arena: &mut Arena, s: Option<&CStr>) -> Object {
+    string_obj(arena_string(
+        arena,
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(s)),
+    ))
 }
 
 #[inline]
@@ -310,14 +307,14 @@ pub trait IntoDictKey {
 impl IntoDictKey for RawCCharPtr {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(self)
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
     }
 }
 
 impl IntoDictKey for RawCCharPtrMut {
     #[inline]
     fn into_dict_key(self) -> NvimString {
-        cstr_as_string(self)
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(self))
     }
 }
 
@@ -341,13 +338,13 @@ pub fn put_c<K: IntoDictKey>(dict: &mut Dict, key: K, val: Object) {
 }
 
 #[inline]
-pub fn cbuf_to_arena_str(
-    arena: &mut Arena,
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> NvimString {
-    let buf = buf.into_c_char_ptr();
-    let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
+pub fn cbuf_to_arena_str(arena: &mut Arena, buf: &[u8]) -> NvimString {
+    let len = buf.len();
+    let ptr = if buf.is_empty() {
+        c"".as_ptr()
+    } else {
+        buf.as_ptr().cast()
+    };
     NvimString {
         data: arena_memdupz(arena, ptr, len),
         size: len,
@@ -355,13 +352,13 @@ pub fn cbuf_to_arena_str(
 }
 
 #[inline]
-pub fn cbuf_to_arena_str_opt(
-    arena: Option<&mut Arena>,
-    buf: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> NvimString {
-    let buf = buf.into_c_char_ptr();
-    let ptr = if buf.is_null() { c"".as_ptr() } else { buf };
+pub fn cbuf_to_arena_str_opt(arena: Option<&mut Arena>, buf: &[u8]) -> NvimString {
+    let len = buf.len();
+    let ptr = if buf.is_empty() {
+        c"".as_ptr()
+    } else {
+        buf.as_ptr().cast()
+    };
     NvimString {
         data: arena_memdupz_opt(arena, ptr, len),
         size: len,
@@ -479,7 +476,7 @@ pub fn dict_get_value(
         );
         return OBJECT_NIL;
     };
-    vim_to_object(&raw mut di.di_tv, arena, true)
+    vim_to_object(&mut di.di_tv, arena, true)
 }
 
 pub fn dict_check_writable(
@@ -487,9 +484,9 @@ pub fn dict_check_writable(
     key: NvimString,
     del: bool,
     err: &mut Error,
-) -> *mut Dictitem {
-    let di = tv_dict_find(Some(dict), key.data, key.size as isize);
-    if let Some(di) = crate::globals::gopt(di) {
+) -> Option<&'static mut Dictitem> {
+    let di = tv_dict_find_opt(Some(dict), key.data, key.size as isize);
+    if let Some(ref di) = di {
         if (di.di_flags & DI_FLAGS_RO) != 0 {
             api_set_error!(
                 err,
@@ -533,52 +530,42 @@ pub fn dict_set_var(
     err: &mut Error,
 ) -> Object {
     let mut rv = OBJECT_NIL;
-    let mut di = dict_check_writable(dict, key, del, err);
+    let di_opt = dict_check_writable(dict, key, del, err);
     if error_set(err) {
         return rv;
     }
 
     let watched = tv_dict_is_watched(Some(&*dict));
     if del {
-        if di.is_null() {
+        let Some(di) = di_opt else {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Key not found: %s",
                 key.data,
             );
-        } else {
-            if watched {
-                tv_dict_watcher_notify(dict, key.data, None, Some(&crate::globals::gptr(di).di_tv));
-            }
-            if retval {
-                rv = vim_to_object(&raw mut crate::globals::gptr(di).di_tv, arena, false);
-            }
-
-            tv_dict_item_remove(&mut *dict, crate::globals::gmut(di));
+            return rv;
+        };
+        if watched {
+            tv_dict_watcher_notify(dict, key.data, None, Some(&di.di_tv));
         }
+        if retval {
+            rv = vim_to_object(&mut di.di_tv, arena, false);
+        }
+
+        tv_dict_item_remove(&mut *dict, di);
     } else {
         let mut tv: TypVal = TypVal::new();
         object_to_vim(value, &mut tv, err);
         let mut oldtv: TypVal = TypVal::new();
 
-        if di.is_null() {
-            di = tv_dict_item_alloc_len(key.as_bytes());
-            tv_dict_add(dict, di);
-        } else {
+        let di: &mut Dictitem = if let Some(di) = di_opt {
             if retval {
-                rv = vim_to_object(&raw mut crate::globals::gptr(di).di_tv, arena, false);
+                rv = vim_to_object(&mut di.di_tv, arena, false);
             }
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && !before_set_vvar(
-                    key.data,
-                    crate::globals::gmut(di),
-                    &mut tv,
-                    true,
-                    watched,
-                    &mut type_error,
-                )
+                && !before_set_vvar(key.data, di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -592,13 +579,18 @@ pub fn dict_set_var(
                 return rv;
             }
             if watched {
-                tv_copy(&crate::globals::gptr(di).di_tv, &mut oldtv);
+                tv_copy(&di.di_tv, &mut oldtv);
             }
 
-            tv_clear(&mut crate::globals::gptr(di).di_tv);
-        }
+            tv_clear(&mut di.di_tv);
+            di
+        } else {
+            let new_di = tv_dict_item_alloc_len(key.as_bytes());
+            tv_dict_add(dict, new_di);
+            new_di
+        };
 
-        tv_copy(&tv, &mut crate::globals::gptr(di).di_tv);
+        tv_copy(&tv, &mut di.di_tv);
 
         if watched {
             tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
@@ -610,9 +602,9 @@ pub fn dict_set_var(
     rv
 }
 
-pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
+pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
     if buffer == 0 {
-        return g_st().curbuf;
+        return unsafe { g_st().curbuf.as_mut() };
     }
     let rv = g_st()
         .buffer_handles
@@ -626,9 +618,9 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
             c"Invalid buffer id: %lld",
             i64::from(buffer),
         );
-        return ptr::null_mut();
+        return None;
     }
-    rv
+    unsafe { rv.as_mut() }
 }
 
 #[unsafe(no_mangle)]
@@ -636,8 +628,8 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
     if window == 0 {
         return curwin_ptr();
     }
-    let map_ptr = &raw const g_st().window_handles;
-    let rv = crate::globals::gptr(map_ptr)
+    let rv = g_st()
+        .window_handles
         .get(&window)
         .copied()
         .unwrap_or(ptr::null_mut());
@@ -653,9 +645,9 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
     rv
 }
 
-pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo {
+pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static mut TabPageInfo> {
     if tabpage == 0 {
-        return g_st().curtab;
+        return unsafe { g_st().curtab.as_mut() };
     }
     let rv = g_st()
         .tabpage_handles
@@ -669,15 +661,14 @@ pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo
             c"Invalid tabpage id: %lld",
             i64::from(tabpage),
         );
-        return ptr::null_mut();
+        return None;
     }
-    rv
+    unsafe { rv.as_mut() }
 }
 
 #[inline]
 pub fn find_buffer_by_handle_mut(buffer: Buffer, err: &mut Error) -> Option<&'static mut FileBuf> {
-    let b = find_buffer_by_handle(buffer, err);
-    (!b.is_null()).then(|| crate::globals::gmut(b))
+    find_buffer_by_handle(buffer, err)
 }
 
 #[inline]
@@ -686,7 +677,7 @@ pub fn find_window_by_handle_mut(
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
     let w = find_window_by_handle(window, err);
-    (!w.is_null()).then(|| crate::globals::gmut(w))
+    unsafe { w.as_mut() }
 }
 
 #[inline]
@@ -694,24 +685,20 @@ pub fn find_tab_by_handle_mut(
     tabpage: Tabpage,
     err: &mut Error,
 ) -> Option<&'static mut TabPageInfo> {
-    let t = find_tab_by_handle(tabpage, err);
-    (!t.is_null()).then(|| crate::globals::gmut(t))
+    find_tab_by_handle(tabpage, err)
 }
 
-pub fn cstr_to_string(str_: impl crate::strings::IntoCCharPtr) -> NvimString {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if str_.is_null() {
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-        }
-        let len = crate::memory::cstr_len(str_);
-        NvimString {
-            data: alloc_cstring_len(str_, len),
-            size: len,
-        }
+pub fn cstr_to_string(str_: Option<&CStr>) -> NvimString {
+    let Some(str_) = str_ else {
+        return NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        };
+    };
+    let len = str_.to_bytes().len();
+    NvimString {
+        data: alloc_cstring_len(str_.as_ptr(), len),
+        size: len,
     }
 }
 
@@ -726,41 +713,37 @@ pub fn bytes_to_string(bytes: &[u8]) -> NvimString {
     }
 }
 
-pub fn cbuf_to_string(buf: impl crate::strings::IntoCCharPtr, size: usize) -> NvimString {
-    let buf = buf.into_c_char_ptr();
+pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
     NvimString {
-        data: alloc_cstring_len(buf, size),
+        data: alloc_cstring_len(buf.as_ptr().cast(), buf.len()),
+        size: buf.len(),
+    }
+}
+
+pub fn cstrn_as_string(str_: &[u8]) -> NvimString {
+    if str_.is_empty() {
+        return NvimString {
+            data: c"".as_ptr().cast_mut(),
+            size: 0,
+        };
+    }
+    let size = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
+    NvimString {
+        data: str_.as_ptr().cast_mut().cast(),
         size,
     }
 }
 
-pub fn cstrn_as_string(str_: impl crate::strings::IntoCCharPtr, maxsize: usize) -> NvimString {
-    let str_ = str_.into_c_char_ptr();
-    if str_.is_null() {
+pub fn cstr_as_string(str_: Option<&CStr>) -> NvimString {
+    let Some(str_) = str_ else {
         return NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
-    }
+    };
     NvimString {
-        data: str_.cast_mut(),
-        size: xstrnlen(str_, maxsize),
-    }
-}
-
-pub fn cstr_as_string<S: crate::strings::IntoCCharPtr>(str_: S) -> NvimString {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if str_.is_null() {
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-        }
-        NvimString {
-            data: str_.cast_mut(),
-            size: crate::memory::cstr_len(str_),
-        }
+        data: str_.as_ptr().cast_mut(),
+        size: str_.to_bytes().len(),
     }
 }
 
@@ -1042,7 +1025,7 @@ pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
         let item = dict[i];
         let k_copy = copy_string(item.key, arena.as_deref_mut());
         rv[i] = KeyValuePair {
-            key: cstr_as_string(k_copy.data),
+            key: cstr_as_string(crate::memory::cstr_as_opt_cstr(k_copy.data)),
             value: copy_object(item.value, arena.as_deref_mut()),
         };
     }
@@ -1079,57 +1062,44 @@ pub fn copy_object(obj: Object, arena: Option<&mut Arena>) -> Object {
     }
 }
 
-pub fn api_object_to_bool(
-    obj: Object,
-    what: impl crate::strings::IntoCCharPtr,
-    nil_value: bool,
-    err: &mut Error,
-) -> bool {
-    let what = what.into_c_char_ptr();
+pub fn api_object_to_bool(obj: Object, what: &CStr, nil_value: bool, err: &mut Error) -> bool {
     match obj.obj_type {
         ObjectType::ObjectTypeBoolean => obj.data.boolean(),
         ObjectType::ObjectTypeInteger => obj.data.integer() != 0,
         ObjectType::ObjectTypeNil => nil_value,
         _ => {
-            api_err_exp(err, what, c"boolean", ptr::null());
+            api_err_exp(err, what, c"boolean", None);
             false
         }
     }
 }
 
-pub fn object_to_hl_id(
-    obj: Object,
-    what: impl crate::strings::IntoCCharPtr,
-    err: &mut Error,
-) -> i32 {
-    let what = what.into_c_char_ptr();
-    {
-        match obj.obj_type {
-            ObjectType::ObjectTypeString => {
-                let str_ = obj.data.string();
-                if str_.size != 0 {
-                    syn_check_group(crate::memory::cstr_slice(str_.data, str_.size))
-                } else {
-                    0
-                }
-            }
-            ObjectType::ObjectTypeInteger => {
-                let id = obj.data.integer() as i32;
-                if (1..=highlight_num_groups()).contains(&id) {
-                    id
-                } else {
-                    0
-                }
-            }
-            _ => {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid 'hl_group': '%s'",
-                    what,
-                );
+pub fn object_to_hl_id(obj: Object, what: &CStr, err: &mut Error) -> i32 {
+    match obj.obj_type {
+        ObjectType::ObjectTypeString => {
+            let str_ = obj.data.string();
+            if str_.size != 0 {
+                syn_check_group(crate::memory::cstr_slice(str_.data, str_.size))
+            } else {
                 0
             }
+        }
+        ObjectType::ObjectTypeInteger => {
+            let id = obj.data.integer() as i32;
+            if (1..=highlight_num_groups()).contains(&id) {
+                id
+            } else {
+                0
+            }
+        }
+        _ => {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Invalid 'hl_group': '%s'",
+                what.as_ptr(),
+            );
+            0
         }
     }
 }
@@ -1160,7 +1130,7 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
                 err,
                 c"chunk",
                 api_typename(ObjectType::ObjectTypeArray),
-                api_typename(item.obj_type),
+                Some(api_typename(item.obj_type)),
             );
             return HlMessage::new();
         }
@@ -1188,12 +1158,13 @@ pub fn parse_hl_msg(chunks: Array, is_err: bool, err: &mut Error) -> HlMessage {
     hl_msg
 }
 
-pub fn api_dict_to_keydict(
-    retval: *mut OptKeySet,
+pub fn api_dict_to_keydict<T>(
+    retval: &mut T,
     hashy: FieldHashfn,
     mut dict: Dict,
     err: &mut Error,
 ) -> bool {
+    let retval_ptr = ptr::from_mut(retval).cast::<OptKeySet>();
     let Some(hashy_fn) = hashy else {
         return false;
     };
@@ -1212,62 +1183,62 @@ pub fn api_dict_to_keydict(
         };
 
         if field.opt_index >= 0 {
-            crate::globals::gptr(retval).is_set_ |= 1u64 << field.opt_index;
+            unsafe { (*retval_ptr).is_set_ |= 1u64 << field.opt_index };
         }
 
-        let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
-        let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
-        let value: *mut Object = &raw mut dict[i].value;
-        let value = crate::globals::gmut(value);
+        let field_name = field.str.unwrap_or(c"");
+        let mem = retval_ptr.cast::<u8>().wrapping_add(field.ptr_off);
+        let value = &mut dict[i].value;
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
         match field_type {
-            ObjectType::ObjectTypeNil => *crate::globals::gptr(mem.cast::<Object>()) = *value,
+            ObjectType::ObjectTypeNil => unsafe { *mem.cast::<Object>() = *value },
             ObjectType::ObjectTypeInteger => {
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
                     if value.obj_type != ObjectType::ObjectTypeNil {
-                        hl_id = object_to_hl_id(*value, k.data, err);
+                        hl_id = object_to_hl_id(*value, crate::memory::cstr_from_ptr(k.data), err);
                         if error_set(err) {
                             return false;
                         }
                     }
 
-                    *crate::globals::gptr(mem.cast::<Integer>()) = Integer::from(hl_id);
+                    unsafe { *mem.cast::<Integer>() = Integer::from(hl_id) };
                 } else {
                     if value.obj_type != ObjectType::ObjectTypeInteger {
                         api_err_exp(
                             err,
                             field_name,
                             api_typename(ObjectType::ObjectTypeInteger),
-                            api_typename(value.obj_type),
+                            Some(api_typename(value.obj_type)),
                         );
                         return false;
                     }
 
-                    *crate::globals::gptr(mem.cast::<Integer>()) = value.data.integer();
+                    unsafe { *mem.cast::<Integer>() = value.data.integer() };
                 }
             }
             ObjectType::ObjectTypeFloat => {
                 let val = mem.cast::<Float>();
                 if value.obj_type == ObjectType::ObjectTypeInteger {
-                    *crate::globals::gptr(val) = value.data.integer() as Float;
+                    unsafe { *val = value.data.integer() as Float };
                 } else if value.obj_type == ObjectType::ObjectTypeFloat {
-                    *crate::globals::gptr(val) = value.data.floating();
+                    unsafe { *val = value.data.floating() };
                 } else {
                     api_err_exp(
                         err,
                         field_name,
                         api_typename(ObjectType::ObjectTypeFloat),
-                        api_typename(value.obj_type),
+                        Some(api_typename(value.obj_type)),
                     );
                     return false;
                 }
             }
             ObjectType::ObjectTypeBoolean => {
-                *crate::globals::gptr(mem.cast::<Boolean>()) =
-                    api_object_to_bool(*value, field_name, false, err);
+                unsafe {
+                    *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err)
+                };
 
                 if error_set(err) {
                     return false;
@@ -1279,12 +1250,12 @@ pub fn api_dict_to_keydict(
                         err,
                         field_name,
                         api_typename(ObjectType::ObjectTypeString),
-                        api_typename(value.obj_type),
+                        Some(api_typename(value.obj_type)),
                     );
                     return false;
                 }
 
-                *crate::globals::gptr(mem.cast::<NvimString>()) = value.data.string();
+                unsafe { *mem.cast::<NvimString>() = value.data.string() };
             }
             ObjectType::ObjectTypeArray => {
                 if value.obj_type != ObjectType::ObjectTypeArray {
@@ -1292,29 +1263,31 @@ pub fn api_dict_to_keydict(
                         err,
                         field_name,
                         api_typename(ObjectType::ObjectTypeArray),
-                        api_typename(value.obj_type),
+                        Some(api_typename(value.obj_type)),
                     );
                     return false;
                 }
 
-                *crate::globals::gptr(mem.cast::<Array>()) = value.data.array();
+                unsafe { *mem.cast::<Array>() = value.data.array() };
             }
             ObjectType::ObjectTypeDict => {
                 let val = mem.cast::<Dict>();
                 if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
-                    *crate::globals::gptr(val) = Dict {
-                        items: ptr::null_mut(),
-                        size: 0,
-                        capacity: 0,
+                    unsafe {
+                        *val = Dict {
+                            items: ptr::null_mut(),
+                            size: 0,
+                            capacity: 0,
+                        }
                     };
                 } else if value.obj_type == ObjectType::ObjectTypeDict {
-                    *crate::globals::gptr(val) = value.data.dict();
+                    unsafe { *val = value.data.dict() };
                 } else {
                     api_err_exp(
                         err,
                         field_name,
                         api_typename(field_type),
-                        api_typename(value.obj_type),
+                        Some(api_typename(value.obj_type)),
                     );
                     return false;
                 }
@@ -1323,14 +1296,13 @@ pub fn api_dict_to_keydict(
             | ObjectType::ObjectTypeWindow
             | ObjectType::ObjectTypeTabpage => {
                 if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
-                    *crate::globals::gptr(mem.cast::<ObjHandle>()) =
-                        value.data.integer() as ObjHandle;
+                    unsafe { *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle };
                 } else {
                     api_err_exp(
                         err,
                         field_name,
                         api_typename(field_type),
-                        api_typename(value.obj_type),
+                        Some(api_typename(value.obj_type)),
                     );
                     return false;
                 }
@@ -1351,72 +1323,72 @@ pub fn api_dict_to_keydict(
     true
 }
 
-pub fn api_keydict_to_dict(
-    value: *mut OptKeySet,
-    table: *mut KeySetLink,
+pub fn api_keydict_to_dict<T>(
+    value: &T,
+    table: &[KeySetLink],
     max_size: usize,
     arena: &mut Arena,
 ) -> Dict {
+    let value_ptr = ptr::from_ref(value).cast::<OptKeySet>();
     let mut rv = arena_dict(arena, max_size);
-    let mut i: usize = 0;
-    while let Some(field_str) = crate::globals::gptr(table.wrapping_add(i)).str {
-        let field = crate::globals::gref(table.wrapping_add(i));
+    for field in table {
+        let Some(field_str) = field.str else {
+            break;
+        };
         let mut is_set = true;
         if field.opt_index >= 0 {
-            is_set = (crate::globals::gptr(value).is_set_ & (1u64 << field.opt_index)) != 0;
+            is_set = (unsafe { (*value_ptr).is_set_ } & (1u64 << field.opt_index)) != 0;
         }
         if !is_set {
-            i += 1;
             continue;
         }
 
-        let mem = value.cast::<u8>().wrapping_add(field.ptr_off);
+        let mem = value_ptr.cast::<u8>().wrapping_add(field.ptr_off);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-        let val = match field_type {
-            ObjectType::ObjectTypeNil => *crate::globals::gptr(mem.cast::<Object>()),
-            ObjectType::ObjectTypeInteger => Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(*crate::globals::gptr(mem.cast::<Integer>())),
-            },
-            ObjectType::ObjectTypeFloat => Object {
-                obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(*crate::globals::gptr(mem.cast::<Float>())),
-            },
-            ObjectType::ObjectTypeBoolean => Object {
-                obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(*crate::globals::gptr(mem.cast::<Boolean>())),
-            },
-            ObjectType::ObjectTypeString => Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(*crate::globals::gptr(mem.cast::<NvimString>())),
-            },
-            ObjectType::ObjectTypeArray => Object {
-                obj_type: ObjectType::ObjectTypeArray,
-                data: ObjectData::Array(*crate::globals::gptr(mem.cast::<Array>())),
-            },
-            ObjectType::ObjectTypeDict => Object {
-                obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(*crate::globals::gptr(mem.cast::<Dict>())),
-            },
-            ObjectType::ObjectTypeBuffer
-            | ObjectType::ObjectTypeWindow
-            | ObjectType::ObjectTypeTabpage => Object {
-                obj_type: field_type,
-                data: ObjectData::Integer(Integer::from(*crate::globals::gptr(
-                    mem.cast::<ObjHandle>(),
-                ))),
-            },
-            ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
-            ObjectType::ObjectTypeUnset => std::process::abort(),
+        let val = unsafe {
+            match field_type {
+                ObjectType::ObjectTypeNil => *mem.cast::<Object>(),
+                ObjectType::ObjectTypeInteger => Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(*mem.cast::<Integer>()),
+                },
+                ObjectType::ObjectTypeFloat => Object {
+                    obj_type: ObjectType::ObjectTypeFloat,
+                    data: ObjectData::Floating(*mem.cast::<Float>()),
+                },
+                ObjectType::ObjectTypeBoolean => Object {
+                    obj_type: ObjectType::ObjectTypeBoolean,
+                    data: ObjectData::Boolean(*mem.cast::<Boolean>()),
+                },
+                ObjectType::ObjectTypeString => Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(*mem.cast::<NvimString>()),
+                },
+                ObjectType::ObjectTypeArray => Object {
+                    obj_type: ObjectType::ObjectTypeArray,
+                    data: ObjectData::Array(*mem.cast::<Array>()),
+                },
+                ObjectType::ObjectTypeDict => Object {
+                    obj_type: ObjectType::ObjectTypeDict,
+                    data: ObjectData::Dict(*mem.cast::<Dict>()),
+                },
+                ObjectType::ObjectTypeBuffer
+                | ObjectType::ObjectTypeWindow
+                | ObjectType::ObjectTypeTabpage => Object {
+                    obj_type: field_type,
+                    data: ObjectData::Integer(Integer::from(*mem.cast::<ObjHandle>())),
+                },
+                ObjectType::ObjectTypeLuaRef => OBJECT_NIL,
+                ObjectType::ObjectTypeUnset => std::process::abort(),
+            }
         };
 
         *rv.next_slot_mut() = KeyValuePair {
-            key: cstr_as_string(field_str.as_ptr()),
+            key: cstr_as_string(Some(field_str)),
             value: val,
         };
         rv.size += 1;
-        i += 1;
     }
     rv
 }
@@ -1430,26 +1402,23 @@ pub fn api_luarefs_free_object(value: Object) {
     }
 }
 
-pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
-    let mut i: usize = 0;
-    while crate::globals::gptr(table.wrapping_add(i)).str.is_some() {
-        let field = crate::globals::gref(table.wrapping_add(i));
-        let mem = dict.cast::<u8>().wrapping_add(field.ptr_off);
+pub fn api_luarefs_free_keydict<T>(dict: &T, table: &[KeySetLink]) {
+    let dict_ptr = ptr::from_ref(dict).cast::<u8>();
+    for field in table {
+        if field.str.is_none() {
+            break;
+        }
+        let mem = dict_ptr.wrapping_add(field.ptr_off);
         let field_type =
             ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-        match field_type {
-            ObjectType::ObjectTypeNil => {
-                api_luarefs_free_object(*crate::globals::gptr(mem.cast::<Object>()))
+        unsafe {
+            match field_type {
+                ObjectType::ObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
+                ObjectType::ObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),
+                ObjectType::ObjectTypeDict => api_luarefs_free_dict(*mem.cast::<Dict>()),
+                _ => {}
             }
-            ObjectType::ObjectTypeLuaRef => {
-                api_free_luaref(*crate::globals::gptr(mem.cast::<LuaRef>()))
-            }
-            ObjectType::ObjectTypeDict => {
-                api_luarefs_free_dict(*crate::globals::gptr(mem.cast::<Dict>()))
-            }
-            _ => {}
         }
-        i += 1;
     }
 }
 
@@ -1466,15 +1435,16 @@ pub fn api_luarefs_free_dict(value: Dict) {
 }
 
 pub fn set_mark(
-    mut buf: *mut FileBuf,
+    buf: Option<&mut FileBuf>,
     name: NvimString,
     line: Integer,
     mut col: Integer,
     err: &mut Error,
 ) -> bool {
-    if buf.is_null() {
-        buf = g_st().curbuf;
-    }
+    let buf: &mut FileBuf = match buf {
+        Some(b) => b,
+        None => curbuf_mut(),
+    };
     let mut deleting = false;
     if line == 0 {
         col = 0;
@@ -1488,7 +1458,7 @@ pub fn set_mark(
             );
             return false;
         }
-        if line < 1 || line > i64::from(crate::globals::gptr(buf).b_ml.ml_line_count) {
+        if line < 1 || line > i64::from(buf.b_ml.ml_line_count) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -1503,7 +1473,7 @@ pub fn set_mark(
         coladd: 0,
     };
     let mark_char = name.as_bytes().first().copied().unwrap_or(0) as i32;
-    let res = setmark_pos(mark_char, &mut pos, crate::globals::gptr(buf).b_fnum, None);
+    let res = setmark_pos(mark_char, &mut pos, buf.b_fnum, None);
     if !res {
         if deleting {
             api_set_error!(
@@ -1524,18 +1494,20 @@ pub fn set_mark(
     res
 }
 
-pub fn get_default_stl_hl(wp: *mut WinInfoInfo, use_winbar: bool, stc_hl_id: i32) -> &'static CStr {
-    if wp.is_null() {
-        c"TabLineFill"
-    } else if use_winbar {
-        if wp == curwin_ptr() {
-            c"WinBar"
-        } else {
-            c"WinBarNC"
-        }
+pub fn get_default_stl_hl(
+    wp: Option<&WinInfoInfo>,
+    use_winbar: bool,
+    stc_hl_id: i32,
+) -> &'static CStr {
+    let Some(wp) = wp else {
+        return c"TabLineFill";
+    };
+    let is_curwin = ptr::eq(wp, curwin_ptr());
+    if use_winbar {
+        if is_curwin { c"WinBar" } else { c"WinBarNC" }
     } else if stc_hl_id > 0 {
         syn_id2name(stc_hl_id)
-    } else if wp == curwin_ptr() {
+    } else if is_curwin {
         c"StatusLine"
     } else {
         c"StatusLineNC"
@@ -4228,8 +4200,8 @@ fn mpack_push_array(out: &mut Vec<u8>, len: usize) {
     }
 }
 
-pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
-    let bytes = PACKED_API_METADATA.get_or_init(|| {
+pub fn api_get_packed_metadata() -> &'static [u8] {
+    PACKED_API_METADATA.get_or_init(|| {
         let mut out = Vec::with_capacity(32768);
         out.push(0x86); // fixmap(6)
         mpack_push_str(&mut out, b"version");
@@ -4329,9 +4301,7 @@ pub fn api_get_packed_metadata(len: &mut usize) -> *const u8 {
         }
 
         out.into_boxed_slice()
-    });
-    *len = bytes.len();
-    bytes.as_ptr()
+    })
 }
 
 pub fn api_metadata() -> Object {
@@ -4342,9 +4312,7 @@ pub fn api_metadata() -> Object {
             size: 0,
         };
         let mut err = Error::new();
-        let mut len: usize = 0;
-        let ptr = api_get_packed_metadata(&mut len);
-        let packed = unsafe { std::slice::from_raw_parts(ptr, len) };
+        let packed = api_get_packed_metadata();
         api_meta_st().metadata_obj = unpack(packed, &mut arena, &mut err);
         if error_set(&err) || api_meta_st().metadata_obj.obj_type != ObjectType::ObjectTypeDict {
             std::process::abort();
@@ -4355,11 +4323,10 @@ pub fn api_metadata() -> Object {
 }
 
 pub fn api_metadata_raw() -> NvimString {
-    let mut len: usize = 0;
-    let ptr = api_get_packed_metadata(&mut len).cast_mut().cast();
+    let packed = api_get_packed_metadata();
     NvimString {
-        data: ptr,
-        size: len,
+        data: packed.as_ptr().cast_mut().cast(),
+        size: packed.len(),
     }
 }
 
@@ -4377,7 +4344,7 @@ mod tests {
             api_typename(ObjectType::ObjectTypeLuaRef).to_str().unwrap(),
             "Function"
         );
-        let s = cstr_to_string(c"hello");
+        let s = cstr_to_string(Some(c"hello"));
         assert_eq!(s.size, 5);
         let cstr = string_to_cstr(s);
         assert_eq!(cstr.to_str().unwrap(), "hello");

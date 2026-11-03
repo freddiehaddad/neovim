@@ -1673,7 +1673,9 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 ui_comp_compose_grid(&mut wp.w_grid_alloc);
             }
             if ui_has(K_UIMULTIGRID) {
-                let anchor = cstr_as_string(FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr());
+                let anchor = cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    FLOAT_ANCHOR_STR[c.anchor as usize].as_ptr(),
+                ));
                 ui_call_win_float_pos(
                     Integer::from(wp.w_grid_alloc.handle),
                     wp.handle,
@@ -5615,11 +5617,11 @@ pub fn tabpage_move(nr: i32) {
         vim_snprintf!(prev_idx.as_mut_ptr().cast(), NUMBUFLEN, c"%i", old_nr);
         let mut data_items = [
             KeyValuePair {
-                key: cstr_as_string(c"tabnr_old"),
+                key: cstr_as_string(Some(c"tabnr_old")),
                 value: integer_obj(Integer::from(old_nr)),
             },
             KeyValuePair {
-                key: cstr_as_string(c"tabnr_new"),
+                key: cstr_as_string(Some(c"tabnr_new")),
                 value: integer_obj(Integer::from(tabpage_index(g_st().curtab))),
             },
         ];

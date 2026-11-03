@@ -1939,7 +1939,10 @@ pub fn nlua_pop_object_opt(
                         let idx = (*cur.obj).data.dict().size;
                         (*cur.obj).data.dict_mut().size += 1;
                         let item = &mut (*cur.obj).data.dict_mut()[idx];
-                        item.key = cbuf_to_arena_str_opt(arena.as_deref_mut(), s, len);
+                        item.key = cbuf_to_arena_str_opt(
+                            arena.as_deref_mut(),
+                            crate::memory::cstr_slice(s, len),
+                        );
                         stack.push(cur);
                         cur = ObjPopStackItem {
                             obj: &raw mut item.value,
@@ -1982,8 +1985,7 @@ pub fn nlua_pop_object_opt(
                         obj_type: ObjectType::ObjectTypeString,
                         data: ObjectData::String(cbuf_to_arena_str_opt(
                             arena.as_deref_mut(),
-                            s,
-                            len,
+                            crate::memory::cstr_slice(s, len),
                         )),
                     };
                 }

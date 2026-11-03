@@ -530,10 +530,22 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
                 let mut arr = arena_array(&mut arena, size as usize);
                 for elem in &items[..(size as usize)] {
                     let mut item = arena_array(&mut arena, 4);
-                    add_c(&mut item, cstr_as_obj(elem.text_cstr()));
-                    add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
-                    add_c(&mut item, cstr_as_obj(elem.extra_cstr()));
-                    add_c(&mut item, cstr_as_obj(elem.info_cstr()));
+                    add_c(
+                        &mut item,
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(elem.text_cstr())),
+                    );
+                    add_c(
+                        &mut item,
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(elem.kind_cstr())),
+                    );
+                    add_c(
+                        &mut item,
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(elem.extra_cstr())),
+                    );
+                    add_c(
+                        &mut item,
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr(elem.info_cstr())),
+                    );
                     add_c(&mut arr, array_obj(item));
                 }
                 ui_call_popupmenu_show(
@@ -1219,7 +1231,9 @@ fn pum_preview_set_text(
             let line_width = win_linetabsize(win, 0, &curr_cstr, MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
-            replacement.push(string_obj(cstr_to_string(curr_cstr.as_ptr())));
+            replacement.push(string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(
+                curr_cstr.as_ptr(),
+            ))));
             *lnum += 1;
             rem_opt = next_opt;
         }
@@ -1424,8 +1438,16 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     if ok {
                         set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
                         set_option_value_give_err(K_OPT_BUFLISTED, boolean_obj(false), OPT_LOCAL);
-                        set_option_value_give_err(K_OPT_BUFTYPE, cstr_as_obj(c"nofile"), OPT_LOCAL);
-                        set_option_value_give_err(K_OPT_BUFHIDDEN, cstr_as_obj(c"wipe"), OPT_LOCAL);
+                        set_option_value_give_err(
+                            K_OPT_BUFTYPE,
+                            cstr_as_obj(Some(c"nofile")),
+                            OPT_LOCAL,
+                        );
+                        set_option_value_give_err(
+                            K_OPT_BUFHIDDEN,
+                            cstr_as_obj(Some(c"wipe")),
+                            OPT_LOCAL,
+                        );
                         set_option_value_give_err(K_OPT_DIFF, boolean_obj(false), OPT_LOCAL);
                     }
                 }
@@ -1915,7 +1937,7 @@ pub fn pum_pos_ui_flush(force: bool) {
         ui_call_win_float_pos(
             i64::from(g_st().pum_grid.handle),
             -1,
-            cstr_as_string(anchor),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(anchor)),
             i64::from(pum().anchor_grid),
             f64::from(pum().row - row_off - pum().win_row_offset),
             f64::from(pum().left_col - pum().win_col_offset),

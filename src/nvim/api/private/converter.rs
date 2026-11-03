@@ -61,10 +61,9 @@ fn convert_one_value(
     mpstack: &mut Vec<ConvStackEntry>,
     arena: Option<&mut Arena>,
     reuse_strdata: bool,
-    tv: *mut TypVal,
+    tv: &mut TypVal,
     copy_id: i32,
 ) {
-    let tv = crate::globals::gmut(tv);
     match tv.v_type {
         VarType::VarString => {
             let s = tv.vval.v_string();
@@ -93,7 +92,7 @@ fn convert_one_value(
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
             let obj = if !fun.is_null()
-                && let Some(fp) = crate::globals::gopt(find_func(fun))
+                && let Some(fp) = unsafe { find_func(fun).as_ref() }
                 && (fp.uf_flags & FC_LUAREF) != 0
             {
                 Object {
@@ -108,7 +107,7 @@ fn convert_one_value(
         VarType::VarPartial => {
             let obj = if let Some(pt) = tv.vval.v_partial_opt() {
                 let fun = partial_name(Some(pt));
-                if let Some(fp) = crate::globals::gopt(find_func(fun))
+                if let Some(fp) = unsafe { find_func(fun).as_ref() }
                     && (fp.uf_flags & FC_LUAREF) != 0
                 {
                     Object {
@@ -253,7 +252,7 @@ fn pop_into_parent_dict(stack: &mut Vec<Object>) {
 
 /// Recursively convert a Vimscript `TypVal` into an API `Object` (`vim_to_object`).
 pub fn vim_to_object(
-    obj: *mut TypVal,
+    obj: &mut TypVal,
     mut arena: Option<&mut Arena>,
     reuse_strdata: bool,
 ) -> Object {
@@ -271,7 +270,7 @@ pub fn vim_to_object(
     );
 
     while let Some(top) = mpstack.last_mut() {
-        let next_tv: *mut TypVal = match top {
+        let next_tv: &mut TypVal = match top {
             ConvStackEntry::List {
                 list,
                 li,
@@ -283,7 +282,7 @@ pub fn vim_to_object(
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    crate::globals::gptr(list_ptr).lv_copy_id = saved;
+                    unsafe { (*list_ptr).lv_copy_id = saved };
 
                     pop_into_parent_list(&mut stack);
                     continue;
@@ -292,9 +291,9 @@ pub fn vim_to_object(
                     pop_into_parent_list(&mut stack);
                 }
                 *first = false;
-                let cur_li = *li;
-                *li = crate::globals::gptr(cur_li).li_next;
-                &mut crate::globals::gptr(cur_li).li_tv
+                let cur_li = unsafe { &mut **li };
+                *li = cur_li.li_next;
+                &mut cur_li.li_tv
             }
             ConvStackEntry::Dict {
                 dict,
@@ -308,7 +307,7 @@ pub fn vim_to_object(
                     let saved = *saved_copy_id;
                     mpstack.pop();
 
-                    crate::globals::gptr(dict_ptr).dv_copy_id = saved;
+                    unsafe { (*dict_ptr).dv_copy_id = saved };
 
                     pop_into_parent_dict(&mut stack);
                     continue;
@@ -317,7 +316,7 @@ pub fn vim_to_object(
                     pop_into_parent_dict(&mut stack);
                 }
                 *first = false;
-                while hashitem_empty(crate::globals::gref(*hi)) {
+                while hashitem_empty(unsafe { &**hi }) {
                     *hi = (*hi).wrapping_add(1);
                 }
                 let cur_hi = *hi;
@@ -501,7 +500,7 @@ mod tests {
             assert_eq!(cyc_obj.data.array()[0].obj_type, ObjectType::ObjectTypeNil);
             crate::api::private::helpers::api_free_object(cyc_obj);
 
-            crate::globals::gptr(list.lv_first).li_tv.v_type = VarType::VarUnknown;
+            unsafe { (*list.lv_first).li_tv.v_type = VarType::VarUnknown };
 
             crate::eval::typval::tv_list_free(list);
         }

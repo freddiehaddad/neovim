@@ -837,7 +837,9 @@ fn set_init_default_cdpath() {
     buf_vec[j] = 0;
     change_option_default(
         K_OPT_CDPATH,
-        cstr_to_obj(crate::memory::cstr_until_nul(&buf_vec)),
+        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
+            crate::memory::cstr_until_nul(&buf_vec),
+        )),
     );
 }
 
@@ -858,7 +860,7 @@ fn set_init_expand_env() {
             p = option_expand(opt_idx, opt.def_val.data.string().data);
         }
         if let Some(p) = p {
-            let ov = cstr_to_obj(p);
+            let ov = cstr_to_obj(crate::memory::cstr_as_opt_cstr(p));
             set_option_varp(opt_idx, opt.var, ov);
             change_option_default(opt_idx, ov);
         }
@@ -965,7 +967,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
         && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
         && let Some(s) = option_expand(opt_idx, def_val.data.string().data)
     {
-        def_val = cstr_as_obj(s);
+        def_val = cstr_as_obj(crate::memory::cstr_as_opt_cstr(s));
     }
     if optval_is_owned(opt_idx) {
         copy_object(def_val, None)
@@ -1029,7 +1031,7 @@ fn set_options_default(opt_flags: i32) {
 fn set_string_default(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) {
     let val = val.into_c_char_ptr();
     assert!(opt_idx != K_OPT_INVALID);
-    change_option_default(opt_idx, cstr_to_obj(val));
+    change_option_default(opt_idx, cstr_to_obj(crate::memory::cstr_as_opt_cstr(val)));
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
@@ -1114,7 +1116,7 @@ fn change_option_and_default_if_unset(idx: OptIndex, val: Option<&'static CStr>)
     if (get_option(idx).flags & K_OPT_FLAG_WAS_SET) != 0 {
         return;
     }
-    let optval = cstr_as_obj(val.as_ptr());
+    let optval = cstr_as_obj(crate::memory::cstr_as_opt_cstr(val.as_ptr()));
     set_option_direct(idx, optval, 0, SID_NONE);
     change_option_default(idx, copy_object(optval, None));
 }
@@ -1838,11 +1840,11 @@ pub fn get_option_newval<T>(
         ObjectType::ObjectTypeString => {
             let oldval_str = oldval.data.string().data;
             let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
-            newval = cstr_to_obj(newval_str.as_ptr());
+            newval = cstr_to_obj(crate::memory::cstr_as_opt_cstr(newval_str.as_ptr()));
         }
         ObjectType::ObjectTypeLuaRef => {
             let newval_str = stropt_get_newval(opt_idx, argp, varp, c"", &mut op);
-            newval = cstr_to_obj(newval_str.as_ptr());
+            newval = cstr_to_obj(crate::memory::cstr_as_opt_cstr(newval_str.as_ptr()));
         }
         _ => std::process::abort(),
     }
@@ -3588,28 +3590,30 @@ pub fn get_tty_option(name: &[u8]) -> Object {
     let name = crate::memory::bytes_until_nul(name);
     if name == b"t_Co" {
         if g_st().t_colors <= 1 {
-            cstr_to_obj(c"")
+            cstr_to_obj(Some(c""))
         } else {
             let mut value = [0u8; NUMBUFLEN];
             vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
-            cstr_to_obj(crate::memory::cstr_until_nul(&value))
+            cstr_to_obj(crate::memory::cstr_as_opt_cstr(
+                crate::memory::cstr_until_nul(&value),
+            ))
         }
     } else if name == b"term" {
-        cstr_to_obj(
+        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
             opt_st()
                 .p_term
                 .as_ref()
                 .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-        )
+        ))
     } else if name == b"ttytype" {
-        cstr_to_obj(
+        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
             opt_st()
                 .p_ttytype
                 .as_ref()
                 .map_or(c"nvim".as_ptr(), |s| s.as_ptr()),
-        )
+        ))
     } else if is_tty_option(name) {
-        cstr_to_obj(c"")
+        cstr_to_obj(Some(c""))
     } else {
         nil_obj()
     }
@@ -4945,7 +4949,7 @@ pub fn optval_own(opt_idx: OptIndex, value: Object) -> Object {
 fn optval_snapshot(value: Object) -> Object {
     if value.obj_type == ObjectType::ObjectTypeLuaRef {
         let s = nlua_funcref_str(value.data.luaref(), true);
-        return cstr_to_obj(s.as_ptr());
+        return cstr_to_obj(Some(s.as_c_str()));
     }
     copy_object(value, None)
 }
@@ -4964,19 +4968,19 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             return luaref_obj(api_new_luaref(luaref));
         }
         K_CALLBACK_EXPR | K_CALLBACK_FUNCREF => {
-            return cstr_to_obj(cb.data.as_funcref());
+            return cstr_to_obj(crate::memory::cstr_as_opt_cstr(cb.data.as_funcref()));
         }
         K_CALLBACK_PARTIAL => {
             let mut tv = TypVal::new();
             callback_put(cb, &mut tv);
             let str_ = encode_tv2string(&mut tv, None);
             tv_clear(&mut tv);
-            return cstr_to_obj(str_.as_ptr());
+            return cstr_to_obj(crate::memory::cstr_as_opt_cstr(str_.as_ptr()));
         }
         K_CALLBACK_NONE_CONST => {}
         _ => {}
     }
-    cstr_to_obj(c"")
+    cstr_to_obj(Some(c""))
 }
 
 fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
@@ -5008,7 +5012,9 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return if opt.opt_type == ObjectType::ObjectTypeString {
-            string_obj(cstr_as_string(opt.def_val.data.string().data))
+            string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                opt.def_val.data.string().data,
+            )))
         } else {
             opt.def_val
         };
@@ -5027,9 +5033,11 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
             *crate::globals::gptr(varp.cast::<i32>()),
         ))),
         ObjectType::ObjectTypeInteger => integer_obj(*crate::globals::gptr(varp.cast::<OptInt>())),
-        ObjectType::ObjectTypeString => string_obj(cstr_as_string(*crate::globals::gptr(
-            (varp.cast::<*mut u8>()).cast::<*mut _>(),
-        ))),
+        ObjectType::ObjectTypeString => {
+            string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                *crate::globals::gptr((varp.cast::<*mut u8>()).cast::<*mut _>()),
+            )))
+        }
         _ => std::process::abort(),
     }
 }
@@ -5232,7 +5240,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
         str_cstr = std::ffi::CString::new(bytes).unwrap();
     }
 
-    cstr_to_obj(str_cstr.as_ptr())
+    cstr_to_obj(crate::memory::cstr_as_opt_cstr(str_cstr.as_ptr()))
 }
 
 /// Check if option is hidden.
@@ -5714,7 +5722,10 @@ fn set_option<'a>(
             );
         }
         if (opt.flags & K_OPT_FLAG_UIOPTION) != 0 {
-            ui_call_option_set(cstr_as_string(opt.fullname.as_ptr()), saved_new_value);
+            ui_call_option_set(
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(opt.fullname.as_ptr())),
+                saved_new_value,
+            );
         }
     }
 
@@ -6088,7 +6099,7 @@ pub fn ui_refresh_options() {
         if (opt.flags & K_OPT_FLAG_UIOPTION) == 0 {
             continue;
         }
-        let name = cstr_as_string(opt.fullname.as_ptr());
+        let name = cstr_as_string(crate::memory::cstr_as_opt_cstr(opt.fullname.as_ptr()));
         let value = opt_from_varp(opt_idx, opt.var);
         ui_call_option_set(name, value);
     }
@@ -8169,7 +8180,12 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
     };
 
     if let Some(p) = p {
-        set_option_direct(K_OPT_FILEFORMAT, cstr_as_obj(p), opt_flags, 0);
+        set_option_direct(
+            K_OPT_FILEFORMAT,
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p)),
+            opt_flags,
+            0,
+        );
     }
 
     redraw_buf_status_later(curbuf_mut());
@@ -8384,11 +8400,17 @@ fn option_info_dict(
     let opt_idx = get_opt_idx(&raw mut *opt);
     let mut dict = arena_dict(arena, 13);
 
-    put_c(&mut dict, c"name", cstr_as_obj(opt.fullname.as_ptr()));
+    put_c(
+        &mut dict,
+        c"name",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(opt.fullname.as_ptr())),
+    );
     put_c(
         &mut dict,
         c"shortname",
-        cstr_as_obj(opt.shortname.map_or(ptr::null(), |s| s.as_ptr())),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+            opt.shortname.map_or(ptr::null(), |s| s.as_ptr()),
+        )),
     );
 
     let scope = if option_has_scope(opt_idx, K_OPT_SCOPE_BUF) {
@@ -8401,7 +8423,11 @@ fn option_info_dict(
         c"global".as_ptr()
     };
 
-    put_c(&mut dict, c"scope", cstr_as_obj(scope));
+    put_c(
+        &mut dict,
+        c"scope",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(scope)),
+    );
 
     put_c(
         &mut dict,
@@ -8465,9 +8491,9 @@ fn option_info_dict(
     put_c(
         &mut dict,
         c"type",
-        cstr_as_obj(optval_type_name(
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(optval_type_name(
             get_option(get_opt_idx(&raw mut *opt)).opt_type,
-        )),
+        ))),
     );
     put_c(&mut dict, c"default", opt.def_val);
     put_c(

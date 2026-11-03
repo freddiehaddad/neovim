@@ -379,9 +379,8 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
             b"g" => dict = get_globvar_dict(),
             b"v" => dict = get_vimvar_dict(),
             b"b" => {
-                let buf = find_buffer_by_handle(handle, &mut err);
-                if !buf.is_null() {
-                    dict = (*buf).b_vars();
+                if let Some(buf) = find_buffer_by_handle(handle, &mut err) {
+                    dict = buf.b_vars();
                 }
             }
             b"w" => {
@@ -391,9 +390,8 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> *mut TvDict {
                 }
             }
             b"t" => {
-                let tabpage = find_tab_by_handle(handle, &mut err);
-                if !tabpage.is_null() {
-                    dict = (*tabpage).tp_vars();
+                if let Some(tabpage) = find_tab_by_handle(handle, &mut err) {
+                    dict = tabpage.tp_vars();
                 }
             }
             _ => {
@@ -428,7 +426,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let del = lua_gettop(lstate) < 4 || lua_isnil(lstate, 4);
 
         let mut err = Error::new();
-        let mut di = dict_check_writable(&mut *dict, key, del, &mut err);
+        let di_opt = dict_check_writable(&mut *dict, key, del, &mut err);
         if err.err_type != ErrorType::ErrorTypeNone {
             luaL_where(lstate, 1);
             lua_pushstring(lstate, err.msg_cstr());
@@ -441,13 +439,13 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
         let watched = tv_dict_is_watched(dict.as_ref());
 
         if del {
-            if di.is_null() {
+            let Some(di) = di_opt else {
                 return 0;
-            }
+            };
             if watched {
-                tv_dict_watcher_notify(&mut *dict, key.data, None, Some(&(*di).di_tv));
+                tv_dict_watcher_notify(&mut *dict, key.data, None, Some(&di.di_tv));
             }
-            tv_dict_item_remove(&mut *dict, &mut *di);
+            tv_dict_item_remove(&mut *dict, di);
         } else {
             let mut tv: TypVal = TypVal::new();
 
@@ -458,13 +456,10 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
 
             let mut oldtv: TypVal = TypVal::new();
 
-            if di.is_null() {
-                di = tv_dict_item_alloc_len(key.as_bytes());
-                let _ = tv_dict_add(&mut *dict, di);
-            } else {
+            let di = if let Some(di) = di_opt {
                 let mut type_error = false;
                 if dict == get_vimvar_dict()
-                    && !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
+                    && !before_set_vvar(key.data, di, &mut tv, true, watched, &mut type_error)
                 {
                     tv_clear(&mut tv);
                     if type_error {
@@ -477,12 +472,17 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
                     return 0;
                 }
                 if watched {
-                    tv_copy(&(*di).di_tv, &mut oldtv);
+                    tv_copy(&di.di_tv, &mut oldtv);
                 }
-                tv_clear(&mut (*di).di_tv);
-            }
+                tv_clear(&mut di.di_tv);
+                di
+            } else {
+                let new_di = tv_dict_item_alloc_len(key.as_bytes());
+                let _ = tv_dict_add(&mut *dict, new_di);
+                new_di
+            };
 
-            tv_copy(&tv, &mut (*di).di_tv);
+            tv_copy(&tv, &mut di.di_tv);
 
             if watched {
                 tv_dict_watcher_notify(&mut *dict, key.data, Some(&tv), Some(&oldtv));

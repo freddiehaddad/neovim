@@ -18,7 +18,7 @@ use crate::eval::vars::MAXCOL;
 use crate::ex_docmd::ex_win_close;
 use crate::globals::*;
 use crate::highlight::OptionalKeys;
-use crate::lua::converter::{Boolean, LuaRef, lua_State};
+use crate::lua::converter::{Boolean, LuaRef};
 use crate::lua::executor::{K_RET_MULTI_STACK, nlua_call_ref};
 use crate::memory::Arena;
 use crate::message::emsg;
@@ -134,7 +134,7 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
         || pos[0].obj_type != ObjectType::ObjectTypeInteger
         || pos[1].obj_type != ObjectType::ObjectTypeInteger
     {
-        api_err_exp(err, c"pos", c"[row, col] array", ptr::null());
+        api_err_exp(err, c"pos", c"[row, col] array", None);
         return;
     }
 
@@ -280,7 +280,7 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
     let mut rv: Tabpage = 0;
     let w = find_window_by_handle(win, err);
     if !w.is_null() {
-        rv = crate::globals::gptr(win_find_tabpage(w)).handle;
+        rv = unsafe { (*win_find_tabpage(w)).handle };
     }
     rv
 }
@@ -385,12 +385,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
 // DLLEXPORT Object nvim_win_call(Window win, LuaRef fn, lua_State *lstate, Error *err)
 //   FUNC_API_SINCE(7)
 //   FUNC_API_LUA_ONLY;
-pub fn nvim_win_call(
-    win: Window,
-    fn_ref: LuaRef,
-    _lstate: *mut lua_State,
-    err: &mut Error,
-) -> Object {
+pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
     let w = find_window_by_handle(win, err);
     if w.is_null() {
         return OBJECT_NIL;
@@ -438,7 +433,7 @@ pub fn nvim_win_set_hl_ns(win: Window, ns_id: Integer, err: &mut Error) {
     };
 
     if ns_id < -1 {
-        api_err_invalid(err, c"namespace", c"", 0, true);
+        api_err_invalid(err, c"namespace", Some(c""), 0, true);
         return;
     }
 
@@ -647,11 +642,11 @@ pub fn nvim_win_resize(
     }
 
     if !(height >= 0 || height == -1) {
-        api_err_exp(err, c"height", c"non-negative number or -1", ptr::null());
+        api_err_exp(err, c"height", c"non-negative number or -1", None);
         return;
     }
     if !(width >= 0 || width == -1) {
-        api_err_exp(err, c"width", c"non-negative number or -1", ptr::null());
+        api_err_exp(err, c"width", c"non-negative number or -1", None);
         return;
     }
 
@@ -674,19 +669,19 @@ pub fn nvim_win_resize(
                 err,
                 c"anchor",
                 c"\"top\", \"bottom\", \"left\" or \"right\"",
-                anchor,
+                crate::memory::cstr_as_opt_cstr(anchor),
             );
             return;
         }
         if (is_height && height == -1) || (is_width && width == -1) {
             api_err_conflict(
                 err,
-                anchor,
-                if is_width {
+                crate::memory::cstr_from_ptr(anchor),
+                crate::memory::cstr_from_ptr(if is_width {
                     c"width".as_ptr()
                 } else {
                     c"height".as_ptr()
-                },
+                }),
             );
             return;
         }
@@ -696,12 +691,12 @@ pub fn nvim_win_resize(
     }
     if height >= 0 {
         try_wrap(err, || {
-            win_setheight_win(height as i32, crate::globals::gmut(w), from_top);
+            win_setheight_win(height as i32, unsafe { &mut *w }, from_top);
         });
     }
     if !error_set(err) && width >= 0 {
         try_wrap(err, || {
-            win_setwidth_win(width as i32, crate::globals::gmut(w), from_left);
+            win_setwidth_win(width as i32, unsafe { &mut *w }, from_left);
         });
     }
 }

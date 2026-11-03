@@ -2841,7 +2841,7 @@ pub fn mt_inspect(b: &MarkTree, keys: bool, dot: bool) -> NvimString {
             mt_inspect_node(b, &mut out, keys, root, p);
         }
     }
-    cbuf_to_string(out.as_ptr().cast(), out.len())
+    cbuf_to_string(crate::memory::cstr_slice(out.as_ptr().cast(), out.len()))
 }
 
 #[inline]

@@ -288,7 +288,7 @@ fn copy_string_global(s: NvimString) -> NvimString {
             size: 0,
         }
     } else {
-        cbuf_to_string(s.data, s.size)
+        cbuf_to_string(crate::memory::cstr_slice(s.data, s.size))
     }
 }
 
@@ -535,11 +535,11 @@ fn stuff_yank(regname: i32, p: impl crate::strings::IntoCCharPtr) -> bool {
             tmp[..pp.size].copy_from_slice(crate::memory::cstr_slice(pp.data, pp.size));
             tmp[pp.size..tmplen].copy_from_slice(crate::memory::cstr_slice(p, plen));
             api_clear_string(pp);
-            *pp = cbuf_to_string(tmp.as_ptr().cast(), tmplen);
+            *pp = cbuf_to_string(crate::memory::cstr_slice(tmp.as_ptr().cast(), tmplen));
         } else {
             *reg = EMPTY_YANKREG;
             reg.additional_data = None;
-            reg.y_array = vec![cbuf_to_string(p, plen)];
+            reg.y_array = vec![cbuf_to_string(crate::memory::cstr_slice(p, plen))];
             reg.y_allocated = true;
             reg.y_type = MotionType::MtCharWise;
         }
@@ -1070,7 +1070,8 @@ fn yank_copy_line(
         }
     }
     buf_vec[out_size] = 0;
-    reg.y_array[y_idx] = cbuf_to_string(buf_vec.as_ptr().cast(), out_size);
+    reg.y_array[y_idx] =
+        cbuf_to_string(crate::memory::cstr_slice(buf_vec.as_ptr().cast(), out_size));
 }
 
 pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append: bool) {
@@ -1144,8 +1145,9 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
             MotionType::MtLineWise => {
                 let line_slice = crate::memline::ml_get_slice(lnum);
 
-                (crate::globals::gmut(reg)).y_array[y_idx] =
-                    cbuf_to_string(line_slice.as_ptr().cast(), line_slice.len());
+                (crate::globals::gmut(reg)).y_array[y_idx] = cbuf_to_string(
+                    crate::memory::cstr_slice(line_slice.as_ptr().cast(), line_slice.len()),
+                );
             }
             MotionType::MtCharWise => {
                 charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
@@ -1196,7 +1198,10 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, mut reg: *mut Yankreg, append
 
             let last_slot = curr_reg.y_array.last_mut().unwrap();
             api_clear_string(last_slot);
-            *last_slot = cbuf_to_string(pnew.as_ptr().cast(), last_old.size + first_new.size);
+            *last_slot = cbuf_to_string(crate::memory::cstr_slice(
+                pnew.as_ptr().cast(),
+                last_old.size + first_new.size,
+            ));
             api_clear_string(&mut new_reg.y_array[0]);
             y_idx = 1;
         } else {
@@ -2850,7 +2855,9 @@ fn str_to_reg(
     if let Some(list) = str_list {
         for item in list {
             let s = item.as_ref();
-            y_ptr.y_array.push(cstr_to_string(s));
+            y_ptr
+                .y_array
+                .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(s)));
             if yank_type == MotionType::MtBlockWise {
                 let charlen = vim_strsize(s) as usize;
                 maxlen = maxlen.max(charlen);
@@ -2888,7 +2895,7 @@ fn str_to_reg(
                     *b = b'\n';
                 }
             }
-            let new_str = cbuf_to_string(s_vec.as_ptr().cast(), s_len);
+            let new_str = cbuf_to_string(crate::memory::cstr_slice(s_vec.as_ptr().cast(), s_len));
 
             if append {
                 let last = y_ptr.y_array.last_mut().unwrap();

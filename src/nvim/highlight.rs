@@ -388,7 +388,7 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     for hlf in 0..HLF_COUNT {
         remote_ui_hl_group_set(
             ui,
-            cstr_as_string(hlf_name_ptr(hlf)),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(hlf_name_ptr(hlf))),
             Integer::from(g_st().highlight_attr[hlf]),
         );
     }
@@ -490,7 +490,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             items: args_storage.as_mut_ptr(),
         };
         add_c(&mut args, integer_obj(Integer::from(ns_id)));
-        add_c(&mut args, cstr_as_obj(syn_id2name(hl_id)));
+        add_c(&mut args, cstr_as_obj(Some(syn_id2name(hl_id))));
         add_c(&mut args, boolean_obj(link));
 
         let mut err = Error::new();
@@ -512,7 +512,7 @@ pub fn ns_get_hl(ns_hl: &mut NS, hl_id: i32, link: bool, nodefault: bool) -> i32
             fallback = false;
             let mut dict = KeyDict_highlight::default();
             if api_dict_to_keydict(
-                (&raw mut dict).cast(),
+                &mut dict,
                 Some(key_dict_highlight_get_field),
                 ret.data.dict(),
                 &mut err,
@@ -1294,7 +1294,11 @@ pub fn hlattrs2dict(
             put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
         }
         if let Some(font) = hl_get_font(ae.font) {
-            put_c(&mut *hl, c"font", string_obj(cstr_as_string(font)));
+            put_c(
+                &mut *hl,
+                c"font",
+                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(font))),
+            );
         }
     } else {
         if ae.cterm_fg_color != 0 {
@@ -1574,7 +1578,7 @@ pub fn dict2hlattrs(
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_BLEND) {
         let blend0 = dict.blend;
         if !(0..=100).contains(&blend0) {
-            api_err_invalid(err, c"blend", c"out of range", 0, false);
+            api_err_invalid(err, c"blend", Some(c"out of range"), 0, false);
             return hlattrs;
         }
         blend = blend0 as i32;
@@ -1611,7 +1615,7 @@ pub fn dict2hlattrs(
     if has_key(is_set, KEYSET_OPTIDX_HIGHLIGHT_CTERM) {
         let mut cterm = KeyDict_highlight_cterm::default();
         if !api_dict_to_keydict(
-            (&raw mut cterm).cast(),
+            &mut cterm,
             Some(key_dict_highlight_cterm_get_field),
             dict.cterm,
             err,
@@ -1708,17 +1712,18 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
             name_to_ctermcolor(crate::memory::cstr_from_ptr(str_.data))
         };
         if color < 0 {
-            api_err_invalid(err, c"highlight color", str_.data, 0, true);
+            api_err_invalid(
+                err,
+                c"highlight color",
+                crate::memory::cstr_as_opt_cstr(str_.data),
+                0,
+                true,
+            );
             return color;
         }
         color
     } else {
-        api_err_exp(
-            err,
-            key.as_ptr().cast_mut(),
-            c"String or Integer",
-            ptr::null(),
-        );
+        api_err_exp(err, key, c"String or Integer", None);
         0
     }
 }
@@ -1758,23 +1763,23 @@ fn hl_inspect_impl(arr: &mut Array, attr: i32, arena: &mut Arena) {
     match e.kind {
         K_HL_SYNTAX => {
             item = arena_dict(arena, 3);
-            put_c(&mut item, c"kind", cstr_as_obj(c"syntax"));
-            put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id1)));
+            put_c(&mut item, c"kind", cstr_as_obj(Some(c"syntax")));
+            put_c(&mut item, c"hi_name", cstr_as_obj(Some(syn_id2name(e.id1))));
         }
         K_HL_UI => {
             item = arena_dict(arena, 4);
-            put_c(&mut item, c"kind", cstr_as_obj(c"ui"));
+            put_c(&mut item, c"kind", cstr_as_obj(Some(c"ui")));
             let ui_name = if e.id1 == -1 {
                 Some(c"Normal")
             } else {
                 hlf_name_ptr(e.id1 as usize)
             };
             put_c(&mut item, c"ui_name", cstr_as_obj(ui_name));
-            put_c(&mut item, c"hi_name", cstr_as_obj(syn_id2name(e.id2)));
+            put_c(&mut item, c"hi_name", cstr_as_obj(Some(syn_id2name(e.id2))));
         }
         K_HL_TERMINAL => {
             item = arena_dict(arena, 2);
-            put_c(&mut item, c"kind", cstr_as_obj(c"term"));
+            put_c(&mut item, c"kind", cstr_as_obj(Some(c"term")));
         }
         K_HL_COMBINE | K_HL_BLEND | K_HL_BLEND_THROUGH => {
             hl_inspect_impl(arr, e.id1, arena);

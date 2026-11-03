@@ -2661,7 +2661,12 @@ pub fn readfile(
 
             if set_options {
                 save_file_ff(curbuf_mut());
-                set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.cast()), OPT_LOCAL, 0);
+                set_option_direct(
+                    K_OPT_FILEENCODING,
+                    cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc.cast())),
+                    OPT_LOCAL,
+                    0,
+                );
             }
             drop(fenc_owned);
             if iconv_fd != -1 {
@@ -3114,7 +3119,12 @@ pub fn set_forced_fenc(eap: &Exarg) {
     }
 
     let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
-    set_option_direct(K_OPT_FILEENCODING, cstr_as_obj(fenc.as_ptr()), OPT_LOCAL, 0);
+    set_option_direct(
+        K_OPT_FILEENCODING,
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc.as_ptr())),
+        OPT_LOCAL,
+        0,
+    );
 }
 
 /// Find next fileencoding to use from 'fileencodings'.

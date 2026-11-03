@@ -2109,25 +2109,41 @@ fn mapblock_fill_dict(
             luaref_obj(api_new_luaref(mp.m_luaref)),
         );
     } else {
-        let rhs = cstr_as_string(if compatible {
+        let rhs = cstr_as_string(crate::memory::cstr_as_opt_cstr(if compatible {
             mp.m_orig_str.as_c_str()
         } else {
             str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)
-        });
+        }));
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
     if let Some(ref desc) = mp.m_desc {
-        put_c(&mut dict, c"desc", cstr_as_obj(desc.as_ptr()));
+        put_c(
+            &mut dict,
+            c"desc",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(desc.as_ptr())),
+        );
     }
-    put_c(&mut dict, c"lhs", cstr_as_obj(lhs));
-    put_c(&mut dict, c"lhsraw", cstr_as_obj(mp.m_keys.as_ptr()));
+    put_c(
+        &mut dict,
+        c"lhs",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(lhs)),
+    );
+    put_c(
+        &mut dict,
+        c"lhsraw",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mp.m_keys.as_ptr())),
+    );
     if !lhsrawalt.is_null() {
         let alt_bytes = crate::memory::cstr_from_ptr(lhsrawalt).to_bytes_with_nul();
         let alt_arena = arena_alloc(arena, alt_bytes.len(), false);
         let dst =
             unsafe { std::slice::from_raw_parts_mut(alt_arena.cast::<u8>(), alt_bytes.len()) };
         dst.copy_from_slice(alt_bytes);
-        put_c(&mut dict, c"lhsrawalt", cstr_as_obj(alt_arena.cast()));
+        put_c(
+            &mut dict,
+            c"lhsrawalt",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(alt_arena.cast())),
+        );
     }
     put_c(&mut dict, c"noremap", integer_obj(noremap_value));
     put_c(
@@ -2166,7 +2182,11 @@ fn mapblock_fill_dict(
         c"replace_keycodes",
         integer_obj(i64::from(mp.m_replace_keycodes)),
     );
-    put_c(&mut dict, c"mode", cstr_as_obj(mapmode.cast()));
+    put_c(
+        &mut dict,
+        c"mode",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(mapmode.cast())),
+    );
     put_c(&mut dict, c"abbr", integer_obj(i64::from(abbr)));
     put_c(&mut dict, c"mode_bits", integer_obj(i64::from(mp.m_mode)));
 

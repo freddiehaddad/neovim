@@ -1765,13 +1765,17 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
         let mut arg_ch: u8 = 0;
         let mut d = arena_dict(arena, 16);
 
-        put_c(&mut d, c"name", cstr_as_obj(cmd.uc_name.as_ptr()));
-        put_c(&mut d, c"definition", cstr_as_obj(cmd.uc_rep.as_ptr()));
         put_c(
             &mut d,
-            c"desc",
-            cstr_as_obj(cmd.uc_desc.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+            c"name",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd.uc_name.as_ptr())),
         );
+        put_c(
+            &mut d,
+            c"definition",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd.uc_rep.as_ptr())),
+        );
+        put_c(&mut d, c"desc", cstr_as_obj(cmd.uc_desc.as_deref()));
         put_c(
             &mut d,
             c"script_id",
@@ -1833,7 +1837,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                 &mut d,
                 c"complete",
                 match get_command_complete(cmd.uc_compl) {
-                    Some(cmd_compl) => cstr_as_obj(cmd_compl),
+                    Some(cmd_compl) => cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd_compl)),
                     None => nil_obj(),
                 },
             );
@@ -1842,7 +1846,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             &mut d,
             c"complete_arg",
             match &cmd.uc_compl_arg {
-                Some(arg) => cstr_as_obj(arg.as_ptr()),
+                Some(arg) => cstr_as_obj(Some(arg.as_c_str())),
                 None => nil_obj(),
             },
         );
@@ -1853,7 +1857,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                 let s = format!("{}", cmd.uc_def);
                 obj = arena_str_obj(arena, s.as_bytes());
             } else {
-                obj = cstr_as_obj(c"0");
+                obj = cstr_as_obj(Some(c"0"));
             }
         }
         put_c(&mut d, c"count", obj);
@@ -1861,12 +1865,12 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
         obj = nil_obj();
         if (cmd.uc_argt & EX_RANGE) != 0 {
             if (cmd.uc_argt & EX_DFLALL) != 0 {
-                obj = cstr_as_obj(c"%");
+                obj = cstr_as_obj(Some(c"%"));
             } else if cmd.uc_def >= 0 {
                 let s = format!("{}", cmd.uc_def);
                 obj = arena_str_obj(arena, s.as_bytes());
             } else {
-                obj = cstr_as_obj(c".");
+                obj = cstr_as_obj(Some(c"."));
             }
         }
         put_c(&mut d, c"range", obj);
@@ -1878,7 +1882,7 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
             }
             if entry.expand != ADDR_LINES && entry.expand == cmd.uc_addr_type {
                 if let Some(name) = entry.name {
-                    obj = cstr_as_obj(name.as_ptr());
+                    obj = cstr_as_obj(crate::memory::cstr_as_opt_cstr(name.as_ptr()));
                 }
                 break;
             }

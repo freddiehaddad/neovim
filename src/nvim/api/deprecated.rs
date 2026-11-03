@@ -286,7 +286,7 @@ pub fn nvim_buf_set_virtual_text(
     let ns_id = src2ns(&mut src_id);
     let mut width: i32 = 0;
 
-    let virt_text = parse_virt_text(chunks, err, &mut width, false);
+    let virt_text = parse_virt_text(chunks, err, Some(&mut width), false);
     if error_set(err) {
         return 0;
     }
@@ -351,7 +351,7 @@ pub fn nvim_buf_set_virtual_text(
 pub fn nvim_get_hl_by_id(hl_id: Integer, rgb: Boolean, arena: &mut Arena, err: &mut Error) -> Dict {
     let dic = Dict::new();
     if syn_get_final_id(hl_id as i32) == 0 {
-        api_err_invalid(err, c"highlight id", ptr::null(), hl_id, false);
+        api_err_invalid(err, c"highlight id", None, hl_id, false);
         return dic;
     }
     let attrcode = syn_id2attr(hl_id as i32);
@@ -379,7 +379,13 @@ pub fn nvim_get_hl_by_name(
     let result = Dict::new();
     let id = syn_name2id(crate::memory::cstr_from_ptr(name.data));
     if id == 0 {
-        api_err_invalid(err, c"highlight name", name.data, 0, true);
+        api_err_invalid(
+            err,
+            c"highlight name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return result;
     }
     nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
@@ -428,16 +434,7 @@ pub fn buffer_get_line(
         size: 0,
     };
     index = convert_index(index);
-    let slice = nvim_buf_get_lines(
-        0,
-        buffer,
-        index,
-        index + 1,
-        true,
-        arena,
-        ptr::null_mut(),
-        err,
-    );
+    let slice = nvim_buf_get_lines(0, buffer, index, index + 1, true, arena, None, err);
     if !error_set(err) && slice.size > 0 {
         rv = slice[0].data.string();
     }
@@ -512,7 +509,7 @@ pub fn buffer_get_line_slice(
 ) -> Array {
     start = convert_index(start) + i64::from(!include_start);
     end = convert_index(end) + i64::from(include_end);
-    nvim_buf_get_lines(0, buffer, start, end, false, arena, ptr::null_mut(), err)
+    nvim_buf_get_lines(0, buffer, start, end, false, arena, None, err)
 }
 
 /// Replaces a line range on the buffer
@@ -839,10 +836,9 @@ pub fn nvim_get_option(name: NvimString, err: &mut Error) -> Object {
 //   FUNC_API_DEPRECATED_SINCE(11)
 //   FUNC_API_RET_ALLOC;
 pub fn nvim_buf_get_option(buffer: Buffer, name: NvimString, err: &mut Error) -> Object {
-    let buf = find_buffer_by_handle(buffer, err);
-    if buf.is_null() {
+    let Some(buf) = find_buffer_by_handle(buffer, err) else {
         return OBJECT_NIL;
-    }
+    };
     get_option_from(OptTarget::Buf(buf), K_OPT_SCOPE_BUF, name, err)
 }
 
@@ -866,10 +862,9 @@ pub fn nvim_buf_set_option(
     value: Object,
     err: &mut Error,
 ) {
-    let buf = find_buffer_by_handle(buffer, err);
-    if buf.is_null() {
+    let Some(buf) = find_buffer_by_handle(buffer, err) else {
         return;
-    }
+    };
     set_option_to(
         channel_id,
         OptTarget::Buf(buf),
@@ -935,18 +930,30 @@ pub fn nvim_win_set_option(
 
 fn get_option_from(from: OptTarget, scope: OptScope, name: NvimString, err: &mut Error) -> Object {
     if name.size == 0 {
-        api_err_invalid(err, c"option name", c"<empty>", 0, true);
+        api_err_invalid(err, c"option name", Some(c"<empty>"), 0, true);
         return OBJECT_NIL;
     }
 
     let opt_idx = find_option(name.data);
     if opt_idx == K_OPT_INVALID {
-        api_err_invalid(err, c"option name", name.data, 0, true);
+        api_err_invalid(
+            err,
+            c"option name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return OBJECT_NIL;
     }
 
     if !option_has_scope(opt_idx, scope) {
-        api_err_invalid(err, c"option name", name.data, 0, true);
+        api_err_invalid(
+            err,
+            c"option name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return OBJECT_NIL;
     }
 
@@ -977,13 +984,19 @@ fn set_option_to(
     err: &mut Error,
 ) {
     if name.size == 0 {
-        api_err_invalid(err, c"option name", c"<empty>", 0, true);
+        api_err_invalid(err, c"option name", Some(c"<empty>"), 0, true);
         return;
     }
 
     let opt_idx = find_option(name.data);
     if opt_idx == K_OPT_INVALID {
-        api_err_invalid(err, c"option name", name.data, 0, true);
+        api_err_invalid(
+            err,
+            c"option name",
+            crate::memory::cstr_as_opt_cstr(name.data),
+            0,
+            true,
+        );
         return;
     }
 
@@ -999,7 +1012,7 @@ fn set_option_to(
             err,
             c"value",
             c"valid option type",
-            api_typename(value.obj_type),
+            Some(api_typename(value.obj_type)),
         );
         return;
     }
@@ -1049,13 +1062,13 @@ pub fn nvim_call_atomic(
                     err,
                     c"'calls' item",
                     api_typename(ObjectType::ObjectTypeArray),
-                    api_typename(item.obj_type),
+                    Some(api_typename(item.obj_type)),
                 );
                 break 'theend;
             }
             let call = item.data.array();
             if call.size != 2 {
-                api_err_exp(err, c"'calls' item", c"2-item Array", ptr::null());
+                api_err_exp(err, c"'calls' item", c"2-item Array", None);
                 break 'theend;
             }
             let first = call[0];
@@ -1064,7 +1077,7 @@ pub fn nvim_call_atomic(
                     err,
                     c"name",
                     api_typename(ObjectType::ObjectTypeString),
-                    api_typename(first.obj_type),
+                    Some(api_typename(first.obj_type)),
                 );
                 break 'theend;
             }
@@ -1075,7 +1088,7 @@ pub fn nvim_call_atomic(
                     err,
                     c"call args",
                     api_typename(ObjectType::ObjectTypeArray),
-                    api_typename(second.obj_type),
+                    Some(api_typename(second.obj_type)),
                 );
                 break 'theend;
             }
@@ -1107,7 +1120,7 @@ pub fn nvim_call_atomic(
             add_c(
                 &mut errval,
                 string_obj(copy_string(
-                    cstr_as_string(nested_error.msg_cstr()),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(nested_error.msg_cstr())),
                     Some(arena),
                 )),
             );

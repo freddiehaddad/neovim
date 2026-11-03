@@ -2017,13 +2017,23 @@ pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
         new_ei_vec.extend_from_slice(what_bytes);
     }
     let new_ei = CString::new(new_ei_vec).unwrap_or_default();
-    set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(new_ei.as_ptr()), 0, SID_NONE);
+    set_option_direct(
+        K_OPT_EVENTIGNORE,
+        cstr_as_obj(Some(new_ei.as_c_str())),
+        0,
+        SID_NONE,
+    );
     save_ei
 }
 
 pub fn au_event_restore(old_ei: Option<std::ffi::CString>) {
     if let Some(old_ei) = old_ei {
-        set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(old_ei.as_ptr()), 0, SID_NONE);
+        set_option_direct(
+            K_OPT_EVENTIGNORE,
+            cstr_as_obj(Some(old_ei.as_c_str())),
+            0,
+            SID_NONE,
+        );
     }
 }
 
@@ -2573,8 +2583,8 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
     let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
     let mut err = Error::new();
-    let buf = find_buffer_by_handle(e.buf, &mut err);
-    if !buf.is_null() {
+    if let Some(buf) = find_buffer_by_handle(e.buf, &mut err) {
+        let buf_ptr: *mut FileBuf = buf;
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
         if !data.is_null() && crate::globals::gptr(data).obj_type == ObjectType::ObjectTypeDict {
@@ -2594,7 +2604,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
         let win = curwin_ptr();
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
+        ctx_switch(&mut aco, None, None, Some(buf), 0);
 
         apply_autocmds_group(
             event,
@@ -2602,7 +2612,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
             fname_io,
             false,
             group,
-            buf,
+            buf_ptr,
             crate::globals::gopt(win),
             None,
             data,
@@ -2619,11 +2629,11 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
     let mut err = Error::new();
     let buf = find_buffer_by_handle(bufnr, &mut err);
     api_clear_error(&mut err);
-    if !buf.is_null() {
+    if let Some(buf) = buf {
         let old = boolean_obj(!new_val);
         let new = boolean_obj(new_val);
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
+        ctx_switch(&mut aco, None, None, Some(buf), 0);
         apply_optionset_autocmd_now(K_OPT_MODIFIED, OPT_LOCAL, old, old, old, new);
         ctx_restore(&mut aco);
     }
@@ -3195,7 +3205,9 @@ pub extern "C" fn unblock_autocmds() {
     au_st().autocmd_blocked -= 1;
 
     if !is_autocmd_blocked() && au_st().termresponse_changed && has_event(EVENT_TERMRESPONSE) {
-        let sequence = cstr_to_string(get_vim_var_str(VV_TERMRESPONSE));
+        let sequence = cstr_to_string(crate::memory::cstr_as_opt_cstr(get_vim_var_str(
+            VV_TERMRESPONSE,
+        )));
         do_termresponse_autocmd(sequence, au_st().termresponse_chan_id);
         api_free_string(sequence);
     }
@@ -3303,22 +3315,22 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"event"),
-            value: cstr_as_obj(event_nr2name(apc.event)),
+            value: cstr_as_obj(Some(event_nr2name(apc.event))),
         };
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"file"),
-            value: cstr_as_obj(apc.afile_orig.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
+            value: cstr_as_obj(apc.afile_orig.as_deref()),
         };
         size += 1;
         data_items[size] = KeyValuePair {
             key: static_cstr_as_string(c"match"),
-            value: cstr_as_obj(
+            value: cstr_as_obj(crate::memory::cstr_as_opt_cstr(
                 g_st()
                     .autocmd_match
                     .as_ref()
                     .map_or(ptr::null(), |s| s.as_ptr()),
-            ),
+            )),
         };
         size += 1;
         data_items[size] = KeyValuePair {

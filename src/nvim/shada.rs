@@ -1769,10 +1769,7 @@ fn shada_pack_entry(
                 2 + u32::from(is_hist_search) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             mpack_uint(&mut sbuf, u32::from(hi.histtype));
-            mpack_bin(
-                cstr_as_string(hi.string.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                &mut sbuf,
-            );
+            mpack_bin(cstr_as_string(hi.string.as_deref()), &mut sbuf);
             if is_hist_search {
                 mpack_uint(&mut sbuf, u32::from(hi.sep));
             }
@@ -1789,7 +1786,7 @@ fn shada_pack_entry(
             let is_blob = gv_val.v_type == VarType::VarBlob;
             let arr_size = 2 + u32::from(is_blob) + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
-            let varname = cstr_as_string(gv_name_ptr);
+            let varname = cstr_as_string(crate::memory::cstr_as_opt_cstr(gv_name_ptr));
             mpack_bin(varname, &mut sbuf);
             let mut vardesc = [0u8; 256];
             let prefix = b"variable g:";
@@ -1815,14 +1812,14 @@ fn shada_pack_entry(
             let arr_size = 1 + additional_data_len(&entry.additional_data);
             mpack_array(&mut sbuf, arr_size);
             mpack_bin(
-                cstr_as_string(
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(
                     entry
                         .data
                         .sub_string()
                         .sub
                         .as_ref()
                         .map_or(ptr::null(), |s| s.as_ptr()),
-                ),
+                )),
                 &mut sbuf,
             );
             dump_additional_data(&entry.additional_data, &mut sbuf);
@@ -1895,10 +1892,7 @@ fn shada_pack_entry(
                 + additional_data_len(&entry.additional_data);
             mpack_map(&mut sbuf, entry_map_size);
             mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
-            mpack_bin(
-                cstr_as_string(fm.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                &mut sbuf,
-            );
+            mpack_bin(cstr_as_string(fm.fname.as_deref()), &mut sbuf);
             if fm.mark.lnum != dfm.mark.lnum {
                 mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
                 mpack_integer(&mut sbuf, i64::from(fm.mark.lnum));
@@ -1960,10 +1954,7 @@ fn shada_pack_entry(
                     + additional_data_len(&b.additional_data);
                 mpack_map(&mut sbuf, entry_map_size);
                 mpack_str(static_cstr_as_string(c"f"), &mut sbuf);
-                mpack_bin(
-                    cstr_as_string(b.fname.as_ref().map_or(ptr::null(), |s| s.as_ptr())),
-                    &mut sbuf,
-                );
+                mpack_bin(cstr_as_string(b.fname.as_deref()), &mut sbuf);
                 if b.pos.lnum != 1 {
                     mpack_str(static_cstr_as_string(c"l"), &mut sbuf);
                     mpack_uint64(&mut sbuf, b.pos.lnum as u64);
@@ -2448,7 +2439,9 @@ fn add_search_pattern(
                 is_last_used,
                 is_substitute_pattern,
                 highlighted: is_last_used && search_highlighted,
-                pat: cstr_as_string(get_search_pattern_ptr(is_substitute_pattern)),
+                pat: cstr_as_string(crate::memory::cstr_as_opt_cstr(get_search_pattern_ptr(
+                    is_substitute_pattern,
+                ))),
                 search_backward: !is_substitute_pattern && pat.off.dir == b'?',
             }),
             additional_data: pat.additional_data,
@@ -2657,7 +2650,9 @@ fn shada_write(
             key: static_cstr_as_string(c"version"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(long_version())),
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    long_version(),
+                ))),
             },
         },
         KeyValuePair {
@@ -2678,7 +2673,9 @@ fn shada_write(
             key: static_cstr_as_string(c"encoding"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(opt_vars().p_enc)),
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    opt_vars().p_enc,
+                ))),
             },
         },
     ];

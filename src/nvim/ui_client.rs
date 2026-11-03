@@ -147,7 +147,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     };
     let mut put_opt = |k: &std::ffi::CStr, v: Object| {
         *opts.next_slot_mut() = KeyValuePair {
-            key: cstr_as_string(k),
+            key: cstr_as_string(Some(k)),
             value: v,
         };
         opts.size += 1;
@@ -156,7 +156,10 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     put_opt(c"ext_linegrid", boolean_obj(true));
     put_opt(c"ext_termcolors", boolean_obj(true));
     if let Some(term) = term {
-        put_opt(c"term_name", cstr_as_obj(term.as_ptr()));
+        put_opt(
+            c"term_name",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(term.as_ptr())),
+        );
     }
     put_opt(c"term_colors", integer_obj(Integer::from(g_st().t_colors)));
     put_opt(c"stdin_tty", boolean_obj(g_st().stdin_isatty));
@@ -206,15 +209,15 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
 
     let mut info_items: [KeyValuePair; 3] = [
         KeyValuePair {
-            key: cstr_as_string(c"website"),
-            value: cstr_as_obj(c"https://neovim.io"),
+            key: cstr_as_string(Some(c"website")),
+            value: cstr_as_obj(Some(c"https://neovim.io")),
         },
         KeyValuePair {
-            key: cstr_as_string(c"license"),
-            value: cstr_as_obj(c"Apache 2"),
+            key: cstr_as_string(Some(c"license")),
+            value: cstr_as_obj(Some(c"Apache 2")),
         },
         KeyValuePair {
-            key: cstr_as_string(c"pid"),
+            key: cstr_as_string(Some(c"pid")),
             value: integer_obj(Integer::from(unsafe { uv_os_getpid() })),
         },
     ];
@@ -225,12 +228,12 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     };
 
     let mut args2_items: [Object; 5] = [
-        cstr_as_obj(c"nvim-tui"),
+        cstr_as_obj(Some(c"nvim-tui")),
         Object {
             obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(version),
         },
-        cstr_as_obj(c"ui"),
+        cstr_as_obj(Some(c"ui")),
         Object {
             obj_type: ObjectType::ObjectTypeArray,
             data: ObjectData::Array(ARRAY_INIT),
@@ -348,12 +351,7 @@ pub fn handle_ui_client_redraw(
 pub fn ui_client_dict2hlattrs(d: Dict, rgb: bool) -> HlAttrs {
     let mut err = Error::new();
     let mut dict = KeyDict_highlight::default();
-    if !api_dict_to_keydict(
-        (&raw mut dict).cast(),
-        Some(highlight_get_field_cb),
-        d,
-        &mut err,
-    ) {
+    if !api_dict_to_keydict(&mut dict, Some(highlight_get_field_cb), d, &mut err) {
         return HLATTRS_INIT;
     }
 

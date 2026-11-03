@@ -1519,11 +1519,13 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                     {
                                         set_option_value_give_err(
                                             K_OPT_BACKGROUND,
-                                            cstr_as_obj(if dark != 0 {
-                                                c"dark".as_ptr()
-                                            } else {
-                                                c"light".as_ptr()
-                                            }),
+                                            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+                                                if dark != 0 {
+                                                    c"dark".as_ptr()
+                                                } else {
+                                                    c"light".as_ptr()
+                                                },
+                                            )),
                                             0,
                                         );
                                         reset_option_was_set(K_OPT_BACKGROUND);
@@ -1765,7 +1767,9 @@ fn hlgroup2dict(hl: &mut Dict, ns_id: NS, hl_id: i32, arena: &mut Arena) -> bool
         put_c(
             hl,
             c"link",
-            cstr_as_obj(hl_table_at((link - 1) as usize).sg_name.as_ptr()),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+                hl_table_at((link - 1) as usize).sg_name.as_ptr(),
+            )),
         );
     }
     let mut hl_cterm = arena_dict(arena, HLATTRS_DICT_SIZE);
@@ -2355,7 +2359,7 @@ pub fn highlight_changed() {
                 g_st().msg_grid.blending = attrs.hl_blend > -1;
             }
             ui_call_hl_group_set(
-                cstr_as_string(name_cstr.as_ptr()),
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(name_cstr.as_ptr())),
                 Integer::from(g_st().highlight_attr[hlf]),
             );
             g_st().highlight_attr_last[hlf] = g_st().highlight_attr[hlf];

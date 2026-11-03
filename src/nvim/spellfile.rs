@@ -5361,7 +5361,11 @@ fn init_spellfile() {
         enc_suffix,
     );
 
-    set_option_value_give_err(K_OPT_SPELLFILE, cstr_as_obj(buf.cast()), OPT_LOCAL);
+    set_option_value_give_err(
+        K_OPT_SPELLFILE,
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.cast())),
+        OPT_LOCAL,
+    );
 }
 
 fn set_spell_charflags(

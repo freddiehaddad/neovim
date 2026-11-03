@@ -174,18 +174,16 @@ pub struct KeyDict_get_commands {
 }
 
 #[inline]
-fn cstr_to_arena_str(arena: &mut Arena, str_ptr: impl crate::strings::IntoCCharPtr) -> NvimString {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        if str_ptr.is_null() {
-            NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            }
-        } else {
-            let len = crate::memory::cstr_len(str_ptr);
-            cbuf_to_arena_str(arena, str_ptr, len)
-        }
+fn cstr_to_arena_str(arena: &mut Arena, str_ptr: Option<&CStr>) -> NvimString {
+    match str_ptr {
+        None => NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        },
+        Some(s) => cbuf_to_arena_str(
+            arena,
+            crate::memory::cstr_slice(s.as_ptr(), s.to_bytes().len()),
+        ),
     }
 }
 
@@ -212,25 +210,32 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
     cmdidx.check_user_cmd()
 }
 
-fn parse_map_cmd(arg_str: impl crate::strings::IntoCCharPtr, arena: &mut Arena) -> Array {
-    let arg_str = arg_str.into_c_char_ptr();
-    {
-        let mut args = arena_array(arena, 2);
+fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
+    let mut args = arena_array(arena, 2);
 
-        let lhs_start = arg_str.cast_mut();
-        let lhs_end = skiptowhite(lhs_start);
-        let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
+    let lhs_start = arg_str.as_ptr().cast_mut();
+    let lhs_end = skiptowhite(lhs_start);
+    let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
 
-        add_c(&mut args, string_obj(cstrn_as_string(lhs_start, lhs_len)));
+    add_c(
+        &mut args,
+        string_obj(cstrn_as_string(crate::memory::cstr_slice(
+            lhs_start, lhs_len,
+        ))),
+    );
 
-        let rhs_start = skipwhite(lhs_end);
-        if !crate::memory::cstr_is_empty(rhs_start) {
-            let rhs_len = crate::memory::cstr_len(rhs_start);
-            add_c(&mut args, string_obj(cstrn_as_string(rhs_start, rhs_len)));
-        }
-
-        args
+    let rhs_start = skipwhite(lhs_end);
+    if !crate::memory::cstr_is_empty(rhs_start) {
+        let rhs_len = crate::memory::cstr_len(rhs_start);
+        add_c(
+            &mut args,
+            string_obj(cstrn_as_string(crate::memory::cstr_slice(
+                rhs_start, rhs_len,
+            ))),
+        );
     }
+
+    args
 }
 
 /// Parse command line.
@@ -333,11 +338,14 @@ pub fn nvim_parse_cmd(
         && is_map_cmd(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))
         && !crate::memory::cstr_is_empty(ea.arg)
     {
-        args = parse_map_cmd(ea.arg, arena);
+        args = parse_map_cmd(crate::memory::cstr_from_ptr(ea.arg), arena);
     } else if (ea.argt & EX_NOSPC) != 0 {
         if !crate::memory::cstr_is_empty(ea.arg) {
             args = arena_array(arena, 1);
-            add_c(&mut args, string_obj(cstrn_as_string(ea.arg, length)));
+            add_c(
+                &mut args,
+                string_obj(cstrn_as_string(crate::memory::cstr_slice(ea.arg, length))),
+            );
         }
     } else {
         let mut end: usize = 0;
@@ -352,7 +360,10 @@ pub fn nvim_parse_cmd(
             let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), buf_rem) };
             done = uc_split_args_iter(arg_slice, &mut end, buf_slice, &mut len);
             if len > 0 {
-                add_c(&mut args, string_obj(cstrn_as_string(buf.cast(), len)));
+                add_c(
+                    &mut args,
+                    string_obj(cstrn_as_string(crate::memory::cstr_slice(buf.cast(), len))),
+                );
                 buf = buf.wrapping_add(len + 1);
                 buf_rem = buf_rem.saturating_sub(len + 1);
             }
@@ -378,7 +389,7 @@ pub fn nvim_parse_cmd(
     };
 
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_CMD;
-    result.cmd = cstr_as_string(name);
+    result.cmd = cstr_as_string(crate::memory::cstr_as_opt_cstr(name));
 
     if (ea.argt & EX_RANGE) != 0 && ea.addr_count > 0 {
         let mut range = arena_array(arena, 2);
@@ -451,21 +462,16 @@ pub fn nvim_parse_cmd(
         _ => c"?".as_ptr(),
     };
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_ADDR;
-    result.addr = cstr_as_string(addr);
+    result.addr = cstr_as_string(crate::memory::cstr_as_opt_cstr(addr));
     result.is_set_cmd |= 1u64 << KEYSET_OPTIDX_CMD_NEXTCMD;
-    result.nextcmd = cstr_as_string(ea.nextcmd);
+    result.nextcmd = cstr_as_string(crate::memory::cstr_as_opt_cstr(ea.nextcmd));
 
     let mut mods = arena_dict(arena, 20);
     let mut filter = arena_dict(arena, 2);
     put_c(
         &mut filter,
         c"pattern",
-        string_obj(cstr_to_arena_str(
-            arena,
-            cmod.cmod_filter_pat
-                .as_ref()
-                .map_or(ptr::null(), |s| s.as_ptr()),
-        )),
+        string_obj(cstr_to_arena_str(arena, cmod.cmod_filter_pat.as_deref())),
     );
     put_c(&mut filter, c"force", boolean_obj(cmod.cmod_filter_force));
     put_c(&mut mods, c"filter", dict_obj(filter));
@@ -650,7 +656,7 @@ pub fn nvim_cmd(
             && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
                 || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
         {
-            api_err_exp(err, c"cmd", c"non-empty String", ptr::null());
+            api_err_exp(err, c"cmd", c"non-empty String", None);
             break 'end;
         }
 
@@ -780,7 +786,7 @@ pub fn nvim_cmd(
                         }
                         ObjectType::ObjectTypeString => {
                             if string_iswhite(elem.data.string()) {
-                                api_err_exp(err, c"command arg", c"non-whitespace", ptr::null());
+                                api_err_exp(err, c"command arg", c"non-whitespace", None);
                                 break 'end;
                             }
                             add_c(&mut args, elem);
@@ -790,7 +796,7 @@ pub fn nvim_cmd(
                                 err,
                                 c"command arg",
                                 c"valid type",
-                                api_typename(elem.obj_type),
+                                Some(api_typename(elem.obj_type)),
                             );
                             break 'end;
                         }
@@ -829,7 +835,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
             if cmd.range.size > 2 {
-                api_err_exp(err, c"range", c"<=2 elements", ptr::null());
+                api_err_exp(err, c"range", c"<=2 elements", None);
                 break 'end;
             }
 
@@ -839,7 +845,7 @@ pub fn nvim_cmd(
             for i in 0..range.size {
                 let elem = range[i];
                 if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
-                    api_err_exp(err, c"range element", c"non-negative Integer", ptr::null());
+                    api_err_exp(err, c"range element", c"non-negative Integer", None);
                     break 'end;
                 }
             }
@@ -874,7 +880,7 @@ pub fn nvim_cmd(
         }
 
         if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && invalid_range(&mut ea).is_some() {
-            api_err_invalid(err, c"range", c"", 0, true);
+            api_err_invalid(err, c"range", Some(c""), 0, true);
             break 'end;
         }
 
@@ -915,7 +921,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
             if cmd.count < 0 {
-                api_err_exp(err, c"count", c"non-negative Integer", ptr::null());
+                api_err_exp(err, c"count", c"non-negative Integer", None);
                 break 'end;
             }
             set_cmd_count(&mut ea, cmd.count as Linenr, true);
@@ -933,10 +939,15 @@ pub fn nvim_cmd(
                 break 'end;
             }
             if cmd.reg.size != 1 {
-                api_err_exp(err, c"reg", c"single character", cmd.reg.data);
+                api_err_exp(
+                    err,
+                    c"reg",
+                    c"single character",
+                    crate::memory::cstr_as_opt_cstr(cmd.reg.data),
+                );
                 break 'end;
             }
-            let regname = *crate::globals::gptr(cmd.reg.data.cast::<u8>());
+            let regname = unsafe { *cmd.reg.data.cast::<u8>() };
             if regname == b'=' {
                 api_set_error!(
                     err,
@@ -976,7 +987,7 @@ pub fn nvim_cmd(
         if has_key(mask, KEYSET_OPTIDX_CMD_MAGIC) {
             let mut magic = KeyDict_cmd_magic::default();
             if !api_dict_to_keydict(
-                (&raw mut magic).cast(),
+                &mut magic,
                 Some(key_dict_cmd_magic_get_field),
                 cmd.magic,
                 err,
@@ -1006,12 +1017,7 @@ pub fn nvim_cmd(
 
         if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
             let mut mods = KeyDict_cmd_mods::default();
-            if !api_dict_to_keydict(
-                (&raw mut mods).cast(),
-                Some(key_dict_cmd_mods_get_field),
-                cmd.mods,
-                err,
-            ) {
+            if !api_dict_to_keydict(&mut mods, Some(key_dict_cmd_mods_get_field), cmd.mods, err) {
                 break 'end;
             }
 
@@ -1019,7 +1025,7 @@ pub fn nvim_cmd(
             if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
                 let mut filter = KeyDict_cmd_mods_filter::default();
                 if !api_dict_to_keydict(
-                    (&raw mut filter).cast(),
+                    &mut filter,
                     Some(key_dict_cmd_mods_filter_get_field),
                     mods.filter,
                     err,
@@ -1063,7 +1069,7 @@ pub fn nvim_cmd(
                     b"topleft" => cmod.cmod_split |= WSP_TOP,
                     b"botright" => cmod.cmod_split |= WSP_BOT,
                     _ => {
-                        api_err_invalid(err, c"mods.split", c"", 0, true);
+                        api_err_invalid(err, c"mods.split", Some(c""), 0, true);
                         break 'end;
                     }
                 }
@@ -1140,7 +1146,13 @@ pub fn nvim_cmd(
                 let orig_arg = ea.arg;
                 let result = getargopt(&mut ea);
                 if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {
-                    api_err_invalid(err, c"argument ", orig_arg, 0, true);
+                    api_err_invalid(
+                        err,
+                        c"argument ",
+                        crate::memory::cstr_as_opt_cstr(orig_arg),
+                        0,
+                        true,
+                    );
                     break 'end;
                 }
             }
@@ -1302,10 +1314,9 @@ pub fn nvim_buf_create_user_command(
     opts: &mut KeyDict_user_command,
     err: &mut Error,
 ) {
-    let target_buf = find_buffer_by_handle(buf, err);
-    if error_set(err) {
+    let Some(target_buf) = find_buffer_by_handle(buf, err) else {
         return;
-    }
+    };
 
     let save_curbuf = g_st().curbuf;
     g_st().curbuf = target_buf;
@@ -1325,20 +1336,20 @@ pub fn nvim_buf_create_user_command(
 //   FUNC_API_SINCE(9);
 pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error) {
     let gap = if buf == -1 {
-        &raw mut (*ucmds_mut())
+        ucmds_mut()
     } else {
         let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
             return;
         };
-        &raw mut b.b_ucmds
+        &mut b.b_ucmds
     };
 
     let name_bytes = crate::memory::cstr_as_bytes(name.data);
-    if let Some(i) = crate::globals::gptr(gap)
+    if let Some(i) = gap
         .iter()
         .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
     {
-        let _ = crate::globals::gptr(gap).remove(i);
+        let _ = gap.remove(i);
         return;
     }
 
@@ -1372,14 +1383,20 @@ pub fn create_user_command(
 
     'err: {
         if uc_validate_name(name.as_bytes()).is_none() {
-            api_err_invalid(err, c"command name", name.data, 0, true);
+            api_err_invalid(
+                err,
+                c"command name",
+                crate::memory::cstr_as_opt_cstr(name.data),
+                0,
+                true,
+            );
             break 'err;
         }
         if mb_islower(i32::from(crate::memory::cstr_first_byte(name.data))) {
             api_err_invalid(
                 err,
                 c"command name (must start with uppercase)",
-                name.data,
+                crate::memory::cstr_as_opt_cstr(name.data),
                 0,
                 true,
             );
@@ -1405,13 +1422,19 @@ pub fn create_user_command(
                     argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG;
                 }
                 n => {
-                    api_err_invalid(err, c"nargs", ptr::null(), n, false);
+                    api_err_invalid(err, c"nargs", None, n, false);
                     break 'err;
                 }
             }
         } else if opts.nargs.obj_type == ObjectType::ObjectTypeString {
             if opts.nargs.data.string().size > 1 {
-                api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
+                api_err_invalid(
+                    err,
+                    c"nargs",
+                    crate::memory::cstr_as_opt_cstr(opts.nargs.data.string().data),
+                    0,
+                    true,
+                );
                 break 'err;
             }
             match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
@@ -1420,12 +1443,18 @@ pub fn create_user_command(
                 b'+' => argt |= EX_EXTRA | EX_NEEDARG,
                 b'_' => argt |= EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE,
                 _ => {
-                    api_err_invalid(err, c"nargs", opts.nargs.data.string().data, 0, true);
+                    api_err_invalid(
+                        err,
+                        c"nargs",
+                        crate::memory::cstr_as_opt_cstr(opts.nargs.data.string().data),
+                        0,
+                        true,
+                    );
                     break 'err;
                 }
             }
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_NARGS) {
-            api_err_invalid(err, c"nargs", c"", 0, true);
+            api_err_invalid(err, c"nargs", Some(c""), 0, true);
             break 'err;
         }
 
@@ -1448,7 +1477,7 @@ pub fn create_user_command(
             if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
                 && opts.range.data.string().size == 1)
             {
-                api_err_invalid(err, c"range", c"", 0, true);
+                api_err_invalid(err, c"range", Some(c""), 0, true);
                 break 'err;
             }
             argt |= EX_RANGE | EX_DFLALL;
@@ -1458,7 +1487,7 @@ pub fn create_user_command(
             def = opts.range.data.integer();
             addr_type_arg = ADDR_LINES;
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_RANGE) {
-            api_err_invalid(err, c"range", c"", 0, true);
+            api_err_invalid(err, c"range", Some(c""), 0, true);
             break 'err;
         }
 
@@ -1473,7 +1502,7 @@ pub fn create_user_command(
             addr_type_arg = ADDR_OTHER;
             def = opts.count.data.integer();
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COUNT) {
-            api_err_invalid(err, c"count", c"", 0, true);
+            api_err_invalid(err, c"count", Some(c""), 0, true);
             break 'err;
         }
 
@@ -1483,12 +1512,18 @@ pub fn create_user_command(
                     err,
                     c"addr",
                     api_typename(ObjectType::ObjectTypeString),
-                    api_typename(opts.addr.obj_type),
+                    Some(api_typename(opts.addr.obj_type)),
                 );
                 break 'err;
             }
             if !parse_addr_type_arg(opts.addr.data.string().as_bytes(), &mut addr_type_arg) {
-                api_err_invalid(err, c"addr", opts.addr.data.string().data, 0, true);
+                api_err_invalid(
+                    err,
+                    c"addr",
+                    crate::memory::cstr_as_opt_cstr(opts.addr.data.string().data),
+                    0,
+                    true,
+                );
                 break 'err;
             }
             argt |= EX_RANGE;
@@ -1530,11 +1565,17 @@ pub fn create_user_command(
                 &mut argt,
                 &mut compl_arg,
             ) {
-                api_err_invalid(err, c"complete", opts.complete.data.string().data, 0, true);
+                api_err_invalid(
+                    err,
+                    c"complete",
+                    crate::memory::cstr_as_opt_cstr(opts.complete.data.string().data),
+                    0,
+                    true,
+                );
                 break 'err;
             }
         } else if has_key(mask, KEYSET_OPTIDX_USER_COMMAND_COMPLETE) {
-            api_err_exp(err, c"complete", c"Function or String", ptr::null());
+            api_err_exp(err, c"complete", c"Function or String", None);
             break 'err;
         }
 
@@ -1544,7 +1585,7 @@ pub fn create_user_command(
                     err,
                     c"preview",
                     api_typename(ObjectType::ObjectTypeLuaRef),
-                    api_typename(opts.preview.obj_type),
+                    Some(api_typename(opts.preview.obj_type)),
                 );
                 break 'err;
             }
@@ -1560,7 +1601,7 @@ pub fn create_user_command(
                     err,
                     c"desc",
                     api_typename(ObjectType::ObjectTypeString),
-                    api_typename(opts.desc.obj_type),
+                    Some(api_typename(opts.desc.obj_type)),
                 );
                 break 'err;
             }
@@ -1576,7 +1617,7 @@ pub fn create_user_command(
                 rep = crate::memory::cstr_from_ptr(cmd.data.string().data);
             }
             _ => {
-                api_err_exp(err, c"command", c"Function or String", ptr::null());
+                api_err_exp(err, c"command", c"Function or String", None);
                 break 'err;
             }
         }

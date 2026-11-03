@@ -1314,11 +1314,12 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         size: 0,
     };
 
-    let mut tv = argvars.as_mut_ptr();
-    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
+    for tv in argvars
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
         args.size += 1;
-        tv = tv.wrapping_add(1);
     }
 
     let mut err = Error::new();
@@ -1355,11 +1356,12 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         size: 0,
     };
 
-    let mut tv = argvars.as_mut_ptr();
-    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
+    for tv in argvars
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
         args.size += 1;
-        tv = tv.wrapping_add(1);
     }
 
     let EvalFuncData::LuaFunc(lua_name) = fptr else {
@@ -1375,7 +1377,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
 
     let mut err = Error::new();
     let mut result = nlua_exec(
-        cstr_as_string(buf.as_ptr().cast()),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),
         ptr::null(),
         args,
         K_RET_OBJECT,
@@ -2473,7 +2475,11 @@ pub fn f_feedkeys(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
     if argvars[1].v_type != VarType::VarUnknown {
         flags = Some(tv_get_string_buf(&argvars[1], &mut nbuf));
     }
-    nvim_feedkeys(cstr_as_string(keys), cstr_as_string(flags), true);
+    nvim_feedkeys(
+        cstr_as_string(Some(keys)),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(flags)),
+        true,
+    );
 }
 
 /// "float2nr({float})" function
@@ -4716,7 +4722,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             dict_set_var(
                 &mut *(*buf).b_vars(),
-                cstr_as_string(c"terminal_job_id"),
+                cstr_as_string(Some(c"terminal_job_id")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(crate::globals::gptr(cp).id as Integer),
@@ -4730,7 +4736,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             api_clear_error(&mut err);
             dict_set_var(
                 &mut *(*buf).b_vars(),
-                cstr_as_string(c"terminal_job_pid"),
+                cstr_as_string(Some(c"terminal_job_pid")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
                     data: ObjectData::Integer(Integer::from(pid)),
@@ -5103,7 +5109,11 @@ pub fn f_luaeval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let Some(str_) = tv_get_string_chk(&argvars[0]) else {
         return;
     };
-    nlua_call_luaeval(cstr_as_string(str_), &mut argvars[1], rettv);
+    nlua_call_luaeval(
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(str_)),
+        &mut argvars[1],
+        rettv,
+    );
 }
 
 fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchType) {
@@ -6792,11 +6802,12 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         size: 0,
     };
 
-    let mut tv = (&raw mut argvars[2]);
-    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
+    for tv in argvars[2..]
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
         args.size += 1;
-        tv = tv.wrapping_add(1);
     }
 
     let ok = rpc_send_event(
@@ -6847,11 +6858,12 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         size: 0,
     };
 
-    let mut tv = (&raw mut argvars[2]);
-    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
+    for tv in argvars[2..]
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
         args.size += 1;
-        tv = tv.wrapping_add(1);
     }
 
     let mut save_current_sctx = Sctx::new();
@@ -7349,7 +7361,9 @@ pub fn do_searchpair(
                     K_OPT_CPOPTIONS,
                     Object {
                         obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(cstr_as_string(save_cpo)),
+                        data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                            save_cpo,
+                        ))),
                     },
                     0,
                 );

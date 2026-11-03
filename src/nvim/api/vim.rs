@@ -292,7 +292,7 @@ fn api_vim_st() -> &'static mut ApiVimState {
 #[inline]
 fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name.as_ptr(), ptr::null(), val, false);
+        api_err_invalid(err, name, None, val, false);
         false
     } else {
         true
@@ -303,12 +303,17 @@ fn validate_int(cond: bool, name: &std::ffi::CStr, val: i64, err: &mut Error) ->
 fn validate_s(
     cond: bool,
     name: &std::ffi::CStr,
-    val: impl crate::strings::IntoCCharPtr,
+    val: Option<&std::ffi::CStr>,
     err: &mut Error,
 ) -> bool {
-    let val = val.into_c_char_ptr();
     if !cond {
-        api_err_invalid(err, name.as_ptr(), val, 0, true);
+        api_err_invalid(
+            err,
+            name,
+            crate::memory::cstr_as_opt_cstr(val.map_or(ptr::null(), std::ffi::CStr::as_ptr)),
+            0,
+            true,
+        );
         false
     } else {
         true
@@ -328,7 +333,7 @@ fn validate_r(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
 #[inline]
 fn validate_range(cond: bool, name: &std::ffi::CStr, err: &mut Error) -> bool {
     if !cond {
-        api_err_invalid(err, name.as_ptr(), c"out of range", 0, false);
+        api_err_invalid(err, name, Some(c"out of range"), 0, false);
         false
     } else {
         true
@@ -345,9 +350,9 @@ fn validate_t(
     if expected_t != actual_t {
         api_err_exp(
             err,
-            name.as_ptr(),
+            name,
             api_typename(expected_t),
-            api_typename(actual_t),
+            Some(api_typename(actual_t)),
         );
         false
     } else {
@@ -482,13 +487,7 @@ pub fn nvim_set_hl(
         base = &mut base_attrs;
     }
 
-    let attrs = dict2hlattrs(
-        val,
-        true,
-        Some(&mut link_id),
-        crate::globals::gopt(base),
-        err,
-    );
+    let attrs = dict2hlattrs(val, true, Some(&mut link_id), unsafe { base.as_ref() }, err);
     if !error_set(err) {
         let save_current_sctx = api_set_sctx(channel_id);
         ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
@@ -801,7 +800,10 @@ pub fn nvim_replace_termcodes(
         crate::memory::cstr_as_bytes(opt_vars().p_cpo),
     )
     .unwrap_or_default();
-    cbuf_to_string(out.as_ptr(), out.as_bytes().len())
+    cbuf_to_string(crate::memory::cstr_slice(
+        out.as_ptr(),
+        out.as_bytes().len(),
+    ))
 }
 
 /// Executes Lua code. Arguments are available as `...` inside the chunk. The chunk can return
@@ -870,7 +872,7 @@ pub fn nvim_strwidth(text: NvimString, err: &mut Error) -> Integer {
     if !validate_s(
         text.size <= (i32::MAX as usize),
         c"text length",
-        c"(too long)",
+        Some(c"(too long)"),
         err,
     ) {
         return 0;
@@ -938,7 +940,7 @@ pub fn nvim_get_runtime_file(
 
     let mut rv = ArrayBuilder::new();
     for fname in &files {
-        rv.push(cstr_to_arena_obj(arena, fname.as_ptr()));
+        rv.push(cstr_to_arena_obj(arena, Some(fname.as_c_str())));
     }
     arena_take_arraybuilder(arena, &mut rv)
 }
@@ -951,7 +953,7 @@ pub fn nvim_get_lib_dir() -> NvimString {
             data: ptr::null_mut(),
             size: 0,
         },
-        |s| crate::api::private::helpers::cstr_to_string(s.as_ptr()),
+        |s| crate::api::private::helpers::cstr_to_string(Some(s.as_c_str())),
     )
 }
 
@@ -999,7 +1001,12 @@ pub fn nvim_get_runtime(
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_set_current_dir(String dir, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
-    if !validate_s(dir.size < MAXPATHL, c"directory name", c"(too long)", err) {
+    if !validate_s(
+        dir.size < MAXPATHL,
+        c"directory name",
+        Some(c"(too long)"),
+        err,
+    ) {
         return;
     }
     let mut tstate = TryState::new();
@@ -1081,7 +1088,7 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
         );
         return nil_obj();
     }
-    vim_to_object(&mut crate::globals::gptr(di).di_tv, Some(arena), true)
+    vim_to_object(unsafe { &mut (*di).di_tv }, Some(arena), true)
 }
 
 /// Sets a global (g:) variable.
@@ -1242,7 +1249,7 @@ pub fn nvim_echo(
                 err,
                 c"status",
                 c"success|failed|running|cancel",
-                opts.status.data,
+                crate::memory::cstr_as_opt_cstr(opts.status.data),
             );
             break 'validate false;
         }
@@ -1262,7 +1269,7 @@ pub fn nvim_echo(
         if !validate_s(
             !is_progress || opts.source.cstr_bytes() != b"nvim",
             c"source",
-            opts.source.data,
+            crate::memory::cstr_as_opt_cstr(opts.source.data),
             err,
         ) {
             break 'validate false;
@@ -1412,7 +1419,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
         reset_visual_and_resel();
     }
     goto_tabpage_win(
-        crate::globals::gmut(win_find_tabpage(&raw mut *w)),
+        unsafe { &mut *win_find_tabpage(&raw mut *w) },
         (&raw mut *w),
     );
     try_leave(&tstate, err);
@@ -1442,7 +1449,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
             unblock_autocmds();
             break 'create;
         }
-        let buf = crate::globals::gmut(buf);
+        let buf = unsafe { &mut *buf };
         if !ml_open(&mut *buf) {
             unblock_autocmds();
             break 'create;
@@ -1469,7 +1476,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 0,
                 OptTarget::Buf(buf),
             );
-            assert!(crate::globals::gptr(buf.b_ml.mfp_ptr()).mf_fd < 0);
+            assert!(buf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
             buf.b_p_swf = 0;
             buf.b_p_ml = 0;
         }
@@ -1542,25 +1549,24 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 // DLLEXPORT Integer nvim_open_term(Buffer buf, Dict(open_term) *opts,
 //                                  Error *err) FUNC_API_SINCE(7) FUNC_API_TEXTLOCK;
 pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error) -> Integer {
-    let b = api_buf_ensure_loaded(buf, err);
-    if b.is_null() {
+    let Some(b) = api_buf_ensure_loaded(buf, err) else {
         return 0;
-    }
+    };
 
     let mut may_read_buffer = true;
-    if !crate::globals::gptr(b).terminal.is_null() {
-        if terminal_running(crate::globals::gref(crate::globals::gptr(b).terminal)) {
+    if !b.terminal.is_null() {
+        if terminal_running(unsafe { &*b.terminal }) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
                 c"Terminal already connected to buffer %d",
-                crate::globals::gptr(b).b_fnum,
+                b.b_fnum,
             );
 
             return 0;
         }
 
-        buf_close_terminal(crate::globals::gmut(b));
+        buf_close_terminal(b);
 
         may_read_buffer = false;
     }
@@ -1578,15 +1584,12 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         true
     };
 
-    let chan: *mut crate::channel::Channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-    let internal = &mut crate::globals::gptr(chan).internal;
-    let prefix = chan;
-    let tail = chan;
-    let tail = crate::globals::gmut(tail);
-    internal.cb = cb;
-    internal.closed = false;
+    let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
+    let chan_ptr: *mut crate::channel::Channel = chan;
+    chan.internal.cb = cb;
+    chan.internal.closed = false;
     let topts = TerminalOptions {
-        data: chan,
+        data: chan_ptr,
         width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height as u16,
         force_crlf,
@@ -1594,37 +1597,34 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     let mut contents: Vec<u8> = Vec::new();
     if may_read_buffer {
-        read_buffer_into(
-            crate::globals::gopt_mut(b),
-            1,
-            crate::globals::gptr(b).b_ml.ml_line_count,
-            &mut contents,
-        );
+        let line_count = b.b_ml.ml_line_count;
+        read_buffer_into(Some(b), 1, line_count, &mut contents);
     }
 
-    channel_incref(crate::globals::gmut(chan));
+    channel_incref(chan);
 
-    tail.term = terminal_alloc(crate::globals::gmut(b), topts);
+    chan.term = terminal_alloc(b, topts);
 
-    terminal_open(unsafe { &mut *tail.term.cast() }, crate::globals::gmut(b));
+    terminal_open(unsafe { &mut *chan.term.cast() }, b);
 
-    if !tail.term.is_null() {
-        terminal_check_size(crate::globals::gmut(tail.term.cast()));
+    if !chan.term.is_null() {
+        terminal_check_size(unsafe { &mut *chan.term.cast() });
     }
 
-    channel_decref(crate::globals::gmut(chan));
+    let chan_id = chan.id;
+    channel_decref(chan);
 
     if !contents.is_empty() {
         let mut error = None;
 
-        channel_send(crate::globals::gptr(prefix).id, contents, &mut error);
+        channel_send(chan_id, contents, &mut error);
 
         if let Some(err_str) = error {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
         }
     }
 
-    crate::globals::gptr(prefix).id as Integer
+    chan_id as Integer
 }
 
 /// Sends raw data to channel `chan`. |channel-bytes|
@@ -1682,10 +1682,10 @@ pub fn nvim_get_current_tabpage() -> Tabpage {
 // DLLEXPORT void nvim_set_current_tabpage(Tabpage tabpage,
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
-    let tp = find_tab_by_handle(tabpage, err);
-    if tp.is_null() {
+    let Some(tp) = find_tab_by_handle(tabpage, err) else {
         return;
-    }
+    };
+
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     goto_tabpage_tp(tp, true, true);
@@ -1824,7 +1824,7 @@ pub fn nvim_put(
     if !validate_s(
         prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
         c"type",
-        reg_type.data,
+        crate::memory::cstr_as_opt_cstr(reg_type.data),
         err,
     ) {
         return;
@@ -1952,7 +1952,12 @@ pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut
                     b"sfuncs" => int_types |= K_CTX_SFUNCS,
                     b"funcs" => int_types |= K_CTX_FUNCS,
                     _ => {
-                        let _ = validate_s(false, c"type", s.data, err);
+                        let _ = validate_s(
+                            false,
+                            c"type",
+                            crate::memory::cstr_as_opt_cstr(s.data),
+                            err,
+                        );
                         return Dict::new();
                     }
                 }
@@ -2241,10 +2246,9 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
         g_st().cmdwin_buf = ptr::null_mut();
         return;
     }
-    let b = find_buffer_by_handle(buf, err);
-    if error_set(err) {
+    let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
-    }
+    };
     g_st().cmdwin_type = i32::from(crate::memory::cstr_first_byte(type_str.data));
     g_st().cmdwin_buf = b;
 }
@@ -2568,7 +2572,7 @@ pub fn nvim_inspect_cell(
         g = &raw mut wp.unwrap().w_grid_alloc;
     }
 
-    let g = crate::globals::gref(g);
+    let g = unsafe { &*g };
     if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
         return ret;
     }
@@ -2579,7 +2583,10 @@ pub fn nvim_inspect_cell(
         unsafe { std::slice::from_raw_parts_mut(sc_buf, MAX_SCHAR_SIZE) },
         g.chars[off],
     );
-    add_c(&mut ret, cstr_as_obj(sc_buf.cast()));
+    add_c(
+        &mut ret,
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(sc_buf.cast())),
+    );
     let attr = g.attrs[off];
     add_c(
         &mut ret,
@@ -2623,7 +2630,7 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
     if !validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
-        name.data,
+        crate::memory::cstr_as_opt_cstr(name.data),
         err,
     ) {
         return false;
@@ -2632,12 +2639,12 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
     if !validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
-        name.data,
+        crate::memory::cstr_as_opt_cstr(name.data),
         err,
     ) {
         return false;
     }
-    set_mark(ptr::null_mut(), name, 0, 0, err)
+    set_mark(None, name, 0, 0, err)
 }
 
 /// Returns a `(row, col, buffer, buffername)` tuple representing the position
@@ -2666,7 +2673,7 @@ pub fn nvim_get_mark(
     if !validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
-        name.data,
+        crate::memory::cstr_as_opt_cstr(name.data),
         err,
     ) {
         return rv;
@@ -2675,14 +2682,14 @@ pub fn nvim_get_mark(
     if !validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
-        name.data,
+        crate::memory::cstr_as_opt_cstr(name.data),
         err,
     ) {
         return rv;
     }
 
     let mark = mark_get_global(false, i32::from(crate::memory::cstr_first_byte(name.data)));
-    let mark = crate::globals::gmut(mark);
+    let mark = unsafe { &mut *mark };
     let pos = mark.fmark.mark;
     let mut bufnr: i32;
 
@@ -2717,10 +2724,7 @@ pub fn nvim_get_mark(
     add_c(&mut rv, integer_obj(row));
     add_c(&mut rv, integer_obj(col));
     add_c(&mut rv, integer_obj(Integer::from(bufnr)));
-    add_c(
-        &mut rv,
-        cstr_to_arena_obj(arena, filename.map_or(ptr::null(), CStr::as_ptr)),
-    );
+    add_c(&mut rv, cstr_to_arena_obj(arena, filename));
 
     rv
 }
@@ -2781,11 +2785,11 @@ pub fn nvim_eval_statusline(
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
         let ci = utf_ptr2_str_char_info(opts.fillchar.data);
         let cli = utf_cluster_info(ci);
-        if *crate::globals::gptr(ci.ptr) == 0
+        if crate::memory::cstr_is_empty(ci.ptr)
             || !crate::memory::cstr_is_empty(cli.next.ptr)
             || cli.cells != 1
         {
-            api_err_exp(err, c"fillchar", c"one single-width character", ptr::null());
+            api_err_exp(err, c"fillchar", c"one single-width character", None);
             return result;
         }
         fillchar = crate::grid::schar_from_cluster(ci, cli);
@@ -2801,7 +2805,7 @@ pub fn nvim_eval_statusline(
     if wp.is_null() {
         return result;
     }
-    let wp = crate::globals::gmut(wp);
+    let wp = unsafe { &mut *wp };
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
         != 0
@@ -2932,53 +2936,44 @@ pub fn nvim_eval_statusline(
     if opts.highlights {
         let mut hl_values = arena_array(arena, hltab_len + 1);
         let dfltname = get_default_stl_hl(
-            if opts.use_tabline {
-                ptr::null_mut()
-            } else {
-                wp
-            },
+            (!opts.use_tabline).then_some(&*wp),
             opts.use_winbar,
             stc_hl_id,
         );
-        if crate::globals::gptr(hltab).start.is_null()
-            || crate::memory::ptr_offset_from(crate::globals::gptr(hltab).start, buf_data.cast())
-                != 0
+        if unsafe { (*hltab).start }.is_null()
+            || crate::memory::ptr_offset_from(unsafe { (*hltab).start }, buf_data.cast()) != 0
         {
             let mut hl_info = arena_dict(arena, 3);
             put_c(&mut hl_info, c"start", integer_obj(0));
-            put_c(&mut hl_info, c"group", cstr_as_obj(dfltname));
+            put_c(&mut hl_info, c"group", cstr_as_obj(Some(dfltname)));
             let mut groups = arena_array(arena, 1);
-            add_c(&mut groups, cstr_as_obj(dfltname));
+            add_c(&mut groups, cstr_as_obj(Some(dfltname)));
             put_c(&mut hl_info, c"groups", array_obj(groups));
             add_c(&mut hl_values, dict_obj(hl_info));
         }
 
         let mut sp = hltab;
-        while !crate::globals::gptr(sp).start.is_null() {
+        while !unsafe { (*sp).start }.is_null() {
             const USER_HLS: [&CStr; 9] = [
                 c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
                 c"User9",
             ];
-            let grpname: &'static CStr = if crate::globals::gptr(sp).userhl == 0 {
+            let sp_ref = unsafe { &*sp };
+            let grpname: &'static CStr = if sp_ref.userhl == 0 {
                 get_default_stl_hl(
-                    if opts.use_tabline {
-                        ptr::null_mut()
-                    } else {
-                        wp
-                    },
+                    (!opts.use_tabline).then_some(&*wp),
                     opts.use_winbar,
                     stc_hl_id,
                 )
-            } else if crate::globals::gptr(sp).userhl < 0 {
-                syn_id2name(-crate::globals::gptr(sp).userhl)
+            } else if sp_ref.userhl < 0 {
+                syn_id2name(-sp_ref.userhl)
             } else {
-                USER_HLS[(crate::globals::gptr(sp).userhl - 1) as usize]
+                USER_HLS[(sp_ref.userhl - 1) as usize]
             };
 
-            let combine: &'static CStr = if crate::globals::gptr(sp).item == i32::from(STL_SIGNCOL)
-            {
+            let combine: &'static CStr = if sp_ref.item == i32::from(STL_SIGNCOL) {
                 syn_id2name(scl_hl_id)
-            } else if crate::globals::gptr(sp).item == i32::from(STL_FOLDCOL) {
+            } else if sp_ref.item == i32::from(STL_FOLDCOL) {
                 grpname
             } else {
                 dfltname
@@ -2988,19 +2983,18 @@ pub fn nvim_eval_statusline(
             put_c(
                 &mut hl_info,
                 c"start",
-                integer_obj(crate::memory::ptr_offset_from(
-                    crate::globals::gptr(sp).start,
-                    buf_data.cast(),
-                ) as Integer),
+                integer_obj(
+                    crate::memory::ptr_offset_from(sp_ref.start, buf_data.cast()) as Integer,
+                ),
             );
 
-            put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
+            put_c(&mut hl_info, c"group", cstr_as_obj(Some(grpname)));
             let diff_group = combine != grpname;
             let mut groups = arena_array(arena, 1 + usize::from(diff_group));
             if diff_group {
-                add_c(&mut groups, cstr_as_obj(combine));
+                add_c(&mut groups, cstr_as_obj(Some(combine)));
             }
-            add_c(&mut groups, cstr_as_obj(grpname));
+            add_c(&mut groups, cstr_as_obj(Some(grpname)));
             put_c(&mut hl_info, c"groups", array_obj(groups));
             add_c(&mut hl_values, dict_obj(hl_info));
 
@@ -3008,7 +3002,11 @@ pub fn nvim_eval_statusline(
         }
         put_c(&mut result, c"highlights", array_obj(hl_values));
     }
-    put_c(&mut result, c"str", cstr_as_obj(buf_data.cast()));
+    put_c(
+        &mut result,
+        c"str",
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf_data.cast())),
+    );
 
     result
 }
@@ -3120,7 +3118,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
             );
             return;
         }
-        buf = find_buffer_by_handle(opts.buf, err);
+        buf = find_buffer_by_handle(opts.buf, err).map_or(ptr::null_mut(), ptr::from_mut);
         if error_set(err) {
             return;
         }
@@ -3144,7 +3142,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     if has_valid {
         let rtype = if opts.valid { UPD_VALID } else { UPD_NOT_VALID };
         if !win.is_null() {
-            redraw_later(crate::globals::gopt_mut(win), rtype);
+            redraw_later(unsafe { win.as_mut() }, rtype);
         } else if !buf.is_null() {
             redraw_buf_later(unsafe { &*buf }, rtype);
         } else {
@@ -3172,13 +3170,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let end_raw = r[1].data.integer();
 
         let rbuf = if !win.is_null() {
-            crate::globals::gptr(win).w_buffer
+            unsafe { (*win).w_buffer }
         } else if !buf.is_null() {
             buf
         } else {
             g_st().curbuf
         };
-        let line_count = i64::from(crate::globals::gptr(rbuf).b_ml.ml_line_count);
+        let line_count = i64::from(unsafe { (*rbuf).b_ml.ml_line_count });
         let begin = begin_raw.min(line_count) as i32;
         let end = if end_raw == -1 {
             line_count as i32
@@ -3217,16 +3215,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
                 }
             }
         } else {
-            redraw_status(crate::globals::gmut(win), opts);
+            redraw_status(unsafe { &mut *win }, opts);
         }
         flush_ui = true;
     }
 
     let cwin = if !win.is_null() { win } else { curwin_ptr() };
-    if opts.cursor
-        && (crate::globals::gptr(cwin).w_grid.target.is_null()
-            || !crate::globals::gptr(crate::globals::gptr(cwin).w_grid.target).valid)
-    {
+    if opts.cursor && unsafe { (*cwin).w_grid.target.as_ref() }.is_none_or(|g| !g.valid) {
         opts.flush = true;
     }
 
@@ -3237,7 +3232,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     if opts.cursor {
-        setcursor_mayforce(crate::globals::gmut(cwin), true);
+        setcursor_mayforce(unsafe { &mut *cwin }, true);
 
         flush_ui = true;
     }

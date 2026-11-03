@@ -227,12 +227,12 @@ pub fn remote_ui_free_all_mem() {
 pub fn remote_ui_wait_for_attach() {
     while ui_active() == 0 {
         let events = loop_queues(&mut g_st().main_loop).events;
-        if !multiqueue_empty(crate::globals::gref(events)) {
-            multiqueue_process_events(crate::globals::gmut(events));
+        if !multiqueue_empty(unsafe { &*events }) {
+            multiqueue_process_events(unsafe { &mut *events });
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
 
-            multiqueue_process_events(crate::globals::gmut(events));
+            multiqueue_process_events(unsafe { &mut *events });
         }
     }
 }
@@ -382,7 +382,7 @@ pub fn ui_attach(
     err: &mut Error,
 ) {
     let mut opts_items: [KeyValuePair; 1] = [KeyValuePair {
-        key: cstr_as_string(c"rgb"),
+        key: cstr_as_string(Some(c"rgb")),
         value: boolean_obj(enable_rgb),
     }];
     let opts = Dict {
@@ -439,7 +439,7 @@ pub fn remote_ui_restart(listen_addr: NvimString) {
     for ui in api_ui_st().connected_uis.values_mut() {
         let detach_val = find_channel_opt(ui.channel_id).is_some_and(|c| c.detach);
         let mut cfg_items: [KeyValuePair; 1] = [KeyValuePair {
-            key: cstr_as_string(c"detach"),
+            key: cstr_as_string(Some(c"detach")),
             value: boolean_obj(detach_val),
         }];
         let chan_config = Dict {
@@ -493,7 +493,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"override",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -507,7 +507,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"rgb",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -524,7 +524,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"term_name",
                 api_typename(ObjectType::ObjectTypeString),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -541,7 +541,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"term_colors",
                 api_typename(ObjectType::ObjectTypeInteger),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -556,7 +556,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"stdin_fd",
                 api_typename(ObjectType::ObjectTypeInteger),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -588,7 +588,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"stdin_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -605,7 +605,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
                 err,
                 c"stdout_tty",
                 api_typename(ObjectType::ObjectTypeBoolean),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }
@@ -622,7 +622,12 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             || (i == K_UIPOPUPMENU && is_popupmenu)
         {
             if value.obj_type != ObjectType::ObjectTypeBoolean {
-                api_err_exp(err, name.data, c"Boolean", api_typename(value.obj_type));
+                api_err_exp(
+                    err,
+                    crate::memory::cstr_from_ptr(name.data),
+                    c"Boolean",
+                    Some(api_typename(value.obj_type)),
+                );
                 return;
             }
             let boolval = value.data.boolean();
@@ -821,29 +826,29 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
     let crate::msgpack_rpc::packer::PackerData::Ui(ui) = packer.anydata else {
         unreachable!()
     };
-    {
+    unsafe {
         if !packer.startptr.is_null() && packer.ptr != packer.startptr {
-            crate::globals::gptr(ui).incomplete_event = true;
-            if crate::globals::gptr(ui).cur_event.is_some() {
-                if let Some(off) = crate::globals::gptr(ui).ncalls_pos {
-                    mpack_w2_at(packer, off, 1 + crate::globals::gptr(ui).ncalls);
+            (*ui).incomplete_event = true;
+            if (*ui).cur_event.is_some() {
+                if let Some(off) = (*ui).ncalls_pos {
+                    mpack_w2_at(packer, off, 1 + (*ui).ncalls);
                 }
-                crate::globals::gptr(ui).cur_event = None;
-                crate::globals::gptr(ui).ncalls_pos = None;
-                crate::globals::gptr(ui).ncalls = 0;
+                (*ui).cur_event = None;
+                (*ui).ncalls_pos = None;
+                (*ui).ncalls = 0;
             }
-            if let Some(off) = crate::globals::gptr(ui).nevents_pos {
-                mpack_w2_at(packer, off, crate::globals::gptr(ui).nevents);
-                crate::globals::gptr(ui).nevents = 0;
-                crate::globals::gptr(ui).nevents_pos = None;
+            if let Some(off) = (*ui).nevents_pos {
+                mpack_w2_at(packer, off, (*ui).nevents);
+                (*ui).nevents = 0;
+                (*ui).nevents_pos = None;
             }
             let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
             let mut vec = std::mem::take(&mut packer.owned_buf);
             vec.truncate(len);
             let buf = wstream_new_vec_buffer(vec);
-            rpc_write_raw(crate::globals::gptr(ui).channel_id, buf);
-            crate::globals::gptr(ui).flushed_events = true;
-            crate::globals::gptr(ui).ncells_pending = 0;
+            rpc_write_raw((*ui).channel_id, buf);
+            (*ui).flushed_events = true;
+            (*ui).ncells_pending = 0;
         }
         packer.owned_buf = vec![0; UI_BUF_SIZE];
         packer.startptr = packer.owned_buf.as_mut_ptr();
@@ -1073,8 +1078,8 @@ pub fn remote_ui_hl_attr_define(
     if rgb_attrs.url >= 0 {
         let url = hl_get_url(rgb_attrs.url as u32);
         *rgb.next_slot_mut() = KeyValuePair {
-            key: cstr_as_string(c"url"),
-            value: string_obj(cstr_as_string(url)),
+            key: cstr_as_string(Some(c"url")),
+            value: string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(url))),
         };
         rgb.size += 1;
     }
@@ -1447,7 +1452,7 @@ pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) 
                 let items = args[0].data.array();
                 let mut new_items = arena_array(&mut arena, items.size);
                 for i in 0..items.size {
-                    new_items[i] = *crate::globals::gptr(items[i].data.array().items);
+                    new_items[i] = items[i].data.array()[0];
                 }
                 new_items.size = items.size;
                 let mut new_args_items: [Object; 1] = [array_obj(new_items)];

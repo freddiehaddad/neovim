@@ -401,7 +401,13 @@ pub fn do_ascii(_eap: &mut Exarg) {
             );
         }
 
-        msg_multiline(cstr_as_string(iobuff_ptr), 0, true, false, &mut need_clear);
+        msg_multiline(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(iobuff_ptr)),
+            0,
+            true,
+            false,
+            &mut need_clear,
+        );
 
         off += utf_ptr2len(data) as usize;
     }
@@ -453,7 +459,13 @@ pub fn do_ascii(_eap: &mut Exarg) {
             );
         }
 
-        msg_multiline(cstr_as_string(iobuff_ptr), 0, true, false, &mut need_clear);
+        msg_multiline(
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(iobuff_ptr)),
+            0,
+            true,
+            false,
+            &mut need_clear,
+        );
 
         off += utf_ptr2len(data.wrapping_add(off)) as usize;
     }
@@ -4749,7 +4761,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     if cmdpreview_ns > 0 && !aborting() {
         if got_quit || profile_passed_limit(tm) {
-            set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(c""), 0, SID_NONE);
+            set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"")), 0, SID_NONE);
         } else if !crate::memory::cstr_is_empty(opt_vars().p_icm) && !pat.data.is_null() {
             if excmds_st().pre_hl_id == 0 {
                 excmds_st().pre_hl_id = syn_check_group(b"Substitute");
@@ -5082,7 +5094,7 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
     curwin_mut().w_onebuf_opt.wo_crb = 0;
     curwin_mut().w_onebuf_opt.wo_diff = 0;
 
-    set_option_direct(K_OPT_FOLDCOLUMN, cstr_as_obj(c"0"), 0, SID_NONE);
+    set_option_direct(K_OPT_FOLDCOLUMN, cstr_as_obj(Some(c"0")), 0, SID_NONE);
     true
 }
 
@@ -5099,7 +5111,7 @@ fn show_sub(
     let subresults = &preview_lines.subresults;
     let mut cmdpreview_buf: Option<&'static mut FileBuf> = None;
 
-    set_option_direct(K_OPT_SHORTMESS, cstr_as_obj(c"F"), 0, SID_NONE);
+    set_option_direct(K_OPT_SHORTMESS, cstr_as_obj(Some(c"F")), 0, SID_NONE);
 
     for curres in subresults {
         if curres.start.lnum >= old_cusr.lnum {
@@ -5200,7 +5212,7 @@ fn show_sub(
 
     set_option_direct(
         K_OPT_SHORTMESS,
-        cstr_as_obj(save_shm_p.as_ptr()),
+        cstr_as_obj(Some(save_shm_p.as_c_str())),
         0,
         SID_NONE,
     );

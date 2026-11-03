@@ -103,7 +103,7 @@ pub fn nvim_exec2(
     }
     if opts.output {
         result.push(KeyValuePair {
-            key: cstr_to_string(c"output"),
+            key: cstr_to_string(Some(c"output")),
             value: string_obj(output),
         });
     }
@@ -219,7 +219,7 @@ fn call_function_impl(
     channel_id: u64,
     fn_name: NvimString,
     args: Array,
-    self_dict: *mut TvDict,
+    self_dict: Option<&mut TvDict>,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
@@ -258,7 +258,7 @@ fn call_function_impl(
         fe_doesrange: false,
         fe_evaluate: true,
         fe_partial: std::ptr::null_mut(),
-        fe_selfdict: self_dict,
+        fe_selfdict: self_dict.map_or(std::ptr::null_mut(), std::ptr::from_mut),
         fe_basetv: std::ptr::null_mut(),
         fe_found_var: false,
     };
@@ -309,7 +309,7 @@ pub fn nvim_call_function(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    call_function_impl(channel_id, fn_name, args, std::ptr::null_mut(), arena, err)
+    call_function_impl(channel_id, fn_name, args, None, arena, err)
 }
 
 /// Calls a Vimscript |Dictionary-function| with the given arguments.
@@ -358,13 +358,12 @@ pub fn nvim_call_dict_function(
             object_to_vim(dict, &mut rettv, err);
         }
         _ => {
-            api_err_exp(err, c"dict argument", c"String or Dict", std::ptr::null());
+            api_err_exp(err, c"dict argument", c"String or Dict", None);
             return rv;
         }
     }
 
     'body: {
-        let self_dict = rettv.vval.v_dict();
         let Some(self_dict_ref) = rettv.vval.v_dict_opt() else {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"dict not found",);
             break 'body;
@@ -425,7 +424,7 @@ pub fn nvim_call_dict_function(
             break 'body;
         }
 
-        rv = call_function_impl(channel_id, fn_name, args, self_dict, arena, err);
+        rv = call_function_impl(channel_id, fn_name, args, Some(self_dict_ref), arena, err);
     }
 
     if mustfree {
@@ -575,7 +574,10 @@ pub fn nvim_parse_expression(
 
     if let Some(err_msg) = east.err.msg {
         let mut err_dict = arena_dict(arena, 2);
-        let msg_str = arena_string(arena, cstr_as_string(err_msg.as_ptr()));
+        let msg_str = arena_string(
+            arena,
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(err_msg.as_ptr())),
+        );
         put_c(&mut err_dict, c"message", string_obj(msg_str));
         put_c(
             &mut err_dict,
@@ -594,7 +596,9 @@ pub fn nvim_parse_expression(
             add_c(&mut chunk_arr, integer_obj(chunk.end_col as Integer));
             add_c(
                 &mut chunk_arr,
-                string_obj(cstr_as_string(chunk.group.as_ptr())),
+                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    chunk.group.as_ptr(),
+                ))),
             );
             add_c(&mut hl_arr, array_obj(chunk_arr));
         }
@@ -652,7 +656,9 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
     put_c(
         &mut ret_node,
         c"type",
-        string_obj(cstr_as_string(EAST_NODE_TYPE_TAB[nt as usize].as_ptr())),
+        string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+            EAST_NODE_TYPE_TAB[nt as usize].as_ptr(),
+        ))),
     );
     let mut start_array = arena_array(arena, 2);
     add_c(&mut start_array, integer_obj(node.start.line as Integer));
@@ -714,16 +720,16 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
             put_c(
                 &mut ret_node,
                 c"cmp_type",
-                string_obj(cstr_as_string(
+                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
                     ELTKN_CMP_TYPE_TAB[node.data.cmp().r#type as usize].as_ptr(),
-                )),
+                ))),
             );
             put_c(
                 &mut ret_node,
                 c"ccs_strategy",
-                string_obj(cstr_as_string(
+                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
                     CCS_TAB[node.data.cmp().ccs as usize].map_or(std::ptr::null(), |s| s.as_ptr()),
-                )),
+                ))),
             );
             put_c(&mut ret_node, c"invert", boolean_obj(node.data.cmp().inv));
         }
@@ -747,7 +753,9 @@ fn expr_ast_node_to_obj(node: &ExprASTNode, arena: &mut Arena) -> Object {
                     size: 0,
                 }
             } else {
-                cstr_as_string(EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr())
+                cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    EXPR_ASGN_TYPE_TAB[asgn_type as usize].as_ptr(),
+                ))
             };
             put_c(&mut ret_node, c"augmentation", string_obj(str_val));
         }
@@ -763,11 +771,11 @@ mod tests {
 
     #[test]
     fn cstr_as_string_handles_null_and_non_null() {
-        let empty = cstr_as_string(std::ptr::null());
+        let empty = cstr_as_string(None);
         assert!(empty.data.is_null());
         assert_eq!(empty.size, 0);
 
-        let s = cstr_as_string(c"echo 1");
+        let s = cstr_as_string(Some(c"echo 1"));
         assert_eq!(s.size, 6);
     }
 }

@@ -62,7 +62,7 @@ pub struct KeyDict_option {
 
 fn validate_option_value_args(
     opts: &mut KeyDict_option,
-    name: impl crate::strings::IntoCCharPtr,
+    name: &CStr,
     allow_tab: bool,
     opt_idxp: &mut OptIndex,
     opt_flags: &mut i32,
@@ -73,7 +73,6 @@ fn validate_option_value_args(
     dry_run: Option<&mut bool>,
     err: &mut Error,
 ) -> bool {
-    let name = name.into_c_char_ptr();
     {
         let mask = opts.is_set_option;
         if has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
@@ -111,7 +110,7 @@ fn validate_option_value_args(
                 b"local" => *opt_flags = OPT_LOCAL,
                 b"global" => *opt_flags = OPT_GLOBAL,
                 _ => {
-                    api_err_exp(err, c"scope", c"'local' or 'global'", std::ptr::null());
+                    api_err_exp(err, c"scope", c"'local' or 'global'", None);
                     return false;
                 }
             }
@@ -140,7 +139,9 @@ fn validate_option_value_args(
             }
             *opt_flags = OPT_LOCAL;
             *scope = K_OPT_SCOPE_BUF;
-            *from = OptTarget::Buf(find_buffer_by_handle(opts.buf, err));
+            *from = OptTarget::Buf(
+                find_buffer_by_handle(opts.buf, err).map_or(ptr::null_mut(), ptr::from_mut),
+            );
             if error_set(err) {
                 return false;
             }
@@ -148,19 +149,21 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_TAB) {
             *scope = K_OPT_SCOPE_TAB;
-            *from = OptTarget::Tab(find_tab_by_handle(opts.tab, err));
+            *from = OptTarget::Tab(
+                find_tab_by_handle(opts.tab, err).map_or(ptr::null_mut(), ptr::from_mut),
+            );
             if error_set(err) {
                 return false;
             }
         }
 
-        *opt_idxp = find_option(name);
+        *opt_idxp = find_option(name.as_ptr());
         if *opt_idxp == K_OPT_INVALID {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"Unknown option '%s'",
-                name,
+                name.as_ptr(),
             );
             return false;
         }
@@ -178,7 +181,7 @@ fn validate_option_value_args(
                         err,
                         c"operation",
                         c"'set', 'append', 'prepend', or 'remove'",
-                        std::ptr::null(),
+                        None,
                     );
                     return false;
                 }
@@ -188,7 +191,11 @@ fn validate_option_value_args(
                 || option_has_type(*opt_idxp, ObjectType::ObjectTypeString)
                 || option_has_type(*opt_idxp, ObjectType::ObjectTypeInteger))
             {
-                api_err_conflict(err, opts.operation.data, c"boolean options");
+                api_err_conflict(
+                    err,
+                    crate::memory::cstr_from_ptr(opts.operation.data),
+                    c"boolean options",
+                );
                 return false;
             }
         }
@@ -233,7 +240,7 @@ fn validate_option_value_args(
                 tgt,
                 global,
                 req,
-                name,
+                name.as_ptr(),
             );
             return false;
         }
@@ -242,28 +249,30 @@ fn validate_option_value_args(
     }
 }
 
-fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *mut FileBuf {
-    let Some(filetype) = filetype else {
-        return ptr::null_mut();
-    };
+fn do_ft_buf(
+    filetype: Option<&CStr>,
+    aco: &mut CtxSwitch,
+    err: &mut Error,
+) -> Option<&'static mut FileBuf> {
+    let filetype = filetype?;
 
     let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-    if ftbuf.is_null() {
+    let Some(ftbuf_ref) = (unsafe { ftbuf.as_mut() }) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
             c"Could not create internal buffer",
         );
-        return ptr::null_mut();
-    }
+        return None;
+    };
 
-    if !ml_open(crate::globals::gmut(ftbuf)) {
+    if !ml_open(ftbuf_ref) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
             c"Could not load internal buffer",
         );
-        return ftbuf;
+        return Some(ftbuf_ref);
     }
 
     let mut bufref = Bufref {
@@ -273,13 +282,7 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
     };
     set_bufref(&mut bufref, ftbuf);
 
-    ctx_switch(
-        &mut *aco,
-        None,
-        None,
-        unsafe { ftbuf.cast::<FileBuf>().as_mut() },
-        0,
-    );
+    ctx_switch(&mut *aco, None, None, unsafe { ftbuf.as_mut() }, 0);
 
     set_option_direct(
         K_OPT_BUFHIDDEN,
@@ -294,21 +297,21 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
         SID_NONE,
     );
 
-    assert!(crate::globals::gptr(crate::globals::gptr(ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
+    assert!(unsafe { (*ftbuf).b_ml.ml_mfp.as_ref().unwrap().mf_fd } < 0);
 
-    crate::globals::gptr(ftbuf).b_p_swf = 0;
-
-    crate::globals::gptr(ftbuf).b_p_ml = 0;
-
-    crate::globals::gptr(ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
+    unsafe {
+        (*ftbuf).b_p_swf = 0;
+        (*ftbuf).b_p_ml = 0;
+        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
+    }
 
     if !has_event(EVENT_FILETYPE) {
-        return ftbuf;
+        return unsafe { ftbuf.as_mut() };
     }
 
     let mut did_au_ft = false;
     try_wrap(err, || {
-        did_au_ft = do_filetype_autocmd(crate::globals::gmut(ftbuf), true);
+        did_au_ft = do_filetype_autocmd(unsafe { &mut *ftbuf }, true);
     });
 
     if !bufref_valid(Some(&bufref)) {
@@ -319,7 +322,7 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
                 c"Internal buffer was deleted",
             );
         }
-        return ptr::null_mut();
+        return None;
     }
 
     if !did_au_ft && !error_set(err) {
@@ -329,7 +332,7 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
             c"Could not execute FileType autocommands",
         );
     }
-    ftbuf
+    unsafe { ftbuf.as_mut() }
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
@@ -388,7 +391,7 @@ pub fn nvim_get_option_value(
 
     if !validate_option_value_args(
         opts,
-        name.data,
+        crate::memory::cstr_from_ptr(name.data),
         true,
         &mut opt_idx,
         &mut opt_flags,
@@ -404,11 +407,11 @@ pub fn nvim_get_option_value(
 
     let mut aco: CtxSwitch = CtxSwitch::new();
 
-    let ftbuf = do_ft_buf(filetype, &mut aco, err);
+    let ftbuf = do_ft_buf(filetype, &mut aco, err).map_or(ptr::null_mut(), ptr::from_mut);
     if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(crate::globals::gmut(ftbuf));
+            wipe_ft_buf(unsafe { &mut *ftbuf });
         }
         return OBJECT_NIL;
     }
@@ -422,7 +425,7 @@ pub fn nvim_get_option_value(
 
     ctx_restore(&mut aco);
     if !ftbuf.is_null() {
-        wipe_ft_buf(crate::globals::gmut(ftbuf));
+        wipe_ft_buf(unsafe { &mut *ftbuf });
     }
 
     if error_set(err) {
@@ -468,7 +471,10 @@ pub fn nvim_option_to_object(
     };
 
     if (flags & (K_OPT_FLAG_COMMA | K_OPT_FLAG_FLAG_LIST)) == 0 {
-        string_obj(arena_string(arena, cstr_as_string(str_ptr)))
+        string_obj(arena_string(
+            arena,
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(str_ptr)),
+        ))
     } else if (flags & K_OPT_FLAG_FLAG_LIST) != 0 && (flags & K_OPT_FLAG_COMMA) == 0 {
         let n = crate::memory::cstr_len(str_ptr);
         let mut d = arena_dict(arena, n);
@@ -578,7 +584,7 @@ pub fn nvim_set_option_value(
 
     if !validate_option_value_args(
         opts,
-        name.data,
+        crate::memory::cstr_from_ptr(name.data),
         true,
         &mut opt_idx,
         &mut opt_flags,
@@ -612,11 +618,7 @@ pub fn nvim_set_option_value(
     } else {
         curwin_ptr()
     };
-    let varp = get_varp_from(
-        &mut *option,
-        crate::globals::gmut(buf),
-        crate::globals::gmut(win),
-    );
+    let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
 
     let nitems = if is_array {
         value.data.array().size
@@ -656,9 +658,9 @@ pub fn nvim_set_option_value(
         if error {
             api_err_exp(
                 err,
-                name.data,
+                crate::memory::cstr_from_ptr(name.data),
                 c"a valid type",
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             optval_free(merged_val);
             return OBJECT_NIL;
@@ -830,7 +832,7 @@ pub fn nvim_get_option_info2(
 
     if !validate_option_value_args(
         opts,
-        name.data,
+        crate::memory::cstr_from_ptr(name.data),
         false,
         &mut opt_idx,
         &mut opt_flags,
@@ -855,7 +857,7 @@ pub fn nvim_get_option_info2(
         curwin_ptr()
     };
 
-    get_option_info(name, opt_flags, buf, crate::globals::gmut(win), arena, err)
+    get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
 }
 
 #[cfg(test)]

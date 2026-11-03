@@ -4308,8 +4308,8 @@ pub fn resettitle() {
     let state = buf_st();
     let icon_ptr = state.lasticon.as_ref().map_or(ptr::null(), |s| s.as_ptr());
     let title_ptr = state.lasttitle.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    ui_call_set_icon(cstr_as_string(icon_ptr));
-    ui_call_set_title(cstr_as_string(title_ptr));
+    ui_call_set_icon(cstr_as_string(crate::memory::cstr_as_opt_cstr(icon_ptr)));
+    ui_call_set_title(cstr_as_string(crate::memory::cstr_as_opt_cstr(title_ptr)));
 }
 
 pub fn free_titles() {

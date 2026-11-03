@@ -51,7 +51,7 @@ pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object, err
                 err,
                 c"termresponse",
                 api_typename(ObjectType::ObjectTypeString),
-                api_typename(value.obj_type),
+                Some(api_typename(value.obj_type)),
             );
             return;
         }

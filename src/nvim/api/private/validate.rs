@@ -1,7 +1,7 @@
 //! API argument validation helpers (`src/nvim/api/private/validate.c`).
 
 use crate::memory::realloc_items;
-use crate::strings::{RawCCharPtr, RawCCharPtrMut};
+use crate::strings::RawCCharPtrMut;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -186,7 +186,7 @@ impl Array {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut Object {
         debug_assert!(!self.items.is_null());
-        crate::globals::gmut(self.items.wrapping_add(self.size))
+        unsafe { &mut *self.items.wrapping_add(self.size) }
     }
 
     #[inline]
@@ -212,7 +212,7 @@ impl std::ops::Index<usize> for Array {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        crate::globals::gref(self.items.wrapping_add(index))
+        unsafe { &*self.items.wrapping_add(index) }
     }
 }
 
@@ -220,7 +220,7 @@ impl std::ops::IndexMut<usize> for Array {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        crate::globals::gmut(self.items.wrapping_add(index))
+        unsafe { &mut *self.items.wrapping_add(index) }
     }
 }
 
@@ -270,7 +270,7 @@ impl Dict {
     #[inline]
     pub fn next_slot_mut(&mut self) -> &'static mut KeyValuePair {
         debug_assert!(!self.items.is_null());
-        crate::globals::gmut(self.items.wrapping_add(self.size))
+        unsafe { &mut *self.items.wrapping_add(self.size) }
     }
 
     #[inline]
@@ -296,7 +296,7 @@ impl std::ops::Index<usize> for Dict {
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         debug_assert!(!self.items.is_null());
-        crate::globals::gref(self.items.wrapping_add(index))
+        unsafe { &*self.items.wrapping_add(index) }
     }
 }
 
@@ -304,7 +304,7 @@ impl std::ops::IndexMut<usize> for Dict {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         debug_assert!(!self.items.is_null());
-        crate::globals::gmut(self.items.wrapping_add(index))
+        unsafe { &mut *self.items.wrapping_add(index) }
     }
 }
 
@@ -482,45 +482,40 @@ fn set_error_str(err: &mut Error, err_type: ErrorType, msg: &str) {
 }
 
 #[inline]
-fn cstr_lossy<'a>(ptr: RawCCharPtr) -> std::borrow::Cow<'a, str> {
-    crate::memory::cstr_from_ptr(ptr).to_string_lossy()
-}
-
 /// Create `"Invalid …"` validation message on `err` (`api_err_invalid`).
-///
-/// # Safety
-/// `err` and `name` must be valid pointers, and `val_s` must be null or a valid C string.
-pub fn api_err_invalid<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
+pub fn api_err_invalid(
     err: &mut Error,
-    name: S1,
-    val_s: S2,
+    name: &std::ffi::CStr,
+    val_s: Option<&std::ffi::CStr>,
     val_n: i64,
     quote_val: bool,
 ) {
-    let name = name.into_c_char_ptr();
-    let val_s = val_s.into_c_char_ptr();
-    let name_str = cstr_lossy(name);
+    let name_str = name.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
 
-    let msg = if !val_s.is_null() && *crate::globals::gptr(val_s) == 0 {
-        if has_space {
-            format!("Invalid {name_str}")
-        } else {
-            format!("Invalid '{name_str}'")
+    let msg = match val_s {
+        Some(vs) if vs.to_bytes().is_empty() => {
+            if has_space {
+                format!("Invalid {name_str}")
+            } else {
+                format!("Invalid '{name_str}'")
+            }
         }
-    } else if val_s.is_null() {
-        if has_space {
-            format!("Invalid {name_str}: {val_n}")
-        } else {
-            format!("Invalid '{name_str}': {val_n}")
+        None => {
+            if has_space {
+                format!("Invalid {name_str}: {val_n}")
+            } else {
+                format!("Invalid '{name_str}': {val_n}")
+            }
         }
-    } else {
-        let val_str = cstr_lossy(val_s);
-        match (has_space, quote_val) {
-            (true, true) => format!("Invalid {name_str}: '{val_str}'"),
-            (true, false) => format!("Invalid {name_str}: {val_str}"),
-            (false, true) => format!("Invalid '{name_str}': '{val_str}'"),
-            (false, false) => format!("Invalid '{name_str}': {val_str}"),
+        Some(vs) => {
+            let val_str = vs.to_string_lossy();
+            match (has_space, quote_val) {
+                (true, true) => format!("Invalid {name_str}: '{val_str}'"),
+                (true, false) => format!("Invalid {name_str}: {val_str}"),
+                (false, true) => format!("Invalid '{name_str}': '{val_str}'"),
+                (false, false) => format!("Invalid '{name_str}': {val_str}"),
+            }
         }
     };
 
@@ -528,38 +523,31 @@ pub fn api_err_invalid<S1: crate::strings::IntoCCharPtr, S2: crate::strings::Int
 }
 
 /// Create `"Invalid …: expected …"` validation message on `err` (`api_err_exp`).
-///
-/// # Safety
-/// `err`, `name`, and `expected` must be valid pointers; `actual` must be null or a valid C string.
-pub fn api_err_exp<
-    S1: crate::strings::IntoCCharPtr,
-    S2: crate::strings::IntoCCharPtr,
-    S3: crate::strings::IntoCCharPtr,
->(
+pub fn api_err_exp(
     err: &mut Error,
-    name: S1,
-    expected: S2,
-    actual: S3,
+    name: &std::ffi::CStr,
+    expected: &std::ffi::CStr,
+    actual: Option<&std::ffi::CStr>,
 ) {
-    let name = name.into_c_char_ptr();
-    let expected = expected.into_c_char_ptr();
-    let actual = actual.into_c_char_ptr();
-    let name_str = cstr_lossy(name);
-    let exp_str = cstr_lossy(expected);
+    let name_str = name.to_string_lossy();
+    let exp_str = expected.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
 
-    let msg = if actual.is_null() {
-        if has_space {
-            format!("Invalid {name_str}: expected {exp_str}")
-        } else {
-            format!("Invalid '{name_str}': expected {exp_str}")
+    let msg = match actual {
+        None => {
+            if has_space {
+                format!("Invalid {name_str}: expected {exp_str}")
+            } else {
+                format!("Invalid '{name_str}': expected {exp_str}")
+            }
         }
-    } else {
-        let act_str = cstr_lossy(actual);
-        if has_space {
-            format!("Invalid {name_str}: expected {exp_str}, got {act_str}")
-        } else {
-            format!("Invalid '{name_str}': expected {exp_str}, got {act_str}")
+        Some(actual) => {
+            let act_str = actual.to_string_lossy();
+            if has_space {
+                format!("Invalid {name_str}: expected {exp_str}, got {act_str}")
+            } else {
+                format!("Invalid '{name_str}': expected {exp_str}, got {act_str}")
+            }
         }
     };
 
@@ -567,11 +555,8 @@ pub fn api_err_exp<
 }
 
 /// Create `"Required: …"` validation message on `err` (`api_err_required`).
-///
-/// # Safety
-/// `err` and `name` must be valid pointers.
 pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
-    let name_str = cstr_lossy(name.as_ptr());
+    let name_str = name.to_string_lossy();
     let has_space = name_str.as_bytes().contains(&b' ');
     let msg = if has_space {
         format!("Required: {name_str}")
@@ -582,18 +567,9 @@ pub fn api_err_required(err: &mut Error, name: &std::ffi::CStr) {
 }
 
 /// Create `"Conflict: … not allowed with …"` validation message on `err` (`api_err_conflict`).
-///
-/// # Safety
-/// `err`, `name`, and `name2` must be valid pointers.
-pub fn api_err_conflict<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCharPtr>(
-    err: &mut Error,
-    name: S1,
-    name2: S2,
-) {
-    let name = name.into_c_char_ptr();
-    let name2 = name2.into_c_char_ptr();
-    let name_str = cstr_lossy(name);
-    let name2_str = cstr_lossy(name2);
+pub fn api_err_conflict(err: &mut Error, name: &std::ffi::CStr, name2: &std::ffi::CStr) {
+    let name_str = name.to_string_lossy();
+    let name2_str = name2.to_string_lossy();
     let has_space2 = name2_str.as_bytes().contains(&b' ');
     let msg = if has_space2 {
         format!("Conflict: '{name_str}' not allowed with {name2_str}")
@@ -605,19 +581,15 @@ pub fn api_err_conflict<S1: crate::strings::IntoCCharPtr, S2: crate::strings::In
 
 /// Validate that `arr` contains only `String` items (and optionally no embedded newlines)
 /// (`check_string_array`).
-///
-/// # Safety
-/// `arr`, `name`, and `err` must be valid.
 pub fn check_string_array(
     arr: Array,
-    name: impl crate::strings::IntoCCharPtr,
+    name: &std::ffi::CStr,
     disallow_nl: bool,
     err: &mut Error,
 ) -> bool {
-    let name = name.into_c_char_ptr().cast_mut();
-    let name_str = cstr_lossy(name);
+    let name_str = name.to_string_lossy();
     for i in 0..arr.size {
-        let item = crate::globals::gref(arr.items.wrapping_add(i));
+        let item = unsafe { &*arr.items.wrapping_add(i) };
         if item.obj_type != ObjectType::ObjectTypeString {
             let msg = format!(
                 "Invalid '{name_str}' item: expected String, got {}",
@@ -640,7 +612,7 @@ pub fn check_string_array(
 
 #[inline]
 pub fn api_err_range(err: &mut Error, name: &std::ffi::CStr) {
-    api_err_invalid(err, name.as_ptr(), c"out of range", 0, false);
+    api_err_invalid(err, name, Some(c"out of range"), 0, false);
 }
 
 #[cfg(test)]
@@ -652,7 +624,7 @@ mod tests {
     fn formats_validation_error_messages() {
         let mut err = Error::new();
 
-        api_err_invalid(&mut err, c"col", std::ptr::null(), -1, false);
+        api_err_invalid(&mut err, c"col", None, -1, false);
         assert_eq!(err.err_type, ErrorType::ErrorTypeValidation);
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
@@ -660,7 +632,7 @@ mod tests {
         );
         api_clear_error(&mut err);
 
-        api_err_exp(&mut err, c"buffer id", c"Integer", c"String");
+        api_err_exp(&mut err, c"buffer id", c"Integer", Some(c"String"));
         assert_eq!(
             err.msg.as_ref().unwrap().to_str().unwrap(),
             "Invalid buffer id: expected Integer, got String"

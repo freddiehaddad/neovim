@@ -420,16 +420,21 @@ pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
 /// Called when starting to edit a buffer for a help file (`prepare_help_buffer`).
 pub fn prepare_help_buffer() {
     curbuf_mut().b_help = true;
-    set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(c"help"), OPT_LOCAL, 0);
+    set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(Some(c"help")), OPT_LOCAL, 0);
 
     let p = c"!-~,^*,^|,^\",192-255";
     if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
-        set_option_direct(K_OPT_ISKEYWORD, cstr_as_obj(p), OPT_LOCAL, 0);
+        set_option_direct(
+            K_OPT_ISKEYWORD,
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p)),
+            OPT_LOCAL,
+            0,
+        );
         check_buf_options(curbuf_mut());
         buf_init_isk_chartab(curbuf_mut());
     }
 
-    set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(c"manual"), OPT_LOCAL, 0);
+    set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);
 
     curbuf_mut().b_p_ts = 8;
     curwin_mut().w_onebuf_opt.wo_list = 0;

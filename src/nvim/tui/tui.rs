@@ -2088,8 +2088,8 @@ pub fn tui_flush(tui: &mut TUIData) {
 
 fn show_verbose_terminfo(tui: &mut TUIData) {
     let mut title_items = [
-        cstr_as_obj(c"\n\n--- Terminal info --- {{{\n"),
-        cstr_as_obj(c"Title"),
+        cstr_as_obj(Some(c"\n\n--- Terminal info --- {{{\n")),
+        cstr_as_obj(Some(c"Title")),
     ];
     let title = Array {
         items: title_items.as_mut_ptr(),
@@ -2107,7 +2107,7 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
         size: 1,
         capacity: 1,
     };
-    let mut end_fold_items = [cstr_as_obj(c"}}}\n"), cstr_as_obj(c"Title")];
+    let mut end_fold_items = [cstr_as_obj(Some(c"}}}\n")), cstr_as_obj(Some(c"Title"))];
     let end_fold = Array {
         items: end_fold_items.as_mut_ptr(),
         size: 2,
@@ -2255,7 +2255,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
         invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
 
         if g_st().ui_client_channel_id != 0 {
-            let mut args_items = [cstr_as_obj(c"rgb"), boolean_obj(value.data.boolean())];
+            let mut args_items = [cstr_as_obj(Some(c"rgb")), boolean_obj(value.data.boolean())];
             let args = Array {
                 items: args_items.as_mut_ptr(),
                 size: 2,

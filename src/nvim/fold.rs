@@ -1465,7 +1465,7 @@ pub fn get_foldtext(
             let obj = eval_foldtext(wp);
             if obj.obj_type == ObjectType::ObjectTypeArray {
                 let mut err = Error::new();
-                *vt = parse_virt_text(obj.data.array(), &mut err, ptr::null_mut(), false);
+                *vt = parse_virt_text(obj.data.array(), &mut err, None, false);
                 if err.err_type == ErrorType::ErrorTypeNone {
                     text = Some(std::ffi::CString::default());
                 }

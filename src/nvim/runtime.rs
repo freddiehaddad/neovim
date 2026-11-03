@@ -450,7 +450,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
     for (idx, entry) in rt_st().exestack.iter().enumerate() {
         if let Some(ref entry_name) = entry.es_name {
             let mut type_name = static_cstr_as_string(c"");
-            let es_name = cstr_as_string(entry_name.as_ptr());
+            let es_name = cstr_as_string(crate::memory::cstr_as_opt_cstr(entry_name.as_ptr()));
             if entry.es_type != last_type {
                 match entry.es_type {
                     ETYPE_SCRIPT => type_name = static_cstr_as_string(c"script "),
@@ -917,7 +917,11 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
 
     for item in rsp {
         let mut entry = arena_dict(arena, 5);
-        put_c(&mut entry, c"path", cstr_as_obj(item.path.as_ptr()));
+        put_c(
+            &mut entry,
+            c"path",
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr(item.path.as_ptr())),
+        );
         if item.after {
             put_c(&mut entry, c"after", boolean_obj(true));
         }
@@ -1003,7 +1007,10 @@ fn runtime_get_named_common(
                 ) as usize;
                 if size < buf_len && os_file_is_readable(buf.cast()) {
                     to_slash(buf.cast());
-                    let astr = arena_string_opt(arena.as_deref_mut(), cstr_as_string(buf.cast()));
+                    let astr = arena_string_opt(
+                        arena.as_deref_mut(),
+                        cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.cast())),
+                    );
                     add_c(&mut rv, string_obj(astr));
                     if !all {
                         return rv;

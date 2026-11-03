@@ -413,7 +413,7 @@ pub fn sb_concat(sb: &mut Vec<u8>, s: &[u8]) {
 #[inline]
 fn dict_put(d: &mut Dict, key: &CStr, value: Object) {
     d.push(KeyValuePair {
-        key: cstr_to_string(key.as_ptr()),
+        key: cstr_to_string(Some(key)),
         value,
     });
 }
@@ -665,11 +665,11 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     };
     let cmdarg = atom_key_name(spec.cmdarg);
     if !cmdarg.as_bytes().is_empty() {
-        dict_put(&mut d, c"cmdarg", cstr_to_obj(cmdarg.as_ptr()));
+        dict_put(&mut d, c"cmdarg", cstr_to_obj(Some(cmdarg.as_c_str())));
     }
     dict_put(&mut d, c"changed", boolean_obj(atom.changed));
     if !cmd.as_bytes().is_empty() {
-        dict_put(&mut d, c"cmd", cstr_to_obj(cmd.as_ptr()));
+        dict_put(&mut d, c"cmd", cstr_to_obj(Some(cmd.as_c_str())));
     }
     if spec.count > 0 {
         dict_put(&mut d, c"count", integer_obj(spec.count as _));
@@ -688,31 +688,37 @@ fn atom_dict(atom: &CmdAtom) -> Dict {
     }
     let keys: &CStr = atom.keys.as_deref().unwrap_or(c"");
     if !atom.remap {
-        dict_put(&mut d, c"keys", cstr_to_obj(keys.as_ptr()));
+        dict_put(&mut d, c"keys", cstr_to_obj(Some(keys)));
     }
     let lhs_cstr = match &atom.lhs {
         Some(lhs) if !lhs.as_bytes().is_empty() => lhs.as_c_str(),
         _ => keys,
     };
-    dict_put(&mut d, c"lhs", cstr_to_obj(lhs_cstr.as_ptr()));
+    dict_put(&mut d, c"lhs", cstr_to_obj(Some(lhs_cstr)));
     if !force.to_bytes().is_empty() {
-        dict_put(&mut d, c"motionforce", cstr_to_obj(force.as_ptr()));
+        dict_put(&mut d, c"motionforce", cstr_to_obj(Some(force)));
     }
     if !op.as_bytes().is_empty() {
-        dict_put(&mut d, c"operator", cstr_to_obj(op.as_ptr()));
+        dict_put(&mut d, c"operator", cstr_to_obj(Some(op.as_c_str())));
     }
     if spec.regname != 0 {
-        dict_put(&mut d, c"reg", cstr_to_obj(regname.as_ptr().cast()));
+        dict_put(
+            &mut d,
+            c"reg",
+            cstr_to_obj(crate::memory::cstr_as_opt_cstr(regname.as_ptr().cast())),
+        );
     }
     if let Some(ref text) = atom.text
         && !text.as_bytes().is_empty()
     {
-        dict_put(&mut d, c"text", cstr_to_obj(text.as_ptr()));
+        dict_put(&mut d, c"text", cstr_to_obj(Some(text.as_c_str())));
     }
     dict_put(
         &mut d,
         c"type",
-        cstr_to_obj(TYPE_NAMES[atom.r#type as usize].as_ptr()),
+        cstr_to_obj(crate::memory::cstr_as_opt_cstr(
+            TYPE_NAMES[atom.r#type as usize].as_ptr(),
+        )),
     );
     d
 }
