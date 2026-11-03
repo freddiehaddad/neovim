@@ -62,7 +62,8 @@ use crate::insert::beginline;
 use crate::mark::{BUF_HAS_LL_ENTRY, BUF_HAS_QF_ENTRY, setpcmark};
 use crate::option::{
     K_OPT_BUFHIDDEN, K_OPT_BUFTYPE, K_OPT_FILETYPE, K_OPT_SWAPFILE, OPT_LOCAL, buf_copy_options,
-    copy_option_part, set_option_direct, set_option_value_give_err, shortmess, skip_to_option_part,
+    copy_option_part, set_option_direct, set_option_value_give_err, shortmess,
+    skip_to_option_part_slice,
 };
 use crate::os::fs::{
     CFile, FileInfo, MAXPATHL, os_dirname, os_errno, os_fileinfo_link, os_isdir, os_open_stdin_fd,
@@ -711,16 +712,8 @@ fn qfga_clear() {
 }
 
 #[inline]
-fn qfga_concat(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let bytes = crate::memory::cstr_as_bytes(s);
-    if !bytes.is_empty() {
-        gap.extend_from_slice(bytes);
-    }
-}
-
-#[inline]
-fn qfga_concat_len(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, len: usize) {
-    let bytes = crate::memory::cstr_slice(s, len);
+fn qfga_concat(gap: &mut Vec<u8>, bytes: &[u8]) {
+    let bytes = crate::memory::bytes_until_nul(bytes);
     if !bytes.is_empty() {
         gap.extend_from_slice(bytes);
     }
@@ -737,13 +730,8 @@ fn qf_init_process_nextline(
         return status;
     }
 
-    status = qf_parse_line(
-        qfl,
-        state.linebuf_ptr().cast(),
-        state.linelen,
-        fmt_first,
-        fields,
-    );
+    let line_slice = crate::memory::cstr_slice(state.linebuf_ptr().cast(), state.linelen);
+    status = qf_parse_line(qfl, line_slice, fmt_first, fields);
     if status != QF_OK {
         return status;
     }
@@ -915,14 +903,8 @@ fn efm_analyze_prefix(efm: &[u8], i: &mut usize, efminfo: &mut Efm) -> bool {
     }
 }
 
-fn efm_to_regpat(
-    efm: impl crate::strings::IntoCCharPtr,
-    len: i32,
-    fmt_ptr: &mut Efm,
-    regpat: &mut Vec<u8>,
-) -> bool {
-    let len = len as usize;
-    let efm_slice = crate::memory::cstr_slice(efm, len + 1);
+fn efm_to_regpat(efm_slice: &[u8], fmt_ptr: &mut Efm, regpat: &mut Vec<u8>) -> bool {
+    let len = efm_slice.len();
     regpat.clear();
     regpat.push(b'^');
     let mut round: i32 = 0;
@@ -975,8 +957,8 @@ fn efm_to_regpat(
     true
 }
 
-fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> i32 {
-    let bytes = crate::memory::cstr_as_bytes(efm.into_c_char_ptr());
+fn efm_option_part_len(bytes: &[u8]) -> usize {
+    let bytes = crate::memory::bytes_until_nul(bytes);
     let mut len: usize = 0;
     while len < bytes.len() && bytes[len] != b',' {
         if bytes[len] == b'\\' && len + 1 < bytes.len() {
@@ -984,50 +966,48 @@ fn efm_option_part_len(efm: impl crate::strings::IntoCCharPtr) -> i32 {
         }
         len += 1;
     }
-    len as i32
+    len
 }
 
-fn parse_efm_option(efm: impl crate::strings::IntoCCharPtr) -> Vec<Efm> {
-    let mut efm = efm.into_c_char_ptr();
-    {
-        let mut fmt_list: Vec<Efm> = Vec::new();
-        let mut fmtstr = Vec::new();
+fn parse_efm_option(efm: &[u8]) -> Vec<Efm> {
+    let mut rem = crate::memory::bytes_until_nul(efm);
+    let mut fmt_list: Vec<Efm> = Vec::new();
+    let mut fmtstr = Vec::new();
 
-        let mut errored = false;
-        while !crate::memory::cstr_is_empty(efm) {
-            let mut fmt_item = Efm {
-                prog: None,
-                addr: [0; FMT_PATTERNS],
-                prefix: 0,
-                flags: 0,
-                conthere: 0,
-            };
+    let mut errored = false;
+    while !rem.is_empty() {
+        let mut fmt_item = Efm {
+            prog: None,
+            addr: [0; FMT_PATTERNS],
+            prefix: 0,
+            flags: 0,
+            conthere: 0,
+        };
 
-            let len = efm_option_part_len(efm);
+        let len = efm_option_part_len(rem);
 
-            if !efm_to_regpat(efm, len, &mut fmt_item, &mut fmtstr) {
-                errored = true;
-                break;
-            }
-            fmt_item.prog =
-                crate::regexp::vim_regcomp_box(fmtstr.as_ptr().cast(), RE_MAGIC + RE_STRING);
-            if fmt_item.prog.is_none() {
-                errored = true;
-                break;
-            }
-            fmt_list.push(fmt_item);
-            efm = skip_to_option_part(efm.wrapping_add(len as usize));
+        if !efm_to_regpat(&rem[..len], &mut fmt_item, &mut fmtstr) {
+            errored = true;
+            break;
         }
-
-        if errored {
-            fmt_list.clear();
-            qf_st().fmt_start_idx = None;
-        } else if fmt_list.is_empty() {
-            emsg(gettext(c"E378: 'errorformat' contains no pattern"));
+        fmt_item.prog =
+            crate::regexp::vim_regcomp_box(fmtstr.as_ptr().cast(), RE_MAGIC + RE_STRING);
+        if fmt_item.prog.is_none() {
+            errored = true;
+            break;
         }
-
-        fmt_list
+        fmt_list.push(fmt_item);
+        rem = skip_to_option_part_slice(&rem[len..]);
     }
+
+    if errored {
+        fmt_list.clear();
+        qf_st().fmt_start_idx = None;
+    } else if fmt_list.is_empty() {
+        emsg(gettext(c"E378: 'errorformat' contains no pattern"));
+    }
+
+    fmt_list
 }
 
 fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) -> *mut u8 {
@@ -1292,100 +1272,95 @@ fn qf_get_list(qi: &mut QfInfo, idx: i32) -> &'static mut QfList {
 
 fn qf_parse_line(
     qfl: &mut QfList,
-    linebuf: impl crate::strings::IntoCCharPtr,
-    mut linelen: usize,
+    mut line: &[u8],
     fmt_first: &[Efm],
     fields: &mut Qffields,
 ) -> i32 {
-    let mut linebuf = linebuf.into_c_char_ptr();
-    {
-        let fmt_len = fmt_first.len();
-        loop {
-            let start_idx = qf_st().fmt_start_idx;
-            qf_st().fmt_start_idx = None;
-            let mut fmt_idx = start_idx.unwrap_or(0);
-            let mut fmt_opt: Option<&Efm> = None;
+    let fmt_len = fmt_first.len();
+    loop {
+        let start_idx = qf_st().fmt_start_idx;
+        qf_st().fmt_start_idx = None;
+        let mut fmt_idx = start_idx.unwrap_or(0);
+        let mut fmt_opt: Option<&Efm> = None;
 
-            let mut idx: i32 = 0;
-            let mut tail: *mut u8 = ptr::null_mut();
-            let mut status;
+        let mut idx: i32 = 0;
+        let mut tail_off: Option<usize> = None;
+        let mut status;
 
-            fields.valid = true;
-            while fmt_idx < fmt_len {
-                let cur_fmt = &fmt_first[fmt_idx];
-                idx = i32::from(cur_fmt.prefix);
-                status = qf_parse_get_fields(
-                    linebuf,
-                    linelen,
-                    cur_fmt,
-                    fields,
-                    i32::from(qfl.qf_multiline),
-                    i32::from(qfl.qf_multiscan),
-                    &mut tail,
-                );
-                if status == QF_NOMEM {
-                    return status;
-                }
-                if status == QF_OK {
-                    fmt_opt = Some(cur_fmt);
-                    break;
-                }
-                fmt_idx += 1;
+        fields.valid = true;
+        while fmt_idx < fmt_len {
+            let cur_fmt = &fmt_first[fmt_idx];
+            idx = i32::from(cur_fmt.prefix);
+            status = qf_parse_get_fields(
+                line,
+                cur_fmt,
+                fields,
+                i32::from(qfl.qf_multiline),
+                i32::from(qfl.qf_multiscan),
+                &mut tail_off,
+            );
+            if status == QF_NOMEM {
+                return status;
             }
-            qfl.qf_multiscan = false;
+            if status == QF_OK {
+                fmt_opt = Some(cur_fmt);
+                break;
+            }
+            fmt_idx += 1;
+        }
+        qfl.qf_multiscan = false;
 
-            if fmt_opt.is_none() || idx == i32::from(b'D') || idx == i32::from(b'X') {
-                if fmt_opt.is_some() {
-                    status = qf_parse_dir_pfx(idx, fields, qfl);
-                    if status != QF_OK {
-                        return status;
-                    }
-                }
-                status = qf_parse_line_nomatch(linebuf, linelen, fields);
+        if fmt_opt.is_none() || idx == i32::from(b'D') || idx == i32::from(b'X') {
+            if fmt_opt.is_some() {
+                status = qf_parse_dir_pfx(idx, fields, qfl);
                 if status != QF_OK {
                     return status;
                 }
-
-                if fmt_opt.is_none() {
-                    qfl.qf_multiline = false;
-                    qfl.qf_multiignore = false;
-                }
-            } else if let Some(fmt_ptr) = fmt_opt {
-                if fmt_ptr.conthere != 0 {
-                    qf_st().fmt_start_idx = Some(fmt_idx);
-                }
-
-                if crate::strings::vim_haschr(c"AEWIN", idx) {
-                    qfl.qf_multiline = true;
-                    qfl.qf_multiignore = false;
-                } else if crate::strings::vim_haschr(c"CZ", idx) {
-                    status = qf_parse_multiline_pfx(idx, qfl, fields);
-                    if status != QF_OK {
-                        return status;
-                    }
-                } else if crate::strings::vim_haschr(c"OPQ", idx) {
-                    status = qf_parse_file_pfx(idx, fields, qfl, tail.cast());
-                    if status == QF_MULTISCAN {
-                        let s = skipwhite(tail.cast());
-                        let new_linelen = crate::memory::cstr_len(s);
-                        if new_linelen >= linelen {
-                            return QF_IGNORE_LINE;
-                        }
-                        linebuf = s;
-                        linelen = new_linelen;
-                        continue;
-                    }
-                }
-                if fmt_ptr.flags == b'-' {
-                    if qfl.qf_multiline {
-                        qfl.qf_multiignore = true;
-                    }
-                    return QF_IGNORE_LINE;
-                }
+            }
+            status = qf_parse_line_nomatch(line, fields);
+            if status != QF_OK {
+                return status;
             }
 
-            return QF_OK;
+            if fmt_opt.is_none() {
+                qfl.qf_multiline = false;
+                qfl.qf_multiignore = false;
+            }
+        } else if let Some(fmt_ptr) = fmt_opt {
+            if fmt_ptr.conthere != 0 {
+                qf_st().fmt_start_idx = Some(fmt_idx);
+            }
+
+            if crate::strings::vim_haschr(c"AEWIN", idx) {
+                qfl.qf_multiline = true;
+                qfl.qf_multiignore = false;
+            } else if crate::strings::vim_haschr(c"CZ", idx) {
+                status = qf_parse_multiline_pfx(idx, qfl, fields);
+                if status != QF_OK {
+                    return status;
+                }
+            } else if crate::strings::vim_haschr(c"OPQ", idx) {
+                let tail_slice = tail_off.and_then(|off| line.get(off..));
+                status = qf_parse_file_pfx(idx, fields, qfl, tail_slice);
+                if status == QF_MULTISCAN {
+                    let s = crate::charset::skipwhite_slice(tail_slice.unwrap_or(&[]));
+                    let new_linelen = crate::memory::bytes_until_nul(s).len();
+                    if new_linelen >= line.len() {
+                        return QF_IGNORE_LINE;
+                    }
+                    line = &s[..new_linelen];
+                    continue;
+                }
+            }
+            if fmt_ptr.flags == b'-' {
+                if qfl.qf_multiline {
+                    qfl.qf_multiignore = true;
+                }
+                return QF_IGNORE_LINE;
+            }
         }
+
+        return QF_OK;
     }
 }
 
@@ -1511,7 +1486,7 @@ fn qf_init_ext(
             qf_st().fmt_cache.clear();
             qf_st().fmt_start_idx = None;
 
-            qf_st().fmt_cache = parse_efm_option(efm);
+            qf_st().fmt_cache = parse_efm_option(crate::memory::cstr_as_bytes(efm));
             if !qf_st().fmt_cache.is_empty() {
                 qf_st().last_efm_cache = Some(crate::memory::cstr_to_cstring(efm));
             }
@@ -1734,19 +1709,12 @@ fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     QF_OK
 }
 
-fn copy_nonerror_line(
-    linebuf: impl crate::strings::IntoCCharPtr,
-    linelen: usize,
-    fields: &mut Qffields,
-) -> i32 {
-    let linebuf = linebuf.into_c_char_ptr();
+fn copy_nonerror_line(line: &[u8], fields: &mut Qffields) -> i32 {
+    let linelen = line.len();
     if linelen >= fields.errmsg.len() {
         fields.errmsg.resize(linelen + 1, 0);
     }
-    crate::memory::copy_bytes_to_c_buf(
-        &mut fields.errmsg[..linelen + 1],
-        crate::memory::cstr_as_bytes(linebuf),
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut fields.errmsg[..linelen + 1], line);
     QF_OK
 }
 
@@ -1765,11 +1733,16 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     QF_OK
 }
 
-fn qf_parse_fmt_r(rmp: &mut Regmatch, midx: usize, tail: &mut *mut u8) -> i32 {
+fn qf_parse_fmt_r(
+    rmp: &mut Regmatch,
+    midx: usize,
+    line_ptr: *const u8,
+    tail_off: &mut Option<usize>,
+) -> i32 {
     if rmp.startp[midx].is_null() {
         return QF_FAIL;
     }
-    *tail = rmp.startp[midx];
+    *tail_off = Some(crate::memory::ptr_offset_from(rmp.startp[midx], line_ptr).max(0) as usize);
     QF_OK
 }
 
@@ -1829,16 +1802,15 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
 }
 
 fn qf_parse_match(
-    linebuf: impl crate::strings::IntoCCharPtr,
-    linelen: usize,
+    line: &[u8],
+    line_ptr: *const u8,
     fmt_ptr: &Efm,
     regmatch: &mut Regmatch,
     fields: &mut Qffields,
     qf_multiline: i32,
     qf_multiscan: i32,
-    tail: &mut *mut u8,
+    tail_off: &mut Option<usize>,
 ) -> i32 {
-    let linebuf = linebuf.into_c_char_ptr();
     let idx = fmt_ptr.prefix;
 
     if (idx == b'C' || idx == b'Z') && qf_multiline == 0 {
@@ -1857,12 +1829,12 @@ fn qf_parse_match(
             status = qf_parse_fmt_f(regmatch, midx as usize, fields, i32::from(idx));
         } else if i == FMT_PATTERN_M {
             if fmt_ptr.flags == b'+' && qf_multiscan == 0 {
-                status = copy_nonerror_line(linebuf, linelen, fields);
+                status = copy_nonerror_line(line, fields);
             } else if midx > 0 {
                 status = qf_parse_fmt_m(regmatch, midx as usize, fields);
             }
         } else if i == FMT_PATTERN_R && midx > 0 {
-            status = qf_parse_fmt_r(regmatch, midx as usize, tail);
+            status = qf_parse_fmt_r(regmatch, midx as usize, line_ptr, tail_off);
         } else if midx > 0 {
             let m = midx as usize;
             status = match i {
@@ -1891,56 +1863,54 @@ fn qf_parse_match(
 }
 
 fn qf_parse_get_fields(
-    linebuf: impl crate::strings::IntoCCharPtr,
-    linelen: usize,
+    line: &[u8],
     fmt_ptr: &Efm,
     fields: &mut Qffields,
     qf_multiline: i32,
     qf_multiscan: i32,
-    tail: &mut *mut u8,
+    tail_off: &mut Option<usize>,
 ) -> i32 {
-    let linebuf = linebuf.into_c_char_ptr();
-    {
-        if qf_multiscan != 0 && !crate::strings::vim_haschr(c"OPQ", i32::from(fmt_ptr.prefix)) {
-            return QF_FAIL;
-        }
-
-        fields.namebuf[0] = 0;
-        fields.bnr = 0;
-        fields.module[0] = 0;
-        fields.pattern[0] = 0;
-        if qf_multiscan == 0 {
-            fields.errmsg[0] = 0;
-        }
-        fields.lnum = 0;
-        fields.end_lnum = 0;
-        fields.col = 0;
-        fields.end_col = 0;
-        fields.use_viscol = false;
-        fields.enr = -1;
-        fields.type_ = 0;
-        *tail = ptr::null_mut();
-
-        let mut regmatch: Regmatch = Regmatch::new();
-        regmatch.rm_ic = true;
-        regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
-        let r = vim_regexec(&mut regmatch, linebuf, 0);
-        let mut status = QF_FAIL;
-        if r {
-            status = qf_parse_match(
-                linebuf,
-                linelen,
-                fmt_ptr,
-                &mut regmatch,
-                fields,
-                qf_multiline,
-                qf_multiscan,
-                tail,
-            );
-        }
-
-        status
+    if qf_multiscan != 0 && !crate::strings::vim_haschr(c"OPQ", i32::from(fmt_ptr.prefix)) {
+        return QF_FAIL;
     }
+
+    fields.namebuf[0] = 0;
+    fields.bnr = 0;
+    fields.module[0] = 0;
+    fields.pattern[0] = 0;
+    if qf_multiscan == 0 {
+        fields.errmsg[0] = 0;
+    }
+    fields.lnum = 0;
+    fields.end_lnum = 0;
+    fields.col = 0;
+    fields.end_col = 0;
+    fields.use_viscol = false;
+    fields.enr = -1;
+    fields.type_ = 0;
+    *tail_off = None;
+
+    let mut regmatch: Regmatch = Regmatch::new();
+    regmatch.rm_ic = true;
+    regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
+    let line_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(line));
+    let line_ptr: *const u8 = line_cstr.as_ptr().cast();
+    let r = vim_regexec(&mut regmatch, line_cstr.as_ptr(), 0);
+    let mut status = QF_FAIL;
+    if r {
+        status = qf_parse_match(
+            line,
+            line_ptr,
+            fmt_ptr,
+            &mut regmatch,
+            fields,
+            qf_multiline,
+            qf_multiscan,
+            tail_off,
+        );
+    }
+
+    status
 }
 
 fn qf_parse_dir_pfx(idx: i32, fields: &mut Qffields, qfl: &mut QfList) -> i32 {
@@ -1961,45 +1931,33 @@ fn qf_parse_file_pfx(
     idx: i32,
     fields: &mut Qffields,
     qfl: &mut QfList,
-    tail: impl crate::strings::IntoCCharPtr,
+    tail: Option<&[u8]>,
 ) -> i32 {
-    let tail = tail.into_c_char_ptr();
+    fields.valid = false;
+    if crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast())
+        || os_path_exists(fields.namebuf.as_ptr().cast())
     {
-        fields.valid = false;
-        if crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast())
-            || os_path_exists(fields.namebuf.as_ptr().cast())
-        {
-            if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast())
-                && idx == i32::from(b'P')
-            {
-                qf_push_dir(fields.namebuf.as_ptr().cast(), &mut qfl.qf_file_stack, true);
-            } else if idx == i32::from(b'Q') {
-                qf_pop_dir(&mut qfl.qf_file_stack);
-            }
-            fields.namebuf[0] = 0;
-            if !crate::memory::cstr_is_empty(tail) {
-                qfl.qf_multiscan = true;
-                return QF_MULTISCAN;
-            }
+        if !crate::memory::cstr_is_empty(fields.namebuf.as_ptr().cast()) && idx == i32::from(b'P') {
+            qf_push_dir(fields.namebuf.as_ptr().cast(), &mut qfl.qf_file_stack, true);
+        } else if idx == i32::from(b'Q') {
+            qf_pop_dir(&mut qfl.qf_file_stack);
         }
-
-        QF_OK
+        fields.namebuf[0] = 0;
+        if tail.is_some_and(|t| !crate::memory::bytes_until_nul(t).is_empty()) {
+            qfl.qf_multiscan = true;
+            return QF_MULTISCAN;
+        }
     }
+
+    QF_OK
 }
 
-fn qf_parse_line_nomatch(
-    linebuf: impl crate::strings::IntoCCharPtr,
-    linelen: usize,
-    fields: &mut Qffields,
-) -> i32 {
-    let linebuf = linebuf.into_c_char_ptr();
-    {
-        fields.namebuf[0] = 0;
-        fields.lnum = 0;
-        fields.valid = false;
+fn qf_parse_line_nomatch(line: &[u8], fields: &mut Qffields) -> i32 {
+    fields.namebuf[0] = 0;
+    fields.lnum = 0;
+    fields.valid = false;
 
-        copy_nonerror_line(linebuf, linelen, fields)
-    }
+    copy_nonerror_line(line, fields)
 }
 
 fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> i32 {
@@ -3138,8 +3096,11 @@ fn qf_jump_print_msg(
         deleted_str,
         qf_types(i32::from(qf_ptr.qf_type), qf_ptr.qf_nr).as_c_str(),
     );
-    qfga_concat_len(gap, iobuff_ptr, iobufflen);
-    qf_fmt_text(gap, skipwhite(qf_ptr.qf_text.as_ptr()));
+    qfga_concat(gap, &g_st().iobuff_bytes()[..iobufflen]);
+    qf_fmt_text(
+        gap,
+        crate::charset::skipwhite_slice(qf_ptr.qf_text.as_bytes()),
+    );
     gap.push(0);
 
     let i = g_st().msg_scroll;
@@ -3405,7 +3366,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     if qfp.qf_lnum != 0 {
         qf_range_text(gap, qfp);
     }
-    qfga_concat(gap, &qf_types(i32::from(qfp.qf_type), qfp.qf_nr));
+    qfga_concat(gap, qf_types(i32::from(qfp.qf_type), qfp.qf_nr).as_bytes());
     gap.push(0);
     if !crate::memory::cstr_is_empty(gap.as_ptr().cast()) {
         msg_puts_hl(gap.as_ptr().cast(), qf_st().qf_line_hl_id, false);
@@ -3413,7 +3374,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     if let Some(ref pat) = qfp.qf_pattern {
         gap = qfga_get();
-        qf_fmt_text(gap, pat.as_ptr());
+        qf_fmt_text(gap, pat.as_bytes());
         gap.push(0);
         msg_puts(gap.as_ptr().cast());
         msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
@@ -3422,9 +3383,9 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
 
     gap = qfga_get();
     let text = if !fname.is_null() || qfp.qf_lnum != 0 {
-        skipwhite(qfp.qf_text.as_ptr())
+        crate::charset::skipwhite_slice(qfp.qf_text.as_bytes())
     } else {
-        qfp.qf_text.as_ptr()
+        qfp.qf_text.as_bytes()
     };
     qf_fmt_text(gap, text);
     gap.push(0);
@@ -3507,26 +3468,21 @@ pub fn qf_list(eap: &mut Exarg) {
     qfga_clear();
 }
 
-fn qf_fmt_text(gap: &mut Vec<u8>, text: impl crate::strings::IntoCCharPtr) {
-    let text: *const u8 = text.into_c_char_ptr().cast();
-    let mut p = text;
-    while !crate::memory::cstr_is_empty(p.cast()) {
-        if crate::memory::cstr_first_byte(p.cast()) == b'\n' {
+fn qf_fmt_text(gap: &mut Vec<u8>, text: &[u8]) {
+    let mut rem = crate::memory::bytes_until_nul(text);
+    while let Some((&b, rest)) = rem.split_first() {
+        if b == b'\n' {
             gap.push(b' ');
-            loop {
-                p = p.wrapping_add(1);
-                if crate::memory::cstr_is_empty(p.cast()) {
+            rem = rest;
+            while let Some((&nb, nrest)) = rem.split_first() {
+                if !ascii_iswhite(i32::from(nb)) && nb != b'\n' {
                     break;
                 }
-                if !ascii_iswhite(i32::from(crate::memory::cstr_first_byte(p.cast())))
-                    && crate::memory::cstr_first_byte(p.cast()) != b'\n'
-                {
-                    break;
-                }
+                rem = nrest;
             }
         } else {
-            gap.push(crate::memory::cstr_first_byte(p.cast()));
-            p = p.wrapping_add(1);
+            gap.push(b);
+            rem = rest;
         }
     }
 }
@@ -3560,7 +3516,7 @@ fn qf_range_text(gap: &mut Vec<u8>, qfp: &Qfline) {
         }
     }
 
-    qfga_concat_len(gap, buf_data, buf_size);
+    qfga_concat(gap, &g_st().iobuff_bytes()[..buf_size]);
 }
 
 fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) {
@@ -4201,16 +4157,16 @@ fn qf_buf_add_line(
     let gap = qfga_get();
 
     if !crate::memory::cstr_is_empty(qftf_str) {
-        qfga_concat(gap, qftf_str);
+        qfga_concat(gap, crate::memory::cstr_as_bytes(qftf_str));
     } else {
         if let Some(ref module) = qfp.qf_module {
-            qfga_concat(gap, module.as_ptr());
+            qfga_concat(gap, module.as_bytes());
         } else if qfp.qf_fnum != 0
             && let Some(errbuf) = buflist_findnr_opt(qfp.qf_fnum)
             && !errbuf.b_fname.is_null()
         {
             if qfp.qf_type == 1 {
-                qfga_concat(gap, path_tail(errbuf.b_fname));
+                qfga_concat(gap, crate::memory::cstr_as_bytes(path_tail(errbuf.b_fname)));
             } else {
                 if first_bufline && (errbuf.b_sfname.is_null() || path_is_absolute(errbuf.b_sfname))
                 {
@@ -4221,9 +4177,10 @@ fn qf_buf_add_line(
                 }
                 qfga_concat(
                     gap,
-                    qfp.qf_fname
-                        .as_ref()
-                        .map_or(errbuf.b_fname.cast_const(), |s| s.as_ptr()),
+                    qfp.qf_fname.as_ref().map_or_else(
+                        || crate::memory::cstr_as_bytes(errbuf.b_fname),
+                        |s| s.as_bytes(),
+                    ),
                 );
             }
         }
@@ -4232,17 +4189,17 @@ fn qf_buf_add_line(
 
         if qfp.qf_lnum > 0 {
             qf_range_text(gap, qfp);
-            qfga_concat(gap, &qf_types(i32::from(qfp.qf_type), qfp.qf_nr));
+            qfga_concat(gap, qf_types(i32::from(qfp.qf_type), qfp.qf_nr).as_bytes());
         } else if let Some(ref pat) = qfp.qf_pattern {
-            qf_fmt_text(gap, pat.as_ptr());
+            qf_fmt_text(gap, pat.as_bytes());
         }
         gap.push(b'|');
         gap.push(b' ');
 
         let text_arg = if gap.len() > 3 {
-            skipwhite(qfp.qf_text.as_ptr())
+            crate::charset::skipwhite_slice(qfp.qf_text.as_bytes())
         } else {
-            qfp.qf_text.as_ptr()
+            qfp.qf_text.as_bytes()
         };
         qf_fmt_text(gap, text_arg);
     }
@@ -7519,8 +7476,8 @@ mod tests {
 
     #[test]
     fn efm_option_part_len_handles_escapes_and_commas() {
-        assert_eq!(efm_option_part_len(c"%f:%l:%m,%f:%l"), 8);
-        assert_eq!(efm_option_part_len(c"%f\\,bar:%l,%m"), 10);
+        assert_eq!(efm_option_part_len(b"%f:%l:%m,%f:%l"), 8);
+        assert_eq!(efm_option_part_len(b"%f\\,bar:%l,%m"), 10);
     }
 
     #[test]

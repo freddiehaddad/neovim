@@ -8228,13 +8228,6 @@ pub fn skip_to_option_part_slice(mut p: &[u8]) -> &[u8] {
     p
 }
 
-pub fn skip_to_option_part<R>(p: impl crate::strings::IntoCCharPtr) -> *mut R {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
-    let rem = skip_to_option_part_slice(bytes);
-    p.wrapping_add(bytes.len() - rem.len()).cast_mut().cast()
-}
-
 /// Isolate one part of a string option separated by `sep_chars`.
 pub fn copy_option_part<T>(
     option: *mut *mut T,
