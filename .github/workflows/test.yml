@@ -114,6 +114,9 @@ jobs:
                 run_rust=true
                 run_test=true
                 ;;
+              src/xtask/bench.rs)
+                run_rust=true
+                ;;
               src/xtask/*)
                 run_lua=true
                 run_errcodes=true
