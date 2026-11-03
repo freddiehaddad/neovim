@@ -4,6 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
+mod bench;
 #[path = "../deps_build.rs"]
 mod deps_build;
 
@@ -1223,8 +1224,42 @@ fn print_help() {
          \x20 unittest / testrust [args]  Run Rust unit tests (cargo test)\n\
          \x20 functionaltest [args...]    Run functional test suite\n\
          \x20 oldtest [args...]           Run legacy Vim test suite\n\
-         \x20 benchmark [args...]         Run benchmark suite\n\
+         \x20 benchmark [--nvim-bin <p>]  Run benchmark suite (including cold startup)\n\
          \x20 clean / distclean           Remove target/ build artifacts (distclean also removes .deps)"
+    );
+}
+
+fn run_startup_benchmark(root: &Path, nvim_bin: &Path) {
+    let runtime_dir = root.join("runtime").to_string_lossy().replace('\\', "/");
+    let run_once = || {
+        let start = std::time::Instant::now();
+        let status = Command::new(nvim_bin)
+            .current_dir(root)
+            .env("VIMRUNTIME", &runtime_dir)
+            .args(["--clean", "--headless", "+q"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .expect("failed to execute nvim for startup benchmark");
+        assert!(status.success(), "nvim --clean --headless +q failed");
+        start.elapsed().as_secs_f64() * 1000.0
+    };
+
+    for _ in 0..3 {
+        let _ = run_once();
+    }
+
+    let mut samples: Vec<f64> = (0..25).map(|_| run_once()).collect();
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = samples.len();
+    println!(
+        "-------- Cold startup benchmark (nvim --clean --headless +q, {n} runs): min={:.2}ms, p25={:.2}ms, median={:.2}ms, p75={:.2}ms, max={:.2}ms (bin={})",
+        samples[0],
+        samples[n / 4],
+        samples[n / 2],
+        samples[(n * 3) / 4],
+        samples[n - 1],
+        nvim_bin.display()
     );
 }
 
@@ -1239,6 +1274,8 @@ fn main() -> ExitCode {
     let release = args.iter().any(|a| a == "--release");
     let debug = args.iter().any(|a| a == "--debug");
     let force = args.iter().any(|a| a == "--force");
+    let compare = args.iter().any(|a| a == "--compare");
+    let update_readme = args.iter().any(|a| a == "--update-readme");
     let prefer_lua = env::var("PREFER_LUA").is_ok_and(|v| v == "1" || v.eq_ignore_ascii_case("on"))
         || args.iter().any(|a| a == "--prefer-lua");
 
@@ -1246,12 +1283,17 @@ fn main() -> ExitCode {
     let mut build_dir = target_dir.join("nvim-build");
     let mut prefix_dir = default_install_prefix(&target_dir);
     let mut out_dir = target_dir.join("release");
+    let mut custom_nvim_bin: Option<PathBuf> = None;
+    let mut upstream_rev: Option<String> = None;
+    let mut from_logs: Option<PathBuf> = None;
+    let mut rounds: usize = 3;
     let mut extra_args = Vec::new();
 
     let mut i = 1;
     while i < args.len() {
         match args[i].as_str() {
-            "--release" | "--debug" | "--force" | "--prefer-lua" => {}
+            "--release" | "--debug" | "--force" | "--prefer-lua" | "--compare"
+            | "--update-readme" => {}
             "--build-dir" if i + 1 < args.len() => {
                 build_dir = PathBuf::from(&args[i + 1]);
                 i += 1;
@@ -1262,6 +1304,22 @@ fn main() -> ExitCode {
             }
             "--out-dir" if i + 1 < args.len() => {
                 out_dir = PathBuf::from(&args[i + 1]);
+                i += 1;
+            }
+            "--nvim-bin" if i + 1 < args.len() => {
+                custom_nvim_bin = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
+            "--upstream-rev" if i + 1 < args.len() => {
+                upstream_rev = Some(args[i + 1].clone());
+                i += 1;
+            }
+            "--from-logs" if i + 1 < args.len() => {
+                from_logs = Some(PathBuf::from(&args[i + 1]));
+                i += 1;
+            }
+            "--rounds" if i + 1 < args.len() => {
+                rounds = args[i + 1].parse().expect("invalid --rounds value");
                 i += 1;
             }
             other => extra_args.push(other.to_string()),
@@ -1676,8 +1734,27 @@ fn main() -> ExitCode {
             run_status(&mut cmd, "cargo test");
         }
         "functionaltest" | "benchmark" => {
-            let profile_dir = build_cargo_bins(&root, release, prefer_lua);
-            let nvim_bin = stage_build_dir(&root, &profile_dir, &build_dir);
+            if subcmd == "benchmark" && (compare || update_readme || from_logs.is_some()) {
+                bench::run_compare_benchmarks(
+                    &root,
+                    &target_dir,
+                    rounds,
+                    upstream_rev.as_deref(),
+                    update_readme,
+                    from_logs.as_deref(),
+                );
+                return ExitCode::SUCCESS;
+            }
+            let nvim_bin = if let Some(bin) = custom_nvim_bin.clone() {
+                fs::create_dir_all(&build_dir).unwrap();
+                fs::canonicalize(&bin).unwrap_or(bin)
+            } else {
+                let profile_dir = build_cargo_bins(&root, release, prefer_lua);
+                stage_build_dir(&root, &profile_dir, &build_dir)
+            };
+            if subcmd == "benchmark" {
+                run_startup_benchmark(&root, &nvim_bin);
+            }
             let test_type = match subcmd {
                 "functionaltest" => "functional",
                 _ => "benchmark",
