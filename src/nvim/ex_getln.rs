@@ -451,7 +451,7 @@ static GETLN_STATE: GlobalState<ExGetlnState> = GlobalState::new(ExGetlnState::n
 
 #[inline]
 fn getln_st() -> &'static mut ExGetlnState {
-    unsafe { &mut *GETLN_STATE.as_ptr() }
+    crate::globals::gmut(GETLN_STATE.as_ptr())
 }
 
 use crate::api::private::helpers::array_add;
@@ -2014,9 +2014,7 @@ fn may_do_command_line_next_incsearch(
     );
     g_st().emsg_off -= 1;
     if !dircp.is_null() {
-        unsafe {
-            *dircp = search_delim as _;
-        }
+        *crate::globals::gptr(dircp) = search_delim as _;
     }
     ui_busy_stop();
     if found != 0 {
@@ -2183,13 +2181,9 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
             };
             let buf = s.b_im_ptr_buf;
             if use_insert {
-                unsafe {
-                    (*buf).b_p_iminsert = val;
-                }
+                crate::globals::gptr(buf).b_p_iminsert = val;
             } else {
-                unsafe {
-                    (*buf).b_p_imsearch = val;
-                }
+                crate::globals::gptr(buf).b_p_imsearch = val;
             }
         }
     }
@@ -2477,20 +2471,22 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                     getln_st().ccline.cmdpos = 0;
                     let mut i = 0;
                     while i < getln_st().ccline.cmdlen {
-                        unsafe {
-                            *getln_st().ccline.cmdbuff.wrapping_add(i as usize) =
-                                *getln_st().ccline.cmdbuff.wrapping_add(j as usize);
-                        }
+                        *crate::globals::gptr(getln_st().ccline.cmdbuff.wrapping_add(i as usize)) =
+                            *crate::globals::gptr(
+                                getln_st().ccline.cmdbuff.wrapping_add(j as usize),
+                            );
+
                         i += 1;
                         j += 1;
                     }
 
-                    unsafe {
-                        *getln_st()
+                    *crate::globals::gptr(
+                        getln_st()
                             .ccline
                             .cmdbuff
-                            .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
-                    }
+                            .wrapping_add(getln_st().ccline.cmdlen as usize),
+                    ) = NUL;
+
                     if getln_st().ccline.cmdlen == 0 {
                         s.is_state.search_start = s.is_state.save_cursor;
                     }
@@ -2558,18 +2554,17 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                                 .cast(),
                         );
 
-                        if unsafe {
-                            !((s.c == K_S_RIGHT
-                                || s.c == K_C_RIGHT
-                                || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
-                                    != 0)
-                                && *getln_st()
+                        if !((s.c == K_S_RIGHT
+                            || s.c == K_C_RIGHT
+                            || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32)) != 0)
+                            && *crate::globals::gptr(
+                                getln_st()
                                     .ccline
                                     .cmdbuff
                                     .cast::<u8>()
-                                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                                    != b' ')
-                        } {
+                                    .wrapping_add(getln_st().ccline.cmdpos as usize),
+                            ) != b' ')
+                        {
                             break;
                         }
                     }
@@ -2593,20 +2588,19 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                         );
                         getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
-                        if unsafe {
-                            !(getln_st().ccline.cmdpos > 0
-                                && (s.c == K_S_LEFT
-                                    || s.c == K_C_LEFT
-                                    || (g_st().mod_mask
-                                        & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
-                                        != 0)
-                                && *getln_st()
+                        if !(getln_st().ccline.cmdpos > 0
+                            && (s.c == K_S_LEFT
+                                || s.c == K_C_LEFT
+                                || (g_st().mod_mask & ((MOD_MASK_SHIFT | MOD_MASK_CTRL) as i32))
+                                    != 0)
+                            && *crate::globals::gptr(
+                                getln_st()
                                     .ccline
                                     .cmdbuff
                                     .cast::<u8>()
-                                    .wrapping_add((getln_st().ccline.cmdpos - 1) as usize)
-                                    != b' ')
-                        } {
+                                    .wrapping_add((getln_st().ccline.cmdpos - 1) as usize),
+                            ) != b' ')
+                        {
                             break;
                         }
                     }
@@ -2829,9 +2823,8 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                 c if c == b'q' as i32 => {
                     if { getln_st().ccline.mouse_used }.is_some() {
-                        unsafe {
-                            *getln_st().ccline.cmdbuff = NUL;
-                        }
+                        *crate::globals::gptr(getln_st().ccline.cmdbuff) = NUL;
+
                         return 0;
                     }
                     if !is_special(s.c) {
@@ -2862,9 +2855,9 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
     } else {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         let j = utf_char2bytes(s.c, iobuff_ptr.cast());
-        unsafe {
-            *iobuff_ptr.wrapping_add(j as usize) = 0;
-        }
+
+        *crate::globals::gptr(iobuff_ptr.wrapping_add(j as usize)) = 0;
+
         put_on_cmdline(iobuff_ptr, j, true);
     }
     if getln_st().ccline.one_key {
@@ -2991,7 +2984,7 @@ fn cmdpreview_open_buf() -> *mut FileBuf {
     curbuf_mut().b_p_ul = -1;
     curbuf_mut().b_p_tw = 0;
     ctx_restore(&mut aco);
-    getln_st().cmdpreview_bufnr = unsafe { (*cmdpreview_buf).b_fnum };
+    getln_st().cmdpreview_bufnr = crate::globals::gptr(cmdpreview_buf).b_fnum;
 
     cmdpreview_buf
 }
@@ -3050,7 +3043,7 @@ fn cmdpreview_prepare() -> CpInfo {
 
     for win in for_all_windows_ptr() {
         let buf = win.w_buffer;
-        let buf = unsafe { &mut *buf };
+        let buf = crate::globals::gmut(buf);
 
         if buf.b_fnum != getln_st().cmdpreview_bufnr {
             if saved_bufs.insert(buf) {
@@ -3096,7 +3089,7 @@ fn cmdpreview_prepare() -> CpInfo {
 fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
         let buf = cp_bufinfo.buf;
-        let buf = unsafe { &mut *buf };
+        let buf = crate::globals::gmut(buf);
 
         buf.b_changed = cp_bufinfo.save_b_changed;
 
@@ -3118,7 +3111,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
 
     for cp_wininfo in cpinfo.win_info.drain(..) {
         let win = cp_wininfo.win;
-        let win = unsafe { &mut *win };
+        let win = crate::globals::gmut(win);
 
         win.w_cursor = cp_wininfo.save_w_cursor;
         restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);
@@ -3208,7 +3201,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
     }
 
     if icm_split && cmdpreview_type == 2 {
-        cmdpreview_win = cmdpreview_open_win(unsafe { &mut *cmdpreview_buf });
+        cmdpreview_win = cmdpreview_open_win(crate::globals::gmut(cmdpreview_buf));
         if cmdpreview_win.is_null() {
             cmdpreview_type = 1;
         }
@@ -3389,9 +3382,7 @@ pub fn getcmdline_prompt(
 
         let ret = command_line_enter(firstc, 1, 0, false);
         if !mouse_used.is_null() {
-            unsafe {
-                *mouse_used = getln_st().ccline.mouse_used.unwrap_or(false);
-            }
+            *crate::globals::gptr(mouse_used) = getln_st().ccline.mouse_used.unwrap_or(false);
         }
         getln_st().ccline.redraw_state = K_CMD_REDRAW_NONE;
         getln_st().ccline.highlight_callback = Callback::NONE;
@@ -3523,7 +3514,8 @@ pub fn cmd_screencol(bytepos: i32) -> i32 {
     let mut col = cmd_startcol();
     if g_st().key_typed {
         m = if !g_st().cmdline_win.is_null() {
-            unsafe { (*g_st().cmdline_win).w_view_width * (*g_st().cmdline_win).w_view_height }
+            crate::globals::gptr(g_st().cmdline_win).w_view_width
+                * crate::globals::gptr(g_st().cmdline_win).w_view_height
         } else {
             g_st().columns_global * g_st().rows_global
         };
@@ -3615,27 +3607,29 @@ pub fn realloc_cmdbuff(mut len: i32) {
     getln_st().ccline.cmdbuff_vec.resize(len as usize, 0);
     getln_st().ccline.cmdbuff = getln_st().ccline.cmdbuff_vec.as_mut_ptr();
     getln_st().ccline.cmdbufflen = len;
-    unsafe {
-        *getln_st()
+
+    *crate::globals::gptr(
+        getln_st()
             .ccline
             .cmdbuff
-            .wrapping_add(getln_st().ccline.cmdlen as usize) = NUL;
-    }
+            .wrapping_add(getln_st().ccline.cmdlen as usize),
+    ) = NUL;
 
     if !getln_st().ccline.xpc.is_null()
-        && unsafe { !(*getln_st().ccline.xpc).xp_pattern.is_null() }
-        && unsafe { (*getln_st().ccline.xpc).xp_context != EXPAND_NOTHING }
-        && unsafe { (*getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL }
+        && !crate::globals::gptr(getln_st().ccline.xpc)
+            .xp_pattern
+            .is_null()
+        && crate::globals::gptr(getln_st().ccline.xpc).xp_context != EXPAND_NOTHING
+        && crate::globals::gptr(getln_st().ccline.xpc).xp_context != EXPAND_UNSUCCESSFUL
     {
-        let i = unsafe {
-            crate::memory::ptr_offset_from((*getln_st().ccline.xpc).xp_pattern, p) as i32
-        };
+        let i = crate::memory::ptr_offset_from(
+            crate::globals::gptr(getln_st().ccline.xpc).xp_pattern,
+            p,
+        ) as i32;
 
         if i >= 0 && i <= getln_st().ccline.cmdlen {
-            unsafe {
-                (*getln_st().ccline.xpc).xp_pattern =
-                    getln_st().ccline.cmdbuff.wrapping_add(i as usize);
-            }
+            crate::globals::gptr(getln_st().ccline.xpc).xp_pattern =
+                getln_st().ccline.cmdbuff.wrapping_add(i as usize);
         }
     }
 }
@@ -3695,7 +3689,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let mut ret = true;
 
     let ccline_colors: *mut _ = &raw mut colored_ccline.last_colors;
-    let ccline_colors = unsafe { &mut *ccline_colors };
+    let ccline_colors = crate::globals::gmut(ccline_colors);
 
     if ccline_colors.prompt_id == colored_ccline.prompt_id
         && ccline_colors.cmdbuff.as_ref().is_some_and(|cb| {
@@ -4147,26 +4141,21 @@ pub fn cmdline_screen_cleared() {
     }
 
     let mut prev_level = getln_st().ccline.level - 1;
-    let mut line = unsafe {
-        (&raw mut getln_st().ccline.prev_ccline)
-            .as_mut()
-            .unwrap()
-            .as_deref_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut)
-    };
+    let mut line = crate::globals::gopt_mut(&raw mut getln_st().ccline.prev_ccline)
+        .unwrap()
+        .as_deref_mut()
+        .map_or(ptr::null_mut(), ptr::from_mut);
     while prev_level > 0 && !line.is_null() {
-        if unsafe { (*line).level == prev_level } {
-            unsafe {
-                (*line).redraw_state = K_CMD_REDRAW_ALL;
-            }
+        if crate::globals::gptr(line).level == prev_level {
+            crate::globals::gptr(line).redraw_state = K_CMD_REDRAW_ALL;
+
             prev_level -= 1;
         }
-        unsafe {
-            line = (*line)
-                .prev_ccline
-                .as_deref_mut()
-                .map_or(ptr::null_mut(), ptr::from_mut);
-        }
+
+        line = crate::globals::gptr(line)
+            .prev_ccline
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), ptr::from_mut);
     }
     redrawcmd();
 }
@@ -4179,29 +4168,28 @@ pub fn cmdline_ui_flush() {
     let mut level = getln_st().ccline.level;
     let mut line: *mut CmdlineInfo = &raw mut getln_st().ccline;
     while level > 0 && !line.is_null() {
-        if unsafe { (*line).level == level } {
-            let redraw_state = unsafe { (*line).redraw_state };
-            unsafe {
-                (*line).redraw_state = K_CMD_REDRAW_NONE;
-            }
+        if crate::globals::gptr(line).level == level {
+            let redraw_state = crate::globals::gptr(line).redraw_state;
+
+            crate::globals::gptr(line).redraw_state = K_CMD_REDRAW_NONE;
+
             if redraw_state == K_CMD_REDRAW_ALL {
                 g_st().cmdline_was_last_drawn = true;
-                unsafe {
-                    ui_ext_cmdline_show(&mut *line);
-                }
+
+                ui_ext_cmdline_show(crate::globals::gmut(line));
             } else if redraw_state == K_CMD_REDRAW_POS && g_st().cmdline_was_last_drawn {
-                unsafe {
-                    ui_call_cmdline_pos((*line).cmdpos as Integer, (*line).level as Integer);
-                }
+                ui_call_cmdline_pos(
+                    crate::globals::gptr(line).cmdpos as Integer,
+                    crate::globals::gptr(line).level as Integer,
+                );
             }
             level -= 1;
         }
-        unsafe {
-            line = (*line)
-                .prev_ccline
-                .as_deref_mut()
-                .map_or(ptr::null_mut(), ptr::from_mut);
-        }
+
+        line = crate::globals::gptr(line)
+            .prev_ccline
+            .as_deref_mut()
+            .map_or(ptr::null_mut(), ptr::from_mut);
     }
 }
 
@@ -4771,7 +4759,7 @@ fn get_cmdline_completion_pattern() -> Option<std::ffi::CString> {
     if p.xpc.is_null() {
         return None;
     }
-    let xpc = unsafe { &mut *p.xpc };
+    let xpc = crate::globals::gmut(p.xpc);
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {
@@ -4801,7 +4789,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
     if p.xpc.is_null() {
         return None;
     }
-    let xpc = unsafe { &mut *p.xpc };
+    let xpc = crate::globals::gmut(p.xpc);
 
     let mut xp_context = xpc.xp_context;
     if xp_context == EXPAND_NOTHING {
@@ -5176,7 +5164,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
         Vec::new()
     };
 
-    for li in crate::eval::typval::tv_list_iter(unsafe { l.as_ref() }) {
+    for li in crate::eval::typval::tv_list_iter(crate::globals::gopt(l)) {
         if eap.skip == 0 {
             let s = tv_get_string(&li.li_tv);
             buf.extend_from_slice(s.to_bytes());
@@ -5221,35 +5209,50 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             return;
         }
         let dict = argvars[0].vval.v_dict();
-        let Some(prompt_cstr) = (unsafe {
-            tv_dict_get_string_buf_chk(dict.as_ref(), c"prompt", 6, &mut prompt_buf, Some(c""))
-        }) else {
+        let Some(prompt_cstr) = tv_dict_get_string_buf_chk(
+            crate::globals::gopt(dict),
+            c"prompt",
+            6,
+            &mut prompt_buf,
+            Some(c""),
+        ) else {
             return;
         };
         prompt = prompt_cstr.as_ptr().cast();
-        let Some(defstr_cstr) = (unsafe {
-            tv_dict_get_string_buf_chk(dict.as_ref(), c"default", 7, &mut defstr_buf, Some(c""))
-        }) else {
+        let Some(defstr_cstr) = tv_dict_get_string_buf_chk(
+            crate::globals::gopt(dict),
+            c"default",
+            7,
+            &mut defstr_buf,
+            Some(c""),
+        ) else {
             return;
         };
         defstr = defstr_cstr.as_ptr().cast();
-        let cancelreturn_di = unsafe { tv_dict_find(dict.as_ref(), c"cancelreturn", 12) };
+        let cancelreturn_di = tv_dict_find(crate::globals::gopt(dict), c"cancelreturn", 12);
         if !cancelreturn_di.is_null() {
-            unsafe {
-                cancelreturn = &raw mut (*cancelreturn_di).di_tv;
-            }
+            cancelreturn = &raw mut crate::globals::gptr(cancelreturn_di).di_tv;
         }
-        if unsafe { tv_dict_find(dict.as_ref(), c"completion", 10).is_null() } {
+        if tv_dict_find(crate::globals::gopt(dict), c"completion", 10).is_null() {
             xp_name = ptr::null();
         } else {
-            let Some(xp_cstr) = (unsafe {
-                tv_dict_get_string_buf_chk(dict.as_ref(), c"completion", 10, &mut xp_name_buf, None)
-            }) else {
+            let Some(xp_cstr) = tv_dict_get_string_buf_chk(
+                crate::globals::gopt(dict),
+                c"completion",
+                10,
+                &mut xp_name_buf,
+                None,
+            ) else {
                 return;
             };
             xp_name = xp_cstr.as_ptr().cast();
         }
-        if unsafe { !tv_dict_get_callback(dict.as_mut(), c"highlight", 9, &mut input_callback) } {
+        if !tv_dict_get_callback(
+            crate::globals::gopt_mut(dict),
+            c"highlight",
+            9,
+            &mut input_callback,
+        ) {
             return;
         }
     } else {
@@ -5345,9 +5348,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             res_cstr.as_bytes().len(),
         );
     } else if !cancelreturn.is_null() {
-        unsafe {
-            tv_copy(&*cancelreturn, &mut *rettv);
-        }
+        tv_copy(crate::globals::gref(cancelreturn), &mut *rettv);
     }
 
     g_st().need_wait_return = false;

@@ -401,19 +401,15 @@ impl Exarg {
 
     pub fn set_cmdline_vec(&mut self, cmdlinep: *mut RawCCharPtrMut, new_buf: Vec<u8>) {
         debug_assert!(!self.cmdline_buf.is_null());
-        unsafe {
-            *self.cmdline_buf = new_buf;
-        }
-        let new_ptr = unsafe { (*self.cmdline_buf).as_mut_ptr().cast() };
+
+        *crate::globals::gptr(self.cmdline_buf) = new_buf;
+
+        let new_ptr = crate::globals::gptr(self.cmdline_buf).as_mut_ptr().cast();
         if !cmdlinep.is_null() {
-            unsafe {
-                *cmdlinep = new_ptr;
-            }
+            *crate::globals::gptr(cmdlinep) = new_ptr;
         }
         if !self.cmdlinep.is_null() {
-            unsafe {
-                *self.cmdlinep = new_ptr;
-            }
+            *crate::globals::gptr(self.cmdlinep) = new_ptr;
         }
     }
 }
@@ -421,7 +417,7 @@ impl Exarg {
 impl Exarg {
     #[inline]
     pub fn cstack_mut(&self) -> &'static mut crate::ex_eval::Cstack {
-        unsafe { &mut *self.cstack.cast::<crate::ex_eval::Cstack>() }
+        crate::globals::gmut(self.cstack.cast::<crate::ex_eval::Cstack>())
     }
 
     #[inline]
@@ -429,7 +425,7 @@ impl Exarg {
         if self.cmdlinep.is_null() {
             ptr::null()
         } else {
-            unsafe { (*self.cmdlinep).cast() }
+            crate::globals::gptr(self.cmdlinep).cast()
         }
     }
 }
@@ -639,7 +635,7 @@ static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::n
 
 #[inline]
 fn docmd_st() -> &'static mut ExDocmdState {
-    unsafe { &mut *DOCMD_STATE.as_ptr() }
+    crate::globals::gmut(DOCMD_STATE.as_ptr())
 }
 
 struct Wcmd {
@@ -5002,7 +4998,7 @@ pub fn do_cmdline(
     let cmdline = cmdline.into_c_char_ptr().cast_mut();
     static RECURSIVE: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
 
-    unsafe {
+    {
         let mut next_cmdline: RawCCharPtrMut;
         let mut cmdline_buf: Vec<u8> = Vec::new();
         let mut cmdline_copy: RawCCharPtrMut = ptr::null_mut();
@@ -5035,16 +5031,16 @@ pub fn do_cmdline(
         let source_cookie = fgetline.as_source();
 
         if let Some(fcp) = func_cookie {
-            if g_st().ex_nesting_level == func_level(&mut *fcp) {
+            if g_st().ex_nesting_level == func_level(crate::globals::gmut(fcp)) {
                 g_st().ex_nesting_level += 1;
             }
-            fname = func_name(&mut *fcp).as_ptr().cast_mut();
-            breakpoint = func_breakpoint(&mut *fcp);
-            dbg_tick = func_dbg_tick(&mut *fcp);
+            fname = func_name(crate::globals::gmut(fcp)).as_ptr().cast_mut();
+            breakpoint = func_breakpoint(crate::globals::gmut(fcp));
+            dbg_tick = func_dbg_tick(crate::globals::gmut(fcp));
         } else if let Some(sp) = source_cookie {
             fname = sourcing_name().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            breakpoint = source_breakpoint(&mut *sp);
-            dbg_tick = source_dbg_tick(&mut *sp);
+            breakpoint = source_breakpoint(crate::globals::gmut(sp));
+            dbg_tick = source_dbg_tick(crate::globals::gmut(sp));
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
@@ -5072,7 +5068,7 @@ pub fn do_cmdline(
             if next_cmdline.is_null()
                 && !g_st().force_abort
                 && cstack.cs_idx < 0
-                && !func_cookie.is_some_and(|fcp| func_has_abort(&mut *fcp) != 0)
+                && !func_cookie.is_some_and(|fcp| func_has_abort(crate::globals::gmut(fcp)) != 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5083,9 +5079,9 @@ pub fn do_cmdline(
 
                 if let Some(fcp) = func_cookie {
                     if g_st().do_profiling == PROF_YES {
-                        func_line_end(&mut *fcp);
+                        func_line_end(crate::globals::gmut(fcp));
                     }
-                    if func_has_ended(&mut *fcp) != 0 {
+                    if func_has_ended(crate::globals::gmut(fcp)) != 0 {
                         retval = false;
                         break;
                     }
@@ -5098,26 +5094,31 @@ pub fn do_cmdline(
                     break;
                 }
 
-                if !breakpoint.is_null() && !dbg_tick.is_null() && *dbg_tick != g_st().debug_tick {
-                    *breakpoint =
+                if !breakpoint.is_null()
+                    && !dbg_tick.is_null()
+                    && *crate::globals::gptr(dbg_tick) != g_st().debug_tick
+                {
+                    *crate::globals::gptr(breakpoint) =
                         dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
-                    *dbg_tick = g_st().debug_tick;
+                    *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                 }
 
                 let wp = &cmd_loop_cookie.lines[current_line as usize];
                 next_cmdline = wp.line.as_ptr().cast_mut();
                 *sourcing_lnum_ptr() = wp.lnum;
 
-                if !breakpoint.is_null() && *breakpoint != 0 && *breakpoint <= *sourcing_lnum_ptr()
+                if !breakpoint.is_null()
+                    && *crate::globals::gptr(breakpoint) != 0
+                    && *crate::globals::gptr(breakpoint) <= *sourcing_lnum_ptr()
                 {
                     dbg_breakpoint(fname, *sourcing_lnum_ptr());
-                    *breakpoint =
+                    *crate::globals::gptr(breakpoint) =
                         dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
-                    *dbg_tick = g_st().debug_tick;
+                    *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
                     if let Some(fcp) = func_cookie {
-                        func_line_start(&mut *fcp);
+                        func_line_start(crate::globals::gmut(fcp));
                     } else if fgetline.is_source() {
                         script_line_start();
                     }
@@ -5258,7 +5259,7 @@ pub fn do_cmdline(
                 && !g_st().force_abort
                 && fgetline
                     .as_func()
-                    .is_some_and(|fcp| func_has_abort(&mut *fcp) == 0)
+                    .is_some_and(|fcp| func_has_abort(crate::globals::gmut(fcp)) == 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5285,9 +5286,9 @@ pub fn do_cmdline(
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
-                            *breakpoint =
+                            *crate::globals::gptr(breakpoint) =
                                 dbg_find_breakpoint(fgetline.is_source(), fname, wp.lnum - 1);
-                            *dbg_tick = g_st().debug_tick;
+                            *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
                         let prev_idx = cstack.cs_idx - 1;
@@ -5365,7 +5366,7 @@ pub fn do_cmdline(
                 && ((fgetline.is_source() && !source_finished(fgetline))
                     || fgetline
                         .as_func()
-                        .is_some_and(|fcp| func_has_ended(&mut *fcp) == 0))
+                        .is_some_and(|fcp| func_has_ended(crate::globals::gmut(fcp)) == 0))
             {
                 let top_flags = cstack.cs_flags[cstack.cs_idx as usize];
                 if (top_flags & CSF_TRY) != 0 {
@@ -5416,10 +5417,10 @@ pub fn do_cmdline(
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| g_st().ex_nesting_level > source_level(&mut *sp))
-            || fgetline
-                .as_func()
-                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(&mut *fcp) + 1)
+            .is_some_and(|sp| g_st().ex_nesting_level > source_level(crate::globals::gmut(sp)))
+            || fgetline.as_func().is_some_and(|fcp| {
+                g_st().ex_nesting_level > func_level(crate::globals::gmut(fcp)) + 1
+            })
         {
             if !g_st().did_throw {
                 g_st().check_cstack = true;
@@ -5567,28 +5568,26 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: impl crate::strings::IntoCCharPt
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
     let mut count = offset;
     let mut buf = g_st().firstbuf;
-    while unsafe { !(*buf).b_next.is_null() } && unsafe { (*buf).b_fnum < lnum } {
-        unsafe {
-            buf = (*buf).b_next;
-        }
+    while !crate::globals::gptr(buf).b_next.is_null() && crate::globals::gptr(buf).b_fnum < lnum {
+        buf = crate::globals::gptr(buf).b_next;
     }
     while count != 0 {
         count += if count < 0 { 1 } else { -1 };
         let mut nextbuf = if offset < 0 {
-            unsafe { (*buf).b_prev }
+            crate::globals::gptr(buf).b_prev
         } else {
-            unsafe { (*buf).b_next }
+            crate::globals::gptr(buf).b_next
         };
         if nextbuf.is_null() {
             break;
         }
         buf = nextbuf;
         if addr_type == ADDR_LOADED_BUFFERS {
-            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+            while crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
                 nextbuf = if offset < 0 {
-                    unsafe { (*buf).b_prev }
+                    crate::globals::gptr(buf).b_prev
                 } else {
-                    unsafe { (*buf).b_next }
+                    crate::globals::gptr(buf).b_next
                 };
                 if nextbuf.is_null() {
                     break;
@@ -5598,11 +5597,11 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
         }
     }
     if addr_type == ADDR_LOADED_BUFFERS {
-        while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+        while crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
             let nextbuf = if offset >= 0 {
-                unsafe { (*buf).b_prev }
+                crate::globals::gptr(buf).b_prev
             } else {
-                unsafe { (*buf).b_next }
+                crate::globals::gptr(buf).b_next
             };
             if nextbuf.is_null() {
                 break;
@@ -5610,7 +5609,7 @@ fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> 
             buf = nextbuf;
         }
     }
-    unsafe { (*buf).b_fnum }
+    crate::globals::gptr(buf).b_fnum
 }
 
 fn current_win_nr(win: *const WinInfoInfo, cmdarg: Option<&Exarg>) -> i32 {
@@ -5734,31 +5733,27 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
         }
         ADDR_LOADED_BUFFERS => {
             let mut buf = g_st().firstbuf;
-            while unsafe { !(*buf).b_next.is_null() } && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-                unsafe {
-                    buf = (*buf).b_next;
-                }
+            while !crate::globals::gptr(buf).b_next.is_null()
+                && crate::globals::gptr(buf).b_ml.ml_mfp.is_none()
+            {
+                buf = crate::globals::gptr(buf).b_next;
             }
-            unsafe {
-                eap.line1 = (*buf).b_fnum;
-            }
+
+            eap.line1 = crate::globals::gptr(buf).b_fnum;
+
             buf = g_st().lastbuf;
-            while unsafe { !(*buf).b_prev.is_null() } && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-                unsafe {
-                    buf = (*buf).b_prev;
-                }
+            while !crate::globals::gptr(buf).b_prev.is_null()
+                && crate::globals::gptr(buf).b_ml.ml_mfp.is_none()
+            {
+                buf = crate::globals::gptr(buf).b_prev;
             }
-            unsafe {
-                eap.line2 = (*buf).b_fnum;
-            }
+
+            eap.line2 = crate::globals::gptr(buf).b_fnum;
         }
         ADDR_BUFFERS => {
-            unsafe {
-                eap.line1 = (*g_st().firstbuf).b_fnum;
-            }
-            unsafe {
-                eap.line2 = (*g_st().lastbuf).b_fnum;
-            }
+            eap.line1 = crate::globals::gptr(g_st().firstbuf).b_fnum;
+
+            eap.line2 = crate::globals::gptr(g_st().lastbuf).b_fnum;
         }
         ADDR_WINDOWS => {
             eap.line2 = current_win_nr(ptr::null(), Some(&*eap));
@@ -5894,7 +5889,7 @@ fn find_excmd_after_range(eap: &mut Exarg) -> RawCCharPtrMut {
 }
 
 fn parse_bang<T>(eap: &Exarg, p: &mut *mut T) -> bool {
-    if unsafe { *(*p).cast::<u8>() == b'!' }
+    if *crate::globals::gptr((*p).cast::<u8>()) == b'!'
         && eap.cmdidx != Cmdidx::CmdSubstitute as i32
         && eap.cmdidx != Cmdidx::CmdSmagic as i32
         && eap.cmdidx != Cmdidx::CmdSnomagic as i32
@@ -5932,9 +5927,9 @@ pub fn parse_cmdline(
     *eap = Exarg::new();
     eap.line1 = 1;
     eap.line2 = 1;
-    unsafe {
-        eap.cmd = *cmdline;
-    }
+
+    eap.cmd = *crate::globals::gptr(cmdline);
+
     eap.cmdlinep = cmdline;
     eap.cmdline_buf = cmdline_buf;
 
@@ -5968,7 +5963,7 @@ pub fn parse_cmdline(
         }
         if crate::memory::cstr_is_empty(eap.cmd)
             && eap.addr_count == 0
-            && unsafe { after_modifier == *cmdline }
+            && after_modifier == *crate::globals::gptr(cmdline)
         {
             break 'end;
         }
@@ -5993,7 +5988,7 @@ pub fn parse_cmdline(
             let cmdname = if !after_modifier.is_null() {
                 after_modifier
             } else {
-                unsafe { *cmdline }
+                *crate::globals::gptr(cmdline)
             };
             append_command(cmdname);
             *errormsg = Some(crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
@@ -6039,9 +6034,8 @@ pub fn parse_cmdline(
                 || crate::memory::cstr_first_byte(arg) == b'\n'
             {
                 eap.nextcmd = check_nextcmd(arg);
-                unsafe {
-                    *arg = NUL;
-                }
+
+                *crate::globals::gptr(arg) = NUL;
             }
         }
 
@@ -6287,7 +6281,7 @@ fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
 
         if !skip {
             if let Some(fcp) = fgetline.as_func() {
-                func_line_exec(unsafe { &mut *fcp });
+                func_line_exec(crate::globals::gmut(fcp));
             } else if fgetline.is_source() {
                 script_line_exec();
             }
@@ -6413,7 +6407,7 @@ fn do_one_cmd(
     let save_cmdmod = std::mem::take(&mut g_st().cmdmod);
 
     'doend: {
-        let init_cmd = unsafe { *cmdlinep };
+        let init_cmd = *crate::globals::gptr(cmdlinep);
         if crate::memory::cstr_as_bytes(init_cmd).starts_with(b"#!") {
             break 'doend;
         }
@@ -7211,35 +7205,27 @@ pub fn parse_cmd_address(
                         }
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().firstbuf;
-                            while unsafe { !(*buf).b_next.is_null() }
-                                && unsafe { (*buf).b_ml.ml_mfp.is_none() }
+                            while !crate::globals::gptr(buf).b_next.is_null()
+                                && crate::globals::gptr(buf).b_ml.ml_mfp.is_none()
                             {
-                                unsafe {
-                                    buf = (*buf).b_next;
-                                }
+                                buf = crate::globals::gptr(buf).b_next;
                             }
-                            unsafe {
-                                eap.line1 = (*buf).b_fnum;
-                            }
+
+                            eap.line1 = crate::globals::gptr(buf).b_fnum;
+
                             buf = g_st().lastbuf;
-                            while unsafe { !(*buf).b_prev.is_null() }
-                                && unsafe { (*buf).b_ml.ml_mfp.is_none() }
+                            while !crate::globals::gptr(buf).b_prev.is_null()
+                                && crate::globals::gptr(buf).b_ml.ml_mfp.is_none()
                             {
-                                unsafe {
-                                    buf = (*buf).b_prev;
-                                }
+                                buf = crate::globals::gptr(buf).b_prev;
                             }
-                            unsafe {
-                                eap.line2 = (*buf).b_fnum;
-                            }
+
+                            eap.line2 = crate::globals::gptr(buf).b_fnum;
                         }
                         ADDR_BUFFERS => {
-                            unsafe {
-                                eap.line1 = (*g_st().firstbuf).b_fnum;
-                            }
-                            unsafe {
-                                eap.line2 = (*g_st().lastbuf).b_fnum;
-                            }
+                            eap.line1 = crate::globals::gptr(g_st().firstbuf).b_fnum;
+
+                            eap.line2 = crate::globals::gptr(g_st().lastbuf).b_fnum;
                         }
                         ADDR_WINDOWS | ADDR_TABS => {
                             if eap.cmdidx < 0 {
@@ -7287,19 +7273,19 @@ pub fn parse_cmd_address(
                     eap.cmd = eap.cmd.wrapping_add(1);
                     if eap.skip == 0 {
                         let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
-                        if unsafe { !mark_check(fm1.as_mut(), errormsg) } {
+                        if !mark_check(crate::globals::gopt_mut(fm1), errormsg) {
                             break 'theend;
                         }
-                        unsafe {
-                            eap.line1 = (*fm1).mark.lnum;
-                        }
+
+                        eap.line1 = crate::globals::gptr(fm1).mark.lnum;
+
                         let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
-                        if unsafe { !mark_check(fm2.as_mut(), errormsg) } {
+                        if !mark_check(crate::globals::gopt_mut(fm2), errormsg) {
                             break 'theend;
                         }
-                        unsafe {
-                            eap.line2 = (*fm2).mark.lnum;
-                        }
+
+                        eap.line2 = crate::globals::gptr(fm2).mark.lnum;
+
                         eap.addr_count += 1;
                     }
                 }
@@ -7722,7 +7708,7 @@ pub fn get_address(
     address_count: i32,
     errormsg: &mut Option<&'static std::ffi::CStr>,
 ) -> Linenr {
-    let mut cmd = unsafe { skipwhite(*ptr) };
+    let mut cmd = skipwhite(*crate::globals::gptr(ptr));
     let mut lnum: Linenr = MAXLNUM;
 
     'error: {
@@ -7741,8 +7727,10 @@ pub fn get_address(
                             cmd = ptr::null_mut();
                             break 'error;
                         }
-                        ADDR_QUICKFIX => unsafe { lnum = qf_get_cur_idx(&mut *eap) as Linenr },
-                        ADDR_QUICKFIX_VALID => unsafe { lnum = qf_get_cur_valid_idx(&mut *eap) },
+                        ADDR_QUICKFIX => lnum = qf_get_cur_idx(crate::globals::gmut(eap)) as Linenr,
+                        ADDR_QUICKFIX_VALID => {
+                            lnum = qf_get_cur_valid_idx(crate::globals::gmut(eap))
+                        }
                         _ => {}
                     }
                 }
@@ -7750,23 +7738,23 @@ pub fn get_address(
                     cmd = cmd.wrapping_add(1);
                     match addr_type {
                         ADDR_LINES | ADDR_OTHER => lnum = curbuf_mut().b_ml.ml_line_count,
-                        ADDR_WINDOWS => unsafe { lnum = current_win_nr(ptr::null(), Some(&*eap)) },
+                        ADDR_WINDOWS => {
+                            lnum = current_win_nr(ptr::null(), Some(crate::globals::gref(eap)))
+                        }
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
                             let mut buf = g_st().lastbuf;
-                            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-                                if unsafe { (*buf).b_prev.is_null() } {
+                            while crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
+                                if crate::globals::gptr(buf).b_prev.is_null() {
                                     break;
                                 }
-                                unsafe {
-                                    buf = (*buf).b_prev;
-                                }
+
+                                buf = crate::globals::gptr(buf).b_prev;
                             }
-                            unsafe {
-                                lnum = (*buf).b_fnum;
-                            }
+
+                            lnum = crate::globals::gptr(buf).b_fnum;
                         }
-                        ADDR_BUFFERS => unsafe { lnum = (*g_st().lastbuf).b_fnum },
+                        ADDR_BUFFERS => lnum = crate::globals::gptr(g_st().lastbuf).b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(ptr::null_mut()),
                         ADDR_NONE | ADDR_TABS_RELATIVE | ADDR_UNSIGNED => {
                             *errormsg = Some(addr_error(addr_type));
@@ -7774,17 +7762,15 @@ pub fn get_address(
                             break 'error;
                         }
                         ADDR_QUICKFIX => {
-                            unsafe {
-                                lnum = qf_get_size(&mut *eap) as Linenr;
-                            }
+                            lnum = qf_get_size(crate::globals::gmut(eap)) as Linenr;
+
                             if lnum == 0 {
                                 lnum = 1;
                             }
                         }
                         ADDR_QUICKFIX_VALID => {
-                            unsafe {
-                                lnum = qf_get_valid_size(&mut *eap) as Linenr;
-                            }
+                            lnum = qf_get_valid_size(crate::globals::gmut(eap)) as Linenr;
+
                             if lnum == 0 {
                                 lnum = 1;
                             }
@@ -7819,17 +7805,16 @@ pub fn get_address(
                             i32::from(crate::memory::cstr_first_byte(cmd)),
                         );
                         cmd = cmd.wrapping_add(1);
-                        if !fm.is_null() && unsafe { (*fm).fnum != curbuf_mut().b_fnum } {
+                        if !fm.is_null() && crate::globals::gptr(fm).fnum != curbuf_mut().b_fnum {
                             mark_move_to(fm, 0);
                             lnum = curwin_mut().w_cursor.lnum;
                         } else {
-                            if unsafe { !mark_check(fm.as_mut(), errormsg) } {
+                            if !mark_check(crate::globals::gopt_mut(fm), errormsg) {
                                 cmd = ptr::null_mut();
                                 break 'error;
                             }
-                            unsafe {
-                                lnum = (*fm).mark.lnum;
-                            }
+
+                            lnum = crate::globals::gptr(fm).mark.lnum;
                         }
                     }
                 }
@@ -7944,7 +7929,7 @@ pub fn get_address(
                     cmd = cmd.wrapping_add(1);
                 }
                 _ => {
-                    if unsafe { ascii_isdigit(*cmd) } {
+                    if ascii_isdigit(*crate::globals::gptr(cmd)) {
                         let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
                         let mut rem = cmd_bytes;
                         lnum = getdigits(&mut rem, false, 0) as Linenr;
@@ -7957,7 +7942,7 @@ pub fn get_address(
                 cmd = skipwhite(cmd);
                 if crate::memory::cstr_first_byte(cmd) != b'-'
                     && crate::memory::cstr_first_byte(cmd) != b'+'
-                    && unsafe { !ascii_isdigit(*cmd) }
+                    && !ascii_isdigit(*crate::globals::gptr(cmd))
                 {
                     break;
                 }
@@ -7970,20 +7955,22 @@ pub fn get_address(
                         ADDR_LOADED_BUFFERS | ADDR_BUFFERS => lnum = curbuf_mut().b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(g_st().curtab),
                         ADDR_TABS_RELATIVE => lnum = 1,
-                        ADDR_QUICKFIX => unsafe { lnum = qf_get_cur_idx(&mut *eap) as Linenr },
-                        ADDR_QUICKFIX_VALID => unsafe { lnum = qf_get_cur_valid_idx(&mut *eap) },
+                        ADDR_QUICKFIX => lnum = qf_get_cur_idx(crate::globals::gmut(eap)) as Linenr,
+                        ADDR_QUICKFIX_VALID => {
+                            lnum = qf_get_cur_valid_idx(crate::globals::gmut(eap))
+                        }
                         _ => lnum = 0,
                     }
                 }
 
-                let op = if unsafe { ascii_isdigit(*cmd) } {
+                let op = if ascii_isdigit(*crate::globals::gptr(cmd)) {
                     b'+' as i32
                 } else {
                     let ch = i32::from(crate::memory::cstr_first_byte(cmd));
                     cmd = cmd.wrapping_add(1);
                     ch
                 };
-                let n = if unsafe { !ascii_isdigit(*cmd) } {
+                let n = if !ascii_isdigit(*crate::globals::gptr(cmd)) {
                     1
                 } else {
                     let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
@@ -8036,9 +8023,8 @@ pub fn get_address(
         }
     }
 
-    unsafe {
-        *ptr = cmd;
-    }
+    *crate::globals::gptr(ptr) = cmd;
+
     lnum
 }
 
@@ -8218,7 +8204,7 @@ pub fn replace_makeprg(
         msg_make(arg);
 
         eap.set_cmdline_vec(cmdlinep, new_buf);
-        arg = unsafe { *cmdlinep };
+        arg = *crate::globals::gptr(cmdlinep);
     }
     arg
 }
@@ -8387,7 +8373,7 @@ fn repl_cmdline(
     let mut src = src.into_c_char_ptr().cast_mut();
     let repl = repl.into_c_char_ptr();
     {
-        let old_cmdline = unsafe { *cmdlinep };
+        let old_cmdline = *crate::globals::gptr(cmdlinep);
         let len = crate::memory::cstr_len(repl);
         let offset = (src as usize) - (old_cmdline as usize);
         let tail_len = crate::memory::cstr_len(src.wrapping_add(srclen));
@@ -8451,8 +8437,8 @@ fn repl_cmdline(
 pub fn separate_nextcmd(eap: &mut Exarg) {
     let mut p = skip_grep_pat(eap);
 
-    while unsafe { *p } != 0 {
-        let b0 = unsafe { *p as u8 };
+    while *crate::globals::gptr(p) != 0 {
+        let b0 = (*crate::globals::gptr(p)) as u8;
         if b0 == CTRL_V_CONST as u8 {
             if (eap.argt & (EX_CTRLV | EX_XFILE)) != 0 {
                 p = p.wrapping_add(1);
@@ -8461,16 +8447,16 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 let buf = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), tail_len + 2) };
                 buf.copy_within(1..=tail_len + 1, 0);
             }
-            if unsafe { *p } == 0 {
+            if *crate::globals::gptr(p) == 0 {
                 break;
             }
         } else if b0 == b'`'
-            && unsafe { *p.wrapping_add(1) as u8 } == b'='
+            && (*crate::globals::gptr(p.wrapping_add(1))) as u8 == b'='
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
             skip_expr(&raw mut p, None);
-            if unsafe { *p } == 0 {
+            if *crate::globals::gptr(p) == 0 {
                 break;
             }
         } else if (b0 == b'"'
@@ -8478,7 +8464,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             && (eap.cmdidx != Cmdidx::CmdAt as i32 || p != eap.arg)
             && (eap.cmdidx != Cmdidx::CmdRedir as i32
                 || p != eap.arg.wrapping_add(1)
-                || unsafe { *p.wrapping_sub(1) as u8 } != b'@'))
+                || (*crate::globals::gptr(p.wrapping_sub(1))) as u8 != b'@'))
             || (b0 == b'|'
                 && eap.cmdidx != Cmdidx::CmdAppend as i32
                 && eap.cmdidx != Cmdidx::CmdChange as i32
@@ -8487,7 +8473,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
         {
             if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BAR)
                 || (eap.argt & EX_CTRLV) == 0)
-                && unsafe { *p.wrapping_sub(1) as u8 } == b'\\'
+                && (*crate::globals::gptr(p.wrapping_sub(1))) as u8 == b'\\'
             {
                 let tail_len = crate::memory::cstr_len(p);
                 let buf = unsafe {
@@ -8497,9 +8483,9 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 p = p.wrapping_sub(1);
             } else {
                 eap.nextcmd = check_nextcmd(p);
-                unsafe {
-                    *p = NUL;
-                }
+
+                *crate::globals::gptr(p) = NUL;
+
                 break;
             }
         }
@@ -8524,9 +8510,8 @@ pub fn getargcmd(argp: &mut RawCCharPtrMut) -> RawCCharPtrMut {
             command = arg;
             arg = skip_cmd_arg(command, true);
             if !crate::memory::cstr_is_empty(arg) {
-                unsafe {
-                    *arg = NUL;
-                }
+                *crate::globals::gptr(arg) = NUL;
+
                 arg = arg.wrapping_add(1);
             }
         }
@@ -8632,14 +8617,13 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     }
 
     arg = arg.wrapping_add(1);
-    unsafe {
-        *pp = ((arg as usize) - (eap.cmd as usize)) as i32;
-    }
+
+    *crate::globals::gptr(pp) = ((arg as usize) - (eap.cmd as usize)) as i32;
+
     arg = skip_cmd_arg(arg, false);
     eap.arg = skipwhite(arg);
-    unsafe {
-        *arg = NUL;
-    }
+
+    *crate::globals::gptr(arg) = NUL;
 
     if ptr::eq(pp, &raw mut eap.force_ff) {
         if !check_ff_value(eap.cmd.wrapping_add(eap.force_ff as usize)) {
@@ -8651,9 +8635,9 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     } else if ptr::eq(pp, &raw mut eap.force_enc) {
         let mut p = eap.cmd.wrapping_add(eap.force_enc as usize);
         while !crate::memory::cstr_is_empty(p) {
-            unsafe {
-                *p.cast::<u8>() = tolower_asc(i32::from(crate::memory::cstr_first_byte(p))) as u8;
-            }
+            *crate::globals::gptr(p.cast::<u8>()) =
+                tolower_asc(i32::from(crate::memory::cstr_first_byte(p))) as u8;
+
             p = p.wrapping_add(1);
         }
     } else if !get_bad_opt(
@@ -8689,7 +8673,9 @@ pub fn expand_argopt(
 ) -> bool {
     let pat = pat.into_c_char_ptr();
     {
-        if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'=' {
+        if xp.xp_pattern > xp.xp_line
+            && *crate::globals::gptr(xp.xp_pattern.wrapping_sub(1)) == b'='
+        {
             let mut cb: CompleteListItemGetter = None;
             let name_end = xp.xp_pattern.wrapping_sub(1);
             let diff = (name_end as usize) - (xp.xp_line as usize);
@@ -8793,8 +8779,9 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     let mut cmdp = eap.cmd;
                     while {
                         cmdp = cmdp.wrapping_sub(1);
-                        cmdp > unsafe { *eap.cmdlinep }
-                            && (ascii_iswhite(unsafe { *cmdp }) || ascii_isdigit(unsafe { *cmdp }))
+                        cmdp > *crate::globals::gptr(eap.cmdlinep)
+                            && (ascii_iswhite(*crate::globals::gptr(cmdp))
+                                || ascii_isdigit(*crate::globals::gptr(cmdp)))
                     } {}
                     if crate::memory::cstr_first_byte(cmdp) == b'-' {
                         tab_number -= 1;
@@ -9039,20 +9026,20 @@ pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool)
     if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
         set_vim_var_string(VV_EXITREASON, c"quit", 4);
     }
-    unsafe {
-        apply_autocmds_win(
-            EVENT_QUITPRE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            (*wp).w_buffer,
-            wp.as_ref(),
-        );
-    }
+
+    apply_autocmds_win(
+        EVENT_QUITPRE,
+        ptr::null_mut(),
+        ptr::null_mut(),
+        false,
+        crate::globals::gptr(wp).w_buffer,
+        crate::globals::gopt(wp),
+    );
 
     if !win_valid(wp)
         || curbuf_locked()
-        || (unsafe { (*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0 })
+        || (crate::globals::gptr(wp).buf_mut().b_nwindows == 1
+            && crate::globals::gptr(wp).buf_mut().b_locked > 0)
     {
         set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
         return true;
@@ -9239,7 +9226,7 @@ fn ex_restart(eap: &mut Exarg) {
     let argc = if l.is_null() {
         0
     } else {
-        unsafe { (*l).lv_len }
+        crate::globals::gptr(l).lv_len
     };
 
     let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
@@ -9248,43 +9235,39 @@ fn ex_restart(eap: &mut Exarg) {
     let mut li = if l.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*l).lv_first }
+        crate::globals::gptr(l).lv_first
     };
     while !li.is_null() {
-        let arg = unsafe { tv_get_string(&(*li).li_tv) };
+        let arg = tv_get_string(&crate::globals::gref(li).li_tv);
         let i = argv_vec.len();
         if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--")) {
             break;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-S")) {
-            if unsafe { !(*li).li_next.is_null() } {
-                let next_arg = unsafe { tv_get_string(&(*(*li).li_next).li_tv) };
+            if !crate::globals::gptr(li).li_next.is_null() {
+                let next_arg =
+                    tv_get_string(&crate::globals::gref(crate::globals::gptr(li).li_next).li_tv);
                 if crate::memory::cstr_first_byte(next_arg) != b'-' {
-                    unsafe {
-                        li = (*li).li_next;
-                    }
+                    li = crate::globals::gptr(li).li_next;
                 }
             }
-            unsafe {
-                li = (*li).li_next;
-            }
+
+            li = crate::globals::gptr(li).li_next;
+
             continue;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-s")) {
-            unsafe {
-                li = (*li).li_next;
-            }
+            li = crate::globals::gptr(li).li_next;
+
             if !li.is_null() {
-                unsafe {
-                    li = (*li).li_next;
-                }
+                li = crate::globals::gptr(li).li_next;
             }
             continue;
         }
         if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
-            let next_li = unsafe { (*li).li_next };
+            let next_li = crate::globals::gptr(li).li_next;
             if !next_li.is_null() {
-                let next_li = unsafe { &mut *next_li };
+                let next_li = crate::globals::gmut(next_li);
                 let addr = tv_get_string(&next_li.li_tv);
                 if crate::memory::cstr_as_bytes(addr)
                     .iter()
@@ -9312,9 +9295,8 @@ fn ex_restart(eap: &mut Exarg) {
                 }
             }
         }
-        unsafe {
-            li = (*li).li_next;
-        }
+
+        li = crate::globals::gptr(li).li_next;
     }
 
     #[cfg(windows)]
@@ -9367,25 +9349,25 @@ fn ex_restart(eap: &mut Exarg) {
     let on_exit = Callback::NONE;
     let mut exit_status: Varnumber = 0;
 
-    let channel = unsafe {
-        channel_job_start(
-            argv_vec,
-            crate::memory::cstr_as_opt_cstr(exepath),
-            on_stdout,
-            on_err,
-            on_exit,
-            false,
-            true,
-            true,
-            true,
-            K_CHANNEL_STDIN_PIPE_CONST,
-            (&raw const g_st().globaldir).as_ref().unwrap().as_deref(),
-            0,
-            0,
-            env,
-            &raw mut exit_status,
-        )
-    };
+    let channel = channel_job_start(
+        argv_vec,
+        crate::memory::cstr_as_opt_cstr(exepath),
+        on_stdout,
+        on_err,
+        on_exit,
+        false,
+        true,
+        true,
+        true,
+        K_CHANNEL_STDIN_PIPE_CONST,
+        crate::globals::gopt(&raw const g_st().globaldir)
+            .unwrap()
+            .as_deref(),
+        0,
+        0,
+        env,
+        &raw mut exit_status,
+    );
     if channel.is_null() {
         let _ = emsg(c"cannot create a channel job");
         let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
@@ -9395,7 +9377,7 @@ fn ex_restart(eap: &mut Exarg) {
         return;
     }
 
-    let chan_id = unsafe { (*channel).id };
+    let chan_id = crate::globals::gptr(channel).id;
     let mut result_mem: ArenaMem = ptr::null_mut();
 
     'fail_2: {
@@ -9595,7 +9577,7 @@ fn ex_restart(eap: &mut Exarg) {
         arena_mem_free(result_mem);
     }
 
-    let proc_ptr = unsafe { &raw mut (*channel).uv.proc_ };
+    let proc_ptr = &raw mut crate::globals::gptr(channel).uv.proc_;
     proc_stop(proc_ptr);
     if proc_wait(proc_ptr, -1, ptr::null_mut()) < 0 {
         let _ = emsg(c"killing new nvim server failed");
@@ -9615,7 +9597,7 @@ fn ex_close(eap: &mut Exarg) {
             let w = win_find_nr(eap.line2, g_st().curtab);
             if w.is_null() { g_st().lastwin } else { w }
         };
-        ex_win_close(eap.forceit, unsafe { &mut *win }, ptr::null_mut());
+        ex_win_close(eap.forceit, crate::globals::gmut(win), ptr::null_mut());
     }
 }
 
@@ -9779,12 +9761,9 @@ pub fn tabpage_close_other(tp: *mut TabPageInfo, forceit: i32) {
         return;
     }
 
-    unsafe {
-        trigger_tabclosedpre(&mut *tp);
-    }
-    unsafe {
-        (*tp).tp_did_tabclosedpre = true;
-    }
+    trigger_tabclosedpre(crate::globals::gmut(tp));
+
+    crate::globals::gptr(tp).tp_did_tabclosedpre = true;
 
     while {
         done += 1;
@@ -9796,29 +9775,26 @@ pub fn tabpage_close_other(tp: *mut TabPageInfo, forceit: i32) {
             c"%i",
             tabpage_index(tp),
         );
-        let wp = unsafe { (*tp).tp_lastwin };
+        let wp = crate::globals::gptr(tp).tp_lastwin;
 
         if ptr::eq(tp, g_st().curtab) {
             done = 1000;
             break;
         }
-        unsafe {
-            ex_win_close(forceit, &mut *wp, tp);
-        }
+
+        ex_win_close(forceit, crate::globals::gmut(wp), tp);
 
         if !valid_tabpage(tp) {
             break;
         }
 
-        if unsafe { (*tp).tp_lastwin == wp } {
+        if crate::globals::gptr(tp).tp_lastwin == wp {
             done = 1000;
             break;
         }
     }
     if done >= 1000 && valid_tabpage(tp) {
-        unsafe {
-            (*tp).tp_did_tabclosedpre = false;
-        }
+        crate::globals::gptr(tp).tp_did_tabclosedpre = false;
     }
 }
 
@@ -9858,7 +9834,7 @@ fn ex_hide(eap: &mut Exarg) {
         if w.is_null() { g_st().lastwin } else { w }
     };
 
-    if !unsafe { (*win).w_floating } && window_layout_locked(Cmdidx::CmdHide) {
+    if !crate::globals::gptr(win).w_floating && window_layout_locked(Cmdidx::CmdHide) {
         return;
     }
 
@@ -10001,7 +9977,7 @@ fn call_findfunc(
         tv_clear(&mut rettv);
     }
 
-    unsafe { retlist.as_mut() }
+    crate::globals::gopt_mut(retlist)
 }
 
 pub fn expand_findfunc(
@@ -10152,12 +10128,10 @@ pub fn ex_splitview(eap: &mut Exarg) {
 
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin)
-                    && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
+                    && crate::globals::gptr(old_curwin).w_buffer != g_st().curbuf
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
-                    unsafe {
-                        (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
-                    }
+                    crate::globals::gptr(old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
                 }
             }
         } else if win_split(
@@ -10240,7 +10214,7 @@ fn ex_tabs(_eap: &mut Exarg) {
     g_st().msg_scroll = i32::from(true);
 
     let lastused_win = if valid_tabpage(g_st().lastused_tabpage) {
-        unsafe { (*g_st().lastused_tabpage).tp_curwin }
+        crate::globals::gptr(g_st().lastused_tabpage).tp_curwin
     } else {
         ptr::null_mut()
     };
@@ -10304,7 +10278,7 @@ fn ex_tabs(_eap: &mut Exarg) {
 
 fn ex_detach(eap: &mut Exarg) {
     let chan = find_channel(g_st().current_ui);
-    let Some(chan_ref) = (unsafe { chan.as_mut() }) else {
+    let Some(chan_ref) = crate::globals::gopt_mut(chan) else {
         let _ = emsg(gettext(E_NOUI));
         return;
     };
@@ -10612,12 +10586,10 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin: *mut WinInfoInfo) {
         && !crate::memory::cstr_is_empty(eap.arg)
         && curwin_ptr() != old_curwin
         && win_valid(old_curwin)
-        && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
+        && crate::globals::gptr(old_curwin).w_buffer != g_st().curbuf
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
-        unsafe {
-            (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
-        }
+        crate::globals::gptr(old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
     }
 }
 
@@ -10976,16 +10948,16 @@ pub fn do_sleep(msec: i64, hide_cursor: bool) {
 
     ui_flush();
     let main_loop_ptr = (&raw mut g_st().main_loop).cast();
-    let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
+    let events = loop_queues(crate::globals::gmut(main_loop_ptr)).events;
     let timeout_ms = msec;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
     while !g_st().got_int && !expired {
-        if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        if !events.is_null() && !multiqueue_empty(crate::globals::gref(events)) {
+            multiqueue_process_events(crate::globals::gmut(events));
         } else {
-            loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
+            loop_poll_events(crate::globals::gmut(main_loop_ptr), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -11798,7 +11770,7 @@ fn ex_findpat(eap: &mut Exarg) {
     };
 
     let mut n: i32 = 1;
-    if ascii_isdigit(unsafe { *eap.arg }) {
+    if ascii_isdigit(*crate::globals::gptr(eap.arg)) {
         let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
         let mut rem = arg_bytes;
         n = getdigits_int(&mut rem, false, 0);
@@ -11810,12 +11782,11 @@ fn ex_findpat(eap: &mut Exarg) {
         eap.arg = eap.arg.wrapping_add(1);
         let mut p = skip_regexp(eap.arg, b'/' as i32, opt_vars().p_magic);
         if !crate::memory::cstr_is_empty(p) {
-            unsafe {
-                *p = NUL;
-            }
+            *crate::globals::gptr(p) = NUL;
+
             p = skipwhite(p.wrapping_add(1));
 
-            if ends_excmd(i32::from(unsafe { *p })) == 0 {
+            if ends_excmd(i32::from(*crate::globals::gptr(p))) == 0 {
                 eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, p));
             } else {
                 eap.nextcmd = check_nextcmd(p);
@@ -11990,7 +11961,7 @@ pub fn eval_vars(
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
     let srcstart = srcstart.into_c_char_ptr();
-    unsafe {
+    {
         let mut result: RawCCharPtrMut = c"".as_ptr().cast_mut();
         let mut resultbuf: Option<Vec<u8>> = None;
         let mut resultlen: usize;
@@ -12017,8 +11988,9 @@ pub fn eval_vars(
         {
             *usedlen = 0;
             let tail_len = crate::memory::cstr_len(src);
-            let buf =
-                std::slice::from_raw_parts_mut(src.wrapping_sub(1).cast::<u8>(), tail_len + 2);
+            let buf = unsafe {
+                std::slice::from_raw_parts_mut(src.wrapping_sub(1).cast::<u8>(), tail_len + 2)
+            };
             buf.copy_within(1..=tail_len + 1, 0);
             return None;
         }
@@ -12077,9 +12049,10 @@ pub fn eval_vars(
                                 *usedlen = 1;
                                 return None;
                             }
-                            let Some(oldfile) =
-                                tv_list_find_str(get_vim_var_list(VV_OLDFILES).as_mut(), i - 1)
-                            else {
+                            let Some(oldfile) = tv_list_find_str(
+                                crate::globals::gopt_mut(get_vim_var_list(VV_OLDFILES)),
+                                i - 1,
+                            ) else {
                                 *errormsg = Some(c"");
                                 return None;
                             };
@@ -12095,7 +12068,7 @@ pub fn eval_vars(
                                 ));
                                 return None;
                             }
-                            let buf = &mut *buf;
+                            let buf = crate::globals::gmut(buf);
                             if let Some(lnump) = lnump {
                                 *lnump = ECMD_LAST;
                             }
@@ -12128,8 +12101,7 @@ pub fn eval_vars(
                             g_st().autocmd_fname = Some(full);
                         }
                     }
-                    result = (&raw const g_st().autocmd_fname)
-                        .as_ref()
+                    result = crate::globals::gopt(&raw const g_st().autocmd_fname)
                         .unwrap()
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -12152,8 +12124,7 @@ pub fn eval_vars(
                     result = strbuf.as_mut_ptr().cast();
                 }
                 SPEC_AMATCH => {
-                    result = (&raw const g_st().autocmd_match)
-                        .as_ref()
+                    result = crate::globals::gopt(&raw const g_st().autocmd_match)
                         .unwrap()
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -12271,10 +12242,9 @@ pub fn eval_vars(
             }
             None
         } else {
-            Some(cstr_from_bytes(std::slice::from_raw_parts(
-                result.cast::<u8>(),
-                resultlen,
-            )))
+            Some(cstr_from_bytes(unsafe {
+                std::slice::from_raw_parts(result.cast::<u8>(), resultlen)
+            }))
         };
         drop(resultbuf);
         ret
@@ -12603,7 +12573,7 @@ fn ex_terminal(eap: &mut Exarg) {
         tv_list_alloc_ret(&mut shell_tv, 0);
         for arg in argv {
             tv_list_append_string(
-                unsafe { &mut *shell_tv.vval.v_list() },
+                crate::globals::gmut(shell_tv.vval.v_list()),
                 arg.as_ptr(),
                 arg.as_bytes().len() as isize,
             );

@@ -161,12 +161,12 @@ impl Funcdict {
 
     #[inline]
     pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        unsafe { self.fd_dict.as_mut() }
+        crate::globals::gopt_mut(self.fd_dict)
     }
 
     #[inline]
     pub fn di_mut(&self) -> &'static mut Dictitem {
-        unsafe { &mut *self.fd_di }
+        crate::globals::gmut(self.fd_di)
     }
 }
 
@@ -207,7 +207,7 @@ impl Funcexe {
 
     #[inline]
     pub fn partial_opt(&self) -> Option<&'static mut TvPartial> {
-        unsafe { self.fe_partial.as_mut() }
+        crate::globals::gopt_mut(self.fe_partial)
     }
 }
 
@@ -287,7 +287,7 @@ static UF_STATE: GlobalState<UserfuncState> = GlobalState::new(UserfuncState::ne
 
 #[inline]
 fn uf_st() -> &'static mut UserfuncState {
-    unsafe { &mut *UF_STATE.as_ptr() }
+    crate::globals::gmut(UF_STATE.as_ptr())
 }
 
 const E_FUNCEXTS: &CStr = c"E122: Function %s already exists, add ! to replace it";
@@ -391,7 +391,7 @@ fn get_function_args<T>(
     skip: bool,
 ) -> bool {
     let mut mustend = false;
-    let mut arg = unsafe { (*argp).cast::<u8>() };
+    let mut arg = crate::globals::gptr(argp).cast::<u8>();
     let mut p = arg;
 
     if let Some(ref mut p) = varargs {
@@ -472,7 +472,7 @@ fn get_function_args<T>(
         p = skipwhite(p.cast()).cast();
         if mustend && crate::memory::cstr_first_byte(p.cast()) != endchar {
             if !skip {
-                semsg!(gettext(E_INVARG2), unsafe { *argp });
+                semsg!(gettext(E_INVARG2), *crate::globals::gptr(argp));
             }
             break;
         }
@@ -488,9 +488,8 @@ fn get_function_args<T>(
     }
     p = p.wrapping_add(1); // skip "endchar"
 
-    unsafe {
-        *argp = p.cast();
-    }
+    *crate::globals::gptr(argp) = p.cast();
+
     true
 }
 
@@ -582,15 +581,15 @@ pub fn get_lambda_tv<T>(
     let old_eval_lavars = eval_st().eval_lavars_used;
     let mut eval_lavars = false;
 
-    let mut s: *mut u8 = unsafe { skipwhite((*arg_u8).wrapping_add(1).cast()).cast() };
+    let mut s: *mut u8 = skipwhite(crate::globals::gptr(arg_u8).wrapping_add(1).cast()).cast();
     let mut ret = get_function_args(&raw mut s, b'-', None, None, None, true);
     if !ret || crate::memory::cstr_first_byte(s.cast()) != b'>' {
         return NOTDONE;
     }
 
-    unsafe {
-        *arg_u8 = skipwhite((*arg_u8).wrapping_add(1).cast()).cast();
-    }
+    *crate::globals::gptr(arg_u8) =
+        skipwhite(crate::globals::gptr(arg_u8).wrapping_add(1).cast()).cast();
+
     ret = get_function_args(
         arg_u8,
         b'-',
@@ -599,7 +598,7 @@ pub fn get_lambda_tv<T>(
         None,
         false,
     );
-    if !ret || unsafe { **arg_u8 != b'>' } {
+    if !ret || *crate::globals::gptr(*crate::globals::gptr(arg_u8)) != b'>' {
         eval_st().eval_lavars_used = old_eval_lavars;
         return FAIL;
     }
@@ -608,30 +607,30 @@ pub fn get_lambda_tv<T>(
         eval_st().eval_lavars_used = &raw mut eval_lavars;
     }
 
-    unsafe {
-        *arg_u8 = skipwhite((*arg_u8).wrapping_add(1).cast()).cast();
-    }
-    let start = unsafe { *arg_u8 };
+    *crate::globals::gptr(arg_u8) =
+        skipwhite(crate::globals::gptr(arg_u8).wrapping_add(1).cast()).cast();
+
+    let start = *crate::globals::gptr(arg_u8);
     ret = skip_expr(arg, evalarg);
-    let end = unsafe { *arg_u8 };
+    let end = *crate::globals::gptr(arg_u8);
     if !ret {
         eval_st().eval_lavars_used = old_eval_lavars;
         return FAIL;
     }
 
-    unsafe {
-        *arg_u8 = skipwhite((*arg_u8).cast()).cast();
-    }
-    if unsafe { **arg_u8 != b'}' } {
-        unsafe {
-            semsg!(gettext(c"E451: Expected }: %s"), *arg_u8);
-        }
+    *crate::globals::gptr(arg_u8) = skipwhite(crate::globals::gptr(arg_u8).cast()).cast();
+
+    if *crate::globals::gptr(*crate::globals::gptr(arg_u8)) != b'}' {
+        semsg!(
+            gettext(c"E451: Expected }: %s"),
+            *crate::globals::gptr(arg_u8)
+        );
+
         eval_st().eval_lavars_used = old_eval_lavars;
         return FAIL;
     }
-    unsafe {
-        *arg_u8 = (*arg_u8).wrapping_add(1);
-    }
+
+    *crate::globals::gptr(arg_u8) = crate::globals::gptr(arg_u8).wrapping_add(1);
 
     if evaluate {
         let mut flags = 0;
@@ -696,9 +695,7 @@ pub fn deref_func_name<T>(
     let name: *const u8 = name.cast();
     {
         if !partialp.is_null() {
-            unsafe {
-                *partialp = ptr::null_mut();
-            }
+            *crate::globals::gptr(partialp) = ptr::null_mut();
         }
 
         let Some(v) = crate::eval::vars::find_var_opt(
@@ -729,9 +726,7 @@ pub fn deref_func_name<T>(
                 return c"".as_ptr().cast_mut().cast();
             };
             if !partialp.is_null() {
-                unsafe {
-                    *partialp = pt;
-                }
+                *crate::globals::gptr(partialp) = pt;
             }
             let s = partial_name(Some(pt));
             *lenp = s.to_bytes().len() as i32;
@@ -775,7 +770,7 @@ fn get_func_arguments<T>(
     argvars: *mut TypVal,
     argcount: &mut i32,
 ) -> bool {
-    let mut argp = unsafe { (*arg).cast::<u8>() };
+    let mut argp = crate::globals::gptr(arg).cast::<u8>();
     let mut ret = true;
 
     while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
@@ -789,7 +784,7 @@ fn get_func_arguments<T>(
         }
         if !eval1(
             &raw mut argp,
-            unsafe { &mut *argvars.wrapping_add(*argcount as usize) },
+            crate::globals::gmut(argvars.wrapping_add(*argcount as usize)),
             evalarg.as_deref_mut(),
         ) {
             ret = false;
@@ -807,9 +802,9 @@ fn get_func_arguments<T>(
     } else {
         ret = false;
     }
-    unsafe {
-        *arg = argp.cast();
-    }
+
+    *crate::globals::gptr(arg) = argp.cast();
+
     ret
 }
 
@@ -823,18 +818,18 @@ pub fn get_func_tv<T>(
     funcexe: &mut Funcexe,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let mut argvars: [TypVal; MAX_FUNC_ARGS + 1] = [TypVal::new(); MAX_FUNC_ARGS + 1];
         let mut argcount: i32 = 0;
         let evaluate = evalarg
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-        let mut argp = *arg;
+        let mut argp = *crate::globals::gptr(arg);
         let partial_argc = if funcexe.fe_partial.is_null() {
             0
         } else {
-            (*funcexe.fe_partial).pt_argv.len() as i32
+            crate::globals::gptr(funcexe.fe_partial).pt_argv.len() as i32
         };
         let mut ret = get_func_arguments(
             &raw mut argp,
@@ -872,7 +867,7 @@ pub fn get_func_tv<T>(
             tv_clear(&mut argvars[argcount as usize]);
         }
 
-        *arg = skipwhite(argp.cast()).cast();
+        *crate::globals::gptr(arg) = skipwhite(argp.cast()).cast();
         ret
     }
 }
@@ -938,13 +933,13 @@ pub fn get_func_arity(
     varargs: &mut bool,
 ) -> bool {
     let name = name.into_c_char_ptr();
-    unsafe {
+    {
         let argcount: i32;
         let min_argcount: i32;
 
         let fdef = find_internal_func(name);
         if !fdef.is_null() {
-            let fdef = &*fdef;
+            let fdef = crate::globals::gref(fdef);
             argcount = fdef.max_argc as i32;
             min_argcount = fdef.min_argc as i32;
             *varargs = false;
@@ -964,9 +959,9 @@ pub fn get_func_arity(
                 return false;
             }
 
-            argcount = (*ufunc).uf_args.len() as i32;
-            min_argcount = argcount - (*ufunc).uf_def_args.len() as i32;
-            *varargs = (*ufunc).uf_varargs != 0;
+            argcount = crate::globals::gptr(ufunc).uf_args.len() as i32;
+            min_argcount = argcount - crate::globals::gptr(ufunc).uf_def_args.len() as i32;
+            *varargs = crate::globals::gptr(ufunc).uf_varargs != 0;
         }
 
         *required = min_argcount;
@@ -1036,10 +1031,8 @@ impl Drop for Funccall {
         vars_clear(&mut self.fc_l_avars.dv_hashtab);
         let self_ptr = std::ptr::from_mut(self).cast();
         for &fp in &self.fc_ufuncs {
-            if !fp.is_null() && unsafe { (*fp).uf_scoped } == self_ptr {
-                unsafe {
-                    (*fp).uf_scoped = ptr::null_mut();
-                }
+            if !fp.is_null() && crate::globals::gptr(fp).uf_scoped == self_ptr {
+                crate::globals::gptr(fp).uf_scoped = ptr::null_mut();
             }
         }
         func_ptr_unref(self.fc_func);
@@ -1049,7 +1042,7 @@ impl Drop for Funccall {
 /// Handle the last part of returning from a function: free the local hashtable.
 /// Unless it is still in use by a closure.
 fn cleanup_function_call(fc_ptr: *mut Funccall) {
-    let fc = unsafe { &mut *fc_ptr };
+    let fc = crate::globals::gmut(fc_ptr);
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
@@ -1115,13 +1108,12 @@ fn funccal_unref(fc: *mut Funccall, fp: &mut UserFunc, force: bool) {
         return;
     }
 
-    unsafe {
-        (*fc).fc_refcount -= 1;
-    }
+    crate::globals::gptr(fc).fc_refcount -= 1;
+
     if if force {
-        unsafe { (*fc).fc_refcount <= 0 }
+        crate::globals::gptr(fc).fc_refcount <= 0
     } else {
-        unsafe { !fc_referenced(&*fc) }
+        !fc_referenced(crate::globals::gref(fc))
     } && let Some(pos) = uf_st()
         .previous_funccal
         .iter()
@@ -1130,7 +1122,7 @@ fn funccal_unref(fc: *mut Funccall, fp: &mut UserFunc, force: bool) {
         uf_st().previous_funccal.remove(pos);
         return;
     }
-    for slot in unsafe { &mut (*fc).fc_ufuncs } {
+    for slot in &mut crate::globals::gptr(fc).fc_ufuncs {
         if std::ptr::eq(*slot, fp) {
             *slot = ptr::null_mut();
         }
@@ -1186,12 +1178,9 @@ impl Drop for UserFunc {
 }
 
 fn func_clear_free(fp: *mut UserFunc, force: bool) {
-    unsafe {
-        func_clear(&mut *fp, force);
-    }
-    unsafe {
-        drop(Box::from_raw(fp));
-    }
+    func_clear(crate::globals::gmut(fp), force);
+
+    drop(unsafe { Box::from_raw(fp) });
 }
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
@@ -1200,7 +1189,7 @@ pub fn create_funccal(fp: *mut UserFunc, rettv: &mut TypVal) -> &'static mut Fun
     fc.fc_caller = uf_st().current_funccal;
     uf_st().current_funccal = fc;
     fc.fc_func = fp;
-    func_ptr_ref(unsafe { fp.as_mut() });
+    func_ptr_ref(crate::globals::gopt_mut(fp));
     fc.fc_rettv = rettv;
     &mut *fc
 }
@@ -1254,32 +1243,30 @@ pub fn call_user_func(
         islambda = true;
     }
 
-    unsafe {
-        init_var_dict(
-            &mut fc.fc_l_vars,
-            &mut *(&raw mut fc.fc_l_vars_var).cast(),
-            VAR_DEF_SCOPE,
-        );
-    }
+    init_var_dict(
+        &mut fc.fc_l_vars,
+        crate::globals::gmut((&raw mut fc.fc_l_vars_var).cast()),
+        VAR_DEF_SCOPE,
+    );
+
     if !selfdict.is_null() {
         let v = tv_dict_item_alloc_len(b"self");
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         v.di_tv.v_type = VarType::VarDict;
         v.di_tv.v_lock = VAR_UNLOCKED;
         v.di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
-        unsafe {
-            (*selfdict).dv_refcount += 1;
-        }
+
+        crate::globals::gptr(selfdict).dv_refcount += 1;
+
         hash_add(&mut fc.fc_l_vars.dv_hashtab, &mut *v);
     }
 
-    unsafe {
-        init_var_dict(
-            &mut fc.fc_l_avars,
-            &mut *(&raw mut fc.fc_l_avars_var).cast(),
-            VAR_SCOPE,
-        );
-    }
+    init_var_dict(
+        &mut fc.fc_l_avars,
+        crate::globals::gmut((&raw mut fc.fc_l_avars_var).cast()),
+        VAR_SCOPE,
+    );
+
     let uf_args_len = fp.uf_args.len() as i32;
     let uf_def_args_len = fp.uf_def_args.len() as i32;
     if (fp.uf_flags & FC_NOARGS) == 0 {
@@ -1359,7 +1346,7 @@ pub fn call_user_func(
         v.di_tv = if isdefault {
             def_rettv
         } else {
-            unsafe { *argvars.wrapping_add(i as usize) }
+            *crate::globals::gptr(argvars.wrapping_add(i as usize))
         };
         v.di_tv.v_lock = VAR_FIXED;
 
@@ -1378,15 +1365,13 @@ pub fn call_user_func(
 
         if ai >= 0 && (ai as usize) < MAX_FUNC_ARGS {
             let li = listitems_ptr.wrapping_add(ai as usize);
-            unsafe {
-                (*li).li_tv = *argvars.wrapping_add(i as usize);
-            }
-            unsafe {
-                (*li).li_tv.v_lock = VAR_FIXED;
-            }
-            unsafe {
-                tv_list_append(&mut fc.fc_l_varlist, &mut *li);
-            }
+
+            crate::globals::gptr(li).li_tv =
+                *crate::globals::gptr(argvars.wrapping_add(i as usize));
+
+            crate::globals::gptr(li).li_tv.v_lock = VAR_FIXED;
+
+            tv_list_append(&mut fc.fc_l_varlist, crate::globals::gmut(li));
         }
     }
 
@@ -1411,13 +1396,11 @@ pub fn call_user_func(
                     msg_puts(c", ");
                 }
                 let arg_tv = argvars.wrapping_add(i as usize);
-                if unsafe { (*arg_tv).v_type == VarType::VarNumber } {
-                    unsafe {
-                        msg_outnum((*arg_tv).vval.v_number() as i32);
-                    }
+                if crate::globals::gptr(arg_tv).v_type == VarType::VarNumber {
+                    msg_outnum(crate::globals::gptr(arg_tv).vval.v_number() as i32);
                 } else {
                     g_st().emsg_off += 1;
-                    let tf = unsafe { encode_tv2string(&mut *arg_tv, None) };
+                    let tf = encode_tv2string(crate::globals::gmut(arg_tv), None);
                     g_st().emsg_off -= 1;
                     let mut s = tf.as_ptr().cast_mut();
                     let mut buf = [0u8; MSG_BUF_LEN];
@@ -1445,11 +1428,11 @@ pub fn call_user_func(
         func_do_profile(fp);
     }
 
-    let func_or_func_caller_profiling = unsafe {
-        do_profiling_yes
-            && (fp.uf_profiling != 0
-                || (!fc.fc_caller.is_null() && (*(*fc.fc_caller).fc_func).uf_profiling != 0))
-    };
+    let func_or_func_caller_profiling = do_profiling_yes
+        && (fp.uf_profiling != 0
+            || (!fc.fc_caller.is_null()
+                && crate::globals::gptr(crate::globals::gptr(fc.fc_caller).fc_func).uf_profiling
+                    != 0));
 
     if func_or_func_caller_profiling {
         fp.uf_tm_count += 1;
@@ -1486,9 +1469,7 @@ pub fn call_user_func(
         );
     }
 
-    unsafe {
-        handle_defer_one(&mut *uf_st().current_funccal);
-    }
+    handle_defer_one(crate::globals::gmut(uf_st().current_funccal));
 
     g_st().redrawing_disabled -= 1;
 
@@ -1505,9 +1486,11 @@ pub fn call_user_func(
         call_start = profile_sub_wait(wait_start, call_start);
         fp.uf_tm_total = profile_add(fp.uf_tm_total, call_start);
         fp.uf_tm_self = profile_self(fp.uf_tm_self, call_start, fp.uf_tm_children);
-        if !fc.fc_caller.is_null() && unsafe { (*(*fc.fc_caller).fc_func).uf_profiling != 0 } {
-            let caller_fp = unsafe { (*fc.fc_caller).fc_func };
-            let caller_fp = unsafe { &mut *caller_fp };
+        if !fc.fc_caller.is_null()
+            && crate::globals::gptr(crate::globals::gptr(fc.fc_caller).fc_func).uf_profiling != 0
+        {
+            let caller_fp = crate::globals::gptr(fc.fc_caller).fc_func;
+            let caller_fp = crate::globals::gmut(caller_fp);
             caller_fp.uf_tm_children = profile_add(caller_fp.uf_tm_children, call_start);
             caller_fp.uf_tml_children = profile_add(caller_fp.uf_tml_children, call_start);
         }
@@ -1522,19 +1505,17 @@ pub fn call_user_func(
 
         if aborting() {
             smsg!(0, gettext(c"%s aborted"), sourcing_name());
-        } else if unsafe { (*fc.fc_rettv).v_type == VarType::VarNumber } {
-            unsafe {
-                smsg!(
-                    0,
-                    gettext(c"%s returning #%lld"),
-                    sourcing_name(),
-                    (*fc.fc_rettv).vval.v_number(),
-                );
-            }
+        } else if crate::globals::gptr(fc.fc_rettv).v_type == VarType::VarNumber {
+            smsg!(
+                0,
+                gettext(c"%s returning #%lld"),
+                sourcing_name(),
+                crate::globals::gptr(fc.fc_rettv).vval.v_number(),
+            );
         } else {
             let mut buf = [0u8; MSG_BUF_LEN];
             g_st().emsg_off += 1;
-            let tf = unsafe { encode_tv2string(&mut *fc.fc_rettv, None) };
+            let tf = encode_tv2string(crate::globals::gmut(fc.fc_rettv), None);
             g_st().emsg_off -= 1;
             let mut s = tf.as_ptr().cast_mut();
             if vim_strsize(s) > MSG_BUF_CLEN {
@@ -1573,9 +1554,7 @@ pub fn call_user_func(
     g_st().did_emsg |= save_did_emsg;
     uf_st().call_depth -= 1;
     for &tv in tv_to_free.iter().take(tv_to_free_len) {
-        unsafe {
-            tv_clear(&mut *tv);
-        }
+        tv_clear(crate::globals::gmut(tv));
     }
     cleanup_function_call(fc);
 
@@ -1685,7 +1664,7 @@ pub fn free_all_functions() {
         let mut restarted = false;
         let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
         for fp in funcs {
-            let fp = unsafe { &mut *fp };
+            let fp = crate::globals::gmut(fp);
             if !func_name_refcount(uf2hikey(fp)) {
                 let changed = uf_st().func_hashtab_changed;
                 func_clear(fp, true);
@@ -1707,7 +1686,7 @@ pub fn free_all_functions() {
         }
         let funcs: Vec<*mut UserFunc> = uf_st().func_hashtab.values().copied().collect();
         for fp in funcs {
-            if func_name_refcount(uf2hikey(unsafe { &*fp })) {
+            if func_name_refcount(uf2hikey(crate::globals::gref(fp))) {
                 skipped += 1;
             } else {
                 drop(unsafe { Box::from_raw(fp) });
@@ -1743,8 +1722,8 @@ pub fn func_call(
     let mut argc = 0;
     let mut r = false;
 
-    let max_argc =
-        MAX_FUNC_ARGS as i32 - unsafe { partial.as_ref() }.map_or(0, |pt| pt.pt_argv.len() as i32);
+    let max_argc = MAX_FUNC_ARGS as i32
+        - crate::globals::gopt(partial).map_or(0, |pt| pt.pt_argv.len() as i32);
     let mut skip_call = false;
     if let Some(list) = args.vval.v_list_opt() {
         for item in crate::eval::typval::list_iter_mut(list.lv_first) {
@@ -1832,15 +1811,19 @@ fn argv_add_base(
 ) {
     if !basetv.is_null() {
         unsafe {
-            ptr::copy(*argvars, new_argvars.wrapping_add(1), *argcount as usize);
-        }
-        unsafe {
-            *new_argvars = *basetv;
-        }
+            ptr::copy(
+                *crate::globals::gptr(argvars),
+                new_argvars.wrapping_add(1),
+                *argcount as usize,
+            )
+        };
+
+        *crate::globals::gptr(new_argvars) = *crate::globals::gptr(basetv);
+
         *argcount += 1;
-        unsafe {
-            *argvars = new_argvars;
-        }
+
+        *crate::globals::gptr(argvars) = new_argvars;
+
         *argv_base = 1;
     }
 }
@@ -1909,7 +1892,7 @@ pub fn call_func(
                 if !skip_eval {
                     for i in 0..argcount_in {
                         argv[(i + argv_clear) as usize] =
-                            unsafe { *argvars_in.wrapping_add(i as usize) };
+                            *crate::globals::gptr(argvars_in.wrapping_add(i as usize));
                     }
                     argvars = argv.as_mut_ptr();
                     argcount = pt_argc + argcount_in;
@@ -1971,7 +1954,7 @@ pub fn call_func(
                     fp = find_func(rfname.cast());
                 }
 
-                if let Some(fp_ref) = unsafe { fp.as_mut() } {
+                if let Some(fp_ref) = crate::globals::gopt_mut(fp) {
                     if (fp_ref.uf_flags & FC_DELETED) != 0 {
                         error = FCERR_DELETED;
                     } else {
@@ -2068,7 +2051,7 @@ pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> i32 {
     };
 
     let fp = find_func(rfname.cast());
-    let Some(fp_ref) = (unsafe { fp.as_mut() }) else {
+    let Some(fp_ref) = crate::globals::gopt_mut(fp) else {
         ret = NOTDONE;
         user_func_error(error, name.as_ptr(), false);
         drop(tofree);
@@ -2196,21 +2179,19 @@ pub fn trans_function_name<T>(
     if fdp.is_some() {
         *fdp.as_deref_mut().unwrap() = Funcdict::new();
     }
-    let mut start: *const u8 = unsafe { (*pp).cast() };
+    let mut start: *const u8 = crate::globals::gptr(pp).cast();
 
-    if unsafe {
-        crate::memory::cstr_as_bytes((*pp).cast()).starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR])
-    } {
-        unsafe {
-            *pp = ((*pp).cast::<u8>()).wrapping_add(3).cast();
-        }
+    if crate::memory::cstr_as_bytes(crate::globals::gptr(pp).cast())
+        .starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR])
+    {
+        *crate::globals::gptr(pp) = (crate::globals::gptr(pp).cast::<u8>())
+            .wrapping_add(3)
+            .cast();
+
         len = get_id_len(pp.cast::<*const T>()) + 3;
-        return unsafe {
-            Some(cstr_from_bytes(std::slice::from_raw_parts(
-                start,
-                len as usize,
-            )))
-        };
+        return Some(cstr_from_bytes(unsafe {
+            std::slice::from_raw_parts(start, len as usize)
+        }));
     }
 
     let mut lead = eval_fname_script(crate::memory::cstr_as_bytes(start.cast())) as i32;
@@ -2240,9 +2221,7 @@ pub fn trans_function_name<T>(
                 semsg!(gettext(E_INVARG2), start);
             }
         } else {
-            unsafe {
-                *pp = find_name_end(start, None, FNE_INCL_BR).cast_mut().cast();
-            }
+            *crate::globals::gptr(pp) = find_name_end(start, None, FNE_INCL_BR).cast_mut().cast();
         }
         return None;
     }
@@ -2254,46 +2233,37 @@ pub fn trans_function_name<T>(
             fdp.as_deref_mut().unwrap().fd_di = lv.ll_di;
         }
         let mut res: Option<std::ffi::CString> = None;
-        if unsafe { (*lv.ll_tv).v_type == VarType::VarFunc }
-            && unsafe { !(*lv.ll_tv).vval.v_string().is_null() }
+        if crate::globals::gptr(lv.ll_tv).v_type == VarType::VarFunc
+            && !crate::globals::gptr(lv.ll_tv).vval.v_string().is_null()
         {
-            unsafe {
-                res = Some(cstr_to_cstring((*lv.ll_tv).vval.v_string()));
-            }
-            unsafe {
-                *pp = end.cast_mut().cast();
-            }
-        } else if unsafe { (*lv.ll_tv).v_type == VarType::VarPartial }
-            && unsafe { !(*lv.ll_tv).vval.v_partial().is_null() }
+            res = Some(cstr_to_cstring(
+                crate::globals::gptr(lv.ll_tv).vval.v_string(),
+            ));
+
+            *crate::globals::gptr(pp) = end.cast_mut().cast();
+        } else if crate::globals::gptr(lv.ll_tv).v_type == VarType::VarPartial
+            && !crate::globals::gptr(lv.ll_tv).vval.v_partial().is_null()
         {
-            let pt = unsafe { (*lv.ll_tv).vval.v_partial() };
+            let pt = crate::globals::gptr(lv.ll_tv).vval.v_partial();
             if is_luafunc(pt) && crate::memory::cstr_first_byte(end.cast()) == b'.' {
                 len = check_luafunc_name(end.wrapping_add(1).cast(), true);
                 if len == 0 {
                     semsg!(E_INVEXPR2, c"v:lua");
                     return None;
                 }
-                unsafe {
-                    res = Some(cstr_from_bytes(std::slice::from_raw_parts(
-                        end.wrapping_add(1),
-                        len as usize,
-                    )));
-                }
-                unsafe {
-                    *pp = end.cast_mut().wrapping_add(1 + len as usize).cast();
-                }
+
+                res = Some(cstr_from_bytes(unsafe {
+                    std::slice::from_raw_parts(end.wrapping_add(1), len as usize)
+                }));
+
+                *crate::globals::gptr(pp) = end.cast_mut().wrapping_add(1 + len as usize).cast();
             } else {
-                unsafe {
-                    res = Some(cstr_to_cstring(partial_name(pt.as_ref())));
-                }
-                unsafe {
-                    *pp = end.cast_mut().cast();
-                }
+                res = Some(cstr_to_cstring(partial_name(crate::globals::gopt(pt))));
+
+                *crate::globals::gptr(pp) = end.cast_mut().cast();
             }
             if !partial.is_null() {
-                unsafe {
-                    *partial = pt;
-                }
+                *crate::globals::gptr(partial) = pt;
             }
         } else if !skip
             && (flags & TFN_QUIET) == 0
@@ -2301,17 +2271,14 @@ pub fn trans_function_name<T>(
         {
             emsg(gettext(E_FUNCREF));
         } else {
-            unsafe {
-                *pp = end.cast_mut().cast();
-            }
+            *crate::globals::gptr(pp) = end.cast_mut().cast();
         }
         return res;
     }
 
     if lv.ll_name.is_null() {
-        unsafe {
-            *pp = end.cast_mut().cast();
-        }
+        *crate::globals::gptr(pp) = end.cast_mut().cast();
+
         return None;
     }
 
@@ -2329,26 +2296,23 @@ pub fn trans_function_name<T>(
             name = ptr::null_mut();
         }
     } else if (flags & TFN_NO_DEREF) == 0 {
-        unsafe {
-            len = crate::memory::ptr_offset_from(end, (*pp).cast()) as i32;
-        }
-        unsafe {
-            name = deref_func_name(
-                (*pp).cast::<u8>(),
-                &mut len,
-                partial,
-                (flags & TFN_NO_AUTOLOAD) != 0,
-                None,
-            );
-        }
-        if unsafe { ptr::eq(name, (*pp).cast()) } {
+        len = crate::memory::ptr_offset_from(end, crate::globals::gptr(pp).cast()) as i32;
+
+        name = deref_func_name(
+            crate::globals::gptr(pp).cast::<u8>(),
+            &mut len,
+            partial,
+            (flags & TFN_NO_AUTOLOAD) != 0,
+            None,
+        );
+
+        if ptr::eq(name, crate::globals::gptr(pp).cast()) {
             name = ptr::null_mut();
         }
     }
     if !name.is_null() {
-        unsafe {
-            *pp = end.cast_mut().cast();
-        }
+        *crate::globals::gptr(pp) = end.cast_mut().cast();
+
         let name_bytes = crate::memory::cstr_as_bytes(name.cast());
         if let Some(tail) = name_bytes.strip_prefix(b"<SNR>") {
             let mut bytes = Vec::with_capacity(3 + tail.len());
@@ -2390,7 +2354,9 @@ pub fn trans_function_name<T>(
             .ll_exp_name
             .as_ref()
             .is_some_and(|s| eval_fname_sid(s.as_bytes()))
-            || unsafe { eval_fname_sid(crate::memory::cstr_as_bytes((*pp).cast())) }
+            || eval_fname_sid(crate::memory::cstr_as_bytes(
+                crate::globals::gptr(pp).cast(),
+            ))
         {
             if g_st().current_sctx.sc_sid <= 0 {
                 emsg(gettext(E_USINGSID));
@@ -2421,12 +2387,10 @@ pub fn trans_function_name<T>(
             if _sz == 0 {
                 std::ptr::null()
             } else {
-                unsafe {
-                    std::slice::from_raw_parts(_s, _sz)
-                        .iter()
-                        .rposition(|&_b| _b == b':')
-                        .map_or(std::ptr::null(), |_i| _s.wrapping_add(_i))
-                }
+                unsafe { std::slice::from_raw_parts(_s, _sz) }
+                    .iter()
+                    .rposition(|&_b| _b == b':')
+                    .map_or(std::ptr::null(), |_i| _s.wrapping_add(_i))
             }
         };
         if !cp.is_null() && cp < end {
@@ -2445,15 +2409,12 @@ pub fn trans_function_name<T>(
             bytes.extend_from_slice(&sid_buf[..sid_buflen]);
         }
     }
-    unsafe {
-        bytes.extend_from_slice(std::slice::from_raw_parts(
-            lv.ll_name.cast::<u8>(),
-            len as usize,
-        ));
-    }
-    unsafe {
-        *pp = end.cast_mut().cast();
-    }
+
+    bytes.extend_from_slice(unsafe {
+        std::slice::from_raw_parts(lv.ll_name.cast::<u8>(), len as usize)
+    });
+
+    *crate::globals::gptr(pp) = end.cast_mut().cast();
 
     Some(cstr_from_bytes(&bytes))
 }
@@ -2492,7 +2453,7 @@ pub fn save_function_name<T>(
     flags: i32,
     mut fudi: Option<&mut Funcdict>,
 ) -> Option<std::ffi::CString> {
-    let start: *mut u8 = unsafe { (*name).cast::<u8>() };
+    let start: *mut u8 = crate::globals::gptr(name).cast::<u8>();
     let mut p = start;
     let saved: Option<std::ffi::CString>;
 
@@ -2516,9 +2477,9 @@ pub fn save_function_name<T>(
             ptr::null_mut(),
         );
     }
-    unsafe {
-        *name = p.cast();
-    }
+
+    *crate::globals::gptr(name) = p.cast();
+
     saved
 }
 
@@ -2531,7 +2492,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
         if g_st().got_int {
             break;
         }
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::gmut(fp);
         let key = uf2hikey(fp);
         let matches = if let Some(ref mut regmatch) = regmatch {
             !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key.as_ptr(), 0)
@@ -2586,9 +2547,7 @@ fn list_one_function<T>(
         eap.nextcmd = check_nextcmd(p.cast());
 
         if !eap.nextcmd.is_null() {
-            unsafe {
-                *p = 0;
-            }
+            *crate::globals::gptr(p) = 0;
         }
 
         if eap.skip != 0 || g_st().got_int {
@@ -2600,7 +2559,7 @@ fn list_one_function<T>(
             emsg_funcname(c"E123: Undefined function: %s", name);
             return ptr::null_mut();
         }
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::gmut(fp);
 
         let prev_ht_changed = uf_st().func_hashtab_changed;
 
@@ -2656,7 +2615,7 @@ fn get_function_body(
     show_block: bool,
 ) -> bool {
     let line_arg_in = line_arg_in.into_c_char_ptr().cast_mut();
-    unsafe {
+    {
         let mut saved_wait_return = g_st().need_wait_return;
         let mut line_arg = line_arg_in;
         let mut line_to_free: Option<std::ffi::CString> = None;
@@ -2784,7 +2743,9 @@ fn get_function_body(
                             } else {
                                 p.wrapping_add(1)
                             };
-                        } else if !line_arg.is_null() && *skipwhite(line_arg) != NUL {
+                        } else if !line_arg.is_null()
+                            && *crate::globals::gptr(skipwhite(line_arg)) != NUL
+                        {
                             nextcmd = line_arg;
                         } else if !crate::memory::cstr_is_empty(p)
                             && crate::memory::cstr_first_byte(p) != b'"'
@@ -2797,7 +2758,7 @@ fn get_function_body(
                                 let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
                                 let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
                                 eap.set_cmdline_vec(eap.cmdlinep, new_buf);
-                                eap.nextcmd = (*eap.cmdlinep).wrapping_add(off);
+                                eap.nextcmd = crate::globals::gptr(eap.cmdlinep).wrapping_add(off);
                             } else {
                                 eap.nextcmd = nextcmd;
                             }
@@ -2818,12 +2779,12 @@ fn get_function_body(
                 }
 
                 if checkforcmd(&mut p, b"function", 2) {
-                    if *p as u8 == b'!' {
+                    if (*crate::globals::gptr(p)) as u8 == b'!' {
                         p = skipwhite(p.wrapping_add(1));
                     }
                     p = p.wrapping_add(eval_fname_script(crate::memory::cstr_as_bytes(p)));
                     let _ = trans_function_name(&raw mut p, true, 0, None, ptr::null_mut());
-                    if *skipwhite(p) as u8 == b'(' {
+                    if (*crate::globals::gptr(skipwhite(p))) as u8 == b'(' {
                         if nesting == MAX_FUNC_NESTING - 1 {
                             emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                         } else {
@@ -2838,7 +2799,9 @@ fn get_function_body(
                 if (checkforcmd(&mut p, b"append", 1)
                     || checkforcmd(&mut p, b"change", 1)
                     || checkforcmd(&mut p, b"insert", 1))
-                    && (*p as u8 == b'!' || *p as u8 == b'|' || ascii_iswhite_nl_or_nul(*p as i32))
+                    && ((*crate::globals::gptr(p)) as u8 == b'!'
+                        || (*crate::globals::gptr(p)) as u8 == b'|'
+                        || ascii_iswhite_nl_or_nul((*crate::globals::gptr(p)) as i32))
                 {
                     skip_until = Some(c".".to_owned());
                 } else {
@@ -2877,7 +2840,7 @@ fn get_function_body(
                         let slice = crate::memory::cstr_slice(theline, heredoc_trimmedlen);
                         heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                     }
-                    if *p == 0 {
+                    if *crate::globals::gptr(p) == 0 {
                         skip_until = Some(c".".to_owned());
                     } else {
                         let slice = crate::memory::cstr_slice(
@@ -2923,10 +2886,12 @@ fn get_function_body(
                                 heredoc_trimmedlen =
                                     crate::memory::ptr_offset_from(skipwhite(theline), theline)
                                         as usize;
-                                let slice = std::slice::from_raw_parts(
-                                    theline.cast::<u8>(),
-                                    heredoc_trimmedlen,
-                                );
+                                let slice = unsafe {
+                                    std::slice::from_raw_parts(
+                                        theline.cast::<u8>(),
+                                        heredoc_trimmedlen,
+                                    )
+                                };
                                 heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                             }
                             let slice = crate::memory::cstr_slice(
@@ -3033,9 +2998,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if free_fp && !fp.is_null() {
                 func_clear_free(fp, false);
             } else if !fp.is_null() {
-                unsafe {
-                    (*fp).uf_name_exp = None;
-                }
+                crate::globals::gptr(fp).uf_name_exp = None;
             }
             errret_keep!();
         }};
@@ -3075,7 +3038,8 @@ pub fn ex_function(eap: &mut Exarg) {
         } else {
             fudi_newkey_ptr
         };
-        if !arg.is_null() && (unsafe { fudi.fd_di.is_null() || !tv_is_func(&(*fudi.fd_di).di_tv) })
+        if !arg.is_null()
+            && (fudi.fd_di.is_null() || !tv_is_func(&crate::globals::gptr(fudi.fd_di).di_tv))
         {
             let mut name_base = arg;
             if arg != fudi_newkey_ptr {
@@ -3101,7 +3065,7 @@ pub fn ex_function(eap: &mut Exarg) {
                 }
             }
         }
-        if !fudi.fd_dict.is_null() && unsafe { (*fudi.fd_dict).dv_scope == VAR_DEF_SCOPE } {
+        if !fudi.fd_dict.is_null() && crate::globals::gptr(fudi.fd_dict).dv_scope == VAR_DEF_SCOPE {
             emsg(gettext(c"E862: Cannot use g: here"));
             ret_free!();
         }
@@ -3188,7 +3152,7 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut namelen = 0usize;
     if fudi.fd_dict.is_null() {
         let v = find_var(name, crate::memory::cstr_len(name), &raw mut ht, 0);
-        if !v.is_null() && unsafe { (*v).di_tv.v_type == VarType::VarFunc } {
+        if !v.is_null() && crate::globals::gptr(v).di_tv.v_type == VarType::VarFunc {
             emsg_funcname(c"E707: Function name conflicts with variable: %s", name);
             erret!();
         }
@@ -3196,43 +3160,35 @@ pub fn ex_function(eap: &mut Exarg) {
         fp = find_func(name);
         if !fp.is_null() {
             if eap.forceit == 0
-                && (unsafe {
-                    (*fp).uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
-                        || (*fp).uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq
-                })
+                && (crate::globals::gptr(fp).uf_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                    || crate::globals::gptr(fp).uf_script_ctx.sc_seq == g_st().current_sctx.sc_seq)
             {
                 emsg_funcname(E_FUNCEXTS, name);
                 errret_keep!();
             }
-            if unsafe { (*fp).uf_calls > 0 } {
+            if crate::globals::gptr(fp).uf_calls > 0 {
                 emsg_funcname(c"E127: Cannot redefine function %s: It is in use", name);
                 errret_keep!();
             }
-            if unsafe { (*fp).uf_refcount > 1 } {
-                unsafe {
-                    (*fp).uf_refcount -= 1;
-                }
-                unsafe {
-                    (*fp).uf_flags |= FC_REMOVED;
-                }
+            if crate::globals::gptr(fp).uf_refcount > 1 {
+                crate::globals::gptr(fp).uf_refcount -= 1;
+
+                crate::globals::gptr(fp).uf_flags |= FC_REMOVED;
+
                 fp = ptr::null_mut();
                 overwrite = true;
             } else {
-                let exp_name = unsafe { (*fp).uf_name_exp.take() };
+                let exp_name = crate::globals::gptr(fp).uf_name_exp.take();
                 name_owned = None;
                 name = ptr::null_mut();
-                unsafe {
-                    func_clear_items(&mut *fp);
-                }
-                unsafe {
-                    (*fp).uf_name_exp = exp_name;
-                }
-                unsafe {
-                    (*fp).uf_profiling = 0;
-                }
-                unsafe {
-                    (*fp).uf_prof_initialized = 0;
-                }
+
+                func_clear_items(crate::globals::gmut(fp));
+
+                crate::globals::gptr(fp).uf_name_exp = exp_name;
+
+                crate::globals::gptr(fp).uf_profiling = 0;
+
+                crate::globals::gptr(fp).uf_prof_initialized = 0;
             }
         }
     } else {
@@ -3244,10 +3200,18 @@ pub fn ex_function(eap: &mut Exarg) {
             erret!();
         }
         if fudi.fd_di.is_null() {
-            if unsafe { value_check_lock((*fudi.fd_dict).dv_lock, eap.arg, TV_CSTRING) } {
+            if value_check_lock(
+                crate::globals::gptr(fudi.fd_dict).dv_lock,
+                eap.arg,
+                TV_CSTRING,
+            ) {
                 erret!();
             }
-        } else if unsafe { value_check_lock((*fudi.fd_di).di_tv.v_lock, eap.arg, TV_CSTRING) } {
+        } else if value_check_lock(
+            crate::globals::gptr(fudi.fd_di).di_tv.v_lock,
+            eap.arg,
+            TV_CSTRING,
+        ) {
             erret!();
         }
 
@@ -3298,21 +3262,21 @@ pub fn ex_function(eap: &mut Exarg) {
         if !fudi.fd_dict.is_null() {
             if fudi.fd_di.is_null() {
                 fudi.fd_di = tv_dict_item_alloc(fudi.fd_newkey.as_ref().unwrap().as_ptr());
-                if unsafe { !tv_dict_add(&mut *fudi.fd_dict, fudi.fd_di) } {
+                if !tv_dict_add(crate::globals::gmut(fudi.fd_dict), fudi.fd_di) {
                     crate::eval::typval::tv_dict_item_free(fudi.fd_di);
                     erret!();
                 }
             } else {
-                unsafe {
-                    tv_clear(&mut (*fudi.fd_di).di_tv);
-                }
+                tv_clear(&mut crate::globals::gptr(fudi.fd_di).di_tv);
             }
-            unsafe {
-                crate::eval::typval::tv_set_string_len(&mut (*fudi.fd_di).di_tv, name, namelen);
-            }
-            unsafe {
-                (*fudi.fd_di).di_tv.v_type = VarType::VarFunc;
-            }
+
+            crate::eval::typval::tv_set_string_len(
+                &mut crate::globals::gptr(fudi.fd_di).di_tv,
+                name,
+                namelen,
+            );
+
+            crate::globals::gptr(fudi.fd_di).di_tv.v_type = VarType::VarFunc;
 
             flags |= FC_DICT;
         }
@@ -3321,15 +3285,14 @@ pub fn ex_function(eap: &mut Exarg) {
             uf_st()
                 .func_hashtab
                 .insert(crate::memory::cstr_as_bytes(name).to_vec(), fp);
-        } else if unsafe { !func_hashtab_add(&mut *fp) } {
+        } else if !func_hashtab_add(crate::globals::gmut(fp)) {
             free_fp = true;
             erret!();
         }
-        unsafe {
-            (*fp).uf_refcount = 1;
-        }
+
+        crate::globals::gptr(fp).uf_refcount = 1;
     }
-    let fp = unsafe { &mut *fp };
+    let fp = crate::globals::gmut(fp);
     fp.uf_args = newargs;
     fp.uf_def_args = default_args;
     fp.uf_lines = newlines;
@@ -3411,7 +3374,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         && uf_st().get_uf_done < uf_st().get_uf_items.len()
     {
         let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done];
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::gmut(fp);
         uf_st().get_uf_done += 1;
 
         if (fp.uf_flags & FC_DICT) != 0 || uf2hikey(&*fp).to_bytes().starts_with(b"<lambda>") {
@@ -3461,9 +3424,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     }
     eap.nextcmd = check_nextcmd(p);
     if !eap.nextcmd.is_null() {
-        unsafe {
-            *p = NUL;
-        }
+        *crate::globals::gptr(p) = NUL;
     }
 
     if (crate::memory::cstr_first_byte(name)).is_ascii_digit() && fudi.fd_dict.is_null() {
@@ -3478,7 +3439,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     drop(name_owned);
 
     if eap.skip == 0 {
-        let Some(fp_ref) = (unsafe { fp.as_mut() }) else {
+        let Some(fp_ref) = crate::globals::gopt_mut(fp) else {
             if eap.forceit == 0 {
                 semsg!(gettext(E_NOFUNC), eap.arg);
             }
@@ -3542,7 +3503,7 @@ pub fn func_unref(name: impl crate::strings::IntoCCharPtr) {
 
 pub fn func_ptr_unref(fp: *mut UserFunc) {
     if !fp.is_null() {
-        let fp = unsafe { &mut *fp };
+        let fp = crate::globals::gmut(fp);
         fp.uf_refcount -= 1;
         if fp.uf_refcount <= 0 && fp.uf_calls == 0 {
             func_clear_free(fp, false);
@@ -3558,9 +3519,7 @@ pub fn func_ref(name: impl crate::strings::IntoCCharPtr) {
         }
         let fp = find_func(name);
         if !fp.is_null() {
-            unsafe {
-                (*fp).uf_refcount += 1;
-            }
+            crate::globals::gptr(fp).uf_refcount += 1;
         } else if (crate::memory::cstr_first_byte(name)).is_ascii_digit() {
             internal_error(c"func_ref()");
         }
@@ -3660,9 +3619,8 @@ fn ex_call_inner<T>(
                 curwin_mut().w_cursor.col = 0;
                 curwin_mut().w_cursor.coladd = 0;
             }
-            unsafe {
-                *arg = startarg.cast();
-            }
+
+            *crate::globals::gptr(arg) = startarg.cast();
 
             let mut funcexe = *funcexe_init;
             funcexe.fe_doesrange = false;
@@ -3740,13 +3698,13 @@ fn ex_defer_inner<T>(
                 if fdef.is_null() {
                     emsg_funcname(E_UNKNOWN_FUNCTION_STR, name);
                     r = false;
-                } else if check_internal_func(unsafe { &*fdef }, argcount) == -1 {
+                } else if check_internal_func(crate::globals::gref(fdef), argcount) == -1 {
                     r = false;
                 }
             } else {
                 let ufunc = find_func(name);
                 if !ufunc.is_null() {
-                    let error = check_user_func_argcount(unsafe { &mut *ufunc }, argcount);
+                    let error = check_user_func_argcount(crate::globals::gmut(ufunc), argcount);
                     if error != FCERR_UNKNOWN {
                         user_func_error(error, name, false);
                         r = false;
@@ -3782,7 +3740,7 @@ pub fn add_defer(name: impl crate::strings::IntoCCharPtr, argcount_arg: i32, arg
         let argcount = argcount_arg as usize;
         let mut dr_argvars = vec![TypVal::new(); argcount + 1];
         for (i, slot) in dr_argvars.iter_mut().enumerate().take(argcount) {
-            *slot = unsafe { *argvars.wrapping_add(i) };
+            *slot = *crate::globals::gptr(argvars.wrapping_add(i));
         }
         cur_funccal_mut().fc_defer.push(DeferCall {
             dr_name: Some(dr_name_cstr),
@@ -3849,9 +3807,9 @@ impl Iterator for FunccalCallerMutIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*cur).fc_caller;
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(cur).fc_caller;
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -3868,9 +3826,9 @@ impl Iterator for FunccalScopedMutIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*(*cur).fc_func).uf_scoped;
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(crate::globals::gptr(cur).fc_func).uf_scoped;
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -3922,9 +3880,7 @@ pub fn ex_call(eap: &mut Exarg) {
     let tofree = tofree_cstr.as_ptr();
 
     if !fudi.fd_dict.is_null() {
-        unsafe {
-            (*fudi.fd_dict).dv_refcount += 1;
-        }
+        crate::globals::gptr(fudi.fd_dict).dv_refcount += 1;
     }
 
     let mut len = tofree_cstr.as_bytes().len() as i32;
@@ -3954,7 +3910,7 @@ pub fn ex_call(eap: &mut Exarg) {
         !ex_defer_inner(
             name,
             &raw mut arg,
-            unsafe { partial.as_ref() },
+            crate::globals::gopt(partial),
             &mut evalarg,
         )
     } else {
@@ -4122,11 +4078,11 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
 
     if rettv.v_type == VarType::VarPartial
         && !rettv.vval.v_partial().is_null()
-        && unsafe { !(*rettv.vval.v_partial()).pt_func.is_null() }
+        && !crate::globals::gptr(rettv.vval.v_partial())
+            .pt_func
+            .is_null()
     {
-        unsafe {
-            fp = (*rettv.vval.v_partial()).pt_func;
-        }
+        fp = crate::globals::gptr(rettv.vval.v_partial()).pt_func;
     } else {
         let mut fname: *mut u8 =
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
@@ -4134,12 +4090,10 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             } else if rettv.vval.v_partial().is_null() {
                 ptr::null_mut()
             } else {
-                unsafe {
-                    (*rettv.vval.v_partial())
-                        .pt_name
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut().cast())
-                }
+                crate::globals::gptr(rettv.vval.v_partial())
+                    .pt_name
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut().cast())
             };
         if fname.is_null() {
             rettv.v_type = VarType::VarFunc;
@@ -4151,7 +4105,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         }
     }
 
-    if !fp.is_null() && unsafe { ((*fp).uf_flags & FC_DICT) != 0 } {
+    if !fp.is_null() && (crate::globals::gptr(fp).uf_flags & FC_DICT) != 0 {
         let pt = Box::leak(Box::new(TvPartial::default()));
         pt.pt_refcount = 1;
         pt.pt_dict = (&raw mut *selfdict);
@@ -4161,15 +4115,14 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             pt.pt_name = crate::eval::typval::tv_take_string(rettv.vval.v_string());
         } else {
             let ret_pt = rettv.vval.v_partial();
-            let ret_pt = unsafe { &mut *ret_pt };
+            let ret_pt = crate::globals::gmut(ret_pt);
             if let Some(ref ret_name) = ret_pt.pt_name {
                 func_ref(ret_name.as_ptr().cast_mut());
                 pt.pt_name = Some(ret_name.clone());
             } else {
                 pt.pt_func = ret_pt.pt_func;
-                unsafe {
-                    func_ptr_ref((pt.pt_func).as_mut());
-                }
+
+                func_ptr_ref(crate::globals::gopt_mut(pt.pt_func));
             }
             if !ret_pt.pt_argv.is_empty() {
                 let pt_argc = ret_pt.pt_argv.len();
@@ -4230,7 +4183,8 @@ pub fn get_funccal() -> *mut Funccall {
     let mut funccal = uf_st().current_funccal;
     if g_st().debug_backtrace_level > 0 {
         for i in 0..g_st().debug_backtrace_level {
-            if let Some(temp_funccal) = unsafe { funccal.as_ref() }.and_then(|fc| fc.caller_opt()) {
+            if let Some(temp_funccal) = crate::globals::gopt(funccal).and_then(|fc| fc.caller_opt())
+            {
                 funccal = temp_funccal;
             } else {
                 g_st().debug_backtrace_level = i;
@@ -4246,7 +4200,7 @@ fn get_funccal_for_vars_opt() -> Option<&'static mut Funccall> {
     if uf_st().current_funccal.is_null() {
         return None;
     }
-    let funccal = unsafe { get_funccal().as_mut() }?;
+    let funccal = crate::globals::gopt_mut(get_funccal())?;
     (funccal.fc_l_vars.dv_refcount != 0).then_some(funccal)
 }
 
@@ -4297,8 +4251,12 @@ pub fn find_hi_in_scoped_ht(
     pht: &mut *mut Hashtab,
 ) -> *mut Hashitem {
     let name = name.into_c_char_ptr();
-    unsafe {
-        if uf_st().current_funccal.is_null() || (*cur_funccal_mut().fc_func).uf_scoped.is_null() {
+    {
+        if uf_st().current_funccal.is_null()
+            || crate::globals::gptr(cur_funccal_mut().fc_func)
+                .uf_scoped
+                .is_null()
+        {
             return ptr::null_mut();
         }
 
@@ -4307,24 +4265,25 @@ pub fn find_hi_in_scoped_ht(
         let namelen = crate::memory::cstr_len(name);
         let mut varname = ptr::null();
 
-        uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
+        uf_st().current_funccal = crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 hi = hash_find_len(
-                    &*ht,
+                    crate::globals::gref(ht),
                     varname,
                     namelen - crate::memory::ptr_offset_from(varname, name) as usize,
                 );
-                if !hashitem_empty(&*hi) {
+                if !hashitem_empty(crate::globals::gref(hi)) {
                     *pht = ht;
                     break;
                 }
             }
-            if uf_st().current_funccal == (*cur_funccal_mut().fc_func).uf_scoped {
+            if uf_st().current_funccal == crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped
+            {
                 break;
             }
-            uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
+            uf_st().current_funccal = crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped;
         }
         uf_st().current_funccal = old_current_funccal;
 
@@ -4333,10 +4292,14 @@ pub fn find_hi_in_scoped_ht(
 }
 
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> *mut Dictitem {
-    let name: *const i8 = name_slice.as_ptr().cast();
+    let name: crate::strings::RawCCharPtr = name_slice.as_ptr().cast();
     let namelen = name_slice.len();
-    unsafe {
-        if uf_st().current_funccal.is_null() || (*cur_funccal_mut().fc_func).uf_scoped.is_null() {
+    {
+        if uf_st().current_funccal.is_null()
+            || crate::globals::gptr(cur_funccal_mut().fc_func)
+                .uf_scoped
+                .is_null()
+        {
             return ptr::null_mut();
         }
 
@@ -4344,12 +4307,12 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> *mut Dictit
         let old_current_funccal = uf_st().current_funccal;
         let mut varname = ptr::null();
 
-        uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
+        uf_st().current_funccal = crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped;
         while !uf_st().current_funccal.is_null() {
             let ht = find_var_ht(name, namelen, &raw mut varname);
             if !ht.is_null() && !crate::memory::cstr_is_empty(varname) {
                 v = find_var_in_ht(
-                    &mut *ht,
+                    crate::globals::gmut(ht),
                     i32::from(crate::memory::cstr_first_byte(name)),
                     varname,
                     namelen - crate::memory::ptr_offset_from(varname, name) as usize,
@@ -4359,10 +4322,11 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> *mut Dictit
                     break;
                 }
             }
-            if uf_st().current_funccal == (*cur_funccal_mut().fc_func).uf_scoped {
+            if uf_st().current_funccal == crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped
+            {
                 break;
             }
-            uf_st().current_funccal = (*cur_funccal_mut().fc_func).uf_scoped;
+            uf_st().current_funccal = crate::globals::gptr(cur_funccal_mut().fc_func).uf_scoped;
         }
         uf_st().current_funccal = old_current_funccal;
 
@@ -4442,7 +4406,7 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
         if g_st().got_int {
             break;
         }
-        if !func_name_refcount(uf2hikey(unsafe { &*fp }))
+        if !func_name_refcount(uf2hikey(crate::globals::gref(fp)))
             && set_ref_in_func(ptr::null_mut(), fp, copy_id)
         {
             return true;
@@ -4454,7 +4418,7 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
 pub fn set_ref_in_func_args(copy_id: i32) -> bool {
     for &tv in &uf_st().funcargs {
         if set_ref_in_item(
-            unsafe { &mut *tv },
+            crate::globals::gmut(tv),
             copy_id,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -4485,7 +4449,7 @@ pub fn set_ref_in_func(
             let fname = fname_trans_sid(name, &mut fname_buf, &mut tofree, &mut error);
             fp = find_func(fname.cast());
         }
-        if let Some(fp_ref) = unsafe { fp.as_ref() } {
+        if let Some(fp_ref) = crate::globals::gopt(fp) {
             for fc in FunccalScopedMutIter(fp_ref.uf_scoped) {
                 abort = abort || set_ref_in_funccal(fc, copy_id);
             }
@@ -4514,7 +4478,7 @@ pub fn register_luafunc(ref_: LuaRef) -> &'static std::ffi::CStr {
 
 #[inline]
 pub fn cur_funccal_mut() -> &'static mut Funccall {
-    unsafe { &mut *uf_st().current_funccal }
+    crate::globals::gmut(uf_st().current_funccal)
 }
 #[cfg(test)]
 mod tests {

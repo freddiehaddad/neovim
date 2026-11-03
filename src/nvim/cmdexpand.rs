@@ -225,7 +225,7 @@ impl LineGetter {
     pub fn inner(self) -> Self {
         let mut gp = self;
         while let Self::Loop(cp) = gp {
-            gp = unsafe { (*cp).lc_getline };
+            gp = crate::globals::gptr(cp).lc_getline;
         }
         gp
     }
@@ -269,7 +269,7 @@ impl LineGetter {
     #[inline]
     pub fn as_source_mut(self) -> Option<&'static mut crate::runtime::SourceCookie> {
         match self.inner() {
-            Self::Source(p) => unsafe { p.as_mut() },
+            Self::Source(p) => crate::globals::gopt_mut(p),
             _ => None,
         }
     }
@@ -280,21 +280,30 @@ impl LineGetter {
             Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
             Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
             Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
-            Self::Func(cookie) => {
-                crate::eval::userfunc::get_func_line(c, unsafe { &mut *cookie }, indent, do_concat)
-            }
+            Self::Func(cookie) => crate::eval::userfunc::get_func_line(
+                c,
+                crate::globals::gmut(cookie),
+                indent,
+                do_concat,
+            ),
             Self::Source(cookie) => {
-                crate::runtime::getsourceline(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::runtime::getsourceline(c, crate::globals::gmut(cookie), indent, do_concat)
             }
             Self::Loop(cookie) => {
-                crate::ex_docmd::get_loop_line(c, unsafe { &mut *cookie }, indent, do_concat)
+                crate::ex_docmd::get_loop_line(c, crate::globals::gmut(cookie), indent, do_concat)
             }
-            Self::List(cookie) => {
-                crate::eval::funcs::get_list_line(c, unsafe { &mut *cookie }, indent, do_concat)
-            }
-            Self::LuaEx(cookie) => {
-                crate::lua::executor::nlua_ex_getline(c, unsafe { &mut *cookie }, indent, do_concat)
-            }
+            Self::List(cookie) => crate::eval::funcs::get_list_line(
+                c,
+                crate::globals::gmut(cookie),
+                indent,
+                do_concat,
+            ),
+            Self::LuaEx(cookie) => crate::lua::executor::nlua_ex_getline(
+                c,
+                crate::globals::gmut(cookie),
+                indent,
+                do_concat,
+            ),
         }
     }
 }
@@ -1779,7 +1788,7 @@ static CMDEXP_STATE: GlobalState<CmdexpandState> = GlobalState::new(CmdexpandSta
 
 #[inline]
 fn cmdexp() -> &'static mut CmdexpandState {
-    unsafe { &mut *CMDEXP_STATE.as_ptr() }
+    crate::globals::gmut(CMDEXP_STATE.as_ptr())
 }
 
 use crate::mbyte::utfc_slice2len;
@@ -2062,6 +2071,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
             xp.xp_pattern = ccline.cmdbuff.wrapping_add(i as usize);
         }
         debug_assert!(ccline.cmdpos <= ccline.cmdlen);
+
         unsafe {
             ptr::copy(
                 ccline.cmdbuff.wrapping_add(ccline.cmdpos as usize),
@@ -2071,6 +2081,7 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
                 (ccline.cmdlen as usize) - (ccline.cmdpos as usize) + 1,
             )
         };
+
         unsafe {
             ptr::copy(
                 p_str.as_ptr().cast(),
@@ -2196,13 +2207,13 @@ pub fn cmdline_pum_cleanup(cclp: &mut CmdlineInfo) {
 /// Returns the current cmdline completion pattern.
 pub fn cmdline_compl_pattern() -> Option<&'static CStr> {
     let xp = get_cmdline_info().xpc;
-    unsafe { (*xp).xp_orig.as_deref() }
+    crate::globals::gref(xp).xp_orig.as_deref()
 }
 
 /// Returns true if fuzzy cmdline completion is active, false otherwise.
 pub fn cmdline_compl_is_fuzzy() -> bool {
     let xp = get_cmdline_info().xpc;
-    unsafe { !xp.is_null() && cmdline_fuzzy_completion_supported(&*xp) }
+    !xp.is_null() && cmdline_fuzzy_completion_supported(crate::globals::gref(xp))
 }
 
 /// Checks whether popup menu should be used for cmdline completion wildmenu.
@@ -4373,10 +4384,9 @@ pub fn set_cmd_context<T>(
     let mut old_char: u8 = 0;
 
     if col < len {
-        old_char = unsafe { *str_arg.wrapping_add(col as usize) };
-        unsafe {
-            *str_arg.wrapping_add(col as usize) = 0;
-        }
+        old_char = *crate::globals::gptr(str_arg.wrapping_add(col as usize));
+
+        *crate::globals::gptr(str_arg.wrapping_add(col as usize)) = 0;
     }
     let mut nextcomm: *const u8 = str_arg;
 
@@ -4406,9 +4416,7 @@ pub fn set_cmd_context<T>(
     xp.xp_col = col;
 
     if col < len {
-        unsafe {
-            *str_arg.wrapping_add(col as usize) = old_char;
-        }
+        *crate::globals::gptr(str_arg.wrapping_add(col as usize)) = old_char;
     }
 }
 
@@ -4651,14 +4659,14 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         && idx >= 0
         && (idx as usize) < cmdexp().healthcheck_names.data.array().size
     {
-        let item = unsafe {
-            *cmdexp()
+        let item = *crate::globals::gptr(
+            cmdexp()
                 .healthcheck_names
                 .data
                 .array()
                 .items
-                .wrapping_add(idx as usize)
-        };
+                .wrapping_add(idx as usize),
+        );
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
             return Some(unsafe { CStr::from_ptr(item.data.string().data) });
         }
@@ -4670,42 +4678,44 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
 fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let prompt_id = get_cmdline_last_prompt_id();
     let last_line_ptr = &raw const cmdexp().arg1_lua_last_xp_line;
-    unsafe {
-        if (*last_line_ptr).as_ref().is_none_or(|s| {
+
+    if crate::globals::gptr(last_line_ptr)
+        .as_ref()
+        .is_none_or(|s| {
             crate::memory::cstr_as_bytes(s.as_ptr())
                 != crate::memory::cstr_as_bytes(xp.xp_line.cast())
-        }) || cmdexp().arg1_lua_last_gen != prompt_id
-        {
-            cmdexp().arg1_lua_last_xp_line = Some(cstr_to_cstring(xp.xp_line.cast()));
-            let mut args_items = [
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(xp.xp_pattern.cast())),
-                },
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(xp.xp_line.cast())),
-                },
-            ];
-            let args = Array {
-                size: 2,
-                capacity: 2,
-                items: args_items.as_mut_ptr(),
-            };
-            let mut err = Error::new();
-            let res = nlua_exec(
-                cstr_as_string(lua.as_ptr()),
-                ptr::null(),
-                args,
-                K_RET_OBJECT,
-                None,
-                &mut err,
-            );
-            api_clear_error(&mut err);
-            api_free_object(cmdexp().arg1_lua_names);
-            cmdexp().arg1_lua_names = res;
-            cmdexp().arg1_lua_last_gen = prompt_id;
-        }
+        })
+        || cmdexp().arg1_lua_last_gen != prompt_id
+    {
+        cmdexp().arg1_lua_last_xp_line = Some(cstr_to_cstring(xp.xp_line.cast()));
+        let mut args_items = [
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(xp.xp_pattern.cast())),
+            },
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(xp.xp_line.cast())),
+            },
+        ];
+        let args = Array {
+            size: 2,
+            capacity: 2,
+            items: args_items.as_mut_ptr(),
+        };
+        let mut err = Error::new();
+        let res = nlua_exec(
+            cstr_as_string(lua.as_ptr()),
+            ptr::null(),
+            args,
+            K_RET_OBJECT,
+            None,
+            &mut err,
+        );
+        api_clear_error(&mut err);
+        api_free_object(cmdexp().arg1_lua_names);
+        cmdexp().arg1_lua_names = res;
+        cmdexp().arg1_lua_last_gen = prompt_id;
     }
 
     if cmdexp().arg1_lua_names.obj_type == ObjectType::ObjectTypeArray
@@ -4714,7 +4724,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
     {
         let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return unsafe { Some(CStr::from_ptr(item.data.string().data)) };
+            return Some(unsafe { CStr::from_ptr(item.data.string().data) });
         }
     }
     None
@@ -5429,50 +5439,40 @@ where
     let mut args: [TypVal; 4] = [TypVal::new(); 4];
     let save_current_sctx = g_st().current_sctx;
 
-    if unsafe { crate::memory::cstr_is_empty((*xp).xp_arg.cast()) }
-        || unsafe { (*xp).xp_line.is_null() }
+    if crate::memory::cstr_is_empty(crate::globals::gptr(xp).xp_arg.cast())
+        || crate::globals::gptr(xp).xp_line.is_null()
     {
         return default;
     }
 
     if !ccline.cmdbuff.is_null() {
-        unsafe {
-            keep = *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize);
-        }
-        unsafe {
-            *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize) = 0;
-        }
+        keep = *crate::globals::gptr(ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize));
+
+        *crate::globals::gptr(ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize)) = 0;
     }
 
-    let pat = unsafe {
-        cstr_from_bytes(crate::memory::cstr_slice(
-            (*xp).xp_pattern.cast(),
-            (*xp).xp_pattern_len,
-        ))
-    };
+    let pat = cstr_from_bytes(crate::memory::cstr_slice(
+        crate::globals::gptr(xp).xp_pattern.cast(),
+        crate::globals::gptr(xp).xp_pattern_len,
+    ));
     args[0].v_type = VarType::VarString;
     args[1].v_type = VarType::VarString;
     args[2].v_type = VarType::VarNumber;
     args[3].v_type = VarType::VarUnknown;
     args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
-    unsafe {
-        args[1].vval = crate::eval::typval::TypvalVval::String((*xp).xp_line.cast());
-    }
-    unsafe {
-        args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from((*xp).xp_col));
-    }
 
-    unsafe {
-        g_st().current_sctx = (*xp).xp_script_ctx;
-    }
+    args[1].vval = crate::eval::typval::TypvalVval::String(crate::globals::gptr(xp).xp_line.cast());
 
-    let ret = unsafe { user_expand_func((*xp).xp_arg, 3, args.as_mut_ptr()) };
+    args[2].vval =
+        crate::eval::typval::TypvalVval::Number(i64::from(crate::globals::gptr(xp).xp_col));
+
+    g_st().current_sctx = crate::globals::gptr(xp).xp_script_ctx;
+
+    let ret = user_expand_func(crate::globals::gptr(xp).xp_arg, 3, args.as_mut_ptr());
 
     g_st().current_sctx = save_current_sctx;
     if !ccline.cmdbuff.is_null() {
-        unsafe {
-            *ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize) = keep;
-        }
+        *crate::globals::gptr(ccline.cmdbuff.wrapping_add(ccline.cmdlen as usize)) = keep;
     }
 
     ret
@@ -5617,7 +5617,7 @@ fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
         return false;
     }
 
-    expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
+    expand_process_user_list(crate::globals::gopt(retlist), matches, xp);
     tv_list_unref(retlist);
     true
 }
@@ -5631,7 +5631,7 @@ fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     }
 
     let retlist = rettv.vval.v_list();
-    expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
+    expand_process_user_list(crate::globals::gopt(retlist), matches, xp);
     tv_list_unref(retlist);
     true
 }
@@ -5734,6 +5734,7 @@ pub fn wildmenu_translate_key(
 /// Delete characters on the command line, from "from" to the current position.
 fn cmdline_del(cclp: &mut CmdlineInfo, from: i32) {
     debug_assert!(cclp.cmdpos <= cclp.cmdlen);
+
     unsafe {
         ptr::copy(
             cclp.cmdbuff.wrapping_add(cclp.cmdpos as usize),
@@ -6114,43 +6115,41 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let ccline = get_cmdline_info();
 
     tv_dict_alloc_ret(rettv);
-    if ccline.xpc.is_null() || unsafe { (*ccline.xpc).xp_files.capacity() == 0 } {
+    if ccline.xpc.is_null() || crate::globals::gptr(ccline.xpc).xp_files.capacity() == 0 {
         return;
     }
     let orig_ptr = &cmdexp().cmdline_orig;
     let orig_ref = orig_ptr.as_ref();
 
     let retdict = rettv.vval.v_dict();
-    let mut ret = unsafe {
-        tv_dict_add_str_len(
-            &mut *retdict,
-            c"cmdline_orig",
-            orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast()),
-            orig_ref.map_or(0, |v| v.len() as i32),
-        )
-    };
+    let mut ret = tv_dict_add_str_len(
+        crate::globals::gmut(retdict),
+        c"cmdline_orig",
+        orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast()),
+        orig_ref.map_or(0, |v| v.len() as i32),
+    );
     if ret {
-        unsafe {
-            ret = tv_dict_add_nr(&mut *retdict, c"pum_visible", i64::from(pum_visible()));
-        }
+        ret = tv_dict_add_nr(
+            crate::globals::gmut(retdict),
+            c"pum_visible",
+            i64::from(pum_visible()),
+        );
     }
     if ret {
-        unsafe {
-            ret = tv_dict_add_nr(
-                &mut *retdict,
-                c"selected",
-                i64::from((*ccline.xpc).xp_selected),
-            );
-        }
+        ret = tv_dict_add_nr(
+            crate::globals::gmut(retdict),
+            c"selected",
+            i64::from(crate::globals::gptr(ccline.xpc).xp_selected),
+        );
     }
     if ret {
-        let li = unsafe { tv_list_alloc((*ccline.xpc).xp_numfiles as isize) };
-        unsafe {
-            ret = tv_dict_add_list(&mut *retdict, c"matches", li);
-        }
-        let files = unsafe { (*ccline.xpc).xp_files.as_slice() };
+        let li = tv_list_alloc(crate::globals::gptr(ccline.xpc).xp_numfiles as isize);
+
+        ret = tv_dict_add_list(crate::globals::gmut(retdict), c"matches", li);
+
+        let files = crate::globals::gref(ccline.xpc).xp_files.as_slice();
         let mut idx: usize = 0;
-        while ret && unsafe { (idx as i32) < (*ccline.xpc).xp_numfiles } {
+        while ret && (idx as i32) < crate::globals::gptr(ccline.xpc).xp_numfiles {
             tv_list_append_string(
                 &mut *li,
                 files[idx].as_ptr(),

@@ -57,7 +57,7 @@ static HIST_STATE: crate::globals::GlobalState<CmdhistState> =
 
 #[inline]
 fn hist_st() -> &'static mut CmdhistState {
-    unsafe { &mut *HIST_STATE.as_ptr() }
+    crate::globals::gmut(HIST_STATE.as_ptr())
 }
 
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];

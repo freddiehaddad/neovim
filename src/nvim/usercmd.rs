@@ -118,7 +118,7 @@ static UCMDS_STATE: GlobalState<Vec<Ucmd>> = GlobalState::new(Vec::new());
 
 #[inline]
 pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
-    unsafe { &mut *UCMDS_STATE.as_ptr() }
+    crate::globals::gmut(UCMDS_STATE.as_ptr())
 }
 
 const COMMAND_COMPLETE_LEN: usize = 64;
@@ -819,9 +819,9 @@ pub fn parse_addr_type_arg(
         .iter()
         .take_while(|&&b| !ascii_iswhite(i32::from(b)))
         .count();
-    unsafe {
-        *value.wrapping_add(i) = NUL;
-    }
+
+    *crate::globals::gptr(value.wrapping_add(i)) = NUL;
+
     semsg!(gettext(c"E180: Invalid address type value: %s"), value,);
     false
 }
@@ -1015,17 +1015,17 @@ fn uc_scan_attr<T>(
                 *argt |= EX_ZEROR;
             }
         } else {
-            let ch = unsafe { *attr.wrapping_add(len) };
-            unsafe {
-                *attr.wrapping_add(len) = 0;
-            }
+            let ch = *crate::globals::gptr(attr.wrapping_add(len));
+
+            *crate::globals::gptr(attr.wrapping_add(len)) = 0;
+
             semsg!(
                 gettext(c"E181: Invalid attribute: %s"),
                 attr.cast::<std::ffi::c_void>()
             );
-            unsafe {
-                *attr.wrapping_add(len) = ch;
-            }
+
+            *crate::globals::gptr(attr.wrapping_add(len)) = ch;
+
             return false;
         }
     }
@@ -1324,9 +1324,9 @@ pub fn uc_split_args_iter<T>(
         {
             pos += 1;
         }
-        unsafe {
-            *buf.wrapping_add(l) = arg_bytes[pos];
-        }
+
+        *crate::globals::gptr(buf.wrapping_add(l)) = arg_bytes[pos];
+
         l += 1;
         if arg_bytes
             .get(pos + 1)
@@ -1340,9 +1340,8 @@ pub fn uc_split_args_iter<T>(
     }
 
     if pos < arglen && !ascii_iswhite(i32::from(arg_bytes[pos])) {
-        unsafe {
-            *buf.wrapping_add(l) = arg_bytes[pos];
-        }
+        *crate::globals::gptr(buf.wrapping_add(l)) = arg_bytes[pos];
+
         l += 1;
     }
 

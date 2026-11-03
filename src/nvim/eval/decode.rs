@@ -46,7 +46,7 @@ struct JsonContainerStackItem {
 impl JsonContainerStackItem {
     #[inline]
     fn special_val_opt(&self) -> Option<&'static mut TvList> {
-        unsafe { self.special_val.as_mut() }
+        crate::globals::gopt_mut(self.special_val)
     }
 }
 
@@ -960,9 +960,9 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
     let mut result: *mut TypVal = std::ptr::null_mut();
     let parent = mpack_parent_node(&raw mut *node);
     if !parent.is_null() {
-        match unsafe { (*parent).tok.r#type } {
+        match crate::globals::gptr(parent).tok.r#type {
             MpackTokenType::MpackTokenArray => {
-                let list = unsafe { (*parent).data[1].list() };
+                let list = crate::globals::gptr(parent).data[1].list();
                 result = tv_list_append_owned_tv(
                     &mut *list,
                     TypVal {
@@ -973,9 +973,9 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                 );
             }
             MpackTokenType::MpackTokenMap => {
-                let pos = unsafe { (*parent).pos };
-                let key_visited = unsafe { (*parent).key_visited as usize };
-                let items = unsafe { (*parent).data[1].map_pairs_mut() };
+                let pos = crate::globals::gptr(parent).pos;
+                let key_visited = crate::globals::gptr(parent).key_visited as usize;
+                let items = crate::globals::gmut(parent).data[1].map_pairs_mut();
                 result = &raw mut items[pos][key_visited];
             }
             MpackTokenType::MpackTokenStr
@@ -993,65 +993,65 @@ fn typval_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
     node.data[1] = MpackData::Null;
 
     match node.tok.r#type {
-        MpackTokenType::MpackTokenNil => unsafe {
-            *result = TypVal {
+        MpackTokenType::MpackTokenNil => {
+            *crate::globals::gptr(result) = TypVal {
                 v_type: VarType::VarSpecial,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(K_SPECIAL_VAR_NULL),
-            };
-        },
-        MpackTokenType::MpackTokenBoolean => {
-            let b = mpack_unpack_boolean(node.tok);
-            unsafe {
-                *result = TypVal {
-                    v_type: VarType::VarBool,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
-                };
             }
         }
-        MpackTokenType::MpackTokenSint => unsafe {
-            *result = TypVal {
+        MpackTokenType::MpackTokenBoolean => {
+            let b = mpack_unpack_boolean(node.tok);
+
+            *crate::globals::gptr(result) = TypVal {
+                v_type: VarType::VarBool,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::Number(if b { K_BOOL_VAR_TRUE } else { K_BOOL_VAR_FALSE }),
+            };
+        }
+        MpackTokenType::MpackTokenSint => {
+            *crate::globals::gptr(result) = TypVal {
                 v_type: VarType::VarNumber,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(mpack_unpack_sint(node.tok)),
-            };
-        },
-        MpackTokenType::MpackTokenUint => unsafe {
-            positive_integer_to_special_typval(&mut *result, mpack_unpack_uint(node.tok));
-        },
-        MpackTokenType::MpackTokenFloat => unsafe {
-            *result = TypVal {
+            }
+        }
+        MpackTokenType::MpackTokenUint => positive_integer_to_special_typval(
+            crate::globals::gmut(result),
+            mpack_unpack_uint(node.tok),
+        ),
+        MpackTokenType::MpackTokenFloat => {
+            *crate::globals::gptr(result) = TypVal {
                 v_type: VarType::VarFloat,
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Float(mpack_unpack_float_fast(node.tok)),
-            };
-        },
+            }
+        }
         MpackTokenType::MpackTokenBin
         | MpackTokenType::MpackTokenStr
         | MpackTokenType::MpackTokenExt => {
             node.data[1] = MpackData::OwnedBytes(vec![0u8; node.tok.length as usize]);
         }
         MpackTokenType::MpackTokenChunk => {
-            let data = unsafe { (*parent).data[1].owned_bytes_mut() };
+            let data = crate::globals::gmut(parent).data[1].owned_bytes_mut();
             let len = node.tok.length as usize;
             if len > 0 {
                 let chunk = node.tok.data.chunk_bytes(len);
-                unsafe {
-                    data[(*parent).pos..((*parent).pos + len)].copy_from_slice(chunk);
-                }
+
+                data[crate::globals::gptr(parent).pos..(crate::globals::gptr(parent).pos + len)]
+                    .copy_from_slice(chunk);
             }
         }
         MpackTokenType::MpackTokenArray => {
             let list = tv_list_alloc(node.tok.length as isize);
             tv_list_ref(Some(&mut *list));
-            unsafe {
-                *result = TypVal {
-                    v_type: VarType::VarList,
-                    v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::List(list),
-                };
-            }
+
+            *crate::globals::gptr(result) = TypVal {
+                v_type: VarType::VarList,
+                v_lock: VAR_UNLOCKED,
+                vval: TypvalVval::List(list),
+            };
+
             node.data[1] = MpackData::List(list);
         }
         MpackTokenType::MpackTokenMap => {

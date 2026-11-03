@@ -21,7 +21,7 @@ static GC_STATE: crate::globals::GlobalState<GcModuleState> =
 
 #[inline]
 fn gc_st() -> &'static mut GcModuleState {
-    unsafe { &mut *GC_STATE.as_ptr() }
+    crate::globals::gmut(GC_STATE.as_ptr())
 }
 
 #[inline]
@@ -36,9 +36,8 @@ pub fn gc_unregister_dict(idx: usize) {
     gc_st().gc_dicts.swap_remove(idx);
     if idx < gc_st().gc_dicts.len() {
         let moved = gc_st().gc_dicts.as_slice()[idx];
-        unsafe {
-            (*moved).dv_gc_idx = Some(idx);
-        }
+
+        crate::globals::gptr(moved).dv_gc_idx = Some(idx);
     }
 }
 
@@ -53,7 +52,7 @@ pub fn gc_register_list(l: &mut TvList) {
     let ptr: *mut TvList = l;
     gc_st().gc_lists.push(ptr);
     l.lv_gc_idx = Some(idx);
-    unsafe { *gc_first_list.as_ptr() = ptr };
+    *crate::globals::gptr(gc_first_list.as_ptr()) = ptr;
 }
 
 #[inline]
@@ -61,17 +60,15 @@ pub fn gc_unregister_list(idx: usize) {
     gc_st().gc_lists.swap_remove(idx);
     if idx < gc_st().gc_lists.len() {
         let moved = gc_st().gc_lists.as_slice()[idx];
-        unsafe {
-            (*moved).lv_gc_idx = Some(idx);
-        }
+
+        crate::globals::gptr(moved).lv_gc_idx = Some(idx);
     }
-    unsafe {
-        *gc_first_list.as_ptr() = gc_st()
-            .gc_lists
-            .last()
-            .copied()
-            .unwrap_or(std::ptr::null_mut());
-    }
+
+    *crate::globals::gptr(gc_first_list.as_ptr()) = gc_st()
+        .gc_lists
+        .last()
+        .copied()
+        .unwrap_or(std::ptr::null_mut());
 }
 
 #[inline]

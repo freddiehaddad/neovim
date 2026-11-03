@@ -322,12 +322,12 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_list_ref(self) -> &'static mut TvList {
-        unsafe { &mut *self.v_list() }
+        crate::globals::gmut(self.v_list())
     }
 
     #[inline]
     pub fn v_list_opt(self) -> Option<&'static mut TvList> {
-        unsafe { self.v_list().as_mut() }
+        crate::globals::gopt_mut(self.v_list())
     }
 
     #[inline]
@@ -340,12 +340,12 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_dict_ref(self) -> &'static mut TvDict {
-        unsafe { &mut *self.v_dict() }
+        crate::globals::gmut(self.v_dict())
     }
 
     #[inline]
     pub fn v_dict_opt(self) -> Option<&'static mut TvDict> {
-        unsafe { self.v_dict().as_mut() }
+        crate::globals::gopt_mut(self.v_dict())
     }
 
     #[inline]
@@ -369,12 +369,12 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_blob_ref(self) -> &'static mut TvBlob {
-        unsafe { &mut *self.v_blob() }
+        crate::globals::gmut(self.v_blob())
     }
 
     #[inline]
     pub fn v_blob_opt(self) -> Option<&'static mut TvBlob> {
-        unsafe { self.v_blob().as_mut() }
+        crate::globals::gopt_mut(self.v_blob())
     }
 
     #[inline]
@@ -387,7 +387,7 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_partial_opt(self) -> Option<&'static mut TvPartial> {
-        unsafe { self.v_partial().as_mut() }
+        crate::globals::gopt_mut(self.v_partial())
     }
 
     #[inline]
@@ -443,7 +443,7 @@ impl Listitem {
 
     #[inline]
     pub fn next_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.li_next.as_mut() }
+        crate::globals::gopt_mut(self.li_next)
     }
 }
 
@@ -495,12 +495,12 @@ impl TvList {
 
     #[inline]
     pub fn first_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.lv_first.as_mut() }
+        crate::globals::gopt_mut(self.lv_first)
     }
 
     #[inline]
     pub fn last_opt(&self) -> Option<&'static mut Listitem> {
-        unsafe { self.lv_last.as_mut() }
+        crate::globals::gopt_mut(self.lv_last)
     }
 }
 
@@ -711,7 +711,7 @@ struct ListSortItem {
 impl ListSortItem {
     #[inline]
     fn item_mut(&self) -> &'static mut Listitem {
-        unsafe { &mut *self.item }
+        crate::globals::gmut(self.item)
     }
 }
 
@@ -743,7 +743,7 @@ static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
 
 #[inline]
 pub(crate) fn tv_st() -> &'static mut TypvalModuleState {
-    unsafe { &mut *TV_STATE.as_ptr() }
+    crate::globals::gmut(TV_STATE.as_ptr())
 }
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
@@ -784,7 +784,7 @@ pub fn nlua_clear_ref(r: &mut LuaRef) {
 
 #[inline]
 pub fn tv_dict_hi2di(hi: *const Hashitem) -> &'static mut Dictitem {
-    unsafe { &mut *(*hi).hi_di }
+    crate::globals::gmut(crate::globals::gptr(hi).hi_di)
 }
 
 #[inline]
@@ -806,9 +806,7 @@ pub fn tv_alloc_string_bytes(bytes: &[u8]) -> RawCCharPtrMut {
 #[inline]
 pub fn tv_free_string(p: RawCCharPtrMut) {
     if !p.is_null() {
-        unsafe {
-            drop(std::ffi::CString::from_raw(p));
-        }
+        drop(unsafe { std::ffi::CString::from_raw(p) });
     }
 }
 
@@ -872,7 +870,7 @@ fn tv_list_ref_inline(l: Option<&mut TvList>) {
 fn tv_list_set_ret_inline(tv: &mut TypVal, l: *mut TvList) {
     tv.v_type = VarType::VarList;
     tv.vval = crate::eval::typval::TypvalVval::List(l);
-    tv_list_ref_inline(unsafe { l.as_mut() });
+    tv_list_ref_inline(crate::globals::gopt_mut(l));
 }
 
 #[inline]
@@ -898,9 +896,9 @@ impl Iterator for ListMutIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*cur).li_next;
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(cur).li_next;
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -917,9 +915,9 @@ impl Iterator for ListPtrIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*cur).li_next;
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(cur).li_next;
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -990,7 +988,7 @@ impl<'a> Iterator for TvListIter<'a> {
         if self.cur.is_null() {
             return None;
         }
-        let item = unsafe { &*self.cur };
+        let item = crate::globals::gref(self.cur);
         if ptr::eq(self.cur, self.last) {
             self.cur = ptr::null();
         } else {
@@ -1040,9 +1038,7 @@ fn tv_dict_set_ret_inline(tv: &mut TypVal, d: *mut TvDict) {
     tv.v_type = VarType::VarDict;
     tv.vval = crate::eval::typval::TypvalVval::Dict(d);
     if !d.is_null() {
-        unsafe {
-            (*d).dv_refcount += 1;
-        }
+        crate::globals::gptr(d).dv_refcount += 1;
     }
 }
 
@@ -1061,9 +1057,7 @@ fn tv_blob_set_ret_inline(tv: &mut TypVal, b: *mut TvBlob) {
     tv.v_type = VarType::VarBlob;
     tv.vval = crate::eval::typval::TypvalVval::Blob(b);
     if !b.is_null() {
-        unsafe {
-            (*b).bv_refcount += 1;
-        }
+        crate::globals::gptr(b).bv_refcount += 1;
     }
 }
 
@@ -1111,13 +1105,12 @@ fn tv_list_item_alloc() -> &'static mut Listitem {
 
 /// Remove a list item from a List and free it.
 pub fn tv_list_item_remove(l: &mut TvList, item: *mut Listitem) -> *mut Listitem {
-    let next_item = unsafe { (*item).li_next };
-    unsafe {
-        tv_list_drop_items(l, item, &mut *item);
-    }
-    unsafe {
-        drop(Box::from_raw(item));
-    }
+    let next_item = crate::globals::gptr(item).li_next;
+
+    tv_list_drop_items(l, item, crate::globals::gmut(item));
+
+    drop(unsafe { Box::from_raw(item) });
+
     next_item
 }
 
@@ -1173,7 +1166,7 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
     const SL_SIZE: usize = 10;
     *sl = StaticList10::new();
     let l = &raw mut sl.sl_list;
-    let l = unsafe { &mut *l };
+    let l = crate::globals::gmut(l);
     let items = (&raw mut sl.sl_items).cast::<Listitem>();
 
     l.lv_first = items;
@@ -1182,27 +1175,20 @@ pub fn tv_list_init_static10(sl: &mut StaticList10) {
     tv_list_set_lock_inline(Some(&mut *l), VAR_FIXED);
     l.lv_len = 10;
 
-    unsafe {
-        (*items).li_prev = ptr::null_mut();
-    }
-    unsafe {
-        (*items).li_next = items.wrapping_add(1);
-    }
-    unsafe {
-        (*items.wrapping_add(SL_SIZE - 1)).li_prev = items.wrapping_add(SL_SIZE - 2);
-    }
-    unsafe {
-        (*items.wrapping_add(SL_SIZE - 1)).li_next = ptr::null_mut();
-    }
+    crate::globals::gptr(items).li_prev = ptr::null_mut();
+
+    crate::globals::gptr(items).li_next = items.wrapping_add(1);
+
+    crate::globals::gptr(items.wrapping_add(SL_SIZE - 1)).li_prev = items.wrapping_add(SL_SIZE - 2);
+
+    crate::globals::gptr(items.wrapping_add(SL_SIZE - 1)).li_next = ptr::null_mut();
 
     for i in 1..(SL_SIZE - 1) {
         let li = items.wrapping_add(i);
-        unsafe {
-            (*li).li_prev = li.wrapping_sub(1);
-        }
-        unsafe {
-            (*li).li_next = li.wrapping_add(1);
-        }
+
+        crate::globals::gptr(li).li_prev = li.wrapping_sub(1);
+
+        crate::globals::gptr(li).li_next = li.wrapping_add(1);
     }
 }
 
@@ -1216,7 +1202,7 @@ pub fn tv_list_init_static(l: &mut TvList) {
 pub fn tv_list_free_contents(l: &mut TvList) {
     let mut item = l.lv_first;
     while !item.is_null() {
-        l.lv_first = unsafe { (*item).li_next };
+        l.lv_first = crate::globals::gptr(item).li_next;
         drop(unsafe { Box::from_raw(item) });
         item = l.lv_first;
     }
@@ -1233,18 +1219,15 @@ pub extern "C" fn tv_list_free(l: *mut TvList) {
         return;
     }
 
-    unsafe {
-        tv_list_free_contents(&mut *l);
-    }
-    unsafe {
-        drop(Box::from_raw(l));
-    }
+    tv_list_free_contents(crate::globals::gmut(l));
+
+    drop(unsafe { Box::from_raw(l) });
 }
 
 /// Unreference a list.
 pub fn tv_list_unref(l: *mut TvList) {
     if !l.is_null() {
-        let l = unsafe { &mut *l };
+        let l = crate::globals::gmut(l);
         l.lv_refcount -= 1;
         if l.lv_refcount <= 0 {
             tv_list_free(l);
@@ -1257,29 +1240,21 @@ pub fn tv_list_drop_items(l: &mut TvList, item: *mut Listitem, item2: &mut Listi
     let mut ip = item;
     while ip != item2.li_next {
         l.lv_len -= 1;
-        unsafe {
-            tv_list_watch_fix(l, &*ip);
-        }
-        unsafe {
-            ip = (*ip).li_next;
-        }
+
+        tv_list_watch_fix(l, crate::globals::gref(ip));
+
+        ip = crate::globals::gptr(ip).li_next;
     }
 
     if item2.li_next.is_null() {
-        unsafe {
-            l.lv_last = (*item).li_prev;
-        }
+        l.lv_last = crate::globals::gptr(item).li_prev;
     } else {
-        unsafe {
-            (*item2.li_next).li_prev = (*item).li_prev;
-        }
+        crate::globals::gptr(item2.li_next).li_prev = crate::globals::gptr(item).li_prev;
     }
-    if unsafe { (*item).li_prev.is_null() } {
+    if crate::globals::gptr(item).li_prev.is_null() {
         l.lv_first = item2.li_next;
     } else {
-        unsafe {
-            (*(*item).li_prev).li_next = item2.li_next;
-        }
+        crate::globals::gptr(crate::globals::gptr(item).li_prev).li_next = item2.li_next;
     }
     l.lv_idx_item = ptr::null_mut();
 }
@@ -1289,7 +1264,7 @@ pub fn tv_list_remove_items(l: &mut TvList, item: *mut Listitem, item2: &mut Lis
     tv_list_drop_items(l, item, item2);
     let mut li = item;
     loop {
-        let nli = unsafe { (*li).li_next };
+        let nli = crate::globals::gptr(li).li_next;
         drop(unsafe { Box::from_raw(li) });
         if li == (&raw mut *item2) {
             break;
@@ -1312,9 +1287,7 @@ pub fn tv_list_move_items(
     if tgt_l.lv_last.is_null() {
         tgt_l.lv_first = (&raw mut *item);
     } else {
-        unsafe {
-            (*tgt_l.lv_last).li_next = (&raw mut *item);
-        }
+        crate::globals::gptr(tgt_l.lv_last).li_next = (&raw mut *item);
     }
     tgt_l.lv_last = item2;
     tgt_l.lv_len += cnt;
@@ -1325,22 +1298,20 @@ pub fn tv_list_insert(l: &mut TvList, ni: &mut Listitem, item: *mut Listitem) {
     if item.is_null() {
         tv_list_append(l, ni);
     } else {
-        unsafe {
-            ni.li_prev = (*item).li_prev;
-        }
+        ni.li_prev = crate::globals::gptr(item).li_prev;
+
         ni.li_next = item;
-        if unsafe { (*item).li_prev.is_null() } {
+        if crate::globals::gptr(item).li_prev.is_null() {
             l.lv_first = (&raw mut *ni);
             l.lv_idx += 1;
         } else {
-            unsafe {
-                (*(*item).li_prev).li_next = (&raw mut *ni);
-            }
+            crate::globals::gptr(crate::globals::gptr(item).li_prev).li_next = (&raw mut *ni);
+
             l.lv_idx_item = ptr::null_mut();
         }
-        unsafe {
-            (*item).li_prev = (&raw mut *ni);
-        }
+
+        crate::globals::gptr(item).li_prev = (&raw mut *ni);
+
         l.lv_len += 1;
     }
 }
@@ -1359,9 +1330,8 @@ pub fn tv_list_append(l: &mut TvList, item: &mut Listitem) {
         l.lv_last = (&raw mut *item);
         item.li_prev = ptr::null_mut();
     } else {
-        unsafe {
-            (*l.lv_last).li_next = (&raw mut *item);
-        }
+        crate::globals::gptr(l.lv_last).li_next = (&raw mut *item);
+
         item.li_prev = l.lv_last;
         l.lv_last = (&raw mut *item);
     }
@@ -1394,7 +1364,7 @@ pub fn tv_list_append_list(l: &mut TvList, itemlist: *mut TvList) {
             vval: TypvalVval::List(itemlist),
         },
     );
-    tv_list_ref_inline(unsafe { itemlist.as_mut() });
+    tv_list_ref_inline(crate::globals::gopt_mut(itemlist));
 }
 
 /// Append a dictionary to a list.
@@ -1408,9 +1378,7 @@ pub fn tv_list_append_dict(l: &mut TvList, dict: *mut TvDict) {
         },
     );
     if !dict.is_null() {
-        unsafe {
-            (*dict).dv_refcount += 1;
-        }
+        crate::globals::gptr(dict).dv_refcount += 1;
     }
 }
 
@@ -1557,7 +1525,7 @@ pub fn tv_list_assign_range(
 ) -> bool {
     let op = op.into_c_char_ptr();
     let varname = varname.into_c_char_ptr();
-    unsafe {
+    {
         let mut idx1 = idx1_arg;
         let first_li = tv_list_find_index(Some(&mut *dest), &mut idx1);
         let mut src_li: *mut Listitem;
@@ -1566,14 +1534,18 @@ pub fn tv_list_assign_range(
         let mut dest_li = first_li;
         src_li = tv_list_first_inline(src);
         while !src_li.is_null() && !dest_li.is_null() {
-            if value_check_lock((*dest_li).li_tv.v_lock, varname, TV_CSTRING) {
+            if value_check_lock(
+                crate::globals::gptr(dest_li).li_tv.v_lock,
+                varname,
+                TV_CSTRING,
+            ) {
                 return false;
             }
-            src_li = (*src_li).li_next;
+            src_li = crate::globals::gptr(src_li).li_next;
             if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
                 break;
             }
-            dest_li = (*dest_li).li_next;
+            dest_li = crate::globals::gptr(dest_li).li_next;
             idx += 1;
         }
 
@@ -1584,23 +1556,26 @@ pub fn tv_list_assign_range(
             debug_assert!(!dest_li.is_null());
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 eexe_mod_op(
-                    &mut (*dest_li).li_tv,
-                    &(*src_li).li_tv,
+                    &mut crate::globals::gptr(dest_li).li_tv,
+                    &crate::globals::gptr(src_li).li_tv,
                     crate::memory::cstr_from_ptr(op),
                 );
             } else {
-                tv_clear(&mut (*dest_li).li_tv);
-                tv_copy(&(*src_li).li_tv, &mut (*dest_li).li_tv);
+                tv_clear(&mut crate::globals::gptr(dest_li).li_tv);
+                tv_copy(
+                    &crate::globals::gptr(src_li).li_tv,
+                    &mut crate::globals::gptr(dest_li).li_tv,
+                );
             }
-            src_li = (*src_li).li_next;
+            src_li = crate::globals::gptr(src_li).li_next;
             if src_li.is_null() || (!empty_idx2 && idx2 == idx) {
                 break;
             }
-            if (*dest_li).li_next.is_null() {
+            if crate::globals::gptr(dest_li).li_next.is_null() {
                 tv_list_append_number(dest, 0);
                 dest_li = tv_list_last_inline(Some(dest));
             } else {
-                dest_li = (*dest_li).li_next;
+                dest_li = crate::globals::gptr(dest_li).li_next;
             }
             idx += 1;
         }
@@ -1609,7 +1584,7 @@ pub fn tv_list_assign_range(
             return false;
         }
         if if empty_idx2 {
-            !dest_li.is_null() && !(*dest_li).li_next.is_null()
+            !dest_li.is_null() && !crate::globals::gptr(dest_li).li_next.is_null()
         } else {
             idx != idx2
         } {
@@ -1653,9 +1628,8 @@ pub fn tv_list_flatten(list: &mut TvList, first: *mut Listitem, maxitems: i64, m
                 let sub_len = itemlist.opt().map_or(0, |l| i64::from(l.lv_len));
                 tv_list_flatten(list, sub_first, sub_len, maxdepth - 1);
             }
-            unsafe {
-                drop(Box::from_raw(item.as_ptr()));
-            }
+
+            drop(unsafe { Box::from_raw(item.as_ptr()) });
         }
 
         done += 1;
@@ -1736,15 +1710,15 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef: *mut Listitem) 
     let befbef = if bef.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*bef).li_prev }
+        crate::globals::gptr(bef).li_prev
     };
     let saved_next = if befbef.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*befbef).li_next }
+        crate::globals::gptr(befbef).li_next
     };
     let mut item = tv_list_first_inline(l2);
-    while let Some(item_ref) = unsafe { item.as_mut() }
+    while let Some(item_ref) = crate::globals::gopt_mut(item)
         && todo > 0
     {
         todo -= 1;
@@ -1772,7 +1746,7 @@ pub fn tv_list_concat(
     } else {
         let copy = tv_list_copy(None, l1.as_deref_mut(), false, 0);
         if !copy.is_null() && l2.is_some() {
-            tv_list_extend(unsafe { &mut *copy }, l2.as_deref(), ptr::null_mut());
+            tv_list_extend(crate::globals::gmut(copy), l2.as_deref(), ptr::null_mut());
         }
         copy
     };
@@ -2184,7 +2158,7 @@ fn item_compare2(
             .as_ref()
             .map_or(ptr::null(), |s| s.as_ptr())
     } else {
-        partial_name(unsafe { partial.as_ref() }).as_ptr()
+        partial_name(crate::globals::gopt(partial)).as_ptr()
     };
 
     let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
@@ -2306,7 +2280,7 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
         .as_deref()
         .and_then(|l| l.first_opt())
         .map_or(ptr::null_mut(), |first| first.li_next);
-    while let Some(cur_li) = unsafe { li.as_mut() } {
+    while let Some(cur_li) = crate::globals::gopt_mut(li) {
         let prev_li = cur_li.li_prev;
         let prev_si = ListSortItem {
             item: prev_li,
@@ -2536,11 +2510,11 @@ pub fn tv_list_find(mut l: Option<&mut TvList>, mut n: i32) -> *mut Listitem {
     }
 
     while n > idx {
-        item = unsafe { (*item).li_next };
+        item = crate::globals::gptr(item).li_next;
         idx += 1;
     }
     while n < idx {
-        item = unsafe { (*item).li_prev };
+        item = crate::globals::gptr(item).li_prev;
         idx -= 1;
     }
 
@@ -2557,7 +2531,7 @@ pub fn tv_list_find_opt(l: Option<&mut TvList>, n: i32) -> Option<&'static mut L
     if li.is_null() {
         None
     } else {
-        Some(unsafe { &mut *li })
+        Some(crate::globals::gmut(li))
     }
 }
 
@@ -2668,9 +2642,8 @@ pub fn callback_put(cb: &mut Callback, tv: &mut TypVal) {
             let pt = cb.data.as_partial();
             tv.v_type = VarType::VarPartial;
             tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
-            unsafe {
-                (*pt).pt_refcount += 1;
-            }
+
+            crate::globals::gptr(pt).pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = cb.data.as_funcref();
@@ -2691,9 +2664,8 @@ pub fn callback_copy(dest: &mut Callback, src: &Callback) {
         K_CALLBACK_PARTIAL => {
             let pt = src.data.as_partial();
             dest.data = CallbackData::partial(pt);
-            unsafe {
-                (*pt).pt_refcount += 1;
-            }
+
+            crate::globals::gptr(pt).pt_refcount += 1;
         }
         K_CALLBACK_FUNCREF => {
             let funcref = src.data.as_funcref();
@@ -2736,7 +2708,10 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
         }
         K_CALLBACK_PARTIAL => {
             let pt = cb.data.as_partial();
-            let s = unsafe { (*pt).pt_name.as_ref().map_or(&[][..], |n| n.as_bytes()) };
+            let s = crate::globals::gref(pt)
+                .pt_name
+                .as_ref()
+                .map_or(&[][..], |n| n.as_bytes());
             let prefix = b"<vim partial: ";
             let suffix = b">";
             let copy_len = s.len().min(MSGLEN - prefix.len() - suffix.len());
@@ -2895,14 +2870,10 @@ pub fn tv_dict_item_alloc(key: impl crate::strings::IntoCCharPtr) -> &'static mu
 
 /// Free a dictionary item, also clearing the value.
 pub fn tv_dict_item_free(item: *mut Dictitem) {
-    if unsafe { ((*item).di_flags & DI_FLAGS_ALLOC) != 0 } {
-        unsafe {
-            drop(Box::from_raw(item));
-        }
+    if (crate::globals::gptr(item).di_flags & DI_FLAGS_ALLOC) != 0 {
+        drop(unsafe { Box::from_raw(item) });
     } else {
-        unsafe {
-            tv_clear(&mut (*item).di_tv);
-        }
+        tv_clear(&mut crate::globals::gptr(item).di_tv);
     }
 }
 
@@ -2967,12 +2938,9 @@ pub fn tv_dict_free(d: *mut TvDict) {
         return;
     }
 
-    unsafe {
-        tv_list_dict_free_dict_inner(&mut *d);
-    }
-    unsafe {
-        drop(Box::from_raw(d));
-    }
+    tv_list_dict_free_dict_inner(crate::globals::gmut(d));
+
+    drop(unsafe { Box::from_raw(d) });
 }
 
 #[inline]
@@ -2983,7 +2951,7 @@ fn tv_list_dict_free_dict_inner(d: &mut TvDict) {
 /// Unreference a dictionary.
 pub fn tv_dict_unref(d: *mut TvDict) {
     if !d.is_null() {
-        let d = unsafe { &mut *d };
+        let d = crate::globals::gmut(d);
         d.dv_refcount -= 1;
         if d.dv_refcount <= 0 {
             tv_dict_free(d);
@@ -3021,7 +2989,7 @@ pub fn tv_dict_find_opt<S: crate::strings::IntoCCharPtr>(
     if di.is_null() {
         None
     } else {
-        Some(unsafe { &mut *di })
+        Some(crate::globals::gmut(di))
     }
 }
 
@@ -3164,10 +3132,15 @@ pub fn tv_dict_wrong_func_name(
 
 /// Add item to dictionary.
 pub fn tv_dict_add(d: &mut TvDict, item: *mut Dictitem) -> bool {
-    if unsafe { tv_dict_wrong_func_name(d, &mut (*item).di_tv, (*item).key_cstr()) != 0 } {
+    if tv_dict_wrong_func_name(
+        d,
+        &mut crate::globals::gptr(item).di_tv,
+        crate::globals::gptr(item).key_cstr(),
+    ) != 0
+    {
         return false;
     }
-    unsafe { hash_add(&mut d.dv_hashtab, &mut *item) }
+    hash_add(&mut d.dv_hashtab, crate::globals::gmut(item))
 }
 
 /// Add a list entry to dictionary.
@@ -3186,7 +3159,7 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
             tv_dict_item_free(item);
             return false;
         }
-        tv_list_ref_inline(unsafe { list.as_mut() });
+        tv_list_ref_inline(crate::globals::gopt_mut(list));
         true
     }
 }
@@ -3218,9 +3191,9 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
             tv_dict_item_free(item);
             return false;
         }
-        unsafe {
-            (*dict).dv_refcount += 1;
-        }
+
+        crate::globals::gptr(dict).dv_refcount += 1;
+
         true
     }
 }
@@ -3510,7 +3483,7 @@ pub fn tv_blob_alloc() -> &'static mut TvBlob {
 
 /// Unreference a blob.
 pub fn tv_blob_unref(b: *mut TvBlob) {
-    if let Some(b_ref) = unsafe { b.as_mut() } {
+    if let Some(b_ref) = crate::globals::gopt_mut(b) {
         b_ref.bv_refcount -= 1;
         if b_ref.bv_refcount <= 0 {
             drop(unsafe { Box::from_raw(b) });
@@ -3938,7 +3911,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
             return;
         };
         let dict = pt.pt_dict.cast::<TvDict>();
-        debug_assert!(dict.is_null() || unsafe { (*dict).dv_copy_id } == copy_id);
+        debug_assert!(dict.is_null() || crate::globals::gptr(dict).dv_copy_id == copy_id);
         pt.pt_dict = ptr::null_mut();
         pt.pt_argv.clear();
         debug_assert!(pt.pt_refcount <= 1);
@@ -3950,12 +3923,10 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
 
 #[inline]
 fn nothing_conv_empty_dict(tv: Option<&mut TypVal>, dictp: *mut *mut TvDict) {
-    unsafe {
-        tv_dict_unref(*dictp);
-    }
-    unsafe {
-        *dictp = ptr::null_mut();
-    }
+    tv_dict_unref(*crate::globals::gptr(dictp));
+
+    *crate::globals::gptr(dictp) = ptr::null_mut();
+
     if let Some(tv) = tv {
         tv.v_lock = VAR_UNLOCKED;
     }
@@ -3996,13 +3967,11 @@ fn nothing_conv_real_dict_after_start(
     if let Some(tv) = tv {
         tv.v_lock = VAR_UNLOCKED;
     }
-    if !dictp.is_null() && unsafe { (**dictp).dv_refcount > 1 } {
-        unsafe {
-            (**dictp).dv_refcount -= 1;
-        }
-        unsafe {
-            *dictp = ptr::null_mut();
-        }
+    if !dictp.is_null() && crate::globals::gptr(*crate::globals::gptr(dictp)).dv_refcount > 1 {
+        crate::globals::gptr(*crate::globals::gptr(dictp)).dv_refcount -= 1;
+
+        *crate::globals::gptr(dictp) = ptr::null_mut();
+
         if let MPConvStackData::Dict { ref mut todo, .. } = mpsv.data {
             *todo = 0;
         }
@@ -4014,12 +3983,9 @@ fn nothing_conv_real_dict_after_start(
 #[inline]
 fn nothing_conv_dict_end(dictp: *mut *mut TvDict) {
     if !dictp.is_null() {
-        unsafe {
-            tv_dict_unref(*dictp);
-        }
-        unsafe {
-            *dictp = ptr::null_mut();
-        }
+        tv_dict_unref(*crate::globals::gptr(dictp));
+
+        *crate::globals::gptr(dictp) = ptr::null_mut();
     }
 }
 
@@ -4055,7 +4021,7 @@ fn nothing_convert_one_value(
             let fun = if pt.is_null() {
                 ptr::null()
             } else {
-                unsafe { partial_name(pt.as_ref()).as_ptr() }
+                partial_name(crate::globals::gopt(pt)).as_ptr()
             };
             if nothing_conv_func_start(tv, fun) != NOTDONE {
                 return true;
@@ -4071,28 +4037,26 @@ fn nothing_convert_one_value(
         }
         VarType::VarList => {
             let list = tv.vval.v_list();
-            if list.is_null() || unsafe { tv_list_len_inline(list.as_ref()) == 0 } {
+            if list.is_null() || tv_list_len_inline(crate::globals::gopt(list)) == 0 {
                 tv_list_unref(list);
                 tv.vval = crate::eval::typval::TypvalVval::List(ptr::null_mut());
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
-            let saved_copy_id = unsafe { (*list).lv_copy_id };
-            if unsafe { (*list).lv_copy_id == copy_id } {
+            let saved_copy_id = crate::globals::gptr(list).lv_copy_id;
+            if crate::globals::gptr(list).lv_copy_id == copy_id {
                 return true;
             }
-            unsafe {
-                (*list).lv_copy_id = copy_id;
-            }
-            let mut mpsv = unsafe {
-                MPConvStackVal {
-                    tv: &raw mut *tv,
-                    saved_copy_id,
-                    data: MPConvStackData::List {
-                        list,
-                        li: tv_list_first_inline(list.as_ref()),
-                    },
-                }
+
+            crate::globals::gptr(list).lv_copy_id = copy_id;
+
+            let mut mpsv = MPConvStackVal {
+                tv: &raw mut *tv,
+                saved_copy_id,
+                data: MPConvStackData::List {
+                    list,
+                    li: tv_list_first_inline(crate::globals::gopt(list)),
+                },
             };
             let _ = nothing_conv_real_list_after_start(tv, &mut mpsv);
             mpstack.push(mpsv);
@@ -4107,35 +4071,35 @@ fn nothing_convert_one_value(
         }
         VarType::VarDict => {
             let tv_ptr = &raw mut *tv;
-            let dict = unsafe { (*tv_ptr).vval.v_dict() };
-            let dictp = unsafe { (*tv_ptr).vval.v_dict_mut() };
-            if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
-                unsafe {
-                    nothing_conv_empty_dict(Some(&mut *tv_ptr), dictp);
-                }
+            let dict = crate::globals::gptr(tv_ptr).vval.v_dict();
+            let dictp = crate::globals::gmut(tv_ptr).vval.v_dict_mut();
+            if dict.is_null() || crate::globals::gptr(dict).dv_hashtab.ht_used == 0 {
+                nothing_conv_empty_dict(Some(crate::globals::gmut(tv_ptr)), dictp);
+
                 return true;
             }
-            let saved_copy_id = unsafe { (*dict).dv_copy_id };
-            if unsafe { (*dict).dv_copy_id == copy_id } {
+            let saved_copy_id = crate::globals::gptr(dict).dv_copy_id;
+            if crate::globals::gptr(dict).dv_copy_id == copy_id {
                 return true;
             }
-            unsafe {
-                (*dict).dv_copy_id = copy_id;
-            }
-            let mut mpsv = unsafe {
-                MPConvStackVal {
-                    tv: tv_ptr,
-                    saved_copy_id,
-                    data: MPConvStackData::Dict {
-                        dict,
-                        dictp,
-                        hi: (*dict).dv_hashtab.array_ptr(),
-                        todo: (*dict).dv_hashtab.ht_used,
-                    },
-                }
+
+            crate::globals::gptr(dict).dv_copy_id = copy_id;
+
+            let mut mpsv = MPConvStackVal {
+                tv: tv_ptr,
+                saved_copy_id,
+                data: MPConvStackData::Dict {
+                    dict,
+                    dictp,
+                    hi: crate::globals::gptr(dict).dv_hashtab.array_ptr(),
+                    todo: crate::globals::gptr(dict).dv_hashtab.ht_used,
+                },
             };
-            let _ =
-                unsafe { nothing_conv_real_dict_after_start(Some(&mut *tv_ptr), dictp, &mut mpsv) };
+            let _ = nothing_conv_real_dict_after_start(
+                Some(crate::globals::gmut(tv_ptr)),
+                dictp,
+                &mut mpsv,
+            );
             mpstack.push(mpsv);
         }
         VarType::VarUnknown => {
@@ -4167,13 +4131,13 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
             } => {
                 if *todo == 0 {
                     mpstack.pop();
-                    unsafe {
-                        (*dict).dv_copy_id = saved_copy_id;
-                    }
+
+                    crate::globals::gptr(dict).dv_copy_id = saved_copy_id;
+
                     nothing_conv_dict_end(dictp);
                     continue;
                 }
-                while unsafe { hashitem_empty(&**hi) } {
+                while hashitem_empty(crate::globals::gref(*hi)) {
                     *hi = (*hi).wrapping_add(1);
                 }
                 let di = tv_dict_hi2di(*hi);
@@ -4185,15 +4149,14 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 let cur_li = *li;
                 if cur_li.is_null() {
                     mpstack.pop();
-                    unsafe {
-                        (*list).lv_copy_id = saved_copy_id;
-                    }
-                    unsafe {
-                        nothing_conv_list_end(cur_tv.as_mut());
-                    }
+
+                    crate::globals::gptr(list).lv_copy_id = saved_copy_id;
+
+                    nothing_conv_list_end(crate::globals::gopt_mut(cur_tv));
+
                     continue;
                 }
-                let cur_li = unsafe { &mut *cur_li };
+                let cur_li = crate::globals::gmut(cur_li);
                 *li = cur_li.li_next;
                 &raw mut cur_li.li_tv
             }
@@ -4207,18 +4170,16 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         {
                             *stage_ref = MPConvPartialStage::SelfDict;
                         }
-                        if !pt.is_null() && unsafe { !(*pt).pt_argv.is_empty() } {
-                            unsafe {
-                                mpstack.push(MPConvStackVal {
-                                    tv: ptr::null_mut(),
-                                    saved_copy_id: copy_id - 1,
-                                    data: MPConvStackData::PartialList {
-                                        arg: (*pt).pt_argv.as_mut_ptr(),
-                                        argv: (*pt).pt_argv.as_mut_ptr(),
-                                        todo: (*pt).pt_argv.len(),
-                                    },
-                                });
-                            }
+                        if !pt.is_null() && !crate::globals::gptr(pt).pt_argv.is_empty() {
+                            mpstack.push(MPConvStackVal {
+                                tv: ptr::null_mut(),
+                                saved_copy_id: copy_id - 1,
+                                data: MPConvStackData::PartialList {
+                                    arg: crate::globals::gptr(pt).pt_argv.as_mut_ptr(),
+                                    argv: crate::globals::gptr(pt).pt_argv.as_mut_ptr(),
+                                    todo: crate::globals::gptr(pt).pt_argv.len(),
+                                },
+                            });
                         }
                     }
                     MPConvPartialStage::SelfDict => {
@@ -4232,41 +4193,39 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                         let dict = if pt.is_null() {
                             ptr::null_mut()
                         } else {
-                            unsafe { (*pt).pt_dict.cast::<TvDict>() }
+                            crate::globals::gptr(pt).pt_dict.cast::<TvDict>()
                         };
                         if !dict.is_null() {
-                            let dictp = unsafe { (&raw mut (*pt).pt_dict).cast::<*mut TvDict>() };
-                            if unsafe { (*dict).dv_hashtab.ht_used == 0 } {
+                            let dictp =
+                                (&raw mut crate::globals::gptr(pt).pt_dict).cast::<*mut TvDict>();
+                            if crate::globals::gptr(dict).dv_hashtab.ht_used == 0 {
                                 nothing_conv_empty_dict(None, dictp);
                                 continue;
                             }
-                            let saved_copy_id = unsafe { (*dict).dv_copy_id };
-                            if unsafe { (*dict).dv_copy_id == copy_id } {
+                            let saved_copy_id = crate::globals::gptr(dict).dv_copy_id;
+                            if crate::globals::gptr(dict).dv_copy_id == copy_id {
                                 continue;
                             }
-                            unsafe {
-                                (*dict).dv_copy_id = copy_id;
-                            }
-                            let mut mpsv = unsafe {
-                                MPConvStackVal {
-                                    tv: ptr::null_mut(),
-                                    saved_copy_id,
-                                    data: MPConvStackData::Dict {
-                                        dict,
-                                        dictp,
-                                        hi: (*dict).dv_hashtab.array_ptr(),
-                                        todo: (*dict).dv_hashtab.ht_used,
-                                    },
-                                }
+
+                            crate::globals::gptr(dict).dv_copy_id = copy_id;
+
+                            let mut mpsv = MPConvStackVal {
+                                tv: ptr::null_mut(),
+                                saved_copy_id,
+                                data: MPConvStackData::Dict {
+                                    dict,
+                                    dictp,
+                                    hi: crate::globals::gptr(dict).dv_hashtab.array_ptr(),
+                                    todo: crate::globals::gptr(dict).dv_hashtab.ht_used,
+                                },
                             };
                             let _ = nothing_conv_real_dict_after_start(None, dictp, &mut mpsv);
                             mpstack.push(mpsv);
                         }
                     }
                     MPConvPartialStage::End => {
-                        unsafe {
-                            nothing_conv_func_end(&mut *cur_tv, copy_id);
-                        }
+                        nothing_conv_func_end(crate::globals::gmut(cur_tv), copy_id);
+
                         mpstack.pop();
                     }
                 }
@@ -4280,9 +4239,9 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
                 let cur_arg = *arg;
                 if *todo == 0 {
                     mpstack.pop();
-                    unsafe {
-                        nothing_conv_list_end(cur_tv.as_mut());
-                    }
+
+                    nothing_conv_list_end(crate::globals::gopt_mut(cur_tv));
+
                     continue;
                 }
                 *arg = cur_arg.wrapping_add(1);
@@ -4292,7 +4251,7 @@ fn encode_vim_to_nothing(top_tv: &mut TypVal) -> bool {
             MPConvStackData::Pairs { .. } => unreachable!(),
         };
         debug_assert!(!tv.is_null());
-        if unsafe { !nothing_convert_one_value(&mut mpstack, &mut *tv, copy_id) } {
+        if !nothing_convert_one_value(&mut mpstack, crate::globals::gmut(tv), copy_id) {
             return false;
         }
     }
@@ -4752,7 +4711,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
         let mut fnum: i32 = 0;
         let fp = var2fpos(tv, true, &mut fnum, false, curwin_mut());
         if !fp.is_null() {
-            lnum = unsafe { (*fp).lnum };
+            lnum = crate::globals::gptr(fp).lnum;
         }
     }
     lnum
@@ -5098,7 +5057,7 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        unsafe {
+        {
             crate::main_init::ensure_test_editor_init();
             crate::globals::g_st().emsg_skip += 1;
 
@@ -5112,7 +5071,7 @@ mod tests {
 
             let item1 = tv_list_find(Some(&mut *l), 1);
             assert!(!item1.is_null());
-            assert_eq!((*item1).li_tv.vval.v_number(), 20);
+            assert_eq!(crate::globals::gptr(item1).li_tv.vval.v_number(), 20);
             assert_eq!(tv_list_idx_of_item(Some(&*l), item1), 1);
             assert_eq!(tv_list_idx_of_item(Some(&*l), ptr::null()), -1);
 
@@ -5126,7 +5085,7 @@ mod tests {
 
             tv_list_reverse(&mut *l);
             let first = tv_list_find(Some(&mut *l), 0);
-            assert_eq!((*first).li_tv.vval.v_number(), 30);
+            assert_eq!(crate::globals::gptr(first).li_tv.vval.v_number(), 30);
 
             // Watchers + item_remove + drop_items + remove_items
             let lw1 = std::rc::Rc::new(Listwatch {
@@ -5139,7 +5098,7 @@ mod tests {
             tv_list_watch_add(&mut *l, lw2.clone());
 
             let first = l.lv_first;
-            let second = (*first).li_next;
+            let second = crate::globals::gptr(first).li_next;
             let next_after_first = tv_list_item_remove(l, first);
             assert_eq!(next_after_first, second);
             assert_eq!(lw1.lw_item.get(), second);
@@ -5168,8 +5127,12 @@ mod tests {
 
             // copy, extend, concat, join, equal
             let l2_copy = tv_list_copy(None, Some(&mut *l2), true, 0);
-            (*l2_copy).lv_refcount = 1;
-            assert!(tv_list_equal(Some(&*l2), l2_copy.as_ref(), false));
+            crate::globals::gptr(l2_copy).lv_refcount = 1;
+            assert!(tv_list_equal(
+                Some(&*l2),
+                crate::globals::gopt(l2_copy),
+                false
+            ));
             assert!(tv_list_equal(None, None, false));
             assert!(!tv_list_equal(Some(&*l2), None, false));
 
@@ -5180,19 +5143,22 @@ mod tests {
             let mut cat_tv = tv_initial_value();
             assert!(tv_list_concat(
                 Some(&mut *l2),
-                l2_copy.as_mut(),
+                crate::globals::gopt_mut(l2_copy),
                 &mut cat_tv
             ));
-            assert_eq!(tv_list_len_inline(cat_tv.vval.v_list().as_ref()), 6);
+            assert_eq!(
+                tv_list_len_inline(crate::globals::gopt(cat_tv.vval.v_list())),
+                6
+            );
             tv_clear(&mut cat_tv);
 
-            tv_list_extend(&mut *l2, l2_copy.as_ref(), ptr::null_mut());
+            tv_list_extend(&mut *l2, crate::globals::gopt(l2_copy), ptr::null_mut());
             assert_eq!(tv_list_len_inline(Some(&*l2)), 6);
 
             // remove_items range
             let first_item = l2.lv_first;
-            let second_item = (*first_item).li_next;
-            tv_list_remove_items(&mut *l2, first_item, &mut *second_item);
+            let second_item = crate::globals::gptr(first_item).li_next;
+            tv_list_remove_items(&mut *l2, first_item, crate::globals::gmut(second_item));
             assert_eq!(tv_list_len_inline(Some(&*l2)), 4);
 
             tv_list_unref(l2_copy);
@@ -5234,7 +5200,7 @@ mod tests {
 
             // Copy, equal, extend, readonly, clear
             let d_copy = tv_dict_copy(None, Some(&mut *d), true, 0);
-            let d_copy_ref = unsafe { &mut *d_copy };
+            let d_copy_ref = crate::globals::gmut(d_copy);
             d_copy_ref.dv_refcount = 1;
             assert!(tv_dict_equal(Some(&*d), Some(d_copy_ref), false));
             assert!(tv_dict_equal(None, None, false));

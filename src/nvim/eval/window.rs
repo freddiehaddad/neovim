@@ -83,7 +83,7 @@ pub fn win_find_nr(mut nr: i32, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo {
         debug_assert!(!g_st().curtab.is_null());
         tp = g_st().curtab;
     }
-    let tp_ref = unsafe { &mut *tp };
+    let tp_ref = crate::globals::gmut(tp);
     for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
         nr -= i32::from(win_has_winnr(&mut *wp, tp_ref));
         if nr <= 0 {
@@ -119,9 +119,9 @@ fn win_getid(argvars: &mut [TypVal]) -> i32 {
         if tp.is_null() {
             return -1;
         }
-        wp = first_win_in_tab(unsafe { &mut *tp });
+        wp = first_win_in_tab(crate::globals::gmut(tp));
     }
-    let tp_ref = unsafe { &mut *tp };
+    let tp_ref = crate::globals::gmut(tp);
     for wp_ref in win_iter_mut(wp) {
         winnr -= i32::from(win_has_winnr(wp_ref, tp_ref));
         if winnr == 0 {
@@ -208,7 +208,7 @@ pub fn find_win_by_nr(vp: &TypVal, mut tp: *mut TabPageInfo) -> *mut WinInfoInfo
     }
 
     if nr >= LOWEST_WIN_ID {
-        for wp in win_iter_ptr(first_win_in_tab(unsafe { &mut *tp })) {
+        for wp in win_iter_ptr(first_win_in_tab(crate::globals::gmut(tp))) {
             if wp.handle == nr {
                 return wp;
             }
@@ -326,7 +326,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 }
                 if !rem.is_empty() {
                     let tail = rem;
-                    let twin_ref = unsafe { &mut *twin };
+                    let twin_ref = crate::globals::gmut(twin);
                     if tail == b"j" {
                         twin = win_vert_neighbor(tp, twin_ref, false, count);
                     } else if tail == b"k" {
@@ -349,7 +349,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
         } else {
             nr = 0;
         }
-    } else if !win_has_winnr(unsafe { &mut *twin }, tp) {
+    } else if !win_has_winnr(crate::globals::gmut(twin), tp) {
         nr = 0;
     }
 
@@ -552,7 +552,7 @@ pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let nr = if tp.is_null() {
         0
     } else {
-        get_winnr(unsafe { &mut *tp }, &mut argvars[1])
+        get_winnr(crate::globals::gmut(tp), &mut argvars[1])
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }
@@ -632,7 +632,7 @@ pub fn f_win_id2win(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let Some(wp) = (unsafe { find_win_by_nr_or_id(&argvars[0]).as_mut() }) else {
+    let Some(wp) = crate::globals::gopt_mut(find_win_by_nr_or_id(&argvars[0])) else {
         return;
     };
     if wp.w_floating {
@@ -652,7 +652,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
 pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-    let Some(wp) = (unsafe { find_win_by_nr_or_id(&argvars[0]).as_mut() }) else {
+    let Some(wp) = crate::globals::gopt_mut(find_win_by_nr_or_id(&argvars[0])) else {
         return;
     };
     if wp.w_floating {
@@ -671,7 +671,7 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
 /// `win_screenpos()` function (`f_win_screenpos`).
 pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, 2);
-    let wp = unsafe { find_win_by_nr_or_id(&argvars[0]).as_ref() };
+    let wp = crate::globals::gopt(find_win_by_nr_or_id(&argvars[0]));
     tv_list_append_number(
         rettv.vval.v_list_ref(),
         wp.map_or(0, |w| (w.w_winrow + 1) as Varnumber),
@@ -695,7 +695,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         || wp == targetwin
         || !win_valid(wp)
         || !win_valid(targetwin)
-        || unsafe { (*targetwin).w_floating }
+        || crate::globals::gptr(targetwin).w_floating
     {
         emsg(gettext(E_INVALWINDOW));
         return;
@@ -758,16 +758,16 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
     if is_ctx_win(wp) {
         tv_set_string(rettv, c"autocmd");
-    } else if unsafe { (*wp).w_onebuf_opt.wo_pvw != 0 } {
+    } else if crate::globals::gptr(wp).w_onebuf_opt.wo_pvw != 0 {
         tv_set_string(rettv, c"preview");
-    } else if unsafe { (*wp).w_floating } {
+    } else if crate::globals::gptr(wp).w_floating {
         tv_set_string(rettv, c"popup");
-    } else if unsafe { bt_cmdwin((*wp).w_buffer) } {
+    } else if bt_cmdwin(crate::globals::gptr(wp).w_buffer) {
         tv_set_string(rettv, c"command");
-    } else if unsafe { bt_quickfix(((*wp).w_buffer).as_ref()) } {
+    } else if bt_quickfix(crate::globals::gopt(crate::globals::gptr(wp).w_buffer)) {
         tv_set_string(
             rettv,
-            if unsafe { !(*wp).w_llist_ref.is_null() } {
+            if !crate::globals::gptr(wp).w_llist_ref.is_null() {
                 c"loclist".as_ptr()
             } else {
                 c"quickfix".as_ptr()
@@ -792,7 +792,7 @@ pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
         -1
     } else {
-        unsafe { (*wp).buf_mut().b_fnum as Varnumber }
+        crate::globals::gptr(wp).buf_mut().b_fnum as Varnumber
     });
 }
 
@@ -808,7 +808,7 @@ pub fn f_winheight(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
         -1
     } else {
-        unsafe { (*wp).w_view_height as Varnumber }
+        crate::globals::gptr(wp).w_view_height as Varnumber
     });
 }
 
@@ -826,9 +826,11 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         found
     };
 
-    unsafe {
-        get_framelayout((*tp).tp_topframe.as_ref(), rettv.vval.v_list_ref(), true);
-    }
+    get_framelayout(
+        crate::globals::gopt(crate::globals::gptr(tp).tp_topframe),
+        rettv.vval.v_list_ref(),
+        true,
+    );
 }
 
 /// `winline()` function (`f_winline`).
@@ -940,6 +942,6 @@ pub fn f_winwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
         -1
     } else {
-        unsafe { (*wp).w_view_width as Varnumber }
+        crate::globals::gptr(wp).w_view_width as Varnumber
     });
 }

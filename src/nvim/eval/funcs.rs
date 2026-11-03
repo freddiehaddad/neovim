@@ -346,7 +346,7 @@ static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsStat
 
 #[inline]
 fn funcs_st() -> &'static mut EvalFuncsState {
-    unsafe { &mut *FUNCS_STATE.as_ptr() }
+    crate::globals::gmut(FUNCS_STATE.as_ptr())
 }
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
@@ -1163,7 +1163,7 @@ pub fn find_internal_func_lua(name: impl crate::strings::IntoCCharPtr) -> Option
     let name = name.into_c_char_ptr();
     let fdef = find_internal_func(name);
     if !fdef.is_null()
-        && let EvalFuncData::LuaFunc(lua_name) = unsafe { (*fdef).data }
+        && let EvalFuncData::LuaFunc(lua_name) = crate::globals::gptr(fdef).data
     {
         return Some(lua_name);
     }
@@ -1196,22 +1196,23 @@ pub fn call_internal_func(
     rettv: &mut TypVal,
 ) -> i32 {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
             return FCERR_UNKNOWN;
-        } else if argcount < i32::from((*fdef).min_argc) {
+        } else if argcount < i32::from(crate::globals::gptr(fdef).min_argc) {
             return FCERR_TOOFEW;
-        } else if argcount > i32::from((*fdef).max_argc) {
+        } else if argcount > i32::from(crate::globals::gptr(fdef).max_argc) {
             return FCERR_TOOMANY;
         }
-        (*argvars.wrapping_add(argcount as usize)).v_type = VarType::VarUnknown;
-        if let Some(func) = (*fdef).func {
-            let slice_len = (argcount as usize + 1).max(usize::from((*fdef).max_argc) + 1);
+        crate::globals::gptr(argvars.wrapping_add(argcount as usize)).v_type = VarType::VarUnknown;
+        if let Some(func) = crate::globals::gptr(fdef).func {
+            let slice_len =
+                (argcount as usize + 1).max(usize::from(crate::globals::gptr(fdef).max_argc) + 1);
             func(
-                std::slice::from_raw_parts_mut(argvars, slice_len),
+                unsafe { std::slice::from_raw_parts_mut(argvars, slice_len) },
                 rettv,
-                (*fdef).data,
+                crate::globals::gptr(fdef).data,
             );
         }
         FCERR_NONE
@@ -1227,38 +1228,40 @@ pub fn call_internal_method(
     basetv: *mut TypVal,
 ) -> i32 {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let fdef = find_internal_func(fname);
         if fdef.is_null() {
             return FCERR_UNKNOWN;
-        } else if (*fdef).base_arg == BASE_NONE {
+        } else if crate::globals::gptr(fdef).base_arg == BASE_NONE {
             return FCERR_NOTMETHOD;
-        } else if argcount + 1 < i32::from((*fdef).min_argc) {
+        } else if argcount + 1 < i32::from(crate::globals::gptr(fdef).min_argc) {
             return FCERR_TOOFEW;
-        } else if argcount + 1 > i32::from((*fdef).max_argc) {
+        } else if argcount + 1 > i32::from(crate::globals::gptr(fdef).max_argc) {
             return FCERR_TOOMANY;
         }
 
         let mut argv = [tv_initial_value(); MAX_FUNC_ARGS + 1];
-        let base_index: isize = if (*fdef).base_arg == BASE_LAST {
+        let base_index: isize = if crate::globals::gptr(fdef).base_arg == BASE_LAST {
             argcount as isize
         } else {
-            isize::from((*fdef).base_arg) - 1
+            isize::from(crate::globals::gptr(fdef).base_arg) - 1
         };
         if (argcount as isize) < base_index {
             return FCERR_TOOFEW;
         }
-        ptr::copy_nonoverlapping(argvars, argv.as_mut_ptr(), base_index as usize);
-        argv[base_index as usize] = *basetv;
-        ptr::copy_nonoverlapping(
-            argvars.wrapping_add(base_index as usize),
-            argv.as_mut_ptr().wrapping_add((base_index + 1) as usize),
-            (argcount as isize - base_index) as usize,
-        );
+        unsafe { ptr::copy_nonoverlapping(argvars, argv.as_mut_ptr(), base_index as usize) };
+        argv[base_index as usize] = *crate::globals::gptr(basetv);
+        unsafe {
+            ptr::copy_nonoverlapping(
+                argvars.wrapping_add(base_index as usize),
+                argv.as_mut_ptr().wrapping_add((base_index + 1) as usize),
+                (argcount as isize - base_index) as usize,
+            )
+        };
         argv[(argcount + 1) as usize].v_type = VarType::VarUnknown;
 
-        if let Some(func) = (*fdef).func {
-            func(&mut argv, rettv, (*fdef).data);
+        if let Some(func) = crate::globals::gptr(fdef).func {
+            func(&mut argv, rettv, crate::globals::gptr(fdef).data);
         }
         FCERR_NONE
     }
@@ -1312,7 +1315,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     };
 
     let mut tv = argvars.as_mut_ptr();
-    while unsafe { (*tv).v_type } != VarType::VarUnknown {
+    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
         args.size += 1;
         tv = tv.wrapping_add(1);
@@ -1353,7 +1356,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
     };
 
     let mut tv = argvars.as_mut_ptr();
-    while unsafe { (*tv).v_type } != VarType::VarUnknown {
+    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), false);
         args.size += 1;
         tv = tv.wrapping_add(1);
@@ -1532,7 +1535,7 @@ pub fn f_call(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial {
         partial = argvars[0].vval.v_partial();
-        partial_name(unsafe { partial.as_ref() })
+        partial_name(crate::globals::gopt(partial))
             .as_ptr()
             .cast_mut()
     } else if nlua_is_table_from_lua(&argvars[0]) {
@@ -1651,16 +1654,17 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     #[cfg(windows)]
     let crlf = {
         let chan = find_channel(id);
-        unsafe { !chan.is_null() && !(*chan).term.is_null() }
+        !chan.is_null() && !crate::globals::gptr(chan).term.is_null()
     };
 
     let input = if argvars[1].v_type == VarType::VarBlob {
         let b = argvars[1].vval.v_blob().cast::<TvBlob>();
-        let input_len = unsafe { tv_blob_len(b.as_ref()) as usize };
+        let input_len = tv_blob_len(crate::globals::gopt(b)) as usize;
         if input_len == 0 {
             return;
         }
-        unsafe { std::slice::from_raw_parts((*b).bv_ga.as_ptr(), input_len).to_vec() }
+        unsafe { std::slice::from_raw_parts(crate::globals::gptr(b).bv_ga.as_ptr(), input_len) }
+            .to_vec()
     } else {
         let Some(vec) = save_tv_as_string(&mut argvars[1], false, crlf) else {
             return;
@@ -1702,40 +1706,44 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         if wp.is_null() || tp.is_null() {
             return;
         }
-        unsafe {
-            check_cursor(&mut *wp);
-        }
+
+        check_cursor(crate::globals::gmut(wp));
     }
 
-    let bp = unsafe { (*wp).w_buffer };
-    let bp = unsafe { &mut *bp };
+    let bp = crate::globals::gptr(wp).w_buffer;
+    let bp = crate::globals::gmut(bp);
     let mut col: Colnr = 0;
     let mut fnum = bp.b_fnum;
-    let fp = unsafe { var2fpos(&argvars[0], false, &mut fnum, charcol, &mut *wp) };
+    let fp = var2fpos(
+        &argvars[0],
+        false,
+        &mut fnum,
+        charcol,
+        crate::globals::gmut(wp),
+    );
     if !fp.is_null() && fnum == bp.b_fnum {
-        if unsafe { (*fp).col == MAXCOL } {
-            if unsafe { (*fp).lnum <= bp.b_ml.ml_line_count } {
-                unsafe {
-                    col = ml_get_buf_len(&mut *bp, (*fp).lnum) + 1;
-                }
+        if crate::globals::gptr(fp).col == MAXCOL {
+            if crate::globals::gptr(fp).lnum <= bp.b_ml.ml_line_count {
+                col = ml_get_buf_len(&mut *bp, crate::globals::gptr(fp).lnum) + 1;
             } else {
                 col = MAXCOL;
             }
         } else {
-            unsafe {
-                col = (*fp).col + 1;
-            }
-            if unsafe { virtual_active(&mut *wp) }
-                && unsafe { ptr::eq(fp, &raw const (*wp).w_cursor) }
+            col = crate::globals::gptr(fp).col + 1;
+
+            if virtual_active(crate::globals::gmut(wp))
+                && ptr::eq(fp, &raw const crate::globals::gptr(wp).w_cursor)
             {
-                let p = unsafe {
-                    ml_get_buf(&mut *bp, (*wp).w_cursor.lnum)
-                        .wrapping_add((*wp).w_cursor.col as usize)
-                };
-                if unsafe {
-                    (*wp).w_cursor.coladd
-                        >= win_chartabsize(&mut *wp, p, (*wp).w_virtcol - (*wp).w_cursor.coladd)
-                } && !crate::memory::cstr_is_empty(p)
+                let p = ml_get_buf(&mut *bp, crate::globals::gptr(wp).w_cursor.lnum)
+                    .wrapping_add(crate::globals::gptr(wp).w_cursor.col as usize);
+                if crate::globals::gptr(wp).w_cursor.coladd
+                    >= win_chartabsize(
+                        crate::globals::gmut(wp),
+                        p,
+                        crate::globals::gptr(wp).w_virtcol
+                            - crate::globals::gptr(wp).w_cursor.coladd,
+                    )
+                    && !crate::memory::cstr_is_empty(p)
                 {
                     let l = utfc_ptr2len(p);
                     if crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
@@ -1934,7 +1942,7 @@ pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
     #[cfg(not(windows))]
     {
-        unsafe { uv_kill(pid, crate::os::signal::SIGINT) };
+        uv_kill(pid, crate::os::signal::SIGINT);
     }
 }
 
@@ -2127,7 +2135,7 @@ pub fn get_list_line(
     _indent: i32,
     _do_concat: bool,
 ) -> Option<std::ffi::CString> {
-    let item = unsafe { p.li.as_ref() }?;
+    let item = crate::globals::gopt(p.li)?;
     let mut buf = [0u8; NUMBUFLEN];
     let s = tv_get_string_buf_chk(&item.li_tv, &mut buf);
     p.li = item.li_next;
@@ -2518,7 +2526,9 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         argvars[0].vval.v_string()
     } else if argvars[0].v_type == VarType::VarPartial && !argvars[0].vval.v_partial().is_null() {
         arg_pt = argvars[0].vval.v_partial();
-        unsafe { partial_name(arg_pt.as_ref()).as_ptr().cast_mut() }
+        partial_name(crate::globals::gopt(arg_pt))
+            .as_ptr()
+            .cast_mut()
     } else {
         use_string = true;
         tv_get_string(&argvars[0]).as_ptr().cast_mut()
@@ -2596,9 +2606,9 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
                         break 'theend;
                     }
                     list = argvars[arg_idx].vval.v_list();
-                    if unsafe { tv_list_len(list.as_ref()) == 0 } {
+                    if tv_list_len(crate::globals::gopt(list)) == 0 {
                         arg_idx = 0;
-                    } else if unsafe { (tv_list_len(list.as_ref()) as usize) > MAX_FUNC_ARGS } {
+                    } else if (tv_list_len(crate::globals::gopt(list)) as usize) > MAX_FUNC_ARGS {
                         emsg_funcname(E_TOOMANYARG, s);
                         break 'theend;
                     }
@@ -2606,29 +2616,30 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
             }
             if dict_idx > 0 || arg_idx > 0 || !arg_pt.is_null() || is_funcref {
                 let pt = Box::leak(Box::new(TvPartial::default()));
-                if arg_idx > 0 || (unsafe { !arg_pt.is_null() && !(*arg_pt).pt_argv.is_empty() }) {
+                if arg_idx > 0
+                    || (!arg_pt.is_null() && !crate::globals::gptr(arg_pt).pt_argv.is_empty())
+                {
                     let arg_len = if arg_pt.is_null() {
                         0
                     } else {
-                        unsafe { (*arg_pt).pt_argv.len() as i32 }
+                        crate::globals::gptr(arg_pt).pt_argv.len() as i32
                     };
-                    let lv_len = unsafe { tv_list_len(list.as_ref()) };
+                    let lv_len = tv_list_len(crate::globals::gopt(list));
                     let pt_argc = arg_len + lv_len;
                     pt.pt_argv.resize(pt_argc as usize, TypVal::new());
                     let mut i: i32 = 0;
                     while i < arg_len {
-                        unsafe {
-                            tv_copy(
-                                &(&(*arg_pt).pt_argv)[i as usize],
-                                &mut (&mut pt.pt_argv)[i as usize],
-                            );
-                        }
+                        tv_copy(
+                            &(&crate::globals::gptr(arg_pt).pt_argv)[i as usize],
+                            &mut (&mut pt.pt_argv)[i as usize],
+                        );
+
                         i += 1;
                     }
                     if lv_len > 0 {
-                        for li in unsafe {
-                            crate::eval::typval::list_iter_mut(tv_list_first(list.as_ref()))
-                        } {
+                        for li in crate::eval::typval::list_iter_mut(tv_list_first(
+                            crate::globals::gopt(list),
+                        )) {
                             tv_copy(&li.li_tv, &mut (&mut pt.pt_argv)[i as usize]);
                             i += 1;
                         }
@@ -2637,33 +2648,26 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
 
                 if dict_idx > 0 {
                     pt.pt_dict = argvars[dict_idx].vval.v_dict();
-                    unsafe {
-                        (*pt.pt_dict).dv_refcount += 1;
-                    }
+
+                    crate::globals::gptr(pt.pt_dict).dv_refcount += 1;
                 } else if !arg_pt.is_null() {
-                    let arg_pt = unsafe { &mut *arg_pt };
+                    let arg_pt = crate::globals::gmut(arg_pt);
                     pt.pt_dict = arg_pt.pt_dict;
                     pt.pt_auto = arg_pt.pt_auto;
                     if !pt.pt_dict.is_null() {
-                        unsafe {
-                            (*pt.pt_dict).dv_refcount += 1;
-                        }
+                        crate::globals::gptr(pt.pt_dict).dv_refcount += 1;
                     }
                 }
 
                 pt.pt_refcount = 1;
-                if !arg_pt.is_null() && unsafe { !(*arg_pt).pt_func.is_null() } {
-                    unsafe {
-                        pt.pt_func = (*arg_pt).pt_func;
-                    }
-                    unsafe {
-                        func_ptr_ref((pt.pt_func).as_mut());
-                    }
+                if !arg_pt.is_null() && !crate::globals::gptr(arg_pt).pt_func.is_null() {
+                    pt.pt_func = crate::globals::gptr(arg_pt).pt_func;
+
+                    func_ptr_ref(crate::globals::gopt_mut(pt.pt_func));
                 } else if is_funcref {
                     pt.pt_func = find_func(trans_name);
-                    unsafe {
-                        func_ptr_ref((pt.pt_func).as_mut());
-                    }
+
+                    func_ptr_ref(crate::globals::gopt_mut(pt.pt_func));
                 } else {
                     func_ref(name_cstr.as_ptr().cast_mut());
                     pt.pt_name = Some(name_cstr);
@@ -2709,18 +2713,16 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             let blob = argvars[0].vval.v_blob().cast::<TvBlob>();
             rettv.v_type = VarType::VarNumber;
             if idx < 0 {
-                unsafe {
-                    idx += tv_blob_len(blob.as_ref());
-                }
+                idx += tv_blob_len(crate::globals::gopt(blob));
             }
-            if idx < 0 || unsafe { idx >= tv_blob_len(blob.as_ref()) } {
+            if idx < 0 || idx >= tv_blob_len(crate::globals::gopt(blob)) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
             } else {
-                unsafe {
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                        tv_blob_get(&*blob, idx),
-                    ));
-                }
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_blob_get(
+                    crate::globals::gref(blob),
+                    idx,
+                )));
+
                 tv = rettv;
             }
         }
@@ -2728,26 +2730,20 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let l = argvars[0].vval.v_list();
         if !l.is_null() {
             let mut error = false;
-            let li = unsafe {
-                tv_list_find(
-                    l.as_mut(),
-                    tv_get_number_chk(&argvars[1], Some(&mut error)) as i32,
-                )
-            };
+            let li = tv_list_find(
+                crate::globals::gopt_mut(l),
+                tv_get_number_chk(&argvars[1], Some(&mut error)) as i32,
+            );
             if !error && !li.is_null() {
-                unsafe {
-                    tv = &raw mut (*li).li_tv;
-                }
+                tv = &raw mut crate::globals::gptr(li).li_tv;
             }
         }
     } else if argvars[0].v_type == VarType::VarDict {
         let d = argvars[0].vval.v_dict();
         if !d.is_null() {
-            let di = unsafe { tv_dict_find(d.as_ref(), tv_get_string(&argvars[1]), -1) };
+            let di = tv_dict_find(crate::globals::gopt(d), tv_get_string(&argvars[1]), -1);
             if !di.is_null() {
-                unsafe {
-                    tv = &raw mut (*di).di_tv;
-                }
+                tv = &raw mut crate::globals::gptr(di).di_tv;
             }
         }
     } else if tv_is_func(&argvars[0]) {
@@ -2760,7 +2756,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         };
 
         if !pt.is_null() {
-            let pt = unsafe { &mut *pt };
+            let pt = crate::globals::gmut(pt);
             let what = tv_get_string(&argvars[1]);
             if crate::memory::cstr_as_bytes(what) == b"func"
                 || crate::memory::cstr_as_bytes(what) == b"name"
@@ -2773,9 +2769,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     && pt.pt_name.is_none()
                     && !pt.pt_func.is_null()
                 {
-                    unsafe {
-                        name = printable_func_name(&mut *pt.pt_func);
-                    }
+                    name = printable_func_name(crate::globals::gmut(pt.pt_func));
                 }
                 crate::eval::typval::tv_set_string(rettv, name);
                 rettv.v_type = if crate::memory::cstr_first_byte(what) == b'f' {
@@ -2843,9 +2837,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             tv_copy(&argvars[2], rettv);
         }
     } else {
-        unsafe {
-            tv_copy(&*tv, rettv);
-        }
+        tv_copy(crate::globals::gref(tv), rettv);
     }
 }
 
@@ -2865,13 +2857,13 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         return;
     }
 
-    let l = unsafe { tv_list_alloc((*buf).b_changelistlen as isize) };
+    let l = tv_list_alloc(crate::globals::gptr(buf).b_changelistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), l);
     let mut changelistindex = if ptr::eq(buf, curwin_mut().w_buffer) {
         curwin_mut().w_changelistidx
     } else {
-        let mut idx = unsafe { (*buf).b_changelistlen };
-        for wip in unsafe { &(*buf).b_wininfo } {
+        let mut idx = crate::globals::gptr(buf).b_changelistlen;
+        for wip in &crate::globals::gptr(buf).b_wininfo {
             if wip.wi_win == curwin_ptr() {
                 idx = wip.wi_changelistidx;
                 break;
@@ -2882,33 +2874,30 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let _ = &mut changelistindex;
     tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(changelistindex));
 
-    for i in unsafe { 0..((*buf).b_changelistlen as usize) } {
-        if unsafe { (*buf).b_changelist[i].mark.lnum == 0 } {
+    for i in 0..(crate::globals::gptr(buf).b_changelistlen as usize) {
+        if crate::globals::gptr(buf).b_changelist[i].mark.lnum == 0 {
             continue;
         }
         let d = tv_dict_alloc();
         tv_list_append_dict(&mut *l, d);
-        unsafe {
-            tv_dict_add_nr(
-                &mut *d,
-                c"lnum",
-                Varnumber::from((*buf).b_changelist[i].mark.lnum),
-            );
-        }
-        unsafe {
-            tv_dict_add_nr(
-                &mut *d,
-                c"col",
-                Varnumber::from((*buf).b_changelist[i].mark.col),
-            );
-        }
-        unsafe {
-            tv_dict_add_nr(
-                &mut *d,
-                c"coladd",
-                Varnumber::from((*buf).b_changelist[i].mark.coladd),
-            );
-        }
+
+        tv_dict_add_nr(
+            &mut *d,
+            c"lnum",
+            Varnumber::from(crate::globals::gptr(buf).b_changelist[i].mark.lnum),
+        );
+
+        tv_dict_add_nr(
+            &mut *d,
+            c"col",
+            Varnumber::from(crate::globals::gptr(buf).b_changelist[i].mark.col),
+        );
+
+        tv_dict_add_nr(
+            &mut *d,
+            c"coladd",
+            Varnumber::from(crate::globals::gptr(buf).b_changelist[i].mark.coladd),
+        );
     }
 }
 
@@ -2922,20 +2911,20 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if argvars[0].v_type != VarType::VarUnknown {
             wp = find_win_by_nr_or_id(&argvars[0]);
             if !wp.is_null() {
-                unsafe {
-                    fp = (&raw mut (*wp).w_cursor).cast();
-                }
+                fp = (&raw mut crate::globals::gptr(wp).w_cursor).cast();
             }
         } else {
             fp = (&raw mut curwin_mut().w_cursor).cast();
         }
         if !fp.is_null() && charcol {
-            unsafe {
-                pos = *fp;
-            }
-            unsafe {
-                pos.col = buf_byteidx_to_charidx(((*wp).w_buffer).as_mut(), pos.lnum, pos.col);
-            }
+            pos = *crate::globals::gptr(fp);
+
+            pos.col = buf_byteidx_to_charidx(
+                crate::globals::gopt_mut(crate::globals::gptr(wp).w_buffer),
+                pos.lnum,
+                pos.col,
+            );
+
             fp = &raw mut pos;
         }
     } else {
@@ -2947,7 +2936,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     tv_list_append_number(
         &mut *l,
         if !fp.is_null() {
-            unsafe { Varnumber::from((*fp).lnum) }
+            Varnumber::from(crate::globals::gptr(fp).lnum)
         } else {
             0
         },
@@ -2955,7 +2944,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     tv_list_append_number(
         &mut *l,
         if !fp.is_null() {
-            let fp = unsafe { &mut *fp };
+            let fp = crate::globals::gmut(fp);
             if fp.col == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
@@ -2968,7 +2957,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     tv_list_append_number(
         &mut *l,
         if !fp.is_null() {
-            unsafe { Varnumber::from((*fp).coladd) }
+            Varnumber::from(crate::globals::gptr(fp).coladd)
         } else {
             0
         },
@@ -2985,10 +2974,10 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             &mut *l,
             if wp.is_null() {
                 0
-            } else if unsafe { (*wp).w_curswant == MAXCOL } {
+            } else if crate::globals::gptr(wp).w_curswant == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
-                unsafe { Varnumber::from((*wp).w_curswant) + 1 }
+                Varnumber::from(crate::globals::gptr(wp).w_curswant) + 1
             },
         );
 
@@ -3029,7 +3018,7 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     cleanup_jumplist(wp, true);
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
 
     let l = tv_list_alloc(wp.w_jumplistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), l);
@@ -3078,7 +3067,7 @@ pub fn f_getmarklist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     if buf.is_null() {
         return;
     }
-    get_buf_local_marks(unsafe { &*buf }, rettv.vval.v_list_ref());
+    get_buf_local_marks(crate::globals::gref(buf), rettv.vval.v_list_ref());
 }
 
 /// "getpid()" function
@@ -3107,6 +3096,7 @@ fn block_def2str(bd: &BlockDef) -> Vec<u8> {
     let textlen = bd.textlen as usize;
     let size = startspaces + endspaces + textlen;
     let mut data = vec![b' '; size];
+
     unsafe {
         ptr::copy(
             bd.textstart,
@@ -3149,14 +3139,14 @@ fn getregionpos(
     let mut default_type = [b'v', 0];
     if argvars[2].v_type == VarType::VarDict {
         let d = argvars[2].vval.v_dict();
-        unsafe {
-            is_select_exclusive = tv_dict_get_bool(
-                d.as_ref(),
-                c"exclusive",
-                i32::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
-            ) != 0;
-        }
-        type_str = if let Some(s) = unsafe { tv_dict_get_string(d.as_ref(), c"type") } {
+
+        is_select_exclusive = tv_dict_get_bool(
+            crate::globals::gopt(d),
+            c"exclusive",
+            i32::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
+        ) != 0;
+
+        type_str = if let Some(s) = tv_dict_get_string(crate::globals::gopt(d), c"type") {
             s.as_ptr().cast_mut()
         } else {
             default_type.as_mut_ptr().cast()
@@ -3172,7 +3162,7 @@ fn getregionpos(
         *region_type = MT_CHAR_WISE;
     } else if type_bytes == b"V" {
         *region_type = MT_LINE_WISE;
-    } else if unsafe { *type_str == CTRL_V_CONST } {
+    } else if *crate::globals::gptr(type_str) == CTRL_V_CONST {
         let mut rem = crate::memory::cstr_as_bytes(type_str.wrapping_add(1));
         if !rem.is_empty() {
             block_width = getdigits_int(&mut rem, false, 0);
@@ -3192,33 +3182,29 @@ fn getregionpos(
     } else {
         g_st().curbuf
     };
-    if findbuf.is_null() || unsafe { (*findbuf).b_ml.ml_mfp.is_none() } {
+    if findbuf.is_null() || crate::globals::gptr(findbuf).b_ml.ml_mfp.is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return false;
     }
 
-    if p1.lnum < 1 || unsafe { p1.lnum > (*findbuf).b_ml.ml_line_count } {
+    if p1.lnum < 1 || p1.lnum > crate::globals::gptr(findbuf).b_ml.ml_line_count {
         semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p1.lnum);
         return false;
     }
     if p1.col == MAXCOL {
-        unsafe {
-            p1.col = ml_get_buf_len(&mut *findbuf, p1.lnum) + 1;
-        }
-    } else if p1.col < 1 || unsafe { p1.col > ml_get_buf_len(&mut *findbuf, p1.lnum) + 1 } {
+        p1.col = ml_get_buf_len(crate::globals::gmut(findbuf), p1.lnum) + 1;
+    } else if p1.col < 1 || p1.col > ml_get_buf_len(crate::globals::gmut(findbuf), p1.lnum) + 1 {
         semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p1.col);
         return false;
     }
 
-    if p2.lnum < 1 || unsafe { p2.lnum > (*findbuf).b_ml.ml_line_count } {
+    if p2.lnum < 1 || p2.lnum > crate::globals::gptr(findbuf).b_ml.ml_line_count {
         semsg!(gettext(E_INVALID_LINE_NUMBER_NR), p2.lnum);
         return false;
     }
     if p2.col == MAXCOL {
-        unsafe {
-            p2.col = ml_get_buf_len(&mut *findbuf, p2.lnum) + 1;
-        }
-    } else if p2.col < 1 || unsafe { p2.col > ml_get_buf_len(&mut *findbuf, p2.lnum) + 1 } {
+        p2.col = ml_get_buf_len(crate::globals::gmut(findbuf), p2.lnum) + 1;
+    } else if p2.col < 1 || p2.col > ml_get_buf_len(crate::globals::gmut(findbuf), p2.lnum) + 1 {
         semsg!(gettext(E_INVALID_COLUMN_NUMBER_NR), p2.col);
         return false;
     }
@@ -3556,11 +3542,11 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
     }
-    get_tagstack(unsafe { &mut *wp }, rettv.vval.v_dict_ref());
+    get_tagstack(crate::globals::gmut(wp), rettv.vval.v_dict_ref());
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
-    if unsafe { *loop_closing_ptr(&mut g_st().main_loop) } {
+    if *crate::globals::gptr(loop_closing_ptr(&mut g_st().main_loop)) {
         time_watcher_stop(tw);
         time_watcher_close(tw);
     }
@@ -3593,14 +3579,14 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
     let main_loop_ptr: *mut Loop = (&raw mut g_st().main_loop).cast();
     time_watcher_init(
-        unsafe { &mut *main_loop_ptr },
-        unsafe { &mut *tw },
+        crate::globals::gmut(main_loop_ptr),
+        crate::globals::gmut(tw),
         TimeWatcherData::WaitDummy,
     );
-    unsafe {
-        (*tw).events = ptr::null_mut();
-    }
-    time_watcher_start(unsafe { &mut *tw }, interval as u64, interval as u64);
+
+    crate::globals::gptr(tw).events = ptr::null_mut();
+
+    time_watcher_start(crate::globals::gmut(tw), interval as u64, interval as u64);
 
     let mut argv = tv_initial_value();
     let mut exprval = tv_initial_value();
@@ -3622,11 +3608,11 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         || g_st().got_int)
         && !expired
     {
-        let events = loop_queues(unsafe { &mut *main_loop_ptr }).events;
-        if !events.is_null() && !multiqueue_empty(unsafe { &*events }) {
-            multiqueue_process_events(unsafe { &mut *events });
+        let events = loop_queues(crate::globals::gmut(main_loop_ptr)).events;
+        if !events.is_null() && !multiqueue_empty(crate::globals::gref(events)) {
+            multiqueue_process_events(crate::globals::gmut(events));
         } else {
-            loop_poll_events(unsafe { &mut *main_loop_ptr }, remaining);
+            loop_poll_events(crate::globals::gmut(main_loop_ptr), remaining);
         }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
@@ -3645,8 +3631,8 @@ pub fn f_wait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     }
     tv_clear(&mut exprval);
 
-    time_watcher_stop(unsafe { &mut *tw });
-    time_watcher_close(unsafe { &mut *tw });
+    time_watcher_stop(crate::globals::gmut(tw));
+    time_watcher_close(crate::globals::gmut(tw));
 }
 
 /// "gettext()" function
@@ -4305,7 +4291,7 @@ pub fn f_jobpid(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     if data.is_null() {
         return;
     }
-    let data = unsafe { &mut *data };
+    let data = crate::globals::gmut(data);
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(data.uv.proc_.pid));
 }
 
@@ -4330,19 +4316,18 @@ pub fn f_jobresize(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
 
-    let proc_ptr = unsafe { &raw mut (*data).uv.proc_ };
-    if unsafe { (*proc_ptr).r#type != K_PROC_TYPE_PTY } {
+    let proc_ptr = &raw mut crate::globals::gptr(data).uv.proc_;
+    if crate::globals::gptr(proc_ptr).r#type != K_PROC_TYPE_PTY {
         emsg(gettext(E_CHANNOTPTY));
         return;
     }
 
-    unsafe {
-        pty_proc_resize(
-            &mut *proc_ptr.cast::<PtyProc>(),
-            argvars[1].vval.v_number() as u16,
-            argvars[2].vval.v_number() as u16,
-        );
-    }
+    pty_proc_resize(
+        crate::globals::gmut(proc_ptr.cast::<PtyProc>()),
+        argvars[1].vval.v_number() as u16,
+        argvars[2].vval.v_number() as u16,
+    );
+
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 
@@ -4364,9 +4349,9 @@ pub fn create_environment(
             if unsafe { uv_os_environ(&raw mut envitems, &mut envcount) } == 0 {
                 for i in 0..(envcount as usize) {
                     #[cfg(windows)]
-                    let mut name: *const _ = unsafe { (*envitems.wrapping_add(i)).name };
+                    let mut name: *const _ = crate::globals::gptr(envitems.wrapping_add(i)).name;
                     #[cfg(not(windows))]
-                    let name: *const _ = unsafe { (*envitems.wrapping_add(i)).name };
+                    let name: *const _ = (*envitems.wrapping_add(i)).name;
                     #[cfg(windows)]
                     {
                         let name_b = crate::memory::cstr_as_bytes(name);
@@ -4375,9 +4360,11 @@ pub fn create_environment(
                             name = g_st().name_buff.as_ptr();
                         }
                     }
-                    tv_dict_add_str(&mut *env, name, unsafe {
-                        (*envitems.wrapping_add(i)).value
-                    });
+                    tv_dict_add_str(
+                        &mut *env,
+                        name,
+                        crate::globals::gptr(envitems.wrapping_add(i)).value,
+                    );
                 }
                 unsafe { uv_os_free_environ(envitems, envcount) };
             }
@@ -4497,26 +4484,19 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if argvars[1].v_type == VarType::VarDict {
         job_opts = argvars[1].vval.v_dict();
 
-        unsafe {
-            detach = tv_dict_get_number(job_opts.as_ref(), c"detach") != 0;
-        }
-        unsafe {
-            rpc = tv_dict_get_number(job_opts.as_ref(), c"rpc") != 0;
-        }
-        unsafe {
-            term = tv_dict_get_number(job_opts.as_ref(), c"term") != 0;
-        }
-        unsafe {
-            pty = term || tv_dict_get_number(job_opts.as_ref(), c"pty") != 0;
-        }
-        unsafe {
-            clear_env = tv_dict_get_number(job_opts.as_ref(), c"clear_env") != 0;
-        }
-        unsafe {
-            overlapped = tv_dict_get_number(job_opts.as_ref(), c"overlapped") != 0;
-        }
+        detach = tv_dict_get_number(crate::globals::gopt(job_opts), c"detach") != 0;
 
-        if let Some(s) = unsafe { tv_dict_get_string(job_opts.as_ref(), c"stdin") } {
+        rpc = tv_dict_get_number(crate::globals::gopt(job_opts), c"rpc") != 0;
+
+        term = tv_dict_get_number(crate::globals::gopt(job_opts), c"term") != 0;
+
+        pty = term || tv_dict_get_number(crate::globals::gopt(job_opts), c"pty") != 0;
+
+        clear_env = tv_dict_get_number(crate::globals::gopt(job_opts), c"clear_env") != 0;
+
+        overlapped = tv_dict_get_number(crate::globals::gopt(job_opts), c"overlapped") != 0;
+
+        if let Some(s) = tv_dict_get_string(crate::globals::gopt(job_opts), c"stdin") {
             if s == c"null" {
                 stdin_mode = K_CHANNEL_STDIN_NULL;
             } else if s == c"pipe" {
@@ -4526,8 +4506,8 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
 
-        let job_term = unsafe { tv_dict_find(job_opts.as_ref(), c"term", 4) };
-        if !job_term.is_null() && unsafe { (*job_term).di_tv.v_type != VarType::VarBool } {
+        let job_term = tv_dict_find(crate::globals::gopt(job_opts), c"term", 4);
+        if !job_term.is_null() && crate::globals::gptr(job_term).di_tv.v_type != VarType::VarBool {
             semsg!(gettext(E_INVARG2), c"'term' must be Boolean",);
             return;
         }
@@ -4549,7 +4529,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
 
-        if let Some(new_cwd) = unsafe { tv_dict_get_string(job_opts.as_ref(), c"cwd") }
+        if let Some(new_cwd) = tv_dict_get_string(crate::globals::gopt(job_opts), c"cwd")
             && !new_cwd.to_bytes().is_empty()
         {
             cwd = new_cwd.as_ptr();
@@ -4559,23 +4539,25 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
 
-        unsafe {
-            job_env = tv_dict_find(job_opts.as_ref(), c"env", 3);
-        }
-        if !job_env.is_null() && unsafe { (*job_env).di_tv.v_type != VarType::VarDict } {
+        job_env = tv_dict_find(crate::globals::gopt(job_opts), c"env", 3);
+
+        if !job_env.is_null() && crate::globals::gptr(job_env).di_tv.v_type != VarType::VarDict {
             semsg!(gettext(E_INVARG2), c"env");
             return;
         }
 
-        if unsafe {
-            !common_job_callbacks(&mut *job_opts, &mut on_stdout, &mut on_stderr, &mut on_exit)
-        } {
+        if !common_job_callbacks(
+            crate::globals::gmut(job_opts),
+            &mut on_stdout,
+            &mut on_stderr,
+            &mut on_exit,
+        ) {
             return;
         }
     }
 
-    let mut width = unsafe { tv_dict_get_number(job_opts.as_ref(), c"width") as u16 };
-    let mut height = unsafe { tv_dict_get_number(job_opts.as_ref(), c"height") as u16 };
+    let mut width = tv_dict_get_number(crate::globals::gopt(job_opts), c"width") as u16;
+    let mut height = tv_dict_get_number(crate::globals::gopt(job_opts), c"height") as u16;
     let mut term_name = ptr::null();
 
     if term {
@@ -4590,7 +4572,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             return;
         }
         if !curbuf_mut().terminal.is_null() {
-            if unsafe { terminal_running(&*curbuf_mut().terminal) } {
+            if terminal_running(crate::globals::gref(curbuf_mut().terminal)) {
                 semsg!(
                     gettext(c"Terminal already connected to buffer %d"),
                     curbuf_mut().b_fnum,
@@ -4617,7 +4599,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     if pty {
         if term_name.is_null()
-            && let Some(tn) = unsafe { tv_dict_get_string(job_opts.as_ref(), c"TERM") }
+            && let Some(tn) = tv_dict_get_string(crate::globals::gopt(job_opts), c"TERM")
         {
             term_name = tn.as_ptr();
         }
@@ -4626,7 +4608,13 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         }
     }
 
-    let env = unsafe { create_environment(job_env.as_ref(), clear_env, pty, true, term_name) };
+    let env = create_environment(
+        crate::globals::gopt(job_env),
+        clear_env,
+        pty,
+        true,
+        term_name,
+    );
     let chan = channel_job_start(
         argv,
         None,
@@ -4647,35 +4635,28 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if chan.is_null() {
         // do nothing
     } else if !term {
-        unsafe {
-            channel_create_event(&mut *chan);
-        }
+        channel_create_event(crate::globals::gmut(chan));
     } else {
         if rettv.vval.v_number() <= 0 {
             return;
         }
 
-        let pid = unsafe { (*chan).uv.proc_.pid };
+        let pid = crate::globals::gptr(chan).uv.proc_.pid;
         let buf = g_st().curbuf;
-        let buf = unsafe { &mut *buf };
+        let buf = crate::globals::gmut(buf);
 
         buf.b_p_swf = 0;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
-            unsafe {
-                proc_stop(&raw mut (*chan).uv.proc_);
-            }
-            unsafe {
-                channel_decref(&mut *chan);
-            }
+            proc_stop(&raw mut crate::globals::gptr(chan).uv.proc_);
+
+            channel_decref(crate::globals::gmut(chan));
+
             return;
         }
 
-        unsafe {
-            channel_incref(&mut *chan);
-        }
-        unsafe {
-            channel_terminal_alloc(&mut *buf, &mut *chan);
-        }
+        channel_incref(crate::globals::gmut(chan));
+
+        channel_terminal_alloc(&mut *buf, crate::globals::gmut(chan));
 
         let ct = chan;
         'term_done: {
@@ -4687,7 +4668,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 buf,
             );
 
-            if unsafe { (*ct).term.is_null() } || unsafe { terminal_buf(&*(*ct).term) == 0 } {
+            if crate::globals::gptr(ct).term.is_null()
+                || terminal_buf(crate::globals::gref(crate::globals::gptr(ct).term)) == 0
+            {
                 break 'term_done;
             }
 
@@ -4699,12 +4682,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 g_st().iobuff[len - 1] = NUL;
             }
             if len == 1 && crate::memory::cstr_first_byte(iobuff) == b'/' {
-                unsafe {
-                    *iobuff.wrapping_add(1).cast::<u8>() = b'.';
-                }
-                unsafe {
-                    *iobuff.wrapping_add(2) = NUL;
-                }
+                *crate::globals::gptr(iobuff.wrapping_add(1).cast::<u8>()) = b'.';
+
+                *crate::globals::gptr(iobuff.wrapping_add(2)) = NUL;
             }
 
             vim_snprintf!(
@@ -4725,27 +4705,29 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 buf,
             );
 
-            if unsafe { (*ct).term.is_null() } || unsafe { terminal_buf(&*(*ct).term) == 0 } {
+            if crate::globals::gptr(ct).term.is_null()
+                || terminal_buf(crate::globals::gref(crate::globals::gptr(ct).term)) == 0
+            {
                 break 'term_done;
             }
 
             let mut err = Error::new();
             buf.b_locked += 1;
             let cp = chan;
-            unsafe {
-                dict_set_var(
-                    &mut *(*buf).b_vars(),
-                    cstr_as_string(c"terminal_job_id"),
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer((*cp).id as Integer),
-                    },
-                    false,
-                    false,
-                    None,
-                    &mut err,
-                );
-            }
+
+            dict_set_var(
+                &mut *(*buf).b_vars(),
+                cstr_as_string(c"terminal_job_id"),
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(crate::globals::gptr(cp).id as Integer),
+                },
+                false,
+                false,
+                None,
+                &mut err,
+            );
+
             api_clear_error(&mut err);
             dict_set_var(
                 &mut *(*buf).b_vars(),
@@ -4762,20 +4744,18 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             api_clear_error(&mut err);
             buf.b_locked -= 1;
 
-            if unsafe { (*ct).term.is_null() } || unsafe { terminal_buf(&*(*ct).term) == 0 } {
+            if crate::globals::gptr(ct).term.is_null()
+                || terminal_buf(crate::globals::gref(crate::globals::gptr(ct).term)) == 0
+            {
                 break 'term_done;
             }
 
-            unsafe {
-                terminal_open(&raw mut (*ct).term, &mut *buf);
-            }
+            terminal_open(&raw mut crate::globals::gptr(ct).term, &mut *buf);
         }
-        unsafe {
-            channel_create_event(&mut *chan);
-        }
-        unsafe {
-            channel_decref(&mut *chan);
-        }
+
+        channel_create_event(crate::globals::gmut(chan));
+
+        channel_decref(crate::globals::gmut(chan));
     }
 }
 
@@ -4796,7 +4776,7 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if data.is_null() {
         return;
     }
-    let data = unsafe { &mut *data };
+    let data = crate::globals::gmut(data);
 
     let mut error = None;
     if data.is_rpc {
@@ -4825,13 +4805,13 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     let args = argvars[0].vval.v_list();
-    let len = unsafe { tv_list_len(args.as_ref()) as usize };
+    let len = tv_list_len(crate::globals::gopt(args)) as usize;
     let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
     let main_loop_ptr: *mut Loop = &raw mut g_st().main_loop;
     let waiting_jobs = multiqueue_new(main_loop_ptr);
 
     for (i, arg) in
-        unsafe { crate::eval::typval::list_iter_ptr(tv_list_first(args.as_ref())).enumerate() }
+        crate::eval::typval::list_iter_ptr(tv_list_first(crate::globals::gopt(args))).enumerate()
     {
         let tv = &arg.li_tv;
         let chan = if tv.v_type == VarType::VarNumber {
@@ -4839,26 +4819,24 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         } else {
             ptr::null_mut()
         };
-        if chan.is_null() || unsafe { (*chan).streamtype != K_CHANNEL_STREAM_PROC } {
+        if chan.is_null() || crate::globals::gptr(chan).streamtype != K_CHANNEL_STREAM_PROC {
             jobs[i] = ptr::null_mut();
         } else {
-            let proc_ptr = unsafe { &raw mut (*chan).uv.proc_ };
-            if unsafe { proc_is_stopped(&mut *proc_ptr) } {
+            let proc_ptr = &raw mut crate::globals::gptr(chan).uv.proc_;
+            if proc_is_stopped(crate::globals::gmut(proc_ptr)) {
                 proc_wait(proc_ptr, -1, ptr::null_mut());
                 jobs[i] = ptr::null_mut();
             } else {
                 jobs[i] = chan;
-                unsafe {
-                    channel_incref(&mut *chan);
-                }
-                if unsafe { (*proc_ptr).status < 0 } {
-                    let events = unsafe { (*chan).events };
-                    unsafe {
-                        multiqueue_process_events(&mut *events);
-                    }
-                    unsafe {
-                        multiqueue_replace_parent(&mut *events, &mut *waiting_jobs);
-                    }
+
+                channel_incref(crate::globals::gmut(chan));
+
+                if crate::globals::gptr(proc_ptr).status < 0 {
+                    let events = crate::globals::gptr(chan).events;
+
+                    multiqueue_process_events(crate::globals::gmut(events));
+
+                    multiqueue_replace_parent(crate::globals::gmut(events), &mut *waiting_jobs);
                 }
             }
         }
@@ -4885,7 +4863,11 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if job.is_null() {
             continue;
         }
-        let status = unsafe { proc_wait(&raw mut (*job).uv.proc_, remaining, waiting_jobs) };
+        let status = proc_wait(
+            &raw mut crate::globals::gptr(job).uv.proc_,
+            remaining,
+            waiting_jobs,
+        );
         if status < 0 {
             break;
         }
@@ -4900,19 +4882,19 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             tv_list_append_number(&mut *rv, -3);
             continue;
         }
-        let events = unsafe { (*job).events };
-        unsafe {
-            multiqueue_process_events(&mut *events);
-        }
-        unsafe {
-            multiqueue_replace_parent(&mut *events, &mut *loop_queues(&mut *main_loop_ptr).events);
-        }
+        let events = crate::globals::gptr(job).events;
 
-        let status = unsafe { (*job).uv.proc_.status };
+        multiqueue_process_events(crate::globals::gmut(events));
+
+        multiqueue_replace_parent(
+            crate::globals::gmut(events),
+            crate::globals::gmut(loop_queues(crate::globals::gmut(main_loop_ptr)).events),
+        );
+
+        let status = crate::globals::gptr(job).uv.proc_.status;
         tv_list_append_number(&mut *rv, Varnumber::from(status));
-        unsafe {
-            channel_decref(&mut *job);
-        }
+
+        channel_decref(crate::globals::gmut(job));
     }
 
     multiqueue_free(waiting_jobs);
@@ -5072,7 +5054,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let id = tv_get_number(&argvars[1]) as i32;
         let mut tp: *mut TabPageInfo = ptr::null_mut();
         let wp = win_id2wp_tp(id, Some(&mut tp));
-        if let Some(wp_ref) = unsafe { wp.as_mut() }
+        if let Some(wp_ref) = crate::globals::gopt_mut(wp)
             && !tp.is_null()
         {
             if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c'
@@ -5088,7 +5070,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         fp = var2fpos(&argvars[0], true, &mut fnum, false, curwin_mut());
     }
 
-    if let Some(fp_ref) = unsafe { fp.as_ref() } {
+    if let Some(fp_ref) = crate::globals::gopt(fp) {
         lnum = fp_ref.lnum;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(lnum));
@@ -5167,9 +5149,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             if l.is_null() {
                 break 'theend;
             }
-            unsafe {
-                li = tv_list_first(l.as_ref());
-            }
+
+            li = tv_list_first(crate::globals::gopt(l));
         } else {
             let s = tv_get_string(&argvars[0]);
             str_ = s.as_ptr().cast_mut();
@@ -5190,15 +5171,13 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 break 'theend;
             }
             if !l.is_null() {
-                unsafe {
-                    idx = tv_list_uidx(l.as_ref(), start as i32);
-                }
+                idx = tv_list_uidx(crate::globals::gopt(l), start as i32);
+
                 if idx == -1 {
                     break 'theend;
                 }
-                unsafe {
-                    li = tv_list_find(l.as_mut(), idx);
-                }
+
+                li = tv_list_find(crate::globals::gopt_mut(l), idx);
             } else {
                 if start < 0 {
                     start = 0;
@@ -5232,9 +5211,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                         match_found = false;
                         break;
                     }
-                    unsafe {
-                        tofree_owned = Some(encode_tv2echo(&mut (*li).li_tv, None));
-                    }
+
+                    tofree_owned = Some(encode_tv2echo(&mut crate::globals::gptr(li).li_tv, None));
+
                     expr = tofree_owned
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -5257,9 +5236,8 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 }
 
                 if !l.is_null() {
-                    unsafe {
-                        li = (*li).li_next;
-                    }
+                    li = crate::globals::gptr(li).li_next;
+
                     idx += 1;
                 } else {
                     startcol = (crate::memory::ptr_offset_from(
@@ -5280,11 +5258,11 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                 match type_ {
                     SomeMatchType::SomeMatchStrPos => {
                         let ret_l = rettv.vval.v_list();
-                        let li1 = unsafe { tv_list_first(ret_l.as_ref()) };
-                        let li1 = unsafe { &mut *li1 };
+                        let li1 = tv_list_first(crate::globals::gopt(ret_l));
+                        let li1 = crate::globals::gmut(li1);
                         let li2 = li1.li_next;
-                        let li3 = unsafe { (*li2).li_next };
-                        let li4 = unsafe { (*li3).li_next };
+                        let li3 = crate::globals::gptr(li2).li_next;
+                        let li4 = crate::globals::gptr(li3).li_next;
                         tv_clear(&mut li1.li_tv);
 
                         let rd =
@@ -5295,23 +5273,22 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             regmatch.startp[0].cast(),
                             rd,
                         );
-                        unsafe {
-                            (*li3).li_tv.vval = crate::eval::typval::TypvalVval::Number(
+
+                        crate::globals::gptr(li3).li_tv.vval =
+                            crate::eval::typval::TypvalVval::Number(
                                 crate::memory::ptr_offset_from(regmatch.startp[0], expr.cast())
                                     as Varnumber,
                             );
-                        }
-                        unsafe {
-                            (*li4).li_tv.vval = crate::eval::typval::TypvalVval::Number(
+
+                        crate::globals::gptr(li4).li_tv.vval =
+                            crate::eval::typval::TypvalVval::Number(
                                 crate::memory::ptr_offset_from(regmatch.endp[0], expr.cast())
                                     as Varnumber,
                             );
-                        }
+
                         if !l.is_null() {
-                            unsafe {
-                                (*li2).li_tv.vval =
-                                    crate::eval::typval::TypvalVval::Number(Varnumber::from(idx));
-                            }
+                            crate::globals::gptr(li2).li_tv.vval =
+                                crate::eval::typval::TypvalVval::Number(Varnumber::from(idx));
                         }
                     }
                     SomeMatchType::SomeMatchList => {
@@ -5332,9 +5309,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                     SomeMatchType::SomeMatchStr => {
                         if !l.is_null() {
-                            unsafe {
-                                tv_copy(&(*li).li_tv, &mut *rettv);
-                            }
+                            tv_copy(&crate::globals::gptr(li).li_tv, &mut *rettv);
                         } else {
                             crate::eval::typval::tv_set_string_len(
                                 &mut *rettv,
@@ -5372,10 +5347,12 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
     if type_ == SomeMatchType::SomeMatchStrPos && l.is_null() && !rettv.vval.v_list().is_null() {
         let ret_l = rettv.vval.v_list();
-        let first = unsafe { tv_list_first(ret_l.as_ref()) };
-        unsafe {
-            tv_list_item_remove(&mut *ret_l, (*first).li_next);
-        }
+        let first = tv_list_first(crate::globals::gopt(ret_l));
+
+        tv_list_item_remove(
+            crate::globals::gmut(ret_l),
+            crate::globals::gptr(first).li_next,
+        );
     }
 
     drop(tofree_owned);
@@ -5473,7 +5450,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
         return;
     }
-    if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+    if crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return;
     }
@@ -5482,7 +5459,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let pat = tv_get_string_buf(&argvars[1], &mut patbuf);
 
     let did_emsg_before = g_st().did_emsg;
-    let mut slnum = unsafe { tv_get_lnum_buf(&argvars[2], buf.as_ref()) };
+    let mut slnum = tv_get_lnum_buf(&argvars[2], crate::globals::gopt(buf));
     if g_st().did_emsg > did_emsg_before {
         return;
     }
@@ -5491,7 +5468,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let mut elnum = unsafe { tv_get_lnum_buf(&argvars[3], buf.as_ref()) };
+    let mut elnum = tv_get_lnum_buf(&argvars[3], crate::globals::gopt(buf));
     if g_st().did_emsg > did_emsg_before {
         return;
     }
@@ -5500,19 +5477,17 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    if unsafe { elnum > (*buf).b_ml.ml_line_count } {
-        unsafe {
-            elnum = (*buf).b_ml.ml_line_count;
-        }
+    if elnum > crate::globals::gptr(buf).b_ml.ml_line_count {
+        elnum = crate::globals::gptr(buf).b_ml.ml_line_count;
     }
 
     let mut submatches = false;
     if argvars[4].v_type != VarType::VarUnknown {
         let d = argvars[4].vval.v_dict();
         if !d.is_null() {
-            let di = unsafe { tv_dict_find(d.as_ref(), c"submatches", 10) };
+            let di = tv_dict_find(crate::globals::gopt(d), c"submatches", 10);
             if !di.is_null() {
-                let di = unsafe { &mut *di };
+                let di = crate::globals::gmut(di);
                 if di.di_tv.v_type != VarType::VarBool {
                     semsg!(gettext(E_INVARGVAL), c"submatches");
                     return;
@@ -5531,10 +5506,17 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.rm_ic = opt_vars().p_ic != 0;
 
         while slnum <= elnum {
-            let str_ = unsafe { ml_get_buf(&mut *buf, slnum) };
-            unsafe {
-                get_matches_in_str(str_, &mut regmatch, &mut *retlist, slnum, submatches, true);
-            }
+            let str_ = ml_get_buf(crate::globals::gmut(buf), slnum);
+
+            get_matches_in_str(
+                str_,
+                &mut regmatch,
+                crate::globals::gmut(retlist),
+                slnum,
+                submatches,
+                true,
+            );
+
             slnum += 1;
         }
 
@@ -5608,17 +5590,15 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 submatches = tv_get_bool(&di.di_tv) != 0;
             }
 
-            for (idx, li) in
-                (0_i32..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(unsafe {
-                    l.as_ref()
-                })))
-            {
+            for (idx, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(
+                crate::globals::gopt(l),
+            ))) {
                 let li_tv = &li.li_tv;
                 if li_tv.v_type == VarType::VarString && !li_tv.vval.v_string().is_null() {
                     get_matches_in_str(
                         li_tv.vval.v_string(),
                         &mut regmatch,
-                        unsafe { &mut *retlist },
+                        crate::globals::gmut(retlist),
                         idx,
                         submatches,
                         false,
@@ -6713,7 +6693,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             subpatnum = searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                unsafe { &mut *(pos.cast()) },
+                crate::globals::gmut(pos.cast()),
                 None,
                 dir,
                 pat_ptr,
@@ -6814,7 +6794,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     };
 
     let mut tv = (&raw mut argvars[2]);
-    while unsafe { (*tv).v_type } != VarType::VarUnknown {
+    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
         args.size += 1;
         tv = tv.wrapping_add(1);
@@ -6869,7 +6849,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     };
 
     let mut tv = (&raw mut argvars[2]);
-    while unsafe { (*tv).v_type } != VarType::VarUnknown {
+    while crate::globals::gptr(tv).v_type != VarType::VarUnknown {
         *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
         args.size += 1;
         tv = tv.wrapping_add(1);
@@ -6891,16 +6871,16 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
         rt_st().exestack.push(
-            unsafe { (&raw const g_st().provider_caller_scope.es_entry).as_ref() }
+            crate::globals::gopt(&raw const g_st().provider_caller_scope.es_entry)
                 .unwrap()
                 .clone(),
         );
         g_st().autocmd_fname =
-            unsafe { (&raw const g_st().provider_caller_scope.autocmd_fname).as_ref() }
+            crate::globals::gopt(&raw const g_st().provider_caller_scope.autocmd_fname)
                 .unwrap()
                 .clone();
         g_st().autocmd_match =
-            unsafe { (&raw const g_st().provider_caller_scope.autocmd_match).as_ref() }
+            crate::globals::gopt(&raw const g_st().provider_caller_scope.autocmd_match)
                 .unwrap()
                 .clone();
         g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
@@ -6931,7 +6911,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         let mut name: Option<&std::ffi::CStr> = None;
         let chan = find_channel(chan_id);
         if !chan.is_null() {
-            name = get_client_info(unsafe { &mut *chan }, c"name");
+            name = get_client_info(crate::globals::gmut(chan), c"name");
         }
         if let Some(name) = name {
             semsg_multiline!(
@@ -7153,9 +7133,9 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
             mpat,
             epat,
             dir,
-            unsafe { skip.as_ref() },
+            crate::globals::gopt(skip),
             flags,
-            unsafe { (match_pos.map_or(ptr::null_mut(), |p| &raw mut *p)).as_mut() },
+            crate::globals::gopt_mut(match_pos.map_or(ptr::null_mut(), |p| &raw mut *p)),
             lnum_stop,
             time_limit,
         );
@@ -7278,7 +7258,7 @@ pub fn do_searchpair(
             let n = searchit(
                 curwin_ptr(),
                 curbuf_mut(),
-                unsafe { &mut *(pos.cast()) },
+                crate::globals::gmut(pos.cast()),
                 None,
                 dir,
                 pat,
@@ -7679,7 +7659,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut pointreg: u8 = 0;
     if argvars[1].v_type == VarType::VarDict {
         let d = argvars[1].vval.v_dict();
-        if unsafe { tv_dict_len(d.as_ref()) == 0 } {
+        if tv_dict_len(crate::globals::gopt(d)) == 0 {
             write_reg_contents_lst(
                 i32::from(regname),
                 &[] as &[&CStr],
@@ -7690,14 +7670,12 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             return;
         }
 
-        let di = unsafe { tv_dict_find(d.as_ref(), c"regcontents", -1) };
+        let di = tv_dict_find(crate::globals::gopt(d), c"regcontents", -1);
         if !di.is_null() {
-            unsafe {
-                regcontents = &raw const (*di).di_tv;
-            }
+            regcontents = &raw const crate::globals::gptr(di).di_tv;
         }
 
-        if let Some(s) = unsafe { tv_dict_get_string(d.as_ref(), c"regtype") } {
+        if let Some(s) = tv_dict_get_string(crate::globals::gopt(d), c"regtype") {
             let mut stropt = s.to_bytes();
             let ret = get_yank_type(&mut stropt, &mut yank_type, &mut block_len);
             stropt = stropt.get(1..).unwrap_or(&[]);
@@ -7708,13 +7686,12 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
 
         if regname == b'"' {
-            if let Some(s) = unsafe { tv_dict_get_string(d.as_ref(), c"points_to") } {
-                unsafe {
-                    pointreg = *s.as_ptr().cast::<u8>();
-                }
+            if let Some(s) = tv_dict_get_string(crate::globals::gopt(d), c"points_to") {
+                pointreg = *crate::globals::gptr(s.as_ptr().cast::<u8>());
+
                 regname = pointreg;
             }
-        } else if unsafe { tv_dict_get_bool(d.as_ref(), c"isunnamed", -1) > 0 } {
+        } else if tv_dict_get_bool(crate::globals::gopt(d), c"isunnamed", -1) > 0 {
             pointreg = regname;
         }
     } else {
@@ -7744,14 +7721,14 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
 
-    if !regcontents.is_null() && unsafe { (*regcontents).v_type == VarType::VarList } {
-        let ll = unsafe { (*regcontents).vval.v_list() };
-        let len = unsafe { tv_list_len(ll.as_ref()) as usize };
+    if !regcontents.is_null() && crate::globals::gptr(regcontents).v_type == VarType::VarList {
+        let ll = crate::globals::gptr(regcontents).vval.v_list();
+        let len = tv_list_len(crate::globals::gopt(ll)) as usize;
 
         let mut lstval: Vec<std::ffi::CString> = Vec::with_capacity(len);
 
         'free_lstval: {
-            for li in unsafe { crate::eval::typval::list_iter_mut(tv_list_first(ll.as_ref())) } {
+            for li in crate::eval::typval::list_iter_mut(tv_list_first(crate::globals::gopt(ll))) {
                 let mut buf = [0u8; NUMBUFLEN];
                 let Some(val) = tv_get_string_buf_chk(&li.li_tv, &mut buf) else {
                     break 'free_lstval;
@@ -7768,7 +7745,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             );
         }
     } else if !regcontents.is_null() {
-        let Some(strval) = (unsafe { tv_get_string_chk(&*regcontents) }) else {
+        let Some(strval) = tv_get_string_chk(crate::globals::gref(regcontents)) else {
             return;
         };
         write_reg_contents_ex(
@@ -7825,8 +7802,8 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     if set_tagstack(
-        unsafe { &mut *wp },
-        unsafe { d.as_ref() },
+        crate::globals::gmut(wp),
+        crate::globals::gopt(d),
         i32::from(action),
     ) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -8441,7 +8418,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             str_.to_bytes().len(),
             pat.cast_mut(),
             sub.cast_mut(),
-            unsafe { expr.as_ref() },
+            crate::globals::gopt(expr),
             flg.cast_mut(),
         );
         crate::eval::typval::tv_set_string_len(rettv, sub_res.as_ptr(), sub_res.as_bytes().len());
@@ -8463,7 +8440,7 @@ pub fn f_swapinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_swapname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
     let buf = tv_get_buf(&mut argvars[0], 0);
-    if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+    if buf.is_null() || crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     } else if let Some(ref mf_fname) = *unsafe { &(*(*buf).b_ml.mfp_ptr()).mf_fname } {
         crate::eval::typval::tv_set_string(rettv, mf_fname.as_ptr());
@@ -8669,22 +8646,19 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
             wp = if tp == g_st().curtab {
                 g_st().firstwin
             } else {
-                unsafe { (*tp).tp_firstwin }
+                crate::globals::gptr(tp).tp_firstwin
             };
         }
     }
     if !wp.is_null() {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
         while !wp.is_null() {
-            unsafe {
-                tv_list_append_number(
-                    rettv.vval.v_list_ref(),
-                    Varnumber::from((*wp).buf_mut().b_fnum),
-                );
-            }
-            unsafe {
-                wp = (*wp).w_next;
-            }
+            tv_list_append_number(
+                rettv.vval.v_list_ref(),
+                Varnumber::from(crate::globals::gptr(wp).buf_mut().b_fnum),
+            );
+
+            wp = crate::globals::gptr(wp).w_next;
         }
     }
 }
@@ -8731,7 +8705,7 @@ pub fn f_timer_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         return;
     }
     if argvars[0].v_type != VarType::VarUnknown {
-        if let Some(timer) = unsafe { find_timer_by_nr(tv_get_number(&argvars[0])).as_mut() }
+        if let Some(timer) = crate::globals::gopt_mut(find_timer_by_nr(tv_get_number(&argvars[0])))
             && (!timer.stopped || timer.refcount > 1)
         {
             add_timer_info(rettv, timer);
@@ -8748,7 +8722,7 @@ pub fn f_timer_pause(argvars: &mut [TypVal], _unused: &mut TypVal, _fptr: EvalFu
         return;
     }
     let paused = tv_get_bool(&argvars[1]) != 0;
-    if let Some(timer) = unsafe { find_timer_by_nr(tv_get_number(&argvars[0])).as_mut() } {
+    if let Some(timer) = crate::globals::gopt_mut(find_timer_by_nr(tv_get_number(&argvars[0]))) {
         if !timer.paused && paused {
             time_watcher_stop(&mut timer.watcher);
         } else if timer.paused && !paused {
@@ -8799,7 +8773,7 @@ pub fn f_timer_stop(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFunc
     if !tv_check_for_number_arg(argvars, 0) {
         return;
     }
-    if let Some(timer) = unsafe { find_timer_by_nr(tv_get_number(&argvars[0])).as_mut() } {
+    if let Some(timer) = crate::globals::gopt_mut(find_timer_by_nr(tv_get_number(&argvars[0]))) {
         timer_stop(timer);
     }
 }
@@ -8836,7 +8810,7 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
             let mut tp: *mut TabPageInfo = ptr::null_mut();
             wp = win_id2wp_tp(tv_get_number(&argvars[2]) as i32, Some(&mut tp));
-            let Some(wp_ref) = (unsafe { wp.as_mut() }) else {
+            let Some(wp_ref) = crate::globals::gopt_mut(wp) else {
                 break 'theend;
             };
             if tp.is_null() {
@@ -8845,11 +8819,11 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             check_cursor(wp_ref);
         }
 
-        let wp_ref = unsafe { &mut *wp };
+        let wp_ref = crate::globals::gmut(wp);
         let bp = wp_ref.buf_mut();
         let mut fnum = bp.b_fnum;
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, wp_ref);
-        if let Some(fp_ref) = unsafe { fp.as_mut() }
+        if let Some(fp_ref) = crate::globals::gopt_mut(fp)
             && fp_ref.lnum <= bp.b_ml.ml_line_count
             && fnum == bp.b_fnum
         {

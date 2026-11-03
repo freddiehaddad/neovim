@@ -210,7 +210,7 @@ static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> =
 
 #[inline]
 fn exeval_st() -> &'static mut ExEvalModuleState {
-    unsafe { &mut *EXEVAL_STATE.as_ptr() }
+    crate::globals::gmut(EXEVAL_STATE.as_ptr())
 }
 
 #[inline]
@@ -254,7 +254,7 @@ pub fn cause_errthrow(
     ignore: &mut bool,
 ) -> bool {
     let mesg = mesg.into_c_char_ptr();
-    unsafe {
+    {
         if g_st().suppress_errthrow {
             return false;
         }
@@ -289,7 +289,7 @@ pub fn cause_errthrow(
         }
 
         let ml = &raw mut g_st().msg_list;
-        if let Some(ref mut list) = *ml {
+        if let Some(ref mut list) = *crate::globals::gptr(ml) {
             if concat && let Some(last) = list.last_mut() {
                 let mut bytes = last.msg.as_bytes().to_vec();
                 bytes.extend_from_slice(crate::memory::cstr_as_bytes(mesg));
@@ -335,14 +335,14 @@ pub fn free_global_msglist() {
 
 pub fn do_errthrow(cstack: Option<&mut Cstack>, cmdname: impl crate::strings::IntoCCharPtr) {
     let cmdname = cmdname.into_c_char_ptr();
-    unsafe {
+    {
         if exeval_st().cause_abort {
             exeval_st().cause_abort = false;
             g_st().force_abort = true;
         }
 
         let ml = &raw mut g_st().msg_list;
-        let Some(ref mut list) = *ml else {
+        let Some(ref mut list) = *crate::globals::gptr(ml) else {
             return;
         };
         if list.is_empty() {
@@ -379,7 +379,7 @@ pub fn do_intthrow(cstack: *mut Cstack) -> bool {
         ExceptionValue::Interrupt(c"Vim:Interrupt".to_owned()),
         ptr::null_mut(),
     ) {
-        do_throw(unsafe { &mut *(cstack) });
+        do_throw(crate::globals::gmut(cstack));
     }
 
     true

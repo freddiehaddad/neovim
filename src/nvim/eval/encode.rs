@@ -59,7 +59,7 @@ static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> =
 
 #[inline]
 fn encode_st() -> &'static mut EvalEncodeState {
-    unsafe { &mut *ENCODE_STATE.as_ptr() }
+    crate::globals::gmut(ENCODE_STATE.as_ptr())
 }
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).
@@ -74,7 +74,7 @@ pub struct ListReaderState {
 impl ListReaderState {
     #[inline]
     pub fn li_opt(&self) -> Option<&'static Listitem> {
-        unsafe { self.li.as_ref() }
+        crate::globals::gopt(self.li)
     }
 }
 
@@ -321,20 +321,18 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
         match v.data {
             MPConvStackData::Dict { dict, hi, .. } => {
                 let hi_ptr = if hi.is_null() {
-                    unsafe { (*dict).dv_hashtab.array_ptr() }
+                    crate::globals::gptr(dict).dv_hashtab.array_ptr()
                 } else {
                     hi.wrapping_sub(1)
                 };
-                let mut key_tv = unsafe {
-                    TypVal {
-                        v_type: VarType::VarString,
-                        v_lock: VAR_UNLOCKED,
-                        vval: TypvalVval::String(
-                            (&*hi_ptr)
-                                .key_cstr()
-                                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                        ),
-                    }
+                let mut key_tv = TypVal {
+                    v_type: VarType::VarString,
+                    v_lock: VAR_UNLOCKED,
+                    vval: TypvalVval::String(
+                        (crate::globals::gref(hi_ptr))
+                            .key_cstr()
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                    ),
                 };
                 let key = encode_tv2string(&mut key_tv, None);
                 ga_concat_literal(&mut msg_ga, b"key ");
@@ -343,32 +341,36 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
             }
             MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
-                let first = unsafe { tv_list_first(list.as_ref()) };
+                let first = tv_list_first(crate::globals::gopt(list));
                 let idx = if li == first {
                     0
                 } else if li.is_null() {
-                    unsafe { tv_list_len(list.as_ref()) - 1 }
+                    tv_list_len(crate::globals::gopt(list)) - 1
                 } else {
-                    unsafe { tv_list_idx_of_item(list.as_ref(), (*li).li_prev) }
+                    tv_list_idx_of_item(
+                        crate::globals::gopt(list),
+                        crate::globals::gptr(li).li_prev,
+                    )
                 };
                 let prev_li: *const Listitem = if li.is_null() {
-                    unsafe { tv_list_last(list.as_ref()) }
+                    tv_list_last(crate::globals::gopt(list))
                 } else {
-                    unsafe { (*li).li_prev }
+                    crate::globals::gptr(li).li_prev
                 };
                 if is_list
                     || prev_li.is_null()
-                    || (unsafe {
-                        (*prev_li).li_tv.v_type != VarType::VarList
-                            && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0
-                    })
+                    || (crate::globals::gptr(prev_li).li_tv.v_type != VarType::VarList
+                        && tv_list_len(crate::globals::gopt(
+                            crate::globals::gptr(prev_li).li_tv.vval.v_list(),
+                        )) <= 0)
                 {
                     let _ = write!(&mut msg_ga, "index {idx}");
                 } else {
-                    let first_item =
-                        unsafe { tv_list_first(((*prev_li).li_tv.vval.v_list()).as_ref()) };
+                    let first_item = tv_list_first(crate::globals::gopt(
+                        crate::globals::gptr(prev_li).li_tv.vval.v_list(),
+                    ));
                     assert!(!first_item.is_null());
-                    let mut key_tv = unsafe { (*first_item).li_tv };
+                    let mut key_tv = crate::globals::gptr(first_item).li_tv;
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
                     item_buf.extend_from_slice(b"key ");
@@ -585,12 +587,12 @@ impl EncodeBackend<'_> {
 
     #[inline]
     fn packer_mut(packer: *mut PackerBuffer) -> &'static mut PackerBuffer {
-        unsafe { &mut *packer }
+        crate::globals::gmut(packer)
     }
 
     #[inline]
     fn packer_ptr(packer: *mut PackerBuffer) -> &'static mut *mut u8 {
-        unsafe { &mut (*packer).ptr }
+        &mut crate::globals::gmut(packer).ptr
     }
 
     #[inline]
@@ -1055,7 +1057,7 @@ fn convert_one_value(
     objname: &CStr,
 ) -> i32 {
     backend.check_before();
-    let tv_ref = unsafe { &mut *tv };
+    let tv_ref = crate::globals::gmut(tv);
     match tv_ref.v_type {
         VarType::VarString => {
             let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
@@ -1073,9 +1075,11 @@ fn convert_one_value(
         }
         VarType::VarBlob => {
             let blob = tv_ref.vval.v_blob();
-            unsafe {
-                backend.conv_blob(blob.as_ref(), tv_blob_len(blob.as_ref()));
-            }
+
+            backend.conv_blob(
+                crate::globals::gopt(blob),
+                tv_blob_len(crate::globals::gopt(blob)),
+            );
         }
         VarType::VarFunc => {
             let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
@@ -1088,10 +1092,10 @@ fn convert_one_value(
         }
         VarType::VarPartial => {
             let pt = tv_ref.vval.v_partial();
-            let fun = unsafe { (!pt.is_null()).then(|| partial_name(pt.as_ref()).to_bytes()) };
+            let fun = (!pt.is_null()).then(|| partial_name(crate::globals::gopt(pt)).to_bytes());
             let prefix: &[u8] = if let Some(fb) = fun
                 && !pt.is_null()
-                && unsafe { (*pt).pt_name.is_none() }
+                && crate::globals::gptr(pt).pt_name.is_none()
                 && fb.first().is_some_and(u8::is_ascii_uppercase)
             {
                 b"g:"
@@ -1112,35 +1116,31 @@ fn convert_one_value(
         }
         VarType::VarList => {
             let list = tv_ref.vval.v_list();
-            if list.is_null() || unsafe { tv_list_len(list.as_ref()) == 0 } {
+            if list.is_null() || tv_list_len(crate::globals::gopt(list)) == 0 {
                 backend.conv_empty_list();
             } else {
-                let saved_copy_id = unsafe { (*list).lv_copy_id };
-                let csr = unsafe {
-                    backend.check_self_reference(
-                        MPContainerRef::List(list),
-                        &mut (*list).lv_copy_id,
-                        mpstack,
-                        copy_id,
-                        objname,
-                    )
-                };
+                let saved_copy_id = crate::globals::gptr(list).lv_copy_id;
+                let csr = backend.check_self_reference(
+                    MPContainerRef::List(list),
+                    &mut crate::globals::gptr(list).lv_copy_id,
+                    mpstack,
+                    copy_id,
+                    objname,
+                );
                 if csr != NOTDONE {
                     return csr;
                 }
-                unsafe {
-                    backend.conv_list_start(tv_list_len(list.as_ref()));
-                }
-                unsafe {
-                    mpstack.push(MPConvStackVal {
-                        tv,
-                        saved_copy_id,
-                        data: MPConvStackData::List {
-                            list,
-                            li: tv_list_first(list.as_ref()),
-                        },
-                    });
-                }
+
+                backend.conv_list_start(tv_list_len(crate::globals::gopt(list)));
+
+                mpstack.push(MPConvStackVal {
+                    tv,
+                    saved_copy_id,
+                    data: MPConvStackData::List {
+                        list,
+                        li: tv_list_first(crate::globals::gopt(list)),
+                    },
+                });
             }
         }
         VarType::VarBool => {
@@ -1153,20 +1153,28 @@ fn convert_one_value(
         }
         VarType::VarDict => {
             let dict = tv_ref.vval.v_dict();
-            if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
+            if dict.is_null() || crate::globals::gptr(dict).dv_hashtab.ht_used == 0 {
                 backend.conv_empty_dict();
                 return OK;
             }
             let mut handled_special = false;
-            if backend.allow_specials() && unsafe { (*dict).dv_hashtab.ht_used == 2 } {
-                let type_di = unsafe { tv_dict_find(dict.as_ref(), c"_TYPE", 5) };
-                if !type_di.is_null() && unsafe { (*type_di).di_tv.v_type == VarType::VarList } {
-                    let val_di = unsafe { tv_dict_find(dict.as_ref(), c"_VAL", 4) };
+            if backend.allow_specials() && crate::globals::gptr(dict).dv_hashtab.ht_used == 2 {
+                let type_di = tv_dict_find(crate::globals::gopt(dict), c"_TYPE", 5);
+                if !type_di.is_null()
+                    && crate::globals::gptr(type_di).di_tv.v_type == VarType::VarList
+                {
+                    let val_di = tv_dict_find(crate::globals::gopt(dict), c"_VAL", 4);
                     if !val_di.is_null() {
-                        let val_di = unsafe { &mut *val_di };
+                        let val_di = crate::globals::gmut(val_di);
                         let mut mp_idx = NUM_MSGPACK_TYPES;
                         for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
-                            if unsafe { (*type_di).di_tv.vval.v_list().cast_const() == tl } {
+                            if crate::globals::gptr(type_di)
+                                .di_tv
+                                .vval
+                                .v_list()
+                                .cast_const()
+                                == tl
+                            {
                                 mp_idx = i;
                                 break;
                             }
@@ -1187,16 +1195,17 @@ fn convert_one_value(
                                 K_MP_INTEGER => {
                                     if val_di.di_tv.v_type == VarType::VarList {
                                         let val_list = val_di.di_tv.vval.v_list();
-                                        if unsafe { tv_list_len(val_list.as_ref()) == 4 } {
+                                        if tv_list_len(crate::globals::gopt(val_list)) == 4 {
                                             let sign_li =
-                                                unsafe { tv_list_first(val_list.as_ref()) };
-                                            let sign_li = unsafe { &mut *sign_li };
+                                                tv_list_first(crate::globals::gopt(val_list));
+                                            let sign_li = crate::globals::gmut(sign_li);
                                             let highest_li = sign_li.li_next;
-                                            let highest_li = unsafe { &mut *highest_li };
+                                            let highest_li = crate::globals::gmut(highest_li);
                                             let high_li = highest_li.li_next;
-                                            let high_li = unsafe { &mut *high_li };
-                                            let low_li = unsafe { tv_list_last(val_list.as_ref()) };
-                                            let low_li = unsafe { &mut *low_li };
+                                            let high_li = crate::globals::gmut(high_li);
+                                            let low_li =
+                                                tv_list_last(crate::globals::gopt(val_list));
+                                            let low_li = crate::globals::gmut(low_li);
                                             if sign_li.li_tv.v_type == VarType::VarNumber
                                                 && sign_li.li_tv.vval.v_number() != 0
                                                 && highest_li.li_tv.v_type == VarType::VarNumber
@@ -1233,11 +1242,9 @@ fn convert_one_value(
                                 }
                                 K_MP_STRING => {
                                     if val_di.di_tv.v_type == VarType::VarList
-                                        && let Some(buf) = unsafe {
-                                            encode_vim_list_to_buf(
-                                                (val_di.di_tv.vval.v_list()).as_ref(),
-                                            )
-                                        }
+                                        && let Some(buf) = encode_vim_list_to_buf(
+                                            crate::globals::gopt(val_di.di_tv.vval.v_list()),
+                                        )
                                     {
                                         if !backend.conv_str_string(Some(&buf)) {
                                             return FAIL;
@@ -1248,32 +1255,32 @@ fn convert_one_value(
                                 K_MP_ARRAY => {
                                     if val_di.di_tv.v_type == VarType::VarList {
                                         let val_list = val_di.di_tv.vval.v_list();
-                                        let saved_copy_id = unsafe { (*val_list).lv_copy_id };
-                                        let csr = unsafe {
-                                            backend.check_self_reference(
-                                                MPContainerRef::List(val_list),
-                                                &mut (*val_list).lv_copy_id,
-                                                mpstack,
-                                                copy_id,
-                                                objname,
-                                            )
-                                        };
+                                        let saved_copy_id =
+                                            crate::globals::gptr(val_list).lv_copy_id;
+                                        let csr = backend.check_self_reference(
+                                            MPContainerRef::List(val_list),
+                                            &mut crate::globals::gptr(val_list).lv_copy_id,
+                                            mpstack,
+                                            copy_id,
+                                            objname,
+                                        );
                                         if csr != NOTDONE {
                                             return csr;
                                         }
-                                        unsafe {
-                                            backend.conv_list_start(tv_list_len(val_list.as_ref()));
-                                        }
-                                        unsafe {
-                                            mpstack.push(MPConvStackVal {
-                                                tv,
-                                                saved_copy_id,
-                                                data: MPConvStackData::List {
-                                                    list: val_list,
-                                                    li: tv_list_first(val_list.as_ref()),
-                                                },
-                                            });
-                                        }
+
+                                        backend.conv_list_start(tv_list_len(crate::globals::gopt(
+                                            val_list,
+                                        )));
+
+                                        mpstack.push(MPConvStackVal {
+                                            tv,
+                                            saved_copy_id,
+                                            data: MPConvStackData::List {
+                                                list: val_list,
+                                                li: tv_list_first(crate::globals::gopt(val_list)),
+                                            },
+                                        });
+
                                         handled_special = true;
                                     }
                                 }
@@ -1281,60 +1288,60 @@ fn convert_one_value(
                                     if val_di.di_tv.v_type == VarType::VarList {
                                         let val_list = val_di.di_tv.vval.v_list();
                                         if val_list.is_null()
-                                            || unsafe { tv_list_len(val_list.as_ref()) == 0 }
+                                            || tv_list_len(crate::globals::gopt(val_list)) == 0
                                         {
                                             backend.conv_empty_dict();
                                             handled_special = true;
                                         } else {
                                             let mut all_pairs = true;
                                             let mut li =
-                                                unsafe { tv_list_first(val_list.as_ref()) };
+                                                tv_list_first(crate::globals::gopt(val_list));
                                             while !li.is_null() {
-                                                if unsafe { (*li).li_tv.v_type != VarType::VarList }
-                                                    || unsafe {
-                                                        tv_list_len(
-                                                            ((*li).li_tv.vval.v_list()).as_ref(),
-                                                        ) != 2
-                                                    }
+                                                if crate::globals::gptr(li).li_tv.v_type
+                                                    != VarType::VarList
+                                                    || tv_list_len(crate::globals::gopt(
+                                                        crate::globals::gptr(li)
+                                                            .li_tv
+                                                            .vval
+                                                            .v_list(),
+                                                    )) != 2
                                                 {
                                                     all_pairs = false;
                                                     break;
                                                 }
-                                                unsafe {
-                                                    li = (*li).li_next;
-                                                }
+
+                                                li = crate::globals::gptr(li).li_next;
                                             }
                                             if all_pairs {
                                                 let saved_copy_id =
-                                                    unsafe { (*val_list).lv_copy_id };
-                                                let csr = unsafe {
-                                                    backend.check_self_reference(
-                                                        MPContainerRef::Pairs(val_list),
-                                                        &mut (*val_list).lv_copy_id,
-                                                        mpstack,
-                                                        copy_id,
-                                                        objname,
-                                                    )
-                                                };
+                                                    crate::globals::gptr(val_list).lv_copy_id;
+                                                let csr = backend.check_self_reference(
+                                                    MPContainerRef::Pairs(val_list),
+                                                    &mut crate::globals::gptr(val_list).lv_copy_id,
+                                                    mpstack,
+                                                    copy_id,
+                                                    objname,
+                                                );
                                                 if csr != NOTDONE {
                                                     return csr;
                                                 }
-                                                unsafe {
-                                                    backend.conv_dict_start(tv_list_len(
-                                                        val_list.as_ref(),
-                                                    )
-                                                        as usize);
-                                                }
-                                                unsafe {
-                                                    mpstack.push(MPConvStackVal {
-                                                        tv,
-                                                        saved_copy_id,
-                                                        data: MPConvStackData::Pairs {
-                                                            list: val_list,
-                                                            li: tv_list_first(val_list.as_ref()),
-                                                        },
-                                                    });
-                                                }
+
+                                                backend.conv_dict_start(tv_list_len(
+                                                    crate::globals::gopt(val_list),
+                                                )
+                                                    as usize);
+
+                                                mpstack.push(MPConvStackVal {
+                                                    tv,
+                                                    saved_copy_id,
+                                                    data: MPConvStackData::Pairs {
+                                                        list: val_list,
+                                                        li: tv_list_first(crate::globals::gopt(
+                                                            val_list,
+                                                        )),
+                                                    },
+                                                });
+
                                                 handled_special = true;
                                             }
                                         }
@@ -1342,19 +1349,19 @@ fn convert_one_value(
                                 }
                                 K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
                                     let val_list = val_di.di_tv.vval.v_list();
-                                    if unsafe { tv_list_len(val_list.as_ref()) == 2 } {
-                                        let first = unsafe { tv_list_first(val_list.as_ref()) };
-                                        let first = unsafe { &mut *first };
-                                        let last = unsafe { tv_list_last(val_list.as_ref()) };
+                                    if tv_list_len(crate::globals::gopt(val_list)) == 2 {
+                                        let first = tv_list_first(crate::globals::gopt(val_list));
+                                        let first = crate::globals::gmut(first);
+                                        let last = tv_list_last(crate::globals::gopt(val_list));
                                         if first.li_tv.v_type == VarType::VarNumber
                                             && (i8::MIN as i64..=i8::MAX as i64)
                                                 .contains(&first.li_tv.vval.v_number())
-                                            && unsafe { (*last).li_tv.v_type == VarType::VarList }
-                                            && let Some(buf) = unsafe {
-                                                encode_vim_list_to_buf(
-                                                    ((*last).li_tv.vval.v_list()).as_ref(),
-                                                )
-                                            }
+                                            && crate::globals::gptr(last).li_tv.v_type
+                                                == VarType::VarList
+                                            && let Some(buf) =
+                                                encode_vim_list_to_buf(crate::globals::gopt(
+                                                    crate::globals::gptr(last).li_tv.vval.v_list(),
+                                                ))
                                         {
                                             let ext_type = first.li_tv.vval.v_number() as i8;
                                             if !backend.conv_ext_string(&buf, ext_type) {
@@ -1371,34 +1378,30 @@ fn convert_one_value(
                 }
             }
             if !handled_special {
-                let saved_copy_id = unsafe { (*dict).dv_copy_id };
-                let csr = unsafe {
-                    backend.check_self_reference(
-                        MPContainerRef::Dict(dict),
-                        &mut (*dict).dv_copy_id,
-                        mpstack,
-                        copy_id,
-                        objname,
-                    )
-                };
+                let saved_copy_id = crate::globals::gptr(dict).dv_copy_id;
+                let csr = backend.check_self_reference(
+                    MPContainerRef::Dict(dict),
+                    &mut crate::globals::gptr(dict).dv_copy_id,
+                    mpstack,
+                    copy_id,
+                    objname,
+                );
                 if csr != NOTDONE {
                     return csr;
                 }
-                unsafe {
-                    backend.conv_dict_start((*dict).dv_hashtab.ht_used);
-                }
-                unsafe {
-                    mpstack.push(MPConvStackVal {
-                        tv,
-                        saved_copy_id,
-                        data: MPConvStackData::Dict {
-                            dict,
-                            dictp: tv_ref.vval.v_dict_mut(),
-                            hi: (*dict).dv_hashtab.array_ptr(),
-                            todo: (*dict).dv_hashtab.ht_used,
-                        },
-                    });
-                }
+
+                backend.conv_dict_start(crate::globals::gptr(dict).dv_hashtab.ht_used);
+
+                mpstack.push(MPConvStackVal {
+                    tv,
+                    saved_copy_id,
+                    data: MPConvStackData::Dict {
+                        dict,
+                        dictp: tv_ref.vval.v_dict_mut(),
+                        hi: crate::globals::gptr(dict).dv_hashtab.array_ptr(),
+                        todo: crate::globals::gptr(dict).dv_hashtab.ht_used,
+                    },
+                });
             }
         }
         VarType::VarUnknown => {
@@ -1433,15 +1436,15 @@ fn encode_vim_with_backend(
             } => {
                 if *todo == 0 {
                     mpstack.pop();
-                    unsafe {
-                        (*dict).dv_copy_id = saved_copy_id;
-                    }
+
+                    crate::globals::gptr(dict).dv_copy_id = saved_copy_id;
+
                     backend.conv_dict_end();
                     continue;
-                } else if unsafe { *todo != (*dict).dv_hashtab.ht_used } {
+                } else if *todo != crate::globals::gptr(dict).dv_hashtab.ht_used {
                     backend.conv_dict_between_items();
                 }
-                while unsafe { hashitem_empty(&*hi) } {
+                while hashitem_empty(crate::globals::gref(hi)) {
                     hi = hi.wrapping_add(1);
                 }
                 let di = crate::eval::typval::tv_dict_hi2di(hi);
@@ -1463,56 +1466,55 @@ fn encode_vim_with_backend(
                 let cur_li = *li;
                 if cur_li.is_null() {
                     mpstack.pop();
-                    unsafe {
-                        (*list).lv_copy_id = saved_copy_id;
-                    }
+
+                    crate::globals::gptr(list).lv_copy_id = saved_copy_id;
+
                     backend.conv_list_end();
                     continue;
-                } else if unsafe { cur_li != tv_list_first(list.as_ref()) } {
+                } else if cur_li != tv_list_first(crate::globals::gopt(list)) {
                     backend.conv_list_between_items();
                 }
-                unsafe {
-                    *li = (*cur_li).li_next;
-                }
-                unsafe { &mut (*cur_li).li_tv }
+
+                *li = crate::globals::gptr(cur_li).li_next;
+
+                &mut crate::globals::gptr(cur_li).li_tv
             }
             MPConvStackData::Pairs { list, li } => {
                 if li.is_null() {
                     mpstack.pop();
-                    unsafe {
-                        (*list).lv_copy_id = saved_copy_id;
-                    }
+
+                    crate::globals::gptr(list).lv_copy_id = saved_copy_id;
+
                     backend.conv_dict_end();
                     continue;
-                } else if unsafe { li != tv_list_first(list.as_ref()) } {
+                } else if li != tv_list_first(crate::globals::gopt(list)) {
                     backend.conv_dict_between_items();
                 }
-                let kv_pair = unsafe { (*li).li_tv.vval.v_list() };
-                let first_item = unsafe { tv_list_first(kv_pair.as_ref()) };
-                if unsafe { !backend.special_dict_key_check(&(*first_item).li_tv) } {
+                let kv_pair = crate::globals::gptr(li).li_tv.vval.v_list();
+                let first_item = tv_list_first(crate::globals::gopt(kv_pair));
+                if !backend.special_dict_key_check(&crate::globals::gptr(first_item).li_tv) {
                     return false;
                 }
-                if unsafe {
-                    convert_one_value(
-                        backend,
-                        &mut mpstack,
-                        &mut (*first_item).li_tv,
-                        copy_id,
-                        objname,
-                    ) == FAIL
-                } {
+                if convert_one_value(
+                    backend,
+                    &mut mpstack,
+                    &mut crate::globals::gptr(first_item).li_tv,
+                    copy_id,
+                    objname,
+                ) == FAIL
+                {
                     return false;
                 }
                 backend.conv_dict_after_key();
-                let last_item = unsafe { tv_list_last(kv_pair.as_ref()) };
-                let next_li = unsafe { (*li).li_next };
+                let last_item = tv_list_last(crate::globals::gopt(kv_pair));
+                let next_li = crate::globals::gptr(li).li_next;
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
                 } = mpstack[cur_idx].data
                 {
                     *li_ref = next_li;
                 }
-                unsafe { &mut (*last_item).li_tv }
+                &mut crate::globals::gptr(last_item).li_tv
             }
             MPConvStackData::Partial { stage, pt } => {
                 match stage {
@@ -1520,7 +1522,7 @@ fn encode_vim_with_backend(
                         let argc = if pt.is_null() {
                             0
                         } else {
-                            unsafe { (*pt).pt_argv.len() as i32 }
+                            crate::globals::gptr(pt).pt_argv.len() as i32
                         };
                         backend.conv_func_before_args(argc);
                         if let MPConvStackData::Partial {
@@ -1532,17 +1534,16 @@ fn encode_vim_with_backend(
                         }
                         if argc > 0 {
                             backend.conv_list_start(argc);
-                            unsafe {
-                                mpstack.push(MPConvStackVal {
-                                    tv: std::ptr::null_mut(),
-                                    saved_copy_id: copy_id - 1,
-                                    data: MPConvStackData::PartialList {
-                                        arg: (*pt).pt_argv.as_mut_ptr(),
-                                        argv: (*pt).pt_argv.as_mut_ptr(),
-                                        todo: argc as usize,
-                                    },
-                                });
-                            }
+
+                            mpstack.push(MPConvStackVal {
+                                tv: std::ptr::null_mut(),
+                                saved_copy_id: copy_id - 1,
+                                data: MPConvStackData::PartialList {
+                                    arg: crate::globals::gptr(pt).pt_argv.as_mut_ptr(),
+                                    argv: crate::globals::gptr(pt).pt_argv.as_mut_ptr(),
+                                    todo: argc as usize,
+                                },
+                            });
                         }
                     }
                     MPConvPartialStage::SelfDict => {
@@ -1556,10 +1557,10 @@ fn encode_vim_with_backend(
                         let dict = if pt.is_null() {
                             std::ptr::null_mut()
                         } else {
-                            unsafe { (*pt).pt_dict }
+                            crate::globals::gptr(pt).pt_dict
                         };
                         if !dict.is_null() {
-                            let dict = unsafe { &mut *dict };
+                            let dict = crate::globals::gmut(dict);
                             backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
                             if dict.dv_hashtab.ht_used == 0 {
                                 backend.conv_empty_dict();
@@ -1581,18 +1582,17 @@ fn encode_vim_with_backend(
                                 }
                             }
                             backend.conv_dict_start(dict.dv_hashtab.ht_used);
-                            unsafe {
-                                mpstack.push(MPConvStackVal {
-                                    tv: std::ptr::null_mut(),
-                                    saved_copy_id,
-                                    data: MPConvStackData::Dict {
-                                        dict,
-                                        dictp: std::ptr::addr_of_mut!((*pt).pt_dict),
-                                        hi: dict.dv_hashtab.array_ptr(),
-                                        todo: dict.dv_hashtab.ht_used,
-                                    },
-                                });
-                            }
+
+                            mpstack.push(MPConvStackVal {
+                                tv: std::ptr::null_mut(),
+                                saved_copy_id,
+                                data: MPConvStackData::Dict {
+                                    dict,
+                                    dictp: std::ptr::addr_of_mut!(crate::globals::gptr(pt).pt_dict),
+                                    hi: dict.dv_hashtab.array_ptr(),
+                                    todo: dict.dv_hashtab.ht_used,
+                                },
+                            });
                         } else {
                             backend.conv_func_before_self(-1);
                         }
@@ -1752,7 +1752,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         use crate::eval::typval::{tv_list_alloc, tv_list_free};
 
-        unsafe {
+        {
             let check = |chunks: &[&[u8]], expected: &[Option<&[u8]>]| {
                 let l = tv_list_alloc(0);
                 for &chunk in chunks {
@@ -1762,8 +1762,8 @@ mod tests {
                 let mut li = l.lv_first;
                 for &exp in expected {
                     assert!(!li.is_null());
-                    assert_eq!((*li).li_tv.v_type, VarType::VarString);
-                    let ptr = (*li).li_tv.vval.v_string();
+                    assert_eq!(crate::globals::gptr(li).li_tv.v_type, VarType::VarString);
+                    let ptr = crate::globals::gptr(li).li_tv.vval.v_string();
                     match exp {
                         None => assert!(ptr.is_null()),
                         Some(bytes) => {
@@ -1771,7 +1771,7 @@ mod tests {
                             assert_eq!(crate::memory::cstr_as_bytes(ptr), bytes);
                         }
                     }
-                    li = (*li).li_next;
+                    li = crate::globals::gptr(li).li_next;
                 }
                 tv_list_free(l);
             };
