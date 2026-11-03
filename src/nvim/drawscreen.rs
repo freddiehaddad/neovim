@@ -206,7 +206,7 @@ static DS_STATE: GlobalState<DrawscreenState> = GlobalState::new(DrawscreenState
 
 #[inline]
 fn ds_st() -> &'static mut DrawscreenState {
-    unsafe { &mut *DS_STATE.as_ptr() }
+    crate::globals::gmut(DS_STATE.as_ptr())
 }
 
 #[inline]
@@ -857,7 +857,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 
         let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
         if !grid.is_null() {
-            ui_grid_cursor_goto(unsafe { (*grid).handle }, row, col);
+            ui_grid_cursor_goto(crate::globals::gptr(grid).handle, row, col);
         }
     }
 }
@@ -1455,15 +1455,16 @@ fn win_update(wp: &mut WinInfoInfo) {
     decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
     decor_providers_invoke_win(wp);
 
-    if !buf.terminal.is_null() && unsafe { terminal_suspended(&*buf.terminal) } {
+    if !buf.terminal.is_null() && terminal_suspended(crate::globals::gref(buf.terminal)) {
         let svt_ptr = &raw mut ds_st().suspended_virt_text;
-        if unsafe { (*svt_ptr).data.virt_text().is_empty() } {
-            unsafe {
-                (*svt_ptr).data.virt_text_mut().push(VirtTextChunk {
+        if crate::globals::gptr(svt_ptr).data.virt_text().is_empty() {
+            crate::globals::gptr(svt_ptr)
+                .data
+                .virt_text_mut()
+                .push(VirtTextChunk {
                     text: Some(c"[Process suspended]".to_owned()),
                     hl_id: -1,
                 });
-            }
         }
         decor_range_add_virt(
             &mut g_st().decor_state,
@@ -1515,7 +1516,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     let nrwidth_before = wp.w_nrwidth;
     let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
-        || unsafe { *wp.w_onebuf_opt.wo_stc != 0 }
+        || *crate::globals::gptr(wp.w_onebuf_opt.wo_stc) != 0
     {
         number_width(&mut *wp)
     } else {
@@ -1546,12 +1547,13 @@ fn win_update(wp: &mut WinInfoInfo) {
             }
 
             if !g_st().screen_search_hl.rm.regprog.is_null()
-                && unsafe { re_multiline(&*g_st().screen_search_hl.rm.regprog) != 0 }
+                && re_multiline(crate::globals::gref(g_st().screen_search_hl.rm.regprog)) != 0
             {
                 top_to_mod = true;
             } else {
-                top_to_mod = wp.w_match_head.iter().any(|cur| unsafe {
-                    !cur.mit_match.regprog.is_null() && re_multiline(&*cur.mit_match.regprog) != 0
+                top_to_mod = wp.w_match_head.iter().any(|cur| {
+                    !cur.mit_match.regprog.is_null()
+                        && re_multiline(crate::globals::gref(cur.mit_match.regprog)) != 0
                 });
             }
         }
@@ -2193,9 +2195,13 @@ fn win_update(wp: &mut WinInfoInfo) {
                         virt_below = false;
                         w_lines_at(&mut *wp, idx as usize).wl_lastlnum += 1;
                         let last_ptr = &raw mut w_lines_at(&mut *wp, idx as usize).wl_lastlnum;
-                        unsafe {
-                            has_folding(&raw mut *wp, *last_ptr, None, last_ptr);
-                        }
+
+                        has_folding(
+                            &raw mut *wp,
+                            *crate::globals::gptr(last_ptr),
+                            None,
+                            last_ptr,
+                        );
                     }
                 }
 
@@ -2427,9 +2433,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
 
         if nrwidth_before != wp.w_nrwidth && !buf.terminal.is_null() {
-            unsafe {
-                terminal_check_size(&mut *buf.terminal);
-            }
+            terminal_check_size(crate::globals::gmut(buf.terminal));
         }
 
         if !g_st().got_int {
@@ -2446,7 +2450,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
 
     let mut col: i32 = 0;
     let mut row_off: i32 = 0;
-    let grid = unsafe { &mut *grid_adjust(&mut wp.w_grid, &mut row_off, &mut col) };
+    let grid = crate::globals::gmut(grid_adjust(&mut wp.w_grid, &mut row_off, &mut col));
 
     let checked_width = (grid.cols - col).min(wp.w_view_width);
     let checked_height = (grid.rows - row_off).min(wp.w_view_height);
@@ -2749,25 +2753,19 @@ pub fn redraw_statuslines() {
 }
 
 pub fn win_redraw_last_status(mut frp: *const Frame) {
-    if unsafe { (*frp).fr_layout == FR_LEAF } {
-        unsafe {
-            (*(*frp).fr_win).w_redr_status = true;
-        }
-    } else if unsafe { (*frp).fr_layout == FR_ROW } {
-        for child in unsafe { frame_iter_ptr((*frp).fr_child) } {
+    if crate::globals::gptr(frp).fr_layout == FR_LEAF {
+        crate::globals::gptr(crate::globals::gptr(frp).fr_win).w_redr_status = true;
+    } else if crate::globals::gptr(frp).fr_layout == FR_ROW {
+        for child in frame_iter_ptr(crate::globals::gptr(frp).fr_child) {
             win_redraw_last_status(child);
         }
     } else {
-        unsafe {
-            assert!((*frp).fr_layout == FR_COL);
-        }
-        unsafe {
-            frp = (*frp).fr_child;
-        }
-        while unsafe { !(*frp).fr_next.is_null() } {
-            unsafe {
-                frp = (*frp).fr_next;
-            }
+        assert!(crate::globals::gptr(frp).fr_layout == FR_COL);
+
+        frp = crate::globals::gptr(frp).fr_child;
+
+        while !crate::globals::gptr(frp).fr_next.is_null() {
+            frp = crate::globals::gptr(frp).fr_next;
         }
         win_redraw_last_status(frp);
     }

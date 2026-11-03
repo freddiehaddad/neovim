@@ -159,7 +159,7 @@ impl WinInfo {
 
     #[inline]
     pub fn win_opt(&self) -> Option<&'static mut WinInfoInfo> {
-        unsafe { self.wi_win.as_mut() }
+        crate::globals::gopt_mut(self.wi_win)
     }
 }
 
@@ -219,7 +219,7 @@ static MARK_STATE: crate::globals::GlobalState<MarkModuleState> =
 
 #[inline]
 fn mark_st() -> &'static mut MarkModuleState {
-    unsafe { &mut *MARK_STATE.as_ptr() }
+    crate::globals::gmut(MARK_STATE.as_ptr())
 }
 
 #[inline]
@@ -527,42 +527,42 @@ pub fn checkpcmark() {
 pub fn get_jumplist(win: *mut WinInfoInfo, mut count: i32) -> *mut Fmark {
     cleanup_jumplist(win, true);
 
-    if unsafe { (*win).w_jumplistlen == 0 } {
+    if crate::globals::gptr(win).w_jumplistlen == 0 {
         return ptr::null_mut();
     }
 
     loop {
-        if unsafe { (*win).w_jumplistidx + count < 0 }
-            || unsafe { (*win).w_jumplistidx + count >= (*win).w_jumplistlen }
+        if crate::globals::gptr(win).w_jumplistidx + count < 0
+            || crate::globals::gptr(win).w_jumplistidx + count
+                >= crate::globals::gptr(win).w_jumplistlen
         {
             return ptr::null_mut();
         }
 
-        if unsafe { (*win).w_jumplistidx == (*win).w_jumplistlen } {
+        if crate::globals::gptr(win).w_jumplistidx == crate::globals::gptr(win).w_jumplistlen {
             setpcmark();
-            unsafe {
-                (*win).w_jumplistidx -= 1;
-            }
-            if unsafe { (*win).w_jumplistidx + count < 0 } {
+
+            crate::globals::gptr(win).w_jumplistidx -= 1;
+
+            if crate::globals::gptr(win).w_jumplistidx + count < 0 {
                 return ptr::null_mut();
             }
         }
 
-        unsafe {
-            (*win).w_jumplistidx += count;
-        }
+        crate::globals::gptr(win).w_jumplistidx += count;
 
-        let jmp = unsafe { &raw mut (*win).w_jumplist[(*win).w_jumplistidx as usize] };
-        if unsafe { (*jmp).fmark.fnum == 0 } {
+        let jmp = &raw mut crate::globals::gptr(win).w_jumplist
+            [crate::globals::gptr(win).w_jumplistidx as usize];
+        if crate::globals::gptr(jmp).fmark.fnum == 0 {
             fname2fnum(jmp);
         }
-        if unsafe { (*jmp).fmark.fnum != curbuf_mut().b_fnum }
-            && unsafe { buflist_findnr((*jmp).fmark.fnum).is_null() }
+        if crate::globals::gptr(jmp).fmark.fnum != curbuf_mut().b_fnum
+            && buflist_findnr(crate::globals::gptr(jmp).fmark.fnum).is_null()
         {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        return unsafe { &raw mut (*jmp).fmark };
+        return &raw mut crate::globals::gptr(jmp).fmark;
     }
 }
 
@@ -604,10 +604,10 @@ pub fn mark_get(
     let mut fm: *mut Fmark = ptr::null_mut();
     if ascii_isupper(name) || ascii_isdigit(name) {
         let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
-        unsafe {
-            fm = &raw mut (*xfm).fmark;
-        }
-        if flag == K_MARK_BUF_LOCAL && unsafe { (*xfm).fmark.fnum != buf.b_fnum } {
+
+        fm = &raw mut crate::globals::gptr(xfm).fmark;
+
+        if flag == K_MARK_BUF_LOCAL && crate::globals::gptr(xfm).fmark.fnum != buf.b_fnum {
             return pos_to_mark(
                 &*buf,
                 None,
@@ -624,9 +624,8 @@ pub fn mark_get(
     if let Some(fmp) = fmp
         && !fm.is_null()
     {
-        unsafe {
-            *fmp = (*fm).clone();
-        }
+        *fmp = crate::globals::gptr(fm).clone();
+
         return &raw mut *fmp;
     }
     fm
@@ -673,7 +672,7 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *m
         mark_get_motion(&mut *buf, win, name)
     };
 
-    if let Some(mark_ref) = unsafe { mark.as_mut() } {
+    if let Some(mark_ref) = crate::globals::gopt_mut(mark) {
         mark_ref.fnum = fnum;
     }
 
@@ -764,27 +763,28 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
     let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
     let mut errormsg: Option<&'static CStr> = None;
-    if unsafe { !mark_check(fm.as_mut(), &mut errormsg) } {
+    if !mark_check(crate::globals::gopt_mut(fm), &mut errormsg) {
         if let Some(err) = errormsg {
             emsg(err);
         }
         return K_MARK_MOVE_FAILED;
     }
 
-    if unsafe { (*fm).fnum != curbuf_mut().b_fnum } {
-        unsafe {
-            mark_st().mark_move_to_fm_copy = (*fm).clone();
-        }
+    if crate::globals::gptr(fm).fnum != curbuf_mut().b_fnum {
+        mark_st().mark_move_to_fm_copy = crate::globals::gptr(fm).clone();
+
         fm = &raw mut mark_st().mark_move_to_fm_copy;
-        unsafe {
-            res |= switch_to_mark_buf(&mut *fm, (flags & K_MARK_JUMP_LIST) == 0);
-        }
+
+        res |= switch_to_mark_buf(crate::globals::gmut(fm), (flags & K_MARK_JUMP_LIST) == 0);
+
         if (res & K_MARK_MOVE_FAILED) != 0 {
             return res;
         }
-        if unsafe {
-            !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), &mut *fm, &mut errormsg)
-        } {
+        if !mark_check_line_bounds(
+            Some(crate::globals::curbuf_mut()),
+            crate::globals::gmut(fm),
+            &mut errormsg,
+        ) {
             if let Some(err) = errormsg {
                 emsg(err);
             }
@@ -796,10 +796,10 @@ pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
     }
 
     let prev_pos = curwin_mut().w_cursor;
-    let pos = unsafe { (*fm).mark };
-    unsafe {
-        curwin_mut().w_cursor = (*fm).mark;
-    }
+    let pos = crate::globals::gptr(fm).mark;
+
+    curwin_mut().w_cursor = crate::globals::gptr(fm).mark;
+
     if (flags & K_MARK_BEGIN_LINE) != 0 {
         beginline(BL_WHITE | BL_FIX);
     }
@@ -810,9 +810,7 @@ pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
         res |= K_MARK_CHANGED_COL | K_MARK_CHANGED_CURSOR;
     }
     if (flags & K_MARK_SET_VIEW) != 0 {
-        unsafe {
-            mark_view_restore(fm.as_ref());
-        }
+        mark_view_restore(crate::globals::gopt(fm));
     }
 
     if (res & K_MARK_SWITCHED_BUF) != 0 || (res & K_MARK_CHANGED_CURSOR) != 0 {
@@ -1815,18 +1813,16 @@ pub fn mark_col_adjust(
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
 pub fn cleanup_jumplist(wp: *mut WinInfoInfo, loadfiles: bool) {
     if loadfiles {
-        for i in unsafe { 0..((*wp).w_jumplistlen as usize) } {
-            if unsafe { (*wp).w_jumplist[i].fmark.fnum == 0 }
-                && unsafe { (*wp).w_jumplist[i].fmark.mark.lnum != 0 }
+        for i in 0..(crate::globals::gptr(wp).w_jumplistlen as usize) {
+            if crate::globals::gptr(wp).w_jumplist[i].fmark.fnum == 0
+                && crate::globals::gptr(wp).w_jumplist[i].fmark.mark.lnum != 0
             {
-                unsafe {
-                    fname2fnum(&raw mut (*wp).w_jumplist[i]);
-                }
+                fname2fnum(&raw mut crate::globals::gptr(wp).w_jumplist[i]);
             }
         }
     }
 
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     let mut to: i32 = 0;
     for from in 0..wp.w_jumplistlen {
         let from_u = from as usize;
@@ -2053,7 +2049,7 @@ pub fn free_all_marks() {
 /// Adjust position to point to the first byte of a multi-byte character (`mark_mb_adjustpos`).
 pub fn mark_mb_adjustpos(buf: *mut FileBuf, lp: &mut CursorPos) {
     if lp.col > 0 || lp.coladd > 1 {
-        let buf = unsafe { &mut *buf };
+        let buf = crate::globals::gmut(buf);
         let line_slice = crate::memline::ml_get_buf_slice(buf, lp.lnum);
         if line_slice.is_empty() || (line_slice.len() as Colnr) < lp.col {
             lp.col = 0;

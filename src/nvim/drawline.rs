@@ -218,7 +218,7 @@ static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::ne
 
 #[inline]
 fn dl_st() -> &'static mut DrawlineState {
-    unsafe { &mut *DL_STATE.as_ptr() }
+    crate::globals::gmut(DL_STATE.as_ptr())
 }
 
 #[inline]
@@ -338,7 +338,7 @@ fn draw_virt_text(
     for i in 0..end {
         let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
         let item_ptr: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-        let item = unsafe { &mut *item_ptr };
+        let item = crate::globals::gmut(item_ptr);
         if !(item.start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
             continue;
         }
@@ -586,7 +586,7 @@ fn draw_col_buf(
                     wlv.vcol += 1;
                     v
                 } else if !fold_vcol.is_null() {
-                    let v = unsafe { *fold_vcol };
+                    let v = *crate::globals::gptr(fold_vcol);
                     fold_vcol = fold_vcol.wrapping_add(1);
                     v
                 } else {
@@ -699,20 +699,16 @@ pub fn fill_foldcolumn(
             -3
         };
         if !out_buffer.is_null() {
-            unsafe {
-                *out_vcol.wrapping_add(i as usize) = vcol;
-            }
-            unsafe {
-                *out_buffer.wrapping_add(i as usize) = symbol;
-            }
+            *crate::globals::gptr(out_vcol.wrapping_add(i as usize)) = vcol;
+
+            *crate::globals::gptr(out_buffer.wrapping_add(i as usize)) = symbol;
         } else {
-            let off = unsafe { *wlv_off } as usize;
+            let off = (*crate::globals::gptr(wlv_off)) as usize;
             g_st().linebuf_vcol[off] = vcol;
             g_st().linebuf_attr[off] = attr;
             g_st().linebuf_char[off] = symbol;
-            unsafe {
-                *wlv_off += 1;
-            }
+
+            *crate::globals::gptr(wlv_off) += 1;
         }
     }
 }
@@ -1207,24 +1203,25 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             for i in 0..end {
                 let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
                 let item: *mut DecorRange = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-                let item = unsafe { &mut *item };
+                let item = crate::globals::gmut(item);
                 if item.draw_col == -3 {
                     decor_init_draw_col(wlv.off, selected, &mut *item);
                 }
                 if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
-                    || unsafe { (*item.data.vt()).pos != K_VPOS_INLINE }
-                    || unsafe { (*item.data.vt()).width == 0 }
+                    || crate::globals::gptr(item.data.vt()).pos != K_VPOS_INLINE
+                    || crate::globals::gptr(item.data.vt()).width == 0
                 {
                     continue;
                 }
                 if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
-                    unsafe {
-                        wlv.virt_inline = (*item.data.vt()).data.virt_text().as_slice();
-                    }
-                    unsafe {
-                        wlv.virt_inline_hl_mode = (*item.data.vt()).hl_mode;
-                    }
+                    wlv.virt_inline = crate::globals::gref(item.data.vt())
+                        .data
+                        .virt_text()
+                        .as_slice();
+
+                    wlv.virt_inline_hl_mode = crate::globals::gptr(item.data.vt()).hl_mode;
+
                     item.draw_col = i32::MIN;
                     break;
                 }
@@ -1445,7 +1442,7 @@ pub fn win_line(
     foldinfo: Foldinfo,
 ) -> i32 {
     let grid: *mut GridView = &raw mut wp.w_grid;
-    let grid = unsafe { &mut *grid };
+    let grid = crate::globals::gmut(grid);
     let view_width = wp.w_view_width;
     let view_height = wp.w_view_height;
 
@@ -1581,7 +1578,7 @@ pub fn win_line(
     };
 
     let buf = wp.w_buffer;
-    let draw_text = unsafe { !concealed && (lnum != (*buf).b_ml.ml_line_count + 1) };
+    let draw_text = !concealed && (lnum != crate::globals::gptr(buf).b_ml.ml_line_count + 1);
 
     let mut decor_provider_end_col: i32 = 0;
     let mut check_decor_providers = false;
@@ -1626,9 +1623,10 @@ pub fn win_line(
                     &raw mut curwin_mut().w_cursor,
                 )
             };
-            unsafe {
-                lnum_in_visual_area = lnum >= (*top).lnum && lnum <= (*bot).lnum;
-            }
+
+            lnum_in_visual_area =
+                lnum >= crate::globals::gptr(top).lnum && lnum <= crate::globals::gptr(bot).lnum;
+
             if g_st().visual_global.mode == CTRL_V_CONST {
                 if lnum_in_visual_area {
                     let fcol = wp.w_old_cursor_fcol;
@@ -1637,38 +1635,39 @@ pub fn win_line(
                     wlv.tocol = vcol2disp_vcol(&mut *wp, lnum, lcol);
                 }
             } else {
-                if unsafe { lnum > (*top).lnum } && unsafe { lnum <= (*bot).lnum } {
+                if lnum > crate::globals::gptr(top).lnum && lnum <= crate::globals::gptr(bot).lnum {
                     wlv.fromcol = 0;
-                } else if unsafe { lnum == (*top).lnum } {
+                } else if lnum == crate::globals::gptr(top).lnum {
                     if g_st().visual_global.mode == b'V' as i32 {
                         wlv.fromcol = 0;
                     } else {
-                        unsafe {
-                            getvvcol(
-                                &mut *wp,
-                                &mut *top,
-                                Some(&mut wlv.fromcol),
-                                None,
-                                None,
-                                GETVCOL_DISP,
-                            );
-                        }
-                        if unsafe { gchar_pos(&mut *top) == i32::from(NUL) } {
+                        getvvcol(
+                            &mut *wp,
+                            crate::globals::gmut(top),
+                            Some(&mut wlv.fromcol),
+                            None,
+                            None,
+                            GETVCOL_DISP,
+                        );
+
+                        if gchar_pos(crate::globals::gmut(top)) == i32::from(NUL) {
                             wlv.tocol = wlv.fromcol + 1;
                         }
                     }
                 }
-                if g_st().visual_global.mode != b'V' as i32 && unsafe { lnum == (*bot).lnum } {
+                if g_st().visual_global.mode != b'V' as i32
+                    && lnum == crate::globals::gptr(bot).lnum
+                {
                     if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                        && unsafe { (*bot).col == 0 }
-                        && unsafe { (*bot).coladd == 0 }
+                        && crate::globals::gptr(bot).col == 0
+                        && crate::globals::gptr(bot).coladd == 0
                     {
                         wlv.fromcol = -10;
                         wlv.tocol = MAXCOL;
-                    } else if unsafe { (*bot).col == MAXCOL } {
+                    } else if crate::globals::gptr(bot).col == MAXCOL {
                         wlv.tocol = MAXCOL;
                     } else {
-                        let mut pos = unsafe { *bot };
+                        let mut pos = *crate::globals::gptr(bot);
                         if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
                             getvvcol(
                                 &mut *wp,
@@ -1850,7 +1849,7 @@ pub fn win_line(
         wlv.line_attr = syn_id2attr(sign_line_attr);
     }
 
-    if unsafe { bt_quickfix(wp.w_buffer.as_ref()) } && qf_current_entry(wp) == lnum {
+    if bt_quickfix(crate::globals::gopt(wp.w_buffer)) && qf_current_entry(wp) == lnum {
         wlv.line_attr = win_hl_attr(&mut *wp, HLF_QFL);
     }
 
@@ -1939,7 +1938,9 @@ pub fn win_line(
         if wp.w_p_lcs_chars.trail != 0 {
             trailcol = ml_get_buf_len(wp.buf_mut(), lnum);
             while trailcol > 0
-                && unsafe { ascii_iswhite(*ptr.wrapping_add((trailcol - 1) as usize)) }
+                && ascii_iswhite(*crate::globals::gptr(
+                    ptr.wrapping_add((trailcol - 1) as usize),
+                ))
             {
                 trailcol -= 1;
             }
@@ -2061,13 +2062,12 @@ pub fn win_line(
 
     let mut term_attrs = [0_i32; TERM_ATTRS_MAX];
     if !wp.buf_mut().terminal.is_null() {
-        unsafe {
-            terminal_get_line_attributes(
-                &mut *wp.buf_mut().terminal,
-                lnum,
-                (&raw mut term_attrs).cast::<i32>(),
-            );
-        }
+        terminal_get_line_attributes(
+            crate::globals::gmut(wp.buf_mut().terminal),
+            lnum,
+            (&raw mut term_attrs).cast::<i32>(),
+        );
+
         extra_check = true;
     }
 
@@ -2126,20 +2126,19 @@ pub fn win_line(
                     while (virt_line_index as usize) < virt_lines.len() {
                         let vl_ptr = &raw const virt_lines[virt_line_index as usize];
                         let line_rows =
-                            unsafe { decor_virt_line_rows(&mut *wp, &*vl_ptr, 0, None) };
+                            decor_virt_line_rows(&mut *wp, crate::globals::gref(vl_ptr), 0, None);
                         if target_row < virt_line_start_row + line_rows {
                             has_virt_line = true;
-                            unsafe {
-                                virt_line_flags = (*vl_ptr).flags;
-                            }
-                            unsafe {
-                                decor_virt_line_rows(
-                                    &mut *wp,
-                                    &*vl_ptr,
-                                    target_row - virt_line_start_row,
-                                    Some(&mut virt_line_skip_cells),
-                                );
-                            }
+
+                            virt_line_flags = crate::globals::gptr(vl_ptr).flags;
+
+                            decor_virt_line_rows(
+                                &mut *wp,
+                                crate::globals::gref(vl_ptr),
+                                target_row - virt_line_start_row,
+                                Some(&mut virt_line_skip_cells),
+                            );
+
                             break;
                         }
                         virt_line_start_row += line_rows;
@@ -2244,9 +2243,14 @@ pub fn win_line(
             }
 
             if g_st().dollar_vcol >= 0 && in_curline && wlv.vcol >= cursor_vcol {
-                unsafe {
-                    draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
-                }
+                draw_virt_text(
+                    wp,
+                    crate::globals::gmut(buf),
+                    win_col_offset,
+                    &mut wlv.col,
+                    wlv.row,
+                );
+
                 wlv_put_linebuf(wp, &wlv, wlv.col, false, bg_attr, 0);
                 if wp.w_onebuf_opt.wo_cuc != 0 {
                     wlv.row = wp.w_cline_row + wp.w_cline_height;
@@ -2327,14 +2331,12 @@ pub fn win_line(
                                 && !wlv.p_extra.is_null()
                                 && utf_ptr2cells(wlv.p_extra.cast()) > 1)))
                 {
-                    unsafe {
-                        *area_attr_p = vi_attr;
-                    }
+                    *crate::globals::gptr(area_attr_p) = vi_attr;
+
                     area_active = true;
-                } else if unsafe { *area_attr_p != 0 } && wlv.vcol == wlv.tocol {
-                    unsafe {
-                        *area_attr_p = 0;
-                    }
+                } else if *crate::globals::gptr(area_attr_p) != 0 && wlv.vcol == wlv.tocol {
+                    *crate::globals::gptr(area_attr_p) = 0;
+
                     area_active = false;
                 }
 
@@ -2699,7 +2701,10 @@ pub fn win_line(
                     let mut v1 = crate::memory::ptr_offset_from(ptr, line) as i32;
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
-                        if mb_schar != 0 && unsafe { *skipwhite(prev_ptr) != NUL } && can_spell {
+                        if mb_schar != 0
+                            && *crate::globals::gptr(skipwhite(prev_ptr)) != NUL
+                            && can_spell
+                        {
                             let mut spell_hlf: Hlf = HLF_COUNT;
                             v1 -= mb_l - 1;
 
@@ -3016,15 +3021,14 @@ pub fn win_line(
                                     len = len.wrapping_add_signed((wlv.n_extra - tab_len) as isize);
                                 }
                                 let mut p = get_extra_buf(len + 1);
-                                unsafe {
-                                    ptr::write_bytes(p, b' ', len);
-                                }
-                                unsafe {
-                                    *p.wrapping_add(len) = 0;
-                                }
+
+                                unsafe { ptr::write_bytes(p, b' ', len) };
+
+                                *crate::globals::gptr(p.wrapping_add(len)) = 0;
+
                                 wlv.p_extra = p;
                                 for i in 0..tab_len {
-                                    if unsafe { *p == 0 } {
+                                    if *crate::globals::gptr(p) == 0 {
                                         tab_len = i;
                                         break;
                                     }
@@ -3110,15 +3114,14 @@ pub fn win_line(
                         wlv.n_attr = 1;
                         mb_schar_width = schar_get_single_width(mb_schar);
                     } else if mb_schar != 0 {
-                        unsafe {
-                            crate::memory::copy_bytes_to_c_buf(
-                                &mut wlv.extra,
-                                crate::memory::cstr_as_bytes(transchar_buf(
-                                    wp.w_buffer.as_ref(),
-                                    mb_c,
-                                )),
-                            );
-                        }
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut wlv.extra,
+                            crate::memory::cstr_as_bytes(transchar_buf(
+                                crate::globals::gopt(wp.w_buffer),
+                                mb_c,
+                            )),
+                        );
+
                         if wlv.n_extra == 0 {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
                         }
@@ -3130,23 +3133,24 @@ pub fn win_line(
                         wlv.p_extra = wlv.extra.as_mut_ptr();
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
-                        unsafe {
-                            mb_schar = schar_from_ascii(*wlv.p_extra);
-                        }
+
+                        mb_schar = schar_from_ascii(*crate::globals::gptr(wlv.p_extra));
+
                         mb_schar_width = 1;
                         if wp.w_onebuf_opt.wo_lbr != 0 {
                             let p = get_extra_buf((wlv.n_extra as usize) + 1);
-                            unsafe {
-                                ptr::write_bytes(p, b' ', wlv.n_extra as usize);
-                            }
+
+                            unsafe { ptr::write_bytes(p, b' ', wlv.n_extra as usize) };
+
                             let rem_len =
                                 crate::memory::cstr_len(wlv.p_extra.cast()).saturating_sub(1);
+
                             unsafe {
-                                ptr::copy_nonoverlapping(wlv.p_extra.wrapping_add(1), p, rem_len);
-                            }
-                            unsafe {
-                                *p.wrapping_add(wlv.n_extra as usize) = 0;
-                            }
+                                ptr::copy_nonoverlapping(wlv.p_extra.wrapping_add(1), p, rem_len)
+                            };
+
+                            *crate::globals::gptr(p.wrapping_add(wlv.n_extra as usize)) = 0;
+
                             wlv.p_extra = p;
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
@@ -3471,22 +3475,26 @@ pub fn win_line(
                 }
 
                 if !fold_vt.is_empty() {
-                    unsafe {
-                        draw_virt_text_item(
-                            &mut *buf,
-                            win_col_offset,
-                            &fold_vt,
-                            K_HL_MODE_COMBINE,
-                            view_width,
-                            0,
-                            0,
-                            false,
-                        );
-                    }
+                    draw_virt_text_item(
+                        crate::globals::gmut(buf),
+                        win_col_offset,
+                        &fold_vt,
+                        K_HL_MODE_COMBINE,
+                        view_width,
+                        0,
+                        0,
+                        false,
+                    );
                 }
-                unsafe {
-                    draw_virt_text(wp, &mut *buf, win_col_offset, &mut wlv.col, wlv.row);
-                }
+
+                draw_virt_text(
+                    wp,
+                    crate::globals::gmut(buf),
+                    win_col_offset,
+                    &mut wlv.col,
+                    wlv.row,
+                );
+
                 wlv_put_linebuf(wp, &wlv, wlv.col, true, bg_attr, SLF_INC_VCOL);
                 wlv.row += 1;
 
@@ -3731,7 +3739,7 @@ pub fn win_line(
                 || (may_have_inline_virt
                     && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
         {
-            let grid_width = unsafe { (*wp.w_grid.target).cols };
+            let grid_width = crate::globals::gptr(wp.w_grid.target).cols;
             let wrap = is_wrapped
                 && wlv.filler_todo <= 0
                 && lcs_eol_todo
@@ -3763,26 +3771,29 @@ pub fn win_line(
                 if virt_row_scroll {
                     virt_line_skip_cells = wp.w_leftcol;
                 }
-                unsafe {
-                    draw_virt_text_item(
-                        &mut *buf,
-                        if (virt_line_flags & K_VLLEFTCOL) != 0 {
-                            0
-                        } else {
-                            win_col_offset
-                        },
-                        &vl.line,
-                        K_HL_MODE_REPLACE,
-                        view_width,
-                        0,
-                        virt_line_skip_cells,
-                        true,
-                    );
-                }
+
+                draw_virt_text_item(
+                    crate::globals::gmut(buf),
+                    if (virt_line_flags & K_VLLEFTCOL) != 0 {
+                        0
+                    } else {
+                        win_col_offset
+                    },
+                    &vl.line,
+                    K_HL_MODE_REPLACE,
+                    view_width,
+                    0,
+                    virt_line_skip_cells,
+                    true,
+                );
             } else if wlv.filler_todo <= 0 {
-                unsafe {
-                    draw_virt_text(wp, &mut *buf, win_col_offset, &mut draw_col, wlv.row);
-                }
+                draw_virt_text(
+                    wp,
+                    crate::globals::gmut(buf),
+                    win_col_offset,
+                    &mut draw_col,
+                    wlv.row,
+                );
             }
 
             wlv_put_linebuf(
@@ -3797,7 +3808,7 @@ pub fn win_line(
                 let mut current_row = wlv.row;
                 let mut dummy_col: i32 = 0;
                 let current_grid =
-                    unsafe { &mut *grid_adjust(&mut *grid, &mut current_row, &mut dummy_col) };
+                    crate::globals::gmut(grid_adjust(&mut *grid, &mut current_row, &mut dummy_col));
 
                 let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                 current_grid.attrs[next_row_off] = -1;
@@ -3866,7 +3877,7 @@ fn wlv_put_linebuf(
     mut flags: i32,
 ) {
     let grid: *mut GridView = &raw mut wp.w_grid;
-    let grid = unsafe { &mut *grid };
+    let grid = crate::globals::gmut(grid);
 
     let mut startcol: i32 = 0;
     let mut clear_width = if clear_end { wp.w_view_width } else { endcol };
@@ -3913,7 +3924,7 @@ fn wlv_put_linebuf(
     let mut coloff: i32 = 0;
     let g = grid_adjust(&mut *grid, &mut row, &mut coloff);
     grid_put_linebuf(
-        unsafe { &mut *g },
+        crate::globals::gmut(g),
         row,
         coloff,
         startcol,

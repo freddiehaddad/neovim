@@ -151,7 +151,7 @@ impl Bufref {
 
     #[inline]
     pub fn buf_opt(&self) -> Option<&'static mut FileBuf> {
-        unsafe { self.br_buf.as_mut() }
+        crate::globals::gopt_mut(self.br_buf)
     }
 }
 
@@ -462,12 +462,12 @@ pub struct FileBuf {
 impl FileBuf {
     #[inline]
     pub fn terminal_mut(&self) -> &'static mut Terminal {
-        unsafe { &mut *self.terminal }
+        crate::globals::gmut(self.terminal)
     }
 
     #[inline]
     pub fn terminal_opt(&self) -> Option<&'static mut Terminal> {
-        unsafe { self.terminal.as_mut() }
+        crate::globals::gopt_mut(self.terminal)
     }
 
     pub const fn new() -> Self {
@@ -766,7 +766,7 @@ impl FileBuf {
 
     #[inline]
     pub fn b_vars(&self) -> &'static mut crate::eval::typval::TvDict {
-        unsafe { &mut *self.b_bufvar.di_tv.vval.v_dict() }
+        crate::globals::gmut(self.b_bufvar.di_tv.vval.v_dict())
     }
 }
 
@@ -914,7 +914,7 @@ static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModule
 
 #[inline]
 fn buf_st() -> &'static mut BufferModuleState {
-    unsafe { &mut *BUF_STATE.as_ptr() }
+    crate::globals::gmut(BUF_STATE.as_ptr())
 }
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
@@ -943,9 +943,9 @@ pub fn buf_meta_total(b: &FileBuf, m: usize) -> u32 {
 #[inline]
 pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
     if (&raw mut *tp) == g_st().curtab {
-        unsafe { &mut *g_st().firstwin }
+        crate::globals::gmut(g_st().firstwin)
     } else {
-        unsafe { &mut *tp.tp_firstwin }
+        crate::globals::gmut(tp.tp_firstwin)
     }
 }
 
@@ -1654,7 +1654,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin) {
         block_autocmds();
-        goto_tabpage_win(unsafe { &mut *the_curtab }, the_curwin);
+        goto_tabpage_win(crate::globals::gmut(the_curtab), the_curwin);
         unblock_autocmds();
     }
     if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1789,68 +1789,56 @@ impl Drop for FileBuf {
 }
 
 fn free_buffer(buf: *mut FileBuf) {
-    unsafe {
-        g_st().buffer_handles.remove(&(*buf).b_fnum);
-    }
+    g_st()
+        .buffer_handles
+        .remove(&crate::globals::gptr(buf).b_fnum);
+
     buf_st().buf_free_count += 1;
-    unsafe {
-        free_buffer_stuff(&mut *buf, K_BFF_CLEAR_WIN_INFO);
+
+    free_buffer_stuff(crate::globals::gmut(buf), K_BFF_CLEAR_WIN_INFO);
+
+    if crate::globals::gptr(buf).b_vars().dv_refcount > DO_NOT_FREE_CNT {
+        tv_dict_add(
+            &mut *crate::globals::gptr(buf).b_vars(),
+            tv_dict_item_copy(crate::globals::gmut(
+                (&raw mut crate::globals::gptr(buf).changedtick_di).cast(),
+            )),
+        );
     }
-    if unsafe { (*buf).b_vars().dv_refcount > DO_NOT_FREE_CNT } {
-        unsafe {
-            tv_dict_add(
-                &mut *(*buf).b_vars(),
-                tv_dict_item_copy(&mut *(&raw mut (*buf).changedtick_di).cast()),
-            );
-        }
-    }
-    unsafe {
-        unref_var_dict(&mut *(*buf).b_vars());
-    }
-    unsafe {
-        aubuflocal_remove(&mut *buf);
-    }
+
+    unref_var_dict(&mut *crate::globals::gptr(buf).b_vars());
+
+    aubuflocal_remove(crate::globals::gmut(buf));
+
     if g_st().autocmd_busy {
-        unsafe {
-            (*buf).additional_data = None;
-        }
-        unsafe {
-            (*buf).b_prompt_text = None;
-        }
-        unsafe {
-            callback_free(&mut (*buf).b_prompt_callback);
-        }
-        unsafe {
-            callback_free(&mut (*buf).b_prompt_interrupt);
-        }
-        unsafe {
-            clear_fmark(&mut (*buf).b_last_cursor, 0);
-        }
-        unsafe {
-            clear_fmark(&mut (*buf).b_last_insert, 0);
-        }
-        unsafe {
-            clear_fmark(&mut (*buf).b_last_change, 0);
-        }
-        unsafe {
-            clear_fmark(&mut (*buf).b_prompt_start, 0);
-        }
-        unsafe {
-            (*buf).b_changelistlen = 0;
-        }
-        unsafe {
-            (*buf).b_namedm.fill(Fmark::new());
-        }
-        unsafe {
-            (*buf).b_changelist.fill(Fmark::new());
-        }
-        unsafe {
-            g_st().au_pending_free_buf.push(Box::from_raw(buf));
-        }
+        crate::globals::gptr(buf).additional_data = None;
+
+        crate::globals::gptr(buf).b_prompt_text = None;
+
+        callback_free(&mut crate::globals::gptr(buf).b_prompt_callback);
+
+        callback_free(&mut crate::globals::gptr(buf).b_prompt_interrupt);
+
+        clear_fmark(&mut crate::globals::gptr(buf).b_last_cursor, 0);
+
+        clear_fmark(&mut crate::globals::gptr(buf).b_last_insert, 0);
+
+        clear_fmark(&mut crate::globals::gptr(buf).b_last_change, 0);
+
+        clear_fmark(&mut crate::globals::gptr(buf).b_prompt_start, 0);
+
+        crate::globals::gptr(buf).b_changelistlen = 0;
+
+        crate::globals::gptr(buf).b_namedm.fill(Fmark::new());
+
+        crate::globals::gptr(buf).b_changelist.fill(Fmark::new());
+
+        g_st()
+            .au_pending_free_buf
+            .push(unsafe { Box::from_raw(buf) });
     } else {
-        unsafe {
-            drop(Box::from_raw(buf));
-        }
+        drop(unsafe { Box::from_raw(buf) });
+
         if g_st().curbuf == buf {
             g_st().curbuf = ptr::null_mut();
         }
@@ -1870,9 +1858,10 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     {
         let changedtick_hi = hash_find(&buf.b_vars().dv_hashtab, c"changedtick");
         debug_assert!(!changedtick_hi.is_null());
-        hash_remove(&mut buf.b_vars().dv_hashtab, unsafe {
-            &mut *changedtick_hi
-        });
+        hash_remove(
+            &mut buf.b_vars().dv_hashtab,
+            crate::globals::gmut(changedtick_hi),
+        );
     }
     vars_clear(&mut buf.b_vars().dv_hashtab);
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
@@ -2180,61 +2169,57 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         while count > 0 {
             count -= 1;
             loop {
-                unsafe {
-                    buf = (*buf).b_next;
-                }
+                buf = crate::globals::gptr(buf).b_next;
+
                 if buf.is_null() {
                     buf = g_st().firstbuf;
                 }
-                if buf == g_st().curbuf || unsafe { buf_is_changed(&mut *buf) } {
+                if buf == g_st().curbuf || buf_is_changed(crate::globals::gmut(buf)) {
                     break;
                 }
             }
         }
-        if unsafe { !buf_is_changed(&mut *buf) } {
+        if !buf_is_changed(crate::globals::gmut(buf)) {
             emsg(gettext(c"E84: No modified buffer found"));
             return false;
         }
     } else if start == DOBUF_FIRST && count != 0 {
-        while !buf.is_null() && unsafe { (*buf).b_fnum != count } {
-            unsafe {
-                buf = (*buf).b_next;
-            }
+        while !buf.is_null() && crate::globals::gptr(buf).b_fnum != count {
+            buf = crate::globals::gptr(buf).b_next;
         }
     } else {
-        let help_only = unsafe { (flags & DOBUF_SKIPHELP) != 0 && (*buf).b_help };
+        let help_only = (flags & DOBUF_SKIPHELP) != 0 && crate::globals::gptr(buf).b_help;
 
         bp = ptr::null_mut();
         while count > 0
             || (bp != buf
                 && !unload
                 && !(if help_only {
-                    unsafe { (*buf).b_help }
+                    crate::globals::gptr(buf).b_help
                 } else {
-                    unsafe { (*buf).b_p_bl != 0 }
+                    crate::globals::gptr(buf).b_p_bl != 0
                 }))
         {
             if bp.is_null() {
                 bp = buf;
             }
             buf = if dir == FORWARD {
-                if unsafe { !(*buf).b_next.is_null() } {
-                    unsafe { (*buf).b_next }
+                if !crate::globals::gptr(buf).b_next.is_null() {
+                    crate::globals::gptr(buf).b_next
                 } else {
                     g_st().firstbuf
                 }
-            } else if unsafe { !(*buf).b_prev.is_null() } {
-                unsafe { (*buf).b_prev }
+            } else if !crate::globals::gptr(buf).b_prev.is_null() {
+                crate::globals::gptr(buf).b_prev
             } else {
                 g_st().lastbuf
             };
             if unload
                 || (if help_only {
-                    unsafe { (*buf).b_help }
+                    crate::globals::gptr(buf).b_help
                 } else {
-                    unsafe {
-                        (*buf).b_p_bl != 0 && ((flags & DOBUF_SKIPHELP) == 0 || !(*buf).b_help)
-                    }
+                    crate::globals::gptr(buf).b_p_bl != 0
+                        && ((flags & DOBUF_SKIPHELP) == 0 || !crate::globals::gptr(buf).b_help)
                 })
             {
                 count -= 1;
@@ -2268,7 +2253,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     }
 
     if (action == DOBUF_GOTO || action == DOBUF_SPLIT)
-        && unsafe { ((*buf).b_flags & BF_DUMMY) != 0 }
+        && (crate::globals::gptr(buf).b_flags & BF_DUMMY) != 0
     {
         semsg!(gettext(E_NOBUFNR), count);
         return false;
@@ -2276,62 +2261,59 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
     if unload {
         let mut bufref: Bufref = Bufref::new();
-        if unsafe { !can_unload_buffer(&mut *buf) } {
+        if !can_unload_buffer(crate::globals::gmut(buf)) {
             return false;
         }
         set_bufref(&mut bufref, buf);
 
         if action != DOBUF_WIPE
-            && unsafe { (*buf).b_ml.ml_mfp.is_none() }
-            && unsafe { (*buf).b_p_bl == 0 }
+            && crate::globals::gptr(buf).b_ml.ml_mfp.is_none()
+            && crate::globals::gptr(buf).b_p_bl == 0
         {
             return false;
         }
 
-        if (flags & DOBUF_FORCEIT) == 0 && unsafe { buf_is_changed(&mut *buf) } {
+        if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(crate::globals::gmut(buf)) {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && opt_vars().p_write != 0
             {
-                unsafe {
-                    dialog_changed(&mut *buf, false);
-                }
+                dialog_changed(crate::globals::gmut(buf), false);
+
                 if !bufref_valid(Some(&bufref)) {
                     return false;
                 }
-                if unsafe { buf_is_changed(&mut *buf) } {
+                if buf_is_changed(crate::globals::gmut(buf)) {
                     return false;
                 }
             } else {
-                unsafe {
-                    semsg!(
-                        gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE,),
-                        (*buf).b_fnum,
-                    );
-                }
+                semsg!(
+                    gettext(E_NO_WRITE_SINCE_LAST_CHANGE_FOR_BUFFER_NR_ADD_BANG_TO_OVERRIDE,),
+                    crate::globals::gptr(buf).b_fnum,
+                );
+
                 return false;
             }
         }
 
         if (flags & DOBUF_FORCEIT) == 0
-            && unsafe { !(*buf).terminal.is_null() }
-            && unsafe { terminal_running(&*(*buf).terminal) }
+            && !crate::globals::gptr(buf).terminal.is_null()
+            && terminal_running(crate::globals::gref(crate::globals::gptr(buf).terminal))
         {
             if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                if unsafe { !dialog_close_terminal(&mut *buf) } {
+                if !dialog_close_terminal(crate::globals::gmut(buf)) {
                     return false;
                 }
             } else {
-                unsafe {
-                    semsg!(
-                        gettext(c"E89: %s will be killed (add ! to override)"),
-                        (*buf).b_fname,
-                    );
-                }
+                semsg!(
+                    gettext(c"E89: %s will be killed (add ! to override)"),
+                    crate::globals::gptr(buf).b_fname,
+                );
+
                 return false;
             }
         }
 
-        let buf_fnum = unsafe { (*buf).b_fnum };
+        let buf_fnum = crate::globals::gptr(buf).b_fnum;
 
         if buf == g_st().curbuf && g_st().visual_global.active {
             end_visual_mode();
@@ -2384,7 +2366,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
             if buf != g_st().curbuf
                 && bufref_valid(Some(&bufref))
-                && unsafe { (*buf).b_nwindows <= 0 }
+                && crate::globals::gptr(buf).b_nwindows <= 0
             {
                 close_buffer(ptr::null_mut(), buf, action, false, false, false);
             }
@@ -2395,7 +2377,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         bp = ptr::null_mut();
         if !g_st().au_new_curbuf.br_buf.is_null()
             && bufref_valid(Some(&g_st().au_new_curbuf))
-            && unsafe { (*g_st().au_new_curbuf.br_buf).b_locked_split == 0 }
+            && crate::globals::gptr(g_st().au_new_curbuf.br_buf).b_locked_split == 0
         {
             buf = g_st().au_new_curbuf.br_buf;
         } else if curwin_mut().w_jumplistlen > 0 {
@@ -2426,12 +2408,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
                     if !buf.is_null() {
                         if buf == g_st().curbuf
-                            || unsafe { (*buf).b_p_bl == 0 }
-                            || unsafe { bt_quickfix(buf.as_ref()) }
-                            || unsafe { (*buf).b_locked_split != 0 }
+                            || crate::globals::gptr(buf).b_p_bl == 0
+                            || bt_quickfix(crate::globals::gopt(buf))
+                            || crate::globals::gptr(buf).b_locked_split != 0
                         {
                             buf = ptr::null_mut();
-                        } else if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+                        } else if crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
                             if bp.is_null() {
                                 bp = buf;
                             }
@@ -2471,12 +2453,12 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     forward = false;
                     continue;
                 }
-                if unsafe { (*buf).b_help == curbuf_mut().b_help }
-                    && unsafe { (*buf).b_p_bl != 0 }
-                    && unsafe { !bt_quickfix(buf.as_ref()) }
-                    && unsafe { (*buf).b_locked_split == 0 }
+                if crate::globals::gptr(buf).b_help == curbuf_mut().b_help
+                    && crate::globals::gptr(buf).b_p_bl != 0
+                    && !bt_quickfix(crate::globals::gopt(buf))
+                    && crate::globals::gptr(buf).b_locked_split == 0
                 {
-                    if unsafe { (*buf).b_ml.ml_mfp.is_some() } {
+                    if crate::globals::gptr(buf).b_ml.ml_mfp.is_some() {
                         break;
                     }
                     if bp.is_null() {
@@ -2484,9 +2466,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     }
                 }
                 buf = if forward {
-                    unsafe { (*buf).b_next }
+                    crate::globals::gptr(buf).b_next
                 } else {
-                    unsafe { (*buf).b_prev }
+                    crate::globals::gptr(buf).b_prev
                 };
             }
         }
@@ -2511,8 +2493,10 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             } else {
                 curbuf_mut().b_prev
             };
-            if unsafe { bt_quickfix(buf.as_ref()) }
-                || unsafe { !buf.is_null() && buf != g_st().curbuf && (*buf).b_locked_split != 0 }
+            if bt_quickfix(crate::globals::gopt(buf))
+                || !buf.is_null()
+                    && buf != g_st().curbuf
+                    && crate::globals::gptr(buf).b_locked_split != 0
             {
                 buf = ptr::null_mut();
             }
@@ -2526,7 +2510,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     if action == DOBUF_SPLIT && !swbuf_goto_win_with_buf(buf).is_null() {
         return true;
     }
-    if buf != g_st().curbuf && unsafe { (*buf).b_locked_split != 0 } {
+    if buf != g_st().curbuf && crate::globals::gptr(buf).b_locked_split != 0 {
         emsg(gettext(E_CANNOT_SWITCH_TO_A_CLOSING_BUFFER));
         return false;
     }
@@ -2821,7 +2805,7 @@ pub fn buflist_new(
     let file_id_valid = !sfname.is_null() && os_fileid(sfname, &mut file_id);
     if !ffname.is_null() && (flags & (BLN_DUMMY | BLN_NEW)) == 0 {
         buf = buflist_findname_file_id(ffname, &mut file_id, file_id_valid);
-        if let Some(buf_ref) = unsafe { buf.as_mut() } {
+        if let Some(buf_ref) = crate::globals::gopt_mut(buf) {
             drop(ffname_cstr);
             if lnum != 0 {
                 buflist_setfpos(
@@ -2873,13 +2857,13 @@ pub fn buflist_new(
     }
     if buf != g_st().curbuf || g_st().curbuf.is_null() {
         buf = FileBuf::alloc();
-        let buf_ref = unsafe { &mut *buf };
+        let buf_ref = crate::globals::gmut(buf);
         init_var_dict(tv_dict_alloc(), &mut buf_ref.b_bufvar, VAR_SCOPE);
         buf_ref.changedtick_di.di_key = b"changedtick\0".to_vec();
         buf_init_changedtick(buf_ref);
     }
 
-    let buf_ref = unsafe { &mut *buf };
+    let buf_ref = crate::globals::gmut(buf);
     if let Some(ff_cstr) = ffname_cstr {
         debug_assert!(!sfname.is_null());
         let mut sf_vec = cstr_to_cstring(sfname).into_bytes_with_nul();
@@ -2902,7 +2886,7 @@ pub fn buflist_new(
             buf_ref.b_prev = ptr::null_mut();
             g_st().firstbuf = buf;
         } else {
-            unsafe { (*g_st().lastbuf).b_next = buf };
+            crate::globals::gptr(g_st().lastbuf).b_next = buf;
             buf_ref.b_prev = g_st().lastbuf;
         }
         g_st().lastbuf = buf;
@@ -2963,7 +2947,7 @@ pub fn buflist_new(
         }
     }
 
-    let buf_ref = unsafe { &mut *buf };
+    let buf_ref = crate::globals::gmut(buf);
     buf_ref.b_prompt_callback = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_interrupt = crate::eval::typval::Callback::NONE;
     buf_ref.b_prompt_text = None;
@@ -3139,7 +3123,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
             curwin_mut().w_set_curswant = true;
         }
         if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
-            mark_view_restore(unsafe { fm.as_ref() });
+            mark_view_restore(crate::globals::gopt(fm));
         }
         return true;
     }
@@ -3407,7 +3391,7 @@ pub fn expand_bufnames(
             if use_matches && !matches.is_empty() {
                 if matches.len() > 1 {
                     matches.sort_unstable_by(|a, b| {
-                        buf_time_compare(unsafe { &*a.buf }, unsafe { &*b.buf })
+                        buf_time_compare(crate::globals::gref(a.buf), crate::globals::gref(b.buf))
                     });
                 }
 
@@ -3484,7 +3468,7 @@ pub fn buflist_findnr(mut nr: i32) -> *mut FileBuf {
 
 #[inline]
 pub fn buflist_findnr_opt(nr: i32) -> Option<&'static mut FileBuf> {
-    unsafe { buflist_findnr(nr).as_mut() }
+    crate::globals::gopt_mut(buflist_findnr(nr))
 }
 
 pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi::CString> {
@@ -3523,7 +3507,7 @@ pub fn buflist_setfpos(
         }
         wip
     };
-    let win_opt = unsafe { win.as_mut() };
+    let win_opt = crate::globals::gopt_mut(win);
     if lnum != 0 {
         wip.wi_mark.mark.lnum = lnum;
         wip.wi_mark.mark.col = col;
@@ -3584,7 +3568,7 @@ fn find_wininfo(
             }
         })?;
     let wip_ptr: *mut WinInfo = &mut buf.b_wininfo[pos];
-    Some(unsafe { &mut *wip_ptr })
+    Some(crate::globals::gmut(wip_ptr))
 }
 
 /// Reset the local window options to the values last used in this window.
@@ -3657,14 +3641,16 @@ pub fn buflist_list(eap: &mut Exarg) {
 
     msg_ext_set_kind(c"list_cmd");
     if crate::strings::vim_haschr(eap.arg, b't' as i32) && buflist.len() > 1 {
-        buflist.sort_unstable_by(|&a, &b| buf_time_compare(unsafe { &*a }, unsafe { &*b }));
+        buflist.sort_unstable_by(|&a, &b| {
+            buf_time_compare(crate::globals::gref(a), crate::globals::gref(b))
+        });
     }
 
     for buf_ptr in buflist {
         if g_st().got_int {
             break;
         }
-        let buf = unsafe { &mut *buf_ptr };
+        let buf = crate::globals::gmut(buf_ptr);
         let is_terminal = !buf.terminal.is_null();
         let job_running = buf.terminal_opt().is_some_and(|t| terminal_running(t));
 
@@ -3841,7 +3827,7 @@ pub fn setfname(
                 }
             }
 
-            if unsafe { (*obuf).b_ml.ml_mfp.is_some() } || in_use {
+            if crate::globals::gptr(obuf).b_ml.ml_mfp.is_some() || in_use {
                 if message {
                     emsg(gettext(c"E95: Buffer with this name already exists"));
                 }
@@ -3915,7 +3901,7 @@ pub fn setaltfname(
     lnum: Linenr,
 ) -> *mut FileBuf {
     let buf = buflist_new(ffname, sfname, lnum, 0);
-    if let Some(b) = unsafe { buf.as_ref() }
+    if let Some(b) = crate::globals::gopt(buf)
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
         curwin_mut().w_alt_fnum = b.b_fnum;
@@ -3940,7 +3926,7 @@ pub fn getaltfname(errmsg: bool) -> Option<&'static std::ffi::CStr> {
 /// Add a file name to the buflist and return its number.
 pub fn buflist_add(fname: impl crate::strings::IntoCCharPtr, flags: i32) -> i32 {
     let buf = buflist_new(fname, ptr::null_mut::<u8>().cast(), 0, flags);
-    unsafe { buf.as_ref() }.map_or(0, |b| b.b_fnum)
+    crate::globals::gopt(buf).map_or(0, |b| b.b_fnum)
 }
 
 /// Set alternate cursor position for the current buffer and window `win`.
@@ -4413,9 +4399,7 @@ pub fn fname_expand<T, U>(
             && after_pathsep(name, name.wrapping_add(name_len)) != 0
             && name.wrapping_add(name_len) > get_past_head(name)
         {
-            unsafe {
-                *path_tail_with_sep(name) = 0;
-            }
+            *crate::globals::gptr(path_tail_with_sep(name)) = 0;
         }
         let full = fix_fname(crate::memory::cstr_until_nul(&name_vec));
         drop(name_vec);
@@ -4427,7 +4411,7 @@ pub fn fname_expand<T, U>(
 
     #[cfg(windows)]
     if !buf.is_null()
-        && unsafe { (*buf).b_p_bin == 0 }
+        && crate::globals::gptr(buf).b_p_bin == 0
         && let Some(rfname_cstr) = os_resolve_shortcut(full_cstr.as_ptr())
     {
         full_cstr = rfname_cstr;
@@ -5131,21 +5115,21 @@ mod tests {
                 1,
                 BLN_LISTED,
             );
-            let buf1 = unsafe { &mut *buf1 };
+            let buf1 = crate::globals::gmut(buf1);
             let buf2 = buflist_new(
                 p2.as_mut_ptr().cast(),
                 p2.as_mut_ptr().cast(),
                 1,
                 BLN_LISTED,
             );
-            let buf2 = unsafe { &mut *buf2 };
+            let buf2 = crate::globals::gmut(buf2);
             let buf3 = buflist_new(
                 p3.as_mut_ptr().cast(),
                 p3.as_mut_ptr().cast(),
                 1,
                 BLN_LISTED,
             );
-            let buf3 = unsafe { &mut *buf3 };
+            let buf3 = crate::globals::gmut(buf3);
 
             assert_eq!(findpat(c"test_file_path", false), buf1.b_fnum);
             assert_eq!(findpat(c"test", false), buf1.b_fnum);

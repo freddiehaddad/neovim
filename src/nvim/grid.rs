@@ -131,7 +131,7 @@ static GRID_STATE: GlobalState<GridModuleState> = GlobalState::new(GridModuleSta
 
 #[inline]
 fn grid_st() -> &'static mut GridModuleState {
-    unsafe { &mut *GRID_STATE.as_ptr() }
+    crate::globals::gmut(GRID_STATE.as_ptr())
 }
 
 #[inline]
@@ -166,7 +166,7 @@ const fn arabic_char(ch: i32) -> bool {
 #[inline]
 fn strnlen_4(p: *const u8) -> usize {
     for i in 0..4 {
-        if unsafe { *p.wrapping_add(i) } == 0 {
+        if *crate::globals::gptr(p.wrapping_add(i)) == 0 {
             return i;
         }
     }
@@ -258,9 +258,9 @@ pub fn schar_high(sc: Schar) -> bool {
 /// Sets final NUL (`schar_get`).
 pub fn schar_get(mut buf_out: *mut u8, sc: Schar) -> usize {
     let len = schar_get_adv(&mut buf_out, sc);
-    unsafe {
-        *buf_out = 0;
-    }
+
+    *crate::globals::gptr(buf_out) = 0;
+
     len
 }
 
@@ -276,15 +276,13 @@ pub fn schar_get_adv(buf_out: &mut *mut u8, sc: Schar) -> usize {
         assert!(idx < grid_st().glyph_cache_keys.len());
         let key_ptr = grid_st().glyph_cache_keys.as_ptr().wrapping_add(idx);
         len = crate::memory::cstr_len(key_ptr.cast());
-        unsafe {
-            ptr::copy_nonoverlapping(key_ptr, *buf_out, len);
-        }
+
+        unsafe { ptr::copy_nonoverlapping(key_ptr, *buf_out, len) };
     } else {
         let sc_ptr = (&raw const sc).cast::<u8>();
         len = strnlen_4(sc_ptr);
-        unsafe {
-            ptr::copy_nonoverlapping(sc_ptr, *buf_out, len);
-        }
+
+        unsafe { ptr::copy_nonoverlapping(sc_ptr, *buf_out, len) };
     }
     *buf_out = (*buf_out).wrapping_add(len);
     len
@@ -312,7 +310,7 @@ fn schar_get_first_byte(sc: Schar) -> u8 {
     if schar_high(sc) {
         grid_st().glyph_cache_keys.as_slice()[schar_idx(sc) as usize]
     } else {
-        unsafe { *(&raw const sc).cast::<u8>() }
+        *crate::globals::gptr((&raw const sc).cast::<u8>())
     }
 }
 
@@ -324,13 +322,12 @@ pub fn schar_get_first_codepoint(sc: Schar) -> i32 {
 
 pub fn schar_get_ascii(sc: Schar) -> u8 {
     #[cfg(target_endian = "big")]
-    unsafe {
-        if (sc & 0x80FF_FFFF) == 0 {
-            *(&raw const sc).cast::<u8>()
-        } else {
-            0
-        }
+    if (sc & 0x80FF_FFFF) == 0 {
+        *(&raw const sc).cast::<u8>()
+    } else {
+        0
     }
+
     #[cfg(not(target_endian = "big"))]
     {
         if sc < 0x80 { sc as u8 } else { 0 }
@@ -360,7 +357,7 @@ fn schar_get_first_two_codepoints(sc: Schar, c0: &mut i32, c1: &mut i32) {
 pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
     let mut i: i32 = 0;
     while i < cols {
-        if schar_in_arabic_block(unsafe { *buf.wrapping_add(i as usize) }) {
+        if schar_in_arabic_block(*crate::globals::gptr(buf.wrapping_add(i as usize))) {
             break;
         }
         i += 1;
@@ -373,13 +370,17 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
     let mut c0prev: i32 = 0;
     let mut c0: i32 = 0;
     let mut c1: i32 = 0;
-    schar_get_first_two_codepoints(unsafe { *buf.wrapping_add(i as usize) }, &mut c0, &mut c1);
+    schar_get_first_two_codepoints(
+        *crate::globals::gptr(buf.wrapping_add(i as usize)),
+        &mut c0,
+        &mut c1,
+    );
 
     while i < cols {
         let mut c0next: i32 = 0;
         let mut c1next: i32 = 0;
         let next_sc = if i + 1 < cols {
-            unsafe { *buf.wrapping_add((i + 1) as usize) }
+            *crate::globals::gptr(buf.wrapping_add((i + 1) as usize))
         } else {
             0
         };
@@ -391,7 +392,10 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
 
             if !(c0new == c0 && c1new == c1) {
                 let mut scbuf = [0u8; MAX_SCHAR_SIZE];
-                schar_get(scbuf.as_mut_ptr(), unsafe { *buf.wrapping_add(i as usize) });
+                schar_get(
+                    scbuf.as_mut_ptr(),
+                    *crate::globals::gptr(buf.wrapping_add(i as usize)),
+                );
 
                 let mut scbuf_new = [0u8; MAX_SCHAR_SIZE];
                 let mut len = crate::mbyte::utf_char2slice(c0new, &mut scbuf_new);
@@ -410,10 +414,9 @@ pub fn line_do_arabic_shape(buf: *mut Schar, cols: i32) {
                     rest = (rest as isize - (isize::from(bounds.begin_off) + 1)) as usize;
                 }
                 scbuf_new[len..len + rest].copy_from_slice(&rest_slice[..rest]);
-                unsafe {
-                    *buf.wrapping_add(i as usize) =
-                        schar_from_buf(scbuf_new.as_ptr().cast(), len + rest);
-                }
+
+                *crate::globals::gptr(buf.wrapping_add(i as usize)) =
+                    schar_from_buf(scbuf_new.as_ptr().cast(), len + rest);
             }
         }
 
@@ -463,8 +466,8 @@ pub fn grid_getchar(grid: &ScreenGrid, row: i32, col: i32, attrp: Option<&mut i3
 
 pub fn grid_line_start(view: *mut GridView, mut row: i32) {
     let mut col: i32 = 0;
-    let grid = grid_adjust(unsafe { &mut *view }, &mut row, &mut col);
-    screengrid_line_start(unsafe { &mut *grid }, row, col);
+    let grid = grid_adjust(crate::globals::gmut(view), &mut row, &mut col);
+    screengrid_line_start(crate::globals::gmut(grid), row, col);
 }
 
 pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
@@ -496,7 +499,7 @@ pub fn screengrid_line_start(grid: &mut ScreenGrid, row: i32, col: i32) {
 pub fn grid_line_getchar(mut col: i32, mut attr: Option<&mut i32>) -> Schar {
     if col < grid_st().grid_line_maxcol {
         col += grid_st().grid_line_coloff;
-        let grid = unsafe { &*grid_st().grid_line_grid };
+        let grid = crate::globals::gref(grid_st().grid_line_grid);
         let off = grid.line_offset[grid_st().grid_line_row as usize] + col as usize;
         if let Some(ref mut p) = attr {
             **p = grid.attrs[off];
@@ -609,7 +612,7 @@ pub fn grid_line_clear_end(start_col: i32, end_col: i32, bg_attr: i32, clear_att
 
 pub fn grid_line_cursor_goto(col: i32) {
     ui_grid_cursor_goto(
-        unsafe { (*grid_st().grid_line_grid).handle },
+        crate::globals::gptr(grid_st().grid_line_grid).handle,
         grid_st().grid_line_row,
         col,
     );
@@ -637,6 +640,7 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     let mirror = width - 1;
     let scratch_ptr = grid_st().linebuf_scratch.as_mut_ptr();
     let scratch_char = scratch_ptr.cast::<Schar>();
+
     unsafe {
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_char[first as usize],
@@ -647,18 +651,22 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     let mut col = first;
     while col < last {
         let rev = mirror - col;
-        if col + 1 < last && unsafe { *scratch_char.wrapping_add((col + 1) as usize) } == 0 {
+        if col + 1 < last
+            && *crate::globals::gptr(scratch_char.wrapping_add((col + 1) as usize)) == 0
+        {
             g_st().linebuf_char[(rev - 1) as usize] =
-                unsafe { *scratch_char.wrapping_add(col as usize) };
+                *crate::globals::gptr(scratch_char.wrapping_add(col as usize));
             g_st().linebuf_char[rev as usize] = 0;
             col += 1;
         } else {
-            g_st().linebuf_char[rev as usize] = unsafe { *scratch_char.wrapping_add(col as usize) };
+            g_st().linebuf_char[rev as usize] =
+                *crate::globals::gptr(scratch_char.wrapping_add(col as usize));
         }
         col += 1;
     }
 
     let scratch_attr = scratch_ptr.cast::<Sattr>();
+
     unsafe {
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_attr[first as usize],
@@ -668,10 +676,11 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     };
     for c in first..last {
         g_st().linebuf_attr[(mirror - c) as usize] =
-            unsafe { *scratch_attr.wrapping_add(c as usize) };
+            *crate::globals::gptr(scratch_attr.wrapping_add(c as usize));
     }
 
     let scratch_vcol = scratch_ptr.cast::<Colnr>();
+
     unsafe {
         ptr::copy_nonoverlapping(
             &raw const g_st().linebuf_vcol[first as usize],
@@ -681,7 +690,7 @@ pub fn linebuf_mirror(firstp: &mut i32, lastp: &mut i32, clearp: &mut i32, width
     };
     for c in first..last {
         g_st().linebuf_vcol[(mirror - c) as usize] =
-            unsafe { *scratch_vcol.wrapping_add(c as usize) };
+            *crate::globals::gptr(scratch_vcol.wrapping_add(c as usize));
     }
 
     *firstp = width - *clearp;
@@ -699,7 +708,7 @@ pub fn grid_line_flush() {
     }
 
     grid_put_linebuf(
-        unsafe { &mut *grid },
+        crate::globals::gmut(grid),
         grid_st().grid_line_row,
         grid_st().grid_line_coloff,
         grid_st().grid_line_first,
@@ -714,7 +723,7 @@ pub fn grid_line_flush() {
 
 pub fn grid_line_flush_if_valid_row() {
     if grid_st().grid_line_row < 0
-        || grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
+        || grid_st().grid_line_row >= crate::globals::gptr(grid_st().grid_line_grid).rows
     {
         if (opt_vars().rdb_flags & K_OPT_RDB_FLAG_INVALID) != 0 {
             std::process::abort();
@@ -737,7 +746,7 @@ pub fn grid_clear(
     for row in start_row..end_row {
         grid_line_start(grid, row);
         end_col = end_col.min(grid_st().grid_line_maxcol);
-        if grid_st().grid_line_row >= unsafe { (*grid_st().grid_line_grid).rows }
+        if grid_st().grid_line_row >= crate::globals::gptr(grid_st().grid_line_grid).rows
             || start_col >= end_col
         {
             grid_st().grid_line_grid = ptr::null_mut();
@@ -1030,7 +1039,7 @@ pub fn grid_free_all_mem() {
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
     let grid = &mut wp.w_grid;
     let grid_allocated: *mut ScreenGrid = &raw mut wp.w_grid_alloc;
-    let grid_allocated = unsafe { &mut *grid_allocated };
+    let grid_allocated = crate::globals::gmut(grid_allocated);
 
     let total_rows = wp.w_height_outer;
     let total_cols = wp.w_width_outer;
@@ -1294,10 +1303,10 @@ pub fn grid_draw_border(
         border_attrs[i] = hl_combine_attr(win_hl_attr_normal, config.border_attr[i]);
     }
 
-    let adj0 = unsafe { *adj };
-    let adj1 = unsafe { *adj.wrapping_add(1) };
-    let adj2 = unsafe { *adj.wrapping_add(2) };
-    let adj3 = unsafe { *adj.wrapping_add(3) };
+    let adj0 = *crate::globals::gptr(adj);
+    let adj1 = *crate::globals::gptr(adj.wrapping_add(1));
+    let adj2 = *crate::globals::gptr(adj.wrapping_add(2));
+    let adj3 = *crate::globals::gptr(adj.wrapping_add(3));
 
     let irow = grid.rows - adj0 - adj2;
     let icol = grid.cols - adj1 - adj3;
@@ -1431,7 +1440,7 @@ pub fn schar_from_cluster_impl(
         let maxlen = MAX_SCHAR_SIZE - 1 - usize::from(first_compose);
         if len > maxlen {
             len = maxlen;
-            while (unsafe { *buf.wrapping_add(len).cast::<u8>() } & 0xC0) != 0xC0 {
+            while (*crate::globals::gptr(buf.wrapping_add(len).cast::<u8>()) & 0xC0) != 0xC0 {
                 len -= 1;
             }
         }
@@ -1439,6 +1448,7 @@ pub fn schar_from_cluster_impl(
         if first_compose {
             let mut cbuf = [0u8; MAX_SCHAR_SIZE];
             cbuf[0] = b' ';
+
             unsafe {
                 ptr::copy_nonoverlapping(buf.cast::<u8>(), cbuf.as_mut_ptr().wrapping_add(1), len)
             };
@@ -1460,9 +1470,9 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
         return schar_from_cluster_impl(ci.ptr, len, cli.first_compose);
     }
     let mut sc: Schar = 0;
-    unsafe {
-        ptr::copy_nonoverlapping(ci.ptr.cast::<u8>(), (&raw mut sc).cast::<u8>(), len);
-    }
+
+    unsafe { ptr::copy_nonoverlapping(ci.ptr.cast::<u8>(), (&raw mut sc).cast::<u8>(), len) };
+
     sc
 }
 

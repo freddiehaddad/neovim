@@ -1017,6 +1017,24 @@ impl<T> From<&mut T> for GraphPtr<T> {
     }
 }
 
+impl<T> std::ops::Deref for GraphPtr<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &*self.0 }
+    }
+}
+
+impl<T> std::ops::DerefMut for GraphPtr<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &mut *self.0 }
+    }
+}
+
 impl<T> GraphPtr<T> {
     pub const NULL: Self = Self(ptr::null_mut());
 
@@ -1056,6 +1074,159 @@ impl<T> GraphPtr<T> {
         debug_assert!(!self.0.is_null());
         unsafe { &mut *self.0 }
     }
+}
+
+#[repr(transparent)]
+pub struct DerefPtr<T>(pub *mut T);
+
+impl<T> std::ops::Deref for DerefPtr<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &*self.0 }
+    }
+}
+
+impl<T> std::ops::DerefMut for DerefPtr<T> {
+    #[inline]
+    fn deref_mut(&mut self) -> &mut T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &mut *self.0 }
+    }
+}
+
+#[repr(transparent)]
+pub struct DerefRef<T>(pub *const T);
+
+impl<T> std::ops::Deref for DerefRef<T> {
+    type Target = T;
+
+    #[inline]
+    fn deref(&self) -> &T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &*self.0 }
+    }
+}
+
+pub trait IntoGraphPtr {
+    type Handle;
+    fn into_gptr(self) -> Self::Handle;
+}
+
+impl<T> IntoGraphPtr for *mut T {
+    type Handle = DerefPtr<T>;
+
+    #[inline]
+    fn into_gptr(self) -> DerefPtr<T> {
+        DerefPtr(self)
+    }
+}
+
+impl<T> IntoGraphPtr for *const T {
+    type Handle = DerefRef<T>;
+
+    #[inline]
+    fn into_gptr(self) -> DerefRef<T> {
+        DerefRef(self)
+    }
+}
+
+impl<T> IntoGraphPtr for &*mut T {
+    type Handle = DerefPtr<T>;
+
+    #[inline]
+    fn into_gptr(self) -> DerefPtr<T> {
+        DerefPtr(*self)
+    }
+}
+
+impl<T> IntoGraphPtr for &*const T {
+    type Handle = DerefRef<T>;
+
+    #[inline]
+    fn into_gptr(self) -> DerefRef<T> {
+        DerefRef(*self)
+    }
+}
+
+#[inline]
+pub fn gptr<P: IntoGraphPtr>(p: P) -> P::Handle {
+    p.into_gptr()
+}
+
+#[inline]
+pub fn gmut<'a, T>(p: *mut T) -> &'a mut T {
+    debug_assert!(!p.is_null());
+    unsafe { &mut *p }
+}
+
+pub trait IntoConstPtr<T> {
+    fn into_const_ptr(self) -> *const T;
+}
+
+impl<T> IntoConstPtr<T> for *const T {
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        self
+    }
+}
+
+impl<T> IntoConstPtr<T> for *mut T {
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        self.cast_const()
+    }
+}
+
+impl<T> IntoConstPtr<T> for &*const T {
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        *self
+    }
+}
+
+impl<T> IntoConstPtr<T> for &*mut T {
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        (*self).cast_const()
+    }
+}
+
+pub trait IntoMutPtr<T> {
+    fn into_mut_ptr(self) -> *mut T;
+}
+
+impl<T> IntoMutPtr<T> for *mut T {
+    #[inline]
+    fn into_mut_ptr(self) -> *mut T {
+        self
+    }
+}
+
+impl<T> IntoMutPtr<T> for &*mut T {
+    #[inline]
+    fn into_mut_ptr(self) -> *mut T {
+        *self
+    }
+}
+
+#[inline]
+pub fn gref<'a, T, P: IntoConstPtr<T>>(p: P) -> &'a T {
+    let ptr = p.into_const_ptr();
+    debug_assert!(!ptr.is_null());
+    unsafe { &*ptr }
+}
+
+#[inline]
+pub fn gopt<'a, T, P: IntoConstPtr<T>>(p: P) -> Option<&'a T> {
+    unsafe { p.into_const_ptr().as_ref() }
+}
+
+#[inline]
+pub fn gopt_mut<'a, T, P: IntoMutPtr<T>>(p: P) -> Option<&'a mut T> {
+    unsafe { p.into_mut_ptr().as_mut() }
 }
 
 pub type WinPtr = GraphPtr<WinInfoInfo>;

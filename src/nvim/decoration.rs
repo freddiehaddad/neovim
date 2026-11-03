@@ -161,7 +161,7 @@ impl DecorRangeData {
     #[inline]
     pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
         match self {
-            Self::Vt(vt) | Self::VirtLines(vt) => unsafe { vt.as_mut() },
+            Self::Vt(vt) | Self::VirtLines(vt) => crate::globals::gopt_mut(vt),
             _ => None,
         }
     }
@@ -405,9 +405,9 @@ impl Iterator for VirtTextMutIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*cur).next_ptr();
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(cur).next_ptr();
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -424,9 +424,9 @@ impl Iterator for VirtTextPtrIter {
         if cur.is_null() {
             None
         } else {
-            unsafe {
-                self.0 = (*cur).next_ptr();
-                Some(&mut *cur)
+            {
+                self.0 = crate::globals::gptr(cur).next_ptr();
+                Some(crate::globals::gmut(cur))
             }
         }
     }
@@ -492,7 +492,7 @@ static DECOR_MOD_STATE: GlobalState<DecorationModuleState> =
 
 #[inline]
 fn decor_st() -> &'static mut DecorationModuleState {
-    unsafe { &mut *DECOR_MOD_STATE.as_ptr() }
+    crate::globals::gmut(DECOR_MOD_STATE.as_ptr())
 }
 
 #[inline]
@@ -771,7 +771,7 @@ fn decor_free_sh(first_idx: u32) {
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
     if !g_st().decor_state.win.is_null()
-        && std::ptr::eq(unsafe { (*g_st().decor_state.win).w_buffer }, buf)
+        && std::ptr::eq(crate::globals::gptr(g_st().decor_state.win).w_buffer, buf)
     {
         g_st().decor_state.itr_valid = false;
     }
@@ -878,10 +878,8 @@ pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> *mut Deco
             break;
         } else if !mt_invalid(mark) {
             let mut decor = mt_decor_virt(mark);
-            while !decor.is_null() && unsafe { ((*decor).flags & K_VTIS_LINES) != 0 } {
-                unsafe {
-                    decor = (*decor).next_ptr();
-                }
+            while !decor.is_null() && (crate::globals::gptr(decor).flags & K_VTIS_LINES) != 0 {
+                decor = crate::globals::gptr(decor).next_ptr();
             }
             if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
                 return decor;
@@ -912,7 +910,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     match decor.data {
-        DecorRangeData::Vt(vt) => unsafe { (*vt).pos },
+        DecorRangeData::Vt(vt) => crate::globals::gptr(vt).pos,
         DecorRangeData::Ui(ui) => ui.pos,
         _ => K_VPOS_END_OF_LINE,
     }
@@ -993,7 +991,10 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = unsafe { marktree_itr_current(&(*(*state.win).w_buffer).b_marktree, &state.itr) };
+    let k = marktree_itr_current(
+        &crate::globals::gptr(crate::globals::gptr(state.win).w_buffer).b_marktree,
+        &state.itr,
+    );
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1084,7 +1085,7 @@ pub fn decor_range_add_virt(
     vt: *mut DecorVirtText,
     owned: bool,
 ) {
-    let vt_ref = unsafe { &*vt };
+    let vt_ref = crate::globals::gref(vt);
     let is_lines = (vt_ref.flags & K_VTIS_LINES) != 0;
     let range = DecorRange {
         start_row,
@@ -1189,11 +1190,12 @@ pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
     if win_col < 0 && pos != K_VPOS_INLINE {
         item.draw_col = win_col;
     } else if pos == K_VPOS_OVERLAY {
-        item.draw_col = if !vt.is_null() && (unsafe { (*vt).flags } & K_VTHIDE) != 0 && hidden {
-            i32::MIN
-        } else {
-            win_col
-        };
+        item.draw_col =
+            if !vt.is_null() && (crate::globals::gptr(vt).flags & K_VTHIDE) != 0 && hidden {
+                i32::MIN
+            } else {
+                win_col
+            };
     } else {
         item.draw_col = -1;
     }
@@ -1220,7 +1222,7 @@ pub fn decor_redraw_col_impl(
     max_col_last: i32,
 ) -> i32 {
     let buf = wp.w_buffer;
-    let buf = unsafe { &mut *buf };
+    let buf = crate::globals::gmut(buf);
     let row = state.row;
     let mut col_last = max_col_last;
 
@@ -1314,7 +1316,7 @@ pub fn decor_redraw_col_impl(
     for i in 0..cur_end {
         let index = (&state.ranges_i)[i as usize];
         let slot = &raw mut (&mut state.slots)[index as usize];
-        let r = unsafe { (*slot).range_mut() };
+        let r = crate::globals::gmut(slot).range_mut();
 
         let keep: bool;
         if r.end_row < row || (r.end_row == row && r.end_col <= col) {
@@ -1377,12 +1379,10 @@ pub fn decor_redraw_col_impl(
             new_cur_end += 1;
         } else {
             let fi = &raw mut state.free_slot_i;
-            unsafe {
-                *slot = DecorRangeSlot::Free(*fi);
-            }
-            unsafe {
-                *fi = index;
-            }
+
+            *crate::globals::gptr(slot) = DecorRangeSlot::Free(*crate::globals::gptr(fi));
+
+            *crate::globals::gptr(fi) = index;
         }
     }
     cur_end = new_cur_end;
@@ -1505,8 +1505,8 @@ pub fn decor_redraw_signs(
     mut cul_id: Option<&mut i32>,
     mut num_id: Option<&mut i32>,
 ) {
-    let wp = unsafe { &mut *wp };
-    let buf = unsafe { &mut *buf };
+    let wp = crate::globals::gmut(wp);
+    let buf = crate::globals::gmut(buf);
     if !buf_has_signs(&*buf) {
         return;
     }
@@ -1562,12 +1562,10 @@ pub fn decor_redraw_signs(
         for item in &signs {
             let sh = item.sh;
             if !sattrs.is_null() && (idx as i32) < len && sh.text[0] != 0 {
-                unsafe {
-                    (*sattrs.wrapping_add(idx)).text = sh.text;
-                }
-                unsafe {
-                    (*sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
-                }
+                crate::globals::gptr(sattrs.wrapping_add(idx)).text = sh.text;
+
+                crate::globals::gptr(sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
+
                 idx += 1;
             }
             if num_id.is_some() && *num_id.as_deref_mut().unwrap() <= 0 {
@@ -1765,12 +1763,12 @@ pub fn decor_virt_lines(
     apply_folds: bool,
 ) -> i32 {
     let buf = wp.w_buffer;
-    if unsafe { buf_meta_total(&*buf, K_MTMETA_LINES) == 0 } {
+    if buf_meta_total(crate::globals::gref(buf), K_MTMETA_LINES) == 0 {
         return 0;
     }
 
     let mut itr = MarkTreeIter::new();
-    let b = unsafe { &(*buf).b_marktree };
+    let b = &crate::globals::gptr(buf).b_marktree;
     if !marktree_itr_get_filter(
         b,
         (start_row - 1).max(0),
@@ -1791,9 +1789,9 @@ pub fn decor_virt_lines(
         let mut vt = mt_decor_virt(mark);
         if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
             while !vt.is_null() {
-                let virt_lines = unsafe { (*vt).data.virt_lines() };
-                if unsafe { ((*vt).flags & K_VTIS_LINES) != 0 } && !virt_lines.is_empty() {
-                    let above = unsafe { ((*vt).flags & K_VTLINES_ABOVE) != 0 };
+                let virt_lines = crate::globals::gref(vt).data.virt_lines();
+                if (crate::globals::gptr(vt).flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
+                    let above = (crate::globals::gptr(vt).flags & K_VTLINES_ABOVE) != 0;
                     let mrow = mark.pos.row;
                     let draw_row = mrow + if above { 0 } else { 1 };
                     if draw_row >= start_row
@@ -1821,9 +1819,8 @@ pub fn decor_virt_lines(
                         }
                     }
                 }
-                unsafe {
-                    vt = (*vt).next_ptr();
-                }
+
+                vt = crate::globals::gptr(vt).next_ptr();
             }
         }
 

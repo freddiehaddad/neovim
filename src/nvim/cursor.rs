@@ -514,11 +514,11 @@ pub fn char_before_cursor() -> i32 {
 
 /// Write a character at the current cursor position (`pchar_cursor`).
 pub fn pchar_cursor(c: u8) {
-    unsafe {
-        *ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum)
+    *crate::globals::gptr(
+        ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum)
             .wrapping_add(curwin_mut().w_cursor.col as usize)
-            .cast::<u8>() = c;
-    }
+            .cast::<u8>(),
+    ) = c;
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
