@@ -32,17 +32,13 @@ impl Default for SignalWatcher {
     }
 }
 
-pub fn signal_watcher_init(
-    loop_: &mut Loop,
-    watcher: *mut SignalWatcher,
-    data: *mut crate::tui::tui::TUIData,
-) {
+pub fn signal_watcher_init(loop_: &mut Loop, watcher: &mut SignalWatcher) {
     unsafe {
-        uv_signal_init((&raw mut loop_.uv).cast(), (&raw mut (*watcher).uv).cast());
-        *(&raw mut (*watcher).uv).cast::<*mut SignalWatcher>() = watcher;
-        (*watcher).data = data;
-        (*watcher).events = loop_fast_events(loop_);
-        (*watcher).signum = 0;
+        uv_signal_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
+        *(&raw mut watcher.uv).cast::<*mut SignalWatcher>() = watcher;
+        watcher.data = ptr::null_mut();
+        watcher.events = loop_fast_events(loop_).map_or(ptr::null_mut(), ptr::from_mut);
+        watcher.signum = 0;
     }
 }
 

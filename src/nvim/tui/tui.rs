@@ -376,8 +376,9 @@ pub fn tui_start(
     rgb: &mut bool,
 ) {
     unsafe {
-        signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui), &raw mut *tui);
-        signal_watcher_start(&mut *tui_winch_handle(tui), SIGWINCH);
+        signal_watcher_init(&mut *tui.loop_, tui_winch_handle(tui));
+        tui.winch_handle.data = &raw mut *tui;
+        signal_watcher_start(tui_winch_handle(tui), SIGWINCH);
 
         tui.grid.cells.clear();
         tui_terminal_start(tui);
@@ -2002,7 +2003,7 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
         return;
     }
     let mut req = [0u64; 64];
-    let buf = uv_buf_t::new(content.data.cast(), content.size);
+    let buf = uv_buf_t::from_slice(crate::memory::cstr_slice(content.data, content.size));
     let ret = unsafe {
         uv_write(
             req.as_mut_ptr().cast(),
@@ -2929,11 +2930,11 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
         let _ = screenshot.write_all(mid_slice);
         let _ = screenshot.write_all(&post[..post_len]);
     } else {
-        let mid_base = buf_to_flush.map_or(tui.buf.as_mut_ptr(), |b| b.as_ptr().cast_mut());
+        let mid_slice: &[u8] = buf_to_flush.unwrap_or(&tui.buf[..tui.bufpos]);
         let bufs = [
-            uv_buf_t::new(pre.as_mut_ptr().cast(), pre_len),
-            uv_buf_t::new(mid_base.cast(), tui.bufpos),
-            uv_buf_t::new(post.as_mut_ptr().cast(), post_len),
+            uv_buf_t::from_slice(&pre[..pre_len]),
+            uv_buf_t::from_slice(mid_slice),
+            uv_buf_t::from_slice(&post[..post_len]),
         ];
         let mut nbufs = bufs.len();
         while nbufs > 0 && bufs[nbufs - 1].len == 0 {

@@ -18,9 +18,7 @@ use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
 use crate::eval::userfunc::{
     EvalFuncDef, FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc,
 };
-use crate::event::r#loop::{
-    loop_closing_ptr, loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t,
-};
+use crate::event::r#loop::{loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t};
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
 };
@@ -829,7 +827,7 @@ unsafe extern "C-unwind" fn nlua_schedule(lstate: *mut lua_State) -> i32 {
         }
 
         lua_pushnil(lstate);
-        if *loop_closing_ptr(&mut g_st().main_loop) {
+        if g_st().main_loop.closing {
             lua_pushlstring(lstate, c"main loop is closing".as_ptr(), 20);
             return 2;
         }

@@ -14,7 +14,7 @@ use crate::event::multiqueue::{
     Event, multiqueue_empty, multiqueue_free, multiqueue_new_child, multiqueue_put_event,
 };
 use crate::event::proc::{LibuvProc, proc_spawn, proc_stop, proc_wait};
-use crate::event::rstream::{RStream, rstream_init, rstream_start};
+use crate::event::rstream::{rstream_init, rstream_start};
 use crate::event::stream::{Stream, StreamCbData, stream_may_close};
 use crate::event::wstream::{
     wstream_init, wstream_new_vec_buffer, wstream_set_write_cb, wstream_write,
@@ -846,7 +846,7 @@ fn do_os_system(
     proc_.err.s.fd = STDERR_FILENO;
 
     let qc = loop_queues(&mut *mloop);
-    let events = multiqueue_new_child(qc.events);
+    let events = multiqueue_new_child(unsafe { &mut *qc.events });
     proc_.events = events;
     proc_.argv = argv;
 
@@ -878,7 +878,7 @@ fn do_os_system(
         if has_input {
             let input_buffer = wstream_new_vec_buffer(input.to_vec());
             if wstream_write(s_in, input_buffer) != 0 {
-                proc_stop(&raw mut *proc_);
+                proc_stop(proc_);
                 break 'end;
             }
             wstream_set_write_cb(s_in);
@@ -892,7 +892,7 @@ fn do_os_system(
             g_st().msg_no_more = true;
             g_st().lines_left = -1;
         }
-        exitcode = proc_wait(&raw mut *proc_, -1, ptr::null_mut());
+        exitcode = proc_wait(proc_, -1, None);
         if !g_st().got_int && out_data_decide_throttle(0) {
             out_data_ring(None);
         }
@@ -924,12 +924,7 @@ fn do_os_system(
     exitcode
 }
 
-pub(crate) fn system_data_cb(
-    _stream: &mut RStream,
-    buf: &[u8],
-    dbuf: &mut Vec<u8>,
-    _eof: bool,
-) -> usize {
+pub(crate) fn system_data_cb(buf: &[u8], dbuf: &mut Vec<u8>, _eof: bool) -> usize {
     dbuf.extend_from_slice(buf);
     buf.len()
 }
@@ -1064,13 +1059,12 @@ fn out_data_append_to_screen(output: &[u8], count: &mut usize, fd: i32, eof: boo
     }
 }
 
-pub(crate) fn out_data_cb(stream: &mut RStream, buf: &[u8], eof: bool) -> usize {
+pub(crate) fn out_data_cb(stream_fd: i32, buf: &[u8], eof: bool) -> usize {
     let mut count = buf.len();
     if count > 0 && out_data_decide_throttle(count) {
         out_data_ring(Some(buf));
     } else if count > 0 {
-        let fd = stream.s.fd;
-        out_data_append_to_screen(buf, &mut count, fd, eof);
+        out_data_append_to_screen(buf, &mut count, stream_fd, eof);
     }
     count
 }

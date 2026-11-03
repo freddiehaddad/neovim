@@ -2069,7 +2069,7 @@ pub fn win_line(
         terminal_get_line_attributes(
             crate::globals::gmut(wp.buf_mut().terminal),
             lnum,
-            (&raw mut term_attrs).cast::<i32>(),
+            &mut term_attrs,
         );
 
         extra_check = true;
@@ -3046,7 +3046,10 @@ pub fn win_line(
                                     }
                                     let slen = schar_get_adv(
                                         unsafe {
-                                            std::slice::from_raw_parts_mut(p, MAX_SCHAR_SIZE)
+                                            std::slice::from_raw_parts_mut(
+                                                p,
+                                                crate::api::ui::MAX_SCHAR_SIZE,
+                                            )
                                         },
                                         lcs,
                                     );

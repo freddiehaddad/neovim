@@ -1362,7 +1362,7 @@ fn can_unload_buffer(buf: &mut FileBuf) -> bool {
 pub fn buf_close_terminal(buf: &mut FileBuf) {
     debug_assert!(!buf.terminal.is_null());
     buf.b_locked += 1;
-    terminal_close((&raw mut buf.terminal).cast::<*mut Terminal>(), -1);
+    terminal_close(buf.terminal_mut(), -1);
     buf.b_locked -= 1;
 }
 

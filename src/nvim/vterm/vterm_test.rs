@@ -3,7 +3,6 @@
 use crate::terminal::Terminal;
 use crate::vterm::parser::{CSI_ARG_FLAG_MORE, CSI_ARG_MISSING, VTermStringFragment};
 use std::io::Write;
-use std::ptr;
 use std::sync::Mutex;
 
 use crate::api::ui::MAX_SCHAR_SIZE;
@@ -150,7 +149,7 @@ fn push_frag_bytes(out: &mut Vec<u8>, frag: VTermStringFragment) {
     out.extend_from_slice(frag.as_bytes());
 }
 
-pub fn parser_text(bytes: &[u8], _user: *mut VTermStateFull) -> i32 {
+pub fn parser_text(bytes: &[u8], _user: Option<&mut VTermStateFull>) -> i32 {
     let mut out = b"text ".to_vec();
     let mut i = 0usize;
     while i < bytes.len() {
@@ -174,7 +173,7 @@ pub fn parser_csi<T>(
     args: &[i64],
     intermed: &[u8],
     command: u8,
-    _user: *mut T,
+    _user: Option<&mut T>,
 ) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "csi {command:02x}");
@@ -209,7 +208,7 @@ pub fn parser_csi<T>(
     1
 }
 
-pub fn parser_osc<T>(command: i32, frag: VTermStringFragment, _user: *mut T) -> i32 {
+pub fn parser_osc<T>(command: i32, frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
     let mut out = b"osc ".to_vec();
     if frag.initial() {
         if command == -1 {
@@ -227,7 +226,7 @@ pub fn parser_osc<T>(command: i32, frag: VTermStringFragment, _user: *mut T) -> 
     1
 }
 
-pub fn parser_dcs<T>(command: &[u8], frag: VTermStringFragment, _user: *mut T) -> i32 {
+pub fn parser_dcs<T>(command: &[u8], frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
     let mut out = b"dcs ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -242,7 +241,7 @@ pub fn parser_dcs<T>(command: &[u8], frag: VTermStringFragment, _user: *mut T) -
     1
 }
 
-pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
+pub fn parser_apc<T>(frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
     let mut out = b"apc ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -256,7 +255,7 @@ pub fn parser_apc<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
     1
 }
 
-pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
+pub fn parser_pm<T>(frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
     let mut out = b"pm ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -270,7 +269,7 @@ pub fn parser_pm<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
     1
 }
 
-pub fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
+pub fn parser_sos<T>(frag: VTermStringFragment, _user: Option<&mut T>) -> i32 {
     let mut out = b"sos ".to_vec();
     if frag.initial() {
         out.push(b'[');
@@ -287,7 +286,7 @@ pub fn parser_sos<T>(frag: VTermStringFragment, _user: *mut T) -> i32 {
 pub fn selection_set(
     mask: VTermSelectionMask,
     frag: VTermStringFragment,
-    _user: *mut Terminal,
+    _user: Option<&mut Terminal>,
 ) -> i32 {
     let mut out = Vec::new();
     let _ = write!(out, "selection-set mask={mask:04X} ");
@@ -303,7 +302,7 @@ pub fn selection_set(
     1
 }
 
-pub fn selection_query(mask: VTermSelectionMask, _user: *mut Terminal) -> i32 {
+pub fn selection_query(mask: VTermSelectionMask, _user: Option<&mut Terminal>) -> i32 {
     let mut out = Vec::new();
     let _ = writeln!(out, "selection-query mask={mask:04X}");
     append_test_output(&out);
@@ -330,7 +329,11 @@ fn format_schar(out: &mut Vec<u8>, schar: Schar) {
     }
 }
 
-pub fn state_putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, _user: *mut VTermScreen) -> i32 {
+pub fn state_putglyph(
+    info: &mut VTermGlyphInfo,
+    pos: VTermPos,
+    _user: Option<&mut VTermScreen>,
+) -> i32 {
     if !vtt_st().want_state_putglyph {
         return 1;
     }
@@ -357,7 +360,12 @@ pub fn state_putglyph(info: &mut VTermGlyphInfo, pos: VTermPos, _user: *mut VTer
     1
 }
 
-pub fn state_movecursor<T>(pos: VTermPos, _oldpos: VTermPos, _visible: i32, _user: *mut T) -> i32 {
+pub fn state_movecursor<T>(
+    pos: VTermPos,
+    _oldpos: VTermPos,
+    _visible: i32,
+    _user: Option<&mut T>,
+) -> i32 {
     vtt_st().state_pos = pos;
     let mut out = Vec::new();
     if vtt_st().want_state_movecursor {
@@ -371,7 +379,7 @@ pub fn state_scrollrect(
     rect: VTermRect,
     downward: i32,
     rightward: i32,
-    _user: *mut VTermScreen,
+    _user: Option<&mut VTermScreen>,
 ) -> i32 {
     if !vtt_st().want_state_scrollrect {
         return 0;
@@ -386,7 +394,7 @@ pub fn state_scrollrect(
     1
 }
 
-pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: *mut T) -> i32 {
+pub fn state_moverect<T>(dest: VTermRect, src: VTermRect, _user: Option<&mut T>) -> i32 {
     if !vtt_st().want_state_moverect {
         return 0;
     }
@@ -445,7 +453,7 @@ const fn vterm_get_prop_type(prop: VTermProp) -> VTermValueType {
     }
 }
 
-pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T) -> i32 {
+pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: Option<&mut T>) -> i32 {
     if !vtt_st().want_state_settermprop {
         return 1;
     }
@@ -487,7 +495,7 @@ pub fn state_settermprop<T>(prop: VTermProp, val: &mut VTermValue, _user: *mut T
     errcode
 }
 
-pub fn state_erase(rect: VTermRect, selective: i32, _user: *mut VTermScreen) -> i32 {
+pub fn state_erase(rect: VTermRect, selective: i32, _user: Option<&mut VTermScreen>) -> i32 {
     if !vtt_st().want_state_erase {
         return 1;
     }
@@ -502,7 +510,11 @@ pub fn state_erase(rect: VTermRect, selective: i32, _user: *mut VTermScreen) -> 
     1
 }
 
-pub fn state_setpenattr(attr: VTermAttr, val: &mut VTermValue, _user: *mut VTermScreen) -> i32 {
+pub fn state_setpenattr(
+    attr: VTermAttr,
+    val: &mut VTermValue,
+    _user: Option<&mut VTermScreen>,
+) -> i32 {
     match attr {
         VTERM_ATTR_BOLD => vtt_st().state_pen.bold = val.boolean(),
         VTERM_ATTR_UNDERLINE => vtt_st().state_pen.underline = val.number(),
@@ -524,7 +536,7 @@ pub fn state_setpenattr(attr: VTermAttr, val: &mut VTermValue, _user: *mut VTerm
     1
 }
 
-pub fn state_sb_clear(_user: *mut VTermScreen) -> i32 {
+pub fn state_sb_clear(_user: Option<&mut VTermScreen>) -> i32 {
     if !vtt_st().want_state_scrollback {
         return 1;
     }
@@ -532,7 +544,7 @@ pub fn state_sb_clear(_user: *mut VTermScreen) -> i32 {
     0
 }
 
-pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: *mut Terminal) -> i32 {
+pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 1;
     }
@@ -552,7 +564,7 @@ pub fn screen_sb_pushline(cells: &[VTermScreenCell], _user: *mut Terminal) -> i3
     1
 }
 
-pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: *mut Terminal) -> i32 {
+pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: Option<&mut Terminal>) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 0;
     }
@@ -571,7 +583,7 @@ pub fn screen_sb_popline(cells: &mut [VTermScreenCell], _user: *mut Terminal) ->
     1
 }
 
-pub fn screen_sb_clear(_user: *mut Terminal) -> i32 {
+pub fn screen_sb_clear(_user: Option<&mut Terminal>) -> i32 {
     if !vtt_st().want_screen_scrollback {
         return 1;
     }
@@ -579,7 +591,7 @@ pub fn screen_sb_clear(_user: *mut Terminal) -> i32 {
     0
 }
 
-pub fn term_output(s: &[u8], _user: *mut Terminal) {
+pub fn term_output(s: &[u8], _user: Option<&mut Terminal>) {
     let mut out = b"output ".to_vec();
     for (i, &b) in s.iter().enumerate() {
         let sep = if i + 1 < s.len() { "," } else { "\n" };
@@ -872,13 +884,13 @@ mod tests {
 
     static VTERM_TEST_LOCK: Mutex<()> = Mutex::new(());
 
-    fn parser_control<T>(control: u8, _user: *mut T) -> i32 {
+    fn parser_control<T>(control: u8, _user: Option<&mut T>) -> i32 {
         let s = format!("control {control:02x}\n");
         append_test_output(s.as_bytes());
         1
     }
 
-    fn parser_escape(bytes: &[u8], _user: *mut VTermStateFull) -> i32 {
+    fn parser_escape(bytes: &[u8], _user: Option<&mut VTermStateFull>) -> i32 {
         let mut out = b"escape ".to_vec();
         out.extend_from_slice(bytes);
         out.push(b'\n');
@@ -890,7 +902,7 @@ mod tests {
         _row: i32,
         _newinfo: &VTermLineInfo,
         _oldinfo: &VTermLineInfo,
-        _user: *mut VTermScreen,
+        _user: Option<&mut VTermScreen>,
     ) -> i32 {
         1
     }
@@ -987,7 +999,7 @@ mod tests {
         let cell = Box::new(std::cell::UnsafeCell::new(vterm_new(25, 80)));
         let vt = unsafe { &mut *cell.get() };
         vtt_st().test_vt = Some(cell);
-        vterm_output_set_callback(vt, Some(term_output), ptr::null_mut());
+        vterm_output_set_callback(vt, Some(term_output), None);
         vterm_set_utf8(vt, 1);
         vt
     }
@@ -1003,14 +1015,14 @@ mod tests {
     fn wantstate(vt: &mut VTerm, opts: StateOpts) -> &'static mut VTermStateFull {
         let state = vterm_obtain_state(vt);
         vterm_state_set_callbacks(state, Some(&STATE_CBS));
-        vterm_state_set_selection_callbacks(state, Some(&SELECTION_CBS), ptr::null_mut(), 16);
+        vterm_state_set_selection_callbacks(state, Some(&SELECTION_CBS), None, 16);
         vterm_state_set_bold_highbright(state, 1);
         vterm_state_reset(state, 1);
 
         let fb = opts.f.then_some(&FALLBACK_CBS);
         vtt_st().want_state_scrollback = opts.b;
         vtt_st().want_state_erase = opts.e;
-        vterm_state_set_unrecognised_fallbacks(state, fb, ptr::null_mut());
+        vterm_state_set_unrecognised_fallbacks(state, fb, None);
         vtt_st().want_state_putglyph = opts.g;
         vtt_st().want_state_moverect = opts.m;
         vtt_st().want_state_settermprop = opts.p;
@@ -1020,7 +1032,7 @@ mod tests {
 
     fn wantscreen(vt: &mut VTerm, opts: ScreenOpts) -> &'static mut VTermScreen {
         let screen = vterm_obtain_screen(vt);
-        vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), ptr::null_mut());
+        vterm_screen_set_callbacks(screen, Some(&SCREEN_CBS), None);
         if opts.a {
             vterm_screen_enable_altscreen(screen, 1);
         }

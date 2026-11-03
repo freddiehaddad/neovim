@@ -855,8 +855,9 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
             col = wp.w_view_width - wp.w_wcol - if wide { 2 } else { 1 };
         }
 
-        let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
-        ui_grid_cursor_goto(grid.handle, row, col);
+        if let Some(grid) = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut row, &mut col) {
+            ui_grid_cursor_goto(grid.handle, row, col);
+        }
     }
 }
 

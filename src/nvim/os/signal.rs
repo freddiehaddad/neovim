@@ -17,7 +17,6 @@ use crate::strings::vim_snprintf;
 use std::ffi::CStr;
 #[cfg(unix)]
 use std::ffi::c_void;
-use std::ptr;
 
 #[cfg(windows)]
 use crate::os::os_win_console::os_clear_hwnd;
@@ -117,53 +116,17 @@ pub fn signal_init() {
         }
     }
 
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().spipe,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().shup,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().sint,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().squit,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().sterm,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().ststp,
-        ptr::null_mut(),
-    );
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().spipe);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().shup);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().sint);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().squit);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().sterm);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().ststp);
     #[cfg(target_os = "linux")]
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().spwr,
-        ptr::null_mut(),
-    );
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().spwr);
     #[cfg(unix)]
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().susr1,
-        ptr::null_mut(),
-    );
-    signal_watcher_init(
-        &mut g_st().main_loop,
-        &raw mut sig_st().swinch,
-        ptr::null_mut(),
-    );
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().susr1);
+    signal_watcher_init(&mut g_st().main_loop, &mut sig_st().swinch);
     signal_start();
 }
 

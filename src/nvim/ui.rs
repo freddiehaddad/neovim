@@ -178,7 +178,9 @@ pub fn ui_free_all_mem() {
     cbs_ptr.clear();
     ui_state().uis = Vec::new();
 
-    multiqueue_free(g_st().resize_events);
+    if let Some(events) = unsafe { g_st().resize_events.as_mut() } {
+        multiqueue_free(events);
+    }
 }
 
 pub fn ui_rgb_attached() -> bool {

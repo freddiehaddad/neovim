@@ -68,8 +68,8 @@ fn rstream_space(stream: &mut RStream) -> usize {
     stream.buffer.len().saturating_sub(stream.write_pos)
 }
 
-pub fn rstream_init_fd(loop_: *mut Loop, stream: &mut RStream, fd: i32) {
-    stream_init(loop_, &mut stream.s, fd, false);
+pub fn rstream_init_fd(loop_: &mut Loop, stream: &mut RStream, fd: i32) {
+    stream_init(Some(loop_), &mut stream.s, fd, false);
     rstream_init(stream);
 }
 
@@ -84,7 +84,14 @@ pub fn rstream_init(stream: &mut RStream) {
 pub fn rstream_start_inner(stream: &mut RStream) {
     unsafe {
         if stream.s.has_uvstream {
-            uv_read_start(stream.s.uvstream_ptr(), Some(alloc_cb), Some(read_cb));
+            uv_read_start(
+                stream
+                    .s
+                    .uvstream_mut()
+                    .map_or(ptr::null_mut(), ptr::from_mut),
+                Some(alloc_cb),
+                Some(read_cb),
+            );
         } else {
             uv_idle_start((&raw mut stream.s.uv).cast(), Some(fread_idle_cb));
         }
@@ -102,7 +109,12 @@ pub fn rstream_start(stream: &mut RStream, data: StreamCbData) {
 pub fn rstream_stop_inner(stream: &mut RStream) {
     unsafe {
         if stream.s.has_uvstream {
-            uv_read_stop(stream.s.uvstream_ptr());
+            uv_read_stop(
+                stream
+                    .s
+                    .uvstream_mut()
+                    .map_or(ptr::null_mut(), ptr::from_mut),
+            );
         } else {
             uv_idle_stop((&raw mut stream.s.uv).cast());
         }
@@ -117,12 +129,9 @@ pub fn rstream_stop(stream: &mut RStream) {
 unsafe extern "C" fn alloc_cb(handle: *mut uv_handle_t, _suggested: usize, buf: *mut uv_buf_t) {
     unsafe {
         let stream = &mut **handle.cast::<*mut RStream>();
-        let write_ptr = stream
-            .buffer
-            .as_mut_ptr()
-            .wrapping_add(stream.write_pos)
-            .cast();
-        *buf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
+        let space = rstream_space(&mut *stream);
+        let write_pos = stream.write_pos;
+        *buf = uv_buf_t::from_slice(&stream.buffer[write_pos..write_pos + space]);
     }
 }
 
@@ -169,12 +178,9 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     let stream = unsafe { *handle.cast::<*mut RStream>() };
     let stream = unsafe { &mut *stream };
 
-    let write_ptr = stream
-        .buffer
-        .as_mut_ptr()
-        .wrapping_add(stream.write_pos)
-        .cast();
-    stream.uvbuf = uv_buf_t::new(write_ptr, rstream_space(&mut *stream));
+    let space = rstream_space(&mut *stream);
+    let write_pos = stream.write_pos;
+    stream.uvbuf = uv_buf_t::from_slice(&stream.buffer[write_pos..write_pos + space]);
 
     let loop_ptr = unsafe { uv_handle_get_loop(handle.cast()) };
     unsafe {
@@ -202,16 +208,18 @@ unsafe extern "C" fn fread_idle_cb(handle: *mut uv_idle_t) {
     invoke_read_cb(&mut *stream, false);
 }
 
-pub fn read_event(stream: *mut RStream) {
+pub fn read_event(stream_in: &mut RStream) {
+    let stream: *mut RStream = stream_in;
     unsafe {
         (*stream).pending_read = false;
         let available = rstream_available(&mut *stream);
         let read_ptr = (*stream).buffer.as_ptr().wrapping_add((*stream).read_pos);
         let bytes = std::slice::from_raw_parts(read_ptr, available);
-        if let Some(consumed) = (*stream)
-            .s
-            .cb_data
-            .call_read_cb(stream, bytes, (*stream).did_eof)
+        if let Some(consumed) =
+            (*stream)
+                .s
+                .cb_data
+                .call_read_cb((*stream).s.fd, bytes, (*stream).did_eof)
         {
             assert!(consumed <= available);
             rstream_consume(&mut *stream, consumed);
@@ -268,7 +276,7 @@ fn invoke_read_cb(stream: &mut RStream, eof: bool) {
             Event::RStreamRead(&raw mut *stream),
         );
     } else {
-        read_event(&raw mut *stream);
+        read_event(stream);
     }
 }
 

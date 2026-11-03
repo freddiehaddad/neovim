@@ -1606,7 +1606,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
 
     tail.term = terminal_alloc(crate::globals::gmut(b), topts);
 
-    terminal_open((&raw mut tail.term).cast(), crate::globals::gmut(b));
+    terminal_open(unsafe { &mut *tail.term.cast() }, crate::globals::gmut(b));
 
     if !tail.term.is_null() {
         terminal_check_size(crate::globals::gmut(tail.term.cast()));

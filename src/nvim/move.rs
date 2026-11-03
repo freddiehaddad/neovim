@@ -837,7 +837,9 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 
 /// Compute offset of a window, occupied by absolute or relative line number,
 /// fold column and sign column.
-pub fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
+#[unsafe(no_mangle)]
+#[allow(improper_ctypes_definitions)]
+pub extern "C" fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
     let num_off = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
         || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)

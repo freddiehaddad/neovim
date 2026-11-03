@@ -89,7 +89,7 @@ use crate::eval::{
 };
 #[cfg(unix)]
 use crate::event::r#loop::uv_kill;
-use crate::event::r#loop::{Loop, loop_closing_ptr, loop_poll_events, loop_queues, uv_strerror};
+use crate::event::r#loop::{Loop, loop_poll_events, loop_queues, uv_strerror};
 use crate::event::multiqueue::{
     multiqueue_empty, multiqueue_free, multiqueue_new, multiqueue_process_events,
     multiqueue_replace_parent,
@@ -3546,7 +3546,7 @@ pub fn f_gettagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 }
 
 pub(crate) fn dummy_timer_due_cb(tw: &mut TimeWatcher) {
-    if *crate::globals::gptr(loop_closing_ptr(&mut g_st().main_loop)) {
+    if g_st().main_loop.closing {
         time_watcher_stop(tw);
         time_watcher_close(tw);
     }
@@ -4647,7 +4647,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         buf.b_p_swf = 0;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
-            proc_stop(&raw mut crate::globals::gptr(chan).uv.proc_);
+            proc_stop(&mut crate::globals::gmut(chan).uv.proc_);
 
             channel_decref(crate::globals::gmut(chan));
 
@@ -4750,7 +4750,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            terminal_open(&raw mut crate::globals::gptr(ct).term, &mut *buf);
+            terminal_open(unsafe { &mut *(*ct).term }, &mut *buf);
         }
 
         channel_create_event(crate::globals::gmut(chan));
@@ -4782,7 +4782,7 @@ pub fn f_jobstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if data.is_rpc {
         channel_close(data.id, K_CHANNEL_PART_RPC_CONST, Some(&mut error));
     }
-    proc_stop(&raw mut data.uv.proc_);
+    proc_stop(&mut data.uv.proc_);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     if let Some(err) = error {
         emsg(err);
@@ -4808,7 +4808,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let len = tv_list_len(crate::globals::gopt(args)) as usize;
     let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
     let main_loop_ptr: *mut Loop = &raw mut g_st().main_loop;
-    let waiting_jobs = multiqueue_new(main_loop_ptr);
+    let waiting_jobs = multiqueue_new(Some(unsafe { &mut *main_loop_ptr }));
 
     for (i, arg) in
         crate::eval::typval::list_iter_ptr(tv_list_first(crate::globals::gopt(args))).enumerate()
@@ -4824,7 +4824,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         } else {
             let proc_ptr = &raw mut crate::globals::gptr(chan).uv.proc_;
             if proc_is_stopped(crate::globals::gmut(proc_ptr)) {
-                proc_wait(proc_ptr, -1, ptr::null_mut());
+                proc_wait(unsafe { &mut *proc_ptr }, -1, None);
                 jobs[i] = ptr::null_mut();
             } else {
                 jobs[i] = chan;
@@ -4864,9 +4864,9 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             continue;
         }
         let status = proc_wait(
-            &raw mut crate::globals::gptr(job).uv.proc_,
+            unsafe { &mut (*job).uv.proc_ },
             remaining,
-            waiting_jobs,
+            Some(&mut *waiting_jobs),
         );
         if status < 0 {
             break;

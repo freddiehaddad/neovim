@@ -35,15 +35,18 @@ pub struct VTermStringFragment {
 impl VTermStringFragment {
     #[inline]
     pub const fn new(
-        str_: *const u8,
-        len: usize,
+        bytes: &[u8],
         initial: bool,
         final_: bool,
         terminator: VTermTerminator,
     ) -> Self {
         Self {
-            str_,
-            len,
+            str_: if bytes.is_empty() {
+                std::ptr::null()
+            } else {
+                bytes.as_ptr()
+            },
+            len: bytes.len(),
             initial,
             final_,
             terminator,
@@ -80,23 +83,26 @@ impl VTermStringFragment {
     }
 }
 
+pub type VTermBytesFn<T> = fn(bytes: &[u8], user: Option<&mut T>) -> i32;
 pub type VTermCsiFn<T> =
-    fn(leader: &[u8], args: &[i64], intermed: &[u8], command: u8, user: *mut T) -> i32;
-
-pub type VTermDcsFn<T> = fn(command: &[u8], frag: VTermStringFragment, user: *mut T) -> i32;
+    fn(leader: &[u8], args: &[i64], intermed: &[u8], command: u8, user: Option<&mut T>) -> i32;
+pub type VTermOscFn<T> = fn(command: i32, frag: VTermStringFragment, user: Option<&mut T>) -> i32;
+pub type VTermDcsFn<T> = fn(command: &[u8], frag: VTermStringFragment, user: Option<&mut T>) -> i32;
+pub type VTermFragFn<T> = fn(frag: VTermStringFragment, user: Option<&mut T>) -> i32;
+pub type VTermResizeFn<T> = fn(rows: i32, cols: i32, user: Option<&mut T>) -> i32;
 
 #[repr(C)]
 pub struct VTermParserCallbacks {
-    pub text: Option<fn(bytes: &[u8], user: *mut VTermStateFull) -> i32>,
-    pub control: Option<fn(control: u8, user: *mut VTermStateFull) -> i32>,
-    pub escape: Option<fn(bytes: &[u8], user: *mut VTermStateFull) -> i32>,
+    pub text: Option<VTermBytesFn<VTermStateFull>>,
+    pub control: Option<fn(control: u8, user: Option<&mut VTermStateFull>) -> i32>,
+    pub escape: Option<VTermBytesFn<VTermStateFull>>,
     pub csi: Option<VTermCsiFn<VTermStateFull>>,
-    pub osc: Option<fn(command: i32, frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
+    pub osc: Option<VTermOscFn<VTermStateFull>>,
     pub dcs: Option<VTermDcsFn<VTermStateFull>>,
-    pub apc: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
-    pub pm: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
-    pub sos: Option<fn(frag: VTermStringFragment, user: *mut VTermStateFull) -> i32>,
-    pub resize: Option<fn(rows: i32, cols: i32, user: *mut VTermStateFull) -> i32>,
+    pub apc: Option<VTermFragFn<VTermStateFull>>,
+    pub pm: Option<VTermFragFn<VTermStateFull>>,
+    pub sos: Option<VTermFragFn<VTermStateFull>>,
+    pub resize: Option<VTermResizeFn<VTermStateFull>>,
 }
 
 #[inline]
@@ -113,12 +119,12 @@ fn do_control(vt: &mut VTerm, control: u8) {
     if let Some(callbacks) = vt.parser.callbacks
         && let Some(cb) = callbacks.control
     {
-        cb(control, vt.state_mut_ptr());
+        cb(control, vt.state_mut_opt());
     }
 }
 
 fn do_csi(vt: &mut VTerm, command: u8) {
-    let state = vt.state_mut_ptr();
+    let state = vt.state_mut_opt();
     if let Some(callbacks) = vt.parser.callbacks
         && let Some(cb) = callbacks.csi
     {
@@ -138,20 +144,14 @@ fn do_escape(vt: &mut VTerm, command: u8) {
     if let Some(callbacks) = vt.parser.callbacks
         && let Some(cb) = callbacks.escape
     {
-        cb(&seq[..=len], vt.state_mut_ptr());
+        cb(&seq[..=len], vt.state_mut_opt());
     }
 }
 
 fn string_fragment(vt: &mut VTerm, bytes: &[u8], final_: bool, terminator: VTermTerminator) {
-    let frag = VTermStringFragment::new(
-        bytes.as_ptr(),
-        bytes.len(),
-        vt.parser.string_initial,
-        final_,
-        terminator,
-    );
+    let frag = VTermStringFragment::new(bytes, vt.parser.string_initial, final_, terminator);
     let callbacks = vt.parser.callbacks;
-    let state = vt.state_mut_ptr();
+    let state = vt.state_mut_opt();
 
     match vt.parser.state {
         OSC => {
@@ -460,7 +460,7 @@ pub fn vterm_input_write(vt: &mut VTerm, bytes: &[u8]) -> usize {
                         if let Some(callbacks) = vt.parser.callbacks
                             && let Some(cb) = callbacks.text
                         {
-                            eaten = cb(&bytes[pos..], vt.state_mut_ptr()) as usize;
+                            eaten = cb(&bytes[pos..], vt.state_mut_opt()) as usize;
                         }
 
                         if eaten == 0 {

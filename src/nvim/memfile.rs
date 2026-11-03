@@ -2,7 +2,6 @@
 
 use crate::buffer::{FileBuf, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC};
 use crate::errors::*;
-use crate::event::r#loop::loop_recursive_ptr;
 use crate::fileio::{Off, SEEK_END, SEEK_SET, close, read_eintr, vim_lseek, write_eintr};
 use crate::globals::*;
 use crate::memline::{MFS_FLUSH, ml_get_buf, ml_open_file};
@@ -344,7 +343,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
                     completed_all = false;
                     break;
                 }
-            } else if unsafe { *loop_recursive_ptr(&mut g_st().main_loop) } == 0 {
+            } else if g_st().main_loop.recursive == 0 {
                 os_breakcheck();
             }
             if g_st().got_int {

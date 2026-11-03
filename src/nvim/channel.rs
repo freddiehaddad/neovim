@@ -16,7 +16,7 @@ use crate::eval::typval::{
 use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, callback_call, get_v_event, restore_v_event};
 use crate::event::r#loop::{loop_queues, uv_strerror};
 use crate::event::multiqueue::{Event, multiqueue_new_child, multiqueue_put_event};
-use crate::event::proc::{Proc, exit_on_closed_chan, proc_spawn, proc_stop};
+use crate::event::proc::{exit_on_closed_chan, proc_spawn, proc_stop};
 use crate::event::rstream::{
     RStream, rstream_init, rstream_init_fd, rstream_may_close, rstream_start, rstream_start_inner,
     rstream_stop_inner,
@@ -320,7 +320,7 @@ pub fn channel_close(
                 api_free_luaref(internal.cb);
                 internal.cb = LUA_NOREF;
                 internal.closed = true;
-                terminal_close(&raw mut chan.term, 0);
+                terminal_close(unsafe { &mut *chan.term }, 0);
                 chan.exit_status = 0;
             } else {
                 channel_decref(&mut *chan);
@@ -355,7 +355,7 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
     let chan = Box::into_raw(Box::new(Channel {
         id,
         refcount: 1,
-        events: multiqueue_new_child(qc.events),
+        events: multiqueue_new_child(unsafe { &mut *qc.events }),
         streamtype: r#type,
         uv: crate::event::proc::LibuvProc::new(),
         socket: RStream::new(),
@@ -717,11 +717,7 @@ pub fn channel_from_stdio(
         let _ = unsafe { dup2(STDERR_FILENO, STDIN_FILENO) };
     }
 
-    rstream_init_fd(
-        (&raw mut g_st().main_loop).cast(),
-        &mut channel.stdio_in,
-        stdin_dup_fd,
-    );
+    rstream_init_fd(&mut g_st().main_loop, &mut channel.stdio_in, stdin_dup_fd);
     wstream_init_fd(
         &mut g_st().main_loop,
         &mut channel.stdio_out,
@@ -811,21 +807,15 @@ fn buffer_to_tv_list(buf: &[u8]) -> *mut TvList {
     l
 }
 
-pub fn on_channel_data(stream: &mut RStream, buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
-    on_channel_output(stream, chan, buf, eof, false)
+pub fn on_channel_data(buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
+    on_channel_output(chan, buf, eof, false)
 }
 
-pub fn on_job_stderr(stream: &mut RStream, buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
-    on_channel_output(stream, chan, buf, eof, true)
+pub fn on_job_stderr(buf: &[u8], chan: &mut Channel, eof: bool) -> usize {
+    on_channel_output(chan, buf, eof, true)
 }
 
-fn on_channel_output(
-    _stream: &mut RStream,
-    chan: &mut Channel,
-    buf: &[u8],
-    eof: bool,
-    is_stderr: bool,
-) -> usize {
+fn on_channel_output(chan: &mut Channel, buf: &[u8], eof: bool, is_stderr: bool) -> usize {
     let count = buf.len();
     if !chan.term.is_null() {
         terminal_receive(chan.term_mut(), buf);
@@ -939,13 +929,13 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
     }
 }
 
-pub(crate) fn channel_proc_exit_cb(proc_: *mut Proc, status: i32, chan: &mut Channel) {
+pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
     if !chan.term.is_null() {
-        terminal_close(&raw mut chan.term, status);
+        terminal_close(unsafe { &mut *chan.term }, status);
     }
 
     if !g_st().exiting && g_st().ui_client_channel_id == chan.id {
-        ui_client_attach_to_restarted_server(crate::globals::gptr(proc_).status != 0);
+        ui_client_attach_to_restarted_server(status != 0);
         if g_st().ui_client_channel_id == chan.id {
             exit_on_closed_chan(status);
         }
@@ -1107,21 +1097,21 @@ pub fn term_delayed_free(chan: &mut Channel) {
     }
 
     if !chan.term.is_null() {
-        terminal_destroy(&raw mut chan.term);
+        terminal_destroy(chan);
     }
     channel_decref(chan);
 }
 
 pub fn channel_term_close(chan: &mut Channel) {
     if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
-        let internal = &mut chan.internal;
-        terminal_destroy(&raw mut chan.term);
-        crate::lua::executor::api_free_luaref(internal.cb);
-        internal.cb = LUA_NOREF;
+        let cb = chan.internal.cb;
+        chan.internal.cb = LUA_NOREF;
+        terminal_destroy(chan);
+        crate::lua::executor::api_free_luaref(cb);
         channel_decref(chan);
         return;
     }
-    proc_stop(&raw mut chan.uv.proc_);
+    proc_stop(&mut chan.uv.proc_);
     multiqueue_put_event(
         crate::globals::gmut(chan.events),
         Event::ChannelTermDelayedFree(&raw mut *chan),

@@ -95,17 +95,19 @@ impl Event {
             Self::LoopDeferred { loop_, event } => {
                 crate::event::r#loop::loop_deferred_event(unsafe { &mut *loop_ }, *event);
             }
-            Self::TimeWatcher(watcher) => crate::event::time::time_event(watcher),
-            Self::TimeWatcherClose(watcher) => crate::event::time::close_event(watcher),
+            Self::TimeWatcher(watcher) => crate::event::time::time_event(unsafe { &mut *watcher }),
+            Self::TimeWatcherClose(watcher) => {
+                crate::event::time::close_event(unsafe { &mut *watcher })
+            }
             Self::Signal(watcher) => crate::event::signal::signal_event(unsafe { &mut *watcher }),
-            Self::RStreamRead(stream) => crate::event::rstream::read_event(stream),
+            Self::RStreamRead(stream) => crate::event::rstream::read_event(unsafe { &mut *stream }),
             Self::SocketConnection { watcher, status } => {
-                crate::event::socket::connection_event(watcher, status);
+                crate::event::socket::connection_event(unsafe { &mut *watcher }, status);
             }
             Self::ProcCloseHandles(proc_) => {
                 crate::event::proc::proc_close_handles(unsafe { &mut *proc_ })
             }
-            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(proc_),
+            Self::ProcClose(proc_) => crate::event::proc::proc_close_event(unsafe { &mut *proc_ }),
             Self::ProcExit(status) => crate::event::proc::exit_event(status),
             Self::AutoCmdDeferred(ev) => crate::autocmd::deferred_event(*ev),
             Self::AutoCmdOptionSetModified { bufnr, new_val } => {
@@ -182,31 +184,29 @@ pub struct MultiQueue {
 }
 
 fn multiqueue_new_inner(
-    parent: *mut MultiQueue,
-    notify_loop: *mut crate::event::r#loop::Loop,
+    parent: Option<&mut MultiQueue>,
+    notify_loop: Option<&mut crate::event::r#loop::Loop>,
 ) -> &'static mut MultiQueue {
     Box::leak(Box::new(MultiQueue {
-        parent,
+        parent: parent.map_or(std::ptr::null_mut(), std::ptr::from_mut),
         items: VecDeque::new(),
-        notify_loop,
+        notify_loop: notify_loop.map_or(std::ptr::null_mut(), std::ptr::from_mut),
         size: 0,
     }))
 }
 
 /// Create a new root (parentless) `MultiQueue` (`multiqueue_new`).
-pub fn multiqueue_new(notify_loop: *mut crate::event::r#loop::Loop) -> &'static mut MultiQueue {
-    multiqueue_new_inner(std::ptr::null_mut(), notify_loop)
+pub fn multiqueue_new(
+    notify_loop: Option<&mut crate::event::r#loop::Loop>,
+) -> &'static mut MultiQueue {
+    multiqueue_new_inner(None, notify_loop)
 }
 
 /// Create a new child `MultiQueue` attached to `parent` (`multiqueue_new_child`).
-///
-/// # Safety
-/// `parent` must be a valid pointer to a root `MultiQueue` (`parent->parent == NULL`).
-pub fn multiqueue_new_child(parent: *mut MultiQueue) -> &'static mut MultiQueue {
-    let parent_ref = unsafe { &mut *parent };
-    assert!(parent_ref.parent.is_null());
-    parent_ref.size = parent_ref.size.wrapping_add(1);
-    multiqueue_new_inner(parent, std::ptr::null_mut())
+pub fn multiqueue_new_child(parent: &mut MultiQueue) -> &'static mut MultiQueue {
+    assert!(parent.parent.is_null());
+    parent.size = parent.size.wrapping_add(1);
+    multiqueue_new_inner(Some(parent), None)
 }
 
 impl Drop for MultiQueue {
@@ -222,11 +222,7 @@ impl Drop for MultiQueue {
 }
 
 /// Free a `MultiQueue` and all queued items (`multiqueue_free`).
-///
-/// # Safety
-/// `this` must be a valid pointer to a `MultiQueue`.
-pub fn multiqueue_free(this: *mut MultiQueue) {
-    assert!(!this.is_null());
+pub fn multiqueue_free(this: &mut MultiQueue) {
     unsafe {
         drop(Box::from_raw(this));
     }
@@ -352,7 +348,7 @@ mod tests {
 
     #[test]
     fn parent_and_child_interleaved_ordering() {
-        let parent = multiqueue_new(std::ptr::null_mut());
+        let parent = multiqueue_new(None);
         let c1 = multiqueue_new_child(&mut *parent);
         let c2 = multiqueue_new_child(&mut *parent);
 

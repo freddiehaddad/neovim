@@ -150,10 +150,10 @@ impl VTerm {
     }
 
     #[inline]
-    pub fn state_mut_ptr(&mut self) -> *mut VTermStateFull {
+    pub fn state_mut_opt(&mut self) -> Option<&'static mut VTermStateFull> {
         self.state
             .as_deref_mut()
-            .map_or(std::ptr::null_mut(), |s| &raw mut *s)
+            .map(|s| unsafe { &mut *std::ptr::from_mut(s) })
     }
 
     #[inline]
@@ -162,10 +162,15 @@ impl VTerm {
     }
 
     #[inline]
-    pub fn screen_mut_ptr(&mut self) -> *mut crate::vterm::screen::VTermScreen {
+    pub fn screen_mut_opt(&mut self) -> Option<&'static mut crate::vterm::screen::VTermScreen> {
         self.screen
             .as_deref_mut()
-            .map_or(std::ptr::null_mut(), |s| &raw mut *s)
+            .map(|s| unsafe { &mut *std::ptr::from_mut(s) })
+    }
+
+    #[inline]
+    pub fn term_opt(&self) -> Option<&'static mut Terminal> {
+        unsafe { self.outdata.as_mut() }
     }
 
     #[inline]
@@ -252,7 +257,7 @@ fn output_mouse(
 }
 
 pub fn vterm_mouse_move(vt: &mut VTerm, row: i32, col: i32, mod_: VTermModifier) {
-    let state = unsafe { &mut *vt.state_mut_ptr() };
+    let state = vt.state_mut_opt().unwrap();
 
     if col == state.mouse_col && row == state.mouse_row {
         return;
@@ -278,7 +283,7 @@ pub fn vterm_mouse_move(vt: &mut VTerm, row: i32, col: i32, mod_: VTermModifier)
 }
 
 pub fn vterm_mouse_button(vt: &mut VTerm, button: i32, pressed: bool, mod_: VTermModifier) {
-    let state = unsafe { &mut *vt.state_mut_ptr() };
+    let state = vt.state_mut_opt().unwrap();
 
     let old_buttons = state.mouse_buttons;
 

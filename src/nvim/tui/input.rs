@@ -239,7 +239,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
         input.ttimeoutlen = opt_vars().p_ttm;
     }
 
-    rstream_init_fd(&raw mut *loop_, &mut input.read_stream, input.in_fd);
+    rstream_init_fd(loop_, &mut input.read_stream, input.in_fd);
 
     input.tk = termkey_new_abstract(
         Some(ti),
@@ -859,12 +859,7 @@ fn handle_raw_buffer(input: &mut TermInput, force: bool, mut rest: &[u8]) -> usi
     total_len - rest.len()
 }
 
-pub(crate) fn tinput_read_cb(
-    _stream: &mut RStream,
-    bytes: &[u8],
-    input: &mut TermInput,
-    eof: bool,
-) -> usize {
+pub(crate) fn tinput_read_cb(bytes: &[u8], input: &mut TermInput, eof: bool) -> usize {
     let count_ = bytes.len();
     let consumed = handle_raw_buffer(input, false, bytes);
     tinput_flush(input);

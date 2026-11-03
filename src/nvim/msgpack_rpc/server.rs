@@ -242,8 +242,9 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
                 crate::globals::gptr(watcher).addr_cstr().as_ptr(),
             );
 
-            if unsafe { uv_handle_get_type(crate::globals::gptr(watcher).stream_ptr().cast()) }
-                == UV_TCP
+            if unsafe {
+                uv_handle_get_type(ptr::from_mut(crate::globals::gmut(watcher).stream_mut()).cast())
+            } == UV_TCP
             {
                 unsafe { uv_freeaddrinfo(crate::globals::gptr(watcher).tcp_addrinfo.cast()) };
             }
@@ -327,7 +328,7 @@ pub fn server_address_list() -> Vec<std::ffi::CString> {
         .collect()
 }
 
-pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
+pub(crate) fn connection_cb(watcher: &mut SocketWatcher, result: i32) {
     if result != 0 {
         logmsg!(
             LOGLVL_ERR,
@@ -341,5 +342,5 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
         return;
     }
 
-    channel_from_connection(crate::globals::gmut(watcher));
+    channel_from_connection(watcher);
 }

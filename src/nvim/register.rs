@@ -1706,7 +1706,12 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
 
     'end: {
         if !curbuf_mut().terminal.is_null() {
-            terminal_paste(count, y_array, y_size);
+            let y_slice = if y_size == 0 {
+                &[][..]
+            } else {
+                unsafe { std::slice::from_raw_parts(y_array, y_size) }
+            };
+            terminal_paste(count, y_slice);
             break 'end;
         }
 

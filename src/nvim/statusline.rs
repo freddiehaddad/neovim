@@ -549,7 +549,8 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         };
         row = -1;
         col = 0;
-        grid = ptr::from_mut(grid_adjust(&mut wp.w_grid, &mut row, &mut col));
+        grid = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut row, &mut col)
+            .map_or(ptr::null_mut(), ptr::from_mut);
 
         if row < 0 {
             stl_st().stl_expr_entered = false;

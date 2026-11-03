@@ -29,11 +29,6 @@ impl WBuffer {
     pub fn size(&self) -> usize {
         self.data.len()
     }
-
-    #[inline]
-    pub fn data_ptr(&self) -> *mut u8 {
-        self.data.as_ptr().cast_mut()
-    }
 }
 
 #[cfg(windows)]
@@ -54,17 +49,20 @@ pub struct uv_buf_t {
 
 impl uv_buf_t {
     #[inline]
-    pub fn new(base: *mut u8, size: usize) -> Self {
+    pub fn from_slice(slice: &[u8]) -> Self {
         #[cfg(windows)]
         {
             Self {
-                len: size as c_ulong,
-                base,
+                len: slice.len() as c_ulong,
+                base: slice.as_ptr().cast_mut(),
             }
         }
         #[cfg(not(windows))]
         {
-            Self { base, len: size }
+            Self {
+                base: slice.as_ptr().cast_mut(),
+                len: slice.len(),
+            }
         }
     }
 }
@@ -82,7 +80,7 @@ struct WRequest {
 use crate::event::r#loop::uv_fs_write;
 
 pub fn wstream_init_fd(loop_: &mut Loop, stream: &mut Stream, fd: i32, maxmem: usize) {
-    stream_init(&raw mut *loop_, stream, fd, false);
+    stream_init(Some(loop_), stream, fd, false);
     wstream_init(stream, maxmem);
 }
 
@@ -99,7 +97,7 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
         assert!(stream.maxmem != 0);
         assert!(!stream.closed);
 
-        let uvbuf = uv_buf_t::new(buffer.data_ptr().cast(), buffer.size());
+        let uvbuf = uv_buf_t::from_slice(&buffer.data);
 
         if !stream.has_uvstream {
             let mut req_buf = [0u64; 128];
@@ -133,7 +131,15 @@ pub fn wstream_write(stream: &mut Stream, buffer: std::rc::Rc<WBuffer>) -> i32 {
         let uv_req: *mut uv_write_t = (&raw mut (*data).uv).cast();
         *uv_req.cast::<*mut WRequest>() = data;
 
-        let err = uv_write(uv_req, stream.uvstream_ptr(), &uvbuf, 1, Some(write_cb));
+        let err = uv_write(
+            uv_req,
+            stream
+                .uvstream_mut()
+                .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+            &uvbuf,
+            1,
+            Some(write_cb),
+        );
         if err != 0 {
             let _ = Box::from_raw(data);
             return err;

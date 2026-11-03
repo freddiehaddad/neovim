@@ -206,8 +206,8 @@ impl Channel {
 impl Drop for Channel {
     fn drop(&mut self) {
         crate::eval::typval::callback_free(&mut self.on_exit);
-        if !self.events.is_null() {
-            multiqueue_free(self.events);
+        if let Some(events) = unsafe { self.events.as_mut() } {
+            multiqueue_free(events);
         }
     }
 }
@@ -267,7 +267,7 @@ fn unpacker_closed(p: &Unpacker) -> bool {
 
 pub fn rpc_init() {
     let qc = loop_queues(&mut g_st().main_loop);
-    g_st().ch_before_blocking_events = multiqueue_new_child(qc.events);
+    g_st().ch_before_blocking_events = multiqueue_new_child(unsafe { &mut *qc.events });
 }
 
 pub fn rpc_start(channel: &mut Channel) {
@@ -432,12 +432,7 @@ pub fn rpc_send_call(
     }
 }
 
-pub(crate) fn receive_msgpack(
-    _stream: &mut RStream,
-    rbuf: &[u8],
-    channel: &mut Channel,
-    eof: bool,
-) -> usize {
+pub(crate) fn receive_msgpack(rbuf: &[u8], channel: &mut Channel, eof: bool) -> usize {
     let c = rbuf.len();
     channel_incref(&mut *channel);
 
@@ -721,7 +716,7 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
 pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     let p = channel.unpacker_mut();
 
-    p.read_ptr = buffer.data_ptr().cast::<u8>();
+    p.read_ptr = buffer.data.as_ptr();
     p.read_size = buffer.size();
     if !unpacker_closed(p) {
         parse_msgpack(channel);
@@ -1033,7 +1028,7 @@ pub fn get_client_info<'a>(chan: &'a mut Channel, key: &CStr) -> Option<&'a CStr
 }
 
 pub fn rpc_free_all_mem() {
-    multiqueue_free(g_st().ch_before_blocking_events);
+    multiqueue_free(unsafe { &mut *g_st().ch_before_blocking_events });
 }
 
 #[cfg(test)]

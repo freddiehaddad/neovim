@@ -18,7 +18,6 @@ use crate::drawscreen::{UPD_NOT_VALID, UPD_VALID, redraw_later, set_must_redraw}
 use crate::errors::*;
 use crate::fileio::shorten_buf_fname;
 use crate::globals::*;
-use crate::grid::grid_adjust;
 use crate::message::{K_ZINDEX_MESSAGES, emsg};
 use crate::mouse::mouse_find_win_inner;
 use crate::r#move::{textpos2screenpos, validate_cursor};
@@ -302,7 +301,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         if let Some(parent) = unsafe { parent.as_mut() } {
             row += parent.w_winrow;
             col += parent.w_wincol;
-            grid_adjust(&mut parent.w_grid, &mut row, &mut col);
+            let _ = crate::grid::grid_adjust_opt(&mut parent.w_grid, &mut row, &mut col);
             if wp.w_config.bufpos.lnum >= 0 {
                 let mut pos = CursorPos {
                     lnum: (wp.w_config.bufpos.lnum + 1).min((*parent).buf_mut().b_ml.ml_line_count),

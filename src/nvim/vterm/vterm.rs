@@ -15,7 +15,7 @@ use crate::vterm::pen::{
 use crate::vterm::screen::VTermScreen;
 use crate::vterm::state::{VT_MODE_CTRL8BIT, VT_MODE_UTF8};
 
-pub type VTermOutputCallback = Option<fn(s: &[u8], user: *mut Terminal)>;
+pub type VTermOutputCallback = Option<fn(s: &[u8], user: Option<&mut Terminal>)>;
 
 /// Create a new `VTerm` instance of size `rows` x `cols` (`vterm_new`).
 pub fn vterm_new(rows: i32, cols: i32) -> VTerm {
@@ -46,7 +46,7 @@ pub fn vterm_set_size(vt: &mut VTerm, rows: i32, cols: i32) {
     if let Some(callbacks) = vt.parser.callbacks
         && let Some(resize_cb) = callbacks.resize
     {
-        let _ = resize_cb(rows, cols, vt.state_mut_ptr());
+        let _ = resize_cb(rows, cols, vt.state_mut_opt());
     }
 }
 
@@ -58,14 +58,18 @@ pub fn vterm_set_utf8(vt: &mut VTerm, is_utf8: i32) {
     }
 }
 
-pub fn vterm_output_set_callback(vt: &mut VTerm, func: VTermOutputCallback, user: *mut Terminal) {
+pub fn vterm_output_set_callback(
+    vt: &mut VTerm,
+    func: VTermOutputCallback,
+    user: Option<&mut Terminal>,
+) {
     vt.outfunc = func;
-    vt.outdata = user;
+    vt.outdata = user.map_or(ptr::null_mut(), ptr::from_mut);
 }
 
 pub fn vterm_push_output_bytes_slice(vt: &mut VTerm, payload: &[u8]) {
     if let Some(func) = vt.outfunc {
-        func(payload, vt.outdata);
+        func(payload, vt.term_opt());
     }
 }
 
@@ -126,9 +130,9 @@ pub fn vterm_scroll_rect(
     mut rect: VTermRect,
     downward: i32,
     rightward: i32,
-    moverect: Option<fn(src: VTermRect, dest: VTermRect, user: *mut VTermScreen) -> i32>,
-    eraserect: Option<fn(rect: VTermRect, selective: i32, user: *mut VTermScreen) -> i32>,
-    user: *mut VTermScreen,
+    moverect: Option<crate::vterm::pen::VTermMoveRectFn<VTermScreen>>,
+    eraserect: Option<crate::vterm::pen::VTermEraseFn>,
+    mut user: Option<&mut VTermScreen>,
 ) {
     if downward.abs() >= rect.end_row - rect.start_row
         || rightward.abs() >= rect.end_col - rect.start_col
@@ -187,7 +191,7 @@ pub fn vterm_scroll_rect(
     };
 
     if let Some(move_cb) = moverect {
-        let _ = move_cb(dest, src, user);
+        let _ = move_cb(dest, src, user.as_deref_mut());
     }
 
     if downward > 0 {

@@ -91,8 +91,8 @@ impl SocketWatcher {
     }
 
     #[inline]
-    pub fn stream_ptr(&mut self) -> *mut uv_stream_t {
-        (&raw mut self.uv).cast()
+    pub fn stream_mut(&mut self) -> &mut uv_stream_t {
+        unsafe { &mut *(&raw mut self.uv).cast() }
     }
 
     #[inline]
@@ -123,16 +123,21 @@ use crate::event::r#loop::{
 };
 
 #[inline]
-fn getaddrinfo_req_addrinfo_ptr(req: *mut uv_getaddrinfo_t) -> *mut *mut addrinfo {
-    req.cast::<u8>()
-        .wrapping_add(unsafe { uv_req_size(UV_GETADDRINFO) } - 2 * size_of::<*mut c_void>())
-        .cast::<*mut addrinfo>()
+fn getaddrinfo_req_addrinfo(req: &mut UvGetaddrinfoReq) -> Option<&'static mut addrinfo> {
+    unsafe {
+        (*(&raw mut *req)
+            .cast::<u8>()
+            .wrapping_add(uv_req_size(UV_GETADDRINFO) - 2 * size_of::<*mut c_void>())
+            .cast::<*mut addrinfo>())
+        .as_mut()
+    }
 }
 
 #[inline]
-fn connect_req_handle(req: *mut uv_connect_t) -> *mut uv_stream_t {
+fn connect_req_handle(req: &mut uv_connect_t) -> &mut uv_stream_t {
     unsafe {
-        *req.cast::<u8>()
+        &mut **(&raw mut *req)
+            .cast::<u8>()
             .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
             .cast::<*mut uv_stream_t>()
     }
@@ -230,7 +235,8 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
             );
             return retval;
         }
-        watcher.tcp_addrinfo = unsafe { *getaddrinfo_req_addrinfo_ptr((&raw mut request).cast()) };
+        watcher.tcp_addrinfo =
+            getaddrinfo_req_addrinfo(&mut request).map_or(ptr::null_mut(), ptr::from_mut);
 
         unsafe { uv_tcp_init((&raw mut loop_.uv).cast(), uv_ptr.cast()) };
         unsafe { uv_tcp_nodelay(uv_ptr.cast(), 1) };
@@ -239,7 +245,7 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     }
 
     unsafe {
-        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+        *(&raw mut watcher.uv).cast::<*mut SocketWatcher>() = (&raw mut *watcher);
     }
     watcher.events = ptr::null_mut();
 
@@ -280,7 +286,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let mut result: i32 = UV_EINVAL;
 
-        if uv_handle_get_type(watcher.stream_ptr().cast()) == UV_TCP {
+        if uv_handle_get_type(ptr::from_mut(watcher.stream_mut()).cast()) == UV_TCP {
             let mut ai = watcher.tcp_addrinfo;
 
             while !ai.is_null() {
@@ -289,7 +295,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     ai = (*ai).ai_next;
                     continue;
                 }
-                result = uv_listen(watcher.stream_ptr(), backlog, Some(connection_cb));
+                result = uv_listen(watcher.stream_mut(), backlog, Some(connection_cb));
                 if result == 0 {
                     let mut sas = SockaddrStorage { bytes: [0; 128] };
                     let mut sas_len = size_of::<SockaddrStorage>() as i32;
@@ -311,7 +317,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
 
             // If bind failed with EACCES/EADDRINUSE, check if socket is stale
             if result == UV_EACCES || result == UV_EADDRINUSE {
-                let uv_loop = uv_handle_get_loop(watcher.stream_ptr().cast());
+                let uv_loop = uv_handle_get_loop(ptr::from_mut(watcher.stream_mut()).cast());
                 let loop_ = *uv_loop.cast::<*mut Loop>();
 
                 if !socket_alive(&mut *loop_, watcher.addr_cstr()) {
@@ -338,7 +344,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                         poll_main_loop_until(-1, || ptr::read_volatile(closed_ptr));
 
                         uv_pipe_init(uv_loop, uv_ptr.cast(), 0);
-                        *watcher.stream_ptr().cast::<*mut SocketWatcher>() = (&raw mut *watcher);
+                        *(&raw mut watcher.uv).cast::<*mut SocketWatcher>() = (&raw mut *watcher);
 
                         // Retry bind with fresh handle
                         result = uv_pipe_bind2(uv_ptr.cast(), addr, addr_len, UV_PIPE_NO_TRUNCATE);
@@ -357,7 +363,7 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
             }
 
             if result == 0 {
-                result = uv_listen(watcher.stream_ptr(), backlog, Some(connection_cb));
+                result = uv_listen(watcher.stream_mut(), backlog, Some(connection_cb));
             }
         }
 
@@ -381,7 +387,7 @@ pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) 
         let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
         let client: *mut uv_stream_t = (&raw mut stream.s.uv).cast();
 
-        if uv_handle_get_type(watcher.stream_ptr().cast()) == UV_TCP {
+        if uv_handle_get_type(ptr::from_mut(watcher.stream_mut()).cast()) == UV_TCP {
             let uv_loop = uv_handle_get_loop(uv_ptr.cast());
             uv_tcp_init(uv_loop, client.cast());
             uv_tcp_nodelay(client.cast(), 1);
@@ -390,25 +396,25 @@ pub fn socket_watcher_accept(watcher: &mut SocketWatcher, stream: &mut RStream) 
             uv_pipe_init(uv_loop, client.cast(), 0);
         }
 
-        let result = uv_accept(watcher.stream_ptr(), client);
+        let result = uv_accept(watcher.stream_mut(), client);
 
         if result != 0 {
             uv_close(client.cast(), None);
             return result;
         }
 
-        stream_init(ptr::null_mut(), &mut stream.s, -1, true);
+        stream_init(None, &mut stream.s, -1, true);
         0
     }
 }
 
 pub fn socket_watcher_close(watcher: &mut SocketWatcher) {
     unsafe {
-        uv_close(watcher.stream_ptr().cast(), Some(close_cb));
+        uv_close(ptr::from_mut(watcher.stream_mut()).cast(), Some(close_cb));
     }
 }
 
-pub fn connection_event(watcher: *mut SocketWatcher, status: i32) {
+pub fn connection_event(watcher: &mut SocketWatcher, status: i32) {
     crate::msgpack_rpc::server::connection_cb(watcher, status);
 }
 
@@ -421,7 +427,7 @@ unsafe extern "C" fn connection_cb(handle: *mut uv_stream_t, status: i32) {
                 Event::SocketConnection { watcher, status },
             );
         } else {
-            connection_event(watcher, status);
+            connection_event(&mut *watcher, status);
         }
     }
 }
@@ -437,7 +443,7 @@ unsafe extern "C" fn connect_cb(req: *mut uv_connect_t, status: i32) {
     unsafe {
         let ret_status = *req.cast::<*mut i32>();
         *ret_status = status;
-        let handle = connect_req_handle(req);
+        let handle = ptr::from_mut(connect_req_handle(&mut *req));
         if status != 0 {
             let stream = *handle.cast::<*mut Stream>();
             stream_may_close(&mut *stream);
@@ -469,7 +475,6 @@ pub fn socket_connect(
 
         let mut addr_req = UvGetaddrinfoReq([0; 512]);
         let addr_req_ptr = (&raw mut addr_req).cast::<uv_getaddrinfo_t>();
-        *getaddrinfo_req_addrinfo_ptr(addr_req_ptr) = ptr::null_mut();
         let mut cur_addrinfo: *const addrinfo = std::ptr::null();
         let mut addr_buf: Vec<u8> = Vec::new();
 
@@ -513,7 +518,9 @@ pub fn socket_connect(
                     )));
                     break 'cleanup;
                 }
-                cur_addrinfo = *getaddrinfo_req_addrinfo_ptr(addr_req_ptr);
+                cur_addrinfo = getaddrinfo_req_addrinfo(&mut addr_req)
+                    .as_deref()
+                    .map_or(ptr::null(), ptr::from_ref);
             }
 
             loop {
@@ -527,7 +534,7 @@ pub fn socket_connect(
                     uv_pipe_init((&raw mut loop_.uv).cast(), pipe, 0);
                     uv_pipe_connect(req_ptr, pipe, address.as_ptr(), Some(connect_cb));
                 }
-                stream_init(ptr::null_mut(), &mut *s_ptr, -1, true);
+                stream_init(None, &mut *s_ptr, -1, true);
                 (*fields).internal_data = StreamInternalData::Closed(closed_ptr);
                 ptr::write_volatile(closed_ptr, false);
                 ptr::write_volatile(status_ptr, 1);
@@ -552,7 +559,10 @@ pub fn socket_connect(
 
         (*fields).internal_data = StreamInternalData::NONE;
         drop(addr_buf);
-        uv_freeaddrinfo((*getaddrinfo_req_addrinfo_ptr(addr_req_ptr)).cast());
+        uv_freeaddrinfo(
+            getaddrinfo_req_addrinfo(&mut addr_req)
+                .map_or(ptr::null_mut(), |p| ptr::from_mut(p).cast()),
+        );
         success
     }
 }

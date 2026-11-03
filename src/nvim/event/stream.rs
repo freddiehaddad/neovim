@@ -54,46 +54,26 @@ impl StreamCbData {
         !matches!(self, Self::None)
     }
 
-    pub fn call_read_cb(
-        self,
-        stream: *mut crate::event::rstream::RStream,
-        buf: &[u8],
-        eof: bool,
-    ) -> Option<usize> {
+    pub fn call_read_cb(self, stream_fd: i32, buf: &[u8], eof: bool) -> Option<usize> {
         unsafe {
             match self {
                 Self::None => None,
-                Self::ChannelData(chan) => Some(crate::channel::on_channel_data(
-                    &mut *stream,
-                    buf,
-                    &mut *chan,
-                    eof,
-                )),
-                Self::ChannelStderr(chan) => Some(crate::channel::on_job_stderr(
-                    &mut *stream,
-                    buf,
-                    &mut *chan,
-                    eof,
-                )),
+                Self::ChannelData(chan) => {
+                    Some(crate::channel::on_channel_data(buf, &mut *chan, eof))
+                }
+                Self::ChannelStderr(chan) => {
+                    Some(crate::channel::on_job_stderr(buf, &mut *chan, eof))
+                }
                 Self::ChannelRpc(chan) => Some(crate::msgpack_rpc::channel::receive_msgpack(
-                    &mut *stream,
-                    buf,
-                    &mut *chan,
-                    eof,
+                    buf, &mut *chan, eof,
                 )),
-                Self::ShellBuf(dbuf) => Some(crate::os::shell::system_data_cb(
-                    &mut *stream,
-                    buf,
-                    &mut *dbuf,
-                    eof,
-                )),
-                Self::ShellOut => Some(crate::os::shell::out_data_cb(&mut *stream, buf, eof)),
-                Self::Input(input) => Some(crate::tui::input::tinput_read_cb(
-                    &mut *stream,
-                    buf,
-                    &mut *input,
-                    eof,
-                )),
+                Self::ShellBuf(dbuf) => {
+                    Some(crate::os::shell::system_data_cb(buf, &mut *dbuf, eof))
+                }
+                Self::ShellOut => Some(crate::os::shell::out_data_cb(stream_fd, buf, eof)),
+                Self::Input(input) => {
+                    Some(crate::tui::input::tinput_read_cb(buf, &mut *input, eof))
+                }
             }
         }
     }
@@ -164,11 +144,11 @@ impl Stream {
     }
 
     #[inline]
-    pub fn uvstream_ptr(&mut self) -> *mut uv_stream_t {
+    pub fn uvstream_mut(&mut self) -> Option<&mut uv_stream_t> {
         if self.has_uvstream {
-            (&raw mut self.uv).cast()
+            Some(unsafe { &mut *(&raw mut self.uv).cast() })
         } else {
-            ptr::null_mut()
+            None
         }
     }
 }
@@ -195,7 +175,8 @@ pub fn stream_set_blocking(fd: i32, blocking: bool) -> i32 {
     }
 }
 
-pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream: bool) {
+pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_uvstream: bool) {
+    let loop_ = loop_.map_or(ptr::null_mut(), ptr::from_mut);
     assert!(if !has_uvstream {
         fd >= 0 && !loop_.is_null()
     } else {
@@ -249,7 +230,7 @@ pub fn stream_init(loop_: *mut Loop, stream: &mut Stream, fd: i32, has_uvstream:
 
     if stream.has_uvstream {
         unsafe {
-            *stream.uvstream_ptr().cast::<*mut Stream>() = stream;
+            *(&raw mut stream.uv).cast::<*mut Stream>() = stream;
         }
     }
 
@@ -295,7 +276,8 @@ pub fn stream_may_close(stream: &mut Stream) {
 
 pub fn stream_close_handle(stream: &mut Stream) {
     let handle: *mut uv_handle_t = if stream.has_uvstream {
-        let queued = unsafe { uv_stream_get_write_queue_size(stream.uvstream_ptr()) };
+        let uv_s: *mut uv_stream_t = (&raw mut stream.uv).cast();
+        let queued = unsafe { uv_stream_get_write_queue_size(uv_s) };
         if queued > 0 {
             logmsg!(
                 LOGLVL_WRN,
@@ -308,7 +290,7 @@ pub fn stream_close_handle(stream: &mut Stream) {
                 queued,
             );
         }
-        stream.uvstream_ptr().cast()
+        uv_s.cast()
     } else {
         (&raw mut stream.uv).cast()
     };

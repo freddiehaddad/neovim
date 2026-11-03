@@ -40,8 +40,8 @@ impl Default for TimeWatcher {
 }
 
 #[inline]
-pub fn loop_fast_events(loop_: &mut Loop) -> *mut MultiQueue {
-    loop_.fast_events
+pub fn loop_fast_events(loop_: &mut Loop) -> Option<&'static mut MultiQueue> {
+    unsafe { loop_.fast_events.as_mut() }
 }
 
 pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: TimeWatcherData) {
@@ -49,7 +49,7 @@ pub fn time_watcher_init(loop_: &mut Loop, watcher: &mut TimeWatcher, data: Time
         uv_timer_init((&raw mut loop_.uv).cast(), (&raw mut watcher.uv).cast());
         *(&raw mut watcher.uv).cast::<*mut TimeWatcher>() = watcher;
         watcher.data = data;
-        watcher.events = loop_fast_events(loop_);
+        watcher.events = loop_fast_events(loop_).map_or(ptr::null_mut(), ptr::from_mut);
         watcher.blockable = false;
     }
 }
@@ -80,7 +80,8 @@ pub fn time_watcher_close(watcher: &mut TimeWatcher) {
     }
 }
 
-pub fn time_event(watcher: *mut TimeWatcher) {
+pub fn time_event(watcher_in: &mut TimeWatcher) {
+    let watcher: *mut TimeWatcher = watcher_in;
     unsafe {
         match (*watcher).data {
             TimeWatcherData::None => {}
@@ -100,12 +101,13 @@ unsafe extern "C" fn time_watcher_cb(handle: *mut uv_timer_t) {
         if !(*watcher).events.is_null() {
             multiqueue_put_event(&mut *(*watcher).events, Event::TimeWatcher(watcher));
         } else {
-            time_event(watcher);
+            time_event(&mut *watcher);
         }
     }
 }
 
-pub fn close_event(watcher: *mut TimeWatcher) {
+pub fn close_event(watcher_in: &mut TimeWatcher) {
+    let watcher: *mut TimeWatcher = watcher_in;
     unsafe {
         match (*watcher).data {
             TimeWatcherData::None | TimeWatcherData::TerminalRefresh => {}
@@ -125,7 +127,7 @@ unsafe extern "C" fn close_cb(handle: *mut uv_handle_t) {
             if !(*watcher).events.is_null() {
                 multiqueue_put_event(&mut *(*watcher).events, Event::TimeWatcherClose(watcher));
             } else {
-                close_event(watcher);
+                close_event(&mut *watcher);
             }
         }
     }

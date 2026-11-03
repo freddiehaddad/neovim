@@ -98,33 +98,43 @@ pub struct VTermRect {
     pub end_col: i32,
 }
 
+pub type VTermPutGlyphFn =
+    fn(info: &mut VTermGlyphInfo, pos: VTermPos, user: Option<&mut VTermScreen>) -> i32;
 pub type VTermMoveCursorFn<T = VTermScreen> =
-    fn(pos: VTermPos, oldpos: VTermPos, visible: i32, user: *mut T) -> i32;
+    fn(pos: VTermPos, oldpos: VTermPos, visible: i32, user: Option<&mut T>) -> i32;
 pub type VTermScrollRectFn =
-    fn(rect: VTermRect, downward: i32, rightward: i32, user: *mut VTermScreen) -> i32;
+    fn(rect: VTermRect, downward: i32, rightward: i32, user: Option<&mut VTermScreen>) -> i32;
+pub type VTermMoveRectFn<T = VTermScreen> =
+    fn(dest: VTermRect, src: VTermRect, user: Option<&mut T>) -> i32;
+pub type VTermEraseFn = fn(rect: VTermRect, selective: i32, user: Option<&mut VTermScreen>) -> i32;
+pub type VTermSetPenAttrFn =
+    fn(attr: VTermAttr, val: &mut VTermValue, user: Option<&mut VTermScreen>) -> i32;
+pub type VTermSetTermPropFn<T = VTermScreen> =
+    fn(prop: VTermProp, val: &mut VTermValue, user: Option<&mut T>) -> i32;
 pub type VTermStateResizeFn =
-    fn(rows: i32, cols: i32, fields: &mut VTermStateFields, user: *mut VTermScreen) -> i32;
-pub type VTermSetLineInfoFn =
-    fn(row: i32, newinfo: &VTermLineInfo, oldinfo: &VTermLineInfo, user: *mut VTermScreen) -> i32;
+    fn(rows: i32, cols: i32, fields: &mut VTermStateFields, user: Option<&mut VTermScreen>) -> i32;
+pub type VTermSetLineInfoFn = fn(
+    row: i32,
+    newinfo: &VTermLineInfo,
+    oldinfo: &VTermLineInfo,
+    user: Option<&mut VTermScreen>,
+) -> i32;
 
 #[repr(C)]
 pub struct VTermStateCallbacks {
-    pub putglyph:
-        Option<fn(info: &mut VTermGlyphInfo, pos: VTermPos, user: *mut VTermScreen) -> i32>,
+    pub putglyph: Option<VTermPutGlyphFn>,
     pub movecursor: Option<VTermMoveCursorFn>,
     pub scrollrect: Option<VTermScrollRectFn>,
-    pub moverect: Option<fn(dest: VTermRect, src: VTermRect, user: *mut VTermScreen) -> i32>,
-    pub erase: Option<fn(rect: VTermRect, selective: i32, user: *mut VTermScreen) -> i32>,
-    pub initpen: Option<fn(user: *mut VTermScreen) -> i32>,
-    pub setpenattr:
-        Option<fn(attr: VTermAttr, val: &mut VTermValue, user: *mut VTermScreen) -> i32>,
-    pub settermprop:
-        Option<fn(prop: VTermProp, val: &mut VTermValue, user: *mut VTermScreen) -> i32>,
-    pub bell: Option<fn(user: *mut VTermScreen) -> i32>,
+    pub moverect: Option<VTermMoveRectFn>,
+    pub erase: Option<VTermEraseFn>,
+    pub initpen: Option<fn(user: Option<&mut VTermScreen>) -> i32>,
+    pub setpenattr: Option<VTermSetPenAttrFn>,
+    pub settermprop: Option<VTermSetTermPropFn>,
+    pub bell: Option<fn(user: Option<&mut VTermScreen>) -> i32>,
     pub resize: Option<VTermStateResizeFn>,
-    pub theme: Option<fn(dark: &mut bool, user: *mut VTermScreen) -> i32>,
+    pub theme: Option<fn(dark: &mut bool, user: Option<&mut VTermScreen>) -> i32>,
     pub setlineinfo: Option<VTermSetLineInfoFn>,
-    pub sb_clear: Option<fn(user: *mut VTermScreen) -> i32>,
+    pub sb_clear: Option<fn(user: Option<&mut VTermScreen>) -> i32>,
 }
 
 #[derive(Clone, Copy)]
@@ -465,7 +475,7 @@ fn setpenattr(
     if let Some(callbacks) = state.callbacks
         && let Some(cb) = callbacks.setpenattr
     {
-        cb(attr, val, state.screen_ptr());
+        cb(attr, val, state.screen_opt());
     }
 }
 
@@ -928,7 +938,7 @@ pub fn vterm_state_set_penattr(
     if let Some(callbacks) = state.callbacks
         && let Some(cb) = callbacks.setpenattr
     {
-        cb(attr, val, state.screen_ptr());
+        cb(attr, val, state.screen_opt());
     }
 
     1

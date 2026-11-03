@@ -124,12 +124,17 @@ pub fn proc_get_exepath(proc_: &Proc) -> &std::ffi::CStr {
 fn libuv_proc_stdio(
     uvproc: &mut LibuvProc,
     idx: usize,
-    parent_pipe: *mut uv_pipe_t,
     child_readable: bool,
     overlapped: bool,
     win_create_pipe: bool,
     to_close: &mut [i32; 3],
 ) {
+    let parent_pipe: *mut uv_pipe_t = match idx {
+        0 => (&raw mut uvproc.proc_.r#in.uv).cast(),
+        1 => (&raw mut uvproc.proc_.out.s.uv).cast(),
+        2 => (&raw mut uvproc.proc_.err.s.uv).cast(),
+        _ => unreachable!(),
+    };
     let ltail = uvproc;
     #[cfg(windows)]
     if win_create_pipe {
@@ -262,7 +267,6 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         libuv_proc_stdio(
             &mut *uvproc,
             0,
-            (&raw mut proc_.r#in.uv).cast(),
             true,
             proc_.overlapped,
             proc_.stdio_noinherit,
@@ -274,7 +278,6 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         libuv_proc_stdio(
             &mut *uvproc,
             1,
-            (&raw mut proc_.out.s.uv).cast(),
             false,
             proc_.overlapped,
             true,
@@ -286,7 +289,6 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
         libuv_proc_stdio(
             &mut *uvproc,
             2,
-            (&raw mut proc_.err.s.uv).cast(),
             false,
             proc_.overlapped,
             proc_.stdio_noinherit,

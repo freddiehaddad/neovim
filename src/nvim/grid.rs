@@ -169,14 +169,23 @@ fn strnlen_4(bytes: &[u8; 4]) -> usize {
 }
 
 /// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
+pub fn grid_adjust_opt(
+    grid: &mut GridView,
+    row_off: &mut i32,
+    col_off: &mut i32,
+) -> Option<&'static mut ScreenGrid> {
+    *row_off += grid.row_offset;
+    *col_off += grid.col_offset;
+    unsafe { grid.target.as_mut() }
+}
+
+/// Determine if dedicated window grid should be used or the `default_grid` (`grid_adjust`).
 pub fn grid_adjust(
     grid: &mut GridView,
     row_off: &mut i32,
     col_off: &mut i32,
 ) -> &'static mut ScreenGrid {
-    *row_off += grid.row_offset;
-    *col_off += grid.col_offset;
-    unsafe { &mut *grid.target }
+    grid_adjust_opt(grid, row_off, col_off).unwrap()
 }
 
 pub fn schar_from_str(str_: Option<&std::ffi::CStr>) -> Schar {

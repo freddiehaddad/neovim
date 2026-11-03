@@ -123,23 +123,18 @@ pub struct VTermStateFull {
 
 impl VTermStateFull {
     #[inline]
-    pub fn from_cb_ptr(ptr: *mut Self) -> &'static mut Self {
-        unsafe { &mut *ptr }
-    }
-
-    #[inline]
     pub fn vt_mut(&self) -> &'static mut VTerm {
         unsafe { &mut *self.vt }
     }
 
     #[inline]
-    pub fn screen_ptr(&self) -> *mut VTermScreen {
-        self.vt_mut().screen_mut_ptr()
+    pub fn screen_opt(&self) -> Option<&'static mut VTermScreen> {
+        self.vt_mut().screen_mut_opt()
     }
 
     #[inline]
-    pub fn term_ptr(&self) -> *mut Terminal {
-        self.vt_mut().outdata
+    pub fn term_opt(&self) -> Option<&'static mut Terminal> {
+        self.vt_mut().term_opt()
     }
 
     #[inline]

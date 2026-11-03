@@ -139,35 +139,41 @@ fn proc_st() -> &'static mut ProcModuleState {
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};
 
 #[inline]
-pub fn libuv_proc_uv(proc_: &mut Proc) -> *mut uv_handle_t {
-    unsafe { (&raw mut (*(&raw mut *proc_).cast::<LibuvProc>()).uv).cast() }
+pub fn libuv_proc_uv(proc_: &mut Proc) -> &mut uv_handle_t {
+    unsafe { &mut *(&raw mut (*(&raw mut *proc_).cast::<LibuvProc>()).uv).cast() }
 }
 
 #[inline]
-fn loop_process_events(loop_: *mut Loop, multiqueue: *mut MultiQueue, timeout: i64) {
+fn loop_process_events(loop_in: &mut Loop, multiqueue: Option<&mut MultiQueue>, timeout: i64) {
+    let loop_: *mut Loop = loop_in;
     unsafe {
-        let has_events = !multiqueue.is_null() && !multiqueue_empty(&*multiqueue);
-        if has_events {
-            multiqueue_process_events(&mut *multiqueue);
+        if let Some(multiqueue) = multiqueue
+            && !multiqueue_empty(multiqueue)
+        {
+            multiqueue_process_events(multiqueue);
         } else {
-            loop_poll_events(loop_, timeout);
+            loop_poll_events(&mut *loop_, timeout);
         }
     }
 }
 
 #[inline]
 fn loop_process_events_until<F: FnMut() -> bool>(
-    loop_: *mut Loop,
-    multiqueue: *mut MultiQueue,
+    loop_in: &mut Loop,
+    multiqueue_in: Option<&mut MultiQueue>,
     timeout: i64,
     mut cond: F,
 ) {
+    let loop_: *mut Loop = loop_in;
+    let multiqueue: *mut MultiQueue = multiqueue_in.map_or(ptr::null_mut(), ptr::from_mut);
     let timeout_ms = timeout;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
     let mut expired = false;
     while !cond() && !expired {
-        loop_process_events(loop_, multiqueue, remaining);
+        unsafe {
+            loop_process_events(&mut *loop_, multiqueue.as_mut(), remaining);
+        }
         if timeout_ms >= 0 {
             remaining = timeout_ms - ((os_hrtime() - start) / 1_000_000) as i64;
             expired = remaining <= 0;
@@ -229,19 +235,19 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
         }
 
         if in_ {
-            stream_init(ptr::null_mut(), &mut *s_in, -1, true);
+            stream_init(None, &mut *s_in, -1, true);
             (*s_in).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if out {
-            stream_init(ptr::null_mut(), &mut *s_out, -1, true);
+            stream_init(None, &mut *s_out, -1, true);
             (*s_out).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
 
         if err {
-            stream_init(ptr::null_mut(), &mut *s_err, -1, true);
+            stream_init(None, &mut *s_err, -1, true);
             (*s_err).internal_data = StreamInternalData::Proc(proc_);
             proc_.refcount += 1;
         }
@@ -255,10 +261,11 @@ pub fn proc_spawn(proc_: &mut Proc, in_: bool, out: bool, err: bool) -> i32 {
     }
 }
 
-pub fn proc_teardown(loop_: &mut Loop) {
+pub fn proc_teardown(loop_in: &mut Loop) {
+    let loop_: *mut Loop = loop_in;
     unsafe {
         proc_st().proc_is_tearing_down = true;
-        let qc = &raw mut *loop_queues(loop_);
+        let qc = &raw mut *loop_queues(&mut *loop_);
         let children = (*qc).children.clone();
         for proc_ in children {
             if (*proc_).detach || (*proc_).r#type == K_PROC_TYPE_PTY {
@@ -268,15 +275,15 @@ pub fn proc_teardown(loop_: &mut Loop) {
                     proc_close_handles(&mut *proc_);
                 }
             } else {
-                proc_stop(proc_);
+                proc_stop(&mut *proc_);
             }
         }
 
-        loop_process_events_until(loop_, (*qc).events, -1, || {
+        loop_process_events_until(&mut *loop_, (*qc).events.as_mut(), -1, || {
             std::mem::ManuallyDrop::new(ptr::read_volatile(&raw const (*qc).children)).is_empty()
                 && multiqueue_empty(&*(*qc).events)
         });
-        pty_proc_teardown(loop_);
+        pty_proc_teardown(&mut *loop_);
     }
 }
 
@@ -287,11 +294,13 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 }
 
 /// Synchronously wait for a process to finish
-pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 {
+pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>) -> i32 {
+    let proc_: *mut Proc = proc_in;
+    let mut events: *mut MultiQueue = events_in.map_or(ptr::null_mut(), ptr::from_mut);
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
-            loop_process_events((*proc_).loop_, (*proc_).events, 0);
+            loop_process_events(&mut *(*proc_).loop_, (*proc_).events.as_mut(), 0);
             return status;
         }
 
@@ -300,20 +309,20 @@ pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
         }
 
         (*proc_).refcount += 1;
-        loop_process_events_until((*proc_).loop_, events, i64::from(ms), || {
+        loop_process_events_until(&mut *(*proc_).loop_, events.as_mut(), i64::from(ms), || {
             ptr::read_volatile(&raw const g_st().got_int)
                 || ptr::read_volatile(&raw const (*proc_).refcount) == 1
         });
 
         if g_st().got_int {
             g_st().got_int = false;
-            proc_stop(proc_);
+            proc_stop(&mut *proc_);
             if ms == -1 {
-                loop_process_events_until((*proc_).loop_, events, -1, || {
+                loop_process_events_until(&mut *(*proc_).loop_, events.as_mut(), -1, || {
                     ptr::read_volatile(&raw const (*proc_).refcount) == 1
                 });
             } else {
-                loop_process_events((*proc_).loop_, events, 0);
+                loop_process_events(&mut *(*proc_).loop_, events.as_mut(), 0);
             }
 
             (*proc_).status = -2;
@@ -333,7 +342,8 @@ pub fn proc_wait(proc_: *mut Proc, ms: i32, mut events: *mut MultiQueue) -> i32 
 }
 
 /// Ask a process to terminate and eventually kill if it doesn't respond
-pub fn proc_stop(proc_: *mut Proc) {
+pub fn proc_stop(proc_in: &mut Proc) {
+    let proc_: *mut Proc = proc_in;
     unsafe {
         let exited = (*proc_).status >= 0;
         if exited || (*proc_).stopped_time != 0 {
@@ -394,12 +404,13 @@ unsafe extern "C" fn children_kill_cb(handle: *mut uv_timer_t) {
     }
 }
 
-pub fn proc_close_event(proc_: *mut Proc) {
+pub fn proc_close_event(proc_in: &mut Proc) {
+    let proc_: *mut Proc = proc_in;
     unsafe {
         if !(*proc_).data.is_null() {
             let status = (*proc_).status;
             let data = (*proc_).data;
-            crate::channel::channel_proc_exit_cb(proc_, status, &mut *data);
+            crate::channel::channel_proc_exit_cb(status, &mut *data);
         }
     }
 }
@@ -420,7 +431,7 @@ pub(crate) fn proc_decref(proc_: &mut Proc) {
             Event::ProcClose(&raw mut *proc_),
         );
     } else {
-        proc_close_event(&raw mut *proc_);
+        proc_close_event(proc_);
     }
 }
 
@@ -445,8 +456,14 @@ fn proc_close(proc_: &mut Proc) {
     }
 }
 
-fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
+fn flush_stream(proc_in: &mut Proc, is_err: bool) {
+    let proc_: *mut Proc = proc_in;
     unsafe {
+        let stream: *mut RStream = if is_err {
+            &raw mut (*proc_).err
+        } else {
+            &raw mut (*proc_).out
+        };
         if (*stream).s.closed {
             return;
         }
@@ -484,7 +501,7 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 
             if num_bytes == ptr::read_volatile(&raw const (*stream).num_bytes) {
                 if !ptr::read_volatile(&raw const (*stream).did_eof) {
-                    let _ = (*stream).s.cb_data.call_read_cb(&mut *stream, &[], true);
+                    let _ = (*stream).s.cb_data.call_read_cb((*stream).s.fd, &[], true);
                 }
                 break;
             }
@@ -494,9 +511,8 @@ fn flush_stream(proc_: *mut Proc, stream: *mut RStream) {
 
 pub fn proc_close_handles(proc_: &mut Proc) {
     proc_st().exit_need_delay += 1;
-    let p = &raw mut *proc_;
-    flush_stream(p, unsafe { &raw mut (*p).out });
-    flush_stream(p, unsafe { &raw mut (*p).err });
+    flush_stream(proc_, false);
+    flush_stream(proc_, true);
 
     proc_close_streams(proc_);
     proc_close(proc_);

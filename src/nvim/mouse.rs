@@ -18,7 +18,7 @@ use crate::eval::{call_vim_function, eval_has_provider};
 use crate::ex_docmd::{do_cmdline_cmd, tabpage_close, tabpage_close_other, tabpage_new};
 use crate::fold::{close_fold, has_folding, open_fold};
 use crate::globals::*;
-use crate::grid::{get_win_by_grid_handle, grid_adjust};
+use crate::grid::get_win_by_grid_handle;
 use crate::input::{
     prep_redo, redo_append_char, safe_vgetc, stuff_readbuff, stuffchar_readbuff, stuffnum_readbuff,
     vpeekc, vungetc,
@@ -2122,7 +2122,10 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     }
     let mut start_row: i32 = 0;
     let mut start_col: i32 = 0;
-    let gp = grid_adjust(&mut wp.w_grid, &mut start_row, &mut start_col);
+    let Some(gp) = crate::grid::grid_adjust_opt(&mut wp.w_grid, &mut start_row, &mut start_col)
+    else {
+        return;
+    };
     if gp.handle != click_grid || gp.chars.is_empty() {
         return;
     }
