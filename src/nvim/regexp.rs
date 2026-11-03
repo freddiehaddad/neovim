@@ -2646,17 +2646,20 @@ fn vim_regsub_both<T>(
         let nested = re_st().regsub_nesting;
         let eval_slot = &mut re_st().eval_result[nested];
         let src = source;
-        let mut dst = dest;
+        let max_dst = destlen.max(0) as usize;
+        let mut dest_slice = copy.then(|| std::slice::from_raw_parts_mut(dest, max_dst));
+        let mut dst_off = 0usize;
 
         if expr.is_some() || crate::memory::cstr_as_bytes(source.cast()).starts_with(b"\\=") {
             if copy {
                 if let Some(ref eval_cstr) = *eval_slot {
                     let eval_bytes = eval_cstr.to_bytes_with_nul();
                     let eval_len = eval_bytes.len() - 1;
-                    if eval_len < destlen as usize {
-                        let dst_slice = std::slice::from_raw_parts_mut(dest, eval_bytes.len());
-                        dst_slice.copy_from_slice(eval_bytes);
-                        dst = dst.wrapping_add(eval_len);
+                    if eval_len < max_dst {
+                        if let Some(ref mut out) = dest_slice {
+                            out[..eval_bytes.len()].copy_from_slice(eval_bytes);
+                        }
+                        dst_off += eval_len;
                         *eval_slot = None;
                     }
                 }
@@ -2724,20 +2727,19 @@ fn vim_regsub_both<T>(
                 if let Some(eval_cstr) = eval_slot.take() {
                     let mut eval_bytes = eval_cstr.into_bytes_with_nul();
                     let mut had_backslash = false;
-                    let mut s = eval_bytes.as_mut_ptr();
-                    while !crate::memory::cstr_is_empty(s.cast()) {
-                        if *s == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
-                            *s = CAR as u8;
-                        } else if crate::memory::cstr_first_byte(s.cast()) == b'\\'
-                            && crate::memory::cstr_len(s.cast()) > 1
-                        {
-                            s = s.wrapping_add(1);
-                            if *s == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
-                                *s = CAR as u8;
+                    let eval_len = eval_bytes.len().saturating_sub(1);
+                    let mut s_idx = 0usize;
+                    while s_idx < eval_len {
+                        if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                            eval_bytes[s_idx] = CAR as u8;
+                        } else if eval_bytes[s_idx] == b'\\' && s_idx + 1 < eval_len {
+                            s_idx += 1;
+                            if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                                eval_bytes[s_idx] = CAR as u8;
                             }
                             had_backslash = true;
                         }
-                        mb_ptr_adv(&mut s);
+                        s_idx += crate::mbyte::utfc_slice2len(&eval_bytes[s_idx..eval_len]);
                     }
                     let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
                         vim_strsave_escaped(&eval_bytes, b"\\")
@@ -2746,7 +2748,7 @@ fn vim_regsub_both<T>(
                             .unwrap_or_default()
                             .to_owned()
                     };
-                    dst = dst.wrapping_add(final_cstr.to_bytes().len());
+                    dst_off += final_cstr.to_bytes().len();
                     *eval_slot = Some(final_cstr);
                 }
 
@@ -2802,22 +2804,17 @@ fn vim_regsub_both<T>(
                 }
                 if no < 0 {
                     if c == i32::from(K_SPECIAL) && idx + 2 <= src_bytes.len() {
-                        if copy {
-                            if dst.wrapping_add(3) > dest.wrapping_add(destlen as usize) {
+                        if let Some(ref mut out) = dest_slice {
+                            if dst_off + 3 > max_dst {
                                 iemsg(c"vim_regsub_both(): not enough space");
                                 return 0;
                             }
-                            *dst = c as u8;
-                            dst = dst.wrapping_add(1);
-                            *dst = src_bytes[idx];
-                            dst = dst.wrapping_add(1);
-                            *dst = src_bytes[idx + 1];
-                            dst = dst.wrapping_add(1);
-                            idx += 2;
-                        } else {
-                            dst = dst.wrapping_add(3);
-                            idx += 2;
+                            out[dst_off] = c as u8;
+                            out[dst_off + 1] = src_bytes[idx];
+                            out[dst_off + 2] = src_bytes[idx + 1];
                         }
+                        dst_off += 3;
+                        idx += 2;
                         continue;
                     }
 
@@ -2843,22 +2840,21 @@ fn vim_regsub_both<T>(
                             }
                             _ => {
                                 if (flags & REGSUB_BACKSLASH) != 0 {
-                                    if copy {
-                                        if dst.wrapping_add(1) > dest.wrapping_add(destlen as usize)
-                                        {
+                                    if let Some(ref mut out) = dest_slice {
+                                        if dst_off + 1 > max_dst {
                                             iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
-                                        *dst = b'\\';
+                                        out[dst_off] = b'\\';
                                     }
-                                    dst = dst.wrapping_add(1);
+                                    dst_off += 1;
                                 }
                                 c = next_b as i32;
                                 idx += 1;
                             }
                         }
                     } else {
-                        c = utf_ptr2char(src.wrapping_add(idx - 1).cast());
+                        c = crate::mbyte::utf_slice2char(&src_bytes[idx - 1..]);
                     }
 
                     let cc = if let Some(f) = func_one.take() {
@@ -2869,37 +2865,34 @@ fn vim_regsub_both<T>(
                         c
                     };
 
-                    let cur_ptr = src.wrapping_add(idx - 1);
-                    let totlen = utfc_ptr2len(cur_ptr.cast()) as usize;
+                    let cur_slice = &src_bytes[idx - 1..];
+                    let totlen = crate::mbyte::utfc_slice2len(cur_slice);
                     let charlen = utf_char2len(cc) as usize;
 
-                    if copy {
-                        if dst.wrapping_add(charlen) > dest.wrapping_add(destlen as usize) {
+                    if let Some(ref mut out) = dest_slice {
+                        if dst_off + charlen > max_dst {
                             iemsg(c"vim_regsub_both(): not enough space");
                             return 0;
                         }
-                        utf_char2bytes(cc, dst.cast());
+                        crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
                     }
-                    dst = dst.wrapping_offset(charlen as isize - 1);
-                    let clen = utf_ptr2len(cur_ptr.cast()) as usize;
+                    dst_off = (dst_off + charlen).wrapping_sub(1);
+                    let clen = crate::mbyte::utf_slice2len(cur_slice);
 
                     if clen < totlen {
-                        if copy {
-                            if dst.wrapping_add(totlen - clen) > dest.wrapping_add(destlen as usize)
-                            {
+                        let extra_len = totlen - clen;
+                        if let Some(ref mut out) = dest_slice {
+                            if dst_off + extra_len > max_dst {
                                 iemsg(c"vim_regsub_both(): not enough space");
                                 return 0;
                             }
-                            ptr::copy(
-                                cur_ptr.wrapping_add(clen),
-                                dst.wrapping_add(1),
-                                totlen - clen,
-                            );
+                            out[dst_off + 1..dst_off + 1 + extra_len]
+                                .copy_from_slice(&cur_slice[clen..totlen]);
                         }
-                        dst = dst.wrapping_add(totlen - clen);
+                        dst_off += extra_len;
                     }
                     idx += totlen - 1;
-                    dst = dst.wrapping_add(1);
+                    dst_off = dst_off.wrapping_add(1);
                 } else {
                     let mut s: *mut u8;
                     if reg_multi() {
@@ -2933,15 +2926,14 @@ fn vim_regsub_both<T>(
                                     if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
                                         break;
                                     }
-                                    if copy {
-                                        if dst.wrapping_add(1) > dest.wrapping_add(destlen as usize)
-                                        {
+                                    if let Some(ref mut out) = dest_slice {
+                                        if dst_off + 1 > max_dst {
                                             iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
-                                        *dst = CAR as u8;
+                                        out[dst_off] = CAR as u8;
                                     }
-                                    dst = dst.wrapping_add(1);
+                                    dst_off += 1;
                                     clnum += 1;
                                     s = reg_getline(clnum);
                                     if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
@@ -2956,22 +2948,21 @@ fn vim_regsub_both<T>(
                                 if copy {
                                     iemsg(tr(E_RE_DAMG));
                                 }
-                                return (dst.offset_from(dest) + 1) as i32;
+                                return (dst_off + 1) as i32;
                             } else {
+                                let s_b0 = crate::memory::cstr_first_byte(s.cast());
                                 if (flags & REGSUB_BACKSLASH) != 0
-                                    && (*s == CAR as u8
-                                        || crate::memory::cstr_first_byte(s.cast()) == b'\\')
+                                    && (s_b0 == CAR as u8 || s_b0 == b'\\')
                                 {
-                                    if copy {
-                                        if dst.wrapping_add(2) > dest.wrapping_add(destlen as usize)
-                                        {
+                                    if let Some(ref mut out) = dest_slice {
+                                        if dst_off + 2 > max_dst {
                                             iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
-                                        *dst = b'\\';
-                                        *dst.wrapping_add(1) = *s;
+                                        out[dst_off] = b'\\';
+                                        out[dst_off + 1] = s_b0;
                                     }
-                                    dst = dst.wrapping_add(2);
+                                    dst_off += 2;
                                 } else {
                                     c = utf_ptr2char(s.cast());
                                     let cc = if let Some(f) = func_one.take() {
@@ -2986,17 +2977,14 @@ fn vim_regsub_both<T>(
                                     s = s.wrapping_add(l as usize);
                                     len -= l;
                                     let charlen = utf_char2len(cc) as usize;
-                                    if copy {
-                                        if dst.wrapping_add(charlen)
-                                            > dest.wrapping_add(destlen as usize)
-                                        {
+                                    if let Some(ref mut out) = dest_slice {
+                                        if dst_off + charlen > max_dst {
                                             iemsg(c"vim_regsub_both(): not enough space");
                                             return 0;
                                         }
-                                        utf_char2bytes(cc, dst.cast());
+                                        crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
                                     }
-                                    dst = dst.wrapping_offset(charlen as isize - 1);
-                                    dst = dst.wrapping_add(1);
+                                    dst_off += charlen;
                                 }
                                 s = s.wrapping_add(1);
                                 len -= 1;
@@ -3007,17 +2995,23 @@ fn vim_regsub_both<T>(
                 }
             }
         }
-        if copy {
-            *dst = NUL;
+        if let Some(ref mut out) = dest_slice {
+            out[dst_off] = NUL;
         }
-        (dst.offset_from(dest) + 1) as i32
+        (dst_off + 1) as i32
     }
 }
 
-fn reg_getline_submatch(lnum: Linenr) -> *mut u8 {
+fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     let mut line: *mut u8 = ptr::null_mut();
-    reg_getline_common(lnum, RGLF_LINE | RGLF_SUBMATCH, Some(&mut line), None);
-    line
+    let mut len: Colnr = 0;
+    reg_getline_common(
+        lnum,
+        RGLF_LINE | RGLF_LENGTH | RGLF_SUBMATCH,
+        Some(&mut line),
+        Some(&mut len),
+    );
+    (!line.is_null()).then(|| crate::memory::cstr_slice(line.cast(), len as usize))
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
@@ -3032,34 +3026,27 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
         if lnum < 0 || end_lnum < 0 {
             return None;
         }
-        let s = reg_getline_submatch(lnum);
-        if s.is_null() {
-            return None;
-        }
-        let scol = re_st().rsm.mmatch_mut().startpos[no].col as usize;
+        let first_line = reg_getline_submatch_slice(lnum)?;
+        let scol = (re_st().rsm.mmatch_mut().startpos[no].col as usize).min(first_line.len());
         let ecol = re_st().rsm.mmatch_mut().endpos[no].col as usize;
-        let s = s.wrapping_add(scol);
         let mut buf: Vec<u8> = Vec::new();
         if end_lnum == lnum {
-            let len = ecol - scol;
-            let copy_n = crate::memory::xstrnlen(s.cast(), len);
-            buf.extend_from_slice(crate::memory::cstr_slice(s.cast(), copy_n));
+            let end_idx = ecol.min(first_line.len());
+            buf.extend_from_slice(&first_line[scol..end_idx.max(scol)]);
         } else {
-            buf.extend_from_slice(crate::memory::cstr_as_bytes(s.cast()));
+            buf.extend_from_slice(&first_line[scol..]);
             buf.push(b'\n');
             lnum += 1;
             while lnum < end_lnum {
-                let line = reg_getline_submatch(lnum);
-                buf.extend_from_slice(crate::memory::cstr_as_bytes(line.cast()));
+                let line = reg_getline_submatch_slice(lnum).unwrap_or(b"");
+                buf.extend_from_slice(line);
                 buf.push(b'\n');
                 lnum += 1;
             }
-            let src = reg_getline_submatch(lnum);
-            let copy_n = crate::memory::xstrnlen(src.cast(), ecol);
-            buf.extend_from_slice(crate::memory::cstr_slice(src.cast(), copy_n));
+            let src = reg_getline_submatch_slice(lnum).unwrap_or(b"");
+            buf.extend_from_slice(&src[..ecol.min(src.len())]);
         }
-        buf.push(0);
-        Some(crate::memory::cstr_to_cstring(buf.as_ptr().cast()))
+        Some(crate::memory::cstr_from_bytes(&buf))
     } else {
         let s = re_st().rsm.match_mut().startp[no];
         let e = re_st().rsm.match_mut().endp[no];
@@ -3090,18 +3077,19 @@ pub fn reg_submatch_list(no: i32) -> *mut TvList {
 
         list = tv_list_alloc((elnum - slnum + 1) as isize);
 
-        let mut s: *const u8 = reg_getline_submatch(slnum).wrapping_add(scol as usize);
+        let first_line = reg_getline_submatch_slice(slnum).unwrap_or_else(|| c"".to_bytes());
+        let s = &first_line[(scol as usize).min(first_line.len())..];
         if slnum == elnum {
-            tv_list_append_string(list, s.cast(), (ecol - scol) as isize);
+            tv_list_append_string(list, s.as_ptr().cast(), (ecol - scol) as isize);
         } else {
             let max_lnum = elnum - slnum;
-            tv_list_append_string(list, s.cast(), -1);
+            tv_list_append_string(list, s.as_ptr().cast(), -1);
             for i in 1..max_lnum {
-                s = reg_getline_submatch(slnum + i);
-                tv_list_append_string(list, s.cast(), -1);
+                let line = reg_getline_submatch_slice(slnum + i).unwrap_or_else(|| c"".to_bytes());
+                tv_list_append_string(list, line.as_ptr().cast(), -1);
             }
-            s = reg_getline_submatch(elnum);
-            tv_list_append_string(list, s.cast(), ecol as isize);
+            let last_line = reg_getline_submatch_slice(elnum).unwrap_or_else(|| c"".to_bytes());
+            tv_list_append_string(list, last_line.as_ptr().cast(), ecol as isize);
         }
     } else {
         let s = re_st().rsm.match_mut().startp[no];
