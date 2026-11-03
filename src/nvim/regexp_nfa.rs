@@ -3335,7 +3335,7 @@ fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
     true
 }
 
-fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: *const u8) -> i32 {
+fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i32 {
     let mut col = *startcol;
     loop {
         let mut matched = true;
@@ -3345,16 +3345,16 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: *const u8) -
             .rex
             .line
             .wrapping_add((col + regstart_len2) as usize);
-        while crate::memory::cstr_first_byte(s1.cast()) != NUL {
-            let c1_len = utf_ptr2len(s1.cast()) as usize;
-            let c1 = utf_ptr2char(s1.cast());
+        while !s1.is_empty() {
+            let c1_len = crate::mbyte::utf_slice2len(s1);
+            let c1 = crate::mbyte::utf_slice2char(s1);
             let c2_len = utf_ptr2len(s2.cast()) as usize;
             let c2 = utf_ptr2char(s2.cast());
             if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                 matched = false;
                 break;
             }
-            s1 = s1.wrapping_add(c1_len);
+            s1 = &s1[c1_len..];
             s2 = s2.wrapping_add(c2_len);
         }
         if matched && !utf_iscomposing_legacy(utf_ptr2char(s2.cast())) {
@@ -4726,7 +4726,7 @@ fn nfa_regexec_both(
             && !mt.as_bytes().is_empty()
             && !re_st().rex.reg_icombine
         {
-            retval = find_match_text(&mut col, prog.regstart, mt.as_ptr().cast::<u8>());
+            retval = find_match_text(&mut col, prog.regstart, mt.as_bytes());
             if reg_multi() {
                 re_st().rex.mmatch_mut().rmm_matchcol = col;
             } else {

@@ -1402,11 +1402,9 @@ pub(super) fn reg_multi() -> bool {
 }
 
 #[inline]
-pub(super) fn mb_ptr_adv<T>(p: *mut *mut T) {
-    unsafe {
-        let step = utfc_ptr2len((*p).cast()) as usize;
-        *p = (*p).cast::<u8>().wrapping_add(step).cast();
-    }
+pub(super) fn mb_ptr_adv<T>(p: &mut *mut T) {
+    let step = utfc_ptr2len((*p).cast()) as usize;
+    *p = (*p).cast::<u8>().wrapping_add(step).cast();
 }
 
 /// Return NOT_MULTI if c is not a "multi" operator.
@@ -2345,26 +2343,28 @@ pub(super) fn cstrncmp(
     let s1 = s1.into_c_char_ptr();
     let s2 = s2.into_c_char_ptr();
     {
+        let s1_b = crate::memory::cstr_as_bytes(s1);
+        let s2_b = crate::memory::cstr_as_bytes(s2);
         let mut result = if !re_st().rex.reg_ic {
             let max_n = *n as usize;
-            let s1_b = crate::memory::cstr_as_bytes(s1);
-            let s2_b = crate::memory::cstr_as_bytes(s2);
             s1_b[..max_n.min(s1_b.len())].cmp(&s2_b[..max_n.min(s2_b.len())]) as i32
         } else {
-            let mut p = s1.cast_mut();
+            let mut rem1 = s1_b;
             let mut n2: i32 = 0;
             let mut n1 = *n;
-            while n1 > 0 && !crate::memory::cstr_is_empty(p) {
-                n1 -= utfc_ptr2len(p);
-                mb_ptr_adv(&raw mut p);
+            while n1 > 0 && !rem1.is_empty() {
+                let step = crate::mbyte::utfc_slice2len(rem1);
+                n1 -= step as i32;
+                rem1 = &rem1[step..];
                 n2 += 1;
             }
-            p = s2.cast_mut();
-            while n2 > 0 && !crate::memory::cstr_is_empty(p) {
+            let mut rem2 = s2_b;
+            while n2 > 0 && !rem2.is_empty() {
                 n2 -= 1;
-                mb_ptr_adv(&raw mut p);
+                let step = crate::mbyte::utfc_slice2len(rem2);
+                rem2 = &rem2[step..];
             }
-            n2 = crate::memory::ptr_offset_from(p, s2) as i32;
+            n2 = (s2_b.len() - rem2.len()) as i32;
             let r = utf_strnicmp(s1, s2, *n as usize, n2 as usize);
             if r == 0 {
                 *n = n2;
