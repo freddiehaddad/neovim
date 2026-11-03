@@ -3049,7 +3049,7 @@ pub fn expand_set_whichwrap(args: &mut Optexpand, matches: &mut Vec<std::ffi::CS
 
 pub fn validate_wildmode(args: &mut Optset) -> Option<&CStr> {
     let mut flags = [0u8; 4];
-    if !check_opt_wim(args.os_newval.data.string().data, flags.as_mut_ptr()) {
+    if !check_opt_wim(args.os_newval.data.string().as_bytes(), &mut flags) {
         return Some(E_INVARG);
     }
     args.os_prep = OptSetPrep::Wildmode(flags);

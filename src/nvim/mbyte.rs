@@ -1421,6 +1421,7 @@ pub fn mb_cptr2char_adv(s: &mut &[u8]) -> i32 {
     mb_cslice2char_adv(s)
 }
 
+#[inline]
 pub fn utf_iscomposing_first(c: i32) -> bool {
     c >= 128 && !utf8proc_grapheme_break(b' ' as i32, c)
 }

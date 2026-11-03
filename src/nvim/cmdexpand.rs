@@ -1782,7 +1782,7 @@ fn cmdexp() -> &'static mut CmdexpandState {
     unsafe { &mut *CMDEXP_STATE.as_ptr() }
 }
 
-use crate::mbyte::ptr2cells;
+use crate::mbyte::utfc_slice2len;
 use crate::path::vim_ispathsep;
 
 #[inline]
@@ -2005,7 +2005,10 @@ pub fn nextwild(xp: &mut ExpandCtx, type_arg: i32, options: i32, escape: bool) -
                     xp.xp_pattern_len,
                 ))
             } else {
-                addstar(xp.xp_pattern.cast(), xp.xp_pattern_len, xp.xp_context)
+                addstar(
+                    crate::memory::cstr_slice(xp.xp_pattern.cast(), xp.xp_pattern_len),
+                    xp.xp_context,
+                )
             };
         let use_options = options
             | WILD_USE_COMPLETESLASH
@@ -2216,50 +2219,51 @@ fn cmdline_compl_use_pum(need_wildmenu: bool) -> bool {
 }
 
 /// Return the number of characters that should be skipped in the wildmenu.
-fn skip_wildmenu_char(xp: &ExpandCtx, s: impl crate::strings::IntoCCharPtr) -> i32 {
-    let s = s.into_c_char_ptr();
+fn skip_wildmenu_char(xp: &ExpandCtx, s_bytes: &[u8]) -> usize {
+    let s_bytes = crate::memory::bytes_until_nul(s_bytes);
+    if (rem_backslash(s_bytes)
+        && xp.xp_context != EXPAND_HELP
+        && xp.xp_context != EXPAND_PATTERN_IN_BUF)
+        || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
+            && (s_bytes.first() == Some(&b'\t')
+                || (s_bytes.first() == Some(&b'\\') && s_bytes.len() > 1)))
     {
-        let s_bytes = crate::memory::cstr_as_bytes(s);
-        if (rem_backslash(s_bytes)
-            && xp.xp_context != EXPAND_HELP
-            && xp.xp_context != EXPAND_PATTERN_IN_BUF)
-            || ((xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES)
-                && (s_bytes.first() == Some(&b'\t')
-                    || (s_bytes.first() == Some(&b'\\') && s_bytes.len() > 1)))
+        #[cfg(not(windows))]
+        if xp.xp_shell
+            && csh_like_shell() != 0
+            && s_bytes.get(1) == Some(&b'\\')
+            && s_bytes.get(2) == Some(&b'!')
         {
-            #[cfg(not(windows))]
-            if xp.xp_shell
-                && csh_like_shell() != 0
-                && s_bytes.get(1) == Some(&b'\\')
-                && s_bytes.get(2) == Some(&b'!')
-            {
-                return 2;
-            }
-            return 1;
+            return 2;
         }
-        0
+        return 1;
     }
+    0
 }
 
 /// Get the length of an item as it will be shown in the status line.
 fn wildmenu_match_len(xp: &ExpandCtx, s: impl crate::strings::IntoCCharPtr) -> i32 {
-    let mut s = s.into_c_char_ptr();
-    {
-        let mut len: i32 = 0;
-        let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
+    let s = s.into_c_char_ptr();
+    let mut len: i32 = 0;
+    let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
 
-        if emenu && menu_is_separator(s) {
-            return 1;
-        }
-
-        while !crate::memory::cstr_is_empty(s) {
-            s = s.wrapping_add(skip_wildmenu_char(xp, s) as usize);
-            len += ptr2cells(s);
-            s = s.wrapping_add(utfc_ptr2len(s) as usize);
-        }
-
-        len
+    if emenu && menu_is_separator(s) {
+        return 1;
     }
+
+    let mut rem = crate::memory::cstr_as_bytes(s);
+    while !rem.is_empty() {
+        let skip = skip_wildmenu_char(xp, rem).min(rem.len());
+        rem = &rem[skip..];
+        if rem.is_empty() {
+            break;
+        }
+        len += crate::mbyte::slice2cells(rem);
+        let step = utfc_slice2len(rem).max(1).min(rem.len());
+        rem = &rem[step..];
+    }
+
+    len
 }
 
 /// Show wildchar matches in the status line.
@@ -2349,7 +2353,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
             selstart_col = clen;
         }
 
-        let mut s = show_match(matches, i as usize, showtail);
+        let s = show_match(matches, i as usize, showtail);
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
         if emenu && menu_is_separator(s.cast()) {
             let tc = transchar(b'|' as i32).to_bytes();
@@ -2357,20 +2361,24 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
             len += tc.len();
             clen += tc.len() as i32;
         } else {
-            while !crate::memory::cstr_is_empty(s.cast()) {
-                s = s.wrapping_add(skip_wildmenu_char(xp, s.cast()) as usize);
-                clen += ptr2cells(s.cast());
-                let l = utfc_ptr2len(s.cast()) as usize;
+            let mut rem = crate::memory::cstr_as_bytes(s.cast());
+            while !rem.is_empty() {
+                let skip = skip_wildmenu_char(xp, rem).min(rem.len());
+                rem = &rem[skip..];
+                if rem.is_empty() {
+                    break;
+                }
+                clen += crate::mbyte::slice2cells(rem);
+                let l = utfc_slice2len(rem).max(1).min(rem.len());
                 if l > 1 {
-                    buf_vec[len..len + l].copy_from_slice(crate::memory::cstr_slice(s.cast(), l));
-                    s = s.wrapping_add(l - 1);
+                    buf_vec[len..len + l].copy_from_slice(&rem[..l]);
                     len += l;
                 } else {
-                    let tc = transchar_byte(crate::memory::cstr_first_byte(s.cast())).to_bytes();
+                    let tc = transchar_byte(rem[0]).to_bytes();
                     buf_vec[len..len + tc.len()].copy_from_slice(tc);
                     len += tc.len();
                 }
-                s = s.wrapping_add(1);
+                rem = &rem[l..];
             }
         }
         if i == match_idx {
@@ -3034,8 +3042,9 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
 }
 
 /// Prepare a string for expansion.
-pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context: i32) -> CString {
-    let fname: *const u8 = fname.into_c_char_ptr().cast();
+pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
+    let fname_slice = crate::memory::bytes_until_nul(fname_slice);
+    let len = fname_slice.len();
     {
         if context != EXPAND_FILES
             && context != EXPAND_FILES_IN_PATH
@@ -3053,7 +3062,7 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
                 || context == EXPAND_PACKADD
                 || context == EXPAND_RUNTIME
                 || ((context == EXPAND_TAGS_LISTFILES || context == EXPAND_TAGS)
-                    && crate::memory::cstr_first_byte(fname.cast()) == b'/')
+                    && fname_slice.first() == Some(&b'/'))
                 || context == EXPAND_CHECKHEALTH
                 || context == EXPAND_LSP
                 || context == EXPAND_LOG
@@ -3062,10 +3071,9 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
                 || context == EXPAND_MARKS
                 || context == EXPAND_LUA
             {
-                cstr_from_bytes(crate::memory::cstr_slice(fname.cast(), len))
+                cstr_from_bytes(fname_slice)
             } else {
                 let mut new_len = len + 2;
-                let fname_slice = crate::memory::cstr_slice(fname.cast(), len);
                 for &ch in fname_slice {
                     if ch == b'*' || ch == b'~' {
                         new_len += 1;
@@ -3126,8 +3134,9 @@ pub fn addstar(fname: impl crate::strings::IntoCCharPtr, mut len: usize, context
                 cstr_from_bytes(&retval[..j])
             }
         } else {
+            let mut len = len;
             let mut retval_vec = vec![0u8; len + 4];
-            retval_vec[..len].copy_from_slice(crate::memory::cstr_slice(fname.cast(), len));
+            retval_vec[..len].copy_from_slice(fname_slice);
             let retval = retval_vec.as_mut_ptr();
 
             let tail = path_tail(retval.cast()).cast::<u8>();
@@ -4435,7 +4444,10 @@ pub fn expand_cmdline(
         let file_str = if cmdline_fuzzy_completion_supported(xp) {
             cstr_to_cstring(xp.xp_pattern.cast())
         } else {
-            addstar(xp.xp_pattern.cast(), xp.xp_pattern_len, xp.xp_context)
+            addstar(
+                crate::memory::cstr_slice(xp.xp_pattern.cast(), xp.xp_pattern_len),
+                xp.xp_context,
+            )
         };
 
         if opt_vars().p_wic != 0 {
@@ -6035,7 +6047,10 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             xpc.xp_pattern_len,
         ))
     } else {
-        addstar(xpc.xp_pattern.cast(), xpc.xp_pattern_len, xpc.xp_context)
+        addstar(
+            crate::memory::cstr_slice(xpc.xp_pattern.cast(), xpc.xp_pattern_len),
+            xpc.xp_context,
+        )
     };
 
     expand_one(

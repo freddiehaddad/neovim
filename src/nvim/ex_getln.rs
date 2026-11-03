@@ -613,15 +613,8 @@ pub fn parse_pattern_and_range(
 
     // Skip if the pattern matches everything (e.g., for 'hlsearch')
     if !use_last_pat {
-        let c = unsafe { *end };
-        unsafe {
-            *end = 0;
-        }
-        let empty = empty_pattern_magic(p, crate::memory::ptr_offset_from(end, p) as usize, magic);
-        unsafe {
-            *end = c;
-        }
-        if empty {
+        let pat_len = crate::memory::ptr_offset_from(end, p) as usize;
+        if empty_pattern_magic(crate::memory::cstr_slice(p, pat_len), magic) {
             return false;
         }
     }
@@ -730,7 +723,7 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
 
     // Use the previous pattern for ":s//".
     let end_idx = (skiplen + patlen) as usize;
-    let mut next_char = getln_st().ccline.cmdbuff_vec[end_idx];
+    let next_char = getln_st().ccline.cmdbuff_vec[end_idx];
     let use_last_pat = patlen == 0
         && skiplen > 0
         && getln_st().ccline.cmdbuff_vec[(skiplen - 1) as usize] == next_char;
@@ -838,22 +831,12 @@ fn may_do_incsearch_highlighting(firstc: i32, count: i32, s: &mut IncsearchState
     // Disable 'hlsearch' highlighting if the pattern matches
     // everything. Avoids a flash when typing "foo\|".
     if !use_last_pat {
-        next_char = getln_st().ccline.cmdbuff_vec[end_idx];
-        getln_st().ccline.cmdbuff_vec[end_idx] = 0;
-        if empty_pattern(
-            getln_st()
-                .ccline
-                .cmdbuff
-                .wrapping_add(skiplen as usize)
-                .cast(),
-            patlen as usize,
-            search_delim,
-        ) && !g_st().search_global.no_hlsearch
-        {
+        let pat_slice =
+            &getln_st().ccline.cmdbuff_vec[skiplen as usize..(skiplen + patlen) as usize];
+        if empty_pattern(pat_slice, search_delim) && !g_st().search_global.no_hlsearch {
             redraw_all_later(UPD_SOME_VALID);
             set_no_hlsearch(true);
         }
-        getln_st().ccline.cmdbuff_vec[end_idx] = next_char;
     }
 
     validate_cursor(curwin_mut());
@@ -2901,13 +2884,14 @@ fn command_line_not_changed(s: &mut CommandLineState) -> i32 {
 }
 
 /// Guess that the pattern matches everything.
-fn empty_pattern(p: impl crate::strings::IntoCCharPtr, len: usize, delim: i32) -> bool {
-    let p = p.into_c_char_ptr().cast_mut();
+fn empty_pattern(p: &[u8], delim: i32) -> bool {
+    let slice = crate::memory::bytes_until_nul(p);
     let mut magic_val: RegMagic = MAGIC_ON;
 
-    if len > 0 {
+    if !slice.is_empty() {
+        let p_cstr = crate::memory::cstr_from_bytes(slice);
         skip_regexp_ex(
-            p,
+            p_cstr.as_ptr().cast_mut(),
             delim,
             opt_vars().p_magic,
             false,
@@ -2919,15 +2903,11 @@ fn empty_pattern(p: impl crate::strings::IntoCCharPtr, len: usize, delim: i32) -
         return true;
     }
 
-    empty_pattern_magic(p, len, magic_val)
+    empty_pattern_magic(slice, magic_val)
 }
 
-fn empty_pattern_magic(
-    p: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    magic_val: RegMagic,
-) -> bool {
-    let mut slice = crate::memory::cstr_slice(p.into_c_char_ptr(), len);
+fn empty_pattern_magic(p: &[u8], magic_val: RegMagic) -> bool {
+    let mut slice = crate::memory::bytes_until_nul(p);
     while slice.len() >= 2
         && slice[slice.len() - 2] == b'\\'
         && matches!(
@@ -3421,9 +3401,9 @@ pub fn getcmdline_prompt(
     }
 }
 
-/// Parse `'wildmode'`, updating flags only when non-NULL and the value is valid.
-pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -> bool {
-    let mut rem = crate::memory::cstr_as_bytes(value.into_c_char_ptr());
+/// Parse `'wildmode'`, updating `flags` when the value is valid.
+pub fn check_opt_wim(value: &[u8], flags: &mut [u8; 4]) -> bool {
+    let mut rem = crate::memory::bytes_until_nul(value);
     let mut new_wim_flags: [u8; 4] = [0; 4];
     let mut idx: usize = 0;
 
@@ -3462,9 +3442,7 @@ pub fn check_opt_wim(value: impl crate::strings::IntoCCharPtr, flags: *mut u8) -
         idx += 1;
     }
 
-    if !flags.is_null() {
-        unsafe { ptr::copy_nonoverlapping(new_wim_flags.as_ptr(), flags, 4) };
-    }
+    *flags = new_wim_flags;
     true
 }
 

@@ -6094,8 +6094,10 @@ fn get_filename_compl_info(
         insexp().compl_col += startcol;
         insexp().compl_length = curs_col - startcol;
         insexp().compl_pattern = Some(addstar(
-            line.wrapping_add(insexp().compl_col as usize),
-            insexp().compl_length as usize,
+            crate::memory::cstr_slice(
+                line.wrapping_add(insexp().compl_col as usize),
+                insexp().compl_length as usize,
+            ),
             EXPAND_FILES,
         ));
 

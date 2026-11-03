@@ -2291,7 +2291,10 @@ fn didset_options2() {
         None,
     );
 
-    check_opt_wim(opt_vars().p_wim, (&raw mut g_st().wim_flags).cast::<u8>());
+    check_opt_wim(
+        crate::memory::cstr_as_bytes(opt_vars().p_wim),
+        &mut g_st().wim_flags,
+    );
     tabstop_set(
         curbuf_mut().b_p_vsts,
         &mut curbuf_mut().b_p_vsts_array,
