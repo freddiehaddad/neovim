@@ -1143,13 +1143,12 @@ pub unsafe extern "C-unwind" fn nts_parser_parse_buf(
     timeout_ns: u64,
 ) -> *mut TSTree {
     unsafe {
-        let buf = handle_get_buffer(bufnr as ObjHandle);
-        if buf.is_null() {
+        let Some(buf) = handle_get_buffer(bufnr as ObjHandle) else {
             std::process::abort();
-        }
+        };
 
         let input = TSInput {
-            payload: buf.cast::<c_void>(),
+            payload: ptr::from_mut(buf).cast::<c_void>(),
             read: Some(input_cb),
             encoding: TSINPUT_ENCODING_UTF8,
             decode: None,
@@ -1194,8 +1193,7 @@ unsafe extern "C-unwind" fn parser_parse(lstate: *mut lua_State) -> i32 {
             }
             LUA_TNUMBER => {
                 let bufnr = lua_tointeger(lstate, 3) as ObjHandle;
-                let buf = handle_get_buffer(bufnr);
-                if buf.is_null() {
+                if handle_get_buffer(bufnr).is_none() {
                     let msg = format!("invalid buffer handle: {bufnr}\0");
                     let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
                     return luaL_argerror(lstate, 3, msg_cstr);

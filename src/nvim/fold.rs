@@ -653,7 +653,7 @@ pub fn delete_fold(
     if !did_one {
         emsg(gettext(E_NOFOLD));
         if had_visual {
-            redraw_buf_later(wp.w_buffer, UPD_INVERTED);
+            redraw_buf_later(wp.buf_mut(), UPD_INVERTED);
         }
     } else {
         check_cursor_col(&mut *wp);

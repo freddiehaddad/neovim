@@ -3323,9 +3323,9 @@ fn get_var_from(
             if !need_switch_win
                 || ctx_switch(
                     &mut switchwin,
-                    win,
-                    tp,
-                    ptr::null_mut(),
+                    unsafe { win.as_mut() },
+                    unsafe { tp.as_mut() },
+                    None,
                     K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                 )
             {
@@ -3590,9 +3590,9 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     if !need_switch_win
         || ctx_switch(
             &mut switchwin,
-            win,
-            tp,
-            ptr::null_mut(),
+            unsafe { win.as_mut() },
+            unsafe { tp.as_mut() },
+            None,
             K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
         )
     {
@@ -3925,7 +3925,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
 
     if crate::memory::cstr_first_byte(varname) == b'&' {
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
         set_option_from_tv(varname.wrapping_add(1), arg2);
         ctx_restore(&mut aco);
     } else {

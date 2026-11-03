@@ -3185,13 +3185,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     }
     let mut aco = CtxSwitch::new();
     if eap.cmdidx != CMD_DIFFGET {
-        ctx_switch(
-            &mut aco,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            curtab_mut().tp_diffbuf[idx_other],
-            0,
-        );
+        ctx_switch(&mut aco, None, None, curtab_mut().diffbuf_opt(idx_other), 0);
     }
     let idx_from = if eap.cmdidx == CMD_DIFFGET {
         idx_other

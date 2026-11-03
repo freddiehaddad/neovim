@@ -157,7 +157,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
         }
 
         let buf = if bufnr != 0 {
-            handle_get_buffer(bufnr)
+            handle_get_buffer(bufnr).map_or(ptr::null_mut(), ptr::from_mut)
         } else {
             g_st().curbuf
         };
@@ -605,10 +605,9 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
 unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
     unsafe {
         let window = luaL_checkinteger(lstate, 1) as ObjHandle;
-        let win = handle_get_window(window);
-        if win.is_null() {
+        let Some(win) = handle_get_window(window) else {
             return luaL_error(lstate, c"invalid window".as_ptr());
-        }
+        };
         let top = (luaL_checkinteger(lstate, 2) as Linenr) + 1;
         if top < 1 {
             return luaL_error(lstate, c"invalid top".as_ptr());
@@ -618,7 +617,7 @@ unsafe extern "C-unwind" fn nlua_foldupdate(lstate: *mut lua_State) -> i32 {
             return luaL_error(lstate, c"invalid bot".as_ptr());
         }
 
-        fold_update(&mut *(win), top, bot);
+        fold_update(win, top, bot);
         0
     }
 }
@@ -640,8 +639,14 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
                 let k = crate::memory::cstr_as_bytes(lua_tostring(lstate, -2));
                 let v = lua_toboolean(lstate, -1) != 0;
                 match k {
-                    b"buf" => buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as i32),
-                    b"win" => win = handle_get_window(luaL_checkinteger(lstate, -1) as i32),
+                    b"buf" => {
+                        buf = handle_get_buffer(luaL_checkinteger(lstate, -1) as i32)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
+                    }
+                    b"win" => {
+                        win = handle_get_window(luaL_checkinteger(lstate, -1) as i32)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
+                    }
                     b"keepcwd" => keepcwd = v,
                     b"log_level" => log_level = luaL_checkinteger(lstate, -1) as i32,
                     b"sandbox" if v => flags |= CMOD_SANDBOX,
@@ -700,9 +705,9 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
                 };
                 switched = ctx_switch(
                     &mut cs,
-                    win,
-                    tab,
-                    buf,
+                    win.as_mut(),
+                    tab.as_mut(),
+                    buf.as_mut(),
                     K_CTX_NO_DISPLAY | dirs | if !win.is_null() { K_CTX_VALIDATE } else { 0 },
                 );
             }

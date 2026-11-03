@@ -785,11 +785,12 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 
     if (wlv.n_virt_lines - wlv.filler_todo) < wlv.n_virt_below {
         if wlv.prev_num_attr == -1 {
+            let wp_buf = unsafe { &mut *wp.w_buffer };
             decor_redraw_signs(
                 wp,
-                wp.w_buffer,
+                wp_buf,
                 wlv.lnum - 2,
-                ptr::null_mut(),
+                None,
                 None,
                 None,
                 Some(&mut wlv.prev_num_attr),
@@ -1210,18 +1211,15 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
                 }
                 if item.start_row != g_st().decor_state.row
                     || !item.data.is_vt()
-                    || crate::globals::gptr(item.data.vt()).pos != K_VPOS_INLINE
-                    || crate::globals::gptr(item.data.vt()).width == 0
+                    || item.data.vt_opt().unwrap().pos != K_VPOS_INLINE
+                    || item.data.vt_opt().unwrap().width == 0
                 {
                     continue;
                 }
                 if item.draw_col >= -1 && isize::try_from(item.start_col).unwrap_or(-1) == v {
-                    wlv.virt_inline = crate::globals::gref(item.data.vt())
-                        .data
-                        .virt_text()
-                        .as_slice();
+                    wlv.virt_inline = item.data.vt_opt().unwrap().data.virt_text().as_slice();
 
-                    wlv.virt_inline_hl_mode = crate::globals::gptr(item.data.vt()).hl_mode;
+                    wlv.virt_inline_hl_mode = item.data.vt_opt().unwrap().hl_mode;
 
                     item.draw_col = i32::MIN;
                     break;
@@ -1327,7 +1325,7 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     #[cfg(debug_assertions)]
     {
         let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-        schar_get(sc_buf.as_mut_ptr(), mb_schar);
+        schar_get(&mut sc_buf, mb_schar);
         debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr().cast()), 1);
     }
     let _ = mb_schar;
@@ -1820,10 +1818,10 @@ pub fn win_line(
 
     let mut sign_line_attr: i32 = 0;
     decor_redraw_signs(
-        &raw mut *wp,
-        buf,
+        &mut *wp,
+        unsafe { &mut *buf },
         wlv.lnum - 1,
-        (&raw mut wlv.sattrs).cast::<SignTextAttrs>(),
+        Some(&mut wlv.sattrs),
         Some(&mut sign_line_attr),
         Some(&mut wlv.sign_cul_attr),
         Some(&mut wlv.sign_num_attr),
@@ -3046,7 +3044,13 @@ pub fn win_line(
                                     if lcs_tab3 != 0 && i == tab_len - 1 {
                                         lcs = lcs_tab3;
                                     }
-                                    let slen = schar_get_adv(&mut p, lcs);
+                                    let slen = schar_get_adv(
+                                        unsafe {
+                                            std::slice::from_raw_parts_mut(p, MAX_SCHAR_SIZE)
+                                        },
+                                        lcs,
+                                    );
+                                    p = p.wrapping_add(slen);
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
@@ -3815,8 +3819,7 @@ pub fn win_line(
             if wrap {
                 let mut current_row = wlv.row;
                 let mut dummy_col: i32 = 0;
-                let current_grid =
-                    crate::globals::gmut(grid_adjust(&mut *grid, &mut current_row, &mut dummy_col));
+                let current_grid = grid_adjust(&mut *grid, &mut current_row, &mut dummy_col);
 
                 let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                 current_grid.attrs[next_row_off] = -1;
@@ -3932,7 +3935,7 @@ fn wlv_put_linebuf(
     let mut coloff: i32 = 0;
     let g = grid_adjust(&mut *grid, &mut row, &mut coloff);
     grid_put_linebuf(
-        crate::globals::gmut(g),
+        g,
         row,
         coloff,
         startcol,

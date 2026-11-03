@@ -2868,8 +2868,10 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
                 let clp = syn_clstr(&mut *win_s(curwin_mut()), scl_id as isize);
                 clp.scl_list = None;
             } else {
-                let id =
-                    syn_name2id_len(arg, crate::memory::ptr_offset_from(arg_end, arg) as usize);
+                let id = syn_name2id_len(crate::memory::cstr_slice(
+                    arg,
+                    crate::memory::ptr_offset_from(arg_end, arg) as usize,
+                ));
                 if id == 0 {
                     semsg!(gettext(E_NOGROUP), arg);
                     break;
@@ -3017,8 +3019,10 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
                     syn_list_cluster(id - SYNID_CLUSTER as i32);
                 }
             } else {
-                let id =
-                    syn_name2id_len(arg, crate::memory::ptr_offset_from(arg_end, arg) as usize);
+                let id = syn_name2id_len(crate::memory::cstr_slice(
+                    arg,
+                    crate::memory::ptr_offset_from(arg_end, arg) as usize,
+                ));
                 if id == 0 {
                     semsg!(gettext(E_NOGROUP), arg);
                 } else {
@@ -3591,7 +3595,7 @@ fn get_syn_options<T>(
                     if gname.as_bytes() == b"NONE" {
                         opt.sync_idx = Some(NONE_IDX);
                     } else {
-                        let syn_id = syn_name2id(gname.as_ptr());
+                        let syn_id = syn_name2id(&gname);
                         let mut i = win_s(curwin_mut()).b_syn_patterns.len() as i32 - 1;
                         while i >= 0 {
                             let spp = syn_items(&mut *win_s(curwin_mut()), i as isize);
@@ -3713,10 +3717,10 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
         let syn_id = if eap.skip != 0 {
             -1
         } else {
-            syn_check_group(
+            syn_check_group(crate::memory::cstr_slice(
                 arg,
                 crate::memory::ptr_offset_from(group_name_end, arg) as usize,
-            )
+            ))
         };
         if syn_id != 0 {
             let mut keyword_buf = vec![0u8; crate::memory::cstr_len(rest) + 1];
@@ -3859,10 +3863,10 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
         if ends_excmd(crate::memory::cstr_first_byte(rest)) == 0 || eap.skip != 0 {
             rest = ptr::null_mut();
         } else {
-            let syn_id = syn_check_group(
+            let syn_id = syn_check_group(crate::memory::cstr_slice(
                 arg,
                 crate::memory::ptr_offset_from(group_name_end, arg) as usize,
-            );
+            ));
             if syn_id != 0 {
                 syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
                 item.sp_syncing = syncing != 0;
@@ -3980,8 +3984,10 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             {
                 matchgroup_id = 0;
             } else {
-                matchgroup_id =
-                    syn_check_group(rest, crate::memory::ptr_offset_from(p, rest) as usize);
+                matchgroup_id = syn_check_group(crate::memory::cstr_slice(
+                    rest,
+                    crate::memory::ptr_offset_from(p, rest) as usize,
+                ));
                 if matchgroup_id == 0 {
                     illegal = true;
                     break;
@@ -4029,10 +4035,10 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
         if ends_excmd(crate::memory::cstr_first_byte(rest)) == 0 || eap.skip != 0 {
             rest = ptr::null_mut();
         } else {
-            let syn_id = syn_check_group(
+            let syn_id = syn_check_group(crate::memory::cstr_slice(
                 arg,
                 crate::memory::ptr_offset_from(group_name_end, arg) as usize,
-            );
+            ));
             if syn_id != 0 {
                 syn_incl_toplevel(syn_id, &mut syn_opt_arg.flags);
                 let pats = &mut win_s(curwin_mut()).b_syn_patterns;
@@ -4421,10 +4427,10 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             if ends_excmd(crate::memory::cstr_first_byte(next_arg)) == 0 {
                 arg_end = skiptowhite(next_arg);
                 if eap.skip == 0 {
-                    win_s(curwin_mut()).b_syn_sync_id = syn_check_group(
+                    win_s(curwin_mut()).b_syn_sync_id = syn_check_group(crate::memory::cstr_slice(
                         next_arg,
                         crate::memory::ptr_offset_from(arg_end, next_arg) as usize,
-                    ) as i16;
+                    )) as i16;
                 }
                 next_arg = skipwhite(arg_end);
             } else if eap.skip == 0 {
@@ -4622,10 +4628,10 @@ fn get_id_list<T>(arg: &mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                     .iter()
                     .any(|b| b"\\.*^$~[".contains(b))
                 {
-                    id = syn_check_group(
+                    id = syn_check_group(crate::memory::cstr_slice(
                         name.wrapping_add(1).cast(),
                         crate::memory::ptr_offset_from(end, p) as usize,
-                    );
+                    ));
                 } else {
                     let item_len = crate::memory::ptr_offset_from(end, p) as usize;
                     name_buf[0] = b'^';

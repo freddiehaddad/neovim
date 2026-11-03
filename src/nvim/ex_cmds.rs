@@ -4752,7 +4752,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(c""), 0, SID_NONE);
         } else if !crate::memory::cstr_is_empty(opt_vars().p_icm) && !pat.data.is_null() {
             if excmds_st().pre_hl_id == 0 {
-                excmds_st().pre_hl_id = syn_check_group(c"Substitute", 10);
+                excmds_st().pre_hl_id = syn_check_group(b"Substitute");
             }
             retv = show_sub(
                 eap,

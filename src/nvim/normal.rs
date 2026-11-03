@@ -3051,7 +3051,7 @@ pub fn display_showcmd() {
 
     msg_grid_validate();
     let showcmd_row = g_st().rows_global - 1;
-    grid_line_start(&raw mut g_st().msg_grid_adj, showcmd_row);
+    grid_line_start(&mut g_st().msg_grid_adj, showcmd_row);
 
     let mut len = if mc_len > 0 {
         grid_line_puts(
@@ -3064,13 +3064,18 @@ pub fn display_showcmd() {
         0
     };
     if !norm_st().showcmd_is_clear {
-        len += grid_line_puts(g_st().sc_col + len, sc_buf, -1, hl_attr(HLF_MSG as i32));
+        len += grid_line_puts(
+            g_st().sc_col + len,
+            crate::memory::cstr_from_ptr(sc_buf),
+            -1,
+            hl_attr(HLF_MSG as i32),
+        );
     }
     len = len.min(SHOWCMD_COLS as i32);
 
     grid_line_puts(
         g_st().sc_col + len,
-        c"          ".as_ptr().wrapping_add(len as usize),
+        crate::memory::cstr_until_nul(&b"          \0"[len as usize..]),
         -1,
         hl_attr(HLF_MSG as i32),
     );

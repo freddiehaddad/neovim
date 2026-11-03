@@ -573,9 +573,9 @@ pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut cs: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut cs,
-        wp,
-        tp,
-        ptr::null_mut(),
+        unsafe { wp.as_mut() },
+        unsafe { tp.as_mut() },
+        None,
         K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
     ) {
         execute_common(argvars, rettv, 1);
@@ -724,7 +724,7 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         size = tv_dict_get_number(d.as_deref(), c"size") as i32;
     }
 
-    if is_ctx_win(wp) || text_or_buf_locked() || !check_split_disallowed(wp) {
+    if is_ctx_win(unsafe { &*wp }) || text_or_buf_locked() || !check_split_disallowed(wp) {
         return;
     }
 
@@ -757,7 +757,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             return;
         }
     }
-    if is_ctx_win(wp) {
+    if is_ctx_win(unsafe { &*wp }) {
         tv_set_string(rettv, c"autocmd");
     } else if crate::globals::gptr(wp).w_onebuf_opt.wo_pvw != 0 {
         tv_set_string(rettv, c"preview");

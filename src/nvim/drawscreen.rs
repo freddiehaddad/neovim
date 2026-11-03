@@ -548,12 +548,12 @@ pub fn update_screen() -> bool {
     }
 
     let save_curwin = ctx_saved_curwin();
-    let restore_curwin = if !save_curwin.is_null() {
+    let restore_curwin = if save_curwin.is_some() {
         curwin_ptr()
     } else {
         ptr::null_mut()
     };
-    if !save_curwin.is_null() {
+    if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
     }
@@ -655,7 +655,7 @@ pub fn update_screen() -> bool {
 
     if type_ == UPD_NOT_VALID && g_st().clear_cmdline && !ui_has(K_UIMESSAGES) {
         grid_clear(
-            &raw mut g_st().default_gridview,
+            &mut g_st().default_gridview,
             g_st().rows_global - (opt_vars().p_ch as i32),
             g_st().rows_global,
             0,
@@ -747,7 +747,7 @@ pub fn update_screen() -> bool {
             grid_draw_border(
                 &mut wp.w_grid_alloc,
                 &mut wp.w_config,
-                wp.w_border_adj.as_mut_ptr(),
+                Some(&wp.w_border_adj),
                 wp.w_onebuf_opt.wo_winbl as i32,
                 wp.w_ns_hl_attr.as_deref(),
                 wp.w_hl_attr_normal,
@@ -856,9 +856,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
         }
 
         let grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
-        if !grid.is_null() {
-            ui_grid_cursor_goto(crate::globals::gptr(grid).handle, row, col);
-        }
+        ui_grid_cursor_goto(grid.handle, row, col);
     }
 }
 
@@ -1290,7 +1288,7 @@ fn draw_vsep_win(wp: &mut WinInfoInfo) {
     }
 
     for row in wp.w_winrow..w_endrow(&*wp) {
-        grid_line_start(&raw mut g_st().default_gridview, row);
+        grid_line_start(&mut g_st().default_gridview, row);
         grid_line_put_schar(
             w_endcol(&*wp),
             wp.w_p_fcs_chars.vert,
@@ -1305,7 +1303,7 @@ fn draw_hsep_win(wp: &mut WinInfoInfo) {
         return;
     }
 
-    grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
+    grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
     grid_line_fill(
         wp.w_wincol,
         w_endcol(&*wp),
@@ -1365,7 +1363,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
     let bot_right = !(win_at_bottom || win_at_right);
 
     if top_left {
-        grid_line_start(&raw mut g_st().default_gridview, wp.w_winrow - 1);
+        grid_line_start(&mut g_st().default_gridview, wp.w_winrow - 1);
         grid_line_put_schar(
             wp.w_wincol - 1,
             get_corner_sep_connector(wp, WindowCorner::TopLeft),
@@ -1374,7 +1372,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if top_right {
-        grid_line_start(&raw mut g_st().default_gridview, wp.w_winrow - 1);
+        grid_line_start(&mut g_st().default_gridview, wp.w_winrow - 1);
         grid_line_put_schar(
             w_endcol(&*wp),
             get_corner_sep_connector(wp, WindowCorner::TopRight),
@@ -1383,7 +1381,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if bot_left {
-        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(
             wp.w_wincol - 1,
             get_corner_sep_connector(wp, WindowCorner::BottomLeft),
@@ -1392,7 +1390,7 @@ fn draw_sep_connectors_win(wp: &mut WinInfoInfo) {
         grid_line_flush();
     }
     if bot_right {
-        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(
             w_endcol(&*wp),
             get_corner_sep_connector(wp, WindowCorner::BottomRight),
@@ -1455,10 +1453,12 @@ fn win_update(wp: &mut WinInfoInfo) {
     decor_redraw_reset(&mut *wp, &mut g_st().decor_state);
     decor_providers_invoke_win(wp);
 
-    if !buf.terminal.is_null() && terminal_suspended(crate::globals::gref(buf.terminal)) {
-        let svt_ptr = &raw mut ds_st().suspended_virt_text;
-        if crate::globals::gptr(svt_ptr).data.virt_text().is_empty() {
-            crate::globals::gptr(svt_ptr)
+    if let Some(term) = unsafe { buf.terminal.as_ref() }
+        && terminal_suspended(term)
+    {
+        if ds_st().suspended_virt_text.data.virt_text().is_empty() {
+            ds_st()
+                .suspended_virt_text
                 .data
                 .virt_text_mut()
                 .push(VirtTextChunk {
@@ -1472,7 +1472,7 @@ fn win_update(wp: &mut WinInfoInfo) {
             0,
             buf.b_ml.ml_line_count - 1,
             0,
-            svt_ptr,
+            &mut ds_st().suspended_virt_text,
             false,
         );
     }
@@ -1516,7 +1516,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     let nrwidth_before = wp.w_nrwidth;
     let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
-        || *crate::globals::gptr(wp.w_onebuf_opt.wo_stc) != 0
+        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
     {
         number_width(&mut *wp)
     } else {
@@ -1546,14 +1546,14 @@ fn win_update(wp: &mut WinInfoInfo) {
                 mod_bot = buf.b_mod_bot;
             }
 
-            if !g_st().screen_search_hl.rm.regprog.is_null()
-                && re_multiline(crate::globals::gref(g_st().screen_search_hl.rm.regprog)) != 0
+            if let Some(regprog) = unsafe { g_st().screen_search_hl.rm.regprog.as_ref() }
+                && re_multiline(regprog) != 0
             {
                 top_to_mod = true;
             } else {
                 top_to_mod = wp.w_match_head.iter().any(|cur| {
-                    !cur.mit_match.regprog.is_null()
-                        && re_multiline(crate::globals::gref(cur.mit_match.regprog)) != 0
+                    unsafe { cur.mit_match.regprog.as_ref() }
+                        .is_some_and(|rp| re_multiline(rp) != 0)
                 });
             }
         }
@@ -2284,7 +2284,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 wp.w_botline = lnum;
                 wp.w_filler_rows = wp.w_view_height - srow;
             } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_TRUNCATE) != 0 {
-                grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
+                grid_line_start(&mut wp.w_grid, wp.w_view_height - 1);
                 grid_line_fill(
                     0,
                     wp.w_view_width.min(3),
@@ -2296,7 +2296,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                 set_empty_rows(&mut *wp, srow);
                 wp.w_botline = lnum;
             } else if (opt_vars().dy_flags & K_OPT_DY_FLAG_LASTLINE) != 0 {
-                grid_line_start(&raw mut wp.w_grid, wp.w_view_height - 1);
+                grid_line_start(&mut wp.w_grid, wp.w_view_height - 1);
                 let width = if grid_line_getchar((wp.w_view_width - 3).max(0), None) == 0 {
                     4
                 } else {
@@ -2421,8 +2421,10 @@ fn win_update(wp: &mut WinInfoInfo) {
             }
         }
 
-        if nrwidth_before != wp.w_nrwidth && !buf.terminal.is_null() {
-            terminal_check_size(crate::globals::gmut(buf.terminal));
+        if nrwidth_before != wp.w_nrwidth
+            && let Some(term) = unsafe { buf.terminal.as_mut() }
+        {
+            terminal_check_size(term);
         }
 
         if !g_st().got_int {
@@ -2439,7 +2441,7 @@ pub fn win_scroll_lines(wp: &mut WinInfoInfo, row: i32, line_count: i32) {
 
     let mut col: i32 = 0;
     let mut row_off: i32 = 0;
-    let grid = crate::globals::gmut(grid_adjust(&mut wp.w_grid, &mut row_off, &mut col));
+    let grid = grid_adjust(&mut wp.w_grid, &mut row_off, &mut col);
 
     let checked_width = (grid.cols - col).min(wp.w_view_width);
     let checked_height = (grid.rows - row_off).min(wp.w_view_height);
@@ -2483,7 +2485,7 @@ pub fn win_draw_end(
     let scwidth = wp.w_scwidth;
 
     for row in startrow..endrow {
-        grid_line_start(&raw mut wp.w_grid, row);
+        grid_line_start(&mut wp.w_grid, row);
 
         let mut n: i32 = 0;
         if draw_margin {
@@ -2619,10 +2621,10 @@ pub fn screen_invalidate_highlights() {
 }
 
 pub fn redraw_curbuf_later(type_: i32) {
-    redraw_buf_later(g_st().curbuf, type_);
+    redraw_buf_later(curbuf_mut(), type_);
 }
 
-pub fn redraw_buf_later(buf: *mut FileBuf, type_: i32) {
+pub fn redraw_buf_later(buf: &FileBuf, type_: i32) {
     for wp in for_all_windows_ptr() {
         if ptr::eq(wp.w_buffer, buf) {
             redraw_later(Some(&mut *wp), type_);
@@ -2657,7 +2659,7 @@ pub fn redraw_winline(wp: &mut WinInfoInfo, lnum: Linenr) {
     redraw_win_range_later(wp, lnum, lnum);
 }
 
-pub fn redraw_buf_range_later(buf: *mut FileBuf, first: Linenr, last: Linenr) {
+pub fn redraw_buf_range_later(buf: &FileBuf, first: Linenr, last: Linenr) {
     for wp in for_all_windows_ptr() {
         if ptr::eq(wp.w_buffer, buf) {
             redraw_win_range_later(&mut *wp, first, last);
@@ -2665,7 +2667,7 @@ pub fn redraw_buf_range_later(buf: *mut FileBuf, first: Linenr, last: Linenr) {
     }
 }
 
-pub fn redraw_buf_status_later(buf: *mut FileBuf) {
+pub fn redraw_buf_status_later(buf: &FileBuf) {
     for wp in for_all_windows_ptr() {
         if ptr::eq(wp.w_buffer, buf)
             && (wp.w_status_height != 0
@@ -2700,10 +2702,10 @@ pub fn status_redraw_all() {
 }
 
 pub fn status_redraw_curbuf() {
-    status_redraw_buf(g_st().curbuf);
+    status_redraw_buf(curbuf_mut());
 }
 
-pub fn status_redraw_buf(buf: *mut FileBuf) {
+pub fn status_redraw_buf(buf: &FileBuf) {
     let is_stl_global = global_stl_height() != 0;
 
     for wp in for_all_windows_ptr() {
@@ -2741,20 +2743,20 @@ pub fn redraw_statuslines() {
     }
 }
 
-pub fn win_redraw_last_status(mut frp: *const Frame) {
-    if crate::globals::gptr(frp).fr_layout == FR_LEAF {
-        crate::globals::gptr(crate::globals::gptr(frp).fr_win).w_redr_status = true;
-    } else if crate::globals::gptr(frp).fr_layout == FR_ROW {
-        for child in frame_iter_ptr(crate::globals::gptr(frp).fr_child) {
+pub fn win_redraw_last_status(mut frp: &Frame) {
+    if frp.fr_layout == FR_LEAF {
+        unsafe { (*frp.fr_win).w_redr_status = true };
+    } else if frp.fr_layout == FR_ROW {
+        for child in frame_iter_ptr(frp.fr_child) {
             win_redraw_last_status(child);
         }
     } else {
-        assert!(crate::globals::gptr(frp).fr_layout == FR_COL);
+        assert!(frp.fr_layout == FR_COL);
 
-        frp = crate::globals::gptr(frp).fr_child;
+        frp = frp.child_opt().unwrap();
 
-        while !crate::globals::gptr(frp).fr_next.is_null() {
-            frp = crate::globals::gptr(frp).fr_next;
+        while let Some(next) = frp.next_opt() {
+            frp = next;
         }
         win_redraw_last_status(frp);
     }

@@ -161,9 +161,9 @@ pub fn nvim_win_set_cursor(win: Window, pos: Array, err: &mut Error) {
     let mut switchwin: CtxSwitch = CtxSwitch::new();
     if ctx_switch(
         &mut switchwin,
-        (&raw mut *w),
-        ptr::null_mut(),
-        ptr::null_mut(),
+        Some(unsafe { &mut *ptr::from_mut(w) }),
+        None,
+        None,
         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
     ) {
         update_topline(curwin_mut());
@@ -333,7 +333,7 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
 
     let tabpage = win_find_tabpage(w);
     try_wrap(err, || {
-        if is_ctx_win(w) {
+        if is_ctx_win(unsafe { &*w }) {
             emsg(gettext(E_AUTOCMD_CLOSE));
         } else if tabpage == g_st().curtab {
             win_close(w, false, false);
@@ -401,9 +401,9 @@ pub fn nvim_win_call(
         let mut cs: CtxSwitch = CtxSwitch::new();
         if ctx_switch(
             &mut cs,
-            w,
-            tabpage,
-            ptr::null_mut(),
+            unsafe { w.as_mut() },
+            unsafe { tabpage.as_mut() },
+            None,
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {
             let args = Array::new();

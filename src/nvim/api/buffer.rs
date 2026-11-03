@@ -1319,7 +1319,13 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         }
 
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
+        ctx_switch(
+            &mut aco,
+            None,
+            None,
+            unsafe { b.cast::<FileBuf>().as_mut() },
+            0,
+        );
         ren_ret = if rename_buffer(name.data) { OK } else { FAIL };
         ctx_restore(&mut aco);
 
@@ -1597,8 +1603,13 @@ pub fn nvim_buf_call(
 
     try_wrap_err(err, |err| {
         let mut cs: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), b.cast(), 0);
-
+        ctx_switch(
+            &mut cs,
+            None,
+            None,
+            unsafe { b.cast::<FileBuf>().as_mut() },
+            0,
+        );
         let args = Array::new();
         nlua_call_ref(
             fn_ref,

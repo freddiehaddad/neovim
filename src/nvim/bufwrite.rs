@@ -407,7 +407,7 @@ fn buf_write_do_autocmds<T>(
         let buf_fname_f = *crate::globals::gptr(fnamep) == crate::globals::gptr(buf).b_ffname;
         let buf_fname_s = *crate::globals::gptr(fnamep) == crate::globals::gptr(buf).b_sfname;
 
-        let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
         set_bufref(&mut bufref, buf);
 
         if append {
@@ -599,7 +599,7 @@ fn buf_write_do_post_autocmds(
         let mut aco: CtxSwitch = CtxSwitch::new();
         curbuf_mut().b_no_eol_lnum = 0;
 
-        let _ = ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
 
         if append {
             let _ = apply_autocmds_exarg(

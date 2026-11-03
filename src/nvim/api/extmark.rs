@@ -1161,7 +1161,7 @@ pub fn nvim_buf_set_extmark(
                     c,
                     line2,
                     col2,
-                    decor_put_vt(virt_text, ptr::null_mut()),
+                    decor_put_vt(virt_text, None),
                     true,
                 );
             }
@@ -1172,7 +1172,7 @@ pub fn nvim_buf_set_extmark(
                     c,
                     line2,
                     col2,
-                    decor_put_vt(virt_lines, ptr::null_mut()),
+                    decor_put_vt(virt_lines, None),
                     true,
                 );
             }
@@ -1208,10 +1208,10 @@ pub fn nvim_buf_set_extmark(
                 if virt_text.pos == K_VPOS_INLINE {
                     decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                 }
-                decor_alloc = decor_put_vt(virt_text, decor_alloc);
+                decor_alloc = decor_put_vt(virt_text, unsafe { decor_alloc.as_mut() });
             }
             if !virt_lines.data.virt_lines().is_empty() {
-                decor_alloc = decor_put_vt(virt_lines, decor_alloc);
+                decor_alloc = decor_put_vt(virt_lines, unsafe { decor_alloc.as_mut() });
                 decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
             }
 

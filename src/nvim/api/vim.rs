@@ -368,7 +368,7 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let ret = syn_check_group(name.data, name.size);
+    let ret = syn_check_group(crate::memory::cstr_slice(name.data, name.size));
     try_leave(&tstate, err);
     Integer::from(ret)
 }
@@ -462,7 +462,7 @@ pub fn nvim_set_hl(
 ) {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let hl_id = syn_check_group(name.data, name.size);
+    let hl_id = syn_check_group(crate::memory::cstr_slice(name.data, name.size));
     try_leave(&tstate, err);
     if error_set(err) || hl_id == 0 {
         return;
@@ -1891,7 +1891,10 @@ pub fn nvim_put(
 // DLLEXPORT Integer nvim_get_color_by_name(String name) FUNC_API_SINCE(1);
 pub fn nvim_get_color_by_name(name: NvimString) -> Integer {
     let mut dummy: i32 = 0;
-    Integer::from(name_to_color(name.data, &mut dummy))
+    Integer::from(name_to_color(
+        crate::memory::cstr_from_ptr(name.data),
+        &mut dummy,
+    ))
 }
 
 /// Returns a map of color names and RGB values.
@@ -2571,7 +2574,10 @@ pub fn nvim_inspect_cell(
     ret = arena_array(arena, 3);
     let off = g.line_offset[row as usize] + (col as usize);
     let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
-    schar_get(sc_buf, g.chars[off]);
+    schar_get(
+        unsafe { std::slice::from_raw_parts_mut(sc_buf, MAX_SCHAR_SIZE) },
+        g.chars[off],
+    );
     add_c(&mut ret, cstr_as_obj(sc_buf.cast()));
     let attr = g.attrs[off];
     add_c(
@@ -2829,11 +2835,12 @@ pub fn nvim_eval_statusline(
         let mut num_id: i32 = 0;
         let lnum = statuscol_lnum as Linenr;
         let mut cursorline_fi = Foldinfo::new();
+        let wp_buf = unsafe { &mut *wp.w_buffer };
         decor_redraw_signs(
             wp,
-            wp.w_buffer,
+            wp_buf,
             lnum - 1,
-            statuscol.sattrs.as_mut_ptr(),
+            Some(&mut statuscol.sattrs),
             Some(&mut line_id),
             Some(&mut cul_id),
             Some(&mut num_id),
@@ -3031,13 +3038,11 @@ pub fn nvim_complete_set(
         );
         return rv;
     }
-    if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0 {
-        let wp = pum_set_info(index as i32, opts.info.data.cast());
-        if !wp.is_null() {
-            let wp = crate::globals::gmut(wp);
-            put_c(&mut rv, c"winid", window_obj(wp.handle));
-            put_c(&mut rv, c"bufnr", buffer_obj((*wp).buf_mut().b_fnum));
-        }
+    if (opts.is_set_complete_set & (1u64 << KEYSET_OPTIDX_COMPLETE_SET_INFO)) != 0
+        && let Some(wp) = pum_set_info(index as i32, Some(opts.info.as_bytes()))
+    {
+        put_c(&mut rv, c"winid", window_obj(wp.handle));
+        put_c(&mut rv, c"bufnr", buffer_obj(wp.buf_mut().b_fnum));
     }
     rv
 }
@@ -3140,7 +3145,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         if !win.is_null() {
             redraw_later(crate::globals::gopt_mut(win), rtype);
         } else if !buf.is_null() {
-            redraw_buf_later(buf, rtype);
+            redraw_buf_later(unsafe { &*buf }, rtype);
         } else {
             redraw_all_later(rtype);
         }
@@ -3181,7 +3186,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         };
 
         if begin < end {
-            redraw_buf_range_later(rbuf, 1 + begin, end);
+            redraw_buf_range_later(unsafe { &*rbuf }, 1 + begin, end);
         }
     }
 

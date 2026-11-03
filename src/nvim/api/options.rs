@@ -273,7 +273,13 @@ fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *
     };
     set_bufref(&mut bufref, ftbuf);
 
-    ctx_switch(&mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
+    ctx_switch(
+        &mut *aco,
+        None,
+        None,
+        unsafe { ftbuf.cast::<FileBuf>().as_mut() },
+        0,
+    );
 
     set_option_direct(
         K_OPT_BUFHIDDEN,

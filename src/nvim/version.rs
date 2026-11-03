@@ -8,7 +8,7 @@ use crate::charset::vim_strsize;
 use crate::drawscreen::screenclear;
 use crate::ex_docmd::Exarg;
 use crate::globals::*;
-use crate::grid::{GridView, grid_line_flush, grid_line_puts, grid_line_start};
+use crate::grid::{grid_line_flush, grid_line_puts, grid_line_start};
 use crate::highlight_group::{syn_id2attr, syn_name2id};
 use crate::input::plain_vgetc;
 use crate::insert::HLF_8;
@@ -4249,9 +4249,9 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let grid = if !colon && ui_has(K_UIMULTIGRID) {
-            (&raw mut crate::globals::firstwin_mut().w_grid).cast::<GridView>()
+            &mut crate::globals::firstwin_mut().w_grid
         } else {
-            &raw mut g_st().default_gridview
+            &mut g_st().default_gridview
         };
         grid_line_start(grid, row);
 
@@ -4275,7 +4275,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
                         special_attr
                     };
                 }
-                col += grid_line_puts(col, p, clen, attr);
+                col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), clen, attr);
                 idx += clen as usize;
             }
             grid_line_flush();
@@ -4289,7 +4289,12 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             let attr = if is_sep { nontext_attr } else { string_attr };
             let mut idx = 0usize;
             while idx < mesg_bytes.len() {
-                col += grid_line_puts(col, mesg.wrapping_add(idx), clen, attr);
+                col += grid_line_puts(
+                    col,
+                    crate::memory::cstr_from_ptr(mesg.wrapping_add(idx)),
+                    clen,
+                    attr,
+                );
                 idx += clen as usize;
             }
             grid_line_flush();
@@ -4307,7 +4312,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             }
 
             if rem[0] == b'<' {
-                col += grid_line_puts(col, p, l as i32, hlf8_attr);
+                col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), l as i32, hlf8_attr);
             } else {
                 let colon_off = rem[..l].iter().position(|&b| b == b':');
                 if let Some(c_off) = colon_off
@@ -4315,12 +4320,18 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
                 {
                     let colon_pos = p.wrapping_add(c_off);
                     let prefix_len = c_off as i32;
-                    col += grid_line_puts(col, p, prefix_len, 0);
-                    col += grid_line_puts(col, colon_pos, 1, hlf8_attr);
+                    col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), prefix_len, 0);
+                    col +=
+                        grid_line_puts(col, crate::memory::cstr_from_ptr(colon_pos), 1, hlf8_attr);
                     let cmd_len = l as i32 - prefix_len - 1;
-                    col += grid_line_puts(col, colon_pos.wrapping_add(1), cmd_len, id_attr);
+                    col += grid_line_puts(
+                        col,
+                        crate::memory::cstr_from_ptr(colon_pos.wrapping_add(1)),
+                        cmd_len,
+                        id_attr,
+                    );
                 } else {
-                    col += grid_line_puts(col, p, l as i32, 0);
+                    col += grid_line_puts(col, crate::memory::cstr_from_ptr(p), l as i32, 0);
                 }
             }
             idx += l;

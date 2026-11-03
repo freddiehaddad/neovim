@@ -151,17 +151,9 @@ impl DecorRangeData {
     }
 
     #[inline]
-    pub const fn vt(&self) -> *mut DecorVirtText {
-        match self {
-            Self::Vt(vt) | Self::VirtLines(vt) => *vt,
-            _ => ptr::null_mut(),
-        }
-    }
-
-    #[inline]
     pub fn vt_opt(&self) -> Option<&'static mut DecorVirtText> {
         match self {
-            Self::Vt(vt) | Self::VirtLines(vt) => crate::globals::gopt_mut(vt),
+            Self::Vt(vt) | Self::VirtLines(vt) => unsafe { vt.as_mut() },
             _ => None,
         }
     }
@@ -387,10 +379,10 @@ pub struct DecorVirtText {
 
 impl DecorVirtText {
     #[inline]
-    pub fn next_ptr(&mut self) -> *mut DecorVirtText {
+    pub fn next_opt(&mut self) -> Option<&'static mut DecorVirtText> {
         self.next
             .as_deref_mut()
-            .map_or(ptr::null_mut(), |n| &raw mut *n)
+            .map(|n| unsafe { &mut *ptr::from_mut(n) })
     }
 }
 
@@ -401,15 +393,9 @@ impl Iterator for VirtTextMutIter {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            {
-                self.0 = crate::globals::gptr(cur).next_ptr();
-                Some(crate::globals::gmut(cur))
-            }
-        }
+        let cur = unsafe { self.0.as_mut() }?;
+        self.0 = cur.next_opt().map_or(ptr::null_mut(), ptr::from_mut);
+        Some(cur)
     }
 }
 
@@ -420,26 +406,20 @@ impl Iterator for VirtTextPtrIter {
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            {
-                self.0 = crate::globals::gptr(cur).next_ptr();
-                Some(crate::globals::gmut(cur))
-            }
-        }
+        let cur = unsafe { self.0.as_mut() }?;
+        self.0 = cur.next_opt().map_or(ptr::null_mut(), ptr::from_mut);
+        Some(cur)
     }
 }
 
 #[inline]
-pub fn virt_text_iter_mut(start: *mut DecorVirtText) -> VirtTextMutIter {
-    VirtTextMutIter(start)
+pub fn virt_text_iter_mut(start: Option<&'static mut DecorVirtText>) -> VirtTextMutIter {
+    VirtTextMutIter(start.map_or(ptr::null_mut(), ptr::from_mut))
 }
 
 #[inline]
-pub fn virt_text_iter_ptr(start: *mut DecorVirtText) -> VirtTextPtrIter {
-    VirtTextPtrIter(start)
+pub fn virt_text_iter_ptr(start: Option<&'static mut DecorVirtText>) -> VirtTextPtrIter {
+    VirtTextPtrIter(start.map_or(ptr::null_mut(), ptr::from_mut))
 }
 
 use crate::extmark::{
@@ -496,11 +476,11 @@ fn decor_st() -> &'static mut DecorationModuleState {
 }
 
 #[inline]
-const fn mt_decor_virt(mark: MTKey) -> *mut DecorVirtText {
+fn mt_decor_virt(mark: MTKey) -> Option<&'static mut DecorVirtText> {
     if (mark.flags & MT_FLAG_DECOR_EXT) != 0 {
-        mark.decor_data.ext().vt
+        mark.decor_data.ext().vt_opt()
     } else {
-        ptr::null_mut()
+        None
     }
 }
 
@@ -559,7 +539,7 @@ pub fn bufhl_add_hl_pos_offset(
 
 pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: DecorInline) {
     if decor.is_ext() {
-        for vt in virt_text_iter_mut(decor.data.ext().vt) {
+        for vt in virt_text_iter_mut(decor.data.ext().vt_opt()) {
             let below = (vt.flags & K_VTIS_LINES) != 0 && (vt.flags & K_VTLINES_ABOVE) == 0;
             let vt_lnum = row1 + 1 + i32::from(below);
             redraw_buf_line_later(buf, vt_lnum, true);
@@ -624,8 +604,11 @@ pub fn decor_put_sh(item: DecorSignHighlight) -> u32 {
     }
 }
 
-pub fn decor_put_vt(mut vt: DecorVirtText, next: *mut DecorVirtText) -> &'static mut DecorVirtText {
-    vt.next = (!next.is_null()).then(|| unsafe { Box::from_raw(next) });
+pub fn decor_put_vt(
+    mut vt: DecorVirtText,
+    next: Option<&'static mut DecorVirtText>,
+) -> &'static mut DecorVirtText {
+    vt.next = next.map(|n| unsafe { Box::from_raw(n) });
     Box::leak(Box::new(vt))
 }
 
@@ -770,8 +753,8 @@ fn decor_free_sh(first_idx: u32) {
 }
 
 pub fn decor_state_invalidate(buf: &mut FileBuf) {
-    if !g_st().decor_state.win.is_null()
-        && std::ptr::eq(crate::globals::gptr(g_st().decor_state.win).w_buffer, buf)
+    if let Some(win) = unsafe { g_st().decor_state.win.as_ref() }
+        && std::ptr::eq(win.w_buffer, buf)
     {
         g_st().decor_state.itr_valid = false;
     }
@@ -869,7 +852,11 @@ pub fn next_virt_text_chunk<'a>(
     text
 }
 
-pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> *mut DecorVirtText {
+pub fn decor_find_virttext(
+    buf: &mut FileBuf,
+    row: i32,
+    ns_id: u64,
+) -> Option<&'static mut DecorVirtText> {
     let mut itr = MarkTreeIter::new();
     marktree_itr_get(&buf.b_marktree, row, 0, &mut itr);
     loop {
@@ -878,16 +865,22 @@ pub fn decor_find_virttext(buf: &mut FileBuf, row: i32, ns_id: u64) -> *mut Deco
             break;
         } else if !mt_invalid(mark) {
             let mut decor = mt_decor_virt(mark);
-            while !decor.is_null() && (crate::globals::gptr(decor).flags & K_VTIS_LINES) != 0 {
-                decor = crate::globals::gptr(decor).next_ptr();
+            while let Some(d) = decor {
+                if (d.flags & K_VTIS_LINES) == 0 {
+                    decor = Some(d);
+                    break;
+                }
+                decor = d.next_opt();
             }
-            if (ns_id == 0 || ns_id == u64::from(mark.ns)) && !decor.is_null() {
-                return decor;
+            if (ns_id == 0 || ns_id == u64::from(mark.ns))
+                && let Some(d) = decor
+            {
+                return Some(d);
             }
         }
         marktree_itr_next(&buf.b_marktree, &mut itr);
     }
-    ptr::null_mut()
+    None
 }
 
 pub fn decor_redraw_reset(wp: &mut WinInfoInfo, state: &mut DecorState) -> bool {
@@ -910,7 +903,7 @@ pub fn decor_virt_pos(decor: &DecorRange) -> bool {
 
 pub fn decor_virt_pos_kind(decor: &DecorRange) -> VirtTextPos {
     match decor.data {
-        DecorRangeData::Vt(vt) => crate::globals::gptr(vt).pos,
+        DecorRangeData::Vt(vt) => unsafe { (*vt).pos },
         DecorRangeData::Ui(ui) => ui.pos,
         _ => K_VPOS_END_OF_LINE,
     }
@@ -991,10 +984,7 @@ pub fn decor_has_more_decorations(state: &mut DecorState, row: i32) -> bool {
         return true;
     }
 
-    let k = marktree_itr_current(
-        &crate::globals::gptr(crate::globals::gptr(state.win).w_buffer).b_marktree,
-        &state.itr,
-    );
+    let k = marktree_itr_current(unsafe { &(*(*state.win).w_buffer).b_marktree }, &state.itr);
     k.pos.row >= 0 && k.pos.row <= row
 }
 
@@ -1011,9 +1001,9 @@ fn decor_range_add_from_inline(
 ) {
     if decor.is_ext() {
         let vt_start = if state.conceal_only {
-            ptr::null_mut()
+            None
         } else {
-            decor.data.ext().vt
+            decor.data.ext().vt_opt()
         };
         for vt in virt_text_iter_ptr(vt_start) {
             decor_range_add_virt(state, start_row, start_col, end_row, end_col, vt, owned);
@@ -1082,23 +1072,24 @@ pub fn decor_range_add_virt(
     start_col: i32,
     end_row: i32,
     end_col: i32,
-    vt: *mut DecorVirtText,
+    vt: &'static mut DecorVirtText,
     owned: bool,
 ) {
-    let vt_ref = crate::globals::gref(vt);
-    let is_lines = (vt_ref.flags & K_VTIS_LINES) != 0;
+    let is_lines = (vt.flags & K_VTIS_LINES) != 0;
+    let priority = vt.priority;
+    let vt_ptr: *mut DecorVirtText = vt;
     let range = DecorRange {
         start_row,
         start_col,
         end_row,
         end_col,
         ordering: 0,
-        priority_internal: DecorPriorityInternal::from(vt_ref.priority) << 16,
+        priority_internal: DecorPriorityInternal::from(priority) << 16,
         owned,
         data: if is_lines {
-            DecorRangeData::VirtLines(vt)
+            DecorRangeData::VirtLines(vt_ptr)
         } else {
-            DecorRangeData::Vt(vt)
+            DecorRangeData::Vt(vt_ptr)
         },
         attr_id: 0,
         draw_col: -10,
@@ -1182,20 +1173,19 @@ pub fn decor_range_add_sh(
 
 pub fn decor_init_draw_col(win_col: i32, hidden: bool, item: &mut DecorRange) {
     let vt = if item.data.is_vt() {
-        item.data.vt()
+        item.data.vt_opt()
     } else {
-        ptr::null_mut()
+        None
     };
     let pos = decor_virt_pos_kind(item);
     if win_col < 0 && pos != K_VPOS_INLINE {
         item.draw_col = win_col;
     } else if pos == K_VPOS_OVERLAY {
-        item.draw_col =
-            if !vt.is_null() && (crate::globals::gptr(vt).flags & K_VTHIDE) != 0 && hidden {
-                i32::MIN
-            } else {
-                win_col
-            };
+        item.draw_col = if vt.is_some_and(|v| (v.flags & K_VTHIDE) != 0) && hidden {
+            i32::MIN
+        } else {
+            win_col
+        };
     } else {
         item.draw_col = -1;
     }
@@ -1221,8 +1211,7 @@ pub fn decor_redraw_col_impl(
     state: &mut DecorState,
     max_col_last: i32,
 ) -> i32 {
-    let buf = wp.w_buffer;
-    let buf = crate::globals::gmut(buf);
+    let buf = wp.buf_mut();
     let row = state.row;
     let mut col_last = max_col_last;
 
@@ -1315,8 +1304,8 @@ pub fn decor_redraw_col_impl(
 
     for i in 0..cur_end {
         let index = (&state.ranges_i)[i as usize];
-        let slot = &raw mut (&mut state.slots)[index as usize];
-        let r = crate::globals::gmut(slot).range_mut();
+        let slot: *mut DecorRangeSlot = &raw mut (&mut state.slots)[index as usize];
+        let r = unsafe { (*slot).range_mut() };
 
         let keep: bool;
         if r.end_row < row || (r.end_row == row && r.end_col <= col) {
@@ -1378,11 +1367,8 @@ pub fn decor_redraw_col_impl(
             (&mut state.ranges_i)[new_cur_end as usize] = index;
             new_cur_end += 1;
         } else {
-            let fi = &raw mut state.free_slot_i;
-
-            *crate::globals::gptr(slot) = DecorRangeSlot::Free(*crate::globals::gptr(fi));
-
-            *crate::globals::gptr(fi) = index;
+            unsafe { *slot = DecorRangeSlot::Free(state.free_slot_i) };
+            state.free_slot_i = index;
         }
     }
     cur_end = new_cur_end;
@@ -1497,16 +1483,14 @@ pub fn sign_item_cmp(s1: &SignItem<'_>, s2: &SignItem<'_>) -> Ordering {
 }
 
 pub fn decor_redraw_signs(
-    wp: *mut WinInfoInfo,
-    buf: *mut FileBuf,
+    wp: &mut WinInfoInfo,
+    buf: &mut FileBuf,
     row: i32,
-    sattrs: *mut SignTextAttrs,
+    mut sattrs: Option<&mut [SignTextAttrs]>,
     mut line_id: Option<&mut i32>,
     mut cul_id: Option<&mut i32>,
     mut num_id: Option<&mut i32>,
 ) {
-    let wp = crate::globals::gmut(wp);
-    let buf = crate::globals::gmut(buf);
     if !buf_has_signs(&*buf) {
         return;
     }
@@ -1561,11 +1545,12 @@ pub fn decor_redraw_signs(
 
         for item in &signs {
             let sh = item.sh;
-            if !sattrs.is_null() && (idx as i32) < len && sh.text[0] != 0 {
-                crate::globals::gptr(sattrs.wrapping_add(idx)).text = sh.text;
-
-                crate::globals::gptr(sattrs.wrapping_add(idx)).hl_id = sh.hl_id;
-
+            if let Some(ref mut sattrs) = sattrs
+                && (idx as i32) < len
+                && sh.text[0] != 0
+            {
+                sattrs[idx].text = sh.text;
+                sattrs[idx].hl_id = sh.hl_id;
                 idx += 1;
             }
             if num_id.is_some() && *num_id.as_deref_mut().unwrap() <= 0 {
@@ -1762,13 +1747,13 @@ pub fn decor_virt_lines(
     mut lines: Option<&mut VirtLines>,
     apply_folds: bool,
 ) -> i32 {
-    let buf = wp.w_buffer;
-    if buf_meta_total(crate::globals::gref(buf), K_MTMETA_LINES) == 0 {
+    let buf = unsafe { &*wp.w_buffer };
+    if buf_meta_total(buf, K_MTMETA_LINES) == 0 {
         return 0;
     }
 
     let mut itr = MarkTreeIter::new();
-    let b = &crate::globals::gptr(buf).b_marktree;
+    let b = &buf.b_marktree;
     if !marktree_itr_get_filter(
         b,
         (start_row - 1).max(0),
@@ -1788,10 +1773,10 @@ pub fn decor_virt_lines(
         let mark = marktree_itr_current(b, &itr);
         let mut vt = mt_decor_virt(mark);
         if !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
-            while !vt.is_null() {
-                let virt_lines = crate::globals::gref(vt).data.virt_lines();
-                if (crate::globals::gptr(vt).flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
-                    let above = (crate::globals::gptr(vt).flags & K_VTLINES_ABOVE) != 0;
+            while let Some(vt_ref) = vt {
+                let virt_lines = vt_ref.data.virt_lines();
+                if (vt_ref.flags & K_VTIS_LINES) != 0 && !virt_lines.is_empty() {
+                    let above = (vt_ref.flags & K_VTLINES_ABOVE) != 0;
                     let mrow = mark.pos.row;
                     let draw_row = mrow + if above { 0 } else { 1 };
                     if draw_row >= start_row
@@ -1820,7 +1805,7 @@ pub fn decor_virt_lines(
                     }
                 }
 
-                vt = crate::globals::gptr(vt).next_ptr();
+                vt = vt_ref.next_opt();
             }
         }
 
@@ -1841,7 +1826,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
     let mut priority: i32 = -1;
 
     if decor.is_ext() {
-        for vt in virt_text_iter_ptr(decor.data.ext().vt) {
+        for vt in virt_text_iter_ptr(decor.data.ext().vt_opt()) {
             if (vt.flags & K_VTIS_LINES) != 0 {
                 virt_lines = Some(vt);
             } else {
@@ -2005,7 +1990,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 pub fn decor_type_flags(decor: DecorInline) -> u16 {
     if decor.is_ext() {
         let mut type_flags: u16 = K_EXTMARK_NONE;
-        for vt in virt_text_iter_mut(decor.data.ext().vt) {
+        for vt in virt_text_iter_mut(decor.data.ext().vt_opt()) {
             type_flags |= if (vt.flags & K_VTIS_LINES) != 0 {
                 K_EXTMARK_VIRT_LINES
             } else {

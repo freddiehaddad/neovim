@@ -56,8 +56,8 @@ pub struct Bhdr {
 
 impl Bhdr {
     #[inline]
-    pub fn data_ptr(&mut self) -> *mut u8 {
-        self.bh_data.as_mut_ptr()
+    pub fn data_slice_mut(&mut self) -> &mut [u8] {
+        &mut self.bh_data
     }
 }
 
@@ -86,17 +86,12 @@ fn perror_msg(msg: &std::ffi::CStr) {
 }
 
 #[inline]
-pub fn pmap_get_bhdr(map: &std::collections::HashMap<i64, Box<Bhdr>>, key: i64) -> *mut Bhdr {
-    map.get(&key)
-        .map_or(ptr::null_mut(), |b| (&raw const **b).cast_mut())
-}
-
-#[inline]
-pub fn pmap_get_bhdr_opt(
+pub fn pmap_get_bhdr(
     map: &std::collections::HashMap<i64, Box<Bhdr>>,
     key: i64,
 ) -> Option<&'static mut Bhdr> {
-    crate::globals::gopt_mut(pmap_get_bhdr(map, key))
+    map.get(&key)
+        .map(|b| unsafe { &mut *(&raw const **b).cast_mut() })
 }
 
 /// Open a new or existing memory block file.
@@ -181,7 +176,10 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
 pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     let mfp = buf.b_ml.mfp_ptr();
-    if mfp.is_null() || crate::globals::gptr(mfp).mf_fd < 0 {
+    let Some(mfp_ref) = (unsafe { mfp.as_mut() }) else {
+        return;
+    };
+    if mfp_ref.mf_fd < 0 {
         return;
     }
 
@@ -191,16 +189,16 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
         }
     }
 
-    if unsafe { close(crate::globals::gptr(mfp).mf_fd) } < 0 {
+    if unsafe { close(mfp_ref.mf_fd) } < 0 {
         emsg(gettext(E_SWAPCLOSE));
     }
 
-    crate::globals::gptr(mfp).mf_fd = -1;
+    mfp_ref.mf_fd = -1;
 
-    if let Some(ref fname) = *unsafe { &((*mfp).mf_fname) } {
+    if let Some(ref fname) = mfp_ref.mf_fname {
         os_remove(fname.as_ptr());
 
-        mf_free_fnames(crate::globals::gmut(mfp));
+        mf_free_fnames(mfp_ref);
     }
 }
 
@@ -210,7 +208,7 @@ pub fn mf_new_page_size(mfp: &mut Memfile, new_size: u32) {
 }
 
 /// Get a new block.
-pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> *mut Bhdr {
+pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> &'static mut Bhdr {
     let bnum: Blocknr = if !negative
         && let Some(freep) = mfp.mf_free_list.last_mut()
         && freep.bh_page_count >= page_count
@@ -239,37 +237,36 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> *mut Bhdr {
     let hp: *mut Bhdr = &raw mut *boxed;
     mfp.mf_dirty = MF_DIRTY_YES;
     mfp.mf_hash.insert(bnum, boxed);
-    crate::globals::gmut(hp)
+    unsafe { &mut *hp }
 }
 
 /// Get existing block `nr` with `page_count` pages.
-pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> *mut Bhdr {
+pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> Option<&'static mut Bhdr> {
     if nr >= mfp.mf_blocknr_max || nr <= mfp.mf_blocknr_min {
-        return ptr::null_mut();
+        return None;
     }
 
-    if let Some(hp) = pmap_get_bhdr_opt(&mfp.mf_hash, nr) {
+    if let Some(hp) = pmap_get_bhdr(&mfp.mf_hash, nr) {
         hp.bh_flags |= BH_LOCKED;
-        return hp;
+        return Some(hp);
     }
 
     if nr < 0 || nr >= mfp.mf_infile_count || page_count == 0 {
-        return ptr::null_mut();
+        return None;
     }
 
     let mut boxed = mf_alloc_bhdr(mfp, nr, page_count, BH_LOCKED);
     if !mf_read(mfp, &mut boxed) {
-        return ptr::null_mut();
+        return None;
     }
     let hp: *mut Bhdr = &raw mut *boxed;
     mfp.mf_hash.insert(nr, boxed);
 
-    hp
+    Some(unsafe { &mut *hp })
 }
 
 /// Release the block `*hp`.
-pub fn mf_put(mfp: &mut Memfile, hp: *mut Bhdr, dirty: bool, infile: bool) {
-    let hp = crate::globals::gmut(hp);
+pub fn mf_put(mfp: &mut Memfile, hp: &mut Bhdr, dirty: bool, infile: bool) {
     let mut flags = hp.bh_flags;
 
     if (flags & BH_LOCKED) == 0 {
@@ -327,7 +324,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
         .collect();
 
     for hp_ptr in blocks {
-        let hp = crate::globals::gmut(hp_ptr);
+        let hp = unsafe { &mut *hp_ptr };
         if ((flags & MFS_ALL) != 0 || hp.bh_bnum >= 0)
             && (hp.bh_flags & BH_DIRTY) != 0
             && (status || (hp.bh_bnum >= 0 && hp.bh_bnum < mfp.mf_infile_count))
@@ -347,7 +344,7 @@ pub fn mf_sync(mfp: &mut Memfile, flags: i32) -> bool {
                     completed_all = false;
                     break;
                 }
-            } else if *crate::globals::gptr(loop_recursive_ptr(&mut g_st().main_loop)) == 0 {
+            } else if unsafe { *loop_recursive_ptr(&mut g_st().main_loop) } == 0 {
                 os_breakcheck();
             }
             if g_st().got_int {
@@ -388,25 +385,24 @@ pub fn mf_release_all() -> bool {
 
     for buf in for_all_buffers_mut() {
         let mfp = buf.b_ml.mfp_ptr();
-        if !mfp.is_null() {
-            if crate::globals::gptr(mfp).mf_fd < 0 && buf.b_may_swap {
+        if let Some(mfp_ref) = unsafe { mfp.as_mut() } {
+            if mfp_ref.mf_fd < 0 && buf.b_may_swap {
                 ml_open_file(buf);
             }
 
-            if crate::globals::gptr(mfp).mf_fd >= 0 {
-                let blocks: Vec<*mut Bhdr> = crate::globals::gptr(mfp)
+            if mfp_ref.mf_fd >= 0 {
+                let blocks: Vec<*mut Bhdr> = mfp_ref
                     .mf_hash
                     .values()
                     .map(|b| (&raw const **b).cast_mut())
                     .collect();
                 for hp in blocks {
-                    if (crate::globals::gptr(hp).bh_flags & BH_LOCKED) == 0
-                        && ((crate::globals::gptr(hp).bh_flags & BH_DIRTY) == 0
-                            || mf_write(crate::globals::gmut(mfp), crate::globals::gmut(hp)))
+                    let hp_ref = unsafe { &mut *hp };
+                    if (hp_ref.bh_flags & BH_LOCKED) == 0
+                        && ((hp_ref.bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_ref))
                     {
-                        let _ = crate::globals::gptr(mfp)
-                            .mf_hash
-                            .remove(&crate::globals::gptr(hp).bh_bnum);
+                        let bnum = hp_ref.bh_bnum;
+                        let _ = mfp_ref.mf_hash.remove(&bnum);
                         retval = true;
                     }
                 }
@@ -440,7 +436,7 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
     }
     assert!(hp.bh_page_count <= u32::MAX / page_size);
     let size = (page_size * hp.bh_page_count) as usize;
-    let nread = read_eintr(mfp.mf_fd, hp.data_ptr().cast(), size);
+    let nread = read_eintr(mfp.mf_fd, hp.data_slice_mut().as_mut_ptr().cast(), size);
     if (nread as usize) != size {
         perror_msg(c"E295: Read error in swap file");
         return false;
@@ -462,19 +458,15 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
 
     loop {
         let mut nr = hp.bh_bnum;
-        let hp2: *mut Bhdr = if nr > mfp.mf_infile_count {
+        let hp2: Option<&mut Bhdr> = if nr > mfp.mf_infile_count {
             nr = mfp.mf_infile_count;
             pmap_get_bhdr(&mfp.mf_hash, nr)
         } else {
-            (&raw mut *hp)
+            Some(unsafe { &mut *ptr::from_mut(hp) })
         };
 
         let offset = i64::from(page_size).wrapping_mul(nr);
-        let page_count = if hp2.is_null() {
-            1
-        } else {
-            crate::globals::gptr(hp2).bh_page_count
-        };
+        let page_count = hp2.as_deref().map_or(1, |h| h.bh_page_count);
         let size = (page_size * page_count) as usize;
 
         for attempt in 1..=2 {
@@ -483,10 +475,9 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
                     perror_msg(c"E296: Seek error in swap file write");
                     return false;
                 }
-                let data = if hp2.is_null() {
-                    hp.data_ptr()
-                } else {
-                    crate::globals::gptr(hp2).data_ptr()
+                let data = match hp2.as_deref() {
+                    Some(h) => h.bh_data.as_ptr(),
+                    None => hp.bh_data.as_ptr(),
                 };
                 let nwritten = write_eintr(mfp.mf_fd, data.cast(), size);
                 if (nwritten as usize) == size {
@@ -521,8 +512,8 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
         {
             g_st().did_swapwrite_msg = false;
         }
-        if !hp2.is_null() {
-            crate::globals::gptr(hp2).bh_flags &= !BH_DIRTY;
+        if let Some(hp2) = hp2 {
+            hp2.bh_flags &= !BH_DIRTY;
         }
         if nr + i64::from(page_count) > mfp.mf_infile_count {
             mfp.mf_infile_count = nr + i64::from(page_count);
@@ -649,15 +640,15 @@ mod tests {
         assert_eq!(mfp.mf_page_size, 4096);
 
         let hp1 = mf_new(mfp, true, 1);
-        assert!(!hp1.is_null());
-        assert_eq!(crate::globals::gptr(hp1).bh_bnum, -1);
+        let hp1_ptr: *mut Bhdr = hp1;
+        assert_eq!(hp1.bh_bnum, -1);
         mf_put(&mut *mfp, hp1, true, true);
         assert_eq!(mf_trans_del(mfp, -1), 0);
 
-        let hp2 = mf_get(mfp, 0, 1);
-        assert_eq!(hp2, hp1);
+        let hp2 = mf_get(mfp, 0, 1).expect("mf_get failed");
+        assert!(ptr::eq(hp2, hp1_ptr));
         mf_put(&mut *mfp, hp2, false, false);
-        mf_free(mfp, crate::globals::gmut(hp2));
+        mf_free(mfp, hp2);
 
         mf_close(Some(mfp_box), false);
     }
@@ -677,7 +668,7 @@ mod tests {
             for i in 0..TEST_COUNT {
                 assert_eq!(ht.len(), i);
                 let key = index_to_key(i);
-                assert!(pmap_get_bhdr(&ht, key).is_null());
+                assert!(pmap_get_bhdr(&ht, key).is_none());
 
                 let mut boxed = Box::new(Bhdr {
                     bh_bnum: key,
@@ -687,40 +678,40 @@ mod tests {
                 });
                 let item: *mut Bhdr = &raw mut *boxed;
                 ht.insert(key, boxed);
-                assert_eq!(pmap_get_bhdr(&ht, key), item);
+                assert!(ptr::eq(pmap_get_bhdr(&ht, key).unwrap(), item));
                 items.push(item);
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                let item = pmap_get_bhdr(&ht, key).unwrap();
                 assert_eq!(item.bh_bnum, key);
             }
 
             for i in 0..TEST_COUNT {
                 if i % 100 < 70 {
                     let key = index_to_key(i);
-                    let item_ptr = pmap_get_bhdr(&ht, key);
-                    let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                    let item_ptr: *mut Bhdr = pmap_get_bhdr(&ht, key).unwrap();
+                    let item = pmap_get_bhdr(&ht, key).unwrap();
                     assert_eq!(item.bh_bnum, key);
 
                     let removed = ht.remove(&key).unwrap();
-                    assert!(pmap_get_bhdr(&ht, key).is_null());
+                    assert!(pmap_get_bhdr(&ht, key).is_none());
 
                     ht.insert(key, removed);
-                    assert_eq!(pmap_get_bhdr(&ht, key), item_ptr);
+                    assert!(ptr::eq(pmap_get_bhdr(&ht, key).unwrap(), item_ptr));
 
                     ht.remove(&key);
-                    assert!(pmap_get_bhdr(&ht, key).is_null());
+                    assert!(pmap_get_bhdr(&ht, key).is_none());
                 }
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
                 if i % 100 < 70 {
-                    assert!(pmap_get_bhdr_opt(&ht, key).is_none());
+                    assert!(pmap_get_bhdr(&ht, key).is_none());
                 } else {
-                    let item = pmap_get_bhdr_opt(&ht, key).unwrap();
+                    let item = pmap_get_bhdr(&ht, key).unwrap();
                     assert_eq!(item.bh_bnum, key);
                 }
             }

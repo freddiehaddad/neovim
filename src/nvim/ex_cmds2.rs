@@ -77,8 +77,8 @@ fn curwin_argcount() -> i32 {
 }
 
 #[inline]
-fn curwin_arglist() -> *mut Aentry {
-    crate::arglist::arglist()
+fn curwin_arglist() -> &'static mut Aentry {
+    unsafe { &mut *crate::arglist::arglist() }
 }
 
 pub fn ex_ruby(eap: &mut Exarg) {
@@ -144,15 +144,12 @@ pub fn autowrite_all() {
     }
 
     let mut buf = g_st().firstbuf;
-    while !buf.is_null() {
-        if buf_is_changed_fn(crate::globals::gmut(buf))
-            && crate::globals::gptr(buf).b_p_ro == 0
-            && !bt_dontwrite(crate::globals::gopt(buf))
-        {
+    while let Some(buf_ref) = unsafe { buf.as_mut() } {
+        if buf_is_changed_fn(buf_ref) && buf_ref.b_p_ro == 0 && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf);
 
-            buf_write_all(crate::globals::gmut(buf), false);
+            buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
                 buf = g_st().firstbuf;
@@ -160,7 +157,7 @@ pub fn autowrite_all() {
             }
         }
 
-        buf = crate::globals::gptr(buf).b_next;
+        buf = unsafe { (*buf).b_next };
     }
 }
 
@@ -249,24 +246,17 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         unchanged(buf, true, false);
     } else if ret == VIM_ALL {
         let mut buf2 = g_st().firstbuf;
-        while !buf2.is_null() {
-            if buf_is_changed_fn(crate::globals::gmut(buf2))
-                && !crate::globals::gptr(buf2).b_ffname.is_null()
-                && crate::globals::gptr(buf2).b_p_ro == 0
-            {
+        while let Some(buf2_ref) = unsafe { buf2.as_mut() } {
+            if buf_is_changed_fn(buf2_ref) && !buf2_ref.b_ffname.is_null() && buf2_ref.b_p_ro == 0 {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf2);
 
-                if !crate::globals::gptr(buf2).b_fname.is_null()
-                    && check_overwrite(
-                        &mut ea,
-                        crate::globals::gmut(buf2),
-                        crate::globals::gptr(buf2).b_fname,
-                        crate::globals::gptr(buf2).b_ffname,
-                        false,
-                    )
+                let b_fname = buf2_ref.b_fname;
+                let b_ffname = buf2_ref.b_ffname;
+                if !b_fname.is_null()
+                    && check_overwrite(&mut ea, buf2_ref, b_fname, b_ffname, false)
                 {
-                    buf_write_all(crate::globals::gmut(buf2), false);
+                    buf_write_all(unsafe { &mut *buf2 }, false);
                 }
                 if !bufref_valid(Some(&bufref)) {
                     buf2 = g_st().firstbuf;
@@ -274,7 +264,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 }
             }
 
-            buf2 = crate::globals::gptr(buf2).b_next;
+            buf2 = unsafe { (*buf2).b_next };
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
@@ -352,15 +342,15 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     let mut i: usize = 0;
     while i < bufnrs.len() {
         buf = buflist_findnr(bufnrs[i]);
-        if !buf.is_null()
-            && (!hidden || crate::globals::gptr(buf).b_nwindows == 0)
-            && buf_is_changed_fn(crate::globals::gmut(buf))
+        if let Some(buf_ref) = unsafe { buf.as_mut() }
+            && (!hidden || buf_ref.b_nwindows == 0)
+            && buf_is_changed_fn(buf_ref)
         {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf);
 
             if check_changed(
-                crate::globals::gmut(buf),
+                buf_ref,
                 (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 }) | CCGD_MULTWIN | CCGD_ALLBUF,
             ) && bufref_valid(Some(&bufref))
             {
@@ -371,6 +361,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     }
 
     if i < bufnrs.len() {
+        let buf_ref = unsafe { &*buf };
         ret = true;
         g_st().exiting = false;
         if opt_vars().p_confirm == 0 && (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) == 0 {
@@ -379,24 +370,23 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
             }
-            let shown = if !crate::globals::gptr(buf).terminal.is_null()
-                && channel_job_running(crate::globals::gptr(buf).b_p_channel as u64)
-            {
-                semsg!(
-                    gettext(c"E947: Job still running in buffer \"%s\""),
-                    crate::globals::gptr(buf).b_fname,
-                )
-            } else {
-                let sp = buf_spname(crate::globals::gref(buf));
-                semsg!(
-                    gettext(c"E162: No write since last change for buffer \"%s\""),
-                    if let Some(sp) = sp {
-                        sp.as_ptr()
-                    } else {
-                        crate::globals::gptr(buf).b_fname.cast_const()
-                    },
-                )
-            };
+            let shown =
+                if !buf_ref.terminal.is_null() && channel_job_running(buf_ref.b_p_channel as u64) {
+                    semsg!(
+                        gettext(c"E947: Job still running in buffer \"%s\""),
+                        buf_ref.b_fname,
+                    )
+                } else {
+                    let sp = buf_spname(buf_ref);
+                    semsg!(
+                        gettext(c"E162: No write since last change for buffer \"%s\""),
+                        if let Some(sp) = sp {
+                            sp.as_ptr()
+                        } else {
+                            buf_ref.b_fname.cast_const()
+                        },
+                    )
+                };
             if shown && g_st().msg_didany {
                 let save = g_st().no_wait_return;
                 g_st().no_wait_return = 0;
@@ -411,13 +401,15 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         if buf != g_st().curbuf {
             let mut found = false;
             let mut tp = g_st().first_tabpage;
-            while !tp.is_null() && !found {
-                for wp in win_iter_ptr(first_win_in_tab(crate::globals::gmut(tp))) {
+            while let Some(tp_ref) = unsafe { tp.as_mut() }
+                && !found
+            {
+                for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
                     if wp.w_buffer == buf {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf);
 
-                        goto_tabpage_win(crate::globals::gmut(tp), wp);
+                        goto_tabpage_win(unsafe { &mut *tp }, wp);
 
                         if !bufref_valid(Some(&bufref)) {
                             wiped = true;
@@ -427,7 +419,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     }
                 }
 
-                tp = crate::globals::gptr(tp).tp_next;
+                tp = unsafe { (*tp).tp_next };
             }
         }
 
@@ -522,14 +514,14 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 while !wp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    wp = crate::globals::gptr(wp).w_next;
+                    wp = unsafe { (*wp).w_next };
                 }
             }
             CMD_TABDO => {
                 while !tp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    tp = crate::globals::gptr(tp).tp_next;
+                    tp = unsafe { (*tp).tp_next };
                 }
             }
             CMD_ARGDO => {
@@ -543,19 +535,18 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         if eap.cmdidx == CMD_BUFDO {
             buf = g_st().firstbuf;
-            while !buf.is_null()
-                && (crate::globals::gptr(buf).b_fnum < eap.line1
-                    || crate::globals::gptr(buf).b_p_bl == 0)
+            while let Some(buf_ref) = unsafe { buf.as_ref() }
+                && (buf_ref.b_fnum < eap.line1 || buf_ref.b_p_bl == 0)
             {
-                if crate::globals::gptr(buf).b_fnum > eap.line2 {
+                if buf_ref.b_fnum > eap.line2 {
                     buf = ptr::null_mut();
                     break;
                 }
 
-                buf = crate::globals::gptr(buf).b_next;
+                buf = buf_ref.b_next;
             }
-            if !buf.is_null() {
-                goto_buffer(eap, DOBUF_FIRST, FORWARD, crate::globals::gptr(buf).b_fnum);
+            if let Some(buf_ref) = unsafe { buf.as_ref() } {
+                goto_buffer(eap, DOBUF_FIRST, FORWARD, buf_ref.b_fnum);
             }
         } else if eap.cmdidx == CMD_CDO
             || eap.cmdidx == CMD_LDO
@@ -599,9 +590,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 }
                 debug_assert!(!wp.is_null());
 
-                execute = !crate::globals::gptr(wp).w_floating
-                    || (!crate::globals::gptr(wp).w_config.hide
-                        && crate::globals::gptr(wp).w_config.focusable);
+                let wp_ref = unsafe { &*wp };
+                execute =
+                    !wp_ref.w_floating || (!wp_ref.w_config.hide && wp_ref.w_config.focusable);
 
                 if execute {
                     win_goto(wp);
@@ -610,7 +601,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     }
                 }
 
-                wp = crate::globals::gptr(wp).w_next;
+                wp = unsafe { (*wp).w_next };
             } else if eap.cmdidx == CMD_TABDO {
                 if !valid_tabpage(tp) {
                     break;
@@ -618,7 +609,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 debug_assert!(!tp.is_null());
                 goto_tabpage_tp(tp, true, true);
 
-                tp = crate::globals::gptr(tp).tp_next;
+                tp = unsafe { (*tp).tp_next };
             } else if eap.cmdidx == CMD_BUFDO {
                 next_fnum = -1;
                 for bp in buf_iter_mut(curbuf_mut().b_next) {
@@ -697,12 +688,10 @@ pub fn ex_listdo(eap: &mut Exarg) {
         au_event_restore(save_ei);
 
         let mut buf = g_st().firstbuf;
-        while !buf.is_null() {
-            let mut bnext = crate::globals::gptr(buf).b_next;
-            if crate::globals::gptr(buf).b_nwindows > 0
-                && (crate::globals::gptr(buf).b_flags & BF_SYN_SET) != 0
-            {
-                crate::globals::gptr(buf).b_flags &= !BF_SYN_SET;
+        while let Some(buf_ref) = unsafe { buf.as_mut() } {
+            let mut bnext = buf_ref.b_next;
+            if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
+                buf_ref.b_flags &= !BF_SYN_SET;
 
                 if buf == g_st().curbuf {
                     apply_autocmds(
@@ -713,15 +702,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
                         g_st().curbuf,
                     );
                 } else {
-                    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                    let b_p_syn = buf_ref.b_p_syn;
+                    let b_fname = buf_ref.b_fname;
+                    ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
-                    apply_autocmds(
-                        EVENT_SYNTAX,
-                        crate::globals::gptr(buf).b_p_syn,
-                        crate::globals::gptr(buf).b_fname,
-                        true,
-                        buf,
-                    );
+                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, buf);
 
                     ctx_restore(&mut aco);
                 }
@@ -848,7 +833,7 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    let buf = buflist_findnr(crate::globals::gptr(curwin_arglist()).ae_fnum);
+    let buf = buflist_findnr(curwin_arglist().ae_fnum);
 
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {
@@ -890,7 +875,7 @@ pub fn ex_drop(eap: &mut Exarg) {
     if split {
         eap.cmdidx = CMD_SFIRST;
 
-        *crate::globals::gptr(eap.cmd.cast::<u8>()) = b's';
+        unsafe { *eap.cmd.cast::<u8>() = b's' };
     } else {
         eap.cmdidx = CMD_FIRST;
     }

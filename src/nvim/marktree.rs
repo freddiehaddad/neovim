@@ -98,6 +98,13 @@ pub struct DecorExt {
     pub vt: *mut crate::decoration::DecorVirtText,
 }
 
+impl DecorExt {
+    #[inline]
+    pub fn vt_opt(self) -> Option<&'static mut crate::decoration::DecorVirtText> {
+        unsafe { self.vt.as_mut() }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub enum DecorInlineData {
     Hl(DecorHighlightInline),

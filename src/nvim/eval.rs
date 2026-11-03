@@ -6168,18 +6168,13 @@ pub fn eval_isdictc<C: crate::charset::AsciiInt>(c: C) -> bool {
 }
 
 /// Set the v:argv list.
-pub fn set_argv_var<T>(argv: *mut *mut T, argc: i32) {
-    let l = tv_list_alloc(argc as isize);
+pub fn set_argv_var(argv: &[std::ffi::CString]) {
+    let l = tv_list_alloc(argv.len() as isize);
 
     tv_list_set_lock(Some(&mut *l), VAR_FIXED);
-    for i in 0..(argc as usize) {
-        tv_list_append_string(
-            &mut *l,
-            crate::globals::gptr(argv.wrapping_add(i)).cast(),
-            -1,
-        );
-
-        tv_list_item_tv(crate::globals::gmut(tv_list_last(Some(&*l)))).v_lock = VAR_FIXED;
+    for arg in argv {
+        tv_list_append_string(&mut *l, arg.as_ptr(), -1);
+        tv_list_item_tv(unsafe { &mut *tv_list_last(Some(&*l)) }).v_lock = VAR_FIXED;
     }
     set_vim_var_list(VV_ARGV, l);
 }
@@ -6619,7 +6614,7 @@ pub fn ex_echo(eap: &mut Exarg) {
 
 /// ":echohl {name}".
 pub fn ex_echohl(eap: &mut Exarg) {
-    eval_st().echo_hl_id = syn_name2id(eap.arg);
+    eval_st().echo_hl_id = syn_name2id(crate::memory::cstr_from_ptr(eap.arg));
 }
 
 /// Returns the :echo highlight id.

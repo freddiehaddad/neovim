@@ -388,7 +388,7 @@ pub fn set_context_in_user_cmdarg<'a>(
     }
 
     if context == EXPAND_MENUS {
-        set_context_in_menu_cmd(xp, cmd.as_ptr(), arg.cast(), forceit);
+        set_context_in_menu_cmd(xp, cmd, crate::memory::cstr_from_ptr(arg.cast()), forceit);
         return None;
     }
     if context == EXPAND_COMMANDS {

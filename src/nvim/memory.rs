@@ -172,7 +172,7 @@ fn try_to_free_memory() {
 }
 
 fn out_of_memory_exit() -> ! {
-    preserve_exit(E_OUTOFMEM)
+    preserve_exit(Some(E_OUTOFMEM))
 }
 
 /// Free all cached reusable arena blocks (`arena_free_reuse_blks`).
@@ -251,7 +251,9 @@ pub fn free_items<T>(items: *mut T) {
 pub fn alloc_cstring_len(data: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCharPtrMut {
     let data = data.into_c_char_ptr();
     let Some(total_size) = len.checked_add(1) else {
-        preserve_exit(c"Nvim: Data too large to fit into virtual memory space\n");
+        preserve_exit(Some(
+            c"Nvim: Data too large to fit into virtual memory space\n",
+        ));
     };
     let ret = raw_alloc(total_size).cast::<u8>();
     if len > 0 {

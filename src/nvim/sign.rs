@@ -594,7 +594,7 @@ fn sign_define_by_name(
     ] {
         if !arg.is_null() {
             *hl_slot = if !crate::memory::cstr_is_empty(arg) {
-                syn_check_group(arg, crate::memory::cstr_len(arg))
+                syn_check_group(crate::memory::cstr_as_bytes(arg))
             } else {
                 0
             };
@@ -615,7 +615,7 @@ fn sign_define_by_name(
                 if !did_redraw {
                     for wp in for_all_windows_mut() {
                         if buf_has_signs(wp.buf_mut()) {
-                            redraw_buf_later(wp.w_buffer, UPD_NOT_VALID);
+                            redraw_buf_later(wp.buf_mut(), UPD_NOT_VALID);
                         }
                     }
                     did_redraw = true;

@@ -2960,7 +2960,13 @@ pub fn u_rollback(uc: &mut UndoCheckpoint, buf: &mut FileBuf) {
         }
 
         let mut cs: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
+        ctx_switch(
+            &mut cs,
+            None,
+            None,
+            Some(unsafe { &mut *ptr::from_mut(buf) }),
+            0,
+        );
         if !curbuf_mut().b_u_synced {
             u_sync(true);
         }

@@ -851,14 +851,14 @@ pub fn highlight_link_id(id: i32) -> i32 {
 
 pub fn syn_init_cmdline_highlight(reset: bool, init: bool) {
     for &cmd in &HIGHLIGHT_INIT_CMDLINE {
-        do_highlight(cmd.as_ptr(), reset, init);
+        do_highlight(cmd, reset, init);
     }
 }
 
 pub fn init_highlight(both: bool, reset: bool) {
     if let Some(p) = get_var_value(c"g:colors_name") {
         let copy_p = p.to_owned();
-        let okay = load_colors(copy_p.as_ptr().cast_mut());
+        let okay = load_colors(&copy_p);
         if okay {
             return;
         }
@@ -867,7 +867,7 @@ pub fn init_highlight(both: bool, reset: bool) {
     if both {
         hlg_st().had_both = true;
         for &cmd in &HIGHLIGHT_INIT_BOTH {
-            do_highlight(cmd.as_ptr(), reset, true);
+            do_highlight(cmd, reset, true);
         }
     } else if !hlg_st().had_both {
         return;
@@ -879,47 +879,44 @@ pub fn init_highlight(both: bool, reset: bool) {
         &HIGHLIGHT_INIT_DARK
     };
     for &cmd in pp {
-        do_highlight(cmd.as_ptr(), reset, true);
+        do_highlight(cmd, reset, true);
     }
 
     syn_init_cmdline_highlight(false, false);
 }
 
-pub fn load_colors(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        if hlg_st().load_colors_recursive {
-            return true;
-        }
+pub fn load_colors(name: &CStr) -> bool {
+    if hlg_st().load_colors_recursive {
+        return true;
+    }
 
-        hlg_st().load_colors_recursive = true;
-        let name_bytes = crate::memory::cstr_as_bytes(name);
-        let mut buf = Vec::with_capacity(name_bytes.len() + 12);
+    hlg_st().load_colors_recursive = true;
+    let name_bytes = name.to_bytes();
+    let mut buf = Vec::with_capacity(name_bytes.len() + 12);
+    apply_autocmds(
+        EVENT_COLORSCHEMEPRE,
+        name.as_ptr(),
+        curbuf_mut().b_fname,
+        false,
+        g_st().curbuf,
+    );
+    buf.extend_from_slice(b"colors/");
+    buf.extend_from_slice(name_bytes);
+    buf.extend_from_slice(b".*\0");
+    let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast(), DIP_START + DIP_OPT);
+    if retval {
         apply_autocmds(
-            EVENT_COLORSCHEMEPRE,
-            name,
+            EVENT_COLORSCHEME,
+            name.as_ptr(),
             curbuf_mut().b_fname,
             false,
             g_st().curbuf,
         );
-        buf.extend_from_slice(b"colors/");
-        buf.extend_from_slice(name_bytes);
-        buf.extend_from_slice(b".*\0");
-        let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast(), DIP_START + DIP_OPT);
-        if retval {
-            apply_autocmds(
-                EVENT_COLORSCHEME,
-                name,
-                curbuf_mut().b_fname,
-                false,
-                g_st().curbuf,
-            );
-        }
-
-        hlg_st().load_colors_recursive = false;
-
-        retval
     }
+
+    hlg_st().load_colors_recursive = false;
+
+    retval
 }
 
 fn lookup_color(idx: i32, foreground: bool, boldp: &mut TriState) -> i32 {
@@ -1015,16 +1012,20 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
     ];
 
     for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
+        let dest_ref = unsafe { &mut *dest };
         if name.obj_type != ObjectType::ObjectTypeNil {
             if val < 0 {
-                *crate::globals::gptr(dest) = K_COLOR_IDX_NONE;
+                *dest_ref = K_COLOR_IDX_NONE;
             } else if name.obj_type == ObjectType::ObjectTypeString && name.data.string().size > 0 {
-                name_to_color(name.data.string().data, dest);
+                name_to_color(
+                    crate::memory::cstr_from_ptr(name.data.string().data),
+                    dest_ref,
+                );
             } else {
-                *crate::globals::gptr(dest) = K_COLOR_IDX_HEX;
+                *dest_ref = K_COLOR_IDX_HEX;
             }
         } else if !update {
-            *crate::globals::gptr(dest) = K_COLOR_IDX_NONE;
+            *dest_ref = K_COLOR_IDX_NONE;
         } else if old_link > 0 && val >= 0 {
             let linked = &*hl_table_at((old_link - 1) as usize);
             let linked_idx = if j == 0 {
@@ -1035,7 +1036,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
                 linked.sg_rgb_sp_idx
             };
 
-            *crate::globals::gptr(dest) = if linked_idx != K_COLOR_IDX_NONE {
+            *dest_ref = if linked_idx != K_COLOR_IDX_NONE {
                 linked_idx
             } else {
                 K_COLOR_IDX_HEX
@@ -1093,32 +1094,29 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
 fn set_gui_color(
     idx: i32,
     init: bool,
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     color: &mut RgbValue,
     color_idx: &mut i32,
 ) -> bool {
-    let arg = arg.into_c_char_ptr();
-    {
-        if init && (hl_table_at(idx as usize).sg_set & SG_GUI) != 0 {
-            return false;
-        }
-        if !init {
-            hl_table_at(idx as usize).sg_set |= SG_GUI;
-        }
-        let old_color = *color;
-        let old_idx = *color_idx;
-        if crate::memory::cstr_as_bytes(arg) != b"NONE" {
-            *color = name_to_color(arg, color_idx);
-        } else {
-            *color = -1;
-            *color_idx = K_COLOR_IDX_NONE;
-        }
-        *color != old_color || *color_idx != old_idx
+    if init && (hl_table_at(idx as usize).sg_set & SG_GUI) != 0 {
+        return false;
     }
+    if !init {
+        hl_table_at(idx as usize).sg_set |= SG_GUI;
+    }
+    let old_color = *color;
+    let old_idx = *color_idx;
+    if arg.to_bytes() != b"NONE" {
+        *color = name_to_color(arg, color_idx);
+    } else {
+        *color = -1;
+        *color_idx = K_COLOR_IDX_NONE;
+    }
+    *color != old_color || *color_idx != old_idx
 }
 
-pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init: bool) {
-    let mut line = line.into_c_char_ptr();
+pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
+    let mut line = line_in.as_ptr();
     {
         if !init && ends_excmd(i32::from(crate::memory::cstr_first_byte(line))) != 0 {
             msg_ext_set_kind(c"list_cmd");
@@ -1156,7 +1154,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
         if !doclear && !dolink && ends_excmd(i32::from(crate::memory::cstr_first_byte(linep))) != 0
         {
-            let id = syn_name2id_len(line, word_len);
+            let id = syn_name2id_len(word_slice);
             if id == 0 {
                 semsg!(gettext(E_HIGHLIGHT_GROUP_NAME_NOT_FOUND_STR), line);
             } else {
@@ -1182,7 +1180,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                 return;
             }
 
-            if ends_excmd(i32::from((*crate::globals::gptr(skipwhite(to_end))) as u8)) == 0 {
+            if ends_excmd(i32::from(crate::memory::cstr_first_byte(skipwhite(to_end)))) == 0 {
                 semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\""),
                     from_start,
@@ -1190,44 +1188,55 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                 return;
             }
 
-            let from_id = syn_check_group(from_start, from_end as usize - from_start as usize);
+            let from_id = syn_check_group(crate::memory::cstr_slice(
+                from_start,
+                from_end as usize - from_start as usize,
+            ));
             let to_id = if crate::memory::cstr_as_bytes(to_start).starts_with(b"NONE") {
                 0
             } else {
-                syn_check_group(to_start, to_end as usize - to_start as usize)
+                syn_check_group(crate::memory::cstr_slice(
+                    to_start,
+                    to_end as usize - to_start as usize,
+                ))
             };
 
-            let mut hlgroup: *mut HlGroup = ptr::null_mut();
+            let mut hlgroup: Option<&mut HlGroup> = None;
             if from_id > 0 {
-                hlgroup = hl_table_at((from_id - 1) as usize);
-                if dodefault && (forceit || crate::globals::gptr(hlgroup).sg_deflink == 0) {
-                    crate::globals::gptr(hlgroup).sg_deflink = to_id;
-                    crate::globals::gptr(hlgroup).sg_deflink_sctx = g_st().current_sctx;
-                    crate::globals::gptr(hlgroup).sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&mut crate::globals::gptr(hlgroup).sg_deflink_sctx);
+                let hlg = hl_table_at((from_id - 1) as usize);
+                if dodefault && (forceit || hlg.sg_deflink == 0) {
+                    hlg.sg_deflink = to_id;
+                    hlg.sg_deflink_sctx = g_st().current_sctx;
+                    hlg.sg_deflink_sctx.sc_lnum += sourcing_lnum();
+                    nlua_set_sctx(&mut hlg.sg_deflink_sctx);
                 }
+                hlgroup = Some(hlg);
             }
 
-            if from_id > 0 && (!init || crate::globals::gptr(hlgroup).sg_set == 0) {
+            if let Some(hlg) = hlgroup
+                && (!init || hlg.sg_set == 0)
+            {
                 if to_id > 0 && !forceit && !init && hl_has_settings(from_id - 1, dodefault) {
                     if sourcing_name().is_none() && !dodefault {
                         emsg(gettext(E_GROUP_HAS_SETTINGS_HIGHLIGHT_LINK_IGNORED));
                     }
-                } else if crate::globals::gptr(hlgroup).sg_link != to_id
-                    || crate::globals::gptr(hlgroup).sg_script_ctx.sc_sid
-                        != g_st().current_sctx.sc_sid
-                    || crate::globals::gptr(hlgroup).sg_cleared
-                {
-                    if !init {
-                        crate::globals::gptr(hlgroup).sg_set |= SG_LINK;
+                } else {
+                    let hlg = hl_table_at((from_id - 1) as usize);
+                    if hlg.sg_link != to_id
+                        || hlg.sg_script_ctx.sc_sid != g_st().current_sctx.sc_sid
+                        || hlg.sg_cleared
+                    {
+                        if !init {
+                            hlg.sg_set |= SG_LINK;
+                        }
+                        hlg.sg_link = to_id;
+                        hlg.sg_script_ctx = g_st().current_sctx;
+                        hlg.sg_script_ctx.sc_lnum += sourcing_lnum();
+                        nlua_set_sctx(&mut hlg.sg_script_ctx);
+                        hlg.sg_cleared = false;
+                        redraw_all_later(UPD_SOME_VALID);
+                        g_st().need_highlight_changed = true;
                     }
-                    crate::globals::gptr(hlgroup).sg_link = to_id;
-                    crate::globals::gptr(hlgroup).sg_script_ctx = g_st().current_sctx;
-                    crate::globals::gptr(hlgroup).sg_script_ctx.sc_lnum += sourcing_lnum();
-                    nlua_set_sctx(&mut crate::globals::gptr(hlgroup).sg_script_ctx);
-                    crate::globals::gptr(hlgroup).sg_cleared = false;
-                    redraw_all_later(UPD_SOME_VALID);
-                    g_st().need_highlight_changed = true;
                 }
             }
 
@@ -1252,7 +1261,10 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
             linep = skipwhite(name_end);
         }
 
-        let id = syn_check_group(line, name_end as usize - line as usize);
+        let id = syn_check_group(crate::memory::cstr_slice(
+            line,
+            name_end as usize - line as usize,
+        ));
         if id == 0 {
             return;
         }
@@ -1281,7 +1293,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         let mut key = [0u8; 64];
         let mut arg = [0u8; 512];
         if !doclear {
-            while ends_excmd(i32::from((*crate::globals::gptr(linep)) as u8)) == 0 {
+            while ends_excmd(i32::from(crate::memory::cstr_first_byte(linep))) == 0 {
                 let key_start = linep;
                 let linep_bytes = crate::memory::cstr_as_bytes(linep);
                 if linep_bytes.first() == Some(&b'=') {
@@ -1317,7 +1329,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     continue;
                 }
 
-                if (*crate::globals::gptr(linep)) as u8 != b'=' {
+                if crate::memory::cstr_first_byte(linep) != b'=' {
                     semsg!(gettext(E_MISSING_EQUAL_SIGN_STR_2), key_start);
                     error = true;
                     break;
@@ -1326,7 +1338,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
 
                 linep = skipwhite(linep);
                 let arg_start;
-                if (*crate::globals::gptr(linep)) as u8 == b'\'' {
+                if crate::memory::cstr_first_byte(linep) == b'\'' {
                     linep = linep.wrapping_add(1);
                     arg_start = linep;
                     linep = crate::memory::cstr_as_bytes(linep)
@@ -1525,7 +1537,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     did_change = set_gui_color(
                         idx,
                         init,
-                        arg.as_ptr().cast(),
+                        crate::memory::cstr_until_nul(&arg),
                         &mut g.sg_rgb_fg,
                         &mut g.sg_rgb_fg_idx,
                     );
@@ -1537,7 +1549,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     did_change = set_gui_color(
                         idx,
                         init,
-                        arg.as_ptr().cast(),
+                        crate::memory::cstr_until_nul(&arg),
                         &mut g.sg_rgb_bg,
                         &mut g.sg_rgb_bg_idx,
                     );
@@ -1549,7 +1561,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
                     did_change = set_gui_color(
                         idx,
                         init,
-                        arg.as_ptr().cast(),
+                        crate::memory::cstr_until_nul(&arg),
                         &mut g.sg_rgb_sp,
                         &mut g.sg_rgb_sp_idx,
                     );
@@ -1667,19 +1679,18 @@ fn highlight_list_one(id: i32) {
         return;
     }
 
-    didh = highlight_list_arg(id, didh, LIST_ATTR, sgp.sg_cterm, ptr::null(), c"cterm");
-    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_cterm_fg, ptr::null(), c"ctermfg");
-    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_cterm_bg, ptr::null(), c"ctermbg");
+    didh = highlight_list_arg(id, didh, LIST_ATTR, sgp.sg_cterm, None, c"cterm");
+    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_cterm_fg, None, c"ctermfg");
+    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_cterm_bg, None, c"ctermbg");
 
-    didh = highlight_list_arg(id, didh, LIST_ATTR, sgp.sg_gui, ptr::null(), c"gui");
+    didh = highlight_list_arg(id, didh, LIST_ATTR, sgp.sg_gui, None, c"gui");
     let mut hexbuf = [0u8; 8];
     didh = highlight_list_arg(
         id,
         didh,
         LIST_STRING,
         0,
-        coloridx_to_name(sgp.sg_rgb_fg_idx, sgp.sg_rgb_fg, &mut hexbuf)
-            .map_or(ptr::null(), CStr::as_ptr),
+        coloridx_to_name(sgp.sg_rgb_fg_idx, sgp.sg_rgb_fg, &mut hexbuf),
         c"guifg",
     );
     didh = highlight_list_arg(
@@ -1687,8 +1698,7 @@ fn highlight_list_one(id: i32) {
         didh,
         LIST_STRING,
         0,
-        coloridx_to_name(sgp.sg_rgb_bg_idx, sgp.sg_rgb_bg, &mut hexbuf)
-            .map_or(ptr::null(), CStr::as_ptr),
+        coloridx_to_name(sgp.sg_rgb_bg_idx, sgp.sg_rgb_bg, &mut hexbuf),
         c"guibg",
     );
     didh = highlight_list_arg(
@@ -1696,21 +1706,13 @@ fn highlight_list_one(id: i32) {
         didh,
         LIST_STRING,
         0,
-        coloridx_to_name(sgp.sg_rgb_sp_idx, sgp.sg_rgb_sp, &mut hexbuf)
-            .map_or(ptr::null(), CStr::as_ptr),
+        coloridx_to_name(sgp.sg_rgb_sp_idx, sgp.sg_rgb_sp, &mut hexbuf),
         c"guisp",
     );
 
-    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_blend + 1, ptr::null(), c"blend");
+    didh = highlight_list_arg(id, didh, LIST_INT, sgp.sg_blend + 1, None, c"blend");
 
-    didh = highlight_list_arg(
-        id,
-        didh,
-        LIST_STRING,
-        0,
-        sgp.sg_font.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-        c"font",
-    );
+    didh = highlight_list_arg(id, didh, LIST_STRING, 0, sgp.sg_font.as_deref(), c"font");
 
     if sgp.sg_link != 0 && !g_st().got_int {
         syn_list_header(didh, 0, id, true);
@@ -1726,7 +1728,7 @@ fn highlight_list_one(id: i32) {
     }
 
     if !didh {
-        highlight_list_arg(id, didh, LIST_STRING, 0, c"cleared", c"");
+        highlight_list_arg(id, didh, LIST_STRING, 0, Some(c"cleared"), c"");
     }
     if opt_vars().p_verbose > 0 {
         last_set_msg(sgp.sg_script_ctx);
@@ -1796,10 +1798,11 @@ pub fn ns_get_hl_defs(
         } else {
             true
         };
+        let name_slice = crate::memory::cstr_slice(opts.name.data, opts.name.size);
         id = if create {
-            syn_check_group(opts.name.data, opts.name.size)
+            syn_check_group(name_slice)
         } else {
-            syn_name2id_len(opts.name.data, opts.name.size)
+            syn_name2id_len(name_slice)
         };
         if id == 0 && !create {
             return Dict::new();
@@ -1850,65 +1853,62 @@ fn highlight_list_arg(
     mut didh: bool,
     type_: i32,
     mut iarg: i32,
-    sarg: impl crate::strings::IntoCCharPtr,
+    sarg: Option<&CStr>,
     name: &std::ffi::CStr,
 ) -> bool {
-    let sarg = sarg.into_c_char_ptr();
-    {
-        if g_st().got_int {
-            return false;
-        }
-
-        if if type_ == LIST_STRING {
-            sarg.is_null()
-        } else {
-            iarg == 0
-        } {
-            return didh;
-        }
-
-        let mut buf = [0u8; 100];
-        let mut ts = buf.as_ptr().cast();
-        if type_ == LIST_INT {
-            write_dec(&mut buf, iarg - 1);
-        } else if type_ == LIST_STRING {
-            ts = sarg;
-        } else {
-            buf[0] = 0;
-            let mut i = 0;
-            while HL_ATTR_TABLE[i] != 0 {
-                let flag = HL_ATTR_TABLE[i];
-                if ((flag & HL_UNDERLINE_MASK) != 0 && ((iarg & HL_UNDERLINE_MASK) == flag))
-                    || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
-                {
-                    if buf[0] != 0 {
-                        crate::memory::append_bytes_to_c_buf(&mut buf, b",");
-                    }
-                    crate::memory::append_bytes_to_c_buf(&mut buf, HL_NAME_TABLE[i].to_bytes());
-                    if (flag & HL_UNDERLINE_MASK) == 0 {
-                        iarg &= !flag;
-                    }
-                }
-                i += 1;
-            }
-        }
-
-        syn_list_header(
-            didh,
-            vim_strsize(ts) + name.to_bytes().len() as i32 + 1,
-            id,
-            false,
-        );
-        didh = true;
-        if !g_st().got_int {
-            if !crate::memory::cstr_is_empty(name.as_ptr()) {
-                msg_puts_hl(name.as_ptr(), HLF_D, false);
-                msg_puts_hl(c"=", HLF_D, false);
-            }
-            msg_outtrans(ts, 0, false);
-        }
-        didh
+    if g_st().got_int {
+        return false;
     }
+
+    if if type_ == LIST_STRING {
+        sarg.is_none()
+    } else {
+        iarg == 0
+    } {
+        return didh;
+    }
+
+    let mut buf = [0u8; 100];
+    let mut ts = buf.as_ptr().cast();
+    if type_ == LIST_INT {
+        write_dec(&mut buf, iarg - 1);
+    } else if type_ == LIST_STRING {
+        ts = sarg.map_or(ptr::null(), CStr::as_ptr);
+    } else {
+        buf[0] = 0;
+        let mut i = 0;
+        while HL_ATTR_TABLE[i] != 0 {
+            let flag = HL_ATTR_TABLE[i];
+            if ((flag & HL_UNDERLINE_MASK) != 0 && ((iarg & HL_UNDERLINE_MASK) == flag))
+                || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
+            {
+                if buf[0] != 0 {
+                    crate::memory::append_bytes_to_c_buf(&mut buf, b",");
+                }
+                crate::memory::append_bytes_to_c_buf(&mut buf, HL_NAME_TABLE[i].to_bytes());
+                if (flag & HL_UNDERLINE_MASK) == 0 {
+                    iarg &= !flag;
+                }
+            }
+            i += 1;
+        }
+    }
+
+    syn_list_header(
+        didh,
+        vim_strsize(ts) + name.to_bytes().len() as i32 + 1,
+        id,
+        false,
+    );
+    didh = true;
+    if !g_st().got_int {
+        if !crate::memory::cstr_is_empty(name.as_ptr()) {
+            msg_puts_hl(name.as_ptr(), HLF_D, false);
+            msg_puts_hl(c"=", HLF_D, false);
+        }
+        msg_outtrans(ts, 0, false);
+    }
+    didh
 }
 
 pub fn highlight_has_attr(id: i32, flag: i32, modec: i32) -> Option<&'static CStr> {
@@ -1930,86 +1930,78 @@ pub fn highlight_has_attr(id: i32, flag: i32, modec: i32) -> Option<&'static CSt
     }
 }
 
-pub fn highlight_color(
-    id: i32,
-    what: impl crate::strings::IntoCCharPtr,
-    modec: i32,
-) -> Option<&'static CStr> {
-    let what = what.into_c_char_ptr();
+pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<&'static CStr> {
+    let mut fg = false;
+    let mut sp = false;
+    let mut font = false;
+
+    if id <= 0 || id > hl_len() {
+        return None;
+    }
+
+    let w0 = what_bytes.first().map_or(0, u8::to_ascii_lowercase);
+    let w1 = what_bytes.get(1).map_or(0, u8::to_ascii_lowercase);
+    if w0 == b'f' && w1 == b'g' {
+        fg = true;
+    } else if w0 == b'f'
+        && w1 == b'o'
+        && what_bytes.len() >= 4
+        && what_bytes[2..4].eq_ignore_ascii_case(b"nt")
     {
-        let mut fg = false;
-        let mut sp = false;
-        let mut font = false;
+        font = true;
+    } else if w0 == b's' && w1 == b'p' {
+        sp = true;
+    } else if !(w0 == b'b' && w1 == b'g') {
+        return None;
+    }
 
-        if id <= 0 || id > hl_len() {
-            return None;
-        }
+    let g = &*hl_table_at((id - 1) as usize);
 
-        let what_bytes = crate::memory::cstr_as_bytes(what);
-        let w0 = what_bytes.first().map_or(0, u8::to_ascii_lowercase);
-        let w1 = what_bytes.get(1).map_or(0, u8::to_ascii_lowercase);
-        if w0 == b'f' && w1 == b'g' {
-            fg = true;
-        } else if w0 == b'f'
-            && w1 == b'o'
-            && what_bytes.len() >= 4
-            && what_bytes[2..4].eq_ignore_ascii_case(b"nt")
-        {
-            font = true;
-        } else if w0 == b's' && w1 == b'p' {
-            sp = true;
-        } else if !(w0 == b'b' && w1 == b'g') {
-            return None;
-        }
-
-        let g = &*hl_table_at((id - 1) as usize);
-
-        if modec == i32::from(b'g') {
-            if what_bytes.get(2) == Some(&b'#') && ui_rgb_attached() {
-                let n = if fg {
-                    g.sg_rgb_fg
-                } else if sp {
-                    g.sg_rgb_sp
-                } else {
-                    g.sg_rgb_bg
-                };
-                if !(0..=0xffffff).contains(&n) {
-                    return None;
-                }
-                let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
-                    .try_into()
-                    .unwrap();
-                write_hex6(hex_arr, n);
-                return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
+    if modec == i32::from(b'g') {
+        if what_bytes.get(2) == Some(&b'#') && ui_rgb_attached() {
+            let n = if fg {
+                g.sg_rgb_fg
+            } else if sp {
+                g.sg_rgb_sp
+            } else {
+                g.sg_rgb_bg
+            };
+            if !(0..=0xffffff).contains(&n) {
+                return None;
             }
             let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
                 .try_into()
                 .unwrap();
-            if fg {
-                return coloridx_to_name(g.sg_rgb_fg_idx, g.sg_rgb_fg, hex_arr);
-            } else if sp {
-                return coloridx_to_name(g.sg_rgb_sp_idx, g.sg_rgb_sp, hex_arr);
-            } else {
-                return coloridx_to_name(g.sg_rgb_bg_idx, g.sg_rgb_bg, hex_arr);
-            }
-        }
-        if font || sp {
-            return None;
-        }
-        if modec == i32::from(b'c') {
-            let n = if fg {
-                g.sg_cterm_fg - 1
-            } else {
-                g.sg_cterm_bg - 1
-            };
-            if n < 0 {
-                return None;
-            }
-            write_dec(&mut hlg_st().highlight_color_name, n);
+            write_hex6(hex_arr, n);
             return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
         }
-        None
+        let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
+            .try_into()
+            .unwrap();
+        if fg {
+            return coloridx_to_name(g.sg_rgb_fg_idx, g.sg_rgb_fg, hex_arr);
+        } else if sp {
+            return coloridx_to_name(g.sg_rgb_sp_idx, g.sg_rgb_sp, hex_arr);
+        } else {
+            return coloridx_to_name(g.sg_rgb_bg_idx, g.sg_rgb_bg, hex_arr);
+        }
     }
+    if font || sp {
+        return None;
+    }
+    if modec == i32::from(b'c') {
+        let n = if fg {
+            g.sg_cterm_fg - 1
+        } else {
+            g.sg_cterm_bg - 1
+        };
+        if n < 0 {
+            return None;
+        }
+        write_dec(&mut hlg_st().highlight_color_name, n);
+        return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
+    }
+    None
 }
 
 pub fn syn_list_header(did_header: bool, outlen: i32, id: i32, force_newline: bool) -> bool {
@@ -2093,39 +2085,34 @@ fn set_hl_attr(idx: i32) {
     }
 }
 
-pub fn syn_name2id(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        if crate::memory::cstr_first_byte(name) == b'@' {
-            return syn_check_group(name, crate::memory::cstr_len(name));
-        }
-        syn_name2id_len(name, crate::memory::cstr_len(name))
+pub fn syn_name2id(name: &CStr) -> i32 {
+    let bytes = name.to_bytes();
+    if bytes.first() == Some(&b'@') {
+        return syn_check_group(bytes);
     }
+    syn_name2id_len(bytes)
 }
 
-pub fn syn_name2id_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        if len == 0 || len > MAX_SYN_NAME {
-            return 0;
-        }
-
-        let mut name_u = [0u8; MAX_SYN_NAME + 1];
-        for (dst, &b) in name_u.iter_mut().zip(crate::memory::cstr_slice(name, len)) {
-            *dst = b.to_ascii_uppercase();
-        }
-        name_u[len] = 0;
-
-        hlg_st()
-            .highlight_unames
-            .get(&name_u[..len])
-            .copied()
-            .unwrap_or(0)
+pub fn syn_name2id_len(name_slice: &[u8]) -> i32 {
+    let len = name_slice.len();
+    if len == 0 || len > MAX_SYN_NAME {
+        return 0;
     }
+
+    let mut name_u = [0u8; MAX_SYN_NAME + 1];
+    for (dst, &b) in name_u.iter_mut().zip(name_slice) {
+        *dst = b.to_ascii_uppercase();
+    }
+    name_u[len] = 0;
+
+    hlg_st()
+        .highlight_unames
+        .get(&name_u[..len])
+        .copied()
+        .unwrap_or(0)
 }
 
-pub fn syn_name2attr(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
+pub fn syn_name2attr(name: &CStr) -> i32 {
     let id = syn_name2id(name);
     if id != 0 {
         return syn_id2attr(id);
@@ -2133,8 +2120,7 @@ pub fn syn_name2attr(name: impl crate::strings::IntoCCharPtr) -> i32 {
     0
 }
 
-pub fn highlight_exists(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
+pub fn highlight_exists(name: &CStr) -> i32 {
     i32::from(syn_name2id(name) > 0)
 }
 
@@ -2145,71 +2131,66 @@ pub fn syn_id2name(id: i32) -> &'static CStr {
     hl_table_at((id - 1) as usize).sg_name.as_c_str()
 }
 
-pub fn syn_check_group<S: crate::strings::IntoCCharPtr>(name: S, len: usize) -> i32 {
-    let name = name.into_c_char_ptr();
-    if len > MAX_SYN_NAME {
+pub fn syn_check_group(name: &[u8]) -> i32 {
+    if name.len() > MAX_SYN_NAME {
         emsg(gettext(E_HIGHLIGHT_GROUP_NAME_TOO_LONG));
         return 0;
     }
-    let id = syn_name2id_len(name, len);
+    let id = syn_name2id_len(name);
     if id == 0 {
-        return syn_add_group(name, len);
+        return syn_add_group(name);
     }
     id
 }
 
-fn syn_add_group(name: impl crate::strings::IntoCCharPtr, len: usize) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        for &c in crate::memory::cstr_slice(name, len) {
-            if !vim_isprintc(i32::from(c)) {
-                emsg(gettext(c"E669: Unprintable character in group name"));
-                return 0;
-            } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'.' && c != b'@' && c != b'-'
-            {
-                msg_source(HLF_W);
-                emsg(gettext(E_HIGHLIGHT_GROUP_NAME_INVALID_CHAR));
-                return 0;
-            }
-        }
-
-        let mut scoped_parent: i32 = 0;
-        if len > 1 && crate::memory::cstr_first_byte(name) == b'@' {
-            let slice = unsafe { std::slice::from_raw_parts(name.cast::<u8>(), len) };
-            if let Some(delim_idx) = slice.iter().rposition(|&b| b == b'.') {
-                scoped_parent = syn_check_group(name, delim_idx);
-            }
-        }
-
-        if hlg_st().highlight_ga.capacity() == 0 {
-            hlg_st().highlight_ga.reserve(300);
-        }
-
-        if hl_len() >= MAX_HL_ID {
-            emsg(gettext(c"E849: Too many highlight and syntax groups"));
+fn syn_add_group(name_slice: &[u8]) -> i32 {
+    let len = name_slice.len();
+    for &c in name_slice {
+        if !vim_isprintc(i32::from(c)) {
+            emsg(gettext(c"E669: Unprintable character in group name"));
+            return 0;
+        } else if !c.is_ascii_alphanumeric() && c != b'_' && c != b'.' && c != b'@' && c != b'-' {
+            msg_source(HLF_W);
+            emsg(gettext(E_HIGHLIGHT_GROUP_NAME_INVALID_CHAR));
             return 0;
         }
-
-        let name_slice = crate::memory::cstr_slice(name, len);
-        let name_u_bytes: Vec<u8> = name_slice.iter().map(u8::to_ascii_uppercase).collect();
-        let mut hlg = HlGroup::new();
-        hlg.sg_name = std::ffi::CString::new(name_slice).unwrap();
-        hlg.sg_rgb_bg = -1;
-        hlg.sg_rgb_fg = -1;
-        hlg.sg_rgb_sp = -1;
-        hlg.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
-        hlg.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
-        hlg.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
-        hlg.sg_blend = -1;
-        hlg.sg_parent = scoped_parent;
-        hlg.sg_cleared = true;
-        hlg_st().highlight_ga.push(hlg);
-
-        let id = hl_len();
-        hlg_st().highlight_unames.insert(name_u_bytes, id);
-
-        id
     }
+
+    let mut scoped_parent: i32 = 0;
+    if len > 1
+        && name_slice.first() == Some(&b'@')
+        && let Some(delim_idx) = name_slice.iter().rposition(|&b| b == b'.')
+    {
+        scoped_parent = syn_check_group(&name_slice[..delim_idx]);
+    }
+
+    if hlg_st().highlight_ga.capacity() == 0 {
+        hlg_st().highlight_ga.reserve(300);
+    }
+
+    if hl_len() >= MAX_HL_ID {
+        emsg(gettext(c"E849: Too many highlight and syntax groups"));
+        return 0;
+    }
+
+    let name_u_bytes: Vec<u8> = name_slice.iter().map(u8::to_ascii_uppercase).collect();
+    let mut hlg = HlGroup::new();
+    hlg.sg_name = std::ffi::CString::new(name_slice).unwrap();
+    hlg.sg_rgb_bg = -1;
+    hlg.sg_rgb_fg = -1;
+    hlg.sg_rgb_sp = -1;
+    hlg.sg_rgb_bg_idx = K_COLOR_IDX_NONE;
+    hlg.sg_rgb_fg_idx = K_COLOR_IDX_NONE;
+    hlg.sg_rgb_sp_idx = K_COLOR_IDX_NONE;
+    hlg.sg_blend = -1;
+    hlg.sg_parent = scoped_parent;
+    hlg.sg_cleared = true;
+    hlg_st().highlight_ga.push(hlg);
+
+    let id = hl_len();
+    hlg_st().highlight_unames.insert(name_u_bytes, id);
+
+    id
 }
 
 pub fn syn_id2attr(hl_id: i32) -> i32 {
@@ -2303,7 +2284,7 @@ fn combine_stl_hlt(
     hlcnt: i32,
     i: i32,
     hlf: usize,
-    table: *mut i32,
+    table: &mut [i32],
 ) {
     let dst = (hlcnt + i) as usize;
     let u_idx = (id - 1) as usize;
@@ -2337,7 +2318,7 @@ fn combine_stl_hlt(
     }
     set_hl_attr(hlcnt + i);
 
-    *crate::globals::gptr(table.wrapping_add(i as usize)) = syn_id2attr(hlcnt + i + 1);
+    table[i as usize] = syn_id2attr(hlcnt + i + 1);
 }
 
 pub fn highlight_changed() {
@@ -2351,7 +2332,7 @@ pub fn highlight_changed() {
 
     for (hlf, name_opt) in HLF_NAMES.iter().enumerate().take(HLF_COUNT).skip(1) {
         let name_cstr = name_opt.unwrap();
-        let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
+        let id = syn_check_group(name_cstr.to_bytes());
         if id == 0 {
             std::process::abort();
         }
@@ -2396,7 +2377,7 @@ pub fn highlight_changed() {
         userhl[3] = b'r';
         userhl[4] = b'1' + i as u8;
         userhl[5] = 0;
-        let id = syn_name2id(userhl.as_ptr().cast());
+        let id = syn_name2id(crate::memory::cstr_until_nul(&userhl));
         if id == 0 {
             g_st().highlight_user[i] = 0;
             g_st().highlight_stlnc[i] = 0;
@@ -2409,7 +2390,7 @@ pub fn highlight_changed() {
                 hlcnt,
                 i as i32,
                 HLF_SNC,
-                (&raw mut g_st().highlight_stlnc).cast::<i32>(),
+                &mut g_st().highlight_stlnc,
             );
         }
     }
@@ -2418,8 +2399,8 @@ pub fn highlight_changed() {
     decor_provider_invalidate_hl();
 }
 
-pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
-    let mut arg = arg.into_c_char_ptr();
+pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
+    let mut arg = arg_in.as_ptr();
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
         xp.xp_pattern = arg.cast_mut().cast();
@@ -2522,10 +2503,8 @@ pub fn get_highlight_name_ext(
     Some(hl_table_at(idx as usize).sg_name.as_c_str())
 }
 
-pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> RgbValue {
-    let name = name.into_c_char_ptr();
-    let idx = crate::globals::gmut(idx);
-    let name_bytes = crate::memory::cstr_as_bytes(name);
+pub fn name_to_color(name: &CStr, idx: &mut i32) -> RgbValue {
+    let name_bytes = name.to_bytes();
     if name_bytes.len() == 7
         && name_bytes[0] == b'#'
         && name_bytes[1..].iter().all(u8::is_ascii_hexdigit)
@@ -2533,10 +2512,12 @@ pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> 
         *idx = K_COLOR_IDX_HEX;
         let hex_str = std::str::from_utf8(&name_bytes[1..]).unwrap_or("");
         return RgbValue::from_str_radix(hex_str, 16).unwrap_or(0);
-    } else if mb_stricmp(name, c"bg") == 0 || mb_stricmp(name, c"background") == 0 {
+    } else if mb_stricmp(name.as_ptr(), c"bg") == 0 || mb_stricmp(name.as_ptr(), c"background") == 0
+    {
         *idx = K_COLOR_IDX_BG;
         return g_st().normal_bg;
-    } else if mb_stricmp(name, c"fg") == 0 || mb_stricmp(name, c"foreground") == 0 {
+    } else if mb_stricmp(name.as_ptr(), c"fg") == 0 || mb_stricmp(name.as_ptr(), c"foreground") == 0
+    {
         *idx = K_COLOR_IDX_FG;
         return g_st().normal_fg;
     }
@@ -2545,7 +2526,7 @@ pub fn name_to_color(name: impl crate::strings::IntoCCharPtr, idx: *mut i32) -> 
     let mut hi: usize = COLOR_NAME_TABLE.len();
     while lo < hi {
         let m = (lo + hi) / 2;
-        let cmp = mb_stricmp(name, COLOR_NAME_TABLE[m].name.as_ptr());
+        let cmp = mb_stricmp(name.as_ptr(), COLOR_NAME_TABLE[m].name.as_ptr());
         if cmp < 0 {
             hi = m;
         } else if cmp > 0 {
@@ -2576,26 +2557,24 @@ pub fn coloridx_to_name(idx: i32, val: i32, hexbuf: &mut [u8; 8]) -> Option<&CSt
     }
 }
 
-pub fn name_to_ctermcolor(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        let off = (crate::memory::cstr_first_byte(name)).to_ascii_uppercase();
-        let mut i = COLOR_NAMES.len() as isize - 1;
-        while i >= 0 {
-            let cname = COLOR_NAMES[i as usize].as_ptr();
-            if off == crate::memory::cstr_first_byte(cname)
-                && mb_stricmp(name.wrapping_add(1), cname.wrapping_add(1)) == 0
-            {
-                break;
-            }
-            i -= 1;
+pub fn name_to_ctermcolor(name: &CStr) -> i32 {
+    let name = name.as_ptr();
+    let off = (crate::memory::cstr_first_byte(name)).to_ascii_uppercase();
+    let mut i = COLOR_NAMES.len() as isize - 1;
+    while i >= 0 {
+        let cname = COLOR_NAMES[i as usize].as_ptr();
+        if off == crate::memory::cstr_first_byte(cname)
+            && mb_stricmp(name.wrapping_add(1), cname.wrapping_add(1)) == 0
+        {
+            break;
         }
-        if i < 0 {
-            return -1;
-        }
-        let mut bold = K_NONE;
-        lookup_color(i as i32, false, &mut bold)
+        i -= 1;
     }
+    if i < 0 {
+        return -1;
+    }
+    let mut bold = K_NONE;
+    lookup_color(i as i32, false, &mut bold)
 }
 
 macro_rules! cname {

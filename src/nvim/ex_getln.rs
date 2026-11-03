@@ -2964,9 +2964,9 @@ fn cmdpreview_open_buf() -> *mut FileBuf {
     let mut aco: CtxSwitch = CtxSwitch::new();
     ctx_switch(
         &mut aco,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        cmdpreview_buf,
+        None,
+        None,
+        unsafe { cmdpreview_buf.as_mut() },
         K_CTX_KEEP_DIRS,
     );
     let retv = rename_buffer(c"[Preview]");
@@ -2978,9 +2978,9 @@ fn cmdpreview_open_buf() -> *mut FileBuf {
 
     ctx_switch(
         &mut aco,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        cmdpreview_buf,
+        None,
+        None,
+        unsafe { cmdpreview_buf.as_mut() },
         K_CTX_KEEP_DIRS,
     );
     buf_clear();
@@ -3674,7 +3674,7 @@ fn color_expr_cmdline(colored_ccline: &CmdlineInfo, ret_ccline_colors: &mut Colo
         ret_ccline_colors.colors.push(CmdlineColorChunk {
             start: chunk.start.col as i32,
             end: chunk.end_col as i32,
-            hl_id: syn_name2id(chunk.group.as_ptr()),
+            hl_id: syn_name2id(crate::memory::cstr_from_ptr(chunk.group.as_ptr())),
         });
         prev_end = chunk.end_col;
     }

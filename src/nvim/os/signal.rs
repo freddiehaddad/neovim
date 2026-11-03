@@ -279,7 +279,7 @@ fn deadly_signal(signum: i32) -> ! {
     }
 
     // Preserve files and exit.
-    preserve_exit(io_buf);
+    preserve_exit(crate::memory::cstr_as_opt_cstr(io_buf));
 }
 
 pub(crate) fn on_signal(signum: i32) {

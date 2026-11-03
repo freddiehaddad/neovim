@@ -2179,8 +2179,7 @@ fn cmdline_pum_create(
 pub fn cmdline_pum_display(changed_array: bool) {
     let arr = &mut cmdexp().compl_match_array;
     pum_display(
-        arr.as_mut_ptr(),
-        arr.len() as i32,
+        arr,
         cmdexp().compl_selected,
         changed_array,
         cmdexp().compl_startcol,
@@ -2254,7 +2253,7 @@ fn wildmenu_match_len(xp: &ExpandCtx, s: impl crate::strings::IntoCCharPtr) -> i
     let mut len: i32 = 0;
     let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
 
-    if emenu && menu_is_separator(s) {
+    if emenu && menu_is_separator(crate::memory::cstr_as_bytes(s)) {
         return 1;
     }
 
@@ -2362,7 +2361,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
 
         let s = show_match(matches, i as usize, showtail);
         let emenu = xp.xp_context == EXPAND_MENUS || xp.xp_context == EXPAND_MENUNAMES;
-        if emenu && menu_is_separator(s.cast()) {
+        if emenu && menu_is_separator(crate::memory::cstr_as_bytes(s.cast())) {
             let tc = transchar(b'|' as i32).to_bytes();
             buf_vec[len..len + tc.len()].copy_from_slice(tc);
             len += tc.len();
@@ -2437,21 +2436,21 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
 
         grid_line_start(
             if g_st().wild_menu_showing == WM_SCROLLED {
-                &raw mut g_st().msg_grid_adj
+                &mut g_st().msg_grid_adj
             } else {
-                &raw mut g_st().default_gridview
+                &mut g_st().default_gridview
             },
             row,
         );
 
-        grid_line_puts(0, buf_vec.as_ptr().cast(), -1, attr);
+        grid_line_puts(0, crate::memory::cstr_until_nul(&buf_vec), -1, attr);
         if let Some(start_idx) = selstart_idx
             && highlight
         {
             buf_vec[selend_idx] = 0;
             grid_line_puts(
                 selstart_col,
-                buf_vec[start_idx..].as_ptr().cast(),
+                crate::memory::cstr_until_nul(&buf_vec[start_idx..]),
                 -1,
                 hl_attr(HLF_WM),
             );
@@ -2462,7 +2461,7 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         grid_line_flush();
     }
 
-    win_redraw_last_status(g_st().topframe);
+    win_redraw_last_status(topframe_mut());
 }
 
 /// Get the next or prev cmdline completion match.
@@ -3945,7 +3944,7 @@ fn set_context_by_cmdname(
                 set_context_in_echohl_cmd(xp, arg.cast());
             }
             Cmdidx::CmdHighlight => {
-                set_context_in_highlight_cmd(xp, arg.cast());
+                set_context_in_highlight_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()));
             }
             Cmdidx::CmdSign => {
                 set_context_in_sign_cmd(xp, arg.cast_mut().cast());
@@ -4098,7 +4097,12 @@ fn set_context_by_cmdname(
             | Cmdidx::CmdTunmenu
             | Cmdidx::CmdPopup
             | Cmdidx::CmdEmenu => {
-                set_context_in_menu_cmd(xp, cmd.cast(), arg.cast(), forceit);
+                set_context_in_menu_cmd(
+                    xp,
+                    crate::memory::cstr_from_ptr(cmd.cast()),
+                    crate::memory::cstr_from_ptr(arg.cast()),
+                    forceit,
+                );
                 return ptr::null_mut();
             }
             Cmdidx::CmdColorscheme => {
@@ -5956,7 +5960,7 @@ pub fn wildmenu_cleanup(cclp: &mut CmdlineInfo) {
         g_st().save_p_ls = -1;
         g_st().wild_menu_showing = 0;
     } else {
-        win_redraw_last_status(g_st().topframe);
+        win_redraw_last_status(topframe_mut());
         g_st().wild_menu_showing = 0;
         redraw_statuslines();
     }
@@ -6037,7 +6041,12 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;
-                set_context_in_menu_cmd(&mut xpc, c"menu", pat_p.cast(), false);
+                set_context_in_menu_cmd(
+                    &mut xpc,
+                    c"menu",
+                    crate::memory::cstr_from_ptr(pat_p.cast()),
+                    false,
+                );
                 xpc.xp_pattern_len -=
                     crate::memory::ptr_offset_from(xpc.xp_pattern, pattern_start) as usize;
             }

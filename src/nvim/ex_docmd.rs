@@ -8997,7 +8997,7 @@ fn ex_colorscheme(eap: &mut Exarg) {
         } else {
             let _ = msg(c"default", 0);
         }
-    } else if !load_colors(eap.arg) {
+    } else if !load_colors(crate::memory::cstr_from_ptr(eap.arg)) {
         let _ = semsg!(gettext(c"E185: Cannot find color scheme '%s'"), eap.arg,);
     }
 }
@@ -9008,7 +9008,11 @@ fn ex_highlight(eap: &mut Exarg) {
     {
         let _ = msg(gettext(c"Greetings, Vim user!"), 0);
     }
-    do_highlight(eap.arg, eap.forceit != 0, false);
+    do_highlight(
+        crate::memory::cstr_from_ptr(eap.arg),
+        eap.forceit != 0,
+        false,
+    );
 }
 
 pub fn not_exiting(save_exiting: bool) {
@@ -9608,7 +9612,7 @@ fn ex_pclose(eap: &mut Exarg) {
 pub fn ex_win_close(forceit: i32, win: &mut WinInfoInfo, tp: *mut TabPageInfo) {
     debug_assert!(tp.is_null() || tp != g_st().curtab);
 
-    if is_ctx_win(&raw mut *win) {
+    if is_ctx_win(win) {
         let _ = emsg(gettext(E_AUTOCMD_CLOSE));
         return;
     }
@@ -10087,11 +10091,10 @@ pub fn ex_splitview(eap: &mut Exarg) {
                 let mut file_to_find: Option<std::ffi::CString> = None;
                 let mut search_ctx: Option<FfSearchCtx> = None;
                 fname = find_file_in_path(
-                    eap.arg,
-                    crate::memory::cstr_len(eap.arg),
+                    crate::memory::cstr_as_bytes(eap.arg),
                     FNAME_MESS,
                     i32::from(true),
-                    curbuf_mut().b_ffname,
+                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10420,11 +10423,10 @@ fn ex_find(eap: &mut Exarg) {
         let mut file_to_find: Option<std::ffi::CString> = None;
         let mut search_ctx: Option<FfSearchCtx> = None;
         fname = find_file_in_path(
-            eap.arg,
-            crate::memory::cstr_len(eap.arg),
+            crate::memory::cstr_as_bytes(eap.arg),
             FNAME_MESS,
             i32::from(true),
-            curbuf_mut().b_ffname,
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
             &mut file_to_find,
             &mut search_ctx,
         );
@@ -10435,11 +10437,10 @@ fn ex_find(eap: &mut Exarg) {
                 count > 0
             } {
                 fname = find_file_in_path(
-                    ptr::null_mut(),
-                    0,
+                    &[],
                     FNAME_MESS,
                     i32::from(false),
-                    curbuf_mut().b_ffname,
+                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10592,7 +10593,7 @@ fn ex_nogui(eap: &mut Exarg) {
 }
 
 fn ex_popup(eap: &mut Exarg) {
-    pum_make_popup(eap.arg, eap.forceit);
+    pum_make_popup(crate::memory::cstr_from_ptr(eap.arg), eap.forceit);
 }
 
 fn ex_swapname(_eap: &mut Exarg) {
@@ -10814,9 +10815,9 @@ pub fn do_chdir(new_dir: impl crate::strings::IntoCCharPtr, scope: CdScope) -> b
         .is_none_or(|p| !path_equal(p.as_ptr(), new_dir, K_PATH_CMP_LITERAL));
     if dir_differs {
         if !bcd_active {
-            do_autocmd_dirchanged(new_dir, scope, K_CD_CAUSE_MANUAL, true);
+            do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
         }
-        if vim_chdir(new_dir) != 0 {
+        if vim_chdir(&new_dir_owned) != 0 {
             let _ = emsg(gettext(E_FAILED));
             return false;
         }
@@ -12301,9 +12302,13 @@ fn ex_shada(eap: &mut Exarg) {
         opt_vars().p_shada = c"'100".as_ptr().cast_mut();
     }
     if eap.cmdidx == Cmdidx::CmdRviminfo as i32 || eap.cmdidx == Cmdidx::CmdRshada as i32 {
-        shada_read_everything(eap.arg, eap.forceit != 0, false);
+        shada_read_everything(
+            crate::memory::cstr_as_opt_cstr(eap.arg),
+            eap.forceit != 0,
+            false,
+        );
     } else {
-        shada_write_file(eap.arg, eap.forceit != 0);
+        shada_write_file(crate::memory::cstr_as_opt_cstr(eap.arg), eap.forceit != 0);
     }
     opt_vars().p_shada = save_shada;
 }

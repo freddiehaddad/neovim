@@ -529,7 +529,7 @@ pub fn exit_event(status: i32) {
             os_exit(status);
         } else {
             debug_assert_eq!(status, 0);
-            preserve_exit(ptr::null());
+            preserve_exit(None);
         }
     }
 }

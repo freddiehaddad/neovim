@@ -412,7 +412,7 @@ pub fn msg_id_exists(id: i64) -> bool {
 
 fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
-    let size = schar_get(buf.as_mut_ptr(), curwin_mut().w_p_fcs_chars.msgsep);
+    let size = schar_get(&mut buf, curwin_mut().w_p_fcs_chars.msgsep);
     ui_call_msg_set_pos(
         g_st().msg_grid.handle as Integer,
         row as Integer,
@@ -503,7 +503,7 @@ pub fn msg_grid_validate() {
         msg_grid_set_pos(max_rows, false);
         if diff > 0 {
             grid_clear(
-                &raw mut g_st().msg_grid_adj,
+                &mut g_st().msg_grid_adj,
                 g_st().rows_global - diff,
                 g_st().rows_global,
                 0,
@@ -601,19 +601,19 @@ fn format_progress_message(
         } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
             == Some(b"success")
         {
-            hl_id = syn_check_group(c"OkMsg", 5);
+            hl_id = syn_check_group(b"OkMsg");
         } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
             == Some(b"failed")
         {
-            hl_id = syn_check_group(c"ErrorMsg", 8);
+            hl_id = syn_check_group(b"ErrorMsg");
         } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
             == Some(b"running")
         {
-            hl_id = syn_check_group(c"MoreMsg", 7);
+            hl_id = syn_check_group(b"MoreMsg");
         } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
             == Some(b"cancel")
         {
-            hl_id = syn_check_group(c"WarningMsg", 10);
+            hl_id = syn_check_group(b"WarningMsg");
         }
         updated_msg.push(HlMessageChunk {
             text: copy_string(msg_data.as_deref_mut().unwrap().title, None),
@@ -633,7 +633,7 @@ fn format_progress_message(
             msg_data.unwrap().percent,
         );
         let percent = cstr_to_string(percent_buf.as_ptr().cast());
-        let hl_id = syn_check_group(c"WarningMsg", 10);
+        let hl_id = syn_check_group(b"WarningMsg");
         updated_msg.push(HlMessageChunk {
             text: percent,
             hl_id,
@@ -2593,7 +2593,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     && list
                     && matches!(utf_slice2char(rem), 160 | 0x202f)
                 {
-                    schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
+                    schar_get(&mut buf, curwin_mut().w_p_lcs_chars.nbsp);
                 } else {
                     buf[..l].copy_from_slice(&rem[..l]);
                     buf[l] = 0;
@@ -2712,7 +2712,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
         }
 
         let mut buf = [0u8; MAX_SCHAR_SIZE];
-        schar_get(buf.as_mut_ptr(), sc);
+        schar_get(&mut buf, sc);
         msg_puts_hl(
             CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
             hl_id,
@@ -2984,7 +2984,7 @@ fn msg_puts_display(
                 if msg_row_pending >= 0 {
                     msg_line_flush();
                 }
-                grid_line_start(&raw mut g_st().msg_grid_adj, g_st().msg_row);
+                grid_line_start(&mut g_st().msg_grid_adj, g_st().msg_row);
                 msg_row_pending = g_st().msg_row;
             }
 
@@ -3004,7 +3004,12 @@ fn msg_puts_display(
                     grid_line_puts(g_st().msg_col, c">", 1, hl_attr(HLF_AT));
                     cw = 1;
                 } else {
-                    grid_line_puts(g_st().msg_col, s, l, print_attr);
+                    grid_line_puts(
+                        g_st().msg_col,
+                        crate::memory::cstr_from_ptr(s),
+                        l,
+                        print_attr,
+                    );
                     s = s.wrapping_add(l as usize);
                 }
                 g_st().msg_didout = true;
@@ -3065,7 +3070,7 @@ pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
         col = g_st().columns_global - 1 - col;
     }
     let grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
-    ui_grid_cursor_goto(crate::globals::gptr(grid).handle, row, col);
+    ui_grid_cursor_goto(grid.handle, row, col);
 }
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
@@ -3128,7 +3133,7 @@ pub fn msg_scroll_up(may_throttle: bool, zerocmd: bool) {
     }
 
     grid_clear(
-        &raw mut g_st().msg_grid_adj,
+        &mut g_st().msg_grid_adj,
         g_st().rows_global - 1,
         g_st().rows_global,
         0,
@@ -3631,7 +3636,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                             g_st().columns_global,
                         );
                         grid_clear(
-                            &raw mut g_st().msg_grid_adj,
+                            &mut g_st().msg_grid_adj,
                             0,
                             1,
                             0,
@@ -3643,7 +3648,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                         }
                     } else {
                         grid_clear(
-                            &raw mut g_st().msg_grid_adj,
+                            &mut g_st().msg_grid_adj,
                             0,
                             g_st().rows_global,
                             0,
@@ -3677,7 +3682,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     msg_scroll_up(true, false);
                     inc_msg_scrolled();
                     grid_clear(
-                        &raw mut g_st().msg_grid_adj,
+                        &mut g_st().msg_grid_adj,
                         g_st().rows_global - 2,
                         g_st().rows_global - 1,
                         0,
@@ -3691,7 +3696,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
             if toscroll <= 0 {
                 grid_clear(
-                    &raw mut g_st().msg_grid_adj,
+                    &mut g_st().msg_grid_adj,
                     g_st().rows_global - 1,
                     g_st().rows_global,
                     0,
@@ -3710,7 +3715,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
     // clear the --more-- message
     grid_clear(
-        &raw mut g_st().msg_grid_adj,
+        &mut g_st().msg_grid_adj,
         g_st().rows_global - 1,
         g_st().rows_global,
         0,
@@ -3734,7 +3739,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
 
 fn msg_moremsg(full: bool) {
     let attr = hl_combine_attr(hl_attr(HLF_MSG), hl_attr(HLF_M));
-    grid_line_start(&raw mut g_st().msg_grid_adj, g_st().rows_global - 1);
+    grid_line_start(&mut g_st().msg_grid_adj, g_st().rows_global - 1);
     let mut len = grid_line_puts(0, gettext(c"-- More --"), -1, attr);
     if full {
         len += grid_line_puts(
@@ -3802,7 +3807,7 @@ pub fn msg_clr_eos_force() {
     }
 
     grid_clear(
-        &raw mut g_st().msg_grid_adj,
+        &mut g_st().msg_grid_adj,
         g_st().msg_row,
         g_st().msg_row + 1,
         msg_startcol,
@@ -3810,7 +3815,7 @@ pub fn msg_clr_eos_force() {
         hl_attr(HLF_MSG),
     );
     grid_clear(
-        &raw mut g_st().msg_grid_adj,
+        &mut g_st().msg_grid_adj,
         g_st().msg_row + 1,
         g_st().rows_global,
         0,

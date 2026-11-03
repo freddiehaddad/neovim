@@ -582,7 +582,7 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
         if ff {
             save_file_ff(buf);
         }
-        redraw_buf_status_later(&raw mut *buf);
+        redraw_buf_status_later(buf);
         g_st().redraw_tabline = true;
         g_st().need_maketitle = true;
         buf_inc_changedtick(buf);

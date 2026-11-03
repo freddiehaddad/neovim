@@ -210,7 +210,7 @@ pub fn nvim_buf_add_highlight(
     }
 
     let hl_id = if hl_group.size > 0 {
-        syn_check_group(hl_group.data, hl_group.size)
+        syn_check_group(crate::memory::cstr_slice(hl_group.data, hl_group.size))
     } else {
         return ns_id;
     };
@@ -291,9 +291,7 @@ pub fn nvim_buf_set_virtual_text(
         return 0;
     }
 
-    let existing = decor_find_virttext(buf, line as i32, u64::from(ns_id));
-    if !existing.is_null() {
-        let existing = crate::globals::gmut(existing);
+    if let Some(existing) = decor_find_virttext(buf, line as i32, u64::from(ns_id)) {
         existing.data = DecorVirtTextData::VirtText(virt_text);
         existing.width = width;
         return src_id;
@@ -310,7 +308,7 @@ pub fn nvim_buf_set_virtual_text(
             data: DecorVirtTextData::VirtText(virt_text),
             next: None,
         },
-        ptr::null_mut(),
+        None,
     );
 
     let decor = DecorInline {
@@ -379,7 +377,7 @@ pub fn nvim_get_hl_by_name(
     err: &mut Error,
 ) -> Dict {
     let result = Dict::new();
-    let id = syn_name2id(name.data);
+    let id = syn_name2id(crate::memory::cstr_from_ptr(name.data));
     if id == 0 {
         api_err_invalid(err, c"highlight name", name.data, 0, true);
         return result;

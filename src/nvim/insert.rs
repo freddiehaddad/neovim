@@ -1404,7 +1404,7 @@ pub fn ins_redraw(ready: bool) {
     {
         let mut aco = CtxSwitch::new();
         let tick = buf_get_changedtick(curbuf_mut());
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
+        ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
         apply_autocmds(
             EVENT_TEXTCHANGEDI,
             ptr::null_mut(),
@@ -1426,7 +1426,7 @@ pub fn ins_redraw(ready: bool) {
     {
         let mut aco = CtxSwitch::new();
         let tick = buf_get_changedtick(curbuf_mut());
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), g_st().curbuf, 0);
+        ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
         apply_autocmds(
             EVENT_TEXTCHANGEDP,
             ptr::null_mut(),
@@ -1500,7 +1500,7 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     };
     ins_st().pc_row = curwin_mut().w_wrow;
     ins_st().pc_status = PC_STATUS_UNSET;
-    grid_line_start(&raw mut curwin_mut().w_grid, ins_st().pc_row);
+    grid_line_start(&mut curwin_mut().w_grid, ins_st().pc_row);
     if curwin_mut().w_onebuf_opt.wo_rl != 0 {
         ins_st().pc_col = curwin_mut().w_view_width - 1 - curwin_mut().w_wcol;
         if grid_line_getchar(ins_st().pc_col, None) == 0 {
@@ -1522,7 +1522,12 @@ pub fn edit_putchar(c: i32, highlight: bool) {
 
     let mut buf = [0u8; MB_MAXCHAR + 1];
     let len = utf_char2bytes(c, buf.as_mut_ptr().cast());
-    grid_line_puts(ins_st().pc_col, buf.as_ptr().cast(), len, attr);
+    grid_line_puts(
+        ins_st().pc_col,
+        crate::memory::cstr_until_nul(&buf),
+        len,
+        attr,
+    );
     grid_line_flush();
 }
 
@@ -1628,7 +1633,7 @@ pub fn edit_unputchar() {
         if ins_st().pc_status == PC_STATUS_RIGHT || ins_st().pc_status == PC_STATUS_LEFT {
             redraw_winline(crate::globals::curwin_mut(), curwin_mut().w_cursor.lnum);
         } else {
-            grid_line_start(&raw mut curwin_mut().w_grid, ins_st().pc_row);
+            grid_line_start(&mut curwin_mut().w_grid, ins_st().pc_row);
             grid_line_put_schar(ins_st().pc_col, ins_st().pc_schar, ins_st().pc_attr);
             grid_line_flush();
         }

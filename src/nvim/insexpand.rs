@@ -1432,9 +1432,9 @@ pub fn ins_compl_col_range_attr(lnum: Linenr, col: i32) -> i32 {
         return -1;
     }
     let attr = syn_name2attr(if has_preinsert {
-        c"PreInsert".as_ptr()
+        c"PreInsert"
     } else {
-        c"ComplMatchIns".as_ptr()
+        c"ComplMatchIns"
     });
     if attr == 0 {
         return -1;
@@ -2028,7 +2028,7 @@ pub fn ins_compl_show_pum() {
     let col = curwin_mut().w_cursor.col;
     curwin_mut().w_cursor.col = insexp().compl_col;
     insexp().compl_selected_item = cur;
-    pum_display(arr.as_mut_ptr(), arr.len() as i32, cur, array_changed, 0);
+    pum_display(arr, cur, array_changed, 0);
     curwin_mut().w_cursor.col = col;
 
     if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
@@ -3404,7 +3404,7 @@ fn get_user_highlight_id(hlname: impl crate::strings::IntoCCharPtr) -> i32 {
     let hlname = hlname.into_c_char_ptr();
     {
         if !crate::memory::cstr_is_empty(hlname) {
-            return syn_check_group(hlname, crate::memory::cstr_len(hlname));
+            return syn_check_group(crate::memory::cstr_as_bytes(hlname));
         }
         0
     }

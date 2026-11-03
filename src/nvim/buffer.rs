@@ -1042,7 +1042,13 @@ pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
     let mut bufref: Bufref = Bufref::new();
     set_bufref(&mut bufref, &raw mut *buf);
     let mut aco: CtxSwitch = CtxSwitch::new();
-    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
+    ctx_switch(
+        &mut aco,
+        None,
+        None,
+        Some(unsafe { &mut *ptr::from_mut(buf) }),
+        0,
+    );
     let status = open_buffer(false, None, 0);
     ctx_restore(&mut aco);
     status != FAIL && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
@@ -1268,13 +1274,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
     {
         let mut aco: CtxSwitch = CtxSwitch::new();
 
-        ctx_switch(
-            &mut aco,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            old_curbuf.br_buf,
-            0,
-        );
+        ctx_switch(&mut aco, None, None, old_curbuf.buf_opt(), 0);
         do_modelines(0);
         curbuf_mut().b_flags &= !(BF_CHECK_RO | BF_NEVERLOADED);
 
@@ -2332,7 +2332,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         while buf == g_st().curbuf
             && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked > 0)
-            && (is_ctx_win(g_st().lastwin) || !last_window(curwin_mut()))
+            && (is_ctx_win(lastwin_mut()) || !last_window(curwin_mut()))
         {
             if !win_close(curwin_ptr(), false, false) {
                 break;
@@ -2354,9 +2354,9 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
                 let rv = ctx_switch(
                     &mut switchwin,
-                    g_st().firstwin,
-                    g_st().curtab,
-                    ptr::null_mut(),
+                    Some(firstwin_mut()),
+                    Some(curtab_mut()),
+                    None,
                     K_CTX_NO_DISPLAY,
                 );
                 debug_assert!(rv);
@@ -2743,7 +2743,10 @@ pub fn do_autochdir() {
     if opt_vars().p_acd != 0
         && starting_val() == 0
         && !curbuf_mut().b_ffname.is_null()
-        && vim_chdirfile(curbuf_mut().b_ffname, K_CD_CAUSE_AUTO)
+        && vim_chdirfile(
+            crate::memory::cstr_from_ptr(curbuf_mut().b_ffname),
+            K_CD_CAUSE_AUTO,
+        )
     {
         g_st().last_chdir_reason = Some(c"autochdir");
         shorten_fnames(1);
@@ -4491,7 +4494,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 || (had_tab > 0 && wp != g_st().firstwin))
                 && g_st().firstwin != g_st().lastwin
                 && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked > 0)
-                && !is_ctx_win(wp.as_ptr())
+                && !is_ctx_win(&wp)
             {
                 if !win_close(wp.as_ptr(), false, false) {
                     break;
@@ -4604,7 +4607,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         let r = (buf_hide(wp.borrow().buf_mut())
             || !buf_is_changed(wp.borrow().buf_mut())
             || autowrite(wp.borrow().buf_mut(), false))
-            && !is_ctx_win(wp.as_ptr());
+            && !is_ctx_win(&wp);
         if !win_valid(wp.as_ptr()) {
             wp = crate::globals::WinPtr::new(g_st().lastwin);
         } else if r {
@@ -4931,7 +4934,7 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
     let _ea_cmd = prep_exarg(&mut ea, &*buf);
 
     let mut aco: CtxSwitch = CtxSwitch::new();
-    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
+    ctx_switch(&mut aco, None, None, unsafe { newbuf.as_mut() }, 0);
 
     block_autocmds();
 

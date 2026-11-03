@@ -2346,7 +2346,7 @@ pub fn f_menu_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let strmodes = tv_get_string(&argvars[1]);
         modes = get_menu_cmd_modes(strmodes, false, None, None);
     }
-    menu_get(tv_get_string(&argvars[0]).as_ptr().cast_mut(), modes, {
+    menu_get(tv_get_string(&argvars[0]), modes, {
         rettv.vval.v_list_ref()
     });
 }
@@ -6994,7 +6994,7 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
-    schar_get(buf.as_mut_ptr(), grid_getchar(grid, row, col, None));
+    schar_get(&mut buf, grid_getchar(grid, row, col, None));
 
     let mut i: usize = 0;
     loop {
@@ -7031,7 +7031,7 @@ pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let mut buf = [0u8; MAX_SCHAR_SIZE + 1];
-    schar_get(buf.as_mut_ptr(), grid_getchar(grid, row, col, None));
+    schar_get(&mut buf, grid_getchar(grid, row, col, None));
     crate::eval::typval::tv_set_string(rettv, CStr::from_bytes_until_nul(&buf).unwrap_or_default());
 }
 
@@ -8501,7 +8501,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     match w(0) {
         b'b' => {
             if w(1) == b'g' {
-                p = highlight_color(id, what, modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
             } else if w(1) == b'l' {
                 p = highlight_has_attr(id, HL_BLINK, modec);
             } else {
@@ -8511,7 +8511,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         b'c' => p = highlight_has_attr(id, HL_CONCEALED, modec),
         b'd' => p = highlight_has_attr(id, HL_DIM, modec),
         b'o' => p = highlight_has_attr(id, HL_OVERLINE, modec),
-        b'f' => p = highlight_color(id, what, modec),
+        b'f' => p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec),
         b'i' => {
             if w(1) == b'n' {
                 p = highlight_has_attr(id, HL_INVERSE, modec);
@@ -8529,7 +8529,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         b'r' => p = highlight_has_attr(id, HL_INVERSE, modec),
         b's' => {
             if w(1) == b'p' {
-                p = highlight_color(id, what, modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
             } else if w(1) == b't' && w(2) == b'r' {
                 p = highlight_has_attr(id, HL_STRIKETHROUGH, modec);
             } else {
@@ -8550,7 +8550,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     p = highlight_has_attr(id, HL_UNDERDOTTED, modec);
                 }
             } else {
-                p = highlight_color(id, what, modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
             }
         }
         _ => {}
@@ -8600,7 +8600,7 @@ pub fn f_synconcealed(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 };
             }
             if cchar != 0 {
-                schar_get(str_.as_mut_ptr(), cchar);
+                schar_get(&mut str_, cchar);
             }
         }
     }

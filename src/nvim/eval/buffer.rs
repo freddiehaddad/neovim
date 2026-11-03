@@ -115,7 +115,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: *mut FileBuf) {
 
     if curwin_mut().w_buffer != buf {
         g_st().curbuf = curwin_mut().w_buffer;
-        ctx_switch(&mut cob.cob_aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut cob.cob_aco, None, None, unsafe { buf.as_mut() }, 0);
         cob.cob_using_aco = 1;
     }
 }

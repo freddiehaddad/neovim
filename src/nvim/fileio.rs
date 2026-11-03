@@ -4210,7 +4210,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut flags = READ_NEW;
 
-    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+    ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
 
     mc_buf_clear(&mut *buf);
 

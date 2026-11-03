@@ -933,7 +933,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows > 1
                         || crate::globals::gptr(wp).w_width != g_st().columns_global
-                        || (crate::globals::gptr(wp).w_floating && !is_ctx_win(wp))))
+                        || (crate::globals::gptr(wp).w_floating && !is_ctx_win(unsafe { &*wp }))))
             {
                 i = opened_len;
             } else {

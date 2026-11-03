@@ -645,7 +645,7 @@ unsafe extern "C-unwind" fn nlua_fast_cfpcall(
         let status = nlua_pcall(lstate, nargs, nresult);
         let retval = if status != 0 {
             if status == LUA_ERRMEM && (flags & LUVF_CALLBACK_NOEXIT) == 0 {
-                preserve_exit(E_OUTOFMEM);
+                preserve_exit(Some(E_OUTOFMEM));
             }
 
             let msg = nlua_get_error(lstate).map(|(s, _)| s.to_owned());

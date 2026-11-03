@@ -3686,7 +3686,7 @@ mod tests {
             let mut firstc: i32 = 0;
             let mut sbuf = [0u8; 32];
             let sc = crate::grid::unittest_schar_from_cluster(c")\xcc\x80\xcc\x81", &mut firstc);
-            schar_get(sbuf.as_mut_ptr(), sc);
+            schar_get(&mut sbuf, sc);
             assert_eq!(firstc, 0x29);
             assert_eq!(
                 CStr::from_bytes_until_nul(&sbuf).unwrap().to_bytes(),

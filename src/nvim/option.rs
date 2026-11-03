@@ -2409,7 +2409,7 @@ pub fn parse_winhl_opt(
                 return false;
             };
             let hl_id = if !val.is_empty() {
-                syn_check_group(val.as_ptr().cast(), val.len())
+                syn_check_group(val)
             } else {
                 -1
             };
@@ -2417,7 +2417,7 @@ pub fn parse_winhl_opt(
                 return false;
             }
             let hl_id_link = if !key.is_empty() {
-                syn_check_group(key.as_ptr().cast(), key.len())
+                syn_check_group(key)
             } else {
                 0
             };
@@ -3568,7 +3568,7 @@ pub fn check_redraw_for(buf: *mut FileBuf, win: &mut WinInfoInfo, flags: u32) {
         }
     }
     if (flags & K_OPT_FLAG_REDR_BUF) != 0 {
-        redraw_buf_later(buf, UPD_NOT_VALID);
+        redraw_buf_later(unsafe { &*buf }, UPD_NOT_VALID);
     }
     if all {
         redraw_all_later(UPD_NOT_VALID);
@@ -5853,9 +5853,9 @@ fn switch_option_context(
             let mut cs = CtxSwitch::new();
             if !ctx_switch(
                 &mut cs,
-                win,
-                win_find_tabpage(win),
-                ptr::null_mut(),
+                unsafe { win.as_mut() },
+                unsafe { win_find_tabpage(win).as_mut() },
+                None,
                 K_CTX_NO_DISPLAY,
             ) {
                 ctx_restore(&mut cs);
@@ -5879,7 +5879,7 @@ fn switch_option_context(
                 return false;
             }
             let mut cs = CtxSwitch::new();
-            ctx_switch(&mut cs, ptr::null_mut(), ptr::null_mut(), buf, 0);
+            ctx_switch(&mut cs, None, None, unsafe { buf.as_mut() }, 0);
             *ctx = OptSavedCtx::Switch(cs);
             true
         }
@@ -8172,7 +8172,7 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
         set_option_direct(K_OPT_FILEFORMAT, cstr_as_obj(p), opt_flags, 0);
     }
 
-    redraw_buf_status_later(g_st().curbuf);
+    redraw_buf_status_later(curbuf_mut());
     g_st().redraw_tabline = true;
     g_st().need_maketitle = true;
 }

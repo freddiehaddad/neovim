@@ -412,13 +412,11 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
                             .map(|s| p_idx + s);
                         let mut saved_hl_id = first_byte as i32;
                         if let Some(s_idx) = slash_idx {
-                            saved_hl_id =
-                                syn_check_group(guicursor_ptr.wrapping_add(p_idx), s_idx - p_idx);
+                            saved_hl_id = syn_check_group(&guicursor[p_idx..s_idx]);
                             p_idx = s_idx + 1;
                         }
                         if round == 2 {
-                            tbl[idx].id =
-                                syn_check_group(guicursor_ptr.wrapping_add(p_idx), end_idx - p_idx);
+                            tbl[idx].id = syn_check_group(&guicursor[p_idx..end_idx]);
                             tbl[idx].id_lm = tbl[idx].id;
                             if slash_idx.is_some() {
                                 tbl[idx].id = saved_hl_id;

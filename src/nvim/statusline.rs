@@ -4,6 +4,7 @@ use crate::api::private::helpers::{
     add_c, api_free_array, arena_array, arena_dict, arena_string, cstr_as_string, put_c,
 };
 use crate::api::private::validate::{Array, Object, ObjectData, ObjectType};
+use crate::api::ui::MAX_SCHAR_SIZE;
 use crate::buffer::{
     FileBuf, K_UIMESSAGES, append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos,
 };
@@ -345,10 +346,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
     stl_st().redr_status_busy = true;
     wp.w_redr_status = false;
 
-    let mut stl_curwin = ctx_saved_curwin();
-    if stl_curwin.is_null() {
-        stl_curwin = curwin_ptr();
-    }
+    let stl_curwin = ctx_saved_curwin().map_or_else(curwin_ptr, ptr::from_mut);
     let is_stl_curwin = ptr::eq(wp, stl_curwin);
 
     if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
@@ -370,7 +368,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
             wp.w_p_fcs_chars.vert
         };
         let attr = win_hl_attr(&mut *wp, group);
-        grid_line_start(&raw mut g_st().default_gridview, w_endrow(&*wp));
+        grid_line_start(&mut g_st().default_gridview, w_endrow(&*wp));
         grid_line_put_schar(w_endcol(wp), fillchar, attr);
         grid_line_flush();
     }
@@ -517,12 +515,12 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
     stl_st().stl_expr_entered = true;
 
     let save_curwin = ctx_saved_curwin();
-    let restore_curwin = if !save_curwin.is_null() {
+    let restore_curwin = if save_curwin.is_some() {
         curwin_ptr()
     } else {
         ptr::null_mut()
     };
-    if !save_curwin.is_null() {
+    if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
     }
@@ -551,7 +549,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         };
         row = -1;
         col = 0;
-        grid = grid_adjust(&mut wp.w_grid, &mut row, &mut col);
+        grid = ptr::from_mut(grid_adjust(&mut wp.w_grid, &mut row, &mut col));
 
         if row < 0 {
             stl_st().stl_expr_entered = false;
@@ -604,7 +602,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
         }
         row = g_st().rows_global - 1;
         col = g_st().ru_col.max(g_st().columns_global / 2);
-        grid = grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col);
+        grid = ptr::from_mut(grid_adjust(&mut g_st().msg_grid_adj, &mut row, &mut col));
         maxwidth = g_st().columns_global - col;
         fillchar = schar_from_ascii(b' ');
         group = HLF_MSG;
@@ -723,7 +721,12 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
             };
             let tsize = transstr_buf(src_slice, &mut transbuf, true);
             if !ui_event {
-                col += grid_line_puts(col, transbuf.as_ptr().cast(), tsize as i32, curattr);
+                col += grid_line_puts(
+                    col,
+                    crate::memory::cstr_until_nul(&transbuf),
+                    tsize as i32,
+                    curattr,
+                );
             } else {
                 let mut chunk = Array::new();
                 chunk.push(Object {
@@ -784,7 +787,7 @@ fn win_redr_stl_expr(wp: *mut WinInfoInfo, draw_winbar: bool, draw_ruler: bool, 
                     userhl.wrapping_add((crate::globals::gptr(sp).userhl - 1) as usize),
                 );
 
-                curgroup = syn_name2id_len(userbuf.as_ptr().cast(), 5);
+                curgroup = syn_name2id_len(&userbuf[..5]);
             }
             if curattr != attr {
                 curattr = hl_combine_attr(attr, curattr);
@@ -1015,7 +1018,7 @@ pub fn draw_tabline() {
     } else {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
-        grid_line_start(&raw mut g_st().default_gridview, 0);
+        grid_line_start(&mut g_st().default_gridview, 0);
         let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             tabcount += 1;
@@ -1089,7 +1092,7 @@ pub fn draw_tabline() {
 
                     grid_line_puts(
                         col,
-                        name_buff,
+                        crate::memory::cstr_from_ptr(name_buff),
                         len,
                         hl_combine_attr(attr, win_hl_attr(crate::globals::gmut(cwp), HLF_T)),
                     );
@@ -1118,7 +1121,7 @@ pub fn draw_tabline() {
                 let n = g_st().columns_global - col - 1;
                 len = len.min(n);
 
-                grid_line_puts(col, p, -1, attr);
+                grid_line_puts(col, crate::memory::cstr_from_ptr(p), -1, attr);
                 col += len;
             }
             grid_line_put_schar(col, schar_from_ascii(b' '), attr);
@@ -1155,7 +1158,7 @@ pub fn draw_tabline() {
             if sc_width > 0 {
                 grid_line_puts(
                     g_st().columns_global - sc_width - i32::from(tabcount > 1) * 2,
-                    (&raw const g_st().showcmd_buf).cast(),
+                    crate::memory::cstr_until_nul(&g_st().showcmd_buf),
                     sc_width,
                     attr_nosel,
                 );
@@ -1334,7 +1337,11 @@ fn stl_truncate(
         if *width >= minwid {
             break;
         }
-        schar_get_adv(out_p, fillchar);
+        let adv = schar_get_adv(
+            unsafe { std::slice::from_raw_parts_mut(*out_p, MAX_SCHAR_SIZE) },
+            fillchar,
+        );
+        *out_p = (*out_p).wrapping_add(adv);
     }
 
     *crate::globals::gptr(*out_p) = 0;
@@ -1390,7 +1397,11 @@ fn stl_expand(
 
                 let mut s = start;
                 while s < seploc {
-                    schar_get_adv(&mut s, fillchar);
+                    let adv = schar_get_adv(
+                        unsafe { std::slice::from_raw_parts_mut(s, MAX_SCHAR_SIZE) },
+                        fillchar,
+                    );
+                    s = s.wrapping_add(adv);
                 }
             }
         }
@@ -1399,7 +1410,11 @@ fn stl_expand(
         *out_p = (*out_p).wrapping_add(added_bytes as usize);
     } else if padding == StlPadding::PaddingRight {
         while added_cells > 0 {
-            schar_get_adv(out_p, fillchar);
+            let adv = schar_get_adv(
+                unsafe { std::slice::from_raw_parts_mut(*out_p, MAX_SCHAR_SIZE) },
+                fillchar,
+            );
+            *out_p = (*out_p).wrapping_add(adv);
             added_cells -= 1;
         }
         *width += added_bytes / fillchar_bytes;
@@ -1414,7 +1429,11 @@ fn stl_expand(
 
         let orig_added_cells = added_cells;
         while added_cells > 0 {
-            schar_get_adv(&mut start_p, fillchar);
+            let adv = schar_get_adv(
+                unsafe { std::slice::from_raw_parts_mut(start_p, MAX_SCHAR_SIZE) },
+                fillchar,
+            );
+            start_p = start_p.wrapping_add(adv);
             added_cells -= 1;
         }
 
@@ -2277,10 +2296,11 @@ pub extern "C" fn build_stl_str_hl(
                             StlItemType::HighlightCombining;
                     }
                     stl_items!()[stl_st().curitem as usize].start = out_p;
-                    stl_items!()[stl_st().curitem as usize].minwid = -syn_name2id_len(
-                        t.cast(),
-                        crate::memory::ptr_offset_from(fmt_p, t) as usize,
-                    );
+                    stl_items!()[stl_st().curitem as usize].minwid =
+                        -syn_name2id_len(crate::memory::cstr_slice(
+                            t.cast(),
+                            crate::memory::ptr_offset_from(fmt_p, t) as usize,
+                        ));
                     stl_st().curitem += 1;
                     fmt_p = fmt_p.wrapping_add(1);
                 }
@@ -2330,7 +2350,7 @@ pub extern "C" fn build_stl_str_hl(
                         };
                     let mut buflen: usize = 0;
                     for &fc in fold_buf.iter().take(fdc as usize) {
-                        buflen += schar_get(buf_tmp.as_mut_ptr().wrapping_add(buflen), fc);
+                        buflen += schar_get(&mut buf_tmp[buflen..], fc);
                     }
                 }
 
@@ -2414,7 +2434,11 @@ pub extern "C" fn build_stl_str_hl(
 
                         out_p = out_p.wrapping_add(1);
                     } else {
-                        schar_get_adv(&mut out_p, fillchar);
+                        let adv = schar_get_adv(
+                            unsafe { std::slice::from_raw_parts_mut(out_p, MAX_SCHAR_SIZE) },
+                            fillchar,
+                        );
+                        out_p = out_p.wrapping_add(adv);
                     }
                     l += 1;
                 }
@@ -2440,7 +2464,11 @@ pub extern "C" fn build_stl_str_hl(
                     && (!ascii_isdigit(crate::memory::cstr_first_byte(t.wrapping_add(1).cast()))
                         || fillchar != schar_from_ascii(b'-'))
                 {
-                    schar_get_adv(&mut out_p, fillchar);
+                    let adv = schar_get_adv(
+                        unsafe { std::slice::from_raw_parts_mut(out_p, MAX_SCHAR_SIZE) },
+                        fillchar,
+                    );
+                    out_p = out_p.wrapping_add(adv);
                 } else {
                     *crate::globals::gptr(out_p) = *crate::globals::gptr(t);
 
@@ -2456,7 +2484,11 @@ pub extern "C" fn build_stl_str_hl(
             }
 
             while l < minwid && out_p < out_end_p {
-                schar_get_adv(&mut out_p, fillchar);
+                let adv = schar_get_adv(
+                    unsafe { std::slice::from_raw_parts_mut(out_p, MAX_SCHAR_SIZE) },
+                    fillchar,
+                );
+                out_p = out_p.wrapping_add(adv);
                 l += 1;
             }
         } else if num >= 0 {
@@ -2727,11 +2759,11 @@ mod tests {
                 curwin_mut().w_cursor.lnum = 0;
 
                 let fillchar = match fill {
-                    None => schar_from_str(c" "),
+                    None => schar_from_str(Some(c" ")),
                     Some("") => 0,
                     Some(s) => {
                         let c = CString::new(s).unwrap();
-                        schar_from_str(c.as_ptr())
+                        schar_from_str(Some(c.as_c_str()))
                     }
                 };
 

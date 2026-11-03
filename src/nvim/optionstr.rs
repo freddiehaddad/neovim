@@ -2191,7 +2191,7 @@ pub fn did_set_fileformat(args: &mut Optset) -> Option<&CStr> {
     redraw_titles();
     ml_setflags(buf);
     if get_fileformat(buf) == EOL_MAC || crate::memory::cstr_first_byte(oldval) == b'm' {
-        redraw_buf_later(args.os_buf, UPD_NOT_VALID);
+        redraw_buf_later(unsafe { &*args.os_buf }, UPD_NOT_VALID);
     }
     None
 }
@@ -3665,11 +3665,11 @@ pub fn set_chars_option<'a>(
             if round > 0 {
                 for entry in tab {
                     if let Some(slot) = entry.target.slot_mut(&mut fcs_chars, &mut lcs_chars) {
-                        let s_ptr = match entry.def {
-                            Some(d) if ptr2cells(d.as_ptr()) == 1 => d.as_ptr(),
-                            _ => entry.fallback.map_or(ptr::null(), |f| f.as_ptr()),
+                        let s_cstr = match entry.def {
+                            Some(d) if ptr2cells(d.as_ptr()) == 1 => Some(d),
+                            _ => entry.fallback,
                         };
-                        *slot = schar_from_str(s_ptr);
+                        *slot = schar_from_str(s_cstr);
                     }
                 }
 

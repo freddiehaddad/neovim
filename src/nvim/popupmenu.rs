@@ -430,14 +430,10 @@ fn pum_border_width() -> i32 {
     }
 }
 
-/// Show the popup menu with items `array[size]` (`pum_display`).
-pub fn pum_display(
-    array: *mut Pumitem,
-    size: i32,
-    selected: i32,
-    array_changed: bool,
-    cmd_startcol: i32,
-) {
+/// Show the popup menu with items `items` (`pum_display`).
+pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cmd_startcol: i32) {
+    let array: *mut Pumitem = items.as_mut_ptr();
+    let size = items.len() as i32;
     let mut redo_count: i32 = 0;
 
     if !pum().is_visible {
@@ -471,25 +467,16 @@ pub fn pum_display(
         let mut cursor_col: i32;
 
         if (g_st().state_global & MODE_CMDLINE) != 0 {
-            pum_win_row = if !g_st().cmdline_win.is_null() {
-                crate::globals::gptr(g_st().cmdline_win).w_wrow
+            let cmdline_win_ref = unsafe { g_st().cmdline_win.as_ref() };
+            pum_win_row = if let Some(cw) = cmdline_win_ref {
+                cw.w_wrow
             } else if ui_has(K_UICMDLINE) {
                 0
             } else {
                 g_st().cmdline_row
             };
-            cursor_col = (if !g_st().cmdline_win.is_null() {
-                crate::globals::gptr(g_st().cmdline_win)
-                    .w_config
-                    ._cmdline_offset
-            } else {
-                0
-            }) + cmd_startcol;
-            cursor_col %= if !g_st().cmdline_win.is_null() {
-                crate::globals::gptr(g_st().cmdline_win).w_view_width
-            } else {
-                g_st().columns_global
-            };
+            cursor_col = cmdline_win_ref.map_or(0, |cw| cw.w_config._cmdline_offset) + cmd_startcol;
+            cursor_col %= cmdline_win_ref.map_or(g_st().columns_global, |cw| cw.w_view_width);
             pum().anchor_grid = if ui_has(K_UICMDLINE) {
                 -1
             } else {
@@ -511,28 +498,24 @@ pub fn pum_display(
             }
         }
 
-        if !target_win.is_null() {
-            pum().anchor_grid =
-                crate::globals::gptr(crate::globals::gptr(target_win).w_grid.target).handle;
+        if let Some(target_win) = unsafe { target_win.as_ref() } {
+            pum().anchor_grid = unsafe { (*target_win.w_grid.target).handle };
 
-            pum_win_row += crate::globals::gptr(target_win).w_grid.row_offset;
+            pum_win_row += target_win.w_grid.row_offset;
 
-            cursor_col += crate::globals::gptr(target_win).w_grid.col_offset;
+            cursor_col += target_win.w_grid.col_offset;
 
-            if !ptr::eq(
-                crate::globals::gptr(target_win).w_grid.target,
-                &raw const g_st().default_grid,
-            ) {
-                pum_win_row += crate::globals::gptr(target_win).w_winrow;
+            if !ptr::eq(target_win.w_grid.target, &raw const g_st().default_grid) {
+                pum_win_row += target_win.w_winrow;
 
-                cursor_col += crate::globals::gptr(target_win).w_wincol;
+                cursor_col += target_win.w_wincol;
 
                 if !ui_has(K_UIMULTIGRID) {
                     pum().anchor_grid = DEFAULT_GRID_HANDLE;
                 } else {
-                    pum().win_row_offset = crate::globals::gptr(target_win).w_winrow;
+                    pum().win_row_offset = target_win.w_winrow;
 
-                    pum().win_col_offset = crate::globals::gptr(target_win).w_wincol;
+                    pum().win_col_offset = target_win.w_wincol;
                 }
             }
         }
@@ -545,8 +528,7 @@ pub fn pum_display(
                     size: 0,
                 };
                 let mut arr = arena_array(&mut arena, size as usize);
-                for i in 0..(size as usize) {
-                    let elem = crate::globals::gref(array.wrapping_add(i));
+                for elem in &items[..(size as usize)] {
                     let mut item = arena_array(&mut arena, 4);
                     add_c(&mut item, cstr_as_obj(elem.text_cstr()));
                     add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
@@ -568,16 +550,15 @@ pub fn pum_display(
             }
         }
 
-        let mut pvwin: *mut WinInfoInfo = ptr::null_mut();
+        let mut pvwin: Option<&mut WinInfoInfo> = None;
         for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
             if wp.w_onebuf_opt.wo_pvw != 0 {
-                pvwin = wp;
+                pvwin = Some(wp);
                 break;
             }
         }
 
-        if !pvwin.is_null() {
-            let pvwin = crate::globals::gmut(pvwin);
+        if let Some(pvwin) = pvwin {
             if pvwin.w_winrow < curwin_mut().w_winrow {
                 above_row = pvwin.w_winrow + pvwin.w_height;
             } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
@@ -587,7 +568,7 @@ pub fn pum_display(
 
         pum_compute_vertical_placement(
             size,
-            crate::globals::gopt_mut(target_win),
+            unsafe { target_win.as_mut() },
             pum_win_row,
             above_row,
             below_row,
@@ -609,11 +590,7 @@ pub fn pum_display(
 
         pum().scrollbar = if pum().height < size { 1 } else { 0 };
 
-        pum_compute_horizontal_placement(
-            crate::globals::gopt(target_win),
-            cursor_col,
-            border_width,
-        );
+        pum_compute_horizontal_placement(unsafe { target_win.as_ref() }, cursor_col, border_width);
 
         if !(pum_set_selected(selected, redo_count) && {
             redo_count += 1;
@@ -633,13 +610,13 @@ pub fn pum_display(
 
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
 fn pum_compute_text_attrs(
-    text: impl crate::strings::IntoCCharPtr,
+    text_cstr: &std::ffi::CStr,
     hlf: Hlf,
     user_hlattr: i32,
 ) -> Option<Vec<i32>> {
-    let text = text.into_c_char_ptr();
+    let text = text_cstr.as_ptr();
     {
-        if crate::memory::cstr_is_empty(text)
+        if text_cstr.is_empty()
             || (hlf != HLF_PSI && hlf != HLF_PNI)
             || (win_hl_attr(curwin_mut(), HLF_PMSI) == win_hl_attr(curwin_mut(), HLF_PSI)
                 && win_hl_attr(curwin_mut(), HLF_PMNI) == win_hl_attr(curwin_mut(), HLF_PNI))
@@ -665,10 +642,8 @@ fn pum_compute_text_attrs(
         let mut matched_len: i32 = -1;
 
         if in_fuzzy {
-            match_positions = fuzzy_match_str_with_pos(
-                crate::memory::cstr_as_opt_cstr(text).map(CStr::to_bytes),
-                crate::memory::cstr_as_opt_cstr(leader).map(CStr::to_bytes),
-            );
+            match_positions =
+                fuzzy_match_str_with_pos(Some(text_cstr.to_bytes()), Some(leader.to_bytes()));
             match_positions.as_ref()?;
         }
 
@@ -725,11 +700,11 @@ fn pum_compute_text_attrs(
 fn pum_grid_puts_with_attrs(
     mut col: i32,
     cells: i32,
-    text: impl crate::strings::IntoCCharPtr,
+    text_cstr: &std::ffi::CStr,
     textlen: i32,
     attrs: &[i32],
 ) {
-    let text = text.into_c_char_ptr();
+    let text = text_cstr.as_ptr();
     {
         let col_start = col;
         let mut ptr = text;
@@ -744,7 +719,7 @@ fn pum_grid_puts_with_attrs(
                 col - col_start
             };
             let attr = attrs[attr_idx as usize];
-            grid_line_puts(col, ptr, char_len, attr);
+            grid_line_puts(col, crate::memory::cstr_from_ptr(ptr), char_len, attr);
             col += utf_ptr2cells(ptr);
             ptr = ptr.wrapping_add(char_len as usize);
         }
@@ -855,8 +830,8 @@ pub fn pum_redraw() {
             == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
         {
             fconfig.shadow = true;
-            let blend = syn_check_group(c"PmenuShadow", 11);
-            let through = syn_check_group(c"PmenuShadowThrough", 18);
+            let blend = syn_check_group(b"PmenuShadow");
+            let through = syn_check_group(b"PmenuShadowThrough");
             fconfig.border_hl_ids[2] = through;
             fconfig.border_hl_ids[3] = blend;
             fconfig.border_hl_ids[4] = blend;
@@ -929,14 +904,7 @@ pub fn pum_redraw() {
 
     let scroll_range = pum().size - pum().height;
     if fconfig.border {
-        grid_draw_border(
-            &mut g_st().pum_grid,
-            &mut fconfig,
-            ptr::null_mut(),
-            0,
-            None,
-            0,
-        );
+        grid_draw_border(&mut g_st().pum_grid, &mut fconfig, None, 0, None, 0);
         if !fconfig.shadow {
             row += 1;
             col_off += 1;
@@ -1017,10 +985,13 @@ pub fn pum_redraw() {
 
                     let seg_cstr = crate::memory::cstr_from_bytes(&item_bytes[seg_start..p_idx]);
                     let mut st_bytes = transstr(seg_cstr.as_c_str(), true).into_bytes_with_nul();
-                    let st = st_bytes.as_mut_ptr();
 
                     let attrs = if item_type == CPT_ABBR {
-                        pum_compute_text_attrs(st.cast(), hlf, pum().item(idx).pum_user_abbr_hlattr)
+                        pum_compute_text_attrs(
+                            crate::memory::cstr_until_nul(&st_bytes),
+                            hlf,
+                            pum().item(idx).pum_user_abbr_hlattr,
+                        )
                     } else {
                         None
                     };
@@ -1052,17 +1023,17 @@ pub fn pum_redraw() {
                             }
                         }
 
-                        let rt_ptr: *const std::ffi::c_char = rt_bytes[rt_idx..].as_ptr().cast();
+                        let rt_cstr = crate::memory::cstr_until_nul(&rt_bytes[rt_idx..]);
                         if let Some(ref attrs_vec) = attrs {
                             pum_grid_puts_with_attrs(
                                 grid_col - cells + 1,
                                 cells,
-                                rt_ptr,
+                                rt_cstr,
                                 -1,
                                 attrs_vec,
                             );
                         } else {
-                            grid_line_puts(grid_col - cells + 1, rt_ptr, -1, attr);
+                            grid_line_puts(grid_col - cells + 1, rt_cstr, -1, attr);
                         }
 
                         grid_col -= width;
@@ -1090,11 +1061,11 @@ pub fn pum_redraw() {
                             width = displayed;
                         }
 
-                        let st_ptr: *const std::ffi::c_char = st_bytes.as_ptr().cast();
+                        let st_cstr = crate::memory::cstr_until_nul(&st_bytes);
                         if let Some(ref attrs_vec) = attrs {
-                            pum_grid_puts_with_attrs(grid_col, cells, st_ptr, -1, attrs_vec);
+                            pum_grid_puts_with_attrs(grid_col, cells, st_cstr, -1, attrs_vec);
                         } else {
-                            grid_line_puts(grid_col, st_ptr, -1, attr);
+                            grid_line_puts(grid_col, st_cstr, -1, attr);
                         }
 
                         grid_col += width;
@@ -1212,77 +1183,68 @@ pub fn pum_redraw() {
 /// Set the informational text in the preview buffer (`pum_preview_set_text`).
 fn pum_preview_set_text(
     win: &mut WinInfoInfo,
-    info: *mut u8,
+    info: Option<&[u8]>,
     lnum: &mut Linenr,
     max_width: &mut i32,
 ) {
-    {
-        let mut err = Error::new();
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
-        let mut replacement = Array {
-            items: ptr::null_mut(),
-            size: 0,
-            capacity: 0,
-        };
-        let buf = win.w_buffer;
-        let buf = crate::globals::gmut(buf);
-        buf.b_p_ma = 1;
+    let mut err = Error::new();
+    let mut arena = Arena {
+        cur_blk: ptr::null_mut(),
+        pos: 0,
+        size: 0,
+    };
+    let mut replacement = Array {
+        items: ptr::null_mut(),
+        size: 0,
+        capacity: 0,
+    };
+    let buf = win.w_buffer;
+    unsafe { (*buf).b_p_ma = 1 };
 
-        let mut curr = info;
-        while !curr.is_null() {
-            let next = crate::memory::cstr_as_bytes(curr.cast())
-                .iter()
-                .position(|&b| b == b'\n')
-                .map_or(ptr::null_mut(), |i| curr.wrapping_add(i));
-            if !next.is_null() {
-                *crate::globals::gptr(next) = 0;
-            }
-            if crate::memory::cstr_is_empty(curr.cast()) && next.is_null() {
+    if let Some(info_bytes) = info.map(crate::memory::bytes_until_nul) {
+        let mut rem_opt: Option<&[u8]> = Some(info_bytes);
+        while let Some(rem) = rem_opt {
+            let (curr_slice, next_opt) = if let Some(nl_idx) = rem.iter().position(|&b| b == b'\n')
+            {
+                (&rem[..nl_idx], Some(&rem[nl_idx + 1..]))
+            } else {
+                (rem, None)
+            };
+            if curr_slice.is_empty() && next_opt.is_none() {
                 break;
             }
+            let curr_cstr = std::ffi::CString::new(curr_slice).unwrap_or_default();
             let save_wrap = win.w_onebuf_opt.wo_wrap;
             win.w_onebuf_opt.wo_wrap = 0;
-            let line_width =
-                win_linetabsize(win, 0, crate::memory::cstr_from_ptr(curr.cast()), MAXCOL);
+            let line_width = win_linetabsize(win, 0, &curr_cstr, MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
-            replacement.push(string_obj(cstr_to_string(curr.cast())));
+            replacement.push(string_obj(cstr_to_string(curr_cstr.as_ptr())));
             *lnum += 1;
-
-            if !next.is_null() {
-                *crate::globals::gptr(next) = b'\n';
-
-                curr = next.wrapping_add(1);
-            } else {
-                curr = ptr::null_mut();
-            }
+            rem_opt = next_opt;
         }
-
-        let original_textlock = g_st().textlock;
-        g_st().textlock = 0;
-        nvim_buf_set_lines(
-            0,
-            buf.b_fnum,
-            0,
-            -1,
-            false,
-            replacement,
-            &mut arena,
-            &mut err,
-        );
-        g_st().textlock = original_textlock;
-        if err.err_type != ErrorType::ErrorTypeNone {
-            emsg(err.msg_cstr());
-            api_clear_error(&mut err);
-        }
-        arena_mem_free(arena_finish(&mut arena));
-        api_free_array(replacement);
-        buf.b_p_ma = 0;
     }
+
+    let original_textlock = g_st().textlock;
+    g_st().textlock = 0;
+    nvim_buf_set_lines(
+        0,
+        unsafe { (*buf).b_fnum },
+        0,
+        -1,
+        false,
+        replacement,
+        &mut arena,
+        &mut err,
+    );
+    g_st().textlock = original_textlock;
+    if err.err_type != ErrorType::ErrorTypeNone {
+        emsg(err.msg_cstr());
+        api_clear_error(&mut err);
+    }
+    arena_mem_free(arena_finish(&mut arena));
+    api_free_array(replacement);
+    unsafe { (*buf).b_p_ma = 0 };
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
@@ -1325,9 +1287,9 @@ fn pum_adjust_info_position(wp: &mut WinInfoInfo, width: i32) -> bool {
 }
 
 /// Used for `nvim__complete_set` (`pum_set_info`).
-pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
+pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut WinInfoInfo> {
     if !pum().is_visible || !compl_match_curr_select(selected) {
-        return ptr::null_mut();
+        return None;
     }
     block_autocmds();
     g_st().redrawing_disabled += 1;
@@ -1335,14 +1297,12 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
     let wp_ref = if let Some(wp) = win_float_find(K_WIN_INFO) {
         wp
     } else {
-        let Some(wp_ref) = win_float_special(false, true, K_WIN_INFO) else {
-            return ptr::null_mut();
-        };
+        let wp_ref = win_float_special(false, true, K_WIN_INFO)?;
         wp_ref.w_topline = 1;
         wp_ref.w_onebuf_opt.wo_wfb = 1;
         wp_ref
     };
-    let mut wp: *mut WinInfoInfo = wp_ref;
+    let wp_ptr: *mut WinInfoInfo = wp_ref;
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
@@ -1350,11 +1310,9 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
     g_st().redrawing_disabled -= 1;
     redraw_later(Some(&mut *wp_ref), UPD_NOT_VALID);
 
-    if !pum_adjust_info_position(&mut *wp_ref, max_info_width) {
-        wp = ptr::null_mut();
-    }
+    let ok = pum_adjust_info_position(&mut *wp_ref, max_info_width);
     unblock_autocmds();
-    wp
+    ok.then(|| unsafe { &mut *wp_ptr })
 }
 
 /// Set the index of the currently selected item (`pum_set_selected`).
@@ -1369,10 +1327,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
     let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
     if use_float
-        && (pum().selected < 0
-            || crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
-                .pum_info
-                .is_none())
+        && (pum().selected < 0 || pum().item(pum().selected).pum_info.is_none())
         && let Some(wp) = win_float_find(K_WIN_INFO)
     {
         wp.w_config.hide = true;
@@ -1411,9 +1366,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         }
         pum().first = pum().first.min(pum().size - pum().height);
 
-        if crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
-            .pum_info
-            .is_some()
+        if pum().item(pum().selected).pum_info.is_some()
             && g_st().rows_global > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
@@ -1483,9 +1436,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
                     pum_preview_set_text(
                         curwin_mut(),
-                        crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
-                            .info_cstr()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
+                        pum().item(pum().selected).info_cstr().map(CStr::to_bytes),
                         &mut lnum,
                         &mut max_info_width,
                     );
@@ -1810,7 +1761,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     let mode = get_menu_mode_flag();
 
     for mp in &menu.children {
-        if menu_is_separator(mp.dname.as_ptr().cast_mut()) || (mp.modes & mp.enabled & mode) != 0 {
+        if menu_is_separator(mp.dname.as_bytes()) || (mp.modes & mp.enabled & mode) != 0 {
             pum().size += 1;
         }
     }
@@ -1826,7 +1777,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
 
     for mp in &menu.children {
         let mut s: Option<&CStr> = None;
-        if menu_is_separator(mp.dname.as_ptr().cast_mut()) {
+        if menu_is_separator(mp.dname.as_bytes()) {
             s = Some(c"");
         } else if (mp.modes & mp.enabled & mode) != 0 {
             s = Some(mp.dname.as_c_str());
@@ -1921,8 +1872,8 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     }
 }
 
-pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_pos: i32) {
-    let path_name = path_name.into_c_char_ptr();
+pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: i32) {
+    let path_name = path_name.as_ptr();
     {
         if use_mouse_pos == 0 {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
@@ -1933,7 +1884,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
                     curwin_mut().w_wcol
                 };
             if ui_has(K_UIMULTIGRID) {
-                g_st().mouse_grid = crate::globals::gptr(curwin_mut().w_grid.target).handle;
+                g_st().mouse_grid = unsafe { (*curwin_mut().w_grid.target).handle };
             } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
                 g_st().mouse_grid = 0;
                 g_st().mouse_row += curwin_mut().w_winrow;
@@ -1941,9 +1892,8 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
             }
         }
 
-        let menu = menu_find(path_name);
-        if !menu.is_null() {
-            pum_show_popupmenu(crate::globals::gmut(menu));
+        if let Some(menu) = menu_find(crate::memory::cstr_from_ptr(path_name)) {
+            pum_show_popupmenu(menu);
         }
     }
 }

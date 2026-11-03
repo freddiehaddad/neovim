@@ -113,10 +113,10 @@ pub fn ui_comp_free_all_mem() {
 }
 
 pub fn ui_comp_syn_init() {
-    comp().dbghl_normal = syn_check_group(c"RedrawDebugNormal", 17);
-    comp().dbghl_clear = syn_check_group(c"RedrawDebugClear", 16);
-    comp().dbghl_composed = syn_check_group(c"RedrawDebugComposed", 19);
-    comp().dbghl_recompose = syn_check_group(c"RedrawDebugRecompose", 20);
+    comp().dbghl_normal = syn_check_group(b"RedrawDebugNormal");
+    comp().dbghl_clear = syn_check_group(b"RedrawDebugClear");
+    comp().dbghl_composed = syn_check_group(b"RedrawDebugComposed");
+    comp().dbghl_recompose = syn_check_group(b"RedrawDebugRecompose");
 }
 
 pub fn ui_comp_attach(ui: &mut RemoteUI) {
@@ -713,7 +713,8 @@ pub fn ui_comp_msg_set_pos(
     if scrolled && row > 0 {
         comp().msg_sep_row = (row as i32) - 1;
         if !sep_char.data.is_null() {
-            comp().msg_sep_char = schar_from_buf(sep_char.data, sep_char.size);
+            comp().msg_sep_char =
+                schar_from_buf(crate::memory::cstr_slice(sep_char.data, sep_char.size));
         }
     } else {
         comp().msg_sep_row = -1;

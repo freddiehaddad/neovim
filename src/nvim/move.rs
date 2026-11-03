@@ -204,7 +204,7 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
     }
 
     if g_st().visual_global.active && wp.w_buffer == g_st().curbuf {
-        redraw_buf_later(g_st().curbuf, UPD_INVERTED);
+        redraw_buf_later(curbuf_mut(), UPD_INVERTED);
     }
 }
 

@@ -2236,7 +2236,7 @@ pub fn nlua_pop_keydict_opt(
                     let name = lua_tolstring(lstate, -1, &mut name_len);
                     lua_pop(lstate, 1);
                     *mem.cast::<Integer>() = if name_len > 0 {
-                        syn_check_group(name, name_len) as Integer
+                        syn_check_group(crate::memory::cstr_slice(name, name_len)) as Integer
                     } else {
                         0
                     };

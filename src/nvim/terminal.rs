@@ -839,7 +839,13 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
     let term = crate::globals::gmut(*crate::globals::gptr(termpp));
 
     let mut aco: CtxSwitch = CtxSwitch::new();
-    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), &raw mut *buf, 0);
+    ctx_switch(
+        &mut aco,
+        None,
+        None,
+        Some(unsafe { &mut *ptr::from_mut(buf) }),
+        0,
+    );
 
     if term.sb_allocated {
         refresh_scrollback(term, buf);
@@ -897,7 +903,7 @@ pub fn terminal_open(termpp: *mut *mut Terminal, buf: &mut FileBuf) {
         ) as usize;
         if let Some(name) = get_config_string(buf, &var[..n]) {
             let mut dummy: i32 = 0;
-            let color_val = name_to_color(name.as_ptr(), &mut dummy);
+            let color_val = name_to_color(&name, &mut dummy);
             if color_val != -1 {
                 let color = VTermColor {
                     bytes: [
@@ -921,7 +927,8 @@ pub fn terminal_close(termpp: *mut *mut Terminal, status: i32) {
     }
 
     let mut only_destroy = false;
-    let buf = handle_get_buffer(term.buf_handle);
+    let buf: *mut FileBuf =
+        handle_get_buffer(term.buf_handle).map_or(ptr::null_mut(), ptr::from_mut);
 
     if term.closed {
         only_destroy = true;
@@ -1808,7 +1815,7 @@ fn buf_set_term_title(buf: *mut FileBuf, title: &[u8]) {
     );
     buf_ref.b_locked -= 1;
     api_clear_error(&mut err);
-    status_redraw_buf(buf);
+    status_redraw_buf(unsafe { &*buf });
 }
 
 fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) -> i32 {
@@ -1822,7 +1829,8 @@ fn term_settermprop(prop: VTermProp, val: &mut VTermValue, term: *mut Terminal) 
             invalidate_terminal(term, -1, -1);
         }
         VTERM_PROP_TITLE => {
-            let buf = handle_get_buffer(term.buf_handle);
+            let buf: *mut FileBuf =
+                handle_get_buffer(term.buf_handle).map_or(ptr::null_mut(), ptr::from_mut);
             let frag = val.string();
             let flen = frag.len();
 

@@ -1108,7 +1108,7 @@ pub fn object_to_hl_id(
             ObjectType::ObjectTypeString => {
                 let str_ = obj.data.string();
                 if str_.size != 0 {
-                    syn_check_group(str_.data, str_.size)
+                    syn_check_group(crate::memory::cstr_slice(str_.data, str_.size))
                 } else {
                     0
                 }

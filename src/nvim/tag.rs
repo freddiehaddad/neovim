@@ -2502,9 +2502,9 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             buf[0] = 0;
             copy_option_part(&raw mut tnp.tn_np, buf.as_mut_ptr(), MAXPATHL - 1, c" ,");
 
-            let r_ptr = vim_findfile_stopdir(buf.as_mut_ptr());
+            let stop_off = vim_findfile_stopdir(buf);
             let stopdirs_cstr =
-                (!r_ptr.is_null()).then(|| crate::memory::cstr_to_cstring(r_ptr.cast()));
+                stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]).to_owned());
             let tail_off =
                 crate::memory::ptr_offset_from(path_tail(buf.as_ptr().cast()), buf.as_ptr().cast())
                     as usize;
@@ -2512,16 +2512,15 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             buf[tail_off] = 0;
 
             tnp.tn_search_ctx = vim_findfile_init(
-                buf.as_mut_ptr().cast(),
-                filename_cstr.as_ptr(),
-                filename_cstr.as_bytes().len(),
-                stopdirs_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
+                crate::memory::cstr_until_nul(buf),
+                filename_cstr.as_bytes(),
+                stopdirs_cstr.as_deref(),
                 100,
                 0,
                 FINDFILE_FILE,
                 tnp.tn_search_ctx.take(),
                 1,
-                curbuf_mut().b_ffname,
+                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
             );
             if tnp.tn_search_ctx.is_some() {
                 tnp.tn_did_filefind_init = 1;

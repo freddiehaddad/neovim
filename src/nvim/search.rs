@@ -3205,24 +3205,27 @@ pub fn find_pattern_in_path(
                 };
 
                 let inc_opt_cstr = crate::memory::cstr_from_ptr(inc_opt);
+                let p_fname_opt = crate::memory::cstr_as_opt_cstr(p_fname);
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
-                        incl_regmatch.startp[0].cast(),
-                        crate::memory::ptr_offset_from(
-                            incl_regmatch.endp[0],
-                            incl_regmatch.startp[0],
-                        ) as usize,
+                        crate::memory::cstr_slice(
+                            incl_regmatch.startp[0].cast(),
+                            crate::memory::ptr_offset_from(
+                                incl_regmatch.endp[0],
+                                incl_regmatch.startp[0],
+                            ) as usize,
+                        ),
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
-                        p_fname,
+                        p_fname_opt,
                     )
                 } else {
                     file_name_in_line(
-                        incl_regmatch.endp[0].cast(),
+                        crate::memory::cstr_as_bytes(incl_regmatch.endp[0].cast()),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
-                        p_fname,
+                        p_fname_opt,
                         None,
                     )
                 }

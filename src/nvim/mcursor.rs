@@ -385,7 +385,7 @@ fn mc_execute(cursoridx: usize, atomidx: usize) {
         )
     };
 
-    if handle_get_buffer(ctx.buf) != g_st().curbuf {
+    if !handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf)) {
         return;
     }
 
@@ -555,7 +555,7 @@ fn mc_cascade() {
     mc_sandbox_leave(&mut sb);
 
     mc_cleanup(true, Some(&curwin_mut().w_cursor), mcursor);
-    if handle_get_buffer(bufnr) == g_st().curbuf
+    if handle_get_buffer(bufnr).is_some_and(|b| ptr::eq(b, g_st().curbuf))
         && !curbuf_mut().b_u_synced
         && let Some(nh) = curbuf_mut().b_u_newhead
     {
@@ -714,7 +714,7 @@ fn mc_ins_regions_clear() {
 
 #[inline]
 fn mc_ctx_resolve(ctx: &Context, pos: &mut CursorPos) -> bool {
-    handle_get_buffer(ctx.buf) == g_st().curbuf
+    handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf))
         && ctx.mark != 0
         && extmark_get_pos(curbuf_mut(), mc_ns(), ctx.mark, pos)
 }
@@ -1045,7 +1045,9 @@ fn mc_reg_gather() {
     let mut order: Vec<&mut Context> = Vec::new();
     order.push(&mut primary);
     for ctx in cursors_mut().iter_mut() {
-        if !ctx.regs.is_empty() && handle_get_buffer(ctx.buf) == g_st().curbuf {
+        if !ctx.regs.is_empty()
+            && handle_get_buffer(ctx.buf).is_some_and(|b| ptr::eq(b, g_st().curbuf))
+        {
             order.push(ctx);
         }
     }
@@ -1114,7 +1116,7 @@ pub fn mc_vsel_clear() {
 
 fn mc_vsel_mark(start_lnum: Linenr, start_col: Colnr, end_lnum: Linenr, end_col: Colnr) {
     let mut decor = DECOR_INLINE_INIT;
-    decor.data.hl_mut().hl_id = syn_check_group(c"MCursorVisual", 13);
+    decor.data.hl_mut().hl_id = syn_check_group(b"MCursorVisual");
     let mut mark: u32 = 0;
     extmark_set(
         curbuf_mut(),

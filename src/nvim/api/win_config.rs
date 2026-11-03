@@ -423,9 +423,9 @@ pub fn nvim_open_win(
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     let result = ctx_switch(
                         &mut switchwin,
-                        parent,
-                        tp,
-                        ptr::null_mut(),
+                        unsafe { parent.as_mut() },
+                        unsafe { tp.as_mut() },
+                        None,
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                     );
                     assert!(result);
@@ -479,7 +479,13 @@ pub fn nvim_open_win(
         set_bufref(&mut bufref, (&raw mut *b));
         if !fconfig.noautocmd {
             let mut switchwin: CtxSwitch = CtxSwitch::new();
-            let result = ctx_switch(&mut switchwin, wp, tp, ptr::null_mut(), K_CTX_NO_DISPLAY);
+            let result = ctx_switch(
+                &mut switchwin,
+                unsafe { wp.as_mut() },
+                unsafe { tp.as_mut() },
+                None,
+                K_CTX_NO_DISPLAY,
+            );
             assert!(result);
             if apply_autocmds_win(
                 EVENT_WINNEW,
@@ -604,7 +610,7 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
         api_set_error!(err, ErrorType::ErrorTypeException, c"%s", E_TEXTLOCK,);
         return false;
     }
-    if is_ctx_win(wp) {
+    if is_ctx_win(&*wp) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -844,9 +850,9 @@ fn win_config_split(
                 if need_switch {
                     let result = ctx_switch(
                         &mut switchwin,
-                        parent,
-                        parent_tp,
-                        ptr::null_mut(),
+                        unsafe { parent.as_mut() },
+                        unsafe { parent_tp.as_mut() },
+                        None,
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                     );
                     assert!(result);
@@ -1525,8 +1531,8 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                 }
                 *hl_ids = [0; 8];
                 if DEFAULTS_SHADOW[i] {
-                    let hl_blend = syn_check_group(c"FloatShadow", 11);
-                    let hl_through = syn_check_group(c"FloatShadowThrough", 18);
+                    let hl_blend = syn_check_group(b"FloatShadow");
+                    let hl_through = syn_check_group(b"FloatShadowThrough");
                     hl_ids[2] = hl_through;
                     hl_ids[3] = hl_blend;
                     hl_ids[4] = hl_blend;

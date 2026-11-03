@@ -744,21 +744,16 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
 
         loop {
             fresult = find_file_in_path_option(
-                if first {
-                    fname.as_ptr().cast_mut()
-                } else {
-                    ptr::null_mut()
-                },
-                if first { fname.to_bytes().len() } else { 0 },
+                if first { fname.to_bytes() } else { &[] },
                 0,
                 i32::from(first),
-                path,
+                crate::memory::cstr_from_ptr(path),
                 find_what,
-                curbuf_mut().b_ffname,
+                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
                 if find_what == FINDFILE_DIR {
-                    c"".as_ptr().cast_mut()
+                    c""
                 } else {
-                    curbuf_mut().b_p_sua
+                    crate::memory::cstr_from_ptr(curbuf_mut().b_p_sua)
                 },
                 &mut file_to_find,
                 &mut search_ctx,

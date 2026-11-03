@@ -2122,7 +2122,7 @@ fn mouse_check_grid(wp: &mut WinInfoInfo, vcolp: &mut Colnr, flagsp: &mut i32) {
     }
     let mut start_row: i32 = 0;
     let mut start_col: i32 = 0;
-    let gp = unsafe { &*grid_adjust(&mut wp.w_grid, &mut start_row, &mut start_col) };
+    let gp = grid_adjust(&mut wp.w_grid, &mut start_row, &mut start_col);
     if gp.handle != click_grid || gp.chars.is_empty() {
         return;
     }

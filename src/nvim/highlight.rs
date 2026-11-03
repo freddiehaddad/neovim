@@ -741,12 +741,12 @@ pub fn update_ns_hl(ns_id: i32) {
 
     for hlf in 1..HLF_COUNT {
         let name_cstr = HLF_NAMES[hlf].unwrap();
-        let id = syn_check_group(name_cstr.as_ptr(), name_cstr.to_bytes().len());
+        let id = syn_check_group(name_cstr.to_bytes());
         let optional = hlf == HLF_INACTIVE || hlf == HLF_NFLOAT;
         alloc[hlf].set(hl_get_ui_attr(ns_id, hlf as i32, id, optional));
     }
 
-    let normality = syn_check_group(c"Normal", 6);
+    let normality = syn_check_group(b"Normal");
     alloc[HLF_NONE].set(hl_get_ui_attr(ns_id, -1, normality, true));
 
     get_decor_provider_opt(ns_id, true).unwrap().hl_cached = true;
@@ -1703,9 +1703,9 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
         }
         let color = if rgb {
             let mut dummy: i32 = 0;
-            name_to_color(str_.data, &raw mut dummy)
+            name_to_color(crate::memory::cstr_from_ptr(str_.data), &mut dummy)
         } else {
-            name_to_ctermcolor(str_.data)
+            name_to_ctermcolor(crate::memory::cstr_from_ptr(str_.data))
         };
         if color < 0 {
             api_err_invalid(err, c"highlight color", str_.data, 0, true);

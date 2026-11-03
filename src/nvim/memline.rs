@@ -417,17 +417,32 @@ impl PointerBlock {
 
 #[inline]
 fn hp_zero_block(hp: *mut Bhdr) -> &'static mut ZeroBlock {
-    crate::globals::gmut(crate::globals::gptr(hp).data_ptr().cast::<ZeroBlock>())
+    crate::globals::gmut(
+        crate::globals::gptr(hp)
+            .data_slice_mut()
+            .as_mut_ptr()
+            .cast::<ZeroBlock>(),
+    )
 }
 
 #[inline]
 fn hp_data_block(hp: *mut Bhdr) -> &'static mut DataBlock {
-    crate::globals::gmut(crate::globals::gptr(hp).data_ptr().cast::<DataBlock>())
+    crate::globals::gmut(
+        crate::globals::gptr(hp)
+            .data_slice_mut()
+            .as_mut_ptr()
+            .cast::<DataBlock>(),
+    )
 }
 
 #[inline]
 fn hp_ptr_block(hp: *mut Bhdr) -> &'static mut PointerBlock {
-    crate::globals::gmut(crate::globals::gptr(hp).data_ptr().cast::<PointerBlock>())
+    crate::globals::gmut(
+        crate::globals::gptr(hp)
+            .data_slice_mut()
+            .as_mut_ptr()
+            .cast::<PointerBlock>(),
+    )
 }
 
 #[inline]
@@ -475,7 +490,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_flags = ML_EMPTY;
     buf.b_ml.ml_line_count = 1;
 
-    let mut hp = mf_new(mfp, false, 1);
+    let mut hp: *mut Bhdr = mf_new(mfp, false, 1);
     if crate::globals::gptr(hp).bh_bnum != 0 {
         iemsg(tr(c"E298: Didn't get block nr 0?"));
         return ml_open_error(buf, Some(mfp), hp);
@@ -503,7 +518,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         long_to_char(os_get_pid(), &mut b0p.b0_pid);
     }
 
-    mf_put(mfp, hp, true, false);
+    mf_put(mfp, unsafe { &mut *hp }, true, false);
     if !buf.b_help && !buf.b_spell {
         mf_sync(mfp, 0);
     }
@@ -521,7 +536,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     pe0.pe_page_count = 1;
     pe0.pe_old_lnum = 1;
     pe0.pe_line_count = 1;
-    mf_put(mfp, hp, true, false);
+    mf_put(mfp, unsafe { &mut *hp }, true, false);
 
     hp = ml_new_data(mfp, false, 1);
     if crate::globals::gptr(hp).bh_bnum != 2 {
@@ -541,7 +556,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
 
 fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) -> bool {
     if let Some(mfp) = mfp {
-        if !hp.is_null() {
+        if let Some(hp) = unsafe { hp.as_mut() } {
             mf_put(mfp, hp, false, false);
         }
         mf_close(buf.b_ml.ml_mfp.take(), true);
@@ -760,10 +775,9 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
     let Some(mfp) = buf.b_ml.mfp_opt() else {
         return;
     };
-    let hp = mf_get(mfp, 0, 1);
-    if hp.is_null() {
+    let Some(hp) = mf_get(mfp, 0, 1) else {
         return;
-    }
+    };
     let b0p = hp_zero_block(hp);
     if !ml_check_b0_id(b0p) {
         iemsg(tr(c"E304: ml_upd_block0(): Didn't get block 0??"));
@@ -988,7 +1002,7 @@ pub fn ml_recover(checkext: bool) {
 
     let hl_id = HLF_E;
     msg_ext_set_kind(c"emsg");
-    hp = mf_get(&mut *mfp, 0, 1);
+    hp = mf_get(&mut *mfp, 0, 1).map_or(ptr::null_mut(), ptr::from_mut);
     if hp.is_null() {
         msg_start();
         msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
@@ -1012,7 +1026,10 @@ pub fn ml_recover(checkext: bool) {
         );
         return;
     }
-    let mut b0p = crate::globals::gptr(hp).data_ptr().cast::<ZeroBlock>();
+    let mut b0p = crate::globals::gptr(hp)
+        .data_slice_mut()
+        .as_mut_ptr()
+        .cast::<ZeroBlock>();
     if (&crate::globals::gptr(b0p).b0_version)[..7] == *b"VIM 3.0" {
         msg_start();
         msg_outtrans(
@@ -1114,7 +1131,10 @@ pub fn ml_recover(checkext: bool) {
             .bh_data
             .resize(mfp.mf_page_size as usize, 0);
 
-        b0p = crate::globals::gptr(hp).data_ptr().cast::<ZeroBlock>();
+        b0p = crate::globals::gptr(hp)
+            .data_slice_mut()
+            .as_mut_ptr()
+            .cast::<ZeroBlock>();
     }
 
     let namebuff_ptr = g_st().name_buff.as_mut_ptr();
@@ -1189,7 +1209,7 @@ pub fn ml_recover(checkext: bool) {
         b0_fenc = Some(std::ffi::CString::new(&fenc_bytes[..end]).unwrap_or_default());
     }
 
-    mf_put(&mut *mfp, hp, false, false);
+    mf_put(&mut *mfp, unsafe { &mut *hp }, false, false);
     hp = ptr::null_mut();
 
     while (curbuf_mut().b_ml.ml_flags & ML_EMPTY) == 0 {
@@ -1234,10 +1254,10 @@ pub fn ml_recover(checkext: bool) {
 
     serious_error = false;
     while !g_st().got_int {
-        if !hp.is_null() {
-            mf_put(&mut *mfp, hp, false, false);
+        if let Some(hp_ref) = unsafe { hp.as_mut() } {
+            mf_put(&mut *mfp, hp_ref, false, false);
         }
-        hp = mf_get(&mut *mfp, bnum, page_count);
+        hp = mf_get(&mut *mfp, bnum, page_count).map_or(ptr::null_mut(), ptr::from_mut);
         if hp.is_null() {
             if bnum == 1 {
                 semsg!(
@@ -1558,7 +1578,7 @@ fn ml_recover_theend(
     g_st().msg_ext_skip_flush = false;
     g_st().recoverymode = false;
     if let Some(mfp) = mfp {
-        if !hp.is_null() {
+        if let Some(hp) = unsafe { hp.as_mut() } {
             mf_put(mfp, hp, false, false);
         }
         mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
@@ -2393,9 +2413,13 @@ fn ml_append_int(
                 line_count_right = 0;
             }
             let dp_right = crate::globals::gptr(hp_right)
-                .data_ptr()
+                .data_slice_mut()
+                .as_mut_ptr()
                 .cast::<DataBlock>();
-            let dp_left = crate::globals::gptr(hp_left).data_ptr().cast::<DataBlock>();
+            let dp_left = crate::globals::gptr(hp_left)
+                .data_slice_mut()
+                .as_mut_ptr()
+                .cast::<DataBlock>();
             let mut bnum_left = crate::globals::gptr(hp_left).bh_bnum;
             let mut bnum_right = crate::globals::gptr(hp_right).bh_bnum;
             let mut page_count_left = crate::globals::gptr(hp_left).bh_page_count as i32;
@@ -2495,7 +2519,12 @@ fn ml_append_int(
             if (flags & ML_APPEND_NEW) == 0 && db_idx >= 0 && in_left {
                 buf.b_ml.ml_flags |= ML_LOCKED_POS;
             }
-            mf_put(crate::globals::gmut(mfp), hp_new, true, false);
+            mf_put(
+                crate::globals::gmut(mfp),
+                unsafe { &mut *hp_new },
+                true,
+                false,
+            );
 
             let lineadd = buf.b_ml.ml_locked_lineadd;
             buf.b_ml.ml_locked_lineadd = 0;
@@ -2510,14 +2539,15 @@ fn ml_append_int(
                     .wrapping_add(stack_idx as usize);
                 let ip = crate::globals::gmut(ip);
                 let pb_idx = ip.ip_index as usize;
-                hp = mf_get(crate::globals::gmut(mfp), ip.ip_bnum, 1);
+                hp = mf_get(crate::globals::gmut(mfp), ip.ip_bnum, 1)
+                    .map_or(ptr::null_mut(), ptr::from_mut);
                 if hp.is_null() {
                     return false;
                 }
                 let mut pp = hp_ptr_block(hp);
                 if pp.pb_id != PTR_ID {
                     iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
-                    mf_put(crate::globals::gmut(mfp), hp, false, false);
+                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, false, false);
                     return false;
                 }
                 if pp.pb_count < pp.pb_count_max {
@@ -2547,7 +2577,7 @@ fn ml_append_int(
                         pe_next.pe_old_lnum = lnum_right;
                     }
 
-                    mf_put(crate::globals::gmut(mfp), hp, true, false);
+                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
                     buf.b_ml.ml_stack_top = stack_idx + 1;
 
                     if lineadd != 0 {
@@ -2572,7 +2602,8 @@ fn ml_append_int(
                         return false;
                     }
                     pp_new = crate::globals::gptr(hp_new)
-                        .data_ptr()
+                        .data_slice_mut()
+                        .as_mut_ptr()
                         .cast::<PointerBlock>();
 
                     if crate::globals::gptr(hp).bh_bnum != 1 {
@@ -2592,7 +2623,7 @@ fn ml_append_int(
                     pe0.pe_line_count = buf.b_ml.ml_line_count;
                     pe0.pe_old_lnum = 1;
                     pe0.pe_page_count = 1;
-                    mf_put(crate::globals::gmut(mfp), hp, true, false);
+                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
                     hp = hp_new;
                     pp = crate::globals::gmut(pp_new);
                     ip.ip_index = 0;
@@ -2648,8 +2679,13 @@ fn ml_append_int(
                 bnum_right = crate::globals::gptr(hp_new).bh_bnum;
                 page_count_left = 1;
                 page_count_right = 1;
-                mf_put(crate::globals::gmut(mfp), hp, true, false);
-                mf_put(crate::globals::gmut(mfp), hp_new, true, false);
+                mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
+                mf_put(
+                    crate::globals::gmut(mfp),
+                    unsafe { &mut *hp_new },
+                    true,
+                    false,
+                );
 
                 stack_idx -= 1;
             }
@@ -2929,14 +2965,14 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
             buf.b_ml.ml_stack_top = 0;
             let ip = buf.b_ml.ml_stack[stack_idx as usize];
             idx = ip.ip_index;
-            hp = mf_get(mfp, ip.ip_bnum, 1);
+            hp = mf_get(mfp, ip.ip_bnum, 1).map_or(ptr::null_mut(), ptr::from_mut);
             if hp.is_null() {
                 return false;
             }
             let pp = hp_ptr_block(hp);
             if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
-                mf_put(mfp, hp, false, false);
+                mf_put(mfp, unsafe { &mut *hp }, false, false);
                 return false;
             }
             pp.pb_count -= 1;
@@ -2947,7 +2983,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
                 if count != idx {
                     pp.copy_entries((idx + 1) as usize, idx as usize, (count - idx) as usize);
                 }
-                mf_put(mfp, hp, true, false);
+                mf_put(mfp, unsafe { &mut *hp }, true, false);
 
                 buf.b_ml.ml_stack_top = stack_idx;
                 if buf.b_ml.ml_locked_lineadd != 0 {
@@ -3171,7 +3207,7 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
 
 fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr {
     assert!(page_count >= 0);
-    let hp = mf_new(mfp, negative, page_count as u32);
+    let hp: *mut Bhdr = mf_new(mfp, negative, page_count as u32);
     let dp = hp_data_block(hp);
     dp.db_id = DATA_ID;
     dp.db_txt_end = (page_count as u32).wrapping_mul(mfp.mf_page_size);
@@ -3182,7 +3218,7 @@ fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr 
 }
 
 fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
-    let hp = mf_new(mfp, false, 1);
+    let hp: *mut Bhdr = mf_new(mfp, false, 1);
     let pp = hp_ptr_block(hp);
     pp.pb_id = PTR_ID;
     pp.pb_count = 0;
@@ -3207,7 +3243,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
 
         mf_put(
             mfp,
-            buf.b_ml.ml_locked.cast(),
+            unsafe { &mut *buf.b_ml.ml_locked.cast::<Bhdr>() },
             (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) != 0,
             (buf.b_ml.ml_flags & ML_LOCKED_POS) != 0,
         );
@@ -3248,10 +3284,10 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
     }
 
     loop {
-        let hp = mf_get(mfp, bnum, page_count as u32);
-        if hp.is_null() {
+        let Some(hp_ref) = mf_get(mfp, bnum, page_count as u32) else {
             return ml_find_line_error_noblock(buf, action);
-        }
+        };
+        let hp: *mut Bhdr = hp_ref;
 
         if action == ML_INSERT {
             high += 1;
@@ -3272,7 +3308,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
         let pp = hp_ptr_block(hp);
         if pp.pb_id != PTR_ID {
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
-            mf_put(mfp, hp, false, false);
+            mf_put(mfp, unsafe { &mut *hp }, false, false);
             return ml_find_line_error_noblock(buf, action);
         }
 
@@ -3317,7 +3353,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
             } else {
                 siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
             }
-            mf_put(mfp, hp, false, false);
+            mf_put(mfp, unsafe { &mut *hp }, false, false);
             return ml_find_line_error_noblock(buf, action);
         }
         if action == ML_DELETE {
@@ -3327,7 +3363,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
             pb_ptr(pp, idx as usize).pe_line_count += 1;
             dirty = true;
         }
-        mf_put(mfp, hp, dirty, false);
+        mf_put(mfp, unsafe { &mut *hp }, dirty, false);
     }
 }
 
@@ -3358,19 +3394,19 @@ fn ml_lineadd(buf: &mut FileBuf, count: i32) {
     let mut idx = buf.b_ml.ml_stack_top - 1;
     while idx >= 0 {
         let ip = &mut (&mut buf.b_ml.ml_stack)[idx as usize];
-        let hp = mf_get(mfp, ip.ip_bnum, 1);
-        if hp.is_null() {
+        let Some(hp_ref) = mf_get(mfp, ip.ip_bnum, 1) else {
             break;
-        }
+        };
+        let hp: *mut Bhdr = hp_ref;
         let pp = hp_ptr_block(hp);
         if pp.pb_id != PTR_ID {
-            mf_put(mfp, hp, false, false);
+            mf_put(mfp, unsafe { &mut *hp }, false, false);
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
             break;
         }
         pb_ptr(pp, ip.ip_index as usize).pe_line_count += count;
         ip.ip_high += count;
-        mf_put(mfp, hp, true, false);
+        mf_put(mfp, unsafe { &mut *hp }, true, false);
         idx -= 1;
     }
 }
@@ -3900,8 +3936,8 @@ pub fn ml_setflags(buf: &mut FileBuf) {
     let Some(mfp) = buf.b_ml.mfp_opt() else {
         return;
     };
-    let hp = pmap_get_bhdr(&mfp.mf_hash, 0);
-    if let Some(hp_ref) = crate::globals::gopt_mut(hp) {
+    if let Some(hp_ref) = pmap_get_bhdr(&mfp.mf_hash, 0) {
+        let hp: *mut Bhdr = hp_ref;
         let b0p = hp_zero_block(hp);
         b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
         let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;

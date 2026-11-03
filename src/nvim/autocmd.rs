@@ -2489,14 +2489,14 @@ pub fn ex_doautoall(eap: &mut Exarg) {
             continue;
         }
 
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, None, None, Some(buf), 0);
         set_bufref(&mut bufref, buf);
 
         let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
         retval = if ok { OK } else { FAIL };
 
         if call_do_modelines && did_aucmd {
-            do_modelines(if is_ctx_win(curwin_ptr()) {
+            do_modelines(if is_ctx_win(curwin_mut()) {
                 OPT_NOWIN
             } else {
                 0
@@ -2594,7 +2594,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
 
         let win = curwin_ptr();
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
 
         apply_autocmds_group(
             event,
@@ -2623,7 +2623,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
         let old = boolean_obj(!new_val);
         let new = boolean_obj(new_val);
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
         apply_optionset_autocmd_now(K_OPT_MODIFIED, OPT_LOCAL, old, old, old, new);
         ctx_restore(&mut aco);
     }
@@ -2983,7 +2983,7 @@ pub fn apply_autocmds_group(
             };
 
             if with_buf && !buf.is_null() && buf != g_st().curbuf {
-                ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
             }
 
             let save_changed = curbuf_mut().b_changed;

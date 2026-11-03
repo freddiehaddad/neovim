@@ -4063,7 +4063,13 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
 
     let mut aco: CtxSwitch = CtxSwitch::new();
     if old_count == 0 {
-        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        ctx_switch(
+            &mut aco,
+            None,
+            None,
+            Some(unsafe { &mut *ptr::from_mut(buf) }),
+            0,
+        );
     }
 
     qf_update_win_titlevar(qi);
@@ -4132,7 +4138,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
 
     win = qf_find_win(&*qi);
     if !win.is_null() && old_line_count < crate::globals::gptr(win).w_botline {
-        redraw_buf_later(buf, UPD_NOT_VALID);
+        redraw_buf_later(&*buf, UPD_NOT_VALID);
     }
 
     decr_quickfix_busy();
@@ -5534,7 +5540,7 @@ fn vgr_process_files(
                     }
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
-                    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                    ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
                     apply_autocmds(EVENT_FILETYPE, buf.b_p_ft, buf.b_fname, true, buf);
                     do_modelines(OPT_NOWIN);
                     ctx_restore(&mut aco);
@@ -5700,7 +5706,7 @@ fn load_dummy_buffer(
             crate::globals::gptr(newbuf).b_locked += 1;
 
             let mut aco: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
+            ctx_switch(&mut aco, None, None, unsafe { newbuf.as_mut() }, 0);
 
             setfname(curbuf_mut(), fname, ptr::null_mut(), false);
             check_need_swap(true);

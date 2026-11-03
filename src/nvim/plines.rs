@@ -303,11 +303,9 @@ fn inline_virt_text_width(
             break;
         } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
             let decor = mt_decor(mark);
-            for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
-                decor.data.ext().vt
-            } else {
-                ptr::null_mut()
-            }) {
+            for vt in crate::decoration::virt_text_iter_mut(
+                decor.is_ext().then(|| decor.data.ext().vt_opt()).flatten(),
+            ) {
                 if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                     width += vt.width;
                 }
@@ -399,7 +397,7 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
         return i32::from(NUL);
     }
     let mut buf = [0u8; MAX_SCHAR_SIZE];
-    schar_get(buf.as_mut_ptr(), replacement);
+    schar_get(&mut buf, replacement);
     i32::from(buf[0])
 }
 
@@ -462,11 +460,9 @@ pub fn charsize_regular(
                     break;
                 } else if mark.pos.col == col && !mt_invalid(mark) && ns_in_win(mark.ns, &mut *wp) {
                     let decor = mt_decor(mark);
-                    for vt in crate::decoration::virt_text_iter_mut(if decor.is_ext() {
-                        decor.data.ext().vt
-                    } else {
-                        ptr::null_mut()
-                    }) {
+                    for vt in crate::decoration::virt_text_iter_mut(
+                        decor.is_ext().then(|| decor.data.ext().vt_opt()).flatten(),
+                    ) {
                         if (vt.flags & K_VTIS_LINES) == 0 && vt.pos == K_VPOS_INLINE {
                             if mt_right(mark) {
                                 csarg.cur_text_width_right += vt.width;

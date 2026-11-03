@@ -14,7 +14,7 @@ use crate::fileio::shorten_fnames;
 use crate::fold::put_folds;
 use crate::globals::*;
 use crate::mapping::makemap;
-use crate::mbyte::utfc_ptr2len;
+
 use crate::message::{emsg, semsg};
 use crate::option::{OPT_GLOBAL, OPT_LOCAL, makefoldset, makeset};
 use crate::option_vars::*;
@@ -74,8 +74,8 @@ fn exses_st() -> &'static mut ExSessionState {
 }
 
 #[inline]
-fn cstr_to_str<'a, S: crate::strings::IntoCCharPtr>(p: S) -> &'a str {
-    unsafe { std::str::from_utf8_unchecked(crate::memory::cstr_as_bytes(p)) }
+fn cstr_to_str(p: &CStr) -> &str {
+    unsafe { std::str::from_utf8_unchecked(p.to_bytes()) }
 }
 
 #[inline]
@@ -97,10 +97,10 @@ fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> i32 {
     i32::from(write_fmt(fd, s))
 }
 
-fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: *mut WinInfoInfo) -> bool {
+fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInfoInfo>) -> bool {
     if restore_size && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_WINSIZE) != 0 {
         let mut n: i32 = 0;
-        for wp in win_iter_mut(tab_firstwin) {
+        for wp in win_iter_mut(tab_firstwin.map_or(ptr::null_mut(), ptr::from_mut)) {
             if ses_do_win(wp) == 0 {
                 continue;
             }
@@ -148,9 +148,9 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
         return true;
     }
 
-    let mut frc = ses_skipframe(fr.fr_child);
+    let mut frc = ses_skipframe(fr.child_opt());
     if let Some(first_frc) = frc {
-        frc = ses_skipframe(first_frc.fr_next);
+        frc = ses_skipframe(first_frc.next_opt());
         while let Some(cur_frc) = frc {
             let split_cmd = if fr.fr_layout == FR_COL {
                 b"wincmd _ | wincmd |\nsplit\n" as &[u8]
@@ -161,7 +161,7 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
                 return false;
             }
             count += 1;
-            frc = ses_skipframe(cur_frc.fr_next);
+            frc = ses_skipframe(cur_frc.next_opt());
         }
     }
 
@@ -176,11 +176,11 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
         }
     }
 
-    frc = ses_skipframe(fr.fr_child);
+    frc = ses_skipframe(fr.child_opt());
     while let Some(cur_frc) = frc {
-        let next_raw = cur_frc.fr_next;
+        let next_opt = unsafe { cur_frc.fr_next.as_mut() };
         ses_win_rec(fd, cur_frc);
-        frc = ses_skipframe(next_raw);
+        frc = ses_skipframe(next_opt);
         if frc.is_some() && !put_line(fd, c"wincmd w") {
             return false;
         }
@@ -189,8 +189,8 @@ fn ses_win_rec(fd: &CFile, fr: &mut Frame) -> bool {
     true
 }
 
-fn ses_skipframe(fr: *mut Frame) -> Option<&'static mut Frame> {
-    frame_iter_mut(fr).find(|frc| ses_do_frame(frc))
+fn ses_skipframe(fr: Option<&'static mut Frame>) -> Option<&'static mut Frame> {
+    frame_iter_mut(fr.map_or(ptr::null_mut(), ptr::from_mut)).find(|frc| ses_do_frame(frc))
 }
 
 fn ses_do_frame(fr: &Frame) -> bool {
@@ -229,7 +229,7 @@ fn ses_arglist(
     fullname: bool,
     _flagp: &mut u32,
 ) -> bool {
-    if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd.as_ptr()))) {
+    if !write_fmt(fd, format!("{}\n%argdel\n", cstr_to_str(cmd))) {
         return false;
     }
     let mut buf: Vec<u8> = if fullname {
@@ -239,13 +239,14 @@ fn ses_arglist(
     };
     for entry in gap {
         if let Some(s_cstr) = alist_name(entry) {
-            let mut s = s_cstr.as_ptr();
-            if fullname {
-                vim_full_name(s, buf.as_mut_ptr().cast(), MAXPATHL, false);
-                s = buf.as_ptr().cast();
-            }
-            let fname_esc = ses_escape_fname(s);
-            if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
+            let s = if fullname {
+                vim_full_name(s_cstr.as_ptr(), buf.as_mut_ptr().cast(), MAXPATHL, false);
+                crate::memory::cstr_until_nul(&buf)
+            } else {
+                s_cstr
+            };
+            let fname_esc = ses_escape_fname(Some(s));
+            if !write_fmt(fd, format!("$argadd {}\n", cstr_to_str(&fname_esc))) {
                 return false;
             }
         }
@@ -266,36 +267,31 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
 }
 
 fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
-    let name = ses_get_fname(buf, flagp).map_or(ptr::null(), CStr::as_ptr);
+    let name = ses_get_fname(buf, flagp);
     if !ses_put_fname(fd, name, flagp) || (add_eol && !write_bytes(fd, b"\n")) {
         return false;
     }
     true
 }
 
-fn ses_escape_fname(name: impl crate::strings::IntoCCharPtr) -> CString {
-    let name = name.into_c_char_ptr();
-    {
-        let mut sname_vec: Vec<u8> = home_replace_save(None, name).into_bytes_with_nul();
+fn ses_escape_fname(name: Option<&CStr>) -> CString {
+    let mut sname_vec: Vec<u8> =
+        home_replace_save(None, name.map_or(ptr::null(), CStr::as_ptr)).into_bytes_with_nul();
 
-        let mut p = sname_vec.as_mut_ptr().cast();
-        while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) == b'\\' {
-                *crate::globals::gptr(p.cast::<u8>()) = b'/';
-            }
-            p = p.wrapping_add(utfc_ptr2len(p) as usize);
+    let mut idx = 0usize;
+    while idx < sname_vec.len() && sname_vec[idx] != 0 {
+        if sname_vec[idx] == b'\\' {
+            sname_vec[idx] = b'/';
         }
-
-        vim_strsave_fnameescape(sname_vec.as_ptr().cast(), VSE_NONE)
+        idx += crate::mbyte::utfc_slice2len(&sname_vec[idx..]).max(1);
     }
+
+    vim_strsave_fnameescape(sname_vec.as_ptr().cast(), VSE_NONE)
 }
 
-fn ses_put_fname(fd: &CFile, name: impl crate::strings::IntoCCharPtr, _flagp: &mut u32) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let p = ses_escape_fname(name);
-        fd.puts(p.as_ptr()) >= 0
-    }
+fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &mut u32) -> bool {
+    let p = ses_escape_fname(name);
+    fd.puts(p.as_ptr()) >= 0
 }
 
 fn put_view(
@@ -342,9 +338,7 @@ fn put_view(
     }
 
     if add_edit && (!did_next || wp.w_arg_idx_invalid) {
-        let fname_esc = ses_escape_fname(
-            ses_get_fname((*wp).buf_mut(), flagp).map_or(ptr::null(), CStr::as_ptr),
-        );
+        let fname_esc = ses_escape_fname(ses_get_fname((*wp).buf_mut(), flagp));
         if bt_help(wp.buf_opt()) {
             let mut curtag: &CStr = c"";
             if 0 < wp.w_tagstackidx && wp.w_tagstackidx <= wp.w_tagstacklen {
@@ -355,7 +349,7 @@ fn put_view(
             }
 
             if !put_line(fd, c"enew | setl bt=help")
-                || !write_fmt(fd, format!("help {}", cstr_to_str(curtag.as_ptr())))
+                || !write_fmt(fd, format!("help {}", cstr_to_str(curtag)))
                 || !put_eol(fd)
             {
                 return false;
@@ -363,7 +357,7 @@ fn put_view(
         } else if !(*wp).buf_mut().b_ffname.is_null()
             && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.is_null())
         {
-            let fesc = cstr_to_str(fname_esc.as_ptr());
+            let fesc = cstr_to_str(&fname_esc);
             if !write_fmt(
                 fd,
                 format!(
@@ -377,7 +371,7 @@ fn put_view(
                 return false;
             }
             if !(*wp).buf_mut().b_ffname.is_null()
-                && !write_fmt(fd, format!("file {}\n", cstr_to_str(fname_esc.as_ptr())))
+                && !write_fmt(fd, format!("file {}\n", cstr_to_str(&fname_esc)))
             {
                 return false;
             }
@@ -386,7 +380,7 @@ fn put_view(
     }
 
     if wp.w_alt_fnum != 0
-        && let Some(alt) = crate::globals::gopt_mut(buflist_findnr(wp.w_alt_fnum))
+        && let Some(alt) = unsafe { buflist_findnr(wp.w_alt_fnum).as_mut() }
         && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
         && !crate::memory::cstr_is_empty(alt.b_fname)
         && alt.b_p_bl != 0
@@ -488,7 +482,7 @@ fn put_view(
             || (*flagp & K_OPT_SSOP_FLAG_CURDIR) != 0)
     {
         if fd.puts(c"lcd ") < 0
-            || !ses_put_fname(fd, w_localdir.as_ptr().cast_mut(), &mut *flagp)
+            || !ses_put_fname(fd, Some(w_localdir.as_c_str()), &mut *flagp)
             || !write_bytes(fd, b"\n")
         {
             return false;
@@ -555,8 +549,8 @@ fn store_session_globals(fd: &CFile) -> bool {
     true
 }
 
-fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
-    let dirnow = dirnow.into_c_char_ptr();
+fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
+    let dirnow = dirnow.as_ptr();
     {
         let mut only_save_windows = true;
         let mut edited_win: *mut WinInfoInfo = ptr::null_mut();
@@ -594,13 +588,13 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         } else if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             let sname = home_replace_save(
                 None,
-                crate::globals::gopt(&raw const g_st().globaldir)
-                    .unwrap()
+                g_st()
+                    .globaldir
                     .as_ref()
                     .map_or(dirnow, |s| s.as_ptr().cast_mut()),
             );
-            let fname_esc = ses_escape_fname(sname.as_ptr().cast_mut());
-            if !write_fmt(fd, format!("cd {}\n", cstr_to_str(fname_esc.as_ptr()))) {
+            let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
+            if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
                 return false;
             }
         }
@@ -654,26 +648,25 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0 {
             for b in for_all_buffers_ptr() {
-                let b: *mut FileBuf = b;
-                let Some(ref b_localdir) = crate::globals::gptr(b).b_localdir else {
+                let Some(ref b_localdir) = b.b_localdir else {
                     continue;
                 };
-                if crate::globals::gptr(b).b_fname.is_null()
-                    || crate::globals::gptr(b).b_p_bl == 0
-                    || (only_save_windows && crate::globals::gptr(b).b_nwindows == 0)
-                    || (crate::globals::gptr(b).b_help
-                        && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
-                    || (bt_terminal(Some(crate::globals::gref(b)))
+                if b.b_fname.is_null()
+                    || b.b_p_bl == 0
+                    || (only_save_windows && b.b_nwindows == 0)
+                    || (b.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
+                    || (bt_terminal(Some(&*b))
                         && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 {
                     continue;
                 }
+                let b_localdir_ptr = b_localdir.as_ptr();
                 if fd.puts(
                     c"lua vim.api.nvim_create_autocmd('BufEnter', { once = true, buffer = vim.fn.bufadd([==[",
                 ) < 0
-                    || fd.puts(ses_get_fname(crate::globals::gmut(b), &opt_vars().ssop_flags).unwrap_or(c"")) < 0
+                    || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
-                    || fd.puts(b_localdir.as_ptr()) < 0
+                    || fd.puts(b_localdir_ptr) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;
@@ -729,8 +722,8 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     tab_firstwin = g_st().firstwin;
                     tab_topframe = g_st().topframe;
                 } else {
-                    tab_firstwin = crate::globals::gptr(tp).tp_firstwin;
-                    tab_topframe = crate::globals::gptr(tp).tp_topframe.cast::<Frame>();
+                    tab_firstwin = unsafe { (*tp).tp_firstwin };
+                    tab_topframe = unsafe { (*tp).tp_topframe.cast::<Frame>() };
                 }
                 if !ptr::eq(tp, g_st().first_tabpage) {
                     need_tabnext = true;
@@ -742,18 +735,14 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             }
 
             if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
-                && let Some(ref tp_localdir) = crate::globals::gptr(tp).tp_localdir
+                && let Some(tp_localdir) = unsafe { &(*tp).tp_localdir }
             {
                 if need_tabnext && !put_line(fd, c"tabnext") {
                     return false;
                 }
                 need_tabnext = false;
                 if fd.puts(c"tcd ") < 0
-                    || !ses_put_fname(
-                        fd,
-                        tp_localdir.as_ptr().cast_mut(),
-                        &mut opt_vars().ssop_flags,
-                    )
+                    || !ses_put_fname(fd, Some(tp_localdir.as_c_str()), &mut opt_vars().ssop_flags)
                     || !put_eol(fd)
                 {
                     return false;
@@ -762,11 +751,11 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             }
 
             let mut wp = tab_firstwin;
-            while !wp.is_null() {
-                if ses_do_win(crate::globals::gmut(wp)) != 0
-                    && !crate::globals::gptr(wp).buf_mut().b_ffname.is_null()
-                    && !bt_help(crate::globals::gopt(crate::globals::gptr(wp).w_buffer))
-                    && !bt_nofilename(crate::globals::gopt(crate::globals::gptr(wp).w_buffer))
+            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+                if ses_do_win(wp_ref) != 0
+                    && !wp_ref.buf_mut().b_ffname.is_null()
+                    && !bt_help(wp_ref.buf_opt())
+                    && !bt_nofilename(wp_ref.buf_opt())
                 {
                     if need_tabnext && !put_line(fd, c"tabnext") {
                         return false;
@@ -774,32 +763,27 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                     need_tabnext = false;
 
                     if fd.puts(c"edit ") < 0
-                        || !ses_fname(
-                            fd,
-                            crate::globals::gptr(wp).buf_mut(),
-                            &mut opt_vars().ssop_flags,
-                            true,
-                        )
+                        || !ses_fname(fd, wp_ref.buf_mut(), &mut opt_vars().ssop_flags, true)
                     {
                         return false;
                     }
-                    if !crate::globals::gptr(wp).w_arg_idx_invalid {
+                    if !wp_ref.w_arg_idx_invalid {
                         edited_win = wp;
                     }
                     break;
                 }
-                wp = crate::globals::gptr(wp).w_next;
+                wp = wp_ref.w_next;
             }
 
             if need_tabnext && !put_line(fd, c"tabnext") {
                 return false;
             }
 
-            if crate::globals::gptr(tab_topframe).fr_layout != FR_LEAF
+            if unsafe { (*tab_topframe).fr_layout } != FR_LEAF
                 && (!put_line(fd, c"let s:save_splitbelow = &splitbelow")
                     || !put_line(fd, c"let s:save_splitright = &splitright")
                     || !put_line(fd, c"set splitbelow splitright")
-                    || !ses_win_rec(fd, crate::globals::gmut(tab_topframe))
+                    || !ses_win_rec(fd, unsafe { &mut *tab_topframe })
                     || !put_line(fd, c"let &splitbelow = s:save_splitbelow")
                     || !put_line(fd, c"let &splitright = s:save_splitright"))
             {
@@ -809,19 +793,21 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
             let mut nr: i32 = 0;
             let mut restore_size = true;
             wp = tab_firstwin;
-            while !wp.is_null() {
-                if ses_do_win(crate::globals::gmut(wp)) != 0 {
+            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+                if ses_do_win(wp_ref) != 0 {
                     nr += 1;
-                } else if !crate::globals::gptr(wp).w_floating {
+                } else if !wp_ref.w_floating {
                     restore_size = false;
                 }
                 if ptr::eq(curwin_ptr(), wp) {
                     cnr = nr;
                 }
-                wp = crate::globals::gptr(wp).w_next;
+                wp = wp_ref.w_next;
             }
 
-            if !tab_firstwin.is_null() && !crate::globals::gptr(tab_firstwin).w_next.is_null() {
+            if let Some(tfw) = unsafe { tab_firstwin.as_ref() }
+                && !tfw.w_next.is_null()
+            {
                 if !put_line(fd, c"wincmd t") {
                     return false;
                 }
@@ -839,20 +825,20 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 }
                 restore_height_width = true;
             }
-            if nr > 1 && !ses_winsizes(fd, restore_size, tab_firstwin) {
+            if nr > 1 && !ses_winsizes(fd, restore_size, unsafe { tab_firstwin.as_mut() }) {
                 return false;
             }
 
             wp = tab_firstwin;
-            while !wp.is_null() {
-                if ses_do_win(crate::globals::gmut(wp)) == 0 {
-                    wp = crate::globals::gptr(wp).w_next;
+            while let Some(wp_ref) = unsafe { wp.as_mut() } {
+                if ses_do_win(wp_ref) == 0 {
+                    wp = wp_ref.w_next;
                     continue;
                 }
                 if !put_view(
                     fd,
-                    crate::globals::gmut(wp),
-                    crate::globals::gmut(tp),
+                    wp_ref,
+                    unsafe { &mut *tp },
                     !ptr::eq(wp, edited_win),
                     &mut opt_vars().ssop_flags,
                     cur_arg_idx,
@@ -862,8 +848,8 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 if nr > 1 && !put_line(fd, c"wincmd w") {
                     return false;
                 }
-                next_arg_idx = crate::globals::gptr(wp).w_arg_idx;
-                wp = crate::globals::gptr(wp).w_next;
+                next_arg_idx = wp_ref.w_arg_idx;
+                wp = wp_ref.w_next;
             }
 
             cur_arg_idx = next_arg_idx;
@@ -872,7 +858,7 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
                 return false;
             }
 
-            if nr > 1 && !ses_winsizes(fd, restore_size, tab_firstwin) {
+            if nr > 1 && !ses_winsizes(fd, restore_size, unsafe { tab_firstwin.as_mut() }) {
                 return false;
             }
 
@@ -906,7 +892,10 @@ fn makeopens(fd: &CFile, dirnow: impl crate::strings::IntoCCharPtr) -> bool {
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_OPTIONS) != 0 {
             if !write_fmt(
                 fd,
-                format!("set shortmess={}\n", cstr_to_str(opt_vars().p_shm)),
+                format!(
+                    "set shortmess={}\n",
+                    cstr_to_str(crate::memory::cstr_from_ptr(opt_vars().p_shm))
+                ),
             ) {
                 return false;
             }
@@ -1006,13 +995,10 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         }
 
         if !view_session
-            || (eap.cmdidx == CMD_MKSESSION
-                && (*crate::globals::gptr(flagp) & K_OPT_SSOP_FLAG_OPTIONS) != 0)
+            || (eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_OPTIONS) != 0)
         {
             let mut flags = OPT_GLOBAL;
-            if eap.cmdidx == CMD_MKSESSION
-                && (*crate::globals::gptr(flagp) & K_OPT_SSOP_FLAG_SKIPRTP) != 0
-            {
+            if eap.cmdidx == CMD_MKSESSION && (unsafe { *flagp } & K_OPT_SSOP_FLAG_SKIPRTP) != 0 {
                 flags |= OPT_SKIPRTP;
             }
             failed |= !makemap(&fd, ptr::null_mut()) || !makeset(&fd, flags, 0);
@@ -1036,7 +1022,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
                 {
-                    if vim_chdirfile(fname, K_CD_CAUSE_OTHER) {
+                    if vim_chdirfile(crate::memory::cstr_from_ptr(fname), K_CD_CAUSE_OTHER) {
                         shorten_fnames(1);
                     }
                 } else if !crate::memory::cstr_is_empty(dirnow)
@@ -1047,7 +1033,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     shorten_fnames(1);
                 }
 
-                failed |= !makeopens(&fd, dirnow);
+                failed |= !makeopens(&fd, crate::memory::cstr_until_nul(&dirnow_vec));
 
                 if !crate::memory::cstr_is_empty(dirnow)
                     && ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
@@ -1065,7 +1051,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                     curwin_mut(),
                     curtab_mut(),
                     !using_vdir,
-                    crate::globals::gmut(flagp),
+                    unsafe { &mut *flagp },
                     -1,
                 );
             }
