@@ -92,8 +92,8 @@ fn s_ischr(m: u64) -> bool {
 /// Returns VALID_ flags or -1 for failure.
 #[inline]
 fn set_fname_buf(fnamep: *mut *mut u8, bufp: &mut Option<Vec<u8>>, new_vec: Vec<u8>) {
+    *bufp = Some(new_vec);
     unsafe {
-        *bufp = Some(new_vec);
         *fnamep = bufp.as_mut().unwrap().as_mut_ptr();
     }
 }
@@ -818,190 +818,199 @@ fn getcwd_scope_args(
     tp: *mut *mut TabPageInfo,
     buf: *mut *mut FileBuf,
 ) -> bool {
+    const K_WIN_ARG: usize = 0;
+    const K_TAB_ARG: usize = 1;
+    const K_BUF_ARG: usize = 2;
+    let mut argv = [0_i32; 3];
+    let mut argc: usize = 0;
+
+    *scope = default_scope;
     unsafe {
-        const K_WIN_ARG: usize = 0;
-        const K_TAB_ARG: usize = 1;
-        const K_BUF_ARG: usize = 2;
-        let mut argv = [0_i32; 3];
-        let mut argc: usize = 0;
-
-        *scope = default_scope;
         *win = curwin_ptr();
-        *tp = g_st().curtab;
-        *buf = g_st().curbuf;
-
-        while argc < 3 {
-            // If there is no argument there are no more scopes after it, break out.
-            if argvars[argc].v_type == VarType::VarUnknown {
-                break;
-            }
-            if argvars[argc].v_type != VarType::VarNumber {
-                emsg(gettext(E_INVARG));
-                return false;
-            }
-            argv[argc] = argvars[argc].vval.v_number() as i32;
-            // It is an error for the scope number to be less than `-1`.
-            if argv[argc] < -1 {
-                emsg(gettext(E_INVARG));
-                return false;
-            }
-            argc += 1;
-        }
-
-        // An argument may only be -1 if all preceding arguments are -1: `(2, 3, -1)` is an error.
-        let mut explicit_scope = false;
-        for &val in &argv[..argc] {
-            explicit_scope = explicit_scope || val >= 0;
-            if explicit_scope && val < 0 {
-                emsg(gettext(
-                    c"E5001: Argument cannot be -1 if preceding argument is >= 0.",
-                ));
-                return false;
-            }
-        }
-
-        // Narrowest requested scope. Imagine X >= 0:
-        match argc {
-            0 => {}
-            1 => {
-                if argv[K_WIN_ARG] >= 0 {
-                    *scope = K_CD_SCOPE_WINDOW; // (X)
-                } else {
-                    *scope = K_CD_SCOPE_TABPAGE; // (-1)
-                }
-            }
-            2 => {
-                if argv[K_WIN_ARG] >= 0 {
-                    *scope = K_CD_SCOPE_WINDOW; // (X, ...)
-                } else if argv[K_TAB_ARG] >= 0 {
-                    *scope = K_CD_SCOPE_TABPAGE; // (-1, X)
-                } else {
-                    *scope = K_CD_SCOPE_GLOBAL; // (-1, -1)
-                }
-            }
-            3 => {
-                if argv[K_BUF_ARG] >= 0 {
-                    *scope = K_CD_SCOPE_BUFFER; // (-1, -1, X)
-                } else {
-                    *scope = K_CD_SCOPE_GLOBAL; // (-1, -1, -1)
-                }
-            }
-            _ => unreachable!(),
-        }
-
-        if *scope == K_CD_SCOPE_BUFFER {
-            if argv[K_WIN_ARG] >= 0 || argv[K_TAB_ARG] >= 0 {
-                emsg(gettext(
-                    c"E5006: Window and tab scope must be -1 when using buffer scope",
-                ));
-                return false;
-            }
-            if argv[K_BUF_ARG] > 0 {
-                let mut err = Error::new();
-                *buf = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
-                if err.err_type != ErrorType::ErrorTypeNone {
-                    emsg(gettext(c"E5007: Cannot find buffer number."));
-                    crate::api::private::helpers::api_clear_error(&mut err);
-                    return false;
-                }
-            }
-        }
-
-        // Find the tabpage by number.
-        if argv[K_TAB_ARG] > 0 {
-            *tp = find_tabpage(argv[K_TAB_ARG]);
-            if (*tp).is_null() {
-                emsg(gettext(c"E5000: Cannot find tab number."));
-                return false;
-            }
-        }
-
-        // Find the window in `tp` by number.
-        if argv[K_WIN_ARG] > 0 {
-            *win = find_win_by_nr(&argvars[0], *tp);
-            if (*win).is_null() {
-                emsg(gettext(c"E5002: Cannot find window number."));
-                return false;
-            }
-        }
-
-        true
     }
+    unsafe {
+        *tp = g_st().curtab;
+    }
+    unsafe {
+        *buf = g_st().curbuf;
+    }
+
+    while argc < 3 {
+        // If there is no argument there are no more scopes after it, break out.
+        if argvars[argc].v_type == VarType::VarUnknown {
+            break;
+        }
+        if argvars[argc].v_type != VarType::VarNumber {
+            emsg(gettext(E_INVARG));
+            return false;
+        }
+        argv[argc] = argvars[argc].vval.v_number() as i32;
+        // It is an error for the scope number to be less than `-1`.
+        if argv[argc] < -1 {
+            emsg(gettext(E_INVARG));
+            return false;
+        }
+        argc += 1;
+    }
+
+    // An argument may only be -1 if all preceding arguments are -1: `(2, 3, -1)` is an error.
+    let mut explicit_scope = false;
+    for &val in &argv[..argc] {
+        explicit_scope = explicit_scope || val >= 0;
+        if explicit_scope && val < 0 {
+            emsg(gettext(
+                c"E5001: Argument cannot be -1 if preceding argument is >= 0.",
+            ));
+            return false;
+        }
+    }
+
+    // Narrowest requested scope. Imagine X >= 0:
+    match argc {
+        0 => {}
+        1 => {
+            if argv[K_WIN_ARG] >= 0 {
+                *scope = K_CD_SCOPE_WINDOW; // (X)
+            } else {
+                *scope = K_CD_SCOPE_TABPAGE; // (-1)
+            }
+        }
+        2 => {
+            if argv[K_WIN_ARG] >= 0 {
+                *scope = K_CD_SCOPE_WINDOW; // (X, ...)
+            } else if argv[K_TAB_ARG] >= 0 {
+                *scope = K_CD_SCOPE_TABPAGE; // (-1, X)
+            } else {
+                *scope = K_CD_SCOPE_GLOBAL; // (-1, -1)
+            }
+        }
+        3 => {
+            if argv[K_BUF_ARG] >= 0 {
+                *scope = K_CD_SCOPE_BUFFER; // (-1, -1, X)
+            } else {
+                *scope = K_CD_SCOPE_GLOBAL; // (-1, -1, -1)
+            }
+        }
+        _ => unreachable!(),
+    }
+
+    if *scope == K_CD_SCOPE_BUFFER {
+        if argv[K_WIN_ARG] >= 0 || argv[K_TAB_ARG] >= 0 {
+            emsg(gettext(
+                c"E5006: Window and tab scope must be -1 when using buffer scope",
+            ));
+            return false;
+        }
+        if argv[K_BUF_ARG] > 0 {
+            let mut err = Error::new();
+            unsafe {
+                *buf = find_buffer_by_handle(argv[K_BUF_ARG], &mut err);
+            }
+            if err.err_type != ErrorType::ErrorTypeNone {
+                emsg(gettext(c"E5007: Cannot find buffer number."));
+                crate::api::private::helpers::api_clear_error(&mut err);
+                return false;
+            }
+        }
+    }
+
+    // Find the tabpage by number.
+    if argv[K_TAB_ARG] > 0 {
+        unsafe {
+            *tp = find_tabpage(argv[K_TAB_ARG]);
+        }
+        if unsafe { (*tp).is_null() } {
+            emsg(gettext(c"E5000: Cannot find tab number."));
+            return false;
+        }
+    }
+
+    // Find the window in `tp` by number.
+    if argv[K_WIN_ARG] > 0 {
+        unsafe {
+            *win = find_win_by_nr(&argvars[0], *tp);
+        }
+        if unsafe { (*win).is_null() } {
+            emsg(gettext(c"E5002: Cannot find window number."));
+            return false;
+        }
+    }
+
+    true
 }
 
 /// `getcwd([{win}[, {tab}[, {buf}]]])` function
 pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let mut scope: i32 = K_CD_SCOPE_INVALID;
-        let mut win: *mut WinInfoInfo = ptr::null_mut();
-        let mut tp: *mut TabPageInfo = ptr::null_mut();
-        let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut scope: i32 = K_CD_SCOPE_INVALID;
+    let mut win: *mut WinInfoInfo = ptr::null_mut();
+    let mut tp: *mut TabPageInfo = ptr::null_mut();
+    let mut buf: *mut FileBuf = ptr::null_mut();
 
-        rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.v_type = VarType::VarString;
+    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
-        // Without arguments (K_CD_SCOPE_INVALID), the effective working directory is returned.
-        if !getcwd_scope_args(
-            argvars,
-            K_CD_SCOPE_INVALID,
-            &mut scope,
-            &raw mut win,
-            &raw mut tp,
-            &raw mut buf,
-        ) {
-            return;
-        }
-
-        let mut from: Option<&CStr> = None; // The local directory to copy.
-        let mut cwd = vec![0u8; MAXPATHL];
-
-        let mut cur_scope = scope;
-        if cur_scope == K_CD_SCOPE_WINDOW {
-            from = (*win).w_localdir.as_deref();
-            if from.is_none() {
-                cur_scope = K_CD_SCOPE_TABPAGE;
-            }
-        }
-        if cur_scope == K_CD_SCOPE_TABPAGE {
-            from = (*tp).tp_localdir.as_deref();
-            if from.is_none() {
-                cur_scope = K_CD_SCOPE_BUFFER;
-            }
-        }
-        if cur_scope == K_CD_SCOPE_BUFFER {
-            // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
-            // particular window or tabpage, so it skips those and falls back to global dir.
-            from = if scope == K_CD_SCOPE_BUFFER {
-                (*buf).b_localdir.as_deref()
-            } else {
-                None
-            };
-            if from.is_none() {
-                cur_scope = K_CD_SCOPE_GLOBAL;
-            }
-        }
-        if cur_scope == K_CD_SCOPE_GLOBAL {
-            if let Some(ref gdir) = g_st().globaldir {
-                from = Some(gdir.as_c_str());
-            } else {
-                cur_scope = K_CD_SCOPE_INVALID;
-            }
-        }
-        if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
-            from = Some(c""); // Return empty string on failure.
-        }
-
-        if let Some(from_cstr) = from {
-            crate::memory::copy_bytes_to_c_buf(&mut cwd, from_cstr.to_bytes());
-        }
-
-        #[cfg(windows)]
-        slash_adjust(cwd.as_mut_ptr().cast());
-        crate::eval::typval::tv_set_string(
-            rettv,
-            CStr::from_bytes_until_nul(&cwd).unwrap_or_default(),
-        );
+    // Without arguments (K_CD_SCOPE_INVALID), the effective working directory is returned.
+    if !getcwd_scope_args(
+        argvars,
+        K_CD_SCOPE_INVALID,
+        &mut scope,
+        &raw mut win,
+        &raw mut tp,
+        &raw mut buf,
+    ) {
+        return;
     }
+
+    let mut from: Option<&CStr> = None; // The local directory to copy.
+    let mut cwd = vec![0u8; MAXPATHL];
+
+    let mut cur_scope = scope;
+    if cur_scope == K_CD_SCOPE_WINDOW {
+        unsafe {
+            from = (*win).w_localdir.as_deref();
+        }
+        if from.is_none() {
+            cur_scope = K_CD_SCOPE_TABPAGE;
+        }
+    }
+    if cur_scope == K_CD_SCOPE_TABPAGE {
+        unsafe {
+            from = (*tp).tp_localdir.as_deref();
+        }
+        if from.is_none() {
+            cur_scope = K_CD_SCOPE_BUFFER;
+        }
+    }
+    if cur_scope == K_CD_SCOPE_BUFFER {
+        // Only a buffer target reaches this with `scope` unchanged: a buffer belongs to no
+        // particular window or tabpage, so it skips those and falls back to global dir.
+        from = if scope == K_CD_SCOPE_BUFFER {
+            unsafe { (*buf).b_localdir.as_deref() }
+        } else {
+            None
+        };
+        if from.is_none() {
+            cur_scope = K_CD_SCOPE_GLOBAL;
+        }
+    }
+    if cur_scope == K_CD_SCOPE_GLOBAL {
+        if let Some(ref gdir) = g_st().globaldir {
+            from = Some(gdir.as_c_str());
+        } else {
+            cur_scope = K_CD_SCOPE_INVALID;
+        }
+    }
+    if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+        from = Some(c""); // Return empty string on failure.
+    }
+
+    if let Some(from_cstr) = from {
+        crate::memory::copy_bytes_to_c_buf(&mut cwd, from_cstr.to_bytes());
+    }
+
+    #[cfg(windows)]
+    slash_adjust(cwd.as_mut_ptr().cast());
+    crate::eval::typval::tv_set_string(rettv, CStr::from_bytes_until_nul(&cwd).unwrap_or_default());
 }
 
 /// "getfperm({fname})" function
@@ -1220,48 +1229,46 @@ pub fn f_glob2regpat(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// `haslocaldir([{win}[, {tab}[, {buf}]]])` function
 pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let mut scope: i32 = K_CD_SCOPE_WINDOW;
-        let mut win: *mut WinInfoInfo = ptr::null_mut();
-        let mut tp: *mut TabPageInfo = ptr::null_mut();
-        let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut scope: i32 = K_CD_SCOPE_WINDOW;
+    let mut win: *mut WinInfoInfo = ptr::null_mut();
+    let mut tp: *mut TabPageInfo = ptr::null_mut();
+    let mut buf: *mut FileBuf = ptr::null_mut();
 
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.v_type = VarType::VarNumber;
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-        // Without arguments, default to window scope.
-        if !getcwd_scope_args(
-            argvars,
-            K_CD_SCOPE_WINDOW,
-            &mut scope,
-            &raw mut win,
-            &raw mut tp,
-            &raw mut buf,
-        ) {
-            return;
+    // Without arguments, default to window scope.
+    if !getcwd_scope_args(
+        argvars,
+        K_CD_SCOPE_WINDOW,
+        &mut scope,
+        &raw mut win,
+        &raw mut tp,
+        &raw mut buf,
+    ) {
+        return;
+    }
+
+    match scope {
+        K_CD_SCOPE_WINDOW => unsafe {
+            rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
+                (*win).w_localdir.is_some(),
+            ));
+        },
+        K_CD_SCOPE_BUFFER => unsafe {
+            rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
+                (*buf).b_localdir.is_some(),
+            ));
+        },
+        K_CD_SCOPE_TABPAGE => unsafe {
+            rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
+                (*tp).tp_localdir.is_some(),
+            ));
+        },
+        K_CD_SCOPE_GLOBAL => {
+            // The global scope never has a local directory
         }
-
-        match scope {
-            K_CD_SCOPE_WINDOW => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                    (*win).w_localdir.is_some(),
-                ));
-            }
-            K_CD_SCOPE_BUFFER => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                    (*buf).b_localdir.is_some(),
-                ));
-            }
-            K_CD_SCOPE_TABPAGE => {
-                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-                    (*tp).tp_localdir.is_some(),
-                ));
-            }
-            K_CD_SCOPE_GLOBAL => {
-                // The global scope never has a local directory
-            }
-            _ => std::process::abort(),
-        }
+        _ => std::process::abort(),
     }
 }
 
@@ -1497,168 +1504,186 @@ fn read_blob(fd: &CFile, rettv: &mut TypVal, mut offset: Off, size_arg: Off) -> 
 
 /// "readfile()" or "readblob()" function
 fn read_file_or_blob(argvars: &mut [TypVal], rettv: &mut TypVal, always_blob: bool) {
-    unsafe {
-        let mut binary = false;
-        let mut blob = always_blob;
-        let mut buf = [0u8; (IOSIZE / 256) * 256]; // rounded to avoid odd + 1
-        let io_size = buf.len();
-        let mut prev: Vec<u8> = Vec::new(); // previously read bytes, if any
-        let mut maxline: i64 = MAXLNUM;
-        let mut offset: Off = 0;
-        let mut size: Off = -1;
+    let mut binary = false;
+    let mut blob = always_blob;
+    let mut buf = [0u8; (IOSIZE / 256) * 256]; // rounded to avoid odd + 1
+    let io_size = buf.len();
+    let mut prev: Vec<u8> = Vec::new(); // previously read bytes, if any
+    let mut maxline: i64 = MAXLNUM;
+    let mut offset: Off = 0;
+    let mut size: Off = -1;
 
-        if argvars[1].v_type != VarType::VarUnknown {
-            if always_blob {
-                offset = tv_get_number(&argvars[1]);
-                if argvars[2].v_type != VarType::VarUnknown {
-                    size = tv_get_number(&argvars[2]);
-                }
-            } else {
-                let arg1 = tv_get_string(&argvars[1]).to_bytes();
-                if arg1 == b"b" {
-                    binary = true;
-                } else if arg1 == b"B" {
-                    blob = true;
-                }
-                if argvars[2].v_type != VarType::VarUnknown {
-                    maxline = tv_get_number(&argvars[2]);
-                }
+    if argvars[1].v_type != VarType::VarUnknown {
+        if always_blob {
+            offset = tv_get_number(&argvars[1]);
+            if argvars[2].v_type != VarType::VarUnknown {
+                size = tv_get_number(&argvars[2]);
             }
-        }
-
-        if blob {
-            tv_blob_alloc_ret(rettv);
         } else {
-            tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
-        }
-
-        // Always open the file in binary mode, library functions have a mind of
-        // their own about CR-LF conversion.
-        let fname = tv_get_string(&argvars[0]);
-
-        if os_isdir(fname) {
-            semsg!(gettext(E_ISADIR2), fname);
-            return;
-        }
-        if crate::memory::cstr_is_empty(fname) {
-            semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
-            return;
-        }
-        let Some(fd) = CFile::open(fname, c"rb") else {
-            semsg!(gettext(E_NOTOPEN), fname);
-            return;
-        };
-
-        if blob {
-            if !read_blob(&fd, rettv, offset, size) {
-                semsg!(gettext(E_CANT_READ_FILE_STR), fname);
+            let arg1 = tv_get_string(&argvars[1]).to_bytes();
+            if arg1 == b"b" {
+                binary = true;
+            } else if arg1 == b"B" {
+                blob = true;
             }
-            return;
+            if argvars[2].v_type != VarType::VarUnknown {
+                maxline = tv_get_number(&argvars[2]);
+            }
         }
+    }
 
-        let l = rettv.vval.v_list();
-        let buf_ptr = buf.as_mut_ptr();
+    if blob {
+        tv_blob_alloc_ret(rettv);
+    } else {
+        tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_UNKNOWN);
+    }
 
-        while maxline < 0 || i64::from(tv_list_len(l.as_ref())) < maxline {
-            let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
+    // Always open the file in binary mode, library functions have a mind of
+    // their own about CR-LF conversion.
+    let fname = tv_get_string(&argvars[0]);
 
-            let mut p = buf_ptr; // Position in buf.
-            let mut start = buf_ptr; // Start of current line.
-            while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
-                || (readlen <= 0 && (!prev.is_empty() || binary))
-            {
-                if readlen <= 0 || crate::memory::cstr_first_byte(p.cast()) == b'\n' {
-                    let mut len = (p as usize).wrapping_sub(start as usize);
+    if os_isdir(fname) {
+        semsg!(gettext(E_ISADIR2), fname);
+        return;
+    }
+    if crate::memory::cstr_is_empty(fname) {
+        semsg!(gettext(E_NOTOPEN), gettext(c"<empty>"));
+        return;
+    }
+    let Some(fd) = CFile::open(fname, c"rb") else {
+        semsg!(gettext(E_NOTOPEN), fname);
+        return;
+    };
 
-                    // Finished a line.  Remove CRs before NL.
-                    if readlen > 0 && !binary {
-                        let line_bytes = crate::memory::cstr_slice(start.cast(), len);
-                        while len > 0 && line_bytes[len - 1] == b'\r' {
-                            len -= 1;
-                        }
-                        // removal may cross back to the "prev" string
-                        if len == 0 {
-                            while prev.last() == Some(&b'\r') {
-                                prev.pop();
-                            }
+    if blob {
+        if !read_blob(&fd, rettv, offset, size) {
+            semsg!(gettext(E_CANT_READ_FILE_STR), fname);
+        }
+        return;
+    }
+
+    let l = rettv.vval.v_list();
+    let buf_ptr = buf.as_mut_ptr();
+
+    while maxline < 0 || unsafe { i64::from(tv_list_len(l.as_ref())) < maxline } {
+        let mut readlen = fd.read_bytes(&mut buf[..io_size]) as isize;
+
+        let mut p = buf_ptr; // Position in buf.
+        let mut start = buf_ptr; // Start of current line.
+        while (p as usize) < (buf_ptr.wrapping_offset(readlen) as usize)
+            || (readlen <= 0 && (!prev.is_empty() || binary))
+        {
+            if readlen <= 0 || crate::memory::cstr_first_byte(p.cast()) == b'\n' {
+                let mut len = (p as usize).wrapping_sub(start as usize);
+
+                // Finished a line.  Remove CRs before NL.
+                if readlen > 0 && !binary {
+                    let line_bytes = crate::memory::cstr_slice(start.cast(), len);
+                    while len > 0 && line_bytes[len - 1] == b'\r' {
+                        len -= 1;
+                    }
+                    // removal may cross back to the "prev" string
+                    if len == 0 {
+                        while prev.last() == Some(&b'\r') {
+                            prev.pop();
                         }
                     }
-                    if prev.is_empty() {
-                        debug_assert!(len < i32::MAX as usize);
+                }
+                if prev.is_empty() {
+                    debug_assert!(len < i32::MAX as usize);
+                    unsafe {
                         tv_list_append_string(&mut *l, start.cast(), len as isize);
-                    } else {
-                        prev.extend_from_slice(std::slice::from_raw_parts(start, len));
-                        tv_list_append_string(&mut *l, prev.as_ptr().cast(), prev.len() as isize);
-                        prev.clear();
                     }
+                } else {
+                    unsafe {
+                        prev.extend_from_slice(std::slice::from_raw_parts(start, len));
+                    }
+                    unsafe {
+                        tv_list_append_string(&mut *l, prev.as_ptr().cast(), prev.len() as isize);
+                    }
+                    prev.clear();
+                }
 
-                    start = p.wrapping_add(1); // Step over newline.
-                    if maxline < 0 {
-                        if i64::from(tv_list_len(l.as_ref())) > -maxline {
+                start = p.wrapping_add(1); // Step over newline.
+                if maxline < 0 {
+                    if unsafe { i64::from(tv_list_len(l.as_ref())) > -maxline } {
+                        unsafe {
                             debug_assert_eq!(i64::from(tv_list_len(l.as_ref())), 1 + (-maxline));
+                        }
+                        unsafe {
                             tv_list_item_remove(&mut *l, tv_list_first(l.as_ref()));
                         }
-                    } else if i64::from(tv_list_len(l.as_ref())) >= maxline {
+                    }
+                } else if unsafe { i64::from(tv_list_len(l.as_ref())) >= maxline } {
+                    unsafe {
                         debug_assert_eq!(i64::from(tv_list_len(l.as_ref())), maxline);
-                        break;
                     }
-                    if readlen <= 0 {
-                        break;
-                    }
-                } else if crate::memory::cstr_is_empty(p.cast()) {
+                    break;
+                }
+                if readlen <= 0 {
+                    break;
+                }
+            } else if crate::memory::cstr_is_empty(p.cast()) {
+                unsafe {
                     *p = b'\n';
-                } else if crate::memory::cstr_first_byte(p.cast()) == 0xbf && !binary {
-                    // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
-                    // when finding the BF and check the previous two bytes.
-                    let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
-                        *p.wrapping_sub(1)
+                }
+            } else if crate::memory::cstr_first_byte(p.cast()) == 0xbf && !binary {
+                // Check for utf8 "bom"; U+FEFF is encoded as EF BB BF.  Do this
+                // when finding the BF and check the previous two bytes.
+                let back1 = if (p as usize) >= (buf_ptr.wrapping_add(1) as usize) {
+                    unsafe { *p.wrapping_sub(1) }
+                } else {
+                    prev.last().copied().unwrap_or(0)
+                };
+                let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
+                    unsafe { *p.wrapping_sub(2) }
+                } else if p == buf_ptr.wrapping_add(1) {
+                    prev.last().copied().unwrap_or(0)
+                } else if prev.len() >= 2 {
+                    prev[prev.len() - 2]
+                } else {
+                    0
+                };
+
+                if back2 == 0xef && back1 == 0xbb {
+                    let mut dest = p.wrapping_sub(2);
+
+                    // Usually a BOM is at the beginning of a file, and so at
+                    // the beginning of a line; then we can just step over it.
+                    if start == dest {
+                        start = p.wrapping_add(1);
                     } else {
-                        prev.last().copied().unwrap_or(0)
-                    };
-                    let back2 = if (p as usize) >= (buf_ptr.wrapping_add(2) as usize) {
-                        *p.wrapping_sub(2)
-                    } else if p == buf_ptr.wrapping_add(1) {
-                        prev.last().copied().unwrap_or(0)
-                    } else if prev.len() >= 2 {
-                        prev[prev.len() - 2]
-                    } else {
-                        0
-                    };
+                        // have to shuffle buf to close gap
+                        let mut adjust_prevlen: usize = 0;
 
-                    if back2 == 0xef && back1 == 0xbb {
-                        let mut dest = p.wrapping_sub(2);
-
-                        // Usually a BOM is at the beginning of a file, and so at
-                        // the beginning of a line; then we can just step over it.
-                        if start == dest {
-                            start = p.wrapping_add(1);
-                        } else {
-                            // have to shuffle buf to close gap
-                            let mut adjust_prevlen: usize = 0;
-
-                            if (dest as usize) < (buf_ptr as usize) {
-                                // adjust_prevlen must be 1 or 2.
-                                adjust_prevlen = (buf_ptr as usize).wrapping_sub(dest as usize);
-                                dest = buf_ptr;
-                            }
-                            let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
-                            if readlen > p_off + 1 {
+                        if (dest as usize) < (buf_ptr as usize) {
+                            // adjust_prevlen must be 1 or 2.
+                            adjust_prevlen = (buf_ptr as usize).wrapping_sub(dest as usize);
+                            dest = buf_ptr;
+                        }
+                        let p_off = (p as usize).wrapping_sub(buf_ptr as usize) as isize;
+                        if readlen > p_off + 1 {
+                            unsafe {
                                 ptr::copy(p.wrapping_add(1), dest, (readlen - p_off - 1) as usize);
                             }
-                            readlen -= 3 - adjust_prevlen as isize;
-                            prev.truncate(prev.len() - adjust_prevlen);
-                            p = dest.wrapping_sub(1);
                         }
+                        readlen -= 3 - adjust_prevlen as isize;
+                        prev.truncate(prev.len() - adjust_prevlen);
+                        p = dest.wrapping_sub(1);
                     }
                 }
-                p = p.wrapping_add(1);
             }
+            p = p.wrapping_add(1);
+        }
 
-            if (maxline >= 0 && i64::from(tv_list_len(l.as_ref())) >= maxline) || readlen <= 0 {
-                break;
-            }
-            if (start as usize) < (p as usize) {
-                let part_len = (p as usize).wrapping_sub(start as usize);
+        if (unsafe { maxline >= 0 && i64::from(tv_list_len(l.as_ref())) >= maxline })
+            || readlen <= 0
+        {
+            break;
+        }
+        if (start as usize) < (p as usize) {
+            let part_len = (p as usize).wrapping_sub(start as usize);
+            unsafe {
                 prev.extend_from_slice(std::slice::from_raw_parts(start, part_len));
             }
         }
@@ -1929,59 +1954,61 @@ pub fn f_tempname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// Write "list" of strings to file "fp".
 fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> bool {
-    unsafe {
-        let mut error: i32 = 0;
-        let mut li = tv_list_first(list);
-        'outer: while !li.is_null() {
-            let Some(s_cstr) = tv_get_string_chk(&(*li).li_tv) else {
-                return false;
-            };
-            let mut hunk_start = s_cstr.as_ptr();
-            let mut p = hunk_start;
-            loop {
-                if crate::memory::cstr_is_empty(p) || *p == NL {
-                    if p != hunk_start {
-                        let hunk = crate::memory::cstr_slice(
-                            hunk_start,
-                            (p as usize).wrapping_sub(hunk_start as usize),
-                        );
-                        let written = file_write(fp, hunk);
-                        if written < 0 {
-                            error = written as i32;
-                            break 'outer;
-                        }
+    let mut error: i32 = 0;
+    let mut li = tv_list_first(list);
+    'outer: while !li.is_null() {
+        let Some(s_cstr) = (unsafe { tv_get_string_chk(&(*li).li_tv) }) else {
+            return false;
+        };
+        let mut hunk_start = s_cstr.as_ptr();
+        let mut p = hunk_start;
+        loop {
+            if crate::memory::cstr_is_empty(p) || unsafe { *p == NL } {
+                if p != hunk_start {
+                    let hunk = crate::memory::cstr_slice(
+                        hunk_start,
+                        (p as usize).wrapping_sub(hunk_start as usize),
+                    );
+                    let written = file_write(fp, hunk);
+                    if written < 0 {
+                        error = written as i32;
+                        break 'outer;
                     }
-                    if crate::memory::cstr_is_empty(p) {
+                }
+                if crate::memory::cstr_is_empty(p) {
+                    break;
+                } else {
+                    hunk_start = p.wrapping_add(1);
+                    let written = file_write(fp, &[0]);
+                    if written < 0 {
+                        error = written as i32;
                         break;
-                    } else {
-                        hunk_start = p.wrapping_add(1);
-                        let written = file_write(fp, &[0]);
-                        if written < 0 {
-                            error = written as i32;
-                            break;
-                        }
                     }
                 }
-                p = p.wrapping_add(1);
             }
-            if !binary || !(*li).li_next.is_null() {
-                let written = file_write(fp, b"\n");
-                if written < 0 {
-                    error = written as i32;
-                    break 'outer;
-                }
+            p = p.wrapping_add(1);
+        }
+        if !binary || unsafe { !(*li).li_next.is_null() } {
+            let written = file_write(fp, b"\n");
+            if written < 0 {
+                error = written as i32;
+                break 'outer;
             }
+        }
+        unsafe {
             li = (*li).li_next;
         }
-        if error == 0 {
-            error = file_flush(&raw mut *fp);
-            if error == 0 {
-                return true;
-            }
-        }
-        semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
-        false
     }
+    if error == 0 {
+        error = file_flush(&raw mut *fp);
+        if error == 0 {
+            return true;
+        }
+    }
+    unsafe {
+        semsg!(gettext(E_ERROR_WHILE_WRITING_STR), uv_strerror(error),);
+    }
+    false
 }
 
 /// Write a blob to file with descriptor `fp`.

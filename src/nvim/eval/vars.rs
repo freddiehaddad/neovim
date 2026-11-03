@@ -2329,83 +2329,88 @@ pub fn cat_prefix_varname(prefix: i32, name: impl crate::strings::IntoCCharPtr) 
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
 pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    unsafe {
-        if idx == 0 {
-            vars_st().gdone = 0;
-            vars_st().bdone = 0;
-            vars_st().wdone = 0;
-            vars_st().vidx = 0;
-            vars_st().tdone = 0;
-        }
-
-        if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
-            if vars_st().gdone == 0 {
-                vars_st().hi = get_globvar_ht().array_ptr();
-            } else {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            vars_st().gdone += 1;
-            while hashitem_empty(&*vars_st().hi) {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            let hi_key = (&*vars_st().hi).key_cstr();
-            if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:") {
-                return Some(cat_prefix_varname(b'g' as i32, hi_key));
-            }
-            return hi_key;
-        }
-
-        let mut ht: *const Hashtab = &raw const (*prevwin_curwin().w_buffer).b_vars().dv_hashtab;
-        if vars_st().bdone < (*ht).ht_used {
-            if vars_st().bdone == 0 {
-                vars_st().hi = (&*ht).array_ptr();
-            } else {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            vars_st().bdone += 1;
-            while hashitem_empty(&*vars_st().hi) {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            return Some(cat_prefix_varname(b'b' as i32, (&*vars_st().hi).key_cstr()));
-        }
-
-        ht = &raw const (*prevwin_curwin()).w_vars().dv_hashtab;
-        if vars_st().wdone < (*ht).ht_used {
-            if vars_st().wdone == 0 {
-                vars_st().hi = (&*ht).array_ptr();
-            } else {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            vars_st().wdone += 1;
-            while hashitem_empty(&*vars_st().hi) {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            return Some(cat_prefix_varname(b'w' as i32, (&*vars_st().hi).key_cstr()));
-        }
-
-        ht = &raw const curtab_mut().tp_vars().dv_hashtab;
-        if vars_st().tdone < (*ht).ht_used {
-            if vars_st().tdone == 0 {
-                vars_st().hi = (&*ht).array_ptr();
-            } else {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            vars_st().tdone += 1;
-            while hashitem_empty(&*vars_st().hi) {
-                vars_st().hi = vars_st().hi.wrapping_add(1);
-            }
-            return Some(cat_prefix_varname(b't' as i32, (&*vars_st().hi).key_cstr()));
-        }
-
-        if vars_st().vidx < VV_LEN {
-            let v = vars_st().vidx as VimVarIndex;
-            vars_st().vidx += 1;
-            return Some(cat_prefix_varname(b'v' as i32, get_vim_var_name(v)));
-        }
-
-        vars_st().varnamebuf = Vec::new();
-        None
+    if idx == 0 {
+        vars_st().gdone = 0;
+        vars_st().bdone = 0;
+        vars_st().wdone = 0;
+        vars_st().vidx = 0;
+        vars_st().tdone = 0;
     }
+
+    if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
+        if vars_st().gdone == 0 {
+            vars_st().hi = get_globvar_ht().array_ptr();
+        } else {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        vars_st().gdone += 1;
+        while unsafe { hashitem_empty(&*vars_st().hi) } {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        let hi_key = unsafe { (&*vars_st().hi).key_cstr() };
+        if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:") {
+            return Some(cat_prefix_varname(b'g' as i32, hi_key));
+        }
+        return hi_key;
+    }
+
+    let mut ht: *const Hashtab =
+        unsafe { &raw const (*prevwin_curwin().w_buffer).b_vars().dv_hashtab };
+    if unsafe { vars_st().bdone < (*ht).ht_used } {
+        if vars_st().bdone == 0 {
+            unsafe {
+                vars_st().hi = (&*ht).array_ptr();
+            }
+        } else {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        vars_st().bdone += 1;
+        while unsafe { hashitem_empty(&*vars_st().hi) } {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        return unsafe { Some(cat_prefix_varname(b'b' as i32, (&*vars_st().hi).key_cstr())) };
+    }
+
+    ht = &raw const (*prevwin_curwin()).w_vars().dv_hashtab;
+    if unsafe { vars_st().wdone < (*ht).ht_used } {
+        if vars_st().wdone == 0 {
+            unsafe {
+                vars_st().hi = (&*ht).array_ptr();
+            }
+        } else {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        vars_st().wdone += 1;
+        while unsafe { hashitem_empty(&*vars_st().hi) } {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        return unsafe { Some(cat_prefix_varname(b'w' as i32, (&*vars_st().hi).key_cstr())) };
+    }
+
+    ht = &raw const curtab_mut().tp_vars().dv_hashtab;
+    if unsafe { vars_st().tdone < (*ht).ht_used } {
+        if vars_st().tdone == 0 {
+            unsafe {
+                vars_st().hi = (&*ht).array_ptr();
+            }
+        } else {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        vars_st().tdone += 1;
+        while unsafe { hashitem_empty(&*vars_st().hi) } {
+            vars_st().hi = vars_st().hi.wrapping_add(1);
+        }
+        return unsafe { Some(cat_prefix_varname(b't' as i32, (&*vars_st().hi).key_cstr())) };
+    }
+
+    if vars_st().vidx < VV_LEN {
+        let v = vars_st().vidx as VimVarIndex;
+        vars_st().vidx += 1;
+        return Some(cat_prefix_varname(b'v' as i32, get_vim_var_name(v)));
+    }
+
+    vars_st().varnamebuf = Vec::new();
+    None
 }
 
 pub fn set_vim_var_type(idx: VimVarIndex, v_type: VarType) {
@@ -3747,22 +3752,24 @@ pub fn var_redir_str(value: &[u8]) {
 
 /// Stop redirecting command output to a variable.
 pub fn var_redir_stop() {
-    unsafe {
-        let rl = &raw mut vars_st().redir_lval;
-        if let Some(ref mut lval) = *rl {
-            let lval_ptr: *mut Lval = lval;
-            if !vars_st().redir_endp.is_null() {
-                vars_st().redir_buf.push(0);
-                let mut tv = TypVal {
-                    v_type: VarType::VarString,
-                    v_lock: 0,
-                    vval: TypvalVval::String(vars_st().redir_buf.as_mut_ptr().cast()),
-                };
-                let vn_ptr = (&raw const vars_st().redir_varname)
+    let rl = &raw mut vars_st().redir_lval;
+    if let Some(ref mut lval) = *unsafe { &mut (*rl) } {
+        let lval_ptr: *mut Lval = lval;
+        if !vars_st().redir_endp.is_null() {
+            vars_st().redir_buf.push(0);
+            let mut tv = TypVal {
+                v_type: VarType::VarString,
+                v_lock: 0,
+                vval: TypvalVval::String(vars_st().redir_buf.as_mut_ptr().cast()),
+            };
+            let vn_ptr = unsafe {
+                (&raw const vars_st().redir_varname)
                     .as_ref()
                     .unwrap()
                     .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            };
+            unsafe {
                 vars_st().redir_endp = get_lval(
                     vn_ptr,
                     None,
@@ -3773,7 +3780,9 @@ pub fn var_redir_stop() {
                     FNE_CHECK_START,
                 )
                 .cast();
-                if !vars_st().redir_endp.is_null() && !(*lval_ptr).ll_name.is_null() {
+            }
+            if !vars_st().redir_endp.is_null() && unsafe { !(*lval_ptr).ll_name.is_null() } {
+                unsafe {
                     set_var_lval(
                         &mut *lval_ptr,
                         vars_st().redir_endp,
@@ -3784,12 +3793,14 @@ pub fn var_redir_stop() {
                     );
                 }
             }
+        }
 
-            vars_st().redir_buf = Vec::new();
+        vars_st().redir_buf = Vec::new();
+        unsafe {
             *rl = None;
         }
-        vars_st().redir_varname = None;
     }
+    vars_st().redir_varname = None;
 }
 
 /// "gettabvar()" function.

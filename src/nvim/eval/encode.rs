@@ -312,21 +312,21 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
 }
 
 fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
-    unsafe {
-        let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
+    let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
 
-        for (i, v) in mpstack.iter().enumerate() {
-            if i != 0 {
-                ga_concat_literal(&mut msg_ga, b", ");
-            }
-            match v.data {
-                MPConvStackData::Dict { dict, hi, .. } => {
-                    let hi_ptr = if hi.is_null() {
-                        (*dict).dv_hashtab.array_ptr()
-                    } else {
-                        hi.wrapping_sub(1)
-                    };
-                    let mut key_tv = TypVal {
+    for (i, v) in mpstack.iter().enumerate() {
+        if i != 0 {
+            ga_concat_literal(&mut msg_ga, b", ");
+        }
+        match v.data {
+            MPConvStackData::Dict { dict, hi, .. } => {
+                let hi_ptr = if hi.is_null() {
+                    unsafe { (*dict).dv_hashtab.array_ptr() }
+                } else {
+                    hi.wrapping_sub(1)
+                };
+                let mut key_tv = unsafe {
+                    TypVal {
                         v_type: VarType::VarString,
                         v_lock: VAR_UNLOCKED,
                         vval: TypvalVval::String(
@@ -334,69 +334,72 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
                                 .key_cstr()
                                 .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                         ),
-                    };
-                    let key = encode_tv2string(&mut key_tv, None);
-                    ga_concat_literal(&mut msg_ga, b"key ");
-                    let key_bytes = key.as_bytes();
-                    msg_ga.extend_from_slice(&key_bytes[..key_bytes.len().min(1020)]);
-                }
-                MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
-                    let is_list = matches!(v.data, MPConvStackData::List { .. });
-                    let first = tv_list_first(list.as_ref());
-                    let idx = if li == first {
-                        0
-                    } else if li.is_null() {
-                        tv_list_len(list.as_ref()) - 1
-                    } else {
-                        tv_list_idx_of_item(list.as_ref(), (*li).li_prev)
-                    };
-                    let prev_li: *const Listitem = if li.is_null() {
-                        tv_list_last(list.as_ref())
-                    } else {
-                        (*li).li_prev
-                    };
-                    if is_list
-                        || prev_li.is_null()
-                        || ((*prev_li).li_tv.v_type != VarType::VarList
-                            && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0)
-                    {
-                        let _ = write!(&mut msg_ga, "index {idx}");
-                    } else {
-                        let first_item = tv_list_first(((*prev_li).li_tv.vval.v_list()).as_ref());
-                        assert!(!first_item.is_null());
-                        let mut key_tv = (*first_item).li_tv;
-                        let key = encode_tv2echo(&mut key_tv, None);
-                        let mut item_buf: Vec<u8> = Vec::new();
-                        item_buf.extend_from_slice(b"key ");
-                        item_buf.extend_from_slice(key.as_bytes());
-                        let _ = write!(&mut item_buf, " at index {idx} from special map");
-                        msg_ga.extend_from_slice(&item_buf[..item_buf.len().min(1024)]);
                     }
-                }
-                MPConvStackData::Partial { stage, .. } => match stage {
-                    MPConvPartialStage::Args => std::process::abort(),
-                    MPConvPartialStage::SelfDict => {
-                        ga_concat_literal(&mut msg_ga, b"partial");
-                    }
-                    MPConvPartialStage::End => {
-                        ga_concat_literal(&mut msg_ga, b"partial self dictionary");
-                    }
-                },
-                MPConvStackData::PartialList { arg, argv, .. } => {
-                    let idx = (crate::memory::ptr_offset_from(arg, argv) as i32) - 1;
-                    let _ = write!(&mut msg_ga, "argument {idx}");
+                };
+                let key = encode_tv2string(&mut key_tv, None);
+                ga_concat_literal(&mut msg_ga, b"key ");
+                let key_bytes = key.as_bytes();
+                msg_ga.extend_from_slice(&key_bytes[..key_bytes.len().min(1020)]);
+            }
+            MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
+                let is_list = matches!(v.data, MPConvStackData::List { .. });
+                let first = unsafe { tv_list_first(list.as_ref()) };
+                let idx = if li == first {
+                    0
+                } else if li.is_null() {
+                    unsafe { tv_list_len(list.as_ref()) - 1 }
+                } else {
+                    unsafe { tv_list_idx_of_item(list.as_ref(), (*li).li_prev) }
+                };
+                let prev_li: *const Listitem = if li.is_null() {
+                    unsafe { tv_list_last(list.as_ref()) }
+                } else {
+                    unsafe { (*li).li_prev }
+                };
+                if is_list
+                    || prev_li.is_null()
+                    || (unsafe {
+                        (*prev_li).li_tv.v_type != VarType::VarList
+                            && tv_list_len(((*prev_li).li_tv.vval.v_list()).as_ref()) <= 0
+                    })
+                {
+                    let _ = write!(&mut msg_ga, "index {idx}");
+                } else {
+                    let first_item =
+                        unsafe { tv_list_first(((*prev_li).li_tv.vval.v_list()).as_ref()) };
+                    assert!(!first_item.is_null());
+                    let mut key_tv = unsafe { (*first_item).li_tv };
+                    let key = encode_tv2echo(&mut key_tv, None);
+                    let mut item_buf: Vec<u8> = Vec::new();
+                    item_buf.extend_from_slice(b"key ");
+                    item_buf.extend_from_slice(key.as_bytes());
+                    let _ = write!(&mut item_buf, " at index {idx} from special map");
+                    msg_ga.extend_from_slice(&item_buf[..item_buf.len().min(1024)]);
                 }
             }
+            MPConvStackData::Partial { stage, .. } => match stage {
+                MPConvPartialStage::Args => std::process::abort(),
+                MPConvPartialStage::SelfDict => {
+                    ga_concat_literal(&mut msg_ga, b"partial");
+                }
+                MPConvPartialStage::End => {
+                    ga_concat_literal(&mut msg_ga, b"partial self dictionary");
+                }
+            },
+            MPConvStackData::PartialList { arg, argv, .. } => {
+                let idx = (crate::memory::ptr_offset_from(arg, argv) as i32) - 1;
+                let _ = write!(&mut msg_ga, "argument {idx}");
+            }
         }
-        let path_cstr = cstr_from_bytes(&msg_ga);
-        let path_ptr = if mpstack.is_empty() {
-            c"itself".as_ptr()
-        } else {
-            path_cstr.as_ptr()
-        };
-        semsg!(msg.as_ptr(), objname.as_ptr(), path_ptr);
-        FAIL
     }
+    let path_cstr = cstr_from_bytes(&msg_ga);
+    let path_ptr = if mpstack.is_empty() {
+        c"itself".as_ptr()
+    } else {
+        path_cstr.as_ptr()
+    };
+    semsg!(msg.as_ptr(), objname.as_ptr(), path_ptr);
+    FAIL
 }
 
 fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) {
@@ -1051,78 +1054,84 @@ fn convert_one_value(
     copy_id: i32,
     objname: &CStr,
 ) -> i32 {
-    unsafe {
-        backend.check_before();
-        let tv_ref = &mut *tv;
-        match tv_ref.v_type {
-            VarType::VarString => {
-                let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
-                if !backend.conv_string(s) {
-                    return FAIL;
-                }
+    backend.check_before();
+    let tv_ref = unsafe { &mut *tv };
+    match tv_ref.v_type {
+        VarType::VarString => {
+            let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+            if !backend.conv_string(s) {
+                return FAIL;
             }
-            VarType::VarNumber => {
-                backend.conv_number(tv_ref.vval.v_number());
+        }
+        VarType::VarNumber => {
+            backend.conv_number(tv_ref.vval.v_number());
+        }
+        VarType::VarFloat => {
+            if !backend.conv_float(tv_ref.vval.v_float()) {
+                return FAIL;
             }
-            VarType::VarFloat => {
-                if !backend.conv_float(tv_ref.vval.v_float()) {
-                    return FAIL;
-                }
-            }
-            VarType::VarBlob => {
-                let blob = tv_ref.vval.v_blob();
+        }
+        VarType::VarBlob => {
+            let blob = tv_ref.vval.v_blob();
+            unsafe {
                 backend.conv_blob(blob.as_ref(), tv_blob_len(blob.as_ref()));
             }
-            VarType::VarFunc => {
-                let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
-                if backend.conv_func_start(fun, b"", mpstack, objname) == FAIL {
-                    return FAIL;
-                }
-                backend.conv_func_before_args(0);
-                backend.conv_func_before_self(-1);
-                backend.conv_func_end();
+        }
+        VarType::VarFunc => {
+            let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+            if backend.conv_func_start(fun, b"", mpstack, objname) == FAIL {
+                return FAIL;
             }
-            VarType::VarPartial => {
-                let pt = tv_ref.vval.v_partial();
-                let fun = (!pt.is_null()).then(|| partial_name(pt.as_ref()).to_bytes());
-                let prefix: &[u8] = if let Some(fb) = fun
-                    && !pt.is_null()
-                    && (*pt).pt_name.is_none()
-                    && fb.first().is_some_and(u8::is_ascii_uppercase)
-                {
-                    b"g:"
-                } else {
-                    b""
-                };
-                if backend.conv_func_start(fun, prefix, mpstack, objname) == FAIL {
-                    return FAIL;
-                }
-                mpstack.push(MPConvStackVal {
-                    tv,
-                    saved_copy_id: copy_id - 1,
-                    data: MPConvStackData::Partial {
-                        stage: MPConvPartialStage::Args,
-                        pt,
-                    },
-                });
+            backend.conv_func_before_args(0);
+            backend.conv_func_before_self(-1);
+            backend.conv_func_end();
+        }
+        VarType::VarPartial => {
+            let pt = tv_ref.vval.v_partial();
+            let fun = unsafe { (!pt.is_null()).then(|| partial_name(pt.as_ref()).to_bytes()) };
+            let prefix: &[u8] = if let Some(fb) = fun
+                && !pt.is_null()
+                && unsafe { (*pt).pt_name.is_none() }
+                && fb.first().is_some_and(u8::is_ascii_uppercase)
+            {
+                b"g:"
+            } else {
+                b""
+            };
+            if backend.conv_func_start(fun, prefix, mpstack, objname) == FAIL {
+                return FAIL;
             }
-            VarType::VarList => {
-                let list = tv_ref.vval.v_list();
-                if list.is_null() || tv_list_len(list.as_ref()) == 0 {
-                    backend.conv_empty_list();
-                } else {
-                    let saved_copy_id = (*list).lv_copy_id;
-                    let csr = backend.check_self_reference(
+            mpstack.push(MPConvStackVal {
+                tv,
+                saved_copy_id: copy_id - 1,
+                data: MPConvStackData::Partial {
+                    stage: MPConvPartialStage::Args,
+                    pt,
+                },
+            });
+        }
+        VarType::VarList => {
+            let list = tv_ref.vval.v_list();
+            if list.is_null() || unsafe { tv_list_len(list.as_ref()) == 0 } {
+                backend.conv_empty_list();
+            } else {
+                let saved_copy_id = unsafe { (*list).lv_copy_id };
+                let csr = unsafe {
+                    backend.check_self_reference(
                         MPContainerRef::List(list),
                         &mut (*list).lv_copy_id,
                         mpstack,
                         copy_id,
                         objname,
-                    );
-                    if csr != NOTDONE {
-                        return csr;
-                    }
+                    )
+                };
+                if csr != NOTDONE {
+                    return csr;
+                }
+                unsafe {
                     backend.conv_list_start(tv_list_len(list.as_ref()));
+                }
+                unsafe {
                     mpstack.push(MPConvStackVal {
                         tv,
                         saved_copy_id,
@@ -1133,124 +1142,129 @@ fn convert_one_value(
                     });
                 }
             }
-            VarType::VarBool => {
-                backend.conv_bool(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as i32);
+        }
+        VarType::VarBool => {
+            backend.conv_bool(tv_ref.vval.v_bool() == K_BOOL_VAR_TRUE as i32);
+        }
+        VarType::VarSpecial => {
+            if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as i32 {
+                backend.conv_nil();
             }
-            VarType::VarSpecial => {
-                if tv_ref.vval.v_special() == K_SPECIAL_VAR_NULL as i32 {
-                    backend.conv_nil();
-                }
+        }
+        VarType::VarDict => {
+            let dict = tv_ref.vval.v_dict();
+            if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used == 0 } {
+                backend.conv_empty_dict();
+                return OK;
             }
-            VarType::VarDict => {
-                let dict = tv_ref.vval.v_dict();
-                if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
-                    backend.conv_empty_dict();
-                    return OK;
-                }
-                let mut handled_special = false;
-                if backend.allow_specials() && (*dict).dv_hashtab.ht_used == 2 {
-                    let type_di = tv_dict_find(dict.as_ref(), c"_TYPE", 5);
-                    if !type_di.is_null() && (*type_di).di_tv.v_type == VarType::VarList {
-                        let val_di = tv_dict_find(dict.as_ref(), c"_VAL", 4);
-                        if !val_di.is_null() {
-                            let val_di = &mut *val_di;
-                            let mut mp_idx = NUM_MSGPACK_TYPES;
-                            for (i, tl) in
-                                { *eval_msgpack_type_lists_mut() }.into_iter().enumerate()
-                            {
-                                if (*type_di).di_tv.vval.v_list().cast_const() == tl {
-                                    mp_idx = i;
-                                    break;
-                                }
+            let mut handled_special = false;
+            if backend.allow_specials() && unsafe { (*dict).dv_hashtab.ht_used == 2 } {
+                let type_di = unsafe { tv_dict_find(dict.as_ref(), c"_TYPE", 5) };
+                if !type_di.is_null() && unsafe { (*type_di).di_tv.v_type == VarType::VarList } {
+                    let val_di = unsafe { tv_dict_find(dict.as_ref(), c"_VAL", 4) };
+                    if !val_di.is_null() {
+                        let val_di = unsafe { &mut *val_di };
+                        let mut mp_idx = NUM_MSGPACK_TYPES;
+                        for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
+                            if unsafe { (*type_di).di_tv.vval.v_list().cast_const() == tl } {
+                                mp_idx = i;
+                                break;
                             }
-                            backend.check_before();
-                            if mp_idx < NUM_MSGPACK_TYPES {
-                                match mp_idx {
-                                    K_MP_NIL => {
-                                        backend.conv_nil();
+                        }
+                        backend.check_before();
+                        if mp_idx < NUM_MSGPACK_TYPES {
+                            match mp_idx {
+                                K_MP_NIL => {
+                                    backend.conv_nil();
+                                    handled_special = true;
+                                }
+                                K_MP_BOOLEAN => {
+                                    if val_di.di_tv.v_type == VarType::VarNumber {
+                                        backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
                                         handled_special = true;
                                     }
-                                    K_MP_BOOLEAN => {
-                                        if val_di.di_tv.v_type == VarType::VarNumber {
-                                            backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
-                                            handled_special = true;
-                                        }
-                                    }
-                                    K_MP_INTEGER => {
-                                        if val_di.di_tv.v_type == VarType::VarList {
-                                            let val_list = val_di.di_tv.vval.v_list();
-                                            if tv_list_len(val_list.as_ref()) == 4 {
-                                                let sign_li = tv_list_first(val_list.as_ref());
-                                                let sign_li = &mut *sign_li;
-                                                let highest_li = sign_li.li_next;
-                                                let highest_li = &mut *highest_li;
-                                                let high_li = highest_li.li_next;
-                                                let high_li = &mut *high_li;
-                                                let low_li = tv_list_last(val_list.as_ref());
-                                                let low_li = &mut *low_li;
-                                                if sign_li.li_tv.v_type == VarType::VarNumber
-                                                    && sign_li.li_tv.vval.v_number() != 0
-                                                    && highest_li.li_tv.v_type == VarType::VarNumber
-                                                    && highest_li.li_tv.vval.v_number() >= 0
-                                                    && high_li.li_tv.v_type == VarType::VarNumber
-                                                    && high_li.li_tv.vval.v_number() >= 0
-                                                    && low_li.li_tv.v_type == VarType::VarNumber
-                                                    && low_li.li_tv.vval.v_number() >= 0
-                                                {
-                                                    let sign = sign_li.li_tv.vval.v_number();
-                                                    let highest =
-                                                        highest_li.li_tv.vval.v_number() as u64;
-                                                    let high = high_li.li_tv.vval.v_number() as u64;
-                                                    let low = low_li.li_tv.vval.v_number() as u64;
-                                                    let number =
-                                                        (highest << 62) | (high << 31) | low;
-                                                    if sign > 0 {
-                                                        backend.conv_unsigned_number(number);
-                                                    } else {
-                                                        backend.conv_number(
-                                                            number.wrapping_neg() as i64
-                                                        );
-                                                    }
-                                                    handled_special = true;
+                                }
+                                K_MP_INTEGER => {
+                                    if val_di.di_tv.v_type == VarType::VarList {
+                                        let val_list = val_di.di_tv.vval.v_list();
+                                        if unsafe { tv_list_len(val_list.as_ref()) == 4 } {
+                                            let sign_li =
+                                                unsafe { tv_list_first(val_list.as_ref()) };
+                                            let sign_li = unsafe { &mut *sign_li };
+                                            let highest_li = sign_li.li_next;
+                                            let highest_li = unsafe { &mut *highest_li };
+                                            let high_li = highest_li.li_next;
+                                            let high_li = unsafe { &mut *high_li };
+                                            let low_li = unsafe { tv_list_last(val_list.as_ref()) };
+                                            let low_li = unsafe { &mut *low_li };
+                                            if sign_li.li_tv.v_type == VarType::VarNumber
+                                                && sign_li.li_tv.vval.v_number() != 0
+                                                && highest_li.li_tv.v_type == VarType::VarNumber
+                                                && highest_li.li_tv.vval.v_number() >= 0
+                                                && high_li.li_tv.v_type == VarType::VarNumber
+                                                && high_li.li_tv.vval.v_number() >= 0
+                                                && low_li.li_tv.v_type == VarType::VarNumber
+                                                && low_li.li_tv.vval.v_number() >= 0
+                                            {
+                                                let sign = sign_li.li_tv.vval.v_number();
+                                                let highest =
+                                                    highest_li.li_tv.vval.v_number() as u64;
+                                                let high = high_li.li_tv.vval.v_number() as u64;
+                                                let low = low_li.li_tv.vval.v_number() as u64;
+                                                let number = (highest << 62) | (high << 31) | low;
+                                                if sign > 0 {
+                                                    backend.conv_unsigned_number(number);
+                                                } else {
+                                                    backend
+                                                        .conv_number(number.wrapping_neg() as i64);
                                                 }
+                                                handled_special = true;
                                             }
                                         }
                                     }
-                                    K_MP_FLOAT => {
-                                        if val_di.di_tv.v_type == VarType::VarFloat {
-                                            if !backend.conv_float(val_di.di_tv.vval.v_float()) {
-                                                return FAIL;
-                                            }
-                                            handled_special = true;
+                                }
+                                K_MP_FLOAT => {
+                                    if val_di.di_tv.v_type == VarType::VarFloat {
+                                        if !backend.conv_float(val_di.di_tv.vval.v_float()) {
+                                            return FAIL;
                                         }
+                                        handled_special = true;
                                     }
-                                    K_MP_STRING => {
-                                        if val_di.di_tv.v_type == VarType::VarList
-                                            && let Some(buf) = encode_vim_list_to_buf(
+                                }
+                                K_MP_STRING => {
+                                    if val_di.di_tv.v_type == VarType::VarList
+                                        && let Some(buf) = unsafe {
+                                            encode_vim_list_to_buf(
                                                 (val_di.di_tv.vval.v_list()).as_ref(),
                                             )
-                                        {
-                                            if !backend.conv_str_string(Some(&buf)) {
-                                                return FAIL;
-                                            }
-                                            handled_special = true;
                                         }
+                                    {
+                                        if !backend.conv_str_string(Some(&buf)) {
+                                            return FAIL;
+                                        }
+                                        handled_special = true;
                                     }
-                                    K_MP_ARRAY => {
-                                        if val_di.di_tv.v_type == VarType::VarList {
-                                            let val_list = val_di.di_tv.vval.v_list();
-                                            let saved_copy_id = (*val_list).lv_copy_id;
-                                            let csr = backend.check_self_reference(
+                                }
+                                K_MP_ARRAY => {
+                                    if val_di.di_tv.v_type == VarType::VarList {
+                                        let val_list = val_di.di_tv.vval.v_list();
+                                        let saved_copy_id = unsafe { (*val_list).lv_copy_id };
+                                        let csr = unsafe {
+                                            backend.check_self_reference(
                                                 MPContainerRef::List(val_list),
                                                 &mut (*val_list).lv_copy_id,
                                                 mpstack,
                                                 copy_id,
                                                 objname,
-                                            );
-                                            if csr != NOTDONE {
-                                                return csr;
-                                            }
+                                            )
+                                        };
+                                        if csr != NOTDONE {
+                                            return csr;
+                                        }
+                                        unsafe {
                                             backend.conv_list_start(tv_list_len(val_list.as_ref()));
+                                        }
+                                        unsafe {
                                             mpstack.push(MPConvStackVal {
                                                 tv,
                                                 saved_copy_id,
@@ -1259,47 +1273,59 @@ fn convert_one_value(
                                                     li: tv_list_first(val_list.as_ref()),
                                                 },
                                             });
-                                            handled_special = true;
                                         }
+                                        handled_special = true;
                                     }
-                                    K_MP_MAP => {
-                                        if val_di.di_tv.v_type == VarType::VarList {
-                                            let val_list = val_di.di_tv.vval.v_list();
-                                            if val_list.is_null()
-                                                || tv_list_len(val_list.as_ref()) == 0
-                                            {
-                                                backend.conv_empty_dict();
-                                                handled_special = true;
-                                            } else {
-                                                let mut all_pairs = true;
-                                                let mut li = tv_list_first(val_list.as_ref());
-                                                while !li.is_null() {
-                                                    if (*li).li_tv.v_type != VarType::VarList
-                                                        || tv_list_len(
+                                }
+                                K_MP_MAP => {
+                                    if val_di.di_tv.v_type == VarType::VarList {
+                                        let val_list = val_di.di_tv.vval.v_list();
+                                        if val_list.is_null()
+                                            || unsafe { tv_list_len(val_list.as_ref()) == 0 }
+                                        {
+                                            backend.conv_empty_dict();
+                                            handled_special = true;
+                                        } else {
+                                            let mut all_pairs = true;
+                                            let mut li =
+                                                unsafe { tv_list_first(val_list.as_ref()) };
+                                            while !li.is_null() {
+                                                if unsafe { (*li).li_tv.v_type != VarType::VarList }
+                                                    || unsafe {
+                                                        tv_list_len(
                                                             ((*li).li_tv.vval.v_list()).as_ref(),
                                                         ) != 2
-                                                    {
-                                                        all_pairs = false;
-                                                        break;
                                                     }
+                                                {
+                                                    all_pairs = false;
+                                                    break;
+                                                }
+                                                unsafe {
                                                     li = (*li).li_next;
                                                 }
-                                                if all_pairs {
-                                                    let saved_copy_id = (*val_list).lv_copy_id;
-                                                    let csr = backend.check_self_reference(
+                                            }
+                                            if all_pairs {
+                                                let saved_copy_id =
+                                                    unsafe { (*val_list).lv_copy_id };
+                                                let csr = unsafe {
+                                                    backend.check_self_reference(
                                                         MPContainerRef::Pairs(val_list),
                                                         &mut (*val_list).lv_copy_id,
                                                         mpstack,
                                                         copy_id,
                                                         objname,
-                                                    );
-                                                    if csr != NOTDONE {
-                                                        return csr;
-                                                    }
+                                                    )
+                                                };
+                                                if csr != NOTDONE {
+                                                    return csr;
+                                                }
+                                                unsafe {
                                                     backend.conv_dict_start(tv_list_len(
                                                         val_list.as_ref(),
                                                     )
                                                         as usize);
+                                                }
+                                                unsafe {
                                                     mpstack.push(MPConvStackVal {
                                                         tv,
                                                         saved_copy_id,
@@ -1308,52 +1334,60 @@ fn convert_one_value(
                                                             li: tv_list_first(val_list.as_ref()),
                                                         },
                                                     });
-                                                    handled_special = true;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
-                                        let val_list = val_di.di_tv.vval.v_list();
-                                        if tv_list_len(val_list.as_ref()) == 2 {
-                                            let first = tv_list_first(val_list.as_ref());
-                                            let first = &mut *first;
-                                            let last = tv_list_last(val_list.as_ref());
-                                            if first.li_tv.v_type == VarType::VarNumber
-                                                && (i8::MIN as i64..=i8::MAX as i64)
-                                                    .contains(&first.li_tv.vval.v_number())
-                                                && (*last).li_tv.v_type == VarType::VarList
-                                                && let Some(buf) = encode_vim_list_to_buf(
-                                                    ((*last).li_tv.vval.v_list()).as_ref(),
-                                                )
-                                            {
-                                                let ext_type = first.li_tv.vval.v_number() as i8;
-                                                if !backend.conv_ext_string(&buf, ext_type) {
-                                                    return FAIL;
                                                 }
                                                 handled_special = true;
                                             }
                                         }
                                     }
-                                    _ => {}
                                 }
+                                K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
+                                    let val_list = val_di.di_tv.vval.v_list();
+                                    if unsafe { tv_list_len(val_list.as_ref()) == 2 } {
+                                        let first = unsafe { tv_list_first(val_list.as_ref()) };
+                                        let first = unsafe { &mut *first };
+                                        let last = unsafe { tv_list_last(val_list.as_ref()) };
+                                        if first.li_tv.v_type == VarType::VarNumber
+                                            && (i8::MIN as i64..=i8::MAX as i64)
+                                                .contains(&first.li_tv.vval.v_number())
+                                            && unsafe { (*last).li_tv.v_type == VarType::VarList }
+                                            && let Some(buf) = unsafe {
+                                                encode_vim_list_to_buf(
+                                                    ((*last).li_tv.vval.v_list()).as_ref(),
+                                                )
+                                            }
+                                        {
+                                            let ext_type = first.li_tv.vval.v_number() as i8;
+                                            if !backend.conv_ext_string(&buf, ext_type) {
+                                                return FAIL;
+                                            }
+                                            handled_special = true;
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }
                 }
-                if !handled_special {
-                    let saved_copy_id = (*dict).dv_copy_id;
-                    let csr = backend.check_self_reference(
+            }
+            if !handled_special {
+                let saved_copy_id = unsafe { (*dict).dv_copy_id };
+                let csr = unsafe {
+                    backend.check_self_reference(
                         MPContainerRef::Dict(dict),
                         &mut (*dict).dv_copy_id,
                         mpstack,
                         copy_id,
                         objname,
-                    );
-                    if csr != NOTDONE {
-                        return csr;
-                    }
+                    )
+                };
+                if csr != NOTDONE {
+                    return csr;
+                }
+                unsafe {
                     backend.conv_dict_start((*dict).dv_hashtab.ht_used);
+                }
+                unsafe {
                     mpstack.push(MPConvStackVal {
                         tv,
                         saved_copy_id,
@@ -1366,13 +1400,13 @@ fn convert_one_value(
                     });
                 }
             }
-            VarType::VarUnknown => {
-                internal_error(backend.convert_one_value_err_name());
-                return FAIL;
-            }
         }
-        OK
+        VarType::VarUnknown => {
+            internal_error(backend.convert_one_value_err_name());
+            return FAIL;
+        }
     }
+    OK
 }
 
 fn encode_vim_with_backend(
@@ -1380,116 +1414,125 @@ fn encode_vim_with_backend(
     top_tv: &mut TypVal,
     objname: &CStr,
 ) -> bool {
-    unsafe {
-        let copy_id = get_copy_id();
-        let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
+    let copy_id = get_copy_id();
+    let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
-        if convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) == FAIL {
-            return false;
-        }
+    if convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) == FAIL {
+        return false;
+    }
 
-        while !mpstack.is_empty() {
-            let cur_idx = mpstack.len() - 1;
-            let saved_copy_id = mpstack[cur_idx].saved_copy_id;
-            let next_tv: *mut TypVal = match mpstack[cur_idx].data {
-                MPConvStackData::Dict {
-                    dict,
-                    mut hi,
-                    ref mut todo,
-                    ..
-                } => {
-                    if *todo == 0 {
-                        mpstack.pop();
+    while !mpstack.is_empty() {
+        let cur_idx = mpstack.len() - 1;
+        let saved_copy_id = mpstack[cur_idx].saved_copy_id;
+        let next_tv: *mut TypVal = match mpstack[cur_idx].data {
+            MPConvStackData::Dict {
+                dict,
+                mut hi,
+                ref mut todo,
+                ..
+            } => {
+                if *todo == 0 {
+                    mpstack.pop();
+                    unsafe {
                         (*dict).dv_copy_id = saved_copy_id;
-                        backend.conv_dict_end();
-                        continue;
-                    } else if *todo != (*dict).dv_hashtab.ht_used {
-                        backend.conv_dict_between_items();
                     }
-                    while hashitem_empty(&*hi) {
-                        hi = hi.wrapping_add(1);
-                    }
-                    let di = crate::eval::typval::tv_dict_hi2di(hi);
-                    *todo -= 1;
-                    if let MPConvStackData::Dict {
-                        hi: ref mut hi_ref, ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *hi_ref = hi.wrapping_add(1);
-                    }
-                    let key_bytes = di.key_bytes();
-                    if !backend.conv_str_string(Some(key_bytes)) {
-                        return false;
-                    }
-                    backend.conv_dict_after_key();
-                    &mut di.di_tv
+                    backend.conv_dict_end();
+                    continue;
+                } else if unsafe { *todo != (*dict).dv_hashtab.ht_used } {
+                    backend.conv_dict_between_items();
                 }
-                MPConvStackData::List { list, ref mut li } => {
-                    let cur_li = *li;
-                    if cur_li.is_null() {
-                        mpstack.pop();
+                while unsafe { hashitem_empty(&*hi) } {
+                    hi = hi.wrapping_add(1);
+                }
+                let di = crate::eval::typval::tv_dict_hi2di(hi);
+                *todo -= 1;
+                if let MPConvStackData::Dict {
+                    hi: ref mut hi_ref, ..
+                } = mpstack[cur_idx].data
+                {
+                    *hi_ref = hi.wrapping_add(1);
+                }
+                let key_bytes = di.key_bytes();
+                if !backend.conv_str_string(Some(key_bytes)) {
+                    return false;
+                }
+                backend.conv_dict_after_key();
+                &mut di.di_tv
+            }
+            MPConvStackData::List { list, ref mut li } => {
+                let cur_li = *li;
+                if cur_li.is_null() {
+                    mpstack.pop();
+                    unsafe {
                         (*list).lv_copy_id = saved_copy_id;
-                        backend.conv_list_end();
-                        continue;
-                    } else if cur_li != tv_list_first(list.as_ref()) {
-                        backend.conv_list_between_items();
                     }
+                    backend.conv_list_end();
+                    continue;
+                } else if unsafe { cur_li != tv_list_first(list.as_ref()) } {
+                    backend.conv_list_between_items();
+                }
+                unsafe {
                     *li = (*cur_li).li_next;
-                    &mut (*cur_li).li_tv
                 }
-                MPConvStackData::Pairs { list, li } => {
-                    if li.is_null() {
-                        mpstack.pop();
+                unsafe { &mut (*cur_li).li_tv }
+            }
+            MPConvStackData::Pairs { list, li } => {
+                if li.is_null() {
+                    mpstack.pop();
+                    unsafe {
                         (*list).lv_copy_id = saved_copy_id;
-                        backend.conv_dict_end();
-                        continue;
-                    } else if li != tv_list_first(list.as_ref()) {
-                        backend.conv_dict_between_items();
                     }
-                    let kv_pair = (*li).li_tv.vval.v_list();
-                    let first_item = tv_list_first(kv_pair.as_ref());
-                    if !backend.special_dict_key_check(&(*first_item).li_tv) {
-                        return false;
-                    }
-                    if convert_one_value(
+                    backend.conv_dict_end();
+                    continue;
+                } else if unsafe { li != tv_list_first(list.as_ref()) } {
+                    backend.conv_dict_between_items();
+                }
+                let kv_pair = unsafe { (*li).li_tv.vval.v_list() };
+                let first_item = unsafe { tv_list_first(kv_pair.as_ref()) };
+                if unsafe { !backend.special_dict_key_check(&(*first_item).li_tv) } {
+                    return false;
+                }
+                if unsafe {
+                    convert_one_value(
                         backend,
                         &mut mpstack,
                         &mut (*first_item).li_tv,
                         copy_id,
                         objname,
                     ) == FAIL
-                    {
-                        return false;
-                    }
-                    backend.conv_dict_after_key();
-                    let last_item = tv_list_last(kv_pair.as_ref());
-                    let next_li = (*li).li_next;
-                    if let MPConvStackData::Pairs {
-                        li: ref mut li_ref, ..
-                    } = mpstack[cur_idx].data
-                    {
-                        *li_ref = next_li;
-                    }
-                    &mut (*last_item).li_tv
+                } {
+                    return false;
                 }
-                MPConvStackData::Partial { stage, pt } => {
-                    match stage {
-                        MPConvPartialStage::Args => {
-                            let argc = if pt.is_null() {
-                                0
-                            } else {
-                                (*pt).pt_argv.len() as i32
-                            };
-                            backend.conv_func_before_args(argc);
-                            if let MPConvStackData::Partial {
-                                stage: ref mut stage_ref,
-                                ..
-                            } = mpstack[cur_idx].data
-                            {
-                                *stage_ref = MPConvPartialStage::SelfDict;
-                            }
-                            if argc > 0 {
-                                backend.conv_list_start(argc);
+                backend.conv_dict_after_key();
+                let last_item = unsafe { tv_list_last(kv_pair.as_ref()) };
+                let next_li = unsafe { (*li).li_next };
+                if let MPConvStackData::Pairs {
+                    li: ref mut li_ref, ..
+                } = mpstack[cur_idx].data
+                {
+                    *li_ref = next_li;
+                }
+                unsafe { &mut (*last_item).li_tv }
+            }
+            MPConvStackData::Partial { stage, pt } => {
+                match stage {
+                    MPConvPartialStage::Args => {
+                        let argc = if pt.is_null() {
+                            0
+                        } else {
+                            unsafe { (*pt).pt_argv.len() as i32 }
+                        };
+                        backend.conv_func_before_args(argc);
+                        if let MPConvStackData::Partial {
+                            stage: ref mut stage_ref,
+                            ..
+                        } = mpstack[cur_idx].data
+                        {
+                            *stage_ref = MPConvPartialStage::SelfDict;
+                        }
+                        if argc > 0 {
+                            backend.conv_list_start(argc);
+                            unsafe {
                                 mpstack.push(MPConvStackVal {
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id: copy_id - 1,
@@ -1501,42 +1544,44 @@ fn encode_vim_with_backend(
                                 });
                             }
                         }
-                        MPConvPartialStage::SelfDict => {
-                            if let MPConvStackData::Partial {
-                                stage: ref mut stage_ref,
-                                ..
-                            } = mpstack[cur_idx].data
-                            {
-                                *stage_ref = MPConvPartialStage::End;
+                    }
+                    MPConvPartialStage::SelfDict => {
+                        if let MPConvStackData::Partial {
+                            stage: ref mut stage_ref,
+                            ..
+                        } = mpstack[cur_idx].data
+                        {
+                            *stage_ref = MPConvPartialStage::End;
+                        }
+                        let dict = if pt.is_null() {
+                            std::ptr::null_mut()
+                        } else {
+                            unsafe { (*pt).pt_dict }
+                        };
+                        if !dict.is_null() {
+                            let dict = unsafe { &mut *dict };
+                            backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
+                            if dict.dv_hashtab.ht_used == 0 {
+                                backend.conv_empty_dict();
+                                continue;
                             }
-                            let dict = if pt.is_null() {
-                                std::ptr::null_mut()
-                            } else {
-                                (*pt).pt_dict
-                            };
-                            if !dict.is_null() {
-                                let dict = &mut *dict;
-                                backend.conv_func_before_self(dict.dv_hashtab.ht_used as isize);
-                                if dict.dv_hashtab.ht_used == 0 {
-                                    backend.conv_empty_dict();
+                            let saved_copy_id = dict.dv_copy_id;
+                            let csr = backend.check_self_reference(
+                                MPContainerRef::Dict(dict),
+                                &mut dict.dv_copy_id,
+                                &mpstack,
+                                copy_id,
+                                objname,
+                            );
+                            if csr != NOTDONE {
+                                if csr == FAIL {
+                                    return false;
+                                } else {
                                     continue;
                                 }
-                                let saved_copy_id = dict.dv_copy_id;
-                                let csr = backend.check_self_reference(
-                                    MPContainerRef::Dict(dict),
-                                    &mut dict.dv_copy_id,
-                                    &mpstack,
-                                    copy_id,
-                                    objname,
-                                );
-                                if csr != NOTDONE {
-                                    if csr == FAIL {
-                                        return false;
-                                    } else {
-                                        continue;
-                                    }
-                                }
-                                backend.conv_dict_start(dict.dv_hashtab.ht_used);
+                            }
+                            backend.conv_dict_start(dict.dv_hashtab.ht_used);
+                            unsafe {
                                 mpstack.push(MPConvStackVal {
                                     tv: std::ptr::null_mut(),
                                     saved_copy_id,
@@ -1547,43 +1592,43 @@ fn encode_vim_with_backend(
                                         todo: dict.dv_hashtab.ht_used,
                                     },
                                 });
-                            } else {
-                                backend.conv_func_before_self(-1);
                             }
-                        }
-                        MPConvPartialStage::End => {
-                            backend.conv_func_end();
-                            mpstack.pop();
+                        } else {
+                            backend.conv_func_before_self(-1);
                         }
                     }
-                    continue;
-                }
-                MPConvStackData::PartialList {
-                    ref mut arg,
-                    argv,
-                    ref mut todo,
-                } => {
-                    let cur_arg = *arg;
-                    if *todo == 0 {
+                    MPConvPartialStage::End => {
+                        backend.conv_func_end();
                         mpstack.pop();
-                        backend.conv_list_end();
-                        continue;
-                    } else if argv != cur_arg {
-                        backend.conv_list_between_items();
                     }
-                    *arg = cur_arg.wrapping_add(1);
-                    *todo -= 1;
-                    cur_arg
                 }
-            };
-
-            if convert_one_value(backend, &mut mpstack, next_tv, copy_id, objname) == FAIL {
-                return false;
+                continue;
             }
-        }
+            MPConvStackData::PartialList {
+                ref mut arg,
+                argv,
+                ref mut todo,
+            } => {
+                let cur_arg = *arg;
+                if *todo == 0 {
+                    mpstack.pop();
+                    backend.conv_list_end();
+                    continue;
+                } else if argv != cur_arg {
+                    backend.conv_list_between_items();
+                }
+                *arg = cur_arg.wrapping_add(1);
+                *todo -= 1;
+                cur_arg
+            }
+        };
 
-        true
+        if convert_one_value(backend, &mut mpstack, next_tv, copy_id, objname) == FAIL {
+            return false;
+        }
     }
+
+    true
 }
 
 /// Convert Vimscript value to `:echo` output (`encode_vim_to_echo`).

@@ -746,35 +746,33 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_gettype(nr)` function (`f_win_gettype`).
 pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let mut wp = curwin_ptr();
+    let mut wp = curwin_ptr();
 
-        tv_set_string(rettv, ptr::null());
-        if argvars[0].v_type != VarType::VarUnknown {
-            wp = find_win_by_nr_or_id(&argvars[0]);
-            if wp.is_null() {
-                tv_set_string(rettv, c"unknown");
-                return;
-            }
+    tv_set_string(rettv, ptr::null());
+    if argvars[0].v_type != VarType::VarUnknown {
+        wp = find_win_by_nr_or_id(&argvars[0]);
+        if wp.is_null() {
+            tv_set_string(rettv, c"unknown");
+            return;
         }
-        if is_ctx_win(wp) {
-            tv_set_string(rettv, c"autocmd");
-        } else if (*wp).w_onebuf_opt.wo_pvw != 0 {
-            tv_set_string(rettv, c"preview");
-        } else if (*wp).w_floating {
-            tv_set_string(rettv, c"popup");
-        } else if bt_cmdwin((*wp).w_buffer) {
-            tv_set_string(rettv, c"command");
-        } else if bt_quickfix(((*wp).w_buffer).as_ref()) {
-            tv_set_string(
-                rettv,
-                if !(*wp).w_llist_ref.is_null() {
-                    c"loclist".as_ptr()
-                } else {
-                    c"quickfix".as_ptr()
-                },
-            );
-        }
+    }
+    if is_ctx_win(wp) {
+        tv_set_string(rettv, c"autocmd");
+    } else if unsafe { (*wp).w_onebuf_opt.wo_pvw != 0 } {
+        tv_set_string(rettv, c"preview");
+    } else if unsafe { (*wp).w_floating } {
+        tv_set_string(rettv, c"popup");
+    } else if unsafe { bt_cmdwin((*wp).w_buffer) } {
+        tv_set_string(rettv, c"command");
+    } else if unsafe { bt_quickfix(((*wp).w_buffer).as_ref()) } {
+        tv_set_string(
+            rettv,
+            if unsafe { !(*wp).w_llist_ref.is_null() } {
+                c"loclist".as_ptr()
+            } else {
+                c"quickfix".as_ptr()
+            },
+        );
     }
 }
 
@@ -790,14 +788,12 @@ pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 
 /// `winbufnr(nr)` function (`f_winbufnr`).
 pub fn f_winbufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-            -1
-        } else {
-            (*wp).buf_mut().b_fnum as Varnumber
-        });
-    }
+    let wp = find_win_by_nr_or_id(&argvars[0]);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
+        -1
+    } else {
+        unsafe { (*wp).buf_mut().b_fnum as Varnumber }
+    });
 }
 
 /// `wincol()` function (`f_wincol`).
@@ -808,31 +804,29 @@ pub fn f_wincol(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// `winheight(nr)` function (`f_winheight`).
 pub fn f_winheight(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-            -1
-        } else {
-            (*wp).w_view_height as Varnumber
-        });
-    }
+    let wp = find_win_by_nr_or_id(&argvars[0]);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
+        -1
+    } else {
+        unsafe { (*wp).w_view_height as Varnumber }
+    });
 }
 
 /// `winlayout()` function (`f_winlayout`).
 pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    tv_list_alloc_ret(rettv, 2);
+
+    let tp = if argvars[0].v_type == VarType::VarUnknown {
+        g_st().curtab
+    } else {
+        let found = find_tabpage(tv_get_number(&argvars[0]) as i32);
+        if found.is_null() {
+            return;
+        }
+        found
+    };
+
     unsafe {
-        tv_list_alloc_ret(rettv, 2);
-
-        let tp = if argvars[0].v_type == VarType::VarUnknown {
-            g_st().curtab
-        } else {
-            let found = find_tabpage(tv_get_number(&argvars[0]) as i32);
-            if found.is_null() {
-                return;
-            }
-            found
-        };
-
         get_framelayout((*tp).tp_topframe.as_ref(), rettv.vval.v_list_ref(), true);
     }
 }
@@ -942,12 +936,10 @@ pub fn f_winsaveview(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 /// `winwidth(nr)` function (`f_winwidth`).
 pub fn f_winwidth(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        let wp = find_win_by_nr_or_id(&argvars[0]);
-        rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
-            -1
-        } else {
-            (*wp).w_view_width as Varnumber
-        });
-    }
+    let wp = find_win_by_nr_or_id(&argvars[0]);
+    rettv.vval = crate::eval::typval::TypvalVval::Number(if wp.is_null() {
+        -1
+    } else {
+        unsafe { (*wp).w_view_width as Varnumber }
+    });
 }
