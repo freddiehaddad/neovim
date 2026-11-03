@@ -144,7 +144,7 @@ static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::ne
 
 #[inline]
 fn bt_st() -> &'static mut RegexpBtState {
-    unsafe { &mut *BT_STATE.as_ptr() }
+    crate::globals::gmut(BT_STATE.as_ptr())
 }
 
 #[inline]
@@ -237,9 +237,8 @@ fn regc(b: i32) {
     if re_st().regcode == just_calc_size() {
         re_st().regsize += 1;
     } else {
-        unsafe {
-            *re_st().regcode = b as u8;
-        }
+        *crate::globals::gptr(re_st().regcode) = b as u8;
+
         re_st().regcode = re_st().regcode.wrapping_add(1);
     }
 }
@@ -704,33 +703,26 @@ fn regnode(op: i32) -> *mut u8 {
     if ret == just_calc_size() {
         re_st().regsize += 3;
     } else {
-        unsafe {
-            *re_st().regcode = op as u8;
-        }
-        unsafe {
-            *re_st().regcode.wrapping_add(1) = NUL;
-        }
-        unsafe {
-            *re_st().regcode.wrapping_add(2) = NUL;
-        }
+        *crate::globals::gptr(re_st().regcode) = op as u8;
+
+        *crate::globals::gptr(re_st().regcode.wrapping_add(1)) = NUL;
+
+        *crate::globals::gptr(re_st().regcode.wrapping_add(2)) = NUL;
+
         re_st().regcode = re_st().regcode.wrapping_add(3);
     }
     ret
 }
 
 fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
-    unsafe {
-        *p = ((val >> 24) & 0o377) as u8;
-    }
-    unsafe {
-        *p.wrapping_add(1) = ((val >> 16) & 0o377) as u8;
-    }
-    unsafe {
-        *p.wrapping_add(2) = ((val >> 8) & 0o377) as u8;
-    }
-    unsafe {
-        *p.wrapping_add(3) = (val & 0o377) as u8;
-    }
+    *crate::globals::gptr(p) = ((val >> 24) & 0o377) as u8;
+
+    *crate::globals::gptr(p.wrapping_add(1)) = ((val >> 16) & 0o377) as u8;
+
+    *crate::globals::gptr(p.wrapping_add(2)) = ((val >> 8) & 0o377) as u8;
+
+    *crate::globals::gptr(p.wrapping_add(3)) = (val & 0o377) as u8;
+
     p.wrapping_add(4)
 }
 
@@ -762,19 +754,16 @@ fn regtail(p: *mut u8, val: *const u8) {
         scan = temp;
     }
     let offset = if op_fn(scan) == BACK {
-        unsafe { scan.offset_from(val) as i32 }
+        crate::memory::ptr_offset_from(scan, val) as i32
     } else {
-        unsafe { val.offset_from(scan) as i32 }
+        crate::memory::ptr_offset_from(val, scan) as i32
     };
     if offset > 0xffff {
         re_st().reg_toolong = 1;
     } else {
-        unsafe {
-            *scan.wrapping_add(1) = (((offset as u32) >> 8) & 0o377) as u8;
-        }
-        unsafe {
-            *scan.wrapping_add(2) = (offset & 0o377) as u8;
-        }
+        *crate::globals::gptr(scan.wrapping_add(1)) = (((offset as u32) >> 8) & 0o377) as u8;
+
+        *crate::globals::gptr(scan.wrapping_add(2)) = (offset & 0o377) as u8;
     }
 }
 
@@ -799,19 +788,15 @@ fn reginsert(op: i32, opnd: *mut u8) {
     while src > opnd {
         src = src.wrapping_sub(1);
         dst = dst.wrapping_sub(1);
-        unsafe {
-            *dst = *src;
-        }
+
+        *crate::globals::gptr(dst) = *crate::globals::gptr(src);
     }
-    unsafe {
-        *opnd = op as u8;
-    }
-    unsafe {
-        *opnd.wrapping_add(1) = NUL;
-    }
-    unsafe {
-        *opnd.wrapping_add(2) = NUL;
-    }
+
+    *crate::globals::gptr(opnd) = op as u8;
+
+    *crate::globals::gptr(opnd.wrapping_add(1)) = NUL;
+
+    *crate::globals::gptr(opnd.wrapping_add(2)) = NUL;
 }
 
 fn reginsert_nr(op: i32, val: i64, opnd: *mut u8) {
@@ -825,19 +810,16 @@ fn reginsert_nr(op: i32, val: i64, opnd: *mut u8) {
     while src > opnd {
         src = src.wrapping_sub(1);
         dst = dst.wrapping_sub(1);
-        unsafe {
-            *dst = *src;
-        }
+
+        *crate::globals::gptr(dst) = *crate::globals::gptr(src);
     }
-    unsafe {
-        *opnd = op as u8;
-    }
-    unsafe {
-        *opnd.wrapping_add(1) = NUL;
-    }
-    unsafe {
-        *opnd.wrapping_add(2) = NUL;
-    }
+
+    *crate::globals::gptr(opnd) = op as u8;
+
+    *crate::globals::gptr(opnd.wrapping_add(1)) = NUL;
+
+    *crate::globals::gptr(opnd.wrapping_add(2)) = NUL;
+
     re_put_uint32(opnd.wrapping_add(3), val as u32);
 }
 
@@ -852,19 +834,16 @@ fn reginsert_limits(op: i32, minval: i64, maxval: i64, opnd: *mut u8) {
     while src > opnd {
         src = src.wrapping_sub(1);
         dst = dst.wrapping_sub(1);
-        unsafe {
-            *dst = *src;
-        }
+
+        *crate::globals::gptr(dst) = *crate::globals::gptr(src);
     }
-    unsafe {
-        *opnd = op as u8;
-    }
-    unsafe {
-        *opnd.wrapping_add(1) = NUL;
-    }
-    unsafe {
-        *opnd.wrapping_add(2) = NUL;
-    }
+
+    *crate::globals::gptr(opnd) = op as u8;
+
+    *crate::globals::gptr(opnd.wrapping_add(1)) = NUL;
+
+    *crate::globals::gptr(opnd.wrapping_add(2)) = NUL;
+
     let place = re_put_uint32(opnd.wrapping_add(3), minval as u32);
     let place = re_put_uint32(place, maxval as u32);
     regtail(opnd, place);
@@ -1314,12 +1293,10 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                             if ret == just_calc_size() {
                                 re_st().regsize += 2;
                             } else {
-                                unsafe {
-                                    *re_st().regcode = c as u8;
-                                }
-                                unsafe {
-                                    *re_st().regcode.wrapping_add(1) = cmp as u8;
-                                }
+                                *crate::globals::gptr(re_st().regcode) = c as u8;
+
+                                *crate::globals::gptr(re_st().regcode.wrapping_add(1)) = cmp as u8;
+
                                 re_st().regcode = re_st().regcode.wrapping_add(2);
                             }
                             return ret;
@@ -1366,9 +1343,9 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                                 re_st().regsize += 5;
                             } else {
                                 re_st().regcode = re_put_uint32(re_st().regcode, n);
-                                unsafe {
-                                    *re_st().regcode = cmp as u8;
-                                }
+
+                                *crate::globals::gptr(re_st().regcode) = cmp as u8;
+
                                 re_st().regcode = re_st().regcode.wrapping_add(1);
                             }
                             return ret;
@@ -1487,10 +1464,9 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                 {
                     re_st().regparse = re_st().regparse.wrapping_add(1);
                     if re_st().regparse_byte() == b'n' {
-                        if ret != just_calc_size() && unsafe { *ret } == ANYOF as u8 {
-                            unsafe {
-                                *ret = (ANYOF + ADD_NL) as u8;
-                            }
+                        if ret != just_calc_size() && *crate::globals::gptr(ret) == ANYOF as u8 {
+                            *crate::globals::gptr(ret) = (ANYOF + ADD_NL) as u8;
+
                             *flagp |= HASNL;
                         }
                         re_st().regparse = re_st().regparse.wrapping_add(1);
@@ -2313,7 +2289,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
 
     let do_class = |mask: i16, testval: i16, scan: &mut *mut u8, count: &mut i64| {
         while *count < maxcount {
-            if unsafe { **scan == NUL } {
+            if *crate::globals::gptr(*scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2333,8 +2309,11 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                         break;
                     }
                     *scan = (*scan).wrapping_add(l as usize);
-                } else if (unsafe { (re_st().class_tab[**scan as usize] & mask) == testval })
-                    || (unsafe { re_st().rex.reg_line_lbr && **scan == b'\n' && with_nl(op) })
+                } else if ((re_st().class_tab[(*crate::globals::gptr(*scan)) as usize] & mask)
+                    == testval)
+                    || (re_st().rex.reg_line_lbr
+                        && *crate::globals::gptr(*scan) == b'\n'
+                        && with_nl(op))
                 {
                     *scan = (*scan).wrapping_add(1);
                 } else {
@@ -2347,7 +2326,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
 
     if op == ANY || op == ANY + ADD_NL {
         while count < maxcount {
-            while unsafe { *scan != NUL } && count < maxcount {
+            while *crate::globals::gptr(scan) != NUL && count < maxcount {
                 count += 1;
                 mb_ptr_adv(&mut scan);
             }
@@ -2372,10 +2351,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
         }
         while count < maxcount {
             if vim_is_idc(utf_ptr2char(scan.cast()))
-                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+                && (testval != 0 || !ascii_isdigit((*crate::globals::gptr(scan)) as i32))
             {
                 mb_ptr_adv(&mut scan);
-            } else if unsafe { *scan == NUL } {
+            } else if *crate::globals::gptr(scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2388,7 +2367,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 if g_st().got_int {
                     break;
                 }
-            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+            } else if re_st().rex.reg_line_lbr
+                && *crate::globals::gptr(scan) == b'\n'
+                && with_nl(op)
+            {
                 scan = scan.wrapping_add(1);
             } else {
                 break;
@@ -2400,15 +2382,13 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            if unsafe {
-                vim_iswordp_buf(
-                    crate::memory::cstr_as_bytes(scan.cast()),
-                    &mut *re_st().rex.reg_buf,
-                )
-            } && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+            if vim_iswordp_buf(
+                crate::memory::cstr_as_bytes(scan.cast()),
+                crate::globals::gmut(re_st().rex.reg_buf),
+            ) && (testval != 0 || !ascii_isdigit((*crate::globals::gptr(scan)) as i32))
             {
                 mb_ptr_adv(&mut scan);
-            } else if unsafe { *scan == NUL } {
+            } else if *crate::globals::gptr(scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2421,7 +2401,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 if g_st().got_int {
                     break;
                 }
-            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+            } else if re_st().rex.reg_line_lbr
+                && *crate::globals::gptr(scan) == b'\n'
+                && with_nl(op)
+            {
                 scan = scan.wrapping_add(1);
             } else {
                 break;
@@ -2434,10 +2417,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
         }
         while count < maxcount {
             if vim_isfilec(utf_ptr2char(scan.cast()))
-                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+                && (testval != 0 || !ascii_isdigit((*crate::globals::gptr(scan)) as i32))
             {
                 mb_ptr_adv(&mut scan);
-            } else if unsafe { *scan == NUL } {
+            } else if *crate::globals::gptr(scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2450,7 +2433,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 if g_st().got_int {
                     break;
                 }
-            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+            } else if re_st().rex.reg_line_lbr
+                && *crate::globals::gptr(scan) == b'\n'
+                && with_nl(op)
+            {
                 scan = scan.wrapping_add(1);
             } else {
                 break;
@@ -2462,7 +2448,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
             testval = 1;
         }
         while count < maxcount {
-            if unsafe { *scan == NUL } {
+            if *crate::globals::gptr(scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2476,10 +2462,13 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                     break;
                 }
             } else if vim_isprintc(utf_ptr2char(scan.cast()))
-                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+                && (testval != 0 || !ascii_isdigit((*crate::globals::gptr(scan)) as i32))
             {
                 mb_ptr_adv(&mut scan);
-            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+            } else if re_st().rex.reg_line_lbr
+                && *crate::globals::gptr(scan) == b'\n'
+                && with_nl(op)
+            {
                 scan = scan.wrapping_add(1);
             } else {
                 break;
@@ -2524,15 +2513,18 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
         do_class(RI_UPPER, 0, &mut scan, &mut count);
     } else if op == EXACTLY {
         if re_st().rex.reg_ic {
-            let cu = unsafe { mb_toupper(*opnd as i32) };
-            let cl = unsafe { mb_tolower(*opnd as i32) };
-            while count < maxcount && (unsafe { *scan as i32 == cu || *scan as i32 == cl }) {
+            let cu = mb_toupper((*crate::globals::gptr(opnd)) as i32);
+            let cl = mb_tolower((*crate::globals::gptr(opnd)) as i32);
+            while count < maxcount
+                && ((*crate::globals::gptr(scan)) as i32 == cu
+                    || (*crate::globals::gptr(scan)) as i32 == cl)
+            {
                 count += 1;
                 scan = scan.wrapping_add(1);
             }
         } else {
-            let cu = unsafe { *opnd };
-            while count < maxcount && unsafe { *scan == cu } {
+            let cu = *crate::globals::gptr(opnd);
+            while count < maxcount && *crate::globals::gptr(scan) == cu {
                 count += 1;
                 scan = scan.wrapping_add(1);
             }
@@ -2548,7 +2540,9 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
             while count < maxcount && (utfc_ptr2len(scan.cast()) as usize) >= len {
                 let mut i = 0;
                 while i < len {
-                    if unsafe { *opnd.wrapping_add(i) != *scan.wrapping_add(i) } {
+                    if *crate::globals::gptr(opnd.wrapping_add(i))
+                        != *crate::globals::gptr(scan.wrapping_add(i))
+                    {
                         break;
                     }
                     i += 1;
@@ -2563,7 +2557,7 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
     } else if op == ANYOF || op == ANYOF + ADD_NL || op == ANYBUT || op == ANYBUT + ADD_NL {
         let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
         while count < maxcount {
-            if unsafe { *scan == NUL } {
+            if *crate::globals::gptr(scan) == NUL {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
@@ -2576,7 +2570,10 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                 if g_st().got_int {
                     break;
                 }
-            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+            } else if re_st().rex.reg_line_lbr
+                && *crate::globals::gptr(scan) == b'\n'
+                && with_nl(op)
+            {
                 scan = scan.wrapping_add(1);
             } else {
                 let len = utfc_ptr2len(scan.cast());
@@ -2586,7 +2583,9 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
                     }
                     scan = scan.wrapping_add(len as usize);
                 } else {
-                    if unsafe { cstrchr(opnd.cast(), *scan as i32).is_null() == is_anyof } {
+                    if cstrchr(opnd.cast(), (*crate::globals::gptr(scan)) as i32).is_null()
+                        == is_anyof
+                    {
                         break;
                     }
                     scan = scan.wrapping_add(1);
@@ -2596,13 +2595,11 @@ fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
         }
     } else if op == NEWL {
         while count < maxcount
-            && (unsafe {
-                (*scan == NUL
-                    && re_st().rex.lnum <= re_st().rex.reg_maxline
-                    && !re_st().rex.reg_line_lbr
-                    && reg_multi())
-                    || (*scan == b'\n' && re_st().rex.reg_line_lbr)
-            })
+            && ((*crate::globals::gptr(scan) == NUL
+                && re_st().rex.lnum <= re_st().rex.reg_maxline
+                && !re_st().rex.reg_line_lbr
+                && reg_multi())
+                || (*crate::globals::gptr(scan) == b'\n' && re_st().rex.reg_line_lbr))
         {
             count += 1;
             if re_st().rex.reg_line_lbr {
@@ -2639,13 +2636,13 @@ fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
             .regstack
             .resize(old_len + size_of::<Regitem>() / 8, 0);
 
-        let rp = unsafe {
-            &mut *re_st()
+        let rp = crate::globals::gmut(
+            re_st()
                 .regstack
                 .as_mut_ptr()
                 .wrapping_add(old_len)
-                .cast::<Regitem>()
-        };
+                .cast::<Regitem>(),
+        );
         rp.rs_state = state;
         rp.rs_scan = scan;
         rp
@@ -2659,7 +2656,7 @@ fn regstack_pop(scan: &mut *mut u8) {
         .wrapping_add(re_st().regstack.len())
         .cast::<Regitem>()
         .wrapping_sub(1);
-    *scan = unsafe { (*rp).rs_scan };
+    *scan = crate::globals::gptr(rp).rs_scan;
     re_st()
         .regstack
         .truncate(re_st().regstack.len() - size_of::<Regitem>() / 8);
@@ -2746,13 +2743,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
             if !re_st().rex.reg_line_lbr
                 && with_nl(op)
                 && reg_multi()
-                && unsafe { *re_st().rex.input == NUL }
+                && *crate::globals::gptr(re_st().rex.input) == NUL
                 && re_st().rex.lnum <= re_st().rex.reg_maxline
             {
                 reg_nextline();
             } else if re_st().rex.reg_line_lbr
                 && with_nl(op)
-                && unsafe { *re_st().rex.input == b'\n' }
+                && *crate::globals::gptr(re_st().rex.input) == b'\n'
             {
                 advance_reginput();
             } else {
@@ -2788,52 +2785,53 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if re_st().rex.reg_win.is_null()
                             || (re_st().rex.lnum + re_st().rex.reg_firstlnum
                                 != re_st().rex.win_mut().w_cursor.lnum)
-                            || (unsafe {
-                                re_st().rex.input.offset_from(re_st().rex.line) as Colnr
-                                    != re_st().rex.win_mut().w_cursor.col
-                            })
+                            || (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr
+                                != re_st().rex.win_mut().w_cursor.col)
                         {
                             status = RA_NOMATCH;
                         }
                     }
                     RE_MARK => {
-                        let mark = unsafe { *operand_fn(scan) as i32 };
-                        let cmp = unsafe { *operand_fn(scan).wrapping_add(1) as i32 };
+                        let mark = (*crate::globals::gptr(operand_fn(scan))) as i32;
+                        let cmp = (*crate::globals::gptr(operand_fn(scan).wrapping_add(1))) as i32;
                         let col = if reg_multi() {
-                            unsafe { re_st().rex.input.offset_from(re_st().rex.line) as usize }
+                            crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as usize
                         } else {
                             0
                         };
-                        let fm = unsafe {
-                            mark_get(
-                                &mut *re_st().rex.reg_buf,
-                                crate::globals::curwin_mut(),
-                                None,
-                                K_MARK_BUF_LOCAL,
-                                mark,
-                            )
-                        };
+                        let fm = mark_get(
+                            crate::globals::gmut(re_st().rex.reg_buf),
+                            crate::globals::curwin_mut(),
+                            None,
+                            K_MARK_BUF_LOCAL,
+                            mark,
+                        );
                         if reg_multi() {
                             re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                             re_st().rex.input = re_st().rex.line.wrapping_add(col);
                         }
-                        if fm.is_null() || unsafe { (*fm).mark.lnum <= 0 } {
+                        if fm.is_null() || crate::globals::gptr(fm).mark.lnum <= 0 {
                             status = RA_NOMATCH;
                         } else {
-                            let pos = unsafe { &raw const (*fm).mark };
-                            let pos_col = if unsafe {
-                                (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
-                            } && unsafe { (*pos).col == MAXCOL }
+                            let pos = &raw const crate::globals::gptr(fm).mark;
+                            let pos_col = if crate::globals::gptr(pos).lnum
+                                == re_st().rex.lnum + re_st().rex.reg_firstlnum
+                                && crate::globals::gptr(pos).col == MAXCOL
                             {
-                                unsafe { reg_getline_len((*pos).lnum - re_st().rex.reg_firstlnum) }
+                                reg_getline_len(
+                                    crate::globals::gptr(pos).lnum - re_st().rex.reg_firstlnum,
+                                )
                             } else {
-                                unsafe { (*pos).col }
+                                crate::globals::gptr(pos).col
                             };
                             let cur_col =
-                                unsafe { re_st().rex.input.offset_from(re_st().rex.line) as Colnr };
-                            let nomatch = if unsafe {
-                                (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
-                            } {
+                                crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                    as Colnr;
+                            let nomatch = if crate::globals::gptr(pos).lnum
+                                == re_st().rex.lnum + re_st().rex.reg_firstlnum
+                            {
                                 if pos_col == cur_col {
                                     cmp == b'<' as i32 || cmp == b'>' as i32
                                 } else if pos_col < cur_col {
@@ -2841,9 +2839,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 } else {
                                     cmp != b'<' as i32
                                 }
-                            } else if unsafe {
-                                (*pos).lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum
-                            } {
+                            } else if crate::globals::gptr(pos).lnum
+                                < re_st().rex.lnum + re_st().rex.reg_firstlnum
+                            {
                                 cmp != b'>' as i32
                             } else {
                                 cmp != b'<' as i32
@@ -2869,12 +2867,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     RE_COL => {
-                        if unsafe {
-                            !re_num_cmp(
-                                (re_st().rex.input.offset_from(re_st().rex.line) + 1) as u32,
-                                scan,
-                            )
-                        } {
+                        if !re_num_cmp(
+                            (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                + 1) as u32,
+                            scan,
+                        ) {
                             status = RA_NOMATCH;
                         }
                     }
@@ -2890,18 +2887,18 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             1
                         };
                         if reg_multi()
-                            && (unsafe { lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count })
+                            && (lnum <= 0
+                                || lnum > crate::globals::gptr(wp).buf_mut().b_ml.ml_line_count)
                         {
                             lnum = 1;
                         }
-                        let vcol = unsafe {
-                            win_linetabsize(
-                                &mut *wp,
-                                lnum,
-                                re_st().rex.line.cast(),
-                                re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
-                            )
-                        };
+                        let vcol = win_linetabsize(
+                            crate::globals::gmut(wp),
+                            lnum,
+                            re_st().rex.line.cast(),
+                            crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr,
+                        );
                         if !re_num_cmp((vcol as u32).wrapping_add(1), scan) {
                             status = RA_NOMATCH;
                         }
@@ -2948,32 +2945,30 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     SIDENT => {
-                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) } || !vim_is_idc(c) {
+                        if ascii_isdigit((*crate::globals::gptr(re_st().rex.input)) as i32)
+                            || !vim_is_idc(c)
+                        {
                             status = RA_NOMATCH;
                         } else {
                             advance_reginput();
                         }
                     }
                     KWORD => {
-                        if unsafe {
-                            !vim_iswordp_buf(
-                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
-                                &mut *re_st().rex.reg_buf,
-                            )
-                        } {
+                        if !vim_iswordp_buf(
+                            crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                            crate::globals::gmut(re_st().rex.reg_buf),
+                        ) {
                             status = RA_NOMATCH;
                         } else {
                             advance_reginput();
                         }
                     }
                     SKWORD => {
-                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) }
-                            || unsafe {
-                                !vim_iswordp_buf(
-                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
-                                    &mut *re_st().rex.reg_buf,
-                                )
-                            }
+                        if ascii_isdigit((*crate::globals::gptr(re_st().rex.input)) as i32)
+                            || !vim_iswordp_buf(
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                                crate::globals::gmut(re_st().rex.reg_buf),
+                            )
                         {
                             status = RA_NOMATCH;
                         } else {
@@ -2988,7 +2983,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     SFNAME => {
-                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) } || !vim_isfilec(c) {
+                        if ascii_isdigit((*crate::globals::gptr(re_st().rex.input)) as i32)
+                            || !vim_isfilec(c)
+                        {
                             status = RA_NOMATCH;
                         } else {
                             advance_reginput();
@@ -3002,7 +2999,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         }
                     }
                     SPRINT => {
-                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) }
+                        if ascii_isdigit((*crate::globals::gptr(re_st().rex.input)) as i32)
                             || !vim_isprintc(utf_ptr2char(re_st().rex.input.cast()))
                         {
                             status = RA_NOMATCH;
@@ -3138,9 +3135,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                     EXACTLY => {
                         let opnd = operand_fn(scan);
-                        if unsafe { *opnd != *re_st().rex.input } && !re_st().rex.reg_ic {
+                        if *crate::globals::gptr(opnd) != *crate::globals::gptr(re_st().rex.input)
+                            && !re_st().rex.reg_ic
+                        {
                             status = RA_NOMATCH;
-                        } else if unsafe { *opnd != NUL } {
+                        } else if *crate::globals::gptr(opnd) != NUL {
                             let len = if crate::memory::cstr_len(opnd.cast()) == 1
                                 && !re_st().rex.reg_ic
                             {
@@ -3181,9 +3180,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             q = q.wrapping_add(utf_ptr2len(q.cast()) as usize);
                             if len != 0 {
                                 for i in 0..len {
-                                    if unsafe {
-                                        *q.wrapping_add(i) != *re_st().rex.input.wrapping_add(i)
-                                    } {
+                                    if *crate::globals::gptr(q.wrapping_add(i))
+                                        != *crate::globals::gptr(re_st().rex.input.wrapping_add(i))
+                                    {
                                         status = RA_NOMATCH;
                                         break;
                                     }
@@ -3202,7 +3201,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if utf_iscomposing_legacy(opndc) {
                                 status = RA_NOMATCH;
                                 let mut i: usize = 0;
-                                while unsafe { *re_st().rex.input.wrapping_add(i) != NUL } {
+                                while *crate::globals::gptr(re_st().rex.input.wrapping_add(i))
+                                    != NUL
+                                {
                                     let step = utf_ptr2len(re_st().rex.input.wrapping_add(i).cast())
                                         as usize;
                                     let inpc =
@@ -3270,12 +3271,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if rp.is_null() {
                             status = RA_FAIL;
                         } else {
-                            unsafe {
-                                (*rp).rs_no = no as i16;
-                            }
-                            unsafe {
-                                save_se_m((*rp).rs_un.sesave_mut(), no, false);
-                            }
+                            crate::globals::gptr(rp).rs_no = no as i16;
+
+                            save_se_m(crate::globals::gptr(rp).rs_un.sesave_mut(), no, false);
                         }
                     }
                     NOPEN | NCLOSE => {
@@ -3290,16 +3288,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if rp.is_null() {
                             status = RA_FAIL;
                         } else {
-                            unsafe {
-                                (*rp).rs_no = no as i16;
-                            }
-                            unsafe {
-                                save_se_z(
-                                    (*rp).rs_un.sesave_mut(),
-                                    &mut re_st().reg_startzpos[no],
-                                    &mut re_st().reg_startzp[no],
-                                );
-                            }
+                            crate::globals::gptr(rp).rs_no = no as i16;
+
+                            save_se_z(
+                                crate::globals::gptr(rp).rs_un.sesave_mut(),
+                                &mut re_st().reg_startzpos[no],
+                                &mut re_st().reg_startzp[no],
+                            );
                         }
                     }
                     x if (MCLOSE..=MCLOSE + 9).contains(&x) => {
@@ -3309,12 +3304,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if rp.is_null() {
                             status = RA_FAIL;
                         } else {
-                            unsafe {
-                                (*rp).rs_no = no as i16;
-                            }
-                            unsafe {
-                                save_se_m((*rp).rs_un.sesave_mut(), no, true);
-                            }
+                            crate::globals::gptr(rp).rs_no = no as i16;
+
+                            save_se_m(crate::globals::gptr(rp).rs_un.sesave_mut(), no, true);
                         }
                     }
                     x if (ZCLOSE + 1..=ZCLOSE + 9).contains(&x) => {
@@ -3324,16 +3316,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if rp.is_null() {
                             status = RA_FAIL;
                         } else {
-                            unsafe {
-                                (*rp).rs_no = no as i16;
-                            }
-                            unsafe {
-                                save_se_z(
-                                    (*rp).rs_un.sesave_mut(),
-                                    &mut re_st().reg_endzpos[no],
-                                    &mut re_st().reg_endzp[no],
-                                );
-                            }
+                            crate::globals::gptr(rp).rs_no = no as i16;
+
+                            save_se_z(
+                                crate::globals::gptr(rp).rs_un.sesave_mut(),
+                                &mut re_st().reg_endzpos[no],
+                                &mut re_st().reg_endzp[no],
+                            );
                         }
                     }
                     x if (BACKREF + 1..=BACKREF + 9).contains(&x) => {
@@ -3341,27 +3330,31 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         let mut len: i32 = 0;
                         cleanup_subexpr();
                         if !reg_multi() {
-                            if unsafe { !(*re_st().rex.reg_startp.wrapping_add(no)).is_null() }
-                                && unsafe { !(*re_st().rex.reg_endp.wrapping_add(no)).is_null() }
+                            if !crate::globals::gptr(re_st().rex.reg_startp.wrapping_add(no))
+                                .is_null()
+                                && !crate::globals::gptr(re_st().rex.reg_endp.wrapping_add(no))
+                                    .is_null()
                             {
-                                unsafe {
-                                    len = (*re_st().rex.reg_endp.wrapping_add(no))
-                                        .offset_from(*re_st().rex.reg_startp.wrapping_add(no))
-                                        as i32;
-                                }
-                                if unsafe {
-                                    cstrncmp(
-                                        (*re_st().rex.reg_startp.wrapping_add(no)).cast(),
-                                        re_st().rex.input.cast(),
-                                        &mut len,
-                                    ) != 0
-                                } {
+                                len = crate::memory::ptr_offset_from(
+                                    *crate::globals::gptr(re_st().rex.reg_endp.wrapping_add(no)),
+                                    *crate::globals::gptr(re_st().rex.reg_startp.wrapping_add(no)),
+                                ) as i32;
+
+                                if cstrncmp(
+                                    crate::globals::gptr(re_st().rex.reg_startp.wrapping_add(no))
+                                        .cast(),
+                                    re_st().rex.input.cast(),
+                                    &mut len,
+                                ) != 0
+                                {
                                     status = RA_NOMATCH;
                                 }
                             }
                         } else {
-                            let spos = unsafe { *re_st().rex.reg_startpos.wrapping_add(no) };
-                            let epos = unsafe { *re_st().rex.reg_endpos.wrapping_add(no) };
+                            let spos =
+                                *crate::globals::gptr(re_st().rex.reg_startpos.wrapping_add(no));
+                            let epos =
+                                *crate::globals::gptr(re_st().rex.reg_endpos.wrapping_add(no));
                             if spos.lnum >= 0 && epos.lnum >= 0 {
                                 if spos.lnum == re_st().rex.lnum && epos.lnum == re_st().rex.lnum {
                                     len = epos.col - spos.col;
@@ -3439,12 +3432,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if rp.is_null() {
                                 status = RA_FAIL;
                             } else {
-                                unsafe {
-                                    (*rp).rs_no = no as i16;
-                                }
-                                unsafe {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                }
+                                crate::globals::gptr(rp).rs_no = no as i16;
+
+                                reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
+
                                 next = operand_fn(scan);
                             }
                         } else if bmin <= bmax {
@@ -3453,12 +3444,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if rp.is_null() {
                                     status = RA_FAIL;
                                 } else {
-                                    unsafe {
-                                        (*rp).rs_no = no as i16;
-                                    }
-                                    unsafe {
-                                        reg_save((*rp).rs_un.regsave_mut());
-                                    }
+                                    crate::globals::gptr(rp).rs_no = no as i16;
+
+                                    reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
+
                                     next = operand_fn(scan);
                                 }
                             }
@@ -3467,18 +3456,15 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if rp.is_null() {
                                 status = RA_FAIL;
                             } else {
-                                unsafe {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                }
+                                reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
                             }
                         }
                     }
                     BRACE_SIMPLE | STAR | PLUS => {
                         let mut rst = Regstar::new();
                         if op_fn(next) == EXACTLY {
-                            unsafe {
-                                rst.nextb = *operand_fn(next) as i32;
-                            }
+                            rst.nextb = (*crate::globals::gptr(operand_fn(next))) as i32;
+
                             if re_st().rex.reg_ic {
                                 if mb_isupper(rst.nextb) {
                                     rst.nextb_ic = mb_tolower(rst.nextb);
@@ -3530,9 +3516,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 if rp.is_null() {
                                     status = RA_FAIL;
                                 } else {
-                                    unsafe {
-                                        *rp.cast::<Regstar>().wrapping_sub(1) = rst;
-                                    }
+                                    *crate::globals::gptr(rp.cast::<Regstar>().wrapping_sub(1)) =
+                                        rst;
+
                                     status = RA_BREAK;
                                 }
                             }
@@ -3545,12 +3531,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         if rp.is_null() {
                             status = RA_FAIL;
                         } else {
-                            unsafe {
-                                (*rp).rs_no = op as i16;
-                            }
-                            unsafe {
-                                reg_save((*rp).rs_un.regsave_mut());
-                            }
+                            crate::globals::gptr(rp).rs_no = op as i16;
+
+                            reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
+
                             next = operand_fn(scan);
                         }
                     }
@@ -3568,24 +3552,25 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             if rp.is_null() {
                                 status = RA_FAIL;
                             } else {
-                                unsafe {
-                                    save_subexpr(&mut *rp.cast::<Regbehind>().wrapping_sub(1));
-                                }
-                                unsafe {
-                                    (*rp).rs_no = op as i16;
-                                }
-                                unsafe {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                }
+                                save_subexpr(crate::globals::gmut(
+                                    rp.cast::<Regbehind>().wrapping_sub(1),
+                                ));
+
+                                crate::globals::gptr(rp).rs_no = op as i16;
+
+                                reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
                             }
                         }
                     }
                     BHPOS => {
                         if reg_multi() {
                             let bpos = re_st().behind_pos.rs_u.pos();
-                            if unsafe {
-                                bpos.col != re_st().rex.input.offset_from(re_st().rex.line) as Colnr
-                            } || bpos.lnum != re_st().rex.lnum
+                            if bpos.col
+                                != crate::memory::ptr_offset_from(
+                                    re_st().rex.input,
+                                    re_st().rex.line,
+                                ) as Colnr
+                                || bpos.lnum != re_st().rex.lnum
                             {
                                 status = RA_NOMATCH;
                             }
@@ -3630,51 +3615,47 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                 .wrapping_add(re_st().regstack.len())
                 .cast::<Regitem>()
                 .wrapping_sub(1);
-            match unsafe { (*rp).rs_state } {
+            match crate::globals::gptr(rp).rs_state {
                 RS_NOPEN => {
                     regstack_pop(&mut scan);
                 }
                 RS_MOPEN => {
                     if status == RA_NOMATCH {
-                        let no = unsafe { (*rp).rs_no as usize };
-                        unsafe {
-                            restore_se_m((*rp).rs_un.sesave(), no, false);
-                        }
+                        let no = crate::globals::gptr(rp).rs_no as usize;
+
+                        restore_se_m(crate::globals::gptr(rp).rs_un.sesave(), no, false);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_ZOPEN => {
                     if status == RA_NOMATCH {
-                        let no = unsafe { (*rp).rs_no as usize };
-                        unsafe {
-                            restore_se_z(
-                                (*rp).rs_un.sesave(),
-                                &mut re_st().reg_startzpos[no],
-                                &mut re_st().reg_startzp[no],
-                            );
-                        }
+                        let no = crate::globals::gptr(rp).rs_no as usize;
+
+                        restore_se_z(
+                            crate::globals::gptr(rp).rs_un.sesave(),
+                            &mut re_st().reg_startzpos[no],
+                            &mut re_st().reg_startzp[no],
+                        );
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_MCLOSE => {
                     if status == RA_NOMATCH {
-                        let no = unsafe { (*rp).rs_no as usize };
-                        unsafe {
-                            restore_se_m((*rp).rs_un.sesave(), no, true);
-                        }
+                        let no = crate::globals::gptr(rp).rs_no as usize;
+
+                        restore_se_m(crate::globals::gptr(rp).rs_un.sesave(), no, true);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_ZCLOSE => {
                     if status == RA_NOMATCH {
-                        let no = unsafe { (*rp).rs_no as usize };
-                        unsafe {
-                            restore_se_z(
-                                (*rp).rs_un.sesave(),
-                                &mut re_st().reg_endzpos[no],
-                                &mut re_st().reg_endzp[no],
-                            );
-                        }
+                        let no = crate::globals::gptr(rp).rs_no as usize;
+
+                        restore_se_z(
+                            crate::globals::gptr(rp).rs_un.sesave(),
+                            &mut re_st().reg_endzpos[no],
+                            &mut re_st().reg_endzp[no],
+                        );
                     }
                     regstack_pop(&mut scan);
                 }
@@ -3683,46 +3664,36 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         regstack_pop(&mut scan);
                     } else {
                         if status != RA_BREAK {
-                            unsafe {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                            }
-                            unsafe {
-                                scan = (*rp).rs_scan;
-                            }
+                            reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                            scan = crate::globals::gptr(rp).rs_scan;
                         }
                         if scan.is_null() || op_fn(scan) != BRANCH {
                             status = RA_NOMATCH;
                             regstack_pop(&mut scan);
                         } else {
-                            unsafe {
-                                (*rp).rs_scan = regnext(scan);
-                            }
-                            unsafe {
-                                reg_save((*rp).rs_un.regsave_mut());
-                            }
+                            crate::globals::gptr(rp).rs_scan = regnext(scan);
+
+                            reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
+
                             scan = operand_fn(scan);
                         }
                     }
                 }
                 RS_BRCPLX_MORE => {
                     if status == RA_NOMATCH {
-                        unsafe {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                        }
-                        unsafe {
-                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
-                        }
+                        reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                        re_st().brace_count[crate::globals::gptr(rp).rs_no as usize] -= 1;
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_BRCPLX_LONG => {
                     if status == RA_NOMATCH {
-                        unsafe {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                        }
-                        unsafe {
-                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
-                        }
+                        reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                        re_st().brace_count[crate::globals::gptr(rp).rs_no as usize] -= 1;
+
                         status = RA_CONT;
                     }
                     regstack_pop(&mut scan);
@@ -3732,9 +3703,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                 }
                 RS_BRCPLX_SHORT => {
                     if status == RA_NOMATCH {
-                        unsafe {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                        }
+                        reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
                     }
                     regstack_pop(&mut scan);
                     if status == RA_NOMATCH {
@@ -3744,7 +3713,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                 }
                 RS_NOMATCH => {
                     if status
-                        == if unsafe { (*rp).rs_no == NOMATCH as i16 } {
+                        == if crate::globals::gptr(rp).rs_no == NOMATCH as i16 {
                             RA_MATCH
                         } else {
                             RA_NOMATCH
@@ -3753,10 +3722,8 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                         status = RA_NOMATCH;
                     } else {
                         status = RA_CONT;
-                        if unsafe { (*rp).rs_no != SUBPAT as i16 } {
-                            unsafe {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                            }
+                        if crate::globals::gptr(rp).rs_no != SUBPAT as i16 {
+                            reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
                         }
                     }
                     regstack_pop(&mut scan);
@@ -3771,28 +3738,24 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             .regstack
                             .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                     } else {
-                        let bp = unsafe { &mut *rp.cast::<Regbehind>().wrapping_sub(1) };
+                        let bp = crate::globals::gmut(rp.cast::<Regbehind>().wrapping_sub(1));
                         reg_save(&mut bp.save_after);
                         bp.save_behind = re_st().behind_pos;
-                        unsafe {
-                            re_st().behind_pos = *(*rp).rs_un.regsave();
-                        }
-                        unsafe {
-                            (*rp).rs_state = RS_BEHIND2;
-                        }
-                        unsafe {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                        }
-                        unsafe {
-                            scan = operand_fn((*rp).rs_scan).wrapping_add(4);
-                        }
+
+                        re_st().behind_pos = *crate::globals::gptr(rp).rs_un.regsave();
+
+                        crate::globals::gptr(rp).rs_state = RS_BEHIND2;
+
+                        reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                        scan = operand_fn(crate::globals::gptr(rp).rs_scan).wrapping_add(4);
                     }
                 }
                 RS_BEHIND2 => {
-                    let bp = unsafe { &mut *rp.cast::<Regbehind>().wrapping_sub(1) };
+                    let bp = crate::globals::gmut(rp.cast::<Regbehind>().wrapping_sub(1));
                     if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
                         re_st().behind_pos = bp.save_behind;
-                        if unsafe { (*rp).rs_no == BEHIND as i16 } {
+                        if crate::globals::gptr(rp).rs_no == BEHIND as i16 {
                             reg_restore(&mut bp.save_after);
                         } else {
                             status = RA_NOMATCH;
@@ -3804,9 +3767,9 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                     } else {
                         let mut no = OK;
-                        let limit = unsafe { operand_min((*rp).rs_scan) };
+                        let limit = operand_min(crate::globals::gptr(rp).rs_scan);
                         if reg_multi() {
-                            let rp_pos = unsafe { (*rp).rs_un.regsave().rs_u.pos() };
+                            let rp_pos = crate::globals::gptr(rp).rs_un.regsave().rs_u.pos();
                             let bpos = re_st().behind_pos.rs_u.pos();
                             if limit > 0
                                 && i64::from(
@@ -3819,66 +3782,71 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             {
                                 no = FAIL;
                             } else if rp_pos.col == 0 {
-                                unsafe {
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
-                                }
-                                let new_lnum = unsafe { (*rp).rs_un.regsave().rs_u.pos().lnum };
+                                crate::globals::gptr(rp)
+                                    .rs_un
+                                    .regsave_mut()
+                                    .rs_u
+                                    .pos_mut()
+                                    .lnum -= 1;
+
+                                let new_lnum =
+                                    crate::globals::gptr(rp).rs_un.regsave().rs_u.pos().lnum;
                                 if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_null() {
                                     no = FAIL;
                                 } else {
-                                    unsafe {
-                                        reg_restore((*rp).rs_un.regsave_mut());
-                                    }
-                                    unsafe {
-                                        (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
-                                            reg_getline_len(re_st().rex.lnum);
-                                    }
+                                    reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                                    crate::globals::gptr(rp)
+                                        .rs_un
+                                        .regsave_mut()
+                                        .rs_u
+                                        .pos_mut()
+                                        .col = reg_getline_len(re_st().rex.lnum);
                                 }
                             } else {
                                 let line = reg_getline(rp_pos.lnum);
-                                unsafe {
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().col -= utf_head_off(
-                                        line.cast(),
-                                        line.wrapping_add(rp_pos.col as usize - 1).cast(),
-                                    ) + 1;
-                                }
+
+                                crate::globals::gptr(rp)
+                                    .rs_un
+                                    .regsave_mut()
+                                    .rs_u
+                                    .pos_mut()
+                                    .col -= utf_head_off(
+                                    line.cast(),
+                                    line.wrapping_add(rp_pos.col as usize - 1).cast(),
+                                ) + 1;
                             }
-                        } else if unsafe { (*rp).rs_un.regsave().rs_u.ptr() == re_st().rex.line } {
+                        } else if crate::globals::gptr(rp).rs_un.regsave().rs_u.ptr()
+                            == re_st().rex.line
+                        {
                             no = FAIL;
                         } else {
-                            unsafe {
-                                mb_ptr_back(
-                                    re_st().rex.line,
-                                    (*rp).rs_un.regsave_mut().rs_u.ptr_mut(),
-                                );
-                            }
+                            mb_ptr_back(
+                                re_st().rex.line,
+                                crate::globals::gptr(rp).rs_un.regsave_mut().rs_u.ptr_mut(),
+                            );
+
                             if limit > 0
-                                && unsafe {
-                                    re_st()
-                                        .behind_pos
-                                        .rs_u
-                                        .ptr()
-                                        .offset_from((*rp).rs_un.regsave().rs_u.ptr())
-                                        > limit as isize
-                                }
+                                && crate::memory::ptr_offset_from(
+                                    re_st().behind_pos.rs_u.ptr(),
+                                    crate::globals::gptr(rp).rs_un.regsave().rs_u.ptr(),
+                                ) > limit as isize
                             {
                                 no = FAIL;
                             }
                         }
                         if no == OK {
-                            unsafe {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                            }
-                            unsafe {
-                                scan = operand_fn((*rp).rs_scan).wrapping_add(4);
-                            }
+                            reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                            scan = operand_fn(crate::globals::gptr(rp).rs_scan).wrapping_add(4);
+
                             if status == RA_MATCH {
                                 status = RA_NOMATCH;
                                 restore_subexpr(&mut *bp);
                             }
                         } else {
                             re_st().behind_pos = bp.save_behind;
-                            if unsafe { (*rp).rs_no == NOBEHIND as i16 } {
+                            if crate::globals::gptr(rp).rs_no == NOBEHIND as i16 {
                                 reg_restore(&mut bp.save_after);
                                 status = RA_MATCH;
                             } else if status == RA_MATCH {
@@ -3893,7 +3861,7 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                     }
                 }
                 RS_STAR_LONG | RS_STAR_SHORT => {
-                    let rst = unsafe { &mut *rp.cast::<Regstar>().wrapping_sub(1) };
+                    let rst = crate::globals::gmut(rp.cast::<Regstar>().wrapping_sub(1));
                     if status == RA_MATCH {
                         regstack_pop(&mut scan);
                         re_st()
@@ -3901,13 +3869,11 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
                     } else {
                         if status != RA_BREAK {
-                            unsafe {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                            }
+                            reg_restore(crate::globals::gptr(rp).rs_un.regsave_mut());
                         }
                         loop {
                             if status != RA_BREAK {
-                                if unsafe { (*rp).rs_state == RS_STAR_LONG } {
+                                if crate::globals::gptr(rp).rs_state == RS_STAR_LONG {
                                     rst.count -= 1;
                                     if rst.count < rst.minval {
                                         break;
@@ -3935,7 +3901,10 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                     }
                                 } else {
                                     if rst.count == rst.minval
-                                        || unsafe { regrepeat(operand_fn((*rp).rs_scan), 1) == 0 }
+                                        || regrepeat(
+                                            operand_fn(crate::globals::gptr(rp).rs_scan),
+                                            1,
+                                        ) == 0
                                     {
                                         break;
                                     }
@@ -3949,15 +3918,13 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             }
 
                             if rst.nextb == NUL as i32
-                                || unsafe { *re_st().rex.input as i32 == rst.nextb }
-                                || unsafe { *re_st().rex.input as i32 == rst.nextb_ic }
+                                || (*crate::globals::gptr(re_st().rex.input)) as i32 == rst.nextb
+                                || (*crate::globals::gptr(re_st().rex.input)) as i32 == rst.nextb_ic
                             {
-                                unsafe {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                }
-                                unsafe {
-                                    scan = regnext((*rp).rs_scan);
-                                }
+                                reg_save(crate::globals::gptr(rp).rs_un.regsave_mut());
+
+                                scan = regnext(crate::globals::gptr(rp).rs_scan);
+
                                 status = RA_CONT;
                                 break;
                             }
@@ -4103,7 +4070,7 @@ fn bt_regexec_both(
         iemsg(tr(E_NULL));
         return finish_bt_regexec(retval, col);
     }
-    let prog = unsafe { &mut *prog };
+    let prog = crate::globals::gmut(prog);
 
     if prog_magic_wrong() {
         return finish_bt_regexec(retval, col);

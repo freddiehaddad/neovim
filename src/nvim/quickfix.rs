@@ -632,7 +632,7 @@ static QF_STATE: GlobalState<QuickfixState> = GlobalState::new(QuickfixState::ne
 
 #[inline]
 fn qf_st() -> &'static mut QuickfixState {
-    unsafe { &mut *QF_STATE.as_ptr() }
+    crate::globals::gmut(QF_STATE.as_ptr())
 }
 
 #[inline]
@@ -681,15 +681,15 @@ fn get_loc_list(wp: &WinInfoInfo) -> *mut QfInfo {
 
 #[inline]
 fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<&'static mut QfInfo> {
-    unsafe { get_loc_list(wp).as_mut() }
+    crate::globals::gopt_mut(get_loc_list(wp))
 }
 
 #[inline]
 fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
     if ptr::eq(tp, g_st().curtab) {
-        unsafe { &mut *g_st().firstwin }
+        crate::globals::gmut(g_st().firstwin)
     } else {
-        unsafe { &mut *tp.tp_firstwin }
+        crate::globals::gmut(tp.tp_firstwin)
     }
 }
 
@@ -1055,13 +1055,10 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCh
 
 fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> i32 {
     while !p_li.is_null()
-        && (unsafe {
-            (*p_li).li_tv.v_type != VarType::VarString || (*p_li).li_tv.vval.v_string().is_null()
-        })
+        && (crate::globals::gptr(p_li).li_tv.v_type != VarType::VarString
+            || crate::globals::gptr(p_li).li_tv.vval.v_string().is_null())
     {
-        unsafe {
-            p_li = (*p_li).li_next;
-        }
+        p_li = crate::globals::gptr(p_li).li_next;
     }
 
     if p_li.is_null() {
@@ -1069,7 +1066,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> i32 {
         return QF_END_OF_INPUT;
     }
 
-    let s = unsafe { (*p_li).li_tv.vval.v_string() };
+    let s = crate::globals::gptr(p_li).li_tv.vval.v_string();
     let len = crate::memory::cstr_len(s);
     let linebuf = if len > IOSIZE - 2 {
         qf_grow_linebuf(state, len)
@@ -1079,15 +1076,13 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> i32 {
         g_st().iobuff.as_mut_ptr().cast()
     };
 
-    unsafe {
-        crate::memory::copy_bytes_to_c_buf(
-            std::slice::from_raw_parts_mut(linebuf, state.linelen + 1),
-            crate::memory::cstr_as_bytes(s),
-        );
-    }
-    unsafe {
-        state.source = QfInputSource::List((*p_li).li_next);
-    }
+    crate::memory::copy_bytes_to_c_buf(
+        unsafe { std::slice::from_raw_parts_mut(linebuf, state.linelen + 1) },
+        crate::memory::cstr_as_bytes(s),
+    );
+
+    state.source = QfInputSource::List(crate::globals::gptr(p_li).li_next);
+
     QF_OK
 }
 
@@ -1100,8 +1095,8 @@ fn qf_get_next_buf_line(
     if buflnum > lnumlast {
         return QF_END_OF_INPUT;
     }
-    let p_buf = ml_get_buf(unsafe { &mut *buf }, buflnum);
-    let len = ml_get_buf_len(unsafe { &mut *buf }, buflnum) as usize;
+    let p_buf = ml_get_buf(crate::globals::gmut(buf), buflnum);
+    let len = ml_get_buf_len(crate::globals::gmut(buf), buflnum) as usize;
     state.source = QfInputSource::Buf {
         buf,
         buflnum: buflnum + 1,
@@ -1270,7 +1265,7 @@ fn qf_list_has_valid_entries(qfl: &QfList) -> bool {
 
 #[inline]
 fn qf_get_list(qi: &mut QfInfo, idx: i32) -> &'static mut QfList {
-    unsafe { &mut *qi.qf_lists.as_mut_ptr().wrapping_add(idx as usize) }
+    crate::globals::gmut(qi.qf_lists.as_mut_ptr().wrapping_add(idx as usize))
 }
 
 fn qf_parse_line(
@@ -1430,7 +1425,7 @@ fn qf_init_ext(
     let enc = enc.into_c_char_ptr();
     let efile = efile.into_c_char_ptr();
     let qf_title = qf_title.into_c_char_ptr();
-    unsafe {
+    {
         let mut state = Qfstate::default();
         let mut fields = Qffields::default();
         let mut old_count: usize = 0;
@@ -1470,15 +1465,14 @@ fn qf_init_ext(
         let efm = if errorformat == opt_vars().p_efm
             && tv.is_none()
             && !buf.is_null()
-            && !crate::memory::cstr_is_empty((*buf).b_p_efm)
+            && !crate::memory::cstr_is_empty(crate::globals::gptr(buf).b_p_efm)
         {
-            (*buf).b_p_efm
+            crate::globals::gptr(buf).b_p_efm
         } else {
             errorformat
         };
 
-        let efm_changed = (&raw const qf_st().last_efm_cache)
-            .as_ref()
+        let efm_changed = crate::globals::gopt(&raw const qf_st().last_efm_cache)
             .unwrap()
             .as_ref()
             .is_none_or(|c| {
@@ -1969,7 +1963,7 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
             return QF_FAIL;
         };
         let qfprev: *mut Qfline = qfprev;
-        let qfprev = unsafe { &mut *qfprev };
+        let qfprev = crate::globals::gmut(qfprev);
         if !crate::memory::cstr_is_empty(fields.errmsg.as_ptr().cast()) {
             let mut bytes = qfprev.qf_text.as_bytes().to_vec();
             bytes.push(b'\n');
@@ -2056,31 +2050,25 @@ fn qf_free_list_stack_items(qi: &mut QfInfo) {
 }
 
 fn ll_free_all(pqi: *mut *mut QfInfo) {
-    let qi = unsafe { *pqi };
+    let qi = *crate::globals::gptr(pqi);
     if qi.is_null() {
         return;
     }
-    unsafe {
-        *pqi = ptr::null_mut();
-    }
+
+    *crate::globals::gptr(pqi) = ptr::null_mut();
 
     if qf_st().quickfix_busy > 0 {
-        unsafe {
-            locstack_queue_delreq(&mut *qi);
-        }
+        locstack_queue_delreq(crate::globals::gmut(qi));
+
         return;
     }
 
-    unsafe {
-        (*qi).qf_refcount -= 1;
-    }
-    if unsafe { (*qi).qf_refcount < 1 } {
-        unsafe {
-            wipe_qf_buffer(&mut *qi);
-        }
-        unsafe {
-            drop(Box::from_raw(qi));
-        }
+    crate::globals::gptr(qi).qf_refcount -= 1;
+
+    if crate::globals::gptr(qi).qf_refcount < 1 {
+        wipe_qf_buffer(crate::globals::gmut(qi));
+
+        drop(unsafe { Box::from_raw(qi) });
     }
 }
 
@@ -2247,11 +2235,9 @@ pub fn qf_init_stack() {
 }
 
 fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
-    let wp = unsafe { qf_find_win_with_loclist(&*llw.w_llist_ref) };
+    let wp = qf_find_win_with_loclist(crate::globals::gref(llw.w_llist_ref));
     if !wp.is_null() {
-        unsafe {
-            (*wp).w_onebuf_opt.wo_lhi = llw.w_onebuf_opt.wo_lhi;
-        }
+        crate::globals::gptr(wp).w_onebuf_opt.wo_lhi = llw.w_onebuf_opt.wo_lhi;
     }
 }
 
@@ -2292,7 +2278,7 @@ fn qf_alloc_stack(qfltype: Qfltype, n: i32) -> &'static mut QfInfo {
 
 fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> &'static mut QfInfo {
     if is_ll_window(wp) {
-        return unsafe { &mut *wp.w_llist_ref };
+        return crate::globals::gmut(wp.w_llist_ref);
     }
 
     ll_free_all(&raw mut wp.w_llist_ref);
@@ -2301,7 +2287,7 @@ fn ll_get_or_alloc_list(wp: &mut WinInfoInfo) -> &'static mut QfInfo {
         wp.w_llist = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as i32);
     }
 
-    unsafe { &mut *wp.w_llist }
+    crate::globals::gmut(wp.w_llist)
 }
 
 fn qf_cmd_get_stack_opt(eap: &mut Exarg, print_emsg: bool) -> Option<&'static mut QfInfo> {
@@ -2466,7 +2452,7 @@ fn qf_get_fnum(
         set_bufref(&mut qf_st().qf_last_bufref, b);
         b
     };
-    let Some(buf) = (unsafe { buf.as_mut() }) else {
+    let Some(buf) = crate::globals::gopt_mut(buf) else {
         return 0;
     };
     buf.b_has_qf_entry = if is_qf_list(qfl) {
@@ -2552,7 +2538,7 @@ fn qflist_valid(wp: *mut WinInfoInfo, qf_id: u32) -> bool {
         if !win_valid(wp) {
             return false;
         }
-        let Some(ll) = get_loc_list_opt(unsafe { &*wp }) else {
+        let Some(ll) = get_loc_list_opt(crate::globals::gref(wp)) else {
             return false;
         };
         ll
@@ -2700,7 +2686,7 @@ fn jump_to_help_window(qi: &mut QfInfo, newwin: bool, opened_window: &mut bool) 
         qf_find_help_win()
     };
 
-    if let Some(wp_ref) = (unsafe { wp.as_ref() })
+    if let Some(wp_ref) = crate::globals::gopt(wp)
         && wp_ref.buf_mut().b_nwindows > 0
     {
         win_enter(wp, true);
@@ -2797,15 +2783,13 @@ fn qf_goto_win_with_ll_file(use_win: *mut WinInfoInfo, qf_fnum: i32, ll_ref: Opt
         if win.is_null() {
             win = curwin_ptr();
             loop {
-                if unsafe { bt_normal(((*win).w_buffer).as_ref()) } {
+                if bt_normal(crate::globals::gopt(crate::globals::gptr(win).w_buffer)) {
                     break;
                 }
-                if unsafe { (*win).w_prev.is_null() } {
+                if crate::globals::gptr(win).w_prev.is_null() {
                     win = g_st().lastwin;
                 } else {
-                    unsafe {
-                        win = (*win).w_prev;
-                    }
+                    win = crate::globals::gptr(win).w_prev;
                 }
                 if win == curwin_ptr() {
                     break;
@@ -2815,12 +2799,10 @@ fn qf_goto_win_with_ll_file(use_win: *mut WinInfoInfo, qf_fnum: i32, ll_ref: Opt
     }
     win_goto(win);
 
-    if unsafe { (*win).w_llist.is_null() }
+    if crate::globals::gptr(win).w_llist.is_null()
         && let Some(ll_ref) = ll_ref
     {
-        unsafe {
-            win_set_loclist(&mut *win, ll_ref);
-        }
+        win_set_loclist(crate::globals::gmut(win), ll_ref);
     }
 }
 
@@ -2828,18 +2810,16 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
     let mut win = curwin_ptr();
     let mut altwin: *mut WinInfoInfo = ptr::null_mut();
     loop {
-        if unsafe { (*win).buf_mut().b_fnum == qf_fnum } {
+        if crate::globals::gptr(win).buf_mut().b_fnum == qf_fnum {
             break;
         }
-        if unsafe { (*win).w_prev.is_null() } {
+        if crate::globals::gptr(win).w_prev.is_null() {
             win = g_st().lastwin;
         } else {
-            unsafe {
-                win = (*win).w_prev;
-            }
+            win = crate::globals::gptr(win).w_prev;
         }
 
-        if unsafe { is_qf_window(&*win) } {
+        if is_qf_window(crate::globals::gref(win)) {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
                 && win_valid(g_st().prevwin)
                 && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
@@ -2856,9 +2836,9 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         }
 
         if altwin.is_null()
-            && unsafe { (*win).w_onebuf_opt.wo_pvw == 0 }
-            && unsafe { (*win).w_onebuf_opt.wo_wfb == 0 }
-            && unsafe { bt_normal(((*win).w_buffer).as_ref()) }
+            && crate::globals::gptr(win).w_onebuf_opt.wo_pvw == 0
+            && crate::globals::gptr(win).w_onebuf_opt.wo_wfb == 0
+            && bt_normal(crate::globals::gopt(crate::globals::gptr(win).w_buffer))
         {
             altwin = win;
         }
@@ -2877,7 +2857,7 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         curwin_mut().w_llist_ref
     };
     if !ll_ref.is_null() {
-        usable_wp = qf_find_win_with_loclist(unsafe { &*ll_ref });
+        usable_wp = qf_find_win_with_loclist(crate::globals::gref(ll_ref));
         if !usable_wp.is_null() {
             usable_win = true;
         }
@@ -2898,12 +2878,12 @@ fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool
         || !usable_win
         || newwin
     {
-        if !qf_open_new_file_win(unsafe { ll_ref.as_mut() }) {
+        if !qf_open_new_file_win(crate::globals::gopt_mut(ll_ref)) {
             return false;
         }
         *opened_window = true;
     } else if !curwin_mut().w_llist_ref.is_null() {
-        qf_goto_win_with_ll_file(usable_wp, qf_fnum, unsafe { ll_ref.as_mut() });
+        qf_goto_win_with_ll_file(usable_wp, qf_fnum, crate::globals::gopt_mut(ll_ref));
     } else {
         qf_goto_win_with_qfl_file(qf_fnum);
     }
@@ -2918,14 +2898,14 @@ fn qf_jump_edit_buffer(
     prev_winid: i32,
     opened_window: &mut bool,
 ) -> i32 {
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
-    let old_changetick = unsafe { (*qfl).qf_changedtick };
-    let old_qf_curlist = unsafe { (*qi).qf_curlist };
-    let qfl_type = unsafe { (*qfl).qfl_type };
+    let qfl: *mut QfList = qf_get_curlist(crate::globals::gmut(qi));
+    let old_changetick = crate::globals::gptr(qfl).qf_changedtick;
+    let old_qf_curlist = crate::globals::gptr(qi).qf_curlist;
+    let qfl_type = crate::globals::gptr(qfl).qfl_type;
     let mut retval = OK;
-    let save_qfid = unsafe { (*qfl).qf_id };
+    let save_qfid = crate::globals::gptr(qfl).qf_id;
     let (qf_type, fnum) = {
-        let qfp = &(unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize];
+        let qfp = &(&crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize];
         (qfp.qf_type, qfp.qf_fnum)
     };
 
@@ -2953,7 +2933,7 @@ fn qf_jump_edit_buffer(
         };
     } else {
         if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb != 0 && curbuf_mut().b_fnum != fnum {
-            if unsafe { (*qi).qfl_type } == QFLT_LOCATION {
+            if crate::globals::gptr(qi).qfl_type == QFLT_LOCATION {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                 return FAIL;
             }
@@ -2998,9 +2978,9 @@ fn qf_jump_edit_buffer(
         return QF_ABORT;
     }
 
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+    if old_qf_curlist != crate::globals::gptr(qi).qf_curlist
+        || old_changetick != crate::globals::gptr(qfl).qf_changedtick
+        || !is_qf_entry_present(crate::globals::gref(qfl), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -3137,21 +3117,21 @@ fn qf_jump_open_window(
     newwin: bool,
     opened_window: &mut bool,
 ) -> i32 {
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
-    let old_changetick = unsafe { (*qfl).qf_changedtick };
-    let old_qf_curlist = unsafe { (*qi).qf_curlist };
-    let qfl_type = unsafe { (*qfl).qfl_type };
-    let qf_type = (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_type;
+    let qfl: *mut QfList = qf_get_curlist(crate::globals::gmut(qi));
+    let old_changetick = crate::globals::gptr(qfl).qf_changedtick;
+    let old_qf_curlist = crate::globals::gptr(qi).qf_curlist;
+    let qfl_type = crate::globals::gptr(qfl).qfl_type;
+    let qf_type = (&crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize].qf_type;
 
     if qf_type == 1
         && (!bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0)
-        && !jump_to_help_window(unsafe { &mut *qi }, newwin, opened_window)
+        && !jump_to_help_window(crate::globals::gmut(qi), newwin, opened_window)
     {
         return FAIL;
     }
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+    if old_qf_curlist != crate::globals::gptr(qi).qf_curlist
+        || old_changetick != crate::globals::gptr(qfl).qf_changedtick
+        || !is_qf_entry_present(crate::globals::gref(qfl), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -3161,7 +3141,7 @@ fn qf_jump_open_window(
         return QF_ABORT;
     }
 
-    let qf_fnum = (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_fnum;
+    let qf_fnum = (&crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize].qf_fnum;
     if bt_quickfix(Some(crate::globals::curbuf_mut())) && !*opened_window {
         if qf_fnum == 0 {
             return NOTDONE;
@@ -3171,9 +3151,9 @@ fn qf_jump_open_window(
             return FAIL;
         }
     }
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
-        || old_changetick != unsafe { (*qfl).qf_changedtick }
-        || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
+    if old_qf_curlist != crate::globals::gptr(qi).qf_curlist
+        || old_changetick != crate::globals::gptr(qfl).qf_changedtick
+        || !is_qf_entry_present(crate::globals::gref(qfl), qf_index)
     {
         if qfl_type == QFLT_QUICKFIX {
             emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
@@ -3198,9 +3178,9 @@ fn qf_jump_to_buffer(
     let old_curbuf = g_st().curbuf;
     let old_lnum = curwin_mut().w_cursor.lnum;
     let retval;
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qfl: *mut QfList = qf_get_curlist(crate::globals::gmut(qi));
 
-    if (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_fnum != 0 {
+    if (&crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize].qf_fnum != 0 {
         retval = qf_jump_edit_buffer(qi, qf_index, forceit, prev_winid, opened_window);
         if retval != OK {
             return retval;
@@ -3213,7 +3193,7 @@ fn qf_jump_to_buffer(
         setpcmark();
     }
 
-    let qfp = &mut (unsafe { &mut (*qfl).qf_items })[(qf_index - 1) as usize];
+    let qfp = &mut (&mut crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize];
     qf_jump_goto_line(
         qfp.qf_lnum,
         qfp.qf_col,
@@ -3227,7 +3207,13 @@ fn qf_jump_to_buffer(
         fold_open_cursor();
     }
     if print_message {
-        qf_jump_print_msg(unsafe { &mut *qi }, qf_index, qfp, old_curbuf, old_lnum);
+        qf_jump_print_msg(
+            crate::globals::gmut(qi),
+            qf_index,
+            qfp,
+            old_curbuf,
+            old_lnum,
+        );
     }
 
     retval
@@ -3246,8 +3232,8 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
         qi = ql_info_ptr();
     }
 
-    if qf_stack_empty(unsafe { qi.as_ref() })
-        || qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi }))))
+    if qf_stack_empty(crate::globals::gopt(qi))
+        || qf_list_empty(Some(&*(qf_get_curlist(crate::globals::gmut(qi)))))
     {
         emsg(gettext(E_NO_ERRORS));
         return;
@@ -3255,18 +3241,16 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
 
     incr_quickfix_busy();
 
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qfl: *mut QfList = qf_get_curlist(crate::globals::gmut(qi));
 
-    let mut qf_index = unsafe { (*qfl).qf_index };
+    let mut qf_index = crate::globals::gptr(qfl).qf_index;
     let old_qf_index = qf_index;
 
-    let qf_ptr = qf_get_entry(unsafe { &mut *qfl }, errornr, dir, &mut qf_index);
+    let qf_ptr = qf_get_entry(crate::globals::gmut(qfl), errornr, dir, &mut qf_index);
     if !qf_ptr.is_null() {
-        unsafe {
-            (*qfl).qf_index = qf_index;
-        }
+        crate::globals::gptr(qfl).qf_index = qf_index;
 
-        let print_message = !qf_win_pos_update(unsafe { &mut *qi }, old_qf_index);
+        let print_message = !qf_win_pos_update(crate::globals::gmut(qi), old_qf_index);
         let prev_winid = curwin_mut().handle;
         let mut opened_window = false;
         let mut retval = qf_jump_open_window(qi, qf_index, newwin, &mut opened_window);
@@ -3292,7 +3276,7 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
                     win_close(curwin_ptr(), true, false);
                 }
                 if !qi.is_null()
-                    && (unsafe { &(*qfl).qf_items })[(qf_index - 1) as usize].qf_fnum != 0
+                    && (&crate::globals::gptr(qfl).qf_items)[(qf_index - 1) as usize].qf_fnum != 0
                 {
                     qf_index = old_qf_index;
                 }
@@ -3303,9 +3287,7 @@ fn qf_jump_newwin(mut qi: *mut QfInfo, dir: i32, errornr: i32, forceit: i32, new
     }
 
     if !qi.is_null() {
-        unsafe {
-            (*qfl).qf_index = qf_index;
-        }
+        crate::globals::gptr(qfl).qf_index = qf_index;
     }
     if opt_vars().p_swb != old_swb && opt_vars().p_swb == EMPTY_STRING_OPTION.as_ptr().cast() {
         opt_vars().p_swb = old_swb;
@@ -3666,7 +3648,7 @@ pub fn qf_mark_adjust(
         return false;
     }
     let qi = if let Some(wp) = wp {
-        let Some(ll) = (unsafe { wp.w_llist.as_mut() }) else {
+        let Some(ll) = crate::globals::gopt_mut(wp.w_llist) else {
             return false;
         };
         ll
@@ -3789,7 +3771,7 @@ fn qf_goto_cwindow(qi: &QfInfo, resize: bool, sz: i32, vertsplit: bool) -> bool 
     if win.is_null() {
         return false;
     }
-    let win = unsafe { &mut *win };
+    let win = crate::globals::gmut(win);
 
     win_goto(win);
     if resize {
@@ -3853,7 +3835,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     }
     if !qf_buf.is_null() {
         if !do_ecmd(
-            unsafe { (*qf_buf).b_fnum },
+            crate::globals::gptr(qf_buf).b_fnum,
             ptr::null_mut(),
             ptr::null_mut(),
             None,
@@ -3944,7 +3926,7 @@ fn qf_win_goto(win: *mut WinInfoInfo, lnum: Linenr) {
     let old_curwin = curwin_ptr();
 
     set_curwin(win);
-    g_st().curbuf = unsafe { (*win).w_buffer };
+    g_st().curbuf = crate::globals::gptr(win).w_buffer;
     curwin_mut().w_cursor.lnum = lnum;
     curwin_mut().w_cursor.col = 0;
     curwin_mut().w_cursor.coladd = 0;
@@ -3962,7 +3944,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
     };
 
     let win = qf_find_win(qi);
-    if let Some(win_ref) = (unsafe { win.as_ref() })
+    if let Some(win_ref) = crate::globals::gopt(win)
         && win_ref.w_cursor.lnum != win_ref.buf_mut().b_ml.ml_line_count
     {
         qf_win_goto(win, win_ref.buf_mut().b_ml.ml_line_count);
@@ -3971,7 +3953,7 @@ pub fn ex_cbottom(eap: &mut Exarg) {
 
 pub fn qf_current_entry(wp: &mut WinInfoInfo) -> Linenr {
     let qi = if is_ll_window(&*wp) {
-        unsafe { &mut *wp.w_llist_ref }
+        crate::globals::gmut(wp.w_llist_ref)
     } else {
         ql_info_mut()
     };
@@ -3983,7 +3965,7 @@ fn qf_win_pos_update(qi: &mut QfInfo, old_qf_index: i32) -> bool {
     let qf_index = qf_get_curlist(qi).qf_index;
 
     let win = qf_find_win(qi);
-    if let Some(win_ref) = (unsafe { win.as_mut() })
+    if let Some(win_ref) = crate::globals::gopt_mut(win)
         && qf_index <= win_ref.buf_mut().b_ml.ml_line_count
         && old_qf_index != qf_index
     {
@@ -4054,7 +4036,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
     if buf.is_null() {
         return;
     }
-    let buf = unsafe { &mut *buf };
+    let buf = crate::globals::gmut(buf);
 
     let old_line_count = buf.b_ml.ml_line_count;
     let old_endcol = ml_get_buf_len(&mut *buf, old_line_count);
@@ -4074,7 +4056,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
                 return;
             }
         }
-        qf_winid = unsafe { (*win).handle };
+        qf_winid = crate::globals::gptr(win).handle;
     }
 
     incr_quickfix_busy();
@@ -4149,7 +4131,7 @@ fn qf_update_buffer(qi: &mut QfInfo, old_count: usize) {
     }
 
     win = qf_find_win(&*qi);
-    if !win.is_null() && old_line_count < unsafe { (*win).w_botline } {
+    if !win.is_null() && old_line_count < crate::globals::gptr(win).w_botline {
         redraw_buf_later(buf, UPD_NOT_VALID);
     }
 
@@ -4315,7 +4297,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
 
         let qfl_cnt = qfl.count();
         let qftf_list = call_qftf_func(qfl, qf_winid, lnum + 1, qfl_cnt);
-        let mut qftf_iter = tv_list_iter(unsafe { qftf_list.as_ref() });
+        let mut qftf_iter = tv_list_iter(crate::globals::gopt(qftf_list));
 
         let mut prev_bufnr: i32 = -1;
         let mut invalid_val = false;
@@ -4402,7 +4384,7 @@ fn qf_id2nr(qi: &QfInfo, qfid: u32) -> i32 {
 }
 
 fn qf_restore_list(qi: *mut QfInfo, save_qfid: u32) -> bool {
-    let qi = unsafe { &mut *qi };
+    let qi = crate::globals::gmut(qi);
     if qf_get_curlist(&mut *qi).qf_id == save_qfid {
         return true;
     }
@@ -4424,7 +4406,7 @@ fn qf_jump_first(qi: *mut QfInfo, save_qfid: u32, forceit: i32) {
         return;
     }
 
-    if !qf_list_empty(Some(unsafe { &*(qf_get_curlist(&mut *qi)) })) {
+    if !qf_list_empty(Some(&*(qf_get_curlist(crate::globals::gmut(qi))))) {
         qf_jump(qi, 0, 0, forceit);
     }
 }
@@ -4551,7 +4533,7 @@ pub fn ex_make(eap: &mut Exarg) {
     let newlist = eap.cmdidx != CMD_GREPADD && eap.cmdidx != CMD_LGREPADD;
 
     let res = qf_init(
-        unsafe { wp.as_mut() },
+        crate::globals::gopt_mut(wp),
         fname_ptr,
         errorformat,
         i32::from(newlist),
@@ -4560,7 +4542,7 @@ pub fn ex_make(eap: &mut Exarg) {
     );
 
     let qi = if !wp.is_null() {
-        get_loc_list_opt(unsafe { &*wp })
+        get_loc_list_opt(crate::globals::gref(wp))
     } else {
         Some(ql_info_mut())
     };
@@ -5102,7 +5084,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     incr_quickfix_busy();
 
     let res = qf_init(
-        unsafe { wp.as_mut() },
+        crate::globals::gopt_mut(wp),
         opt_vars().p_ef,
         opt_vars().p_efm,
         i32::from(eap.cmdidx != CMD_CADDFILE && eap.cmdidx != CMD_LADDFILE),
@@ -5110,7 +5092,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
         enc,
     );
     let qi = if !wp.is_null() {
-        let Some(ll) = get_loc_list_opt(unsafe { &*wp }) else {
+        let Some(ll) = get_loc_list_opt(crate::globals::gref(wp)) else {
             decr_quickfix_busy();
             return;
         };
@@ -5223,7 +5205,7 @@ fn vgr_qflist_valid(
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
             return false;
         }
-        qf_new_list(unsafe { &mut *qi }, title);
+        qf_new_list(crate::globals::gmut(qi), title);
         return true;
     }
     if !qf_restore_list(qi, qfid) {
@@ -5440,7 +5422,7 @@ fn vgr_process_files(
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
     let mut status = false;
-    let mut save_qfid = unsafe { qf_get_curlist(&mut *qi).qf_id };
+    let mut save_qfid = qf_get_curlist(crate::globals::gmut(qi)).qf_id;
     let mut duplicate_name = false;
 
     let mut dirname_start = vec![0u8; MAXPATHL];
@@ -5462,7 +5444,7 @@ fn vgr_process_files(
 
         let mut buf = buflist_findname_exp(fname_exp);
         let using_dummy: bool;
-        if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+        if buf.is_null() || crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
             duplicate_name = !buf.is_null();
             using_dummy = true;
             *redraw_for_dummy = true;
@@ -5488,66 +5470,61 @@ fn vgr_process_files(
             break;
         }
 
-        unsafe {
-            save_qfid = qf_get_curlist(&mut *qi).qf_id;
-        }
+        save_qfid = qf_get_curlist(crate::globals::gmut(qi)).qf_id;
 
         if buf.is_null() {
             if !g_st().got_int {
                 smsg!(0, gettext(c"Cannot open file \"%s\""), fname);
             }
         } else {
-            let found_match = unsafe {
-                vgr_match_buflines(
-                    qf_get_curlist(&mut *qi),
-                    fname,
-                    &mut *buf,
-                    cmd_args.spat.as_deref(),
-                    &mut cmd_args.regmatch,
-                    &mut cmd_args.tomatch,
-                    i32::from(duplicate_name),
-                    cmd_args.flags,
-                )
-            };
+            let found_match = vgr_match_buflines(
+                qf_get_curlist(crate::globals::gmut(qi)),
+                fname,
+                crate::globals::gmut(buf),
+                cmd_args.spat.as_deref(),
+                &mut cmd_args.regmatch,
+                &mut cmd_args.tomatch,
+                i32::from(duplicate_name),
+                cmd_args.flags,
+            );
 
             if using_dummy {
-                if found_match && unsafe { (*first_match_buf).is_null() } {
-                    unsafe {
-                        *first_match_buf = buf;
-                    }
+                if found_match && crate::globals::gptr(first_match_buf).is_null() {
+                    *crate::globals::gptr(first_match_buf) = buf;
                 }
                 if duplicate_name {
-                    unsafe {
-                        wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr().cast());
-                    }
+                    wipe_dummy_buffer(crate::globals::gmut(buf), dirname_start.as_mut_ptr().cast());
+
                     buf = ptr::null_mut();
                 } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
-                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'u' }
-                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'w' }
-                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'd' }
+                    || crate::memory::cstr_first_byte(crate::globals::gptr(buf).b_p_bh) == b'u'
+                    || crate::memory::cstr_first_byte(crate::globals::gptr(buf).b_p_bh) == b'w'
+                    || crate::memory::cstr_first_byte(crate::globals::gptr(buf).b_p_bh) == b'd'
                 {
                     if !found_match {
-                        unsafe {
-                            wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr().cast());
-                        }
+                        wipe_dummy_buffer(
+                            crate::globals::gmut(buf),
+                            dirname_start.as_mut_ptr().cast(),
+                        );
+
                         buf = ptr::null_mut();
-                    } else if unsafe { buf != *first_match_buf }
+                    } else if buf != *crate::globals::gptr(first_match_buf)
                         || (cmd_args.flags & VGR_NOJUMP) != 0
-                        || unsafe { existing_swapfile(&*buf) }
+                        || existing_swapfile(crate::globals::gref(buf))
                     {
                         unload_dummy_buffer(buf, dirname_start.as_mut_ptr().cast());
-                        unsafe {
-                            (*buf).b_flags &= !BF_DUMMY;
-                        }
+
+                        crate::globals::gptr(buf).b_flags &= !BF_DUMMY;
+
                         buf = ptr::null_mut();
                     }
                 }
 
                 if !buf.is_null() {
-                    let buf = unsafe { &mut *buf };
+                    let buf = crate::globals::gmut(buf);
                     buf.b_flags &= !BF_DUMMY;
 
-                    if unsafe { std::ptr::eq(buf, *first_match_buf) }
+                    if std::ptr::eq(buf, *crate::globals::gptr(first_match_buf))
                         && target_dir.is_none()
                         && (crate::memory::cstr_as_bytes(dirname_start.as_ptr().cast())
                             != crate::memory::cstr_as_bytes(dirname_now.as_ptr().cast()))
@@ -5645,7 +5622,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
             }
 
             if qflist_valid(wp, save_qfid) && qf_restore_list(qi_ptr, save_qfid) {
-                if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
+                if !qf_list_empty(Some(&*(qf_get_curlist(crate::globals::gmut(qi_ptr))))) {
                     if (args.flags & VGR_NOJUMP) == 0 {
                         vgr_jump_to_match(
                             qi_ptr,
@@ -5717,12 +5694,11 @@ fn load_dummy_buffer(
         let mut newbufref: Bufref = Bufref::new();
         set_bufref(&mut newbufref, newbuf);
 
-        buf_copy_options(unsafe { &mut *newbuf }, BCO_ENTER | BCO_NOHELP);
+        buf_copy_options(crate::globals::gmut(newbuf), BCO_ENTER | BCO_NOHELP);
 
-        if ml_open(unsafe { &mut *newbuf }) {
-            unsafe {
-                (*newbuf).b_locked += 1;
-            }
+        if ml_open(crate::globals::gmut(newbuf)) {
+            crate::globals::gptr(newbuf).b_locked += 1;
+
             let mut aco: CtxSwitch = CtxSwitch::new();
             ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), newbuf, 0);
 
@@ -5741,9 +5717,9 @@ fn load_dummy_buffer(
                 READ_NEW | READ_DUMMY,
                 false,
             );
-            unsafe {
-                (*newbuf).b_locked -= 1;
-            }
+
+            crate::globals::gptr(newbuf).b_locked -= 1;
+
             if readfile_result == OK && !g_st().got_int && (curbuf_mut().b_flags & BF_NEW) == 0 {
                 failed = false;
                 if g_st().curbuf != newbuf {
@@ -5756,13 +5732,11 @@ fn load_dummy_buffer(
 
             if !newbuf_to_wipe.br_buf.is_null() && bufref_valid(Some(&newbuf_to_wipe)) {
                 block_autocmds();
-                wipe_dummy_buffer(unsafe { &mut *newbuf_to_wipe.br_buf }, ptr::null_mut());
+                wipe_dummy_buffer(crate::globals::gmut(newbuf_to_wipe.br_buf), ptr::null_mut());
                 unblock_autocmds();
             }
 
-            unsafe {
-                (*newbuf).b_flags |= BF_DUMMY;
-            }
+            crate::globals::gptr(newbuf).b_flags |= BF_DUMMY;
         }
 
         os_dirname(resulting_dir, MAXPATHL);
@@ -5772,7 +5746,7 @@ fn load_dummy_buffer(
             return ptr::null_mut();
         }
         if failed {
-            wipe_dummy_buffer(unsafe { &mut *newbuf }, dirname_start);
+            wipe_dummy_buffer(crate::globals::gmut(newbuf), dirname_start);
             return ptr::null_mut();
         }
         newbuf
@@ -5975,7 +5949,7 @@ fn qf_winid(qi: Option<&QfInfo>) -> i32 {
     }
     let win = qf_find_win(qi.unwrap());
     if !win.is_null() {
-        return unsafe { (*win).handle };
+        return crate::globals::gptr(win).handle;
     }
     0
 }
@@ -6137,7 +6111,7 @@ fn qf_getprop_filewinid(wp: Option<&WinInfoInfo>, qi: &QfInfo, retdict: &mut TvD
     {
         let ll_wp = qf_find_win_with_loclist(qi);
         if !ll_wp.is_null() {
-            winid = unsafe { (*ll_wp).handle };
+            winid = crate::globals::gptr(ll_wp).handle;
         }
     }
 
@@ -6443,7 +6417,7 @@ fn qf_add_entries(
         let mut prev_fnum: i32 = 0;
         let mut prev_lnum: i32 = 0;
         let mut prev_col: i32 = 0;
-        if let Some(cur_entry) = unsafe { qfl.cur_entry().as_ref() } {
+        if let Some(cur_entry) = crate::globals::gopt(qfl.cur_entry()) {
             prev_fnum = cur_entry.qf_fnum;
             prev_lnum = cur_entry.qf_lnum;
             prev_col = cur_entry.qf_col;
@@ -6740,53 +6714,43 @@ fn qf_set_properties(
 }
 
 fn qf_free_stack(mut wp: *mut WinInfoInfo, qi: *mut QfInfo) {
-    let qfwin = unsafe { qf_find_win(&*qi) };
+    let qfwin = qf_find_win(crate::globals::gref(qi));
 
     if !qfwin.is_null() {
-        if unsafe { (*qi).qf_curlist < (*qi).qf_listcount } {
-            unsafe {
-                qf_free(qf_get_curlist(&mut *qi));
-            }
+        if crate::globals::gptr(qi).qf_curlist < crate::globals::gptr(qi).qf_listcount {
+            qf_free(qf_get_curlist(crate::globals::gmut(qi)));
         }
-        unsafe {
-            qf_update_buffer(&mut *qi, 0);
-        }
+
+        qf_update_buffer(crate::globals::gmut(qi), 0);
     }
 
-    if !wp.is_null() && unsafe { is_ll_window(&*wp) } {
-        let llwin = unsafe { qf_find_win_with_loclist(&*qi) };
+    if !wp.is_null() && is_ll_window(crate::globals::gref(wp)) {
+        let llwin = qf_find_win_with_loclist(crate::globals::gref(qi));
         if !llwin.is_null() {
             wp = llwin;
         }
     }
 
-    unsafe {
-        qf_free_all(wp.as_mut());
-    }
+    qf_free_all(crate::globals::gopt_mut(wp));
+
     if wp.is_null() {
-        unsafe {
-            (*qi).qf_curlist = 0;
-        }
-        unsafe {
-            (*qi).qf_listcount = 0;
-        }
+        crate::globals::gptr(qi).qf_curlist = 0;
+
+        crate::globals::gptr(qi).qf_listcount = 0;
     } else if !qfwin.is_null() {
-        let new_ll = unsafe { qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as i32) };
-        unsafe {
-            new_ll.qf_bufnr = (*qfwin).buf_mut().b_fnum;
-        }
+        let new_ll = qf_alloc_stack(
+            QFLT_LOCATION,
+            crate::globals::gptr(wp).w_onebuf_opt.wo_lhi as i32,
+        );
 
-        unsafe {
-            ll_free_all(&raw mut (*qfwin).w_llist_ref);
-        }
+        new_ll.qf_bufnr = crate::globals::gptr(qfwin).buf_mut().b_fnum;
 
-        unsafe {
-            (*qfwin).w_llist_ref = new_ll;
-        }
+        ll_free_all(&raw mut crate::globals::gptr(qfwin).w_llist_ref);
+
+        crate::globals::gptr(qfwin).w_llist_ref = new_ll;
+
         if wp != qfwin {
-            unsafe {
-                win_set_loclist(&mut *wp, &mut *new_ll);
-            }
+            win_set_loclist(crate::globals::gmut(wp), &mut *new_ll);
         }
     }
 }
@@ -6799,7 +6763,7 @@ pub fn set_errorlist(
     what: Option<&TvDict>,
 ) -> bool {
     let title = title.into_c_char_ptr();
-    let qi = if let Some(wp_ref) = unsafe { wp.as_mut() } {
+    let qi = if let Some(wp_ref) = crate::globals::gopt_mut(wp) {
         ll_get_or_alloc_list(wp_ref)
     } else {
         ql_info_mut()
@@ -6896,14 +6860,14 @@ pub fn set_ref_in_quickfix(copy_id: i32) -> bool {
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_mut(tab_firstwin(tp)) {
-            if let Some(ll) = (unsafe { win.w_llist.as_mut() })
+            if let Some(ll) = crate::globals::gopt_mut(win.w_llist)
                 && (mark_quickfix_ctx(ll, copy_id) || mark_quickfix_user_data(ll, copy_id))
             {
                 return true;
             }
 
             if is_ll_window(win)
-                && let Some(ll_ref) = (unsafe { win.w_llist_ref.as_mut() })
+                && let Some(ll_ref) = crate::globals::gopt_mut(win.w_llist_ref)
                 && ll_ref.qf_refcount == 1
                 && (mark_quickfix_ctx(ll_ref, copy_id) || mark_quickfix_user_data(ll_ref, copy_id))
             {
@@ -6943,7 +6907,7 @@ fn cbuffer_process_args(
         );
     }
 
-    let Some(buf_ref) = (unsafe { buf.as_ref() }) else {
+    let Some(buf_ref) = crate::globals::gopt(buf) else {
         emsg(gettext(E_INVARG));
         return false;
     };
@@ -7001,7 +6965,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
 
     let qf_title_cstr = qf_cmdtitle(eap.cmdline());
     let mut qf_title = qf_title_cstr.as_ptr().cast_mut();
-    let buf_sfname = unsafe { (*buf).b_sfname };
+    let buf_sfname = crate::globals::gptr(buf).b_sfname;
     if !buf_sfname.is_null() {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuff_ptr, IOSIZE, c"%s (%s)", qf_title, buf_sfname,);
@@ -7160,8 +7124,8 @@ fn hgr_get_ll(new_ll: &mut bool) -> &'static mut QfInfo {
         qf_find_help_win()
     };
 
-    if let Some(wp_ref) = (unsafe { wp.as_ref() })
-        && let Some(ll) = (unsafe { wp_ref.w_llist.as_mut() })
+    if let Some(wp_ref) = crate::globals::gopt(wp)
+        && let Some(ll) = crate::globals::gopt_mut(wp_ref.w_llist)
     {
         return ll;
     }
@@ -7360,15 +7324,15 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
             g_st().curbuf,
         );
         if !new_qi
-            && is_ll_stack(unsafe { &*qi_ptr })
-            && qf_find_win_with_loclist(unsafe { &*qi_ptr }).is_null()
+            && is_ll_stack(crate::globals::gref(qi_ptr))
+            && qf_find_win_with_loclist(crate::globals::gref(qi_ptr)).is_null()
         {
             decr_quickfix_busy();
             return;
         }
     }
 
-    if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
+    if !qf_list_empty(Some(&*(qf_get_curlist(crate::globals::gmut(qi_ptr))))) {
         qf_jump(qi_ptr, 0, 0, 0);
     } else {
         semsg!(gettext(E_NOMATCH2), eap.arg);
@@ -7426,7 +7390,7 @@ fn get_qf_loc_list(
 
 pub fn f_getloclist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wp = find_win_by_nr_or_id(&argvars[0]);
-    get_qf_loc_list(false, unsafe { wp.as_ref() }, &mut argvars[1], rettv);
+    get_qf_loc_list(false, crate::globals::gopt(wp), &mut argvars[1], rettv);
 }
 
 pub fn f_getqflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {

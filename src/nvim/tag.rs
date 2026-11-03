@@ -387,7 +387,7 @@ static TAG_STATE: GlobalState<TagModuleState> = GlobalState::new(TagModuleState:
 
 #[inline]
 fn tag_st() -> &'static mut TagModuleState {
-    unsafe { &mut *TAG_STATE.as_ptr() }
+    crate::globals::gmut(TAG_STATE.as_ptr())
 }
 
 use crate::charset::toupper_asc;
@@ -661,7 +661,7 @@ pub fn do_tag(
             if cur_fnum != curbuf_mut().b_fnum {
                 let buf = buflist_findnr(cur_fnum);
                 if !buf.is_null() {
-                    buf_ffname = unsafe { (*buf).b_ffname };
+                    buf_ffname = crate::globals::gptr(buf).b_ffname;
                 }
             }
 
@@ -2629,11 +2629,11 @@ fn parse_match(lbuf: impl crate::strings::IntoCCharPtr, tagp: &mut Tagptrs) -> b
         if let Some(extra_off) = find_extra(crate::memory::cstr_as_bytes(tagp.command.cast())) {
             let mut p = tagp.command.wrapping_add(extra_off);
             tagp.command_end = p;
-            if extra_off > 0 && unsafe { *p.wrapping_sub(1) } == b'|' {
+            if extra_off > 0 && *crate::globals::gptr(p.wrapping_sub(1)) == b'|' {
                 tagp.command_end = p.wrapping_sub(1);
             }
             p = p.wrapping_add(2);
-            if unsafe { *p } == TAB {
+            if *crate::globals::gptr(p) == TAB {
                 p = p.wrapping_add(1);
                 loop {
                     let p_bytes = crate::memory::cstr_as_bytes(p.cast());
@@ -2812,7 +2812,9 @@ fn jumpto_tag(lbuf_arg: impl crate::strings::IntoCCharPtr, forceit: i32, keep_he
 
         if keep_help {
             if l_g_do_tagpreview != 0 {
-                g_st().keep_help_flag = bt_help(unsafe { ((*curwin_save).w_buffer).as_ref() });
+                g_st().keep_help_flag = bt_help(crate::globals::gopt(
+                    crate::globals::gptr(curwin_save).w_buffer,
+                ));
             } else {
                 g_st().keep_help_flag = curbuf_mut().b_help;
             }

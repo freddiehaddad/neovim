@@ -437,7 +437,7 @@ static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModul
 
 #[inline]
 fn norm_st() -> &'static mut NormalModuleState {
-    unsafe { &mut *NORM_STATE.as_ptr() }
+    crate::globals::gmut(NORM_STATE.as_ptr())
 }
 
 #[inline]
@@ -1677,14 +1677,12 @@ pub fn check_text_or_curbuf_locked(mut oap: Option<&mut Oparg>) -> bool {
 
 /// Check if an operator was started but not finished yet.
 pub fn op_pending() -> bool {
-    unsafe {
-        !(!norm_st().current_oap.is_null()
-            && !g_st().finish_op
-            && (*norm_st().current_oap).prev_opcount == 0
-            && (*norm_st().current_oap).prev_count0 == 0
-            && (*norm_st().current_oap).op_type == OP_NOP
-            && (*norm_st().current_oap).regname == NUL as i32)
-    }
+    !(!norm_st().current_oap.is_null()
+        && !g_st().finish_op
+        && crate::globals::gptr(norm_st().current_oap).prev_opcount == 0
+        && crate::globals::gptr(norm_st().current_oap).prev_count0 == 0
+        && crate::globals::gptr(norm_st().current_oap).op_type == OP_NOP
+        && crate::globals::gptr(norm_st().current_oap).regname == NUL as i32)
 }
 
 /// Normal state entry point: the main loop. Never returns.
@@ -2548,7 +2546,7 @@ fn find_is_eval_item(
     dir: i32,
 ) -> bool {
     let ptr = ptr.into_c_char_ptr();
-    let b0 = unsafe { *ptr as u8 };
+    let b0 = (*crate::globals::gptr(ptr)) as u8;
     if (b0 == b']' && dir == BACKWARD) || (b0 == b'[' && dir == FORWARD) {
         *bnp += 1;
     }
@@ -2565,9 +2563,9 @@ fn find_is_eval_item(
 
     let gt_off: isize = if dir == BACKWARD { 0 } else { 1 };
     let dash_off: isize = if dir == BACKWARD { -1 } else { 0 };
-    if unsafe {
-        *ptr.wrapping_offset(gt_off) as u8 == b'>' && *ptr.wrapping_offset(dash_off) as u8 == b'-'
-    } {
+    if (*crate::globals::gptr(ptr.wrapping_offset(gt_off))) as u8 == b'>'
+        && (*crate::globals::gptr(ptr.wrapping_offset(dash_off))) as u8 == b'-'
+    {
         *colp += dir;
         return true;
     }
@@ -3116,7 +3114,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let old_visual_active = g_st().visual_global.active;
     let tgt_leftcol = curwin_mut().w_leftcol;
 
-    let want_ver = unsafe { (*old_curwin).w_onebuf_opt.wo_diff } != 0
+    let want_ver = crate::globals::gptr(old_curwin).w_onebuf_opt.wo_diff != 0
         || (crate::strings::vim_haschr(opt_vars().p_sbo, b'v' as i32) && vtopline_diff != 0);
     let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32)
         && (leftcol_diff != 0 || vtopline_diff != 0);
@@ -3128,10 +3126,10 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
         g_st().curbuf = curwin_mut().w_buffer;
         if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
             if want_ver {
-                if unsafe { (*old_curwin).w_onebuf_opt.wo_diff } != 0
+                if crate::globals::gptr(old_curwin).w_onebuf_opt.wo_diff != 0
                     && curwin_mut().w_onebuf_opt.wo_diff != 0
                 {
-                    diff_set_topline(unsafe { &mut *old_curwin }, curwin_mut());
+                    diff_set_topline(crate::globals::gmut(old_curwin), curwin_mut());
                 } else {
                     curwin_mut().w_scbind_pos += vtopline_diff;
                     let curr_vtopline = get_vtopline(curwin_mut());
@@ -3360,8 +3358,8 @@ pub fn find_decl(
                 let maxtravel = i64::from(old_pos.lnum - curwin_mut().w_cursor.lnum + 1);
                 let pos = findmatchlimit(None, b'}' as i32, FM_FORWARD, maxtravel);
 
-                if !pos.is_null() && unsafe { (*pos).lnum } < old_pos.lnum {
-                    curwin_mut().w_cursor = unsafe { *pos };
+                if !pos.is_null() && crate::globals::gptr(pos).lnum < old_pos.lnum {
+                    curwin_mut().w_cursor = *crate::globals::gptr(pos);
                     continue;
                 }
             }
@@ -5106,8 +5104,8 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
             break;
         }
         prev_pos = new_pos;
-        curwin_mut().w_cursor = unsafe { *pos };
-        new_pos = unsafe { *pos };
+        curwin_mut().w_cursor = *crate::globals::gptr(pos);
+        new_pos = *crate::globals::gptr(pos);
         n -= 1;
     }
     curwin_mut().w_cursor = *old_pos;
@@ -5162,7 +5160,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                         if pos.is_null() {
                             n = 0;
                         } else {
-                            curwin_mut().w_cursor = unsafe { *pos };
+                            curwin_mut().w_cursor = *crate::globals::gptr(pos);
                         }
                     }
                     break;
@@ -5177,7 +5175,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
     }
     if !pos.is_null() {
         setpcmark();
-        curwin_mut().w_cursor = unsafe { *pos };
+        curwin_mut().w_cursor = *crate::globals::gptr(pos);
         curwin_mut().w_set_curswant = true;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
             && g_st().key_typed
@@ -5275,7 +5273,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
         while n > 0 {
             prev_fm = fm;
             fm = getnextmark(
-                unsafe { &mut (*fm).mark },
+                &mut crate::globals::gptr(fm).mark,
                 if cap.cmdchar == b'[' as i32 {
                     BACKWARD
                 } else {
@@ -5295,7 +5293,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
         if cap.nchar == b'\'' as i32 {
             flags |= K_MARK_BEGIN_LINE;
         }
-        nv_mark_move_to(cap, flags, unsafe { &mut *fm });
+        nv_mark_move_to(cap, flags, crate::globals::gmut(fm));
     } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
         do_mouse(
             Some(cap.oap_mut()),
@@ -5470,7 +5468,7 @@ fn nv_percent(cap: &mut Cmdarg) {
             clearopbeep(cap.oap_mut());
         } else {
             setpcmark();
-            curwin_mut().w_cursor = unsafe { *pos };
+            curwin_mut().w_cursor = *crate::globals::gptr(pos);
             curwin_mut().w_set_curswant = true;
             curwin_mut().w_cursor.coladd = 0;
             adjust_for_sel(cap);
@@ -6018,7 +6016,7 @@ fn nv_pcmark(cap: &mut Cmdarg) {
     };
 
     if !fm.is_null() {
-        move_res = nv_mark_move_to(cap, flags, unsafe { &mut *fm });
+        move_res = nv_mark_move_to(cap, flags, crate::globals::gmut(fm));
     } else if cap.cmdchar == b'g' as i32 {
         if curbuf_mut().b_changelistlen == 0 {
             emsg(tr(E_CHANGELIST_IS_EMPTY));
@@ -6431,7 +6429,7 @@ fn nv_gi_cmd(cap: &mut Cmdarg) {
 }
 
 fn nv_g_cmd(cap: &mut Cmdarg) {
-    let oap = unsafe { &mut *cap.oap };
+    let oap = crate::globals::gmut(cap.oap);
 
     match cap.nchar {
         CTRL_A | CTRL_X_CONST => {

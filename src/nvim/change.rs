@@ -894,13 +894,15 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
             curbuf_mut().b_ml.ml_line_ptr,
             oldlen as usize,
         ));
+
         unsafe {
             ptr::copy(
                 oldp.wrapping_add((col + count) as usize).cast::<u8>(),
                 oldp.wrapping_add(col as usize).cast::<u8>(),
                 movelen as usize,
-            );
-        }
+            )
+        };
+
         curbuf_mut().b_ml.ml_line_textlen = newlen + 1;
     }
 
@@ -956,9 +958,8 @@ pub fn open_line(
         replace_push_nul();
         let p = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
         replace_push(p.cast(), crate::memory::cstr_len(p.cast()));
-        unsafe {
-            *saved_line.wrapping_add(curwin_mut().w_cursor.col as usize) = 0;
-        }
+
+        *crate::globals::gptr(saved_line.wrapping_add(curwin_mut().w_cursor.col as usize)) = 0;
     }
 
     if (g_st().state_global & MODE_INSERT) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
@@ -968,12 +969,10 @@ pub fn open_line(
             first_char = i32::from(crate::memory::cstr_first_byte(p));
         }
         extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
-        unsafe {
-            saved_char = *p_extra;
-        }
-        unsafe {
-            *p_extra = 0;
-        }
+
+        saved_char = *crate::globals::gptr(p_extra);
+
+        *crate::globals::gptr(p_extra) = 0;
     }
 
     u_clearline(curbuf_mut());
@@ -1033,9 +1032,8 @@ pub fn open_line(
                                 curwin_mut().w_cursor.col = idx as Colnr;
                                 let pos = findmatch(None, 0);
                                 if !pos.is_null() {
-                                    unsafe {
-                                        curwin_mut().w_cursor.lnum = (*pos).lnum;
-                                    }
+                                    curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+
                                     newindent = get_indent();
                                     break;
                                 }
@@ -1063,9 +1061,8 @@ pub fn open_line(
                         curwin_mut().w_cursor.col = p_idx as Colnr;
                         let pos = findmatch(None, b'(' as i32);
                         if !pos.is_null() {
-                            unsafe {
-                                curwin_mut().w_cursor.lnum = (*pos).lnum;
-                            }
+                            curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+
                             newindent = get_indent();
                             ptr_bytes = crate::cursor::get_cursor_line_slice();
                         }
@@ -1171,14 +1168,14 @@ pub fn open_line(
         while !crate::memory::cstr_is_empty(p.cast())
             && crate::memory::cstr_first_byte(p.cast()) != b':'
         {
-            if unsafe { *p == COM_BLANK } {
+            if *crate::globals::gptr(p) == COM_BLANK {
                 require_blank = true;
                 p = p.wrapping_add(1);
                 continue;
             }
-            if unsafe { *p == COM_START } || unsafe { *p == COM_MIDDLE } {
-                let current_flag = unsafe { *p };
-                if unsafe { *p == COM_START } {
+            if *crate::globals::gptr(p) == COM_START || *crate::globals::gptr(p) == COM_MIDDLE {
+                let current_flag = *crate::globals::gptr(p);
+                if *crate::globals::gptr(p) == COM_START {
                     if dir == BACKWARD {
                         lead_len = 0;
                         break;
@@ -1188,9 +1185,9 @@ pub fn open_line(
                 }
 
                 while !crate::memory::cstr_is_empty(p.cast())
-                    && unsafe { *p.wrapping_sub(1) != b':' }
+                    && *crate::globals::gptr(p.wrapping_sub(1)) != b':'
                 {
-                    if unsafe { *p == COM_BLANK } {
+                    if *crate::globals::gptr(p) == COM_BLANK {
                         require_blank = true;
                     }
                     p = p.wrapping_add(1);
@@ -1200,9 +1197,9 @@ pub fn open_line(
                         as i32;
 
                 while !crate::memory::cstr_is_empty(p.cast())
-                    && unsafe { *p.wrapping_sub(1) != b':' }
+                    && *crate::globals::gptr(p.wrapping_sub(1)) != b':'
                 {
-                    if unsafe { *p == COM_AUTO_END } {
+                    if *crate::globals::gptr(p) == COM_AUTO_END {
                         g_st().ins_global.end_comment_pending = -1;
                     }
                     p = p.wrapping_add(1);
@@ -1233,20 +1230,21 @@ pub fn open_line(
                         lead_repl_len = lead_middle_len;
                     }
 
-                    if unsafe { !ascii_iswhite(*saved_line.wrapping_add((lead_len - 1) as usize)) }
-                        && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
-                            || (p_extra.is_null()
-                                && crate::memory::cstr_is_empty(
-                                    saved_line.wrapping_add(lead_len as usize).cast(),
-                                ))
-                            || require_blank)
+                    if !ascii_iswhite(*crate::globals::gptr(
+                        saved_line.wrapping_add((lead_len - 1) as usize),
+                    )) && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
+                        || (p_extra.is_null()
+                            && crate::memory::cstr_is_empty(
+                                saved_line.wrapping_add(lead_len as usize).cast(),
+                            ))
+                        || require_blank)
                     {
                         extra_space = true;
                     }
                 }
                 break;
             }
-            if unsafe { *p == COM_END } {
+            if *crate::globals::gptr(p) == COM_END {
                 if dir == FORWARD {
                     comment_end = skipwhite(saved_line.cast()).cast();
                     lead_len = 0;
@@ -1260,7 +1258,7 @@ pub fn open_line(
                 }
                 lead_repl = p;
                 while lead_repl > curbuf_mut().b_p_com.cast()
-                    && unsafe { *lead_repl.wrapping_sub(1) != b':' }
+                    && *crate::globals::gptr(lead_repl.wrapping_sub(1)) != b':'
                 {
                     lead_repl = lead_repl.wrapping_sub(1);
                 }
@@ -1272,7 +1270,7 @@ pub fn open_line(
                 while !crate::memory::cstr_is_empty(p2.cast())
                     && crate::memory::cstr_first_byte(p2.cast()) != b':'
                 {
-                    if unsafe { *p2 == COM_AUTO_END } {
+                    if *crate::globals::gptr(p2) == COM_AUTO_END {
                         g_st().ins_global.end_comment_pending = -1;
                     }
                     p2 = p2.wrapping_add(1);
@@ -1283,13 +1281,13 @@ pub fn open_line(
                     {
                         p2 = p2.wrapping_add(1);
                     }
-                    unsafe {
-                        g_st().ins_global.end_comment_pending = i32::from(*p2.wrapping_sub(1));
-                    }
+
+                    g_st().ins_global.end_comment_pending =
+                        i32::from(*crate::globals::gptr(p2.wrapping_sub(1)));
                 }
                 break;
             }
-            if unsafe { *p == COM_FIRST } {
+            if *crate::globals::gptr(p) == COM_FIRST {
                 if dir == BACKWARD {
                     lead_len = 0;
                 } else {
@@ -1331,10 +1329,10 @@ pub fn open_line(
                 while !crate::memory::cstr_is_empty(p.cast())
                     && crate::memory::cstr_first_byte(p.cast()) != b':'
                 {
-                    if unsafe { *p == COM_RIGHT } || unsafe { *p == COM_LEFT } {
-                        unsafe {
-                            c = *p;
-                        }
+                    if *crate::globals::gptr(p) == COM_RIGHT || *crate::globals::gptr(p) == COM_LEFT
+                    {
+                        c = *crate::globals::gptr(p);
+
                         p = p.wrapping_add(1);
                     } else if ascii_isdigit(crate::memory::cstr_first_byte(p.cast()))
                         || crate::memory::cstr_first_byte(p.cast()) == b'-'
@@ -1375,20 +1373,18 @@ pub fn open_line(
                                         leader.wrapping_add(lead_len as usize),
                                         endp,
                                     ) as usize,
-                                );
-                            }
+                                )
+                            };
                         }
                         lead_len += l;
                     }
-                    unsafe {
-                        ptr::copy(lead_repl, p, lead_repl_len as usize);
-                    }
+
+                    unsafe { ptr::copy(lead_repl, p, lead_repl_len as usize) };
+
                     if p.wrapping_add(lead_repl_len as usize)
                         > leader.wrapping_add(lead_len as usize)
                     {
-                        unsafe {
-                            *p.wrapping_add(lead_repl_len as usize) = 0;
-                        }
+                        *crate::globals::gptr(p.wrapping_add(lead_repl_len as usize)) = 0;
                     }
 
                     while {
@@ -1399,11 +1395,11 @@ pub fn open_line(
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
                             if ptr2cells(p.cast()) > 1 {
-                                unsafe {
-                                    *p.wrapping_add(1) = b' ';
-                                }
+                                *crate::globals::gptr(p.wrapping_add(1)) = b' ';
+
                                 l -= 1;
                             }
+
                             unsafe {
                                 ptr::copy(
                                     p.wrapping_add(l as usize + 1),
@@ -1412,16 +1408,14 @@ pub fn open_line(
                                         leader.wrapping_add(lead_len as usize),
                                         p.wrapping_add(l as usize + 1),
                                     ) as usize,
-                                );
-                            }
+                                )
+                            };
+
                             lead_len -= l;
-                            unsafe {
-                                *p = b' ';
-                            }
+
+                            *crate::globals::gptr(p) = b' ';
                         } else if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
-                            unsafe {
-                                *p = b' ';
-                            }
+                            *crate::globals::gptr(p) = b' ';
                         }
                     }
                 } else {
@@ -1447,22 +1441,23 @@ pub fn open_line(
                                         - i
                                         - crate::memory::ptr_offset_from(p, leader) as i32)
                                         as usize,
-                                );
-                            }
+                                )
+                            };
+
                             lead_len += lead_repl_len - i;
                         }
                     }
-                    unsafe {
-                        ptr::copy(lead_repl, p, lead_repl_len as usize);
-                    }
+
+                    unsafe { ptr::copy(lead_repl, p, lead_repl_len as usize) };
 
                     p = p.wrapping_add(lead_repl_len as usize);
                     while p < leader.wrapping_add(lead_len as usize) {
                         if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
                             if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
-                                && unsafe { *p.wrapping_add(1) == TAB }
+                                && *crate::globals::gptr(p.wrapping_add(1)) == TAB
                             {
                                 lead_len -= 1;
+
                                 unsafe {
                                     ptr::copy(
                                         p.wrapping_add(1),
@@ -1471,18 +1466,19 @@ pub fn open_line(
                                             leader.wrapping_add(lead_len as usize),
                                             p,
                                         ) as usize,
-                                    );
-                                }
+                                    )
+                                };
                             } else {
                                 let mut l = utfc_ptr2len(p.cast());
                                 if l > 1 {
                                     if ptr2cells(p.cast()) > 1 {
                                         l -= 1;
-                                        unsafe {
-                                            *p = b' ';
-                                        }
+
+                                        *crate::globals::gptr(p) = b' ';
+
                                         p = p.wrapping_add(1);
                                     }
+
                                     unsafe {
                                         ptr::copy(
                                             p.wrapping_add(l as usize),
@@ -1491,20 +1487,19 @@ pub fn open_line(
                                                 leader.wrapping_add(lead_len as usize),
                                                 p,
                                             ) as usize,
-                                        );
-                                    }
+                                        )
+                                    };
+
                                     lead_len -= l - 1;
                                 }
-                                unsafe {
-                                    *p = b' ';
-                                }
+
+                                *crate::globals::gptr(p) = b' ';
                             }
                         }
                         p = p.wrapping_add(1);
                     }
-                    unsafe {
-                        *p = 0;
-                    }
+
+                    *crate::globals::gptr(p) = 0;
                 }
 
                 if curbuf_mut().b_p_ai != 0 || do_si {
@@ -1524,7 +1519,7 @@ pub fn open_line(
 
                 while off > 0
                     && lead_len > 0
-                    && unsafe { *leader.wrapping_add((lead_len - 1) as usize) == b' ' }
+                    && *crate::globals::gptr(leader.wrapping_add((lead_len - 1) as usize)) == b' '
                 {
                     if crate::strings::vim_haschr(skipwhite(leader.cast()), b'\t' as i32) {
                         break;
@@ -1534,23 +1529,22 @@ pub fn open_line(
                 }
 
                 if lead_len > 0
-                    && unsafe { ascii_iswhite(*leader.wrapping_add((lead_len - 1) as usize)) }
+                    && ascii_iswhite(*crate::globals::gptr(
+                        leader.wrapping_add((lead_len - 1) as usize),
+                    ))
                 {
                     extra_space = false;
                 }
-                unsafe {
-                    *leader.wrapping_add(lead_len as usize) = 0;
-                }
+
+                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = 0;
             }
 
             if extra_space {
-                unsafe {
-                    *leader.wrapping_add(lead_len as usize) = b' ';
-                }
+                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = b' ';
+
                 lead_len += 1;
-                unsafe {
-                    *leader.wrapping_add(lead_len as usize) = 0;
-                }
+
+                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = 0;
             }
 
             newcol = lead_len;
@@ -1574,9 +1568,8 @@ pub fn open_line(
                 crate::memory::ptr_offset_from(comment_end, saved_line) as Colnr;
             let pos = findmatch(None, 0);
             if !pos.is_null() {
-                unsafe {
-                    curwin_mut().w_cursor.lnum = (*pos).lnum;
-                }
+                curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+
                 newindent = get_indent();
             }
             curwin_mut().w_cursor = old_cursor;
@@ -1584,9 +1577,7 @@ pub fn open_line(
     }
 
     if !p_extra.is_null() {
-        unsafe {
-            *p_extra = saved_char;
-        }
+        *crate::globals::gptr(p_extra) = saved_char;
 
         if replace_normal(g_st().state_global) {
             replace_push_nul();
@@ -1652,9 +1643,9 @@ pub fn open_line(
                 .starts_with(crate::memory::cstr_as_bytes(prompt))
             {
                 let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
-                unsafe {
-                    ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len);
-                }
+
+                unsafe { ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len) };
+
                 g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                 ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
                 prompt_moved = Some(concat_str(
@@ -1744,9 +1735,10 @@ pub fn open_line(
 
         if dir == FORWARD {
             if trunc_line || (g_st().state_global & MODE_INSERT) != 0 {
-                unsafe {
-                    *saved_line.wrapping_add(curwin_mut().w_cursor.col as usize) = 0;
-                }
+                *crate::globals::gptr(
+                    saved_line.wrapping_add(curwin_mut().w_cursor.col as usize),
+                ) = 0;
+
                 if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
                     let col_idx = curwin_mut().w_cursor.col as usize;
                     truncate_spaces(saved_line.cast(), col_idx);
@@ -1869,8 +1861,8 @@ pub fn open_line(
                     get_cursor_line_ptr(),
                     get_cursor_line_len() as usize + 1,
                 )
-                .to_vec()
-            };
+            }
+            .to_vec();
             ml_replace(
                 curwin_mut().w_cursor.lnum,
                 next_line_vec.as_mut_ptr().cast(),

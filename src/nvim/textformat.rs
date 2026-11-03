@@ -169,7 +169,7 @@ static TF_STATE: crate::globals::GlobalState<TextformatState> =
 
 #[inline]
 fn tf_st() -> &'static mut TextformatState {
-    unsafe { &mut *TF_STATE.as_ptr() }
+    crate::globals::gmut(TF_STATE.as_ptr())
 }
 
 #[inline]

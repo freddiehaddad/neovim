@@ -314,7 +314,7 @@ static SEARCH_STATE: GlobalState<SearchModuleState> = GlobalState::new(SearchMod
 
 #[inline]
 fn srch() -> &'static mut SearchModuleState {
-    unsafe { &mut *SEARCH_STATE.as_ptr() }
+    crate::globals::gmut(SEARCH_STATE.as_ptr())
 }
 
 #[inline]
@@ -1199,9 +1199,9 @@ pub fn parse_search_pattern_offset<T>(
     if i32::from(crate::memory::cstr_first_byte(p)) == search_delim {
         *searchstrlen = crate::memory::ptr_offset_from(p, (*pat).cast()) as usize;
         *dircp = p.cast();
-        unsafe {
-            *p = 0;
-        }
+
+        *crate::globals::gptr(p) = 0;
+
         p = p.wrapping_add(1);
     }
 
@@ -1541,9 +1541,7 @@ pub fn do_search(
         ));
 
         if !dircp.is_null() {
-            unsafe {
-                *dircp.cast::<u8>() = search_delim as u8;
-            }
+            *crate::globals::gptr(dircp.cast::<u8>()) = search_delim as u8;
         }
 
         if !shortmess(K_SHM_SEARCH) && sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0
@@ -2471,7 +2469,7 @@ pub fn showmatch(c: i32) {
         vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
         return;
     }
-    let lpos = unsafe { &mut *lpos };
+    let lpos = crate::globals::gmut(lpos);
 
     if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
         return;
@@ -3340,12 +3338,13 @@ pub fn find_pattern_in_path(
                                 p = incl_regmatch.endp[0].cast();
                                 i = crate::memory::cstr_len(p) as i32;
                             } else if p > line {
-                                let prev_b = unsafe { *p.cast::<u8>().wrapping_sub(1) };
+                                let prev_b = *crate::globals::gptr(p.cast::<u8>().wrapping_sub(1));
                                 if matches!(prev_b, b'"' | b'<') {
                                     p = p.wrapping_sub(1);
                                     i += 1;
                                 }
-                                let next_b = unsafe { *p.cast::<u8>().wrapping_add(i as usize) };
+                                let next_b =
+                                    *crate::globals::gptr(p.cast::<u8>().wrapping_add(i as usize));
                                 if matches!(next_b, b'"' | b'>') {
                                     i += 1;
                                 }
@@ -3705,7 +3704,9 @@ pub fn find_pattern_in_path(
                                         if l_g_do_tagpreview != 0 {
                                             if !win_valid(curwin_save)
                                                 || !getfile_success(getfile(
-                                                    unsafe { (*curwin_save).buf_mut().b_fnum },
+                                                    crate::globals::gptr(curwin_save)
+                                                        .buf_mut()
+                                                        .b_fnum,
                                                     ptr::null_mut(),
                                                     ptr::null_mut(),
                                                     true,

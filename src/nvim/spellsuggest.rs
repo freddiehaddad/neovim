@@ -195,7 +195,7 @@ impl Langp {
 
     #[inline]
     pub fn slang_mut(&self) -> &'static mut Slang {
-        unsafe { &mut *self.lp_slang }
+        crate::globals::gmut(self.lp_slang)
     }
 }
 
@@ -377,7 +377,7 @@ static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggest
 
 #[inline]
 fn sps_st() -> &'static mut SpellSuggestState {
-    unsafe { &mut *SPS_STATE.as_ptr() }
+    crate::globals::gmut(SPS_STATE.as_ptr())
 }
 #[inline]
 const fn rescore(word_score: i32, sound_score: i32) -> i32 {
@@ -875,7 +875,7 @@ fn spell_find_suggest(
         }
         if !su.su_sallang.is_null() {
             spell_soundfold(
-                unsafe { &mut *su.su_sallang },
+                crate::globals::gmut(su.su_sallang),
                 &su.su_fbadword,
                 true,
                 &mut su.su_sal_badword,
@@ -935,7 +935,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: impl crate::strings::IntoCCharPtr)
         let mut p: Option<&CStr> = None;
         let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
         if !list.is_null() {
-            for li in crate::eval::typval::list_iter_mut(unsafe { (*list).lv_first }) {
+            for li in crate::eval::typval::list_iter_mut(crate::globals::gptr(list).lv_first) {
                 if li.li_tv.v_type == VarType::VarList
                     && let Some(sublist) = li.li_tv.vval.v_list_opt()
                 {
@@ -1096,7 +1096,7 @@ fn try_deeper(su: &Suginfo, stack: &[Trystate; MAXWLEN], depth: usize, add: i32)
 }
 fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN], soundfold: bool) {
     let fword = fword_buf.as_mut_ptr();
-    unsafe {
+    {
         let mut tword: [u8; MAXWLEN] = [0; MAXWLEN];
         let mut stack: [Trystate; MAXWLEN] = [Trystate::default(); MAXWLEN];
         let mut preword: [u8; MAXWLEN * 3] = [0; MAXWLEN * 3];
@@ -1115,7 +1115,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
         let mut fl: i32;
         let mut tl: i32;
         let mut repextra: i32 = 0;
-        let slang = &mut *lp.lp_slang;
+        let slang = crate::globals::gmut(lp.lp_slang);
         let mut goodword_ends: bool;
         let mut breakcheckcount: i32 = 1000;
         let mut depth: isize = 0;
@@ -1159,11 +1159,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
             match state {
                 SugState::StateStart | SugState::StateNoprefix => {
                     arridx = stack[udepth].ts_arridx;
-                    let mut len = i32::from(*byts.wrapping_add(arridx as usize));
+                    let mut len =
+                        i32::from(*crate::globals::gptr(byts.wrapping_add(arridx as usize)));
                     arridx += stack[udepth].ts_curi as Idx;
                     if stack[udepth].ts_prefixdepth == PFD_PREFIXTREE {
                         n = 0;
-                        while n < len && *byts.wrapping_add((arridx + n) as usize) == 0 {
+                        while n < len
+                            && *crate::globals::gptr(byts.wrapping_add((arridx + n) as usize)) == 0
+                        {
                             n += 1;
                         }
                         stack[udepth].ts_curi += n as i16;
@@ -1171,7 +1174,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         stack[udepth].ts_state = SugState::StateEndnul;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         if udepth < MAXWLEN - 1
-                            && (*byts.wrapping_add(arridx as usize) == 0 || was_noprefix)
+                            && (*crate::globals::gptr(byts.wrapping_add(arridx as usize)) == 0
+                                || was_noprefix)
                         {
                             n = nofold_len(
                                 &*fword_buf,
@@ -1205,14 +1209,14 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         continue;
                     }
                     if stack[udepth].ts_curi as i32 > len
-                        || *byts.wrapping_add(arridx as usize) != 0
+                        || *crate::globals::gptr(byts.wrapping_add(arridx as usize)) != 0
                     {
                         stack[udepth].ts_state = SugState::StateEndnul;
                         stack[udepth].ts_save_badflags = su.su_badflags as u8;
                         continue;
                     }
                     stack[udepth].ts_curi += 1;
-                    let mut flags = *idxs.wrapping_add(arridx as usize);
+                    let mut flags = *crate::globals::gptr(idxs.wrapping_add(arridx as usize));
                     if (flags & WF_NOSUGGEST) != 0 {
                         continue;
                     }
@@ -1232,10 +1236,12 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         && !pbyts.is_null()
                     {
                         n = stack[stack[udepth].ts_prefixdepth as usize].ts_arridx;
-                        len = i32::from(*pbyts.wrapping_add(n as usize));
+                        len = i32::from(*crate::globals::gptr(pbyts.wrapping_add(n as usize)));
                         n += 1;
                         c = 0;
-                        while c < len && *pbyts.wrapping_add((n + c) as usize) == 0 {
+                        while c < len
+                            && *crate::globals::gptr(pbyts.wrapping_add((n + c) as usize)) == 0
+                        {
                             c += 1;
                         }
                         if c > 0 {
@@ -1618,13 +1624,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                         fword.wrapping_add(stack[udepth].ts_fidx as usize).cast(),
                                     );
                                     if fword_ends {
-                                        ptr::copy(
-                                            fword.wrapping_add(stack[udepth].ts_fidx as usize),
-                                            preword
-                                                .as_mut_ptr()
-                                                .wrapping_add(stack[udepth].ts_prewordlen as usize),
-                                            l as usize,
-                                        );
+                                        unsafe {
+                                            ptr::copy(
+                                                fword.wrapping_add(stack[udepth].ts_fidx as usize),
+                                                preword.as_mut_ptr().wrapping_add(
+                                                    stack[udepth].ts_prewordlen as usize,
+                                                ),
+                                                l as usize,
+                                            )
+                                        };
                                         stack[udepth].ts_prewordlen += l as u8;
                                         preword[stack[udepth].ts_prewordlen as usize] = 0;
                                     } else {
@@ -1682,7 +1690,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     if !goto_del {
                         arridx = stack[udepth].ts_arridx;
                         if stack[udepth].ts_curi as i32
-                            > i32::from(*byts.wrapping_add(arridx as usize))
+                            > i32::from(*crate::globals::gptr(byts.wrapping_add(arridx as usize)))
                         {
                             stack[udepth].ts_state =
                                 if stack[udepth].ts_fidx >= stack[udepth].ts_fidxtry {
@@ -1693,7 +1701,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         } else {
                             arridx += stack[udepth].ts_curi as Idx;
                             stack[udepth].ts_curi += 1;
-                            c = i32::from(*byts.wrapping_add(arridx as usize));
+                            c = i32::from(*crate::globals::gptr(
+                                byts.wrapping_add(arridx as usize),
+                            ));
                             let newscore = if c
                                 == i32::from(fword_buf[stack[udepth].ts_fidx as usize])
                                 || (stack[udepth].ts_tcharlen > 0
@@ -1720,7 +1730,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 let twl = stack[udepth].ts_twordlen as usize;
                                 tword[twl] = c as u8;
                                 stack[udepth].ts_twordlen += 1;
-                                stack[udepth].ts_arridx = *idxs.wrapping_add(arridx as usize);
+                                stack[udepth].ts_arridx =
+                                    *crate::globals::gptr(idxs.wrapping_add(arridx as usize));
                                 if newscore == SCORE_SUBST {
                                     stack[udepth].ts_isdiff = DIFF_YES;
                                 }
@@ -1844,13 +1855,16 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             n = stack[udepth].ts_arridx;
                             loop {
                                 if stack[udepth].ts_curi as i32
-                                    > i32::from(*byts.wrapping_add(n as usize))
+                                    > i32::from(*crate::globals::gptr(
+                                        byts.wrapping_add(n as usize),
+                                    ))
                                 {
                                     stack[udepth].ts_state = SugState::StateSwap;
                                     break;
                                 }
-                                if *byts.wrapping_add((n + stack[udepth].ts_curi as i32) as usize)
-                                    != 0
+                                if *crate::globals::gptr(
+                                    byts.wrapping_add((n + stack[udepth].ts_curi as i32) as usize),
+                                ) != 0
                                 {
                                     stack[udepth].ts_state = SugState::StateIns;
                                     break;
@@ -1862,7 +1876,9 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                 }
                 SugState::StateIns => {
                     n = stack[udepth].ts_arridx;
-                    if stack[udepth].ts_curi as i32 > i32::from(*byts.wrapping_add(n as usize)) {
+                    if stack[udepth].ts_curi as i32
+                        > i32::from(*crate::globals::gptr(byts.wrapping_add(n as usize)))
+                    {
                         stack[udepth].ts_state = SugState::StateSwap;
                         continue;
                     }
@@ -1872,7 +1888,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         g_st().got_int = true;
                         continue;
                     }
-                    c = i32::from(*byts.wrapping_add(n as usize));
+                    c = i32::from(*crate::globals::gptr(byts.wrapping_add(n as usize)));
                     let newscore =
                         if soundfold && stack[udepth].ts_twordlen == 0 && c == b'*' as i32 {
                             2 * SCORE_INS / 3
@@ -1888,7 +1904,8 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         let twl = stack[udepth].ts_twordlen as usize;
                         tword[twl] = c as u8;
                         stack[udepth].ts_twordlen += 1;
-                        stack[udepth].ts_arridx = *idxs.wrapping_add(n as usize);
+                        stack[udepth].ts_arridx =
+                            *crate::globals::gptr(idxs.wrapping_add(n as usize));
                         fl = utf_byte2len(c);
                         if fl > 1 {
                             stack[udepth].ts_tcharlen = fl as u8;
@@ -1940,7 +1957,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         depth += 1;
                         udepth = depth as usize;
                         fl = utf_char2len(c2);
-                        ptr::copy(p.wrapping_add(n as usize), p, fl as usize);
+                        unsafe { ptr::copy(p.wrapping_add(n as usize), p, fl as usize) };
                         utf_char2bytes(c, p.wrapping_add(fl as usize).cast());
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
@@ -1952,11 +1969,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         let p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
                         n = utfc_ptr2len(p.cast());
                         c = utf_ptr2char(p.wrapping_add(n as usize).cast());
-                        ptr::copy(
-                            p,
-                            p.wrapping_add(utfc_ptr2len(p.wrapping_add(n as usize).cast()) as usize),
-                            n as usize,
-                        );
+                        unsafe {
+                            ptr::copy(
+                                p,
+                                p.wrapping_add(
+                                    utfc_ptr2len(p.wrapping_add(n as usize).cast()) as usize
+                                ),
+                                n as usize,
+                            )
+                        };
                         utf_char2bytes(c, p.cast());
                     }
                     let p = fword.wrapping_add(stack[udepth].ts_fidx as usize);
@@ -1982,7 +2003,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         depth += 1;
                         udepth = depth as usize;
                         tl = utf_char2len(c3);
-                        ptr::copy(p.wrapping_add((n + fl) as usize), p, tl as usize);
+                        unsafe { ptr::copy(p.wrapping_add((n + fl) as usize), p, tl as usize) };
                         utf_char2bytes(c2, p.wrapping_add(tl as usize).cast());
                         utf_char2bytes(c, p.wrapping_add((fl + tl) as usize).cast());
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl + tl) as u8;
@@ -1997,7 +2018,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     fl = utfc_ptr2len(p.wrapping_add(n as usize).cast());
                     c = utf_ptr2char(p.wrapping_add((n + fl) as usize).cast());
                     tl = utfc_ptr2len(p.wrapping_add((n + fl) as usize).cast());
-                    ptr::copy(p, p.wrapping_add((fl + tl) as usize), n as usize);
+                    unsafe { ptr::copy(p, p.wrapping_add((fl + tl) as usize), n as usize) };
                     utf_char2bytes(c, p.cast());
                     utf_char2bytes(c2, p.wrapping_add(tl as usize).cast());
                     p = p.wrapping_add(tl as usize);
@@ -2016,7 +2037,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         c = utf_ptr2char(p.cast());
                         fl = utf_ptr2len(p.wrapping_add(n as usize).cast());
                         fl += utf_ptr2len(p.wrapping_add((n + fl) as usize).cast());
-                        ptr::copy(p.wrapping_add(n as usize), p, fl as usize);
+                        unsafe { ptr::copy(p.wrapping_add(n as usize), p, fl as usize) };
                         utf_char2bytes(c, p.wrapping_add(fl as usize).cast());
                         stack[udepth].ts_fidxtry = old_fidx + (n + fl) as u8;
                     } else {
@@ -2029,7 +2050,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     n += utfc_ptr2len(p.wrapping_add(n as usize).cast());
                     c = utf_ptr2char(p.wrapping_add(n as usize).cast());
                     tl = utfc_ptr2len(p.wrapping_add(n as usize).cast());
-                    ptr::copy(p, p.wrapping_add(tl as usize), n as usize);
+                    unsafe { ptr::copy(p, p.wrapping_add(tl as usize), n as usize) };
                     utf_char2bytes(c, p.cast());
                     if try_deeper(su, &stack, udepth, SCORE_SWAP3) {
                         go_deeper(&mut stack, udepth, SCORE_SWAP3);
@@ -2042,7 +2063,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         n += utf_ptr2len(p.wrapping_add(n as usize).cast());
                         c = utf_ptr2char(p.wrapping_add(n as usize).cast());
                         tl = utf_ptr2len(p.wrapping_add(n as usize).cast());
-                        ptr::copy(p, p.wrapping_add(tl as usize), n as usize);
+                        unsafe { ptr::copy(p, p.wrapping_add(tl as usize), n as usize) };
                         utf_char2bytes(c, p.cast());
                         stack[udepth].ts_fidxtry = old_fidx + (n + tl) as u8;
                     } else {
@@ -2058,7 +2079,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             tl = utfc_ptr2len(p.cast());
                             n = utfc_ptr2len(p.wrapping_add(tl as usize).cast());
                             n += utfc_ptr2len(p.wrapping_add((tl + n) as usize).cast());
-                            ptr::copy(p.wrapping_add(tl as usize), p, n as usize);
+                            unsafe { ptr::copy(p.wrapping_add(tl as usize), p, n as usize) };
                             utf_char2bytes(c, p.wrapping_add(n as usize).cast());
                         }
                         if (lp.lp_replang.is_null() && !soundfold)
@@ -2072,7 +2093,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             stack[udepth].ts_curi = if soundfold {
                                 slang.sl_repsal_first[first_byte]
                             } else {
-                                (*lp.lp_replang).sl_rep_first[first_byte]
+                                crate::globals::gptr(lp.lp_replang).sl_rep_first[first_byte]
                             };
                             if stack[udepth].ts_curi < 0 {
                                 stack[udepth].ts_state = SugState::StateFinal;
@@ -2087,13 +2108,15 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         let gap = if soundfold {
                             &slang.sl_repsal
                         } else {
-                            &(*lp.lp_replang).sl_rep
+                            &crate::globals::gptr(lp.lp_replang).sl_rep
                         };
                         while (stack[udepth].ts_curi as usize) < gap.len() {
                             let curi = stack[udepth].ts_curi;
                             stack[udepth].ts_curi += 1;
                             let ftp = &gap[curi as usize];
-                            if *ftp.ft_from.as_ptr().cast::<u8>() != *p {
+                            if *crate::globals::gptr(ftp.ft_from.as_ptr().cast::<u8>())
+                                != *crate::globals::gptr(p)
+                            {
                                 stack[udepth].ts_curi = gap.len() as i16;
                                 break;
                             }
@@ -2139,7 +2162,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                     let gap = if soundfold {
                         &slang.sl_repsal
                     } else {
-                        &(*lp.lp_replang).sl_rep
+                        &crate::globals::gptr(lp.lp_replang).sl_rep
                     };
                     let ftp = &gap[(stack[udepth].ts_curi - 1) as usize];
                     fl = ftp.ft_from.as_bytes().len() as i32;
@@ -2860,18 +2883,22 @@ fn rescore_suggestions(su: &mut Suginfo) {
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
     let slang = stp.st_slang;
     let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
-    if !slang.is_null() && unsafe { (*slang).has_sal() } && !stp.st_had_bonus {
+    if !slang.is_null() && crate::globals::gptr(slang).has_sal() && !stp.st_had_bonus {
         let p: *mut u8 = if slang == su.su_sallang {
             su.su_sal_badword.as_mut_ptr()
         } else {
-            unsafe {
-                spell_soundfold(&mut *slang, &su.su_fbadword, true, &mut sal_badword);
-            }
+            spell_soundfold(
+                crate::globals::gmut(slang),
+                &su.su_fbadword,
+                true,
+                &mut sal_badword,
+            );
+
             sal_badword.as_mut_ptr()
         };
-        unsafe {
-            stp.st_altscore = stp_sal_score(stp, su, &mut *slang, p.cast());
-        }
+
+        stp.st_altscore = stp_sal_score(stp, su, crate::globals::gmut(slang), p.cast());
+
         if stp.st_altscore == SCORE_MAXMAX {
             stp.st_altscore = SCORE_BIG;
         }

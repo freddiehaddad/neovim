@@ -149,7 +149,7 @@ impl Matchinf {
 
     #[inline]
     fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.mi_win }
+        crate::globals::gmut(self.mi_win)
     }
 }
 
@@ -223,7 +223,7 @@ static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> =
 
 #[inline]
 pub(crate) fn spell_priv_st() -> &'static mut SpellPrivateState {
-    unsafe { &mut *SPELL_PRIV_STATE.as_ptr() }
+    crate::globals::gmut(SPELL_PRIV_STATE.as_ptr())
 }
 #[inline]
 pub fn spell_isupper(c: i32) -> bool {
@@ -272,7 +272,7 @@ pub fn spell_check(
     docount: bool,
 ) -> usize {
     let ptr: *mut u8 = ptr.into_c_char_ptr().cast_mut().cast();
-    unsafe {
+    {
         if (crate::memory::cstr_first_byte(ptr.cast())) <= b' ' {
             return 1;
         }
@@ -286,11 +286,13 @@ pub fn spell_check(
         let use_camel_case = (w_s.b_p_spo_flags & K_OPT_SPO_FLAG_CAMEL) != 0;
         let mut is_camel_case = false;
         let mut mi = Matchinf::new();
-        if *ptr >= b'0' && *ptr <= b'9' {
+        if *crate::globals::gptr(ptr) >= b'0' && *crate::globals::gptr(ptr) <= b'9' {
             let ptr_bytes = crate::memory::cstr_as_bytes(ptr.cast());
-            if *ptr == b'0' && matches!(ptr_bytes.get(1), Some(b'b' | b'B')) {
+            if *crate::globals::gptr(ptr) == b'0' && matches!(ptr_bytes.get(1), Some(b'b' | b'B')) {
                 mi.mi_end = skipbin(ptr.wrapping_add(2).cast()).cast_mut().cast();
-            } else if *ptr == b'0' && matches!(ptr_bytes.get(1), Some(b'x' | b'X')) {
+            } else if *crate::globals::gptr(ptr) == b'0'
+                && matches!(ptr_bytes.get(1), Some(b'x' | b'X'))
+            {
                 mi.mi_end = skiphex(ptr.wrapping_add(2).cast()).cast();
             } else {
                 mi.mi_end = skipdigits(ptr.cast()).cast();
@@ -344,20 +346,22 @@ pub fn spell_check(
         mi.mi_result2 = SP_BAD;
         for lpi in 0..w_s.b_langp.len() {
             mi.mi_lp = (&w_s.b_langp)[lpi];
-            if (*mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
+            if crate::globals::gptr(mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
                 continue;
             }
             find_word(&mut mi, FIND_FOLDWORD);
             find_word(&mut mi, FIND_KEEPWORD);
             find_prefix(&mut mi, FIND_FOLDWORD);
-            if (*mi.mi_lp.lp_slang).sl_nobreak && mi.mi_result == SP_BAD && mi.mi_result2 != SP_BAD
+            if crate::globals::gptr(mi.mi_lp.lp_slang).sl_nobreak
+                && mi.mi_result == SP_BAD
+                && mi.mi_result2 != SP_BAD
             {
                 mi.mi_result = mi.mi_result2;
                 mi.mi_end = mi.mi_end2;
             }
             if count_word && mi.mi_result == SP_OK {
                 count_common_word(
-                    &mut *mi.mi_lp.lp_slang,
+                    crate::globals::gmut(mi.mi_lp.lp_slang),
                     ptr.cast(),
                     crate::memory::ptr_offset_from(mi.mi_end, ptr) as i32,
                     1,
@@ -386,10 +390,12 @@ pub fn spell_check(
                 return utfc_ptr2len(ptr.cast()) as usize;
             } else if mi.mi_end == ptr {
                 mb_u8ptr_adv(&mut mi.mi_end);
-            } else if mi.mi_result == SP_BAD && (*(&w_s.b_langp)[0].lp_slang).sl_nobreak {
+            } else if mi.mi_result == SP_BAD
+                && crate::globals::gptr((&w_s.b_langp)[0].lp_slang).sl_nobreak
+            {
                 let save_result = mi.mi_result;
                 mi.mi_lp = (&w_s.b_langp)[0];
-                if !(*mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
+                if !crate::globals::gptr(mi.mi_lp.lp_slang).sl_fidxs.is_empty() {
                     let mut p = mi.mi_word;
                     let mut fp = (&raw mut mi.mi_fword).cast::<u8>();
                     loop {
@@ -1226,9 +1232,7 @@ pub fn spell_move_to(
                             if dir == FORWARD {
                                 wp.w_cursor = found_pos;
                                 if !attrp.is_null() {
-                                    unsafe {
-                                        *attrp = attr;
-                                    }
+                                    *crate::globals::gptr(attrp) = attr;
                                 }
                                 ret = len;
                                 break 'theend;
@@ -1525,7 +1529,7 @@ pub fn spell_load_cb(fnames: &[std::ffi::CString], all: bool, slp: &mut Spelload
             ptr::null_mut(),
             false,
         );
-        let Some(slang) = (unsafe { slang.as_mut() }) else {
+        let Some(slang) = crate::globals::gopt_mut(slang) else {
             continue;
         };
         if slp.sl_nobreak != 0 && slang.sl_add {
@@ -1686,6 +1690,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
                 {
                     crate::memory::copy_bytes_to_c_buf(&mut region_cp, &p_bytes[1..]);
+
                     unsafe {
                         ptr::copy(
                             p.wrapping_add(3),
@@ -1693,8 +1698,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                             (len as usize)
                                 - (crate::memory::ptr_offset_from(p, lang_ptr.cast()) as usize)
                                 - 2,
-                        );
-                    }
+                        )
+                    };
+
                     region = (&raw mut region_cp).cast();
                 } else {
                     dont_use_region = true;
@@ -1828,15 +1834,17 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 spf_name[len..len + 5].copy_from_slice(b".spl\0");
                 let mut c = 0;
                 while c < ga.len() {
-                    if unsafe {
-                        (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
+                    if crate::globals::gptr(ga[c].lp_slang)
+                        .sl_fname
+                        .as_ref()
+                        .is_some_and(|p| {
                             path_equal(
                                 spf_ptr.cast(),
                                 p.as_ptr(),
                                 K_PATH_CMP_EXPAND as PathCmpFlags,
                             )
                         })
-                    } {
+                    {
                         break;
                     }
                     c += 1;
@@ -1869,13 +1877,11 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
                 slang = spell_load_file(spf_ptr.cast(), Some(&mut lang), ptr::null_mut(), true);
                 if !slang.is_null() && nobreak {
-                    unsafe {
-                        (*slang).sl_nobreak = true;
-                    }
+                    crate::globals::gptr(slang).sl_nobreak = true;
                 }
             }
             if !slang.is_null() {
-                let slang = unsafe { &mut *slang };
+                let slang = crate::globals::gmut(slang);
                 let mut region_mask = REGION_ALL;
                 if !use_region.is_null() && !dont_use_region {
                     let c = find_region((&raw const slang.sl_regions).cast(), use_region.cast());
@@ -1898,24 +1904,20 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
         }
         for i in 0..ga.len() {
             let lp_slang = ga[i].lp_slang;
-            let lp_name = unsafe {
-                (*lp_slang)
-                    .sl_name
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr())
-            };
-            if unsafe { (*lp_slang).has_sal() } {
+            let lp_name = crate::globals::gptr(lp_slang)
+                .sl_name
+                .as_ref()
+                .map_or(c"".as_ptr(), |s| s.as_ptr());
+            if crate::globals::gptr(lp_slang).has_sal() {
                 ga[i].lp_sallang = lp_slang;
             } else {
                 for lp2 in &ga {
-                    let lp2_b = unsafe {
-                        (*lp2.lp_slang)
-                            .sl_name
-                            .as_ref()
-                            .map_or(&b""[..], |s| s.as_bytes())
-                    };
+                    let lp2_b = crate::globals::gref(lp2.lp_slang)
+                        .sl_name
+                        .as_ref()
+                        .map_or(&b""[..], |s| s.as_bytes());
                     let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                    if unsafe { (*lp2.lp_slang).has_sal() }
+                    if crate::globals::gptr(lp2.lp_slang).has_sal()
                         && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                     {
                         ga[i].lp_sallang = lp2.lp_slang;
@@ -1923,18 +1925,16 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     }
                 }
             }
-            if unsafe { !(*lp_slang).sl_rep.is_empty() } {
+            if !crate::globals::gptr(lp_slang).sl_rep.is_empty() {
                 ga[i].lp_replang = lp_slang;
             } else {
                 for lp2 in &ga {
-                    let lp2_b = unsafe {
-                        (*lp2.lp_slang)
-                            .sl_name
-                            .as_ref()
-                            .map_or(&b""[..], |s| s.as_bytes())
-                    };
+                    let lp2_b = crate::globals::gref(lp2.lp_slang)
+                        .sl_name
+                        .as_ref()
+                        .map_or(&b""[..], |s| s.as_bytes());
                     let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                    if unsafe { !(*lp2.lp_slang).sl_rep.is_empty() }
+                    if !crate::globals::gptr(lp2.lp_slang).sl_rep.is_empty()
                         && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
                     {
                         ga[i].lp_replang = lp2.lp_slang;
@@ -3039,8 +3039,8 @@ fn dump_prefixes(
         }
         if !slang.sl_pbyts.is_empty() {
             let slang_ptr: *mut Slang = slang;
-            let byts: &[u8] = &unsafe { &*slang_ptr }.sl_pbyts;
-            let idxs: &[Idx] = &unsafe { &*slang_ptr }.sl_pidxs;
+            let byts: &[u8] = &(crate::globals::gref(slang_ptr)).sl_pbyts;
+            let idxs: &[Idx] = &(crate::globals::gref(slang_ptr)).sl_pidxs;
             let mut depth: isize = 0;
             arridx[0] = 0;
             curi[0] = 1;

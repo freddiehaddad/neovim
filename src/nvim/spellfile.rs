@@ -183,7 +183,7 @@ static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> =
 
 #[inline]
 fn spellfile_st() -> &'static mut SpellfileModuleState {
-    unsafe { &mut *SPELLFILE_STATE.as_ptr() }
+    crate::globals::gmut(SPELLFILE_STATE.as_ptr())
 }
 
 #[repr(C)]
@@ -516,7 +516,7 @@ pub fn spell_load_file(
             None
         };
         let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
-        let lp = unsafe { &mut *lp_ptr };
+        let lp = crate::globals::gmut(lp_ptr);
 
         estack_push(ETYPE_SPELL, fname, 0);
         let did_estack_push = true;
@@ -1588,7 +1588,7 @@ fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) 
         let len = spell_priv_st().first_lang.len();
         for i in (0..len).rev() {
             let slang: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
-            let slang = unsafe { &mut *slang };
+            let slang = crate::globals::gmut(slang);
             if slang
                 .sl_fname
                 .as_ref()
@@ -1654,7 +1654,7 @@ fn spell_read_aff(
     fname: impl crate::strings::IntoCCharPtr,
 ) -> Option<Afffile> {
     let fname = fname.into_c_char_ptr();
-    unsafe {
+    {
         let mut rline = [0u8; MAXLINELEN];
         let mut pc_vec: Vec<u8>;
         let mut items = [ptr::null_mut::<u8>(); MAXITEMCNT];
@@ -1766,7 +1766,7 @@ fn spell_read_aff(
                 if item_len == p_bytes.len() {
                     break;
                 }
-                *p = 0;
+                *crate::globals::gptr(p) = 0;
                 p = p.wrapping_add(1);
             }
 
@@ -2045,7 +2045,9 @@ fn spell_read_aff(
                     let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
                     if let Some(existing_aff) = tp.get_mut(key_bytes) {
                         cur_aff = &raw mut *existing_aff;
-                        if (*cur_aff).ah_combine != i32::from(item2_bytes.first() == Some(&b'Y')) {
+                        if crate::globals::gptr(cur_aff).ah_combine
+                            != i32::from(item2_bytes.first() == Some(&b'Y'))
+                        {
                             smsg!(
                                 0,
                                 gettext(
@@ -2056,7 +2058,7 @@ fn spell_read_aff(
                                 items[1].cast::<std::ffi::c_void>(),
                             );
                         }
-                        if (*cur_aff).ah_follows == 0 {
+                        if crate::globals::gptr(cur_aff).ah_follows == 0 {
                             smsg!(
                                 0,
                                 gettext(c"Duplicate affix in %s line %d: %s"),
@@ -2104,12 +2106,15 @@ fn spell_read_aff(
                     if itemcnt > lasti && crate::memory::cstr_as_bytes(items[lasti].cast()) == b"S"
                     {
                         lasti += 1;
-                        (*cur_aff).ah_follows = 1;
+                        crate::globals::gptr(cur_aff).ah_follows = 1;
                     } else {
-                        (*cur_aff).ah_follows = 0;
+                        crate::globals::gptr(cur_aff).ah_follows = 0;
                     }
 
-                    if itemcnt > lasti && !aff.af_ignoreextra && *items[lasti] != b'#' {
+                    if itemcnt > lasti
+                        && !aff.af_ignoreextra
+                        && *crate::globals::gptr(items[lasti]) != b'#'
+                    {
                         smsg!(
                             0,
                             gettext(E_AFFTRAILING),
@@ -2130,10 +2135,10 @@ fn spell_read_aff(
                     }
 
                     if item0_bytes[0] == b'P' && aff.af_pfxpostpone != 0 {
-                        if (*cur_aff).ah_new_id == 0 {
+                        if crate::globals::gptr(cur_aff).ah_new_id == 0 {
                             check_renumber(spin);
                             spin.si_newpref_id += 1;
-                            (*cur_aff).ah_new_id = spin.si_newpref_id;
+                            crate::globals::gptr(cur_aff).ah_new_id = spin.si_newpref_id;
                             did_postpone_prefix = false;
                         } else {
                             did_postpone_prefix = true;
@@ -2145,13 +2150,14 @@ fn spell_read_aff(
                     )) as i32;
                 } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
                     && aff_todo > 0
-                    && (crate::memory::cstr_as_bytes((&raw const (*cur_aff).ah_key).cast())
-                        == crate::memory::cstr_as_bytes(items[1].cast()))
+                    && (crate::memory::cstr_as_bytes(
+                        (&raw const crate::globals::gptr(cur_aff).ah_key).cast(),
+                    ) == crate::memory::cstr_as_bytes(items[1].cast()))
                     && itemcnt >= 5
                 {
                     let lasti: usize = 5;
                     if itemcnt > lasti
-                        && *items[lasti] != b'#'
+                        && *crate::globals::gptr(items[lasti]) != b'#'
                         && (crate::memory::cstr_as_bytes(items[lasti].cast()) != b"-"
                             || itemcnt != lasti + 1)
                     {
@@ -2201,9 +2207,12 @@ fn spell_read_aff(
                                 .add_cstr()
                                 .is_none_or(|s| s.to_bytes().is_ascii()))
                     {
-                        (*cur_aff).ah_entries.insert(0, aff_entry_val);
-                        let aff_entry: *mut Affentry = (*cur_aff).ah_entries.as_mut_ptr();
-                        let aff_entry = &mut *aff_entry;
+                        crate::globals::gptr(cur_aff)
+                            .ah_entries
+                            .insert(0, aff_entry_val);
+                        let aff_entry: *mut Affentry =
+                            crate::globals::gptr(cur_aff).ah_entries.as_mut_ptr();
+                        let aff_entry = crate::globals::gmut(aff_entry);
 
                         if crate::memory::cstr_as_bytes(items[4].cast()) != b"." {
                             let mut buf = [0u8; MAXLINELEN];
@@ -2305,7 +2314,7 @@ fn spell_read_aff(
                                     .map_or(c"".as_ptr(), |s| s.as_ptr());
 
                                 let mut n = PFX_FLAGS;
-                                if (*cur_aff).ah_combine == 0 {
+                                if crate::globals::gptr(cur_aff).ah_combine == 0 {
                                     n |= WFP_NC;
                                 }
                                 if upper {
@@ -2323,14 +2332,14 @@ fn spell_read_aff(
                                     spin.si_prefroot,
                                     n,
                                     idx,
-                                    (*cur_aff).ah_new_id,
+                                    crate::globals::gptr(cur_aff).ah_new_id,
                                 );
                                 did_postpone_prefix = true;
                             }
 
                             if aff_todo == 0 && !did_postpone_prefix {
                                 spin.si_newpref_id -= 1;
-                                (*cur_aff).ah_new_id = 0;
+                                crate::globals::gptr(cur_aff).ah_new_id = 0;
                             }
                         }
                     }
@@ -2343,7 +2352,7 @@ fn spell_read_aff(
                 } else if is_aff_rule(&items, itemcnt_i, c"REP", 2)
                     || is_aff_rule(&items, itemcnt_i, c"REPSAL", 2)
                 {
-                    if !(*items[1]).is_ascii_digit() {
+                    if !crate::globals::gptr(items[1]).is_ascii_digit() {
                         smsg!(
                             0,
                             gettext(c"Expected REP(SAL) count in %s line %d"),
@@ -2352,7 +2361,7 @@ fn spell_read_aff(
                         );
                     }
                 } else if (item0_bytes == b"REP" || item0_bytes == b"REPSAL") && itemcnt >= 3 {
-                    if itemcnt > 3 && *items[3] != b'#' {
+                    if itemcnt > 3 && *crate::globals::gptr(items[3]) != b'#' {
                         smsg!(
                             0,
                             gettext(E_AFFTRAILING),
@@ -2364,16 +2373,16 @@ fn spell_read_aff(
                     let is_repsal = item0_bytes == b"REPSAL";
                     if if is_repsal { do_repsal } else { do_rep } {
                         let mut p1 = items[1];
-                        while *p1 != 0 {
-                            if *p1 == b'_' {
-                                *p1 = b' ';
+                        while *crate::globals::gptr(p1) != 0 {
+                            if *crate::globals::gptr(p1) == b'_' {
+                                *crate::globals::gptr(p1) = b' ';
                             }
                             mb_ptr_adv(&mut p1);
                         }
                         let mut p2 = items[2];
-                        while *p2 != 0 {
-                            if *p2 == b'_' {
-                                *p2 = b' ';
+                        while *crate::globals::gptr(p2) != 0 {
+                            if *crate::globals::gptr(p2) == b'_' {
+                                *crate::globals::gptr(p2) = b' ';
                             }
                             mb_ptr_adv(&mut p2);
                         }
@@ -2390,7 +2399,7 @@ fn spell_read_aff(
                 } else if is_aff_rule(&items, itemcnt_i, c"MAP", 2) {
                     if !found_map {
                         found_map = true;
-                        if !(*items[1]).is_ascii_digit() {
+                        if !crate::globals::gptr(items[1]).is_ascii_digit() {
                             smsg!(0, gettext(c"Expected MAP count in %s line %d"), fname, lnum,);
                         }
                     } else if do_mapline {
@@ -2420,7 +2429,9 @@ fn spell_read_aff(
                         }
                         if !items[1].is_null() {
                             let s_len = crate::memory::cstr_len(items[1].cast());
-                            si_map.extend_from_slice(std::slice::from_raw_parts(items[1], s_len));
+                            si_map.extend_from_slice(unsafe {
+                                std::slice::from_raw_parts(items[1], s_len)
+                            });
                         }
                         si_map.push(b'/');
                     }
@@ -4565,7 +4576,7 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCh
         spin.si_foldwcount = 0;
 
         spell_message(&*spin, gettext(c"Performing soundfolding..."));
-        if sug_filltree(spin, unsafe { &mut *slang }) && sug_maketable(spin) {
+        if sug_filltree(spin, crate::globals::gmut(slang)) && sug_maketable(spin) {
             smsg!(
                 0,
                 gettext(c"Number of words after soundfolding: %lld"),
@@ -4608,8 +4619,10 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
     }
     let fbyts_len = slang.sl_fbyts.len() as i32;
     let slang_ptr: *mut Slang = slang;
-    let (byts, idxs): (&[u8], &mut [Idx]) =
-        unsafe { (&(*slang_ptr).sl_fbyts, &mut (*slang_ptr).sl_fidxs) };
+    let (byts, idxs): (&[u8], &mut [Idx]) = (
+        &crate::globals::gptr(slang_ptr).sl_fbyts,
+        &mut crate::globals::gptr(slang_ptr).sl_fidxs,
+    );
 
     arridx[0] = 0;
     curi[0] = 1;
@@ -5102,16 +5115,14 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 return;
             }
         }
-        unsafe {
-            (&raw const spell_priv_st().int_wordlist)
-                .as_ref()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                .as_ptr()
-                .cast_mut()
-                .cast()
-        }
+
+        crate::globals::gopt(&raw const spell_priv_st().int_wordlist)
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .as_ptr()
+            .cast_mut()
+            .cast()
     } else {
         if crate::memory::cstr_is_empty(win_s(curwin_mut()).b_p_spf) {
             init_spellfile();
@@ -5139,10 +5150,10 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         }
 
         buf = buflist_findname_exp(fnamebuf.cast());
-        if !buf.is_null() && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+        if !buf.is_null() && crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
             buf = ptr::null_mut();
         }
-        if !buf.is_null() && unsafe { buf_is_changed_fn(&mut *buf) } {
+        if !buf.is_null() && buf_is_changed_fn(crate::globals::gmut(buf)) {
             emsg(gettext(E_BUFLOADED));
             return;
         }
@@ -5197,13 +5208,11 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 }
                 if rw_fd.seek(fpos_next, SEEK_SET) != 0 {
                     let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-                    unsafe {
-                        semsg!(
-                            c"%s: %s",
-                            gettext(c"Seek error in spellfile"),
-                            strerror(err),
-                        );
-                    }
+
+                    semsg!(c"%s: %s", gettext(c"Seek error in spellfile"), unsafe {
+                        strerror(err)
+                    },);
+
                     break;
                 }
             }
@@ -5266,9 +5275,11 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         );
 
         if !buf.is_null() {
-            unsafe {
-                buf_reload(&mut *(buf), (*buf).b_orig_mode, false);
-            }
+            buf_reload(
+                crate::globals::gmut(buf),
+                crate::globals::gptr(buf).b_orig_mode,
+                false,
+            );
         }
 
         redraw_all_later(UPD_SOME_VALID);

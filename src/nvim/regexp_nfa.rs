@@ -199,7 +199,7 @@ static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState:
 
 #[inline]
 fn nfa_st() -> &'static mut RegexpNfaState {
-    unsafe { &mut *NFA_STATE.as_ptr() }
+    crate::globals::gmut(NFA_STATE.as_ptr())
 }
 
 #[inline]
@@ -2618,7 +2618,7 @@ fn addstate_idx(
     }
 
     let st_ptr = states.wrapping_add(state_idx);
-    let st_ptr = unsafe { &mut *st_ptr };
+    let st_ptr = crate::globals::gmut(st_ptr);
     let st_c = st_ptr.c;
     match st_c {
         NFA_NCLOSE | NFA_MOPEN | NFA_ZEND | NFA_SPLIT | NFA_EMPTY => {
@@ -2632,12 +2632,10 @@ fn addstate_idx(
         c => {
             if (c == NFA_BOL || c == NFA_BOF)
                 && re_st().rex.input > re_st().rex.line
-                && unsafe { *re_st().rex.input != NUL }
-                && (unsafe {
-                    re_st().nfa_endp.is_null()
-                        || !reg_multi()
-                        || re_st().rex.lnum == (*re_st().nfa_endp).se_u.pos().lnum
-                })
+                && *crate::globals::gptr(re_st().rex.input) != NUL
+                && (re_st().nfa_endp.is_null()
+                    || !reg_multi()
+                    || re_st().rex.lnum == crate::globals::gptr(re_st().nfa_endp).se_u.pos().lnum)
             {
                 return subs_arg;
             }
@@ -2655,7 +2653,7 @@ fn addstate_idx(
                         let limit = l.n.min(listindex) as usize;
                         let mut found = false;
                         for k in 0..limit {
-                            if unsafe { (*tp.wrapping_add(k)).state == Some(state_idx) } {
+                            if crate::globals::gptr(tp.wrapping_add(k)).state == Some(state_idx) {
                                 found = true;
                                 break;
                             }
@@ -2666,8 +2664,12 @@ fn addstate_idx(
                     } else {
                         return subs_arg;
                     }
-                } else if unsafe { has_state_with_pos(l, state_idx, &mut *subs_arg, pim.as_ref()) }
-                {
+                } else if has_state_with_pos(
+                    l,
+                    state_idx,
+                    crate::globals::gmut(subs_arg),
+                    crate::globals::gopt(pim),
+                ) {
                     return subs_arg;
                 }
             }
@@ -2681,13 +2683,16 @@ fn addstate_idx(
                     return ptr::null_mut();
                 }
                 if subs != &raw mut nfa_st().temp_subs {
-                    unsafe {
-                        copy_sub(&mut nfa_st().temp_subs.norm, &mut (*subs).norm);
-                    }
+                    copy_sub(
+                        &mut nfa_st().temp_subs.norm,
+                        &mut crate::globals::gptr(subs).norm,
+                    );
+
                     if re_st().rex.nfa_has_zsubexpr != 0 {
-                        unsafe {
-                            copy_sub(&mut nfa_st().temp_subs.synt, &mut (*subs).synt);
-                        }
+                        copy_sub(
+                            &mut nfa_st().temp_subs.synt,
+                            &mut crate::globals::gptr(subs).synt,
+                        );
                     }
                     subs = &raw mut nfa_st().temp_subs;
                 }
@@ -2700,23 +2705,20 @@ fn addstate_idx(
             if thread_idx == l.t.len() {
                 l.t.push(NfaThread::new());
             }
-            let thread = unsafe { &mut *l.t.as_mut_ptr().wrapping_add(thread_idx) };
+            let thread = crate::globals::gmut(l.t.as_mut_ptr().wrapping_add(thread_idx));
             thread.state = Some(state_idx);
             if pim.is_null() {
                 thread.pim.result = NFA_PIM_UNUSED;
             } else {
-                unsafe {
-                    copy_pim(&mut thread.pim, &mut *pim);
-                }
+                copy_pim(&mut thread.pim, crate::globals::gmut(pim));
+
                 l.has_pim = 1;
             }
-            unsafe {
-                copy_sub(&mut thread.subs.norm, &mut (*subs).norm);
-            }
+
+            copy_sub(&mut thread.subs.norm, &mut crate::globals::gptr(subs).norm);
+
             if re_st().rex.nfa_has_zsubexpr != 0 {
-                unsafe {
-                    copy_sub(&mut thread.subs.synt, &mut (*subs).synt);
-                }
+                copy_sub(&mut thread.subs.synt, &mut crate::globals::gptr(subs).synt);
             }
 
             if st_c == NFA_NOPEN
@@ -2747,8 +2749,8 @@ fn addstate_eps(
     } else {
         off_arg
     };
-    let st_out = unsafe { (*states.wrapping_add(state_idx)).out };
-    let st_out1 = unsafe { (*states.wrapping_add(state_idx)).out1 };
+    let st_out = crate::globals::gptr(states.wrapping_add(state_idx)).out;
+    let st_out1 = crate::globals::gptr(states.wrapping_add(state_idx)).out1;
     match st_c {
         NFA_MATCH => {}
         NFA_SPLIT => {
@@ -2769,11 +2771,17 @@ fn addstate_eps(
             || c == NFA_ZSTART =>
         {
             let (subidx, mut sub) = if c == NFA_ZSTART {
-                unsafe { (0usize, &mut (*subs).norm) }
+                (0usize, &mut crate::globals::gptr(subs).norm)
             } else if (NFA_ZOPEN..=NFA_ZOPEN9).contains(&c) {
-                unsafe { ((c - NFA_ZOPEN) as usize, &mut (*subs).synt) }
+                (
+                    (c - NFA_ZOPEN) as usize,
+                    &mut crate::globals::gptr(subs).synt,
+                )
             } else {
-                unsafe { ((c - NFA_MOPEN) as usize, &mut (*subs).norm) }
+                (
+                    (c - NFA_MOPEN) as usize,
+                    &mut crate::globals::gptr(subs).norm,
+                )
             };
 
             let mut save_ptr: *mut u8 = ptr::null_mut();
@@ -2798,10 +2806,11 @@ fn addstate_eps(
                     multi[subidx].start_col = 0;
                 } else {
                     multi[subidx].start_lnum = re_st().rex.lnum;
-                    unsafe {
-                        multi[subidx].start_col =
-                            (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + off;
-                    }
+
+                    multi[subidx].start_col =
+                        (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                            as Colnr)
+                            + off;
                 }
                 multi[subidx].end_lnum = -1;
             } else {
@@ -2827,9 +2836,9 @@ fn addstate_eps(
             };
             if !subs.is_null() {
                 sub = if (NFA_ZOPEN..=NFA_ZOPEN9).contains(&st_c) {
-                    unsafe { &mut (*subs).synt }
+                    &mut crate::globals::gmut(subs).synt
                 } else {
-                    unsafe { &mut (*subs).norm }
+                    &mut crate::globals::gmut(subs).norm
                 };
                 if save_in_use == -1 {
                     if reg_multi() {
@@ -2849,9 +2858,9 @@ fn addstate_eps(
             if c == NFA_MCLOSE
                 && re_st().rex.nfa_has_zend != 0
                 && if reg_multi() {
-                    unsafe { (*subs).norm.list.multi()[0].end_lnum >= 0 }
+                    crate::globals::gptr(subs).norm.list.multi()[0].end_lnum >= 0
                 } else {
-                    unsafe { !(*subs).norm.list.line()[0].end.is_null() }
+                    !crate::globals::gptr(subs).norm.list.line()[0].end.is_null()
                 }
             {
                 if let Some(o) = st_out {
@@ -2859,11 +2868,17 @@ fn addstate_eps(
                 }
             } else {
                 let (subidx, mut sub) = if c == NFA_ZEND {
-                    unsafe { (0usize, &mut (*subs).norm) }
+                    (0usize, &mut crate::globals::gptr(subs).norm)
                 } else if (NFA_ZCLOSE..=NFA_ZCLOSE9).contains(&c) {
-                    unsafe { ((c - NFA_ZCLOSE) as usize, &mut (*subs).synt) }
+                    (
+                        (c - NFA_ZCLOSE) as usize,
+                        &mut crate::globals::gptr(subs).synt,
+                    )
                 } else {
-                    unsafe { ((c - NFA_MCLOSE) as usize, &mut (*subs).norm) }
+                    (
+                        (c - NFA_MCLOSE) as usize,
+                        &mut crate::globals::gptr(subs).norm,
+                    )
                 };
 
                 let save_in_use = sub.in_use;
@@ -2880,10 +2895,11 @@ fn addstate_eps(
                         multi[subidx].end_col = 0;
                     } else {
                         multi[subidx].end_lnum = re_st().rex.lnum;
-                        unsafe {
-                            multi[subidx].end_col =
-                                (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + off;
-                        }
+
+                        multi[subidx].end_col =
+                            (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr)
+                                + off;
                     }
                 } else {
                     let line = sub.list.line_mut();
@@ -2898,9 +2914,9 @@ fn addstate_eps(
                 };
                 if !subs.is_null() {
                     sub = if (NFA_ZCLOSE..=NFA_ZCLOSE9).contains(&st_c) {
-                        unsafe { &mut (*subs).synt }
+                        &mut crate::globals::gmut(subs).synt
                     } else {
-                        unsafe { &mut (*subs).norm }
+                        &mut crate::globals::gmut(subs).norm
                     };
                     if reg_multi() {
                         sub.list.multi_mut()[subidx] = save_multipos;
@@ -3453,9 +3469,7 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
 fn nfa_did_time_out() -> bool {
     if nfa_st().nfa_time_limit.is_some_and(profile_passed_limit) {
         if !nfa_st().nfa_timed_out.is_null() {
-            unsafe {
-                *nfa_st().nfa_timed_out = 1;
-            }
+            *crate::globals::gptr(nfa_st().nfa_timed_out) = 1;
         }
         return true;
     }
@@ -3517,7 +3531,8 @@ fn nfa_regmatch(
 
     let r = if toplevel {
         if reg_multi() {
-            let start_col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) as Colnr };
+            let start_col =
+                crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line) as Colnr;
             m.norm.list.multi_mut()[0].start_lnum = re_st().rex.lnum;
             m.norm.list.multi_mut()[0].start_col = start_col;
             m.norm.orig_start_col = start_col;
@@ -3554,13 +3569,12 @@ fn nfa_regmatch(
     loop {
         let curc: i32;
         let mut clen: i32;
-        if unsafe { *re_st().rex.input != NUL }
-            && unsafe { *re_st().rex.input < 0x80 }
-            && unsafe { *re_st().rex.input.wrapping_add(1) < 0x80 }
+        if *crate::globals::gptr(re_st().rex.input) != NUL
+            && *crate::globals::gptr(re_st().rex.input) < 0x80
+            && *crate::globals::gptr(re_st().rex.input.wrapping_add(1)) < 0x80
         {
-            unsafe {
-                curc = *re_st().rex.input as i32;
-            }
+            curc = (*crate::globals::gptr(re_st().rex.input)) as i32;
+
             clen = 1;
         } else {
             curc = utf_ptr2char(re_st().rex.input.cast());
@@ -3575,8 +3589,9 @@ fn nfa_regmatch(
         flag ^= 1;
         let next_idx = flag;
         let thislist = (&raw mut list).cast::<NfaList>().wrapping_add(this_idx);
-        let thislist = unsafe { &mut *thislist };
-        let nextlist = unsafe { &mut *(&raw mut list).cast::<NfaList>().wrapping_add(next_idx) };
+        let thislist = crate::globals::gmut(thislist);
+        let nextlist =
+            crate::globals::gmut((&raw mut list).cast::<NfaList>().wrapping_add(next_idx));
         nextlist.n = 0;
         nextlist.has_pim = 0;
         re_st().rex.nfa_listid += 1;
@@ -3608,7 +3623,7 @@ fn nfa_regmatch(
                     }
                 }
             }
-            let t = unsafe { &mut *thislist.t.as_mut_ptr().wrapping_add(listidx as usize) };
+            let t = crate::globals::gmut(thislist.t.as_mut_ptr().wrapping_add(listidx as usize));
             let t_state_idx = unsafe { t.state.unwrap_unchecked() };
             let t_st = &prog.state[t_state_idx];
 
@@ -3640,14 +3655,16 @@ fn nfa_regmatch(
                 NFA_END_INVISIBLE | NFA_END_INVISIBLE_NEG | NFA_END_PATTERN => {
                     if !re_st().nfa_endp.is_null()
                         && if reg_multi() {
-                            let end_pos = unsafe { (*re_st().nfa_endp).se_u.pos() };
-                            unsafe {
-                                re_st().rex.lnum != end_pos.lnum
-                                    || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
-                                        != end_pos.col
-                            }
+                            let end_pos = crate::globals::gptr(re_st().nfa_endp).se_u.pos();
+
+                            re_st().rex.lnum != end_pos.lnum
+                                || (crate::memory::ptr_offset_from(
+                                    re_st().rex.input,
+                                    re_st().rex.line,
+                                ) as Colnr)
+                                    != end_pos.col
                         } else {
-                            unsafe { re_st().rex.input != (*re_st().nfa_endp).se_u.ptr() }
+                            re_st().rex.input != crate::globals::gptr(re_st().nfa_endp).se_u.ptr()
                         }
                     {
                         listidx += 1;
@@ -3720,12 +3737,13 @@ fn nfa_regmatch(
                         pim.subs.norm.in_use = 0;
                         pim.subs.synt.in_use = 0;
                         if reg_multi() {
-                            unsafe {
-                                pim.end = crate::regexp::RegPos::Pos(Lpos {
-                                    col: re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
-                                    lnum: re_st().rex.lnum,
-                                });
-                            }
+                            pim.end = crate::regexp::RegPos::Pos(Lpos {
+                                col: crate::memory::ptr_offset_from(
+                                    re_st().rex.input,
+                                    re_st().rex.line,
+                                ) as Colnr,
+                                lnum: re_st().rex.lnum,
+                            });
                         } else {
                             pim.end = crate::regexp::RegPos::Ptr(re_st().rex.input);
                         }
@@ -3780,14 +3798,16 @@ fn nfa_regmatch(
                                 copy_sub_off(&mut t.subs.synt, &mut m.synt);
                             }
                             let bytelen = if reg_multi() {
-                                unsafe {
-                                    m.norm.list.multi()[0].end_col
-                                        - (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
-                                }
+                                m.norm.list.multi()[0].end_col
+                                    - (crate::memory::ptr_offset_from(
+                                        re_st().rex.input,
+                                        re_st().rex.line,
+                                    ) as Colnr)
                             } else {
-                                unsafe {
-                                    m.norm.list.line()[0].end.offset_from(re_st().rex.input) as i32
-                                }
+                                crate::memory::ptr_offset_from(
+                                    m.norm.list.line()[0].end,
+                                    re_st().rex.input,
+                                ) as i32
                             };
                             if bytelen == 0 {
                                 add_here = true;
@@ -3970,14 +3990,14 @@ fn nfa_regmatch(
                     }
                 }
                 NFA_KWORD => {
-                    if unsafe { vim_iswordc_buf(curc, &mut *re_st().rex.reg_buf) } {
+                    if vim_iswordc_buf(curc, crate::globals::gmut(re_st().rex.reg_buf)) {
                         add_state = t_st.out;
                         add_off = clen;
                     }
                 }
                 NFA_SKWORD => {
                     if !ascii_isdigit(curc)
-                        && unsafe { vim_iswordc_buf(curc, &mut *re_st().rex.reg_buf) }
+                        && vim_iswordc_buf(curc, crate::globals::gmut(re_st().rex.reg_buf))
                     {
                         add_state = t_st.out;
                         add_off = clen;
@@ -4191,20 +4211,20 @@ fn nfa_regmatch(
                     }
                 }
                 NFA_COL | NFA_COL_GT | NFA_COL_LT => {
-                    if unsafe {
-                        nfa_re_num_cmp(
-                            t_st.val as u64,
-                            t_st.c - NFA_COL,
-                            (re_st().rex.input.offset_from(re_st().rex.line) + 1) as u64,
-                        )
-                    } {
+                    if nfa_re_num_cmp(
+                        t_st.val as u64,
+                        t_st.c - NFA_COL,
+                        (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line) + 1)
+                            as u64,
+                    ) {
                         add_here = true;
                         add_state = t_st.out;
                     }
                 }
                 NFA_VCOL | NFA_VCOL_GT | NFA_VCOL_LT => {
                     let op = t_st.c - NFA_VCOL;
-                    let col = unsafe { re_st().rex.input.offset_from(re_st().rex.line) as Colnr };
+                    let col = crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                        as Colnr;
                     if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                         let mut matched = false;
                         let wp = if re_st().rex.reg_win.is_null() {
@@ -4213,7 +4233,7 @@ fn nfa_regmatch(
                             re_st().rex.reg_win
                         };
                         if op == 1 && col - 1 > t_st.val && col > 100 {
-                            let mut ts = unsafe { (*wp).buf_mut().b_p_ts };
+                            let mut ts = crate::globals::gptr(wp).buf_mut().b_p_ts;
                             if ts < 4 {
                                 ts = 4;
                             }
@@ -4226,15 +4246,17 @@ fn nfa_regmatch(
                                 1
                             };
                             if reg_multi()
-                                && (unsafe {
-                                    lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count
-                                })
+                                && (lnum <= 0
+                                    || lnum > crate::globals::gptr(wp).buf_mut().b_ml.ml_line_count)
                             {
                                 lnum = 1;
                             }
-                            let vcol = unsafe {
-                                win_linetabsize(&mut *wp, lnum, re_st().rex.line.cast(), col)
-                            };
+                            let vcol = win_linetabsize(
+                                crate::globals::gmut(wp),
+                                lnum,
+                                re_st().rex.line.cast(),
+                                col,
+                            );
                             matched =
                                 nfa_re_num_cmp(t_st.val as u64, op, (vcol as u64).wrapping_add(1));
                         }
@@ -4246,25 +4268,23 @@ fn nfa_regmatch(
                 }
                 NFA_MARK | NFA_MARK_GT | NFA_MARK_LT => {
                     let col = if reg_multi() {
-                        unsafe { re_st().rex.input.offset_from(re_st().rex.line) as usize }
+                        crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line) as usize
                     } else {
                         0
                     };
-                    let fm = unsafe {
-                        mark_get(
-                            &mut *re_st().rex.reg_buf,
-                            crate::globals::curwin_mut(),
-                            None,
-                            K_MARK_BUF_LOCAL,
-                            t_st.val,
-                        )
-                    };
+                    let fm = mark_get(
+                        crate::globals::gmut(re_st().rex.reg_buf),
+                        crate::globals::curwin_mut(),
+                        None,
+                        K_MARK_BUF_LOCAL,
+                        t_st.val,
+                    );
                     if reg_multi() {
                         re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
                         re_st().rex.input = re_st().rex.line.wrapping_add(col);
                     }
-                    if !fm.is_null() && unsafe { (*fm).mark.lnum > 0 } {
-                        let pos = unsafe { &(*fm).mark };
+                    if !fm.is_null() && crate::globals::gptr(fm).mark.lnum > 0 {
+                        let pos = &crate::globals::gptr(fm).mark;
                         let pos_col = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
                             && pos.col == MAXCOL
                         {
@@ -4273,7 +4293,8 @@ fn nfa_regmatch(
                             pos.col
                         };
                         let cur_col =
-                            unsafe { re_st().rex.input.offset_from(re_st().rex.line) as Colnr };
+                            crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr;
                         let st_c = t_st.c;
                         let matched = if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum {
                             if pos_col == cur_col {
@@ -4298,10 +4319,9 @@ fn nfa_regmatch(
                     if !re_st().rex.reg_win.is_null()
                         && re_st().rex.lnum + re_st().rex.reg_firstlnum
                             == re_st().rex.win_mut().w_cursor.lnum
-                        && unsafe {
-                            (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
-                                == re_st().rex.win_mut().w_cursor.col
-                        }
+                        && (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                            as Colnr)
+                            == re_st().rex.win_mut().w_cursor.col
                     {
                         add_here = true;
                         add_state = t_st.out;
@@ -4341,53 +4361,48 @@ fn nfa_regmatch(
                 let mut pim_copy: NfaPim;
 
                 if !pim.is_null() && (clen == 0 || match_follows(&prog.state, add_state, 0)) {
-                    let pim_state_idx = unsafe { (*pim).state.unwrap() };
+                    let pim_state_idx = crate::globals::gptr(pim).state.unwrap();
                     let pim_c = (&prog.state)[pim_state_idx].c;
                     let is_neg = pim_c == NFA_START_INVISIBLE_NEG
                         || pim_c == NFA_START_INVISIBLE_NEG_FIRST
                         || pim_c == NFA_START_INVISIBLE_BEFORE_NEG
                         || pim_c == NFA_START_INVISIBLE_BEFORE_NEG_FIRST;
-                    let res = if unsafe { (*pim).result == NFA_PIM_TODO } {
-                        let r = unsafe {
-                            recursive_regmatch(
-                                pim_state_idx,
-                                pim.as_ref(),
-                                &mut *prog,
-                                &mut *submatch,
-                                m,
-                                &mut listids,
-                            )
+                    let res = if crate::globals::gptr(pim).result == NFA_PIM_TODO {
+                        let r = recursive_regmatch(
+                            pim_state_idx,
+                            crate::globals::gopt(pim),
+                            &mut *prog,
+                            &mut *submatch,
+                            m,
+                            &mut listids,
+                        );
+
+                        crate::globals::gptr(pim).result = if r != 0 {
+                            NFA_PIM_MATCH
+                        } else {
+                            NFA_PIM_NOMATCH
                         };
-                        unsafe {
-                            (*pim).result = if r != 0 {
-                                NFA_PIM_MATCH
-                            } else {
-                                NFA_PIM_NOMATCH
-                            };
-                        }
+
                         if (r != 0) != is_neg {
-                            unsafe {
-                                copy_sub_off(&mut (*pim).subs.norm, &mut m.norm);
-                            }
+                            copy_sub_off(&mut crate::globals::gptr(pim).subs.norm, &mut m.norm);
+
                             if re_st().rex.nfa_has_zsubexpr != 0 {
-                                unsafe {
-                                    copy_sub_off(&mut (*pim).subs.synt, &mut m.synt);
-                                }
+                                copy_sub_off(&mut crate::globals::gptr(pim).subs.synt, &mut m.synt);
                             }
                         }
                         r != 0
                     } else {
-                        unsafe { (*pim).result == NFA_PIM_MATCH }
+                        crate::globals::gptr(pim).result == NFA_PIM_MATCH
                     };
 
                     if res != is_neg {
-                        unsafe {
-                            copy_sub_off(&mut t.subs.norm, &mut (*pim).subs.norm);
-                        }
+                        copy_sub_off(&mut t.subs.norm, &mut crate::globals::gptr(pim).subs.norm);
+
                         if re_st().rex.nfa_has_zsubexpr != 0 {
-                            unsafe {
-                                copy_sub_off(&mut t.subs.synt, &mut (*pim).subs.synt);
-                            }
+                            copy_sub_off(
+                                &mut t.subs.synt,
+                                &mut crate::globals::gptr(pim).subs.synt,
+                            );
                         }
                     } else {
                         listidx += 1;
@@ -4398,9 +4413,9 @@ fn nfa_regmatch(
 
                 if pim == &raw mut t.pim {
                     pim_copy = NfaPim::new();
-                    unsafe {
-                        copy_pim(&mut pim_copy, &mut *pim);
-                    }
+
+                    copy_pim(&mut pim_copy, crate::globals::gmut(pim));
+
                     pim = &raw mut pim_copy;
                 }
 
@@ -4440,32 +4455,35 @@ fn nfa_regmatch(
 
         if !goto_nextchar
             && nfa_st().nfa_match == 0
-            && (unsafe {
-                (toplevel
-                    && re_st().rex.lnum == 0
-                    && clen != 0
-                    && (re_st().rex.reg_maxcol == 0
-                        || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
-                            < re_st().rex.reg_maxcol))
-                    || (!re_st().nfa_endp.is_null()
-                        && if reg_multi() {
-                            let end_pos = (*re_st().nfa_endp).se_u.pos();
-                            re_st().rex.lnum < end_pos.lnum
-                                || (re_st().rex.lnum == end_pos.lnum
-                                    && (re_st().rex.input.offset_from(re_st().rex.line) as Colnr)
-                                        < end_pos.col)
-                        } else {
-                            re_st().rex.input < (*re_st().nfa_endp).se_u.ptr()
-                        })
-            })
+            && ((toplevel
+                && re_st().rex.lnum == 0
+                && clen != 0
+                && (re_st().rex.reg_maxcol == 0
+                    || (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                        as Colnr)
+                        < re_st().rex.reg_maxcol))
+                || (!re_st().nfa_endp.is_null()
+                    && if reg_multi() {
+                        let end_pos = crate::globals::gptr(re_st().nfa_endp).se_u.pos();
+                        re_st().rex.lnum < end_pos.lnum
+                            || (re_st().rex.lnum == end_pos.lnum
+                                && (crate::memory::ptr_offset_from(
+                                    re_st().rex.input,
+                                    re_st().rex.line,
+                                ) as Colnr)
+                                    < end_pos.col)
+                    } else {
+                        re_st().rex.input < crate::globals::gptr(re_st().nfa_endp).se_u.ptr()
+                    }))
         {
             if toplevel {
                 let mut add = true;
                 if prog.regstart != NUL as i32 && clen != 0 {
                     if nextlist.n == 0 {
-                        let mut col = unsafe {
-                            (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen
-                        };
+                        let mut col =
+                            (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr)
+                                + clen;
                         if !skip_to_start(prog.regstart, &mut col) {
                             break;
                         }
@@ -4481,9 +4499,10 @@ fn nfa_regmatch(
                 }
                 if add {
                     if reg_multi() {
-                        let start_col = unsafe {
-                            (re_st().rex.input.offset_from(re_st().rex.line) as Colnr) + clen
-                        };
+                        let start_col =
+                            (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
+                                as Colnr)
+                                + clen;
                         m.norm.list.multi_mut()[0].start_col = start_col;
                         m.norm.orig_start_col = start_col;
                     } else {
@@ -4514,7 +4533,7 @@ fn nfa_regmatch(
                 if reg_multi()
                     && clen == 0
                     && !re_st().nfa_endp.is_null()
-                    && unsafe { re_st().rex.lnum < (*re_st().nfa_endp).se_u.pos().lnum }
+                    && re_st().rex.lnum < crate::globals::gptr(re_st().nfa_endp).se_u.pos().lnum
                 {
                     let next_line = reg_getline(re_st().rex.lnum + 1);
                     if !next_line.is_null() {
@@ -4548,11 +4567,9 @@ fn nfa_regmatch(
         if clen != 0 {
             re_st().rex.input = re_st().rex.input.wrapping_add(clen as usize);
         } else if go_to_nextline
-            || (unsafe {
-                !re_st().nfa_endp.is_null()
-                    && reg_multi()
-                    && re_st().rex.lnum < (*re_st().nfa_endp).se_u.pos().lnum
-            })
+            || (!re_st().nfa_endp.is_null()
+                && reg_multi()
+                && re_st().rex.lnum < crate::globals::gptr(re_st().nfa_endp).se_u.pos().lnum)
         {
             reg_nextline();
         } else {
@@ -4719,7 +4736,7 @@ fn nfa_regexec_both(
         iemsg(tr(E_NULL));
         return finish_nfa_regexec(retval, col);
     }
-    let prog = unsafe { &mut *prog };
+    let prog = crate::globals::gmut(prog);
 
     if (prog.regflags & RF_ICASE) != 0 {
         re_st().rex.reg_ic = true;

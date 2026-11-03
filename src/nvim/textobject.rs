@@ -44,7 +44,7 @@ static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> =
 
 #[inline]
 fn tobj_st() -> &'static mut TextobjectState {
-    unsafe { &mut *TOBJ_STATE.as_ptr() }
+    crate::globals::gmut(TOBJ_STATE.as_ptr())
 }
 
 /// Find the start of the next sentence, searching in the direction specified
@@ -949,8 +949,8 @@ pub fn current_block(
             if pos.is_null() {
                 break;
             }
-            curwin_mut().w_cursor = unsafe { *pos };
-            start_pos = unsafe { *pos };
+            curwin_mut().w_cursor = *crate::globals::gptr(pos);
+            start_pos = *crate::globals::gptr(pos);
         }
     } else {
         while {
@@ -962,8 +962,8 @@ pub fn current_block(
             if pos.is_null() {
                 break;
             }
-            curwin_mut().w_cursor = unsafe { *pos };
-            start_pos = unsafe { *pos };
+            curwin_mut().w_cursor = *crate::globals::gptr(pos);
+            start_pos = *crate::globals::gptr(pos);
         }
     }
     opt_vars().p_cpo = save_cpo;
@@ -975,7 +975,7 @@ pub fn current_block(
         curwin_mut().w_cursor = old_pos;
         return false;
     }
-    curwin_mut().w_cursor = unsafe { *end_pos };
+    curwin_mut().w_cursor = *crate::globals::gptr(end_pos);
 
     if !include {
         loop {
@@ -989,7 +989,7 @@ pub fn current_block(
                 }
             }
 
-            if equalpos(start_pos, unsafe { *end_pos }) && g_st().visual_global.active {
+            if equalpos(start_pos, *crate::globals::gptr(end_pos)) && g_st().visual_global.active {
                 curwin_mut().w_cursor = old_pos;
                 return false;
             }
@@ -1006,14 +1006,14 @@ pub fn current_block(
                     curwin_mut().w_cursor = old_pos;
                     return false;
                 }
-                start_pos = unsafe { *pos };
-                curwin_mut().w_cursor = unsafe { *pos };
+                start_pos = *crate::globals::gptr(pos);
+                curwin_mut().w_cursor = *crate::globals::gptr(pos);
                 end_pos = findmatch(None, other);
                 if end_pos.is_null() {
                     curwin_mut().w_cursor = old_pos;
                     return false;
                 }
-                curwin_mut().w_cursor = unsafe { *end_pos };
+                curwin_mut().w_cursor = *crate::globals::gptr(end_pos);
             } else {
                 break;
             }

@@ -190,7 +190,7 @@ static OPS_STATE: crate::globals::GlobalState<OpsModuleState> =
 
 #[inline]
 fn ops_st() -> &'static mut OpsModuleState {
-    unsafe { &mut *OPS_STATE.as_ptr() }
+    crate::globals::gmut(OPS_STATE.as_ptr())
 }
 
 #[inline]
@@ -890,8 +890,8 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 if reg.is_null() {
                     std::process::abort();
                 }
-                set_clipboard(oap.regname, unsafe { &*reg });
-                do_autocmd_textyankpost(oap, unsafe { &mut *reg });
+                set_clipboard(oap.regname, crate::globals::gref(reg));
+                do_autocmd_textyankpost(oap, crate::globals::gmut(reg));
             }
         }
 
@@ -1129,9 +1129,9 @@ fn pbyte(mut lp: CursorPos, c: i32) {
     if lp.col >= len {
         lp.col = if len > 1 { len - 2 } else { 0 };
     }
-    unsafe {
-        *p.wrapping_add(lp.col as usize).cast::<u8>() = c as u8;
-    }
+
+    *crate::globals::gptr(p.wrapping_add(lp.col as usize).cast::<u8>()) = c as u8;
+
     if g_st().curbuf_splice_pending == 0 {
         extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
     }
@@ -2846,22 +2846,19 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         let buf1 = buf1_vec.as_mut_ptr();
         let mut ptr_line = buf1;
         if negative && (!visual || was_positive) {
-            unsafe {
-                *ptr_line = b'-';
-            }
+            *crate::globals::gptr(ptr_line) = b'-';
+
             ptr_line = ptr_line.wrapping_add(1);
         }
         if pre != 0 {
-            unsafe {
-                *ptr_line = b'0';
-            }
+            *crate::globals::gptr(ptr_line) = b'0';
+
             ptr_line = ptr_line.wrapping_add(1);
             length -= 1;
         }
         if pre == b'b' as i32 || pre == b'B' as i32 || pre == b'x' as i32 || pre == b'X' as i32 {
-            unsafe {
-                *ptr_line = pre as u8;
-            }
+            *crate::globals::gptr(ptr_line) = pre as u8;
+
             ptr_line = ptr_line.wrapping_add(1);
             length -= 1;
         }
@@ -2880,16 +2877,14 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
             while bits > 0 && (buf2len as usize) < NUMBUFLEN - 1 {
                 bits -= 1;
-                unsafe {
-                    *buf2_ptr.wrapping_add(buf2len as usize) =
-                        if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
-                }
+
+                *crate::globals::gptr(buf2_ptr.wrapping_add(buf2len as usize)) =
+                    if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
+
                 buf2len += 1;
             }
 
-            unsafe {
-                *buf2_ptr.wrapping_add(buf2len as usize) = 0;
-            }
+            *crate::globals::gptr(buf2_ptr.wrapping_add(buf2len as usize)) = 0;
         } else if pre == 0 {
             buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llu", n as u64,);
         } else if pre == b'0' as i32 {
@@ -2904,15 +2899,15 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         if firstdigit == b'0' as i32 && !(do_oct && pre == 0) {
             while length > 0 {
                 length -= 1;
-                unsafe {
-                    *ptr_line = b'0';
-                }
+
+                *crate::globals::gptr(ptr_line) = b'0';
+
                 ptr_line = ptr_line.wrapping_add(1);
             }
         }
-        unsafe {
-            *ptr_line = 0;
-        }
+
+        *crate::globals::gptr(ptr_line) = 0;
+
         let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
 
         let buf2_bytes = crate::memory::cstr_from_ptr(buf2_ptr.cast()).to_bytes_with_nul();

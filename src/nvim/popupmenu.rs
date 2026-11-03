@@ -228,7 +228,7 @@ static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new()
 
 #[inline]
 fn pum() -> &'static mut PopupmenuState {
-    unsafe { &mut *PUM.as_ptr() }
+    crate::globals::gmut(PUM.as_ptr())
 }
 
 use crate::api::private::helpers::cstr_to_string;
@@ -472,19 +472,21 @@ pub fn pum_display(
 
         if (g_st().state_global & MODE_CMDLINE) != 0 {
             pum_win_row = if !g_st().cmdline_win.is_null() {
-                unsafe { (*g_st().cmdline_win).w_wrow }
+                crate::globals::gptr(g_st().cmdline_win).w_wrow
             } else if ui_has(K_UICMDLINE) {
                 0
             } else {
                 g_st().cmdline_row
             };
             cursor_col = (if !g_st().cmdline_win.is_null() {
-                unsafe { (*g_st().cmdline_win).w_config._cmdline_offset }
+                crate::globals::gptr(g_st().cmdline_win)
+                    .w_config
+                    ._cmdline_offset
             } else {
                 0
             }) + cmd_startcol;
             cursor_col %= if !g_st().cmdline_win.is_null() {
-                unsafe { (*g_st().cmdline_win).w_view_width }
+                crate::globals::gptr(g_st().cmdline_win).w_view_width
             } else {
                 g_st().columns_global
             };
@@ -510,31 +512,27 @@ pub fn pum_display(
         }
 
         if !target_win.is_null() {
-            unsafe {
-                pum().anchor_grid = (*(*target_win).w_grid.target).handle;
-            }
-            unsafe {
-                pum_win_row += (*target_win).w_grid.row_offset;
-            }
-            unsafe {
-                cursor_col += (*target_win).w_grid.col_offset;
-            }
-            if unsafe { !ptr::eq((*target_win).w_grid.target, &raw const g_st().default_grid) } {
-                unsafe {
-                    pum_win_row += (*target_win).w_winrow;
-                }
-                unsafe {
-                    cursor_col += (*target_win).w_wincol;
-                }
+            pum().anchor_grid =
+                crate::globals::gptr(crate::globals::gptr(target_win).w_grid.target).handle;
+
+            pum_win_row += crate::globals::gptr(target_win).w_grid.row_offset;
+
+            cursor_col += crate::globals::gptr(target_win).w_grid.col_offset;
+
+            if !ptr::eq(
+                crate::globals::gptr(target_win).w_grid.target,
+                &raw const g_st().default_grid,
+            ) {
+                pum_win_row += crate::globals::gptr(target_win).w_winrow;
+
+                cursor_col += crate::globals::gptr(target_win).w_wincol;
+
                 if !ui_has(K_UIMULTIGRID) {
                     pum().anchor_grid = DEFAULT_GRID_HANDLE;
                 } else {
-                    unsafe {
-                        pum().win_row_offset = (*target_win).w_winrow;
-                    }
-                    unsafe {
-                        pum().win_col_offset = (*target_win).w_wincol;
-                    }
+                    pum().win_row_offset = crate::globals::gptr(target_win).w_winrow;
+
+                    pum().win_col_offset = crate::globals::gptr(target_win).w_wincol;
                 }
             }
         }
@@ -548,7 +546,7 @@ pub fn pum_display(
                 };
                 let mut arr = arena_array(&mut arena, size as usize);
                 for i in 0..(size as usize) {
-                    let elem = unsafe { &*array.wrapping_add(i) };
+                    let elem = crate::globals::gref(array.wrapping_add(i));
                     let mut item = arena_array(&mut arena, 4);
                     add_c(&mut item, cstr_as_obj(elem.text_cstr()));
                     add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
@@ -579,7 +577,7 @@ pub fn pum_display(
         }
 
         if !pvwin.is_null() {
-            let pvwin = unsafe { &mut *pvwin };
+            let pvwin = crate::globals::gmut(pvwin);
             if pvwin.w_winrow < curwin_mut().w_winrow {
                 above_row = pvwin.w_winrow + pvwin.w_height;
             } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
@@ -587,16 +585,14 @@ pub fn pum_display(
             }
         }
 
-        unsafe {
-            pum_compute_vertical_placement(
-                size,
-                target_win.as_mut(),
-                pum_win_row,
-                above_row,
-                below_row,
-                border_width,
-            );
-        }
+        pum_compute_vertical_placement(
+            size,
+            crate::globals::gopt_mut(target_win),
+            pum_win_row,
+            above_row,
+            below_row,
+            border_width,
+        );
 
         if border_width == 0 && (pum().height < 1 || (pum().height == 1 && size > 1)) {
             return;
@@ -613,9 +609,11 @@ pub fn pum_display(
 
         pum().scrollbar = if pum().height < size { 1 } else { 0 };
 
-        unsafe {
-            pum_compute_horizontal_placement(target_win.as_ref(), cursor_col, border_width);
-        }
+        pum_compute_horizontal_placement(
+            crate::globals::gopt(target_win),
+            cursor_col,
+            border_width,
+        );
 
         if !(pum_set_selected(selected, redo_count) && {
             redo_count += 1;
@@ -1228,7 +1226,7 @@ fn pum_preview_set_text(
             capacity: 0,
         };
         let buf = win.w_buffer;
-        let buf = unsafe { &mut *buf };
+        let buf = crate::globals::gmut(buf);
         buf.b_p_ma = 1;
 
         let mut curr = info;
@@ -1238,9 +1236,7 @@ fn pum_preview_set_text(
                 .position(|&b| b == b'\n')
                 .map_or(ptr::null_mut(), |i| curr.wrapping_add(i));
             if !next.is_null() {
-                unsafe {
-                    *next = 0;
-                }
+                *crate::globals::gptr(next) = 0;
             }
             if crate::memory::cstr_is_empty(curr.cast()) && next.is_null() {
                 break;
@@ -1254,9 +1250,8 @@ fn pum_preview_set_text(
             *lnum += 1;
 
             if !next.is_null() {
-                unsafe {
-                    *next = b'\n';
-                }
+                *crate::globals::gptr(next) = b'\n';
+
                 curr = next.wrapping_add(1);
             } else {
                 curr = ptr::null_mut();
@@ -1336,13 +1331,13 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
     let mut wp = win_float_find(K_WIN_INFO);
     if wp.is_null() {
         wp = win_float_special(false, true, K_WIN_INFO);
-        let Some(wp_ref) = (unsafe { wp.as_mut() }) else {
+        let Some(wp_ref) = crate::globals::gopt_mut(wp) else {
             return ptr::null_mut();
         };
         wp_ref.w_topline = 1;
         wp_ref.w_onebuf_opt.wo_wfb = 1;
     }
-    let wp_ref = unsafe { &mut *wp };
+    let wp_ref = crate::globals::gmut(wp);
     let mut lnum: Linenr = 0;
     let mut max_info_width: i32 = 0;
     pum_preview_set_text(&mut *wp_ref, info, &mut lnum, &mut max_info_width);
@@ -1369,16 +1364,14 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
     let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
     if use_float
-        && (unsafe {
-            pum().selected < 0
-                || (*pum().array.wrapping_add(pum().selected as usize))
-                    .pum_info
-                    .is_none()
-        })
+        && (pum().selected < 0
+            || crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
+                .pum_info
+                .is_none())
     {
         let wp = win_float_find(K_WIN_INFO);
         if !wp.is_null() {
-            let wp = unsafe { &mut *wp };
+            let wp = crate::globals::gmut(wp);
             wp.w_config.hide = true;
             let cfg = wp.w_config.clone();
             win_config_float(wp, cfg);
@@ -1416,11 +1409,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
         }
         pum().first = pum().first.min(pum().size - pum().height);
 
-        if unsafe {
-            (*pum().array.wrapping_add(pum().selected as usize))
-                .pum_info
-                .is_some()
-        } && g_st().rows_global > 10
+        if crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
+            .pum_info
+            .is_some()
+            && g_st().rows_global > 10
             && repeat <= 1
             && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
@@ -1492,16 +1484,16 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                 if res == OK {
                     let mut lnum: Linenr = 0;
                     let mut max_info_width: i32 = 0;
-                    unsafe {
-                        pum_preview_set_text(
-                            curwin_mut(),
-                            (*pum().array.wrapping_add(pum().selected as usize))
-                                .info_cstr()
-                                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
-                            &mut lnum,
-                            &mut max_info_width,
-                        );
-                    }
+
+                    pum_preview_set_text(
+                        curwin_mut(),
+                        crate::globals::gptr(pum().array.wrapping_add(pum().selected as usize))
+                            .info_cstr()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast()),
+                        &mut lnum,
+                        &mut max_info_width,
+                    );
+
                     if repeat == 0 && !use_float {
                         lnum = lnum.min(opt_vars().p_pvh as Linenr);
                         if curwin_mut().w_height < lnum {
@@ -1698,7 +1690,7 @@ fn pum_position_at_mouse(min_width: i32) {
     if grid > 1 {
         let wp = get_win_by_grid_handle(grid);
         if !wp.is_null() {
-            let wp = unsafe { &mut *wp };
+            let wp = crate::globals::gmut(wp);
             row += wp.w_winrow;
             col += wp.w_wincol;
             pum().win_row_offset = wp.w_winrow;
@@ -1947,7 +1939,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
                     curwin_mut().w_wcol
                 };
             if ui_has(K_UIMULTIGRID) {
-                g_st().mouse_grid = unsafe { (*curwin_mut().w_grid.target).handle };
+                g_st().mouse_grid = crate::globals::gptr(curwin_mut().w_grid.target).handle;
             } else if !ptr::eq(curwin_mut().w_grid.target, &raw const g_st().default_grid) {
                 g_st().mouse_grid = 0;
                 g_st().mouse_row += curwin_mut().w_winrow;
@@ -1957,7 +1949,7 @@ pub fn pum_make_popup(path_name: impl crate::strings::IntoCCharPtr, use_mouse_po
 
         let menu = menu_find(path_name);
         if !menu.is_null() {
-            pum_show_popupmenu(unsafe { &mut *menu });
+            pum_show_popupmenu(crate::globals::gmut(menu));
         }
     }
 }

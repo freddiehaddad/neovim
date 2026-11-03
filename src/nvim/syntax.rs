@@ -439,7 +439,7 @@ struct SyntaxState {
 impl SyntaxState {
     #[inline]
     fn syn_buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.syn_buf }
+        crate::globals::gmut(self.syn_buf)
     }
 }
 
@@ -494,7 +494,7 @@ static SYN_STATE: GlobalState<SyntaxState> = GlobalState::new(SyntaxState::new()
 
 #[inline]
 fn syn_st() -> &'static mut SyntaxState {
-    unsafe { &mut *SYN_STATE.as_ptr() }
+    crate::globals::gmut(SYN_STATE.as_ptr())
 }
 
 #[inline]
@@ -504,19 +504,19 @@ pub fn win_s(wp: &mut WinInfoInfo) -> &'static mut Synblock {
 
 #[inline]
 fn syn_block_mut() -> &'static mut Synblock {
-    unsafe { &mut *syn_st().syn_block }
+    crate::globals::gmut(syn_st().syn_block)
 }
 
 #[inline]
 fn syn_items(block: &mut Synblock, idx: isize) -> &'static mut Synpat {
     let ptr: *mut Synpat = &raw mut block.b_syn_patterns[idx as usize];
-    unsafe { &mut *ptr }
+    crate::globals::gmut(ptr)
 }
 
 #[inline]
 fn syn_clstr(block: &mut Synblock, idx: isize) -> &'static mut SynCluster {
     let ptr: *mut SynCluster = &raw mut block.b_syn_clusters[idx as usize];
-    unsafe { &mut *ptr }
+    crate::globals::gmut(ptr)
 }
 
 #[inline]
@@ -787,8 +787,8 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
                 break;
             }
 
-            if !last_valid.is_null() && lnum == unsafe { (*last_valid).sst_lnum } {
-                load_current_state(unsafe { &*(last_valid) });
+            if !last_valid.is_null() && lnum == crate::globals::gptr(last_valid).sst_lnum {
+                load_current_state(crate::globals::gref(last_valid));
                 break;
             }
 
@@ -892,11 +892,14 @@ fn save_chartab(chartab: &mut [u64; 4]) {
     }
 
     *chartab = syn_st().syn_buf_mut().b_chartab;
-    syn_st().syn_buf_mut().b_chartab = win_s(unsafe { &mut *syn_st().syn_win }).b_syn_chartab;
+    syn_st().syn_buf_mut().b_chartab = win_s(crate::globals::gmut(syn_st().syn_win)).b_syn_chartab;
 }
 
 fn restore_chartab(chartab: &[u64; 4]) {
-    if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
+    if win_s(crate::globals::gmut(syn_st().syn_win))
+        .b_syn_isk
+        .is_some()
+    {
         syn_st().syn_buf_mut().b_chartab = *chartab;
     }
 }
@@ -997,7 +1000,7 @@ fn syn_stack_free_block(block: &mut Synblock) {
 
 /// Free b_sst_array[] for buffer "buf".
 pub fn syn_stack_free_all(block: *mut Synblock) {
-    syn_stack_free_block(unsafe { &mut *block });
+    syn_stack_free_block(crate::globals::gmut(block));
 
     if !g_st().curtab.is_null() {
         for wp in for_all_windows_mut() {
@@ -1034,7 +1037,7 @@ fn syn_stack_alloc() {
 /// Check for changes in a buffer to affect stored syntax states.
 pub fn syn_stack_apply_changes(buf: &mut FileBuf) {
     let buf_ptr = &raw mut *buf;
-    syn_stack_apply_changes_block(&mut buf.b_s, unsafe { &mut *buf_ptr });
+    syn_stack_apply_changes_block(&mut buf.b_s, crate::globals::gmut(buf_ptr));
 
     if !g_st().curtab.is_null() {
         for wp in for_all_windows_mut() {
@@ -1513,7 +1516,7 @@ fn syn_current_attr(
 
         if syn_block_mut().b_syn_containedin != 0
             || cur_si.is_null()
-            || unsafe { (*cur_si).si_cont_list.is_some() }
+            || crate::globals::gptr(cur_si).si_cont_list.is_some()
         {
             if do_keywords {
                 line = syn_getcurline!();
@@ -1542,7 +1545,7 @@ fn syn_current_attr(
                         push_current_state(KEYWORD_IDX);
                         let len = cur_state_len();
                         cur_si = cur_state_at(len - 1);
-                        let cur_si = unsafe { &mut *cur_si };
+                        let cur_si = crate::globals::gmut(cur_si);
                         cur_si.si_m_startcol = syn_st().current_col;
                         cur_si.si_h_startpos.lnum = syn_st().current_lnum;
                         cur_si.si_h_startpos.col = 0;
@@ -1595,14 +1598,12 @@ fn syn_current_attr(
                             } else if cur_si.is_null() {
                                 (spp.sp_flags & HL_CONTAINED) == 0
                             } else {
-                                unsafe {
-                                    in_id_list(
-                                        cur_si,
-                                        &(*cur_si).si_cont_list,
-                                        &mut spp.sp_syn,
-                                        spp.sp_flags,
-                                    ) != 0
-                                }
+                                in_id_list(
+                                    cur_si,
+                                    &crate::globals::gptr(cur_si).si_cont_list,
+                                    &mut spp.sp_syn,
+                                    spp.sp_flags,
+                                ) != 0
                             }
                         {
                             if spp.sp_line_id == syn_st().current_line_id
@@ -1664,9 +1665,8 @@ fn syn_current_attr(
                             );
                             syn_add_end_off(&mut eos_pos, &mut regmatch, &mut *spp, SPO_RS_OFF, 0);
 
-                            unsafe {
-                                cur_extmatch = (&raw mut g_st().re_extmatch_out).replace(None);
-                            }
+                            cur_extmatch =
+                                unsafe { (&raw mut g_st().re_extmatch_out).replace(None) };
 
                             flags = 0;
                             eoe_pos.lnum = 0;
@@ -1762,11 +1762,12 @@ fn syn_current_attr(
         if syn_st().current_next_list.is_some() && !keep_next_list {
             if !found_match {
                 line = syn_getcurline!();
-                if (unsafe {
-                    (syn_st().current_next_flags & HL_SKIPWHITE) != 0
-                        && ascii_iswhite(*line.wrapping_offset(syn_st().current_col as isize))
-                }) || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
-                    && crate::memory::cstr_is_empty(line))
+                if ((syn_st().current_next_flags & HL_SKIPWHITE) != 0
+                    && ascii_iswhite(*crate::globals::gptr(
+                        line.wrapping_offset(syn_st().current_col as isize),
+                    )))
+                    || ((syn_st().current_next_flags & HL_SKIPEMPTY) != 0
+                        && crate::memory::cstr_is_empty(line))
                 {
                     break;
                 }
@@ -1795,7 +1796,7 @@ fn syn_current_attr(
         let mut idx = cur_state_len() - 1;
         while idx >= 0 {
             sip = cur_state_at(idx);
-            let sip = unsafe { &mut *sip };
+            let sip = crate::globals::gmut(sip);
             if (syn_st().current_lnum > sip.si_h_startpos.lnum
                 || (syn_st().current_lnum == sip.si_h_startpos.lnum
                     && syn_st().current_col >= sip.si_h_startpos.col))
@@ -1827,21 +1828,21 @@ fn syn_current_attr(
                     *can_spell = syn_block_mut().b_syn_spell != SYNSPL_NOTOP;
                 } else {
                     sps.id = syn_block_mut().b_nospell_cluster_id as i16;
-                    unsafe {
-                        *can_spell = in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) == 0;
-                    }
+
+                    *can_spell =
+                        in_id_list(sip, &crate::globals::gptr(sip).si_cont_list, &mut sps, 0) == 0;
                 }
             } else if syn_st().current_trans_id == 0 {
                 *can_spell = syn_block_mut().b_syn_spell == SYNSPL_TOP;
             } else {
                 sps.id = syn_block_mut().b_spell_cluster_id as i16;
-                unsafe {
-                    *can_spell = in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) != 0;
-                }
+
+                *can_spell =
+                    in_id_list(sip, &crate::globals::gptr(sip).si_cont_list, &mut sps, 0) != 0;
 
                 if syn_block_mut().b_nospell_cluster_id != 0 {
                     sps.id = syn_block_mut().b_nospell_cluster_id as i16;
-                    if unsafe { in_id_list(sip, &(*sip).si_cont_list, &mut sps, 0) != 0 } {
+                    if in_id_list(sip, &crate::globals::gptr(sip).si_cont_list, &mut sps, 0) != 0 {
                         *can_spell = false;
                     }
                 }
@@ -1851,9 +1852,9 @@ fn syn_current_attr(
         if !syncing && !keep_state {
             check_state_ends();
             if !cur_state_empty()
-                && unsafe {
-                    *syn_getcurline!().wrapping_offset(syn_st().current_col as isize) != NUL
-                }
+                && *crate::globals::gptr(
+                    syn_getcurline!().wrapping_offset(syn_st().current_col as isize),
+                ) != NUL
             {
                 syn_st().current_col += 1;
                 check_state_ends();
@@ -1871,7 +1872,8 @@ fn syn_current_attr(
     if syn_st().current_next_list.is_some() {
         line = syn_getcurline!();
         if !crate::memory::cstr_is_empty(line.wrapping_offset(syn_st().current_col as isize))
-            && unsafe { *line.wrapping_offset((syn_st().current_col + 1) as isize) == NUL }
+            && *crate::globals::gptr(line.wrapping_offset((syn_st().current_col + 1) as isize))
+                == NUL
             && (syn_st().current_next_flags & (HL_SKIPNL | HL_SKIPEMPTY)) == 0
         {
             syn_st().current_next_list = None;
@@ -2265,7 +2267,7 @@ fn find_endpos(
         }
 
         if !spp_skip.is_null() {
-            let spp_skip = unsafe { &mut *spp_skip };
+            let spp_skip = crate::globals::gmut(spp_skip);
             let mut lc_col = matchcol - spp_skip.sp_offsets[SPO_LC_OFF];
             if lc_col < 0 {
                 lc_col = 0;
@@ -2490,8 +2492,8 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
             st.match_ += 1;
         }
     }
-    if timed_out != 0 && !win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow {
-        win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow = true;
+    if timed_out != 0 && !win_s(crate::globals::gmut(syn_st().syn_win)).b_syn_slow {
+        win_s(crate::globals::gmut(syn_st().syn_win)).b_syn_slow = true;
         msg(
             gettext(c"'redrawtime' exceeded, syntax highlighting disabled"),
             0,
@@ -2547,7 +2549,7 @@ fn check_keyword_id(
     }
 
     if !kp.is_null() {
-        let kp = unsafe { &*kp };
+        let kp = crate::globals::gref(kp);
         *endcolp = startcol + kwlen as i32;
         *flagsp = kp.flags;
         *next_listp = kp.next_list.clone();
@@ -2574,7 +2576,7 @@ fn match_keyword(
             } else {
                 in_id_list(
                     cur_si,
-                    unsafe { &(*cur_si).si_cont_list },
+                    &crate::globals::gptr(cur_si).si_cont_list,
                     &mut k_syn,
                     kp.flags,
                 ) != 0
@@ -2842,7 +2844,10 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
             syntax_sync_clear();
         } else {
             syntax_clear(&mut *win_s(curwin_mut()));
-            if unsafe { ptr::eq(win_s(curwin_mut()), &raw mut (*curwin_mut().w_buffer).b_s) } {
+            if ptr::eq(
+                win_s(curwin_mut()),
+                &raw mut crate::globals::gptr(curwin_mut().w_buffer).b_s,
+            ) {
                 do_unlet(b"b:current_syntax", true);
             }
             do_unlet(b"w:current_syntax", true);
@@ -3741,15 +3746,15 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                     {
                         rest = rest.wrapping_add(1);
                     }
-                    unsafe {
-                        *p = *rest as u8;
-                    }
+
+                    *crate::globals::gptr(p) = (*crate::globals::gptr(rest)) as u8;
+
                     p = p.wrapping_add(1);
                     rest = rest.wrapping_add(1);
                 }
-                unsafe {
-                    *p = 0;
-                }
+
+                *crate::globals::gptr(p) = 0;
+
                 p = p.wrapping_add(1);
                 cnt += 1;
                 rest = skipwhite(rest);
@@ -3767,9 +3772,8 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                         if p.is_null() {
                             kwlen = crate::memory::cstr_len(kw.cast());
                         } else {
-                            unsafe {
-                                *p = 0;
-                            }
+                            *crate::globals::gptr(p) = 0;
+
                             kwlen = crate::memory::ptr_offset_from(p, kw) as usize;
                         }
                         add_keyword(
@@ -4535,7 +4539,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
 
 fn get_id_list<T>(arg: &mut *mut T, keylen: i32, list: &mut SynIdList, skip: bool) -> bool {
     let arg_ptr: *mut u8 = (*arg).cast();
-    unsafe {
+    {
         let mut p: *mut u8 = ptr::null_mut();
         let mut total_count: i32 = 0;
         let mut retval: Vec<i16> = Vec::new();
@@ -4581,7 +4585,7 @@ fn get_id_list<T>(arg: &mut *mut T, keylen: i32, list: &mut SynIdList, skip: boo
                     || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"TOP")
                     || (crate::memory::cstr_as_bytes(name.wrapping_add(1).cast()) == b"CONTAINED")
                 {
-                    if !(*arg_ptr).eq_ignore_ascii_case(&b'C') {
+                    if !crate::globals::gptr(arg_ptr).eq_ignore_ascii_case(&b'C') {
                         semsg!(
                             gettext(c"E407: %s not allowed here"),
                             name.wrapping_add(1).cast::<std::ffi::c_void>()
@@ -4791,12 +4795,14 @@ fn in_id_list(mut cur_si: *mut Stateitem, list: &SynIdList, ssp: &mut SpSyn, fla
 
     if !cur_si.is_null()
         && ssp.cont_in_list.is_some()
-        && (unsafe { (*cur_si).si_flags } & HL_MATCH) == 0
+        && (crate::globals::gptr(cur_si).si_flags & HL_MATCH) == 0
     {
-        while (unsafe { (*cur_si).si_flags } & HL_TRANS_CONT) != 0 && cur_si > cur_state_at(0) {
+        while (crate::globals::gptr(cur_si).si_flags & HL_TRANS_CONT) != 0
+            && cur_si > cur_state_at(0)
+        {
             cur_si = cur_si.wrapping_sub(1);
         }
-        let si_idx = unsafe { (*cur_si).si_idx };
+        let si_idx = crate::globals::gptr(cur_si).si_idx;
         if si_idx >= 0 {
             let c_spp = syn_items(syn_block_mut(), si_idx as isize);
             if in_id_list(

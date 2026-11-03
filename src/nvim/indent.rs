@@ -120,7 +120,7 @@ static INDENT_STATE: GlobalState<IndentModuleState> = GlobalState::new(IndentMod
 
 #[inline]
 fn ind_st() -> &'static mut IndentModuleState {
-    unsafe { &mut *INDENT_STATE.as_ptr() }
+    crate::globals::gmut(INDENT_STATE.as_ptr())
 }
 
 #[inline]
@@ -765,7 +765,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
         ptr::null_mut(),
     )
     .cast::<OptKeyDict_briopt>();
-    let vr = unsafe { &*v };
+    let vr = crate::globals::gref(v);
     wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
         vr.shift as i32
     } else {
@@ -1037,7 +1037,7 @@ pub fn ins_try_si(c: i32) {
             ptr::null_mut()
         };
         if !pos.is_null() {
-            let pos = unsafe { &mut *pos };
+            let pos = crate::globals::gmut(pos);
             let old_pos = curwin_mut().w_cursor;
             let ptr_bytes = crate::memline::ml_get_slice(pos.lnum);
             let mut i = pos.col;
@@ -1052,7 +1052,7 @@ pub fn ins_try_si(c: i32) {
             if ptr_bytes.get(i as usize) == Some(&b')') {
                 let p2 = findmatch(None, b'(' as i32);
                 if !p2.is_null() {
-                    curwin_mut().w_cursor = unsafe { *p2 };
+                    curwin_mut().w_cursor = *crate::globals::gptr(p2);
                 }
             }
             let ind = get_indent();
@@ -1593,15 +1593,15 @@ pub fn get_lisp_indent() -> i32 {
     if pos.is_null() {
         pos = findmatch(None, b'[' as i32);
     } else {
-        paren = unsafe { *pos };
+        paren = *crate::globals::gptr(pos);
         pos = findmatch(None, b'[' as i32);
-        if pos.is_null() || lt(unsafe { *pos }, paren) {
+        if pos.is_null() || lt(*crate::globals::gptr(pos), paren) {
             pos = &raw mut paren;
         }
     }
 
     if !pos.is_null() {
-        let pos = unsafe { &mut *pos };
+        let pos = crate::globals::gmut(pos);
         amount = -1;
         let mut parencount: i32 = 0;
 

@@ -652,22 +652,22 @@ impl RegSubList {
 
     #[inline]
     pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[MultiPos; NSUBEXP]>() }
+        crate::globals::gref((&raw const self.raw).cast::<[MultiPos; NSUBEXP]>())
     }
 
     #[inline]
     pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>() }
+        crate::globals::gmut((&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>())
     }
 
     #[inline]
     pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
-        unsafe { &*(&raw const self.raw).cast::<[LinePos; NSUBEXP]>() }
+        crate::globals::gref((&raw const self.raw).cast::<[LinePos; NSUBEXP]>())
     }
 
     #[inline]
     pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
-        unsafe { &mut *(&raw mut self.raw).cast::<[LinePos; NSUBEXP]>() }
+        crate::globals::gmut((&raw mut self.raw).cast::<[LinePos; NSUBEXP]>())
     }
 
     #[inline]
@@ -1342,7 +1342,7 @@ pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpSt
 
 #[inline]
 pub(super) fn re_st() -> &'static mut RegexpState {
-    unsafe { &mut *RE_STATE.as_ptr() }
+    crate::globals::gmut(RE_STATE.as_ptr())
 }
 
 #[inline]
@@ -1393,7 +1393,7 @@ pub(super) const fn toggle_magic(x: i32) -> i32 {
 
 #[inline]
 pub(super) fn ucharat(p: *const u8) -> i32 {
-    unsafe { *p as i32 }
+    (*crate::globals::gptr(p)) as i32
 }
 
 #[inline]
@@ -2140,7 +2140,7 @@ pub(super) fn reg_match_visual() -> bool {
     } else {
         re_st().rex.reg_win
     };
-    let wp = unsafe { &mut *wp };
+    let wp = crate::globals::gmut(wp);
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
         return false;
@@ -2575,27 +2575,28 @@ pub(crate) fn fill_submatch_list(
         return argskip;
     }
 
-    unsafe {
-        tv_list_init_static10(&mut *(*listarg).vval.v_list().cast::<StaticList10>());
-    }
+    tv_list_init_static10(crate::globals::gmut(
+        crate::globals::gptr(listarg)
+            .vval
+            .v_list()
+            .cast::<StaticList10>(),
+    ));
 
-    let mut li = unsafe { tv_list_first(((*listarg).vval.v_list()).as_ref()) };
+    let mut li = tv_list_first(crate::globals::gopt(
+        crate::globals::gptr(listarg).vval.v_list(),
+    ));
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
         if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
-            unsafe {
-                tv_set_string(&mut (*li).li_tv, ptr::null());
-            }
+            tv_set_string(&mut crate::globals::gptr(li).li_tv, ptr::null());
         } else {
-            let len = unsafe { re_st().rsm.match_mut().endp[i].offset_from(s) as usize };
+            let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
             let cs = cstring_from_bytes(s, len).unwrap_or_default();
-            unsafe {
-                tv_set_string(&mut (*li).li_tv, cs.as_ptr());
-            }
+
+            tv_set_string(&mut crate::globals::gptr(li).li_tv, cs.as_ptr());
         }
-        unsafe {
-            li = (*li).li_next;
-        }
+
+        li = crate::globals::gptr(li).li_next;
     }
     argskip + 1
 }
@@ -2674,7 +2675,7 @@ fn vim_regsub_both<T>(
 ) -> i32 {
     let source: *const u8 = source.into_c_char_ptr().cast();
     let dest: *mut u8 = dest.cast();
-    unsafe {
+    {
         let mut no: i32 = -1;
         let mut func_all: Option<CaseConv> = None;
         let mut func_one: Option<CaseConv> = None;
@@ -2697,7 +2698,7 @@ fn vim_regsub_both<T>(
         let eval_slot = &mut re_st().eval_result[nested];
         let src = source;
         let max_dst = destlen.max(0) as usize;
-        let mut dest_slice = copy.then(|| std::slice::from_raw_parts_mut(dest, max_dst));
+        let mut dest_slice = copy.then(|| unsafe { std::slice::from_raw_parts_mut(dest, max_dst) });
         let mut dst_off = 0usize;
 
         if expr.is_some() || crate::memory::cstr_as_bytes(source.cast()).starts_with(b"\\=") {
@@ -2756,7 +2757,7 @@ fn vim_regsub_both<T>(
                         call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
                     } else if expr.v_type == VarType::VarPartial {
                         let partial = expr.vval.v_partial();
-                        let s = partial_name(partial.as_ref());
+                        let s = partial_name(crate::globals::gopt(partial));
                         funcexe.fe_partial = partial;
                         call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
                     }
@@ -2966,7 +2967,10 @@ fn vim_regsub_both<T>(
                         if re_st().rex.match_mut().endp[no as usize].is_null() {
                             s = ptr::null_mut();
                         } else {
-                            len = re_st().rex.match_mut().endp[no as usize].offset_from(s) as i32;
+                            len = crate::memory::ptr_offset_from(
+                                re_st().rex.match_mut().endp[no as usize],
+                                s,
+                            ) as i32;
                         }
                     }
                     if !s.is_null() {
@@ -3443,7 +3447,7 @@ fn vim_regexec_string(
     nl: bool,
 ) -> bool {
     let line = line.into_c_char_ptr();
-    unsafe {
+    {
         let mut rex_save = Regexec::new();
         let rex_in_use_save = re_st().rex_in_use;
 
@@ -3473,13 +3477,13 @@ fn vim_regexec_string(
             let save_p_re = opt_vars().p_re;
             let re_flags = rmp.prog_mut().re_flags as i32;
             let prev_prog = rmp.regprog;
-            let pat = (*prev_prog).nfa_mut().pattern.as_ptr();
+            let pat = crate::globals::gptr(prev_prog).nfa_mut().pattern.as_ptr();
 
             opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
             report_re_switch(pat);
             let new_prog = vim_regcomp(pat, re_flags);
             if !new_prog.is_null() {
-                *prev_prog = *Box::from_raw(new_prog);
+                *crate::globals::gptr(prev_prog) = *unsafe { Box::from_raw(new_prog) };
                 rmp.prog_mut().re_in_use = true;
                 result = match rmp.prog_mut().engine {
                     RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
@@ -3584,7 +3588,7 @@ pub fn vim_regexec_multi(
         let save_p_re = opt_vars().p_re;
         let re_flags = rmp.prog_mut().re_flags as i32;
         let prev_prog = rmp.regprog;
-        let pat = unsafe { (*prev_prog).nfa_mut().pattern.as_ptr() };
+        let pat = crate::globals::gptr(prev_prog).nfa_mut().pattern.as_ptr();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
 
@@ -3594,9 +3598,8 @@ pub fn vim_regexec_multi(
         g_st().reg_do_extmatch = 0;
 
         if !new_prog.is_null() {
-            unsafe {
-                *prev_prog = *Box::from_raw(new_prog);
-            }
+            *crate::globals::gptr(prev_prog) = *unsafe { Box::from_raw(new_prog) };
+
             rmp.prog_mut().re_in_use = true;
             result = match rmp.prog_mut().engine {
                 RegProgEngine::Bt(_) => bt_regexec_multi(
@@ -3635,19 +3638,19 @@ pub fn vim_regexec_multi(
 impl Regexec {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        unsafe { &mut *self.reg_mmatch }
+        crate::globals::gmut(self.reg_mmatch)
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.reg_match }
+        crate::globals::gmut(self.reg_match)
     }
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.reg_buf }
+        crate::globals::gmut(self.reg_buf)
     }
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        unsafe { &mut *self.reg_win }
+        crate::globals::gmut(self.reg_win)
     }
     #[inline]
     pub fn input_col(&self) -> Colnr {
@@ -3716,25 +3719,25 @@ impl RegexpState {
 impl Regsubmatch {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        unsafe { &mut *self.sm_mmatch }
+        crate::globals::gmut(self.sm_mmatch)
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        unsafe { &mut *self.sm_match }
+        crate::globals::gmut(self.sm_match)
     }
 }
 
 impl Regmmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
+        crate::globals::gmut(self.regprog)
     }
 }
 
 impl Regmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        unsafe { &mut *self.regprog }
+        crate::globals::gmut(self.regprog)
     }
 }
 
