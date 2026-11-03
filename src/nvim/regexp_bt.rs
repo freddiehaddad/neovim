@@ -193,9 +193,9 @@ fn advance_reginput() {
     mb_ptr_adv(&raw mut re_st().rex.input);
 }
 
-fn bt_recognize_char_class(start: *const u8, end: *const u8) -> i32 {
+fn bt_recognize_char_class(slice: &[u8]) -> i32 {
     let mut newl = false;
-    let config = get_char_class_bits(start, end, &mut newl);
+    let config = get_char_class_bits(slice, &mut newl);
     if config < 0 || newl {
         return 0;
     }
@@ -1365,7 +1365,11 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
         if crate::memory::cstr_first_byte(lp.cast()) == b']' {
             let mut startc: i32 = -1;
             if extra == 0 {
-                let cl = bt_recognize_char_class(re_st().regparse, lp);
+                let len = crate::memory::ptr_offset_from(lp, re_st().regparse) as usize;
+                let cl = bt_recognize_char_class(crate::memory::cstr_slice(
+                    re_st().regparse.cast(),
+                    len + 1,
+                ));
                 if cl != 0 {
                     ret = regnode(cl);
                     re_st().regparse = lp;
@@ -1401,7 +1405,7 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                     } else {
                         let mut endc: i32 = 0;
                         if re_st().regparse_byte() == b'[' {
-                            endc = get_coll_element(&raw mut re_st().regparse);
+                            endc = re_st().regparse_get_coll_element();
                         }
                         if endc == 0 {
                             let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
@@ -1478,15 +1482,15 @@ fn regatom(flagp: &mut i32) -> *mut u8 {
                         regc(startc);
                     }
                 } else if re_st().regparse_byte() == b'[' {
-                    let mut c_class = get_char_class(&raw mut re_st().regparse);
+                    let mut c_class = re_st().regparse_get_char_class();
                     startc = -1;
                     match c_class {
                         CLASS_NONE => {
-                            c_class = get_equi_class(&raw mut re_st().regparse);
+                            c_class = re_st().regparse_get_equi_class();
                             if c_class != 0 {
                                 reg_equi_class(c_class);
                             } else {
-                                c_class = get_coll_element(&raw mut re_st().regparse);
+                                c_class = re_st().regparse_get_coll_element();
                                 if c_class != 0 {
                                     regmbc(c_class);
                                 } else {

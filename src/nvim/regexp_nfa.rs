@@ -320,9 +320,9 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
     std::ffi::CString::new(ret).ok()
 }
 
-fn nfa_recognize_char_class(start: *mut u8, end: *const u8, mut extra_newl: i32) -> i32 {
+fn nfa_recognize_char_class(slice: &[u8], mut extra_newl: i32) -> i32 {
     let mut newl = false;
-    let config = get_char_class_bits(start, end, &mut newl);
+    let config = get_char_class_bits(slice, &mut newl);
     if config < 0 {
         return FAIL;
     }
@@ -1286,8 +1286,11 @@ fn nfa_regatom_collection(
     let p = re_st().regparse;
     let endp = skip_anyof(p).cast_const();
     if crate::memory::cstr_first_byte(endp.cast()) == b']' {
-        let result =
-            nfa_recognize_char_class(re_st().regparse, endp, i32::from(*extra == NFA_ADD_NL));
+        let len = crate::memory::ptr_offset_from(endp, re_st().regparse) as usize;
+        let result = nfa_recognize_char_class(
+            crate::memory::cstr_slice(re_st().regparse.cast(), len + 1),
+            i32::from(*extra == NFA_ADD_NL),
+        );
         if result != FAIL {
             if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
                 emit_fn(result - NFA_ADD_NL);
@@ -1326,11 +1329,11 @@ fn nfa_regatom_collection(
             if re_st().regparse_byte() == b'[' {
                 let mut equiclass: i32 = 0;
                 let mut collclass: i32 = 0;
-                let charclass = get_char_class(&raw mut re_st().regparse);
+                let charclass = re_st().regparse_get_char_class();
                 if charclass == CLASS_NONE {
-                    equiclass = get_equi_class(&raw mut re_st().regparse);
+                    equiclass = re_st().regparse_get_equi_class();
                     if equiclass == 0 {
-                        collclass = get_coll_element(&raw mut re_st().regparse);
+                        collclass = re_st().regparse_get_coll_element();
                     }
                 }
 

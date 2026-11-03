@@ -1435,8 +1435,8 @@ pub(super) fn backslash_trans(c: i32) -> i32 {
     }
 }
 
-/// Check for a character class name `[:name:]`. `pp` points to the `[`.
-pub(super) fn get_char_class<T>(pp: *mut *mut T) -> i32 {
+/// Check for a character class name `[:name:]`. `rem` starts at the `[`.
+pub(super) fn get_char_class(rem: &mut &[u8]) -> i32 {
     const CHAR_CLASS_TAB: &[(i32, &[u8])] = &[
         (CLASS_ALNUM, b"alnum:]"),
         (CLASS_ALPHA, b"alpha:]"),
@@ -1459,25 +1459,21 @@ pub(super) fn get_char_class<T>(pp: *mut *mut T) -> i32 {
         (CLASS_XDIGIT, b"xdigit:]"),
     ];
 
-    unsafe {
-        let p = (*pp).cast::<u8>();
-        if *p.wrapping_add(1) == b':'
-            && (*p.wrapping_add(2)).is_ascii_lowercase()
-            && (*p.wrapping_add(3)).is_ascii_lowercase()
-            && (*p.wrapping_add(4)).is_ascii_lowercase()
-        {
-            let target = p.wrapping_add(2);
-            for &(key, pat) in CHAR_CLASS_TAB {
-                if crate::memory::xstrnlen(target.cast(), pat.len()) == pat.len()
-                    && std::slice::from_raw_parts(target, pat.len()) == pat
-                {
-                    *pp = p.wrapping_add(pat.len() + 2).cast();
-                    return key;
-                }
+    let bytes = *rem;
+    if bytes.get(1) == Some(&b':')
+        && bytes.get(2).is_some_and(u8::is_ascii_lowercase)
+        && bytes.get(3).is_some_and(u8::is_ascii_lowercase)
+        && bytes.get(4).is_some_and(u8::is_ascii_lowercase)
+    {
+        let target = &bytes[2..];
+        for &(key, pat) in CHAR_CLASS_TAB {
+            if let Some(rest) = target.strip_prefix(pat) {
+                *rem = rest;
+                return key;
             }
         }
-        CLASS_NONE
     }
+    CLASS_NONE
 }
 
 pub(super) fn init_class_tab() {
@@ -1547,38 +1543,32 @@ pub fn re_multiline(prog: &Regprog) -> i32 {
     (prog.regflags & RF_HASNL) as i32
 }
 
-/// Check for an equivalence class name `[=a=]`. `pp` points to the `[`.
-pub(super) fn get_equi_class<T>(pp: *mut *mut T) -> i32 {
-    unsafe {
-        let p = (*pp).cast::<u8>();
-        let bytes = crate::memory::cstr_as_bytes(p.cast());
-        if bytes.len() >= 3 && bytes[1] == b'=' {
-            let l = utfc_ptr2len(p.wrapping_add(2).cast()) as usize;
-            if bytes.get(l + 2..l + 4) == Some(b"=]") {
-                let c = utf_ptr2char(p.wrapping_add(2).cast());
-                *pp = p.wrapping_add(l + 4).cast();
-                return c;
-            }
+/// Check for an equivalence class name `[=a=]`. `rem` starts at the `[`.
+pub(super) fn get_equi_class(rem: &mut &[u8]) -> i32 {
+    let bytes = *rem;
+    if bytes.len() >= 3 && bytes[1] == b'=' {
+        let l = crate::mbyte::utfc_slice2len(&bytes[2..]);
+        if bytes.get(l + 2..l + 4) == Some(b"=]") {
+            let c = crate::mbyte::utf_slice2char(&bytes[2..]);
+            *rem = &bytes[l + 4..];
+            return c;
         }
-        0
     }
+    0
 }
 
-/// Check for a collating element `[.a.]`. `pp` points to the `[`.
-pub(super) fn get_coll_element<T>(pp: *mut *mut T) -> i32 {
-    unsafe {
-        let p = (*pp).cast::<u8>();
-        let bytes = crate::memory::cstr_as_bytes(p.cast());
-        if bytes.len() >= 3 && bytes[1] == b'.' {
-            let l = utfc_ptr2len(p.wrapping_add(2).cast()) as usize;
-            if bytes.get(l + 2..l + 4) == Some(b".]") {
-                let c = utf_ptr2char(p.wrapping_add(2).cast());
-                *pp = p.wrapping_add(l + 4).cast();
-                return c;
-            }
+/// Check for a collating element `[.a.]`. `rem` starts at the `[`.
+pub(super) fn get_coll_element(rem: &mut &[u8]) -> i32 {
+    let bytes = *rem;
+    if bytes.len() >= 3 && bytes[1] == b'.' {
+        let l = crate::mbyte::utfc_slice2len(&bytes[2..]);
+        if bytes.get(l + 2..l + 4) == Some(b".]") {
+            let c = crate::mbyte::utf_slice2char(&bytes[2..]);
+            *rem = &bytes[l + 4..];
+            return c;
         }
-        0
     }
+    0
 }
 
 pub(super) fn get_cpo_flags() {
@@ -1587,45 +1577,52 @@ pub(super) fn get_cpo_flags() {
 
 /// Skip over a `[]` range.
 pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
-    let mut p: *mut u8 = p.cast_mut().cast();
-    let bytes = crate::memory::cstr_as_bytes(p.cast());
-    let base = p as usize;
-    if bytes.first() == Some(&b'^') {
-        p = p.wrapping_add(1);
+    let p_ptr: *const u8 = p.cast();
+    let bytes = crate::memory::cstr_as_bytes(p_ptr.cast());
+    let mut rem = bytes;
+    if let Some(rest) = rem.strip_prefix(b"^") {
+        rem = rest;
     }
-    if matches!(bytes.get((p as usize) - base), Some(b']' | b'-')) {
-        p = p.wrapping_add(1);
+    if matches!(rem.first(), Some(b']' | b'-')) {
+        rem = &rem[1..];
     }
-    while (p as usize) - base < bytes.len() && bytes[(p as usize) - base] != b']' {
-        let idx = (p as usize) - base;
-        let rem = &bytes[idx..];
-        let l = utfc_ptr2len(p.cast()) as usize;
+    while let Some(&b0) = rem.first() {
+        if b0 == b']' {
+            break;
+        }
+        let l = crate::mbyte::utfc_slice2len(rem);
         if l > 1 {
-            p = p.wrapping_add(l);
-        } else if rem[0] == b'-' {
-            p = p.wrapping_add(1);
-            if rem.len() > 1 && rem[1] != b']' {
-                mb_ptr_adv(&mut p);
-            }
-        } else if rem[0] == b'\\'
-            && rem.len() > 1
-            && (REGEXP_INRANGE.to_bytes().contains(&rem[1])
-                || (re_st().reg_cpo_lit == 0 && REGEXP_ABBR.to_bytes().contains(&rem[1])))
-        {
-            p = p.wrapping_add(2);
-        } else if rem[0] == b'[' {
-            if get_char_class(&raw mut p) == CLASS_NONE
-                && get_equi_class(&raw mut p) == 0
-                && get_coll_element(&raw mut p) == 0
-                && (p as usize) - base < bytes.len()
+            rem = &rem[l..];
+        } else if b0 == b'-' {
+            rem = &rem[1..];
+            if let Some(&b1) = rem.first()
+                && b1 != b']'
             {
-                p = p.wrapping_add(1);
+                let step = crate::mbyte::utfc_slice2len(rem);
+                rem = &rem[step..];
+            }
+        } else if b0 == b'\\'
+            && let Some(&b1) = rem.get(1)
+            && (REGEXP_INRANGE.to_bytes().contains(&b1)
+                || (re_st().reg_cpo_lit == 0 && REGEXP_ABBR.to_bytes().contains(&b1)))
+        {
+            rem = &rem[2..];
+        } else if b0 == b'[' {
+            if get_char_class(&mut rem) == CLASS_NONE
+                && get_equi_class(&mut rem) == 0
+                && get_coll_element(&mut rem) == 0
+                && !rem.is_empty()
+            {
+                rem = &rem[1..];
             }
         } else {
-            p = p.wrapping_add(1);
+            rem = &rem[1..];
         }
     }
-    p.cast()
+    p_ptr
+        .wrapping_add(bytes.len() - rem.len())
+        .cast_mut()
+        .cast()
 }
 
 /// Skip past regular expression.
@@ -2456,26 +2453,16 @@ pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut u8 {
 pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi::CString> {
     let mut newsub_vec: Option<Vec<u8>> = None;
     let mut newsub: *mut u8 = source.cast();
-    let mut newsublen: usize = 0;
-    let mut tilde: [u8; 3] = [b'~', NUL, NUL];
-    let mut tildelen: usize = 1;
+    let mut newsublen = crate::memory::cstr_len(newsub.cast());
+    let tilde: &[u8] = if magic == 0 { b"\\~" } else { b"~" };
+    let tildelen = tilde.len();
     let mut error = false;
 
-    if magic == 0 {
-        tilde[0] = b'\\';
-        tilde[1] = b'~';
-        tilde[2] = NUL;
-        tildelen = 2;
-    }
-
-    let mut p = newsub;
-    while !crate::memory::cstr_is_empty(p.cast()) {
-        if crate::memory::cstr_as_bytes(p.cast()).starts_with(&tilde[..tildelen]) {
-            let prefixlen = crate::memory::ptr_offset_from(p, newsub) as usize;
-            let postfix = p.wrapping_add(tildelen);
-            if newsublen == 0 {
-                newsublen = crate::memory::cstr_len(newsub.cast());
-            }
+    let mut idx = 0usize;
+    while idx < newsublen {
+        let cur_slice = crate::memory::cstr_slice(newsub.cast(), newsublen);
+        if cur_slice[idx..].starts_with(tilde) {
+            let prefixlen = idx;
             newsublen -= tildelen;
             let postfixlen = newsublen - prefixlen;
             let prev_sub_ref = reg_prev_sub_ref();
@@ -2492,15 +2479,15 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
                 }
 
                 let mut tmpsub_vec: Vec<u8> = Vec::with_capacity(tmpsublen + 1);
-                tmpsub_vec.extend_from_slice(crate::memory::cstr_slice(newsub.cast(), prefixlen));
+                tmpsub_vec.extend_from_slice(&cur_slice[..prefixlen]);
                 tmpsub_vec.extend_from_slice(prev_sub.to_bytes());
-                tmpsub_vec.extend_from_slice(crate::memory::cstr_slice(postfix.cast(), postfixlen));
+                tmpsub_vec.extend_from_slice(&cur_slice[prefixlen + tildelen..]);
                 tmpsub_vec.push(0);
 
                 newsub_vec = Some(tmpsub_vec);
                 newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
                 newsublen = tmpsublen;
-                p = newsub.wrapping_add(prefixlen + reg_prev_sublen);
+                idx = prefixlen + reg_prev_sublen;
             } else {
                 let buf = unsafe {
                     std::slice::from_raw_parts_mut(newsub, prefixlen + tildelen + postfixlen + 1)
@@ -2511,14 +2498,11 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
                 );
             }
             continue;
-        } else {
-            if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-                && crate::memory::cstr_len(p.cast()) > 1
-            {
-                p = p.wrapping_add(1);
-            }
-            p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
         }
+        if cur_slice[idx] == b'\\' && idx + 1 < newsublen {
+            idx += 1;
+        }
+        idx += crate::mbyte::utfc_slice2len(&cur_slice[idx..]);
     }
 
     if error {
@@ -2526,7 +2510,6 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
     }
 
     if !preview {
-        newsublen = crate::memory::ptr_offset_from(p, newsub) as usize;
         re_st().reg_prev_sub = if newsublen == 0 {
             None
         } else {
@@ -3154,48 +3137,44 @@ pub(super) fn init_regexec_multi(
     re_st().rex.reg_maxcol = rmp.rmm_maxcol;
 }
 
-pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut bool) -> i32 {
+pub(super) fn get_char_class_bits(slice: &[u8], newl: &mut bool) -> i32 {
     let mut config: i32 = 0;
     *newl = false;
-    if end < start {
+    let Some((&b']', body)) = slice.split_last() else {
         return -1;
-    }
-    let len = crate::memory::ptr_offset_from(end, start) as usize;
-    let slice = crate::memory::cstr_slice(start.cast(), len + 1);
-    if slice[len] != b']' {
-        return -1;
-    }
+    };
+    let len = body.len();
     let mut i = 0;
-    if slice[i] == b'^' {
+    if body.first() == Some(&b'^') {
         config |= CLASS_NOT;
         i += 1;
     }
 
     while i < len {
-        if i + 2 < len && slice[i + 1] == b'-' {
-            match slice[i] {
+        if i + 2 < len && body[i + 1] == b'-' {
+            match body[i] {
                 b'0' => {
-                    if slice[i + 2] == b'9' {
+                    if body[i + 2] == b'9' {
                         config |= CLASS_O9;
-                    } else if slice[i + 2] == b'7' {
+                    } else if body[i + 2] == b'7' {
                         config |= CLASS_O7;
                     } else {
                         return -1;
                     }
                 }
                 b'a' => {
-                    if slice[i + 2] == b'z' {
+                    if body[i + 2] == b'z' {
                         config |= CLASS_AZ_CONST;
-                    } else if slice[i + 2] == b'f' {
+                    } else if body[i + 2] == b'f' {
                         config |= CLASS_AF_CONST;
                     } else {
                         return -1;
                     }
                 }
                 b'A' => {
-                    if slice[i + 2] == b'Z' {
+                    if body[i + 2] == b'Z' {
                         config |= CLASS_AZ;
-                    } else if slice[i + 2] == b'F' {
+                    } else if body[i + 2] == b'F' {
                         config |= CLASS_AF;
                     } else {
                         return -1;
@@ -3204,13 +3183,13 @@ pub(super) fn get_char_class_bits(start: *const u8, end: *const u8, newl: &mut b
                 _ => return -1,
             }
             i += 3;
-        } else if i + 1 < len && slice[i] == b'\\' && slice[i + 1] == b'n' {
+        } else if i + 1 < len && body[i] == b'\\' && body[i + 1] == b'n' {
             *newl = true;
             i += 2;
-        } else if slice[i] == b'_' {
+        } else if body[i] == b'_' {
             config |= CLASS_UNDERSCORE;
             i += 1;
-        } else if slice[i] == b'\n' {
+        } else if body[i] == b'\n' {
             *newl = true;
             i += 1;
         } else {
@@ -3670,6 +3649,30 @@ impl RegexpState {
             .copied()
             .unwrap_or(0)
     }
+    #[inline]
+    pub fn regparse_get_char_class(&mut self) -> i32 {
+        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let mut rem = bytes;
+        let res = get_char_class(&mut rem);
+        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        res
+    }
+    #[inline]
+    pub fn regparse_get_equi_class(&mut self) -> i32 {
+        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let mut rem = bytes;
+        let res = get_equi_class(&mut rem);
+        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        res
+    }
+    #[inline]
+    pub fn regparse_get_coll_element(&mut self) -> i32 {
+        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let mut rem = bytes;
+        let res = get_coll_element(&mut rem);
+        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        res
+    }
 }
 
 impl Regsubmatch {
@@ -3728,15 +3731,12 @@ mod tests {
     fn get_char_class_bits_recognizes_digit_and_hex() {
         let mut newl = false;
         let digits = b"0-9]";
-        assert_eq!(
-            get_char_class_bits(digits.as_ptr(), digits.as_ptr().wrapping_add(3), &mut newl),
-            CLASS_O9
-        );
+        assert_eq!(get_char_class_bits(digits, &mut newl), CLASS_O9);
         assert!(!newl);
 
         let hex_nl = b"^0-9a-fA-F\\n]";
         assert_eq!(
-            get_char_class_bits(hex_nl.as_ptr(), hex_nl.as_ptr().wrapping_add(12), &mut newl),
+            get_char_class_bits(hex_nl, &mut newl),
             CLASS_NOT | CLASS_O9 | CLASS_AF_CONST | CLASS_AF
         );
         assert!(newl);
