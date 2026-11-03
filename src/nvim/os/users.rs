@@ -107,14 +107,14 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn add_user(users: &mut Vec<CString>, user: impl crate::strings::IntoCCharPtr) {
-    let user = user.into_c_char_ptr();
-    if crate::memory::cstr_is_empty(user) {
+fn add_user(users: &mut Vec<CString>, user: Option<&std::ffi::CStr>) {
+    let Some(user) = user else {
+        return;
+    };
+    if user.to_bytes().is_empty() {
         return;
     }
-    if let Ok(cstr) = CString::new(crate::memory::cstr_as_bytes(user)) {
-        users.push(cstr);
-    }
+    users.push(user.to_owned());
 }
 
 /// Collect all OS usernames (`os_get_usernames`).
@@ -130,7 +130,10 @@ fn collect_usernames() -> Vec<CString> {
                 break;
             }
             let pw = &mut *pw;
-            add_user(&mut users, pw.pw_name.cast());
+            add_user(
+                &mut users,
+                crate::memory::cstr_as_opt_cstr(pw.pw_name.cast()),
+            );
         }
         endpwent();
 
@@ -143,7 +146,10 @@ fn collect_usernames() -> Vec<CString> {
             if !found {
                 let pw = getpwnam(user_env.cast());
                 if !pw.is_null() {
-                    add_user(&mut users, (*pw).pw_name.cast());
+                    add_user(
+                        &mut users,
+                        crate::memory::cstr_as_opt_cstr((*pw).pw_name.cast()),
+                    );
                 }
             }
         }

@@ -93,10 +93,10 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         None,
         0,
         0,
-        std::ptr::null_mut(),
+        None,
         rettv.vval.v_number_mut(),
     );
-    if let Some(chan) = crate::globals::gopt_mut(chan) {
+    if let Some(chan) = chan {
         channel_create_event(chan);
     }
 }

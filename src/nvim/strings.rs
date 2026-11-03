@@ -129,7 +129,7 @@ pub fn tr<S: IntoCCharPtr>(s: S) -> &'static CStr {
 pub fn gettext<S: IntoCCharPtr>(msgid: S) -> &'static CStr {
     let msgid = msgid.into_c_char_ptr();
     if crate::os::lang::HAVE_LIBINTL
-        && let Some(tr) = crate::os::lang::c_gettext(msgid)
+        && let Some(tr) = crate::os::lang::c_gettext(crate::memory::cstr_as_opt_cstr(msgid))
     {
         return tr;
     }
@@ -192,7 +192,8 @@ pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
     let msgid2 = msgid2.into_c_char_ptr();
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL
-        && let Some(tr) = crate::os::lang::c_ngettext(msgid1, count)
+        && let Some(tr) =
+            crate::os::lang::c_ngettext(crate::memory::cstr_as_opt_cstr(msgid1), count)
     {
         return tr;
     }

@@ -9363,19 +9363,19 @@ fn ex_restart(eap: &mut Exarg) {
             .as_deref(),
         0,
         0,
-        env,
-        &raw mut exit_status,
+        Some(env),
+        &mut exit_status,
     );
-    if channel.is_null() {
+    let Some(channel_ref) = channel else {
         let _ = emsg(c"cannot create a channel job");
         let la_ptr = listen_arg.as_ref().map_or(ptr::null(), |s| s.as_ptr());
         if server_stopped && server_start(listen_arg.as_deref()) != 0 {
             let _ = semsg!(c"couldn't resume listening on %s", la_ptr);
         }
         return;
-    }
-
-    let chan_id = crate::globals::gptr(channel).id;
+    };
+    let channel: *mut crate::channel::Channel = channel_ref;
+    let chan_id = unsafe { (*channel).id };
     let mut result_mem: ArenaMem = ptr::null_mut();
 
     'fail_2: {
@@ -10274,8 +10274,7 @@ fn ex_tabs(_eap: &mut Exarg) {
 }
 
 fn ex_detach(eap: &mut Exarg) {
-    let chan = find_channel(g_st().current_ui);
-    let Some(chan_ref) = crate::globals::gopt_mut(chan) else {
+    let Some(chan_ref) = find_channel(g_st().current_ui) else {
         let _ = emsg(gettext(E_NOUI));
         return;
     };
@@ -12570,7 +12569,7 @@ fn ex_terminal(eap: &mut Exarg) {
             let _ = emsg(gettext(E_SHELLEMPTY));
             return;
         }
-        let argv = shell_build_argv(ptr::null(), ptr::null());
+        let argv = shell_build_argv(None, None);
         let mut shell_tv: TypVal = TypVal::new();
         tv_list_alloc_ret(&mut shell_tv, 0);
         for arg in argv {

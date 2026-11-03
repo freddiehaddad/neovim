@@ -2302,7 +2302,7 @@ pub fn undo_fmt_time(buf: &mut [u8], tt: time_t) {
     let now = os_time() as time_t;
     if now - tt >= 100 {
         let mut curtime = Tm { _fields: [0; 16] };
-        os_localtime_r(&tt, &raw mut curtime);
+        let _ = os_localtime_r(&tt, &mut curtime);
         let n = if (os_time() as time_t) - tt < 60 * 60 * 12 {
             unsafe {
                 strftime(

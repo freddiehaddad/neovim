@@ -273,11 +273,6 @@ mod unix_impl {
         fn poll(fds: *mut pollfd, nfds: c_ulong, timeout: i32) -> i32;
     }
 
-    #[inline]
-    fn pty_proc_unix_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
-        ptyproc
-    }
-
     /// @returns zero on success, or negative error code
     pub fn pty_proc_spawn(ptyproc: &mut PtyProc) -> i32 {
         unsafe {
@@ -288,7 +283,7 @@ mod unix_impl {
 
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
-            let ptail = pty_proc_unix_tail(ptyproc);
+            let ptail: *mut PtyProc = ptyproc;
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -341,7 +336,46 @@ mod unix_impl {
                 );
                 return status;
             } else if pid == 0 {
-                init_child(ptyproc, prog, argv_ptrs.as_ptr(), new_env_ptrs.as_mut_ptr());
+                setsid();
+
+                signal(SIGCHLD, SIG_DFL);
+                signal(SIGHUP, SIG_DFL);
+                signal(SIGINT, SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
+                signal(SIGTERM, SIG_DFL);
+                signal(SIGALRM, SIG_DFL);
+
+                if let Some(ref cwd) = (*hdr).cwd {
+                    let err = uv_chdir(cwd.as_ptr());
+                    if err != 0 {
+                        logmsg!(
+                            LOGLVL_ERR,
+                            None,
+                            Some(c"init_child"),
+                            line!() as i32,
+                            true,
+                            c"chdir(%s) failed: %s",
+                            cwd.as_ptr(),
+                            uv_strerror(err),
+                        );
+                        _exit(122);
+                    }
+                }
+
+                *os_environ_ptr() = new_env_ptrs.as_mut_ptr().cast();
+                execvp(prog.as_ptr().cast(), argv_ptrs.as_ptr());
+                let err = os_errno();
+                logmsg!(
+                    LOGLVL_ERR,
+                    None,
+                    Some(c"init_child"),
+                    line!() as i32,
+                    true,
+                    c"execvp(%s) failed: %s",
+                    prog.as_ptr(),
+                    strerror(err),
+                );
+                _exit(122);
             }
             drop(new_env_ptrs);
             drop(new_env);
@@ -393,13 +427,17 @@ mod unix_impl {
                 }
 
                 if !s_in.closed {
-                    status = set_duplicating_descriptor(master, (&raw mut s_in.uv).cast());
+                    status = set_duplicating_descriptor(master, unsafe {
+                        &mut *(&raw mut s_in.uv).cast()
+                    });
                     if status != 0 {
                         break 'error;
                     }
                 }
                 if !r_out.s.closed {
-                    status = set_duplicating_descriptor(master, (&raw mut r_out.s.uv).cast());
+                    status = set_duplicating_descriptor(master, unsafe {
+                        &mut *(&raw mut r_out.s.uv).cast()
+                    });
                     if status != 0 {
                         break 'error;
                     }
@@ -418,22 +456,18 @@ mod unix_impl {
     }
 
     pub fn pty_proc_tty_name(ptyproc: &mut PtyProc) -> Option<&std::ffi::CStr> {
-        unsafe {
-            let ptail = pty_proc_unix_tail(ptyproc);
-            crate::memory::cstr_as_opt_cstr(ptsname((*ptail).tty_fd).cast())
-        }
+        unsafe { crate::memory::cstr_as_opt_cstr(ptsname(ptyproc.tty_fd).cast()) }
     }
 
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
         unsafe {
-            let ptail = pty_proc_unix_tail(ptyproc);
-            (*ptail).winsize = winsize {
+            ptyproc.winsize = winsize {
                 ws_row: height,
                 ws_col: width,
                 ws_xpixel: 0,
                 ws_ypixel: 0,
             };
-            ioctl((*ptail).tty_fd, TIOCSWINSZ, &raw const (*ptail).winsize);
+            ioctl(ptyproc.tty_fd, TIOCSWINSZ, &raw const ptyproc.winsize);
         }
     }
 
@@ -446,9 +480,8 @@ mod unix_impl {
     pub fn pty_proc_flush_master(ptyproc: &mut PtyProc) {
         #[cfg(target_os = "linux")]
         unsafe {
-            let ptail = pty_proc_unix_tail(ptyproc);
             let mut pfd = pollfd {
-                fd: (*ptail).tty_fd,
+                fd: ptyproc.tty_fd,
                 events: POLLIN,
                 revents: 0,
             };
@@ -473,10 +506,9 @@ mod unix_impl {
 
     pub fn pty_proc_close_master(ptyproc: &mut PtyProc) {
         unsafe {
-            let ptail = pty_proc_unix_tail(ptyproc);
-            if (*ptail).tty_fd >= 0 {
-                close((*ptail).tty_fd);
-                (*ptail).tty_fd = -1;
+            if ptyproc.tty_fd >= 0 {
+                close(ptyproc.tty_fd);
+                ptyproc.tty_fd = -1;
             }
         }
     }
@@ -484,59 +516,6 @@ mod unix_impl {
     pub fn pty_proc_teardown(loop_: &mut Loop) {
         unsafe {
             uv_signal_stop(loop_children_watcher(loop_));
-        }
-    }
-
-    fn init_child(
-        ptyproc: &mut PtyProc,
-        prog: impl crate::strings::IntoCCharPtr,
-        argv_ptrs: *const *mut u8,
-        new_env: *mut *mut u8,
-    ) -> ! {
-        let prog = prog.into_c_char_ptr();
-        unsafe {
-            setsid();
-
-            signal(SIGCHLD, SIG_DFL);
-            signal(SIGHUP, SIG_DFL);
-            signal(SIGINT, SIG_DFL);
-            signal(SIGQUIT, SIG_DFL);
-            signal(SIGTERM, SIG_DFL);
-            signal(SIGALRM, SIG_DFL);
-
-            let proc_: *mut Proc = ptyproc;
-            let hdr = proc_;
-            if let Some(ref cwd) = (*hdr).cwd {
-                let err = uv_chdir(cwd.as_ptr());
-                if err != 0 {
-                    logmsg!(
-                        LOGLVL_ERR,
-                        None,
-                        Some(c"init_child"),
-                        line!() as i32,
-                        true,
-                        c"chdir(%s) failed: %s",
-                        cwd.as_ptr(),
-                        uv_strerror(err),
-                    );
-                    _exit(122);
-                }
-            }
-
-            *os_environ_ptr() = new_env.cast();
-            execvp(prog.cast(), argv_ptrs);
-            let err = os_errno();
-            logmsg!(
-                LOGLVL_ERR,
-                None,
-                Some(c"init_child"),
-                line!() as i32,
-                true,
-                c"execvp(%s) failed: %s",
-                prog,
-                strerror(err),
-            );
-            _exit(122);
         }
     }
 
@@ -568,7 +547,7 @@ mod unix_impl {
         }
     }
 
-    fn set_duplicating_descriptor(fd: i32, pipe: *mut uv_pipe_t) -> i32 {
+    fn set_duplicating_descriptor(fd: i32, pipe: &mut uv_pipe_t) -> i32 {
         unsafe {
             let fd_dup = dup(fd);
             if fd_dup < 0 {

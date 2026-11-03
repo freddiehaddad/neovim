@@ -11,24 +11,20 @@ pub struct UvLib {
 }
 
 /// Call a function in a dynamically loadable library (`os_libcall`).
-///
-/// # Safety
-/// Pointer arguments must be null or valid C strings / output pointers, and the target symbol
-/// signature in `libname` must match the `(argv != null, str_out != null)` calling convention.
 pub fn os_libcall(
-    libname: impl crate::strings::IntoCCharPtr,
-    funcname: impl crate::strings::IntoCCharPtr,
-    argv: impl crate::strings::IntoCCharPtr,
+    libname: Option<&std::ffi::CStr>,
+    funcname: Option<&std::ffi::CStr>,
+    argv: Option<&std::ffi::CStr>,
     argi: i32,
     str_out: Option<&mut Option<CString>>,
     int_out: Option<&mut i32>,
 ) -> bool {
-    let argv = argv.into_c_char_ptr();
-    let funcname = funcname.into_c_char_ptr();
-    let libname = libname.into_c_char_ptr();
-    if libname.is_null() || funcname.is_null() {
+    let (Some(libname), Some(funcname)) = (libname, funcname) else {
         return false;
-    }
+    };
+    let libname = libname.as_ptr();
+    let funcname = funcname.as_ptr();
+    let argv = argv.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
 
     unsafe {
         let mut lib = UvLib {
@@ -84,21 +80,7 @@ mod tests {
 
     #[test]
     fn null_libname_or_funcname_returns_false() {
-        assert!(!os_libcall(
-            std::ptr::null(),
-            c"fn",
-            std::ptr::null(),
-            0,
-            None,
-            None
-        ));
-        assert!(!os_libcall(
-            c"lib",
-            std::ptr::null(),
-            std::ptr::null(),
-            0,
-            None,
-            None
-        ));
+        assert!(!os_libcall(None, Some(c"fn"), None, 0, None, None));
+        assert!(!os_libcall(Some(c"lib"), None, None, 0, None, None));
     }
 }

@@ -81,7 +81,8 @@ unsafe extern "system" {
 }
 
 #[cfg(target_os = "windows")]
-fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: i32) -> bool {
+fn os_proc_tree_kill_rec(proc_handle_addr: usize, sig: i32) -> bool {
+    let proc_handle: *mut c_void = proc_handle_addr as *mut c_void;
     if proc_handle.is_null() {
         return false;
     }
@@ -96,7 +97,7 @@ fn os_proc_tree_kill_rec(proc_handle: *mut c_void, sig: i32) -> bool {
                         let ph = unsafe { OpenProcess(PROCESS_ALL_ACCESS, 0, pe.th32_process_id) };
                         if !ph.is_null() {
                             unsafe {
-                                os_proc_tree_kill_rec(ph, sig);
+                                os_proc_tree_kill_rec(ph as usize, sig);
                                 CloseHandle(ph);
                             }
                         }
@@ -122,7 +123,7 @@ pub fn os_proc_tree_kill(pid: i32, sig: i32) -> bool {
         if pid > 0 {
             unsafe {
                 let h = OpenProcess(PROCESS_ALL_ACCESS, 0, pid as u32);
-                let ok = os_proc_tree_kill_rec(h, sig);
+                let ok = os_proc_tree_kill_rec(h as usize, sig);
                 if !h.is_null() {
                     CloseHandle(h);
                 }

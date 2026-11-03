@@ -53,7 +53,6 @@ use crate::profile::{Proftime, prof_child_enter, prof_child_exit};
 use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
-#[cfg(any(unix, test))]
 use std::ffi::CStr;
 use std::ptr;
 
@@ -132,13 +131,12 @@ unsafe extern "system" {
 }
 
 #[cfg(unix)]
-fn save_patterns(num_pat: i32, pat: *mut *mut u8, file: &mut Vec<std::ffi::CString>) {
+fn save_patterns(pat: &[&CStr], file: &mut Vec<std::ffi::CString>) {
     unsafe {
         file.clear();
-        file.reserve(num_pat as usize);
-        for i in 0..(num_pat as usize) {
-            let mut v: Vec<u8> = crate::memory::cstr_as_bytes((*pat.add(i)).cast()).to_vec();
-            v.push(0);
+        file.reserve(pat.len());
+        for &p in pat {
+            let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
             backslash_halve(v.as_mut_ptr().cast());
             file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
         }
@@ -146,43 +144,24 @@ fn save_patterns(num_pat: i32, pat: *mut *mut u8, file: &mut Vec<std::ffi::CStri
 }
 
 #[cfg(unix)]
-fn have_wildcard(num: i32, file: *mut *mut u8) -> bool {
-    unsafe {
-        for i in 0..(num as usize) {
-            if path_has_wildcard(crate::memory::cstr_as_bytes((*file.add(i)).cast()), true) {
-                return true;
-            }
-        }
-        false
-    }
+fn have_wildcard(file: &[&CStr]) -> bool {
+    file.iter().any(|p| path_has_wildcard(p.to_bytes(), true))
 }
 
 #[cfg(unix)]
-fn have_dollars(num: i32, file: *mut *mut u8) -> bool {
-    unsafe {
-        for i in 0..(num as usize) {
-            if crate::strings::vim_haschr((*file.add(i)).cast(), b'$' as i32) {
-                return true;
-            }
-        }
-        false
-    }
+fn have_dollars(file: &[&CStr]) -> bool {
+    file.iter().any(|p| p.to_bytes().contains(&b'$'))
 }
 
 /// Performs wildcard pattern matching using the shell.
 #[cfg(unix)]
-pub fn os_expand_wildcards(
-    num_pat: i32,
-    pat: *mut *mut u8,
-    file: &mut Vec<std::ffi::CString>,
-    flags: i32,
-) -> bool {
+pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, flags: i32) -> bool {
     const SH_VIMGLOB_FUNC: &CStr =
         c"vimglob() { while [ $# -ge 1 ]; do printf '%s\\n' \"$1\"; shift; done }; vimglob >";
     const SH_GLOBSTAR_OPT: &CStr = c"[[ ${BASH_VERSINFO[0]} -ge 4 ]] && shopt -s globstar; ";
 
     unsafe {
-        let mut extra_shell_arg: *mut u8 = ptr::null_mut();
+        let mut extra_shell_arg: Option<&CStr> = None;
         let mut shellopts: i32 = K_SHELL_OPT_EXPAND | K_SHELL_OPT_SILENT;
         let mut shell_style: i32 = STYLE_ECHO;
         let mut ampersand = false;
@@ -198,8 +177,8 @@ pub fn os_expand_wildcards(
 
         file.clear();
 
-        if !have_wildcard(num_pat, pat) {
-            save_patterns(num_pat, pat, file);
+        if !have_wildcard(pat) {
+            save_patterns(pat, file);
             return true;
         }
 
@@ -208,8 +187,8 @@ pub fn os_expand_wildcards(
         }
 
         if g_st().secure != 0 {
-            for i in 0..(num_pat as usize) {
-                if crate::strings::vim_haschr((*pat.add(i)).cast(), b'`' as i32) && check_secure() {
+            for &p in pat {
+                if p.to_bytes().contains(&b'`') && check_secure() {
                     return false;
                 }
             }
@@ -221,8 +200,8 @@ pub fn os_expand_wildcards(
         };
         let tempname = tempname_cstr.as_ptr();
 
-        if num_pat == 1 && **pat == b'`' {
-            let pat0_bytes = crate::memory::cstr_as_bytes((*pat).cast());
+        if pat.len() == 1 && pat[0].to_bytes().first() == Some(&b'`') {
+            let pat0_bytes = pat[0].to_bytes();
             if pat0_bytes.len() > 2 && pat0_bytes.last() == Some(&b'`') {
                 shell_style = STYLE_BT;
             }
@@ -254,9 +233,9 @@ pub fn os_expand_wildcards(
             len += SH_VIMGLOB_FUNC.to_bytes().len() + SH_GLOBSTAR_OPT.to_bytes().len();
         }
 
-        for i in 0..(num_pat as usize) {
+        for &p in pat {
             len += 1;
-            for &b in crate::memory::cstr_as_bytes((*pat.add(i)).cast()) {
+            for &b in p.to_bytes() {
                 if crate::strings::vim_haschr(SHELL_SPECIAL, i32::from(b)) {
                     len += 1;
                 }
@@ -276,7 +255,7 @@ pub fn os_expand_wildcards(
             } else {
                 command_vec.push(b'(');
             }
-            command_vec.extend_from_slice(crate::memory::cstr_as_bytes((*pat).add(1).cast()));
+            command_vec.extend_from_slice(&pat[0].to_bytes()[1..]);
             if let Some(last) = command_vec.last_mut() {
                 if is_fish_shell {
                     *last = b';';
@@ -321,9 +300,9 @@ pub fn os_expand_wildcards(
         command_vec.extend_from_slice(crate::memory::cstr_as_bytes(tempname));
 
         if shell_style != STYLE_BT {
-            for i in 0..(num_pat as usize) {
+            for &p in pat {
                 let mut intick = false;
-                let p_i = crate::memory::cstr_as_bytes((*pat.add(i)).cast());
+                let p_i = p.to_bytes();
 
                 command_vec.push(b' ');
                 let mut j = 0;
@@ -361,15 +340,18 @@ pub fn os_expand_wildcards(
             command_vec.push(b'&');
         }
         command_vec.push(0);
-        let command = command_vec.as_mut_ptr();
 
         if shell_style == STYLE_PRINT {
-            extra_shell_arg = c"-G".as_ptr().cast_mut().cast();
-        } else if shell_style == STYLE_GLOB && !have_dollars(num_pat, pat) {
-            extra_shell_arg = c"-f".as_ptr().cast_mut().cast();
+            extra_shell_arg = Some(c"-G");
+        } else if shell_style == STYLE_GLOB && !have_dollars(pat) {
+            extra_shell_arg = Some(c"-f");
         }
 
-        let res = call_shell(command.cast(), shellopts, extra_shell_arg.cast());
+        let res = call_shell(
+            Some(crate::memory::cstr_until_nul(&command_vec)),
+            shellopts,
+            extra_shell_arg,
+        );
 
         if ampersand {
             os_delay(10, true);
@@ -390,7 +372,7 @@ pub fn os_expand_wildcards(
                 return false;
             }
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, file);
+                save_patterns(pat, file);
                 return true;
             }
             return false;
@@ -402,7 +384,7 @@ pub fn os_expand_wildcards(
                 msg_start();
             }
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, file);
+                save_patterns(pat, file);
                 return true;
             }
             return false;
@@ -486,7 +468,7 @@ pub fn os_expand_wildcards(
 
         if count == 0 {
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, file);
+                save_patterns(pat, file);
                 return true;
             }
             return false;
@@ -547,7 +529,7 @@ pub fn os_expand_wildcards(
 
         if file.is_empty() {
             if (flags & EW_NOTFOUND) != 0 {
-                save_patterns(num_pat, pat, file);
+                save_patterns(pat, file);
                 return true;
             }
             return false;
@@ -559,29 +541,22 @@ pub fn os_expand_wildcards(
 
 /// Builds the argument vector for running the user-configured 'shell' (opt_vars().p_sh)
 /// with an optional command prefixed by 'shellcmdflag' (opt_vars().p_shcf).
-pub fn shell_build_argv(
-    cmd: impl crate::strings::IntoCCharPtr,
-    extra_args: impl crate::strings::IntoCCharPtr,
-) -> Vec<std::ffi::CString> {
-    let cmd = cmd.into_c_char_ptr();
-    let extra_args = extra_args.into_c_char_ptr();
-    {
-        let mut rv: Vec<std::ffi::CString> = Vec::new();
-        tokenize(opt_vars().p_sh, &mut rv);
+pub fn shell_build_argv(cmd: Option<&CStr>, extra_args: Option<&CStr>) -> Vec<std::ffi::CString> {
+    let mut rv: Vec<std::ffi::CString> = Vec::new();
+    tokenize(crate::memory::cstr_as_opt_cstr(opt_vars().p_sh), &mut rv);
 
-        if !extra_args.is_null() {
-            rv.push(crate::memory::cstr_to_cstring(extra_args));
-        }
-
-        if !cmd.is_null() {
-            tokenize(opt_vars().p_shcf, &mut rv);
-            rv.push(shell_xescape_xquote(cmd));
-        }
-
-        debug_assert!(!rv.is_empty());
-
-        rv
+    if let Some(extra_args) = extra_args {
+        rv.push(extra_args.to_owned());
     }
+
+    if let Some(cmd) = cmd {
+        tokenize(crate::memory::cstr_as_opt_cstr(opt_vars().p_shcf), &mut rv);
+        rv.push(shell_xescape_xquote(cmd));
+    }
+
+    debug_assert!(!rv.is_empty());
+
+    rv
 }
 
 /// Joins shell arguments from `argv` into a `CString` (truncated at 255 bytes with `"..."`).
@@ -619,13 +594,7 @@ pub fn shell_argv_to_str(argv: &[std::ffi::CString]) -> std::ffi::CString {
 }
 
 /// Calls the user-configured 'shell' (opt_vars().p_sh) for running a command or wildcard expansion.
-pub fn os_call_shell(
-    cmd: impl crate::strings::IntoCCharPtr,
-    opts: i32,
-    extra_args: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let cmd = cmd.into_c_char_ptr();
-    let extra_args = extra_args.into_c_char_ptr();
+pub fn os_call_shell(cmd: Option<&CStr>, opts: i32, extra_args: Option<&CStr>) -> i32 {
     let mut input: Vec<u8> = Vec::new();
     let mut output: Vec<u8> = Vec::new();
     let mut want_output = false;
@@ -681,118 +650,111 @@ pub fn os_call_shell(
 }
 
 /// os_call_shell() wrapper. Handles 'verbose', :profile, and v:shell_error.
-pub fn call_shell(
-    cmd: impl crate::strings::IntoCCharPtr,
-    opts: i32,
-    extra_shell_arg: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let cmd = cmd.into_c_char_ptr();
-    let extra_shell_arg = extra_shell_arg.into_c_char_ptr();
-    {
-        let mut wait_time: Proftime = 0;
+pub fn call_shell(cmd: Option<&CStr>, opts: i32, extra_shell_arg: Option<&CStr>) -> i32 {
+    let mut wait_time: Proftime = 0;
 
-        if opt_vars().p_verbose > 3 {
-            verbose_enter();
-            smsg!(
-                0,
-                gettext(c"Executing command: \"%s\""),
-                if cmd.is_null() { opt_vars().p_sh } else { cmd },
-            );
-            if !ui_has(K_UIMESSAGES) {
-                msg_putchar(b'\n' as i32);
-            }
-            verbose_leave();
+    if opt_vars().p_verbose > 3 {
+        verbose_enter();
+        smsg!(
+            0,
+            gettext(c"Executing command: \"%s\""),
+            cmd.map_or(opt_vars().p_sh.cast_const(), CStr::as_ptr),
+        );
+        if !ui_has(K_UIMESSAGES) {
+            msg_putchar(b'\n' as i32);
         }
-
-        if g_st().do_profiling == PROF_YES {
-            prof_child_enter(&mut wait_time);
-        }
-
-        let retval = if crate::memory::cstr_is_empty(opt_vars().p_sh) {
-            emsg(gettext(E_SHELLEMPTY));
-            -1
-        } else {
-            tag_freematch();
-            os_call_shell(cmd, opts, extra_shell_arg)
-        };
-
-        set_vim_var_nr(VV_SHELL_ERROR, Varnumber::from(retval));
-        if g_st().do_profiling == PROF_YES {
-            prof_child_exit(&mut wait_time);
-        }
-
-        retval
+        verbose_leave();
     }
+
+    if g_st().do_profiling == PROF_YES {
+        prof_child_enter(&mut wait_time);
+    }
+
+    let retval = if crate::memory::cstr_is_empty(opt_vars().p_sh) {
+        emsg(gettext(E_SHELLEMPTY));
+        -1
+    } else {
+        tag_freematch();
+        os_call_shell(cmd, opts, extra_shell_arg)
+    };
+
+    set_vim_var_nr(VV_SHELL_ERROR, Varnumber::from(retval));
+    if g_st().do_profiling == PROF_YES {
+        prof_child_exit(&mut wait_time);
+    }
+
+    retval
 }
 
 /// Get the stdout of an external command.
 pub fn get_cmd_output(
-    cmd: impl crate::strings::IntoCCharPtr,
-    infile: impl crate::strings::IntoCCharPtr,
+    cmd: Option<&CStr>,
+    infile: Option<&CStr>,
     flags: i32,
 ) -> Option<std::ffi::CString> {
-    let infile = infile.into_c_char_ptr();
-    let cmd = cmd.into_c_char_ptr().cast_mut();
-    {
-        if check_secure() {
-            return None;
-        }
-
-        let Some(tempname_cstr) = vim_tempname() else {
-            emsg(gettext(E_NOTMP));
-            return None;
-        };
-        let tempname = tempname_cstr.as_ptr().cast_mut();
-
-        let command = make_filter_cmd(cmd, infile, tempname, false);
-
-        g_st().no_check_timestamps += 1;
-        call_shell(
-            command.as_ptr().cast_mut(),
-            K_SHELL_OPT_DO_OUT | K_SHELL_OPT_EXPAND | flags,
-            ptr::null_mut(),
-        );
-        g_st().no_check_timestamps -= 1;
-
-        drop(command);
-
-        let mut result: Option<std::ffi::CString> = None;
-
-        if let Some(f) = CFile::open(tempname, c"rb") {
-            'done: {
-                if f.seek(0, SEEK_END) == -1 {
-                    semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-                    break 'done;
-                }
-                let len_l = f.tell();
-                if len_l == -1 || f.seek(0, SEEK_SET) == -1 {
-                    semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-                    break 'done;
-                }
-
-                let len = len_l as usize;
-                let mut buffer = vec![0u8; len];
-                let i = f.read_bytes(&mut buffer);
-                drop(f);
-                if i != len {
-                    semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
-                } else {
-                    for b in &mut buffer {
-                        if *b == 0 {
-                            *b = 1;
-                        }
-                    }
-                    result = std::ffi::CString::new(buffer).ok();
-                }
-            }
-        } else {
-            semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
-        }
-
-        os_remove(tempname);
-        drop(tempname_cstr);
-        result
+    if check_secure() {
+        return None;
     }
+
+    let Some(tempname_cstr) = vim_tempname() else {
+        emsg(gettext(E_NOTMP));
+        return None;
+    };
+    let tempname = tempname_cstr.as_ptr().cast_mut();
+
+    let command = make_filter_cmd(
+        cmd.map_or(ptr::null(), CStr::as_ptr),
+        infile.map_or(ptr::null(), CStr::as_ptr),
+        tempname,
+        false,
+    );
+
+    g_st().no_check_timestamps += 1;
+    call_shell(
+        Some(command.as_c_str()),
+        K_SHELL_OPT_DO_OUT | K_SHELL_OPT_EXPAND | flags,
+        None,
+    );
+    g_st().no_check_timestamps -= 1;
+
+    drop(command);
+
+    let mut result: Option<std::ffi::CString> = None;
+
+    if let Some(f) = CFile::open(tempname, c"rb") {
+        'done: {
+            if f.seek(0, SEEK_END) == -1 {
+                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
+                break 'done;
+            }
+            let len_l = f.tell();
+            if len_l == -1 || f.seek(0, SEEK_SET) == -1 {
+                semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
+                break 'done;
+            }
+
+            let len = len_l as usize;
+            let mut buffer = vec![0u8; len];
+            let i = f.read_bytes(&mut buffer);
+            drop(f);
+            if i != len {
+                semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
+            } else {
+                for b in &mut buffer {
+                    if *b == 0 {
+                        *b = 1;
+                    }
+                }
+                result = std::ffi::CString::new(buffer).ok();
+            }
+        }
+    } else {
+        semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
+    }
+
+    os_remove(tempname);
+    drop(tempname_cstr);
+    result
 }
 
 /// os_system - synchronously execute a command in the shell
@@ -1069,44 +1031,35 @@ pub(crate) fn out_data_cb(stream_fd: i32, buf: &[u8], eof: bool) -> usize {
     count
 }
 
-fn tokenize(str_in: impl crate::strings::IntoCCharPtr, argv: &mut Vec<std::ffi::CString>) {
-    let str_in = str_in.into_c_char_ptr();
-    {
-        let mut p = str_in;
+fn tokenize(str_in: Option<&CStr>, argv: &mut Vec<std::ffi::CString>) {
+    let Some(str_in) = str_in else {
+        return;
+    };
+    let mut p = str_in.as_ptr();
 
-        while !crate::memory::cstr_is_empty(p) {
-            let len = word_length(p);
-            argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
-            p = skipwhite(p.wrapping_add(len));
-        }
+    while !crate::memory::cstr_is_empty(p) {
+        let len = word_length(crate::memory::cstr_from_ptr(p));
+        argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
+        p = skipwhite(p.wrapping_add(len));
     }
 }
 
-pub(crate) fn word_length(str_in: impl crate::strings::IntoCCharPtr) -> usize {
-    let str_in = str_in.into_c_char_ptr();
-    {
-        let mut p = str_in;
-        let mut inquote = false;
-        let mut length: usize = 0;
+pub(crate) fn word_length(str_in: &CStr) -> usize {
+    let bytes = str_in.to_bytes();
+    let mut inquote = false;
+    let mut length: usize = 0;
 
-        while !crate::memory::cstr_is_empty(p)
-            && (inquote
-                || (crate::memory::cstr_first_byte(p) != b' '
-                    && crate::memory::cstr_first_byte(p) != TAB))
-        {
-            if crate::memory::cstr_first_byte(p) == b'"' {
-                inquote = !inquote;
-            } else if crate::memory::cstr_first_byte(p) == b'\\' && inquote {
-                p = p.wrapping_add(1);
-                length += 1;
-            }
-
-            p = p.wrapping_add(1);
+    while length < bytes.len() && (inquote || (bytes[length] != b' ' && bytes[length] != TAB)) {
+        if bytes[length] == b'"' {
+            inquote = !inquote;
+        } else if bytes[length] == b'\\' && inquote && length + 1 < bytes.len() {
             length += 1;
         }
 
-        length
+        length += 1;
     }
+
+    length
 }
 
 fn read_input(buf: &mut Vec<u8>) {
@@ -1199,45 +1152,43 @@ pub(crate) fn shell_write_cb(stream: &mut Stream, status: i32) {
     stream_may_close(stream);
 }
 
-fn shell_xescape_xquote(cmd: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
-    let cmd = cmd.into_c_char_ptr();
-    {
-        if crate::memory::cstr_is_empty(opt_vars().p_sxq) {
-            return crate::memory::cstr_to_cstring(cmd);
-        }
-
-        let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
-        let owned_ecmd = if !crate::memory::cstr_is_empty(opt_vars().p_sxe) && sxq_bytes == b"(" {
-            Some(vim_strsave_escaped_ext(
-                crate::memory::cstr_as_bytes(cmd),
-                crate::memory::cstr_as_bytes(opt_vars().p_sxe),
-                b'^' as _,
-                false,
-            ))
-        } else {
-            None
-        };
-        let ecmd_bytes = owned_ecmd
-            .as_ref()
-            .map_or_else(|| crate::memory::cstr_as_bytes(cmd), |s| s.as_bytes());
-        let mut out = Vec::with_capacity(ecmd_bytes.len() + sxq_bytes.len() * 2);
-
-        if sxq_bytes == b"(" {
-            out.push(b'(');
-            out.extend_from_slice(ecmd_bytes);
-            out.push(b')');
-        } else if sxq_bytes == b"\"(" {
-            out.extend_from_slice(b"\"(");
-            out.extend_from_slice(ecmd_bytes);
-            out.extend_from_slice(b")\"");
-        } else {
-            out.extend_from_slice(sxq_bytes);
-            out.extend_from_slice(ecmd_bytes);
-            out.extend_from_slice(sxq_bytes);
-        }
-
-        crate::memory::cstr_from_bytes(&out)
+fn shell_xescape_xquote(cmd: &CStr) -> std::ffi::CString {
+    if crate::memory::cstr_is_empty(opt_vars().p_sxq) {
+        return cmd.to_owned();
     }
+
+    let cmd_bytes = cmd.to_bytes();
+    let sxq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_sxq);
+    let owned_ecmd = if !crate::memory::cstr_is_empty(opt_vars().p_sxe) && sxq_bytes == b"(" {
+        Some(vim_strsave_escaped_ext(
+            cmd_bytes,
+            crate::memory::cstr_as_bytes(opt_vars().p_sxe),
+            b'^' as _,
+            false,
+        ))
+    } else {
+        None
+    };
+    let ecmd_bytes = owned_ecmd
+        .as_ref()
+        .map_or(cmd_bytes, std::ffi::CString::as_bytes);
+    let mut out = Vec::with_capacity(ecmd_bytes.len() + sxq_bytes.len() * 2);
+
+    if sxq_bytes == b"(" {
+        out.push(b'(');
+        out.extend_from_slice(ecmd_bytes);
+        out.push(b')');
+    } else if sxq_bytes == b"\"(" {
+        out.extend_from_slice(b"\"(");
+        out.extend_from_slice(ecmd_bytes);
+        out.extend_from_slice(b")\"");
+    } else {
+        out.extend_from_slice(sxq_bytes);
+        out.extend_from_slice(ecmd_bytes);
+        out.extend_from_slice(sxq_bytes);
+    }
+
+    crate::memory::cstr_from_bytes(&out)
 }
 
 #[cfg(test)]
@@ -1267,13 +1218,10 @@ mod tests {
         opt_vars().p_sxe = c"".as_ptr().cast_mut();
 
         let collect_argv = |cmd: Option<&CStr>, extra: Option<&CStr>| -> Vec<String> {
-            shell_build_argv(
-                cmd.map_or(ptr::null(), CStr::as_ptr),
-                extra.map_or(ptr::null(), CStr::as_ptr),
-            )
-            .into_iter()
-            .map(|arg| arg.into_string().unwrap())
-            .collect()
+            shell_build_argv(cmd, extra)
+                .into_iter()
+                .map(|arg| arg.into_string().unwrap())
+                .collect()
         };
 
         assert_eq!(collect_argv(None, None), vec!["/bin/sh"]);

@@ -1250,7 +1250,10 @@ pub fn gen_expand_wildcards_vec(
     if path_st().expand_recursive {
         #[cfg(unix)]
         {
-            return os_expand_wildcards(num_pat, pat.cast(), file, flags);
+            let pat_slice: Vec<&CStr> = (0..num_pat as usize)
+                .map(|i| crate::memory::cstr_from_ptr(unsafe { *pat.add(i) }))
+                .collect();
+            return os_expand_wildcards(&pat_slice, file, flags);
         }
         #[cfg(not(unix))]
         {
@@ -1267,7 +1270,10 @@ pub fn gen_expand_wildcards_vec(
         if has_special_wildchar(pi_bytes, flags)
             && !(vim_backtick(pi_bytes) && pi_bytes.get(1) == Some(&b'='))
         {
-            return os_expand_wildcards(num_pat, pat.cast(), file, flags);
+            let pat_slice: Vec<&CStr> = (0..num_pat as usize)
+                .map(|j| crate::memory::cstr_from_ptr(unsafe { *pat.add(j) }))
+                .collect();
+            return os_expand_wildcards(&pat_slice, file, flags);
         }
     }
 
@@ -1301,8 +1307,10 @@ pub fn gen_expand_wildcards_vec(
                     if has_env_var(po_bytes) || po_bytes.first() == Some(&b'~') {
                         drop(p_owned);
                         file.clear();
-                        let res =
-                            os_expand_wildcards(num_pat, pat.cast(), file, flags | EW_KEEPDOLLAR);
+                        let pat_slice: Vec<&CStr> = (0..num_pat as usize)
+                            .map(|j| crate::memory::cstr_from_ptr(unsafe { *pat.add(j) }))
+                            .collect();
+                        let res = os_expand_wildcards(&pat_slice, file, flags | EW_KEEPDOLLAR);
                         path_st().expand_recursive = false;
                         return res;
                     }
@@ -1411,8 +1419,8 @@ fn expand_backtick(gap: &mut Vec<std::ffi::CString>, pat_bytes: &[u8], flags: i3
         eval_to_string(crate::memory::cstr_until_nul(&cmd_vec[1..]), true, false)
     } else {
         get_cmd_output(
-            crate::memory::cstr_until_nul(&cmd_vec),
-            ptr::null_mut(),
+            Some(crate::memory::cstr_until_nul(&cmd_vec)),
+            None,
             if (flags & EW_SILENT) != 0 {
                 K_SHELL_OPT_SILENT
             } else {

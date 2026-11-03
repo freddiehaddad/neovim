@@ -506,52 +506,41 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
     lang_st().active_catalog.and_then(|idx| catalogs.get(idx))
 }
 
-pub(crate) fn c_gettext(msgid: impl crate::strings::IntoCCharPtr) -> Option<&'static CStr> {
-    let msgid = msgid.into_c_char_ptr();
-    if crate::memory::cstr_is_empty(msgid) {
+pub(crate) fn c_gettext(msgid: Option<&CStr>) -> Option<&'static CStr> {
+    let msgid = msgid?;
+    if msgid.to_bytes().is_empty() {
         return None;
     }
-    {
-        let cat = ensure_catalog_loaded()?;
-        let key = crate::memory::cstr_as_bytes(msgid);
-        let idx = cat
-            .entries
-            .binary_search_by(|e| e.msgid.as_ref().cmp(key))
-            .ok()?;
-        cat.entries[idx].forms.first().map(CString::as_c_str)
-    }
+    let cat = ensure_catalog_loaded()?;
+    let key = msgid.to_bytes();
+    let idx = cat
+        .entries
+        .binary_search_by(|e| e.msgid.as_ref().cmp(key))
+        .ok()?;
+    cat.entries[idx].forms.first().map(CString::as_c_str)
 }
 
-pub(crate) fn c_ngettext(
-    msgid1: impl crate::strings::IntoCCharPtr,
-    n: u64,
-) -> Option<&'static CStr> {
-    let msgid1 = msgid1.into_c_char_ptr();
-    if crate::memory::cstr_is_empty(msgid1) {
+pub(crate) fn c_ngettext(msgid1: Option<&CStr>, n: u64) -> Option<&'static CStr> {
+    let msgid1 = msgid1?;
+    if msgid1.to_bytes().is_empty() {
         return None;
     }
-    {
-        let cat = ensure_catalog_loaded()?;
-        let key = crate::memory::cstr_as_bytes(msgid1);
-        let idx = cat
-            .entries
-            .binary_search_by(|e| e.msgid.as_ref().cmp(key))
-            .ok()?;
-        let forms = &cat.entries[idx].forms;
-        let form_idx = eval_plural_expr(&cat.plural_expr, n);
-        forms
-            .get(form_idx)
-            .or_else(|| forms.first())
-            .map(CString::as_c_str)
-    }
+    let cat = ensure_catalog_loaded()?;
+    let key = msgid1.to_bytes();
+    let idx = cat
+        .entries
+        .binary_search_by(|e| e.msgid.as_ref().cmp(key))
+        .ok()?;
+    let forms = &cat.entries[idx].forms;
+    let form_idx = eval_plural_expr(&cat.plural_expr, n);
+    forms
+        .get(form_idx)
+        .or_else(|| forms.first())
+        .map(CString::as_c_str)
 }
 
 #[inline]
-pub fn bind_textdomain_codeset(
-    _domainname: impl crate::strings::IntoCCharPtr,
-    _codeset: impl crate::strings::IntoCCharPtr,
-) {
-}
+pub fn bind_textdomain_codeset(_domainname: &CStr, _codeset: Option<&CStr>) {}
 
 #[cfg(unix)]
 use crate::diff::K_SHELL_OPT_SILENT;
@@ -748,7 +737,7 @@ pub fn ex_language(eap: &mut Exarg) {
 
 #[cfg(not(windows))]
 fn find_locales() -> Vec<CString> {
-    let Some(locale_a) = get_cmd_output(c"locale -a", ptr::null_mut(), K_SHELL_OPT_SILENT) else {
+    let Some(locale_a) = get_cmd_output(Some(c"locale -a"), None, K_SHELL_OPT_SILENT) else {
         return Vec::new();
     };
     locale_a

@@ -1185,9 +1185,9 @@ fn diff_file(dio: &mut Diffio) -> bool {
     append_redir(cmd, len, opt_vars().p_srr, tmp_diff);
     crate::autocmd::block_autocmds();
     call_shell(
-        cmd,
+        crate::memory::cstr_as_opt_cstr(cmd),
         K_SHELL_OPT_FILTER | K_SHELL_OPT_SILENT | K_SHELL_OPT_DO_OUT,
-        ptr::null_mut(),
+        None,
     );
     crate::autocmd::unblock_autocmds();
     true
@@ -1281,7 +1281,11 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 esc_ptr,
             );
             crate::autocmd::block_autocmds();
-            call_shell(buf, K_SHELL_OPT_FILTER, ptr::null_mut());
+            call_shell(
+                crate::memory::cstr_as_opt_cstr(buf),
+                K_SHELL_OPT_FILTER,
+                None,
+            );
             crate::autocmd::unblock_autocmds();
         }
         #[cfg(unix)]

@@ -109,15 +109,16 @@ mod win_impl {
     }
 
     #[inline]
-    fn pty_proc_win_tail(ptyproc: &mut PtyProc) -> *mut PtyProc {
-        ptyproc
-    }
-
-    #[inline]
-    fn connect_req_handle_ptr(req: *mut uv_connect_t) -> *mut *mut uv_stream_t {
-        req.cast::<u8>()
-            .wrapping_add(unsafe { uv_req_size(UV_REQ) } + size_of::<*mut c_void>())
-            .cast::<*mut uv_stream_t>()
+    fn connect_req_has_handle(req: &[u64]) -> bool {
+        unsafe {
+            !ptr::read_volatile(
+                req.as_ptr()
+                    .cast::<u8>()
+                    .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
+                    .cast::<*mut uv_stream_t>(),
+            )
+            .is_null()
+        }
     }
 
     unsafe extern "C" fn os_conpty_free_thread(arg: *mut c_void) {
@@ -135,19 +136,19 @@ mod win_impl {
         }
     }
 
-    pub(crate) fn pty_proc_close_console(stream: *mut Stream) {
+    pub(crate) fn pty_proc_close_console(stream: &mut Stream) {
         unsafe {
-            let ptyproc = (*stream).internal_data.as_proc();
+            let ptyproc = stream.internal_data.as_proc();
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let r_out = &raw mut (*proc_).out;
             let r_fields = r_out;
-            let ptail = pty_proc_win_tail(&mut *ptyproc);
-            let Some(conpty) = (*ptail).conpty.take() else {
+            let ptail = ptyproc;
+            let Some(conpty) = ptail.conpty.take() else {
                 return;
             };
             if (*r_fields).num_bytes == 0 {
-                TerminateProcess((*ptail).proc_handle, 0);
+                TerminateProcess(ptail.proc_handle, 0);
             }
             let mut tid: uv_thread_t = 0;
             uv_thread_create(
@@ -170,8 +171,7 @@ mod win_impl {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let hdr = &mut *hdr;
-            let ptail = pty_proc_win_tail(ptyproc);
-            let ptail = &mut *ptail;
+            let ptail: *mut PtyProc = ptyproc;
             let s_in = &mut (*proc_).r#in;
             let r_out = &mut (*proc_).out;
             let r_err = &mut (*proc_).err;
@@ -182,8 +182,6 @@ mod win_impl {
             let mut proc_handle: HANDLE = ptr::null_mut();
             let mut in_req_buf: Option<Vec<u64>> = None;
             let mut out_req_buf: Option<Vec<u64>> = None;
-            let mut in_req: *mut uv_connect_t = ptr::null_mut();
-            let mut out_req: *mut uv_connect_t = ptr::null_mut();
             let mut file: Vec<u16> = Vec::new();
             let mut cmd_line: Vec<u16> = Vec::new();
             let mut cwd: Vec<u16> = Vec::new();
@@ -198,7 +196,7 @@ mod win_impl {
                     break 'cleanup;
                 }
                 conpty_object =
-                    os_conpty_init(&mut in_name, &mut out_name, ptail.width, ptail.height);
+                    os_conpty_init(&mut in_name, &mut out_name, (*ptail).width, (*ptail).height);
                 if conpty_object.is_none() {
                     status = UV_ENOSYS;
                     break 'cleanup;
@@ -206,7 +204,7 @@ mod win_impl {
 
                 if !s_in.closed {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
-                    in_req = buf.as_mut_ptr().cast();
+                    let in_req = buf.as_mut_ptr().cast();
                     in_req_buf = Some(buf);
                     uv_pipe_connect(
                         in_req,
@@ -218,7 +216,7 @@ mod win_impl {
 
                 if !r_out.s.closed {
                     let mut buf = vec![0u64; uv_req_size(UV_CONNECT).div_ceil(8)];
-                    out_req = buf.as_mut_ptr().cast();
+                    let out_req = buf.as_mut_ptr().cast();
                     out_req_buf = Some(buf);
                     uv_pipe_connect(
                         out_req,
@@ -273,22 +271,10 @@ mod win_impl {
                 if !os_conpty_spawn(
                     conpty_object.as_deref_mut().unwrap(),
                     &mut proc_handle,
-                    if file.is_empty() {
-                        ptr::null_mut()
-                    } else {
-                        file.as_mut_ptr()
-                    },
-                    cmd_line.as_mut_ptr(),
-                    if cwd.is_empty() {
-                        ptr::null_mut()
-                    } else {
-                        cwd.as_mut_ptr()
-                    },
-                    if env.is_empty() {
-                        ptr::null_mut()
-                    } else {
-                        env.as_mut_ptr()
-                    },
+                    (!file.is_empty()).then_some(file.as_slice()),
+                    &mut cmd_line,
+                    (!cwd.is_empty()).then_some(cwd.as_slice()),
+                    (!env.is_empty()).then_some(env.as_mut_slice()),
                 ) {
                     emsg = Some(c"os_conpty_spawn failed");
                     status = GetLastError() as i32;
@@ -297,10 +283,10 @@ mod win_impl {
                 hdr.pid = GetProcessId(proc_handle) as i32;
 
                 if RegisterWaitForSingleObject(
-                    &raw mut ptail.finish_wait,
+                    &raw mut (*ptail).finish_wait,
                     proc_handle,
                     Some(pty_proc_terminate_cb),
-                    (&raw mut *ptyproc).cast(),
+                    ptail.cast(),
                     INFINITE,
                     WT_EXECUTEDEFAULT | WT_EXECUTEONLYONCE,
                 ) == 0
@@ -308,17 +294,15 @@ mod win_impl {
                     std::process::abort();
                 }
 
-                while (!in_req.is_null()
-                    && !ptr::read_volatile(connect_req_handle_ptr(in_req)).is_null())
-                    || (!out_req.is_null()
-                        && !ptr::read_volatile(connect_req_handle_ptr(out_req)).is_null())
+                while in_req_buf.as_deref().is_some_and(connect_req_has_handle)
+                    || out_req_buf.as_deref().is_some_and(connect_req_has_handle)
                 {
                     uv_run(hdr.loop_.cast(), UV_RUN_ONCE);
                 }
 
                 r_out.s.close_console = true;
-                ptail.conpty = conpty_object.take();
-                ptail.proc_handle = proc_handle;
+                (*ptail).conpty = conpty_object.take();
+                (*ptail).proc_handle = proc_handle;
                 proc_handle = ptr::null_mut();
             }
 
@@ -353,11 +337,8 @@ mod win_impl {
     }
 
     pub fn pty_proc_resize(ptyproc: &mut PtyProc, width: u16, height: u16) {
-        unsafe {
-            let ptail = pty_proc_win_tail(ptyproc);
-            if let Some(ref conpty) = (*ptail).conpty {
-                os_conpty_set_size(conpty, width, height);
-            }
+        if let Some(ref conpty) = ptyproc.conpty {
+            os_conpty_set_size(conpty, width, height);
         }
     }
 
@@ -368,8 +349,7 @@ mod win_impl {
     pub fn pty_proc_close(ptyproc: &mut PtyProc) {
         let proc_: *mut Proc = ptyproc;
         let proc_t = proc_;
-        let ptail = pty_proc_win_tail(ptyproc);
-        let ptail = unsafe { &mut *ptail };
+        let ptail = unsafe { &mut *proc_ };
 
         pty_proc_close_master(ptyproc);
 
@@ -393,9 +373,12 @@ mod win_impl {
     unsafe extern "C" fn pty_proc_connect_cb(req: *mut uv_connect_t, status: i32) {
         unsafe {
             debug_assert_eq!(status, 0);
-            {
-                ptr::write_volatile(connect_req_handle_ptr(req), ptr::null_mut());
-            }
+            ptr::write_volatile(
+                req.cast::<u8>()
+                    .wrapping_add(uv_req_size(UV_REQ) + size_of::<*mut c_void>())
+                    .cast::<*mut uv_stream_t>(),
+                ptr::null_mut(),
+            );
         }
     }
 
@@ -404,7 +387,7 @@ mod win_impl {
             let proc_: *mut Proc = ptyproc;
             let hdr = proc_;
             let hdr = &mut *hdr;
-            let ptail = pty_proc_win_tail(ptyproc);
+            let ptail: *mut PtyProc = ptyproc;
 
             let mut exit_code: DWORD = 0;
             GetExitCodeProcess((*ptail).proc_handle, &mut exit_code);

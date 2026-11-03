@@ -1652,10 +1652,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     #[cfg(not(windows))]
     let crlf = false;
     #[cfg(windows)]
-    let crlf = {
-        let chan = find_channel(id);
-        !chan.is_null() && !crate::globals::gptr(chan).term.is_null()
-    };
+    let crlf = find_channel(id).is_some_and(|chan| !chan.term.is_null());
 
     let input = if argvars[1].v_type == VarType::VarBlob {
         let b = argvars[1].vval.v_blob().cast::<TvBlob>();
@@ -4629,27 +4626,29 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::memory::cstr_as_opt_cstr(cwd),
         width,
         height,
-        env,
+        Some(env),
         rettv.vval.v_number_mut(),
     );
-    if chan.is_null() {
-        // do nothing
-    } else if !term {
-        channel_create_event(crate::globals::gmut(chan));
+    let Some(chan_ref) = chan else {
+        return;
+    };
+    let chan: *mut crate::channel::Channel = chan_ref;
+    if !term {
+        channel_create_event(unsafe { &mut *chan });
     } else {
         if rettv.vval.v_number() <= 0 {
             return;
         }
 
-        let pid = crate::globals::gptr(chan).uv.proc_.pid;
+        let pid = unsafe { (*chan).uv.proc_.pid };
         let buf = g_st().curbuf;
         let buf = crate::globals::gmut(buf);
 
         buf.b_p_swf = 0;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
-            proc_stop(&mut crate::globals::gmut(chan).uv.proc_);
+            proc_stop(unsafe { &mut (*chan).uv.proc_ });
 
-            channel_decref(crate::globals::gmut(chan));
+            channel_decref(unsafe { &mut *chan });
 
             return;
         }
@@ -4815,7 +4814,7 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     {
         let tv = &arg.li_tv;
         let chan = if tv.v_type == VarType::VarNumber {
-            find_channel(tv.vval.v_number() as u64)
+            find_channel(tv.vval.v_number() as u64).map_or(ptr::null_mut(), ptr::from_mut)
         } else {
             ptr::null_mut()
         };
@@ -5012,9 +5011,9 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
     let mut int_out: i32 = 0;
 
     let success = os_libcall(
-        libname,
-        funcname,
-        str_in,
+        crate::memory::cstr_as_opt_cstr(libname),
+        crate::memory::cstr_as_opt_cstr(funcname),
+        crate::memory::cstr_as_opt_cstr(str_in),
         int_in,
         (out_type == VarType::VarString).then_some(&mut str_out),
         Some(&mut int_out),
@@ -6909,9 +6908,8 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     if err.err_type != ErrorType::ErrorTypeNone {
         let mut name: Option<&std::ffi::CStr> = None;
-        let chan = find_channel(chan_id);
-        if !chan.is_null() {
-            name = get_client_info(crate::globals::gmut(chan), c"name");
+        if let Some(chan) = find_channel(chan_id) {
+            name = get_client_info(chan, c"name");
         }
         if let Some(name) = name {
             semsg_multiline!(
@@ -8267,11 +8265,11 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     };
 
     let mut curtime = Tm { _fields: [0; 16] };
-    let curtime_ptr = os_localtime_r(&seconds, &raw mut curtime);
-    if curtime_ptr.is_null() {
+    let Some(curtime_ref) = os_localtime_r(&seconds, &mut curtime) else {
         crate::eval::typval::tv_set_string(rettv, gettext(c"(Invalid)"));
         return;
-    }
+    };
+    let curtime_ptr: *const Tm = curtime_ref;
 
     let mut conv = Vimconv::new();
     conv.vc_type = CONV_NONE;
@@ -8344,7 +8342,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     } else {
         fmt_owned = None;
     }
-    if fmt.is_null() || !os_strptime(str_, crate::memory::cstr_from_ptr(fmt), &raw mut tmval) {
+    if fmt.is_null() || !os_strptime(str_, crate::memory::cstr_from_ptr(fmt), &mut tmval) {
         rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     } else {
         let t = unsafe { mktime(&raw mut tmval) };

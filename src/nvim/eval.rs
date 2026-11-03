@@ -5000,7 +5000,7 @@ pub fn tv_to_argv(
         if let Some(cmd_out) = cmd {
             *cmd_out = crate::memory::cstr_to_cstring(cmd_str);
         }
-        return shell_build_argv(cmd_str, ptr::null());
+        return shell_build_argv(Some(cmd_str), None);
     }
 
     if cmd_tv.v_type != VarType::VarList {
@@ -6912,7 +6912,7 @@ pub fn common_job_callbacks(
 }
 
 pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
-    let data = find_channel(id);
+    let data = find_channel(id).map_or(ptr::null_mut(), ptr::from_mut);
     let data_ref = crate::globals::gopt(data);
     let is_stopped = if let Some(d) = data_ref
         && d.streamtype == K_CHANNEL_STREAM_PROC

@@ -300,7 +300,7 @@ pub fn stream_close_handle(stream: &mut Stream) {
     #[cfg(windows)]
     if stream.close_console {
         stream.pending_reqs += 1;
-        crate::os::pty_proc_win::pty_proc_close_console(&raw mut *stream);
+        crate::os::pty_proc_win::pty_proc_close_console(stream);
         stream.pending_reqs -= 1;
     }
     if unsafe { uv_is_closing(handle) } == 0 {

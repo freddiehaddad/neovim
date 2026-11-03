@@ -1578,7 +1578,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
         true
     };
 
-    let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
+    let chan: *mut crate::channel::Channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
     let internal = &mut crate::globals::gptr(chan).internal;
     let prefix = chan;
     let tail = chan;
@@ -2218,13 +2218,14 @@ pub fn nvim_chan_set(
         chan = channel_id as Integer;
     }
     let channel = find_channel(chan as u64);
-    if !validate_int(!channel.is_null(), c"chan", chan, err) {
+    if !validate_int(channel.is_some(), c"chan", chan, err) {
         return;
     }
+    let channel = channel.unwrap();
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
-        crate::globals::gptr(channel).detach = config.detach;
+        channel.detach = config.detach;
 
-        channel_event(crate::globals::gmut(channel), EVENT_CHANINFO);
+        channel_event(channel, EVENT_CHANINFO);
     }
 }
 

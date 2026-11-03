@@ -118,10 +118,7 @@ pub fn os_sleep(ms: u64) {
 }
 
 /// Portable `localtime_r()` (`os_localtime_r`).
-///
-/// # Safety
-/// `clock` and `result` must be valid pointers.
-pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
+pub fn os_localtime_r<'a>(clock: &time_t, result: &'a mut Tm) -> Option<&'a mut Tm> {
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0u8; 64];
@@ -139,25 +136,22 @@ pub fn os_localtime_r(clock: &time_t, result: *mut Tm) -> *mut Tm {
             cache.fill(0);
             cache[..cmp_len].copy_from_slice(&tz_bytes[..cmp_len]);
         }
-        localtime_r(clock, result)
+        localtime_r(clock, result).as_mut()
     }
 
     #[cfg(target_os = "windows")]
     unsafe {
         let local_time = win_localtime64(clock);
         if local_time.is_null() {
-            return std::ptr::null_mut();
+            return None;
         }
-        *result.cast::<[i32; 9]>() = *local_time;
-        result
+        *std::ptr::from_mut(result).cast::<[i32; 9]>() = *local_time;
+        Some(result)
     }
 }
 
 /// Get the current local time (`os_localtime`).
-///
-/// # Safety
-/// `result` must be a valid writable pointer to `struct tm`.
-pub fn os_localtime(result: *mut Tm) -> *mut Tm {
+pub fn os_localtime(result: &mut Tm) -> Option<&mut Tm> {
     let rawtime = os_time() as time_t;
     os_localtime_r(&rawtime, result)
 }
@@ -165,19 +159,17 @@ pub fn os_localtime(result: *mut Tm) -> *mut Tm {
 /// Format `clock` as local time into `result` (`os_ctime_r`).
 pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -> &'a CStr {
     let mut clock_local = Tm { _fields: [0; 16] };
-    let ptr = os_localtime_r(clock, &mut clock_local);
+    let tm_opt = os_localtime_r(clock, &mut clock_local);
     let result_len = result.len();
 
-    if ptr.is_null()
-        || unsafe {
-            strftime(
-                result.as_mut_ptr(),
-                result_len.saturating_sub(1),
-                c"%a %b %d %H:%M:%S %Y".as_ptr().cast(),
-                ptr,
-            )
-        } == 0
-    {
+    if tm_opt.is_none_or(|tm| unsafe {
+        strftime(
+            result.as_mut_ptr(),
+            result_len.saturating_sub(1),
+            c"%a %b %d %H:%M:%S %Y".as_ptr().cast(),
+            tm,
+        ) == 0
+    }) {
         crate::memory::copy_bytes_to_c_buf(result, b"(Invalid)");
     }
 
@@ -192,7 +184,7 @@ pub fn os_ctime_r<'a>(clock: &time_t, result: &'a mut [u8], add_newline: bool) -
 }
 
 /// Portable wrapper for POSIX `strptime()` (`os_strptime`).
-pub fn os_strptime(str_ptr: &CStr, format: &CStr, tm: *mut Tm) -> bool {
+pub fn os_strptime(str_ptr: &CStr, format: &CStr, tm: &mut Tm) -> bool {
     #[cfg(unix)]
     unsafe {
         !strptime(str_ptr.as_ptr().cast(), format.as_ptr().cast(), tm).is_null()

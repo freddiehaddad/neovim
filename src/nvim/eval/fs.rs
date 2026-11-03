@@ -2025,7 +2025,7 @@ fn write_list(fp: &mut FileDescriptor, list: Option<&TvList>, binary: bool) -> b
         li = crate::globals::gptr(li).li_next;
     }
     if error == 0 {
-        error = file_flush(&raw mut *fp);
+        error = file_flush(fp);
         if error == 0 {
             return true;
         }
@@ -2056,7 +2056,7 @@ fn write_data(
                 return false;
             }
         }
-        let error = file_flush(&raw mut *fp);
+        let error = file_flush(fp);
         if error != 0 {
             semsg!(gettext(E_ERROR_WHILE_WRITING_STR), unsafe {
                 uv_strerror(error)
@@ -2158,7 +2158,12 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             K_FILE_CREATE
         }) | K_FILE_CREATE;
-        let mut error = file_open(&mut fp, fname, open_flags, 0o666);
+        let mut error = file_open(
+            &mut fp,
+            crate::memory::cstr_as_opt_cstr(fname),
+            open_flags,
+            0o666,
+        );
         if error != 0 {
             semsg!(
                 gettext(c"E482: Can't open file %s for writing: %s"),

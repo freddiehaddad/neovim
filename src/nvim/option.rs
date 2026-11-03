@@ -941,7 +941,7 @@ pub fn set_init_1(clean_arg: bool) {
     lang_init();
     set_init_fenc_default();
 
-    bind_textdomain_codeset(c"nvim".as_ptr(), opt_vars().p_enc);
+    bind_textdomain_codeset(c"nvim", crate::memory::cstr_as_opt_cstr(opt_vars().p_enc));
 
     set_helplang_default(get_mess_lang().map_or(ptr::null(), CStr::as_ptr));
 }

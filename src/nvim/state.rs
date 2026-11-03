@@ -125,11 +125,10 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                     }
                     ui_flush();
                     input_get(
-                        ptr::null_mut(),
-                        0,
+                        None,
                         -1,
                         g_st().typebuf.tb_change_cnt,
-                        main_loop_events(),
+                        Some(main_loop_events()),
                     );
                     if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                         break K_EVENT;

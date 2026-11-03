@@ -591,11 +591,6 @@ impl EncodeBackend<'_> {
     }
 
     #[inline]
-    fn packer_ptr(packer: *mut PackerBuffer) -> &'static mut *mut u8 {
-        &mut crate::globals::gmut(packer).ptr
-    }
-
-    #[inline]
     fn check_before(&mut self) {
         if let Self::Msgpack { packer } = *self {
             mpack_check_buffer(Self::packer_mut(packer));
@@ -613,7 +608,7 @@ impl EncodeBackend<'_> {
                 gap,
                 mode: TextEncodeMode::Json,
             } => ga_concat_literal(gap, b"null"),
-            Self::Msgpack { packer } => mpack_nil(Self::packer_ptr(*packer)),
+            Self::Msgpack { packer } => mpack_nil(Self::packer_mut(*packer)),
         }
     }
 
@@ -640,7 +635,7 @@ impl EncodeBackend<'_> {
                     ga_concat_literal(gap, b"false");
                 }
             }
-            Self::Msgpack { packer } => mpack_bool(Self::packer_ptr(*packer), val),
+            Self::Msgpack { packer } => mpack_bool(Self::packer_mut(*packer), val),
         }
     }
 
@@ -651,7 +646,7 @@ impl EncodeBackend<'_> {
                 let s = num.to_string();
                 ga_concat_literal(gap, s.as_bytes());
             }
-            Self::Msgpack { packer } => mpack_integer(Self::packer_ptr(*packer), num),
+            Self::Msgpack { packer } => mpack_integer(Self::packer_mut(*packer), num),
         }
     }
 
@@ -666,7 +661,7 @@ impl EncodeBackend<'_> {
                 ga_concat_literal(gap, s.as_bytes());
             }
             Self::Text { .. } => {}
-            Self::Msgpack { packer } => mpack_uint64(Self::packer_ptr(*packer), num),
+            Self::Msgpack { packer } => mpack_uint64(Self::packer_mut(*packer), num),
         }
     }
 
@@ -711,7 +706,7 @@ impl EncodeBackend<'_> {
                 true
             }
             Self::Msgpack { packer } => {
-                mpack_float8(Self::packer_ptr(*packer), flt);
+                mpack_float8(Self::packer_mut(*packer), flt);
                 true
             }
         }
@@ -889,7 +884,7 @@ impl EncodeBackend<'_> {
     fn conv_empty_list(&mut self) {
         match self {
             Self::Text { gap, .. } => ga_concat_literal(gap, b"[]"),
-            Self::Msgpack { packer } => mpack_array(Self::packer_ptr(*packer), 0),
+            Self::Msgpack { packer } => mpack_array(Self::packer_mut(*packer), 0),
         }
     }
 
@@ -897,7 +892,7 @@ impl EncodeBackend<'_> {
     fn conv_list_start(&mut self, len: i32) {
         match self {
             Self::Text { gap, .. } => gap.push(b'['),
-            Self::Msgpack { packer } => mpack_array(Self::packer_ptr(*packer), len as u32),
+            Self::Msgpack { packer } => mpack_array(Self::packer_mut(*packer), len as u32),
         }
     }
 
@@ -919,7 +914,7 @@ impl EncodeBackend<'_> {
     fn conv_empty_dict(&mut self) {
         match self {
             Self::Text { gap, .. } => ga_concat_literal(gap, b"{}"),
-            Self::Msgpack { packer } => mpack_map(Self::packer_ptr(*packer), 0),
+            Self::Msgpack { packer } => mpack_map(Self::packer_mut(*packer), 0),
         }
     }
 
@@ -927,7 +922,7 @@ impl EncodeBackend<'_> {
     fn conv_dict_start(&mut self, len: usize) {
         match self {
             Self::Text { gap, .. } => gap.push(b'{'),
-            Self::Msgpack { packer } => mpack_map(Self::packer_ptr(*packer), len as u32),
+            Self::Msgpack { packer } => mpack_map(Self::packer_mut(*packer), len as u32),
         }
     }
 

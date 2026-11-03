@@ -208,7 +208,7 @@ use crate::api::private::helpers::add_c;
 pub fn channel_teardown() {
     let all_chans: Vec<*mut Channel> = g_st().channels.values().copied().collect();
     for chan in all_chans {
-        channel_close(Channel::from_cb_ptr(chan).id, K_CHANNEL_PART_ALL, None);
+        channel_close(unsafe { (*chan).id }, K_CHANNEL_PART_ALL, None);
     }
 }
 
@@ -339,7 +339,7 @@ pub fn channel_init() {
 }
 
 /// Allocates a channel.
-pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
+pub fn channel_alloc(r#type: ChannelStreamType) -> &'static mut Channel {
     let id = if r#type == K_CHANNEL_STREAM_STDIO {
         CHAN_STDIO
     } else if r#type == K_CHANNEL_STREAM_STDERR {
@@ -379,11 +379,9 @@ pub fn channel_alloc(r#type: ChannelStreamType) -> *mut Channel {
         did_close_event: false,
     }));
 
-    {
-        g_st().channels.insert(id, chan);
-    }
+    g_st().channels.insert(id, chan);
 
-    chan
+    unsafe { &mut *chan }
 }
 
 pub fn channel_create_event(chan: &mut Channel) {
@@ -404,7 +402,7 @@ pub fn channel_decref(chan: &mut Channel) {
     if chan.refcount == 0 {
         let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event(
-            crate::globals::gmut(qc.events),
+            unsafe { &mut *qc.events },
             Event::ChannelFree(&raw mut *chan),
         );
     }
@@ -414,8 +412,9 @@ pub fn callback_reader_start(reader: &mut CallbackReader, r#type: &'static CStr)
     reader.reader_type = Some(r#type);
 }
 
-pub fn free_channel_event(chan: *mut Channel) {
-    let _ = g_st().channels.remove(&crate::globals::gptr(chan).id);
+pub fn free_channel_event(chan: Option<&mut Channel>) {
+    let chan = chan.unwrap();
+    let _ = g_st().channels.remove(&chan.id);
 
     drop(unsafe { Box::from_raw(chan) });
 }
@@ -435,7 +434,7 @@ fn channel_destroy_early(chan: &mut Channel) {
 
     let qc = loop_queues(&mut g_st().main_loop);
     multiqueue_put_event(
-        crate::globals::gmut(qc.events),
+        unsafe { &mut *qc.events },
         Event::ChannelFree(&raw mut *chan),
     );
 }
@@ -455,11 +454,12 @@ pub fn channel_job_start(
     cwd: Option<&CStr>,
     pty_width: u16,
     pty_height: u16,
-    env: *mut TvDict,
-    status_out: *mut Varnumber,
-) -> *mut Channel {
+    env: Option<&'static mut TvDict>,
+    status_out: &mut Varnumber,
+) -> Option<&'static mut Channel> {
+    let env_ptr = env.map_or(ptr::null_mut(), ptr::from_mut);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-    let chan = crate::globals::gmut(chan);
+    let chan_ptr: *mut Channel = chan;
     chan.on_data = on_stdout;
     chan.on_stderr = on_stderr;
     chan.on_exit = on_exit;
@@ -467,24 +467,20 @@ pub fn channel_job_start(
     let proc_ptr = &raw mut chan.uv.proc_;
     if pty {
         if detach {
-            {
-                semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
-                if !env.is_null() {
-                    tv_dict_free(env);
-                }
+            semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
+            if !env_ptr.is_null() {
+                tv_dict_free(env_ptr);
             }
             drop(argv);
             channel_destroy_early(&mut *chan);
 
-            *crate::globals::gptr(status_out) = 0;
+            *status_out = 0;
 
-            return ptr::null_mut();
+            return None;
         }
         chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
-        chan.uv.proc_.data = chan;
-        {
-            chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
-        }
+        chan.uv.proc_.data = chan_ptr;
+        chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
@@ -496,43 +492,34 @@ pub fn channel_job_start(
         }
     } else {
         chan.uv.proc_.r#type = K_PROC_TYPE_UV;
-        chan.uv.proc_.data = chan;
-        {
-            chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
-        }
+        chan.uv.proc_.data = chan_ptr;
+        chan.uv.proc_.loop_ = (&raw mut g_st().main_loop).cast();
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
         chan.uv.proc_.err.s.fd = STDERR_FILENO;
     }
 
-    let ph = proc_ptr;
-    let pt = proc_ptr;
+    let ph = unsafe { &mut *proc_ptr };
 
-    crate::globals::gptr(ph).argv = argv;
-
-    crate::globals::gptr(ph).exepath = exepath.map(CStr::to_owned);
-
-    crate::globals::gptr(pt).events = chan.events;
-
-    crate::globals::gptr(pt).detach = detach;
-
-    crate::globals::gptr(ph).cwd = cwd.map(CStr::to_owned);
-
-    crate::globals::gptr(ph).env = env;
-
-    crate::globals::gptr(pt).overlapped = overlapped;
+    ph.argv = argv;
+    ph.exepath = exepath.map(CStr::to_owned);
+    ph.events = chan.events;
+    ph.detach = detach;
+    ph.cwd = cwd.map(CStr::to_owned);
+    ph.env = env_ptr;
+    ph.overlapped = overlapped;
 
     #[cfg(windows)]
     {
-        crate::globals::gptr(pt).stdio_noinherit = true;
+        ph.stdio_noinherit = true;
     }
 
-    let cmd = crate::globals::gptr(ph)
+    let cmd = ph
         .exepath
         .clone()
-        .unwrap_or_else(|| crate::globals::gptr(ph).argv.as_slice()[0].clone());
+        .unwrap_or_else(|| ph.argv.as_slice()[0].clone());
 
-    let (has_out, has_err) = if crate::globals::gptr(ph).r#type == K_PROC_TYPE_PTY {
+    let (has_out, has_err) = if ph.r#type == K_PROC_TYPE_PTY {
         (true, false)
     } else {
         let out = rpc || callback_reader_set(&chan.on_data);
@@ -541,42 +528,42 @@ pub fn channel_job_start(
         #[cfg(not(windows))]
         let err = callback_reader_set(&chan.on_stderr);
 
-        crate::globals::gptr(pt).fwd_err = chan.on_stderr.fwd_err;
+        ph.fwd_err = chan.on_stderr.fwd_err;
 
         #[cfg(windows)]
-        if !err && crate::globals::gptr(pt).fwd_err && crate::globals::gptr(pt).detach {
+        if !err && ph.fwd_err && ph.detach {
             err = true;
-
-            crate::globals::gptr(pt).fwd_err = false;
+            ph.fwd_err = false;
         }
         (out, err)
     };
 
     let has_in = stdin_mode == K_CHANNEL_STDIN_PIPE_CONST;
 
-    let status = proc_spawn(crate::globals::gmut(proc_ptr), has_in, has_out, has_err);
+    let status = proc_spawn(unsafe { &mut *proc_ptr }, has_in, has_out, has_err);
     if status != 0 {
-        {
-            semsg!(
-                gettext(E_JOBSPAWN),
-                unsafe { uv_strerror(status) },
-                cmd.as_ptr(),
-            );
+        semsg!(
+            gettext(E_JOBSPAWN),
+            unsafe { uv_strerror(status) },
+            cmd.as_ptr(),
+        );
 
-            if !crate::globals::gptr(ph).env.is_null() {
-                tv_dict_free(crate::globals::gptr(ph).env);
-            }
+        let ph = unsafe { &mut *proc_ptr };
+        if !ph.env.is_null() {
+            tv_dict_free(ph.env);
         }
+        let proc_status = ph.status;
         channel_destroy_early(&mut *chan);
 
-        *crate::globals::gptr(status_out) = Varnumber::from(crate::globals::gptr(ph).status);
+        *status_out = Varnumber::from(proc_status);
 
-        return ptr::null_mut();
+        return None;
     }
 
     drop(cmd);
-    if !crate::globals::gptr(ph).env.is_null() {
-        tv_dict_free(crate::globals::gptr(ph).env);
+    let ph = unsafe { &mut *proc_ptr };
+    if !ph.env.is_null() {
+        tv_dict_free(ph.env);
     }
 
     if has_in {
@@ -592,8 +579,8 @@ pub fn channel_job_start(
         callback_reader_start(&mut chan.on_data, c"stdout");
 
         rstream_start(
-            &mut crate::globals::gptr(proc_ptr).out,
-            StreamCbData::ChannelData(chan),
+            unsafe { &mut (*proc_ptr).out },
+            StreamCbData::ChannelData(chan_ptr),
         );
     }
 
@@ -602,14 +589,14 @@ pub fn channel_job_start(
         rstream_init(&mut chan.uv.proc_.err);
 
         rstream_start(
-            &mut crate::globals::gptr(proc_ptr).err,
-            StreamCbData::ChannelStderr(chan),
+            unsafe { &mut (*proc_ptr).err },
+            StreamCbData::ChannelStderr(chan_ptr),
         );
     }
 
-    *crate::globals::gptr(status_out) = chan.id as Varnumber;
+    *status_out = chan.id as Varnumber;
 
-    chan
+    Some(chan)
 }
 
 pub fn channel_connect(
@@ -621,15 +608,15 @@ pub fn channel_connect(
     error: &mut Option<&'static CStr>,
 ) -> u64 {
     if !tcp && rpc && server_owns_pipe_address(address) {
-        let channel = Channel::from_cb_ptr(channel_alloc(K_CHANNEL_STREAM_INTERNAL));
+        let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
         channel.internal.cb = LUA_NOREF;
         rpc_start(&mut *channel);
         channel_create_event(&mut *channel);
         return channel.id;
     }
 
-    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel = Channel::from_cb_ptr(channel_ptr);
+    let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
+    let channel_ptr: *mut Channel = channel;
     let connected = socket_connect(
         &mut g_st().main_loop,
         &mut channel.socket,
@@ -662,8 +649,8 @@ pub fn channel_connect(
 
 /// Creates an RPC channel from a tcp/pipe socket connection.
 pub fn channel_from_connection(watcher: &mut SocketWatcher) {
-    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel = Channel::from_cb_ptr(channel_ptr);
+    let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
+    let channel_ptr: *mut Channel = channel;
     let result = socket_watcher_accept(watcher, &mut channel.socket);
     if result != 0 {
         channel_destroy_early(&mut *channel);
@@ -697,8 +684,8 @@ pub fn channel_from_stdio(
     }
     chan_st().did_stdio = true;
 
-    let channel_ptr = channel_alloc(K_CHANNEL_STREAM_STDIO);
-    let channel = Channel::from_cb_ptr(channel_ptr);
+    let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
+    let channel_ptr: *mut Channel = channel;
     let mut stdin_dup_fd = STDIN_FILENO;
     let mut stdout_dup_fd = STDOUT_FILENO;
 
@@ -798,7 +785,7 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
 }
 
 #[inline]
-fn buffer_to_tv_list(buf: &[u8]) -> *mut TvList {
+fn buffer_to_tv_list(buf: &[u8]) -> &'static mut TvList {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
     tv_list_append_string(&mut *l, c"", 0);
     if !buf.is_empty() {
@@ -872,7 +859,7 @@ pub fn on_channel_event(chan: &mut Channel) {
     chan.callback_busy = false;
     if chan.callback_scheduled {
         multiqueue_put_event(
-            crate::globals::gmut(chan.events),
+            unsafe { &mut *chan.events },
             Event::ChannelCallback(&raw mut *chan),
         );
         channel_incref(chan);
@@ -892,7 +879,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
             if !reader.self_dict.is_null() {
                 let reader_type = reader.reader_type.unwrap();
                 if tv_dict_find(
-                    crate::globals::gopt(reader.self_dict),
+                    unsafe { reader.self_dict.as_ref() },
                     reader_type.as_ptr(),
                     -1,
                 )
@@ -900,8 +887,7 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
                 {
                     let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
-                    let _ =
-                        tv_dict_add_list(crate::globals::gmut(reader.self_dict), reader_type, data);
+                    let _ = tv_dict_add_list(unsafe { &mut *reader.self_dict }, reader_type, data);
                 } else {
                     semsg!(gettext(E_STREAMKEY), reader_type.as_ptr(), chan.id,);
                 }
@@ -975,7 +961,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         argv[1].v_type = VarType::VarList;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::List(l);
-        tv_list_ref(crate::globals::gopt_mut(l));
+        tv_list_ref(Some(&mut *l));
         reader.buffer = Vec::new();
         argv[2].vval = TypvalVval::String(
             reader
@@ -995,7 +981,7 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[2].v_lock = VAR_UNLOCKED;
 
     let mut rettv: TypVal = TypVal::new();
-    let _ = callback_call(crate::globals::gmut(cb), 3, argv.as_mut_ptr(), &mut rettv);
+    let _ = callback_call(unsafe { &mut *cb }, 3, argv.as_mut_ptr(), &mut rettv);
     tv_clear(&mut rettv);
 
     if is_stderr.is_some() {
@@ -1042,9 +1028,9 @@ pub fn channel_term_write(buf: &[u8], chan: &mut Channel) {
         }
         let mut args_items = [
             crate::api::private::helpers::integer_obj(chan.id as Integer),
-            crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(
-                crate::globals::gref(chan.term),
-            )),
+            crate::api::private::helpers::buffer_obj(crate::terminal::terminal_buf(unsafe {
+                &*chan.term
+            })),
             crate::api::private::helpers::string_obj(NvimString::from_bytes(buf)),
         ];
         let args = Array {
@@ -1090,7 +1076,7 @@ pub fn term_delayed_free(chan: &mut Channel) {
     let proc_ptr = &mut chan.uv.proc_;
     if proc_ptr.r#in.pending_reqs != 0 || proc_ptr.out.s.pending_reqs != 0 {
         multiqueue_put_event(
-            crate::globals::gmut(chan.events),
+            unsafe { &mut *chan.events },
             Event::ChannelTermDelayedFree(&raw mut *chan),
         );
         return;
@@ -1113,7 +1099,7 @@ pub fn channel_term_close(chan: &mut Channel) {
     }
     proc_stop(&mut chan.uv.proc_);
     multiqueue_put_event(
-        crate::globals::gmut(chan.events),
+        unsafe { &mut *chan.events },
         Event::ChannelTermDelayedFree(&raw mut *chan),
     );
 }
@@ -1123,7 +1109,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
         channel_incref(chan);
         let qc = loop_queues(&mut g_st().main_loop);
         multiqueue_put_event(
-            crate::globals::gmut(qc.events),
+            unsafe { &mut *qc.events },
             Event::ChannelSetInfo {
                 chan: &raw mut *chan,
                 event,
@@ -1162,26 +1148,24 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
 }
 
 pub fn channel_job_running(id: u64) -> bool {
-    let chan = find_channel(id);
-    if chan.is_null() {
+    let Some(chan) = find_channel(id) else {
+        return false;
+    };
+    if chan.streamtype != K_CHANNEL_STREAM_PROC {
         return false;
     }
-    if crate::globals::gptr(chan).streamtype != K_CHANNEL_STREAM_PROC {
-        return false;
-    }
-    let ph = &mut crate::globals::gptr(chan).uv.proc_;
+    let ph = &mut chan.uv.proc_;
     !(ph.status >= 0 || ph.stopped_time != 0)
 }
 
 pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
-    let chan = find_channel(id);
-    if chan.is_null() {
+    let Some(chan) = find_channel(id) else {
         return Dict {
             items: ptr::null_mut(),
             size: 0,
             capacity: 0,
         };
-    }
+    };
 
     let mut info = arena_dict(arena, 9);
 
@@ -1190,16 +1174,15 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         c"id",
         Object {
             obj_type: ObjectType::ObjectTypeInteger,
-            data: ObjectData::Integer(crate::globals::gptr(chan).id as Integer),
+            data: ObjectData::Integer(chan.id as Integer),
         },
     );
 
-    let stream_desc: &'static CStr = match crate::globals::gptr(chan).streamtype {
+    let stream_desc: &'static CStr = match chan.streamtype {
         K_CHANNEL_STREAM_PROC => {
-            let proc_ptr = &raw mut crate::globals::gptr(chan).uv.proc_;
-            let ph = proc_ptr;
-            if crate::globals::gptr(ph).r#type == K_PROC_TYPE_PTY {
-                let s = match pty_proc_tty_name(crate::globals::gmut(proc_ptr.cast())) {
+            let ph = &mut chan.uv.proc_;
+            if ph.r#type == K_PROC_TYPE_PTY {
+                let s = match pty_proc_tty_name(ph) {
                     Some(name) => crate::api::private::helpers::arena_bytes(arena, name.to_bytes()),
                     None => NvimString::from_bytes(b""),
                 };
@@ -1213,7 +1196,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
                 );
             }
 
-            let args = crate::globals::gref(ph).argv.as_slice();
+            let args = ph.argv.as_slice();
             let mut argv = Array {
                 items: ptr::null_mut(),
                 size: 0,
@@ -1267,13 +1250,13 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
         },
     );
 
-    let mode_desc: &'static CStr = if crate::globals::gptr(chan).is_rpc {
+    let mode_desc: &'static CStr = if chan.is_rpc {
         put_c(
             &mut info,
             c"client",
             Object {
                 obj_type: ObjectType::ObjectTypeDict,
-                data: ObjectData::Dict(crate::globals::gptr(chan).rpc.info),
+                data: ObjectData::Dict(chan.rpc.info),
             },
         );
 
@@ -1282,13 +1265,13 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             c"detach",
             Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(crate::globals::gptr(chan).detach),
+                data: ObjectData::Boolean(chan.detach),
             },
         );
 
         c"rpc"
-    } else if !crate::globals::gptr(chan).term.is_null() {
-        let tbuf = terminal_buf(crate::globals::gref(crate::globals::gptr(chan).term));
+    } else if !chan.term.is_null() {
+        let tbuf = terminal_buf(unsafe { &*chan.term });
         put_c(
             &mut info,
             c"buf",
@@ -1311,7 +1294,7 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             c"exitcode",
             Object {
                 obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(i64::from(crate::globals::gptr(chan).exit_status)),
+                data: ObjectData::Integer(i64::from(chan.exit_status)),
             },
         );
 

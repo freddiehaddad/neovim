@@ -1618,9 +1618,9 @@ fn do_filter(
                 let mut read_linecount = curbuf_mut().b_ml.ml_line_count;
 
                 call_shell(
-                    cmd_buf.as_ptr().cast_mut(),
+                    Some(cmd_buf.as_c_str()),
                     K_SHELL_OPT_FILTER | shell_flags,
-                    ptr::null_mut(),
+                    None,
                 );
                 drop(cmd_buf);
 
@@ -1783,7 +1783,7 @@ pub fn do_shell(cmd: impl crate::strings::IntoCCharPtr, flags: i32) {
         }
 
         ui_cursor_goto(g_st().msg_row, g_st().msg_col);
-        call_shell(cmd, flags, ptr::null_mut());
+        call_shell(crate::memory::cstr_as_opt_cstr(cmd), flags, None);
         if g_st().msg_silent == 0 {
             g_st().msg_didout = true;
         }

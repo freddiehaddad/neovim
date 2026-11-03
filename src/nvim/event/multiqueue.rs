@@ -114,7 +114,7 @@ impl Event {
                 crate::autocmd::deferred_optionset_modified(bufnr, new_val);
             }
             Self::AutoCmdVimResume => crate::autocmd::vimresume_event(),
-            Self::ChannelFree(chan) => crate::channel::free_channel_event(chan),
+            Self::ChannelFree(chan) => crate::channel::free_channel_event(unsafe { chan.as_mut() }),
             Self::ChannelCallback(chan) => crate::channel::on_channel_event(unsafe { &mut *chan }),
             Self::ChannelTermDelayedFree(chan) => {
                 crate::channel::term_delayed_free(unsafe { &mut *chan })

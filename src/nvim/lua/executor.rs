@@ -2289,7 +2289,7 @@ pub fn nlua_exec_file(path: impl crate::strings::IntoCCharPtr) -> bool {
                     file_close(&mut stdin_dup, false);
                     return false;
                 }
-                let read_size = file_read(&raw mut stdin_dup, &mut buf);
+                let read_size = file_read(&mut stdin_dup, &mut buf);
                 if read_size < 0 {
                     file_close(&mut stdin_dup, false);
                     return false;

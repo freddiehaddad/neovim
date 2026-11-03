@@ -362,7 +362,7 @@ fn do_log_to_file_str(
     assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
 
     let mut local_time = Tm { _fields: [0; 16] };
-    if os_localtime(&raw mut local_time).is_null() {
+    if os_localtime(&mut local_time).is_none() {
         return false;
     }
     let mut date_time = [0u8; 20];

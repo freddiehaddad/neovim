@@ -115,12 +115,12 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         None,
         0,
         0,
-        ptr::null_mut(),
-        &raw mut exit_status,
+        None,
+        &mut exit_status,
     );
-    if channel.is_null() {
+    let Some(channel) = channel else {
         return 0;
-    }
+    };
 
     if g_st().ui_client_forward_stdin {
         unsafe { close(0) };
@@ -134,7 +134,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         }
     }
 
-    unsafe { (*channel).id }
+    channel.id
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).

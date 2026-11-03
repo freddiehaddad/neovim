@@ -479,10 +479,10 @@ pub fn os_conpty_init(
 pub fn os_conpty_spawn(
     conpty_object: &mut Conpty,
     proc_handle: &mut HANDLE,
-    name: *mut u16,
-    cmd_line: *mut u16,
-    cwd: *mut u16,
-    env: *mut u16,
+    name: Option<&[u16]>,
+    cmd_line: &mut [u16],
+    cwd: Option<&[u16]>,
+    env: Option<&mut [u16]>,
 ) -> bool {
     let mut pi = PROCESS_INFORMATION {
         hProcess: std::ptr::null_mut(),
@@ -492,14 +492,14 @@ pub fn os_conpty_spawn(
     };
     if unsafe {
         CreateProcessW(
-            name,
-            cmd_line,
+            name.map_or(std::ptr::null(), <[u16]>::as_ptr),
+            cmd_line.as_mut_ptr(),
             std::ptr::null_mut(),
             std::ptr::null_mut(),
             0,
             EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
-            env.cast(),
-            cwd,
+            env.map_or(std::ptr::null_mut(), |s| s.as_mut_ptr().cast()),
+            cwd.map_or(std::ptr::null(), <[u16]>::as_ptr),
             &mut conpty_object.si_ex.StartupInfo,
             &mut pi,
         )

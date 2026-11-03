@@ -165,20 +165,17 @@ fn reset_cursorhold_wait(tb_change_cnt: i32) {
     osi_st().cursorhold_tb_change_cnt = tb_change_cnt;
 }
 
-/// Reads OS input into `buf`, and consumes pending events while waiting (if `ms != 0`).
+/// Reads OS input into `out_buf`, and consumes pending events while waiting (if `ms != 0`).
 pub fn input_get(
-    buf: *mut u8,
-    maxlen: i32,
+    mut out_buf: Option<&mut [u8]>,
     ms: i32,
     tb_change_cnt: i32,
-    events: *mut MultiQueue,
+    events: Option<&MultiQueue>,
 ) -> i32 {
-    debug_assert!((maxlen > 0 && !buf.is_null()) || maxlen == 0);
-    let mut out_buf = if buf.is_null() || maxlen <= 0 {
-        None
-    } else {
-        Some(unsafe { std::slice::from_raw_parts_mut(buf, maxlen as usize) })
-    };
+    if out_buf.as_ref().is_some_and(|s| s.is_empty()) {
+        out_buf = None;
+    }
+    let maxlen = out_buf.as_ref().map_or(0, |s| s.len() as i32);
     // This check is needed so that feeding typeahead from RPC can prevent CursorHold.
     if tb_change_cnt != osi_st().cursorhold_tb_change_cnt {
         reset_cursorhold_wait(tb_change_cnt);
@@ -240,7 +237,9 @@ pub fn input_get(
             }
             reset_cursorhold_wait(tb_change_cnt);
             if trigger_cursorhold() && !typebuf_changed(tb_change_cnt) {
-                create_cursorhold_event(std::ptr::eq(events, main_loop_events()));
+                create_cursorhold_event(
+                    events.is_some_and(|ev| std::ptr::eq(ev, main_loop_events())),
+                );
             } else {
                 before_blocking();
                 inbuf_poll(-1, events);
@@ -271,7 +270,7 @@ pub fn input_get(
 
     // If there are events, return the keys directly
     if let Some(ref mut out_slice) = out_buf
-        && pending_events(unsafe { events.as_ref() })
+        && pending_events(events)
     {
         return push_event_key(out_slice);
     }
@@ -281,7 +280,7 @@ pub fn input_get(
 
 /// Check if a character is available for reading
 pub fn os_char_avail() -> bool {
-    inbuf_poll(0, ptr::null_mut())
+    inbuf_poll(0, None)
 }
 
 /// Poll for fast events. `got_int` will be set to `true` if CTRL-C was typed.
@@ -573,8 +572,7 @@ pub fn input_blocking() -> bool {
 }
 
 /// Checks for (but does not read) available input, and consumes `main_loop.events` while waiting.
-fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
-    let events_opt = unsafe { events.as_ref() };
+fn inbuf_poll(ms: i32, events_opt: Option<&MultiQueue>) -> bool {
     if os_input_ready(events_opt) {
         return true;
     }
@@ -588,7 +586,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
         prof_input_start();
     }
 
-    if !std::ptr::eq(events, main_loop_events()) {
+    if !events_opt.is_some_and(|ev| std::ptr::eq(ev, main_loop_events())) {
         // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
         osi_st().blocking = true;
         multiqueue_process_events(unsafe { &mut *g_st().ch_before_blocking_events });

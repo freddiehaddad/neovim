@@ -1392,7 +1392,7 @@ pub fn openscript(name: impl crate::strings::IntoCCharPtr, directly: bool) {
             .wrapping_add(inp_st().curscript as usize);
         let error = file_open(
             crate::globals::gmut(scriptin_ptr),
-            namebuff_ptr,
+            crate::memory::cstr_as_opt_cstr(namebuff_ptr.cast()),
             K_FILE_READ_ONLY,
             0,
         );
@@ -1466,7 +1466,7 @@ pub fn open_scriptin(scriptin_name: impl crate::strings::IntoCCharPtr) -> bool {
         } else {
             file_open(
                 crate::globals::gmut(scriptin0),
-                scriptin_name,
+                crate::memory::cstr_as_opt_cstr(scriptin_name),
                 K_FILE_READ_ONLY | K_FILE_NON_BLOCKING,
                 0,
             )
@@ -1871,7 +1871,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             if !char_avail() {
                 ui_flush();
                 let events = main_loop_events();
-                input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
+                input_get(None, -1, g_st().typebuf.tb_change_cnt, Some(events));
                 if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                     state_handle_k_event();
                     continue;
@@ -2891,7 +2891,7 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
             .cast::<FileDescriptor>()
             .wrapping_add(inp_st().curscript as usize);
         if g_st().got_int || {
-            read_size = file_read(scriptin_ptr, &mut script_char);
+            read_size = file_read(unsafe { &mut *scriptin_ptr }, &mut script_char);
             read_size != 1
         } {
             closescript();
@@ -2911,7 +2911,7 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
         if g_st().got_int {
             let mut dum = [0u8; DUM_LEN + 1];
             loop {
-                len = input_get(dum.as_mut_ptr(), DUM_LEN as i32, 0, 0, ptr::null_mut());
+                len = input_get(Some(&mut dum[..DUM_LEN]), 0, 0, None);
                 if len == 0 || (len == 1 && dum[0] == CTRL_C_CONST as u8) {
                     break;
                 }
@@ -2924,11 +2924,11 @@ fn inchar(buf: *mut u8, maxlen: i32, wait_time: i64) -> i32 {
         }
 
         len = input_get(
-            buf,
-            maxlen / 3,
+            (maxlen / 3 > 0 && !buf.is_null())
+                .then(|| unsafe { std::slice::from_raw_parts_mut(buf, (maxlen / 3) as usize) }),
             wait_time as i32,
             tb_change_cnt,
-            ptr::null_mut(),
+            None,
         );
     }
 
@@ -3003,11 +3003,10 @@ pub fn get_keystroke(events: *mut MultiQueue) -> i32 {
         }
 
         n = input_get(
-            buf.as_mut_ptr().wrapping_add(len as usize),
-            maxlen,
+            (maxlen > 0).then(|| &mut buf[len as usize..len as usize + maxlen as usize]),
             if len == 0 { -1 } else { 100 },
             0,
-            events,
+            unsafe { events.as_ref() },
         );
         if n > 0 {
             n = fix_input_buffer(buf.as_mut_ptr().wrapping_add(len as usize), n);

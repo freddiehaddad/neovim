@@ -92,7 +92,7 @@ fn api_ui_st() -> &'static mut ApiUiState {
     API_UI_STATE.as_mut()
 }
 
-use crate::msgpack_rpc::packer::mpack_w2;
+use crate::msgpack_rpc::packer::{mpack_w2, mpack_w2_at};
 
 #[inline]
 fn buf_pos(ui: &RemoteUI) -> usize {
@@ -115,21 +115,21 @@ fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI>
     ui
 }
 
-fn mpack_array_dyn16(buf: &mut *mut u8) -> *mut u8 {
+fn mpack_array_dyn16(buf: &mut PackerBuffer) -> usize {
     mpack_w(buf, 0xdc);
-    let pos = *buf;
+    let off = (buf.ptr as usize) - (buf.startptr as usize);
     mpack_w2(buf, 0xFFEF);
-    pos
+    off
 }
 
-fn mpack_str_small(buf: &mut *mut u8, str_: &[u8]) {
+fn mpack_str_small(buf: &mut PackerBuffer, str_: &[u8]) {
     let len = str_.len();
     debug_assert!(len < 0x20);
     mpack_w(buf, (0xa0 | len) as u8);
 
-    unsafe { ptr::copy_nonoverlapping(str_.as_ptr(), *buf, len) };
+    unsafe { ptr::copy_nonoverlapping(str_.as_ptr(), buf.ptr, len) };
 
-    *buf = (*buf).wrapping_add(len);
+    buf.ptr = buf.ptr.wrapping_add(len);
 }
 
 /// Removes the client on the given channel from the list of UIs.
@@ -765,8 +765,7 @@ pub fn nvim_ui_pum_set_bounds(
 fn flush_event(ui: &mut RemoteUI) {
     if ui.cur_event.is_some() {
         if let Some(off) = ui.ncalls_pos {
-            let mut pos = ui.packer.startptr.wrapping_add(off);
-            mpack_w2(&mut pos, 1 + ui.ncalls);
+            mpack_w2_at(&mut ui.packer, off, 1 + ui.ncalls);
         }
         ui.cur_event = None;
         ui.ncalls_pos = None;
@@ -794,18 +793,16 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
 
     if ui.cur_event != Some(name) {
         if ui.nevents_pos.is_none() {
-            mpack_array(&mut ui.packer.ptr, 3);
-            mpack_uint(&mut ui.packer.ptr, 2);
-            mpack_str_small(&mut ui.packer.ptr, b"redraw");
-            let pos = mpack_array_dyn16(&mut ui.packer.ptr);
-            ui.nevents_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
+            mpack_array(&mut ui.packer, 3);
+            mpack_uint(&mut ui.packer, 2);
+            mpack_str_small(&mut ui.packer, b"redraw");
+            ui.nevents_pos = Some(mpack_array_dyn16(&mut ui.packer));
             debug_assert!(ui.cur_event.is_none());
         }
         flush_event(ui);
         ui.cur_event = Some(name);
-        let pos = mpack_array_dyn16(&mut ui.packer.ptr);
-        ui.ncalls_pos = Some(crate::memory::ptr_offset_from(pos, ui.packer.startptr) as usize);
-        mpack_str_small(&mut ui.packer.ptr, name.to_bytes());
+        ui.ncalls_pos = Some(mpack_array_dyn16(&mut ui.packer));
+        mpack_str_small(&mut ui.packer, name.to_bytes());
         ui.nevents += 1;
         ui.ncalls = 1;
     } else {
@@ -829,16 +826,14 @@ pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
             crate::globals::gptr(ui).incomplete_event = true;
             if crate::globals::gptr(ui).cur_event.is_some() {
                 if let Some(off) = crate::globals::gptr(ui).ncalls_pos {
-                    let mut pos = packer.startptr.wrapping_add(off);
-                    mpack_w2(&mut pos, 1 + crate::globals::gptr(ui).ncalls);
+                    mpack_w2_at(packer, off, 1 + crate::globals::gptr(ui).ncalls);
                 }
                 crate::globals::gptr(ui).cur_event = None;
                 crate::globals::gptr(ui).ncalls_pos = None;
                 crate::globals::gptr(ui).ncalls = 0;
             }
             if let Some(off) = crate::globals::gptr(ui).nevents_pos {
-                let mut pos = packer.startptr.wrapping_add(off);
-                mpack_w2(&mut pos, crate::globals::gptr(ui).nevents);
+                mpack_w2_at(packer, off, crate::globals::gptr(ui).nevents);
                 crate::globals::gptr(ui).nevents = 0;
                 crate::globals::gptr(ui).nevents_pos = None;
             }
@@ -1189,11 +1184,11 @@ pub fn remote_ui_raw_line(
     if ui.ui_ext[K_UILINEGRID] {
         prepare_call(ui, c"grid_line");
 
-        mpack_array(&mut ui.packer.ptr, 5);
-        mpack_uint(&mut ui.packer.ptr, grid as u32);
-        mpack_uint(&mut ui.packer.ptr, row as u32);
-        mpack_uint(&mut ui.packer.ptr, startcol as u32);
-        let mut lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
+        mpack_array(&mut ui.packer, 5);
+        mpack_uint(&mut ui.packer, grid as u32);
+        mpack_uint(&mut ui.packer, row as u32);
+        mpack_uint(&mut ui.packer, startcol as u32);
+        let mut lenpos = mpack_array_dyn16(&mut ui.packer);
 
         let mut repeat: u32 = 0;
         let ncells = (endcol - startcol) as usize;
@@ -1210,24 +1205,21 @@ pub fn remote_ui_raw_line(
                     if was_space {
                         nelem += 1;
                         ui.ncells_pending += 1;
-                        mpack_array(&mut ui.packer.ptr, 3);
-                        mpack_str_small(&mut ui.packer.ptr, b" ");
-                        mpack_uint(&mut ui.packer.ptr, clearattr as u32);
-                        mpack_uint(&mut ui.packer.ptr, 0);
+                        mpack_array(&mut ui.packer, 3);
+                        mpack_str_small(&mut ui.packer, b" ");
+                        mpack_uint(&mut ui.packer, clearattr as u32);
+                        mpack_uint(&mut ui.packer, 0);
                     }
-                    mpack_w2(&mut lenpos, nelem);
-                    mpack_bool(&mut ui.packer.ptr, false);
+                    mpack_w2_at(&mut ui.packer, lenpos, nelem);
+                    mpack_bool(&mut ui.packer, false);
                     ui_flush_buf(ui, false);
 
                     prepare_call(ui, c"grid_line");
-                    mpack_array(&mut ui.packer.ptr, 5);
-                    mpack_uint(&mut ui.packer.ptr, grid as u32);
-                    mpack_uint(&mut ui.packer.ptr, row as u32);
-                    mpack_uint(
-                        &mut ui.packer.ptr,
-                        (startcol as u32) + (i as u32) - repeat + 1,
-                    );
-                    lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
+                    mpack_array(&mut ui.packer, 5);
+                    mpack_uint(&mut ui.packer, grid as u32);
+                    mpack_uint(&mut ui.packer, row as u32);
+                    mpack_uint(&mut ui.packer, (startcol as u32) + (i as u32) - repeat + 1);
+                    lenpos = mpack_array_dyn16(&mut ui.packer);
                     nelem = 0;
                     last_hl = -1;
                 }
@@ -1239,7 +1231,7 @@ pub fn remote_ui_raw_line(
                     1
                 };
                 nelem += 1;
-                mpack_array(&mut ui.packer.ptr, csize);
+                mpack_array(&mut ui.packer, csize);
                 let size_byte = ui.packer.ptr;
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
                 let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
@@ -1253,10 +1245,10 @@ pub fn remote_ui_raw_line(
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
 
                 if csize >= 2 {
-                    mpack_uint(&mut ui.packer.ptr, attrs[i] as u32);
+                    mpack_uint(&mut ui.packer, attrs[i] as u32);
 
                     if csize >= 3 {
-                        mpack_uint(&mut ui.packer.ptr, repeat);
+                        mpack_uint(&mut ui.packer, repeat);
                     }
                 }
                 ui.ncells_pending += repeat.min(2) as usize;
@@ -1272,13 +1264,13 @@ pub fn remote_ui_raw_line(
         if endcol < clearcol || was_space {
             nelem += 1;
             ui.ncells_pending += 1;
-            mpack_array(&mut ui.packer.ptr, 3);
-            mpack_str_small(&mut ui.packer.ptr, b" ");
-            mpack_uint(&mut ui.packer.ptr, clearattr as u32);
-            mpack_uint(&mut ui.packer.ptr, (clearcol - endcol) as u32);
+            mpack_array(&mut ui.packer, 3);
+            mpack_str_small(&mut ui.packer, b" ");
+            mpack_uint(&mut ui.packer, clearattr as u32);
+            mpack_uint(&mut ui.packer, (clearcol - endcol) as u32);
         }
-        mpack_w2(&mut lenpos, nelem);
-        mpack_bool(&mut ui.packer.ptr, (flags & K_LINE_FLAG_WRAP) != 0);
+        mpack_w2_at(&mut ui.packer, lenpos, nelem);
+        mpack_bool(&mut ui.packer, (flags & K_LINE_FLAG_WRAP) != 0);
     } else {
         let count = (endcol - startcol) as usize;
         for i in 0..count {
@@ -1317,8 +1309,7 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
 
     flush_event(ui);
     if let Some(off) = ui.nevents_pos {
-        let mut pos = ui.packer.startptr.wrapping_add(off);
-        mpack_w2(&mut pos, ui.nevents);
+        mpack_w2_at(&mut ui.packer, off, ui.nevents);
         ui.nevents = 0;
         ui.nevents_pos = None;
     }

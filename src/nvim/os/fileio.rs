@@ -62,16 +62,14 @@ pub fn file_space(fp: &FileDescriptor) -> usize {
 }
 
 /// Open a file and initialize `ret_fp` (`file_open`).
-///
-/// # Safety
-/// `ret_fp` and `fname` must be valid pointers.
+/// Open a file and initialize `ret_fp` (`file_open`).
 pub fn file_open(
     ret_fp: &mut FileDescriptor,
-    fname: impl crate::strings::IntoCCharPtr,
+    fname: Option<&std::ffi::CStr>,
     flags: i32,
     mode: i32,
 ) -> i32 {
-    let fname = fname.into_c_char_ptr();
+    let fname = fname.map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
     let mut os_open_flags: i32 = 0;
     let mut wr: Option<bool> = None;
 
@@ -215,11 +213,7 @@ pub fn file_fsync(fp: &mut FileDescriptor) -> i32 {
 }
 
 /// Flush buffered writes in `fp` to disk (`file_flush`).
-///
-/// # Safety
-/// `fp` must be a valid writable pointer to an initialized `FileDescriptor`.
-pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
-    let fp = unsafe { &mut *fp };
+pub fn file_flush(fp: &mut FileDescriptor) -> i32 {
     if !fp.wr {
         return 0;
     }
@@ -239,8 +233,7 @@ pub fn file_flush(fp: *mut FileDescriptor) -> i32 {
 }
 
 /// Read up to `ret_buf.len()` bytes from `fp` into `ret_buf` (`file_read`).
-pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
-    let fp = unsafe { &mut *fp };
+pub fn file_read(fp: &mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
     assert!(!fp.wr);
     let size = ret_buf.len();
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
@@ -340,18 +333,14 @@ pub fn file_read(fp: *mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
 }
 
 /// Try to read `size` already-buffered bytes in-place (`file_try_read_buffered`).
-///
-/// # Safety
-/// `fp` must be a valid writable pointer to a `FileDescriptor`.
-pub fn file_try_read_buffered(fp: *mut FileDescriptor, size: usize) -> *mut u8 {
-    let fp = unsafe { &mut *fp };
+pub fn file_try_read_buffered(fp: &mut FileDescriptor, size: usize) -> Option<&mut [u8]> {
     if fp.write_pos.saturating_sub(fp.read_pos) >= size {
-        let ret = fp.buffer.as_mut_ptr().wrapping_add(fp.read_pos);
+        let start = fp.read_pos;
         fp.read_pos += size;
         fp.bytes_read += size as u64;
-        ret
+        Some(&mut fp.buffer[start..start + size])
     } else {
-        std::ptr::null_mut()
+        None
     }
 }
 
@@ -389,11 +378,7 @@ pub fn file_write(fp: &mut FileDescriptor, buf: &[u8]) -> isize {
 }
 
 /// Skip `size` bytes forward in `fp` (`file_skip`).
-///
-/// # Safety
-/// `fp` must be a valid readable `FileDescriptor`.
-pub fn file_skip(fp: *mut FileDescriptor, size: usize) -> isize {
-    let fp = unsafe { &mut *fp };
+pub fn file_skip(fp: &mut FileDescriptor, size: usize) -> isize {
     assert!(!fp.wr);
     let buffered = fp.write_pos.saturating_sub(fp.read_pos);
     let from_buffer = buffered.min(size);
@@ -446,9 +431,8 @@ mod tests {
         let mut fp = FileDescriptor::new();
 
         file_open_buffer(&mut fp, &data);
-        let chunk = file_try_read_buffered(&mut fp, 4);
-        assert!(!chunk.is_null());
-        assert_eq!(unsafe { std::slice::from_raw_parts(chunk, 4) }, b"0123");
+        let chunk = file_try_read_buffered(&mut fp, 4).unwrap();
+        assert_eq!(chunk, b"0123");
 
         assert_eq!(file_skip(&mut fp, 6), 6);
         let mut out = [0u8; 6];
@@ -472,7 +456,7 @@ mod tests {
 
         let mut fp = FileDescriptor::new();
         assert_eq!(
-            file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600),
+            file_open(&mut fp, Some(c_path.as_c_str()), K_FILE_CREATE_ONLY, 0o600),
             0
         );
         assert!(fp.wr);
@@ -481,10 +465,10 @@ mod tests {
         assert_eq!(file_fsync(&mut fp), 0);
         assert_eq!(file_close(&mut fp, true), 0);
 
-        assert!(file_open(&mut fp, c_path.as_ptr(), K_FILE_CREATE_ONLY, 0o600) < 0);
+        assert!(file_open(&mut fp, Some(c_path.as_c_str()), K_FILE_CREATE_ONLY, 0o600) < 0);
 
         assert_eq!(
-            file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+            file_open(&mut fp, Some(c_path.as_c_str()), K_FILE_READ_ONLY, 0o600),
             0
         );
         assert!(!fp.wr);
@@ -495,7 +479,7 @@ mod tests {
         assert_eq!(file_close(&mut fp, false), 0);
 
         assert_eq!(
-            file_open(&mut fp, c_path.as_ptr(), K_FILE_READ_ONLY, 0o600),
+            file_open(&mut fp, Some(c_path.as_c_str()), K_FILE_READ_ONLY, 0o600),
             0
         );
         let mut all = vec![0u8; fcontents.len()];
