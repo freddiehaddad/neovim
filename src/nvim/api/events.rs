@@ -20,8 +20,8 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
     };
     logmsg!(
         LOGLVL_ERR,
-        std::ptr::null(),
-        c"nvim_error_event",
+        None,
+        Some(c"nvim_error_event"),
         43,
         true,
         c"async error on channel %lld: %s",

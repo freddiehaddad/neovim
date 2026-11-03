@@ -1181,7 +1181,7 @@ pub fn find_file_in_path_option(
                 did_findfile_init: false,
                 file_to_findlen: 0,
             });
-        let ff_opt = crate::globals::gmut(FF_OPT_STATE.as_ptr());
+        let ff_opt = FF_OPT_STATE.as_mut();
         let mut file_name: Option<std::ffi::CString> = None;
         let name_buff = g_st().name_buff.as_mut_ptr();
 

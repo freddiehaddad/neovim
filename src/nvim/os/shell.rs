@@ -120,7 +120,7 @@ static SH_STATE: crate::globals::GlobalState<ShellModuleState> =
 
 #[inline]
 fn sh_st() -> &'static mut ShellModuleState {
-    unsafe { &mut *SH_STATE.as_ptr() }
+    SH_STATE.as_mut()
 }
 
 #[cfg(windows)]

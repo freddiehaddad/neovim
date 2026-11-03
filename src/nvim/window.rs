@@ -885,7 +885,7 @@ static WIN_STATE: GlobalState<WindowModuleState> = GlobalState::new(WindowModule
 
 #[inline]
 fn win_st() -> &'static mut WindowModuleState {
-    crate::globals::gmut(WIN_STATE.as_ptr())
+    WIN_STATE.as_mut()
 }
 
 const ERROR_INIT: Error = Error::new();

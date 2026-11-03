@@ -743,7 +743,7 @@ static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
 
 #[inline]
 pub(crate) fn tv_st() -> &'static mut TypvalModuleState {
-    crate::globals::gmut(TV_STATE.as_ptr())
+    TV_STATE.as_mut()
 }
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =

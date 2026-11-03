@@ -146,7 +146,7 @@ static PATH_STATE: crate::globals::GlobalState<PathModuleState> =
 
 #[inline]
 fn path_st() -> &'static mut PathModuleState {
-    crate::globals::gmut(PATH_STATE.as_ptr())
+    PATH_STATE.as_mut()
 }
 
 #[cfg(windows)]

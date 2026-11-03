@@ -255,7 +255,7 @@ static MAP_STATE: GlobalState<MappingModuleState> = GlobalState::new(MappingModu
 
 #[inline]
 fn map_st() -> &'static mut MappingModuleState {
-    crate::globals::gmut(MAP_STATE.as_ptr())
+    MAP_STATE.as_mut()
 }
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
@@ -491,33 +491,26 @@ fn set_maparg_lhs_rhs(
     mapargs: &mut MapArguments,
 ) -> bool {
     let cpo_val = cpo_val.into_c_char_ptr();
-    let orig_lhs_cstr = CString::new(orig_lhs).unwrap_or_default();
     mapargs.rhs_lua = rhs_lua;
 
     let mut did_simplify = false;
     let flags = REPTERM_FROM_PART | REPTERM_DO_LT;
-    let Some(replaced) = replace_termcodes(
-        orig_lhs_cstr.as_ptr(),
-        orig_lhs.len(),
-        true,
-        0,
-        flags,
-        Some(&mut did_simplify),
-        cpo_val,
-    ) else {
+    let cpo_bytes = crate::memory::cstr_as_bytes(cpo_val);
+    let Some(replaced) =
+        replace_termcodes(orig_lhs, true, 0, flags, Some(&mut did_simplify), cpo_bytes)
+    else {
         return false;
     };
     mapargs.lhs_len = replaced.as_bytes().len();
     crate::memory::copy_bytes_to_c_buf(&mut mapargs.lhs, replaced.as_bytes());
     if did_simplify {
         let Some(alt_replaced) = replace_termcodes(
-            orig_lhs_cstr.as_ptr(),
-            orig_lhs.len(),
+            orig_lhs,
             true,
             0,
             flags | REPTERM_NO_SIMPLIFY,
             None,
-            cpo_val,
+            cpo_bytes,
         ) else {
             return false;
         };
@@ -552,13 +545,12 @@ fn set_maparg_rhs(
             mapargs.rhs_is_noop = true;
         } else {
             let replaced_cstr = replace_termcodes(
-                orig_rhs_cstr.as_ptr(),
-                orig_rhs_len,
+                orig_rhs,
                 false,
                 sid,
                 REPTERM_DO_LT,
                 None,
-                cpo_val,
+                crate::memory::cstr_as_bytes(cpo_val),
             )
             .unwrap_or_default();
             mapargs.orig_rhs = Some(orig_rhs_cstr);
@@ -1223,13 +1215,12 @@ pub fn map_to_exists(
     {
         let mut mode: i32 = 0;
         let rhs = replace_termcodes(
-            str_ptr,
-            crate::memory::cstr_len(str_ptr),
+            crate::memory::cstr_as_bytes(str_ptr),
             false,
             0,
             REPTERM_DO_LT,
             None,
-            opt_vars().p_cpo,
+            crate::memory::cstr_as_bytes(opt_vars().p_cpo),
         )
         .unwrap_or_default();
 
@@ -1452,7 +1443,10 @@ pub fn expand_mappings(
         let match_found = if !fuzzy {
             vim_regexec(regmatch, p, 0)
         } else {
-            score = fuzzy_match_str(p, pat);
+            score = fuzzy_match_str(
+                Some(p_cstr.to_bytes()),
+                crate::memory::cstr_as_opt_cstr(pat).map(CStr::to_bytes),
+            );
             score != FUZZY_SCORE_NONE
         };
 
@@ -1490,7 +1484,10 @@ pub fn expand_mappings(
             let match_found = if !fuzzy {
                 vim_regexec(regmatch, p, 0)
             } else {
-                score = fuzzy_match_str(p, pat);
+                score = fuzzy_match_str(
+                    Some(p_cstr.to_bytes()),
+                    crate::memory::cstr_as_opt_cstr(pat).map(CStr::to_bytes),
+                );
                 score != FUZZY_SCORE_NONE
             };
 
@@ -1628,7 +1625,7 @@ pub fn check_abbr<T>(mut c: i32, ptr_arg: *mut T, col: i32, mincol: i32) -> bool
                     let mut newlen =
                         utf_char2bytes(c, tb.as_mut_ptr().wrapping_add(j).cast()) as usize;
                     tb[j + newlen] = 0;
-                    let escaped = vim_strsave_escape_ks(tb.as_mut_ptr().wrapping_add(j).cast());
+                    let escaped = vim_strsave_escape_ks(&tb[j..j + newlen]);
                     let escaped_bytes = escaped.to_bytes();
                     newlen = escaped_bytes.len();
                     tb[j..j + newlen].copy_from_slice(escaped_bytes);
@@ -1720,16 +1717,15 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
 
     if replace_keycodes {
         replace_termcodes(
-            p.as_ptr(),
-            p.to_bytes().len(),
+            p.to_bytes(),
             false,
             0,
             REPTERM_DO_LT,
             None,
-            opt_vars().p_cpo,
+            crate::memory::cstr_as_bytes(opt_vars().p_cpo),
         )
     } else {
-        Some(vim_strsave_escape_ks(p.as_ptr()))
+        Some(vim_strsave_escape_ks(p.to_bytes()))
     }
 }
 
@@ -2212,15 +2208,15 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mut which_mut = which.cast_mut();
     let mode = get_map_mode(&mut which_mut, false);
 
-    let keys_len = crate::memory::cstr_len(keys);
+    let keys_bytes = crate::memory::cstr_as_bytes(keys);
+    let cpo_bytes = crate::memory::cstr_as_bytes(opt_vars().p_cpo);
     let keys_simplified = replace_termcodes(
-        keys,
-        keys_len,
+        keys_bytes,
         false,
         0,
         flags,
         Some(&mut did_simplify),
-        opt_vars().p_cpo,
+        cpo_bytes,
     )
     .unwrap_or_default();
     let mut mp_opt: Option<&'static Mapblock> = None;
@@ -2239,13 +2235,12 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let alt_keys;
     if did_simplify {
         alt_keys = replace_termcodes(
-            keys,
-            keys_len,
+            keys_bytes,
             false,
             0,
             flags | REPTERM_NO_SIMPLIFY,
             None,
-            opt_vars().p_cpo,
+            cpo_bytes,
         )
         .unwrap_or_default();
         rhs = check_map(
@@ -2521,13 +2516,12 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 };
                 let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
                 let keys_buf = replace_termcodes(
-                    lhs,
-                    crate::memory::cstr_len(lhs),
+                    crate::memory::cstr_as_bytes(lhs),
                     false,
                     0,
                     flags,
                     Some(&mut did_simplify),
-                    opt_vars().p_cpo,
+                    crate::memory::cstr_as_bytes(opt_vars().p_cpo),
                 )
                 .unwrap_or_default();
 

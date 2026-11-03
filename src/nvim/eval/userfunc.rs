@@ -287,7 +287,7 @@ static UF_STATE: GlobalState<UserfuncState> = GlobalState::new(UserfuncState::ne
 
 #[inline]
 fn uf_st() -> &'static mut UserfuncState {
-    crate::globals::gmut(UF_STATE.as_ptr())
+    UF_STATE.as_mut()
 }
 
 const E_FUNCEXTS: &CStr = c"E122: Function %s already exists, add ! to replace it";
@@ -4048,7 +4048,7 @@ pub fn get_func_line(
 
     let cur_lnum = sourcing_lnum();
     if fcp.fc_breakpoint != 0 && fcp.fc_breakpoint <= cur_lnum {
-        dbg_breakpoint(uf2hikey(fp), cur_lnum);
+        dbg_breakpoint(Some(uf2hikey(fp)), cur_lnum);
         fcp.fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(fp), sourcing_lnum());
         fcp.fc_dbg_tick = g_st().debug_tick;
     }

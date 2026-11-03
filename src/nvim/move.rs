@@ -17,7 +17,7 @@ use crate::eval::typval::{
     EvalFuncData, TypVal, Varnumber, tv_check_for_number_arg, tv_dict_add_nr, tv_dict_alloc_ret,
     tv_get_number, tv_get_number_chk,
 };
-use crate::eval::window::{Viewstate, find_win_by_nr_or_id};
+use crate::eval::window::{Viewstate, find_win_by_nr_or_id_opt};
 use crate::fold::{fold_adjust_cursor, has_folding};
 use crate::globals::*;
 use crate::input::beep_flush;
@@ -65,7 +65,7 @@ fn adjust_plines_for_skipcol(wp: &mut WinInfoInfo) -> i32 {
         return 0;
     }
 
-    let width = wp.w_view_width - win_col_off(&raw mut *wp);
+    let width = wp.w_view_width - win_col_off(wp);
     let w2 = width + win_col_off2(wp);
     if wp.w_skipcol >= width && w2 > 0 {
         return (wp.w_skipcol - width) / w2 + 1;
@@ -817,7 +817,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
     }
 
     let mut col = cursor_disp_vcol(wp);
-    let off = win_col_off(&raw mut *wp);
+    let off = win_col_off(wp);
     col += off;
     let width = wp.w_view_width - off + win_col_off2(wp);
 
@@ -836,9 +836,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 
 /// Compute offset of a window, occupied by absolute or relative line number,
 /// fold column and sign column.
-#[unsafe(no_mangle)]
-pub extern "C" fn win_col_off(wp: *mut WinInfoInfo) -> i32 {
-    let wp = crate::globals::gmut(wp);
+pub fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
     let num_off = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
         || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
@@ -901,7 +899,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
         g_st().dollar_vcol = -1;
     }
 
-    let mut extra = win_col_off(&raw mut *wp);
+    let mut extra = win_col_off(wp);
     wp.w_wcol = disp_virtcol + extra;
     endcol += extra;
 
@@ -1105,7 +1103,7 @@ pub fn textpos2screenpos(
     let existing_row = lnum > 0 && lnum <= wp.buf_mut().b_ml.ml_line_count;
 
     if (local || visible_row) && existing_row {
-        let off = win_col_off(&raw mut *wp);
+        let off = win_col_off(wp);
         if is_folded {
             row += if local {
                 0
@@ -1182,11 +1180,9 @@ pub fn textpos2screenpos(
 pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let dict = tv_dict_alloc_ret(rettv);
 
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    if wp.is_null() {
+    let Some(wp) = find_win_by_nr_or_id_opt(&argvars[0]) else {
         return;
-    }
-    let wp = crate::globals::gmut(wp);
+    };
 
     let mut pos = CursorPos {
         lnum: tv_get_number(&argvars[1]) as Linenr,
@@ -1237,11 +1233,9 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         return;
     }
 
-    let wp = find_win_by_nr_or_id(&argvars[0]);
-    if wp.is_null() {
+    let Some(wp) = find_win_by_nr_or_id_opt(&argvars[0]) else {
         return;
-    }
-    let wp = crate::globals::gmut(wp);
+    };
 
     let mut error = false;
     let lnum = tv_get_number_chk(&argvars[1], Some(&mut error)) as Linenr;
@@ -1269,7 +1263,7 @@ fn cursor_correct_sms(wp: &mut WinInfoInfo) {
     }
 
     let so = get_scrolloff_value(wp);
-    let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+    let width1 = wp.w_view_width - win_col_off(wp);
     let width2 = width1 + win_col_off2(wp);
     let mut so_cols = if so == 0 {
         0
@@ -1404,7 +1398,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
     let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
 
     if do_sms {
-        width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+        width1 = wp.w_view_width - win_col_off(wp);
         width2 = width1 + win_col_off2(wp);
     }
 
@@ -1621,7 +1615,7 @@ pub fn adjust_skipcol() {
         return;
     }
 
-    let width1 = curwin_mut().w_view_width - win_col_off(curwin_ptr());
+    let width1 = curwin_mut().w_view_width - win_col_off(curwin_mut());
     if width1 <= 0 {
         return;
     }
@@ -2423,7 +2417,7 @@ fn scroll_with_sms(dir: Direction, mut count: i32, curscount: &mut i32) -> bool 
             fixdir = -dir;
         }
 
-        let width1 = curwin_mut().w_view_width - win_col_off(curwin_ptr());
+        let width1 = curwin_mut().w_view_width - win_col_off(curwin_mut());
         let width2 = width1 + win_col_off2(curwin_mut());
         count = 1 + (curwin_mut().w_skipcol - width1 - 1) / width2;
         if fixdir == FORWARD {
@@ -2569,7 +2563,7 @@ pub fn do_check_cursorbind() {
 
     #[inline]
     fn move_cb_st() -> &'static mut MoveCursorbindState {
-        crate::globals::gmut(MOVE_CB_STATE.as_ptr())
+        MOVE_CB_STATE.as_mut()
     }
 
     debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());

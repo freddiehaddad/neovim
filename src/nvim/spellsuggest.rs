@@ -377,7 +377,7 @@ static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggest
 
 #[inline]
 fn sps_st() -> &'static mut SpellSuggestState {
-    crate::globals::gmut(SPS_STATE.as_ptr())
+    SPS_STATE.as_mut()
 }
 #[inline]
 const fn rescore(word_score: i32, sound_score: i32) -> i32 {

@@ -746,7 +746,7 @@ static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> =
 
 #[inline]
 fn shada_st() -> &'static mut ShadaModuleState {
-    crate::globals::gmut(SHADA_STATE.as_ptr())
+    SHADA_STATE.as_mut()
 }
 
 use crate::api::private::dispatch::{

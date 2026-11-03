@@ -75,7 +75,7 @@ static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::n
 
 #[inline]
 fn dbg_st() -> &'static mut DebuggerState {
-    crate::globals::gmut(DBG_STATE.as_ptr())
+    DBG_STATE.as_mut()
 }
 
 #[inline]
@@ -194,8 +194,7 @@ fn do_showbacktrace(cmd: &CStr) {
 }
 
 /// Interactive debug mode loop (`do_debug`).
-pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
-    let cmd = crate::memory::cstr_from_ptr(cmd);
+pub fn do_debug(cmd: &CStr) {
     {
         let save_msg_scroll = g_st().msg_scroll;
         let save_state = g_st().state_global;
@@ -311,7 +310,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
 
                     if lcmd != 0 {
                         p = p.wrapping_add(1);
-                        while *crate::globals::gptr(p) != 0
+                        while !crate::memory::cstr_is_empty(p)
                             && !tail.is_empty()
                             && (crate::memory::cstr_first_byte(p)) == tail[0]
                         {
@@ -356,7 +355,7 @@ pub fn do_debug(cmd: impl crate::strings::IntoCCharPtr) {
                             continue;
                         }
                         CMD_FRAME => {
-                            if *crate::globals::gptr(p) == 0 {
+                            if crate::memory::cstr_is_empty(p) {
                                 do_showbacktrace(cmd);
                             } else {
                                 p = skipwhite(p);
@@ -438,14 +437,14 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                 rest,
                 i64::from(lnum)
             );
-            do_debug(eap.cmd);
+            do_debug(crate::memory::cstr_from_ptr(eap.cmd));
         } else {
             dbg_st().debug_skipped = true;
             dbg_st().debug_skipped_name = Some(bp_name_cstr);
         }
     } else if g_st().ex_nesting_level <= g_st().debug_break_level {
         if eap.skip == 0 {
-            do_debug(eap.cmd);
+            do_debug(crate::memory::cstr_from_ptr(eap.cmd));
         } else {
             dbg_st().debug_skipped = true;
             dbg_st().debug_skipped_name = None;
@@ -475,10 +474,9 @@ fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
     tv
 }
 
-fn dbg_parsearg(arg: impl crate::strings::IntoCCharPtr, is_prof: bool) -> Option<Debuggy> {
-    let arg = arg.into_c_char_ptr().cast_mut();
+fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
+    let mut p = arg.as_ptr().cast_mut();
     {
-        let mut p = arg;
         let mut here = false;
         let mut bp = Debuggy {
             dbg_nr: 0,
@@ -567,7 +565,7 @@ pub fn ex_breakadd(eap: &mut Exarg) {
     let is_prof = eap.cmdidx == CMD_PROFILE;
     let gap = dbg_vec_mut(is_prof);
 
-    let Some(mut bp) = dbg_parsearg(eap.arg, is_prof) else {
+    let Some(mut bp) = dbg_parsearg(crate::memory::cstr_from_ptr(eap.arg), is_prof) else {
         return;
     };
 
@@ -629,7 +627,7 @@ pub fn ex_breakdel(eap: &mut Exarg) {
         todel = 0;
         del_all = true;
     } else {
-        let Some(bp) = dbg_parsearg(eap.arg, is_prof) else {
+        let Some(bp) = dbg_parsearg(crate::memory::cstr_from_ptr(eap.arg), is_prof) else {
             return;
         };
         for (i, bpi) in gap.iter().enumerate() {
@@ -790,30 +788,20 @@ fn debuggy_find(
 }
 
 /// Find a breakpoint for a function or sourced file (`dbg_find_breakpoint`).
-pub fn dbg_find_breakpoint(
-    file: bool,
-    fname: impl crate::strings::IntoCCharPtr,
-    after: i32,
-) -> i32 {
-    let fname = crate::memory::cstr_from_ptr(fname);
+pub fn dbg_find_breakpoint(file: bool, fname: &CStr, after: i32) -> i32 {
     let gap = dbg_vec_mut(false);
     debuggy_find(file, fname, after, gap, false, None)
 }
 
 /// Check if profiling is enabled for a function or sourced file (`has_profiling`).
-pub fn has_profiling(
-    file: bool,
-    fname: impl crate::strings::IntoCCharPtr,
-    fp: Option<&mut bool>,
-) -> bool {
-    let fname = crate::memory::cstr_from_ptr(fname);
+pub fn has_profiling(file: bool, fname: &CStr, fp: Option<&mut bool>) -> bool {
     let gap = dbg_vec_mut(true);
     debuggy_find(file, fname, 0, gap, true, fp) != 0
 }
 
 /// Record that a breakpoint was encountered (`dbg_breakpoint`).
-pub fn dbg_breakpoint(name: impl crate::strings::IntoCCharPtr, lnum: i32) {
-    dbg_st().debug_breakpoint_name = crate::memory::cstr_as_opt_cstr(name).map(CStr::to_owned);
+pub fn dbg_breakpoint(name: Option<&CStr>, lnum: i32) {
+    dbg_st().debug_breakpoint_name = name.map(CStr::to_owned);
     dbg_st().debug_breakpoint_lnum = lnum;
 }
 

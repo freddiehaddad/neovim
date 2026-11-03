@@ -64,7 +64,7 @@ static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> =
 
 #[inline]
 fn decor_prov_st() -> &'static mut DecorProviderState {
-    crate::globals::gmut(DECOR_PROV_STATE.as_ptr())
+    DECOR_PROV_STATE.as_mut()
 }
 
 #[inline]
@@ -112,8 +112,8 @@ fn decor_provider_error(
     let ns = describe_ns(provider.ns_id, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,
-        ptr::null(),
-        c"decor_provider_error",
+        None,
+        Some(c"decor_provider_error"),
         31,
         true,
         c"Error in decoration provider \"%s\" (ns=%s):\n%s",

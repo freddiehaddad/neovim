@@ -167,7 +167,7 @@ static LUACONV_STATE: crate::globals::GlobalState<LuaConverterState> =
 
 #[inline]
 fn luaconv_st() -> &'static mut LuaConverterState {
-    unsafe { &mut *LUACONV_STATE.as_ptr() }
+    LUACONV_STATE.as_mut()
 }
 
 #[repr(C)]

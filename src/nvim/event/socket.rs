@@ -182,8 +182,8 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         if !ok || iport < 0 || iport > i64::from(u16::MAX) {
             logmsg!(
                 LOGLVL_ERR,
-                std::ptr::null(),
-                c"socket_watcher_init",
+                None,
+                Some(c"socket_watcher_init"),
                 line!() as i32,
                 true,
                 c"Invalid port: %s",
@@ -221,8 +221,8 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
         if retval != 0 {
             logmsg!(
                 LOGLVL_ERR,
-                std::ptr::null(),
-                c"socket_watcher_init",
+                None,
+                Some(c"socket_watcher_init"),
                 line!() as i32,
                 true,
                 c"Host lookup failed: %s",
@@ -320,8 +320,8 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                     if rm_result != 0 {
                         logmsg!(
                             LOGLVL_WRN,
-                            std::ptr::null(),
-                            c"socket_watcher_start",
+                            None,
+                            Some(c"socket_watcher_start"),
                             line!() as i32,
                             true,
                             c"Failed to remove stale socket %s: %s",
@@ -346,8 +346,8 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
                 } else {
                     logmsg!(
                         LOGLVL_ERR,
-                        std::ptr::null(),
-                        c"socket_watcher_start",
+                        None,
+                        Some(c"socket_watcher_start"),
                         line!() as i32,
                         true,
                         c"Socket already in use by another Nvim instance: %s",

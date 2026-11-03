@@ -286,7 +286,7 @@ static API_VIM_STATE: crate::globals::GlobalState<ApiVimState> =
 
 #[inline]
 fn api_vim_st() -> &'static mut ApiVimState {
-    crate::globals::gmut(API_VIM_STATE.as_ptr())
+    API_VIM_STATE.as_mut()
 }
 
 #[inline]
@@ -592,7 +592,7 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
     }
 
     let owned_keys_esc = if escape_ks {
-        Some(vim_strsave_escape_ks(keys.data))
+        Some(vim_strsave_escape_ks(keys.as_bytes()))
     } else {
         None
     };
@@ -793,13 +793,12 @@ pub fn nvim_replace_termcodes(
     }
 
     let out = replace_termcodes(
-        str_.data,
-        str_.size,
+        str_.as_bytes(),
         false,
         0,
         flags,
         None,
-        opt_vars().p_cpo,
+        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
     )
     .unwrap_or_default();
     cbuf_to_string(out.as_ptr(), out.as_bytes().len())
@@ -1588,7 +1587,7 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     internal.closed = false;
     let topts = TerminalOptions {
         data: chan,
-        width: (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16,
+        width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height as u16,
         force_crlf,
     };
@@ -2553,7 +2552,8 @@ pub fn nvim_inspect_cell(
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
-            !wp.is_null() && !crate::globals::gptr(wp).w_grid_alloc.chars.is_empty(),
+            wp.as_deref()
+                .is_some_and(|w| !w.w_grid_alloc.chars.is_empty()),
             c"grid handle",
             grid,
             err,
@@ -2561,7 +2561,7 @@ pub fn nvim_inspect_cell(
             return ret;
         }
 
-        g = &raw mut crate::globals::gptr(wp).w_grid_alloc;
+        g = &raw mut wp.unwrap().w_grid_alloc;
     }
 
     let g = crate::globals::gref(g);

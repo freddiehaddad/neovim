@@ -824,7 +824,7 @@ pub fn rpc_close_event(channel: Option<&mut Channel>) {
 
 fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32) {
     let msg = msg.as_ptr();
-    logmsg!(loglevel, c"RPC: ", ptr::null(), -1, true, c"%s", msg,);
+    logmsg!(loglevel, Some(c"RPC: "), None, -1, true, c"%s", msg,);
     let p = channel.unpacker_mut();
 
     for frame in &channel.rpc.call_stack {
@@ -844,8 +844,8 @@ fn chan_close_on_err(channel: &mut Channel, msg: &std::ffi::CStr, loglevel: i32)
     channel_close(channel.id, K_CHANNEL_PART_RPC_CONST, None);
     logmsg!(
         loglevel,
-        ptr::null(),
-        c"chan_close_on_err",
+        None,
+        Some(c"chan_close_on_err"),
         492,
         true,
         c"RPC: %s",

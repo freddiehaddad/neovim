@@ -331,7 +331,7 @@ static STL_STATE: GlobalState<StatuslineState> = GlobalState::new(StatuslineStat
 
 #[inline]
 fn stl_st() -> &'static mut StatuslineState {
-    crate::globals::gmut(STL_STATE.as_ptr())
+    STL_STATE.as_mut()
 }
 
 /// Redraw the status line of window `wp`.

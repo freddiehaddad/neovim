@@ -1342,7 +1342,7 @@ pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpSt
 
 #[inline]
 pub(super) fn re_st() -> &'static mut RegexpState {
-    crate::globals::gmut(RE_STATE.as_ptr())
+    RE_STATE.as_mut()
 }
 
 #[inline]

@@ -199,7 +199,7 @@ static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState:
 
 #[inline]
 fn nfa_st() -> &'static mut RegexpNfaState {
-    crate::globals::gmut(NFA_STATE.as_ptr())
+    NFA_STATE.as_mut()
 }
 
 #[inline]

@@ -14,6 +14,7 @@ use crate::clipboard::set_clipboard;
 use crate::context::{
     CONTEXT_INIT, Context, INIT_POS, K_CTX_COUNT, K_CTX_CURSOR, K_CTX_MARKS, K_CTX_MERGE_REG,
     K_CTX_REGS, K_CTX_VISUAL, ctx_free, ctx_load, ctx_save, handle_get_buffer,
+    handle_get_buffer_opt,
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, check_pos, equalpos, getvpos, lt,
@@ -200,7 +201,7 @@ static MC_STATE: GlobalState<McursorState> = GlobalState::new(McursorState::new(
 
 #[inline]
 fn mc_st() -> &'static mut McursorState {
-    crate::globals::gmut(MC_STATE.as_ptr())
+    MC_STATE.as_mut()
 }
 
 #[inline]
@@ -340,26 +341,18 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
     restore_search_patterns();
     g_st().visual_global = sb.visual;
     restore_current_state(&mut sb.sst);
-    let buf = handle_get_buffer(sb.primary.buf);
     let mut topline = INIT_POS;
     let mut topline_valid = false;
-    if !buf.is_null() {
-        extmark_get_pos(
-            crate::globals::gmut(buf),
-            mc_session_ns(),
-            sb.cursor_mark,
-            &mut sb.primary.pos,
-        );
-        extmark_del_id(crate::globals::gmut(buf), mc_session_ns(), sb.cursor_mark);
-        topline_valid = extmark_get_pos(
-            crate::globals::gmut(buf),
-            mc_session_ns(),
-            sb.topline_mark,
-            &mut topline,
-        );
-        extmark_del_id(crate::globals::gmut(buf), mc_session_ns(), sb.topline_mark);
-    }
-    if buf == g_st().curbuf {
+    let is_curbuf = if let Some(buf) = handle_get_buffer_opt(sb.primary.buf) {
+        extmark_get_pos(buf, mc_session_ns(), sb.cursor_mark, &mut sb.primary.pos);
+        extmark_del_id(buf, mc_session_ns(), sb.cursor_mark);
+        topline_valid = extmark_get_pos(buf, mc_session_ns(), sb.topline_mark, &mut topline);
+        extmark_del_id(buf, mc_session_ns(), sb.topline_mark);
+        std::ptr::eq(buf, g_st().curbuf)
+    } else {
+        g_st().curbuf.is_null()
+    };
+    if is_curbuf {
         restore_viewstate(curwin_mut(), &sb.view);
         ctx_load(
             &mut sb.primary,
@@ -599,23 +592,23 @@ fn mc_cleanup(dedupe: bool, primary: Option<&CursorPos>, keep_mark: u32) {
     let mut n = 0;
     for i in 0..cursors().len() {
         let mut ctx = cursors()[i].clone();
-        let buf = handle_get_buffer(ctx.buf);
-        if buf.is_null()
-            || (ctx.mark != 0
-                && !extmark_get_pos(crate::globals::gmut(buf), mc_ns(), ctx.mark, &mut ctx.pos))
-        {
+        let Some(buf) = handle_get_buffer_opt(ctx.buf) else {
+            ctx_free(&mut ctx);
+            continue;
+        };
+        if ctx.mark != 0 && !extmark_get_pos(buf, mc_ns(), ctx.mark, &mut ctx.pos) {
             ctx_free(&mut ctx);
             continue;
         }
         let dup = dedupe
             && ctx.mark != 0
             && ((!(curwin_ptr()).is_null()
-                && buf == g_st().curbuf
+                && std::ptr::eq(buf, g_st().curbuf)
                 && primary.is_some_and(|p| equalpos(ctx.pos, *p))
                 && ctx.mark != keep_mark)
-                || mc_mark_at(crate::globals::gmut(buf), ctx.pos, 0) != ctx.mark);
+                || mc_mark_at(buf, ctx.pos, 0) != ctx.mark);
         if dup {
-            extmark_del_id(crate::globals::gmut(buf), mc_ns(), ctx.mark);
+            extmark_del_id(buf, mc_ns(), ctx.mark);
             ctx_free(&mut ctx);
         } else {
             cursors_mut()[n] = ctx;
@@ -822,8 +815,8 @@ fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
         if log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
-                ptr::null(),
-                c"mc_ins_preview_replace",
+                None,
+                Some(c"mc_ins_preview_replace"),
                 747,
                 true,
                 c"preview replace failed: %s",
@@ -1104,7 +1097,7 @@ fn mc_reg_gather() {
                 0,
             );
             if r == b'"' as i32 {
-                set_clipboard(NUL, crate::globals::gref(get_y_previous()));
+                set_clipboard(NUL, get_y_previous());
             }
         }
         idx += 1;
@@ -1112,24 +1105,9 @@ fn mc_reg_gather() {
 }
 
 pub fn mc_vsel_clear() {
-    let buf = handle_get_buffer(mc_st().mc_vsel_buf);
-    if !buf.is_null() {
-        extmark_clear(
-            crate::globals::gmut(buf),
-            mc_vsel_ns(),
-            0,
-            0,
-            MAXLNUM,
-            MAXCOL,
-        );
-        extmark_clear(
-            crate::globals::gmut(buf),
-            mc_vcur_ns(),
-            0,
-            0,
-            MAXLNUM,
-            MAXCOL,
-        );
+    if let Some(buf) = handle_get_buffer_opt(mc_st().mc_vsel_buf) {
+        extmark_clear(buf, mc_vsel_ns(), 0, 0, MAXLNUM, MAXCOL);
+        extmark_clear(buf, mc_vcur_ns(), 0, 0, MAXLNUM, MAXCOL);
     }
     mc_st().mc_vsel_buf = 0;
 }
@@ -1452,7 +1430,7 @@ fn mc_zq_first(
     let s = mc_zq_step(keys, from);
     if s.lnum > from.lnum && !curwin_mut().w_set_curswant {
         let mut c = from;
-        getvpos(curwin_ptr(), &mut c, curwin_mut().w_curswant);
+        getvpos(curwin_mut(), &mut c, curwin_mut().w_curswant);
         if ltoreq(start, c) && ltoreq(c, end_bound) && (step.lnum == 0 || lt(c, *step)) {
             *step = c;
         }
@@ -1484,12 +1462,7 @@ fn mc_zq_run(keys: &CStr, search: bool, motion_type: i32, end: CursorPos, first:
     let mut step = first;
     let curswant = curwin_mut().w_curswant;
     while !g_st().got_int {
-        mc_zq_target(
-            step,
-            search,
-            motion_type,
-            crate::globals::gopt_mut(mc_add(curbuf_mut(), step)),
-        );
+        mc_zq_target(step, search, motion_type, mc_add(curbuf_mut(), step));
         placed += 1;
         let prev = step;
         let mut from = prev;
@@ -1554,8 +1527,8 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
         },
     ];
     if oap.from_visual {
-        bounds[0] = crate::globals::gptr(mark_get_visual(curbuf_mut(), b'<' as i32)).mark;
-        bounds[1] = crate::globals::gptr(mark_get_visual(curbuf_mut(), b'>' as i32)).mark;
+        bounds[0] = mark_get_visual(curbuf_mut(), b'<' as i32).unwrap().mark;
+        bounds[1] = mark_get_visual(curbuf_mut(), b'>' as i32).unwrap().mark;
     }
 
     let lines = oap.motion_type == MT_LINE_WISE;
@@ -1621,10 +1594,10 @@ pub fn mc_zq(oap: &mut Oparg, cap: &mut Cmdarg, origin: CursorPos) {
                     coladd: 0,
                 },
             ];
-            if !getvpos(curwin_ptr(), &mut line[0], vcols[0]) {
+            if !getvpos(curwin_mut(), &mut line[0], vcols[0]) {
                 line[0].col = ml_get_len(lnum);
             } else if vcols[1] != MAXCOL {
-                getvpos(curwin_ptr(), &mut line[1], vcols[1]);
+                getvpos(curwin_mut(), &mut line[1], vcols[1]);
             }
             let mut step = INIT_POS;
             if mc_zq_first(&keys_cstr, search, oap.motion_type, &line, &mut step) {
@@ -1700,12 +1673,12 @@ pub fn mc_toggle(buf: &mut FileBuf, pos: CursorPos, end_follow: bool, on: TriSta
     }
 }
 
-pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> *mut Context {
+pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> Option<&'static mut Context> {
     let existing = mc_mark_at(buf, pos, 0);
     if existing != 0 {
         for ctx in cursors_mut().iter_mut() {
             if ctx.buf == buf.b_fnum && ctx.mark == existing {
-                return ctx;
+                return Some(ctx);
             }
         }
     }
@@ -1713,11 +1686,9 @@ pub fn mc_add(buf: &mut FileBuf, pos: CursorPos) -> *mut Context {
     let mut mark: u32 = 0;
     mc_mark_upd(buf, &mut mark, pos);
     if cursors().len() > count {
-        cursors_mut()
-            .last_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut)
+        cursors_mut().last_mut()
     } else {
-        ptr::null_mut()
+        None
     }
 }
 

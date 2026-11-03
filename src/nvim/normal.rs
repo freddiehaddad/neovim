@@ -437,7 +437,7 @@ static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModul
 
 #[inline]
 fn norm_st() -> &'static mut NormalModuleState {
-    crate::globals::gmut(NORM_STATE.as_ptr())
+    NORM_STATE.as_mut()
 }
 
 #[inline]
@@ -3356,10 +3356,10 @@ pub fn find_decl(
 
             if thisblock && t {
                 let maxtravel = i64::from(old_pos.lnum - curwin_mut().w_cursor.lnum + 1);
-                let pos = findmatchlimit(None, b'}' as i32, FM_FORWARD, maxtravel);
-
-                if !pos.is_null() && crate::globals::gptr(pos).lnum < old_pos.lnum {
-                    curwin_mut().w_cursor = *crate::globals::gptr(pos);
+                if let Some(pos) = findmatchlimit(None, b'}' as i32, FM_FORWARD, maxtravel)
+                    && pos.lnum < old_pos.lnum
+                {
+                    curwin_mut().w_cursor = pos;
                     continue;
                 }
             }
@@ -3430,7 +3430,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
         curwin_mut().w_curswant,
     );
 
-    let col_off1 = win_col_off(curwin_ptr());
+    let col_off1 = win_col_off(curwin_mut());
     let col_off2 = col_off1 - win_col_off2(curwin_mut());
     let width1 = curwin_mut().w_view_width - col_off1;
     let mut width2 = curwin_mut().w_view_width - col_off2;
@@ -3820,7 +3820,7 @@ fn nv_zet(cap: &mut Cmdarg) {
                         0,
                     );
                 }
-                let n = i64::from(curwin_mut().w_view_width - win_col_off(curwin_ptr()));
+                let n = i64::from(curwin_mut().w_view_width - win_col_off(curwin_mut()));
                 if i64::from(col) + siso < n {
                     col = 0;
                 } else if siso - n < i64::from(i32::MAX - col) {
@@ -4487,7 +4487,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         let buf = buf_vec.as_mut_ptr().cast();
 
         init_history();
-        add_to_history(HIST_SEARCH, buf, buflen, true, NUL as i32);
+        add_to_history(HIST_SEARCH, &buf_vec[..buflen], true, NUL as i32);
 
         normal_search(
             cap,
@@ -5059,7 +5059,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
         col: 0,
         coladd: 0,
     };
-    let mut pos: *mut CursorPos = ptr::null_mut();
+    let mut pos: Option<CursorPos> = None;
     let mut prev_pos = CursorPos {
         lnum: 0,
         col: 0,
@@ -5093,20 +5093,21 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
             },
             0,
         );
-        if pos.is_null() {
+        if let Some(p) = pos {
+            prev_pos = new_pos;
+            curwin_mut().w_cursor = p;
+            new_pos = p;
+            n -= 1;
+        } else {
             if new_pos.lnum == 0 {
                 if cap.nchar != b'm' as i32 && cap.nchar != b'M' as i32 {
                     clearopbeep(cap.oap_mut());
                 }
             } else {
-                pos = &raw mut new_pos;
+                pos = Some(new_pos);
             }
             break;
         }
-        prev_pos = new_pos;
-        curwin_mut().w_cursor = *crate::globals::gptr(pos);
-        new_pos = *crate::globals::gptr(pos);
-        n -= 1;
     }
     curwin_mut().w_cursor = *old_pos;
 
@@ -5115,13 +5116,13 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
 
         n = cap.count1;
         if prev_pos.lnum != 0 {
-            pos = &raw mut prev_pos;
+            pos = Some(prev_pos);
             curwin_mut().w_cursor = prev_pos;
             if norm {
                 n -= 1;
             }
         } else {
-            pos = ptr::null_mut();
+            pos = None;
         }
         while n > 0 {
             loop {
@@ -5131,7 +5132,7 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                     inc_cursor()
                 };
                 if step_res < 0 {
-                    if pos.is_null() {
+                    if pos.is_none() {
                         clearopbeep(cap.oap_mut());
                     }
                     n = 0;
@@ -5141,11 +5142,11 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                 if c == b'{' as i32 || c == b'}' as i32 {
                     if (c == findc && norm) || (n == 1 && !norm) {
                         new_pos = curwin_mut().w_cursor;
-                        pos = &raw mut new_pos;
+                        pos = Some(new_pos);
                         n = 0;
                     } else if new_pos.lnum == 0 {
                         new_pos = curwin_mut().w_cursor;
-                        pos = &raw mut new_pos;
+                        pos = Some(new_pos);
                     } else {
                         pos = findmatchlimit(
                             Some(cap.oap_mut()),
@@ -5157,10 +5158,10 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
                             },
                             0,
                         );
-                        if pos.is_null() {
-                            n = 0;
+                        if let Some(p) = pos {
+                            curwin_mut().w_cursor = p;
                         } else {
-                            curwin_mut().w_cursor = *crate::globals::gptr(pos);
+                            n = 0;
                         }
                     }
                     break;
@@ -5169,13 +5170,13 @@ fn nv_bracket_block(cap: &mut Cmdarg, old_pos: &CursorPos) {
             n -= 1;
         }
         curwin_mut().w_cursor = *old_pos;
-        if pos.is_null() && new_pos.lnum != 0 {
+        if pos.is_none() && new_pos.lnum != 0 {
             clearopbeep(cap.oap_mut());
         }
     }
-    if !pos.is_null() {
+    if let Some(p) = pos {
         setpcmark();
-        curwin_mut().w_cursor = *crate::globals::gptr(pos);
+        curwin_mut().w_cursor = p;
         curwin_mut().w_set_curswant = true;
         if (opt_vars().fdo_flags & K_OPT_FDO_FLAG_BLOCK) != 0
             && g_st().key_typed
@@ -5463,15 +5464,14 @@ fn nv_percent(cap: &mut Cmdarg) {
 
         cap.oap_mut().motion_type = MT_CHAR_WISE;
         cap.oap_mut().use_reg_one = true;
-        let pos = findmatchlimit(Some(cap.oap_mut()), NUL as i32, flags, 0);
-        if pos.is_null() {
-            clearopbeep(cap.oap_mut());
-        } else {
+        if let Some(pos) = findmatchlimit(Some(cap.oap_mut()), NUL as i32, flags, 0) {
             setpcmark();
-            curwin_mut().w_cursor = *crate::globals::gptr(pos);
+            curwin_mut().w_cursor = pos;
             curwin_mut().w_set_curswant = true;
             curwin_mut().w_cursor.coladd = 0;
             adjust_for_sel(cap);
+        } else {
+            clearopbeep(cap.oap_mut());
         }
     }
     if cap.oap_mut().op_type == OP_NOP
@@ -5673,10 +5673,7 @@ fn nv_replace(cap: &mut Cmdarg) {
                     curwin_mut().w_cursor.col += 1;
                 }
             } else if cap.nchar_len != 0 {
-                ins_char_bytes(
-                    cap.nchar_composing.as_mut_ptr().cast(),
-                    cap.nchar_len as usize,
-                );
+                ins_char_bytes(&cap.nchar_composing, cap.nchar_len as usize);
             } else {
                 ins_char(cap.nchar);
             }
@@ -6254,7 +6251,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
     cap.oap_mut().motion_type = MT_CHAR_WISE;
     cap.oap_mut().inclusive = false;
     if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
-        let width1 = curwin_mut().w_view_width - win_col_off(curwin_ptr());
+        let width1 = curwin_mut().w_view_width - win_col_off(curwin_mut());
         let width2 = width1 + win_col_off2(curwin_mut());
 
         validate_virtcol(curwin_mut());
@@ -6275,7 +6272,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         i = curwin_mut().w_leftcol;
     }
     if cap.nchar == b'm' as i32 {
-        i += (curwin_mut().w_view_width - win_col_off(curwin_ptr())
+        i += (curwin_mut().w_view_width - win_col_off(curwin_mut())
             + if curwin_mut().w_onebuf_opt.wo_wrap != 0 && i > 0 {
                 win_col_off2(curwin_mut())
             } else {
@@ -6345,7 +6342,7 @@ fn nv_g_underscore_cmd(cap: &mut Cmdarg) {
 
 fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
     let mut i: i32;
-    let col_off = win_col_off(curwin_ptr());
+    let col_off = win_col_off(curwin_mut());
     let flag = cap.nchar == K_END || cap.nchar == K_KEND;
 
     cap.oap_mut().motion_type = MT_CHAR_WISE;

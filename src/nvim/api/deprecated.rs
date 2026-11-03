@@ -67,7 +67,7 @@ static API_DEP_STATE: crate::globals::GlobalState<ApiDeprecatedState> =
 
 #[inline]
 fn api_dep_st() -> &'static mut ApiDeprecatedState {
-    crate::globals::gmut(API_DEP_STATE.as_ptr())
+    API_DEP_STATE.as_mut()
 }
 
 /// @deprecated Use nvim_exec2() instead.

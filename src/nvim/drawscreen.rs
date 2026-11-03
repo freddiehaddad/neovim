@@ -206,7 +206,7 @@ static DS_STATE: GlobalState<DrawscreenState> = GlobalState::new(DrawscreenState
 
 #[inline]
 fn ds_st() -> &'static mut DrawscreenState {
-    crate::globals::gmut(DS_STATE.as_ptr())
+    DS_STATE.as_mut()
 }
 
 #[inline]
@@ -1490,9 +1490,9 @@ fn win_update(wp: &mut WinInfoInfo) {
 
     init_search_hl(wp, &mut g_st().screen_search_hl);
 
-    if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(&raw mut *wp) {
+    if wp.w_skipcol > 0 && wp.w_view_width > win_col_off(wp) {
         let mut w: i32 = 0;
-        let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+        let width1 = wp.w_view_width - win_col_off(wp);
         let width2 = width1 + win_col_off2(wp);
         let mut add = width1;
 

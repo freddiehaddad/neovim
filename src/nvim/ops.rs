@@ -58,8 +58,8 @@ use crate::mbyte::{
 };
 use crate::mcursor::mc_zq;
 use crate::memline::{
-    dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_buf_mut, ml_get_len,
-    ml_get_pos_len, ml_replace, ml_replace_len,
+    dec, decl, gchar_pos, inc, ml_append, ml_get, ml_get_buf_len, ml_get_len, ml_get_pos_len,
+    ml_replace, ml_replace_len,
 };
 use crate::message::{emsg, internal_error, msg, msg_keep, msg_start, msgmore, smsg};
 use crate::mouse::setmouse;
@@ -190,7 +190,7 @@ static OPS_STATE: crate::globals::GlobalState<OpsModuleState> =
 
 #[inline]
 fn ops_st() -> &'static mut OpsModuleState {
-    crate::globals::gmut(OPS_STATE.as_ptr())
+    OPS_STATE.as_mut()
 }
 
 #[inline]
@@ -861,37 +861,40 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
 
     if !only_setmarks {
         if oap.regname != b'_' as i32 {
-            let mut reg: *mut Yankreg = ptr::null_mut();
+            let mut reg: Option<&'static mut Yankreg> = None;
             let mut did_yank = false;
             if oap.regname != 0 {
                 if !valid_yank_reg(oap.regname, true) {
                     beep_flush();
                     return true;
                 }
-                reg = get_yank_register(oap.regname, YREG_YANK);
-                op_yank_reg(oap, false, reg, is_append_register(oap.regname));
+                let r = get_yank_register(oap.regname, YREG_YANK);
+                op_yank_reg(oap, false, r, is_append_register(oap.regname));
+                reg = Some(r);
                 did_yank = true;
             }
 
             if oap.motion_type == MT_LINE_WISE || oap.line_count > 1 || oap.use_reg_one {
                 shift_delete_registers(is_append_register(oap.regname));
-                reg = get_y_register(1);
-                op_yank_reg(oap, false, reg, false);
+                let r = get_y_register(1);
+                op_yank_reg(oap, false, r, false);
+                reg = Some(r);
                 did_yank = true;
             }
 
             if oap.regname == 0 && oap.motion_type != MT_LINE_WISE && oap.line_count == 1 {
-                reg = get_yank_register(b'-' as i32, YREG_YANK);
-                op_yank_reg(oap, false, reg, false);
+                let r = get_yank_register(b'-' as i32, YREG_YANK);
+                op_yank_reg(oap, false, r, false);
+                reg = Some(r);
                 did_yank = true;
             }
 
             if did_yank || oap.regname == 0 {
-                if reg.is_null() {
+                let Some(reg) = reg else {
                     std::process::abort();
-                }
-                set_clipboard(oap.regname, crate::globals::gref(reg));
-                do_autocmd_textyankpost(oap, crate::globals::gmut(reg));
+                };
+                set_clipboard(oap.regname, &*reg);
+                do_autocmd_textyankpost(oap, reg);
             }
         }
 
@@ -1123,14 +1126,16 @@ fn mb_adjust_opend(oap: &mut Oparg) {
 
 fn pbyte(mut lp: CursorPos, c: i32) {
     debug_assert!(c <= u8::MAX as i32);
-    let p = ml_get_buf_mut(curbuf_mut(), lp.lnum);
+    let slice = crate::memline::ml_get_buf_mut_slice(curbuf_mut(), lp.lnum);
     let len = curbuf_mut().b_ml.ml_line_textlen;
 
     if lp.col >= len {
         lp.col = if len > 1 { len - 2 } else { 0 };
     }
 
-    *crate::globals::gptr(p.wrapping_add(lp.col as usize).cast::<u8>()) = c as u8;
+    if let Some(slot) = slice.get_mut(lp.col as usize) {
+        *slot = c as u8;
+    }
 
     if g_st().curbuf_splice_pending == 0 {
         extmark_splice_cols(curbuf_mut(), lp.lnum - 1, lp.col, 1, 1, K_EXTMARK_UNDO);
@@ -1188,7 +1193,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                     col: 0,
                     coladd: 0,
                 };
-                getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
+                getvpos(curwin_mut(), &mut vpos, oap.start_vcol);
                 bd.startspaces += vpos.coladd;
                 n = bd.startspaces;
             } else {
@@ -1332,7 +1337,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                         }
                         coladvance_force(getviscol());
                         if curwin_mut().w_cursor.lnum == oap.end.lnum {
-                            getvpos(curwin_ptr(), &mut oap.end, end_vcol);
+                            getvpos(curwin_mut(), &mut oap.end, end_vcol);
                         }
                     }
                     if gchar_cursor() != i32::from(NUL) {
@@ -1781,7 +1786,7 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                         coladd: 0,
                     };
                     if bd.is_short != 0 {
-                        getvpos(curwin_ptr(), &mut vpos, oap.start_vcol);
+                        getvpos(curwin_mut(), &mut vpos, oap.start_vcol);
                     } else {
                         vpos.coladd = 0;
                     }
@@ -2842,29 +2847,20 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             c = gchar_cursor();
         }
 
-        let mut buf1_vec = vec![0u8; (length as usize) + NUMBUFLEN];
-        let buf1 = buf1_vec.as_mut_ptr();
-        let mut ptr_line = buf1;
+        let mut buf1_vec = Vec::with_capacity((length as usize) + NUMBUFLEN);
         if negative && (!visual || was_positive) {
-            *crate::globals::gptr(ptr_line) = b'-';
-
-            ptr_line = ptr_line.wrapping_add(1);
+            buf1_vec.push(b'-');
         }
         if pre != 0 {
-            *crate::globals::gptr(ptr_line) = b'0';
-
-            ptr_line = ptr_line.wrapping_add(1);
+            buf1_vec.push(b'0');
             length -= 1;
         }
         if pre == b'b' as i32 || pre == b'B' as i32 || pre == b'x' as i32 || pre == b'X' as i32 {
-            *crate::globals::gptr(ptr_line) = pre as u8;
-
-            ptr_line = ptr_line.wrapping_add(1);
+            buf1_vec.push(pre as u8);
             length -= 1;
         }
 
         let mut buf2 = [0u8; NUMBUFLEN];
-        let buf2_ptr = buf2.as_mut_ptr();
         let mut buf2len: i32 = 0;
         if pre == b'b' as i32 || pre == b'B' as i32 {
             let mut bits = Uvarnumber::BITS as usize;
@@ -2878,43 +2874,35 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             while bits > 0 && (buf2len as usize) < NUMBUFLEN - 1 {
                 bits -= 1;
 
-                *crate::globals::gptr(buf2_ptr.wrapping_add(buf2len as usize)) =
-                    if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
+                buf2[buf2len as usize] = if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
 
                 buf2len += 1;
             }
 
-            *crate::globals::gptr(buf2_ptr.wrapping_add(buf2len as usize)) = 0;
+            buf2[buf2len as usize] = 0;
         } else if pre == 0 {
-            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llu", n as u64,);
+            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llu", n as u64,);
         } else if pre == b'0' as i32 {
-            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llo", n as u64,);
+            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llo", n as u64,);
         } else if ops_st().addsub_hexupper {
-            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llX", n as u64,);
+            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llX", n as u64,);
         } else {
-            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llx", n as u64,);
+            buf2len = vim_snprintf!(buf2.as_mut_ptr().cast(), NUMBUFLEN, c"%llx", n as u64,);
         }
         length -= buf2len;
 
         if firstdigit == b'0' as i32 && !(do_oct && pre == 0) {
             while length > 0 {
                 length -= 1;
-
-                *crate::globals::gptr(ptr_line) = b'0';
-
-                ptr_line = ptr_line.wrapping_add(1);
+                buf1_vec.push(b'0');
             }
         }
 
-        *crate::globals::gptr(ptr_line) = 0;
+        buf1_vec.extend_from_slice(&buf2[..buf2len as usize]);
+        let buf1len = buf1_vec.len();
+        buf1_vec.push(0);
 
-        let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
-
-        let buf2_bytes = crate::memory::cstr_from_ptr(buf2_ptr.cast()).to_bytes_with_nul();
-        buf1_vec[buf1len as usize..buf1len as usize + buf2_bytes.len()].copy_from_slice(buf2_bytes);
-        buf1len += buf2len;
-
-        ins_str(buf1_vec.as_ptr().cast(), buf1len as usize);
+        ins_str(&buf1_vec, buf1len);
         drop(buf1_vec);
 
         endpos = curwin_mut().w_cursor;

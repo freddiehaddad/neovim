@@ -243,7 +243,7 @@ static DIFF_STATE: GlobalState<DiffState> = GlobalState::new(DiffState::new());
 
 #[inline]
 fn diff_st() -> &'static mut DiffState {
-    crate::globals::gmut(DIFF_STATE.as_ptr())
+    DIFF_STATE.as_mut()
 }
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {
@@ -2305,8 +2305,9 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v = crate::globals::gref(
-        opt_keyset(opt_vars().p_dip, K_OPT_DIFFOPT, ptr::null_mut()).cast::<OptKeyDict_dip>(),
+    let v: &OptKeyDict_dip = opt_keyset(
+        crate::memory::cstr_as_bytes(opt_vars().p_dip),
+        K_OPT_DIFFOPT,
     );
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })

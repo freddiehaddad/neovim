@@ -218,7 +218,7 @@ static REG_STATE: GlobalState<RegisterModuleState> = GlobalState::new(RegisterMo
 
 #[inline]
 fn reg_st() -> &'static mut RegisterModuleState {
-    crate::globals::gmut(REG_STATE.as_ptr())
+    REG_STATE.as_mut()
 }
 
 #[inline]
@@ -307,8 +307,8 @@ pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
     &mut reg_st().y_regs[reg as usize]
 }
 
-pub fn get_y_previous() -> *mut Yankreg {
-    reg_st().y_previous
+pub fn get_y_previous() -> &'static mut Yankreg {
+    unsafe { &mut *reg_st().y_previous }
 }
 
 pub fn get_expr_register() -> i32 {
@@ -462,10 +462,10 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
 }
 
 pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
-    let mut reg: *mut Yankreg = ptr::null_mut();
+    let mut reg: Option<&'static mut Yankreg> = None;
 
     if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &mut reg, false) {
-        return crate::globals::gmut(reg);
+        return reg.unwrap();
     } else if mode == YREG_PUT && (regname == i32::from(b'*') || regname == i32::from(b'+')) {
         return &mut reg_st().empty_reg;
     } else if mode != YREG_YANK
@@ -630,7 +630,7 @@ fn put_in_typebuf(
     }
     if retval {
         let owned_p = if esc {
-            Some(vim_strsave_escape_ks(s))
+            Some(vim_strsave_escape_ks(crate::memory::cstr_as_bytes(s)))
         } else {
             None
         };
@@ -800,7 +800,7 @@ pub fn do_execreg(mut regname: i32, colon: i32, addcr: i32, silent: i32) -> bool
                     str_ = cont_vec.as_ptr().cast_mut().cast();
                 }
             }
-            let escaped = vim_strsave_escape_ks(str_);
+            let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(str_));
             retval = ins_typebuf(escaped.as_ptr().cast_mut(), remap, 0, true, is_silent);
             drop(escaped);
             if !retval {
@@ -2121,7 +2121,7 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
                                 col: 0,
                                 coladd: 0,
                             };
-                            if getvpos(curwin_ptr(), &mut pos, vcol) {
+                            if getvpos(curwin_mut(), &mut pos, vcol) {
                                 col = pos.col;
                             } else {
                                 col = MAXCOL;
@@ -2514,7 +2514,11 @@ pub fn ex_display(eap: &mut Exarg) {
             regs.wrapping_add(i as usize)
         };
 
-        get_clipboard(name, &mut yb, true);
+        let mut cb_target: Option<&'static mut Yankreg> = None;
+        get_clipboard(name, &mut cb_target, true);
+        if let Some(cb_reg) = cb_target {
+            yb = cb_reg;
+        }
 
         if name == mb_tolower(g_st().redir_reg)
             || (g_st().redir_reg == i32::from(b'"') && ptr::eq(yb, reg_st().y_previous))

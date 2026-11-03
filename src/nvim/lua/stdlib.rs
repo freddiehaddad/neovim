@@ -743,7 +743,7 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
         return luaL_argerror(lstate, 1, c"string expected");
     }
 
-    let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1));
+    let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(lua_tostring(lstate, 1)));
     let mut rem = escaped.as_bytes();
 
     lua_newtable(lstate);

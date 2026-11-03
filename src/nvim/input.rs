@@ -299,7 +299,7 @@ static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleSt
 
 #[inline]
 fn inp_st() -> &'static mut InputModuleState {
-    crate::globals::gmut(INP_STATE.as_ptr())
+    INP_STATE.as_mut()
 }
 
 #[inline]
@@ -1875,7 +1875,7 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
                 ui_flush();
                 let events = main_loop_events();
                 input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                if input_available() == 0 && !multiqueue_empty(crate::globals::gref(events)) {
+                if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                     state_handle_k_event();
                     continue;
                 }
@@ -2652,7 +2652,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 curwin_mut().w_wrow = curwin_mut().w_cline_row
                                     + curwin_mut().w_wcol / curwin_mut().w_view_width;
                                 curwin_mut().w_wcol %= curwin_mut().w_view_width;
-                                curwin_mut().w_wcol += win_col_off(curwin_ptr());
+                                curwin_mut().w_wcol += win_col_off(curwin_mut());
                                 col = 0;
                             } else {
                                 curwin_mut().w_wcol -= 1;

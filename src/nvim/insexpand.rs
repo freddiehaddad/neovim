@@ -582,7 +582,7 @@ static INSEXPAND: GlobalState<InsexpandState> = GlobalState::new(InsexpandState:
 
 #[inline]
 fn insexp() -> &'static mut InsexpandState {
-    crate::globals::gmut(INSEXPAND.as_ptr())
+    INSEXPAND.as_mut()
 }
 
 #[inline]
@@ -1391,7 +1391,7 @@ fn ins_compl_insert_bytes(p: impl crate::strings::IntoCCharPtr, mut len: i32) {
             len = crate::memory::cstr_len(p) as i32;
         }
         debug_assert!(len >= 0);
-        ins_bytes_len(p.cast_mut(), len as usize);
+        ins_bytes_len(crate::memory::cstr_slice(p, len as usize), len as usize);
         insexp().compl_ins_end_col = curwin_mut().w_cursor.col;
     }
 }
@@ -1776,7 +1776,10 @@ fn set_fuzzy_score() {
             pattern = get_leader_for_startcol(Some(&*comp), true).data.cast();
         }
 
-        comp.cp_score = fuzzy_match_str(comp.cp_str.data, pattern.cast());
+        comp.cp_score = fuzzy_match_str(
+            crate::memory::cstr_as_opt_cstr(comp.cp_str.data).map(CStr::to_bytes),
+            crate::memory::cstr_as_opt_cstr(pattern.cast()).map(CStr::to_bytes),
+        );
     }
 }
 
@@ -2271,25 +2274,33 @@ fn ins_compl_files(
             let mut ptr = buf;
             if cot_fuzzy() && leader_len > 0 {
                 let line_end = find_line_end(ptr);
-                while ptr < line_end {
+                let mut rem_slice = unsafe {
+                    std::slice::from_raw_parts(
+                        ptr,
+                        crate::memory::ptr_offset_from(line_end, ptr) as usize,
+                    )
+                };
+                while !rem_slice.is_empty() {
                     let mut score: i32 = 0;
                     let mut len: i32 = 0;
                     let matched = fuzzy_match_str_in_line(
-                        &mut ptr,
-                        leader.cast(),
+                        &mut rem_slice,
+                        crate::memory::cstr_as_opt_cstr(leader.cast()).map(CStr::to_bytes),
                         &mut len,
                         None,
                         &mut score,
                     );
                     if matched {
+                        ptr = rem_slice.as_ptr().cast_mut();
                         let end_ptr = if ctrl_x_mode_line_or_eval() {
                             find_line_end(ptr)
                         } else {
                             find_word_end(ptr)
                         };
+                        let match_len = crate::memory::ptr_offset_from(end_ptr, ptr) as i32;
                         let add_r = ins_compl_add_infercase(
                             ptr.cast(),
-                            crate::memory::ptr_offset_from(end_ptr, ptr) as i32,
+                            match_len,
                             opt_vars().p_ic != 0,
                             file,
                             *dir,
@@ -2299,7 +2310,7 @@ fn ins_compl_files(
                         if add_r == FAIL {
                             break;
                         }
-                        ptr = end_ptr;
+                        rem_slice = &rem_slice[(match_len as usize).min(rem_slice.len())..];
                         if insexp().compl_get_longest
                             && ctrl_x_mode_normal()
                             && let Some(next_i) = compl_next_idx(0)
@@ -2666,7 +2677,7 @@ pub fn ins_compl_addleader(c: i32) {
         let mut buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
         utf_char2bytes(c, buf.as_mut_ptr().cast());
         buf[cc as usize] = 0;
-        ins_char_bytes(buf.as_mut_ptr().cast(), cc as usize);
+        ins_char_bytes(&buf, cc as usize);
     } else {
         ins_char(c);
     }
@@ -4352,7 +4363,10 @@ fn get_next_filename_completion() {
         let mut compl_fuzzy_scores = vec![0_i32; matches.len()];
 
         for (i, m) in matches.iter().enumerate() {
-            let score = fuzzy_match_str(m.as_ptr().cast_mut(), leader.cast());
+            let score = fuzzy_match_str(
+                Some(m.to_bytes()),
+                crate::memory::cstr_as_opt_cstr(leader.cast()).map(CStr::to_bytes),
+            );
             if score != FUZZY_SCORE_NONE {
                 fuzzy_indices.push(i as i32);
                 compl_fuzzy_scores[i] = score;
@@ -4595,16 +4609,18 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         g_st().msg_silent += 1;
 
         if in_fuzzy_collect {
+            let mut matched_line: &'static [u8] = &[];
             found_new_match = i32::from(search_for_fuzzy_match(
                 crate::globals::gmut(st.ins_buf),
                 &mut *st.cur_match_pos_ptr(),
-                leader.cast(),
+                crate::memory::cstr_as_opt_cstr(leader.cast()).map(CStr::to_bytes),
                 insexp().compl_direction,
                 start_pos,
                 &mut len,
-                &mut ptr,
+                &mut matched_line,
                 &mut score,
             ));
+            ptr = matched_line.as_ptr().cast_mut();
         } else if ctrl_x_mode_whole_line()
             || ctrl_x_mode_eval()
             || (insexp().compl_cont_status & CONT_SOL) != 0
@@ -5313,7 +5329,7 @@ pub fn ins_compl_delete(new_leader: bool) {
 
     if let Some(ref rem) = remaining_vec {
         orig_col = curwin_mut().w_cursor.col;
-        ins_str(rem.as_ptr().cast_mut().cast(), rem.len() - 1);
+        ins_str(rem, rem.len() - 1);
         curwin_mut().w_cursor.col = orig_col;
     }
 
@@ -5330,7 +5346,8 @@ fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
         while !crate::memory::cstr_is_empty(curr) {
             if crate::memory::cstr_first_byte(curr) == b'\n' {
                 if curr > start {
-                    ins_char_bytes(start, crate::memory::ptr_offset_from(curr, start) as usize);
+                    let n = crate::memory::ptr_offset_from(curr, start) as usize;
+                    ins_char_bytes(crate::memory::cstr_slice(start, n), n);
                 }
                 open_line(
                     FORWARD,
@@ -5344,7 +5361,8 @@ fn ins_compl_expand_multiple(str_ptr: impl crate::strings::IntoCCharPtr) {
         }
 
         if curr > start {
-            ins_char_bytes(start, crate::memory::ptr_offset_from(curr, start) as usize);
+            let n = crate::memory::ptr_offset_from(curr, start) as usize;
+            ins_char_bytes(crate::memory::cstr_slice(start, n), n);
         }
 
         insexp().compl_ins_end_col = curwin_mut().w_cursor.col;

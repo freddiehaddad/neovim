@@ -218,7 +218,7 @@ static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::ne
 
 #[inline]
 fn dl_st() -> &'static mut DrawlineState {
-    crate::globals::gmut(DL_STATE.as_ptr())
+    DL_STATE.as_mut()
 }
 
 #[inline]
@@ -1051,7 +1051,8 @@ fn handle_breakindent(wp: &mut WinInfoInfo, wlv: &mut Winlinevars, gap_decor_att
             attr = hl_combine_attr(attr, win_hl_attr(&mut *wp, wlv.diff_hlf));
         }
         let mut num = if wlv.breakindent < 0 {
-            wlv.breakindent = get_breakindent_win(wp, ml_get_buf(wp.buf_mut(), wlv.lnum));
+            wlv.breakindent =
+                get_breakindent_win(wp, crate::memline::ml_get_buf_slice(wp.buf_mut(), wlv.lnum));
             wlv.breakindent
         } else {
             wlv.breakindent
@@ -1829,7 +1830,7 @@ pub fn win_line(
         statuscol.sattrs = wlv.sattrs;
         statuscol.lnum = lnum;
         statuscol.foldinfo = foldinfo;
-        statuscol.width = win_col_off(&raw mut *wp);
+        statuscol.width = win_col_off(wp);
         statuscol.sign_cul_id = if use_cursor_line_highlight(&mut *wp, lnum) {
             wlv.sign_cul_attr
         } else {
@@ -3373,9 +3374,7 @@ pub fn win_line(
                 if in_curline && wlv.col >= view_width {
                     wp.w_wcol = wp.w_wcol.min(view_width - 1);
                 }
-                wlv.vcol = wlv
-                    .vcol
-                    .max(start_vcol + wlv.col - win_col_off(&raw mut *wp));
+                wlv.vcol = wlv.vcol.max(start_vcol + wlv.col - win_col_off(wp));
                 wlv.col -= wlv.boguscols;
                 wlv.boguscols = 0;
 
@@ -3945,13 +3944,13 @@ fn decor_providers_setup(
     wp: &mut WinInfoInfo,
 ) -> i32 {
     let rem_vcols = if wp.w_onebuf_opt.wo_wrap != 0 {
-        let width = wp.w_view_width - win_col_off(&raw mut *wp);
+        let width = wp.w_view_width - win_col_off(wp);
         let width2 = width + win_col_off2(wp);
 
         let first_row_width = if draw_from_line_start { width } else { width2 };
         first_row_width + (rows_to_draw - 1) * width2
     } else {
-        wp.w_view_width - win_col_off(&raw mut *wp)
+        wp.w_view_width - win_col_off(wp)
     };
 
     decor_providers_invoke_line(wp, lnum - 1);

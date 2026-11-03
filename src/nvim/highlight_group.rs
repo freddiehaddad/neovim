@@ -193,7 +193,7 @@ static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightG
 
 #[inline]
 fn hlg_st() -> &'static mut HighlightGroupState {
-    crate::globals::gmut(HLG_STATE.as_ptr())
+    HLG_STATE.as_mut()
 }
 
 const HL_NAME_TABLE: [&CStr; 18] = [

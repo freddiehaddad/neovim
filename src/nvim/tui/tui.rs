@@ -311,7 +311,7 @@ static TUI_MOD_STATE: GlobalState<TuiModuleState> = GlobalState::new(TuiModuleSt
 
 #[inline]
 fn tui_st() -> &'static mut TuiModuleState {
-    unsafe { &mut *TUI_MOD_STATE.as_ptr() }
+    TUI_MOD_STATE.as_mut()
 }
 
 #[cfg(unix)]
@@ -418,8 +418,8 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
             if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
-                    ptr::null(),
-                    c"tui_handle_term_mode",
+                    None,
+                    Some(c"tui_handle_term_mode"),
                     236,
                     true,
                     c"TUI: terminal mode %d unavailable, state %d",
@@ -435,8 +435,8 @@ pub fn tui_handle_term_mode(tui: &mut TUIData, mode: TermMode, state: TermModeSt
             if !g_st().nvim_testing && log_st().g_min_log_level <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
-                    ptr::null(),
-                    c"tui_handle_term_mode",
+                    None,
+                    Some(c"tui_handle_term_mode"),
                     249,
                     true,
                     c"TUI: terminal mode %d detected, state %d",
@@ -957,8 +957,8 @@ fn terminfo_start(tui: &mut TUIData) {
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"terminfo_start",
+                None,
+                Some(c"terminfo_start"),
                 628,
                 true,
                 c"uv_tty_init failed: %s",
@@ -980,8 +980,8 @@ fn terminfo_start(tui: &mut TUIData) {
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"terminfo_start",
+                    None,
+                    Some(c"terminfo_start"),
                     638,
                     true,
                     c"uv_tty_set_mode failed: %s",
@@ -994,8 +994,8 @@ fn terminfo_start(tui: &mut TUIData) {
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"terminfo_start",
+                None,
+                Some(c"terminfo_start"),
                 644,
                 true,
                 c"uv_pipe_init failed: %s",
@@ -1006,8 +1006,8 @@ fn terminfo_start(tui: &mut TUIData) {
         if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"terminfo_start",
+                None,
+                Some(c"terminfo_start"),
                 648,
                 true,
                 c"uv_pipe_open failed: %s",
@@ -1104,8 +1104,8 @@ pub fn tui_stop(tui: &mut TUIData) {
         if log_st().g_min_log_level <= LOGLVL_ERR {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"tui_stop",
+                None,
+                Some(c"tui_stop"),
                 760,
                 true,
                 c"TUI already stopped (race?)",
@@ -1146,8 +1146,8 @@ pub fn tui_stop(tui: &mut TUIData) {
     {
         logmsg!(
             LOGLVL_WRN,
-            ptr::null(),
-            c"tui_stop",
+            None,
+            Some(c"tui_stop"),
             773,
             true,
             c"TUI: timed out waiting for DA1 response",
@@ -1703,8 +1703,8 @@ fn tui_cursor_decode_shape(shape_str: NvimString) -> CursorShape {
             if log_st().g_min_log_level <= LOGLVL_WRN {
                 logmsg!(
                     LOGLVL_WRN,
-                    ptr::null(),
-                    c"tui_cursor_decode_shape",
+                    None,
+                    Some(c"tui_cursor_decode_shape"),
                     1268,
                     true,
                     c"Unknown shape value '%s'",
@@ -1835,8 +1835,8 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"tui_mode_change",
+                    None,
+                    Some(c"tui_mode_change"),
                     1413,
                     true,
                     c"uv_tty_set_mode failed: %s",
@@ -1847,8 +1847,8 @@ pub fn tui_mode_change(tui: &mut TUIData, _mode: NvimString, mode_idx: Integer) 
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"tui_mode_change",
+                    None,
+                    Some(c"tui_mode_change"),
                     1417,
                     true,
                     c"uv_tty_set_mode failed: %s",
@@ -2020,8 +2020,8 @@ pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"tui_ui_send",
+            None,
+            Some(c"tui_ui_send"),
             1569,
             true,
             c"uv_write failed: %s",
@@ -2037,8 +2037,8 @@ pub fn tui_flush(tui: &mut TUIData) {
         if log_st().g_min_log_level <= LOGLVL_WRN {
             logmsg!(
                 LOGLVL_WRN,
-                ptr::null(),
-                c"tui_flush",
+                None,
+                Some(c"tui_flush"),
                 1583,
                 true,
                 c"TUI event-queue flooded (thread_events=%zu); purging",
@@ -2186,8 +2186,8 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
     if too_long && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"tui_set_title",
+            None,
+            Some(c"tui_set_title"),
             1682,
             true,
             c"set_title: title string too long!",
@@ -2283,8 +2283,8 @@ pub fn tui_chdir(_tui: &mut TUIData, path: NvimString) {
     if err != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"tui_chdir",
+            None,
+            Some(c"tui_chdir"),
             1777,
             true,
             c"Failed to chdir to %s: %s",
@@ -2966,8 +2966,8 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
             if ret != 0 && log_st().g_min_log_level <= LOGLVL_ERR {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"flush_buf",
+                    None,
+                    Some(c"flush_buf"),
                     2660,
                     true,
                     c"uv_write failed: %s",
@@ -2992,8 +2992,8 @@ fn tui_init_stty_erase(input: &mut TermInput) {
                     CStr::from_bytes_until_nul(&tui_st().stty_erase_buf).unwrap_or(c"");
                 logmsg!(
                     LOGLVL_DBG,
-                    ptr::null(),
-                    c"tui_get_stty_erase",
+                    None,
+                    Some(c"tui_get_stty_erase"),
                     2684,
                     true,
                     c"stty/termios:erase=%s",
@@ -3039,8 +3039,8 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
         if log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
-                ptr::null(),
-                c"tui_tk_ti_getstr",
+                None,
+                Some(c"tui_tk_ti_getstr"),
                 2709,
                 true,
                 c"libtermkey:kbs=%s",
@@ -3054,8 +3054,8 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
         if log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
-                ptr::null(),
-                c"tui_tk_ti_getstr",
+                None,
+                Some(c"tui_tk_ti_getstr"),
                 2714,
                 true,
                 c"libtermkey:kdch1=%s",
@@ -3072,8 +3072,8 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
         if log_st().g_min_log_level <= LOGLVL_DBG {
             logmsg!(
                 LOGLVL_DBG,
-                ptr::null(),
-                c"tui_tk_ti_getstr",
+                None,
+                Some(c"tui_tk_ti_getstr"),
                 2720,
                 true,
                 c"libtermkey:kmous=%s",

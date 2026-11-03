@@ -271,8 +271,8 @@ pub fn stream_may_close(stream: &mut Stream) {
     if log_st().g_min_log_level <= LOGLVL_DBG {
         logmsg!(
             LOGLVL_DBG,
-            ptr::null(),
-            c"stream_may_close",
+            None,
+            Some(c"stream_may_close"),
             94,
             true,
             c"closing Stream: %p",
@@ -299,8 +299,8 @@ pub fn stream_close_handle(stream: &mut Stream) {
         if queued > 0 {
             logmsg!(
                 LOGLVL_WRN,
-                ptr::null(),
-                c"stream_close_handle",
+                None,
+                Some(c"stream_close_handle"),
                 116,
                 true,
                 c"closed Stream (%p) with %zu unwritten bytes",

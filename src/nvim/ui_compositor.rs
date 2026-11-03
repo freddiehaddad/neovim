@@ -52,7 +52,7 @@ struct UiCompositorState {
 impl UiCompositorState {
     #[inline]
     fn curgrid_mut(&self) -> &'static mut ScreenGrid {
-        crate::globals::gmut(self.curgrid)
+        unsafe { &mut *self.curgrid }
     }
 }
 
@@ -83,12 +83,7 @@ static COMP_STATE: GlobalState<UiCompositorState> = GlobalState::new(UiComposito
 
 #[inline]
 fn comp() -> &'static mut UiCompositorState {
-    crate::globals::gmut(COMP_STATE.as_ptr())
-}
-
-#[inline]
-fn layers_mut() -> &'static mut Vec<*mut ScreenGrid> {
-    &mut comp().layers
+    COMP_STATE.as_mut()
 }
 
 #[inline]
@@ -102,12 +97,12 @@ fn attrbuf_mut() -> &'static mut Vec<Sattr> {
 }
 
 #[inline]
-fn grid_mut(ptr: *mut ScreenGrid) -> &'static mut ScreenGrid {
-    crate::globals::gmut(ptr)
+fn layer_mut(idx: usize) -> &'static mut ScreenGrid {
+    unsafe { &mut *comp().layers[idx] }
 }
 
 pub fn ui_comp_init() {
-    layers_mut().push(&raw mut g_st().default_grid);
+    comp().layers.push(&raw mut g_st().default_grid);
     comp().curgrid = &raw mut g_st().default_grid;
 }
 
@@ -145,28 +140,27 @@ pub fn ui_comp_should_draw() -> bool {
 
 /// Raises or lowers the layer, syncing `comp_index` with `zindex` (`ui_comp_layers_adjust`).
 pub fn ui_comp_layers_adjust(mut layer_idx: usize, raise: bool) {
-    let l = layers_mut();
-    let size = l.len();
-    let layer = grid_mut(l[layer_idx]);
+    let size = comp().layers.len();
+    let layer = layer_mut(layer_idx);
 
     if raise {
-        while layer_idx < size - 1 && layer.zindex > grid_mut(l[layer_idx + 1]).zindex {
-            let next = grid_mut(l[layer_idx + 1]);
-            l[layer_idx] = next;
+        while layer_idx < size - 1 && layer.zindex > layer_mut(layer_idx + 1).zindex {
+            let next = layer_mut(layer_idx + 1);
+            comp().layers[layer_idx] = next;
             next.comp_index = layer_idx;
             next.pending_comp_index_update = true;
             layer_idx += 1;
         }
     } else {
-        while layer_idx > 0 && layer.zindex < grid_mut(l[layer_idx - 1]).zindex {
-            let prev = grid_mut(l[layer_idx - 1]);
-            l[layer_idx] = prev;
+        while layer_idx > 0 && layer.zindex < layer_mut(layer_idx - 1).zindex {
+            let prev = layer_mut(layer_idx - 1);
+            comp().layers[layer_idx] = prev;
             prev.comp_index = layer_idx;
             prev.pending_comp_index_update = true;
             layer_idx -= 1;
         }
     }
-    l[layer_idx] = layer;
+    comp().layers[layer_idx] = layer;
     layer.comp_index = layer_idx;
     layer.pending_comp_index_update = true;
 }
@@ -222,25 +216,25 @@ pub fn ui_comp_put_grid(
         grid.comp_col = col;
     } else {
         moved = true;
-        let l = layers_mut();
         let grid_ptr = &raw mut *grid;
-        debug_assert!(!l.contains(&grid_ptr));
+        debug_assert!(!comp().layers.contains(&grid_ptr));
 
-        let mut insert_at = l.len();
-        while insert_at > 0 && grid_mut(l[insert_at - 1]).zindex > grid.zindex {
+        let mut insert_at = comp().layers.len();
+        while insert_at > 0 && layer_mut(insert_at - 1).zindex > grid.zindex {
             insert_at -= 1;
         }
 
         if !(curwin_ptr()).is_null()
-            && l[insert_at - 1] == &raw mut curwin_mut().w_grid_alloc
-            && grid_mut(l[insert_at - 1]).zindex == grid.zindex
+            && comp().layers[insert_at - 1] == &raw mut curwin_mut().w_grid_alloc
+            && layer_mut(insert_at - 1).zindex == grid.zindex
             && !on_top
         {
             insert_at -= 1;
         }
-        l.insert(insert_at, grid);
-        for (idx, &g) in l.iter().enumerate().skip(insert_at + 1) {
-            let g = grid_mut(g);
+        comp().layers.insert(insert_at, grid);
+        let len = comp().layers.len();
+        for idx in (insert_at + 1)..len {
+            let g = layer_mut(idx);
             g.comp_index = idx;
             g.pending_comp_index_update = true;
         }
@@ -274,11 +268,11 @@ pub fn ui_comp_remove_grid(grid: &mut ScreenGrid) {
         comp().curgrid = &raw mut g_st().default_grid;
     }
 
-    let l = layers_mut();
     let removed_idx = grid.comp_index;
-    l.remove(removed_idx);
-    for (idx, &g) in l.iter().enumerate().skip(removed_idx) {
-        let g = grid_mut(g);
+    comp().layers.remove(removed_idx);
+    let len = comp().layers.len();
+    for idx in removed_idx..len {
+        let g = layer_mut(idx);
         g.comp_index = idx;
         g.pending_comp_index_update = true;
     }
@@ -292,8 +286,9 @@ pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
     if comp().curgrid_mut().handle == handle {
         return true;
     }
-    for &g in layers_mut().iter() {
-        if grid_mut(g).handle == handle {
+    for idx in 0..comp().layers.len() {
+        let g = layer_mut(idx);
+        if g.handle == handle {
             comp().curgrid = g;
             return true;
         }
@@ -302,19 +297,18 @@ pub fn ui_comp_set_grid(handle: ObjHandle) -> bool {
 }
 
 pub fn ui_comp_raise_grid(grid: &mut ScreenGrid, new_index: usize) {
-    let l = layers_mut();
     let old_index = grid.comp_index;
     for i in old_index..new_index {
-        let next = grid_mut(l[i + 1]);
-        l[i] = next;
+        let next = layer_mut(i + 1);
+        comp().layers[i] = next;
         next.comp_index = i;
         next.pending_comp_index_update = true;
     }
-    l[new_index] = grid;
+    comp().layers[new_index] = grid;
     grid.comp_index = new_index;
     grid.pending_comp_index_update = true;
-    for &grid2 in l.iter().take(new_index).skip(old_index) {
-        let grid2 = grid_mut(grid2);
+    for idx in old_index..new_index {
+        let grid2 = layer_mut(idx);
         let startcol = grid.comp_col.max(grid2.comp_col);
         let endcol = (grid.comp_col + grid.cols).min(grid2.comp_col + grid2.cols);
         compose_area(
@@ -334,9 +328,8 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     let cursor_col = comp().curgrid_mut().comp_col + (c as i32);
 
     if !ptr::eq(comp().curgrid, &raw const g_st().default_grid) {
-        let l = layers_mut();
-        let mut new_index = l.len() - 1;
-        while new_index > 1 && grid_mut(l[new_index]).zindex > comp().curgrid_mut().zindex {
+        let mut new_index = comp().layers.len() - 1;
+        while new_index > 1 && layer_mut(new_index).zindex > comp().curgrid_mut().zindex {
             new_index -= 1;
         }
         if comp().curgrid_mut().comp_index < new_index {
@@ -350,17 +343,16 @@ pub fn ui_comp_grid_cursor_goto(grid_handle: Integer, r: Integer, c: Integer) {
     ui_composed_call_grid_cursor_goto(1, cursor_row as Integer, cursor_col as Integer);
 }
 
-pub fn ui_comp_mouse_focus(row: i32, col: i32) -> *mut ScreenGrid {
-    let l = layers_mut();
-    for &grid in l.iter().skip(1).rev() {
-        let g = grid_mut(grid);
+pub fn ui_comp_mouse_focus(row: i32, col: i32) -> Option<&'static mut ScreenGrid> {
+    for idx in (1..comp().layers.len()).rev() {
+        let g = layer_mut(idx);
         if g.mouse_enabled
             && row >= g.comp_row
             && row < g.comp_row + g.rows
             && col >= g.comp_col
             && col < g.comp_col + g.cols
         {
-            return grid;
+            return Some(g);
         }
     }
     if ui_has(K_UIMULTIGRID) {
@@ -372,18 +364,17 @@ pub fn ui_comp_mouse_focus(row: i32, col: i32) -> *mut ScreenGrid {
                 && col >= wp.w_wincol
                 && col < wp.w_wincol + grid.cols
             {
-                return grid;
+                return Some(grid);
             }
         }
     }
-    ptr::null_mut()
+    None
 }
 
 /// Compute which grid is on top at supplied screen coordinates (`ui_comp_get_grid_at_coord`).
 pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid {
-    let l = layers_mut();
-    for &grid in l.iter().skip(1).rev() {
-        let g = grid_mut(grid);
+    for idx in (1..comp().layers.len()).rev() {
+        let g = layer_mut(idx);
         if row >= g.comp_row
             && row < g.comp_row + g.rows
             && col >= g.comp_col
@@ -421,18 +412,17 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
     }
 
     let mut col = startcol as i32;
-    let mut grid: *mut ScreenGrid = ptr::null_mut();
+    let mut grid: Option<&'static ScreenGrid> = None;
     let line_off = g_st().default_grid.line_offset[row as usize] + (startcol as usize);
     let bg_line = &g_st().default_grid.chars[line_off..];
     let bg_attrs = &g_st().default_grid.attrs[line_off..];
     let lbuf = &mut linebuf_mut()[..];
     let abuf = &mut attrbuf_mut()[..];
-    let l = layers_mut();
 
     while (col as Integer) < endcol {
         let mut until: i32 = 0;
-        for &g in l.iter() {
-            let g = grid_mut(g);
+        for idx in 0..comp().layers.len() {
+            let g = layer_mut(idx);
             let grid_width = g.cols.min(g.comp_width);
             let grid_height = g.rows.min(g.comp_height);
             if (g.comp_row as Integer) > row
@@ -442,7 +432,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 continue;
             }
             if g.comp_col <= col && col < g.comp_col + grid_width {
-                grid = g;
+                grid = Some(g);
                 until = g.comp_col + grid_width;
             } else if g.comp_col > col {
                 until = until.min(g.comp_col);
@@ -450,15 +440,15 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         }
         until = until.min(endcol as i32);
 
-        debug_assert!(!grid.is_null());
+        debug_assert!(grid.is_some());
         debug_assert!(until > col);
         debug_assert!(until <= g_st().default_grid.cols);
         let n = (until - col) as usize;
 
         if row == (comp().msg_sep_row as Integer)
-            && grid_mut(grid).comp_index <= g_st().msg_grid.comp_index
+            && grid.unwrap().comp_index <= g_st().msg_grid.comp_index
         {
-            grid = &raw mut g_st().msg_grid;
+            grid = Some(&g_st().msg_grid);
             let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
             for i in col..until {
                 let idx = (i - startcol as i32) as usize;
@@ -466,7 +456,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
                 abuf[idx] = msg_sep_attr;
             }
         } else {
-            let g = grid_mut(grid);
+            let g = grid.unwrap();
             let off =
                 g.line_offset[(row as i32 - g.comp_row) as usize] + (col - g.comp_col) as usize;
             let dst_idx = (col - startcol as i32) as usize;
@@ -480,7 +470,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
             }
         }
 
-        if grid_mut(grid).blending {
+        if grid.unwrap().blending {
             let mut i = col - (startcol as i32);
             let limit = until - (startcol as i32);
             let end_rel = (endcol - startcol) as i32;
@@ -524,10 +514,10 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
     debug_assert!(endcol <= comp().chk_width as Integer);
     debug_assert!(row < comp().chk_height as Integer);
 
-    if !(!grid.is_null()
-        && (ptr::eq(grid, &raw const g_st().default_grid)
-            || (grid_mut(grid).comp_col == 0 && grid_mut(grid).cols == g_st().columns_global)))
-    {
+    if !grid.is_some_and(|g| {
+        ptr::eq(g, &raw const g_st().default_grid)
+            || (g.comp_col == 0 && g.cols == g_st().columns_global)
+    }) {
         flags &= !K_LINE_FLAG_WRAP;
     }
 
@@ -550,8 +540,8 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         endcol - (skipend as Integer),
         0,
         flags,
-        lbuf[skipstart as usize..].as_ptr(),
-        abuf[skipstart as usize..].as_ptr(),
+        &lbuf[skipstart as usize..],
+        &abuf[skipstart as usize..],
     );
 }
 
@@ -575,8 +565,8 @@ fn compose_debug(
         debug_delay(endrow - startrow);
     }
 
-    let lbuf = linebuf_mut().as_ptr();
-    let abuf = attrbuf_mut().as_ptr();
+    let lbuf = linebuf_mut().as_slice();
+    let abuf = attrbuf_mut().as_slice();
     for row in (startrow as i32)..(endrow as i32) {
         ui_composed_call_raw_line(
             1,
@@ -642,8 +632,8 @@ pub fn ui_comp_raw_line(
     mut clearcol: Integer,
     clearattr: Integer,
     mut flags: LineFlags,
-    chunk: *const Schar,
-    attrs: *const Sattr,
+    chunk: &[Schar],
+    attrs: &[Sattr],
 ) {
     if !ui_comp_should_draw() || !ui_comp_set_grid(grid as i32) {
         return;
@@ -691,8 +681,8 @@ pub fn ui_comp_raw_line(
             endcol >= clearcol,
         );
         compose_debug(row, row + 1, endcol, clearcol, comp().dbghl_clear, true);
-        for i in 0..((endcol - startcol) as usize) {
-            debug_assert!(*crate::globals::gptr(attrs.wrapping_add(i)) >= 0);
+        for &attr in &attrs[..((endcol - startcol) as usize)] {
+            debug_assert!(attr >= 0);
         }
         ui_composed_call_raw_line(
             1, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
@@ -772,11 +762,9 @@ pub fn ui_comp_msg_set_pos(
 
 /// Check if `comp().curgrid` is covered by any other grid within the rectangle (`curgrid_covered_above`).
 fn curgrid_covered_above(top: i32, bot: i32, left: i32, right: i32) -> bool {
-    for &g in layers_mut()
-        .iter()
-        .skip(comp().curgrid_mut().comp_index + 1)
-    {
-        let g = grid_mut(g);
+    let start_idx = comp().curgrid_mut().comp_index + 1;
+    for idx in start_idx..comp().layers.len() {
+        let g = layer_mut(idx);
         let grid_top = g.comp_row
             - if ptr::eq(g, &raw const g_st().msg_grid) && comp().msg_was_scrolled {
                 1

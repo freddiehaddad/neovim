@@ -89,7 +89,7 @@ static API_UI_STATE: crate::globals::GlobalState<ApiUiState> =
 
 #[inline]
 fn api_ui_st() -> &'static mut ApiUiState {
-    crate::globals::gmut(API_UI_STATE.as_ptr())
+    API_UI_STATE.as_mut()
 }
 
 use crate::msgpack_rpc::packer::mpack_w2;
@@ -1183,8 +1183,8 @@ pub fn remote_ui_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: i32,
-    chunk: *const Schar,
-    attrs: *const Sattr,
+    chunk: &[Schar],
+    attrs: &[Sattr],
 ) {
     if ui.ui_ext[K_UILINEGRID] {
         prepare_call(ui, c"grid_line");
@@ -1203,12 +1203,7 @@ pub fn remote_ui_raw_line(
 
         for i in 0..ncells {
             repeat += 1;
-            if i == ncells - 1
-                || *crate::globals::gptr(attrs.wrapping_add(i))
-                    != *crate::globals::gptr(attrs.wrapping_add(i + 1))
-                || *crate::globals::gptr(chunk.wrapping_add(i))
-                    != *crate::globals::gptr(chunk.wrapping_add(i + 1))
-            {
+            if i == ncells - 1 || attrs[i] != attrs[i + 1] || chunk[i] != chunk[i + 1] {
                 if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
                     || ui.ncells_pending >= 500
                 {
@@ -1238,7 +1233,7 @@ pub fn remote_ui_raw_line(
                 }
                 let csize: u32 = if repeat > 1 {
                     3
-                } else if *crate::globals::gptr(attrs.wrapping_add(i)) != last_hl {
+                } else if attrs[i] != last_hl {
                     2
                 } else {
                     1
@@ -1248,20 +1243,17 @@ pub fn remote_ui_raw_line(
                 let size_byte = ui.packer.ptr;
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
                 let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
-                let len =
-                    schar_get_bytes(&mut cell_buf, *crate::globals::gptr(chunk.wrapping_add(i)));
+                let len = schar_get_bytes(&mut cell_buf, chunk[i]);
 
-                unsafe { ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len) };
+                unsafe {
+                    ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len);
+                    *size_byte = (0xa0 | len) as u8;
+                }
 
                 ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
 
-                *crate::globals::gptr(size_byte) = (0xa0 | len) as u8;
-
                 if csize >= 2 {
-                    mpack_uint(
-                        &mut ui.packer.ptr,
-                        (*crate::globals::gptr(attrs.wrapping_add(i))) as u32,
-                    );
+                    mpack_uint(&mut ui.packer.ptr, attrs[i] as u32);
 
                     if csize >= 3 {
                         mpack_uint(&mut ui.packer.ptr, repeat);
@@ -1269,11 +1261,11 @@ pub fn remote_ui_raw_line(
                 }
                 ui.ncells_pending += repeat.min(2) as usize;
 
-                last_hl = *crate::globals::gptr(attrs.wrapping_add(i));
+                last_hl = attrs[i];
 
                 repeat = 0;
 
-                was_space = *crate::globals::gptr(chunk.wrapping_add(i)) == schar_from_ascii(b' ');
+                was_space = chunk[i] == schar_from_ascii(b' ');
             }
         }
 
@@ -1292,10 +1284,10 @@ pub fn remote_ui_raw_line(
         for i in 0..count {
             remote_ui_cursor_goto(ui, row, startcol + i as Integer);
 
-            remote_ui_highlight_set(ui, *crate::globals::gptr(attrs.wrapping_add(i)));
+            remote_ui_highlight_set(ui, attrs[i]);
 
             let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-            let len = schar_get_bytes(&mut sc_buf, *crate::globals::gptr(chunk.wrapping_add(i)));
+            let len = schar_get_bytes(&mut sc_buf, chunk[i]);
             remote_ui_put(ui, &sc_buf[..len]);
             if utf_ambiguous_width(&sc_buf[..len]) {
                 ui.client_col = -1;

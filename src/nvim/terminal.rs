@@ -380,7 +380,7 @@ static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> =
 
 #[inline]
 fn term_st() -> &'static mut TerminalModuleState {
-    crate::globals::gmut(TERM_MOD_STATE.as_ptr())
+    TERM_MOD_STATE.as_mut()
 }
 
 static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {

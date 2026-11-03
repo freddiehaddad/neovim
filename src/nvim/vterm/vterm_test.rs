@@ -122,7 +122,7 @@ static VT_TEST_STATE: crate::globals::GlobalState<VTermTestState> =
 
 #[inline]
 fn vtt_st() -> &'static mut VTermTestState {
-    unsafe { &mut *VT_TEST_STATE.as_ptr() }
+    VT_TEST_STATE.as_mut()
 }
 
 static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());

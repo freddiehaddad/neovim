@@ -238,7 +238,7 @@ static FIO_STATE: GlobalState<FileioModuleState> = GlobalState::new(FileioModule
 
 #[inline]
 fn fio_st() -> &'static mut FileioModuleState {
-    crate::globals::gmut(FIO_STATE.as_ptr())
+    FIO_STATE.as_mut()
 }
 
 use crate::arglist::ML_EMPTY;
@@ -3775,8 +3775,8 @@ fn rename_with_tmp(
                     if !os_rename(tempname.as_ptr().cast(), from) {
                         logmsg!(
                             LOG_ERR,
-                            ptr::null(),
-                            c"rename_with_tmp",
+                            None,
+                            Some(c"rename_with_tmp"),
                             0,
                             true,
                             c"failed to restore %s, file is at: %s",
@@ -4133,11 +4133,11 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             }
             match do_dialog(
                 VIM_WARNING,
-                tr(c"Warning"),
-                tbuf.cast(),
+                Some(tr(c"Warning")),
+                crate::memory::cstr_from_ptr(tbuf.cast()),
                 tr(c"&OK\n&Load File\nLoad File &and Options"),
                 1,
-                ptr::null_mut(),
+                None,
                 1,
             ) {
                 2 => reload = RELOAD_NORMAL,
@@ -4378,8 +4378,8 @@ fn vim_mktempdir() {
                 if !os_env_exists(c"TMPDIR", true) {
                     logmsg!(
                         LOG_DEBUG,
-                        ptr::null(),
-                        c"vim_mktempdir",
+                        None,
+                        Some(c"vim_mktempdir"),
                         0,
                         true,
                         c"$TMPDIR is unset",
@@ -4387,8 +4387,8 @@ fn vim_mktempdir() {
                 } else {
                     logmsg!(
                         LOG_WARN,
-                        ptr::null(),
-                        c"vim_mktempdir",
+                        None,
+                        Some(c"vim_mktempdir"),
                         0,
                         true,
                         c"$TMPDIR tempdir not a directory (or does not exist): \"%s\"",
@@ -4446,8 +4446,8 @@ fn vim_mktempdir() {
             if !owned {
                 logmsg!(
                     LOG_ERR,
-                    ptr::null(),
-                    c"vim_mktempdir",
+                    None,
+                    Some(c"vim_mktempdir"),
                     0,
                     true,
                     c"tempdir root not owned by current user (%s): %s",
@@ -4457,8 +4457,8 @@ fn vim_mktempdir() {
             } else if !isdir {
                 logmsg!(
                     LOG_ERR,
-                    ptr::null(),
-                    c"vim_mktempdir",
+                    None,
+                    Some(c"vim_mktempdir"),
                     0,
                     true,
                     c"tempdir root not a directory: %s",
@@ -4469,8 +4469,8 @@ fn vim_mktempdir() {
             if 0o700 != (perm & 0o777) {
                 logmsg!(
                     LOG_ERR,
-                    ptr::null(),
-                    c"vim_mktempdir",
+                    None,
+                    Some(c"vim_mktempdir"),
                     0,
                     true,
                     c"tempdir root has invalid permissions (%o): %s",
@@ -4493,8 +4493,8 @@ fn vim_mktempdir() {
         if r != 0 {
             logmsg!(
                 LOG_WARN,
-                ptr::null(),
-                c"vim_mktempdir",
+                None,
+                Some(c"vim_mktempdir"),
                 0,
                 true,
                 c"tempdir create failed: %s: %s",
@@ -4655,8 +4655,8 @@ pub fn vim_gettempdir() -> Option<&'static CStr> {
             if fio_st().notfound == 1 {
                 logmsg!(
                     LOG_ERR,
-                    ptr::null(),
-                    c"vim_gettempdir",
+                    None,
+                    Some(c"vim_gettempdir"),
                     0,
                     true,
                     c"tempdir disappeared (antivirus or broken cleanup job?): %s",
@@ -4984,6 +4984,20 @@ impl IntoFileStream for *mut FILE {
     }
 }
 
+impl IntoFileStream for &*mut FILE {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        *self
+    }
+}
+
+impl IntoFileStream for crate::os::fs::CFile {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self.as_ptr()
+    }
+}
+
 impl IntoFileStream for &crate::os::fs::CFile {
     #[inline]
     fn into_file_stream(self) -> *mut FILE {
@@ -4991,7 +5005,21 @@ impl IntoFileStream for &crate::os::fs::CFile {
     }
 }
 
+impl IntoFileStream for &&crate::os::fs::CFile {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self.as_ptr()
+    }
+}
+
 impl IntoFileStream for &mut crate::os::fs::CFile {
+    #[inline]
+    fn into_file_stream(self) -> *mut FILE {
+        self.as_ptr()
+    }
+}
+
+impl IntoFileStream for &&mut crate::os::fs::CFile {
     #[inline]
     fn into_file_stream(self) -> *mut FILE {
         self.as_ptr()
@@ -5069,7 +5097,7 @@ pub fn vim_printf_fmt(
 macro_rules! fprintf {
     ($stream:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::fileio::vim_fprintf_fmt(
-            $stream,
+            &$stream,
             $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )

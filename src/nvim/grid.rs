@@ -131,7 +131,7 @@ static GRID_STATE: GlobalState<GridModuleState> = GlobalState::new(GridModuleSta
 
 #[inline]
 fn grid_st() -> &'static mut GridModuleState {
-    crate::globals::gmut(GRID_STATE.as_ptr())
+    GRID_STATE.as_mut()
 }
 
 #[inline]
@@ -1401,13 +1401,8 @@ fn linecopy(grid: &mut ScreenGrid, to: i32, from: i32, col: i32, width: i32) {
     grid.vcols.copy_within(off_from..off_from + len, off_to);
 }
 
-pub fn get_win_by_grid_handle(handle: ObjHandle) -> *mut WinInfoInfo {
-    for wp in for_all_windows_ptr() {
-        if wp.w_grid_alloc.handle == handle {
-            return wp;
-        }
-    }
-    ptr::null_mut()
+pub fn get_win_by_grid_handle(handle: ObjHandle) -> Option<&'static mut WinInfoInfo> {
+    for_all_windows_ptr().find(|wp| wp.w_grid_alloc.handle == handle)
 }
 
 /// Put a unicode character in a screen cell (`schar_from_char`).

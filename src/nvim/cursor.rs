@@ -8,8 +8,8 @@ use crate::globals::*;
 use crate::mark::mark_mb_adjustpos;
 use crate::mbyte::{utf_cluster_info, utf_ptr2_str_char_info};
 use crate::memline::{
-    dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_mut, ml_get_buf_slice, ml_get_len,
-    ml_get_pos_slice, ml_replace,
+    dec, inc, ml_get_buf, ml_get_buf_len, ml_get_buf_slice, ml_get_len, ml_get_pos_slice,
+    ml_replace,
 };
 use crate::r#move::{changed_cline_bef_curs, set_valid_virtcol, validate_virtcol, win_col_off};
 use crate::option::{get_sidescrolloff_value, get_ve_flags};
@@ -132,7 +132,9 @@ pub fn coladvance_force(wcol: Colnr) -> bool {
 
 /// Try to advance the Cursor to the specified screen column (`coladvance`).
 pub fn coladvance(wp: &mut WinInfoInfo, wcol: Colnr) -> bool {
-    let rc = getvpos(wp, &mut wp.w_cursor, wcol);
+    let mut cursor = wp.w_cursor;
+    let rc = getvpos(wp, &mut cursor, wcol);
+    wp.w_cursor = cursor;
 
     if wcol == MAXCOL || !rc {
         wp.w_valid &= !VALID_VIRTCOL;
@@ -302,10 +304,9 @@ fn coladvance2(
 }
 
 /// Return in `pos` the position of the cursor advanced to screen column `wcol` (`getvpos`).
-pub fn getvpos(wp: *mut WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
-    let wp = crate::globals::WinPtr::new(wp);
-    let addspaces = virtual_active(wp.borrow_mut());
-    coladvance2(wp.borrow_mut(), pos, false, addspaces, wcol)
+pub fn getvpos(wp: &mut WinInfoInfo, pos: &mut CursorPos, wcol: Colnr) -> bool {
+    let addspaces = virtual_active(wp);
+    coladvance2(wp, pos, false, addspaces, wcol)
 }
 
 /// Increment the cursor position (`inc_cursor`).
@@ -451,7 +452,7 @@ pub fn set_leftcol(leftcol: Colnr) -> bool {
 
     changed_cline_bef_curs(curwin_mut());
     let lastcol = i64::from(curwin_mut().w_leftcol) + i64::from(curwin_mut().w_view_width)
-        - i64::from(win_col_off(curwin_ptr()))
+        - i64::from(win_col_off(curwin_mut()))
         - 1;
     validate_virtcol(curwin_mut());
 
@@ -514,11 +515,7 @@ pub fn char_before_cursor() -> i32 {
 
 /// Write a character at the current cursor position (`pchar_cursor`).
 pub fn pchar_cursor(c: u8) {
-    *crate::globals::gptr(
-        ml_get_buf_mut(curbuf_mut(), curwin_mut().w_cursor.lnum)
-            .wrapping_add(curwin_mut().w_cursor.col as usize)
-            .cast::<u8>(),
-    ) = c;
+    get_cursor_line_mut_slice()[curwin_mut().w_cursor.col as usize] = c;
 }
 
 /// Return pointer to cursor line (`get_cursor_line_ptr`).
@@ -536,6 +533,12 @@ pub fn get_cursor_pos_ptr() -> RawCCharPtrMut {
 #[inline]
 pub fn get_cursor_line_slice() -> &'static [u8] {
     ml_get_buf_slice(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
+}
+
+/// Return the mutable bytes (excluding the NUL) of the cursor line.
+#[inline]
+pub fn get_cursor_line_mut_slice() -> &'static mut [u8] {
+    crate::memline::ml_get_buf_mut_slice(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
 }
 
 /// Return the bytes (excluding the NUL) starting at the cursor position.

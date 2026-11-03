@@ -117,7 +117,7 @@ static LANG_STATE: crate::globals::GlobalState<LangModuleState> =
 
 #[inline]
 fn lang_st() -> &'static mut LangModuleState {
-    unsafe { &mut *LANG_STATE.as_ptr() }
+    LANG_STATE.as_mut()
 }
 
 fn eval_plural_expr(expr: &[u8], n: u64) -> usize {

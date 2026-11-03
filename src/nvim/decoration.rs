@@ -492,7 +492,7 @@ static DECOR_MOD_STATE: GlobalState<DecorationModuleState> =
 
 #[inline]
 fn decor_st() -> &'static mut DecorationModuleState {
-    crate::globals::gmut(DECOR_MOD_STATE.as_ptr())
+    DECOR_MOD_STATE.as_mut()
 }
 
 #[inline]

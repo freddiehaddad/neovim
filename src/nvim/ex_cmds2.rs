@@ -222,10 +222,11 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         gettext(c"Save changes to \"%s\"?"),
         fname,
     );
+    let buff_cstr = crate::memory::cstr_until_nul(&buff);
     let ret = if checkall {
-        vim_dialog_yesnoallcancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1)
+        vim_dialog_yesnoallcancel(VIM_QUESTION, None, buff_cstr, 1)
     } else {
-        vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1)
+        vim_dialog_yesnocancel(VIM_QUESTION, None, buff_cstr, 1)
     };
 
     if ret == VIM_YES {
@@ -296,7 +297,7 @@ pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
         gettext(c"Close \"%s\"?"),
         fname,
     );
-    vim_dialog_yesnocancel(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 1) == VIM_YES
+    vim_dialog_yesnocancel(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 1) == VIM_YES
 }
 
 /// Return true if the buffer `buf` can be abandoned (`can_abandon`).

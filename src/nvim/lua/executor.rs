@@ -349,7 +349,7 @@ static NLUA_STATE: GlobalState<LuaExecutorState> = GlobalState::new(LuaExecutorS
 
 #[inline]
 pub(crate) fn nlua_st() -> &'static mut LuaExecutorState {
-    unsafe { &mut *NLUA_STATE.as_ptr() }
+    NLUA_STATE.as_mut()
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -1444,7 +1444,10 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     let status = unsafe { lua_pcall(lstate, 1, 1, 0) };
     if status == 0 {
         vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"require('%s')", name,);
-        time_msg(g_st().iobuff.as_ptr(), Some(&start_time));
+        time_msg(
+            crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()),
+            Some(&start_time),
+        );
     }
     time_pop(rel_time);
 

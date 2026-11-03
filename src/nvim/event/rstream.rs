@@ -140,8 +140,8 @@ unsafe extern "C" fn read_cb(uvstream: *mut uv_stream_t, cnt: isize, _buf: *cons
                     let err_code = cnt as i32;
                     logmsg!(
                         LOGLVL_DBG,
-                        ptr::null(),
-                        c"read_cb",
+                        None,
+                        Some(c"read_cb"),
                         115,
                         true,
                         c"closing Stream (%p): %s (%s)",

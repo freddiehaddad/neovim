@@ -964,7 +964,7 @@ pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new(
 
 #[inline]
 pub fn opt_vars() -> &'static mut OptionVars {
-    unsafe { &mut *OPT_VARS.as_ptr() }
+    OPT_VARS.as_mut()
 }
 
 pub static BUF_OPT_IDX: [OptIndex; 93] = [

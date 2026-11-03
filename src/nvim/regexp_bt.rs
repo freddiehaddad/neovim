@@ -144,7 +144,7 @@ static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::ne
 
 #[inline]
 fn bt_st() -> &'static mut RegexpBtState {
-    crate::globals::gmut(BT_STATE.as_ptr())
+    BT_STATE.as_mut()
 }
 
 #[inline]

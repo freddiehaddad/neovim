@@ -21,7 +21,7 @@ static GC_STATE: crate::globals::GlobalState<GcModuleState> =
 
 #[inline]
 fn gc_st() -> &'static mut GcModuleState {
-    crate::globals::gmut(GC_STATE.as_ptr())
+    GC_STATE.as_mut()
 }
 
 #[inline]

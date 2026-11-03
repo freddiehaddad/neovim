@@ -6,9 +6,9 @@ use crate::eval::encode::{encode_tv2echo, encode_tv2string};
 use crate::eval::typval::{
     EvalFuncData, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_check_for_float_or_nr_arg,
     tv_check_for_opt_number_arg, tv_check_for_opt_string_arg, tv_check_for_opt_string_or_list_arg,
-    tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_dict_find,
-    tv_equal, tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk,
-    tv_get_string_chk, tv_list_len,
+    tv_check_for_string_or_number_arg, tv_clear, tv_dict_add_tv, tv_dict_alloc, tv_equal,
+    tv_get_float, tv_get_number_chk, tv_get_string, tv_get_string_buf_chk, tv_get_string_chk,
+    tv_list_len,
 };
 use crate::eval::vars::{
     VV_ERRMSG, VV_EXCEPTION, VV_TESTING, assert_error, get_vim_var_nr, get_vim_var_str,
@@ -18,7 +18,6 @@ use crate::eval::{garbage_collect, pattern_match};
 use crate::ex_docmd::do_cmdline_cmd;
 use crate::globals::IOSIZE;
 use crate::globals::*;
-use crate::hashtab::hashitem_empty;
 use crate::mbyte::{mb_cptr2char_adv, utf_slice2char};
 use crate::message::{emsg, msg_reset_scroll};
 use crate::os::fs::CFile;
@@ -48,12 +47,9 @@ pub fn ga_concat_literal(gap: &mut Vec<u8>, s: &[u8]) {
 }
 
 #[inline]
-fn buf_concat_cstr(gap: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    {
-        if !s.is_null() {
-            gap.extend_from_slice(crate::memory::cstr_as_bytes(s));
-        }
+fn buf_concat_cstr(gap: &mut Vec<u8>, s: Option<&CStr>) {
+    if let Some(s) = s {
+        gap.extend_from_slice(s.to_bytes());
     }
 }
 
@@ -63,7 +59,7 @@ fn prepare_assert_error(gap: &mut Vec<u8>) {
 
     gap.reserve(100);
     if let Some(ref sname_cstr) = sname {
-        buf_concat_cstr(gap, sname_cstr.as_ptr());
+        buf_concat_cstr(gap, Some(sname_cstr.as_c_str()));
         if slnum > 0 {
             ga_concat_literal(gap, b" ");
         }
@@ -103,14 +99,13 @@ fn ga_concat_esc(gap: &mut Vec<u8>, p: &[u8]) {
     }
 }
 
-fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCCharPtr) {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    if str_ptr.is_null() {
+fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_cstr: Option<&CStr>) {
+    let Some(str_cstr) = str_cstr else {
         ga_concat_literal(gap, b"NULL");
         return;
-    }
+    };
 
-    let mut rem = crate::memory::cstr_as_bytes(str_ptr);
+    let mut rem = str_cstr.to_bytes();
     while !rem.is_empty() {
         let mut same_len: i32 = 1;
         let orig = rem;
@@ -135,137 +130,111 @@ fn ga_concat_shorten_esc(gap: &mut Vec<u8>, str_ptr: impl crate::strings::IntoCC
 fn fill_assert_error(
     gap: &mut Vec<u8>,
     opt_msg_tv: &mut TypVal,
-    exp_str: impl crate::strings::IntoCCharPtr,
-    exp_tv_arg: *mut TypVal,
+    exp_str: Option<&CStr>,
+    mut exp_tv_arg: Option<&mut TypVal>,
     got_tv_arg: &mut TypVal,
     atype: AssertType,
 ) {
-    let exp_str = exp_str.into_c_char_ptr();
+    let got_tv = got_tv_arg;
+    let mut did_copy = false;
+    let mut omitted: i32 = 0;
+
+    if opt_msg_tv.v_type != VarType::VarUnknown
+        && !(opt_msg_tv.v_type == VarType::VarString
+            && opt_msg_tv
+                .vval
+                .v_string_cstr()
+                .is_none_or(|s| s.to_bytes().is_empty()))
     {
-        let exp_tv = exp_tv_arg;
-        let got_tv = got_tv_arg;
-        let mut did_copy = false;
-        let mut omitted: i32 = 0;
+        let tofree = encode_tv2echo(opt_msg_tv, None);
+        buf_concat_cstr(gap, Some(tofree.as_c_str()));
+        ga_concat_literal(gap, b": ");
+    }
 
-        if opt_msg_tv.v_type != VarType::VarUnknown
-            && !(opt_msg_tv.v_type == VarType::VarString
-                && (opt_msg_tv.vval.v_string().is_null()
-                    || *crate::globals::gptr(opt_msg_tv.vval.v_string()) == 0))
+    if atype == AssertType::Match || atype == AssertType::NotMatch {
+        ga_concat_literal(gap, b"Pattern ");
+    } else if atype == AssertType::NotEqual {
+        ga_concat_literal(gap, b"Expected not equal to ");
+    } else {
+        ga_concat_literal(gap, b"Expected ");
+    }
+
+    if let Some(exp_str) = exp_str {
+        if atype == AssertType::Fails {
+            ga_concat_literal(gap, b"'");
+        }
+        ga_concat_shorten_esc(gap, Some(exp_str));
+        if atype == AssertType::Fails {
+            ga_concat_literal(gap, b"'");
+        }
+    } else {
+        let exp_tv = exp_tv_arg.as_deref_mut().unwrap();
+        if atype != AssertType::NotEqual
+            && exp_tv.v_type == VarType::VarDict
+            && got_tv.v_type == VarType::VarDict
+            && let (Some(exp_d), Some(got_d)) = (exp_tv.vval.v_dict_opt(), got_tv.vval.v_dict_opt())
         {
-            let tofree = encode_tv2echo(opt_msg_tv, None);
-            buf_concat_cstr(gap, tofree.as_ptr());
-            ga_concat_literal(gap, b": ");
-        }
+            did_copy = true;
+            let new_exp_d = tv_dict_alloc();
+            let new_got_d = tv_dict_alloc();
+            exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
+            got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
 
-        if atype == AssertType::Match || atype == AssertType::NotMatch {
-            ga_concat_literal(gap, b"Pattern ");
-        } else if atype == AssertType::NotEqual {
-            ga_concat_literal(gap, b"Expected not equal to ");
-        } else {
-            ga_concat_literal(gap, b"Expected ");
-        }
-
-        if exp_str.is_null() {
-            let exp_tv = crate::globals::gmut(exp_tv);
-            if atype != AssertType::NotEqual
-                && exp_tv.v_type == VarType::VarDict
-                && got_tv.v_type == VarType::VarDict
-                && !exp_tv.vval.v_dict().is_null()
-                && !got_tv.vval.v_dict().is_null()
-            {
-                let exp_d = exp_tv.vval.v_dict();
-                let got_d = got_tv.vval.v_dict();
-
-                did_copy = true;
-                let new_exp_d = tv_dict_alloc();
-                let new_got_d = tv_dict_alloc();
-                exp_tv.vval = crate::eval::typval::TypvalVval::Dict(new_exp_d);
-                got_tv.vval = crate::eval::typval::TypvalVval::Dict(new_got_d);
-
-                let mut todo = crate::globals::gptr(exp_d).dv_hashtab.ht_used as i32;
-                let mut hi = crate::globals::gptr(exp_d).dv_hashtab.array_ptr();
-                while todo > 0 {
-                    if !hashitem_empty(crate::globals::gref(hi)) {
-                        let di1 = crate::eval::typval::tv_dict_hi2di(hi);
-                        let hi_key = (crate::globals::gref(hi)).key_cstr();
-                        let item2 = tv_dict_find(crate::globals::gopt(got_d), hi_key, -1);
-                        if item2.is_null()
-                            || !tv_equal(&di1.di_tv, &crate::globals::gptr(item2).di_tv, false)
-                        {
-                            let hi_bytes = crate::memory::cstr_as_bytes(hi_key);
-                            tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
-                            if !item2.is_null() {
-                                tv_dict_add_tv(
-                                    &mut *new_got_d,
-                                    hi_bytes,
-                                    &mut crate::globals::gptr(item2).di_tv,
-                                );
-                            }
-                        } else {
-                            omitted += 1;
-                        }
-                        todo -= 1;
+            for (_hi, di1) in exp_d.dv_hashtab.iter_items_mut() {
+                let hi_key = CStr::from_bytes_until_nul(&di1.di_key).unwrap_or(c"");
+                let hi_bytes = hi_key.to_bytes();
+                let item2 = crate::eval::typval::tv_dict_find_opt(Some(&*got_d), hi_key, -1);
+                if let Some(item2) = item2 {
+                    if !tv_equal(&di1.di_tv, &item2.di_tv, false) {
+                        tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
+                        tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut item2.di_tv);
+                    } else {
+                        omitted += 1;
                     }
-                    hi = hi.wrapping_add(1);
-                }
-
-                todo = crate::globals::gptr(got_d).dv_hashtab.ht_used as i32;
-                hi = crate::globals::gptr(got_d).dv_hashtab.array_ptr();
-                while todo > 0 {
-                    if !hashitem_empty(crate::globals::gref(hi)) {
-                        let hi_key = (crate::globals::gref(hi)).key_cstr();
-                        let item2 = tv_dict_find(crate::globals::gopt(exp_d), hi_key, -1);
-                        if item2.is_null() {
-                            let di2 = crate::eval::typval::tv_dict_hi2di(hi);
-                            tv_dict_add_tv(
-                                &mut *new_got_d,
-                                crate::memory::cstr_as_bytes(hi_key),
-                                &mut di2.di_tv,
-                            );
-                        }
-                        todo -= 1;
-                    }
-                    hi = hi.wrapping_add(1);
-                }
-            }
-
-            let tofree = encode_tv2string(&mut *exp_tv, None);
-            ga_concat_shorten_esc(gap, tofree.as_ptr());
-        } else {
-            if atype == AssertType::Fails {
-                ga_concat_literal(gap, b"'");
-            }
-            ga_concat_shorten_esc(gap, exp_str);
-            if atype == AssertType::Fails {
-                ga_concat_literal(gap, b"'");
-            }
-        }
-
-        if atype != AssertType::NotEqual {
-            if atype == AssertType::Match {
-                ga_concat_literal(gap, b" does not match ");
-            } else if atype == AssertType::NotMatch {
-                ga_concat_literal(gap, b" does match ");
-            } else {
-                ga_concat_literal(gap, b" but got ");
-            }
-            let tofree = encode_tv2string(&mut *got_tv, None);
-            ga_concat_shorten_esc(gap, tofree.as_ptr());
-
-            if omitted != 0 {
-                let s = if omitted == 1 {
-                    " - 1 equal item omitted".to_string()
                 } else {
-                    format!(" - {omitted} equal items omitted")
-                };
-                ga_concat_literal(gap, s.as_bytes());
+                    tv_dict_add_tv(&mut *new_exp_d, hi_bytes, &mut di1.di_tv);
+                }
+            }
+
+            for (_hi, di2) in got_d.dv_hashtab.iter_items_mut() {
+                let hi_key = CStr::from_bytes_until_nul(&di2.di_key).unwrap_or(c"");
+                let hi_bytes = hi_key.to_bytes();
+                if crate::eval::typval::tv_dict_find_opt(Some(&*exp_d), hi_key, -1).is_none() {
+                    tv_dict_add_tv(&mut *new_got_d, hi_bytes, &mut di2.di_tv);
+                }
             }
         }
 
-        if did_copy {
-            tv_clear(crate::globals::gmut(exp_tv));
-            tv_clear(&mut *got_tv);
+        let tofree = encode_tv2string(&mut *exp_tv, None);
+        ga_concat_shorten_esc(gap, Some(tofree.as_c_str()));
+    }
+
+    if atype != AssertType::NotEqual {
+        if atype == AssertType::Match {
+            ga_concat_literal(gap, b" does not match ");
+        } else if atype == AssertType::NotMatch {
+            ga_concat_literal(gap, b" does match ");
+        } else {
+            ga_concat_literal(gap, b" but got ");
         }
+        let tofree = encode_tv2string(&mut *got_tv, None);
+        ga_concat_shorten_esc(gap, Some(tofree.as_c_str()));
+
+        if omitted != 0 {
+            let s = if omitted == 1 {
+                " - 1 equal item omitted".to_string()
+            } else {
+                format!(" - {omitted} equal items omitted")
+            };
+            ga_concat_literal(gap, s.as_bytes());
+        }
+    }
+
+    if did_copy {
+        if let Some(exp_tv) = exp_tv_arg {
+            tv_clear(exp_tv);
+        }
+        tv_clear(&mut *got_tv);
     }
 }
 
@@ -276,7 +245,7 @@ fn assert_equal_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
         let [arg0, arg1, arg2, ..] = argvars else {
             unreachable!()
         };
-        fill_assert_error(&mut ga, arg2, std::ptr::null(), &raw mut *arg0, arg1, atype);
+        fill_assert_error(&mut ga, arg2, None, Some(arg0), arg1, atype);
         assert_error(&ga);
         return 1;
     }
@@ -297,7 +266,7 @@ fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
         let [arg0, arg1, arg2, ..] = argvars else {
             unreachable!()
         };
-        fill_assert_error(&mut ga, arg2, std::ptr::null(), &raw mut *arg0, arg1, atype);
+        fill_assert_error(&mut ga, arg2, None, Some(arg0), arg1, atype);
         assert_error(&ga);
         return 1;
     }
@@ -323,12 +292,8 @@ fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> i32 {
         fill_assert_error(
             &mut ga,
             &mut rest[0],
-            if is_true {
-                c"True".as_ptr()
-            } else {
-                c"False".as_ptr()
-            },
-            std::ptr::null_mut(),
+            Some(if is_true { c"True" } else { c"False" }),
+            None,
             &mut first[0],
             AssertType::Other,
         );
@@ -338,19 +303,12 @@ fn assert_bool(argvars: &mut [TypVal], is_true: bool) -> i32 {
     0
 }
 
-fn assert_append_cmd_or_arg(
-    gap: &mut Vec<u8>,
-    argvars: &mut [TypVal],
-    cmd: impl crate::strings::IntoCCharPtr,
-) {
-    let cmd = cmd.into_c_char_ptr();
-    {
-        if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
-            let tofree = encode_tv2echo(&mut argvars[2], None);
-            buf_concat_cstr(gap, tofree.as_ptr());
-        } else {
-            buf_concat_cstr(gap, cmd);
-        }
+fn assert_append_cmd_or_arg(gap: &mut Vec<u8>, argvars: &mut [TypVal], cmd: Option<&CStr>) {
+    if argvars[1].v_type != VarType::VarUnknown && argvars[2].v_type != VarType::VarUnknown {
+        let tofree = encode_tv2echo(&mut argvars[2], None);
+        buf_concat_cstr(gap, Some(tofree.as_c_str()));
+    } else {
+        buf_concat_cstr(gap, cmd);
     }
 }
 
@@ -371,7 +329,7 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
         } else {
             ga_concat_literal(&mut ga, b"command did not beep: ");
         }
-        buf_concat_cstr(&mut ga, cmd);
+        buf_concat_cstr(&mut ga, crate::memory::cstr_as_opt_cstr(cmd));
         assert_error(&ga);
         ret = 1;
     }
@@ -477,7 +435,7 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
         prepare_assert_error(&mut ga);
         if argvars[2].v_type != VarType::VarUnknown {
             let tofree = encode_tv2echo(&mut argvars[2], None);
-            buf_concat_cstr(&mut ga, tofree.as_ptr());
+            buf_concat_cstr(&mut ga, Some(tofree.as_c_str()));
             ga_concat_literal(&mut ga, b": ");
         }
         ga_concat_literal(&mut ga, &iobuf[..iobuflen]);
@@ -536,8 +494,8 @@ pub fn f_assert_exception(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             fill_assert_error(
                 &mut ga,
                 arg1,
-                std::ptr::null(),
-                &raw mut *arg0,
+                None,
+                Some(arg0),
                 &mut *get_vim_var_tv(VV_EXCEPTION),
                 AssertType::Other,
             );
@@ -580,7 +538,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
         ga_concat_literal(&mut ga, b"command did not fail: ");
-        assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+        assert_append_cmd_or_arg(&mut ga, argvars, crate::memory::cstr_as_opt_cstr(cmd));
         assert_error(&ga);
         rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     } else if argvars[1].v_type != VarType::VarUnknown {
@@ -589,8 +547,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         let mut expected_str: Option<&CStr> = None;
         let mut error_found = false;
         let mut error_found_index: usize = 1;
-        let mut actual = crate::globals::gopt(&raw const g_st().emsg_assert_fails_msg)
-            .unwrap()
+        let mut actual = g_st()
+            .emsg_assert_fails_msg
             .as_ref()
             .map_or(c"[unknown]".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
 
@@ -676,8 +634,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
                         arg4.vval.v_string(),
-                        crate::globals::gopt(&raw const g_st().emsg_assert_fails_context)
-                            .unwrap()
+                        g_st()
+                            .emsg_assert_fails_context
                             .as_ref()
                             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                         false,
@@ -706,8 +664,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             } else if error_found_index == 4 {
                 actual_tv.v_type = VarType::VarString;
                 actual_tv.vval = crate::eval::typval::TypvalVval::String(
-                    crate::globals::gopt(&raw const g_st().emsg_assert_fails_context)
-                        .unwrap()
+                    g_st()
+                        .emsg_assert_fails_context
                         .as_ref()
                         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
                 );
@@ -716,21 +674,32 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 actual_tv.vval = crate::eval::typval::TypvalVval::String(actual);
             }
             let (first, rest) = argvars.split_at_mut(3);
-            let exp_ptr = if error_found_index < 3 {
-                &raw mut first[error_found_index]
+            let exp_ref = if error_found_index < 3 {
+                let (head, mid) = first.split_at_mut(2);
+                fill_assert_error(
+                    &mut ga,
+                    &mut mid[0],
+                    expected_str,
+                    Some(&mut head[error_found_index]),
+                    &mut actual_tv,
+                    AssertType::Fails,
+                );
+                None
             } else {
-                &raw mut rest[error_found_index - 3]
+                Some(&mut rest[error_found_index - 3])
             };
-            fill_assert_error(
-                &mut ga,
-                &mut first[2],
-                expected_str.map_or(std::ptr::null(), CStr::as_ptr),
-                exp_ptr,
-                &mut actual_tv,
-                AssertType::Fails,
-            );
+            if let Some(exp_ref) = exp_ref {
+                fill_assert_error(
+                    &mut ga,
+                    &mut first[2],
+                    expected_str,
+                    Some(exp_ref),
+                    &mut actual_tv,
+                    AssertType::Fails,
+                );
+            }
             ga_concat_literal(&mut ga, b": ");
-            assert_append_cmd_or_arg(&mut ga, argvars, cmd);
+            assert_append_cmd_or_arg(&mut ga, argvars, crate::memory::cstr_as_opt_cstr(cmd));
             assert_error(&ga);
             rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }
@@ -789,10 +758,8 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                CStr::from_bytes_until_nul(&expected_str)
-                    .unwrap_or(c"")
-                    .as_ptr(),
-                std::ptr::null_mut(),
+                Some(CStr::from_bytes_until_nul(&expected_str).unwrap_or(c"")),
+                None,
                 &mut first[2],
                 AssertType::Other,
             );
@@ -815,10 +782,8 @@ fn assert_inrange(argvars: &mut [TypVal]) -> i32 {
             fill_assert_error(
                 &mut ga,
                 &mut rest[0],
-                CStr::from_bytes_with_nul(expected_str.as_bytes())
-                    .unwrap_or(c"")
-                    .as_ptr(),
-                std::ptr::null_mut(),
+                Some(CStr::from_bytes_with_nul(expected_str.as_bytes()).unwrap_or(c"")),
+                None,
                 &mut first[2],
                 AssertType::Other,
             );
@@ -861,7 +826,7 @@ pub fn f_assert_notmatch(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 pub fn f_assert_report(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut ga = Vec::new();
     prepare_assert_error(&mut ga);
-    buf_concat_cstr(&mut ga, tv_get_string(&argvars[0]));
+    buf_concat_cstr(&mut ga, Some(tv_get_string(&argvars[0])));
     assert_error(&ga);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }

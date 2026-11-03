@@ -338,7 +338,7 @@ static ML_STATE: GlobalState<MemlineModuleState> = GlobalState::new(MemlineModul
 
 #[inline]
 fn ml_st() -> &'static mut MemlineModuleState {
-    crate::globals::gmut(ML_STATE.as_ptr())
+    ML_STATE.as_mut()
 }
 
 static E_ML_GET_INVALID_LNUM_NR: &CStr = c"E315: ml_get: Invalid lnum: %lld";
@@ -2103,9 +2103,17 @@ pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
     &line[col..]
 }
 
-/// Like `ml_get_buf`, but allow the line to be mutated in place.
-pub fn ml_get_buf_mut(buf: &mut FileBuf, lnum: Linenr) -> RawCCharPtrMut {
-    ml_get_buf_impl(buf, lnum, true)
+/// Return a mutable byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
+#[inline]
+pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8] {
+    let ptr = ml_get_buf_impl(buf, lnum, true);
+    if crate::memory::cstr_is_empty(ptr) {
+        return &mut [];
+    }
+    assert!(buf.b_ml.ml_line_textlen > 0);
+    unsafe {
+        std::slice::from_raw_parts_mut(ptr.cast::<u8>(), (buf.b_ml.ml_line_textlen - 1) as usize)
+    }
 }
 
 /// Return pointer to position `pos`.
@@ -3731,15 +3739,15 @@ fn findswapname(
                                 );
                             choice = do_dialog(
                                 VIM_WARNING,
-                                tr(c"VIM - ATTENTION"),
-                                msg_sb.as_ptr().cast(),
+                                Some(tr(c"VIM - ATTENTION")),
+                                crate::memory::cstr_until_nul(&msg_sb),
                                 if ml_st().proc_running != 0 {
                                     run_but
                                 } else {
                                     but
                                 },
                                 1,
-                                ptr::null(),
+                                None,
                                 0,
                             );
 

@@ -88,7 +88,7 @@ static SIG_STATE: crate::globals::GlobalState<SignalModuleState> =
 
 #[inline]
 fn sig_st() -> &'static mut SignalModuleState {
-    unsafe { &mut *SIG_STATE.as_ptr() }
+    SIG_STATE.as_mut()
 }
 
 unsafe extern "C" {
@@ -108,8 +108,8 @@ pub fn signal_init() {
         if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"signal_init",
+                None,
+                Some(c"signal_init"),
                 line!() as i32,
                 true,
                 c"Could not unblock signals, nvim might behave strangely.",
@@ -337,8 +337,8 @@ pub(crate) fn on_signal(signum: i32) {
             _ => {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"on_signal",
+                    None,
+                    Some(c"on_signal"),
                     line!() as i32,
                     true,
                     c"invalid signal: %d",

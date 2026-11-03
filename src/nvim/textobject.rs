@@ -44,7 +44,7 @@ static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> =
 
 #[inline]
 fn tobj_st() -> &'static mut TextobjectState {
-    crate::globals::gmut(TOBJ_STATE.as_ptr())
+    TOBJ_STATE.as_mut()
 }
 
 /// Find the start of the next sentence, searching in the direction specified
@@ -900,13 +900,13 @@ pub fn current_block(
     what: i32,
     other: i32,
 ) -> bool {
-    let mut pos: *mut CursorPos;
+    let mut pos: Option<CursorPos>;
     let mut start_pos = CursorPos {
         lnum: 0,
         col: 0,
         coladd: 0,
     };
-    let mut end_pos: *mut CursorPos;
+    let mut end_pos: Option<CursorPos>;
     let mut sol = false;
 
     let old_pos = curwin_mut().w_cursor;
@@ -939,18 +939,18 @@ pub fn current_block(
         c"%".as_ptr().cast_mut()
     };
     pos = findmatch(None, what);
-    if !pos.is_null() {
+    if pos.is_some() {
         while {
             let old = count;
             count -= 1;
             old > 0
         } {
             pos = findmatch(None, what);
-            if pos.is_null() {
+            let Some(p) = pos else {
                 break;
-            }
-            curwin_mut().w_cursor = *crate::globals::gptr(pos);
-            start_pos = *crate::globals::gptr(pos);
+            };
+            curwin_mut().w_cursor = p;
+            start_pos = p;
         }
     } else {
         while {
@@ -959,23 +959,23 @@ pub fn current_block(
             old > 0
         } {
             pos = findmatchlimit(None, what, FM_FORWARD, 0);
-            if pos.is_null() {
+            let Some(p) = pos else {
                 break;
-            }
-            curwin_mut().w_cursor = *crate::globals::gptr(pos);
-            start_pos = *crate::globals::gptr(pos);
+            };
+            curwin_mut().w_cursor = p;
+            start_pos = p;
         }
     }
     opt_vars().p_cpo = save_cpo;
 
-    if pos.is_null() || {
+    if pos.is_none() || {
         end_pos = findmatch(None, other);
-        end_pos.is_null()
+        end_pos.is_none()
     } {
         curwin_mut().w_cursor = old_pos;
         return false;
     }
-    curwin_mut().w_cursor = *crate::globals::gptr(end_pos);
+    curwin_mut().w_cursor = end_pos.unwrap();
 
     if !include {
         loop {
@@ -989,7 +989,7 @@ pub fn current_block(
                 }
             }
 
-            if equalpos(start_pos, *crate::globals::gptr(end_pos)) && g_st().visual_global.active {
+            if equalpos(start_pos, end_pos.unwrap()) && g_st().visual_global.active {
                 curwin_mut().w_cursor = old_pos;
                 return false;
             }
@@ -1001,19 +1001,18 @@ pub fn current_block(
             {
                 curwin_mut().w_cursor = old_start;
                 decl(&mut curwin_mut().w_cursor);
-                pos = findmatch(None, what);
-                if pos.is_null() {
+                let Some(p) = findmatch(None, what) else {
                     curwin_mut().w_cursor = old_pos;
                     return false;
-                }
-                start_pos = *crate::globals::gptr(pos);
-                curwin_mut().w_cursor = *crate::globals::gptr(pos);
-                end_pos = findmatch(None, other);
-                if end_pos.is_null() {
+                };
+                start_pos = p;
+                curwin_mut().w_cursor = p;
+                let Some(ep) = findmatch(None, other) else {
                     curwin_mut().w_cursor = old_pos;
                     return false;
-                }
-                curwin_mut().w_cursor = *crate::globals::gptr(end_pos);
+                };
+                end_pos = Some(ep);
+                curwin_mut().w_cursor = ep;
             } else {
                 break;
             }

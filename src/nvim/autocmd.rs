@@ -1312,7 +1312,7 @@ static AU_STATE: GlobalState<AutocmdState> = GlobalState::new(AutocmdState::new(
 
 #[inline]
 fn au_st() -> &'static mut AutocmdState {
-    crate::globals::gmut(AU_STATE.as_ptr())
+    AU_STATE.as_mut()
 }
 
 fn map_put_name_to_id(name: impl crate::strings::IntoCCharPtr, val: i32) {

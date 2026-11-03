@@ -59,7 +59,7 @@ static ENCODE_STATE: crate::globals::GlobalState<EvalEncodeState> =
 
 #[inline]
 fn encode_st() -> &'static mut EvalEncodeState {
-    crate::globals::gmut(ENCODE_STATE.as_ptr())
+    ENCODE_STATE.as_mut()
 }
 
 /// Structure defining state for `encode_read_from_list()` (`ListReaderState`).

@@ -223,7 +223,7 @@ static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> =
 
 #[inline]
 pub(crate) fn spell_priv_st() -> &'static mut SpellPrivateState {
-    crate::globals::gmut(SPELL_PRIV_STATE.as_ptr())
+    SPELL_PRIV_STATE.as_mut()
 }
 #[inline]
 pub fn spell_isupper(c: i32) -> bool {
@@ -2065,8 +2065,8 @@ pub fn open_spellbuf() -> Box<FileBuf> {
     if !ml_open(&mut buf) {
         let _ = logmsg!(
             3,
-            std::ptr::null(),
-            c"open_spellbuf",
+            None,
+            Some(c"open_spellbuf"),
             1878,
             true,
             c"Error opening a new memline",

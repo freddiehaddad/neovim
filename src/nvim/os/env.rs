@@ -70,7 +70,7 @@ static ENV_STATE: crate::globals::GlobalState<EnvModuleState> =
 
 #[inline]
 fn env_st() -> &'static mut EnvModuleState {
-    unsafe { &mut *ENV_STATE.as_ptr() }
+    ENV_STATE.as_mut()
 }
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};

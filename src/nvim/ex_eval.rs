@@ -210,7 +210,7 @@ static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> =
 
 #[inline]
 fn exeval_st() -> &'static mut ExEvalModuleState {
-    crate::globals::gmut(EXEVAL_STATE.as_ptr())
+    EXEVAL_STATE.as_mut()
 }
 
 #[inline]

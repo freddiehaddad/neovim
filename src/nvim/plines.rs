@@ -554,7 +554,8 @@ pub fn charsize_regular(
                         head_prev += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri != 0 {
-                        head_prev += get_breakindent_win(&mut *wp, line);
+                        head_prev +=
+                            get_breakindent_win(&mut *wp, crate::memory::cstr_as_bytes(line));
                     }
                     csarg.indent_width = head_prev;
                 }
@@ -579,7 +580,8 @@ pub fn charsize_regular(
                         head_mid += vim_strsize(sbr);
                     }
                     if wp.w_onebuf_opt.wo_bri != 0 {
-                        head_mid += get_breakindent_win(&mut *wp, line);
+                        head_mid +=
+                            get_breakindent_win(&mut *wp, crate::memory::cstr_as_bytes(line));
                     }
                     csarg.indent_width = head_mid;
                 }
@@ -836,7 +838,7 @@ fn in_win_border(wp: &mut WinInfoInfo, vcol: Colnr) -> bool {
     if wp.w_view_width == 0 {
         return false;
     }
-    let width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+    let width1 = wp.w_view_width - win_col_off(wp);
     if vcol < width1 - 1 {
         return false;
     }
@@ -1484,7 +1486,7 @@ pub fn win_text_height(
     max: i64,
     vcol_is_disp: bool,
 ) -> i64 {
-    let mut width1 = wp.w_view_width - win_col_off(&raw mut *wp);
+    let mut width1 = wp.w_view_width - win_col_off(wp);
     let mut width2 = width1 + win_col_off2(wp);
     width1 = width1.max(0);
     width2 = width2.max(0);

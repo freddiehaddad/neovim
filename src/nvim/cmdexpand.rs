@@ -1788,7 +1788,7 @@ static CMDEXP_STATE: GlobalState<CmdexpandState> = GlobalState::new(CmdexpandSta
 
 #[inline]
 fn cmdexp() -> &'static mut CmdexpandState {
-    crate::globals::gmut(CMDEXP_STATE.as_ptr())
+    CMDEXP_STATE.as_mut()
 }
 
 use crate::mbyte::utfc_slice2len;
@@ -4114,7 +4114,7 @@ fn set_context_by_cmdname(
                 return set_context_in_lang_cmd(xp, arg.cast());
             }
             Cmdidx::CmdProfile => {
-                set_context_in_profile_cmd(xp, arg.cast());
+                set_context_in_profile_cmd(xp, crate::memory::cstr_as_bytes(arg.cast()));
             }
             Cmdidx::CmdCheckhealth => {
                 xp.xp_context = EXPAND_CHECKHEALTH;
@@ -5217,7 +5217,10 @@ pub fn expand_generic(
                 if !fuzzy {
                     match_ok = vim_regexec(regmatch, str_item, 0);
                 } else {
-                    score = fuzzy_match_str(str_item, pat);
+                    score = fuzzy_match_str(
+                        crate::memory::cstr_as_opt_cstr(str_item).map(CStr::to_bytes),
+                        crate::memory::cstr_as_opt_cstr(pat).map(CStr::to_bytes),
+                    );
                     match_ok = score != FUZZY_SCORE_NONE;
                 }
             } else {
@@ -5511,7 +5514,10 @@ fn expand_user_defined(
                 if !fuzzy {
                     match_ok = vim_regexec(regmatch, line_cstr.as_ptr(), 0);
                 } else {
-                    score = fuzzy_match_str(line_cstr.as_ptr(), pat);
+                    score = fuzzy_match_str(
+                        Some(line_cstr.to_bytes()),
+                        crate::memory::cstr_as_opt_cstr(pat).map(CStr::to_bytes),
+                    );
                     match_ok = score != FUZZY_SCORE_NONE;
                 }
             } else {

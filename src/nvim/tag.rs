@@ -387,7 +387,7 @@ static TAG_STATE: GlobalState<TagModuleState> = GlobalState::new(TagModuleState:
 
 #[inline]
 fn tag_st() -> &'static mut TagModuleState {
-    crate::globals::gmut(TAG_STATE.as_ptr())
+    TAG_STATE.as_mut()
 }
 
 use crate::charset::toupper_asc;

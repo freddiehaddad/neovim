@@ -814,12 +814,23 @@ pub fn os_open(path: impl crate::strings::IntoCCharPtr, flags: i32, mode: i32) -
     }
 }
 
-pub struct CFile(std::ptr::NonNull<crate::fileio::FILE>);
+pub struct CFile {
+    ptr: std::ptr::NonNull<crate::fileio::FILE>,
+    owned: bool,
+}
 
 impl CFile {
     #[inline]
     pub fn from_raw(fp: *mut crate::fileio::FILE) -> Option<Self> {
-        std::ptr::NonNull::new(fp).map(Self)
+        std::ptr::NonNull::new(fp).map(|ptr| Self { ptr, owned: true })
+    }
+
+    #[inline]
+    pub fn from_std_stream(fp: *mut crate::fileio::FILE) -> Self {
+        Self {
+            ptr: unsafe { std::ptr::NonNull::new_unchecked(fp) },
+            owned: false,
+        }
     }
 
     #[inline]
@@ -842,79 +853,85 @@ impl CFile {
 
     #[inline]
     pub fn as_ptr(&self) -> *mut crate::fileio::FILE {
-        self.0.as_ptr()
+        self.ptr.as_ptr()
     }
 
     #[inline]
     pub fn close(self) -> i32 {
         let this = std::mem::ManuallyDrop::new(self);
-        unsafe { crate::fileio::fclose(this.0.as_ptr()) }
+        if this.owned {
+            unsafe { crate::fileio::fclose(this.ptr.as_ptr()) }
+        } else {
+            0
+        }
     }
 
     #[inline]
     pub fn fileno(&self) -> i32 {
-        unsafe { crate::fileio::fileno(self.0.as_ptr()) }
+        unsafe { crate::fileio::fileno(self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn flush(&self) -> i32 {
-        unsafe { crate::fileio::fflush(self.0.as_ptr()) }
+        unsafe { crate::fileio::fflush(self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn setvbuf(&self, buf: &mut [u8], mode: i32) -> i32 {
-        unsafe { crate::fileio::setvbuf(self.0.as_ptr(), buf.as_mut_ptr().cast(), mode, buf.len()) }
+        unsafe {
+            crate::fileio::setvbuf(self.ptr.as_ptr(), buf.as_mut_ptr().cast(), mode, buf.len())
+        }
     }
 
     #[inline]
     pub fn is_eof(&self) -> bool {
-        unsafe { crate::fileio::feof(self.0.as_ptr()) != 0 }
+        unsafe { crate::fileio::feof(self.ptr.as_ptr()) != 0 }
     }
 
     #[inline]
     pub fn has_error(&self) -> bool {
-        unsafe { crate::fileio::ferror(self.0.as_ptr()) != 0 }
+        unsafe { crate::fileio::ferror(self.ptr.as_ptr()) != 0 }
     }
 
     #[inline]
     pub fn ferror(&self) -> i32 {
-        unsafe { crate::fileio::ferror(self.0.as_ptr()) }
+        unsafe { crate::fileio::ferror(self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn getc(&self) -> i32 {
-        unsafe { crate::fileio::fgetc(self.0.as_ptr()) }
+        unsafe { crate::fileio::fgetc(self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn ungetc(&self, c: i32) -> i32 {
-        unsafe { crate::fileio::ungetc(c, self.0.as_ptr()) }
+        unsafe { crate::fileio::ungetc(c, self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn putc(&self, c: i32) -> i32 {
-        unsafe { crate::fileio::fputc(c, self.0.as_ptr()) }
+        unsafe { crate::fileio::fputc(c, self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn puts(&self, s: impl crate::strings::IntoCCharPtr) -> i32 {
-        crate::fileio::fputs(s, self.0.as_ptr())
+        crate::fileio::fputs(s, self.ptr.as_ptr())
     }
 
     #[inline]
     pub fn gets(&self, buf: &mut [u8]) -> bool {
-        !unsafe { crate::fileio::fgets(buf.as_mut_ptr(), buf.len() as i32, self.0.as_ptr()) }
+        !unsafe { crate::fileio::fgets(buf.as_mut_ptr(), buf.len() as i32, self.ptr.as_ptr()) }
             .is_null()
     }
 
     #[inline]
     pub fn seek(&self, offset: crate::fileio::Off, whence: i32) -> i32 {
-        unsafe { crate::fileio::vim_fseek(self.0.as_ptr(), offset, whence) }
+        unsafe { crate::fileio::vim_fseek(self.ptr.as_ptr(), offset, whence) }
     }
 
     #[inline]
     pub fn tell(&self) -> crate::fileio::Off {
-        unsafe { crate::fileio::vim_ftell(self.0.as_ptr()) }
+        unsafe { crate::fileio::vim_ftell(self.ptr.as_ptr()) }
     }
 
     #[inline]
@@ -923,7 +940,7 @@ impl CFile {
             return true;
         }
         unsafe {
-            crate::fileio::fwrite(bytes.as_ptr().cast(), bytes.len(), 1, self.0.as_ptr()) == 1
+            crate::fileio::fwrite(bytes.as_ptr().cast(), bytes.len(), 1, self.ptr.as_ptr()) == 1
         }
     }
 
@@ -932,7 +949,7 @@ impl CFile {
         if buf.is_empty() {
             return 0;
         }
-        unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), 1, buf.len(), self.0.as_ptr()) }
+        unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), 1, buf.len(), self.ptr.as_ptr()) }
     }
 
     #[inline]
@@ -940,14 +957,18 @@ impl CFile {
         if buf.is_empty() {
             return true;
         }
-        unsafe { crate::fileio::fread(buf.as_mut_ptr().cast(), buf.len(), 1, self.0.as_ptr()) == 1 }
+        unsafe {
+            crate::fileio::fread(buf.as_mut_ptr().cast(), buf.len(), 1, self.ptr.as_ptr()) == 1
+        }
     }
 }
 
 impl Drop for CFile {
     fn drop(&mut self) {
-        unsafe {
-            crate::fileio::fclose(self.0.as_ptr());
+        if self.owned {
+            unsafe {
+                crate::fileio::fclose(self.ptr.as_ptr());
+            }
         }
     }
 }
@@ -1004,8 +1025,8 @@ pub fn os_set_cloexec(fd: i32) -> i32 {
             let e = *errno_ptr();
             let _ = logmsg!(
                 4,
-                ptr::null(),
-                c"os_set_cloexec",
+                None,
+                Some(c"os_set_cloexec"),
                 line!() as i32,
                 true,
                 c"Failed to get flags on descriptor %d: %s",
@@ -1019,8 +1040,8 @@ pub fn os_set_cloexec(fd: i32) -> i32 {
             let e = *errno_ptr();
             let _ = logmsg!(
                 4,
-                ptr::null(),
-                c"os_set_cloexec",
+                None,
+                Some(c"os_set_cloexec"),
                 line!() as i32,
                 true,
                 c"Failed to set CLOEXEC on descriptor %d: %s",

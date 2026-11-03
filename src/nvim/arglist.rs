@@ -122,7 +122,7 @@ static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> =
 
 #[inline]
 fn arglist_st() -> &'static mut ArglistModuleState {
-    crate::globals::gmut(ARGLIST_STATE.as_ptr())
+    ARGLIST_STATE.as_mut()
 }
 
 #[inline]

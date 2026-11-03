@@ -254,7 +254,6 @@ struct SearchModuleState {
     saved_no_hlsearch: bool,
     saved_search_match_endcol: Colnr,
     saved_search_match_lines: Linenr,
-    findmatch_pos: CursorPos,
     stat_lastpos: CursorPos,
     stat_cur: i32,
     stat_cnt: i32,
@@ -288,11 +287,6 @@ impl SearchModuleState {
             saved_no_hlsearch: false,
             saved_search_match_endcol: 0,
             saved_search_match_lines: 0,
-            findmatch_pos: CursorPos {
-                lnum: 0,
-                col: 0,
-                coladd: 0,
-            },
             stat_lastpos: CursorPos {
                 lnum: 0,
                 col: 0,
@@ -314,7 +308,7 @@ static SEARCH_STATE: GlobalState<SearchModuleState> = GlobalState::new(SearchMod
 
 #[inline]
 fn srch() -> &'static mut SearchModuleState {
-    crate::globals::gmut(SEARCH_STATE.as_ptr())
+    SEARCH_STATE.as_mut()
 }
 
 #[inline]
@@ -372,7 +366,13 @@ pub fn search_regcomp(
             magic = srch().spats[i as usize].magic;
             g_st().search_global.no_smartcase = srch().spats[i as usize].no_scs;
         } else if (options & SEARCH_HIS) != 0 {
-            add_to_history(HIST_SEARCH, pat, patlen, true, i32::from(NUL));
+            let pat_bytes = crate::memory::cstr_as_bytes(pat);
+            add_to_history(
+                HIST_SEARCH,
+                &pat_bytes[..patlen.min(pat_bytes.len())],
+                true,
+                i32::from(NUL),
+            );
         }
 
         if let Some(used_pat) = used_pat {
@@ -1821,7 +1821,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
     true
 }
 
-pub fn findmatch(oap: Option<&mut Oparg>, initc: i32) -> *mut CursorPos {
+pub fn findmatch(oap: Option<&mut Oparg>, initc: i32) -> Option<CursorPos> {
     findmatchlimit(oap, initc, 0, 0)
 }
 
@@ -1911,7 +1911,7 @@ pub fn findmatchlimit(
     mut initc: i32,
     flags: i32,
     maxtravel: i64,
-) -> *mut CursorPos {
+) -> Option<CursorPos> {
     let mut findc: i32 = 0;
     let mut count: i32 = 0;
     let mut backwards = false;
@@ -1928,9 +1928,11 @@ pub fn findmatchlimit(
     let skip_comments = (flags & FM_SKIPCOMM) != 0;
     let mut in_block_comment = false;
 
-    srch().findmatch_pos = curwin_mut().w_cursor;
-    srch().findmatch_pos.coladd = 0;
-    let mut line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+    let mut pos = CursorPos {
+        coladd: 0,
+        ..curwin_mut().w_cursor
+    };
+    let mut line = crate::memline::ml_get_slice(pos.lnum);
 
     let cpo_match = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCH);
     let cpo_bsl = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCHBSL);
@@ -1957,7 +1959,7 @@ pub fn findmatchlimit(
             backwards = dir != FORWARD;
         }
         if findc == i32::from(NUL) {
-            return ptr::null_mut();
+            return None;
         }
     } else {
         if initc == b'#' as i32 {
@@ -1965,7 +1967,7 @@ pub fn findmatchlimit(
         } else {
             if !cpo_match {
                 let trim = crate::charset::skipwhite_slice(line);
-                let col_u = srch().findmatch_pos.col as usize;
+                let col_u = pos.col as usize;
                 if trim.first() == Some(&b'#') && col_u <= line.len() - trim.len() {
                     let after_hash = crate::charset::skipwhite_slice(&trim[1..]);
                     if after_hash.starts_with(b"if")
@@ -1978,11 +1980,11 @@ pub fn findmatchlimit(
                     if line.get(col_u + 1) == Some(&b'*') {
                         comment_dir = FORWARD;
                         backwards = false;
-                        srch().findmatch_pos.col += 1;
+                        pos.col += 1;
                     } else if col_u > 0 && line.get(col_u - 1) == Some(&b'*') {
                         comment_dir = BACKWARD;
                         backwards = true;
-                        srch().findmatch_pos.col -= 1;
+                        pos.col -= 1;
                     }
                 } else if line.get(col_u) == Some(&b'*') {
                     if line.get(col_u + 1) == Some(&b'/') {
@@ -1996,13 +1998,11 @@ pub fn findmatchlimit(
             }
 
             if hash_dir == 0 && comment_dir == 0 {
-                if (srch().findmatch_pos.col as usize) >= line.len()
-                    && srch().findmatch_pos.col != 0
-                {
-                    srch().findmatch_pos.col -= 1;
+                if (pos.col as usize) >= line.len() && pos.col != 0 {
+                    pos.col -= 1;
                 }
                 loop {
-                    let col_u = (srch().findmatch_pos.col as usize).min(line.len());
+                    let col_u = (pos.col as usize).min(line.len());
                     initc = crate::mbyte::utf_slice2char(&line[col_u..]);
                     if initc == i32::from(NUL) {
                         break;
@@ -2012,18 +2012,17 @@ pub fn findmatchlimit(
                     if findc != 0 {
                         break;
                     }
-                    srch().findmatch_pos.col +=
-                        crate::mbyte::utfc_slice2len(&line[col_u..]) as Colnr;
+                    pos.col += crate::mbyte::utfc_slice2len(&line[col_u..]) as Colnr;
                 }
                 if findc == 0 {
                     if !cpo_match && crate::charset::skipwhite_slice(line).first() == Some(&b'#') {
                         hash_dir = 1;
                     } else {
-                        return ptr::null_mut();
+                        return None;
                     }
                 } else if !cpo_bsl {
                     let mut bslcnt = 0;
-                    let mut col = srch().findmatch_pos.col;
+                    let mut col = pos.col;
                     while check_prevcol(line, col, b'\\' as i32, Some(&mut col)) {
                         bslcnt += 1;
                     }
@@ -2043,54 +2042,54 @@ pub fn findmatchlimit(
                 } else if after_hash.starts_with(b"endif") {
                     hash_dir = -1;
                 } else {
-                    return ptr::null_mut();
+                    return None;
                 }
             }
-            srch().findmatch_pos.col = 0;
+            pos.col = 0;
             while !g_st().got_int {
                 if hash_dir > 0 {
-                    if srch().findmatch_pos.lnum == curbuf_mut().b_ml.ml_line_count {
+                    if pos.lnum == curbuf_mut().b_ml.ml_line_count {
                         break;
                     }
-                } else if srch().findmatch_pos.lnum == 1 {
+                } else if pos.lnum == 1 {
                     break;
                 }
-                srch().findmatch_pos.lnum += hash_dir;
-                line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+                pos.lnum += hash_dir;
+                line = crate::memline::ml_get_slice(pos.lnum);
                 line_breakcheck();
                 let trim = crate::charset::skipwhite_slice(line);
                 if trim.first() != Some(&b'#') {
                     continue;
                 }
-                srch().findmatch_pos.col = (line.len() - trim.len()) as Colnr;
+                pos.col = (line.len() - trim.len()) as Colnr;
                 let after_hash = crate::charset::skipwhite_slice(&trim[1..]);
                 if hash_dir > 0 {
                     if after_hash.starts_with(b"if") {
                         count += 1;
                     } else if after_hash.starts_with(b"el") {
                         if count == 0 {
-                            return &raw mut srch().findmatch_pos;
+                            return Some(pos);
                         }
                     } else if after_hash.starts_with(b"endif") {
                         if count == 0 {
-                            return &raw mut srch().findmatch_pos;
+                            return Some(pos);
                         }
                         count -= 1;
                     }
                 } else if after_hash.starts_with(b"if") {
                     if count == 0 {
-                        return &raw mut srch().findmatch_pos;
+                        return Some(pos);
                     }
                     count -= 1;
                 } else if initc == b'#' as i32 && after_hash.starts_with(b"el") {
                     if count == 0 {
-                        return &raw mut srch().findmatch_pos;
+                        return Some(pos);
                     }
                 } else if after_hash.starts_with(b"endif") {
                     count += 1;
                 }
             }
-            return ptr::null_mut();
+            return None;
         }
     }
 
@@ -2108,65 +2107,61 @@ pub fn findmatchlimit(
     };
 
     if (backwards && comment_dir != 0) || lisp || skip_comments {
-        line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+        line = crate::memline::ml_get_slice(pos.lnum);
         comment_col = check_linecomment(line);
     }
-    if lisp && comment_col != MAXCOL && srch().findmatch_pos.col > comment_col {
+    if lisp && comment_col != MAXCOL && pos.col > comment_col {
         lispcomm = true;
     }
     if skip_comments
         && !in_block_comment
         && comment_col != MAXCOL
         && backwards
-        && srch().findmatch_pos.col > comment_col
+        && pos.col > comment_col
     {
-        srch().findmatch_pos.col = comment_col;
+        pos.col = comment_col;
     }
 
     while !g_st().got_int {
         if backwards {
-            if lispcomm && srch().findmatch_pos.col < comment_col {
+            if lispcomm && pos.col < comment_col {
                 break;
             }
-            if srch().findmatch_pos.col == 0 {
-                if srch().findmatch_pos.lnum == 1 {
+            if pos.col == 0 {
+                if pos.lnum == 1 {
                     break;
                 }
-                srch().findmatch_pos.lnum -= 1;
+                pos.lnum -= 1;
 
                 traveled += 1;
                 if maxtravel > 0 && traveled > maxtravel {
                     break;
                 }
 
-                line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
-                srch().findmatch_pos.col = line.len() as Colnr;
+                line = crate::memline::ml_get_slice(pos.lnum);
+                pos.col = line.len() as Colnr;
                 do_quotes = -1;
                 line_breakcheck();
 
                 if comment_dir != 0 || lisp || skip_comments {
                     comment_col = check_linecomment(line);
                 }
-                if (lisp
-                    || (skip_comments
-                        && !in_block_comment
-                        && srch().findmatch_pos.col > comment_col))
+                if (lisp || (skip_comments && !in_block_comment && pos.col > comment_col))
                     && comment_col != MAXCOL
                 {
-                    srch().findmatch_pos.col = comment_col;
+                    pos.col = comment_col;
                 }
             } else {
-                srch().findmatch_pos.col -= 1;
-                srch().findmatch_pos.col -=
-                    crate::mbyte::utf_head_off_slice(line, srch().findmatch_pos.col as usize);
+                pos.col -= 1;
+                pos.col -= crate::mbyte::utf_head_off_slice(line, pos.col as usize);
             }
-        } else if (srch().findmatch_pos.col as usize) >= line.len()
-            || (lisp && comment_col != MAXCOL && srch().findmatch_pos.col == comment_col)
+        } else if (pos.col as usize) >= line.len()
+            || (lisp && comment_col != MAXCOL && pos.col == comment_col)
         {
-            if srch().findmatch_pos.lnum == curbuf_mut().b_ml.ml_line_count || lispcomm {
+            if pos.lnum == curbuf_mut().b_ml.ml_line_count || lispcomm {
                 break;
             }
-            srch().findmatch_pos.lnum += 1;
+            pos.lnum += 1;
 
             let prev_traveled = traveled;
             traveled += 1;
@@ -2174,26 +2169,26 @@ pub fn findmatchlimit(
                 break;
             }
 
-            line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
-            srch().findmatch_pos.col = 0;
+            line = crate::memline::ml_get_slice(pos.lnum);
+            pos.col = 0;
             do_quotes = -1;
             line_breakcheck();
             if lisp || skip_comments {
                 comment_col = check_linecomment(line);
             }
         } else {
-            let col_u = (srch().findmatch_pos.col as usize).min(line.len());
-            srch().findmatch_pos.col += crate::mbyte::utfc_slice2len(&line[col_u..]) as Colnr;
+            let col_u = (pos.col as usize).min(line.len());
+            pos.col += crate::mbyte::utfc_slice2len(&line[col_u..]) as Colnr;
         }
 
-        let col_u = srch().findmatch_pos.col as usize;
+        let col_u = pos.col as usize;
         if skip_comments && comment_dir == 0 && !inquote {
             if backwards {
                 if !in_block_comment
                     && col_u > 0
                     && line.get(col_u - 1) == Some(&b'*')
                     && line.get(col_u) == Some(&b'/')
-                    && (comment_col == MAXCOL || srch().findmatch_pos.col < comment_col)
+                    && (comment_col == MAXCOL || pos.col < comment_col)
                 {
                     in_block_comment = true;
                 } else if in_block_comment
@@ -2206,7 +2201,7 @@ pub fn findmatchlimit(
             } else if !in_block_comment
                 && line.get(col_u) == Some(&b'/')
                 && line.get(col_u + 1) == Some(&b'*')
-                && (comment_col == MAXCOL || srch().findmatch_pos.col < comment_col)
+                && (comment_col == MAXCOL || pos.col < comment_col)
             {
                 in_block_comment = true;
             } else if in_block_comment
@@ -2218,12 +2213,12 @@ pub fn findmatchlimit(
             }
         }
 
-        if srch().findmatch_pos.col == 0
+        if pos.col == 0
             && (flags & FM_BLOCKSTOP) != 0
             && matches!(line.first(), Some(&b'{' | &b'}'))
         {
             if i32::from(line[0]) == findc && count == 0 {
-                return &raw mut srch().findmatch_pos;
+                return Some(pos);
             }
             break;
         }
@@ -2231,10 +2226,10 @@ pub fn findmatchlimit(
         if comment_dir != 0 {
             if comment_dir == FORWARD {
                 if line.get(col_u) == Some(&b'*') && line.get(col_u + 1) == Some(&b'/') {
-                    srch().findmatch_pos.col += 1;
-                    return &raw mut srch().findmatch_pos;
+                    pos.col += 1;
+                    return Some(pos);
                 }
-            } else if srch().findmatch_pos.col == 0 {
+            } else if pos.col == 0 {
                 continue;
             } else if raw_string {
                 if line.get(col_u - 1) == Some(&b'R')
@@ -2243,7 +2238,7 @@ pub fn findmatchlimit(
                 {
                     if !find_rawstring_end(
                         line,
-                        &srch().findmatch_pos,
+                        &pos,
                         if count > 0 {
                             &match_pos
                         } else {
@@ -2251,33 +2246,31 @@ pub fn findmatchlimit(
                         },
                     ) {
                         count += 1;
-                        match_pos = srch().findmatch_pos;
+                        match_pos = pos;
                         match_pos.col -= 1;
                     }
-                    line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+                    line = crate::memline::ml_get_slice(pos.lnum);
                 }
             } else if line.get(col_u - 1) == Some(&b'/')
                 && line.get(col_u) == Some(&b'*')
                 && (col_u == 1 || line.get(col_u - 2) != Some(&b'*'))
-                && srch().findmatch_pos.col < comment_col
+                && pos.col < comment_col
             {
                 count += 1;
-                match_pos = srch().findmatch_pos;
+                match_pos = pos;
                 match_pos.col -= 1;
             } else if line.get(col_u - 1) == Some(&b'*') && line.get(col_u) == Some(&b'/') {
                 if count > 0 {
-                    srch().findmatch_pos = match_pos;
-                } else if col_u > 1
-                    && line.get(col_u - 2) == Some(&b'/')
-                    && srch().findmatch_pos.col <= comment_col
+                    pos = match_pos;
+                } else if col_u > 1 && line.get(col_u - 2) == Some(&b'/') && pos.col <= comment_col
                 {
-                    srch().findmatch_pos.col -= 2;
+                    pos.col -= 2;
                 } else if ignore_cend {
                     continue;
                 } else {
-                    return ptr::null_mut();
+                    return None;
                 }
-                return &raw mut srch().findmatch_pos;
+                return Some(pos);
             }
             continue;
         }
@@ -2286,7 +2279,7 @@ pub fn findmatchlimit(
             do_quotes = 0;
         } else if do_quotes == -1 {
             at_start = do_quotes;
-            let target_idx = (srch().findmatch_pos.col + i32::from(backwards)) as usize;
+            let target_idx = (pos.col + i32::from(backwards)) as usize;
             let mut idx = 0usize;
             while idx < line.len() {
                 if idx == target_idx {
@@ -2317,8 +2310,8 @@ pub fn findmatchlimit(
                         inquote = true;
                     }
                 }
-                if srch().findmatch_pos.lnum > 1 {
-                    let prev_line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum - 1);
+                if pos.lnum > 1 {
+                    let prev_line = crate::memline::ml_get_slice(pos.lnum - 1);
                     if prev_line.last() == Some(&b'\\') {
                         do_quotes = 1;
                         if start_in_quotes == K_NONE {
@@ -2330,7 +2323,7 @@ pub fn findmatchlimit(
                             inquote = true;
                         }
                     }
-                    line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+                    line = crate::memline::ml_get_slice(pos.lnum);
                 }
             }
         }
@@ -2338,7 +2331,7 @@ pub fn findmatchlimit(
             start_in_quotes = K_FALSE;
         }
 
-        let col_u = (srch().findmatch_pos.col as usize).min(line.len());
+        let col_u = (pos.col as usize).min(line.len());
         let c = crate::mbyte::utf_slice2char(&line[col_u..]);
         if c == i32::from(NUL) {
             if col_u == 0 || line.get(col_u - 1) != Some(&b'\\') {
@@ -2347,14 +2340,14 @@ pub fn findmatchlimit(
             }
         } else if c == b'"' as i32 {
             if do_quotes != 0 {
-                let mut col = srch().findmatch_pos.col - 1;
+                let mut col = pos.col - 1;
                 while col >= 0 {
                     if line.get(col as usize) != Some(&b'\\') {
                         break;
                     }
                     col -= 1;
                 }
-                if ((srch().findmatch_pos.col - 1 - col) & 1) == 0 {
+                if ((pos.col - 1 - col) & 1) == 0 {
                     inquote = !inquote;
                     start_in_quotes = K_FALSE;
                 }
@@ -2365,13 +2358,13 @@ pub fn findmatchlimit(
                 if backwards {
                     if col_u > 1 {
                         if line.get(col_u - 2) == Some(&b'\'') {
-                            srch().findmatch_pos.col -= 2;
+                            pos.col -= 2;
                             skipped_single_quote = true;
                         } else if line.get(col_u - 2) == Some(&b'\\')
                             && col_u > 2
                             && line.get(col_u - 3) == Some(&b'\'')
                         {
-                            srch().findmatch_pos.col -= 3;
+                            pos.col -= 3;
                             skipped_single_quote = true;
                         }
                     }
@@ -2380,10 +2373,10 @@ pub fn findmatchlimit(
                         && col_u + 2 < line.len()
                         && line.get(col_u + 3) == Some(&b'\'')
                     {
-                        srch().findmatch_pos.col += 3;
+                        pos.col += 3;
                         skipped_single_quote = true;
                     } else if line.get(col_u + 2) == Some(&b'\'') {
-                        srch().findmatch_pos.col += 2;
+                        pos.col += 2;
                         skipped_single_quote = true;
                     }
                 }
@@ -2392,16 +2385,15 @@ pub fn findmatchlimit(
             if !skipped_single_quote {
                 if curbuf_mut().b_p_lisp != 0
                     && matches!(c as u8, b'(' | b')' | b'{' | b'}' | b'[' | b']')
-                    && srch().findmatch_pos.col > 1
-                    && check_prevcol(line, srch().findmatch_pos.col, b'\\' as i32, None)
-                    && check_prevcol(line, srch().findmatch_pos.col - 1, b'#' as i32, None)
+                    && pos.col > 1
+                    && check_prevcol(line, pos.col, b'\\' as i32, None)
+                    && check_prevcol(line, pos.col - 1, b'#' as i32, None)
                 {
                     continue;
                 }
 
                 if skip_comments
-                    && (in_block_comment
-                        || (comment_col != MAXCOL && srch().findmatch_pos.col >= comment_col))
+                    && (in_block_comment || (comment_col != MAXCOL && pos.col >= comment_col))
                 {
                     continue;
                 }
@@ -2410,7 +2402,7 @@ pub fn findmatchlimit(
                     let mut bslcnt = 0;
 
                     if !cpo_bsl {
-                        let mut col = srch().findmatch_pos.col;
+                        let mut col = pos.col;
                         while check_prevcol(line, col, b'\\' as i32, Some(&mut col)) {
                             bslcnt += 1;
                         }
@@ -2420,7 +2412,7 @@ pub fn findmatchlimit(
                             count += 1;
                         } else {
                             if count == 0 {
-                                return &raw mut srch().findmatch_pos;
+                                return Some(pos);
                             }
                             count -= 1;
                         }
@@ -2431,10 +2423,9 @@ pub fn findmatchlimit(
     }
 
     if comment_dir == BACKWARD && count > 0 {
-        srch().findmatch_pos = match_pos;
-        return &raw mut srch().findmatch_pos;
+        return Some(match_pos);
     }
-    ptr::null_mut()
+    None
 }
 
 pub fn showmatch(c: i32) {
@@ -2464,19 +2455,17 @@ pub fn showmatch(c: i32) {
         return;
     }
 
-    let lpos = findmatch(None, i32::from(NUL));
-    if lpos.is_null() {
+    let Some(mut lpos) = findmatch(None, i32::from(NUL)) else {
         vim_beep(K_OPT_BO_FLAG_SHOWMATCH);
         return;
-    }
-    let lpos = crate::globals::gmut(lpos);
+    };
 
     if lpos.lnum < curwin_mut().w_topline || lpos.lnum >= curwin_mut().w_botline {
         return;
     }
 
     if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
-        getvcol(curwin_mut(), &mut *lpos, None, Some(&mut vcol), None, 0);
+        getvcol(curwin_mut(), &mut lpos, None, Some(&mut vcol), None, 0);
     }
 
     let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
@@ -2486,7 +2475,7 @@ pub fn showmatch(c: i32) {
         return;
     }
 
-    let mpos = *lpos;
+    let mpos = lpos;
     let save_cursor = curwin_mut().w_cursor;
     let save_so = if use_win_so {
         curwin_mut().w_onebuf_opt.wo_so

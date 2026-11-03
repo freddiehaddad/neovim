@@ -91,7 +91,7 @@ static OSI_STATE: GlobalState<OsInputState> = GlobalState::new(OsInputState::new
 
 #[inline]
 fn osi_st() -> &'static mut OsInputState {
-    unsafe { &mut *OSI_STATE.as_ptr() }
+    OSI_STATE.as_mut()
 }
 
 fn parse_mouse_coords(s: &[u8]) -> Option<(i32, i32, usize)> {
@@ -155,7 +155,7 @@ pub fn cursorhold_event() {
 }
 
 fn create_cursorhold_event(events_enabled: bool) {
-    let events = unsafe { &mut *main_loop_events() };
+    let events = main_loop_events();
     debug_assert!(!events_enabled || multiqueue_empty(events));
     multiqueue_put_event(events, Event::CursorHold);
 }
@@ -240,7 +240,7 @@ pub fn input_get(
             }
             reset_cursorhold_wait(tb_change_cnt);
             if trigger_cursorhold() && !typebuf_changed(tb_change_cnt) {
-                create_cursorhold_event(events == main_loop_events());
+                create_cursorhold_event(std::ptr::eq(events, main_loop_events()));
             } else {
                 before_blocking();
                 inbuf_poll(-1, events);
@@ -588,7 +588,7 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
         prof_input_start();
     }
 
-    if events != main_loop_events() {
+    if !std::ptr::eq(events, main_loop_events()) {
         // The pending input provoked a osi_st().blocking wait. Do special events now. #6247
         osi_st().blocking = true;
         multiqueue_process_events(unsafe { &mut *g_st().ch_before_blocking_events });
@@ -622,8 +622,8 @@ fn inbuf_poll(ms: i32, events: *mut MultiQueue) -> bool {
             let mode_cstr = std::ffi::CStr::from_bytes_until_nul(&mode).unwrap_or(c"");
             logmsg!(
                 LOGLVL_WRN,
-                ptr::null(),
-                c"inbuf_poll",
+                None,
+                Some(c"inbuf_poll"),
                 line!() as i32,
                 true,
                 c"Interrupted prompt (mode=%s): user input is unlikely",

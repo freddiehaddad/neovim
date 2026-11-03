@@ -1,7 +1,7 @@
 //! Fuzzy matching algorithm and functions (`src/nvim/fuzzy.c`).
 
 use crate::buffer::FileBuf;
-use crate::charset::{ascii_isalnum, ascii_iswhite, skipwhite, vim_iswordc, vim_iswordp};
+use crate::charset::{ascii_isalnum, ascii_iswhite, vim_iswordc, vim_iswordp};
 use crate::cursor::{CursorPos, equalpos};
 use crate::errors::{E_INVARG_NVAL, E_INVARG2, E_INVARGVAL, E_LISTARG};
 use crate::eval::callback_call;
@@ -14,11 +14,10 @@ use crate::eval::typval::{
     tv_list_append_tv, tv_list_len,
 };
 use crate::globals::*;
-use crate::insexpand::{ctrl_x_mode_whole_line, find_line_end, find_word_end, find_word_start};
+use crate::insexpand::ctrl_x_mode_whole_line;
 use crate::mbyte::{
     mb_islower, mb_isupper, mb_tolower, mb_toupper, utf_slice2char, utf_slice2len, utfc_slice2len,
 };
-use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::semsg;
 use crate::option_vars::*;
 use crate::search::FORWARD;
@@ -374,16 +373,14 @@ pub fn fuzzy_match_slice(
     num_matches != 0
 }
 
-/// Fuzzy match `pat_arg` in `str` (`fuzzy_match`).
+/// Fuzzy match `pat_bytes` in `str_bytes` (`fuzzy_match`).
 pub fn fuzzy_match(
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    pat_arg: impl crate::strings::IntoCCharPtr,
+    str_bytes: &[u8],
+    pat_bytes: &[u8],
     matchseq: bool,
     out_score: &mut i32,
     matches: &mut [u32],
 ) -> bool {
-    let str_bytes = crate::memory::cstr_as_bytes(str_ptr.into_c_char_ptr());
-    let pat_bytes = crate::memory::cstr_as_bytes(pat_arg.into_c_char_ptr());
     fuzzy_match_slice(str_bytes, pat_bytes, matchseq, out_score, matches)
 }
 
@@ -678,40 +675,34 @@ fn fuzzy_match_func_compare(f1: &FuzmatchStr, f2: &FuzmatchStr) -> i32 {
 }
 
 /// Fuzzy match `pat` in `str` (`fuzzy_match_str`).
-pub fn fuzzy_match_str(
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    pat: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let pat = pat.into_c_char_ptr();
-    if str_ptr.is_null() || pat.is_null() {
+pub fn fuzzy_match_str(str_bytes: Option<&[u8]>, pat_bytes: Option<&[u8]>) -> i32 {
+    let (Some(str_bytes), Some(pat_bytes)) = (str_bytes, pat_bytes) else {
         return 0;
-    }
+    };
 
     let mut score = FUZZY_SCORE_NONE;
     let mut matchpos = [0u32; FUZZY_MATCH_MAX_LEN];
-    fuzzy_match(str_ptr, pat, true, &mut score, &mut matchpos);
+    fuzzy_match(str_bytes, pat_bytes, true, &mut score, &mut matchpos);
     score
 }
 
 /// Fuzzy match positions of `pat` in `str` (`fuzzy_match_str_with_pos`).
 pub fn fuzzy_match_str_with_pos(
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    pat: impl crate::strings::IntoCCharPtr,
+    str_bytes: Option<&[u8]>,
+    pat_bytes: Option<&[u8]>,
 ) -> Option<Vec<u32>> {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let pat = pat.into_c_char_ptr();
-    if str_ptr.is_null() || pat.is_null() {
+    let (Some(str_bytes), Some(pat_bytes)) = (str_bytes, pat_bytes) else {
         return None;
-    }
+    };
 
     let mut score = FUZZY_SCORE_NONE;
     let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
-    if !fuzzy_match(str_ptr, pat, false, &mut score, &mut matches) || score == FUZZY_SCORE_NONE {
+    if !fuzzy_match(str_bytes, pat_bytes, false, &mut score, &mut matches)
+        || score == FUZZY_SCORE_NONE
+    {
         return None;
     }
 
-    let pat_bytes = crate::memory::cstr_as_bytes(pat);
     let mut match_positions = Vec::with_capacity(10);
     let mut j = 0usize;
     let mut off = 0usize;
@@ -727,60 +718,66 @@ pub fn fuzzy_match_str_with_pos(
     Some(match_positions)
 }
 
-/// Fuzzy match a word in line `*ptr` (`fuzzy_match_str_in_line`).
+/// Fuzzy match a word in line `*line` (`fuzzy_match_str_in_line`).
 pub fn fuzzy_match_str_in_line(
-    ptr: &mut *mut u8,
-    pat: impl crate::strings::IntoCCharPtr,
+    line: &mut &[u8],
+    pat_bytes: Option<&[u8]>,
     len: &mut i32,
     current_pos: Option<&mut CursorPos>,
     score: &mut i32,
 ) -> bool {
-    let pat = pat.into_c_char_ptr();
-    let mut str_cur = *ptr;
-    let str_begin = str_cur;
+    let Some(pat_bytes) = pat_bytes else {
+        return false;
+    };
+    let str_begin = *line;
+    let line_end_idx = str_begin
+        .iter()
+        .position(|&b| b == 0 || b == b'\n' || b == b'\r')
+        .unwrap_or(str_begin.len());
+    let str_bounded = &str_begin[..line_end_idx];
+    let mut cur_off = 0usize;
     let mut found = false;
 
-    if str_cur.is_null() || pat.is_null() {
-        return false;
-    }
-    let pat_bytes = crate::memory::cstr_as_bytes(pat);
-    let line_end = find_line_end(str_cur);
-
-    while (str_cur as usize) < (line_end as usize) {
-        let start = find_word_start(str_cur);
-        if crate::memory::cstr_is_empty(start.cast()) {
+    while cur_off < str_bounded.len() {
+        let mut start_off = cur_off;
+        while start_off < str_bounded.len() && !vim_iswordp(&str_bounded[start_off..]) {
+            start_off += utf_slice2len(&str_bounded[start_off..]).max(1);
+        }
+        if start_off >= str_bounded.len() {
             break;
         }
-        let end = find_word_end(start);
-        let word_len = (end as usize) - (start as usize);
-        let word_slice = crate::memory::cstr_slice(start.cast(), word_len);
+        let mut end_off = start_off;
+        while end_off < str_bounded.len() && vim_iswordp(&str_bounded[end_off..]) {
+            end_off += utf_slice2len(&str_bounded[end_off..]).max(1);
+        }
+        let word_slice = &str_bounded[start_off..end_off];
 
         let mut matchpos = [0u32; FUZZY_MATCH_MAX_LEN];
         *score = FUZZY_SCORE_NONE;
         fuzzy_match_slice(word_slice, pat_bytes, true, score, &mut matchpos);
 
         if *score != FUZZY_SCORE_NONE {
-            *len = word_len as i32;
+            *len = word_slice.len() as i32;
             found = true;
-            *ptr = start;
+            *line = &str_begin[start_off..];
             if let Some(current_pos) = current_pos {
-                current_pos.col += ((end as usize) - (str_begin as usize)) as i32;
+                current_pos.col += end_off as i32;
             }
             break;
         }
 
-        str_cur = end;
-        while !crate::memory::cstr_is_empty(str_cur.cast()) {
-            let rest = crate::memory::cstr_as_bytes(str_cur.cast());
+        cur_off = end_off;
+        while cur_off < str_bounded.len() {
+            let rest = &str_bounded[cur_off..];
             if vim_iswordp(rest) {
                 break;
             }
-            str_cur = str_cur.wrapping_add(utf_slice2len(rest));
+            cur_off += utf_slice2len(rest).max(1);
         }
     }
 
     if !found {
-        *ptr = line_end;
+        *line = &str_begin[line_end_idx..];
     }
 
     found
@@ -790,14 +787,13 @@ pub fn fuzzy_match_str_in_line(
 pub fn search_for_fuzzy_match(
     buf: &mut FileBuf,
     pos: &mut CursorPos,
-    pattern: impl crate::strings::IntoCCharPtr,
+    pattern: Option<&[u8]>,
     dir: i32,
     start_pos: &CursorPos,
     len: &mut i32,
-    ptr: &mut *mut u8,
+    out_line: &mut &'static [u8],
     score: &mut i32,
 ) -> bool {
-    let pattern = pattern.into_c_char_ptr();
     let mut current_pos = *pos;
     let mut found_new_match = false;
     let mut looped_around = false;
@@ -829,15 +825,22 @@ pub fn search_for_fuzzy_match(
         }
 
         if current_pos.lnum >= 1 && current_pos.lnum <= buf.b_ml.ml_line_count {
-            *ptr = ml_get_buf(buf, current_pos.lnum).cast();
-            if !whole_line {
-                *ptr = (*ptr).wrapping_add(current_pos.col as usize);
-            }
+            let full_line = crate::memline::ml_get_buf_slice(buf, current_pos.lnum);
+            *out_line = if !whole_line {
+                &full_line[(current_pos.col as usize).min(full_line.len())..]
+            } else {
+                full_line
+            };
 
-            if !crate::memory::cstr_is_empty((*ptr).cast()) {
+            if !out_line.is_empty() {
                 if !whole_line {
-                    found_new_match =
-                        fuzzy_match_str_in_line(ptr, pattern, len, Some(&mut current_pos), score);
+                    found_new_match = fuzzy_match_str_in_line(
+                        out_line,
+                        pattern,
+                        len,
+                        Some(&mut current_pos),
+                        score,
+                    );
                     if found_new_match {
                         *pos = current_pos;
                         break;
@@ -845,14 +848,12 @@ pub fn search_for_fuzzy_match(
                         break;
                     }
                 } else {
-                    let line = *ptr;
-                    let p = skipwhite(line.cast()).cast::<u8>();
-                    if fuzzy_match_str(p.cast(), pattern) != FUZZY_SCORE_NONE {
+                    let p = crate::charset::skipwhite_slice(out_line);
+                    if fuzzy_match_str(Some(p), pattern) != FUZZY_SCORE_NONE {
                         found_new_match = true;
                         *pos = current_pos;
-                        *ptr = p;
-                        *len = ml_get_buf_len(buf, current_pos.lnum)
-                            - (((p as usize) - (line as usize)) as i32);
+                        *out_line = p;
+                        *len = p.len() as i32;
                         break;
                     }
                 }

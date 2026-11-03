@@ -914,7 +914,7 @@ static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModule
 
 #[inline]
 fn buf_st() -> &'static mut BufferModuleState {
-    crate::globals::gmut(BUF_STATE.as_ptr())
+    BUF_STATE.as_mut()
 }
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
@@ -3341,12 +3341,19 @@ pub fn expand_bufnames(
             if !fuzzy {
                 p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic != 0);
             } else {
-                score = fuzzy_match_str(buf.b_sfname, pat);
+                let pat_opt = crate::memory::cstr_as_opt_cstr(pat).map(CStr::to_bytes);
+                score = fuzzy_match_str(
+                    crate::memory::cstr_as_opt_cstr(buf.b_sfname).map(CStr::to_bytes),
+                    pat_opt,
+                );
                 if score != FUZZY_SCORE_NONE && !buf.b_sfname.is_null() {
                     p = Some(crate::memory::cstr_from_ptr(buf.b_sfname));
                 }
                 if p.is_none() {
-                    score = fuzzy_match_str(buf.b_ffname, pat);
+                    score = fuzzy_match_str(
+                        crate::memory::cstr_as_opt_cstr(buf.b_ffname).map(CStr::to_bytes),
+                        pat_opt,
+                    );
                     if score != FUZZY_SCORE_NONE && !buf.b_ffname.is_null() {
                         p = Some(crate::memory::cstr_from_ptr(buf.b_ffname));
                     }

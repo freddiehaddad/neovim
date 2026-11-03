@@ -521,8 +521,8 @@ pub fn main_loop_ptr() -> &'static mut Loop {
 }
 
 #[inline]
-pub fn main_loop_events() -> *mut MultiQueue {
-    crate::globals::g_st().main_loop.events
+pub fn main_loop_events() -> &'static mut MultiQueue {
+    unsafe { &mut *crate::globals::g_st().main_loop.events }
 }
 
 #[inline]
@@ -708,13 +708,13 @@ pub fn loop_close(loop_: &mut Loop, wait: bool) -> bool {
             rv = false;
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"loop_close",
+                None,
+                Some(c"loop_close"),
                 line!() as i32,
                 true,
                 c"uv_loop_close() hang?",
             );
-            log_uv_handles((&raw mut loop_.uv).cast());
+            log_uv_handles(unsafe { &mut *(&raw mut loop_.uv).cast() });
             break;
         }
         if !didstop {

@@ -58,7 +58,7 @@ static PROF_STATE: GlobalState<ProfileModuleState> = GlobalState::new(ProfileMod
 
 #[inline]
 fn prof_st() -> &'static mut ProfileModuleState {
-    crate::globals::gmut(PROF_STATE.as_ptr())
+    PROF_STATE.as_mut()
 }
 
 const PEXPAND_CMDS: [&CStr; 7] = [
@@ -124,10 +124,10 @@ pub enum EStackInfo {
 
 impl EStackInfo {
     #[inline]
-    pub const fn ufunc(&self) -> *mut UserFunc {
+    pub fn ufunc(&self) -> Option<&'static mut UserFunc> {
         match *self {
-            Self::Ufunc(p) => p,
-            _ => std::ptr::null_mut(),
+            Self::Ufunc(p) => unsafe { p.as_mut() },
+            _ => None,
         }
     }
 
@@ -205,17 +205,17 @@ impl Funccall {
 
     #[inline]
     pub fn func_mut(&self) -> &'static mut UserFunc {
-        crate::globals::gmut(self.fc_func)
+        unsafe { &mut *self.fc_func }
     }
 
     #[inline]
     pub fn rettv_mut(&self) -> &'static mut TypVal {
-        crate::globals::gmut(self.fc_rettv)
+        unsafe { &mut *self.fc_rettv }
     }
 
     #[inline]
     pub fn caller_opt(&self) -> Option<&'static mut Funccall> {
-        crate::globals::gopt_mut(self.fc_caller)
+        unsafe { self.fc_caller.as_mut() }
     }
 }
 
@@ -235,7 +235,7 @@ pub fn profile_msg(tm: Proftime) -> &'static CStr {
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
     {
-        let buf = crate::globals::gmut(std::ptr::addr_of_mut!(prof_st().profile_msg_buf));
+        let buf = &mut prof_st().profile_msg_buf;
         let copy_len = bytes.len().min(buf.len() - 1);
         buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
         buf[copy_len] = 0;
@@ -355,7 +355,7 @@ pub fn profile_reset() {
 
     let functbl = func_tbl_get();
     for &fp in functbl.values() {
-        let uf = crate::globals::gmut(fp);
+        let uf = unsafe { &mut *fp };
         if uf.uf_prof_initialized != 0 {
             uf.uf_profiling = 0;
             uf.uf_tm_count = 0;
@@ -429,11 +429,11 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 }
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
-pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
-    let arg = arg.into_c_char_ptr();
+pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
+    let arg = arg_slice.as_ptr().cast();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
-    xp.xp_pattern = arg.cast_mut().cast();
+    xp.xp_pattern = arg_slice.as_ptr().cast_mut();
 
     let end_subcmd = skiptowhite(arg);
     if crate::memory::cstr_is_empty(end_subcmd) {
@@ -441,7 +441,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::
     }
 
     let len = (end_subcmd as usize) - (arg as usize);
-    let sub_bytes = crate::memory::cstr_slice(arg, len);
+    let sub_bytes = &arg_slice[..len.min(arg_slice.len())];
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
         xp.xp_pattern = skipwhite(end_subcmd).cast();
@@ -498,16 +498,10 @@ fn prof_func_line(
     }
 }
 
-fn prof_sort_list(
-    fd: &CFile,
-    sorttab: &[*mut UserFunc],
-    title: &std::ffi::CStr,
-    prefer_self: bool,
-) {
+fn prof_sort_list(fd: &CFile, sorttab: &[&UserFunc], title: &std::ffi::CStr, prefer_self: bool) {
     fprintf!(fd, c"FUNCTIONS SORTED ON %s TIME\n", title.as_ptr());
     fprintf!(fd, c"count  total (s)   self (s)  function\n");
-    for &fp_ptr in sorttab.iter().take(20) {
-        let fp = crate::globals::gref(fp_ptr);
+    for &fp in sorttab.iter().take(20) {
         prof_func_line(
             fd,
             fp.uf_tm_count,
@@ -525,21 +519,16 @@ fn prof_sort_list(
     fprintf!(fd, c"\n");
 }
 
-fn prof_total_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
-    crate::globals::gptr(s2)
-        .uf_tm_total
-        .cmp(&crate::globals::gptr(s1).uf_tm_total)
+fn prof_total_cmp(s1: &&UserFunc, s2: &&UserFunc) -> std::cmp::Ordering {
+    s2.uf_tm_total.cmp(&s1.uf_tm_total)
 }
 
-fn prof_self_cmp(&s1: &*mut UserFunc, &s2: &*mut UserFunc) -> std::cmp::Ordering {
-    crate::globals::gptr(s2)
-        .uf_tm_self
-        .cmp(&crate::globals::gptr(s1).uf_tm_self)
+fn prof_self_cmp(s1: &&UserFunc, s2: &&UserFunc) -> std::cmp::Ordering {
+    s2.uf_tm_self.cmp(&s1.uf_tm_self)
 }
 
 /// Start profiling function `fp` (`func_do_profile`).
-pub fn func_do_profile(fp: *mut UserFunc) {
-    let fp = crate::globals::gmut(fp);
+pub fn func_do_profile(fp: &mut UserFunc) {
     let mut len = fp.uf_lines.len() as i32;
 
     if fp.uf_prof_initialized == 0 {
@@ -570,29 +559,24 @@ pub fn func_do_profile(fp: *mut UserFunc) {
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
 pub fn prof_child_enter(tm: &mut Proftime) {
+    if let Some(fc) = unsafe { get_current_funccal().as_mut() }
+        && fc.func_mut().uf_profiling != 0
     {
-        let fc = get_current_funccal();
-        if !fc.is_null() && crate::globals::gptr(crate::globals::gptr(fc).fc_func).uf_profiling != 0
-        {
-            crate::globals::gptr(fc).fc_prof_child = profile_start();
-        }
+        fc.fc_prof_child = profile_start();
     }
     script_prof_save(tm);
 }
 
 /// Take care of time spent in a child (`prof_child_exit`).
 pub fn prof_child_exit(tm: &mut Proftime) {
+    if let Some(fc) = unsafe { get_current_funccal().as_mut() }
+        && fc.func_mut().uf_profiling != 0
     {
-        let fc = get_current_funccal();
-        if !fc.is_null() && crate::globals::gptr(crate::globals::gptr(fc).fc_func).uf_profiling != 0
-        {
-            let child_elapsed =
-                profile_sub_wait(*tm, profile_end(crate::globals::gptr(fc).fc_prof_child));
-            crate::globals::gptr(fc).fc_prof_child = child_elapsed;
-            let func = crate::globals::gmut(crate::globals::gptr(fc).fc_func);
-            func.uf_tm_children = profile_add(func.uf_tm_children, child_elapsed);
-            func.uf_tml_children = profile_add(func.uf_tml_children, child_elapsed);
-        }
+        let child_elapsed = profile_sub_wait(*tm, profile_end(fc.fc_prof_child));
+        fc.fc_prof_child = child_elapsed;
+        let func = fc.func_mut();
+        func.uf_tm_children = profile_add(func.uf_tm_children, child_elapsed);
+        func.uf_tml_children = profile_add(func.uf_tml_children, child_elapsed);
     }
     script_prof_restore(tm);
 }
@@ -646,64 +630,56 @@ fn func_dump_profile(fd: &CFile) {
         return;
     }
 
-    let mut sorttab: Vec<*mut UserFunc> = Vec::with_capacity(todo);
+    let mut sorttab: Vec<&UserFunc> = Vec::with_capacity(todo);
 
-    for &fp in functbl.values() {
-        if crate::globals::gptr(fp).uf_prof_initialized != 0 {
+    for &fp_ptr in functbl.values() {
+        let fp = unsafe { &*fp_ptr };
+        if fp.uf_prof_initialized != 0 {
             sorttab.push(fp);
 
-            let name_ptr = crate::globals::gptr(fp).uf_name.as_ptr();
+            let name_ptr = fp.uf_name.as_ptr();
             if (crate::memory::cstr_first_byte(name_ptr)) == K_SPECIAL {
                 fprintf!(fd, c"FUNCTION  <SNR>%s()\n", name_ptr.wrapping_add(3));
             } else {
                 fprintf!(fd, c"FUNCTION  %s()\n", name_ptr);
             }
-            if crate::globals::gptr(fp).uf_script_ctx.sc_sid != 0 {
-                let p = get_scriptname(crate::globals::gptr(fp).uf_script_ctx, true);
+            if fp.uf_script_ctx.sc_sid != 0 {
+                let p = get_scriptname(fp.uf_script_ctx, true);
 
                 fprintf!(
                     fd,
                     c"    Defined: %s:%d\n",
                     p.as_ptr(),
-                    crate::globals::gptr(fp).uf_script_ctx.sc_lnum,
+                    fp.uf_script_ctx.sc_lnum,
                 );
             }
-            if crate::globals::gptr(fp).uf_tm_count == 1 {
+            if fp.uf_tm_count == 1 {
                 fprintf!(fd, c"Called 1 time\n");
             } else {
-                fprintf!(
-                    fd,
-                    c"Called %d times\n",
-                    crate::globals::gptr(fp).uf_tm_count
-                );
+                fprintf!(fd, c"Called %d times\n", fp.uf_tm_count);
             }
 
             fprintf!(
                 fd,
                 c"Total time: %s\n",
-                profile_msg(crate::globals::gptr(fp).uf_tm_total).as_ptr()
+                profile_msg(fp.uf_tm_total).as_ptr()
             );
 
-            fprintf!(
-                fd,
-                c" Self time: %s\n",
-                profile_msg(crate::globals::gptr(fp).uf_tm_self).as_ptr()
-            );
+            fprintf!(fd, c" Self time: %s\n", profile_msg(fp.uf_tm_self).as_ptr());
 
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            for i in 0..crate::globals::gptr(fp).uf_lines.len() as i32 {
-                let Some(ref line) = (*unsafe { &((&(*fp).uf_lines)[i as usize]) }) else {
+            for (idx, line_opt) in fp.uf_lines.iter().enumerate() {
+                let Some(ref line) = *line_opt else {
                     continue;
                 };
-                let idx = i as usize;
 
                 prof_func_line(
                     fd,
-                    crate::globals::gptr(fp).uf_tml_count.as_slice()[idx],
-                    &crate::globals::gptr(fp).uf_tml_total.as_slice()[idx],
-                    &crate::globals::gptr(fp).uf_tml_self.as_slice()[idx],
+                    fp.uf_tml_count.as_slice()[idx],
+                    &fp.uf_tml_total.as_slice()[idx],
+                    &fp.uf_tml_self.as_slice()[idx],
                     true,
                 );
 
@@ -722,8 +698,7 @@ fn func_dump_profile(fd: &CFile) {
 }
 
 /// Start profiling a script (`profile_init`).
-pub fn profile_init(si: *mut Scriptitem) {
-    let si = crate::globals::gmut(si);
+pub fn profile_init(si: &mut Scriptitem) {
     si.sn_pr_count = 0;
     si.sn_pr_total = profile_zero();
     si.sn_pr_self = profile_zero();
@@ -943,60 +918,54 @@ pub fn time_start(message: &std::ffi::CStr) {
     fprintf!(tf, c" clock   self+sourced   self:  sourced script\n",);
     fprintf!(tf, c" clock   elapsed:              other lines\n\n",);
 
-    time_msg(message.as_ptr(), None);
+    time_msg(message, None);
 }
 
 /// Prints out timing info (`time_msg`).
-pub fn time_msg(mesg: impl crate::strings::IntoCCharPtr, start: Option<&Proftime>) {
-    let mesg = mesg.into_c_char_ptr();
-    {
-        let Some(ref tf) = g_st().time_fd else {
-            return;
-        };
+pub fn time_msg(mesg: &CStr, start: Option<&Proftime>) {
+    let Some(ref tf) = g_st().time_fd else {
+        return;
+    };
 
-        let now = profile_start();
-        time_diff(prof_st().g_start_time, now);
+    let now = profile_start();
+    time_diff(prof_st().g_start_time, now);
 
-        if let Some(start) = start {
-            fprintf!(tf, c"  ");
-            time_diff(*start, now);
-        }
-
+    if let Some(start) = start {
         fprintf!(tf, c"  ");
-        let prev = prof_st().g_prev_time;
-        prof_st().g_prev_time = now;
-        time_diff(prev, now);
-
-        fprintf!(tf, c": %s\n", mesg);
+        time_diff(*start, now);
     }
+
+    fprintf!(tf, c"  ");
+    let prev = prof_st().g_prev_time;
+    prof_st().g_prev_time = now;
+    time_diff(prev, now);
+
+    fprintf!(tf, c": %s\n", mesg.as_ptr());
 }
 
 /// Initializes the `time_fd` stream for `--startuptime` (`time_init`).
-pub fn time_init(
-    fname: impl crate::strings::IntoCCharPtr,
-    proc_name: impl crate::strings::IntoCCharPtr,
-) {
-    let fname = fname.into_c_char_ptr();
-    let proc_name = proc_name.into_c_char_ptr();
-    {
-        const BUFSIZE: usize = 8192;
-        g_st().time_fd = CFile::open_libc(fname, c"a");
-        let Some(ref tf) = g_st().time_fd else {
-            let fname_str = crate::memory::cstr_from_ptr(fname).to_string_lossy();
-            eprint!("E484: Can't open file {fname_str}");
-            return;
-        };
-        prof_st().startuptime_buf = vec![0; BUFSIZE + 1];
-        let r = tf.setvbuf(&mut prof_st().startuptime_buf, IOFBF);
-        if r != 0 {
-            prof_st().startuptime_buf = Vec::new();
-            g_st().time_fd = None;
-            let err_str = crate::memory::cstr_from_ptr(unsafe { uv_err_name(r) }).to_string_lossy();
-            eprint!("time_init: setvbuf failed: {r} {err_str}");
-            return;
-        }
-        fprintf!(tf, c"--- Startup times for process: %s ---\n", proc_name,);
+pub fn time_init(fname: &CStr, proc_name: &CStr) {
+    const BUFSIZE: usize = 8192;
+    g_st().time_fd = CFile::open_libc(fname, c"a");
+    let Some(ref tf) = g_st().time_fd else {
+        let fname_str = fname.to_string_lossy();
+        eprint!("E484: Can't open file {fname_str}");
+        return;
+    };
+    prof_st().startuptime_buf = vec![0; BUFSIZE + 1];
+    let r = tf.setvbuf(&mut prof_st().startuptime_buf, IOFBF);
+    if r != 0 {
+        prof_st().startuptime_buf = Vec::new();
+        g_st().time_fd = None;
+        let err_str = crate::memory::cstr_from_ptr(unsafe { uv_err_name(r) }).to_string_lossy();
+        eprint!("time_init: setvbuf failed: {r} {err_str}");
+        return;
     }
+    fprintf!(
+        tf,
+        c"--- Startup times for process: %s ---\n",
+        proc_name.as_ptr(),
+    );
 }
 
 /// Flushes the startuptimes to disk for the current process (`time_finish`).

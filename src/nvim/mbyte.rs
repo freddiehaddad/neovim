@@ -860,7 +860,7 @@ static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> =
 
 #[inline]
 fn mbyte_st() -> &'static mut MbyteModuleState {
-    crate::globals::gmut(MBYTE_STATE.as_ptr())
+    MBYTE_STATE.as_mut()
 }
 
 unsafe extern "C" {

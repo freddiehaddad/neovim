@@ -346,7 +346,7 @@ static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsStat
 
 #[inline]
 fn funcs_st() -> &'static mut EvalFuncsState {
-    crate::globals::gmut(FUNCS_STATE.as_ptr())
+    FUNCS_STATE.as_mut()
 }
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
@@ -1826,11 +1826,11 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if !error && let Some(message) = message {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(do_dialog(
             type_,
-            ptr::null(),
-            message.as_ptr(),
-            buttons.cast(),
+            None,
+            message,
+            crate::memory::cstr_from_ptr(buttons.cast()),
             def,
-            ptr::null(),
+            None,
             0,
         )));
     }
@@ -4148,7 +4148,7 @@ pub fn f_inputlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     let mut mouse_used = false;
-    let mut selected = prompt_for_input(ptr::null_mut(), 0, false, Some(&mut mouse_used));
+    let mut selected = prompt_for_input(None, 0, false, Some(&mut mouse_used));
     if mouse_used {
         selected = tv_list_len(l.as_deref()) - (g_st().cmdline_row - g_st().mouse_row);
     }
@@ -4590,7 +4590,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         detach = false;
         stdin_mode = K_CHANNEL_STDIN_PIPE_CONST;
         if width == 0 {
-            width = (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16;
+            width = (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16;
         }
         if height == 0 {
             height = curwin_mut().w_view_height as u16;
@@ -4943,7 +4943,7 @@ pub fn f_keytrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
         return;
     }
-    let escaped = vim_strsave_escape_ks(argvars[0].vval.v_string());
+    let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(argvars[0].vval.v_string()));
     crate::eval::typval::tv_set_string(
         rettv,
         str2special_save(escaped.as_bytes(), true, 1).as_ptr(),

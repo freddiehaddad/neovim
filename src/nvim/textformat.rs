@@ -169,7 +169,7 @@ static TF_STATE: crate::globals::GlobalState<TextformatState> =
 
 #[inline]
 fn tf_st() -> &'static mut TextformatState {
-    crate::globals::gmut(TF_STATE.as_ptr())
+    TF_STATE.as_mut()
 }
 
 #[inline]
@@ -506,7 +506,7 @@ pub fn internal_format(
                     } else if leader_len > 0 && second_indent - leader_len > 0 {
                         let padding = second_indent - leader_len;
                         for _ in 0..padding {
-                            ins_str(c" ".as_ptr(), 1);
+                            ins_str(b" ", 1);
                         }
                     } else {
                         set_indent(second_indent, SIN_CHANGED);
@@ -517,7 +517,7 @@ pub fn internal_format(
         }
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            ins_bytes(saved_text.as_mut_ptr().cast());
+            ins_bytes(&saved_text);
         } else {
             curwin_mut().w_cursor.col += startcol;
             let len = get_cursor_line_len();

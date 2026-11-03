@@ -133,7 +133,7 @@ static PROC_STATE: crate::globals::GlobalState<ProcModuleState> =
 
 #[inline]
 fn proc_st() -> &'static mut ProcModuleState {
-    unsafe { &mut *PROC_STATE.as_ptr() }
+    PROC_STATE.as_mut()
 }
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};

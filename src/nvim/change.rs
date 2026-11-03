@@ -11,8 +11,7 @@ use crate::charset::{
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
-    Colnr, CursorPos, Linenr, check_cursor_lnum, check_visual_pos, coladvance_force,
-    get_cursor_line_len, get_cursor_line_ptr, getviscol,
+    Colnr, CursorPos, Linenr, check_cursor_lnum, check_visual_pos, coladvance_force, getviscol,
 };
 use crate::diff::{diff_internal, diff_lnum_win, diff_update_line};
 use crate::drawscreen::{
@@ -36,7 +35,7 @@ use crate::mark::{JUMPLISTSIZE, mark_adjust, mark_col_adjust, mark_view_make, re
 use crate::marktree::{K_MTMETA_INLINE, K_MTMETA_LINES};
 use crate::mbyte::{
     mb_adjust_cursor, ptr2cells, utf_char2slice, utf_composinglike, utf_head_off,
-    utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len, utfc_ptr2len_len,
+    utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::{
@@ -650,23 +649,19 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
 }
 
 /// Insert string `p` at the cursor position. Stops at a NUL byte.
-pub fn ins_bytes(p: impl crate::strings::IntoCCharPtr) {
-    let p = p.into_c_char_ptr();
-    {
-        ins_bytes_len(p, crate::memory::cstr_len(p));
-    }
+pub fn ins_bytes(p: &[u8]) {
+    let len = p.iter().position(|&b| b == 0).unwrap_or(p.len());
+    ins_bytes_len(p, len);
 }
 
 /// Insert string `p` with length `len` at the cursor position.
-pub fn ins_bytes_len(p: impl crate::strings::IntoCCharPtr, len: usize) {
-    let p = p.into_c_char_ptr();
-    {
-        let mut i: usize = 0;
-        while i < len {
-            let n = utfc_ptr2len_len(p.wrapping_add(i), (len - i) as i32) as usize;
-            ins_char_bytes(p.wrapping_add(i), n);
-            i += n;
-        }
+pub fn ins_bytes_len(p: &[u8], len: usize) {
+    let p = &p[..len.min(p.len())];
+    let mut i: usize = 0;
+    while i < p.len() {
+        let n = crate::mbyte::utfc_slice2len(&p[i..]).min(p.len() - i);
+        ins_char_bytes(&p[i..], n);
+        i += n;
     }
 }
 
@@ -678,11 +673,15 @@ pub fn ins_char(c: i32) {
     if buf[0] == 0 {
         buf[0] = b'\n';
     }
-    ins_char_bytes(buf.as_mut_ptr().cast(), n);
+    ins_char_bytes(&buf, n);
 }
 
-pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
-    let buf = buf.into_c_char_ptr();
+pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
+    let buf_slice = &buf[..charlen.min(buf.len())];
+    let mut buf_cstr = [0u8; MB_MAXCHAR + 1];
+    let copy_len = buf_slice.len().min(MB_MAXCHAR);
+    buf_cstr[..copy_len].copy_from_slice(&buf_slice[..copy_len]);
+    let buf_ptr = buf_cstr.as_ptr().cast();
     {
         if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
             coladvance_force(getviscol());
@@ -711,7 +710,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
                     None,
                     0,
                 );
-                let new_vcol = vcol + win_chartabsize(curwin_mut(), buf, vcol);
+                let new_vcol = vcol + win_chartabsize(curwin_mut(), buf_ptr, vcol);
                 while !crate::memory::cstr_is_empty(oldp.wrapping_add(col + oldlen))
                     && vcol < new_vcol
                 {
@@ -736,7 +735,6 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
         }
 
         let old_slice = crate::memory::cstr_slice(oldp, linelen);
-        let buf_slice = crate::memory::cstr_slice(buf, charlen);
         let mut newp_vec = vec![0u8; linelen + newlen - oldlen];
         newp_vec[..col].copy_from_slice(&old_slice[..col]);
         if linelen > col + oldlen {
@@ -754,7 +752,7 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
             && g_st().msg_silent == 0
             && !ins_compl_active()
         {
-            showmatch(utf_ptr2char(buf));
+            showmatch(crate::mbyte::utf_slice2char(buf_slice));
         }
 
         if opt_vars().p_ri == 0 || (g_st().state_global & REPLACE_FLAG) != 0 {
@@ -764,31 +762,28 @@ pub fn ins_char_bytes(buf: impl crate::strings::IntoCCharPtr, charlen: usize) {
 }
 
 /// Insert a string at the cursor position.
-pub fn ins_str(s: impl crate::strings::IntoCCharPtr, slen: usize) {
-    let s = s.into_c_char_ptr();
-    {
-        let lnum = curwin_mut().w_cursor.lnum;
+pub fn ins_str(s: &[u8], slen: usize) {
+    let lnum = curwin_mut().w_cursor.lnum;
 
-        if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
-            coladvance_force(getviscol());
-        }
-
-        let col = curwin_mut().w_cursor.col;
-        let old_slice = crate::memline::ml_get_slice(lnum);
-        let col_usize = col as usize;
-        let s_slice = crate::memory::cstr_slice(s, slen);
-
-        let mut newp_vec = Vec::with_capacity(old_slice.len() + slen + 1);
-        newp_vec.extend_from_slice(&old_slice[..col_usize]);
-        newp_vec.extend_from_slice(s_slice);
-        newp_vec.extend_from_slice(&old_slice[col_usize..]);
-        newp_vec.push(0);
-
-        ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
-        drop(newp_vec);
-        inserted_bytes(lnum, col, 0, slen as i32);
-        curwin_mut().w_cursor.col += slen as Colnr;
+    if virtual_active(curwin_mut()) && curwin_mut().w_cursor.coladd > 0 {
+        coladvance_force(getviscol());
     }
+
+    let col = curwin_mut().w_cursor.col;
+    let old_slice = crate::memline::ml_get_slice(lnum);
+    let col_usize = col as usize;
+    let s_slice = &s[..slen.min(s.len())];
+
+    let mut newp_vec = Vec::with_capacity(old_slice.len() + slen + 1);
+    newp_vec.extend_from_slice(&old_slice[..col_usize]);
+    newp_vec.extend_from_slice(s_slice);
+    newp_vec.extend_from_slice(&old_slice[col_usize..]);
+    newp_vec.push(0);
+
+    ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
+    drop(newp_vec);
+    inserted_bytes(lnum, col, 0, slen as i32);
+    curwin_mut().w_cursor.col += slen as Colnr;
 }
 
 /// Delete one character under the cursor.
@@ -956,23 +951,25 @@ pub fn open_line(
 
         replace_push_nul();
         replace_push_nul();
-        let p = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
+        let col_u = curwin_mut().w_cursor.col as usize;
+        let p = saved_line.wrapping_add(col_u);
         replace_push(p.cast(), crate::memory::cstr_len(p.cast()));
 
-        *crate::globals::gptr(saved_line.wrapping_add(curwin_mut().w_cursor.col as usize)) = 0;
+        saved_line_vec[col_u] = 0;
     }
 
     if (g_st().state_global & MODE_INSERT) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
-        p_extra = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
+        let col_u = curwin_mut().w_cursor.col as usize;
+        p_extra = saved_line.wrapping_add(col_u);
         if do_si {
             let p = skipwhite(p_extra.cast());
             first_char = i32::from(crate::memory::cstr_first_byte(p));
         }
         extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
 
-        saved_char = *crate::globals::gptr(p_extra);
+        saved_char = saved_line_vec[col_u];
 
-        *crate::globals::gptr(p_extra) = 0;
+        saved_line_vec[col_u] = 0;
     }
 
     u_clearline(curbuf_mut());
@@ -987,7 +984,7 @@ pub fn open_line(
         newindent = second_line_indent;
     } else if curbuf_mut().b_p_ai != 0 || do_si {
         newindent = indent_size_ts(
-            saved_line.cast(),
+            crate::memory::cstr_as_bytes(saved_line.cast()),
             curbuf_mut().b_p_ts,
             &curbuf_mut().b_p_vts_array,
         );
@@ -1030,9 +1027,8 @@ pub fn open_line(
                         while idx < ptr_bytes.len() {
                             if ptr_bytes[idx] == b'/' && ptr_bytes[idx - 1] == b'*' {
                                 curwin_mut().w_cursor.col = idx as Colnr;
-                                let pos = findmatch(None, 0);
-                                if !pos.is_null() {
-                                    curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+                                if let Some(pos) = findmatch(None, 0) {
+                                    curwin_mut().w_cursor.lnum = pos.lnum;
 
                                     newindent = get_indent();
                                     break;
@@ -1059,9 +1055,8 @@ pub fn open_line(
                     }
                     if ptr_bytes.get(p_idx) == Some(&b')') {
                         curwin_mut().w_cursor.col = p_idx as Colnr;
-                        let pos = findmatch(None, b'(' as i32);
-                        if !pos.is_null() {
-                            curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+                        if let Some(pos) = findmatch(None, b'(' as i32) {
+                            curwin_mut().w_cursor.lnum = pos.lnum;
 
                             newindent = get_indent();
                             ptr_bytes = crate::cursor::get_cursor_line_slice();
@@ -1168,14 +1163,15 @@ pub fn open_line(
         while !crate::memory::cstr_is_empty(p.cast())
             && crate::memory::cstr_first_byte(p.cast()) != b':'
         {
-            if *crate::globals::gptr(p) == COM_BLANK {
+            let p_byte = crate::memory::cstr_first_byte(p.cast());
+            if p_byte == COM_BLANK {
                 require_blank = true;
                 p = p.wrapping_add(1);
                 continue;
             }
-            if *crate::globals::gptr(p) == COM_START || *crate::globals::gptr(p) == COM_MIDDLE {
-                let current_flag = *crate::globals::gptr(p);
-                if *crate::globals::gptr(p) == COM_START {
+            if p_byte == COM_START || p_byte == COM_MIDDLE {
+                let current_flag = p_byte;
+                if p_byte == COM_START {
                     if dir == BACKWARD {
                         lead_len = 0;
                         break;
@@ -1185,9 +1181,9 @@ pub fn open_line(
                 }
 
                 while !crate::memory::cstr_is_empty(p.cast())
-                    && *crate::globals::gptr(p.wrapping_sub(1)) != b':'
+                    && crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) != b':'
                 {
-                    if *crate::globals::gptr(p) == COM_BLANK {
+                    if crate::memory::cstr_first_byte(p.cast()) == COM_BLANK {
                         require_blank = true;
                     }
                     p = p.wrapping_add(1);
@@ -1197,9 +1193,9 @@ pub fn open_line(
                         as i32;
 
                 while !crate::memory::cstr_is_empty(p.cast())
-                    && *crate::globals::gptr(p.wrapping_sub(1)) != b':'
+                    && crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) != b':'
                 {
-                    if *crate::globals::gptr(p) == COM_AUTO_END {
+                    if crate::memory::cstr_first_byte(p.cast()) == COM_AUTO_END {
                         g_st().ins_global.end_comment_pending = -1;
                     }
                     p = p.wrapping_add(1);
@@ -1230,21 +1226,20 @@ pub fn open_line(
                         lead_repl_len = lead_middle_len;
                     }
 
-                    if !ascii_iswhite(*crate::globals::gptr(
-                        saved_line.wrapping_add((lead_len - 1) as usize),
-                    )) && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
-                        || (p_extra.is_null()
-                            && crate::memory::cstr_is_empty(
-                                saved_line.wrapping_add(lead_len as usize).cast(),
-                            ))
-                        || require_blank)
+                    if !ascii_iswhite(saved_line_vec[(lead_len - 1) as usize])
+                        && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
+                            || (p_extra.is_null()
+                                && crate::memory::cstr_is_empty(
+                                    saved_line.wrapping_add(lead_len as usize).cast(),
+                                ))
+                            || require_blank)
                     {
                         extra_space = true;
                     }
                 }
                 break;
             }
-            if *crate::globals::gptr(p) == COM_END {
+            if p_byte == COM_END {
                 if dir == FORWARD {
                     comment_end = skipwhite(saved_line.cast()).cast();
                     lead_len = 0;
@@ -1258,7 +1253,7 @@ pub fn open_line(
                 }
                 lead_repl = p;
                 while lead_repl > curbuf_mut().b_p_com.cast()
-                    && *crate::globals::gptr(lead_repl.wrapping_sub(1)) != b':'
+                    && crate::memory::cstr_first_byte(lead_repl.wrapping_sub(1).cast()) != b':'
                 {
                     lead_repl = lead_repl.wrapping_sub(1);
                 }
@@ -1270,7 +1265,7 @@ pub fn open_line(
                 while !crate::memory::cstr_is_empty(p2.cast())
                     && crate::memory::cstr_first_byte(p2.cast()) != b':'
                 {
-                    if *crate::globals::gptr(p2) == COM_AUTO_END {
+                    if crate::memory::cstr_first_byte(p2.cast()) == COM_AUTO_END {
                         g_st().ins_global.end_comment_pending = -1;
                     }
                     p2 = p2.wrapping_add(1);
@@ -1283,11 +1278,11 @@ pub fn open_line(
                     }
 
                     g_st().ins_global.end_comment_pending =
-                        i32::from(*crate::globals::gptr(p2.wrapping_sub(1)));
+                        i32::from(crate::memory::cstr_first_byte(p2.wrapping_sub(1).cast()));
                 }
                 break;
             }
-            if *crate::globals::gptr(p) == COM_FIRST {
+            if p_byte == COM_FIRST {
                 if dir == BACKWARD {
                     lead_len = 0;
                 } else {
@@ -1329,14 +1324,12 @@ pub fn open_line(
                 while !crate::memory::cstr_is_empty(p.cast())
                     && crate::memory::cstr_first_byte(p.cast()) != b':'
                 {
-                    if *crate::globals::gptr(p) == COM_RIGHT || *crate::globals::gptr(p) == COM_LEFT
-                    {
-                        c = *crate::globals::gptr(p);
+                    let pb = crate::memory::cstr_first_byte(p.cast());
+                    if pb == COM_RIGHT || pb == COM_LEFT {
+                        c = pb;
 
                         p = p.wrapping_add(1);
-                    } else if ascii_isdigit(crate::memory::cstr_first_byte(p.cast()))
-                        || crate::memory::cstr_first_byte(p.cast()) == b'-'
-                    {
+                    } else if ascii_isdigit(pb) || pb == b'-' {
                         let p_bytes = crate::memory::cstr_as_bytes(p.cast());
                         let mut rem = p_bytes;
                         off = getdigits_int(&mut rem, true, 0);
@@ -1384,7 +1377,7 @@ pub fn open_line(
                     if p.wrapping_add(lead_repl_len as usize)
                         > leader.wrapping_add(lead_len as usize)
                     {
-                        *crate::globals::gptr(p.wrapping_add(lead_repl_len as usize)) = 0;
+                        unsafe { *p.wrapping_add(lead_repl_len as usize) = 0 };
                     }
 
                     while {
@@ -1395,7 +1388,7 @@ pub fn open_line(
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
                             if ptr2cells(p.cast()) > 1 {
-                                *crate::globals::gptr(p.wrapping_add(1)) = b' ';
+                                unsafe { *p.wrapping_add(1) = b' ' };
 
                                 l -= 1;
                             }
@@ -1413,9 +1406,9 @@ pub fn open_line(
 
                             lead_len -= l;
 
-                            *crate::globals::gptr(p) = b' ';
+                            unsafe { *p = b' ' };
                         } else if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
-                            *crate::globals::gptr(p) = b' ';
+                            unsafe { *p = b' ' };
                         }
                     }
                 } else {
@@ -1454,7 +1447,7 @@ pub fn open_line(
                     while p < leader.wrapping_add(lead_len as usize) {
                         if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
                             if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
-                                && *crate::globals::gptr(p.wrapping_add(1)) == TAB
+                                && crate::memory::cstr_first_byte(p.wrapping_add(1).cast()) == TAB
                             {
                                 lead_len -= 1;
 
@@ -1474,7 +1467,7 @@ pub fn open_line(
                                     if ptr2cells(p.cast()) > 1 {
                                         l -= 1;
 
-                                        *crate::globals::gptr(p) = b' ';
+                                        unsafe { *p = b' ' };
 
                                         p = p.wrapping_add(1);
                                     }
@@ -1493,18 +1486,18 @@ pub fn open_line(
                                     lead_len -= l - 1;
                                 }
 
-                                *crate::globals::gptr(p) = b' ';
+                                unsafe { *p = b' ' };
                             }
                         }
                         p = p.wrapping_add(1);
                     }
 
-                    *crate::globals::gptr(p) = 0;
+                    unsafe { *p = 0 };
                 }
 
                 if curbuf_mut().b_p_ai != 0 || do_si {
                     newindent = indent_size_ts(
-                        leader.cast(),
+                        crate::memory::cstr_as_bytes(leader.cast()),
                         curbuf_mut().b_p_ts,
                         &curbuf_mut().b_p_vts_array,
                     );
@@ -1517,10 +1510,7 @@ pub fn open_line(
                     newindent += off;
                 }
 
-                while off > 0
-                    && lead_len > 0
-                    && *crate::globals::gptr(leader.wrapping_add((lead_len - 1) as usize)) == b' '
-                {
+                while off > 0 && lead_len > 0 && allocated_vec[(lead_len - 1) as usize] == b' ' {
                     if crate::strings::vim_haschr(skipwhite(leader.cast()), b'\t' as i32) {
                         break;
                     }
@@ -1528,23 +1518,19 @@ pub fn open_line(
                     off -= 1;
                 }
 
-                if lead_len > 0
-                    && ascii_iswhite(*crate::globals::gptr(
-                        leader.wrapping_add((lead_len - 1) as usize),
-                    ))
-                {
+                if lead_len > 0 && ascii_iswhite(allocated_vec[(lead_len - 1) as usize]) {
                     extra_space = false;
                 }
 
-                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = 0;
+                allocated_vec[lead_len as usize] = 0;
             }
 
             if extra_space {
-                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = b' ';
+                allocated_vec[lead_len as usize] = b' ';
 
                 lead_len += 1;
 
-                *crate::globals::gptr(leader.wrapping_add(lead_len as usize)) = 0;
+                allocated_vec[lead_len as usize] = 0;
             }
 
             newcol = lead_len;
@@ -1566,9 +1552,8 @@ pub fn open_line(
             let old_cursor = curwin_mut().w_cursor;
             curwin_mut().w_cursor.col =
                 crate::memory::ptr_offset_from(comment_end, saved_line) as Colnr;
-            let pos = findmatch(None, 0);
-            if !pos.is_null() {
-                curwin_mut().w_cursor.lnum = crate::globals::gptr(pos).lnum;
+            if let Some(pos) = findmatch(None, 0) {
+                curwin_mut().w_cursor.lnum = pos.lnum;
 
                 newindent = get_indent();
             }
@@ -1577,7 +1562,7 @@ pub fn open_line(
     }
 
     if !p_extra.is_null() {
-        *crate::globals::gptr(p_extra) = saved_char;
+        unsafe { *p_extra = saved_char };
 
         if replace_normal(g_st().state_global) {
             replace_push_nul();
@@ -1703,7 +1688,7 @@ pub fn open_line(
                 newindent += sw;
             }
             if curbuf_mut().b_p_ci != 0 {
-                copy_indent(newindent, saved_line.cast());
+                copy_indent(newindent, crate::memory::cstr_as_bytes(saved_line.cast()));
                 curbuf_mut().b_p_pi = 1;
             } else {
                 set_indent(newindent, SIN_INSERT | SIN_NOMARK);
@@ -1735,9 +1720,7 @@ pub fn open_line(
 
         if dir == FORWARD {
             if trunc_line || (g_st().state_global & MODE_INSERT) != 0 {
-                *crate::globals::gptr(
-                    saved_line.wrapping_add(curwin_mut().w_cursor.col as usize),
-                ) = 0;
+                saved_line_vec[curwin_mut().w_cursor.col as usize] = 0;
 
                 if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
                     let col_idx = curwin_mut().w_cursor.col as usize;
@@ -1856,13 +1839,7 @@ pub fn open_line(
         }
 
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            let mut extra_vec = unsafe {
-                std::slice::from_raw_parts(
-                    get_cursor_line_ptr(),
-                    get_cursor_line_len() as usize + 1,
-                )
-            }
-            .to_vec();
+            let extra_vec = crate::cursor::get_cursor_line_slice().to_vec();
             ml_replace(
                 curwin_mut().w_cursor.lnum,
                 next_line_vec.as_mut_ptr().cast(),
@@ -1870,7 +1847,7 @@ pub fn open_line(
             );
             curwin_mut().w_cursor.col = 0;
             curwin_mut().w_cursor.coladd = 0;
-            ins_bytes(extra_vec.as_mut_ptr());
+            ins_bytes(&extra_vec);
         }
 
         retval = true;

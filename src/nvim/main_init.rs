@@ -256,7 +256,7 @@ static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> =
 
 #[inline]
 fn main_init_st() -> &'static mut MainInitState {
-    crate::globals::gmut(MAIN_INIT_STATE.as_ptr())
+    MAIN_INIT_STATE.as_mut()
 }
 
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
@@ -275,7 +275,7 @@ use crate::os::os_win_console::{GetVersionExA, OsVersionInfoA};
 #[inline]
 fn time_msg_if_enabled(s: &std::ffi::CStr) {
     if has_time_fd() {
-        time_msg(s.as_ptr(), None);
+        time_msg(s, None);
     }
 }
 
@@ -557,7 +557,7 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
     }
     g_st().redrawing_disabled += 1;
 
-    unsafe { setbuf(crate::log::log_get_stdout(), ptr::null_mut()) };
+    unsafe { setbuf(crate::log::log_get_stdout().as_ptr(), ptr::null_mut()) };
 
     g_st().full_screen = !g_st().silent_mode;
 
@@ -808,8 +808,8 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
         g_st().msg_scroll = 1;
         logmsg_str(
             LOGLVL_DBG,
-            ptr::null(),
-            c"main",
+            None,
+            Some(c"main"),
             line!() as i32,
             true,
             c"executing Lua -l script",
@@ -827,8 +827,8 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
         if !params.input_istext && !g_st().stdin_isatty {
             logmsg_str(
                 LOGLVL_DBG,
-                ptr::null(),
-                c"main",
+                None,
+                Some(c"main"),
                 line!() as i32,
                 true,
                 c"executing stdin as Ex commands",
@@ -850,8 +850,8 @@ fn nvim_main_inner(argc: i32, argv: *mut *mut u8) -> i32 {
     time_msg_if_enabled(c"before starting main loop");
     logmsg_str(
         LOGLVL_INF,
-        ptr::null(),
-        c"main",
+        None,
+        Some(c"main"),
         line!() as i32,
         true,
         c"starting main loop",
@@ -901,11 +901,11 @@ pub fn os_exit(mut r: i32) -> ! {
     let _ = write!(&mut msg[..], "Nvim exit: {r}\0");
     logmsg_str(
         LOGLVL_INF,
-        ptr::null(),
-        c"os_exit",
+        None,
+        Some(c"os_exit"),
         line!() as i32,
         true,
-        msg.as_ptr().cast(),
+        CStr::from_bytes_until_nul(&msg).unwrap_or(c""),
     );
 
     if MAIN_EXITFREE {
@@ -1024,8 +1024,8 @@ pub fn getout(mut exitval: i32) -> ! {
         if !g_st().headless_mode && input_unanswerable() {
             logmsg!(
                 LOGLVL_WRN,
-                ptr::null(),
-                c"getout",
+                None,
+                Some(c"getout"),
                 line!() as i32,
                 true,
                 c"Exiting with error: \"%s\"",
@@ -1850,11 +1850,11 @@ fn init_startuptime(paramp: &mut Mparm) {
             .is_some_and(|b| b.eq_ignore_ascii_case(b"--startuptime"))
         {
             time_init(
-                raw_args[idx + 2].cast(),
+                crate::memory::cstr_from_ptr(raw_args[idx + 2].cast()),
                 if is_embed {
-                    c"Embedded".as_ptr()
+                    c"Embedded"
                 } else {
-                    c"Primary (or UI client)".as_ptr()
+                    c"Primary (or UI client)"
                 },
             );
             time_start(c"--- NVIM STARTING ---");

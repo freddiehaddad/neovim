@@ -77,7 +77,7 @@ static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::n
 
 #[inline]
 fn uic_st() -> &'static mut UiClientState {
-    crate::globals::gmut(UIC_STATE.as_ptr())
+    UIC_STATE.as_mut()
 }
 
 #[inline]
@@ -134,7 +134,7 @@ pub fn ui_client_start_server(exepath: &CStr, argv: &[CString]) -> u64 {
         }
     }
 
-    *crate::globals::gptr(channel.cast::<u64>())
+    unsafe { (*channel).id }
 }
 
 /// Attaches this client to the UI channel, and sets its client info (`ui_client_attach`).
@@ -276,8 +276,8 @@ pub fn ui_client_run() -> ! {
     if os_env_exists(c"NVIM_LOG_FILE", true) {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"ui_client_run",
+            None,
+            Some(c"ui_client_run"),
             164,
             true,
             c"test log message",
@@ -287,12 +287,12 @@ pub fn ui_client_run() -> ! {
     time_finish();
 
     loop {
-        let events = loop_queues(&mut g_st().main_loop).events;
-        if !multiqueue_empty(crate::globals::gref(events)) {
-            multiqueue_process_events(crate::globals::gmut(events));
+        let events = crate::event::r#loop::main_loop_events();
+        if !multiqueue_empty(events) {
+            multiqueue_process_events(events);
         } else {
             loop_poll_events(&mut g_st().main_loop, -1);
-            multiqueue_process_events(crate::globals::gmut(events));
+            multiqueue_process_events(crate::event::r#loop::main_loop_events());
         }
     }
 }
@@ -363,8 +363,8 @@ pub fn ui_client_event_grid_resize(args: Array) {
     {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"ui_client_event_grid_resize",
+            None,
+            Some(c"ui_client_event_grid_resize"),
             242,
             true,
             c"Error handling ui event 'grid_resize'",
@@ -414,8 +414,8 @@ pub fn ui_client_event_connect(args: Array) {
     if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"ui_client_event_connect",
+            None,
+            Some(c"ui_client_event_connect"),
             281,
             true,
             c"Error handling UI event 'connect'",
@@ -432,7 +432,7 @@ pub fn ui_client_event_connect(args: Array) {
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();
     multiqueue_put_event(
-        crate::globals::gmut(loop_queues(&mut g_st().main_loop).fast_events),
+        unsafe { &mut *loop_queues(&mut g_st().main_loop).fast_events },
         Event::UiClientConnect(server_addr),
     );
     g_st().ui_client_channel_id = u64::MAX;
@@ -448,8 +448,8 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
     if let Some(err_cstr) = err {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"channel_connect_event",
+            None,
+            Some(c"channel_connect_event"),
             302,
             true,
             c"Cannot connect to server %s: %s",
@@ -471,8 +471,8 @@ pub fn channel_connect_event(server_addr: std::ffi::CString) {
 
     logmsg!(
         LOGLVL_INF,
-        ptr::null(),
-        c"channel_connect_event",
+        None,
+        Some(c"channel_connect_event"),
         312,
         true,
         c"Connected to server %s on channel %lld",
@@ -519,8 +519,8 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
     if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeString {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"ui_client_attach_to_restarted_server",
+            None,
+            Some(c"ui_client_attach_to_restarted_server"),
             362,
             true,
             c"Error handling ui event 'restart'",
@@ -534,8 +534,8 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         if args.size < 2 || args[1].obj_type != ObjectType::ObjectTypeArray {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"ui_client_attach_to_restarted_server",
+                None,
+                Some(c"ui_client_attach_to_restarted_server"),
                 370,
                 true,
                 c"Error handling ui event 'restart'",
@@ -567,8 +567,8 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
         if let Some(err_cstr) = err {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"ui_client_attach_to_restarted_server",
+                None,
+                Some(c"ui_client_attach_to_restarted_server"),
                 391,
                 true,
                 c"cannot connect to server %s: %s",
@@ -600,8 +600,8 @@ pub fn ui_client_attach_to_restarted_server(error_restart: bool) {
 
     logmsg!(
         LOGLVL_INF,
-        ptr::null(),
-        c"ui_client_attach_to_restarted_server",
+        None,
+        Some(c"ui_client_attach_to_restarted_server"),
         406,
         true,
         c"restarted server address=%s id=%lld",
@@ -615,8 +615,8 @@ pub fn ui_client_event_error_exit(args: Array) {
     if args.size < 1 || args[0].obj_type != ObjectType::ObjectTypeInteger {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"ui_client_event_error_exit",
+            None,
+            Some(c"ui_client_event_error_exit"),
             419,
             true,
             c"Error handling ui event 'error_exit'",
@@ -642,8 +642,8 @@ pub struct UIClientHandler {
 fn log_ui_event_err(func_name: &std::ffi::CStr, ev_name: &std::ffi::CStr) {
     logmsg!(
         LOGLVL_ERR,
-        ptr::null(),
-        func_name.as_ptr(),
+        None,
+        Some(func_name),
         0,
         true,
         c"Error handling ui event '%s'",

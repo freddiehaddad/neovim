@@ -254,8 +254,8 @@ pub fn buf_updates_send_changes(
     if badchannelid != 0 {
         logmsg!(
             LOG_ERROR,
-            ptr::null(),
-            c"buf_updates_send_changes",
+            None,
+            Some(c"buf_updates_send_changes"),
             268,
             true,
             c"Disabling buffer updates for dead channel %llu",

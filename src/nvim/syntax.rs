@@ -494,7 +494,7 @@ static SYN_STATE: GlobalState<SyntaxState> = GlobalState::new(SyntaxState::new()
 
 #[inline]
 fn syn_st() -> &'static mut SyntaxState {
-    crate::globals::gmut(SYN_STATE.as_ptr())
+    SYN_STATE.as_mut()
 }
 
 #[inline]
@@ -748,7 +748,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: *const Syn
         wp.w_cursor.lnum = start_lnum;
         wp.w_cursor.col = 0;
 
-        if !find_start_comment(syn_block_mut().b_syn_sync_maxlines).is_null() {
+        if find_start_comment(syn_block_mut().b_syn_sync_maxlines).is_some() {
             let mut idx = syn_block_mut().b_syn_patterns.len() as i32 - 1;
             while idx >= 0 {
                 let spp = syn_items(syn_block_mut(), idx as isize);

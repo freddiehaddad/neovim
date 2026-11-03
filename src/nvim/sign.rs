@@ -109,7 +109,7 @@ static SIGN_STATE: crate::globals::GlobalState<SignModuleState> =
 
 #[inline]
 fn sign_st() -> &'static mut SignModuleState {
-    crate::globals::gmut(SIGN_STATE.as_ptr())
+    SIGN_STATE.as_mut()
 }
 
 const CMDS: [&CStr; 6] = [

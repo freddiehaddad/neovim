@@ -47,7 +47,7 @@ static SERVER_STATE: crate::globals::GlobalState<RpcServerState> =
 
 #[inline]
 fn srv_st() -> &'static mut RpcServerState {
-    crate::globals::gmut(SERVER_STATE.as_ptr())
+    SERVER_STATE.as_mut()
 }
 
 #[inline]
@@ -80,8 +80,8 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
     if os_env_exists(ENV_TEST_LOG, false) {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"server_init",
+            None,
+            Some(c"server_init"),
             58,
             true,
             c"test log message",
@@ -171,8 +171,8 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
     if (r as usize) >= fmt.len() {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"server_address_new",
+            None,
+            Some(c"server_address_new"),
             133,
             true,
             c"truncated server address: %.40s...",
@@ -197,8 +197,8 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     let Some(addr) = addr.filter(|s| !s.to_bytes().is_empty()) else {
         logmsg!(
             LOGLVL_WRN,
-            ptr::null(),
-            c"server_start",
+            None,
+            Some(c"server_start"),
             167,
             true,
             c"Empty or NULL address",
@@ -234,8 +234,8 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
         {
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"server_start",
+                None,
+                Some(c"server_start"),
                 184,
                 true,
                 c"Already listening on %s",
@@ -259,8 +259,8 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
     if result < 0 {
         logmsg!(
             LOGLVL_WRN,
-            ptr::null(),
-            c"server_start",
+            None,
+            Some(c"server_start"),
             195,
             true,
             c"Failed to start server: %s: %s",
@@ -297,8 +297,8 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     else {
         logmsg!(
             LOGLVL_WRN,
-            ptr::null(),
-            c"server_stop",
+            None,
+            Some(c"server_stop"),
             238,
             true,
             c"Not listening on %s",
@@ -331,8 +331,8 @@ pub(crate) fn connection_cb(watcher: *mut SocketWatcher, result: i32) {
     if result != 0 {
         logmsg!(
             LOGLVL_ERR,
-            ptr::null(),
-            c"connection_cb",
+            None,
+            Some(c"connection_cb"),
             276,
             true,
             c"Failed to accept connection: %s",

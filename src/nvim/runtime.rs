@@ -328,7 +328,7 @@ static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModul
 
 #[inline]
 pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
-    crate::globals::gmut(RT_STATE.as_ptr())
+    RT_STATE.as_mut()
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
@@ -428,7 +428,7 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
         for entry in rt_st().exestack.iter().rev() {
             if entry.es_type == ETYPE_UFUNC || entry.es_type == ETYPE_AUCMD {
                 let def_ctx = if entry.es_type == ETYPE_UFUNC {
-                    crate::globals::gptr(entry.es_info.ufunc()).uf_script_ctx
+                    entry.es_info.ufunc().unwrap().uf_script_ctx
                 } else {
                     entry.es_info.aucmd_sctx()
                 };
@@ -543,20 +543,14 @@ pub fn stacktrace_create() -> &'static mut TvList {
             );
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
-            let sctx = crate::globals::gptr(fp).uf_script_ctx;
+            let sctx = fp.as_deref().unwrap().uf_script_ctx;
             let filepath = if sctx.sc_sid > 0 {
                 get_scriptname(sctx, false)
             } else {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(
-                &mut *l,
-                crate::globals::gopt_mut(fp),
-                ptr::null(),
-                lnum,
-                filepath.as_ptr(),
-            );
+            stacktrace_push_item(&mut *l, fp, ptr::null(), lnum, filepath.as_ptr());
         } else if entry.es_type == ETYPE_AUCMD {
             let sctx = entry.es_info.aucmd_sctx();
             let filepath = if sctx.sc_sid > 0 {
@@ -2786,7 +2780,8 @@ fn do_source_ext(
                 }
             }
 
-            cookie.breakpoint = dbg_find_breakpoint(true, fname_exp, 0);
+            cookie.breakpoint =
+                dbg_find_breakpoint(true, crate::memory::cstr_from_ptr(fname_exp), 0);
             cookie.fname = if fname_exp.is_null() {
                 None
             } else {
@@ -2847,13 +2842,11 @@ fn do_source_ext(
                 if !crate::globals::gptr(si).sn_prof_on
                     && has_profiling(
                         true,
-                        crate::globals::gptr(si)
-                            .name_cstr()
-                            .map_or(ptr::null(), CStr::as_ptr),
+                        crate::globals::gptr(si).name_cstr().unwrap_or(c""),
                         Some(&mut forceit),
                     )
                 {
-                    profile_init(si);
+                    profile_init(crate::globals::gmut(si));
                     crate::globals::gptr(si).sn_pr_force = forceit;
                 }
                 if crate::globals::gptr(si).sn_prof_on {
@@ -2968,7 +2961,7 @@ fn do_source_ext(
             if l_has_time_fd {
                 let iobuff = g_st().iobuff.as_mut_ptr();
                 vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
-                time_msg(iobuff, Some(&start_time));
+                time_msg(crate::memory::cstr_from_ptr(iobuff), Some(&start_time));
                 time_pop(rel_time);
             }
 
@@ -3245,11 +3238,8 @@ pub fn getsourceline(
     do_concat: bool,
 ) -> Option<std::ffi::CString> {
     if sp.dbg_tick < g_st().debug_tick && !sp.source_from_buf_or_str {
-        let fname_ptr = sp
-            .fname
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        sp.breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
+        let fname_cstr = sp.fname.as_deref().unwrap_or(c"");
+        sp.breakpoint = dbg_find_breakpoint(true, fname_cstr, sourcing_lnum());
         sp.dbg_tick = g_st().debug_tick;
     }
     if g_st().do_profiling == PROF_YES {
@@ -3306,12 +3296,9 @@ pub fn getsourceline(
     });
 
     if !sp.source_from_buf_or_str && sp.breakpoint != 0 && sp.breakpoint <= sourcing_lnum() {
-        let fname_ptr = sp
-            .fname
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        dbg_breakpoint(fname_ptr, sourcing_lnum());
-        sp.breakpoint = dbg_find_breakpoint(true, fname_ptr, sourcing_lnum());
+        let fname_cstr = sp.fname.as_deref();
+        dbg_breakpoint(fname_cstr, sourcing_lnum());
+        sp.breakpoint = dbg_find_breakpoint(true, fname_cstr.unwrap_or(c""), sourcing_lnum());
         sp.dbg_tick = g_st().debug_tick;
     }
 

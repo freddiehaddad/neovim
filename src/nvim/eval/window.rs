@@ -231,6 +231,11 @@ pub fn find_win_by_nr_or_id(vp: &TypVal) -> *mut WinInfoInfo {
     find_win_by_nr(vp, ptr::null_mut())
 }
 
+#[inline]
+pub fn find_win_by_nr_or_id_opt(vp: &TypVal) -> Option<&'static mut WinInfoInfo> {
+    unsafe { find_win_by_nr_or_id(vp).as_mut() }
+}
+
 /// Find window specified by `wvp` in tabpage `tvp` (`find_tabwin`).
 pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> *mut WinInfoInfo {
     let mut wp: *mut WinInfoInfo = ptr::null_mut();
@@ -395,11 +400,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> &'static mut TvD
     tv_dict_add_nr(&mut *dict, c"width", wp.w_view_width as Varnumber);
     tv_dict_add_nr(&mut *dict, c"bufnr", wp.buf_mut().b_fnum as Varnumber);
     tv_dict_add_nr(&mut *dict, c"wincol", (wp.w_wincol + 1) as Varnumber);
-    tv_dict_add_nr(
-        &mut *dict,
-        c"textoff",
-        win_col_off(&raw mut *wp) as Varnumber,
-    );
+    tv_dict_add_nr(&mut *dict, c"textoff", win_col_off(wp) as Varnumber);
     tv_dict_add_nr(
         &mut *dict,
         c"terminal",

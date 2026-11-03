@@ -632,7 +632,7 @@ static QF_STATE: GlobalState<QuickfixState> = GlobalState::new(QuickfixState::ne
 
 #[inline]
 fn qf_st() -> &'static mut QuickfixState {
-    crate::globals::gmut(QF_STATE.as_ptr())
+    QF_STATE.as_mut()
 }
 
 #[inline]
@@ -5287,8 +5287,8 @@ fn vgr_match_buflines(
                 let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
                 while fuzzy_match(
-                    str_.wrapping_add(col as usize),
-                    spat,
+                    crate::memory::cstr_as_bytes(str_.wrapping_add(col as usize)),
+                    crate::memory::cstr_as_bytes(spat),
                     false,
                     &mut score,
                     &mut matches,

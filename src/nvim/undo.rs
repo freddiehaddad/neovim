@@ -257,7 +257,7 @@ static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleSta
 
 #[inline]
 fn undo_st() -> &'static mut UndoModuleState {
-    crate::globals::gmut(UNDO_STATE.as_ptr())
+    UNDO_STATE.as_mut()
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.

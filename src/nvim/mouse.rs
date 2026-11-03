@@ -196,7 +196,7 @@ static MOUSE_STATE: GlobalState<MouseModuleState> = GlobalState::new(MouseModule
 
 #[inline]
 fn mouse_st() -> &'static mut MouseModuleState {
-    crate::globals::gmut(MOUSE_STATE.as_ptr())
+    MOUSE_STATE.as_mut()
 }
 
 /// Get class of a character for selection: same class means same word.
@@ -1113,7 +1113,7 @@ pub fn do_mouse(
             }
         }
         if (g_st().mod_mask & MOD_MASK_MULTI_CLICK) == MOD_MASK_2CLICK {
-            let mut pos: *mut CursorPos = ptr::null_mut();
+            let mut pos: Option<CursorPos> = None;
 
             if is_click {
                 end_visual = curwin_mut().w_cursor;
@@ -1129,8 +1129,8 @@ pub fn do_mouse(
                     && equalpos(curwin_mut().w_cursor, g_st().visual_global.start)
                 {
                     pos = findmatch(oap.as_deref_mut(), 0);
-                    if !pos.is_null() {
-                        curwin_mut().w_cursor = *crate::globals::gptr(pos);
+                    if let Some(p) = pos {
+                        curwin_mut().w_cursor = p;
 
                         if oap.unwrap().motion_type == MT_LINE_WISE {
                             g_st().visual_global.mode = b'V' as i32;
@@ -1144,8 +1144,7 @@ pub fn do_mouse(
                     }
                 }
             }
-
-            if pos.is_null() && (is_click || is_drag) {
+            if pos.is_none() && (is_click || is_drag) {
                 if lt(curwin_mut().w_cursor, mouse_st().orig_cursor) {
                     find_start_of_word(&mut curwin_mut().w_cursor);
                     find_end_of_word(&mut g_st().visual_global.start);
@@ -1828,7 +1827,7 @@ pub fn mouse_comp_pos(
         let mut count = plines_win_nofill(&mut *win, lnum, false);
 
         if win.w_skipcol > 0 && lnum == win.w_topline {
-            let width1 = win.w_view_width - win_col_off(&raw mut *win);
+            let width1 = win.w_view_width - win_col_off(win);
 
             if width1 > 0 {
                 let skip_lines = if win.w_skipcol > width1 {
@@ -1895,7 +1894,7 @@ pub fn mouse_comp_pos(
     }
 
     if !retval {
-        let off = win_col_off(&raw mut *win) - win_col_off2(win);
+        let off = win_col_off(win) - win_col_off2(win);
         col = col.max(off);
         col += row * (win.w_view_width - off);
 
@@ -1908,7 +1907,7 @@ pub fn mouse_comp_pos(
         col += win.w_leftcol;
     }
 
-    col -= win_col_off(&raw mut *win);
+    col -= win_col_off(win);
     col = col.max(0);
 
     *colp = disp_vcol2vcol(&mut *win, lnum, col);
@@ -1990,7 +1989,7 @@ fn mouse_find_grid_win(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut 
         *rowp += g_st().msg_grid_pos;
         *gridp = DEFAULT_GRID_HANDLE;
     } else if *gridp > 1 {
-        if let Some(wp) = crate::globals::gopt_mut(get_win_by_grid_handle(*gridp))
+        if let Some(wp) = get_win_by_grid_handle(*gridp)
             && !wp.w_grid_alloc.chars.is_empty()
             && !(wp.w_floating && !wp.w_config.mouse)
         {
@@ -1999,7 +1998,7 @@ fn mouse_find_grid_win(gridp: &mut i32, rowp: &mut i32, colp: &mut i32) -> *mut 
             return wp;
         }
     } else if *gridp == 0 {
-        if let Some(grid) = crate::globals::gopt_mut(ui_comp_mouse_focus(*rowp, *colp)) {
+        if let Some(grid) = ui_comp_mouse_focus(*rowp, *colp) {
             if ptr::eq(grid, &raw const g_st().pum_grid) {
                 *gridp = grid.handle;
                 *rowp -= grid.comp_row;

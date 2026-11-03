@@ -264,7 +264,7 @@ static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleSta
 
 #[inline]
 pub(crate) fn eval_st() -> &'static mut EvalModuleState {
-    crate::globals::gmut(EVAL_STATE.as_ptr())
+    EVAL_STATE.as_mut()
 }
 
 enum ForSource {
@@ -3907,18 +3907,10 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                     if *crate::globals::gptr(p.wrapping_add(1)) != b'*' {
                         flags |= FSK_SIMPLIFY;
                     }
-                    let mut p_const: *const u8 = p;
-                    if find_special_key(
-                        &mut p_const,
-                        (arg_end as usize).wrapping_sub(p as usize),
-                        &mut modifiers,
-                        flags,
-                        None,
-                    ) != 0
-                    {
-                        p = p_const.cast_mut().wrapping_sub(1);
-                    } else {
-                        p = p_const.cast_mut();
+                    let rem_len = (arg_end as usize).wrapping_sub(p as usize);
+                    let mut p_slice = unsafe { std::slice::from_raw_parts(p, rem_len) };
+                    if find_special_key(&mut p_slice, &mut modifiers, flags, None) != 0 {
+                        p = p.wrapping_add(rem_len - p_slice.len()).wrapping_sub(1);
                     }
                 }
             } else if interpolate
@@ -4036,18 +4028,8 @@ fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpol
                         if rem.get(1) != Some(&b'*') {
                             flags |= FSK_SIMPLIFY;
                         }
-                        let mut p_const: *const u8 = rem.as_ptr();
                         let mut spec_buf = [0u8; 64];
-                        let spec_len = trans_special(
-                            &mut p_const,
-                            rem.len(),
-                            &mut spec_buf,
-                            flags,
-                            false,
-                            None,
-                        );
-                        let consumed = (p_const as usize).wrapping_sub(rem.as_ptr() as usize);
-                        rem = &rem[consumed..];
+                        let spec_len = trans_special(&mut rem, &mut spec_buf, flags, false, None);
                         if spec_len != 0 {
                             buf_vec.extend_from_slice(&spec_buf[..spec_len as usize]);
                             if buf_vec.len() >= len {

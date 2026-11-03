@@ -238,7 +238,7 @@ static CTX_STATE: GlobalState<ContextModuleState> = GlobalState::new(ContextModu
 
 #[inline]
 fn ctx_st() -> &'static mut ContextModuleState {
-    crate::globals::gmut(CTX_STATE.as_ptr())
+    CTX_STATE.as_mut()
 }
 
 #[inline]

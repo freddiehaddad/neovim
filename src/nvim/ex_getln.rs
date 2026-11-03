@@ -451,7 +451,7 @@ static GETLN_STATE: GlobalState<ExGetlnState> = GlobalState::new(ExGetlnState::n
 
 #[inline]
 fn getln_st() -> &'static mut ExGetlnState {
-    crate::globals::gmut(GETLN_STATE.as_ptr())
+    GETLN_STATE.as_mut()
 }
 
 use crate::api::private::helpers::array_add;
@@ -1265,8 +1265,10 @@ fn command_line_enter(
             {
                 add_to_history(
                     s.histype,
-                    getln_st().ccline.cmdbuff.cast(),
-                    getln_st().ccline.cmdlen as usize,
+                    crate::memory::cstr_slice(
+                        getln_st().ccline.cmdbuff.cast(),
+                        getln_st().ccline.cmdlen as usize,
+                    ),
                     true,
                     if s.histype == HIST_SEARCH {
                         s.firstc

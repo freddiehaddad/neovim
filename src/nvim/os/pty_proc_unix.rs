@@ -332,8 +332,8 @@ mod unix_impl {
                 let status = -err;
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"pty_proc_spawn",
+                    None,
+                    Some(c"pty_proc_spawn"),
                     line!() as i32,
                     true,
                     c"forkpty failed: %s",
@@ -355,8 +355,8 @@ mod unix_impl {
                     status = -err;
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"pty_proc_spawn",
+                        None,
+                        Some(c"pty_proc_spawn"),
                         line!() as i32,
                         true,
                         c"Failed to get master descriptor status flags: %s",
@@ -369,8 +369,8 @@ mod unix_impl {
                     status = -err;
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"pty_proc_spawn",
+                        None,
+                        Some(c"pty_proc_spawn"),
                         line!() as i32,
                         true,
                         c"Failed to make master descriptor non-blocking: %s",
@@ -383,8 +383,8 @@ mod unix_impl {
                     status = -os_errno();
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"pty_proc_spawn",
+                        None,
+                        Some(c"pty_proc_spawn"),
                         line!() as i32,
                         true,
                         c"Failed to set CLOEXEC on ptmx file descriptor",
@@ -511,8 +511,8 @@ mod unix_impl {
                 if err != 0 {
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"init_child",
+                        None,
+                        Some(c"init_child"),
                         line!() as i32,
                         true,
                         c"chdir(%s) failed: %s",
@@ -528,8 +528,8 @@ mod unix_impl {
             let err = os_errno();
             logmsg!(
                 LOGLVL_ERR,
-                ptr::null(),
-                c"init_child",
+                None,
+                Some(c"init_child"),
                 line!() as i32,
                 true,
                 c"execvp(%s) failed: %s",
@@ -575,8 +575,8 @@ mod unix_impl {
                 let err = os_errno();
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"set_duplicating_descriptor",
+                    None,
+                    Some(c"set_duplicating_descriptor"),
                     line!() as i32,
                     true,
                     c"Failed to dup descriptor %d: %s",
@@ -592,8 +592,8 @@ mod unix_impl {
                     status = -os_errno();
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"set_duplicating_descriptor",
+                        None,
+                        Some(c"set_duplicating_descriptor"),
                         line!() as i32,
                         true,
                         c"Failed to set CLOEXEC on duplicate fd",
@@ -605,8 +605,8 @@ mod unix_impl {
                 if status != 0 {
                     logmsg!(
                         LOGLVL_ERR,
-                        ptr::null(),
-                        c"set_duplicating_descriptor",
+                        None,
+                        Some(c"set_duplicating_descriptor"),
                         line!() as i32,
                         true,
                         c"Failed to set pipe to descriptor %d: %s",

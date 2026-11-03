@@ -219,7 +219,7 @@ static MARK_STATE: crate::globals::GlobalState<MarkModuleState> =
 
 #[inline]
 fn mark_st() -> &'static mut MarkModuleState {
-    crate::globals::gmut(MARK_STATE.as_ptr())
+    MARK_STATE.as_mut()
 }
 
 #[inline]
@@ -657,7 +657,7 @@ pub fn mark_get_local(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *m
     } else if name == b']' as i32 {
         pos_to_mark(buf, None, buf.b_op_end)
     } else if name == b'<' as i32 || name == b'>' as i32 {
-        mark_get_visual(buf, name)
+        mark_get_visual(buf, name).map_or(ptr::null_mut(), ptr::from_mut)
     } else if name == b'\'' as i32 || name == b'`' as i32 {
         pos_to_mark(curbuf_mut(), None, win.w_pcmark)
     } else if name == b'"' as i32 {
@@ -718,7 +718,7 @@ pub fn mark_get_motion(buf: &mut FileBuf, win: &mut WinInfoInfo, name: i32) -> *
 }
 
 /// Get visual marks `'<'`, `'>'` (`mark_get_visual`).
-pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
+pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> Option<&'static mut Fmark> {
     if name == b'<' as i32 || name == b'>' as i32 {
         let startp = buf.b_visual.vi_start;
         let endp = buf.b_visual.vi_end;
@@ -733,9 +733,9 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> *mut Fmark {
             mark.mark.col = if name == b'<' as i32 { 0 } else { MAXCOL };
             mark.mark.coladd = 0;
         }
-        return mark;
+        return Some(mark);
     }
-    ptr::null_mut()
+    None
 }
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).

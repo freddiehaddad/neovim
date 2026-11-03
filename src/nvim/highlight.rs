@@ -257,7 +257,7 @@ static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightM
 
 #[inline]
 fn hl_st() -> &'static mut HighlightModuleState {
-    crate::globals::gmut(HL_STATE.as_ptr())
+    HL_STATE.as_mut()
 }
 
 #[inline]

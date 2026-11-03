@@ -402,7 +402,7 @@ static ATOM_STATE: GlobalState<CmdAtomModuleState> = GlobalState::new(CmdAtomMod
 
 #[inline]
 pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
-    crate::globals::gmut(ATOM_STATE.as_ptr())
+    ATOM_STATE.as_mut()
 }
 
 #[inline]

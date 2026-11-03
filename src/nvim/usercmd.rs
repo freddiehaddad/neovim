@@ -118,7 +118,7 @@ static UCMDS_STATE: GlobalState<Vec<Ucmd>> = GlobalState::new(Vec::new());
 
 #[inline]
 pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
-    crate::globals::gmut(UCMDS_STATE.as_ptr())
+    UCMDS_STATE.as_mut()
 }
 
 const COMMAND_COMPLETE_LEN: usize = 64;
@@ -1073,13 +1073,12 @@ pub fn uc_add_command(
     let desc = desc.into_c_char_ptr();
     let mut cmp: i32 = 1;
     let rep_cstr = replace_termcodes(
-        rep,
-        crate::memory::cstr_len(rep),
+        crate::memory::cstr_as_bytes(rep),
         false,
         0,
         0,
         None,
-        opt_vars().p_cpo,
+        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
     )
     .unwrap_or_else(|| crate::memory::cstr_to_cstring(rep));
 

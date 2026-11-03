@@ -183,7 +183,7 @@ static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> =
 
 #[inline]
 fn spellfile_st() -> &'static mut SpellfileModuleState {
-    crate::globals::gmut(SPELLFILE_STATE.as_ptr())
+    SPELLFILE_STATE.as_mut()
 }
 
 #[repr(C)]

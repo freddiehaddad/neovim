@@ -27,7 +27,7 @@ use crate::insert::{
     backspace_until_column, beginline, get_nolist_virtcol, replace_join, replace_push_nul,
 };
 use crate::mbyte::{utf_cluster_info, utf_ptr2_char_info, utf_ptr2_str_char_info, utfc_ptr2len};
-use crate::memline::{ml_get, ml_get_buf, ml_get_len, ml_get_pos_slice, ml_replace};
+use crate::memline::{ml_get, ml_get_len, ml_get_pos_slice, ml_replace};
 use crate::message::{emsg, msg_progress};
 use crate::r#move::{changed_cline_bef_curs, win_col_off, win_col_off2};
 use crate::ops::shift_line;
@@ -120,7 +120,7 @@ static INDENT_STATE: GlobalState<IndentModuleState> = GlobalState::new(IndentMod
 
 #[inline]
 fn ind_st() -> &'static mut IndentModuleState {
-    crate::globals::gmut(INDENT_STATE.as_ptr())
+    INDENT_STATE.as_mut()
 }
 
 #[inline]
@@ -130,69 +130,68 @@ const fn has_briopt_key(v: &OptKeyDict_briopt, bit: u64) -> bool {
 
 /// Set the integer values corresponding to the string setting of `'vartabstop'` (`tabstop_set`).
 pub fn tabstop_set(
-    var: impl crate::strings::IntoCCharPtr,
+    var_bytes: &[u8],
     array: &mut Vec<Colnr>,
     errbuf: Option<CharBuf>,
 ) -> Option<&'static CStr> {
-    let mut var = var.into_c_char_ptr().cast_mut();
-    let var_bytes = crate::memory::cstr_as_bytes(var);
-    {
-        let mut valcount: usize = 1;
+    let mut valcount: usize = 1;
 
-        if var_bytes.is_empty() || var_bytes == b"0" {
-            array.clear();
-            return None;
-        }
-
-        let mut idx = 0usize;
-        while idx < var_bytes.len() {
-            if idx == 0 || var_bytes[idx - 1] == b',' {
-                let cp_bytes = &var_bytes[idx..];
-                let mut rem = cp_bytes;
-                if getdigits(&mut rem, false, 1) <= 0 {
-                    if rem.len() != cp_bytes.len() {
-                        return Some(E_POSITIVE);
-                    }
-                    var = var.wrapping_add(idx);
-                    return opt_error(errbuf, E_INVARG2, var);
-                }
-            }
-
-            if var_bytes[idx].is_ascii_digit() {
-                idx += 1;
-                continue;
-            }
-            if var_bytes[idx] == b','
-                && idx > 0
-                && var_bytes[idx - 1] != b','
-                && idx + 1 < var_bytes.len()
-            {
-                valcount += 1;
-                idx += 1;
-                continue;
-            }
-            return opt_error(errbuf, E_INVARG2, var);
-        }
-
-        let mut out = Vec::with_capacity(valcount);
-        let mut idx = 0usize;
-        while idx < var_bytes.len() {
-            let n = crate::charset::parse_i64_prefix(&var_bytes[idx..]) as i32;
-            if n <= 0 || n > TABSTOP_MAX {
-                array.clear();
-                var = var.wrapping_add(idx);
-                return opt_error(errbuf, E_INVARG2, var);
-            }
-            out.push(n);
-            idx += var_bytes[idx..].iter().take_while(|&&b| b != b',').count();
-            if idx < var_bytes.len() {
-                idx += 1;
-            }
-        }
-
-        *array = out;
-        None
+    if var_bytes.is_empty() || var_bytes == b"0" {
+        array.clear();
+        return None;
     }
+
+    let err_at = |idx: usize| -> Option<&'static CStr> {
+        let cstr = std::ffi::CString::new(&var_bytes[idx..]).unwrap_or_default();
+        opt_error(errbuf, E_INVARG2, cstr.as_ptr())
+    };
+
+    let mut idx = 0usize;
+    while idx < var_bytes.len() {
+        if idx == 0 || var_bytes[idx - 1] == b',' {
+            let cp_bytes = &var_bytes[idx..];
+            let mut rem = cp_bytes;
+            if getdigits(&mut rem, false, 1) <= 0 {
+                if rem.len() != cp_bytes.len() {
+                    return Some(E_POSITIVE);
+                }
+                return err_at(idx);
+            }
+        }
+
+        if var_bytes[idx].is_ascii_digit() {
+            idx += 1;
+            continue;
+        }
+        if var_bytes[idx] == b','
+            && idx > 0
+            && var_bytes[idx - 1] != b','
+            && idx + 1 < var_bytes.len()
+        {
+            valcount += 1;
+            idx += 1;
+            continue;
+        }
+        return err_at(0);
+    }
+
+    let mut out = Vec::with_capacity(valcount);
+    let mut idx = 0usize;
+    while idx < var_bytes.len() {
+        let n = crate::charset::parse_i64_prefix(&var_bytes[idx..]) as i32;
+        if n <= 0 || n > TABSTOP_MAX {
+            array.clear();
+            return err_at(idx);
+        }
+        out.push(n);
+        idx += var_bytes[idx..].iter().take_while(|&&b| b != b',').count();
+        if idx < var_bytes.len() {
+            idx += 1;
+        }
+    }
+
+    *array = out;
+    None
 }
 
 /// Calculate the number of screen spaces a tab will occupy (`tabstop_padding`).
@@ -383,7 +382,7 @@ pub fn get_sts_value() -> i32 {
 /// Count the size (in window cells) of the indent in the current line (`get_indent`).
 pub fn get_indent() -> i32 {
     indent_size_ts(
-        get_cursor_line_ptr(),
+        crate::cursor::get_cursor_line_slice(),
         curbuf_mut().b_p_ts,
         &curbuf_mut().b_p_vts_array,
     )
@@ -392,7 +391,7 @@ pub fn get_indent() -> i32 {
 /// Count the size (in window cells) of the indent in line `lnum` (`get_indent_lnum`).
 pub fn get_indent_lnum(lnum: Linenr) -> i32 {
     indent_size_ts(
-        ml_get(lnum),
+        crate::memline::ml_get_slice(lnum),
         curbuf_mut().b_p_ts,
         &curbuf_mut().b_p_vts_array,
     )
@@ -400,83 +399,84 @@ pub fn get_indent_lnum(lnum: Linenr) -> i32 {
 
 /// Count the size (in window cells) of the indent in line `lnum` of buffer `buf` (`get_indent_buf`).
 pub fn get_indent_buf(buf: &mut FileBuf, lnum: Linenr) -> i32 {
-    indent_size_ts(ml_get_buf(buf, lnum), buf.b_p_ts, &buf.b_p_vts_array)
+    indent_size_ts(
+        crate::memline::ml_get_buf_slice(buf, lnum),
+        buf.b_p_ts,
+        &buf.b_p_vts_array,
+    )
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, without tabstops (`indent_size_no_ts`).
-pub fn indent_size_no_ts(ptr: impl crate::strings::IntoCCharPtr) -> i32 {
-    let mut ptr = ptr.into_c_char_ptr();
-    {
-        let tab_size = opt_vars().dy_escape_width;
-        let mut vcol: i32 = 0;
-        loop {
-            let c = crate::memory::cstr_first_byte(ptr);
-            ptr = ptr.wrapping_add(1);
-            if c == b' ' {
-                vcol += 1;
-            } else if c == TAB {
-                vcol += tab_size;
-            } else {
-                return vcol;
-            }
+pub fn indent_size_no_ts(ptr: &[u8]) -> i32 {
+    let tab_size = opt_vars().dy_escape_width;
+    let mut vcol: i32 = 0;
+    for &c in ptr {
+        if c == b' ' {
+            vcol += 1;
+        } else if c == TAB {
+            vcol += tab_size;
+        } else {
+            break;
         }
     }
+    vcol
 }
 
 /// Compute the size of the indent (in window cells) in line `ptr`, using tabstops (`indent_size_ts`).
-pub fn indent_size_ts(ptr: impl crate::strings::IntoCCharPtr, ts: OptInt, vts: &[Colnr]) -> i32 {
-    let mut ptr = ptr.into_c_char_ptr();
-    {
-        debug_assert!(char2cells(b' ' as i32) == 1);
+pub fn indent_size_ts(mut ptr: &[u8], ts: OptInt, vts: &[Colnr]) -> i32 {
+    debug_assert!(char2cells(b' ' as i32) == 1);
 
-        let mut vcol: i32 = 0;
-        let tabstop_width: i32;
-        let mut next_tab_vcol: i32;
+    let mut vcol: i32 = 0;
+    let tabstop_width: i32;
+    let mut next_tab_vcol: i32;
 
-        if let Some((&last_tabstop, init_tabstops)) = vts.split_last() {
-            for &cur_tabstop in init_tabstops {
-                let mut cur_vcol = vcol;
-                vcol += cur_tabstop;
-                debug_assert!(cur_vcol < vcol);
+    if let Some((&last_tabstop, init_tabstops)) = vts.split_last() {
+        for &cur_tabstop in init_tabstops {
+            let mut cur_vcol = vcol;
+            vcol += cur_tabstop;
+            debug_assert!(cur_vcol < vcol);
 
-                loop {
-                    let c = crate::memory::cstr_first_byte(ptr);
-                    ptr = ptr.wrapping_add(1);
-                    if c == b' ' {
-                        cur_vcol += 1;
-                    } else if c == TAB {
-                        break;
-                    } else {
-                        return cur_vcol;
-                    }
-                    if cur_vcol == vcol {
-                        break;
-                    }
+            loop {
+                let c = ptr.first().copied().unwrap_or(0);
+                if !ptr.is_empty() {
+                    ptr = &ptr[1..];
+                }
+                if c == b' ' {
+                    cur_vcol += 1;
+                } else if c == TAB {
+                    break;
+                } else {
+                    return cur_vcol;
+                }
+                if cur_vcol == vcol {
+                    break;
                 }
             }
-
-            tabstop_width = last_tabstop;
-            next_tab_vcol = vcol + tabstop_width;
-        } else {
-            tabstop_width = (if ts == 0 { 8 } else { ts }) as i32;
-            next_tab_vcol = tabstop_width;
         }
 
-        debug_assert!(tabstop_width != 0);
-        loop {
-            let c = crate::memory::cstr_first_byte(ptr);
-            ptr = ptr.wrapping_add(1);
-            if c == b' ' {
-                vcol += 1;
-                if vcol == next_tab_vcol {
-                    next_tab_vcol += tabstop_width;
-                }
-            } else if c == TAB {
-                vcol = next_tab_vcol;
+        tabstop_width = last_tabstop;
+        next_tab_vcol = vcol + tabstop_width;
+    } else {
+        tabstop_width = (if ts == 0 { 8 } else { ts }) as i32;
+        next_tab_vcol = tabstop_width;
+    }
+
+    debug_assert!(tabstop_width != 0);
+    loop {
+        let c = ptr.first().copied().unwrap_or(0);
+        if !ptr.is_empty() {
+            ptr = &ptr[1..];
+        }
+        if c == b' ' {
+            vcol += 1;
+            if vcol == next_tab_vcol {
                 next_tab_vcol += tabstop_width;
-            } else {
-                return vcol;
             }
+        } else if c == TAB {
+            vcol = next_tab_vcol;
+            next_tab_vcol += tabstop_width;
+        } else {
+            return vcol;
         }
     }
 }
@@ -759,13 +759,10 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
     if wp.is_none() {
         return;
     }
-    let v = opt_keyset(
-        wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt,
+    let vr: &OptKeyDict_briopt = opt_keyset(
+        crate::memory::cstr_as_bytes(wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt),
         K_OPT_BREAKINDENTOPT,
-        ptr::null_mut(),
-    )
-    .cast::<OptKeyDict_briopt>();
-    let vr = crate::globals::gref(v);
+    );
     wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
         vr.shift as i32
     } else {
@@ -790,102 +787,102 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 }
 
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
-pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: impl crate::strings::IntoCCharPtr) -> i32 {
-    let line = line.into_c_char_ptr();
+pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
+    let eff_wwidth = wp.w_view_width - win_col_off(wp) + win_col_off2(wp);
+    let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
+
+    let buf_fnum = wp.buf_mut().b_fnum;
+    let buf_p_ts = wp.buf_mut().b_p_ts;
+    let buf_tick = buf_get_changedtick(wp.buf_mut());
+    let flp_val = get_flp_value(wp.buf_mut());
+    let line_bytes = &line[..line.iter().position(|&b| b == 0).unwrap_or(line.len())];
+    if ind_st().prev_fnum != buf_fnum
+        || ind_st().prev_ts != buf_p_ts
+        || ind_st().prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.as_slice()
+        || ind_st().prev_tick != buf_tick
+        || ind_st().prev_listopt != wp.w_briopt_list
+        || ind_st().prev_no_ts != no_ts
+        || ind_st().prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
+        || ind_st().prev_flp.as_deref() != Some(flp_val)
+        || ind_st()
+            .prev_line
+            .as_deref()
+            .is_none_or(|c| c.to_bytes() != line_bytes)
     {
-        let eff_wwidth = wp.w_view_width - win_col_off(&raw mut *wp) + win_col_off2(wp);
-        let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
-
-        let buf_fnum = wp.buf_mut().b_fnum;
-        let buf_p_ts = wp.buf_mut().b_p_ts;
-        let buf_tick = buf_get_changedtick(wp.buf_mut());
-        let flp_val = get_flp_value(wp.buf_mut());
-        let line_cstr = crate::memory::cstr_from_ptr(line);
-        if ind_st().prev_fnum != buf_fnum
-            || ind_st().prev_ts != buf_p_ts
-            || ind_st().prev_vts.as_slice() != wp.buf_mut().b_p_vts_array.as_slice()
-            || ind_st().prev_tick != buf_tick
-            || ind_st().prev_listopt != wp.w_briopt_list
-            || ind_st().prev_no_ts != no_ts
-            || ind_st().prev_dy_uhex != (opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX)
-            || ind_st().prev_flp.as_deref() != Some(flp_val)
-            || ind_st().prev_line.as_deref() != Some(line_cstr)
-        {
-            ind_st().prev_fnum = buf_fnum;
-            ind_st().prev_line = Some(line_cstr.to_owned());
-            ind_st().prev_ts = buf_p_ts;
-            ind_st().prev_vts.clone_from(&wp.buf_mut().b_p_vts_array);
-            if wp.w_briopt_vcol == 0 {
-                if no_ts {
-                    ind_st().prev_indent = indent_size_no_ts(line);
-                } else {
-                    ind_st().prev_indent =
-                        indent_size_ts(line, buf_p_ts, &wp.buf_mut().b_p_vts_array);
-                }
+        ind_st().prev_fnum = buf_fnum;
+        ind_st().prev_line = Some(std::ffi::CString::new(line_bytes).unwrap_or_default());
+        ind_st().prev_ts = buf_p_ts;
+        ind_st().prev_vts.clone_from(&wp.buf_mut().b_p_vts_array);
+        if wp.w_briopt_vcol == 0 {
+            if no_ts {
+                ind_st().prev_indent = indent_size_no_ts(line_bytes);
+            } else {
+                ind_st().prev_indent =
+                    indent_size_ts(line_bytes, buf_p_ts, &wp.buf_mut().b_p_vts_array);
             }
-            ind_st().prev_tick = buf_tick;
-            ind_st().prev_listopt = wp.w_briopt_list;
-            ind_st().prev_list = 0;
-            ind_st().prev_no_ts = no_ts;
-            ind_st().prev_dy_uhex = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
-            ind_st().prev_flp = Some(flp_val.to_owned());
+        }
+        ind_st().prev_tick = buf_tick;
+        ind_st().prev_listopt = wp.w_briopt_list;
+        ind_st().prev_list = 0;
+        ind_st().prev_no_ts = no_ts;
+        ind_st().prev_dy_uhex = opt_vars().dy_flags & K_OPT_DY_FLAG_UHEX;
+        ind_st().prev_flp = Some(flp_val.to_owned());
 
-            if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
-                let flp_ptr = ind_st().prev_flp.as_deref().unwrap().as_ptr().cast_mut();
-                let mut regmatch = Regmatch {
-                    regprog: vim_regcomp(flp_ptr, RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
-                    startp: [ptr::null_mut(); 10],
-                    endp: [ptr::null_mut(); 10],
-                    rm_matchcol: 0,
-                    rm_ic: false,
-                };
-                if !regmatch.regprog.is_null() {
-                    regmatch.rm_ic = false;
-                    if vim_regexec(&mut regmatch, line, 0) {
-                        if wp.w_briopt_list > 0 {
-                            ind_st().prev_list += wp.w_briopt_list;
-                        } else {
-                            let mut ptr_cur = regmatch.startp[0];
-                            let end_ptr = regmatch.endp[0];
-                            let mut indent: i32 = 0;
-                            while ptr_cur < end_ptr {
-                                indent += win_chartabsize(wp, ptr_cur.cast(), indent);
-                                ptr_cur =
-                                    ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur.cast()) as usize);
-                            }
-                            ind_st().prev_indent = indent;
+        if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
+            let flp_ptr = ind_st().prev_flp.as_deref().unwrap().as_ptr().cast_mut();
+            let line_ptr = ind_st().prev_line.as_deref().unwrap().as_ptr();
+            let mut regmatch = Regmatch {
+                regprog: vim_regcomp(flp_ptr, RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
+                startp: [ptr::null_mut(); 10],
+                endp: [ptr::null_mut(); 10],
+                rm_matchcol: 0,
+                rm_ic: false,
+            };
+            if !regmatch.regprog.is_null() {
+                regmatch.rm_ic = false;
+                if vim_regexec(&mut regmatch, line_ptr, 0) {
+                    if wp.w_briopt_list > 0 {
+                        ind_st().prev_list += wp.w_briopt_list;
+                    } else {
+                        let mut ptr_cur = regmatch.startp[0];
+                        let end_ptr = regmatch.endp[0];
+                        let mut indent: i32 = 0;
+                        while ptr_cur < end_ptr {
+                            indent += win_chartabsize(wp, ptr_cur.cast(), indent);
+                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur.cast()) as usize);
                         }
+                        ind_st().prev_indent = indent;
                     }
-                    vim_regfree(regmatch.regprog);
                 }
+                vim_regfree(regmatch.regprog);
             }
         }
-
-        let mut bri = if wp.w_briopt_vcol != 0 {
-            ind_st().prev_list = 0;
-            wp.w_briopt_vcol
-        } else {
-            ind_st().prev_indent + wp.w_briopt_shift
-        };
-
-        bri += win_col_off2(wp);
-
-        if wp.w_briopt_list > 0 {
-            bri += ind_st().prev_list;
-        }
-
-        if wp.w_briopt_sbr {
-            bri -= vim_strsize(get_showbreak_value(&*wp));
-        }
-
-        if bri < 0 {
-            bri = 0;
-        } else if bri > eff_wwidth - wp.w_briopt_min {
-            bri = (eff_wwidth - wp.w_briopt_min).max(0);
-        }
-
-        bri
     }
+
+    let mut bri = if wp.w_briopt_vcol != 0 {
+        ind_st().prev_list = 0;
+        wp.w_briopt_vcol
+    } else {
+        ind_st().prev_indent + wp.w_briopt_shift
+    };
+
+    bri += win_col_off2(wp);
+
+    if wp.w_briopt_list > 0 {
+        bri += ind_st().prev_list;
+    }
+
+    if wp.w_briopt_sbr {
+        bri -= vim_strsize(get_showbreak_value(&*wp));
+    }
+
+    if bri < 0 {
+        bri = 0;
+    } else if bri > eff_wwidth - wp.w_briopt_min {
+        bri = (eff_wwidth - wp.w_briopt_min).max(0);
+    }
+
+    bri
 }
 
 /// Return true if the cursor is before (or on, when `extra == 0`) the first non-blank in the line (`inindent`).
@@ -1034,10 +1031,9 @@ pub fn ins_try_si(c: i32) {
         let pos = if c == b'}' as i32 {
             findmatch(None, b'{' as i32)
         } else {
-            ptr::null_mut()
+            None
         };
-        if !pos.is_null() {
-            let pos = crate::globals::gmut(pos);
+        if let Some(pos) = pos {
             let old_pos = curwin_mut().w_cursor;
             let ptr_bytes = crate::memline::ml_get_slice(pos.lnum);
             let mut i = pos.col;
@@ -1049,11 +1045,10 @@ pub fn ins_try_si(c: i32) {
             }
             curwin_mut().w_cursor.lnum = pos.lnum;
             curwin_mut().w_cursor.col = i;
-            if ptr_bytes.get(i as usize) == Some(&b')') {
-                let p2 = findmatch(None, b'(' as i32);
-                if !p2.is_null() {
-                    curwin_mut().w_cursor = *crate::globals::gptr(p2);
-                }
+            if ptr_bytes.get(i as usize) == Some(&b')')
+                && let Some(p2) = findmatch(None, b'(' as i32)
+            {
+                curwin_mut().w_cursor = p2;
             }
             let ind = get_indent();
             curwin_mut().w_cursor = old_pos;
@@ -1186,7 +1181,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
             let mut ptr_vec = vec![b' '; ptrlen + 1];
             ptr_vec[ptrlen] = 0;
             new_cursor_col += ptrlen as i32;
-            ins_str(ptr_vec.as_mut_ptr().cast(), ptrlen);
+            ins_str(&ptr_vec, ptrlen);
         }
 
         insstart_less = MAXCOL;
@@ -1240,7 +1235,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         g_st().curbuf_splice_pending += 1;
 
         backspace_until_column(0);
-        ins_bytes(crate::memory::cstr_until_nul(&new_line));
+        ins_bytes(&new_line);
 
         g_st().curbuf_splice_pending -= 1;
 
@@ -1257,16 +1252,15 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 }
 
 /// Copy the indent from `src` to the current line (and fill to `size`) (`copy_indent`).
-pub fn copy_indent(size: i32, src: impl crate::strings::IntoCCharPtr) -> bool {
-    let src = src.into_c_char_ptr();
+pub fn copy_indent(size: i32, src: &[u8]) -> bool {
     let mut line_vec: Vec<u8> = Vec::new();
     let mut todo = size;
     let mut ind_done: i32 = 0;
     let mut ind_col: i32 = 0;
     let mut tab_pad: i32;
 
-    for &b in crate::memory::cstr_as_bytes(src) {
-        if todo <= 0 || !ascii_iswhite(i32::from(b)) {
+    for &b in src {
+        if b == 0 || todo <= 0 || !ascii_iswhite(i32::from(b)) {
             break;
         }
         if b == TAB {
@@ -1357,7 +1351,11 @@ pub fn ex_retab(eap: &mut Exarg) {
         data: errbuf_storage.as_mut_ptr(),
         size: IOSIZE,
     };
-    if let Some(errmsg) = tabstop_set(ptr, &mut new_vts_array, Some(errbuf)) {
+    if let Some(errmsg) = tabstop_set(
+        crate::memory::cstr_as_bytes(ptr),
+        &mut new_vts_array,
+        Some(errbuf),
+    ) {
         emsg(gettext(errmsg.as_ptr()));
         return;
     }
@@ -1583,25 +1581,22 @@ pub fn get_expr_indent() -> i32 {
 
 /// Compute Lisp indent for the current line (`get_lisp_indent`).
 pub fn get_lisp_indent() -> i32 {
-    let mut paren: CursorPos;
     let mut amount: i32;
 
     let realpos = curwin_mut().w_cursor;
     curwin_mut().w_cursor.col = 0;
 
     let mut pos = findmatch(None, b'(' as i32);
-    if pos.is_null() {
+    if let Some(paren) = pos {
         pos = findmatch(None, b'[' as i32);
-    } else {
-        paren = *crate::globals::gptr(pos);
-        pos = findmatch(None, b'[' as i32);
-        if pos.is_null() || lt(*crate::globals::gptr(pos), paren) {
-            pos = &raw mut paren;
+        if pos.is_none_or(|p| lt(p, paren)) {
+            pos = Some(paren);
         }
+    } else {
+        pos = findmatch(None, b'[' as i32);
     }
 
-    if !pos.is_null() {
-        let pos = crate::globals::gmut(pos);
+    if let Some(pos) = pos {
         amount = -1;
         let mut parencount: i32 = 0;
 
@@ -1689,7 +1684,7 @@ pub fn get_lisp_indent() -> i32 {
 
             if (crate::memory::cstr_first_byte(that) == b'('
                 || crate::memory::cstr_first_byte(that) == b'[')
-                && lisp_match(that.wrapping_add(1))
+                && lisp_match(crate::memory::cstr_as_bytes(that.wrapping_add(1)))
             {
                 amount += 2;
             } else {
@@ -1790,27 +1785,23 @@ pub fn get_lisp_indent() -> i32 {
     amount
 }
 
-fn lisp_match(p: impl crate::strings::IntoCCharPtr) -> bool {
-    let p = p.into_c_char_ptr();
-    {
-        let mut buf = [0u8; 512];
-        let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
-            curbuf_mut().b_p_lw
-        } else {
-            opt_vars().p_lispwords
-        };
+fn lisp_match(p_bytes: &[u8]) -> bool {
+    let mut buf = [0u8; 512];
+    let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
+        curbuf_mut().b_p_lw
+    } else {
+        opt_vars().p_lispwords
+    };
 
-        while !crate::memory::cstr_is_empty(word) {
-            let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
-            let p_bytes = crate::memory::cstr_as_bytes(p);
-            if p_bytes.starts_with(&buf[..len])
-                && ascii_iswhite_or_nul(i32::from(p_bytes.get(len).copied().unwrap_or(0)))
-            {
-                return true;
-            }
+    while !crate::memory::cstr_is_empty(word) {
+        let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
+        if p_bytes.starts_with(&buf[..len])
+            && ascii_iswhite_or_nul(i32::from(p_bytes.get(len).copied().unwrap_or(0)))
+        {
+            return true;
         }
-        false
     }
+    false
 }
 
 /// Re-indent the current line (`fixthisline`).
@@ -1879,7 +1870,7 @@ mod tests {
     #[test]
     fn tabstop_set_padding_and_at_work() {
         let mut vts: Vec<Colnr> = Vec::new();
-        assert!(tabstop_set(c"4,8", &mut vts, None).is_none());
+        assert!(tabstop_set(b"4,8", &mut vts, None).is_none());
         assert!(!vts.is_empty());
         assert_eq!(tabstop_count(&vts), 2);
         assert_eq!(tabstop_first(&vts), 4);
@@ -1887,12 +1878,12 @@ mod tests {
         assert_eq!(tabstop_padding(4, 8, &vts), 8);
         assert_eq!(tabstop_at(0, 8, &vts, false), 4);
 
-        assert_eq!(indent_size_ts(c"       a ", 100, &[]), 7);
-        assert_eq!(indent_size_ts(c"   \t  \t \t\t   a ", 4, &[]), 19);
-        assert_eq!(indent_size_ts(c"   \t  \t \t\t       a ", 4, &[]), 23);
+        assert_eq!(indent_size_ts(b"       a ", 100, &[]), 7);
+        assert_eq!(indent_size_ts(b"   \t  \t \t\t   a ", 4, &[]), 19);
+        assert_eq!(indent_size_ts(b"   \t  \t \t\t       a ", 4, &[]), 23);
         let custom_vts = [7 as Colnr, 2];
         assert_eq!(
-            indent_size_ts(c"      \t  \t \t\t   a ", 4, &custom_vts),
+            indent_size_ts(b"      \t  \t \t\t   a ", 4, &custom_vts),
             18
         );
     }

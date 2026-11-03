@@ -159,12 +159,12 @@ static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
 
 #[inline]
 fn ui_state() -> &'static mut UiState {
-    crate::globals::gmut(UI_STATE.as_ptr())
+    UI_STATE.as_mut()
 }
 
 #[inline]
 fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    ui_state().uis.iter().map(|&p| crate::globals::gmut(p))
+    ui_state().uis.iter().map(|&p| unsafe { &mut *p })
 }
 
 pub fn ui_init() {
@@ -323,7 +323,7 @@ pub fn ui_refresh_event() {
 }
 
 pub fn ui_schedule_refresh() {
-    multiqueue_put_event(crate::globals::gmut(g_st().resize_events), Event::UiRefresh);
+    multiqueue_put_event(unsafe { &mut *g_st().resize_events }, Event::UiRefresh);
 }
 
 pub fn ui_default_colors_set() {
@@ -502,8 +502,8 @@ pub fn ui_line(
         Integer::from(clearcol),
         Integer::from(clearattr),
         flags,
-        grid.chars.as_mut_ptr().wrapping_add(off),
-        grid.attrs.as_mut_ptr().wrapping_add(off),
+        &grid.chars[off..],
+        &grid.attrs[off..],
     );
 
     if opt_vars().p_wd != 0 && (opt_vars().rdb_flags & K_OPT_RDB_FLAG_LINE) != 0 {
@@ -780,7 +780,7 @@ pub fn ui_grid_resize(grid_handle: ObjHandle, width: i32, height: i32, err: &mut
         return;
     }
 
-    let Some(wp) = crate::globals::gopt_mut(get_win_by_grid_handle(grid_handle)) else {
+    let Some(wp) = get_win_by_grid_handle(grid_handle) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -809,8 +809,8 @@ fn ui_attach_error(ns_id: u32, name: &CStr, msg: Option<&CStr>) {
     let ns = describe_ns(ns_id as i32, c"(UNKNOWN PLUGIN)").as_ptr();
     logmsg!(
         LOGLVL_ERR,
-        ptr::null(),
-        c"ui_attach_error",
+        None,
+        Some(c"ui_attach_error"),
         785,
         true,
         c"Error in \"%s\" UI event handler (ns=%s):\n%s",
@@ -946,8 +946,8 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
             if ui_state().uilog_seen > 0 {
                 logmsg!(
                     LOGLVL_DBG,
-                    c"UI: ",
-                    ptr::null(),
+                    Some(c"UI: "),
+                    None,
                     -1,
                     true,
                     c"%s (+%zu times...)",
@@ -959,8 +959,8 @@ pub fn ui_log(funname: &'static std::ffi::CStr) {
             }
             logmsg!(
                 LOGLVL_DBG,
-                c"UI: ",
-                ptr::null(),
+                Some(c"UI: "),
+                None,
                 -1,
                 true,
                 c"%s",
@@ -1209,8 +1209,8 @@ pub fn ui_call_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: i32,
-    chunk: *const Schar,
-    attrs: *const Sattr,
+    chunk: &[Schar],
+    attrs: &[Sattr],
 ) {
     ui_comp_raw_line(
         grid, row, startcol, endcol, clearcol, clearattr, flags, chunk, attrs,
@@ -1230,8 +1230,8 @@ pub fn ui_composed_call_raw_line(
     clearcol: Integer,
     clearattr: Integer,
     flags: i32,
-    chunk: *const Schar,
-    attrs: *const Sattr,
+    chunk: &[Schar],
+    attrs: &[Sattr],
 ) {
     ui_call_loop!(ui.composed, c"raw_line", |ui| {
         remote_ui_raw_line(

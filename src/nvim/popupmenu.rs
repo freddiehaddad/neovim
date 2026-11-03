@@ -228,7 +228,7 @@ static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new()
 
 #[inline]
 fn pum() -> &'static mut PopupmenuState {
-    crate::globals::gmut(PUM.as_ptr())
+    PUM.as_mut()
 }
 
 use crate::api::private::helpers::cstr_to_string;
@@ -665,7 +665,10 @@ fn pum_compute_text_attrs(
         let mut matched_len: i32 = -1;
 
         if in_fuzzy {
-            match_positions = fuzzy_match_str_with_pos(text, leader);
+            match_positions = fuzzy_match_str_with_pos(
+                crate::memory::cstr_as_opt_cstr(text).map(CStr::to_bytes),
+                crate::memory::cstr_as_opt_cstr(leader).map(CStr::to_bytes),
+            );
             match_positions.as_ref()?;
         }
 
@@ -1687,19 +1690,17 @@ fn pum_position_at_mouse(min_width: i32) {
     if ui_has(K_UIMULTIGRID) && grid == 0 {
         mouse_find_win_outer(&mut grid, &mut row, &mut col);
     }
-    if grid > 1 {
-        let wp = get_win_by_grid_handle(grid);
-        if !wp.is_null() {
-            let wp = crate::globals::gmut(wp);
-            row += wp.w_winrow;
-            col += wp.w_wincol;
-            pum().win_row_offset = wp.w_winrow;
-            pum().win_col_offset = wp.w_wincol;
+    if grid > 1
+        && let Some(wp) = get_win_by_grid_handle(grid)
+    {
+        row += wp.w_winrow;
+        col += wp.w_wincol;
+        pum().win_row_offset = wp.w_winrow;
+        pum().win_col_offset = wp.w_wincol;
 
-            if wp.w_view_height > 0 || wp.w_view_width > 0 {
-                max_row = (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
-                max_col = (g_st().columns_global - wp.w_wincol).max(wp.w_wincol + wp.w_view_width);
-            }
+        if wp.w_view_height > 0 || wp.w_view_width > 0 {
+            max_row = (g_st().rows_global - wp.w_winrow).max(wp.w_winrow + wp.w_view_height);
+            max_col = (g_st().columns_global - wp.w_wincol).max(wp.w_wincol + wp.w_view_width);
         }
     }
     if g_st().pum_grid.handle != 0 && grid == g_st().pum_grid.handle {

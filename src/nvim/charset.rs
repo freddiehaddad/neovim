@@ -185,7 +185,7 @@ static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> =
 
 #[inline]
 fn charset_st() -> &'static mut CharsetModuleState {
-    crate::globals::gmut(CHARSET_STATE.as_ptr())
+    CHARSET_STATE.as_mut()
 }
 
 #[inline]

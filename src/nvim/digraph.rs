@@ -115,7 +115,7 @@ static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphMod
 
 #[inline]
 fn digr_st() -> &'static mut DigraphModuleState {
-    crate::globals::gmut(DIGR_STATE.as_ptr())
+    DIGR_STATE.as_mut()
 }
 
 const fn dg(c1: u8, c2: u8, res: DigrResult) -> DigraphEntry {
@@ -1750,37 +1750,33 @@ pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
 }
 
 /// Add the digraphs in the argument to the digraph table (`putdigraph`).
-pub fn putdigraph(str_: impl crate::strings::IntoCCharPtr) {
-    let mut str = str_.into_c_char_ptr().cast_mut();
-    while !crate::memory::cstr_is_empty(str) {
-        str = skipwhite(str);
-        if crate::memory::cstr_is_empty(str) {
+pub fn putdigraph(mut rem: &[u8]) {
+    while !rem.is_empty() {
+        rem = skipwhite_slice(rem);
+        if rem.is_empty() {
             return;
         }
-        let char1 = crate::memory::cstr_first_byte(str);
-        str = str.wrapping_add(1);
-        let char2 = crate::memory::cstr_first_byte(str);
-        str = str.wrapping_add(1);
+        let char1 = rem[0];
+        let char2 = rem.get(1).copied().unwrap_or(0);
+        rem = &rem[rem.len().min(2)..];
 
         if !check_digraph_chars_valid(i32::from(char1), i32::from(char2)) {
             return;
         }
 
-        let mut rem = skipwhite_slice(crate::memory::cstr_as_bytes(str));
+        rem = skipwhite_slice(rem);
 
         if !rem.first().is_some_and(u8::is_ascii_digit) {
             emsg(gettext(E_NUMBER_EXP));
             return;
         }
         let n = getdigits_int(&mut rem, true, 0);
-        str = str.wrapping_add(crate::memory::cstr_len(str) - rem.len());
 
         registerdigraph(i32::from(char1), i32::from(char2), n);
     }
 }
 
-fn digraph_header(msg: impl crate::strings::IntoCCharPtr) {
-    let msg = msg.into_c_char_ptr();
+fn digraph_header(msg: &CStr) {
     if g_st().msg_col > 0 {
         msg_putchar(b'\n' as i32);
     }

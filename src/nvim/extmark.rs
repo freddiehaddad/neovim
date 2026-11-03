@@ -21,7 +21,6 @@ use crate::marktree::{
 use crate::mcursor::{mc_ns_cleared, mc_ns_clearing, mc_on_extmark_set};
 use crate::memline::ml_find_line_or_offset;
 use crate::undo::u_force_get_undo_header;
-use std::ptr;
 
 pub type Bcount = isize;
 pub type ExtmarkOp = i32;
@@ -616,6 +615,11 @@ pub fn extmark_splice_delete(
     only_copy: bool,
     op: ExtmarkOp,
 ) {
+    let uhp = if !only_copy && uvp.is_none() && op == K_EXTMARK_UNDO {
+        u_force_get_undo_header(buf)
+    } else {
+        None
+    };
     let mut itr = MarkTreeIter::new();
     marktree_itr_get(&buf.b_marktree, l_row, l_col, &mut itr);
     loop {
@@ -665,7 +669,10 @@ pub fn extmark_splice_delete(
             }
         }
 
-        if copy && (only_copy || (uvp.is_some() && op == K_EXTMARK_UNDO && !mt_no_undo(mark))) {
+        if copy
+            && (only_copy
+                || ((uvp.is_some() || uhp.is_some()) && op == K_EXTMARK_UNDO && !mt_no_undo(mark)))
+        {
             let pos = ExtmarkSavePos {
                 mark: mt_lookup_key(mark),
                 invalidated,
@@ -674,9 +681,13 @@ pub fn extmark_splice_delete(
                 redo_row: -1,
                 redo_col: -1,
             };
-            uvp.as_deref_mut()
-                .unwrap()
-                .push(ExtmarkUndoObject::SavePos(pos));
+            if let Some(uvp) = uvp.as_deref_mut() {
+                uvp.push(ExtmarkUndoObject::SavePos(pos));
+            } else if let Some(uh) = uhp {
+                crate::undo::uhp_mut(buf, uh)
+                    .uh_extmark
+                    .push(ExtmarkUndoObject::SavePos(pos));
+            }
         }
 
         marktree_itr_next(&buf.b_marktree, &mut itr);
@@ -863,21 +874,8 @@ pub fn extmark_splice_impl(
     if old_row > 0 || old_col > 0 {
         let end_row = start_row + old_row;
         let end_col = (if old_row != 0 { 0 } else { start_col }) + old_col;
-        let uhp = u_force_get_undo_header(buf);
-        let uvp = if let Some(uh) = uhp {
-            &raw mut crate::undo::uhp_mut(buf, uh).uh_extmark
-        } else {
-            ptr::null_mut()
-        };
         extmark_splice_delete(
-            buf,
-            start_row,
-            start_col,
-            end_row,
-            end_col,
-            crate::globals::gopt_mut(uvp),
-            false,
-            undo,
+            buf, start_row, start_col, end_row, end_col, None, false, undo,
         );
     }
 

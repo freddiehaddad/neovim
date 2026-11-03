@@ -61,6 +61,12 @@ impl<T> GlobalState<T> {
     pub const fn as_ptr(&self) -> *mut T {
         self.0.get()
     }
+
+    #[inline]
+    #[allow(clippy::mut_from_ref)]
+    pub fn as_mut(&'static self) -> &'static mut T {
+        unsafe { &mut *self.0.get() }
+    }
 }
 
 pub struct EditorState {

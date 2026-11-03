@@ -449,7 +449,7 @@ static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrSta
 
 #[inline]
 fn optstr_st() -> &'static mut OptionStrState {
-    crate::globals::gmut(OPTSTR_STATE.as_ptr())
+    OPTSTR_STATE.as_mut()
 }
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [
@@ -2478,16 +2478,12 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 
 /// Validate the 'mousescroll' option.
 pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
-    let v = opt_keyset(
-        args.os_newval.data.string().data,
+    let v: &OptKeyDict_mousescroll = opt_keyset(
+        crate::memory::cstr_as_bytes(args.os_newval.data.string().data),
         K_OPT_MOUSESCROLL,
-        ptr::null_mut(),
-    )
-    .cast::<OptKeyDict_mousescroll>();
-    let has_hor =
-        (crate::globals::gptr(v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
-    let has_ver =
-        (crate::globals::gptr(v).is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
+    );
+    let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
+    let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     if has_hor || has_ver {
         None
     } else {
@@ -2497,9 +2493,10 @@ pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
 
 /// Handle setting 'mousescroll'.
 pub fn did_set_mousescroll(_args: &mut Optset) -> Option<&CStr> {
-    let v = opt_keyset(opt_vars().p_mousescroll, K_OPT_MOUSESCROLL, ptr::null_mut())
-        .cast::<OptKeyDict_mousescroll>();
-    let v = crate::globals::gmut(v);
+    let v: &OptKeyDict_mousescroll = opt_keyset(
+        crate::memory::cstr_as_bytes(opt_vars().p_mousescroll),
+        K_OPT_MOUSESCROLL,
+    );
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     opt_vars().p_mousescroll_hor = if has_hor {
@@ -2956,7 +2953,11 @@ pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
     }
 
     let mut array: Vec<Colnr> = Vec::new();
-    let errmsg = tabstop_set(value, &mut array, args.os_errbuf);
+    let errmsg = tabstop_set(
+        crate::memory::cstr_as_bytes(value),
+        &mut array,
+        args.os_errbuf,
+    );
     args.os_prep = OptSetPrep::Tabstop(array);
     errmsg
 }
@@ -3249,56 +3250,45 @@ pub fn opt_strings_check<'a>(
 }
 
 /// Parses a validated dict option into `out`.
-pub fn opt_fill(
-    value: impl crate::strings::IntoCCharPtr,
-    get_field: FieldHashfn,
-    out: *mut OptKeySet,
-) {
+fn opt_fill(value: &[u8], get_field: FieldHashfn, out: *mut OptKeySet) {
     let Some(get_field_fn) = get_field else {
         return;
     };
-    let mut p = crate::memory::cstr_as_bytes(value);
+    let mut p = value;
     while let Some((key_bytes, v)) = option_next_keyval(&mut p) {
         let Some(f) = get_field_fn(key_bytes) else {
             continue;
         };
         let field = out.cast::<u8>().wrapping_add(f.ptr_off);
         if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
-            *crate::globals::gptr(field.cast::<Boolean>()) = true;
+            unsafe { *field.cast::<Boolean>() = true };
         } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
             let mut rem = v.unwrap_or(&[]);
 
-            *crate::globals::gptr(field.cast::<Integer>()) =
-                Integer::from(getdigits_int(&mut rem, false, 0));
+            unsafe {
+                *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
+            }
         } else if f.key_type == ObjectType::ObjectTypeString as i32 {
             let v_bytes = v.unwrap_or(&[]);
-            unsafe { ptr::copy_nonoverlapping(v_bytes.as_ptr(), field, v_bytes.len()) };
-
-            *crate::globals::gptr(field.wrapping_add(v_bytes.len())) = 0;
+            unsafe {
+                ptr::copy_nonoverlapping(v_bytes.as_ptr(), field, v_bytes.len());
+                *field.wrapping_add(v_bytes.len()) = 0;
+            }
         }
 
-        crate::globals::gptr(out).is_set_ |= 1u64 << (f.opt_index as u32);
+        unsafe { (*out).is_set_ |= 1u64 << (f.opt_index as u32) };
     }
 }
 
 /// Reify a dict-option value to a keyset (`OptKeyDict_…`).
-pub fn opt_keyset(
-    value: impl crate::strings::IntoCCharPtr,
-    opt_idx: OptIndex,
-    mut keyset: *mut OptKeySet,
-) -> *mut OptKeySet {
-    let value = value.into_c_char_ptr();
-    {
-        if keyset.is_null() {
-            keyset = (&raw mut optstr_st().opt_keyset_shared).cast::<OptKeySet>();
-        }
-        let si = opt_dict_schema(opt_idx).unwrap();
-        unsafe { ptr::write_bytes(keyset.cast::<u8>(), 0, si.size) };
-        if !value.is_null() {
-            opt_fill(value, si.get_field, keyset);
-        }
-        keyset
+pub fn opt_keyset<T>(value: &[u8], opt_idx: OptIndex) -> &'static mut T {
+    let keyset = (&raw mut optstr_st().opt_keyset_shared).cast::<OptKeySet>();
+    let si = opt_dict_schema(opt_idx).unwrap();
+    unsafe { ptr::write_bytes(keyset.cast::<u8>(), 0, si.size) };
+    if !value.is_empty() {
+        opt_fill(value, si.get_field, keyset);
     }
+    unsafe { &mut *keyset.cast::<T>() }
 }
 
 /// Return OK if "p" is a valid fileformat name, FAIL otherwise.

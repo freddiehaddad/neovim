@@ -635,7 +635,7 @@ static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::n
 
 #[inline]
 fn docmd_st() -> &'static mut ExDocmdState {
-    crate::globals::gmut(DOCMD_STATE.as_ptr())
+    DOCMD_STATE.as_mut()
 }
 
 struct Wcmd {
@@ -5098,8 +5098,11 @@ pub fn do_cmdline(
                     && !dbg_tick.is_null()
                     && *crate::globals::gptr(dbg_tick) != g_st().debug_tick
                 {
-                    *crate::globals::gptr(breakpoint) =
-                        dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
+                    *crate::globals::gptr(breakpoint) = dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        crate::memory::cstr_from_ptr(fname),
+                        *sourcing_lnum_ptr(),
+                    );
                     *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                 }
 
@@ -5111,9 +5114,12 @@ pub fn do_cmdline(
                     && *crate::globals::gptr(breakpoint) != 0
                     && *crate::globals::gptr(breakpoint) <= *sourcing_lnum_ptr()
                 {
-                    dbg_breakpoint(fname, *sourcing_lnum_ptr());
-                    *crate::globals::gptr(breakpoint) =
-                        dbg_find_breakpoint(fgetline.is_source(), fname, *sourcing_lnum_ptr());
+                    dbg_breakpoint(crate::memory::cstr_as_opt_cstr(fname), *sourcing_lnum_ptr());
+                    *crate::globals::gptr(breakpoint) = dbg_find_breakpoint(
+                        fgetline.is_source(),
+                        crate::memory::cstr_from_ptr(fname),
+                        *sourcing_lnum_ptr(),
+                    );
                     *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
@@ -5286,8 +5292,11 @@ pub fn do_cmdline(
                             && cmd_loop_cookie.lines.len() > current_line as usize
                         {
                             let wp = &cmd_loop_cookie.lines[current_line as usize];
-                            *crate::globals::gptr(breakpoint) =
-                                dbg_find_breakpoint(fgetline.is_source(), fname, wp.lnum - 1);
+                            *crate::globals::gptr(breakpoint) = dbg_find_breakpoint(
+                                fgetline.is_source(),
+                                crate::memory::cstr_from_ptr(fname),
+                                wp.lnum - 1,
+                            );
                             *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                         }
                     } else if cstack.cs_idx >= 0 {
@@ -7272,19 +7281,19 @@ pub fn parse_cmd_address(
 
                     eap.cmd = eap.cmd.wrapping_add(1);
                     if eap.skip == 0 {
-                        let fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
-                        if !mark_check(crate::globals::gopt_mut(fm1), errormsg) {
+                        let mut fm1 = mark_get_visual(curbuf_mut(), b'<' as i32);
+                        if !mark_check(fm1.as_deref_mut(), errormsg) {
                             break 'theend;
                         }
 
-                        eap.line1 = crate::globals::gptr(fm1).mark.lnum;
+                        eap.line1 = fm1.unwrap().mark.lnum;
 
-                        let fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
-                        if !mark_check(crate::globals::gopt_mut(fm2), errormsg) {
+                        let mut fm2 = mark_get_visual(curbuf_mut(), b'>' as i32);
+                        if !mark_check(fm2.as_deref_mut(), errormsg) {
                             break 'theend;
                         }
 
-                        eap.line2 = crate::globals::gptr(fm2).mark.lnum;
+                        eap.line2 = fm2.unwrap().mark.lnum;
 
                         eap.addr_count += 1;
                     }
@@ -8957,12 +8966,8 @@ fn check_more(message: bool, forceit: bool) -> bool {
                     ),
                     n,
                 );
-                if vim_dialog_yesno(
-                    VIM_QUESTION,
-                    ptr::null_mut(),
-                    crate::memory::cstr_until_nul(&buff),
-                    1,
-                ) == VIM_YES
+                if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 1)
+                    == VIM_YES
                 {
                     return true;
                 }
@@ -10308,8 +10313,8 @@ fn ex_detach(eap: &mut Exarg) {
         if log_should_log(LOGLVL_INF) {
             logmsg!(
                 LOGLVL_INF,
-                ptr::null(),
-                c"ex_detach",
+                None,
+                Some(c"ex_detach"),
                 line!() as i32,
                 true,
                 c"%%detach current_ui=%llu detached=%zu",
@@ -10328,8 +10333,8 @@ fn ex_detach(eap: &mut Exarg) {
         if log_should_log(LOGLVL_INF) {
             logmsg!(
                 LOGLVL_INF,
-                ptr::null(),
-                c"ex_detach",
+                None,
+                Some(c"ex_detach"),
                 line!() as i32,
                 true,
                 c"detach current_ui=%llu",
@@ -12445,7 +12450,7 @@ fn ex_setfiletype(eap: &mut Exarg) {
 
 fn ex_digraphs(eap: &mut Exarg) {
     if !crate::memory::cstr_is_empty(eap.arg) {
-        putdigraph(eap.arg);
+        putdigraph(crate::memory::cstr_as_bytes(eap.arg));
     } else {
         listdigraphs(eap.forceit != 0);
     }

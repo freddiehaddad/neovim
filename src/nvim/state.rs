@@ -95,7 +95,7 @@ static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> =
 
 #[inline]
 fn state_mod_st() -> &'static mut StateModuleState {
-    crate::globals::gmut(STATE_MOD_STATE.as_ptr())
+    STATE_MOD_STATE.as_mut()
 }
 
 pub fn state_enter<S: EditorState>(s: &mut S) {
@@ -110,10 +110,9 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 
         'getkey: loop {
             let key = loop {
-                let events = main_loop_events();
                 if vpeekc() != 0 || g_st().typebuf.tb_len > 0 {
                     break safe_vgetc();
-                } else if !multiqueue_empty(crate::globals::gref(events)) {
+                } else if !multiqueue_empty(main_loop_events()) {
                     ui_flush();
                     break K_EVENT;
                 } else {
@@ -125,10 +124,14 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                         setcursor();
                     }
                     ui_flush();
-                    input_get(ptr::null_mut(), 0, -1, g_st().typebuf.tb_change_cnt, events);
-                    if input_available() == 0
-                        && !multiqueue_empty(crate::globals::gref(main_loop_events()))
-                    {
+                    input_get(
+                        ptr::null_mut(),
+                        0,
+                        -1,
+                        g_st().typebuf.tb_change_cnt,
+                        main_loop_events(),
+                    );
+                    if input_available() == 0 && !multiqueue_empty(main_loop_events()) {
                         break K_EVENT;
                     }
                 }
@@ -147,8 +150,8 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
                 };
                 logmsg!(
                     LOGLVL_DBG,
-                    ptr::null(),
-                    c"state_enter",
+                    None,
+                    Some(c"state_enter"),
                     97,
                     true,
                     c"input: %s",
@@ -169,10 +172,9 @@ pub fn state_enter<S: EditorState>(s: &mut S) {
 
 pub fn state_handle_k_event() {
     loop {
-        let events = main_loop_events();
-        multiqueue_get(crate::globals::gmut(events)).dispatch();
+        multiqueue_get(main_loop_events()).dispatch();
 
-        if multiqueue_empty(crate::globals::gref(main_loop_events())) {
+        if multiqueue_empty(main_loop_events()) {
             return;
         }
 
@@ -380,8 +382,8 @@ pub fn may_trigger_safestate(safe: bool) {
         };
         logmsg!(
             LOGLVL_DBG,
-            ptr::null(),
-            c"may_trigger_safestate",
+            None,
+            Some(c"may_trigger_safestate"),
             307,
             true,
             c"%s",
@@ -407,8 +409,8 @@ pub fn state_no_longer_safe(reason: Option<&CStr>) {
     {
         logmsg!(
             LOGLVL_DBG,
-            ptr::null(),
-            c"state_no_longer_safe",
+            None,
+            Some(c"state_no_longer_safe"),
             320,
             true,
             c"SafeState reset: %s",

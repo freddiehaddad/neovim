@@ -5,10 +5,7 @@ use crate::charset::{ascii_isalpha, is_special, transchar, vim_isprintc, vim_str
 use crate::errors::{E_INVARG, E_USINGSID};
 use crate::eval::vars::{Scid, get_var_value};
 use crate::globals::*;
-use crate::mbyte::{
-    utf_char2len, utf_char2slice, utf_ptr2char, utf_slice2char, utf_slice2len, utfc_ptr2len,
-    utfc_ptr2len_len, utfc_slice2len,
-};
+use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len, utfc_slice2len};
 use crate::message::emsg;
 use std::ffi::CStr;
 
@@ -2152,7 +2149,7 @@ pub fn get_special_key(
     mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    let string_buf = crate::globals::gmut(SPECIAL_KEY_STRING.as_ptr());
+    let string_buf = SPECIAL_KEY_STRING.as_mut();
     let string = string_buf.as_mut_ptr();
     let mut is_ascii_ctrl = false;
 
@@ -2336,26 +2333,26 @@ pub fn trans_special_slice(
     escape_ks: bool,
     did_simplify: Option<&mut bool>,
 ) -> Option<(usize, usize)> {
-    let mut p = src.as_ptr();
-    let dlen = trans_special(&mut p, src.len(), dst, flags, escape_ks, did_simplify) as usize;
+    let orig_len = src.len();
+    let mut rem = src;
+    let dlen = trans_special(&mut rem, dst, flags, escape_ks, did_simplify) as usize;
     if dlen == 0 {
         None
     } else {
-        Some(((p as usize) - (src.as_ptr() as usize), dlen))
+        Some((orig_len - rem.len(), dlen))
     }
 }
 
 /// Try translating a `<>` name ("keycode") (`trans_special`).
 pub fn trans_special(
-    srcp: &mut *const u8,
-    src_len: usize,
+    srcp: &mut &[u8],
     dst: &mut [u8],
     flags: i32,
     escape_ks: bool,
     did_simplify: Option<&mut bool>,
 ) -> u32 {
     let mut modifiers: i32 = 0;
-    let key = find_special_key(srcp, src_len, &mut modifiers, flags, did_simplify);
+    let key = find_special_key(srcp, &mut modifiers, flags, did_simplify);
     if key == 0 {
         return 0;
     }
@@ -2434,19 +2431,14 @@ fn extract_modifiers(
 
 /// Try translating a `<>` name (`find_special_key`).
 pub fn find_special_key(
-    srcp: &mut *const u8,
-    src_len: usize,
+    srcp: &mut &[u8],
     modp: &mut i32,
     flags: i32,
     did_simplify: Option<&mut bool>,
 ) -> i32 {
-    if src_len == 0 {
-        return 0;
-    }
-
-    let base = *srcp;
-    let bytes = unsafe { std::slice::from_raw_parts(base, src_len) };
-    if bytes[0] != b'<' {
+    let bytes = *srcp;
+    let src_len = bytes.len();
+    if src_len == 0 || bytes[0] != b'<' {
         return 0;
     }
     let end_idx = src_len - 1;
@@ -2468,10 +2460,7 @@ pub fn find_special_key(
             last_dash_idx = bp_idx;
             if bp_idx < end_idx {
                 let end_minus_bp = end_idx - bp_idx;
-                let l = utfc_ptr2len_len(
-                    base.wrapping_add(bp_idx + 1).cast(),
-                    (end_minus_bp + 1) as i32,
-                ) as usize;
+                let l = utfc_slice2len(&bytes[bp_idx + 1..=end_idx]);
                 if end_minus_bp > l
                     && !(in_string && bytes.get(bp_idx + 1) == Some(&b'"'))
                     && bytes.get(bp_idx + l + 1) == Some(&b'>')
@@ -2495,8 +2484,12 @@ pub fn find_special_key(
                     .is_some_and(|s| s.eq_ignore_ascii_case(b"char-"))
             {
                 let mut l: i32 = 0;
+                let num_slice = &bytes[bp_idx + 5..=end_idx];
+                let mut num_cstr = [0u8; 64];
+                let copy_len = num_slice.len().min(63);
+                num_cstr[..copy_len].copy_from_slice(&num_slice[..copy_len]);
                 vim_str2nr(
-                    base.wrapping_add(bp_idx + 5).cast(),
+                    num_cstr.as_ptr().cast(),
                     None,
                     Some(&mut l),
                     STR2NR_ALL,
@@ -2519,7 +2512,7 @@ pub fn find_special_key(
 
     if bp_idx <= end_idx && bytes[bp_idx] == b'>' {
         // found matching '>'
-        let end_of_name = base.wrapping_add(bp_idx + 1);
+        let end_of_name_idx = bp_idx + 1;
 
         // Which modifiers are given?
         let mut modifiers: i32 = 0;
@@ -2537,7 +2530,6 @@ pub fn find_special_key(
 
         // Legal modifier name.
         if bp_idx >= last_dash_idx {
-            let last_dash = base.wrapping_add(last_dash_idx);
             let after_dash = &bytes[last_dash_idx + 1..];
             let mut key: i32;
             if after_dash
@@ -2548,8 +2540,12 @@ pub fn find_special_key(
                 // <Char-123> or <Char-033> or <Char-0x33>
                 let mut l: i32 = 0;
                 let mut n: u64 = 0;
+                let num_slice = &after_dash[5..];
+                let mut num_cstr = [0u8; 64];
+                let copy_len = num_slice.len().min(63);
+                num_cstr[..copy_len].copy_from_slice(&num_slice[..copy_len]);
                 vim_str2nr(
-                    last_dash.wrapping_add(6).cast(),
+                    num_cstr.as_ptr().cast(),
                     None,
                     Some(&mut l),
                     STR2NR_ALL,
@@ -2571,16 +2567,16 @@ pub fn find_special_key(
                 // Modifier with single letter, or special key name.
                 if in_string && after_dash.starts_with(b"\\\"") {
                     // Special case for a double-quoted string
-                    off = 2;
+                    off = 1;
                     l = 2;
                 } else {
-                    off = 1;
-                    l = utfc_ptr2len(last_dash.wrapping_add(1).cast()) as usize;
+                    off = 0;
+                    l = utfc_slice2len(after_dash);
                 }
                 if modifiers != 0 && after_dash.get(l) == Some(&b'>') {
-                    key = utf_ptr2char(last_dash.wrapping_add(off).cast());
+                    key = utf_slice2char(&after_dash[off..]);
                 } else {
-                    key = get_special_key_code(last_dash.wrapping_add(off).cast());
+                    key = get_special_key_code(&after_dash[off..]);
                     if (flags & FSK_KEEP_X_KEY) == 0 {
                         key = handle_x_keys(key);
                     }
@@ -2614,7 +2610,7 @@ pub fn find_special_key(
                 }
 
                 *modp = modifiers;
-                *srcp = end_of_name;
+                *srcp = &bytes[end_of_name_idx..];
                 return key;
             }
         }
@@ -2633,10 +2629,12 @@ pub fn find_special_key_in_table(c: i32) -> i32 {
 }
 
 /// Find the special key with the given name (`get_special_key_code`).
-pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    let name_bytes = crate::memory::cstr_as_bytes(name);
-    if name_bytes.starts_with(b"t_") && name_bytes.len() >= 4 {
+pub fn get_special_key_code(name_bytes: &[u8]) -> i32 {
+    if name_bytes.starts_with(b"t_")
+        && name_bytes.len() >= 4
+        && name_bytes[2] != 0
+        && name_bytes[3] != 0
+    {
         return termcap2key(i32::from(name_bytes[2]), i32::from(name_bytes[3]));
     }
 
@@ -2645,7 +2643,7 @@ pub fn get_special_key_code(name: impl crate::strings::IntoCCharPtr) -> i32 {
         .take_while(|&&b| ascii_isident(i32::from(b)))
         .count();
 
-    let slice = crate::memory::cstr_slice(name, len);
+    let slice = &name_bytes[..len];
     let idx = get_special_key_code_hash(slice);
     if idx >= 0 {
         KEY_NAMES_TABLE[idx as usize].key
@@ -2668,21 +2666,18 @@ pub fn get_mouse_button(code: i32, is_click: &mut bool, is_drag: &mut bool) -> i
 
 /// Encode `<key>` notation into Nvim's internal key representation (`replace_termcodes`).
 pub fn replace_termcodes(
-    from: impl crate::strings::IntoCCharPtr,
-    from_len: usize,
+    from_slice: &[u8],
     buf_limit: bool,
     sid_arg: Scid,
     flags: i32,
     mut did_simplify: Option<&mut bool>,
-    cpo_val: impl crate::strings::IntoCCharPtr,
+    cpo_val: &[u8],
 ) -> Option<std::ffi::CString> {
-    let from = from.into_c_char_ptr();
-    let cpo_val = cpo_val.into_c_char_ptr();
-    let from_slice = crate::memory::cstr_slice(from, from_len);
+    let from_len = from_slice.len();
     let mut dlen: usize = 0;
 
     // backslash is a special character
-    let do_backslash = !crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH);
+    let do_backslash = !cpo_val.contains(&(K_CPO_BSLASH as u8));
     let do_special = (flags & REPTERM_NO_SPECIAL) == 0;
 
     // Allocate space for the translation. Worst case a single character is
@@ -2822,8 +2817,8 @@ pub fn add_char2buf(c: i32, dst: &mut [u8]) -> usize {
 }
 
 /// Copy `p` to an owned `CString`, escaping `K_SPECIAL` (`vim_strsave_escape_ks`).
-pub fn vim_strsave_escape_ks(p: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
-    let bytes = crate::memory::cstr_as_bytes(p.into_c_char_ptr());
+pub fn vim_strsave_escape_ks(bytes: &[u8]) -> std::ffi::CString {
+    let bytes = crate::memory::bytes_until_nul(bytes);
     let mut res = vec![0u8; bytes.len() * 4 + 1];
     let mut d = 0usize;
     let mut s = 0usize;
@@ -2894,12 +2889,12 @@ mod tests {
     #[test]
     fn key_names_table_hash_resolves_all_entries() {
         for entry in KEY_NAMES_TABLE {
-            let code = get_special_key_code(entry.name.as_ptr());
+            let code = get_special_key_code(entry.name.to_bytes());
             assert_ne!(code, 0);
         }
-        assert_eq!(get_special_key_code(c"CR"), CAR);
-        assert_eq!(get_special_key_code(c"Esc"), ESC);
-        assert_eq!(get_special_key_code(c"NotAKey"), 0);
+        assert_eq!(get_special_key_code(b"CR"), CAR);
+        assert_eq!(get_special_key_code(b"Esc"), ESC);
+        assert_eq!(get_special_key_code(b"NotAKey"), 0);
     }
 
     #[test]
@@ -2915,34 +2910,31 @@ mod tests {
     #[test]
     fn find_special_key_handles_modifiers_case_and_quotes() {
         let mut modp: i32 = 0;
-        let mut p = c"abc".as_ptr().cast();
-        assert_eq!(find_special_key(&mut p, 3, &mut modp, 0, None), 0);
+        let mut p: &[u8] = b"abc";
+        assert_eq!(find_special_key(&mut p, &mut modp, 0, None), 0);
 
-        p = c"<C-M-S-A>".as_ptr().cast();
-        assert_ne!(find_special_key(&mut p, 9, &mut modp, 0, None), 0);
+        p = b"<C-M-S-A>";
+        assert_ne!(find_special_key(&mut p, &mut modp, 0, None), 0);
         assert_ne!(modp, 0);
 
-        p = c"<C-A>".as_ptr().cast();
-        let k_upper = find_special_key(&mut p, 5, &mut modp, 0, None);
+        p = b"<C-A>";
+        let k_upper = find_special_key(&mut p, &mut modp, 0, None);
         let m_upper = modp;
-        for variant in [c"<C-a>", c"<c-A>", c"<c-a>"] {
-            p = variant.as_ptr().cast();
-            assert_eq!(find_special_key(&mut p, 5, &mut modp, 0, None), k_upper);
+        for variant in [&b"<C-a>"[..], &b"<c-A>"[..], &b"<c-a>"[..]] {
+            p = variant;
+            assert_eq!(find_special_key(&mut p, &mut modp, 0, None), k_upper);
             assert_eq!(modp, m_upper);
         }
 
-        p = c"<C-\">".as_ptr().cast();
-        assert_eq!(find_special_key(&mut p, 5, &mut modp, 0, None), b'"' as i32);
-        p = c"<C-\">".as_ptr().cast();
+        p = b"<C-\">";
+        assert_eq!(find_special_key(&mut p, &mut modp, 0, None), b'"' as i32);
+        p = b"<C-\">";
+        assert_eq!(find_special_key(&mut p, &mut modp, FSK_IN_STRING, None), 0);
+        p = b"<C-\\\">";
+        assert_eq!(find_special_key(&mut p, &mut modp, 0, None), 0);
+        p = b"<C-\\\">";
         assert_eq!(
-            find_special_key(&mut p, 5, &mut modp, FSK_IN_STRING, None),
-            0
-        );
-        p = c"<C-\\\">".as_ptr().cast();
-        assert_eq!(find_special_key(&mut p, 6, &mut modp, 0, None), 0);
-        p = c"<C-\\\">".as_ptr().cast();
-        assert_eq!(
-            find_special_key(&mut p, 6, &mut modp, FSK_IN_STRING, None),
+            find_special_key(&mut p, &mut modp, FSK_IN_STRING, None),
             b'"' as i32
         );
     }

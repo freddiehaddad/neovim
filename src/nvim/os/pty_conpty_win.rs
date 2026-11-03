@@ -211,7 +211,7 @@ static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> =
 #[cfg(windows)]
 #[inline]
 fn conpty_st() -> &'static mut ConptyModuleState {
-    unsafe { &mut *CONPTY_STATE.as_ptr() }
+    CONPTY_STATE.as_mut()
 }
 
 #[cfg(windows)]
@@ -279,8 +279,8 @@ pub fn os_dyn_conpty_init() -> TriState {
     if unsafe { uv_dlopen(c"conpty.dll".as_ptr(), &mut conpty_lib) } == 0 {
         logmsg!(
             LOGLVL_INF,
-            std::ptr::null(),
-            c"os_dyn_conpty_init",
+            None,
+            Some(c"os_dyn_conpty_init"),
             31,
             true,
             c"Loaded new ConPTY from conpty.dll",
@@ -293,8 +293,8 @@ pub fn os_dyn_conpty_init() -> TriState {
         }
         logmsg!(
             LOGLVL_INF,
-            std::ptr::null(),
-            c"os_dyn_conpty_init",
+            None,
+            Some(c"os_dyn_conpty_init"),
             40,
             true,
             c"Loaded system ConPTY from kernel32.dll",
@@ -457,8 +457,8 @@ pub fn os_conpty_init(
 
     logmsg!(
         LOGLVL_ERR,
-        std::ptr::null(),
-        c"os_conpty_init",
+        None,
+        Some(c"os_conpty_init"),
         139,
         true,
         c"os_conpty_init:%s : error code: %d",
@@ -525,8 +525,8 @@ pub fn os_conpty_set_size(conpty_object: &Conpty, width: u16, height: u16) {
         {
             logmsg!(
                 LOGLVL_ERR,
-                std::ptr::null(),
-                c"os_conpty_set_size",
+                None,
+                Some(c"os_conpty_set_size"),
                 177,
                 true,
                 c"ResizePseudoConsole failed: error code: %d",

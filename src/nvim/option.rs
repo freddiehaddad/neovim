@@ -550,7 +550,7 @@ static OPT_STATE: GlobalState<OptionModuleState> = GlobalState::new(OptionModule
 
 #[inline]
 fn opt_st() -> &'static mut OptionModuleState {
-    crate::globals::gmut(OPT_STATE.as_ptr())
+    OPT_STATE.as_mut()
 }
 
 const P_BIN_DEP_OPTS: &[i32] = &[
@@ -1085,8 +1085,8 @@ pub fn free_all_options() {
 pub fn set_init_2(_headless: bool) {
     logmsg!(
         1,
-        ptr::null(),
-        c"set_init_2",
+        None,
+        Some(c"set_init_2"),
         592,
         true,
         c"startup runtimepath/packpath value: %s",
@@ -2078,10 +2078,10 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
         }
     } else if has_lt {
         let mut modifiers: i32 = 0;
-        let mut arg_u8 = arg.wrapping_offset(-1).cast::<u8>();
+        let mut arg_slice =
+            unsafe { std::slice::from_raw_parts(arg.wrapping_offset(-1).cast::<u8>(), len + 1) };
         key = find_special_key(
-            &mut arg_u8,
-            len + 1,
+            &mut arg_slice,
             &mut modifiers,
             FSK_KEYCODE | FSK_KEEP_X_KEY | FSK_SIMPLIFY,
             None,
@@ -2258,11 +2258,15 @@ fn didset_options2() {
         &mut g_st().wim_flags,
     );
     tabstop_set(
-        curbuf_mut().b_p_vsts,
+        crate::memory::cstr_as_bytes(curbuf_mut().b_p_vsts),
         &mut curbuf_mut().b_p_vsts_array,
         None,
     );
-    tabstop_set(curbuf_mut().b_p_vts, &mut curbuf_mut().b_p_vts_array, None);
+    tabstop_set(
+        crate::memory::cstr_as_bytes(curbuf_mut().b_p_vts),
+        &mut curbuf_mut().b_p_vts_array,
+        None,
+    );
 }
 
 /// Repair UI state after `:set all&`.
@@ -2959,7 +2963,11 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
                 .as_ref()
                 .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
             if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
-                tabstop_set(buf.b_p_vsts, &mut buf.b_p_vsts_array, None);
+                tabstop_set(
+                    crate::memory::cstr_as_bytes(buf.b_p_vsts),
+                    &mut buf.b_p_vsts_array,
+                    None,
+                );
             } else {
                 buf.b_p_vsts_array.clear();
             }
@@ -4095,7 +4103,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
 /// Return information for option at `opt_idx` (`get_option`).
 pub fn get_option(opt_idx: OptIndex) -> &'static mut Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    &mut (*crate::globals::gmut(OPTIONS.as_ptr()))[opt_idx as usize]
+    &mut (*OPTIONS.as_mut())[opt_idx as usize]
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -7175,7 +7183,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_vsts = alloc_string_option(opt_vars().p_vsts);
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
-                tabstop_set(opt_vars().p_vsts, &mut buf.b_p_vsts_array, None);
+                tabstop_set(
+                    crate::memory::cstr_as_bytes(opt_vars().p_vsts),
+                    &mut buf.b_p_vsts_array,
+                    None,
+                );
             } else {
                 buf.b_p_vsts_array.clear();
             }
@@ -7289,7 +7301,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                     && !crate::memory::cstr_is_empty(opt_vars().p_vts)
                     && buf.b_p_vts_array.is_empty()
                 {
-                    tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
+                    tabstop_set(
+                        crate::memory::cstr_as_bytes(opt_vars().p_vts),
+                        &mut buf.b_p_vts_array,
+                        None,
+                    );
                 } else {
                     buf.b_p_vts_array.clear();
                 }
@@ -7305,7 +7321,11 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                     && !crate::memory::cstr_is_empty(opt_vars().p_vts)
                     && buf.b_p_vts_array.is_empty()
                 {
-                    tabstop_set(opt_vars().p_vts, &mut buf.b_p_vts_array, None);
+                    tabstop_set(
+                        crate::memory::cstr_as_bytes(opt_vars().p_vts),
+                        &mut buf.b_p_vts_array,
+                        None,
+                    );
                 } else {
                     buf.b_p_vts_array.clear();
                 }
@@ -7403,7 +7423,7 @@ pub fn set_context_in_set_cmd(
             return;
         };
         p = p.wrapping_add(gt_off + 1);
-        let key = get_special_key_code(arg.wrapping_add(1));
+        let key = get_special_key_code(crate::memory::cstr_as_bytes(arg.wrapping_add(1)));
         if key == 0 {
             xp.xp_context = EXPAND_NOTHING;
             return;
@@ -7605,7 +7625,10 @@ fn match_str(
                 return true;
             }
         } else {
-            let score = fuzzy_match_str(str_arg, fuzzystr);
+            let score = fuzzy_match_str(
+                crate::memory::cstr_as_opt_cstr(str_arg).map(CStr::to_bytes),
+                crate::memory::cstr_as_opt_cstr(fuzzystr).map(CStr::to_bytes),
+            );
             if score != FUZZY_SCORE_NONE {
                 let idx = fuzmatch.len() as i32;
                 fuzmatch.push(FuzmatchStr {

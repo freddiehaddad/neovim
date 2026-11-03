@@ -30,7 +30,7 @@ static USERS_STATE: crate::globals::GlobalState<OsUsersState> =
 
 #[inline]
 fn users_st() -> &'static mut OsUsersState {
-    unsafe { &mut *USERS_STATE.as_ptr() }
+    USERS_STATE.as_mut()
 }
 
 #[cfg(all(

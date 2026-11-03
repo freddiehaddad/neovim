@@ -325,8 +325,8 @@ mod win_impl {
             if status != 0 {
                 logmsg!(
                     LOGLVL_ERR,
-                    ptr::null(),
-                    c"pty_proc_spawn",
+                    None,
+                    Some(c"pty_proc_spawn"),
                     line!() as i32,
                     true,
                     c"pty_proc_spawn(%s): %s: error code: %d",

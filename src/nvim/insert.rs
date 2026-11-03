@@ -314,12 +314,12 @@ static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertMo
 
 #[inline]
 fn ins_st() -> &'static mut InsertModuleState {
-    crate::globals::gmut(INS_MOD_STATE.as_ptr())
+    INS_MOD_STATE.as_mut()
 }
 
 #[inline]
 fn replace_stack_mut() -> &'static mut Vec<u8> {
-    &mut crate::globals::gmut(INS_MOD_STATE.as_ptr()).replace_stack
+    &mut INS_MOD_STATE.as_mut().replace_stack
 }
 
 #[inline]
@@ -1815,7 +1815,7 @@ fn insert_special(mut c: i32, mut allow_modmask: i32, mut ctrlv: i32) {
                 return;
             }
             let prefix = std::ffi::CString::new(&p[..len - 1]).unwrap();
-            ins_str(prefix.as_c_str(), len - 1);
+            ins_str(&p[..len - 1], len - 1);
             redo_append_lit(prefix.as_c_str(), -1);
             ctrlv = 0;
         }
@@ -1909,7 +1909,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
                     == g_st().ins_global.end_comment_pending
             {
                 backspace_until_column(i);
-                ins_bytes_len(lead_end.as_mut_ptr().cast(), (end_len - 1) as usize);
+                ins_bytes_len(&lead_end, (end_len - 1) as usize);
             }
         }
     }
@@ -1957,7 +1957,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
         do_digraph(-1);
         do_digraph(i32::from(buf[i - 1]));
         buf[i] = 0;
-        ins_str(buf.as_mut_ptr().cast(), i);
+        ins_str(&buf, i);
         let start_idx = if (flags & INSCHAR_CTRLV) != 0 {
             redo_literal(i32::from(buf[0]));
             1
@@ -1973,7 +1973,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             let mut buf = [0u8; MB_MAXCHAR + 1];
             utf_char2bytes(c, buf.as_mut_ptr().cast());
             buf[cc as usize] = 0;
-            ins_char_bytes(buf.as_mut_ptr().cast(), cc as usize);
+            ins_char_bytes(&buf, cc as usize);
             redo_append_char(c);
         } else {
             ins_char(c);
@@ -2570,8 +2570,8 @@ fn mb_replace_pop_ins() {
     let size = stack.len();
     let len = (utf_head_off(ptr, ptr.wrapping_add(size - 1)) + 1) as usize;
     let new_size = size - len;
-    let mut popped = stack.split_off(new_size);
-    ins_bytes_len(popped.as_mut_ptr().cast(), len);
+    let popped = stack.split_off(new_size);
+    ins_bytes_len(&popped, len);
 }
 
 fn replace_do_bs(limit_col: i32) {
@@ -3219,7 +3219,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 if (g_st().state_global & VREPLACE_FLAG) != 0 {
                     ins_char(b' ' as i32);
                 } else {
-                    ins_str(c" ", 1);
+                    ins_str(b" ", 1);
                     if (g_st().state_global & REPLACE_FLAG) != 0 {
                         replace_push_nul();
                     }
@@ -3598,7 +3598,7 @@ fn ins_tab() -> bool {
         if (g_st().state_global & VREPLACE_FLAG) != 0 {
             ins_char(b' ' as i32);
         } else {
-            ins_str(c" ", 1);
+            ins_str(b" ", 1);
             if (g_st().state_global & REPLACE_FLAG) != 0 {
                 replace_push_nul();
             }
@@ -3749,7 +3749,7 @@ fn ins_tab() -> bool {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 backspace_until_column(change_col);
                 ins_bytes_len(
-                    saved_line_vec[change_col as usize..].as_ptr().cast(),
+                    &saved_line_vec[change_col as usize..],
                     (cursor_pos.col - change_col) as usize,
                 );
             }

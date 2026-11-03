@@ -142,7 +142,7 @@ static FOLD_STATE: GlobalState<FoldModuleState> = GlobalState::new(FoldModuleSta
 
 #[inline]
 fn fold_st() -> &'static mut FoldModuleState {
-    crate::globals::gmut(FOLD_STATE.as_ptr())
+    FOLD_STATE.as_mut()
 }
 
 static E_NOFOLD: &CStr = c"E490: No fold found";

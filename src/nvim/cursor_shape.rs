@@ -105,7 +105,7 @@ static SHAPE_TABLE: GlobalState<[Cursorentry; SHAPE_IDX_COUNT]> = GlobalState::n
 
 #[inline]
 pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
-    crate::globals::gmut(SHAPE_TABLE.as_ptr())
+    SHAPE_TABLE.as_mut()
 }
 
 #[inline]
@@ -125,7 +125,7 @@ fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
 }
 
 fn clear_shape_table() {
-    let tbl = crate::globals::gmut(std::ptr::addr_of_mut!((*shape_table_mut())));
+    let tbl = shape_table_mut();
     for entry in tbl.iter_mut() {
         entry.shape = CursorShape::ShapeBlock;
         entry.blinkwait = 0;
@@ -139,7 +139,7 @@ fn clear_shape_table() {
 /// Converts `(*shape_table_mut())` into an `Array` of `Dict`s (`mode_style_array`).
 pub fn mode_style_array(arena: &mut Arena) -> Array {
     let mut all = arena_array(arena, SHAPE_IDX_COUNT);
-    let tbl = crate::globals::gref(std::ptr::addr_of!((*shape_table_mut())));
+    let tbl = shape_table_mut();
 
     for cur in tbl.iter() {
         let is_cursor = (cur.used_for & SHAPE_CURSOR) != 0;
@@ -271,7 +271,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
 pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
     let mut idx: usize = 0;
     let mut found_ve = false;
-    let tbl = crate::globals::gmut(std::ptr::addr_of_mut!((*shape_table_mut())));
+    let tbl = shape_table_mut();
     let guicursor_ptr = opt_vars().p_guicursor;
     let guicursor = crate::memory::cstr_as_bytes(guicursor_ptr);
 
@@ -457,7 +457,7 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
 #[cfg(test)]
 pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
     let mode_bytes = mode.to_bytes();
-    let tbl = crate::globals::gref(std::ptr::addr_of!((*shape_table_mut())));
+    let tbl = shape_table_mut();
     for (mode_idx, entry) in tbl.iter().enumerate() {
         if entry.full_name.to_bytes() == mode_bytes {
             return mode_idx as i32;
@@ -465,8 +465,8 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
     }
     logmsg!(
         LOGLVL_WRN,
-        std::ptr::null(),
-        c"cursor_mode_str2int",
+        None,
+        Some(c"cursor_mode_str2int"),
         284,
         true,
         c"Unknown mode %s",
@@ -480,7 +480,7 @@ pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
     if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
         return false;
     }
-    let tbl = crate::globals::gref(std::ptr::addr_of!((*shape_table_mut())));
+    let tbl = shape_table_mut();
     for entry in tbl.iter() {
         if entry.id == syn_id || entry.id_lm == syn_id {
             return true;

@@ -222,7 +222,7 @@ static MSG_STATE: GlobalState<MessageState> = GlobalState::new(MessageState::new
 
 #[inline]
 fn msg_st() -> &'static mut MessageState {
-    crate::globals::gmut(MSG_STATE.as_ptr())
+    MSG_STATE.as_mut()
 }
 
 #[macro_export]
@@ -1160,8 +1160,8 @@ pub fn emsg_multiline(
                 {
                     logmsg!(
                         LOGLVL_DBG,
-                        ptr::null(),
-                        c"emsg_multiline",
+                        None,
+                        Some(c"emsg_multiline"),
                         line!() as i32,
                         true,
                         c"(:silent) %s (%s (line %d))",
@@ -1172,8 +1172,8 @@ pub fn emsg_multiline(
                 } else {
                     logmsg!(
                         LOGLVL_DBG,
-                        ptr::null(),
-                        c"emsg_multiline",
+                        None,
+                        Some(c"emsg_multiline"),
                         line!() as i32,
                         true,
                         c"(:silent) %s",
@@ -1190,8 +1190,8 @@ pub fn emsg_multiline(
             {
                 logmsg!(
                     LOGLVL_INF,
-                    ptr::null(),
-                    c"emsg_multiline",
+                    None,
+                    Some(c"emsg_multiline"),
                     line!() as i32,
                     true,
                     c"%s (%s (line %d))",
@@ -1202,8 +1202,8 @@ pub fn emsg_multiline(
             } else {
                 logmsg!(
                     LOGLVL_INF,
-                    ptr::null(),
-                    c"emsg_multiline",
+                    None,
+                    Some(c"emsg_multiline"),
                     line!() as i32,
                     true,
                     c"%s",
@@ -1630,13 +1630,10 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
-    let v = opt_keyset(
-        args.os_newval.data.string().data,
+    let v: &OptKeyDict_mopt = opt_keyset(
+        crate::memory::cstr_as_bytes(args.os_newval.data.string().data),
         K_OPT_MESSAGESOPT,
-        ptr::null_mut(),
-    )
-    .cast::<OptKeyDict_mopt>();
-    let v = crate::globals::gmut(v);
+    );
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
     let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
@@ -1654,9 +1651,10 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
-    let v =
-        opt_keyset(opt_vars().p_mopt, K_OPT_MESSAGESOPT, ptr::null_mut()).cast::<OptKeyDict_mopt>();
-    let v = crate::globals::gmut(v);
+    let v: &OptKeyDict_mopt = opt_keyset(
+        crate::memory::cstr_as_bytes(opt_vars().p_mopt),
+        K_OPT_MESSAGESOPT,
+    );
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;
@@ -1797,7 +1795,7 @@ pub fn wait_return(redraw: i32) {
     }
 
     if ui_has(K_UIMESSAGES) {
-        prompt_for_input(c"Press any key to continue", HLF_M, true, None);
+        prompt_for_input(Some(c"Press any key to continue"), HLF_M, true, None);
         return;
     }
 
@@ -4166,8 +4164,8 @@ pub fn msg_delay(mut ms: u64, ignoreinput: bool) {
 
     logmsg!(
         LOGLVL_DBG,
-        ptr::null(),
-        c"msg_delay",
+        None,
+        Some(c"msg_delay"),
         line!() as i32,
         true,
         c"%llu ms%s",

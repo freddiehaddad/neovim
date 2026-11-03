@@ -140,14 +140,8 @@ fn dlog_internal_call(channel_id: u64, func_name: &std::ffi::CStr, msg: &std::ff
     #[cfg(debug_assertions)]
     {
         if (channel_id & (1u64 << 63)) != 0 {
-            let _ = crate::log::logmsg_str(
-                crate::log::LOGLVL_DBG,
-                ptr::null(),
-                func_name.as_ptr(),
-                0,
-                true,
-                msg.as_ptr(),
-            );
+            let _ =
+                crate::log::logmsg_str(crate::log::LOGLVL_DBG, None, Some(func_name), 0, true, msg);
         }
     }
     #[cfg(not(debug_assertions))]

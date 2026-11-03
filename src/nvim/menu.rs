@@ -192,7 +192,7 @@ static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleSta
 
 #[inline]
 fn menu_st() -> &'static mut MenuModuleState {
-    crate::globals::gmut(MENU_STATE.as_ptr())
+    MENU_STATE.as_mut()
 }
 
 use crate::eval::typval::tv_dict_len;
@@ -398,13 +398,12 @@ pub fn ex_menu(eap: &mut Exarg) {
                 None
             } else if (modes & MENU_TIP_MODE) == 0 {
                 replace_termcodes(
-                    map_to.cast(),
-                    crate::memory::cstr_len(map_to.cast()),
+                    crate::memory::cstr_as_bytes(map_to.cast()),
                     false,
                     0,
                     REPTERM_DO_LT,
                     None,
-                    opt_vars().p_cpo,
+                    crate::memory::cstr_as_bytes(opt_vars().p_cpo),
                 )
             } else {
                 None

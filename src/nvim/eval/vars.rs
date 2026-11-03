@@ -502,7 +502,7 @@ static VARS_STATE: GlobalState<VarsModuleState> = GlobalState::new(VarsModuleSta
 
 #[inline]
 fn vars_st() -> &'static mut VarsModuleState {
-    crate::globals::gmut(VARS_STATE.as_ptr())
+    VARS_STATE.as_mut()
 }
 
 const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
@@ -514,7 +514,7 @@ static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[*const TvList; NUM_MSGPACK_TYPES]> 
 
 #[inline]
 pub(crate) fn eval_msgpack_type_lists_mut() -> &'static mut [*const TvList; NUM_MSGPACK_TYPES] {
-    crate::globals::gmut(EVAL_MSGPACK_TYPE_LISTS.as_ptr())
+    EVAL_MSGPACK_TYPE_LISTS.as_mut()
 }
 
 #[inline]

@@ -82,7 +82,7 @@ static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> =
 
 #[inline]
 pub(crate) fn mem_st() -> &'static mut MemoryModuleState {
-    unsafe { &mut *MEM_STATE.as_ptr() }
+    MEM_STATE.as_mut()
 }
 
 #[inline]

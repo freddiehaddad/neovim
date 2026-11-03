@@ -243,7 +243,7 @@ static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> =
 
 #[inline]
 fn ts_st() -> &'static mut TreesitterModuleState {
-    unsafe { &mut *TS_STATE.as_ptr() }
+    TS_STATE.as_mut()
 }
 
 static PARSER_META: [luaL_Reg; 9] = [

@@ -1,7 +1,7 @@
 //! Functions for Vim help (`src/nvim/help.c`).
 
 use crate::api::private::helpers::cstr_as_obj;
-use crate::buffer::{bt_help, buflist_findnr, set_buflisted, wipe_buffer};
+use crate::buffer::{bt_help, buflist_findnr_opt, set_buflisted, wipe_buffer};
 use crate::charset::{
     ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
 };
@@ -44,7 +44,7 @@ use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
-    let mut wp: *mut WinInfoInfo;
+    let mut wp: Option<&'static mut WinInfoInfo>;
     let mut empty_fnum: i32 = 0;
     let mut alt_fnum: i32 = 0;
     let old_key_typed = g_st().key_typed;
@@ -158,22 +158,21 @@ pub fn ex_help(eap: &mut Exarg) {
 
     // Re-use an existing help window or open a new one.
     let mut early_ret = false;
-    if !bt_help(crate::globals::gopt(curwin_mut().w_buffer)) || g_st().cmdmod.cmod_tab != 0 {
+    if !bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0 {
         if g_st().cmdmod.cmod_tab != 0 {
-            wp = ptr::null_mut();
+            wp = None;
         } else {
-            wp = ptr::null_mut();
+            wp = None;
             for wp2 in for_all_windows_ptr() {
-                if bt_help(crate::globals::gopt(wp2.w_buffer))
-                    && !wp2.w_config.hide
-                    && wp2.w_config.focusable
-                {
-                    wp = wp2;
+                if bt_help(wp2.buf_opt()) && !wp2.w_config.hide && wp2.w_config.focusable {
+                    wp = Some(wp2);
                     break;
                 }
             }
         }
-        if !wp.is_null() && crate::globals::gptr(wp).buf_mut().b_nwindows > 0 {
+        if let Some(wp) = wp
+            && wp.buf_mut().b_nwindows > 0
+        {
             win_enter(wp, true);
         } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
             smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
@@ -222,11 +221,12 @@ pub fn ex_help(eap: &mut Exarg) {
 
         do_tag(None, tag.as_ptr().cast_mut(), DT_HELP, 1, 0, true);
 
-        if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
-            let buf = buflist_findnr(empty_fnum);
-            if !buf.is_null() && crate::globals::gptr(buf).b_nwindows == 0 {
-                wipe_buffer(buf, true);
-            }
+        if empty_fnum != 0
+            && curbuf_mut().b_fnum != empty_fnum
+            && let Some(buf) = buflist_findnr_opt(empty_fnum)
+            && buf.b_nwindows == 0
+        {
+            wipe_buffer(buf, true);
         }
 
         if alt_fnum != 0
@@ -242,7 +242,7 @@ pub fn ex_help(eap: &mut Exarg) {
 /// `:helpclose`: Close one help window (`ex_helpclose`).
 pub fn ex_helpclose(eap: &mut Exarg) {
     for win in for_all_windows_ptr() {
-        if bt_help(crate::globals::gopt(win.w_buffer)) {
+        if bt_help(win.buf_opt()) {
             win_close(win, false, eap.forceit != 0);
             return;
         }

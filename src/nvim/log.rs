@@ -5,7 +5,7 @@
 
 use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
-use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
+use crate::fileio::{EOF, FILE, fprintf};
 use crate::globals::*;
 use crate::memory::mem_st;
 use crate::message::msg_schedule_semsg;
@@ -56,7 +56,7 @@ static LOG_STATE: crate::globals::GlobalState<LogModuleState> =
 
 #[inline]
 pub(crate) fn log_st() -> &'static mut LogModuleState {
-    crate::globals::gmut(LOG_STATE.as_ptr())
+    LOG_STATE.as_mut()
 }
 
 use crate::event::r#loop::{
@@ -76,30 +76,20 @@ unsafe extern "C" {
     static C_STDOUT: *mut FILE;
 }
 
-pub fn log_get_stdout() -> *mut FILE {
+pub fn log_get_stdout() -> CFile {
     #[cfg(windows)]
-    unsafe {
-        __acrt_iob_func(1)
-    }
+    let fp = unsafe { __acrt_iob_func(1) };
     #[cfg(not(windows))]
-    unsafe {
-        C_STDOUT
-    }
+    let fp = unsafe { C_STDOUT };
+    CFile::from_std_stream(fp)
 }
 
-pub fn log_get_stderr() -> *mut FILE {
+pub fn log_get_stderr() -> CFile {
     #[cfg(windows)]
-    unsafe {
-        __acrt_iob_func(2)
-    }
+    let fp = unsafe { __acrt_iob_func(2) };
     #[cfg(not(windows))]
-    unsafe {
-        C_STDERR
-    }
-}
-
-pub fn log_is_std_stream(fp: *mut FILE) -> bool {
-    fp == log_get_stderr() || fp == log_get_stdout()
+    let fp = unsafe { C_STDERR };
+    CFile::from_std_stream(fp)
 }
 
 #[macro_export]
@@ -119,36 +109,43 @@ macro_rules! logmsg {
         if !$crate::log::log_should_log(lvl) {
             false
         } else {
-            let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
-            let ctx_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($context);
-            let fn_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($func_name);
+            let fmt_cstr: &::std::ffi::CStr = $fmt;
+            let ctx_opt: Option<&::std::ffi::CStr> = $context;
+            let fn_opt: Option<&::std::ffi::CStr> = $func_name;
             let mut stack_buf = [0u8; 1024];
             let len = $crate::strings::vim_snprintf!(
                 stack_buf.as_mut_ptr().cast(),
                 stack_buf.len(),
-                fmt_ptr,
+                fmt_cstr.as_ptr(),
                 $($arg),+
             );
             if len >= stack_buf.len() as i32 {
                 let cap = (len as usize) + 1;
                 let mut heap_buf = vec![0u8; cap];
-                $crate::strings::vim_snprintf!(heap_buf.as_mut_ptr().cast(), cap, fmt_ptr, $($arg),+);
+                $crate::strings::vim_snprintf!(
+                    heap_buf.as_mut_ptr().cast(),
+                    cap,
+                    fmt_cstr.as_ptr(),
+                    $($arg),+
+                );
+                let msg_cstr = ::std::ffi::CStr::from_bytes_until_nul(&heap_buf).unwrap_or(c"");
                 $crate::log::logmsg_str(
                     lvl,
-                    ctx_ptr,
-                    fn_ptr,
+                    ctx_opt,
+                    fn_opt,
                     $line_num,
                     $eol,
-                    heap_buf.as_ptr().cast(),
+                    msg_cstr,
                 )
             } else {
+                let msg_cstr = ::std::ffi::CStr::from_bytes_until_nul(&stack_buf).unwrap_or(c"");
                 $crate::log::logmsg_str(
                     lvl,
-                    ctx_ptr,
-                    fn_ptr,
+                    ctx_opt,
+                    fn_opt,
                     $line_num,
                     $eol,
-                    stack_buf.as_ptr().cast(),
+                    msg_cstr,
                 )
             }
         }
@@ -222,11 +219,11 @@ fn log_path_init() {
             );
             logmsg_str(
                 LOGLVL_WRN,
-                ptr::null(),
-                c"log_path_init",
+                None,
+                Some(c"log_path_init"),
                 line!() as i32,
                 true,
-                msg.as_ptr().cast(),
+                CStr::from_bytes_until_nul(&msg).unwrap_or(c""),
             );
         }
     }
@@ -256,89 +253,75 @@ pub fn log_should_log(log_level: i32) -> bool {
 
 pub fn logmsg_str(
     log_level: i32,
-    context: impl crate::strings::IntoCCharPtr,
-    func_name: impl crate::strings::IntoCCharPtr,
+    context: Option<&CStr>,
+    func_name: Option<&CStr>,
     line_num: i32,
     eol: bool,
-    msg: impl crate::strings::IntoCCharPtr,
+    msg: &CStr,
 ) -> bool {
-    let context = context.into_c_char_ptr();
-    let func_name = func_name.into_c_char_ptr();
-    let msg = msg.into_c_char_ptr();
-    {
-        if !log_st().did_log_init {
-            g_st().g_stats.log_skip += 1;
-            return false;
-        }
-        if log_level < log_st().g_min_log_level {
-            return false;
-        }
+    if !log_st().did_log_init {
+        g_st().g_stats.log_skip += 1;
+        return false;
+    }
+    if log_level < log_st().g_min_log_level {
+        return false;
+    }
 
-        if mem_st().entered_free_all_mem {
-            let stderr = log_get_stderr();
-            fprintf!(
-                stderr,
-                c"FATAL: error in free_all_mem\n %s %s %d: ",
-                context,
-                func_name,
+    if mem_st().entered_free_all_mem {
+        let stderr = log_get_stderr();
+        fprintf!(
+            &stderr,
+            c"FATAL: error in free_all_mem\n %s %s %d: ",
+            context.map_or(ptr::null(), CStr::as_ptr),
+            func_name.map_or(ptr::null(), CStr::as_ptr),
+            line_num,
+        );
+        fprintf!(&stderr, c"%s", msg.as_ptr());
+        if eol {
+            fprintf!(&stderr, c"\n");
+        }
+        std::process::abort();
+    }
+
+    log_lock();
+    if log_st().recursive {
+        if !log_st().did_msg {
+            log_st().did_msg = true;
+            msg_schedule_semsg!(
+                c"E5430: %s:%d: recursive log!",
+                func_name.or(context).map_or(ptr::null(), CStr::as_ptr),
                 line_num,
             );
-            fprintf!(stderr, c"%s", msg);
-            if eol {
-                fprintf!(stderr, c"\n");
-            }
-            std::process::abort();
         }
-
-        log_lock();
-        if log_st().recursive {
-            if !log_st().did_msg {
-                log_st().did_msg = true;
-                msg_schedule_semsg!(
-                    c"E5430: %s:%d: recursive log!",
-                    if !func_name.is_null() {
-                        func_name
-                    } else {
-                        context
-                    },
-                    line_num,
-                );
-            }
-            g_st().g_stats.log_skip += 1;
-            log_unlock();
-            return false;
-        }
-        log_st().recursive = true;
-        let log_file = open_log_file();
-        let ret = do_log_to_file_str(log_file, log_level, context, func_name, line_num, eol, msg);
-        if !log_is_std_stream(log_file) {
-            unsafe { fclose(log_file) };
-        }
-        log_st().recursive = false;
+        g_st().g_stats.log_skip += 1;
         log_unlock();
-        ret
+        return false;
     }
+    log_st().recursive = true;
+    let log_file = open_log_file();
+    let ret = do_log_to_file_str(&log_file, log_level, context, func_name, line_num, eol, msg);
+    drop(log_file);
+    log_st().recursive = false;
+    log_unlock();
+    ret
 }
 
-pub fn log_uv_handles(loop_: *mut crate::event::r#loop::uv_loop_t) {
+pub fn log_uv_handles(loop_: &mut crate::event::r#loop::uv_loop_t) {
     log_lock();
     let log_file = open_log_file();
-    unsafe { uv_print_all_handles(loop_, log_file) };
-    if !log_is_std_stream(log_file) {
-        unsafe { fclose(log_file) };
-    }
+    unsafe { uv_print_all_handles(&raw mut *loop_, log_file.as_ptr()) };
+    drop(log_file);
     log_unlock();
 }
 
 /// Open the log file for appending.
 ///
 /// @return Log file, or `stderr` on failure
-pub fn open_log_file() -> *mut FILE {
+pub fn open_log_file() -> CFile {
     let path_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
     let mut errnum: i32 = 0;
     if !path_cstr.to_bytes().is_empty() {
-        let f = unsafe { fopen(path_cstr.as_ptr(), c"a".as_ptr()) };
-        if !f.is_null() {
+        if let Some(f) = CFile::open_libc(path_cstr, c"a") {
             return f;
         }
         errnum = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
@@ -355,146 +338,135 @@ pub fn open_log_file() -> *mut FILE {
     let mut msg = Vec::with_capacity(128);
     let _ = write!(msg, "failed to open $NVIM_LOG_FILE ({err_s}): {path_s}\0");
     do_log_to_file_str(
-        stderr,
+        &stderr,
         LOGLVL_ERR,
-        ptr::null(),
-        c"open_log_file",
+        None,
+        Some(c"open_log_file"),
         line!() as i32,
         true,
-        msg.as_ptr().cast(),
+        CStr::from_bytes_until_nul(&msg).unwrap_or(c""),
     );
     stderr
 }
 
 fn do_log_to_file_str(
-    log_file: *mut FILE,
+    log_file: &CFile,
     log_level: i32,
-    context: impl crate::strings::IntoCCharPtr,
-    func_name: impl crate::strings::IntoCCharPtr,
+    context: Option<&CStr>,
+    func_name: Option<&CStr>,
     line_num: i32,
     eol: bool,
-    msg: impl crate::strings::IntoCCharPtr,
+    msg: &CStr,
 ) -> bool {
-    let context = context.into_c_char_ptr();
-    let msg = msg.into_c_char_ptr();
-    let func_name = func_name.into_c_char_ptr();
-    {
-        const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];
-        assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
+    const LOG_LEVELS: [&CStr; 5] = [c"", c"DBG", c"INF", c"WRN", c"ERR"];
+    assert!((LOGLVL_DBG..=LOGLVL_ERR).contains(&log_level));
 
-        let mut local_time = Tm { _fields: [0; 16] };
-        if os_localtime(&raw mut local_time).is_null() {
-            return false;
-        }
-        let mut date_time = [0u8; 20];
-        if unsafe {
-            strftime(
-                date_time.as_mut_ptr(),
-                date_time.len(),
-                c"%Y-%m-%dT%H:%M:%S".as_ptr().cast(),
-                &raw const local_time,
-            )
-        } == 0
-        {
-            return false;
-        }
-
-        let mut millis: i32 = 0;
-        let mut curtime = UvTimeval64 {
-            tv_sec: 0,
-            tv_usec: 0,
-        };
-        if unsafe { uv_gettimeofday(&mut curtime) } == 0 {
-            millis = curtime.tv_usec / 1000;
-        }
-
-        let ui = g_st().ui_client_channel_id != 0;
-        let first_byte = log_st().instance_name[0];
-        let regen = ui || first_byte == 0 || first_byte == b'?';
-
-        if regen {
-            let mut parent_buf = [0u8; MAXPATHL];
-            let parent = path_tail(os_getenv_buf(
-                c"NVIM",
-                parent_buf.as_mut_ptr().cast(),
-                parent_buf.len(),
-            ));
-            let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
-            let mut formatted = Vec::with_capacity(32);
-            if !crate::memory::cstr_is_empty(parent) {
-                let p = crate::memory::cstr_as_bytes(parent);
-                formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
-                formatted.extend_from_slice(p);
-            } else if !crate::memory::cstr_is_empty(serv) {
-                let s = crate::memory::cstr_as_bytes(serv);
-                if ui {
-                    formatted.extend_from_slice(b"ui/");
-                }
-                formatted.extend_from_slice(s);
-            } else {
-                let pid = os_get_pid();
-                let prefix = if ui { "ui" } else { "?" };
-                let _ = write!(formatted, "{prefix}.{pid:<5}");
-            }
-            let copy_len = formatted.len().min(31);
-            log_st().instance_name[..copy_len].copy_from_slice(&formatted[..copy_len]);
-            log_st().instance_name[copy_len] = 0;
-        }
-
-        let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
-        let name_cptr = CStr::from_bytes_until_nul(&log_st().instance_name)
-            .unwrap_or(c"")
-            .as_ptr();
-        let date_time_ptr = CStr::from_bytes_until_nul(&date_time)
-            .unwrap_or(c"")
-            .as_ptr();
-        let rv = if line_num == -1 || func_name.is_null() {
-            fprintf!(
-                log_file,
-                c"%s %s.%03d %-10s %s",
-                level_ptr,
-                date_time_ptr,
-                millis,
-                name_cptr,
-                if context.is_null() {
-                    c"?:".as_ptr()
-                } else {
-                    context
-                },
-            )
-        } else {
-            fprintf!(
-                log_file,
-                c"%s %s.%03d %-10s %s%s:%d: ",
-                level_ptr,
-                date_time_ptr,
-                millis,
-                name_cptr,
-                if context.is_null() {
-                    c"".as_ptr()
-                } else {
-                    context
-                },
-                func_name,
-                line_num,
-            )
-        };
-
-        if rv < 0 {
-            return false;
-        }
-        if fprintf!(log_file, c"%s", msg) < 0 {
-            return false;
-        }
-        if eol {
-            unsafe { fputc(b'\n' as i32, log_file) };
-        }
-        if unsafe { fflush(log_file) } == EOF {
-            return false;
-        }
-
-        true
+    let mut local_time = Tm { _fields: [0; 16] };
+    if os_localtime(&raw mut local_time).is_null() {
+        return false;
     }
+    let mut date_time = [0u8; 20];
+    if unsafe {
+        strftime(
+            date_time.as_mut_ptr(),
+            date_time.len(),
+            c"%Y-%m-%dT%H:%M:%S".as_ptr().cast(),
+            &raw const local_time,
+        )
+    } == 0
+    {
+        return false;
+    }
+
+    let mut millis: i32 = 0;
+    let mut curtime = UvTimeval64 {
+        tv_sec: 0,
+        tv_usec: 0,
+    };
+    if unsafe { uv_gettimeofday(&mut curtime) } == 0 {
+        millis = curtime.tv_usec / 1000;
+    }
+
+    let ui = g_st().ui_client_channel_id != 0;
+    let first_byte = log_st().instance_name[0];
+    let regen = ui || first_byte == 0 || first_byte == b'?';
+
+    if regen {
+        let mut parent_buf = [0u8; MAXPATHL];
+        let parent = path_tail(os_getenv_buf(
+            c"NVIM",
+            parent_buf.as_mut_ptr().cast(),
+            parent_buf.len(),
+        ));
+        let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
+        let mut formatted = Vec::with_capacity(32);
+        if !crate::memory::cstr_is_empty(parent) {
+            let p = crate::memory::cstr_as_bytes(parent);
+            formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
+            formatted.extend_from_slice(p);
+        } else if !crate::memory::cstr_is_empty(serv) {
+            let s = crate::memory::cstr_as_bytes(serv);
+            if ui {
+                formatted.extend_from_slice(b"ui/");
+            }
+            formatted.extend_from_slice(s);
+        } else {
+            let pid = os_get_pid();
+            let prefix = if ui { "ui" } else { "?" };
+            let _ = write!(formatted, "{prefix}.{pid:<5}");
+        }
+        let copy_len = formatted.len().min(31);
+        log_st().instance_name[..copy_len].copy_from_slice(&formatted[..copy_len]);
+        log_st().instance_name[copy_len] = 0;
+    }
+
+    let level_ptr = LOG_LEVELS[log_level as usize].as_ptr();
+    let name_cptr = CStr::from_bytes_until_nul(&log_st().instance_name)
+        .unwrap_or(c"")
+        .as_ptr();
+    let date_time_ptr = CStr::from_bytes_until_nul(&date_time)
+        .unwrap_or(c"")
+        .as_ptr();
+    let rv = if let Some(func_name) = func_name
+        && line_num != -1
+    {
+        fprintf!(
+            log_file,
+            c"%s %s.%03d %-10s %s%s:%d: ",
+            level_ptr,
+            date_time_ptr,
+            millis,
+            name_cptr,
+            context.unwrap_or(c"").as_ptr(),
+            func_name.as_ptr(),
+            line_num,
+        )
+    } else {
+        fprintf!(
+            log_file,
+            c"%s %s.%03d %-10s %s",
+            level_ptr,
+            date_time_ptr,
+            millis,
+            name_cptr,
+            context.unwrap_or(c"?:").as_ptr(),
+        )
+    };
+
+    if rv < 0 {
+        return false;
+    }
+    if fprintf!(log_file, c"%s", msg.as_ptr()) < 0 {
+        return false;
+    }
+    if eol {
+        log_file.putc(b'\n' as i32);
+    }
+    if log_file.flush() == EOF {
+        return false;
+    }
+
+    true
 }
 
 #[cfg(test)]

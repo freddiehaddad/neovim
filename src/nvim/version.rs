@@ -4018,8 +4018,8 @@ fn version_msg_wrap(s: &CStr, wrap: bool) {
     }
 }
 
-fn version_msg(s: impl crate::strings::IntoCCharPtr) {
-    version_msg_wrap(crate::memory::cstr_from_ptr(s), false);
+fn version_msg(s: &CStr) {
+    version_msg_wrap(s, false);
 }
 
 /// List string items nicely aligned in columns (`list_in_columns`).
@@ -4131,29 +4131,35 @@ pub fn list_version() {
         }
         version_msg(c"\n\n");
 
-        version_msg(gettext(c"   system vimrc file: \""));
+        version_msg(crate::memory::cstr_from_ptr(gettext(
+            c"   system vimrc file: \"",
+        )));
         version_msg(c"$VIM/sysinit.vim");
         version_msg(c"\"\n");
 
         if !default_vim_dir().to_bytes().is_empty() {
-            version_msg(gettext(c"  fall-back for $VIM: \""));
+            version_msg(crate::memory::cstr_from_ptr(gettext(
+                c"  fall-back for $VIM: \"",
+            )));
             version_msg(default_vim_dir());
             version_msg(c"\"\n");
         }
 
         if !default_vimruntime_dir().to_bytes().is_empty() {
-            version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
+            version_msg(crate::memory::cstr_from_ptr(gettext(
+                c" f-b for $VIMRUNTIME: \"",
+            )));
             version_msg(default_vimruntime_dir());
             version_msg(c"\"\n");
         }
     }
 
     version_msg(if opt_vars().p_verbose > 0 {
-        c"\nRun :checkhealth for more info".as_ptr()
+        c"\nRun :checkhealth for more info"
     } else if starting_val() != 0 {
-        c"\nRun \"nvim -V1 -v\" for more info".as_ptr()
+        c"\nRun \"nvim -V1 -v\" for more info"
     } else {
-        c"\nRun \":verbose version\" for more info".as_ptr()
+        c"\nRun \":verbose version\" for more info"
     });
 }
 
@@ -4243,7 +4249,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let grid = if !colon && ui_has(K_UIMULTIGRID) {
-            (&raw mut crate::globals::gptr(g_st().firstwin).w_grid).cast::<GridView>()
+            (&raw mut crate::globals::firstwin_mut().w_grid).cast::<GridView>()
         } else {
             &raw mut g_st().default_gridview
         };

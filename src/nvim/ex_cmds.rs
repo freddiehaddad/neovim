@@ -331,7 +331,7 @@ static EXCMDS_STATE: GlobalState<ExCmdsState> = GlobalState::new(ExCmdsState::ne
 
 #[inline]
 fn excmds_st() -> &'static mut ExCmdsState {
-    crate::globals::gmut(EXCMDS_STATE.as_ptr())
+    EXCMDS_STATE.as_mut()
 }
 
 use crate::buffer::bt_dontwrite_msg;
@@ -2211,12 +2211,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 && opt_vars().p_wa == 0
             {
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
-                    if vim_dialog_yesno(
-                        VIM_QUESTION,
-                        ptr::null_mut(),
-                        gettext(c"Write partial file?"),
-                        2,
-                    ) != VIM_YES
+                    if vim_dialog_yesno(VIM_QUESTION, None, gettext(c"Write partial file?"), 2)
+                        != VIM_YES
                     {
                         break 'theend;
                     }
@@ -2361,7 +2357,7 @@ pub fn check_overwrite(
                         gettext(c"Overwrite existing file \"%s\"?"),
                         fname,
                     );
-                    if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 2)
+                    if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
                         != VIM_YES
                     {
                         return false;
@@ -2395,8 +2391,8 @@ pub fn check_overwrite(
                         );
                         if vim_dialog_yesno(
                             VIM_QUESTION,
-                            ptr::null_mut(),
-                            buff.as_mut_ptr().cast(),
+                            None,
+                            crate::memory::cstr_until_nul(&buff),
                             2,
                         ) != VIM_YES
                         {
@@ -2560,7 +2556,7 @@ fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
                     );
             }
 
-            if vim_dialog_yesno(VIM_QUESTION, ptr::null_mut(), buff.as_mut_ptr().cast(), 2)
+            if vim_dialog_yesno(VIM_QUESTION, None, crate::memory::cstr_until_nul(&buff), 2)
                 == VIM_YES
             {
                 *forceit = 1;
@@ -3673,7 +3669,12 @@ fn sub_joining_lines(
             if !keeppatterns {
                 save_re_pat(RE_SUBST, pat.data, pat.size, opt_vars().p_magic);
             }
-            add_to_history(HIST_SEARCH, pat.data, pat.size, true, NUL as i32);
+            add_to_history(
+                HIST_SEARCH,
+                crate::memory::cstr_slice(pat.data, pat.size),
+                true,
+                NUL as i32,
+            );
         }
 
         return true;
@@ -4224,7 +4225,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                 );
                             vim_snprintf!(iobuff_ptr, IOSIZE, p_fmt, sub);
                             let p = cstr_to_cstring(iobuff_ptr);
-                            typed = prompt_for_input(p.as_ptr().cast_mut(), HLF_R, true, None);
+                            typed = prompt_for_input(Some(p.as_c_str()), HLF_R, true, None);
                             g_st().search_global.hl_match = false;
                             drop(p);
 

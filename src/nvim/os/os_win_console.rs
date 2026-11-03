@@ -101,7 +101,7 @@ static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> =
 #[cfg(windows)]
 #[inline]
 fn wincon_st() -> &'static mut WinConsoleState {
-    unsafe { &mut *WINCON_STATE.as_ptr() }
+    WINCON_STATE.as_mut()
 }
 
 #[cfg(windows)]
@@ -284,8 +284,8 @@ pub fn os_attach_parent_console() {
         if !wincon_st().CONSOLE_INHERITED {
             logmsg!(
                 LOGLVL_INF,
-                std::ptr::null(),
-                c"os_attach_parent_console",
+                None,
+                Some(c"os_attach_parent_console"),
                 104,
                 true,
                 c"parent console attach failed: %lu; allocating hidden console",
@@ -345,8 +345,8 @@ pub fn os_icon_init() {
         if !os_path_exists(namebuff) {
             logmsg!(
                 LOGLVL_WRN,
-                std::ptr::null(),
-                c"os_icon_init",
+                None,
+                Some(c"os_icon_init"),
                 148,
                 true,
                 c"neovim.ico not found: %s",

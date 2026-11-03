@@ -147,7 +147,7 @@ static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> =
 
 #[inline]
 fn chan_st() -> &'static mut ChannelModuleState {
-    crate::globals::gmut(CHAN_STATE.as_ptr())
+    CHAN_STATE.as_mut()
 }
 
 #[repr(C)]
@@ -183,7 +183,7 @@ fn redirect_stderr_to_null() {
             freopen(
                 c"NUL:".as_ptr(),
                 c"w".as_ptr(),
-                crate::log::log_get_stderr().cast(),
+                crate::log::log_get_stderr().as_ptr().cast(),
             )
         };
     }
@@ -192,7 +192,7 @@ fn redirect_stderr_to_null() {
         freopen(
             c"/dev/null".as_ptr(),
             c"w".as_ptr(),
-            crate::log::log_get_stderr().cast(),
+            crate::log::log_get_stderr().as_ptr().cast(),
         )
     };
 }

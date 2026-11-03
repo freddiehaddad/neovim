@@ -57,7 +57,7 @@ static HIST_STATE: crate::globals::GlobalState<CmdhistState> =
 
 #[inline]
 fn hist_st() -> &'static mut CmdhistState {
-    crate::globals::gmut(HIST_STATE.as_ptr())
+    HIST_STATE.as_mut()
 }
 
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];
@@ -277,14 +277,7 @@ fn get_histtype(name: &[u8], return_default: bool) -> i32 {
 }
 
 /// Add the given string to the given history (`add_to_history`).
-pub fn add_to_history(
-    histype: i32,
-    new_entry: impl crate::strings::IntoCCharPtr,
-    new_entrylen: usize,
-    in_map: bool,
-    sep: i32,
-) {
-    let new_entry = new_entry.into_c_char_ptr();
+pub fn add_to_history(histype: i32, new_entry: &[u8], in_map: bool, sep: i32) {
     let hislen = hist_st().hislen;
     if hislen == 0 || histype == HIST_INVALID {
         return;
@@ -310,9 +303,11 @@ pub fn add_to_history(
 
     let htype = histype as usize;
     {
-        let entry_bytes = crate::memory::cstr_as_bytes(new_entry);
-        let actual_len = entry_bytes.len().min(new_entrylen);
-        let entry_slice = &entry_bytes[..actual_len];
+        let nul_pos = new_entry
+            .iter()
+            .position(|&b| b == 0)
+            .unwrap_or(new_entry.len());
+        let entry_slice = &new_entry[..nul_pos];
         if in_history(htype, entry_slice, true, sep) {
             return;
         }
@@ -513,7 +508,7 @@ pub fn f_histadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     init_history();
-    add_to_history(histype, entry_str, entry_str.to_bytes().len(), false, 0);
+    add_to_history(histype, entry_str.to_bytes(), false, 0);
     rettv.vval = crate::eval::typval::TypvalVval::Number(1);
 }
 

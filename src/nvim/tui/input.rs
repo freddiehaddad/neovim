@@ -139,7 +139,7 @@ static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> =
 
 #[inline]
 fn tui_inp_st() -> &'static mut TuiInputModuleState {
-    unsafe { &mut *TUI_INP_STATE.as_ptr() }
+    TUI_INP_STATE.as_mut()
 }
 
 use crate::event::r#loop::uv_timer_get_due_in;

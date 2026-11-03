@@ -70,7 +70,7 @@ static EXSES_STATE: crate::globals::GlobalState<ExSessionState> =
 
 #[inline]
 fn exses_st() -> &'static mut ExSessionState {
-    crate::globals::gmut(EXSES_STATE.as_ptr())
+    EXSES_STATE.as_mut()
 }
 
 #[inline]
