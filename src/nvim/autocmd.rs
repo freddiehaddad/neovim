@@ -3004,7 +3004,7 @@ pub fn apply_autocmds_group(
 
             g_st().redrawing_disabled += 1;
 
-            estack_push(ETYPE_AUCMD, ptr::null(), 0);
+            estack_push(ETYPE_AUCMD, None, 0);
 
             let save_current_sctx = g_st().current_sctx;
 

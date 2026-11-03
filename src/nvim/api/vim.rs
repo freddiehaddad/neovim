@@ -929,9 +929,9 @@ pub fn nvim_get_runtime_file(
     try_enter(&mut tstate);
     do_in_runtimepath(
         if name.size != 0 {
-            name.data
+            crate::memory::cstr_from_ptr(name.data)
         } else {
-            c"".as_ptr().cast_mut()
+            c""
         },
         flags,
         &mut RuntimeCallback::FindRuntime(&mut files),
@@ -989,7 +989,12 @@ pub fn nvim_get_runtime(
     if opts.do_source {
         for i in 0..res.size {
             let name = res[i].data.string();
-            do_source(name.data, false, DOSO_NONE, ptr::null_mut());
+            do_source(
+                crate::memory::cstr_from_ptr(name.data),
+                false,
+                DOSO_NONE,
+                None,
+            );
         }
     }
     res
@@ -1866,7 +1871,7 @@ pub fn nvim_put(
     g_st().msg_silent += 1;
     do_put(
         b'_' as i32,
-        &mut reg,
+        Some(&mut reg),
         if after { FORWARD } else { BACKWARD },
         1,
         if follow { PUT_CURSEND } else { 0 },

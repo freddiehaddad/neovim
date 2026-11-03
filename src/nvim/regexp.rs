@@ -3342,7 +3342,7 @@ pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: i32) -
         let called_emsg_before = g_st().called_emsg;
         let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
             nfa_regcomp(
-                expr.cast_mut().cast(),
+                crate::memory::cstr_from_ptr(expr),
                 re_flags
                     + if re_st().regexp_engine == AUTOMATIC_ENGINE {
                         RE_AUTO
@@ -3469,7 +3469,9 @@ fn vim_regexec_string(
 
         let mut result = match rmp.prog_mut().engine {
             RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
-            RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+            RegProgEngine::Nfa(_) => {
+                nfa_regexec_nl(rmp, crate::memory::cstr_as_opt_cstr(line), col, nl)
+            }
         };
         rmp.prog_mut().re_in_use = false;
 
@@ -3487,7 +3489,9 @@ fn vim_regexec_string(
                 rmp.prog_mut().re_in_use = true;
                 result = match rmp.prog_mut().engine {
                     RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
-                    RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
+                    RegProgEngine::Nfa(_) => {
+                        nfa_regexec_nl(rmp, crate::memory::cstr_as_opt_cstr(line), col, nl)
+                    }
                 };
                 rmp.prog_mut().re_in_use = false;
             }
@@ -3574,8 +3578,8 @@ pub fn vim_regexec_multi(
         ),
         RegProgEngine::Nfa(_) => nfa_regexec_multi(
             rmp,
-            win,
-            buf,
+            unsafe { win.as_mut() },
+            unsafe { &mut *buf },
             lnum,
             col,
             tm,
@@ -3613,8 +3617,8 @@ pub fn vim_regexec_multi(
                 ),
                 RegProgEngine::Nfa(_) => nfa_regexec_multi(
                     rmp,
-                    win,
-                    buf,
+                    unsafe { win.as_mut() },
+                    unsafe { &mut *buf },
                     lnum,
                     col,
                     tm,

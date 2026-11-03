@@ -2130,12 +2130,12 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
     setpcmark();
     let retval = do_ecmd(
         0,
-        ptr::null_mut(),
-        ptr::null_mut(),
+        None,
+        None,
         None,
         ECMD_ONE,
         if forceit != 0 { ECMD_FORCEIT } else { 0 },
-        curwin_ptr(),
+        Some(curwin_mut()),
     );
 
     if buf != g_st().curbuf
@@ -3110,8 +3110,8 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     g_st().redrawing_disabled += 1;
     if getfile(
         buf_fnum,
-        ptr::null_mut(),
-        ptr::null_mut(),
+        None,
+        None,
         (options & GETF_SETMARK) != 0,
         lnum,
         forceit != 0,
@@ -3304,7 +3304,7 @@ pub fn expand_bufnames(
             return false;
         }
 
-        let fuzzy = cmdline_fuzzy_complete(pat);
+        let fuzzy = cmdline_fuzzy_complete(crate::memory::cstr_from_ptr(pat));
         let use_matches = !fuzzy && (options & WILD_BUFLASTUSED) != 0;
 
         let mut patc_owned: Option<std::ffi::CString> = None;
@@ -4721,7 +4721,7 @@ fn chk_modeline(lnum: Linenr, flags: i32) -> bool {
     let mut line_len = len;
     let mut s_idx = 0usize;
 
-    estack_push(ETYPE_MODELINE, c"modelines", lnum);
+    estack_push(ETYPE_MODELINE, Some(c"modelines"), lnum);
 
     let mut end = false;
     while !end {

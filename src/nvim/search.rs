@@ -3502,11 +3502,17 @@ pub fn find_pattern_in_path(
                                 if vim_iswordp(crate::memory::cstr_as_bytes(p)) {
                                     skip_add = true;
                                 } else {
-                                    p = find_word_start(p);
+                                    p = find_word_start(crate::memory::cstr_as_bytes(p))
+                                        .as_ptr()
+                                        .cast_mut()
+                                        .cast();
                                 }
                             }
                             if !skip_add {
-                                p = find_word_end(p);
+                                p = find_word_end(crate::memory::cstr_as_bytes(p))
+                                    .as_ptr()
+                                    .cast_mut()
+                                    .cast();
                                 i = crate::memory::ptr_offset_from(p, aux) as i32;
 
                                 if compl_status_adding() && i == ins_compl_len() {
@@ -3540,8 +3546,14 @@ pub fn find_pattern_in_path(
                                         p = skipwhite(line);
                                         aux = p;
                                         already = p;
-                                        p = find_word_start(p);
-                                        p = find_word_end(p);
+                                        p = find_word_start(crate::memory::cstr_as_bytes(p))
+                                            .as_ptr()
+                                            .cast_mut()
+                                            .cast();
+                                        p = find_word_end(crate::memory::cstr_as_bytes(p))
+                                            .as_ptr()
+                                            .cast_mut()
+                                            .cast();
                                         if p > aux {
                                             if crate::memory::cstr_first_byte(aux) != b')'
                                                 && g_st().iobuff[(i - 1) as usize] as u8 != TAB
@@ -3586,13 +3598,15 @@ pub fn find_pattern_in_path(
 
                                 if !skip_add {
                                     let add_r = ins_compl_add_infercase(
-                                        aux,
+                                        crate::memory::cstr_slice(aux, i.max(0) as usize),
                                         i,
                                         opt_vars().p_ic != 0,
                                         if curr_fname == curbuf_mut().b_fname {
-                                            ptr::null_mut()
+                                            None
                                         } else {
-                                            path_try_shorten_fname(curr_fname)
+                                            crate::memory::cstr_as_opt_cstr(path_try_shorten_fname(
+                                                curr_fname,
+                                            ))
                                         },
                                         dir,
                                         cont_s_ipos,
@@ -3690,8 +3704,8 @@ pub fn find_pattern_in_path(
                                             if !win_valid(curwin_save)
                                                 || !getfile_success(getfile(
                                                     unsafe { (*curwin_save).buf_mut().b_fnum },
-                                                    ptr::null_mut(),
-                                                    ptr::null_mut(),
+                                                    None,
+                                                    None,
                                                     true,
                                                     lnum,
                                                     forceit,
@@ -3708,8 +3722,10 @@ pub fn find_pattern_in_path(
                                         }
                                     } else if !getfile_success(getfile(
                                         0,
-                                        files[depth as usize].name_ptr(),
-                                        ptr::null_mut(),
+                                        crate::memory::cstr_as_opt_cstr(
+                                            files[depth as usize].name_ptr(),
+                                        ),
+                                        None,
                                         true,
                                         files[depth as usize].lnum,
                                         forceit,

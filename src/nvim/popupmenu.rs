@@ -1423,15 +1423,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     buf_clear();
                 } else {
                     g_st().no_u_sync += 1;
-                    let ok = do_ecmd(
-                        0,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        None,
-                        ECMD_ONE,
-                        0,
-                        ptr::null_mut(),
-                    );
+                    let ok = do_ecmd(0, None, None, None, ECMD_ONE, 0, None);
                     res = i32::from(ok);
                     g_st().no_u_sync -= 1;
 

@@ -753,12 +753,12 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
         setpcmark();
         if !do_ecmd(
             buf.b_fnum,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             None,
             lnum,
             if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
-            curwin_ptr(),
+            Some(curwin_mut()),
         ) {
             return -1;
         }

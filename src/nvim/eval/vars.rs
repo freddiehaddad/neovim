@@ -1893,7 +1893,8 @@ fn ex_let_register(
                 } else {
                     crate::memory::cstr_first_byte(arg.cast()) as i32
                 };
-                write_reg_contents(reg_c, p, crate::memory::cstr_len(p) as isize, false as i32);
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                write_reg_contents(reg_c, p_bytes, p_bytes.len() as isize, false as i32);
                 arg_end = arg.wrapping_add(1);
             }
             drop(ptofree);

@@ -2080,9 +2080,9 @@ pub fn keymap_init() -> Option<&'static CStr> {
         let kmap = crate::memory::cstr_from_ptr(curbuf_mut().b_p_keymap).to_string_lossy();
         let enc = crate::memory::cstr_from_ptr(opt_vars().p_enc).to_string_lossy();
         let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
-        if !source_runtime(primary.as_ptr().cast_mut(), 0) {
+        if !source_runtime(primary.as_c_str(), 0) {
             let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
-            if !source_runtime(fallback.as_ptr().cast_mut(), 0) {
+            if !source_runtime(fallback.as_c_str(), 0) {
                 return Some(c"E544: Keymap file not found");
             }
         }

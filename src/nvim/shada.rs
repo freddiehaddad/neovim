@@ -1476,7 +1476,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     cur_entry.timestamp.wrapping_mul(NS_PER_SEC)
                 };
                 if !force {
-                    let reg = unsafe { op_reg_get(r_name).as_ref() };
+                    let reg = op_reg_get(r_name);
                     if reg.is_none_or(|r| r.timestamp >= reg_ts) {
                         shada_free_shada_entry(&mut cur_entry);
                         continue;
@@ -2155,7 +2155,7 @@ fn shada_read_when_writing(
                 }
                 let u_idx = idx as usize;
                 if wms.registers[u_idx].entry_type == ShadaEntryType::SDItemMissing
-                    && let Some(reg) = unsafe { op_reg_get(reg_name).as_ref() }
+                    && let Some(reg) = op_reg_get(reg_name)
                     && reg_empty(reg)
                     && reg.timestamp / NS_PER_SEC >= entry.timestamp
                 {
@@ -2454,14 +2454,16 @@ fn shada_initialize_registers(wms: &mut WriteMergerState, max_reg_lines: i32, sc
     let mut reg_iter: Option<usize> = None;
     let limit_reg_lines = max_reg_lines >= 0;
     loop {
-        let mut reg: *const Yankreg = ptr::null();
+        let mut reg_opt: Option<&'static Yankreg> = None;
         let mut name: u8 = 0;
         let mut is_unnamed = false;
-        reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg, &mut is_unnamed);
+        reg_iter = op_global_reg_iter(reg_iter, &mut name, &mut reg_opt, &mut is_unnamed);
+        let Some(reg_ref) = reg_opt else {
+            break;
+        };
         if name == 0 {
             break;
         }
-        let reg_ref = unsafe { &*reg };
         if limit_reg_lines && reg_ref.y_array.len() > (max_reg_lines as usize) {
             if reg_iter.is_none() {
                 break;

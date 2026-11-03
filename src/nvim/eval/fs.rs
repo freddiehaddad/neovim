@@ -1122,7 +1122,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if rettv.v_type == VarType::VarString {
             if let Some(exp) = expand_one(
                 &mut xpc,
-                tv_get_string(&argvars[0]).as_ptr().cast_mut(),
+                Some(tv_get_string(&argvars[0])),
                 None,
                 options,
                 WILD_ALL,
@@ -1134,7 +1134,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         } else {
             expand_one(
                 &mut xpc,
-                tv_get_string(&argvars[0]).as_ptr().cast_mut(),
+                Some(tv_get_string(&argvars[0])),
                 None,
                 options,
                 WILD_ALL_KEEP,
@@ -1185,13 +1185,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && !error
     {
         let mut ga: Vec<std::ffi::CString> = Vec::new();
-        globpath(
-            tv_get_string(&argvars[0]).as_ptr().cast_mut(),
-            file.as_ptr().cast_mut(),
-            &mut ga,
-            flags,
-            false,
-        );
+        globpath(tv_get_string(&argvars[0]), file, &mut ga, flags, false);
 
         if rettv.v_type == VarType::VarString {
             let joined = crate::path::concat_cstrings(&ga, c"\n");

@@ -1314,7 +1314,11 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(b), 0);
-        ren_ret = if rename_buffer(name.data) { OK } else { FAIL };
+        ren_ret = if rename_buffer(crate::memory::cstr_as_opt_cstr(name.data)) {
+            OK
+        } else {
+            FAIL
+        };
         ctx_restore(&mut aco);
 
         if !is_curbuf {

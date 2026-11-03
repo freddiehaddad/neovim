@@ -470,262 +470,261 @@ fn spell_check_magic_string(fd: &CFile) -> i32 {
 
 /// Load one spell file and store the info into a Slang.
 pub fn spell_load_file(
-    fname: impl crate::strings::IntoCCharPtr,
+    fname_cstr: &std::ffi::CStr,
     lang: Option<&mut [u8]>,
-    old_lp: *mut Slang,
+    old_lp: Option<&mut Slang>,
     silent: bool,
-) -> *mut Slang {
-    let fname = fname.into_c_char_ptr();
-    {
-        let Some(fd) = CFile::open(fname, c"r") else {
-            if !silent {
-                semsg!(gettext(E_NOTOPEN), fname);
-            } else if opt_vars().p_verbose > 2 {
-                verbose_enter();
-                smsg!(0, E_NOTOPEN, fname);
-                verbose_leave();
-            }
-            if let Some(lang) = lang
-                && !lang.is_empty()
-            {
-                lang[0] = 0;
-            }
-            return ptr::null_mut();
-        };
-        if opt_vars().p_verbose > 2 {
+) -> Option<&'static mut Slang> {
+    let fname = fname_cstr.as_ptr();
+    let Some(fd) = CFile::open(fname, c"r") else {
+        if !silent {
+            semsg!(gettext(E_NOTOPEN), fname);
+        } else if opt_vars().p_verbose > 2 {
             verbose_enter();
-            smsg!(0, gettext(c"Reading spell file \"%s\""), fname);
+            smsg!(0, E_NOTOPEN, fname);
             verbose_leave();
         }
-
-        let mut owned_lp = if old_lp.is_null() {
-            let lang_cstr = lang
-                .as_deref()
-                .map(|b| crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(b)));
-            let mut new_lp = slang_alloc(lang_cstr.as_deref());
-            new_lp.sl_fname = Some(crate::memory::cstr_to_cstring(fname));
-            new_lp.sl_add = crate::memory::cstr_as_bytes(path_tail(fname))
-                .windows(SPL_FNAME_ADD.len())
-                .any(|w| w == SPL_FNAME_ADD);
-            Some(new_lp)
-        } else {
-            None
-        };
-        let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp, |b| &raw mut *b);
-        let lp = crate::globals::gmut(lp_ptr);
-
-        estack_push(ETYPE_SPELL, fname, 0);
-        let did_estack_push = true;
-
-        let mut fail = false;
-        let scms_ret = spell_check_magic_string(&fd);
-        match scms_ret {
-            SP_FORMERROR | SP_TRUNCERROR => {
-                semsg!(
-                    c"%s",
-                    gettext(c"E757: This does not look like a spell file"),
-                );
-                fail = true;
-            }
-            SP_OTHERERROR => {
-                semsg!(
-                    gettext(c"E5042: Failed to read spell file %s: %s"),
-                    fname,
-                    unsafe { strerror(fd.ferror()) },
-                );
-                fail = true;
-            }
-            _ => {}
+        if let Some(lang) = lang
+            && !lang.is_empty()
+        {
+            lang[0] = 0;
         }
-
-        if !fail {
-            let c = spell_getc(&fd);
-            if c < VIMSPELLVERSION {
-                emsg(gettext(c"E771: Old spell file, needs to be updated"));
-                fail = true;
-            } else if c > VIMSPELLVERSION {
-                emsg(gettext(c"E772: Spell file is for newer version of Vim"));
-                fail = true;
-            }
-        }
-
-        let mut res: i32 = 0;
-        let mut check_someerror = false;
-        while !fail {
-            let n = spell_getc(&fd);
-            if n == SN_END {
-                break;
-            }
-            let c = spell_getc(&fd);
-            let mut len = get4c(&fd);
-            if len < 0 {
-                res = SP_TRUNCERROR;
-                check_someerror = true;
-                break;
-            }
-
-            res = 0;
-            match n {
-                SN_INFO => {
-                    let Some(raw) = read_string(&fd, len as usize) else {
-                        lp.sl_info = None;
-                        fail = true;
-                        break;
-                    };
-                    lp.sl_info = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
-                }
-                SN_REGION => {
-                    res = read_region_section(&fd, &mut *lp, len);
-                }
-                SN_CHARFLAGS => {
-                    res = read_charflags_section(&fd);
-                }
-                SN_MIDWORD => {
-                    let Some(raw) = read_string(&fd, len as usize) else {
-                        lp.sl_midword = None;
-                        fail = true;
-                        break;
-                    };
-                    lp.sl_midword = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
-                }
-                SN_PREFCOND => {
-                    res = read_prefcond_section(&fd, &mut *lp);
-                }
-                SN_REP => {
-                    res = read_rep_section(&fd, &mut lp.sl_rep, &mut lp.sl_rep_first);
-                }
-                SN_REPSAL => {
-                    res = read_rep_section(&fd, &mut lp.sl_repsal, &mut lp.sl_repsal_first);
-                }
-                SN_SAL => {
-                    res = read_sal_section(&fd, &mut *lp);
-                }
-                SN_SOFO => {
-                    res = read_sofo_section(&fd, &mut *lp);
-                }
-                SN_MAP => {
-                    let Some(p) = read_string(&fd, len as usize) else {
-                        fail = true;
-                        break;
-                    };
-                    set_map_str(&mut *lp, p.as_ptr().cast());
-                }
-                SN_WORDS => {
-                    res = read_words_section(&fd, &mut *lp, len);
-                }
-                SN_SUGFILE => {
-                    lp.sl_sugtime = get8ctime(&fd);
-                }
-                SN_NOSPLITSUGS => {
-                    lp.sl_nosplitsugs = true;
-                }
-                SN_NOCOMPOUNDSUGS => {
-                    lp.sl_nocompoundsugs = true;
-                }
-                SN_COMPOUND => {
-                    res = read_compound(&fd, &mut *lp, len);
-                }
-                SN_NOBREAK => {
-                    lp.sl_nobreak = true;
-                }
-                SN_SYLLABLE => {
-                    let Some(raw) = read_string(&fd, len as usize) else {
-                        lp.sl_syllable = None;
-                        fail = true;
-                        break;
-                    };
-                    lp.sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
-                    if init_syl_tab(&mut *lp) != OK {
-                        fail = true;
-                        break;
-                    }
-                }
-                _ => {
-                    if (c & SNF_REQUIRED) != 0 {
-                        emsg(gettext(c"E770: Unsupported section in spell file"));
-                        fail = true;
-                        break;
-                    }
-                    while len > 0 {
-                        len -= 1;
-                        if spell_getc(&fd) < 0 {
-                            res = SP_TRUNCERROR;
-                            break;
-                        }
-                    }
-                }
-            }
-            if res != 0 {
-                check_someerror = true;
-                break;
-            }
-        }
-
-        if !fail && !check_someerror {
-            res = spell_read_tree(&fd, &mut lp.sl_fbyts, &mut lp.sl_fidxs, false, 0);
-            if res != 0 {
-                check_someerror = true;
-            }
-        }
-
-        if !fail && !check_someerror {
-            res = spell_read_tree(&fd, &mut lp.sl_kbyts, &mut lp.sl_kidxs, false, 0);
-            if res != 0 {
-                check_someerror = true;
-            }
-        }
-
-        if !fail && !check_someerror {
-            res = spell_read_tree(
-                &fd,
-                &mut lp.sl_pbyts,
-                &mut lp.sl_pidxs,
-                true,
-                lp.sl_prefprog.len() as i32,
-            );
-            if res != 0 {
-                check_someerror = true;
-            }
-        }
-
-        if check_someerror {
-            if res == SP_FORMERROR {
-                emsg(gettext(E_FORMAT));
-                fail = true;
-            } else if res == SP_TRUNCERROR {
-                emsg(gettext(E_SPELL_TRUNC));
-                fail = true;
-            } else if res == SP_OTHERERROR {
-                fail = true;
-            }
-        }
-
-        if !fail {
-            if let Some(boxed_lp) = owned_lp.take()
-                && lang.is_some()
-            {
-                spell_priv_st()
-                    .first_lang
-                    .push(crate::spell::OwnedSlang(boxed_lp));
-                lp_ptr = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
-            }
-        } else {
-            if let Some(lang) = lang
-                && !lang.is_empty()
-            {
-                lang[0] = 0;
-            }
-            drop(owned_lp);
-            lp_ptr = ptr::null_mut();
-        }
-
-        spell_close(fd);
-        if did_estack_push {
-            estack_pop();
-        }
-
-        lp_ptr
+        return None;
+    };
+    if opt_vars().p_verbose > 2 {
+        verbose_enter();
+        smsg!(0, gettext(c"Reading spell file \"%s\""), fname);
+        verbose_leave();
     }
+
+    let old_lp_ptr: *mut Slang = old_lp.map_or(ptr::null_mut(), |lp| &raw mut *lp);
+    let mut owned_lp = if old_lp_ptr.is_null() {
+        let lang_cstr = lang
+            .as_deref()
+            .map(|b| crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(b)));
+        let mut new_lp = slang_alloc(lang_cstr.as_deref());
+        new_lp.sl_fname = Some(fname_cstr.to_owned());
+        new_lp.sl_add = crate::memory::cstr_as_bytes(path_tail(fname))
+            .windows(SPL_FNAME_ADD.len())
+            .any(|w| w == SPL_FNAME_ADD);
+        Some(new_lp)
+    } else {
+        None
+    };
+    let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp_ptr, |b| &raw mut *b);
+    let lp = unsafe { &mut *lp_ptr };
+
+    estack_push(ETYPE_SPELL, Some(fname_cstr), 0);
+    let did_estack_push = true;
+
+    let mut fail = false;
+    let scms_ret = spell_check_magic_string(&fd);
+    match scms_ret {
+        SP_FORMERROR | SP_TRUNCERROR => {
+            semsg!(
+                c"%s",
+                gettext(c"E757: This does not look like a spell file"),
+            );
+            fail = true;
+        }
+        SP_OTHERERROR => {
+            semsg!(
+                gettext(c"E5042: Failed to read spell file %s: %s"),
+                fname,
+                unsafe { strerror(fd.ferror()) },
+            );
+            fail = true;
+        }
+        _ => {}
+    }
+
+    if !fail {
+        let c = spell_getc(&fd);
+        if c < VIMSPELLVERSION {
+            emsg(gettext(c"E771: Old spell file, needs to be updated"));
+            fail = true;
+        } else if c > VIMSPELLVERSION {
+            emsg(gettext(c"E772: Spell file is for newer version of Vim"));
+            fail = true;
+        }
+    }
+
+    let mut res: i32 = 0;
+    let mut check_someerror = false;
+    while !fail {
+        let n = spell_getc(&fd);
+        if n == SN_END {
+            break;
+        }
+        let c = spell_getc(&fd);
+        let mut len = get4c(&fd);
+        if len < 0 {
+            res = SP_TRUNCERROR;
+            check_someerror = true;
+            break;
+        }
+
+        res = 0;
+        match n {
+            SN_INFO => {
+                let Some(raw) = read_string(&fd, len as usize) else {
+                    lp.sl_info = None;
+                    fail = true;
+                    break;
+                };
+                lp.sl_info = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
+            }
+            SN_REGION => {
+                res = read_region_section(&fd, &mut *lp, len);
+            }
+            SN_CHARFLAGS => {
+                res = read_charflags_section(&fd);
+            }
+            SN_MIDWORD => {
+                let Some(raw) = read_string(&fd, len as usize) else {
+                    lp.sl_midword = None;
+                    fail = true;
+                    break;
+                };
+                lp.sl_midword = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
+            }
+            SN_PREFCOND => {
+                res = read_prefcond_section(&fd, &mut *lp);
+            }
+            SN_REP => {
+                res = read_rep_section(&fd, &mut lp.sl_rep, &mut lp.sl_rep_first);
+            }
+            SN_REPSAL => {
+                res = read_rep_section(&fd, &mut lp.sl_repsal, &mut lp.sl_repsal_first);
+            }
+            SN_SAL => {
+                res = read_sal_section(&fd, &mut *lp);
+            }
+            SN_SOFO => {
+                res = read_sofo_section(&fd, &mut *lp);
+            }
+            SN_MAP => {
+                let Some(p) = read_string(&fd, len as usize) else {
+                    fail = true;
+                    break;
+                };
+                set_map_str(&mut *lp, &p);
+            }
+            SN_WORDS => {
+                res = read_words_section(&fd, &mut *lp, len);
+            }
+            SN_SUGFILE => {
+                lp.sl_sugtime = get8ctime(&fd);
+            }
+            SN_NOSPLITSUGS => {
+                lp.sl_nosplitsugs = true;
+            }
+            SN_NOCOMPOUNDSUGS => {
+                lp.sl_nocompoundsugs = true;
+            }
+            SN_COMPOUND => {
+                res = read_compound(&fd, &mut *lp, len);
+            }
+            SN_NOBREAK => {
+                lp.sl_nobreak = true;
+            }
+            SN_SYLLABLE => {
+                let Some(raw) = read_string(&fd, len as usize) else {
+                    lp.sl_syllable = None;
+                    fail = true;
+                    break;
+                };
+                lp.sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
+                if init_syl_tab(&mut *lp) != OK {
+                    fail = true;
+                    break;
+                }
+            }
+            _ => {
+                if (c & SNF_REQUIRED) != 0 {
+                    emsg(gettext(c"E770: Unsupported section in spell file"));
+                    fail = true;
+                    break;
+                }
+                while len > 0 {
+                    len -= 1;
+                    if spell_getc(&fd) < 0 {
+                        res = SP_TRUNCERROR;
+                        break;
+                    }
+                }
+            }
+        }
+        if res != 0 {
+            check_someerror = true;
+            break;
+        }
+    }
+
+    if !fail && !check_someerror {
+        res = spell_read_tree(&fd, &mut lp.sl_fbyts, &mut lp.sl_fidxs, false, 0);
+        if res != 0 {
+            check_someerror = true;
+        }
+    }
+
+    if !fail && !check_someerror {
+        res = spell_read_tree(&fd, &mut lp.sl_kbyts, &mut lp.sl_kidxs, false, 0);
+        if res != 0 {
+            check_someerror = true;
+        }
+    }
+
+    if !fail && !check_someerror {
+        res = spell_read_tree(
+            &fd,
+            &mut lp.sl_pbyts,
+            &mut lp.sl_pidxs,
+            true,
+            lp.sl_prefprog.len() as i32,
+        );
+        if res != 0 {
+            check_someerror = true;
+        }
+    }
+
+    if check_someerror {
+        if res == SP_FORMERROR {
+            emsg(gettext(E_FORMAT));
+            fail = true;
+        } else if res == SP_TRUNCERROR {
+            emsg(gettext(E_SPELL_TRUNC));
+            fail = true;
+        } else if res == SP_OTHERERROR {
+            fail = true;
+        }
+    }
+
+    if !fail {
+        if let Some(boxed_lp) = owned_lp.take()
+            && lang.is_some()
+        {
+            spell_priv_st()
+                .first_lang
+                .push(crate::spell::OwnedSlang(boxed_lp));
+            lp_ptr = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
+        }
+    } else {
+        if let Some(lang) = lang
+            && !lang.is_empty()
+        {
+            lang[0] = 0;
+        }
+        drop(owned_lp);
+        lp_ptr = ptr::null_mut();
+    }
+
+    spell_close(fd);
+    if did_estack_push {
+        estack_pop();
+    }
+
+    unsafe { lp_ptr.as_mut() }
 }
 
 fn tree_count_words(byts: &[u8], idxs: &mut [Idx]) {
@@ -950,7 +949,7 @@ fn read_charflags_section(fd: &CFile) -> i32 {
     }
 
     if let (Some(flags), Some(fol)) = (&flags, &fol) {
-        set_spell_charflags(flags.as_ptr().cast(), flagslen, fol.as_ptr().cast());
+        set_spell_charflags(flags, flagslen, fol);
     }
 
     if flags.is_none() != fol.is_none() {
@@ -1194,7 +1193,7 @@ fn read_sofo_section(fd: &CFile, slang: &mut Slang) -> i32 {
     }
 
     match (from, to) {
-        (Some(from), Some(to)) => set_sofo(slang, from.as_ptr().cast(), to.as_ptr().cast()),
+        (Some(from), Some(to)) => set_sofo(slang, &from, &to),
         (None, None) => 0,
         _ => SP_FORMERROR,
     }
@@ -1342,39 +1341,31 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
     0
 }
 
-fn set_sofo(
-    lp: &mut Slang,
-    from: impl crate::strings::IntoCCharPtr,
-    to: impl crate::strings::IntoCCharPtr,
-) -> i32 {
-    let from = from.into_c_char_ptr();
-    let to = to.into_c_char_ptr();
-    {
-        lp.sl_sal = Vec::new();
-        lp.sl_sofo_sal = Vec::new();
+fn set_sofo(lp: &mut Slang, from: &[u8], to: &[u8]) -> i32 {
+    lp.sl_sal = Vec::new();
+    lp.sl_sofo_sal = Vec::new();
 
-        let gap = &mut lp.sl_sofo_sal;
-        gap.resize_with(256, Vec::new);
-        lp.sl_sofo = true;
-        lp.sl_sal_first = [0; 256];
+    let gap = &mut lp.sl_sofo_sal;
+    gap.resize_with(256, Vec::new);
+    lp.sl_sofo = true;
+    lp.sl_sal_first = [0; 256];
 
-        let mut p = crate::memory::cstr_as_bytes(from);
-        let mut s = crate::memory::cstr_as_bytes(to);
-        while !p.is_empty() && !s.is_empty() {
-            let c = mb_cptr2char_adv(&mut p);
-            let i = mb_cptr2char_adv(&mut s);
-            if c >= 256 {
-                gap[(c & 0xff) as usize].push((c, i));
-            } else {
-                lp.sl_sal_first[c as usize] = i;
-            }
+    let mut p = crate::memory::bytes_until_nul(from);
+    let mut s = crate::memory::bytes_until_nul(to);
+    while !p.is_empty() && !s.is_empty() {
+        let c = mb_cptr2char_adv(&mut p);
+        let i = mb_cptr2char_adv(&mut s);
+        if c >= 256 {
+            gap[(c & 0xff) as usize].push((c, i));
+        } else {
+            lp.sl_sal_first[c as usize] = i;
         }
-        if !p.is_empty() || !s.is_empty() {
-            return SP_FORMERROR;
-        }
-
-        0
     }
+    if !p.is_empty() || !s.is_empty() {
+        return SP_FORMERROR;
+    }
+
+    0
 }
 
 fn set_sal_first(lp: &mut Slang) {
@@ -1576,38 +1567,36 @@ fn read_tree_node(
     idx
 }
 
-fn spell_reload_one(fname: impl crate::strings::IntoCCharPtr, added_word: bool) {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut didit = false;
+fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
+    let fname = fname_cstr.as_ptr();
+    let mut didit = false;
 
-        let len = spell_priv_st().first_lang.len();
-        for i in (0..len).rev() {
-            let slang: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
-            let slang = crate::globals::gmut(slang);
-            if slang
-                .sl_fname
-                .as_ref()
-                .is_some_and(|f| path_equal(fname, f.as_ptr(), K_PATH_CMP_EXPAND))
-            {
+    let len = spell_priv_st().first_lang.len();
+    for i in (0..len).rev() {
+        let slang_ptr: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
+        let slang = unsafe { &mut *slang_ptr };
+        if slang
+            .sl_fname
+            .as_ref()
+            .is_some_and(|f| path_equal(fname, f.as_ptr(), K_PATH_CMP_EXPAND))
+        {
+            slang_clear(&mut *slang);
+            if spell_load_file(fname_cstr, None, Some(slang), false).is_none() {
                 slang_clear(&mut *slang);
-                if spell_load_file(fname, None, slang, false).is_null() {
-                    slang_clear(&mut *slang);
-                }
-                redraw_all_later(UPD_SOME_VALID);
-                didit = true;
             }
+            redraw_all_later(UPD_SOME_VALID);
+            didit = true;
         }
+    }
 
-        if added_word && !didit {
-            parse_spelllang(curwin_mut());
-        }
+    if added_word && !didit {
+        parse_spelllang(curwin_mut());
     }
 }
 
 /// Check the 'mkspellmem' option. Return FAIL if it's wrong.
-pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) -> bool {
-    let mut rem = crate::memory::cstr_as_bytes(value.into_c_char_ptr());
+pub fn spell_check_msm(value: &[u8], apply: bool) -> bool {
+    let mut rem = crate::memory::bytes_until_nul(value);
 
     if !rem.first().is_some_and(u8::is_ascii_digit) {
         return false;
@@ -1645,918 +1634,864 @@ pub fn spell_check_msm(value: impl crate::strings::IntoCCharPtr, apply: bool) ->
     true
 }
 
-fn spell_read_aff(
-    spin: &mut Spellinfo,
-    fname: impl crate::strings::IntoCCharPtr,
-) -> Option<Afffile> {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut rline = [0u8; MAXLINELEN];
-        let mut pc_vec: Vec<u8>;
-        let mut items = [ptr::null_mut::<u8>(); MAXITEMCNT];
-        let mut lnum: i32 = 0;
-        let mut cur_aff: *mut Affheader = ptr::null_mut();
-        let mut did_postpone_prefix = false;
-        let mut aff_todo: i32 = 0;
-        let mut has_low = false;
-        let mut has_fol = false;
-        let mut has_upp = false;
-        let mut found_map = false;
-        let mut compminlen: i32 = 0;
-        let mut compsylmax: i32 = 0;
-        let mut compoptions: i32 = 0;
-        let mut compmax: i32 = 0;
-        let mut compflags: Option<std::ffi::CString> = None;
-        let mut midword: Option<std::ffi::CString> = None;
-        let mut syllable: Option<std::ffi::CString> = None;
-        let mut sofofrom: Option<std::ffi::CString> = None;
-        let mut sofoto: Option<std::ffi::CString> = None;
+fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<Afffile> {
+    let fname = fname_cstr.as_ptr();
+    let mut rline = [0u8; MAXLINELEN];
+    let mut pc_vec: Vec<u8>;
+    let mut items = [c""; MAXITEMCNT];
+    let mut lnum: i32 = 0;
+    let mut cur_aff: *mut Affheader = ptr::null_mut();
+    let mut did_postpone_prefix = false;
+    let mut aff_todo: i32 = 0;
+    let mut has_low = false;
+    let mut has_fol = false;
+    let mut has_upp = false;
+    let mut found_map = false;
+    let mut compminlen: i32 = 0;
+    let mut compsylmax: i32 = 0;
+    let mut compoptions: i32 = 0;
+    let mut compmax: i32 = 0;
+    let mut compflags: Option<std::ffi::CString> = None;
+    let mut midword: Option<std::ffi::CString> = None;
+    let mut syllable: Option<std::ffi::CString> = None;
+    let mut sofofrom: Option<std::ffi::CString> = None;
+    let mut sofoto: Option<std::ffi::CString> = None;
 
-        let Some(fd) = CFile::open(fname, c"r") else {
-            semsg!(gettext(E_NOTOPEN), fname);
-            return None;
-        };
+    let Some(fd) = CFile::open(fname, c"r") else {
+        semsg!(gettext(E_NOTOPEN), fname);
+        return None;
+    };
 
-        vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
-            gettext(c"Reading affix file %s..."),
-            fname,
-        );
-        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
+    vim_snprintf!(
+        g_st().iobuff.as_mut_ptr(),
+        IOSIZE,
+        gettext(c"Reading affix file %s..."),
+        fname,
+    );
+    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
 
-        let do_rep = spin.si_rep.is_empty();
-        let do_repsal = spin.si_repsal.is_empty();
-        let do_sal = spin.si_sal.is_empty();
-        let do_mapline = spin.si_map.is_empty();
+    let do_rep = spin.si_rep.is_empty();
+    let do_repsal = spin.si_repsal.is_empty();
+    let do_sal = spin.si_sal.is_empty();
+    let do_mapline = spin.si_map.is_empty();
 
-        let mut aff = Afffile {
-            af_enc: None,
-            af_flagtype: 0,
-            af_rare: 0,
-            af_keepcase: 0,
-            af_bad: 0,
-            af_needaffix: 0,
-            af_circumfix: 0,
-            af_needcomp: 0,
-            af_comproot: 0,
-            af_compforbid: 0,
-            af_comppermit: 0,
-            af_nosuggest: 0,
-            af_pfxpostpone: 0,
-            af_ignoreextra: false,
-            af_pref: std::collections::BTreeMap::new(),
-            af_suff: std::collections::BTreeMap::new(),
-            af_comp: std::collections::BTreeMap::new(),
-        };
+    let mut aff = Afffile {
+        af_enc: None,
+        af_flagtype: 0,
+        af_rare: 0,
+        af_keepcase: 0,
+        af_bad: 0,
+        af_needaffix: 0,
+        af_circumfix: 0,
+        af_needcomp: 0,
+        af_comproot: 0,
+        af_compforbid: 0,
+        af_comppermit: 0,
+        af_nosuggest: 0,
+        af_pfxpostpone: 0,
+        af_ignoreextra: false,
+        af_pref: std::collections::BTreeMap::new(),
+        af_suff: std::collections::BTreeMap::new(),
+        af_comp: std::collections::BTreeMap::new(),
+    };
 
-        while !vim_fgets(&mut rline, &fd) && !g_st().got_int {
-            line_breakcheck();
-            lnum += 1;
+    while !vim_fgets(&mut rline, &fd) && !g_st().got_int {
+        line_breakcheck();
+        lnum += 1;
 
-            if rline[0] == b'#' {
+        if rline[0] == b'#' {
+            continue;
+        }
+
+        let line = if spin.si_conv.vc_type != CONV_NONE {
+            let Some(pc_bytes) = string_convert(&spin.si_conv, rline.as_mut_ptr().cast(), None)
+            else {
+                smsg!(
+                    0,
+                    gettext(c"Conversion failure for word in %s line %d: %s"),
+                    fname,
+                    lnum,
+                    rline.as_ptr().cast::<std::ffi::c_void>(),
+                );
                 continue;
-            }
+            };
+            pc_vec = pc_bytes;
+            pc_vec.as_mut_ptr()
+        } else {
+            rline.as_mut_ptr()
+        };
 
-            let line = if spin.si_conv.vc_type != CONV_NONE {
-                let Some(pc_bytes) = string_convert(&spin.si_conv, rline.as_mut_ptr().cast(), None)
-                else {
+        let mut itemcnt: usize = 0;
+        let mut p = line;
+        loop {
+            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+            let skip_ws = p_bytes.iter().take_while(|&&b| b <= b' ').count();
+            p = p.wrapping_add(skip_ws);
+            let p_bytes = &p_bytes[skip_ws..];
+            if p_bytes.is_empty() || itemcnt == MAXITEMCNT {
+                break;
+            }
+            let item_start = p;
+            itemcnt += 1;
+            let item0_bytes = if itemcnt == 2 {
+                items[0].to_bytes()
+            } else {
+                &[]
+            };
+            let item_len = if itemcnt == 2 && spell_info_item(item0_bytes) {
+                p_bytes
+                    .iter()
+                    .take_while(|&&b| b >= b' ' || b == TAB)
+                    .count()
+            } else {
+                p_bytes.iter().take_while(|&&b| b > b' ').count()
+            };
+            p = p.wrapping_add(item_len);
+            if item_len == p_bytes.len() {
+                items[itemcnt - 1] = crate::memory::cstr_from_ptr(item_start.cast());
+                break;
+            }
+            unsafe { *p = 0 };
+            items[itemcnt - 1] = crate::memory::cstr_from_ptr(item_start.cast());
+            p = p.wrapping_add(1);
+        }
+
+        if itemcnt > 0 {
+            let itemcnt_i = itemcnt as i32;
+            let item0_bytes = items[0].to_bytes();
+            if is_aff_rule(&items, itemcnt_i, c"SET", 2) && aff.af_enc.is_none() {
+                aff.af_enc = Some(enc_canonize(items[1].as_ptr()));
+                let af_enc_ptr = aff
+                    .af_enc
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
+                if spin.si_ascii == 0
+                    && !convert_setup(&mut spin.si_conv, af_enc_ptr, opt_vars().p_enc)
+                {
                     smsg!(
                         0,
-                        gettext(c"Conversion failure for word in %s line %d: %s"),
+                        gettext(c"Conversion in %s not supported: from %s to %s"),
                         fname,
-                        lnum,
-                        rline.as_ptr().cast::<std::ffi::c_void>(),
+                        af_enc_ptr,
+                        opt_vars().p_enc,
                     );
-                    continue;
-                };
-                pc_vec = pc_bytes;
-                pc_vec.as_mut_ptr()
-            } else {
-                rline.as_mut_ptr()
-            };
-
-            let mut itemcnt: usize = 0;
-            let mut p = line;
-            loop {
-                let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-                let skip_ws = p_bytes.iter().take_while(|&&b| b <= b' ').count();
-                p = p.wrapping_add(skip_ws);
-                let p_bytes = &p_bytes[skip_ws..];
-                if p_bytes.is_empty() || itemcnt == MAXITEMCNT {
-                    break;
                 }
-                items[itemcnt] = p;
-                itemcnt += 1;
-                let item_len = if itemcnt == 2
-                    && spell_info_item(crate::memory::cstr_as_bytes(items[0].cast()))
-                {
-                    p_bytes
-                        .iter()
-                        .take_while(|&&b| b >= b' ' || b == TAB)
-                        .count()
-                } else {
-                    p_bytes.iter().take_while(|&&b| b > b' ').count()
-                };
-                p = p.wrapping_add(item_len);
-                if item_len == p_bytes.len() {
-                    break;
-                }
-                *crate::globals::gptr(p) = 0;
-                p = p.wrapping_add(1);
-            }
-
-            if itemcnt > 0 {
-                let itemcnt_i = itemcnt as i32;
-                let item0_bytes = crate::memory::cstr_as_bytes(items[0].cast());
-                if is_aff_rule(&items, itemcnt_i, c"SET", 2) && aff.af_enc.is_none() {
-                    aff.af_enc = Some(enc_canonize(items[1].cast()));
-                    let af_enc_ptr = aff
-                        .af_enc
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
-                    if spin.si_ascii == 0
-                        && !convert_setup(&mut spin.si_conv, af_enc_ptr, opt_vars().p_enc)
-                    {
+                spin.si_conv.vc_fail = true;
+            } else if is_aff_rule(&items, itemcnt_i, c"FLAG", 2) && aff.af_flagtype == AFT_CHAR {
+                match items[1].to_bytes() {
+                    b"long" => aff.af_flagtype = AFT_LONG,
+                    b"num" => aff.af_flagtype = AFT_NUM,
+                    b"caplong" => aff.af_flagtype = AFT_CAPLONG,
+                    _ => {
                         smsg!(
                             0,
-                            gettext(c"Conversion in %s not supported: from %s to %s"),
-                            fname,
-                            af_enc_ptr,
-                            opt_vars().p_enc,
-                        );
-                    }
-                    spin.si_conv.vc_fail = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"FLAG", 2) && aff.af_flagtype == AFT_CHAR
-                {
-                    match crate::memory::cstr_as_bytes(items[1].cast()) {
-                        b"long" => aff.af_flagtype = AFT_LONG,
-                        b"num" => aff.af_flagtype = AFT_NUM,
-                        b"caplong" => aff.af_flagtype = AFT_CAPLONG,
-                        _ => {
-                            smsg!(
-                                0,
-                                gettext(c"Invalid value for FLAG in %s line %d: %s"),
-                                fname,
-                                lnum,
-                                items[1].cast::<std::ffi::c_void>(),
-                            );
-                        }
-                    }
-                    if aff.af_rare != 0
-                        || aff.af_keepcase != 0
-                        || aff.af_bad != 0
-                        || aff.af_needaffix != 0
-                        || aff.af_circumfix != 0
-                        || aff.af_needcomp != 0
-                        || aff.af_comproot != 0
-                        || aff.af_nosuggest != 0
-                        || compflags.is_some()
-                        || !aff.af_suff.is_empty()
-                        || !aff.af_pref.is_empty()
-                    {
-                        smsg!(
-                            0,
-                            gettext(c"FLAG after using flags in %s line %d: %s"),
+                            gettext(c"Invalid value for FLAG in %s line %d: %s"),
                             fname,
                             lnum,
-                            items[1].cast::<std::ffi::c_void>(),
+                            items[1].as_ptr(),
                         );
                     }
-                } else if spell_info_item(crate::memory::cstr_as_bytes(items[0].cast()))
-                    && itemcnt > 1
+                }
+                if aff.af_rare != 0
+                    || aff.af_keepcase != 0
+                    || aff.af_bad != 0
+                    || aff.af_needaffix != 0
+                    || aff.af_circumfix != 0
+                    || aff.af_needcomp != 0
+                    || aff.af_comproot != 0
+                    || aff.af_nosuggest != 0
+                    || compflags.is_some()
+                    || !aff.af_suff.is_empty()
+                    || !aff.af_pref.is_empty()
                 {
-                    let mut bytes = spin
-                        .si_info
+                    smsg!(
+                        0,
+                        gettext(c"FLAG after using flags in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[1].as_ptr(),
+                    );
+                }
+            } else if spell_info_item(item0_bytes) && itemcnt > 1 {
+                let mut bytes = spin
+                    .si_info
+                    .as_ref()
+                    .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
+                if !bytes.is_empty() {
+                    bytes.push(b'\n');
+                }
+                bytes.extend_from_slice(item0_bytes);
+                bytes.push(b' ');
+                bytes.extend_from_slice(items[1].to_bytes());
+                spin.si_info = Some(std::ffi::CString::new(bytes).unwrap());
+            } else if is_aff_rule(&items, itemcnt_i, c"MIDWORD", 2) && midword.is_none() {
+                midword = Some(items[1].to_owned());
+            } else if is_aff_rule(&items, itemcnt_i, c"TRY", 2) {
+                // ignored
+            } else if (is_aff_rule(&items, itemcnt_i, c"RAR", 2)
+                || is_aff_rule(&items, itemcnt_i, c"RARE", 2))
+                && aff.af_rare == 0
+            {
+                aff.af_rare = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if (is_aff_rule(&items, itemcnt_i, c"KEP", 2)
+                || is_aff_rule(&items, itemcnt_i, c"KEEPCASE", 2))
+                && aff.af_keepcase == 0
+            {
+                aff.af_keepcase = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if (is_aff_rule(&items, itemcnt_i, c"BAD", 2)
+                || is_aff_rule(&items, itemcnt_i, c"FORBIDDENWORD", 2))
+                && aff.af_bad == 0
+            {
+                aff.af_bad = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if is_aff_rule(&items, itemcnt_i, c"NEEDAFFIX", 2) && aff.af_needaffix == 0 {
+                aff.af_needaffix = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if is_aff_rule(&items, itemcnt_i, c"CIRCUMFIX", 2) && aff.af_circumfix == 0 {
+                aff.af_circumfix = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if is_aff_rule(&items, itemcnt_i, c"NOSUGGEST", 2) && aff.af_nosuggest == 0 {
+                aff.af_nosuggest = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if (is_aff_rule(&items, itemcnt_i, c"NEEDCOMPOUND", 2)
+                || is_aff_rule(&items, itemcnt_i, c"ONLYINCOMPOUND", 2))
+                && aff.af_needcomp == 0
+            {
+                aff.af_needcomp = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDROOT", 2) && aff.af_comproot == 0 {
+                aff.af_comproot = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFORBIDFLAG", 2)
+                && aff.af_compforbid == 0
+            {
+                aff.af_compforbid = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+                if !aff.af_pref.is_empty() {
+                    smsg!(
+                        0,
+                        gettext(
+                            c"Defining COMPOUNDFORBIDFLAG after PFX item may give wrong results in %s line %d",
+                        ),
+                        fname,
+                        lnum,
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDPERMITFLAG", 2)
+                && aff.af_comppermit == 0
+            {
+                aff.af_comppermit = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+                if !aff.af_pref.is_empty() {
+                    smsg!(
+                        0,
+                        gettext(
+                            c"Defining COMPOUNDPERMITFLAG after PFX item may give wrong results in %s line %d",
+                        ),
+                        fname,
+                        lnum,
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFLAG", 2) && compflags.is_none() {
+                let mut bytes = items[1].to_bytes().to_vec();
+                bytes.push(b'+');
+                compflags = Some(std::ffi::CString::new(bytes).unwrap());
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES", 2) {
+                if crate::charset::parse_i64_prefix(items[1].to_bytes()) as i32 == 0 {
+                    smsg!(
+                        0,
+                        gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[1].as_ptr(),
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE", 2) {
+                if compflags.is_some()
+                    || !crate::memory::cstr_is_empty(skipdigits(items[1].as_ptr()))
+                {
+                    let mut bytes = compflags
                         .as_ref()
                         .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
                     if !bytes.is_empty() {
-                        bytes.push(b'\n');
+                        bytes.push(b'/');
                     }
-                    bytes.extend_from_slice(crate::memory::cstr_as_bytes(items[0].cast()));
-                    bytes.push(b' ');
-                    bytes.extend_from_slice(crate::memory::cstr_as_bytes(items[1].cast()));
-                    spin.si_info = Some(std::ffi::CString::new(bytes).unwrap());
-                } else if is_aff_rule(&items, itemcnt_i, c"MIDWORD", 2) && midword.is_none() {
-                    midword = Some(crate::memory::cstr_to_cstring(items[1].cast()));
-                } else if is_aff_rule(&items, itemcnt_i, c"TRY", 2) {
-                    // ignored
-                } else if (is_aff_rule(&items, itemcnt_i, c"RAR", 2)
-                    || is_aff_rule(&items, itemcnt_i, c"RARE", 2))
-                    && aff.af_rare == 0
-                {
-                    aff.af_rare = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"KEP", 2)
-                    || is_aff_rule(&items, itemcnt_i, c"KEEPCASE", 2))
-                    && aff.af_keepcase == 0
-                {
-                    aff.af_keepcase = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"BAD", 2)
-                    || is_aff_rule(&items, itemcnt_i, c"FORBIDDENWORD", 2))
-                    && aff.af_bad == 0
-                {
-                    aff.af_bad = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"NEEDAFFIX", 2) && aff.af_needaffix == 0 {
-                    aff.af_needaffix = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"CIRCUMFIX", 2) && aff.af_circumfix == 0 {
-                    aff.af_circumfix = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGGEST", 2) && aff.af_nosuggest == 0 {
-                    aff.af_nosuggest = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if (is_aff_rule(&items, itemcnt_i, c"NEEDCOMPOUND", 2)
-                    || is_aff_rule(&items, itemcnt_i, c"ONLYINCOMPOUND", 2))
-                    && aff.af_needcomp == 0
-                {
-                    aff.af_needcomp = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDROOT", 2) && aff.af_comproot == 0
-                {
-                    aff.af_comproot = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFORBIDFLAG", 2)
-                    && aff.af_compforbid == 0
-                {
-                    aff.af_compforbid = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                    if !aff.af_pref.is_empty() {
-                        smsg!(
-                            0,
-                            gettext(
-                                c"Defining COMPOUNDFORBIDFLAG after PFX item may give wrong results in %s line %d",
-                            ),
-                            fname,
-                            lnum,
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDPERMITFLAG", 2)
-                    && aff.af_comppermit == 0
-                {
-                    aff.af_comppermit = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                    if !aff.af_pref.is_empty() {
-                        smsg!(
-                            0,
-                            gettext(
-                                c"Defining COMPOUNDPERMITFLAG after PFX item may give wrong results in %s line %d",
-                            ),
-                            fname,
-                            lnum,
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDFLAG", 2) && compflags.is_none()
-                {
-                    let mut bytes = crate::memory::cstr_as_bytes(items[1].cast()).to_vec();
-                    bytes.push(b'+');
+                    bytes.extend_from_slice(items[1].to_bytes());
                     compflags = Some(std::ffi::CString::new(bytes).unwrap());
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULES", 2) {
-                    if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[1].cast(),
-                    )) as i32
-                        == 0
-                    {
-                        smsg!(
-                            0,
-                            gettext(c"Wrong COMPOUNDRULES value in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[1].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE", 2) {
-                    if compflags.is_some()
-                        || !crate::memory::cstr_is_empty(skipdigits(items[1].cast()))
-                    {
-                        let mut bytes = compflags
-                            .as_ref()
-                            .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
-                        if !bytes.is_empty() {
-                            bytes.push(b'/');
-                        }
-                        bytes.extend_from_slice(crate::memory::cstr_as_bytes(items[1].cast()));
-                        compflags = Some(std::ffi::CString::new(bytes).unwrap());
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX", 2) && compmax == 0 {
-                    compmax = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[1].cast(),
-                    )) as i32;
-                    if compmax == 0 {
-                        smsg!(
-                            0,
-                            gettext(c"Wrong COMPOUNDWORDMAX value in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[1].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN", 2) && compminlen == 0 {
-                    compminlen = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[1].cast(),
-                    )) as i32;
-                    if compminlen == 0 {
-                        smsg!(
-                            0,
-                            gettext(c"Wrong COMPOUNDMIN value in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[1].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX", 2) && compsylmax == 0 {
-                    compsylmax = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[1].cast(),
-                    )) as i32;
-                    if compsylmax == 0 {
-                        smsg!(
-                            0,
-                            gettext(c"Wrong COMPOUNDSYLMAX value in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[1].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDDUP", 1) {
-                    compoptions |= COMP_CHECKDUP;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDREP", 1) {
-                    compoptions |= COMP_CHECKREP;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDCASE", 1) {
-                    compoptions |= COMP_CHECKCASE;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE", 1) {
-                    compoptions |= COMP_CHECKTRIPLE;
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 2) {
-                    if crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[1].cast(),
-                    )) as i32
-                        == 0
-                    {
-                        smsg!(
-                            0,
-                            gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[1].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 3) {
-                    let gap = &mut spin.si_comppat;
-                    let item1 = crate::memory::cstr_from_ptr(items[1].cast());
-                    let item2 = crate::memory::cstr_from_ptr(items[2].cast());
-                    let mut i: usize = 0;
-                    while i + 1 < gap.len() {
-                        if gap[i].as_c_str() == item1 && gap[i + 1].as_c_str() == item2 {
-                            break;
-                        }
-                        i += 2;
-                    }
-                    if i + 1 >= gap.len() {
-                        gap.push(item1.to_owned());
-                        gap.push(item2.to_owned());
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"SYLLABLE", 2) && syllable.is_none() {
-                    syllable = Some(crate::memory::cstr_to_cstring(items[1].cast()));
-                } else if is_aff_rule(&items, itemcnt_i, c"NOBREAK", 1) {
-                    spin.si_nobreak = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSPLITSUGS", 1) {
-                    spin.si_nosplitsugs = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOCOMPOUNDSUGS", 1) {
-                    spin.si_nocompoundsugs = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"NOSUGFILE", 1) {
-                    spin.si_nosugfile = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"PFXPOSTPONE", 1) {
-                    aff.af_pfxpostpone = 1;
-                } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA", 1) {
-                    aff.af_ignoreextra = true;
-                } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
-                    && aff_todo == 0
-                    && itemcnt >= 4
-                {
-                    let mut lasti: usize = 4;
-                    let mut key = [0u8; AH_KEY_LEN];
-
-                    let tp = if item0_bytes[0] == b'P' {
-                        &mut aff.af_pref
-                    } else {
-                        &mut aff.af_suff
-                    };
-
-                    let item2_bytes = crate::memory::cstr_as_bytes(items[2].cast());
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut key,
-                        crate::memory::cstr_as_bytes(items[1].cast()),
-                    );
-                    let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
-                    if let Some(existing_aff) = tp.get_mut(key_bytes) {
-                        cur_aff = &raw mut *existing_aff;
-                        if crate::globals::gptr(cur_aff).ah_combine
-                            != i32::from(item2_bytes.first() == Some(&b'Y'))
-                        {
-                            smsg!(
-                                0,
-                                gettext(
-                                    c"Different combining flag in continued affix block in %s line %d: %s",
-                                ),
-                                fname,
-                                lnum,
-                                items[1].cast::<std::ffi::c_void>(),
-                            );
-                        }
-                        if crate::globals::gptr(cur_aff).ah_follows == 0 {
-                            smsg!(
-                                0,
-                                gettext(c"Duplicate affix in %s line %d: %s"),
-                                fname,
-                                lnum,
-                                items[1].cast::<std::ffi::c_void>(),
-                            );
-                        }
-                    } else {
-                        let ah_flag = affitem2flag(aff.af_flagtype, items[1].cast(), fname, lnum);
-                        if ah_flag == 0 || crate::memory::cstr_len(items[1].cast()) >= AH_KEY_LEN {
-                            break;
-                        }
-                        if ah_flag == aff.af_bad
-                            || ah_flag == aff.af_rare
-                            || ah_flag == aff.af_keepcase
-                            || ah_flag == aff.af_needaffix
-                            || ah_flag == aff.af_circumfix
-                            || ah_flag == aff.af_nosuggest
-                            || ah_flag == aff.af_needcomp
-                            || ah_flag == aff.af_comproot
-                        {
-                            smsg!(
-                                0,
-                                gettext(
-                                    c"Affix also used for BAD/RARE/KEEPCASE/NEEDAFFIX/NEEDCOMPOUND/NOSUGGEST in %s line %d: %s",
-                                ),
-                                fname,
-                                lnum,
-                                items[1].cast::<std::ffi::c_void>(),
-                            );
-                        }
-                        let mut new_ah = Affheader {
-                            ah_key: [0; AH_KEY_LEN],
-                            ah_flag,
-                            ah_new_id: 0,
-                            ah_combine: i32::from(item2_bytes.first() == Some(&b'Y')),
-                            ah_follows: 0,
-                            ah_entries: Vec::new(),
-                        };
-                        new_ah.ah_key[..key_bytes.len()].copy_from_slice(key_bytes);
-                        cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
-                    }
-
-                    if itemcnt > lasti && crate::memory::cstr_as_bytes(items[lasti].cast()) == b"S"
-                    {
-                        lasti += 1;
-                        crate::globals::gptr(cur_aff).ah_follows = 1;
-                    } else {
-                        crate::globals::gptr(cur_aff).ah_follows = 0;
-                    }
-
-                    if itemcnt > lasti
-                        && !aff.af_ignoreextra
-                        && *crate::globals::gptr(items[lasti]) != b'#'
-                    {
-                        smsg!(
-                            0,
-                            gettext(E_AFFTRAILING),
-                            fname,
-                            lnum,
-                            items[lasti].cast::<std::ffi::c_void>(),
-                        );
-                    }
-
-                    if item2_bytes != b"Y" && item2_bytes != b"N" {
-                        smsg!(
-                            0,
-                            gettext(c"Expected Y or N in %s line %d: %s"),
-                            fname,
-                            lnum,
-                            items[2].cast::<std::ffi::c_void>(),
-                        );
-                    }
-
-                    if item0_bytes[0] == b'P' && aff.af_pfxpostpone != 0 {
-                        if crate::globals::gptr(cur_aff).ah_new_id == 0 {
-                            check_renumber(spin);
-                            spin.si_newpref_id += 1;
-                            crate::globals::gptr(cur_aff).ah_new_id = spin.si_newpref_id;
-                            did_postpone_prefix = false;
-                        } else {
-                            did_postpone_prefix = true;
-                        }
-                    }
-
-                    aff_todo = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
-                        items[3].cast(),
-                    )) as i32;
-                } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
-                    && aff_todo > 0
-                    && (crate::memory::cstr_as_bytes(
-                        (&raw const crate::globals::gptr(cur_aff).ah_key).cast(),
-                    ) == crate::memory::cstr_as_bytes(items[1].cast()))
-                    && itemcnt >= 5
-                {
-                    let lasti: usize = 5;
-                    if itemcnt > lasti
-                        && *crate::globals::gptr(items[lasti]) != b'#'
-                        && (crate::memory::cstr_as_bytes(items[lasti].cast()) != b"-"
-                            || itemcnt != lasti + 1)
-                    {
-                        smsg!(
-                            0,
-                            gettext(E_AFFTRAILING),
-                            fname,
-                            lnum,
-                            items[lasti].cast::<std::ffi::c_void>(),
-                        );
-                    }
-
-                    aff_todo -= 1;
-                    let mut aff_entry_val = Affentry {
-                        ae_chop: None,
-                        ae_add: None,
-                        ae_flags: None,
-                        ae_cond: None,
-                        ae_prog: None,
-                        ae_compforbid: 0,
-                        ae_comppermit: 0,
-                    };
-                    let aff_entry = &mut aff_entry_val;
-
-                    if crate::memory::cstr_as_bytes(items[2].cast()) != b"0" {
-                        aff_entry.ae_chop = Some(crate::memory::cstr_to_cstring(items[2].cast()));
-                    }
-                    if crate::memory::cstr_as_bytes(items[3].cast()) != b"0" {
-                        let item3_bytes = crate::memory::cstr_as_bytes(items[3].cast());
-                        if let Some(slash_pos) = item3_bytes.iter().position(|&b| b == b'/') {
-                            aff_entry.ae_add =
-                                Some(std::ffi::CString::new(&item3_bytes[..slash_pos]).unwrap());
-                            aff_entry.ae_flags = Some(
-                                std::ffi::CString::new(&item3_bytes[slash_pos + 1..]).unwrap(),
-                            );
-                            aff_process_flags(&aff, &mut *aff_entry);
-                        } else {
-                            aff_entry.ae_add = Some(std::ffi::CString::new(item3_bytes).unwrap());
-                        }
-                    }
-
-                    if spin.si_ascii == 0
-                        || ((*aff_entry)
-                            .chop_cstr()
-                            .is_none_or(|s| s.to_bytes().is_ascii())
-                            && (*aff_entry)
-                                .add_cstr()
-                                .is_none_or(|s| s.to_bytes().is_ascii()))
-                    {
-                        crate::globals::gptr(cur_aff)
-                            .ah_entries
-                            .insert(0, aff_entry_val);
-                        let aff_entry: *mut Affentry =
-                            crate::globals::gptr(cur_aff).ah_entries.as_mut_ptr();
-                        let aff_entry = crate::globals::gmut(aff_entry);
-
-                        if crate::memory::cstr_as_bytes(items[4].cast()) != b"." {
-                            let mut buf = [0u8; MAXLINELEN];
-                            aff_entry.ae_cond =
-                                Some(crate::memory::cstr_to_cstring(items[4].cast()));
-                            vim_snprintf!(
-                                buf.as_mut_ptr().cast(),
-                                MAXLINELEN,
-                                if crate::memory::cstr_first_byte(items[0].cast()) == b'P' {
-                                    c"^%s"
-                                } else {
-                                    c"%s$"
-                                },
-                                items[4].cast::<std::ffi::c_void>(),
-                            );
-                            aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                                buf.as_ptr().cast(),
-                                RE_MAGIC + RE_STRING + RE_STRICT,
-                            );
-                            if aff_entry.ae_prog.is_none() {
-                                smsg!(
-                                    0,
-                                    gettext(c"Broken condition in %s line %d: %s"),
-                                    fname,
-                                    lnum,
-                                    items[4].cast::<std::ffi::c_void>(),
-                                );
-                            }
-                        }
-
-                        if crate::memory::cstr_first_byte(items[0].cast()) == b'P'
-                            && aff.af_pfxpostpone != 0
-                            && aff_entry.ae_flags.is_none()
-                        {
-                            let mut upper = false;
-                            if let (Some(chop), Some(add)) =
-                                (aff_entry.chop_cstr(), aff_entry.add_cstr())
-                                && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
-                            {
-                                let c = utf_ptr2char(chop.as_ptr());
-                                let c_up = spell_toupper(c);
-                                if c_up != c
-                                    && aff_entry
-                                        .cond_cstr()
-                                        .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
-                                {
-                                    let add_bytes = add.to_bytes();
-                                    let mut end_idx = add_bytes.len();
-                                    crate::mbyte::mb_idx_back(add_bytes, &mut end_idx);
-                                    if utf_slice2char(&add_bytes[end_idx..]) == c_up {
-                                        upper = true;
-                                        let new_add =
-                                            std::ffi::CString::new(&add_bytes[..end_idx]).unwrap();
-                                        aff_entry.ae_chop = None;
-                                        aff_entry.ae_add = Some(new_add);
-
-                                        if aff_entry.ae_cond.is_some() {
-                                            let mut buf = [0u8; MAXLINELEN];
-                                            onecap_copy(
-                                                crate::memory::cstr_as_bytes(items[4].cast()),
-                                                &mut buf,
-                                                true,
-                                            );
-                                            let cond_cstr =
-                                                crate::memory::cstr_to_cstring(buf.as_ptr().cast());
-                                            vim_snprintf!(
-                                                buf.as_mut_ptr().cast(),
-                                                MAXLINELEN,
-                                                c"^%s",
-                                                cond_cstr.as_ptr(),
-                                            );
-                                            aff_entry.ae_cond = Some(cond_cstr);
-                                            aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                                                buf.as_ptr().cast(),
-                                                RE_MAGIC + RE_STRING,
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-
-                            if aff_entry.ae_chop.is_none() {
-                                let prefcond = &mut spin.si_prefcond;
-                                let mut idx = prefcond.len() as i32 - 1;
-                                while idx >= 0 {
-                                    if prefcond[idx as usize].as_deref() == aff_entry.cond_cstr() {
-                                        break;
-                                    }
-                                    idx -= 1;
-                                }
-                                if idx < 0 {
-                                    idx = prefcond.len() as i32;
-                                    prefcond.push(aff_entry.ae_cond.clone());
-                                }
-
-                                let p_add = aff_entry
-                                    .ae_add
-                                    .as_ref()
-                                    .map_or(c"".as_ptr(), |s| s.as_ptr());
-
-                                let mut n = PFX_FLAGS;
-                                if crate::globals::gptr(cur_aff).ah_combine == 0 {
-                                    n |= WFP_NC;
-                                }
-                                if upper {
-                                    n |= WFP_UP;
-                                }
-                                if aff_entry.ae_comppermit != 0 {
-                                    n |= WFP_COMPPERMIT;
-                                }
-                                if aff_entry.ae_compforbid != 0 {
-                                    n |= WFP_COMPFORBID;
-                                }
-                                tree_add_word(
-                                    spin,
-                                    p_add,
-                                    spin.si_prefroot,
-                                    n,
-                                    idx,
-                                    crate::globals::gptr(cur_aff).ah_new_id,
-                                );
-                                did_postpone_prefix = true;
-                            }
-
-                            if aff_todo == 0 && !did_postpone_prefix {
-                                spin.si_newpref_id -= 1;
-                                crate::globals::gptr(cur_aff).ah_new_id = 0;
-                            }
-                        }
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"FOL", 2) && !has_fol {
-                    has_fol = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"LOW", 2) && !has_low {
-                    has_low = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"UPP", 2) && !has_upp {
-                    has_upp = true;
-                } else if is_aff_rule(&items, itemcnt_i, c"REP", 2)
-                    || is_aff_rule(&items, itemcnt_i, c"REPSAL", 2)
-                {
-                    if !crate::globals::gptr(items[1]).is_ascii_digit() {
-                        smsg!(
-                            0,
-                            gettext(c"Expected REP(SAL) count in %s line %d"),
-                            fname,
-                            lnum,
-                        );
-                    }
-                } else if (item0_bytes == b"REP" || item0_bytes == b"REPSAL") && itemcnt >= 3 {
-                    if itemcnt > 3 && *crate::globals::gptr(items[3]) != b'#' {
-                        smsg!(
-                            0,
-                            gettext(E_AFFTRAILING),
-                            fname,
-                            lnum,
-                            items[3].cast::<std::ffi::c_void>(),
-                        );
-                    }
-                    let is_repsal = item0_bytes == b"REPSAL";
-                    if if is_repsal { do_repsal } else { do_rep } {
-                        let mut p1 = items[1];
-                        while *crate::globals::gptr(p1) != 0 {
-                            if *crate::globals::gptr(p1) == b'_' {
-                                *crate::globals::gptr(p1) = b' ';
-                            }
-                            mb_ptr_adv(&mut p1);
-                        }
-                        let mut p2 = items[2];
-                        while *crate::globals::gptr(p2) != 0 {
-                            if *crate::globals::gptr(p2) == b'_' {
-                                *crate::globals::gptr(p2) = b' ';
-                            }
-                            mb_ptr_adv(&mut p2);
-                        }
-                        add_fromto(
-                            if is_repsal {
-                                &mut spin.si_repsal
-                            } else {
-                                &mut spin.si_rep
-                            },
-                            items[1].cast(),
-                            items[2].cast(),
-                        );
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"MAP", 2) {
-                    if !found_map {
-                        found_map = true;
-                        if !crate::globals::gptr(items[1]).is_ascii_digit() {
-                            smsg!(0, gettext(c"Expected MAP count in %s line %d"), fname, lnum,);
-                        }
-                    } else if do_mapline {
-                        let si_map = &mut spin.si_map;
-                        let item_ptr = items[1].cast_const().cast();
-                        let item_bytes = crate::memory::cstr_as_bytes(item_ptr);
-                        let mut rem = item_bytes;
-                        while !rem.is_empty() {
-                            let c = mb_ptr2char_adv(&mut rem);
-                            let p_m = item_ptr.wrapping_add(item_bytes.len() - rem.len());
-                            let in_map = if si_map.is_empty() {
-                                false
-                            } else {
-                                si_map.push(0);
-                                let found = !vim_strchr(si_map.as_ptr().cast(), c).is_null();
-                                si_map.pop();
-                                found
-                            };
-                            if in_map || !vim_strchr(p_m, c).is_null() {
-                                smsg!(
-                                    0,
-                                    gettext(c"Duplicate character in MAP in %s line %d"),
-                                    fname,
-                                    lnum,
-                                );
-                            }
-                        }
-                        if !items[1].is_null() {
-                            let s_len = crate::memory::cstr_len(items[1].cast());
-                            si_map.extend_from_slice(unsafe {
-                                std::slice::from_raw_parts(items[1], s_len)
-                            });
-                        }
-                        si_map.push(b'/');
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"SAL", 3) {
-                    if do_sal {
-                        let item2_bytes = crate::memory::cstr_as_bytes(items[2].cast());
-                        if crate::memory::cstr_as_bytes(items[1].cast()) == b"followup" {
-                            spin.si_followup = i32::from(sal_to_bool(item2_bytes));
-                        } else if crate::memory::cstr_as_bytes(items[1].cast())
-                            == b"collapse_result"
-                        {
-                            spin.si_collapse = i32::from(sal_to_bool(item2_bytes));
-                        } else if crate::memory::cstr_as_bytes(items[1].cast()) == b"remove_accents"
-                        {
-                            spin.si_rem_accents = i32::from(sal_to_bool(item2_bytes));
-                        } else {
-                            let to_s = if crate::memory::cstr_as_bytes(items[2].cast()) == b"_" {
-                                c"".as_ptr()
-                            } else {
-                                items[2].cast()
-                            };
-                            add_fromto(&mut spin.si_sal, items[1].cast(), to_s);
-                        }
-                    }
-                } else if is_aff_rule(&items, itemcnt_i, c"SOFOFROM", 2) && sofofrom.is_none() {
-                    sofofrom = Some(crate::memory::cstr_to_cstring(items[1].cast()));
-                } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO", 2) && sofoto.is_none() {
-                    sofoto = Some(crate::memory::cstr_to_cstring(items[1].cast()));
-                } else if crate::memory::cstr_as_bytes(items[0].cast()) == b"COMMON" {
-                    for &item in items.iter().take(itemcnt).skip(1) {
-                        spin.si_commonwords
-                            .insert(crate::memory::cstr_as_bytes(item.cast()).to_vec());
-                    }
-                } else {
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDWORDMAX", 2) && compmax == 0 {
+                compmax = crate::charset::parse_i64_prefix(items[1].to_bytes()) as i32;
+                if compmax == 0 {
                     smsg!(
                         0,
-                        gettext(c"Unrecognized or duplicate item in %s line %d: %s"),
+                        gettext(c"Wrong COMPOUNDWORDMAX value in %s line %d: %s"),
                         fname,
                         lnum,
-                        items[0].cast::<std::ffi::c_void>(),
+                        items[1].as_ptr(),
                     );
                 }
-            }
-        }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDMIN", 2) && compminlen == 0 {
+                compminlen = crate::charset::parse_i64_prefix(items[1].to_bytes()) as i32;
+                if compminlen == 0 {
+                    smsg!(
+                        0,
+                        gettext(c"Wrong COMPOUNDMIN value in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[1].as_ptr(),
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDSYLMAX", 2) && compsylmax == 0 {
+                compsylmax = crate::charset::parse_i64_prefix(items[1].to_bytes()) as i32;
+                if compsylmax == 0 {
+                    smsg!(
+                        0,
+                        gettext(c"Wrong COMPOUNDSYLMAX value in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[1].as_ptr(),
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDDUP", 1) {
+                compoptions |= COMP_CHECKDUP;
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDREP", 1) {
+                compoptions |= COMP_CHECKREP;
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDCASE", 1) {
+                compoptions |= COMP_CHECKCASE;
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDTRIPLE", 1) {
+                compoptions |= COMP_CHECKTRIPLE;
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 2) {
+                if crate::charset::parse_i64_prefix(items[1].to_bytes()) as i32 == 0 {
+                    smsg!(
+                        0,
+                        gettext(c"Wrong CHECKCOMPOUNDPATTERN value in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[1].as_ptr(),
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"CHECKCOMPOUNDPATTERN", 3) {
+                let gap = &mut spin.si_comppat;
+                let item1 = items[1];
+                let item2 = items[2];
+                let mut i: usize = 0;
+                while i + 1 < gap.len() {
+                    if gap[i].as_c_str() == item1 && gap[i + 1].as_c_str() == item2 {
+                        break;
+                    }
+                    i += 2;
+                }
+                if i + 1 >= gap.len() {
+                    gap.push(item1.to_owned());
+                    gap.push(item2.to_owned());
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"SYLLABLE", 2) && syllable.is_none() {
+                syllable = Some(items[1].to_owned());
+            } else if is_aff_rule(&items, itemcnt_i, c"NOBREAK", 1) {
+                spin.si_nobreak = 1;
+            } else if is_aff_rule(&items, itemcnt_i, c"NOSPLITSUGS", 1) {
+                spin.si_nosplitsugs = 1;
+            } else if is_aff_rule(&items, itemcnt_i, c"NOCOMPOUNDSUGS", 1) {
+                spin.si_nocompoundsugs = 1;
+            } else if is_aff_rule(&items, itemcnt_i, c"NOSUGFILE", 1) {
+                spin.si_nosugfile = 1;
+            } else if is_aff_rule(&items, itemcnt_i, c"PFXPOSTPONE", 1) {
+                aff.af_pfxpostpone = 1;
+            } else if is_aff_rule(&items, itemcnt_i, c"IGNOREEXTRA", 1) {
+                aff.af_ignoreextra = true;
+            } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
+                && aff_todo == 0
+                && itemcnt >= 4
+            {
+                let mut lasti: usize = 4;
+                let mut key = [0u8; AH_KEY_LEN];
 
-        if (has_fol || has_low || has_upp) && spin.si_clear_chartab != 0 {
-            init_spell_chartab();
-            spin.si_clear_chartab = 0;
-        }
+                let tp = if item0_bytes[0] == b'P' {
+                    &mut aff.af_pref
+                } else {
+                    &mut aff.af_suff
+                };
 
-        if compmax != 0 {
-            aff_check_number(spin.si_compmax, compmax, c"COMPOUNDWORDMAX");
-            spin.si_compmax = compmax;
-        }
+                let item2_bytes = items[2].to_bytes();
+                crate::memory::copy_bytes_to_c_buf(&mut key, items[1].to_bytes());
+                let key_bytes = crate::memory::cstr_until_nul(&key).to_bytes();
+                if let Some(existing_aff) = tp.get_mut(key_bytes) {
+                    cur_aff = &raw mut *existing_aff;
+                    if unsafe { (*cur_aff).ah_combine }
+                        != i32::from(item2_bytes.first() == Some(&b'Y'))
+                    {
+                        smsg!(
+                            0,
+                            gettext(
+                                c"Different combining flag in continued affix block in %s line %d: %s",
+                            ),
+                            fname,
+                            lnum,
+                            items[1].as_ptr(),
+                        );
+                    }
+                    if unsafe { (*cur_aff).ah_follows } == 0 {
+                        smsg!(
+                            0,
+                            gettext(c"Duplicate affix in %s line %d: %s"),
+                            fname,
+                            lnum,
+                            items[1].as_ptr(),
+                        );
+                    }
+                } else {
+                    let ah_flag = affitem2flag(aff.af_flagtype, items[1], fname_cstr, lnum);
+                    if ah_flag == 0 || items[1].to_bytes().len() >= AH_KEY_LEN {
+                        break;
+                    }
+                    if ah_flag == aff.af_bad
+                        || ah_flag == aff.af_rare
+                        || ah_flag == aff.af_keepcase
+                        || ah_flag == aff.af_needaffix
+                        || ah_flag == aff.af_circumfix
+                        || ah_flag == aff.af_nosuggest
+                        || ah_flag == aff.af_needcomp
+                        || ah_flag == aff.af_comproot
+                    {
+                        smsg!(
+                            0,
+                            gettext(
+                                c"Affix also used for BAD/RARE/KEEPCASE/NEEDAFFIX/NEEDCOMPOUND/NOSUGGEST in %s line %d: %s",
+                            ),
+                            fname,
+                            lnum,
+                            items[1].as_ptr(),
+                        );
+                    }
+                    let mut new_ah = Affheader {
+                        ah_key: [0; AH_KEY_LEN],
+                        ah_flag,
+                        ah_new_id: 0,
+                        ah_combine: i32::from(item2_bytes.first() == Some(&b'Y')),
+                        ah_follows: 0,
+                        ah_entries: Vec::new(),
+                    };
+                    new_ah.ah_key[..key_bytes.len()].copy_from_slice(key_bytes);
+                    cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
+                }
 
-        if compminlen != 0 {
-            aff_check_number(spin.si_compminlen, compminlen, c"COMPOUNDMIN");
-            spin.si_compminlen = compminlen;
-        }
+                if itemcnt > lasti && items[lasti].to_bytes() == b"S" {
+                    lasti += 1;
+                    unsafe { (*cur_aff).ah_follows = 1 };
+                } else {
+                    unsafe { (*cur_aff).ah_follows = 0 };
+                }
 
-        if compsylmax != 0 {
-            if syllable.is_none() {
-                smsg!(0, c"%s", gettext(c"COMPOUNDSYLMAX used without SYLLABLE"),);
-            }
-            aff_check_number(spin.si_compsylmax, compsylmax, c"COMPOUNDSYLMAX");
-            spin.si_compsylmax = compsylmax;
-        }
+                if itemcnt > lasti
+                    && !aff.af_ignoreextra
+                    && items[lasti].to_bytes().first() != Some(&b'#')
+                {
+                    smsg!(
+                        0,
+                        gettext(E_AFFTRAILING),
+                        fname,
+                        lnum,
+                        items[lasti].as_ptr()
+                    );
+                }
 
-        if compoptions != 0 {
-            aff_check_number(spin.si_compoptions, compoptions, c"COMPOUND options");
-            spin.si_compoptions |= compoptions;
-        }
+                if item2_bytes != b"Y" && item2_bytes != b"N" {
+                    smsg!(
+                        0,
+                        gettext(c"Expected Y or N in %s line %d: %s"),
+                        fname,
+                        lnum,
+                        items[2].as_ptr(),
+                    );
+                }
 
-        if let Some(ref cf) = compflags {
-            process_compflags(spin, &mut aff, cf.as_ptr().cast_mut());
-        }
+                if item0_bytes[0] == b'P' && aff.af_pfxpostpone != 0 {
+                    if unsafe { (*cur_aff).ah_new_id } == 0 {
+                        check_renumber(spin);
+                        spin.si_newpref_id += 1;
+                        unsafe { (*cur_aff).ah_new_id = spin.si_newpref_id };
+                        did_postpone_prefix = false;
+                    } else {
+                        did_postpone_prefix = true;
+                    }
+                }
 
-        if spin.si_newcomp_id < spin.si_newpref_id {
-            if spin.si_newcomp_id == 127 || spin.si_newcomp_id == 255 {
-                msg(gettext(c"Too many postponed prefixes"), 0);
-            } else if spin.si_newpref_id == 0 || spin.si_newpref_id == 127 {
-                msg(gettext(c"Too many compound flags"), 0);
+                aff_todo = crate::charset::parse_i64_prefix(items[3].to_bytes()) as i32;
+            } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
+                && aff_todo > 0
+                && (crate::memory::bytes_until_nul(unsafe { &(*cur_aff).ah_key })
+                    == items[1].to_bytes())
+                && itemcnt >= 5
+            {
+                let lasti: usize = 5;
+                if itemcnt > lasti
+                    && items[lasti].to_bytes().first() != Some(&b'#')
+                    && (items[lasti].to_bytes() != b"-" || itemcnt != lasti + 1)
+                {
+                    smsg!(
+                        0,
+                        gettext(E_AFFTRAILING),
+                        fname,
+                        lnum,
+                        items[lasti].as_ptr()
+                    );
+                }
+
+                aff_todo -= 1;
+                let mut aff_entry_val = Affentry {
+                    ae_chop: None,
+                    ae_add: None,
+                    ae_flags: None,
+                    ae_cond: None,
+                    ae_prog: None,
+                    ae_compforbid: 0,
+                    ae_comppermit: 0,
+                };
+                let aff_entry = &mut aff_entry_val;
+
+                if items[2].to_bytes() != b"0" {
+                    aff_entry.ae_chop = Some(items[2].to_owned());
+                }
+                if items[3].to_bytes() != b"0" {
+                    let item3_bytes = items[3].to_bytes();
+                    if let Some(slash_pos) = item3_bytes.iter().position(|&b| b == b'/') {
+                        aff_entry.ae_add =
+                            Some(std::ffi::CString::new(&item3_bytes[..slash_pos]).unwrap());
+                        aff_entry.ae_flags =
+                            Some(std::ffi::CString::new(&item3_bytes[slash_pos + 1..]).unwrap());
+                        aff_process_flags(&aff, &mut *aff_entry);
+                    } else {
+                        aff_entry.ae_add = Some(std::ffi::CString::new(item3_bytes).unwrap());
+                    }
+                }
+
+                if spin.si_ascii == 0
+                    || ((*aff_entry)
+                        .chop_cstr()
+                        .is_none_or(|s| s.to_bytes().is_ascii())
+                        && (*aff_entry)
+                            .add_cstr()
+                            .is_none_or(|s| s.to_bytes().is_ascii()))
+                {
+                    let cur_aff_mut = unsafe { &mut *cur_aff };
+                    cur_aff_mut.ah_entries.insert(0, aff_entry_val);
+                    let aff_entry = &mut cur_aff_mut.ah_entries[0];
+
+                    if items[4].to_bytes() != b"." {
+                        let mut buf = [0u8; MAXLINELEN];
+                        aff_entry.ae_cond = Some(items[4].to_owned());
+                        vim_snprintf!(
+                            buf.as_mut_ptr().cast(),
+                            MAXLINELEN,
+                            if item0_bytes.first() == Some(&b'P') {
+                                c"^%s"
+                            } else {
+                                c"%s$"
+                            },
+                            items[4].as_ptr(),
+                        );
+                        aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
+                            buf.as_ptr().cast(),
+                            RE_MAGIC + RE_STRING + RE_STRICT,
+                        );
+                        if aff_entry.ae_prog.is_none() {
+                            smsg!(
+                                0,
+                                gettext(c"Broken condition in %s line %d: %s"),
+                                fname,
+                                lnum,
+                                items[4].as_ptr(),
+                            );
+                        }
+                    }
+
+                    if item0_bytes.first() == Some(&b'P')
+                        && aff.af_pfxpostpone != 0
+                        && aff_entry.ae_flags.is_none()
+                    {
+                        let mut upper = false;
+                        if let (Some(chop), Some(add)) =
+                            (aff_entry.chop_cstr(), aff_entry.add_cstr())
+                            && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
+                        {
+                            let c = utf_ptr2char(chop.as_ptr());
+                            let c_up = spell_toupper(c);
+                            if c_up != c
+                                && aff_entry
+                                    .cond_cstr()
+                                    .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
+                            {
+                                let add_bytes = add.to_bytes();
+                                let mut end_idx = add_bytes.len();
+                                crate::mbyte::mb_idx_back(add_bytes, &mut end_idx);
+                                if utf_slice2char(&add_bytes[end_idx..]) == c_up {
+                                    upper = true;
+                                    let new_add =
+                                        std::ffi::CString::new(&add_bytes[..end_idx]).unwrap();
+                                    aff_entry.ae_chop = None;
+                                    aff_entry.ae_add = Some(new_add);
+
+                                    if aff_entry.ae_cond.is_some() {
+                                        let mut buf = [0u8; MAXLINELEN];
+                                        onecap_copy(items[4].to_bytes(), &mut buf, true);
+                                        let cond_cstr =
+                                            crate::memory::cstr_to_cstring(buf.as_ptr().cast());
+                                        vim_snprintf!(
+                                            buf.as_mut_ptr().cast(),
+                                            MAXLINELEN,
+                                            c"^%s",
+                                            cond_cstr.as_ptr(),
+                                        );
+                                        aff_entry.ae_cond = Some(cond_cstr);
+                                        aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
+                                            buf.as_ptr().cast(),
+                                            RE_MAGIC + RE_STRING,
+                                        );
+                                    }
+                                }
+                            }
+                        }
+
+                        if aff_entry.ae_chop.is_none() {
+                            let prefcond = &mut spin.si_prefcond;
+                            let mut idx = prefcond.len() as i32 - 1;
+                            while idx >= 0 {
+                                if prefcond[idx as usize].as_deref() == aff_entry.cond_cstr() {
+                                    break;
+                                }
+                                idx -= 1;
+                            }
+                            if idx < 0 {
+                                idx = prefcond.len() as i32;
+                                prefcond.push(aff_entry.ae_cond.clone());
+                            }
+
+                            let p_add = aff_entry.ae_add.as_ref().map_or(&[][..], |s| s.to_bytes());
+
+                            let mut n = PFX_FLAGS;
+                            if cur_aff_mut.ah_combine == 0 {
+                                n |= WFP_NC;
+                            }
+                            if upper {
+                                n |= WFP_UP;
+                            }
+                            if aff_entry.ae_comppermit != 0 {
+                                n |= WFP_COMPPERMIT;
+                            }
+                            if aff_entry.ae_compforbid != 0 {
+                                n |= WFP_COMPFORBID;
+                            }
+                            tree_add_word(
+                                spin,
+                                p_add,
+                                spin.si_prefroot,
+                                n,
+                                idx,
+                                cur_aff_mut.ah_new_id,
+                            );
+                            did_postpone_prefix = true;
+                        }
+
+                        if aff_todo == 0 && !did_postpone_prefix {
+                            spin.si_newpref_id -= 1;
+                            cur_aff_mut.ah_new_id = 0;
+                        }
+                    }
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"FOL", 2) && !has_fol {
+                has_fol = true;
+            } else if is_aff_rule(&items, itemcnt_i, c"LOW", 2) && !has_low {
+                has_low = true;
+            } else if is_aff_rule(&items, itemcnt_i, c"UPP", 2) && !has_upp {
+                has_upp = true;
+            } else if is_aff_rule(&items, itemcnt_i, c"REP", 2)
+                || is_aff_rule(&items, itemcnt_i, c"REPSAL", 2)
+            {
+                if !items[1].to_bytes().first().is_some_and(u8::is_ascii_digit) {
+                    smsg!(
+                        0,
+                        gettext(c"Expected REP(SAL) count in %s line %d"),
+                        fname,
+                        lnum,
+                    );
+                }
+            } else if (item0_bytes == b"REP" || item0_bytes == b"REPSAL") && itemcnt >= 3 {
+                if itemcnt > 3 && items[3].to_bytes().first() != Some(&b'#') {
+                    smsg!(0, gettext(E_AFFTRAILING), fname, lnum, items[3].as_ptr());
+                }
+                let is_repsal = item0_bytes == b"REPSAL";
+                if if is_repsal { do_repsal } else { do_rep } {
+                    let p1: Vec<u8> = items[1]
+                        .to_bytes()
+                        .iter()
+                        .map(|&b| if b == b'_' { b' ' } else { b })
+                        .collect();
+                    let p2: Vec<u8> = items[2]
+                        .to_bytes()
+                        .iter()
+                        .map(|&b| if b == b'_' { b' ' } else { b })
+                        .collect();
+                    add_fromto(
+                        if is_repsal {
+                            &mut spin.si_repsal
+                        } else {
+                            &mut spin.si_rep
+                        },
+                        &p1,
+                        &p2,
+                    );
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"MAP", 2) {
+                if !found_map {
+                    found_map = true;
+                    if !items[1].to_bytes().first().is_some_and(u8::is_ascii_digit) {
+                        smsg!(0, gettext(c"Expected MAP count in %s line %d"), fname, lnum,);
+                    }
+                } else if do_mapline {
+                    let si_map = &mut spin.si_map;
+                    let item_ptr = items[1].as_ptr();
+                    let item_bytes = items[1].to_bytes();
+                    let mut rem = item_bytes;
+                    while !rem.is_empty() {
+                        let c = mb_ptr2char_adv(&mut rem);
+                        let p_m = item_ptr.wrapping_add(item_bytes.len() - rem.len());
+                        let in_map = if si_map.is_empty() {
+                            false
+                        } else {
+                            si_map.push(0);
+                            let found = !vim_strchr(si_map.as_ptr().cast(), c).is_null();
+                            si_map.pop();
+                            found
+                        };
+                        if in_map || !vim_strchr(p_m, c).is_null() {
+                            smsg!(
+                                0,
+                                gettext(c"Duplicate character in MAP in %s line %d"),
+                                fname,
+                                lnum,
+                            );
+                        }
+                    }
+                    si_map.extend_from_slice(items[1].to_bytes());
+                    si_map.push(b'/');
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"SAL", 3) {
+                if do_sal {
+                    let item2_bytes = items[2].to_bytes();
+                    if items[1].to_bytes() == b"followup" {
+                        spin.si_followup = i32::from(sal_to_bool(item2_bytes));
+                    } else if items[1].to_bytes() == b"collapse_result" {
+                        spin.si_collapse = i32::from(sal_to_bool(item2_bytes));
+                    } else if items[1].to_bytes() == b"remove_accents" {
+                        spin.si_rem_accents = i32::from(sal_to_bool(item2_bytes));
+                    } else {
+                        let to_s = if item2_bytes == b"_" {
+                            &[][..]
+                        } else {
+                            item2_bytes
+                        };
+                        add_fromto(&mut spin.si_sal, items[1].to_bytes(), to_s);
+                    }
+                }
+            } else if is_aff_rule(&items, itemcnt_i, c"SOFOFROM", 2) && sofofrom.is_none() {
+                sofofrom = Some(items[1].to_owned());
+            } else if is_aff_rule(&items, itemcnt_i, c"SOFOTO", 2) && sofoto.is_none() {
+                sofoto = Some(items[1].to_owned());
+            } else if item0_bytes == b"COMMON" {
+                for &item in items.iter().take(itemcnt).skip(1) {
+                    spin.si_commonwords.insert(item.to_bytes().to_vec());
+                }
             } else {
-                msg(
-                    gettext(c"Too many postponed prefixes and/or compound flags"),
+                smsg!(
                     0,
+                    gettext(c"Unrecognized or duplicate item in %s line %d: %s"),
+                    fname,
+                    lnum,
+                    items[0].as_ptr(),
                 );
             }
         }
-
-        if let Some(syl) = syllable {
-            aff_check_string(spin.si_syllable.as_deref(), syl.as_c_str(), c"SYLLABLE");
-            spin.si_syllable = Some(syl);
-        }
-
-        match (sofofrom, sofoto) {
-            (None, None) => {}
-            (Some(_), None) => {
-                smsg!(0, gettext(c"Missing SOFOTO line in %s"), fname,);
-            }
-            (None, Some(_)) => {
-                smsg!(0, gettext(c"Missing SOFOFROM line in %s"), fname,);
-            }
-            (Some(sf_from), Some(sf_to)) => {
-                if !spin.si_sal.is_empty() {
-                    smsg!(0, gettext(c"Both SAL and SOFO lines in %s"), fname);
-                } else {
-                    aff_check_string(spin.si_sofofr.as_deref(), sf_from.as_c_str(), c"SOFOFROM");
-                    aff_check_string(spin.si_sofoto.as_deref(), sf_to.as_c_str(), c"SOFOTO");
-                    spin.si_sofofr = Some(sf_from);
-                    spin.si_sofoto = Some(sf_to);
-                }
-            }
-        }
-
-        if let Some(mw) = midword {
-            aff_check_string(spin.si_midword.as_deref(), mw.as_c_str(), c"MIDWORD");
-            spin.si_midword = Some(mw);
-        }
-
-        Some(aff)
     }
+
+    if (has_fol || has_low || has_upp) && spin.si_clear_chartab != 0 {
+        init_spell_chartab();
+        spin.si_clear_chartab = 0;
+    }
+
+    if compmax != 0 {
+        aff_check_number(spin.si_compmax, compmax, c"COMPOUNDWORDMAX");
+        spin.si_compmax = compmax;
+    }
+
+    if compminlen != 0 {
+        aff_check_number(spin.si_compminlen, compminlen, c"COMPOUNDMIN");
+        spin.si_compminlen = compminlen;
+    }
+
+    if compsylmax != 0 {
+        if syllable.is_none() {
+            smsg!(0, c"%s", gettext(c"COMPOUNDSYLMAX used without SYLLABLE"),);
+        }
+        aff_check_number(spin.si_compsylmax, compsylmax, c"COMPOUNDSYLMAX");
+        spin.si_compsylmax = compsylmax;
+    }
+
+    if compoptions != 0 {
+        aff_check_number(spin.si_compoptions, compoptions, c"COMPOUND options");
+        spin.si_compoptions |= compoptions;
+    }
+
+    if let Some(ref cf) = compflags {
+        process_compflags(spin, &mut aff, cf.to_bytes());
+    }
+
+    if spin.si_newcomp_id < spin.si_newpref_id {
+        if spin.si_newcomp_id == 127 || spin.si_newcomp_id == 255 {
+            msg(gettext(c"Too many postponed prefixes"), 0);
+        } else if spin.si_newpref_id == 0 || spin.si_newpref_id == 127 {
+            msg(gettext(c"Too many compound flags"), 0);
+        } else {
+            msg(
+                gettext(c"Too many postponed prefixes and/or compound flags"),
+                0,
+            );
+        }
+    }
+
+    if let Some(syl) = syllable {
+        aff_check_string(spin.si_syllable.as_deref(), syl.as_c_str(), c"SYLLABLE");
+        spin.si_syllable = Some(syl);
+    }
+
+    match (sofofrom, sofoto) {
+        (None, None) => {}
+        (Some(_), None) => {
+            smsg!(0, gettext(c"Missing SOFOTO line in %s"), fname,);
+        }
+        (None, Some(_)) => {
+            smsg!(0, gettext(c"Missing SOFOFROM line in %s"), fname,);
+        }
+        (Some(sf_from), Some(sf_to)) => {
+            if !spin.si_sal.is_empty() {
+                smsg!(0, gettext(c"Both SAL and SOFO lines in %s"), fname);
+            } else {
+                aff_check_string(spin.si_sofofr.as_deref(), sf_from.as_c_str(), c"SOFOFROM");
+                aff_check_string(spin.si_sofoto.as_deref(), sf_to.as_c_str(), c"SOFOTO");
+                spin.si_sofofr = Some(sf_from);
+                spin.si_sofoto = Some(sf_to);
+            }
+        }
+    }
+
+    if let Some(mw) = midword {
+        aff_check_string(spin.si_midword.as_deref(), mw.as_c_str(), c"MIDWORD");
+        spin.si_midword = Some(mw);
+    }
+
+    Some(aff)
 }
 
-fn is_aff_rule(items: &[*mut u8], itemcnt: i32, rulename: &std::ffi::CStr, mincount: i32) -> bool {
-    crate::memory::cstr_as_bytes(items[0].cast()) == rulename.to_bytes()
+fn is_aff_rule(
+    items: &[&std::ffi::CStr],
+    itemcnt: i32,
+    rulename: &std::ffi::CStr,
+    mincount: i32,
+) -> bool {
+    items[0] == rulename
         && (itemcnt == mincount
-            || (itemcnt > mincount
-                && crate::memory::cstr_first_byte(items[mincount as usize].cast()) == b'#'))
+            || (itemcnt > mincount && items[mincount as usize].to_bytes().first() == Some(&b'#')))
 }
 
 fn aff_process_flags(affile: &Afffile, entry: &mut Affentry) {
@@ -2602,40 +2537,38 @@ fn spell_info_item(s: &[u8]) -> bool {
 
 fn affitem2flag(
     flagtype: i32,
-    item: impl crate::strings::IntoCCharPtr,
-    fname: impl crate::strings::IntoCCharPtr,
+    item_cstr: &std::ffi::CStr,
+    fname_cstr: &std::ffi::CStr,
     lnum: i32,
 ) -> u32 {
-    let item = item.into_c_char_ptr().cast_mut();
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut rem = crate::memory::cstr_as_bytes(item);
-        let res = get_affitem(flagtype, &mut rem);
-        if res == 0 {
-            if flagtype == AFT_NUM {
-                smsg!(
-                    0,
-                    gettext(c"Flag is not a number in %s line %d: %s"),
-                    fname,
-                    lnum,
-                    item,
-                );
-            } else {
-                smsg!(
-                    0,
-                    gettext(c"Illegal flag in %s line %d: %s"),
-                    fname,
-                    lnum,
-                    item,
-                );
-            }
+    let item = item_cstr.as_ptr();
+    let fname = fname_cstr.as_ptr();
+    let mut rem = item_cstr.to_bytes();
+    let res = get_affitem(flagtype, &mut rem);
+    if res == 0 {
+        if flagtype == AFT_NUM {
+            smsg!(
+                0,
+                gettext(c"Flag is not a number in %s line %d: %s"),
+                fname,
+                lnum,
+                item,
+            );
+        } else {
+            smsg!(
+                0,
+                gettext(c"Illegal flag in %s line %d: %s"),
+                fname,
+                lnum,
+                item,
+            );
         }
-        if !rem.is_empty() {
-            smsg!(0, gettext(E_AFFNAME), fname, lnum, item);
-            return 0;
-        }
-        res
     }
+    if !rem.is_empty() {
+        smsg!(0, gettext(E_AFFNAME), fname, lnum, item);
+        return 0;
+    }
+    res
 }
 
 fn get_affitem(flagtype: i32, pp: &mut &[u8]) -> u32 {
@@ -2665,12 +2598,7 @@ fn get_affitem(flagtype: i32, pp: &mut &[u8]) -> u32 {
     res as u32
 }
 
-fn process_compflags(
-    spin: &mut Spellinfo,
-    aff: &mut Afffile,
-    compflags: impl crate::strings::IntoCCharPtr,
-) {
-    let compflags = compflags.into_c_char_ptr();
+fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: &[u8]) {
     let mut bytes = spin
         .si_compflags
         .as_ref()
@@ -2679,7 +2607,7 @@ fn process_compflags(
         bytes.push(b'/');
     }
 
-    let mut cur = crate::memory::cstr_as_bytes(compflags);
+    let mut cur = crate::memory::bytes_until_nul(compflags);
     while !cur.is_empty() {
         if matches!(cur[0], b'/' | b'?' | b'*' | b'+' | b'[' | b']') {
             bytes.push(cur[0]);
@@ -2741,46 +2669,44 @@ fn store_afflist_add(store_afflist: &mut [u8], cntp: &mut i32, id: i32) -> bool 
     true
 }
 
-fn flag_in_afflist(flagtype: i32, afflist: impl crate::strings::IntoCCharPtr, flag: u32) -> bool {
-    let afflist = afflist.into_c_char_ptr().cast_mut();
-    {
-        match flagtype {
-            AFT_CHAR => !vim_strchr(afflist, flag as i32).is_null(),
-            AFT_CAPLONG | AFT_LONG => {
-                let mut rem = crate::memory::cstr_as_bytes(afflist);
-                while !rem.is_empty() {
-                    let mut n = mb_ptr2char_adv(&mut rem) as u32;
-                    if (flagtype == AFT_LONG || (n >= b'A' as u32 && n <= b'Z' as u32))
-                        && !rem.is_empty()
-                    {
-                        n = (mb_ptr2char_adv(&mut rem) as u32) + (n << 16);
-                    }
-                    if n == flag {
-                        return true;
-                    }
+fn flag_in_afflist(flagtype: i32, afflist: &[u8], flag: u32) -> bool {
+    let aff_bytes = crate::memory::bytes_until_nul(afflist);
+    match flagtype {
+        AFT_CHAR => aff_bytes.contains(&(flag as u8)),
+        AFT_CAPLONG | AFT_LONG => {
+            let mut rem = aff_bytes;
+            while !rem.is_empty() {
+                let mut n = mb_ptr2char_adv(&mut rem) as u32;
+                if (flagtype == AFT_LONG || (n >= b'A' as u32 && n <= b'Z' as u32))
+                    && !rem.is_empty()
+                {
+                    n = (mb_ptr2char_adv(&mut rem) as u32) + (n << 16);
                 }
-                false
-            }
-            AFT_NUM => {
-                let mut rem = crate::memory::cstr_as_bytes(afflist);
-                while !rem.is_empty() {
-                    let digits = getdigits_int(&mut rem, true, 0);
-                    debug_assert!(digits >= 0);
-                    let mut n = digits as u32;
-                    if n == 0 {
-                        n = ZERO_FLAG;
-                    }
-                    if n == flag {
-                        return true;
-                    }
-                    if !rem.is_empty() {
-                        rem = &rem[1..];
-                    }
+                if n == flag {
+                    return true;
                 }
-                false
             }
-            _ => false,
+            false
         }
+        AFT_NUM => {
+            let mut rem = aff_bytes;
+            while !rem.is_empty() {
+                let digits = getdigits_int(&mut rem, true, 0);
+                debug_assert!(digits >= 0);
+                let mut n = digits as u32;
+                if n == 0 {
+                    n = ZERO_FLAG;
+                }
+                if n == flag {
+                    return true;
+                }
+                if !rem.is_empty() {
+                    rem = &rem[1..];
+                }
+            }
+            false
+        }
+        _ => false,
     }
 }
 
@@ -2810,262 +2736,257 @@ fn aff_check_string(
     }
 }
 
-fn add_fromto(
-    gap: &mut Vec<Fromto>,
-    from: impl crate::strings::IntoCCharPtr,
-    to: impl crate::strings::IntoCCharPtr,
-) {
-    let from = from.into_c_char_ptr();
-    let to = to.into_c_char_ptr();
-    {
-        let mut word = [0u8; MAXWLEN];
-        spell_casefold(curwin_mut(), crate::memory::cstr_as_bytes(from), &mut word);
-        let ft_from = crate::memory::cstr_to_cstring(word.as_ptr().cast());
-        spell_casefold(curwin_mut(), crate::memory::cstr_as_bytes(to), &mut word);
-        let ft_to = crate::memory::cstr_to_cstring(word.as_ptr().cast());
-        gap.push(Fromto { ft_from, ft_to });
-    }
+fn add_fromto(gap: &mut Vec<Fromto>, from: &[u8], to: &[u8]) {
+    let mut word = [0u8; MAXWLEN];
+    spell_casefold(
+        curwin_mut(),
+        crate::memory::bytes_until_nul(from),
+        &mut word,
+    );
+    let ft_from = crate::memory::cstr_until_nul(&word).to_owned();
+    spell_casefold(curwin_mut(), crate::memory::bytes_until_nul(to), &mut word);
+    let ft_to = crate::memory::cstr_until_nul(&word).to_owned();
+    gap.push(Fromto { ft_from, ft_to });
 }
 
 fn sal_to_bool(s: &[u8]) -> bool {
     s == b"1" || s == b"true"
 }
 
-fn spell_read_dic(
-    spin: &mut Spellinfo,
-    fname: impl crate::strings::IntoCCharPtr,
-    affile: &Afffile,
-) -> bool {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
-        let mut line = [0u8; MAXLINELEN];
-        let mut store_afflist = [0u8; MAXWLEN];
-        let mut lnum: i32 = 1;
-        let mut non_ascii: i32 = 0;
-        let mut retval: bool = true;
-        let mut message = [0u8; MAXLINELEN + MAXWLEN];
-        let mut duplicate: i32 = 0;
-        let mut last_msg_time: Timestamp = 0;
+fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Afffile) -> bool {
+    let fname = fname_cstr.as_ptr();
+    let mut ht: std::collections::HashSet<Vec<u8>> = std::collections::HashSet::new();
+    let mut line = [0u8; MAXLINELEN];
+    let mut store_afflist = [0u8; MAXWLEN];
+    let mut lnum: i32 = 1;
+    let mut non_ascii: i32 = 0;
+    let mut retval: bool = true;
+    let mut message = [0u8; MAXLINELEN + MAXWLEN];
+    let mut duplicate: i32 = 0;
+    let mut last_msg_time: Timestamp = 0;
 
-        let Some(fd) = CFile::open(fname, c"r") else {
-            semsg!(gettext(E_NOTOPEN), fname);
-            return false;
+    let Some(fd) = CFile::open(fname, c"r") else {
+        semsg!(gettext(E_NOTOPEN), fname);
+        return false;
+    };
+
+    vim_snprintf!(
+        g_st().iobuff.as_mut_ptr(),
+        IOSIZE,
+        gettext(c"Reading dictionary file %s..."),
+        fname,
+    );
+    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+
+    spin.si_msg_count = 999999;
+
+    if vim_fgets(&mut line, &fd)
+        || !ascii_isdigit(crate::memory::cstr_first_byte(skipwhite(
+            line.as_ptr().cast(),
+        )))
+    {
+        semsg!(gettext(c"E760: No word count in %s"), fname);
+    }
+
+    while !vim_fgets(&mut line, &fd) && !g_st().got_int {
+        line_breakcheck();
+        lnum += 1;
+        if line[0] == b'#' || line[0] == b'/' {
+            continue;
+        }
+        let mut l = crate::memory::cstr_len(line.as_ptr().cast());
+        while l > 0 && line[l - 1] <= b' ' {
+            l -= 1;
+        }
+        if l == 0 {
+            continue;
+        }
+        line[l] = 0;
+
+        let mut pc_vec: Vec<u8>;
+        let w_slice: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
+            let Some(pc_bytes) = string_convert(&spin.si_conv, line.as_mut_ptr().cast(), None)
+            else {
+                smsg!(
+                    0,
+                    gettext(c"Conversion failure for word in %s line %d: %s"),
+                    fname,
+                    lnum,
+                    line.as_ptr().cast::<std::ffi::c_void>(),
+                );
+                continue;
+            };
+            pc_vec = pc_bytes;
+            &mut pc_vec
+        } else {
+            &mut line[..=l]
         };
 
-        vim_snprintf!(
-            g_st().iobuff.as_mut_ptr(),
-            IOSIZE,
-            gettext(c"Reading dictionary file %s..."),
-            fname,
-        );
-        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
+        let mut w_len = crate::memory::cstr_until_nul(w_slice).to_bytes().len();
+        let mut afflist: *mut u8 = ptr::null_mut();
+        let mut idx = 0;
+        while idx < w_len {
+            if w_slice[idx] == b'\\'
+                && idx + 1 < w_len
+                && (w_slice[idx + 1] == b'\\' || w_slice[idx + 1] == b'/')
+            {
+                w_slice.copy_within(idx + 1..=w_len, idx);
+                w_len -= 1;
+            } else if w_slice[idx] == b'/' {
+                w_slice[idx] = 0;
+                afflist = w_slice[idx + 1..].as_mut_ptr();
+                w_len = idx;
+                break;
+            }
+            idx += crate::mbyte::utfc_slice2len(&w_slice[idx..w_len]);
+        }
+        let w = w_slice.as_mut_ptr();
 
-        spin.si_msg_count = 999999;
-
-        if vim_fgets(&mut line, &fd)
-            || !ascii_isdigit(crate::memory::cstr_first_byte(skipwhite(
-                line.as_ptr().cast(),
-            )))
-        {
-            semsg!(gettext(c"E760: No word count in %s"), fname);
+        if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(w.cast()).is_ascii() {
+            non_ascii += 1;
+            continue;
         }
 
-        while !vim_fgets(&mut line, &fd) && !g_st().got_int {
-            line_breakcheck();
-            lnum += 1;
-            if line[0] == b'#' || line[0] == b'/' {
-                continue;
+        if spin.si_verbose != 0 && spin.si_msg_count > 10000 {
+            spin.si_msg_count = 0;
+            if os_time() > last_msg_time {
+                last_msg_time = os_time();
+                vim_snprintf!(
+                    message.as_mut_ptr().cast(),
+                    message.len(),
+                    gettext(c"line %6d, word %6d - %s"),
+                    lnum,
+                    spin.si_foldwcount + spin.si_keepwcount,
+                    w.cast::<std::ffi::c_void>(),
+                );
+                msg_start();
+                msg_outtrans_long(message.as_ptr().cast(), 0);
+                msg_clr_eos();
+                g_st().msg_didout = false;
+                g_st().msg_col = 0;
+                ui_flush();
             }
-            let mut l = crate::memory::cstr_len(line.as_ptr().cast());
-            while l > 0 && line[l - 1] <= b' ' {
-                l -= 1;
-            }
-            if l == 0 {
-                continue;
-            }
-            line[l] = 0;
+        }
 
-            let mut pc_vec: Vec<u8>;
-            let w_slice: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
-                let Some(pc_bytes) = string_convert(&spin.si_conv, line.as_mut_ptr().cast(), None)
-                else {
-                    smsg!(
-                        0,
-                        gettext(c"Conversion failure for word in %s line %d: %s"),
-                        fname,
-                        lnum,
-                        line.as_ptr().cast::<std::ffi::c_void>(),
-                    );
-                    continue;
-                };
-                pc_vec = pc_bytes;
-                &mut pc_vec
-            } else {
-                &mut line[..=l]
-            };
-
-            let mut w_len = crate::memory::cstr_until_nul(w_slice).to_bytes().len();
-            let mut afflist: *mut u8 = ptr::null_mut();
-            let mut idx = 0;
-            while idx < w_len {
-                if w_slice[idx] == b'\\'
-                    && idx + 1 < w_len
-                    && (w_slice[idx + 1] == b'\\' || w_slice[idx + 1] == b'/')
-                {
-                    w_slice.copy_within(idx + 1..=w_len, idx);
-                    w_len -= 1;
-                } else if w_slice[idx] == b'/' {
-                    w_slice[idx] = 0;
-                    afflist = w_slice[idx + 1..].as_mut_ptr();
-                    w_len = idx;
-                    break;
-                }
-                idx += crate::mbyte::utfc_slice2len(&w_slice[idx..w_len]);
+        let dw_bytes = crate::memory::cstr_as_bytes(w.cast()).to_vec();
+        if !ht.insert(dw_bytes) {
+            if opt_vars().p_verbose > 0 {
+                smsg!(
+                    0,
+                    gettext(c"Duplicate word in %s line %d: %s"),
+                    fname,
+                    lnum,
+                    w.cast::<std::ffi::c_void>(),
+                );
+            } else if duplicate == 0 {
+                smsg!(
+                    0,
+                    gettext(c"First duplicate word in %s line %d: %s"),
+                    fname,
+                    lnum,
+                    w.cast::<std::ffi::c_void>(),
+                );
             }
-            let w = w_slice.as_mut_ptr();
+            duplicate += 1;
+        }
 
-            if spin.si_ascii != 0 && !crate::memory::cstr_as_bytes(w.cast()).is_ascii() {
-                non_ascii += 1;
-                continue;
-            }
+        let mut flags: i32 = 0;
+        store_afflist[0] = 0;
+        let mut pfxlen: i32 = 0;
+        let mut totlen: i32 = 0;
+        let mut need_affix = false;
+        let aff_bytes: &[u8] = if !afflist.is_null() {
+            crate::memory::cstr_as_bytes(afflist.cast())
+        } else {
+            &[]
+        };
+        if !afflist.is_null() {
+            flags |= get_affix_flags(affile, aff_bytes);
 
-            if spin.si_verbose != 0 && spin.si_msg_count > 10000 {
-                spin.si_msg_count = 0;
-                if os_time() > last_msg_time {
-                    last_msg_time = os_time();
-                    vim_snprintf!(
-                        message.as_mut_ptr().cast(),
-                        message.len(),
-                        gettext(c"line %6d, word %6d - %s"),
-                        lnum,
-                        spin.si_foldwcount + spin.si_keepwcount,
-                        w.cast::<std::ffi::c_void>(),
-                    );
-                    msg_start();
-                    msg_outtrans_long(message.as_ptr().cast(), 0);
-                    msg_clr_eos();
-                    g_st().msg_didout = false;
-                    g_st().msg_col = 0;
-                    ui_flush();
-                }
+            if affile.af_needaffix != 0
+                && flag_in_afflist(affile.af_flagtype, aff_bytes, affile.af_needaffix)
+            {
+                need_affix = true;
             }
 
-            let dw_bytes = crate::memory::cstr_as_bytes(w.cast()).to_vec();
-            if !ht.insert(dw_bytes) {
-                if opt_vars().p_verbose > 0 {
-                    smsg!(
-                        0,
-                        gettext(c"Duplicate word in %s line %d: %s"),
-                        fname,
-                        lnum,
-                        w.cast::<std::ffi::c_void>(),
-                    );
-                } else if duplicate == 0 {
-                    smsg!(
-                        0,
-                        gettext(c"First duplicate word in %s line %d: %s"),
-                        fname,
-                        lnum,
-                        w.cast::<std::ffi::c_void>(),
-                    );
-                }
-                duplicate += 1;
-            }
-
-            let mut flags: i32 = 0;
-            store_afflist[0] = 0;
-            let mut pfxlen: i32 = 0;
-            let mut totlen: i32 = 0;
-            let mut need_affix = false;
-            if !afflist.is_null() {
-                flags |= get_affix_flags(affile, afflist.cast());
-
-                if affile.af_needaffix != 0
-                    && flag_in_afflist(affile.af_flagtype, afflist.cast(), affile.af_needaffix)
-                {
-                    need_affix = true;
-                }
-
-                if affile.af_pfxpostpone != 0 {
-                    if !get_pfxlist(affile, afflist.cast(), &mut store_afflist, &mut totlen) {
-                        retval = false;
-                        break;
-                    }
-                    pfxlen = totlen;
-                }
-
-                if spin.si_compflags.is_some()
-                    && !get_compflags(affile, afflist.cast(), &mut store_afflist, &mut totlen)
-                {
+            if affile.af_pfxpostpone != 0 {
+                if !get_pfxlist(affile, aff_bytes, &mut store_afflist, &mut totlen) {
                     retval = false;
                     break;
                 }
+                pfxlen = totlen;
             }
 
-            if !store_word(
+            if spin.si_compflags.is_some()
+                && !get_compflags(affile, aff_bytes, &mut store_afflist, &mut totlen)
+            {
+                retval = false;
+                break;
+            }
+        }
+
+        let w_bytes = crate::memory::cstr_as_bytes(w.cast());
+        if !store_word(
+            spin,
+            w_bytes,
+            flags,
+            spin.si_region,
+            &store_afflist,
+            need_affix,
+        ) {
+            retval = false;
+        }
+
+        if !afflist.is_null() {
+            if !store_aff_word(
                 spin,
-                w.cast(),
+                w_bytes,
+                aff_bytes,
+                affile,
+                &affile.af_suff,
+                Some(&affile.af_pref),
+                CONDIT_SUF,
                 flags,
-                spin.si_region,
-                store_afflist.as_ptr().cast(),
-                need_affix,
+                &store_afflist,
+                pfxlen,
             ) {
                 retval = false;
             }
 
-            if !afflist.is_null() {
-                if !store_aff_word(
-                    spin,
-                    w.cast(),
-                    afflist.cast(),
-                    affile,
-                    &affile.af_suff,
-                    Some(&affile.af_pref),
-                    CONDIT_SUF,
-                    flags,
-                    store_afflist.as_mut_ptr().cast(),
-                    pfxlen,
-                ) {
-                    retval = false;
-                }
-
-                if !store_aff_word(
-                    spin,
-                    w.cast(),
-                    afflist.cast(),
-                    affile,
-                    &affile.af_pref,
-                    None,
-                    CONDIT_SUF,
-                    flags,
-                    store_afflist.as_mut_ptr().cast(),
-                    pfxlen,
-                ) {
-                    retval = false;
-                }
+            if !store_aff_word(
+                spin,
+                w_bytes,
+                aff_bytes,
+                affile,
+                &affile.af_pref,
+                None,
+                CONDIT_SUF,
+                flags,
+                &store_afflist,
+                pfxlen,
+            ) {
+                retval = false;
             }
         }
-
-        if duplicate > 0 {
-            smsg!(0, gettext(c"%d duplicate word(s) in %s"), duplicate, fname,);
-        }
-        if spin.si_ascii != 0 && non_ascii > 0 {
-            smsg!(
-                0,
-                gettext(c"Ignored %d word(s) with non-ASCII characters in %s"),
-                non_ascii,
-                fname,
-            );
-        }
-
-        spell_close(fd);
-        retval
     }
+
+    if duplicate > 0 {
+        smsg!(0, gettext(c"%d duplicate word(s) in %s"), duplicate, fname,);
+    }
+    if spin.si_ascii != 0 && non_ascii > 0 {
+        smsg!(
+            0,
+            gettext(c"Ignored %d word(s) with non-ASCII characters in %s"),
+            non_ascii,
+            fname,
+        );
+    }
+
+    spell_close(fd);
+    retval
 }
 
-fn get_affix_flags(affile: &Afffile, afflist: impl crate::strings::IntoCCharPtr) -> i32 {
-    let afflist = afflist.into_c_char_ptr().cast_mut();
+fn get_affix_flags(affile: &Afffile, afflist: &[u8]) -> i32 {
     let mut flags: i32 = 0;
 
     if affile.af_keepcase != 0 && flag_in_afflist(affile.af_flagtype, afflist, affile.af_keepcase) {
@@ -3090,14 +3011,8 @@ fn get_affix_flags(affile: &Afffile, afflist: impl crate::strings::IntoCCharPtr)
     flags
 }
 
-fn get_pfxlist(
-    affile: &Afffile,
-    afflist: impl crate::strings::IntoCCharPtr,
-    store_afflist: &mut [u8],
-    cntp: &mut i32,
-) -> bool {
-    let afflist = afflist.into_c_char_ptr();
-    let mut rem = crate::memory::cstr_as_bytes(afflist);
+fn get_pfxlist(affile: &Afffile, afflist: &[u8], store_afflist: &mut [u8], cntp: &mut i32) -> bool {
+    let mut rem = crate::memory::bytes_until_nul(afflist);
     while !rem.is_empty() {
         let prev = rem;
         if get_affitem(affile.af_flagtype, &mut rem) != 0 {
@@ -3119,12 +3034,11 @@ fn get_pfxlist(
 
 fn get_compflags(
     affile: &Afffile,
-    afflist: impl crate::strings::IntoCCharPtr,
+    afflist: &[u8],
     store_afflist: &mut [u8],
     cntp: &mut i32,
 ) -> bool {
-    let afflist = afflist.into_c_char_ptr();
-    let mut rem = crate::memory::cstr_as_bytes(afflist);
+    let mut rem = crate::memory::bytes_until_nul(afflist);
     while !rem.is_empty() {
         let prev = rem;
         if get_affitem(affile.af_flagtype, &mut rem) != 0 {
@@ -3145,309 +3059,293 @@ fn get_compflags(
 
 fn store_aff_word(
     spin: &mut Spellinfo,
-    word: impl crate::strings::IntoCCharPtr,
-    afflist: impl crate::strings::IntoCCharPtr,
+    word_in: &[u8],
+    afflist_in: &[u8],
     affile: &Afffile,
     ht: &std::collections::BTreeMap<Vec<u8>, Affheader>,
     xht: Option<&std::collections::BTreeMap<Vec<u8>, Affheader>>,
     condit: i32,
     flags: i32,
-    pfxlist: impl crate::strings::IntoCCharPtr,
+    pfxlist_in: &[u8],
     pfxlen: i32,
 ) -> bool {
-    let word: *mut u8 = word.into_c_char_ptr().cast_mut().cast();
-    let afflist: *mut u8 = afflist.into_c_char_ptr().cast_mut().cast();
-    let pfxlist: *mut u8 = pfxlist.into_c_char_ptr().cast_mut().cast();
-    {
-        let mut newword = [0u8; MAXWLEN];
-        let mut retval = true;
-        let mut store_afflist = [0u8; MAXWLEN];
-        let mut pfx_pfxlist = [0u8; MAXWLEN];
-        let wordlen = crate::memory::cstr_len(word.cast());
+    let word_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(word_in));
+    let word: *const u8 = word_cstr.as_ptr().cast();
+    let afflist = crate::memory::bytes_until_nul(afflist_in);
+    let pfxlist: *const u8 = pfxlist_in.as_ptr();
+    let mut newword = [0u8; MAXWLEN];
+    let mut retval = true;
+    let mut store_afflist = [0u8; MAXWLEN];
+    let mut pfx_pfxlist = [0u8; MAXWLEN];
+    let wordlen = word_cstr.to_bytes().len();
 
-        for ah in ht.values() {
-            if !retval {
-                break;
-            }
-            {
-                if ((condit & CONDIT_COMB) == 0 || ah.ah_combine != 0)
-                    && flag_in_afflist(affile.af_flagtype, afflist.cast(), ah.ah_flag)
+    for ah in ht.values() {
+        if !retval {
+            break;
+        }
+        if ((condit & CONDIT_COMB) == 0 || ah.ah_combine != 0)
+            && flag_in_afflist(affile.af_flagtype, afflist, ah.ah_flag)
+        {
+            for ae in &ah.ah_entries {
+                let ae_chop = ae.chop_cstr();
+                let ae_add = ae.add_cstr();
+                let ae_flags = ae.flags_cstr();
+                if (xht.is_some()
+                    || affile.af_pfxpostpone == 0
+                    || ae_chop.is_some()
+                    || ae_flags.is_some())
+                    && ae_chop.is_none_or(|c| c.to_bytes().len() < wordlen)
+                    && (ae.ae_prog.is_none()
+                        || vim_regexec_prog(ae.ae_prog.as_deref(), false, word.cast(), 0))
+                    && (((condit & CONDIT_CFIX) == 0)
+                        == ((condit & CONDIT_AFF) == 0
+                            || ae_flags.is_none_or(|fl| {
+                                !flag_in_afflist(
+                                    affile.af_flagtype,
+                                    fl.to_bytes(),
+                                    affile.af_circumfix,
+                                )
+                            })))
                 {
-                    for ae in &ah.ah_entries {
-                        let ae_chop = ae.chop_cstr();
-                        let ae_add = ae.add_cstr();
-                        let ae_flags = ae.flags_cstr();
-                        if (xht.is_some()
-                            || affile.af_pfxpostpone == 0
-                            || ae_chop.is_some()
-                            || ae_flags.is_some())
-                            && ae_chop.is_none_or(|c| c.to_bytes().len() < wordlen)
-                            && (ae.ae_prog.is_none()
-                                || vim_regexec_prog(ae.ae_prog.as_deref(), false, word.cast(), 0))
-                            && (((condit & CONDIT_CFIX) == 0)
-                                == ((condit & CONDIT_AFF) == 0
-                                    || ae_flags.is_none_or(|fl| {
-                                        !flag_in_afflist(
-                                            affile.af_flagtype,
-                                            fl.as_ptr(),
-                                            affile.af_circumfix,
-                                        )
-                                    })))
-                        {
-                            if xht.is_none() {
-                                if let Some(ae_add) = ae_add {
-                                    crate::memory::copy_bytes_to_c_buf(
-                                        &mut newword,
-                                        ae_add.to_bytes(),
-                                    );
-                                } else {
-                                    newword[0] = 0;
-                                }
-                                let mut p = word;
-                                if let Some(ae_chop) = ae_chop {
-                                    let mut i = mb_charlen(crate::memory::cstr_as_bytes(ae_chop));
-                                    while i > 0 {
-                                        mb_ptr_adv(&mut p);
-                                        i -= 1;
-                                    }
-                                }
-                                crate::memory::append_bytes_to_c_buf(
-                                    &mut newword,
-                                    crate::memory::cstr_as_bytes(p.cast()),
-                                );
-                            } else {
-                                crate::memory::copy_bytes_to_c_buf(
-                                    &mut newword,
-                                    crate::memory::cstr_as_bytes(word.cast()),
-                                );
-                                if let Some(ae_chop) = ae_chop {
-                                    let nw_bytes =
-                                        crate::memory::cstr_as_bytes(newword.as_ptr().cast());
-                                    let mut end_idx = nw_bytes.len();
-                                    let mut i = mb_charlen(crate::memory::cstr_as_bytes(ae_chop));
-                                    while i > 0 {
-                                        crate::mbyte::mb_idx_back(nw_bytes, &mut end_idx);
-                                        i -= 1;
-                                    }
-                                    newword[end_idx] = 0;
-                                }
-                                if let Some(ae_add) = ae_add {
-                                    crate::memory::append_bytes_to_c_buf(
-                                        &mut newword,
-                                        ae_add.to_bytes(),
-                                    );
-                                }
-                            }
-
-                            let mut use_flags = flags;
-                            let mut use_pfxlist = pfxlist;
-                            let mut use_pfxlen = pfxlen;
-                            let mut need_affix = false;
-                            let mut use_condit = condit | CONDIT_COMB | CONDIT_AFF;
-                            if let Some(ae_flags) = ae_flags {
-                                use_flags |= get_affix_flags(affile, ae_flags);
-
-                                if affile.af_needaffix != 0
-                                    && flag_in_afflist(
-                                        affile.af_flagtype,
-                                        ae_flags,
-                                        affile.af_needaffix,
-                                    )
-                                {
-                                    need_affix = true;
-                                }
-
-                                if affile.af_circumfix != 0
-                                    && flag_in_afflist(
-                                        affile.af_flagtype,
-                                        ae_flags,
-                                        affile.af_circumfix,
-                                    )
-                                {
-                                    use_condit |= CONDIT_CFIX;
-                                    if (condit & CONDIT_CFIX) == 0 {
-                                        need_affix = true;
-                                    }
-                                }
-
-                                if affile.af_pfxpostpone != 0 || spin.si_compflags.is_some() {
-                                    let mut listlen: i32 = 0;
-
-                                    if affile.af_pfxpostpone != 0 {
-                                        if !get_pfxlist(
-                                            affile,
-                                            ae_flags,
-                                            &mut store_afflist,
-                                            &mut listlen,
-                                        ) {
-                                            retval = false;
-                                            break;
-                                        }
-                                        use_pfxlen = listlen;
-                                    } else {
-                                        use_pfxlen = 0;
-                                    }
-
-                                    for &pi in
-                                        crate::memory::cstr_slice(pfxlist.cast(), pfxlen as usize)
-                                    {
-                                        if !store_afflist[..use_pfxlen as usize].contains(&pi)
-                                            && !store_afflist_add(
-                                                &mut store_afflist,
-                                                &mut listlen,
-                                                i32::from(pi),
-                                            )
-                                        {
-                                            retval = false;
-                                            break;
-                                        }
-                                        use_pfxlen = listlen;
-                                    }
-                                    if !retval {
-                                        break;
-                                    }
-
-                                    if spin.si_compflags.is_some() {
-                                        if !get_compflags(
-                                            affile,
-                                            ae_flags,
-                                            &mut store_afflist,
-                                            &mut listlen,
-                                        ) {
-                                            retval = false;
-                                            break;
-                                        }
-                                    } else {
-                                        store_afflist[use_pfxlen as usize] = 0;
-                                    }
-                                    if !retval {
-                                        break;
-                                    }
-
-                                    for &pi in crate::memory::cstr_as_bytes(
-                                        pfxlist.wrapping_add(pfxlen as usize).cast(),
-                                    ) {
-                                        if !store_afflist[use_pfxlen as usize..listlen as usize]
-                                            .contains(&pi)
-                                            && !store_afflist_add(
-                                                &mut store_afflist,
-                                                &mut listlen,
-                                                i32::from(pi),
-                                            )
-                                        {
-                                            retval = false;
-                                            break;
-                                        }
-                                    }
-                                    if !retval {
-                                        break;
-                                    }
-                                    use_pfxlist = store_afflist.as_mut_ptr();
-                                }
-                            }
-
-                            if !use_pfxlist.is_null() && ae.ae_compforbid != 0 {
-                                let plen = use_pfxlen as usize;
-                                pfx_pfxlist[..plen].copy_from_slice(crate::memory::cstr_slice(
-                                    use_pfxlist.cast(),
-                                    plen,
-                                ));
-                                pfx_pfxlist[plen] = 0;
-                                use_pfxlist = pfx_pfxlist.as_mut_ptr();
-                            }
-
-                            if spin
-                                .si_prefroot
-                                .is_some_and(|r| (&spin.si_nodes)[r].wn_sibling.is_some())
-                            {
-                                use_flags |= WF_HAS_AFF;
-                                if ah.ah_combine == 0 && !use_pfxlist.is_null() {
-                                    use_pfxlist = use_pfxlist.wrapping_offset(use_pfxlen as isize);
-                                }
-                            }
-
-                            if spin.si_compflags.is_some() && ae.ae_comppermit == 0 {
-                                if xht.is_some() {
-                                    use_flags |= WF_NOCOMPAFT;
-                                } else {
-                                    use_flags |= WF_NOCOMPBEF;
-                                }
-                            }
-
-                            if !store_word(
-                                spin,
-                                newword.as_mut_ptr().cast(),
-                                use_flags,
-                                spin.si_region,
-                                use_pfxlist.cast(),
-                                need_affix,
-                            ) {
-                                retval = false;
-                            }
-
-                            if (condit & CONDIT_SUF) != 0
-                                && let Some(ae_flags) = ae_flags
-                            {
-                                let next_condit =
-                                    use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
-                                if !store_aff_word(
-                                    spin,
-                                    newword.as_mut_ptr().cast(),
-                                    ae_flags,
-                                    affile,
-                                    &affile.af_suff,
-                                    xht,
-                                    next_condit,
-                                    use_flags,
-                                    use_pfxlist.cast(),
-                                    pfxlen,
-                                ) {
-                                    retval = false;
-                                }
-                            }
-
-                            if let Some(xht_ref) = xht
-                                && ah.ah_combine != 0
-                                && (!store_aff_word(
-                                    spin,
-                                    newword.as_mut_ptr().cast(),
-                                    afflist.cast(),
-                                    affile,
-                                    xht_ref,
-                                    None,
-                                    use_condit,
-                                    use_flags,
-                                    use_pfxlist.cast(),
-                                    pfxlen,
-                                ) || ae_flags.is_some_and(|fl| {
-                                    !store_aff_word(
-                                        spin,
-                                        newword.as_mut_ptr().cast(),
-                                        fl,
-                                        affile,
-                                        xht_ref,
-                                        None,
-                                        use_condit,
-                                        use_flags,
-                                        use_pfxlist.cast(),
-                                        pfxlen,
-                                    )
-                                }))
-                            {
-                                retval = false;
+                    if xht.is_none() {
+                        if let Some(ae_add) = ae_add {
+                            crate::memory::copy_bytes_to_c_buf(&mut newword, ae_add.to_bytes());
+                        } else {
+                            newword[0] = 0;
+                        }
+                        let mut p = word.cast_mut();
+                        if let Some(ae_chop) = ae_chop {
+                            let mut i = mb_charlen(ae_chop.to_bytes());
+                            while i > 0 {
+                                mb_ptr_adv(&mut p);
+                                i -= 1;
                             }
                         }
+                        crate::memory::append_bytes_to_c_buf(
+                            &mut newword,
+                            crate::memory::cstr_as_bytes(p.cast()),
+                        );
+                    } else {
+                        crate::memory::copy_bytes_to_c_buf(&mut newword, word_cstr.to_bytes());
+                        if let Some(ae_chop) = ae_chop {
+                            let nw_bytes = crate::memory::cstr_until_nul(&newword).to_bytes();
+                            let mut end_idx = nw_bytes.len();
+                            let mut i = mb_charlen(ae_chop.to_bytes());
+                            while i > 0 {
+                                crate::mbyte::mb_idx_back(nw_bytes, &mut end_idx);
+                                i -= 1;
+                            }
+                            newword[end_idx] = 0;
+                        }
+                        if let Some(ae_add) = ae_add {
+                            crate::memory::append_bytes_to_c_buf(&mut newword, ae_add.to_bytes());
+                        }
+                    }
+
+                    let mut use_flags = flags;
+                    let mut use_pfxlist = pfxlist;
+                    let mut use_pfxlen = pfxlen;
+                    let mut need_affix = false;
+                    let mut use_condit = condit | CONDIT_COMB | CONDIT_AFF;
+                    if let Some(ae_flags) = ae_flags {
+                        let ae_flags_bytes = ae_flags.to_bytes();
+                        use_flags |= get_affix_flags(affile, ae_flags_bytes);
+
+                        if affile.af_needaffix != 0
+                            && flag_in_afflist(
+                                affile.af_flagtype,
+                                ae_flags_bytes,
+                                affile.af_needaffix,
+                            )
+                        {
+                            need_affix = true;
+                        }
+
+                        if affile.af_circumfix != 0
+                            && flag_in_afflist(
+                                affile.af_flagtype,
+                                ae_flags_bytes,
+                                affile.af_circumfix,
+                            )
+                        {
+                            use_condit |= CONDIT_CFIX;
+                            if (condit & CONDIT_CFIX) == 0 {
+                                need_affix = true;
+                            }
+                        }
+
+                        if affile.af_pfxpostpone != 0 || spin.si_compflags.is_some() {
+                            let mut listlen: i32 = 0;
+
+                            if affile.af_pfxpostpone != 0 {
+                                if !get_pfxlist(
+                                    affile,
+                                    ae_flags_bytes,
+                                    &mut store_afflist,
+                                    &mut listlen,
+                                ) {
+                                    retval = false;
+                                    break;
+                                }
+                                use_pfxlen = listlen;
+                            } else {
+                                use_pfxlen = 0;
+                            }
+
+                            for &pi in crate::memory::cstr_slice(pfxlist.cast(), pfxlen as usize) {
+                                if !store_afflist[..use_pfxlen as usize].contains(&pi)
+                                    && !store_afflist_add(
+                                        &mut store_afflist,
+                                        &mut listlen,
+                                        i32::from(pi),
+                                    )
+                                {
+                                    retval = false;
+                                    break;
+                                }
+                                use_pfxlen = listlen;
+                            }
+                            if !retval {
+                                break;
+                            }
+
+                            if spin.si_compflags.is_some() {
+                                if !get_compflags(
+                                    affile,
+                                    ae_flags_bytes,
+                                    &mut store_afflist,
+                                    &mut listlen,
+                                ) {
+                                    retval = false;
+                                    break;
+                                }
+                            } else {
+                                store_afflist[use_pfxlen as usize] = 0;
+                            }
+                            if !retval {
+                                break;
+                            }
+
+                            for &pi in crate::memory::cstr_as_bytes(
+                                pfxlist.wrapping_add(pfxlen as usize).cast(),
+                            ) {
+                                if !store_afflist[use_pfxlen as usize..listlen as usize]
+                                    .contains(&pi)
+                                    && !store_afflist_add(
+                                        &mut store_afflist,
+                                        &mut listlen,
+                                        i32::from(pi),
+                                    )
+                                {
+                                    retval = false;
+                                    break;
+                                }
+                            }
+                            if !retval {
+                                break;
+                            }
+                            use_pfxlist = store_afflist.as_ptr();
+                        }
+                    }
+
+                    if !use_pfxlist.is_null() && ae.ae_compforbid != 0 {
+                        let plen = use_pfxlen as usize;
+                        pfx_pfxlist[..plen]
+                            .copy_from_slice(crate::memory::cstr_slice(use_pfxlist.cast(), plen));
+                        pfx_pfxlist[plen] = 0;
+                        use_pfxlist = pfx_pfxlist.as_ptr();
+                    }
+
+                    if spin
+                        .si_prefroot
+                        .is_some_and(|r| (&spin.si_nodes)[r].wn_sibling.is_some())
+                    {
+                        use_flags |= WF_HAS_AFF;
+                        if ah.ah_combine == 0 && !use_pfxlist.is_null() {
+                            use_pfxlist = use_pfxlist.wrapping_offset(use_pfxlen as isize);
+                        }
+                    }
+
+                    if spin.si_compflags.is_some() && ae.ae_comppermit == 0 {
+                        if xht.is_some() {
+                            use_flags |= WF_NOCOMPAFT;
+                        } else {
+                            use_flags |= WF_NOCOMPBEF;
+                        }
+                    }
+
+                    let use_pfx_slice = crate::memory::cstr_as_bytes(use_pfxlist.cast());
+                    if !store_word(
+                        spin,
+                        &newword,
+                        use_flags,
+                        spin.si_region,
+                        use_pfx_slice,
+                        need_affix,
+                    ) {
+                        retval = false;
+                    }
+
+                    if (condit & CONDIT_SUF) != 0
+                        && let Some(ae_flags) = ae_flags
+                    {
+                        let next_condit = use_condit & if xht.is_none() { !0 } else { !CONDIT_SUF };
+                        if !store_aff_word(
+                            spin,
+                            &newword,
+                            ae_flags.to_bytes(),
+                            affile,
+                            &affile.af_suff,
+                            xht,
+                            next_condit,
+                            use_flags,
+                            use_pfx_slice,
+                            pfxlen,
+                        ) {
+                            retval = false;
+                        }
+                    }
+
+                    if let Some(xht_ref) = xht
+                        && ah.ah_combine != 0
+                        && (!store_aff_word(
+                            spin,
+                            &newword,
+                            afflist,
+                            affile,
+                            xht_ref,
+                            None,
+                            use_condit,
+                            use_flags,
+                            use_pfx_slice,
+                            pfxlen,
+                        ) || ae_flags.is_some_and(|fl| {
+                            !store_aff_word(
+                                spin,
+                                &newword,
+                                fl.to_bytes(),
+                                affile,
+                                xht_ref,
+                                None,
+                                use_condit,
+                                use_flags,
+                                use_pfx_slice,
+                                pfxlen,
+                            )
+                        }))
+                    {
+                        retval = false;
                     }
                 }
             }
         }
-
-        retval
     }
+
+    retval
 }
 
-fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) -> bool {
-    let fname = fname.into_c_char_ptr();
+fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
+    let fname = fname_cstr.as_ptr();
     {
         let mut lnum: Linenr = 0;
         let mut rline = [0u8; MAXLINELEN];
@@ -3467,7 +3365,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
+        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
 
         while !vim_fgets(&mut rline, &fd) && !g_st().got_int {
             line_breakcheck();
@@ -3640,15 +3538,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
                 continue;
             }
 
-            let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
-            if !store_word(
-                spin,
-                word_cstr.as_ptr(),
-                flags,
-                regionmask,
-                ptr::null(),
-                false,
-            ) {
+            if !store_word(spin, word_bytes, flags, regionmask, &[], false) {
                 retval = false;
                 break;
             }
@@ -3664,7 +3554,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCh
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, g_st().iobuff.as_mut_ptr());
+            spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
         }
 
         retval
@@ -3691,225 +3581,212 @@ fn valid_spell_word(bytes: &[u8]) -> bool {
 
 fn store_word(
     spin: &mut Spellinfo,
-    word: impl crate::strings::IntoCCharPtr,
+    word: &[u8],
     flags: i32,
     region: i32,
-    pfxlist: impl crate::strings::IntoCCharPtr,
+    pfxlist: &[u8],
     need_affix: bool,
 ) -> bool {
-    let word = word.into_c_char_ptr();
-    let pfxlist = pfxlist.into_c_char_ptr();
-    {
-        let word_bytes = crate::memory::cstr_as_bytes(word);
-        let ct = captype(word_bytes);
-        let mut foldword = [0u8; MAXWLEN];
-        let mut res = true;
+    let word_bytes = crate::memory::bytes_until_nul(word);
+    let pfx_bytes = crate::memory::bytes_until_nul(pfxlist);
+    let ct = captype(word_bytes);
+    let mut foldword = [0u8; MAXWLEN];
+    let mut res = true;
 
-        if !valid_spell_word(word_bytes) {
-            return false;
+    if !valid_spell_word(word_bytes) {
+        return false;
+    }
+
+    spell_casefold(curwin_mut(), word_bytes, &mut foldword);
+    let mut p = pfx_bytes;
+    while res {
+        if !need_affix || !p.is_empty() {
+            res = tree_add_word(
+                spin,
+                &foldword,
+                spin.si_foldroot,
+                ct | flags,
+                region,
+                p.first().copied().unwrap_or(0) as i32,
+            );
         }
+        if p.is_empty() {
+            break;
+        }
+        p = &p[1..];
+    }
+    spin.si_foldwcount += 1;
 
-        spell_casefold(curwin_mut(), word_bytes, &mut foldword);
-        let mut p = pfxlist;
+    if res && (ct == WF_KEEPCAP || (flags & WF_KEEPCAP) != 0) {
+        let mut p2 = pfx_bytes;
         while res {
-            if !need_affix || (!crate::memory::cstr_is_empty(p)) {
+            if !need_affix || !p2.is_empty() {
                 res = tree_add_word(
                     spin,
-                    foldword.as_ptr().cast(),
-                    spin.si_foldroot,
-                    ct | flags,
+                    word_bytes,
+                    spin.si_keeproot,
+                    flags,
                     region,
-                    if p.is_null() {
-                        0
-                    } else {
-                        crate::memory::cstr_first_byte(p) as i32
-                    },
+                    p2.first().copied().unwrap_or(0) as i32,
                 );
             }
-            if crate::memory::cstr_is_empty(p) {
+            if p2.is_empty() {
                 break;
             }
-            p = p.wrapping_add(1);
+            p2 = &p2[1..];
         }
-        spin.si_foldwcount += 1;
-
-        if res && (ct == WF_KEEPCAP || (flags & WF_KEEPCAP) != 0) {
-            let mut p2 = pfxlist;
-            while res {
-                if !need_affix || (!crate::memory::cstr_is_empty(p2)) {
-                    res = tree_add_word(
-                        spin,
-                        word,
-                        spin.si_keeproot,
-                        flags,
-                        region,
-                        if p2.is_null() {
-                            0
-                        } else {
-                            crate::memory::cstr_first_byte(p2) as i32
-                        },
-                    );
-                }
-                if crate::memory::cstr_is_empty(p2) {
-                    break;
-                }
-                p2 = p2.wrapping_add(1);
-            }
-            spin.si_keepwcount += 1;
-        }
-        res
+        spin.si_keepwcount += 1;
     }
+    res
 }
 
 fn tree_add_word(
     spin: &mut Spellinfo,
-    word: impl crate::strings::IntoCCharPtr,
+    word: &[u8],
     root: Option<usize>,
     flags: i32,
     region: i32,
     affix_id: i32,
 ) -> bool {
-    let word = word.into_c_char_ptr();
-    {
-        let mut node = root;
-        let mut prev: Option<NodeSlot> = None;
+    let word_bytes = crate::memory::bytes_until_nul(word);
+    let mut node = root;
+    let mut prev: Option<NodeSlot> = None;
 
-        let mut i: usize = 0;
-        loop {
-            if let Some(node_idx) = node
-                && spin.si_nodes[node_idx].wn_refs > 1
-            {
-                spin.si_nodes[node_idx].wn_refs -= 1;
-                let mut copyprev = prev;
-                let mut copyp = Some(node_idx);
-                while let Some(copyp_idx) = copyp {
-                    let np = get_wordnode(spin);
-                    let copyp_node = spin.si_nodes[copyp_idx];
-                    spin.si_nodes[np].wn_child = copyp_node.wn_child;
-                    if let Some(child_idx) = copyp_node.wn_child {
-                        spin.si_nodes[child_idx].wn_refs += 1;
-                    }
-                    spin.si_nodes[np].wn_byte = copyp_node.wn_byte;
-                    if copyp_node.wn_byte == 0 {
-                        spin.si_nodes[np].wn_flags = copyp_node.wn_flags;
-                        spin.si_nodes[np].wn_region = copyp_node.wn_region;
-                        spin.si_nodes[np].wn_affix_id = copyp_node.wn_affix_id;
-                    }
-
-                    spin.si_nodes[np].wn_refs = 1;
-                    if let Some(slot) = copyprev {
-                        slot.set(&mut spin.si_nodes, Some(np));
-                    }
-                    copyprev = Some(NodeSlot::Sibling(np));
-
-                    if copyp_idx == node_idx {
-                        node = Some(np);
-                    }
-                    copyp = copyp_node.wn_sibling;
-                }
-            }
-
-            let wb = crate::memory::cstr_first_byte(word.wrapping_add(i));
-            while let Some(node_idx) = node {
-                let n = spin.si_nodes[node_idx];
-                let advance = n.wn_byte < wb
-                    || (n.wn_byte == 0
-                        && if flags < 0 {
-                            (n.wn_affix_id as u32) < (affix_id as u32)
-                        } else {
-                            (n.wn_flags as u32) < ((flags & WN_MASK) as u32)
-                                || (n.wn_flags as i32 == (flags & WN_MASK)
-                                    && if spin.si_sugtree != 0 {
-                                        (n.wn_region as i32 & 0xffff) < region
-                                    } else {
-                                        (n.wn_affix_id as u32) < (affix_id as u32)
-                                    })
-                        });
-                if !advance {
-                    break;
-                }
-                prev = Some(NodeSlot::Sibling(node_idx));
-                node = n.wn_sibling;
-            }
-
-            let need_new = match node {
-                None => true,
-                Some(node_idx) => {
-                    let n = spin.si_nodes[node_idx];
-                    n.wn_byte != wb
-                        || (wb == 0
-                            && (flags < 0
-                                || spin.si_sugtree != 0
-                                || n.wn_flags as i32 != (flags & WN_MASK)
-                                || n.wn_affix_id as i32 != affix_id))
-                }
-            };
-            if need_new {
+    let mut i: usize = 0;
+    loop {
+        if let Some(node_idx) = node
+            && spin.si_nodes[node_idx].wn_refs > 1
+        {
+            spin.si_nodes[node_idx].wn_refs -= 1;
+            let mut copyprev = prev;
+            let mut copyp = Some(node_idx);
+            while let Some(copyp_idx) = copyp {
                 let np = get_wordnode(spin);
-                spin.si_nodes[np].wn_byte = wb;
-
-                if let Some(node_idx) = node {
-                    spin.si_nodes[np].wn_refs = spin.si_nodes[node_idx].wn_refs;
-                    spin.si_nodes[node_idx].wn_refs = 1;
-                } else {
-                    spin.si_nodes[np].wn_refs = 1;
+                let copyp_node = spin.si_nodes[copyp_idx];
+                spin.si_nodes[np].wn_child = copyp_node.wn_child;
+                if let Some(child_idx) = copyp_node.wn_child {
+                    spin.si_nodes[child_idx].wn_refs += 1;
                 }
-                if let Some(slot) = prev {
+                spin.si_nodes[np].wn_byte = copyp_node.wn_byte;
+                if copyp_node.wn_byte == 0 {
+                    spin.si_nodes[np].wn_flags = copyp_node.wn_flags;
+                    spin.si_nodes[np].wn_region = copyp_node.wn_region;
+                    spin.si_nodes[np].wn_affix_id = copyp_node.wn_affix_id;
+                }
+
+                spin.si_nodes[np].wn_refs = 1;
+                if let Some(slot) = copyprev {
                     slot.set(&mut spin.si_nodes, Some(np));
                 }
-                spin.si_nodes[np].wn_sibling = node;
-                node = Some(np);
-            }
+                copyprev = Some(NodeSlot::Sibling(np));
 
-            let node_idx = node.unwrap();
-            if wb == 0 {
-                spin.si_nodes[node_idx].wn_flags = flags as u16;
-                spin.si_nodes[node_idx].wn_region |= region as i16;
-                spin.si_nodes[node_idx].wn_affix_id = affix_id as u8;
+                if copyp_idx == node_idx {
+                    node = Some(np);
+                }
+                copyp = copyp_node.wn_sibling;
+            }
+        }
+
+        let wb = word_bytes.get(i).copied().unwrap_or(0);
+        while let Some(node_idx) = node {
+            let n = spin.si_nodes[node_idx];
+            let advance = n.wn_byte < wb
+                || (n.wn_byte == 0
+                    && if flags < 0 {
+                        (n.wn_affix_id as u32) < (affix_id as u32)
+                    } else {
+                        (n.wn_flags as u32) < ((flags & WN_MASK) as u32)
+                            || (n.wn_flags as i32 == (flags & WN_MASK)
+                                && if spin.si_sugtree != 0 {
+                                    (n.wn_region as i32 & 0xffff) < region
+                                } else {
+                                    (n.wn_affix_id as u32) < (affix_id as u32)
+                                })
+                    });
+            if !advance {
                 break;
             }
-            prev = Some(NodeSlot::Child(node_idx));
-            node = spin.si_nodes[node_idx].wn_child;
-            i += 1;
+            prev = Some(NodeSlot::Sibling(node_idx));
+            node = n.wn_sibling;
         }
 
-        spin.si_msg_count += 1;
-
-        if spin.si_compress_cnt > 1 {
-            spin.si_compress_cnt -= 1;
-            if spin.si_compress_cnt == 1 {
-                spin.si_blocks_cnt += spellfile_st().compress_inc;
+        let need_new = match node {
+            None => true,
+            Some(node_idx) => {
+                let n = spin.si_nodes[node_idx];
+                n.wn_byte != wb
+                    || (wb == 0
+                        && (flags < 0
+                            || spin.si_sugtree != 0
+                            || n.wn_flags as i32 != (flags & WN_MASK)
+                            || n.wn_affix_id as i32 != affix_id))
             }
-        }
-
-        let do_compress = if spin.si_compress_cnt == 1 {
-            spin.si_free_count < MAXWLEN as i32
-        } else {
-            spin.si_blocks_cnt >= spellfile_st().compress_start
         };
-        if do_compress {
-            spin.si_blocks_cnt -= spellfile_st().compress_inc;
-            spin.si_compress_cnt = spellfile_st().compress_added;
+        if need_new {
+            let np = get_wordnode(spin);
+            spin.si_nodes[np].wn_byte = wb;
 
-            if spin.si_verbose != 0 {
-                msg_start();
-                msg_puts(gettext(MSG_COMPRESSING));
-                msg_clr_eos();
-                g_st().msg_didout = false;
-                g_st().msg_col = 0;
-                ui_flush();
+            if let Some(node_idx) = node {
+                spin.si_nodes[np].wn_refs = spin.si_nodes[node_idx].wn_refs;
+                spin.si_nodes[node_idx].wn_refs = 1;
+            } else {
+                spin.si_nodes[np].wn_refs = 1;
             }
-
-            let foldroot = spin.si_foldroot;
-            wordtree_compress(spin, foldroot, c"case-folded");
-            if affix_id >= 0 {
-                let keeproot = spin.si_keeproot;
-                wordtree_compress(spin, keeproot, c"keep-case");
+            if let Some(slot) = prev {
+                slot.set(&mut spin.si_nodes, Some(np));
             }
+            spin.si_nodes[np].wn_sibling = node;
+            node = Some(np);
         }
 
-        true
+        let node_idx = node.unwrap();
+        if wb == 0 {
+            spin.si_nodes[node_idx].wn_flags = flags as u16;
+            spin.si_nodes[node_idx].wn_region |= region as i16;
+            spin.si_nodes[node_idx].wn_affix_id = affix_id as u8;
+            break;
+        }
+        prev = Some(NodeSlot::Child(node_idx));
+        node = spin.si_nodes[node_idx].wn_child;
+        i += 1;
     }
+
+    spin.si_msg_count += 1;
+
+    if spin.si_compress_cnt > 1 {
+        spin.si_compress_cnt -= 1;
+        if spin.si_compress_cnt == 1 {
+            spin.si_blocks_cnt += spellfile_st().compress_inc;
+        }
+    }
+
+    let do_compress = if spin.si_compress_cnt == 1 {
+        spin.si_free_count < MAXWLEN as i32
+    } else {
+        spin.si_blocks_cnt >= spellfile_st().compress_start
+    };
+    if do_compress {
+        spin.si_blocks_cnt -= spellfile_st().compress_inc;
+        spin.si_compress_cnt = spellfile_st().compress_added;
+
+        if spin.si_verbose != 0 {
+            msg_start();
+            msg_puts(gettext(MSG_COMPRESSING));
+            msg_clr_eos();
+            g_st().msg_didout = false;
+            g_st().msg_col = 0;
+            ui_flush();
+        }
+
+        let foldroot = spin.si_foldroot;
+        wordtree_compress(spin, foldroot, c"case-folded");
+        if affix_id >= 0 {
+            let keeproot = spin.si_keeproot;
+            wordtree_compress(spin, keeproot, c"keep-case");
+        }
+    }
+
+    true
 }
 
 fn get_wordnode(spin: &mut Spellinfo) -> usize {
@@ -3986,7 +3863,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             tot - n,
             perc,
         );
-        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
+        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
     }
 }
 
@@ -4089,8 +3966,8 @@ fn node_equal(nodes: &[Wordnode], n1: usize, n2: usize) -> bool {
     p1.is_none() && p2.is_none()
 }
 
-fn write_vim_spell(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) -> bool {
-    let fname = fname.into_c_char_ptr();
+fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
+    let fname = fname_cstr.as_ptr();
     let mut retval = true;
 
     let Some(fd) = CFile::open(fname, c"w") else {
@@ -4536,67 +4413,63 @@ pub fn ex_mkspell(eap: &mut Exarg) {
     mkspell(&fnames, ascii, eap.forceit != 0, false);
 }
 
-fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCharPtr) {
-    let wfname = wfname.into_c_char_ptr();
-    {
-        let mut slang = spell_priv_st()
-            .first_lang
-            .iter_mut()
-            .rev()
-            .find(|s| {
-                s.sl_fname
-                    .as_ref()
-                    .is_some_and(|f| path_equal(wfname, f.as_ptr(), K_PATH_CMP_EXPAND))
-            })
-            .map_or(ptr::null_mut(), |s| &raw mut **s);
-        let mut temp_slang: Option<Box<Slang>> = None;
+fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
+    let wfname = wfname_cstr.as_ptr();
+    let mut slang = spell_priv_st()
+        .first_lang
+        .iter_mut()
+        .rev()
+        .find(|s| {
+            s.sl_fname
+                .as_ref()
+                .is_some_and(|f| path_equal(wfname, f.as_ptr(), K_PATH_CMP_EXPAND))
+        })
+        .map_or(ptr::null_mut(), |s| &raw mut **s);
+    let mut temp_slang: Option<Box<Slang>> = None;
+    if slang.is_null() {
+        spell_message(&*spin, gettext(c"Reading back spell file..."));
+        let mut new_lp = slang_alloc(None::<&std::ffi::CStr>);
+        new_lp.sl_fname = Some(wfname_cstr.to_owned());
+        new_lp.sl_add = crate::memory::cstr_as_bytes(path_tail(wfname))
+            .windows(SPL_FNAME_ADD.len())
+            .any(|w| w == SPL_FNAME_ADD);
+        slang = spell_load_file(wfname_cstr, None, Some(&mut *new_lp), false)
+            .map_or(ptr::null_mut(), |lp| &raw mut *lp);
         if slang.is_null() {
-            spell_message(&*spin, gettext(c"Reading back spell file..."));
-            let mut new_lp = slang_alloc(None::<&std::ffi::CStr>);
-            new_lp.sl_fname = Some(crate::memory::cstr_to_cstring(wfname));
-            new_lp.sl_add = crate::memory::cstr_as_bytes(path_tail(wfname))
-                .windows(SPL_FNAME_ADD.len())
-                .any(|w| w == SPL_FNAME_ADD);
-            slang = spell_load_file(wfname, None, &raw mut *new_lp, false);
-            if slang.is_null() {
-                return;
-            }
-            temp_slang = Some(new_lp);
+            return;
         }
-
-        spin.si_nodes.clear();
-        spin.si_blocks_cnt = 0;
-        spin.si_compress_cnt = 0;
-        spin.si_free_count = 0;
-        spin.si_first_free = None;
-        spin.si_foldwcount = 0;
-
-        spell_message(&*spin, gettext(c"Performing soundfolding..."));
-        if sug_filltree(spin, crate::globals::gmut(slang)) && sug_maketable(spin) {
-            smsg!(
-                0,
-                gettext(c"Number of words after soundfolding: %lld"),
-                spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
-            );
-
-            spell_message(&*spin, gettext(MSG_COMPRESSING));
-            wordtree_compress(spin, spin.si_foldroot, c"case-folded");
-
-            let mut fname_buf = [0u8; MAXPATHL];
-            crate::memory::copy_bytes_to_c_buf(
-                &mut fname_buf,
-                crate::memory::cstr_as_bytes(wfname),
-            );
-            let len = crate::memory::cstr_len(fname_buf.as_ptr().cast());
-            fname_buf[len - 2] = b'u';
-            fname_buf[len - 1] = b'g';
-            sug_write(spin, fname_buf.as_ptr().cast());
-        }
-
-        drop(temp_slang);
-        spin.si_nodes.clear();
-        close_spellbuf(&mut spin.si_spellbuf);
+        temp_slang = Some(new_lp);
     }
+
+    spin.si_nodes.clear();
+    spin.si_blocks_cnt = 0;
+    spin.si_compress_cnt = 0;
+    spin.si_free_count = 0;
+    spin.si_first_free = None;
+    spin.si_foldwcount = 0;
+
+    spell_message(&*spin, gettext(c"Performing soundfolding..."));
+    if sug_filltree(spin, unsafe { &mut *slang }) && sug_maketable(spin) {
+        smsg!(
+            0,
+            gettext(c"Number of words after soundfolding: %lld"),
+            spin.si_spellbuf.as_ref().unwrap().b_ml.ml_line_count as i64,
+        );
+
+        spell_message(&*spin, gettext(MSG_COMPRESSING));
+        wordtree_compress(spin, spin.si_foldroot, c"case-folded");
+
+        let mut fname_buf = [0u8; MAXPATHL];
+        crate::memory::copy_bytes_to_c_buf(&mut fname_buf, wfname_cstr.to_bytes());
+        let len = crate::memory::cstr_len(fname_buf.as_ptr().cast());
+        fname_buf[len - 2] = b'u';
+        fname_buf[len - 1] = b'g';
+        sug_write(spin, crate::memory::cstr_until_nul(&fname_buf));
+    }
+
+    drop(temp_slang);
+    spin.si_nodes.clear();
+    close_spellbuf(&mut spin.si_spellbuf);
 }
 
 fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
@@ -4615,10 +4488,8 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
     }
     let fbyts_len = slang.sl_fbyts.len() as i32;
     let slang_ptr: *mut Slang = slang;
-    let (byts, idxs): (&[u8], &mut [Idx]) = (
-        &crate::globals::gptr(slang_ptr).sl_fbyts,
-        &mut crate::globals::gptr(slang_ptr).sl_fidxs,
-    );
+    let (byts, idxs): (&[u8], &mut [Idx]) =
+        unsafe { (&(*slang_ptr).sl_fbyts, &mut (*slang_ptr).sl_fidxs) };
 
     arridx[0] = 0;
     curi[0] = 1;
@@ -4645,7 +4516,7 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
 
                 if !tree_add_word(
                     spin,
-                    tsalword.as_ptr().cast(),
+                    &tsalword,
                     spin.si_foldroot,
                     (words_done >> 16) as i32,
                     (words_done & 0xffff) as i32,
@@ -4784,77 +4655,75 @@ fn offset2bytes(nr: i32, buf: &mut [u8; 8]) -> i32 {
     1
 }
 
-fn sug_write(spin: &mut Spellinfo, fname: impl crate::strings::IntoCCharPtr) {
-    let fname = fname.into_c_char_ptr();
-    {
-        let Some(fd) = CFile::open(fname, c"w") else {
-            semsg!(gettext(E_NOTOPEN), fname);
-            return;
-        };
+fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
+    let fname = fname_cstr.as_ptr();
+    let Some(fd) = CFile::open(fname, c"w") else {
+        semsg!(gettext(E_NOTOPEN), fname);
+        return;
+    };
+
+    vim_snprintf!(
+        g_st().iobuff.as_mut_ptr(),
+        IOSIZE,
+        gettext(c"Writing suggestion file %s..."),
+        fname,
+    );
+    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+
+    if spell_write(&VIMSUGMAGIC[..VIMSUGMAGICL], &fd) != 1 {
+        emsg(gettext(E_WRITE));
+        spell_close(fd);
+        return;
+    }
+    spell_putc(VIMSUGVERSION, &fd);
+    put_time(&fd, spin.si_sugtime);
+
+    spin.si_memtot = 0;
+    let tree = spin
+        .si_foldroot
+        .and_then(|r| (&spin.si_nodes)[r].wn_sibling);
+    clear_node(&mut spin.si_nodes, tree);
+
+    let nodecount = put_node(None, &mut spin.si_nodes, tree, 0, 0, false) as usize;
+    put_bytes(&fd, nodecount as u64, 4);
+    spin.si_memtot += (nodecount + nodecount * size_of::<i32>()) as i32;
+
+    put_node(Some(&fd), &mut spin.si_nodes, tree, 0, 0, false);
+
+    let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
+    let wcount = spellbuf.b_ml.ml_line_count;
+    put_bytes(&fd, wcount as u64, 4);
+
+    let mut write_err = false;
+    let mut memtot_add = 0;
+    for lnum in 1..=wcount {
+        let line = ml_get_buf(spellbuf, lnum);
+        let len = ml_get_buf_len(spellbuf, lnum) + 1;
+        let line_slice = crate::memory::cstr_slice(line, len as usize);
+        if spell_write(line_slice, &fd) == 0 {
+            emsg(gettext(E_WRITE));
+            write_err = true;
+            break;
+        }
+        memtot_add += len;
+    }
+    spin.si_memtot += memtot_add;
+
+    if !write_err {
+        if spell_putc(0, &fd) == EOF {
+            emsg(gettext(E_WRITE));
+        }
 
         vim_snprintf!(
             g_st().iobuff.as_mut_ptr(),
             IOSIZE,
-            gettext(c"Writing suggestion file %s..."),
-            fname,
+            gettext(c"Estimated runtime memory use: %d bytes"),
+            spin.si_memtot,
         );
-        spell_message(&*spin, g_st().iobuff.as_mut_ptr());
-
-        if spell_write(&VIMSUGMAGIC[..VIMSUGMAGICL], &fd) != 1 {
-            emsg(gettext(E_WRITE));
-            spell_close(fd);
-            return;
-        }
-        spell_putc(VIMSUGVERSION, &fd);
-        put_time(&fd, spin.si_sugtime);
-
-        spin.si_memtot = 0;
-        let tree = spin
-            .si_foldroot
-            .and_then(|r| (&spin.si_nodes)[r].wn_sibling);
-        clear_node(&mut spin.si_nodes, tree);
-
-        let nodecount = put_node(None, &mut spin.si_nodes, tree, 0, 0, false) as usize;
-        put_bytes(&fd, nodecount as u64, 4);
-        spin.si_memtot += (nodecount + nodecount * size_of::<i32>()) as i32;
-
-        put_node(Some(&fd), &mut spin.si_nodes, tree, 0, 0, false);
-
-        let spellbuf = spin.si_spellbuf.as_deref_mut().unwrap();
-        let wcount = spellbuf.b_ml.ml_line_count;
-        put_bytes(&fd, wcount as u64, 4);
-
-        let mut write_err = false;
-        let mut memtot_add = 0;
-        for lnum in 1..=wcount {
-            let line = ml_get_buf(spellbuf, lnum);
-            let len = ml_get_buf_len(spellbuf, lnum) + 1;
-            let line_slice = crate::memory::cstr_slice(line, len as usize);
-            if spell_write(line_slice, &fd) == 0 {
-                emsg(gettext(E_WRITE));
-                write_err = true;
-                break;
-            }
-            memtot_add += len;
-        }
-        spin.si_memtot += memtot_add;
-
-        if !write_err {
-            if spell_putc(0, &fd) == EOF {
-                emsg(gettext(E_WRITE));
-            }
-
-            vim_snprintf!(
-                g_st().iobuff.as_mut_ptr(),
-                IOSIZE,
-                gettext(c"Estimated runtime memory use: %d bytes"),
-                spin.si_memtot,
-            );
-            spell_message(&*spin, g_st().iobuff.as_mut_ptr());
-        }
-
-        spell_close(fd);
+        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
     }
+
+    spell_close(fd);
 }
 
 fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_word: bool) {
@@ -4864,7 +4733,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
     let mut error = false;
     let mut spin = Spellinfo::default();
 
-    spell_check_msm(opt_vars().p_msm, true);
+    spell_check_msm(crate::memory::cstr_as_bytes(opt_vars().p_msm), true);
 
     spin.si_verbose = i32::from(!added_word);
     spin.si_ascii = i32::from(ascii);
@@ -4982,16 +4851,20 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
 
                 vim_snprintf!(fname.cast(), MAXPATHL, c"%s.aff", in_i);
                 if os_path_exists(fname.cast()) {
-                    afile[i] = spell_read_aff(&mut spin, fname.cast());
+                    afile[i] = spell_read_aff(&mut spin, crate::memory::cstr_until_nul(&fname_buf));
                     if let Some(ref aff) = afile[i] {
                         vim_snprintf!(fname.cast(), MAXPATHL, c"%s.dic", in_i);
-                        if !spell_read_dic(&mut spin, fname.cast(), aff) {
+                        if !spell_read_dic(
+                            &mut spin,
+                            crate::memory::cstr_until_nul(&fname_buf),
+                            aff,
+                        ) {
                             error = true;
                         }
                     } else {
                         error = true;
                     }
-                } else if !spell_read_wordfile(&mut spin, in_i) {
+                } else if !spell_read_wordfile(&mut spin, &innames[i]) {
                     error = true;
                 }
 
@@ -5023,9 +4896,9 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Writing spell file %s..."),
                     wfname.cast::<std::ffi::c_void>(),
                 );
-                spell_message(&spin, g_st().iobuff.as_mut_ptr());
+                spell_message(&spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
 
-                error = !write_vim_spell(&mut spin, wfname.cast());
+                error = !write_vim_spell(&mut spin, crate::memory::cstr_until_nul(&wfname_buf));
 
                 spell_message(&spin, gettext(c"Done!"));
                 vim_snprintf!(
@@ -5034,10 +4907,10 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
-                spell_message(&spin, g_st().iobuff.as_mut_ptr());
+                spell_message(&spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
 
                 if !error {
-                    spell_reload_one(wfname.cast(), added_word);
+                    spell_reload_one(crate::memory::cstr_until_nul(&wfname_buf), added_word);
                 }
             }
 
@@ -5050,24 +4923,21 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             spin.si_nodes.clear();
 
             if spin.si_sugtime != 0 && !error && !g_st().got_int {
-                spell_make_sugfile(&mut spin, wfname.cast());
+                spell_make_sugfile(&mut spin, crate::memory::cstr_until_nul(&wfname_buf));
             }
         }
     }
 }
 
-fn spell_message(spin: &Spellinfo, str_: impl crate::strings::IntoCCharPtr) {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
-            if spin.si_verbose == 0 {
-                verbose_enter();
-            }
-            msg(str_, 0);
-            ui_flush();
-            if spin.si_verbose == 0 {
-                verbose_leave();
-            }
+fn spell_message(spin: &Spellinfo, str_: &std::ffi::CStr) {
+    if spin.si_verbose != 0 || opt_vars().p_verbose > 2 {
+        if spin.si_verbose == 0 {
+            verbose_enter();
+        }
+        msg(str_.as_ptr(), 0);
+        ui_flush();
+        if spin.si_verbose == 0 {
+            verbose_leave();
         }
     }
 }
@@ -5112,8 +4982,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             }
         }
 
-        crate::globals::gopt(&raw const spell_priv_st().int_wordlist)
-            .unwrap()
+        spell_priv_st()
+            .int_wordlist
             .as_ref()
             .unwrap()
             .as_ptr()
@@ -5146,10 +5016,10 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         }
 
         buf = buflist_findname_exp(fnamebuf.cast());
-        if !buf.is_null() && crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
+        if !buf.is_null() && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
             buf = ptr::null_mut();
         }
-        if !buf.is_null() && buf_is_changed_fn(crate::globals::gmut(buf)) {
+        if !buf.is_null() && buf_is_changed_fn(unsafe { &mut *buf }) {
             emsg(gettext(E_BUFLOADED));
             return;
         }
@@ -5271,11 +5141,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         );
 
         if !buf.is_null() {
-            buf_reload(
-                crate::globals::gmut(buf),
-                crate::globals::gptr(buf).b_orig_mode,
-                false,
-            );
+            let orig_mode = unsafe { (*buf).b_orig_mode };
+            buf_reload(unsafe { &mut *buf }, orig_mode, false);
         }
 
         redraw_all_later(UPD_SOME_VALID);
@@ -5364,18 +5231,12 @@ fn init_spellfile() {
     );
 }
 
-fn set_spell_charflags(
-    flags_in: impl crate::strings::IntoCCharPtr,
-    cnt: i32,
-    fol: impl crate::strings::IntoCCharPtr,
-) {
-    let flags = crate::memory::cstr_slice(flags_in, cnt.max(0) as usize);
-    let fol = fol.into_c_char_ptr();
+fn set_spell_charflags(flags_in: &[u8], cnt: i32, fol: &[u8]) {
+    let flags = &flags_in[..(cnt.max(0) as usize).min(flags_in.len())];
     let mut new_st = Spelltab::new();
-    let p = fol;
 
     clear_spell_chartab(&mut new_st);
-    let mut fold_rem = crate::memory::cstr_as_bytes(p);
+    let mut fold_rem = crate::memory::bytes_until_nul(fol);
 
     for i in 0..128 {
         if let Some(&fl) = flags.get(i) {
@@ -5440,39 +5301,37 @@ fn write_spell_prefcond(
     totlen as i32
 }
 
-fn set_map_str(lp: &mut Slang, map: impl crate::strings::IntoCCharPtr) {
-    let map = map.into_c_char_ptr();
-    {
-        let mut headc: i32 = 0;
+fn set_map_str(lp: &mut Slang, map: &[u8]) {
+    let mut headc: i32 = 0;
+    let map_bytes = crate::memory::bytes_until_nul(map);
 
-        if crate::memory::cstr_is_empty(map) {
-            lp.sl_has_map = false;
-            return;
-        }
-        lp.sl_has_map = true;
+    if map_bytes.is_empty() {
+        lp.sl_has_map = false;
+        return;
+    }
+    lp.sl_has_map = true;
 
-        for i in 0..256 {
-            lp.sl_map_array[i] = 0;
-        }
-        lp.sl_map_hash.clear();
+    for i in 0..256 {
+        lp.sl_map_array[i] = 0;
+    }
+    lp.sl_map_hash.clear();
 
-        let mut rem = crate::memory::cstr_as_bytes(map);
-        while !rem.is_empty() {
-            let c = mb_cptr2char_adv(&mut rem);
-            if c == b'/' as i32 {
-                headc = 0;
+    let mut rem = map_bytes;
+    while !rem.is_empty() {
+        let c = mb_cptr2char_adv(&mut rem);
+        if c == b'/' as i32 {
+            headc = 0;
+        } else {
+            if headc == 0 {
+                headc = c;
+            }
+
+            if c >= 256 {
+                if lp.sl_map_hash.insert(c, headc).is_some() {
+                    emsg(gettext(E_DUPLICATE_CHAR_IN_MAP_ENTRY));
+                }
             } else {
-                if headc == 0 {
-                    headc = c;
-                }
-
-                if c >= 256 {
-                    if lp.sl_map_hash.insert(c, headc).is_some() {
-                        emsg(gettext(E_DUPLICATE_CHAR_IN_MAP_ENTRY));
-                    }
-                } else {
-                    lp.sl_map_array[c as usize] = headc;
-                }
+                lp.sl_map_array[c as usize] = headc;
             }
         }
     }
@@ -5492,7 +5351,7 @@ mod tests {
         assert_eq!(buf[0], 0x81);
         assert_eq!(buf[1], 255);
 
-        assert!(spell_check_msm(c"460000,2000,500", false));
-        assert!(!spell_check_msm(c"0,2000,500", false));
+        assert!(spell_check_msm(b"460000,2000,500", false));
+        assert!(!spell_check_msm(b"0,2000,500", false));
     }
 }

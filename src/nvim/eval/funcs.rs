@@ -2317,13 +2317,25 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 options += WILD_ICASE;
             }
             if rettv.v_type == VarType::VarString {
-                if let Some(exp) = expand_one(&mut xpc, s.cast_mut(), None, options, WILD_ALL) {
+                if let Some(exp) = expand_one(
+                    &mut xpc,
+                    crate::memory::cstr_as_opt_cstr(s),
+                    None,
+                    options,
+                    WILD_ALL,
+                ) {
                     crate::eval::typval::tv_set_string(rettv, exp.as_ptr());
                 } else {
                     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
                 }
             } else {
-                expand_one(&mut xpc, s.cast_mut(), None, options, WILD_ALL_KEEP);
+                expand_one(
+                    &mut xpc,
+                    crate::memory::cstr_as_opt_cstr(s),
+                    None,
+                    options,
+                    WILD_ALL_KEEP,
+                );
                 tv_list_alloc_ret(rettv, xpc.xp_numfiles as isize);
                 for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
                     tv_list_append_string(
@@ -3502,13 +3514,9 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
     if return_list {
         rettv.v_type = VarType::VarList;
-        rettv.vval = crate::eval::typval::TypvalVval::List(get_reg_contents_list(
-            regname,
-            if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 },
-        ));
-        if rettv.vval.v_list().is_null() {
-            rettv.vval = crate::eval::typval::TypvalVval::List(tv_list_alloc(0));
-        }
+        let list_ptr = get_reg_contents_list(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 })
+            .map_or_else(|| tv_list_alloc(0), ptr::from_mut);
+        rettv.vval = crate::eval::typval::TypvalVval::List(list_ptr);
         tv_list_ref(rettv.vval.v_list_opt());
     } else {
         let reg_str = get_reg_contents_str(regname, if arg2 != 0 { K_GREG_EXPR_SRC } else { 0 });
@@ -6206,11 +6214,10 @@ pub fn f_getreginfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     let dict = tv_dict_alloc_ret(rettv);
 
-    let list = get_reg_contents_list(regname, K_GREG_EXPR_SRC);
-    if list.is_null() {
+    let Some(list) = get_reg_contents_list(regname, K_GREG_EXPR_SRC) else {
         return;
-    }
-    tv_dict_add_list(dict, c"regcontents", list);
+    };
+    tv_dict_add_list(dict, c"regcontents", ptr::from_mut(list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     let mut reglen: Colnr = 0;
@@ -7767,7 +7774,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         };
         write_reg_contents_ex(
             i32::from(regname),
-            strval,
+            strval.to_bytes(),
             strval.to_bytes().len() as isize,
             append,
             yank_type,

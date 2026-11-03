@@ -128,15 +128,11 @@ impl RuntimeCallback<'_> {
         match self {
             Self::Source { skip_if_loaded } => {
                 let mut sid: i32 = 0;
-                let cookie = if *skip_if_loaded {
-                    &raw mut sid
-                } else {
-                    ptr::null_mut()
-                };
+                let cookie = (*skip_if_loaded).then_some(&mut sid);
                 let _ = source_callback(fnames, all, cookie);
             }
             Self::SourceVimLua => {
-                let _ = source_callback_vim_lua(fnames, all, ptr::null_mut());
+                let _ = source_callback_vim_lua(fnames, all, None);
             }
             Self::AddPackStartDir => {
                 let _ = add_pack_start_dir(fnames, all);
@@ -380,19 +376,10 @@ pub fn estack_init() {
 }
 
 /// Add an item to the execution stack.
-pub fn estack_push(
-    type_: Etype,
-    name: impl crate::strings::IntoCCharPtr,
-    lnum: Linenr,
-) -> &'static mut Estack {
-    let name = name.into_c_char_ptr();
+pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) -> &'static mut Estack {
     rt_st().exestack.push(Estack {
         es_type: type_,
-        es_name: if name.is_null() {
-            None
-        } else {
-            Some(crate::memory::cstr_to_cstring(name))
-        },
+        es_name: name.map(CStr::to_owned),
         es_lnum: lnum,
         es_info: crate::profile::EStackInfo::None,
     });
@@ -401,12 +388,12 @@ pub fn estack_push(
 
 /// Add a user function to the execution stack.
 pub fn estack_push_ufunc(ufunc: &mut UserFunc, lnum: Linenr) {
-    let name = if let Some(ref exp) = ufunc.uf_name_exp {
-        exp.as_ptr()
+    let name: &CStr = if let Some(ref exp) = ufunc.uf_name_exp {
+        exp
     } else {
-        ufunc.uf_name.as_ptr()
+        &ufunc.uf_name
     };
-    let entry = estack_push(ETYPE_UFUNC, name, lnum);
+    let entry = estack_push(ETYPE_UFUNC, Some(name), lnum);
     entry.es_info = crate::profile::EStackInfo::Ufunc(ufunc);
 }
 
@@ -501,12 +488,10 @@ pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
 fn stacktrace_push_item(
     l: &mut TvList,
     fp: Option<&mut UserFunc>,
-    event: impl crate::strings::IntoCCharPtr,
+    event: Option<&CStr>,
     lnum: Linenr,
-    filepath: impl crate::strings::IntoCCharPtr,
+    filepath: Option<&CStr>,
 ) {
-    let event = event.into_c_char_ptr();
-    let filepath = filepath.into_c_char_ptr();
     let d = tv_dict_alloc_lock(VAR_FIXED);
     let mut tv = TypVal {
         v_type: VarType::VarDict,
@@ -517,11 +502,15 @@ fn stacktrace_push_item(
     if let Some(fp) = fp {
         tv_dict_add_func(&mut *d, c"funcref", fp);
     }
-    if !event.is_null() {
-        tv_dict_add_str(&mut *d, c"event", event);
+    if let Some(ev) = event {
+        tv_dict_add_str(&mut *d, c"event", ev);
     }
     tv_dict_add_nr(&mut *d, c"lnum", Varnumber::from(lnum));
-    tv_dict_add_str(&mut *d, c"filepath", filepath);
+    tv_dict_add_str(
+        &mut *d,
+        c"filepath",
+        filepath.map_or(ptr::null(), CStr::as_ptr),
+    );
 
     tv_list_append_tv(l, &mut tv);
 }
@@ -534,13 +523,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
         let mut lnum = entry.es_lnum;
 
         if entry.es_type == ETYPE_SCRIPT {
-            stacktrace_push_item(
-                &mut *l,
-                None,
-                ptr::null(),
-                lnum,
-                entry.name_cstr().map_or(ptr::null(), CStr::as_ptr),
-            );
+            stacktrace_push_item(&mut *l, None, None, lnum, entry.name_cstr());
         } else if entry.es_type == ETYPE_UFUNC {
             let fp = entry.es_info.ufunc();
             let sctx = fp.as_deref().unwrap().uf_script_ctx;
@@ -550,7 +533,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(&mut *l, fp, ptr::null(), lnum, filepath.as_ptr());
+            stacktrace_push_item(&mut *l, fp, None, lnum, Some(&filepath));
         } else if entry.es_type == ETYPE_AUCMD {
             let sctx = entry.es_info.aucmd_sctx();
             let filepath = if sctx.sc_sid > 0 {
@@ -559,13 +542,7 @@ pub fn stacktrace_create() -> &'static mut TvList {
                 std::borrow::Cow::Borrowed(c"")
             };
             lnum += sctx.sc_lnum;
-            stacktrace_push_item(
-                &mut *l,
-                None,
-                entry.name_cstr().map_or(ptr::null(), CStr::as_ptr),
-                lnum,
-                filepath.as_ptr(),
-            );
+            stacktrace_push_item(&mut *l, None, entry.name_cstr(), lnum, Some(&filepath));
         }
     }
     l
@@ -579,26 +556,26 @@ pub fn f_getstacktrace(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     l.lv_refcount += 1;
 }
 
-fn get_runtime_cmd_flags(argp: &mut crate::strings::RawCCharPtrMut, where_len: usize) -> i32 {
-    let arg = *argp;
+fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
+    let arg = argp.as_ptr();
     if where_len == 0 {
         return 0;
     }
     let slice = crate::memory::cstr_slice(arg, where_len);
     if b"START".starts_with(slice) {
-        *argp = skipwhite(arg.wrapping_add(where_len));
+        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
         return DIP_START + DIP_NORTP;
     }
     if b"OPT".starts_with(slice) {
-        *argp = skipwhite(arg.wrapping_add(where_len));
+        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
         return DIP_OPT + DIP_NORTP;
     }
     if b"PACK".starts_with(slice) {
-        *argp = skipwhite(arg.wrapping_add(where_len));
+        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
         return DIP_START + DIP_OPT + DIP_NORTP;
     }
     if b"ALL".starts_with(slice) {
-        *argp = skipwhite(arg.wrapping_add(where_len));
+        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
         return DIP_START + DIP_OPT;
     }
     0
@@ -606,49 +583,49 @@ fn get_runtime_cmd_flags(argp: &mut crate::strings::RawCCharPtrMut, where_len: u
 
 /// ":runtime [where] {name}"
 pub fn ex_runtime(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
-    let p = skiptowhite(arg);
-    let where_len = (p as usize) - (arg as usize);
+    let p = skiptowhite(arg.as_ptr());
+    let where_len = (p as usize) - (arg.as_ptr() as usize);
     flags += get_runtime_cmd_flags(&mut arg, where_len);
-    debug_assert!(!arg.is_null());
     source_runtime(arg, flags);
 }
 
 /// Set the completion context for the :runtime command.
-pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, arg: impl crate::strings::IntoCCharPtr) {
-    let mut arg = arg.into_c_char_ptr();
-    {
-        let mut p = skiptowhite(arg);
-        let mut arg_mut = arg.cast_mut();
-        rt_st().runtime_expand_flags = if !crate::memory::cstr_is_empty(p) {
-            get_runtime_cmd_flags(&mut arg_mut, (p as usize) - (arg as usize))
-        } else {
-            0
-        };
-        arg = arg_mut;
-        loop {
-            p = skiptowhite_esc(arg);
-            if crate::memory::cstr_is_empty(p) {
-                break;
-            }
-            if rt_st().runtime_expand_flags == 0 {
-                rt_st().runtime_expand_flags = DIP_ALL;
-            }
-            arg = skipwhite(p);
+pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
+    let mut p = skiptowhite(arg.as_ptr());
+    rt_st().runtime_expand_flags = if !crate::memory::cstr_is_empty(p) {
+        let len = (p as usize) - (arg.as_ptr() as usize);
+        get_runtime_cmd_flags(&mut arg, len)
+    } else {
+        0
+    };
+    let mut arg_ptr = arg.as_ptr();
+    loop {
+        p = skiptowhite_esc(arg_ptr);
+        if crate::memory::cstr_is_empty(p) {
+            break;
         }
-        xp.xp_context = EXPAND_RUNTIME;
-        xp.xp_pattern = arg.cast_mut().cast();
+        if rt_st().runtime_expand_flags == 0 {
+            rt_st().runtime_expand_flags = DIP_ALL;
+        }
+        arg_ptr = skipwhite(p);
     }
+    xp.xp_context = EXPAND_RUNTIME;
+    xp.xp_pattern = arg_ptr.cast_mut().cast();
 }
 
-fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) -> bool {
+fn source_callback_vim_lua(
+    fnames: &[std::ffi::CString],
+    all: bool,
+    mut cookie: Option<&mut i32>,
+) -> bool {
     let mut did_one = false;
 
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
         if path_with_extension(fname, c"vim") {
-            do_source(fname, false, DOSO_NONE, cookie);
+            do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
                 return true;
@@ -659,7 +636,7 @@ fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
         if path_with_extension(fname, c"lua") {
-            do_source(fname, false, DOSO_NONE, cookie);
+            do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
                 return true;
@@ -670,8 +647,8 @@ fn source_callback_vim_lua(fnames: &[std::ffi::CString], all: bool, cookie: *mut
     did_one
 }
 
-fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) -> bool {
-    let mut did_one = source_callback_vim_lua(fnames, all, cookie);
+fn source_callback(fnames: &[std::ffi::CString], all: bool, mut cookie: Option<&mut i32>) -> bool {
+    let mut did_one = source_callback_vim_lua(fnames, all, cookie.as_deref_mut());
 
     if !all && did_one {
         return true;
@@ -680,7 +657,7 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) ->
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
         if !path_with_extension(fname, c"vim") && !path_with_extension(fname, c"lua") {
-            do_source(fname, false, DOSO_NONE, cookie);
+            do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
                 return true;
@@ -693,122 +670,123 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, cookie: *mut i32) ->
 
 /// Find the patterns in "name" in all directories in "path" and invoke `callback`.
 pub fn do_in_path(
-    path: impl crate::strings::IntoCCharPtr,
+    path_cstr: &std::ffi::CStr,
     prefix: &std::ffi::CStr,
-    name: impl crate::strings::IntoCCharPtr,
+    name_opt: Option<&std::ffi::CStr>,
     flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    let path = path.into_c_char_ptr();
-    let name = name.into_c_char_ptr().cast_mut();
+    let path = path_cstr.as_ptr();
+    let name = name_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let mut did_one = false;
+
+    let rtp_copy = path_cstr.to_owned();
+    let mut buf_vec = vec![0u8; MAXPATHL];
+    let buf = buf_vec.as_mut_ptr();
     {
-        let mut did_one = false;
-
-        let rtp_copy = cstr_to_cstring(path);
-        let mut buf_vec = vec![0u8; MAXPATHL];
-        let mut buf = buf_vec.as_mut_ptr();
-        {
-            if opt_vars().p_verbose > 10 && !name.is_null() {
-                verbose_enter();
-                if !crate::memory::cstr_is_empty(prefix.as_ptr()) {
-                    smsg!(
-                        0,
-                        gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
-                        name,
-                        prefix.as_ptr(),
-                        path,
-                    );
-                } else {
-                    smsg!(0, gettext(c"Searching for \"%s\" in \"%s\""), name, path,);
-                }
-                verbose_leave();
-            }
-
-            let do_all = (flags & DIP_ALL) != 0;
-
-            let mut rtp = rtp_copy.as_ptr().cast_mut();
-            while !crate::memory::cstr_is_empty(rtp) && (do_all || !did_one) {
-                let buflen = copy_option_part(&mut rtp, buf.cast(), MAXPATHL, c",");
-
-                if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
-                    let is_after = path_is_after(crate::memory::cstr_slice(buf.cast(), buflen));
-                    if (is_after && (flags & DIP_NOAFTER) != 0)
-                        || (!is_after && (flags & DIP_AFTER) != 0)
-                    {
-                        continue;
-                    }
-                }
-
-                if name.is_null() {
-                    callback.invoke(&[crate::memory::cstr_to_cstring(buf.cast())], do_all);
-                    did_one = true;
-                } else {
-                    let prefix_len = prefix.to_bytes().len();
-                    let name_len = crate::memory::cstr_len(name);
-                    if buflen + 2 + prefix_len + name_len < MAXPATHL {
-                        add_pathsep(buf.cast());
-                        let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
-                        buf_vec[cur_len..(cur_len + prefix_len + 1)]
-                            .copy_from_slice(prefix.to_bytes_with_nul());
-                        let tail = buf.wrapping_add(cur_len + prefix_len);
-
-                        let mut np = name;
-                        while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
-                            let tail_off = (tail as usize) - (buf as usize);
-                            debug_assert!(MAXPATHL >= tail_off);
-                            copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
-
-                            if opt_vars().p_verbose > 10 {
-                                verbose_enter();
-                                smsg!(0, gettext(c"Searching for \"%s\""), buf);
-                                verbose_leave();
-                            }
-
-                            let ew_flags = (if (flags & DIP_DIR) != 0 {
-                                EW_DIR
-                            } else {
-                                EW_FILE
-                            }) | (if (flags & DIP_DIRFILE) != 0 {
-                                EW_DIR | EW_FILE
-                            } else {
-                                0
-                            });
-
-                            did_one |= gen_expand_wildcards_and_cb(
-                                1, &mut buf, ew_flags, do_all, callback,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-        drop(buf_vec);
-        drop(rtp_copy);
-        if !did_one && !name.is_null() {
-            let basepath = if ptr::eq(path, opt_vars().p_rtp) {
-                c"runtimepath".as_ptr()
+        if opt_vars().p_verbose > 10 && !name.is_null() {
+            verbose_enter();
+            if !crate::memory::cstr_is_empty(prefix.as_ptr()) {
+                smsg!(
+                    0,
+                    gettext(c"Searching for \"%s\" under \"%s\" in \"%s\""),
+                    name,
+                    prefix.as_ptr(),
+                    path,
+                );
             } else {
-                c"packpath".as_ptr()
-            };
-
-            if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(E_DIRNOTF), basepath, name);
-            } else if opt_vars().p_verbose > 1 {
-                verbose_enter();
-                smsg!(0, gettext(c"not found in '%s': \"%s\""), basepath, name,);
-                verbose_leave();
+                smsg!(0, gettext(c"Searching for \"%s\" in \"%s\""), name, path,);
             }
+            verbose_leave();
         }
 
-        did_one
+        let do_all = (flags & DIP_ALL) != 0;
+
+        let mut rtp = rtp_copy.as_ptr().cast_mut();
+        while !crate::memory::cstr_is_empty(rtp) && (do_all || !did_one) {
+            let buflen = copy_option_part(&mut rtp, buf.cast(), MAXPATHL, c",");
+
+            if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
+                let is_after = path_is_after(crate::memory::cstr_slice(buf.cast(), buflen));
+                if (is_after && (flags & DIP_NOAFTER) != 0)
+                    || (!is_after && (flags & DIP_AFTER) != 0)
+                {
+                    continue;
+                }
+            }
+
+            if name.is_null() {
+                callback.invoke(&[crate::memory::cstr_to_cstring(buf.cast())], do_all);
+                did_one = true;
+            } else {
+                let prefix_len = prefix.to_bytes().len();
+                let name_len = crate::memory::cstr_len(name);
+                if buflen + 2 + prefix_len + name_len < MAXPATHL {
+                    add_pathsep(buf.cast());
+                    let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
+                    buf_vec[cur_len..(cur_len + prefix_len + 1)]
+                        .copy_from_slice(prefix.to_bytes_with_nul());
+                    let tail = buf.wrapping_add(cur_len + prefix_len);
+
+                    let mut np = name;
+                    while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
+                        let tail_off = (tail as usize) - (buf as usize);
+                        debug_assert!(MAXPATHL >= tail_off);
+                        copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
+
+                        if opt_vars().p_verbose > 10 {
+                            verbose_enter();
+                            smsg!(0, gettext(c"Searching for \"%s\""), buf);
+                            verbose_leave();
+                        }
+
+                        let ew_flags = (if (flags & DIP_DIR) != 0 {
+                            EW_DIR
+                        } else {
+                            EW_FILE
+                        }) | (if (flags & DIP_DIRFILE) != 0 {
+                            EW_DIR | EW_FILE
+                        } else {
+                            0
+                        });
+
+                        did_one |= gen_expand_wildcards_and_cb(
+                            crate::memory::cstr_until_nul(&buf_vec),
+                            ew_flags,
+                            do_all,
+                            callback,
+                        );
+                    }
+                }
+            }
+        }
     }
+    drop(buf_vec);
+    drop(rtp_copy);
+    if !did_one && !name.is_null() {
+        let basepath = if ptr::eq(path, opt_vars().p_rtp) {
+            c"runtimepath".as_ptr()
+        } else {
+            c"packpath".as_ptr()
+        };
+
+        if (flags & DIP_ERR) != 0 {
+            semsg!(gettext(E_DIRNOTF), basepath, name);
+        } else if opt_vars().p_verbose > 1 {
+            verbose_enter();
+            smsg!(0, gettext(c"not found in '%s': \"%s\""), basepath, name,);
+            verbose_leave();
+        }
+    }
+
+    did_one
 }
 
-fn runtime_search_path_get_cached() -> *mut [SearchPathItem] {
+fn runtime_search_path_get_cached() -> &'static mut [SearchPathItem] {
     runtime_search_path_validate();
     rt_st().runtime_search_path_refcount += 1;
     let rsp = &mut rt_st().runtime_search_path;
-    ptr::slice_from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len())
+    unsafe { std::slice::from_raw_parts_mut(rsp.as_mut_ptr(), rsp.len()) }
 }
 
 fn copy_runtime_search_path(src: &[SearchPathItem]) -> RuntimeSearchPath {
@@ -823,92 +801,88 @@ fn runtime_search_path_unref() {
 }
 
 fn do_in_cached_path(
-    name: impl crate::strings::IntoCCharPtr,
+    name_opt: Option<&std::ffi::CStr>,
     flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    let name = name.into_c_char_ptr().cast_mut();
-    {
-        let mut did_one = false;
-        let mut buf = [0u8; MAXPATHL];
+    let name = name_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let mut did_one = false;
+    let mut buf = [0u8; MAXPATHL];
 
-        if opt_vars().p_verbose > 10 && !name.is_null() {
+    if opt_vars().p_verbose > 10 && !name.is_null() {
+        verbose_enter();
+        smsg!(0, gettext(c"Searching for \"%s\" in runtime path"), name,);
+        verbose_leave();
+    }
+
+    let path: &[SearchPathItem] = runtime_search_path_get_cached();
+
+    let do_all = (flags & DIP_ALL) != 0;
+
+    for item in path {
+        let buflen = item.path.as_bytes().len();
+
+        if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
+            && ((item.after && (flags & DIP_NOAFTER) != 0)
+                || (!item.after && (flags & DIP_AFTER) != 0))
+        {
+            continue;
+        }
+
+        if name.is_null() {
+            callback.invoke(std::slice::from_ref(&item.path), do_all);
+        } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
+            buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
+            add_pathsep(buf.as_mut_ptr().cast());
+            let tail = buf
+                .as_mut_ptr()
+                .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
+
+            let mut np = name;
+            while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
+                let tail_off = (tail as usize) - (buf.as_ptr() as usize);
+                debug_assert!(MAXPATHL >= tail_off);
+                copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
+
+                if opt_vars().p_verbose > 10 {
+                    verbose_enter();
+                    smsg!(0, gettext(c"Searching for \"%s\""), buf.as_ptr());
+                    verbose_leave();
+                }
+
+                let ew_flags = (if (flags & DIP_DIR) != 0 {
+                    EW_DIR
+                } else {
+                    EW_FILE
+                }) | (if (flags & DIP_DIRFILE) != 0 {
+                    EW_DIR | EW_FILE
+                } else {
+                    0
+                }) | EW_NOBREAK;
+
+                did_one |= gen_expand_wildcards_and_cb(
+                    crate::memory::cstr_until_nul(&buf),
+                    ew_flags,
+                    do_all,
+                    callback,
+                );
+            }
+        }
+    }
+
+    if !did_one && !name.is_null() {
+        if (flags & DIP_ERR) != 0 {
+            semsg!(gettext(E_DIRNOTF), c"runtime path", name);
+        } else if opt_vars().p_verbose > 1 {
             verbose_enter();
-            smsg!(0, gettext(c"Searching for \"%s\" in runtime path"), name,);
+            smsg!(0, gettext(c"not found in runtime path: \"%s\""), name,);
             verbose_leave();
         }
-
-        let path = crate::globals::gref(runtime_search_path_get_cached());
-
-        let do_all = (flags & DIP_ALL) != 0;
-
-        for item in path {
-            let buflen = item.path.as_bytes().len();
-
-            if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0
-                && ((item.after && (flags & DIP_NOAFTER) != 0)
-                    || (!item.after && (flags & DIP_AFTER) != 0))
-            {
-                continue;
-            }
-
-            if name.is_null() {
-                callback.invoke(std::slice::from_ref(&item.path), do_all);
-            } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
-                buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
-                add_pathsep(buf.as_mut_ptr().cast());
-                let tail = buf
-                    .as_mut_ptr()
-                    .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
-
-                let mut np = name;
-                while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
-                    let tail_off = (tail as usize) - (buf.as_ptr() as usize);
-                    debug_assert!(MAXPATHL >= tail_off);
-                    copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
-
-                    if opt_vars().p_verbose > 10 {
-                        verbose_enter();
-                        smsg!(0, gettext(c"Searching for \"%s\""), buf.as_ptr());
-                        verbose_leave();
-                    }
-
-                    let ew_flags = (if (flags & DIP_DIR) != 0 {
-                        EW_DIR
-                    } else {
-                        EW_FILE
-                    }) | (if (flags & DIP_DIRFILE) != 0 {
-                        EW_DIR | EW_FILE
-                    } else {
-                        0
-                    }) | EW_NOBREAK;
-
-                    let mut pat = [buf.as_mut_ptr()];
-                    did_one |= gen_expand_wildcards_and_cb(
-                        1,
-                        pat.as_mut_ptr(),
-                        ew_flags,
-                        do_all,
-                        callback,
-                    );
-                }
-            }
-        }
-
-        if !did_one && !name.is_null() {
-            if (flags & DIP_ERR) != 0 {
-                semsg!(gettext(E_DIRNOTF), c"runtime path", name);
-            } else if opt_vars().p_verbose > 1 {
-                verbose_enter();
-                smsg!(0, gettext(c"not found in runtime path: \"%s\""), name,);
-                verbose_leave();
-            }
-        }
-
-        runtime_search_path_unref();
-
-        did_one
     }
+
+    runtime_search_path_unref();
+
+    did_one
 }
 
 pub fn runtime_inspect(arena: &mut Arena) -> Array {
@@ -943,16 +917,8 @@ pub fn runtime_inspect(arena: &mut Arena) -> Array {
 }
 
 pub fn runtime_get_named(lua: bool, pat: Array, all: bool, arena: &mut Arena) -> Array {
-    let path = crate::globals::gmut(runtime_search_path_get_cached());
-    let rv = runtime_get_named_common(
-        lua,
-        pat,
-        all,
-        path,
-        (&raw mut rt_st().get_named_buf).cast(),
-        MAXPATHL,
-        Some(arena),
-    );
+    let path = runtime_search_path_get_cached();
+    let rv = runtime_get_named_common(lua, pat, all, path, &mut rt_st().get_named_buf, Some(arena));
     runtime_search_path_unref();
     rv
 }
@@ -962,15 +928,8 @@ pub fn runtime_get_named_thread(lua: bool, pat: Array, all: bool) -> Array {
         .lock()
         .unwrap_or_else(|e| e.into_inner());
     let path = &mut rt_st().runtime_search_path_thread;
-    runtime_get_named_common(
-        lua,
-        pat,
-        all,
-        path,
-        (&raw mut rt_st().get_named_thread_buf).cast(),
-        MAXPATHL,
-        None,
-    )
+    let buf: &mut [u8] = &mut rt_st().get_named_thread_buf;
+    runtime_get_named_common(lua, pat, all, path, buf, None)
 }
 
 fn runtime_get_named_common(
@@ -978,10 +937,11 @@ fn runtime_get_named_common(
     pat: Array,
     all: bool,
     path: &mut [SearchPathItem],
-    buf: *mut u8,
-    buf_len: usize,
+    buf_slice: &mut [u8],
     mut arena: Option<&mut Arena>,
 ) -> Array {
+    let buf = buf_slice.as_mut_ptr();
+    let buf_len = buf_slice.len();
     let mut rv = arena_array_opt(arena.as_deref_mut(), path.len() * pat.size);
     for item in path.iter_mut() {
         if lua {
@@ -1024,107 +984,88 @@ fn runtime_get_named_common(
 
 /// Find "name" in "path".
 pub fn do_in_path_and_pp(
-    path: impl crate::strings::IntoCCharPtr,
-    name: impl crate::strings::IntoCCharPtr,
+    path: &std::ffi::CStr,
+    name: Option<&std::ffi::CStr>,
     flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    let path = path.into_c_char_ptr();
-    let name = name.into_c_char_ptr();
-    {
-        let mut done = false;
+    let mut done = false;
 
-        if (flags & DIP_NORTP) == 0 {
-            let name_arg = if !name.is_null() && crate::memory::cstr_is_empty(name) {
-                ptr::null_mut()
-            } else {
-                name
-            };
-            done |= do_in_path(path, c"", name_arg, flags, callback);
-        }
-
-        if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
-            let mut prefix = if (flags & DIP_AFTER) != 0 {
-                c"pack/*/start/*/after/"
-            } else {
-                c"pack/*/start/*/"
-            };
-            done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
-
-            if !done || (flags & DIP_ALL) != 0 {
-                prefix = if (flags & DIP_AFTER) != 0 {
-                    c"start/*/after/"
-                } else {
-                    c"start/*/"
-                };
-                done |= do_in_path(opt_vars().p_pp, prefix, name, flags & !DIP_AFTER, callback);
-            }
-        }
-
-        if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
-            done |= do_in_path(opt_vars().p_pp, c"pack/*/opt/*/", name, flags, callback);
-
-            if !done || (flags & DIP_ALL) != 0 {
-                done |= do_in_path(opt_vars().p_pp, c"opt/*/", name, flags, callback);
-            }
-        }
-
-        done
+    if (flags & DIP_NORTP) == 0 {
+        let name_arg = name.filter(|s| !s.to_bytes().is_empty());
+        done |= do_in_path(path, c"", name_arg, flags, callback);
     }
+
+    let p_pp = crate::memory::cstr_from_ptr(opt_vars().p_pp);
+    if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_START) != 0 {
+        let mut prefix = if (flags & DIP_AFTER) != 0 {
+            c"pack/*/start/*/after/"
+        } else {
+            c"pack/*/start/*/"
+        };
+        done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
+
+        if !done || (flags & DIP_ALL) != 0 {
+            prefix = if (flags & DIP_AFTER) != 0 {
+                c"start/*/after/"
+            } else {
+                c"start/*/"
+            };
+            done |= do_in_path(p_pp, prefix, name, flags & !DIP_AFTER, callback);
+        }
+    }
+
+    if (!done || (flags & DIP_ALL) != 0) && (flags & DIP_OPT) != 0 {
+        done |= do_in_path(p_pp, c"pack/*/opt/*/", name, flags, callback);
+
+        if !done || (flags & DIP_ALL) != 0 {
+            done |= do_in_path(p_pp, c"opt/*/", name, flags, callback);
+        }
+    }
+
+    done
 }
 
 fn push_path(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
-    entry: impl crate::strings::IntoCCharPtr,
+    entry: &std::ffi::CStr,
     after: bool,
     pos_in_rtp: usize,
 ) -> bool {
-    let entry = entry.into_c_char_ptr();
-    {
-        if rtp_used.insert(crate::memory::cstr_as_bytes(entry).to_vec()) {
-            search_path.push(SearchPathItem {
-                path: crate::memory::cstr_to_cstring(entry),
-                after,
-                pack_inserted: false,
-                has_lua: K_NONE,
-                pos_in_rtp,
-            });
-            return true;
-        }
-        false
+    if rtp_used.insert(entry.to_bytes().to_vec()) {
+        search_path.push(SearchPathItem {
+            path: entry.to_owned(),
+            after,
+            pack_inserted: false,
+            has_lua: K_NONE,
+            pos_in_rtp,
+        });
+        return true;
     }
+    false
 }
 
 fn expand_rtp_entry(
     search_path: &mut RuntimeSearchPath,
     rtp_used: &mut std::collections::HashSet<Vec<u8>>,
-    entry: impl crate::strings::IntoCCharPtr,
+    entry: &std::ffi::CStr,
     after: bool,
     pos_in_rtp: usize,
 ) {
-    let entry = entry.into_c_char_ptr().cast_mut();
-    {
-        if rtp_used.contains(crate::memory::cstr_as_bytes(entry)) {
-            return;
-        }
+    if rtp_used.contains(entry.to_bytes()) {
+        return;
+    }
 
-        if crate::memory::cstr_is_empty(entry) {
-            push_path(search_path, rtp_used, entry, after, pos_in_rtp);
-        }
+    if entry.to_bytes().is_empty() {
+        push_path(search_path, rtp_used, entry, after, pos_in_rtp);
+    }
 
-        let mut files: Vec<std::ffi::CString> = Vec::new();
-        let mut pat = [entry];
-        if gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR | EW_NOBREAK) {
-            for file in &files {
-                push_path(
-                    search_path,
-                    rtp_used,
-                    file.as_ptr().cast_mut(),
-                    after,
-                    pos_in_rtp,
-                );
-            }
+    let mut files: Vec<std::ffi::CString> = Vec::new();
+    let mut pat = [entry.as_ptr().cast_mut()];
+    if gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR | EW_NOBREAK) {
+        for file in &files {
+            push_path(search_path, rtp_used, file, after, pos_in_rtp);
         }
     }
 }
@@ -1137,7 +1078,6 @@ fn expand_pack_entry(
     pos_in_rtp: usize,
 ) {
     let pack_entry_len = pack_entry_bytes.len();
-    let buf: *mut u8 = (&raw mut rt_st().pack_entry_buf).cast();
     let start_pats = [c"/pack/*/start/*", c"/start/*"];
     for pat in &start_pats {
         let pat_len = pat.to_bytes().len();
@@ -1149,8 +1089,9 @@ fn expand_pack_entry(
             &mut rt_st().pack_entry_buf[pack_entry_len..],
             pat.to_bytes(),
         );
-        expand_rtp_entry(search_path, rtp_used, buf.cast(), false, pos_in_rtp);
-        let mut after_bytes = Vec::from(crate::memory::cstr_as_bytes(buf.cast()));
+        let entry_cstr = crate::memory::cstr_until_nul(&rt_st().pack_entry_buf);
+        expand_rtp_entry(search_path, rtp_used, entry_cstr, false, pos_in_rtp);
+        let mut after_bytes = Vec::from(entry_cstr.to_bytes());
         after_bytes.extend_from_slice(b"/after");
         after_path.push(cstr_from_bytes(&after_bytes));
     }
@@ -1201,7 +1142,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            buf.cast(),
+            crate::memory::cstr_from_ptr(buf.cast()),
             false,
             pos_in_rtp,
         );
@@ -1240,7 +1181,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            ap.as_ptr().cast_mut(),
+            &ap,
             true,
             sentinel_pos_in_rtp,
         );
@@ -1253,7 +1194,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
-            buf.cast(),
+            crate::memory::cstr_from_ptr(buf.cast()),
             path_is_after(crate::memory::cstr_slice(buf.cast(), buflen)),
             pos_in_rtp,
         );
@@ -1300,32 +1241,29 @@ pub fn update_runtime_search_path_thread(force: bool) {
 
 /// Just like do_in_path_and_pp(), using 'runtimepath' for "path".
 pub fn do_in_runtimepath(
-    name: impl crate::strings::IntoCCharPtr,
+    name: &std::ffi::CStr,
     mut flags: i32,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
-    let name = name.into_c_char_ptr().cast_mut();
-    {
-        let mut success = false;
-        if (flags & DIP_NORTP) == 0 {
-            let name_arg = if !name.is_null() && crate::memory::cstr_is_empty(name) {
-                ptr::null_mut()
-            } else {
-                name
-            };
-            success |= do_in_cached_path(name_arg, flags, callback);
-            flags = (flags & !DIP_START) | DIP_NORTP;
-        }
-        if (flags & (DIP_START | DIP_OPT)) != 0 && (!success || (flags & DIP_ALL) != 0) {
-            success |= do_in_path_and_pp(opt_vars().p_rtp, name, flags, callback);
-        }
-        success
+    let mut success = false;
+    if (flags & DIP_NORTP) == 0 {
+        let name_arg = (!name.to_bytes().is_empty()).then_some(name);
+        success |= do_in_cached_path(name_arg, flags, callback);
+        flags = (flags & !DIP_START) | DIP_NORTP;
     }
+    if (flags & (DIP_START | DIP_OPT)) != 0 && (!success || (flags & DIP_ALL) != 0) {
+        success |= do_in_path_and_pp(
+            crate::memory::cstr_from_ptr(opt_vars().p_rtp),
+            Some(name),
+            flags,
+            callback,
+        );
+    }
+    success
 }
 
 /// Source the file "name" from all directories in 'runtimepath'.
-pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
-    let name = name.into_c_char_ptr().cast_mut();
+pub fn source_runtime(name: &std::ffi::CStr, flags: i32) -> bool {
     do_in_runtimepath(
         name,
         flags,
@@ -1336,32 +1274,25 @@ pub fn source_runtime(name: impl crate::strings::IntoCCharPtr, flags: i32) -> bo
 }
 
 /// Just like source_runtime(), but only source vim and lua files.
-pub fn source_runtime_vim_lua(name: impl crate::strings::IntoCCharPtr, flags: i32) -> bool {
-    let name = name.into_c_char_ptr();
+pub fn source_runtime_vim_lua(name: &std::ffi::CStr, flags: i32) -> bool {
     do_in_runtimepath(name, flags, &mut RuntimeCallback::SourceVimLua)
 }
 
 /// Just like source_runtime(), but use "path" instead of 'runtimepath' and only source .vim and .lua files.
-pub fn source_in_path_vim_lua(
-    path: impl crate::strings::IntoCCharPtr,
-    name: impl crate::strings::IntoCCharPtr,
-    flags: i32,
-) -> bool {
-    let path = path.into_c_char_ptr();
-    let name = name.into_c_char_ptr();
-    do_in_path_and_pp(path, name, flags, &mut RuntimeCallback::SourceVimLua)
+pub fn source_in_path_vim_lua(path: &std::ffi::CStr, name: &std::ffi::CStr, flags: i32) -> bool {
+    do_in_path_and_pp(path, Some(name), flags, &mut RuntimeCallback::SourceVimLua)
 }
 
-fn gen_expand_wildcards_and_cb<T>(
-    num_pat: i32,
-    pats: *mut *mut T,
+fn gen_expand_wildcards_and_cb(
+    pat: &std::ffi::CStr,
     flags: i32,
     all: bool,
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
+    let mut pats = [pat.as_ptr().cast_mut()];
 
-    if !gen_expand_wildcards_vec(num_pat, pats.cast(), &mut files, flags) {
+    if !gen_expand_wildcards_vec(1, pats.as_mut_ptr().cast(), &mut files, flags) {
         return false;
     }
 
@@ -1370,249 +1301,245 @@ fn gen_expand_wildcards_and_cb<T>(
     true
 }
 
-fn add_pack_dir_to_rtp(fname: impl crate::strings::IntoCCharPtr, is_pack: bool) -> bool {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut retval = false;
+fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
+    let fname = fname_cstr.as_ptr().cast_mut();
+    let mut retval = false;
 
-        let past_head = get_past_head(fname);
-        let mut p1 = past_head;
-        let mut p2 = p1;
-        let mut p3 = p1;
-        let mut p4 = p1;
-        let rem_bytes = crate::memory::cstr_as_bytes(past_head);
-        let mut idx = 0usize;
-        while idx < rem_bytes.len() {
-            if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
-                p4 = p3;
-                p3 = p2;
-                p2 = p1;
-                p1 = past_head.wrapping_add(idx);
+    let past_head = get_past_head(fname);
+    let mut p1 = past_head;
+    let mut p2 = p1;
+    let mut p3 = p1;
+    let mut p4 = p1;
+    let rem_bytes = crate::memory::cstr_as_bytes(past_head);
+    let mut idx = 0usize;
+    while idx < rem_bytes.len() {
+        if vim_ispathsep_nocolon(rem_bytes[idx] as i32) {
+            p4 = p3;
+            p3 = p2;
+            p2 = p1;
+            p1 = past_head.wrapping_add(idx);
+        }
+        idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
+    }
+
+    p4 = p4.wrapping_add(1);
+    let c = unsafe { *p4 };
+
+    unsafe { *p4 = NUL as _ };
+
+    let ffname_cstr = fix_fname(fname);
+
+    unsafe { *p4 = c };
+
+    let Some(ref ffname_owned) = ffname_cstr else {
+        return false;
+    };
+    let ffname = ffname_owned.as_ptr();
+
+    let mut afterdir_cstr: Option<std::ffi::CString> = None;
+
+    'block: {
+        let mut fname_len = ffname_owned.as_bytes().len();
+        let mut buf_data = [0u8; MAXPATHL];
+        let mut buf = NvimString {
+            data: buf_data.as_mut_ptr().cast(),
+            size: 0,
+        };
+
+        let mut insp: *const u8 = ptr::null();
+        let mut after_insp: *const u8 = ptr::null();
+        let mut p_rtp_len: usize = 0;
+        let mut entry: *mut u8 = opt_vars().p_rtp.cast();
+        while !crate::memory::cstr_is_empty(entry.cast()) {
+            let cur_entry = entry;
+            buf.size = copy_option_part(&raw mut entry, buf.data.cast(), MAXPATHL, c",");
+
+            p_rtp_len += if crate::memory::cstr_first_byte(cur_entry.wrapping_add(buf.size).cast())
+                == b','
+            {
+                buf.size + 1
+            } else {
+                buf.size
+            };
+
+            let is_after = crate::memory::cstr_as_bytes(buf.data)
+                .windows(5)
+                .position(|w| w == b"after")
+                .is_some_and(|i| {
+                    i > 0
+                        && vim_ispathsep(buf_data[i - 1] as i32)
+                        && (vim_ispathsep(buf_data[i + 5] as i32)
+                            || buf_data[i + 5] == 0
+                            || buf_data[i + 5] == b',')
+                });
+
+            if is_after {
+                if insp.is_null() {
+                    insp = cur_entry;
+                }
+                after_insp = cur_entry;
+                break;
             }
-            idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
+
+            if insp.is_null() {
+                add_pathsep(buf.data.cast());
+                let Some(rtp_ffname) = fix_fname(buf.data) else {
+                    break 'block;
+                };
+                if path_cmp(
+                    opt_vars().p_fic != 0,
+                    rtp_ffname.as_ptr(),
+                    ffname,
+                    fname_len,
+                ) == 0
+                {
+                    insp = entry;
+                }
+            }
         }
 
-        p4 = p4.wrapping_add(1);
-        let c = *crate::globals::gptr(p4);
+        p_rtp_len += crate::memory::cstr_len(opt_vars().p_rtp.wrapping_add(p_rtp_len));
+        if insp.is_null() {
+            insp = opt_vars().p_rtp.wrapping_add(p_rtp_len).cast();
+        }
 
-        *crate::globals::gptr(p4) = NUL;
-
-        let ffname_cstr = fix_fname(fname);
-
-        *crate::globals::gptr(p4) = c;
-
-        let Some(ref ffname_owned) = ffname_cstr else {
-            return false;
+        fname_len = crate::memory::cstr_len(fname);
+        let ad = crate::path::concat_fnames_cstr(fname, c"after", true);
+        let mut afterdir = NvimString {
+            data: ad.as_ptr().cast_mut(),
+            size: ad.as_bytes().len(),
         };
-        let ffname = ffname_owned.as_ptr();
+        let afterdir_has_entries = if is_pack {
+            pack_has_entries(&ad)
+        } else {
+            os_isdir(afterdir.data)
+        };
+        afterdir_cstr = Some(ad);
+        if !afterdir_has_entries {
+            afterdir.size = 0;
+        }
 
-        let mut afterdir_cstr: Option<std::ffi::CString> = None;
+        let new_rtp_capacity = p_rtp_len + fname_len + afterdir.size + 3;
+        let mut new_rtp_vec = Vec::with_capacity(new_rtp_capacity);
+        let p_rtp_slice = crate::memory::cstr_slice(opt_vars().p_rtp, p_rtp_len);
+        let fname_slice = crate::memory::cstr_slice(fname, fname_len);
 
-        'block: {
-            let mut fname_len = ffname_owned.as_bytes().len();
-            let mut buf_data = [0u8; MAXPATHL];
-            let mut buf = NvimString {
-                data: buf_data.as_mut_ptr().cast(),
-                size: 0,
-            };
+        let mut keep = (insp as usize) - (opt_vars().p_rtp as usize);
+        let mut first_pos = keep;
+        new_rtp_vec.extend_from_slice(&p_rtp_slice[..keep]);
+        if crate::memory::cstr_is_empty(insp.cast()) {
+            new_rtp_vec.push(b',');
+            first_pos += 1;
+        }
+        new_rtp_vec.extend_from_slice(fname_slice);
+        if !crate::memory::cstr_is_empty(insp.cast()) {
+            new_rtp_vec.push(b',');
+        }
 
-            let mut insp: *const u8 = ptr::null();
-            let mut after_insp: *const u8 = ptr::null();
-            let mut p_rtp_len: usize = 0;
-            let mut entry: *mut u8 = opt_vars().p_rtp.cast();
-            while !crate::memory::cstr_is_empty(entry.cast()) {
-                let cur_entry = entry;
-                buf.size = copy_option_part(&raw mut entry, buf.data.cast(), MAXPATHL, c",");
+        let mut after_pos: usize = 0;
 
-                p_rtp_len +=
-                    if crate::memory::cstr_first_byte(cur_entry.wrapping_add(buf.size).cast())
-                        == b','
-                    {
-                        buf.size + 1
-                    } else {
-                        buf.size
-                    };
+        if afterdir.size > 0 && !after_insp.is_null() {
+            let keep_after = (after_insp as usize) - (opt_vars().p_rtp as usize);
+            new_rtp_vec.extend_from_slice(&p_rtp_slice[keep..keep_after]);
+            new_rtp_vec.extend_from_slice(afterdir.as_bytes());
+            new_rtp_vec.push(b',');
+            keep = keep_after;
+            after_pos = keep_after;
+        }
 
-                let is_after = crate::memory::cstr_as_bytes(buf.data)
-                    .windows(5)
-                    .position(|w| w == b"after")
-                    .is_some_and(|i| {
-                        i > 0
-                            && vim_ispathsep(buf_data[i - 1] as i32)
-                            && (vim_ispathsep(buf_data[i + 5] as i32)
-                                || buf_data[i + 5] == 0
-                                || buf_data[i + 5] == b',')
-                    });
+        if keep < p_rtp_len {
+            new_rtp_vec.extend_from_slice(&p_rtp_slice[keep..p_rtp_len]);
+        }
 
-                if is_after {
-                    if insp.is_null() {
-                        insp = cur_entry;
-                    }
-                    after_insp = cur_entry;
-                    break;
-                }
+        if afterdir.size > 0 && after_insp.is_null() {
+            new_rtp_vec.push(b',');
+            after_pos = new_rtp_vec.len();
+            new_rtp_vec.extend_from_slice(afterdir.as_bytes());
+        }
+        let new_rtp_size = new_rtp_vec.len();
+        new_rtp_vec.push(0);
+        let new_rtp = NvimString {
+            data: new_rtp_vec.as_mut_ptr().cast(),
+            size: new_rtp_size,
+        };
 
-                if insp.is_null() {
-                    add_pathsep(buf.data.cast());
-                    let Some(rtp_ffname) = fix_fname(buf.data) else {
-                        break 'block;
-                    };
-                    if path_cmp(
-                        opt_vars().p_fic != 0,
-                        rtp_ffname.as_ptr(),
-                        ffname,
-                        fname_len,
-                    ) == 0
-                    {
-                        insp = entry;
-                    }
-                }
+        let was_valid = rt_st().runtime_search_path_valid;
+        set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);
+
+        debug_assert!(!rt_st().runtime_search_path_valid);
+        if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
+            rt_st().runtime_search_path_valid = true;
+            rt_st().runtime_search_path_valid_thread = false;
+            let rsp = &mut rt_st().runtime_search_path;
+
+            let idx1 = rsp
+                .iter()
+                .position(|item| item.pos_in_rtp >= first_pos)
+                .unwrap_or(rsp.len());
+            for item in &mut rsp[idx1..] {
+                item.pos_in_rtp += fname_len + 1;
             }
+            let fname_bytes = crate::memory::cstr_slice(fname, fname_len);
+            let fname_end = fname_bytes
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(fname_bytes.len());
+            rsp.insert(
+                idx1,
+                SearchPathItem {
+                    path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
+                    after: false,
+                    pack_inserted: true,
+                    has_lua: K_NONE,
+                    pos_in_rtp: first_pos,
+                },
+            );
 
-            p_rtp_len += crate::memory::cstr_len(opt_vars().p_rtp.wrapping_add(p_rtp_len));
-            if insp.is_null() {
-                insp = opt_vars().p_rtp.wrapping_add(p_rtp_len).cast();
-            }
-
-            fname_len = crate::memory::cstr_len(fname);
-            let ad = crate::path::concat_fnames_cstr(fname, c"after", true);
-            let mut afterdir = NvimString {
-                data: ad.as_ptr().cast_mut(),
-                size: ad.as_bytes().len(),
-            };
-            afterdir_cstr = Some(ad);
-            if if is_pack {
-                !pack_has_entries(afterdir.data)
-            } else {
-                !os_isdir(afterdir.data)
-            } {
-                afterdir.size = 0;
-            }
-
-            let new_rtp_capacity = p_rtp_len + fname_len + afterdir.size + 3;
-            let mut new_rtp_vec = Vec::with_capacity(new_rtp_capacity);
-            let p_rtp_slice = crate::memory::cstr_slice(opt_vars().p_rtp, p_rtp_len);
-            let fname_slice = crate::memory::cstr_slice(fname, fname_len);
-
-            let mut keep = (insp as usize) - (opt_vars().p_rtp as usize);
-            let mut first_pos = keep;
-            new_rtp_vec.extend_from_slice(&p_rtp_slice[..keep]);
-            if crate::memory::cstr_is_empty(insp.cast()) {
-                new_rtp_vec.push(b',');
-                first_pos += 1;
-            }
-            new_rtp_vec.extend_from_slice(fname_slice);
-            if !crate::memory::cstr_is_empty(insp.cast()) {
-                new_rtp_vec.push(b',');
-            }
-
-            let mut after_pos: usize = 0;
-
-            if afterdir.size > 0 && !after_insp.is_null() {
-                let keep_after = (after_insp as usize) - (opt_vars().p_rtp as usize);
-                new_rtp_vec.extend_from_slice(&p_rtp_slice[keep..keep_after]);
-                new_rtp_vec.extend_from_slice(afterdir.as_bytes());
-                new_rtp_vec.push(b',');
-                keep = keep_after;
-                after_pos = keep_after;
-            }
-
-            if keep < p_rtp_len {
-                new_rtp_vec.extend_from_slice(&p_rtp_slice[keep..p_rtp_len]);
-            }
-
-            if afterdir.size > 0 && after_insp.is_null() {
-                new_rtp_vec.push(b',');
-                after_pos = new_rtp_vec.len();
-                new_rtp_vec.extend_from_slice(afterdir.as_bytes());
-            }
-            let new_rtp_size = new_rtp_vec.len();
-            new_rtp_vec.push(0);
-            let new_rtp = NvimString {
-                data: new_rtp_vec.as_mut_ptr().cast(),
-                size: new_rtp_size,
-            };
-
-            let was_valid = rt_st().runtime_search_path_valid;
-            set_option_value_give_err(K_OPT_RUNTIMEPATH, string_obj(new_rtp), 0);
-
-            debug_assert!(!rt_st().runtime_search_path_valid);
-            if was_valid && !is_pack && rt_st().runtime_search_path_refcount == 0 {
-                rt_st().runtime_search_path_valid = true;
-                rt_st().runtime_search_path_valid_thread = false;
-                let rsp = &mut rt_st().runtime_search_path;
-
-                let idx1 = rsp
+            if afterdir.size > 0 {
+                let target_after_pos = after_pos + fname_len + 1;
+                let idx2 = rsp
                     .iter()
-                    .position(|item| item.pos_in_rtp >= first_pos)
+                    .position(|item| item.pos_in_rtp >= target_after_pos)
                     .unwrap_or(rsp.len());
-                for item in &mut rsp[idx1..] {
-                    item.pos_in_rtp += fname_len + 1;
+                for item in &mut rsp[idx2..] {
+                    item.pos_in_rtp += afterdir.size + 1;
                 }
-                let fname_bytes = crate::memory::cstr_slice(fname, fname_len);
-                let fname_end = fname_bytes
+                let after_bytes = crate::memory::cstr_slice(afterdir.data, afterdir.size);
+                let after_end = after_bytes
                     .iter()
                     .position(|&b| b == 0)
-                    .unwrap_or(fname_bytes.len());
+                    .unwrap_or(after_bytes.len());
                 rsp.insert(
-                    idx1,
+                    idx2,
                     SearchPathItem {
-                        path: std::ffi::CString::new(&fname_bytes[..fname_end]).unwrap(),
-                        after: false,
+                        path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
+                        after: true,
                         pack_inserted: true,
                         has_lua: K_NONE,
-                        pos_in_rtp: first_pos,
+                        pos_in_rtp: target_after_pos,
                     },
                 );
-
-                if afterdir.size > 0 {
-                    let target_after_pos = after_pos + fname_len + 1;
-                    let idx2 = rsp
-                        .iter()
-                        .position(|item| item.pos_in_rtp >= target_after_pos)
-                        .unwrap_or(rsp.len());
-                    for item in &mut rsp[idx2..] {
-                        item.pos_in_rtp += afterdir.size + 1;
-                    }
-                    let after_bytes = crate::memory::cstr_slice(afterdir.data, afterdir.size);
-                    let after_end = after_bytes
-                        .iter()
-                        .position(|&b| b == 0)
-                        .unwrap_or(after_bytes.len());
-                    rsp.insert(
-                        idx2,
-                        SearchPathItem {
-                            path: std::ffi::CString::new(&after_bytes[..after_end]).unwrap(),
-                            after: true,
-                            pack_inserted: true,
-                            has_lua: K_NONE,
-                            pos_in_rtp: target_after_pos,
-                        },
-                    );
-                }
             }
-            drop(new_rtp_vec);
-            retval = true;
         }
-
-        drop(afterdir_cstr);
-        drop(ffname_cstr);
-        retval
+        drop(new_rtp_vec);
+        retval = true;
     }
+
+    drop(afterdir_cstr);
+    drop(ffname_cstr);
+    retval
 }
 
-fn load_pack_plugin(opt: bool, fname: impl crate::strings::IntoCCharPtr) -> bool {
-    let fname = fname.into_c_char_ptr();
-    let ffname_cstr = fix_fname(fname).unwrap_or_default();
+fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
+    let ffname_cstr = fix_fname(fname.as_ptr()).unwrap_or_default();
     let ffname = ffname_cstr.as_ptr();
     let len = ffname_cstr.as_bytes().len() + 14;
     let mut pat_vec = vec![0u8; len + 1];
-    let mut pat = pat_vec.as_mut_ptr();
+    let pat = pat_vec.as_mut_ptr();
 
     vim_snprintf!(pat.cast(), len, c"%s/plugin/**/*", ffname);
     gen_expand_wildcards_and_cb(
-        1,
-        &mut pat,
+        crate::memory::cstr_until_nul(&pat_vec),
         EW_FILE,
         true,
         &mut RuntimeCallback::SourceVimLua,
@@ -1624,8 +1551,7 @@ fn load_pack_plugin(opt: bool, fname: impl crate::strings::IntoCCharPtr) -> bool
         do_cmdline_cmd(c"augroup filetypedetect");
         vim_snprintf!(pat.cast(), len, c"%s/ftdetect/*", ffname);
         gen_expand_wildcards_and_cb(
-            1,
-            &mut pat,
+            crate::memory::cstr_until_nul(&pat_vec),
             EW_FILE,
             true,
             &mut RuntimeCallback::SourceVimLua,
@@ -1652,7 +1578,7 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
                     break;
                 }
             }
-            if !found && !add_pack_dir_to_rtp(fname, false) {
+            if !found && !add_pack_dir_to_rtp(fname_cstr, false) {
                 return;
             }
             did_one = true;
@@ -1668,7 +1594,7 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
 
     if action != PackAddAction::AddDir {
         for fname_cstr in fnames {
-            load_pack_plugin(opt, fname_cstr.as_ptr().cast_mut());
+            load_pack_plugin(opt, fname_cstr);
             if !all {
                 break;
             }
@@ -1679,22 +1605,21 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
 /// Add all packages in the "start" directory to 'runtimepath'.
 pub fn add_pack_start_dirs() {
     do_in_path(
-        opt_vars().p_pp,
+        crate::memory::cstr_from_ptr(opt_vars().p_pp),
         c"",
-        ptr::null_mut(),
+        None,
         DIP_ALL + DIP_DIR,
         &mut RuntimeCallback::AddPackStartDir,
     );
 }
 
-fn pack_has_entries<T>(buf: *mut T) -> bool {
+fn pack_has_entries(buf: &std::ffi::CStr) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    let mut pat = [buf];
+    let mut pat = [buf.as_ptr().cast_mut()];
     gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR) && !files.is_empty()
 }
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
-    let buf: *mut u8 = (&raw mut rt_st().pack_start_buf).cast();
     let start_pats = [c"/start/*", c"/pack/*/start/*"];
     for fname_cstr in fnames {
         let fname_len = fname_cstr.as_bytes().len();
@@ -1704,8 +1629,9 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
             }
             crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_start_buf, fname_cstr.as_bytes());
             crate::memory::append_bytes_to_c_buf(&mut rt_st().pack_start_buf, pat.to_bytes());
-            if pack_has_entries(buf) {
-                add_pack_dir_to_rtp(buf.cast(), true);
+            let buf_cstr = crate::memory::cstr_until_nul(&rt_st().pack_start_buf);
+            if pack_has_entries(buf_cstr) {
+                add_pack_dir_to_rtp(buf_cstr, true);
             }
         }
 
@@ -1720,10 +1646,11 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
 /// Load plugins from all packages in the "start" directory.
 pub fn load_start_packages() {
     g_st().did_source_packages = true;
+    let p_pp = crate::memory::cstr_from_ptr(opt_vars().p_pp);
     do_in_path(
-        opt_vars().p_pp,
+        p_pp,
         c"",
-        c"pack/*/start/*",
+        Some(c"pack/*/start/*"),
         DIP_ALL + DIP_DIR,
         &mut RuntimeCallback::AddPackPlugins {
             opt: false,
@@ -1731,9 +1658,9 @@ pub fn load_start_packages() {
         },
     );
     do_in_path(
-        opt_vars().p_pp,
+        p_pp,
         c"",
-        c"start/*",
+        Some(c"start/*"),
         DIP_ALL + DIP_DIR,
         &mut RuntimeCallback::AddPackPlugins {
             opt: false,
@@ -1756,17 +1683,18 @@ pub fn ex_packloadall(eap: &mut Exarg) {
 pub fn load_plugins() {
     if opt_vars().p_lpl != 0 {
         let mut rtp_copy_owned: Option<std::ffi::CString> = None;
-        let mut rtp_copy = opt_vars().p_rtp;
         let plugin_pattern = c"plugin/**/*";
 
         if !g_st().did_source_packages {
             let copy = cstr_to_cstring(opt_vars().p_rtp);
-            rtp_copy = copy.as_ptr().cast_mut();
             rtp_copy_owned = Some(copy);
             add_pack_start_dirs();
         }
 
-        source_in_path_vim_lua(rtp_copy, plugin_pattern, DIP_ALL | DIP_NOAFTER);
+        let rtp_cstr: &CStr = rtp_copy_owned
+            .as_deref()
+            .unwrap_or_else(|| crate::memory::cstr_from_ptr(opt_vars().p_rtp));
+        source_in_path_vim_lua(rtp_cstr, plugin_pattern, DIP_ALL | DIP_NOAFTER);
         if has_time_fd() {
             time_msg(c"loading rtp plugins", None);
         }
@@ -1801,9 +1729,9 @@ pub fn ex_packadd(eap: &mut Exarg) {
     if !g_st().did_source_packages {
         vim_snprintf!(pat.cast(), len, c"pack/*/%s/%s", c"start", eap.arg,);
         res = do_in_path(
-            opt_vars().p_pp,
+            crate::memory::cstr_from_ptr(opt_vars().p_pp),
             c"",
-            pat.cast(),
+            Some(crate::memory::cstr_until_nul(&pat_vec)),
             DIP_ALL + DIP_DIR,
             &mut RuntimeCallback::AddPackPlugins { opt: false, action },
         );
@@ -1811,9 +1739,9 @@ pub fn ex_packadd(eap: &mut Exarg) {
 
     vim_snprintf!(pat.cast(), len, c"pack/*/%s/%s", c"opt", eap.arg,);
     do_in_path(
-        opt_vars().p_pp,
+        crate::memory::cstr_from_ptr(opt_vars().p_pp),
         c"",
-        pat.cast(),
+        Some(crate::memory::cstr_until_nul(&pat_vec)),
         DIP_ALL + DIP_DIR + if !res { DIP_ERR } else { 0 },
         &mut RuntimeCallback::AddPackPlugins { opt: true, action },
     );
@@ -1822,14 +1750,14 @@ pub fn ex_packadd(eap: &mut Exarg) {
 }
 
 fn expand_rtdir_int(
-    pat: impl crate::strings::IntoCCharPtr,
+    pat_cstr: &std::ffi::CStr,
     pat_len: usize,
     flags: i32,
     keep_ext: bool,
     gap: &mut Vec<std::ffi::CString>,
     dirnames: &[&CStr],
 ) {
-    let pat = pat.into_c_char_ptr();
+    let pat = pat_cstr.as_ptr();
     for &dir in dirnames {
         let buf_len = dir.to_bytes().len() + pat_len + 64;
         let mut buf_vec = vec![0u8; buf_len];
@@ -1858,7 +1786,13 @@ fn expand_rtdir_int(
 
         loop {
             if (flags & DIP_NORTP) == 0 {
-                globpath(opt_vars().p_rtp, buf.cast(), gap, glob_flags, expand_dirs);
+                globpath(
+                    crate::memory::cstr_from_ptr(opt_vars().p_rtp),
+                    unsafe { CStr::from_ptr(buf.cast()) },
+                    gap,
+                    glob_flags,
+                    expand_dirs,
+                );
             }
 
             let ext_str = if expand_dirs {
@@ -1877,7 +1811,13 @@ fn expand_rtdir_int(
                     pat,
                     ext_str,
                 );
-                globpath(opt_vars().p_pp, buf.cast(), gap, glob_flags, expand_dirs);
+                globpath(
+                    crate::memory::cstr_from_ptr(opt_vars().p_pp),
+                    unsafe { CStr::from_ptr(buf.cast()) },
+                    gap,
+                    glob_flags,
+                    expand_dirs,
+                );
 
                 vim_snprintf!(
                     buf.cast(),
@@ -1888,7 +1828,13 @@ fn expand_rtdir_int(
                     pat,
                     ext_str,
                 );
-                globpath(opt_vars().p_pp, buf.cast(), gap, glob_flags, expand_dirs);
+                globpath(
+                    crate::memory::cstr_from_ptr(opt_vars().p_pp),
+                    unsafe { CStr::from_ptr(buf.cast()) },
+                    gap,
+                    glob_flags,
+                    expand_dirs,
+                );
             }
 
             if (flags & DIP_OPT) != 0 {
@@ -1901,7 +1847,13 @@ fn expand_rtdir_int(
                     pat,
                     ext_str,
                 );
-                globpath(opt_vars().p_pp, buf.cast(), gap, glob_flags, expand_dirs);
+                globpath(
+                    crate::memory::cstr_from_ptr(opt_vars().p_pp),
+                    unsafe { CStr::from_ptr(buf.cast()) },
+                    gap,
+                    glob_flags,
+                    expand_dirs,
+                );
 
                 vim_snprintf!(
                     buf.cast(),
@@ -1912,7 +1864,13 @@ fn expand_rtdir_int(
                     pat,
                     ext_str,
                 );
-                globpath(opt_vars().p_pp, buf.cast(), gap, glob_flags, expand_dirs);
+                globpath(
+                    crate::memory::cstr_from_ptr(opt_vars().p_pp),
+                    unsafe { CStr::from_ptr(buf.cast()) },
+                    gap,
+                    glob_flags,
+                    expand_dirs,
+                );
             }
 
             if dir.is_empty() && !expand_dirs {
@@ -1972,101 +1930,84 @@ fn expand_rtdir_int(
 
 /// Expand color scheme, compiler or filetype names.
 pub fn expand_rtdir(
-    pat: impl crate::strings::IntoCCharPtr,
+    pat: &std::ffi::CStr,
     flags: i32,
     file: &mut Vec<std::ffi::CString>,
     dirnames: &[&CStr],
 ) -> bool {
-    let pat = pat.into_c_char_ptr();
-    {
-        file.clear();
+    file.clear();
 
-        expand_rtdir_int(
-            pat,
-            crate::memory::cstr_len(pat),
-            flags,
-            false,
-            file,
-            dirnames,
-        );
+    expand_rtdir_int(pat, pat.to_bytes().len(), flags, false, file, dirnames);
 
-        if file.is_empty() {
-            return false;
-        }
-
-        true
-    }
+    !file.is_empty()
 }
 
 /// Handle command line completion for :runtime command.
-pub fn expand_runtime_cmd(
-    pat: impl crate::strings::IntoCCharPtr,
-    matches: &mut Vec<std::ffi::CString>,
-) -> bool {
-    let pat = pat.into_c_char_ptr();
-    {
-        matches.clear();
+pub fn expand_runtime_cmd(pat: &std::ffi::CStr, matches: &mut Vec<std::ffi::CString>) -> bool {
+    matches.clear();
 
-        let pat_len = crate::memory::cstr_len(pat);
-        expand_rtdir_int(
-            pat,
-            pat_len,
-            rt_st().runtime_expand_flags,
-            true,
-            matches,
-            &[c""],
-        );
+    let pat_len = pat.to_bytes().len();
+    expand_rtdir_int(
+        pat,
+        pat_len,
+        rt_st().runtime_expand_flags,
+        true,
+        matches,
+        &[c""],
+    );
 
-        if rt_st().runtime_expand_flags == 0 {
-            let where_values = [c"START", c"OPT", c"PACK", c"ALL"];
-            let pat_slice = crate::memory::cstr_slice(pat, pat_len);
-            for wv in &where_values {
-                if wv.to_bytes().starts_with(pat_slice) {
-                    matches.push((*wv).to_owned());
-                }
+    if rt_st().runtime_expand_flags == 0 {
+        let where_values = [c"START", c"OPT", c"PACK", c"ALL"];
+        let pat_slice = pat.to_bytes();
+        for wv in &where_values {
+            if wv.to_bytes().starts_with(pat_slice) {
+                matches.push((*wv).to_owned());
             }
         }
-
-        if matches.is_empty() {
-            return false;
-        }
-
-        true
     }
+
+    !matches.is_empty()
 }
 
 /// Expand loadplugin names: 'packpath'/pack/*/opt/{pat}
 #[allow(non_snake_case)]
-pub fn ExpandPackAddDir(
-    pat: impl crate::strings::IntoCCharPtr,
-    file: &mut Vec<std::ffi::CString>,
-) -> bool {
-    let pat = pat.into_c_char_ptr();
-    {
-        file.clear();
-        let pat_len = crate::memory::cstr_len(pat);
+pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CString>) -> bool {
+    file.clear();
+    let pat = pat_cstr.as_ptr();
+    let pat_len = pat_cstr.to_bytes().len();
 
-        let buflen = pat_len + 26;
-        let mut s_vec = vec![0u8; buflen];
-        let s = s_vec.as_mut_ptr();
-        vim_snprintf!(s.cast(), buflen, c"pack/*/opt/%s*", pat);
-        globpath(opt_vars().p_pp, s.cast(), file, 0, true);
-        vim_snprintf!(s.cast(), buflen, c"opt/%s*", pat);
-        globpath(opt_vars().p_pp, s.cast(), file, 0, true);
-        drop(s_vec);
+    let buflen = pat_len + 26;
+    let mut s_vec = vec![0u8; buflen];
+    let s = s_vec.as_mut_ptr();
+    vim_snprintf!(s.cast(), buflen, c"pack/*/opt/%s*", pat);
+    globpath(
+        crate::memory::cstr_from_ptr(opt_vars().p_pp),
+        unsafe { CStr::from_ptr(s.cast()) },
+        file,
+        0,
+        true,
+    );
+    vim_snprintf!(s.cast(), buflen, c"opt/%s*", pat);
+    globpath(
+        crate::memory::cstr_from_ptr(opt_vars().p_pp),
+        unsafe { CStr::from_ptr(s.cast()) },
+        file,
+        0,
+        true,
+    );
+    drop(s_vec);
 
-        for slot in file.iter_mut() {
-            let tail = path_tail(slot.as_ptr());
-            *slot = crate::memory::cstr_to_cstring(tail);
-        }
-
-        if file.is_empty() {
-            return false;
-        }
-
-        crate::path::remove_duplicate_strings(file);
-        true
+    for slot in file.iter_mut() {
+        let tail = path_tail(slot.as_ptr());
+        *slot = crate::memory::cstr_to_cstring(tail);
     }
+
+    if file.is_empty() {
+        return false;
+    }
+
+    crate::path::remove_duplicate_strings(file);
+    true
 }
 
 fn strcpy_comma_escaped(dest: &mut Vec<u8>, src: &[u8]) {
@@ -2079,11 +2020,11 @@ fn strcpy_comma_escaped(dest: &mut Vec<u8>, src: &[u8]) {
 }
 
 fn compute_double_env_sep_len(
-    val: impl crate::strings::IntoCCharPtr,
+    val_opt: Option<&std::ffi::CStr>,
     common_suf_len: usize,
     single_suf_len: usize,
 ) -> usize {
-    let val_bytes = crate::memory::cstr_as_bytes(val);
+    let val_bytes = val_opt.map_or(&[][..], CStr::to_bytes);
     if val_bytes.is_empty() {
         return 0;
     }
@@ -2113,16 +2054,14 @@ fn compute_double_env_sep_len(
 
 fn add_env_sep_dirs(
     dest: &mut Vec<u8>,
-    val: impl crate::strings::IntoCCharPtr,
-    suf1: impl crate::strings::IntoCCharPtr,
+    val_opt: Option<&std::ffi::CStr>,
+    suf1: Option<&std::ffi::CStr>,
     len1: usize,
-    suf2: impl crate::strings::IntoCCharPtr,
+    suf2: Option<&std::ffi::CStr>,
     len2: usize,
     forward: bool,
 ) {
-    let val_bytes = crate::memory::cstr_as_bytes(val);
-    let suf1 = suf1.into_c_char_ptr();
-    let suf2 = suf2.into_c_char_ptr();
+    let val_bytes = val_opt.map_or(&[][..], CStr::to_bytes);
     if val_bytes.is_empty() {
         return;
     }
@@ -2141,12 +2080,12 @@ fn add_env_sep_dirs(
                 dest.push(PATHSEP);
             }
             dest.extend_from_slice(appname_bytes);
-            if !suf1.is_null() {
+            if let Some(s1) = suf1 {
                 dest.push(PATHSEP);
-                dest.extend_from_slice(crate::memory::cstr_slice(suf1, len1));
-                if !suf2.is_null() {
+                dest.extend_from_slice(&s1.to_bytes()[..len1]);
+                if let Some(s2) = suf2 {
                     dest.push(PATHSEP);
-                    dest.extend_from_slice(crate::memory::cstr_slice(suf2, len2));
+                    dest.extend_from_slice(&s2.to_bytes()[..len2]);
                 }
             }
             dest.push(b',');
@@ -2159,21 +2098,21 @@ fn add_env_sep_dirs(
 
 fn add_dir(
     dest: &mut Vec<u8>,
-    dir: impl crate::strings::IntoCCharPtr,
+    dir_opt: Option<&std::ffi::CStr>,
     dir_len: usize,
     type_: XDGVarType,
-    suf1: impl crate::strings::IntoCCharPtr,
+    suf1: Option<&std::ffi::CStr>,
     len1: usize,
-    suf2: impl crate::strings::IntoCCharPtr,
+    suf2: Option<&std::ffi::CStr>,
     len2: usize,
 ) {
-    let dir = dir.into_c_char_ptr();
-    let suf1 = suf1.into_c_char_ptr();
-    let suf2 = suf2.into_c_char_ptr();
-    if dir.is_null() || dir_len == 0 {
+    let Some(dir) = dir_opt else {
+        return;
+    };
+    if dir_len == 0 {
         return;
     }
-    strcpy_comma_escaped(dest, crate::memory::cstr_slice(dir, dir_len));
+    strcpy_comma_escaped(dest, &dir.to_bytes()[..dir_len]);
     let append_nvim = matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGConfigHome);
     if append_nvim {
         if !dest.last().is_some_and(|&b| vim_ispathsep(b as i32)) {
@@ -2187,12 +2126,12 @@ fn add_dir(
         if matches!(type_, XDGVarType::XDGDataHome | XDGVarType::XDGStateHome) {
             dest.extend_from_slice(b"-data");
         }
-        if !suf1.is_null() {
+        if let Some(s1) = suf1 {
             dest.push(PATHSEP);
-            dest.extend_from_slice(crate::memory::cstr_slice(suf1, len1));
-            if !suf2.is_null() {
+            dest.extend_from_slice(&s1.to_bytes()[..len1]);
+            if let Some(s2) = suf2 {
                 dest.push(PATHSEP);
-                dest.extend_from_slice(crate::memory::cstr_slice(suf2, len2));
+                dest.extend_from_slice(&s2.to_bytes()[..len2]);
             }
         }
     }
@@ -2238,12 +2177,10 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     let config_home = config_home_cstr
         .as_ref()
         .map_or(ptr::null(), |s| s.as_ptr());
-    let libdir = libdir_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    let data_dirs = data_dirs_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
-    let config_dirs = config_dirs_cstr
-        .as_ref()
-        .map_or(ptr::null(), |s| s.as_ptr());
-    let vimruntime = vimruntime_cstr.as_ref().map_or(ptr::null(), |s| s.as_ptr());
+    let data_dirs = data_dirs_cstr.as_deref();
+    let config_dirs = config_dirs_cstr.as_deref();
+    let vimruntime = vimruntime_cstr.as_deref();
+    let libdir = libdir_cstr.as_deref();
 
     let mut data_len: usize = 0;
     let mut config_len: usize = 0;
@@ -2309,39 +2246,31 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
         let mut rtp_vec = Vec::with_capacity(rtp_size);
         add_dir(
             &mut rtp_vec,
-            config_home,
+            config_home_cstr.as_deref(),
             config_len,
             XDGVarType::XDGConfigHome,
-            ptr::null(),
+            None,
             0,
-            ptr::null(),
+            None,
             0,
         );
-        add_env_sep_dirs(
-            &mut rtp_vec,
-            config_dirs,
-            ptr::null(),
-            0,
-            ptr::null(),
-            0,
-            true,
-        );
+        add_env_sep_dirs(&mut rtp_vec, config_dirs, None, 0, None, 0, true);
         add_dir(
             &mut rtp_vec,
-            data_home,
+            data_home_cstr.as_deref(),
             data_len,
             XDGVarType::XDGDataHome,
-            c"site",
+            Some(c"site"),
             SITE_SIZE,
-            ptr::null(),
+            None,
             0,
         );
         add_env_sep_dirs(
             &mut rtp_vec,
             data_dirs,
-            c"site",
+            Some(c"site"),
             SITE_SIZE,
-            ptr::null(),
+            None,
             0,
             true,
         );
@@ -2350,9 +2279,9 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
             vimruntime,
             vimruntime_len,
             XDGVarType::XDGNone,
-            ptr::null(),
+            None,
             0,
-            ptr::null(),
+            None,
             0,
         );
         add_dir(
@@ -2360,47 +2289,47 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
             libdir,
             libdir_len,
             XDGVarType::XDGNone,
-            ptr::null(),
+            None,
             0,
-            ptr::null(),
+            None,
             0,
         );
         add_env_sep_dirs(
             &mut rtp_vec,
             data_dirs,
-            c"site",
+            Some(c"site"),
             SITE_SIZE,
-            c"after",
+            Some(c"after"),
             AFTER_SIZE,
             false,
         );
         add_dir(
             &mut rtp_vec,
-            data_home,
+            data_home_cstr.as_deref(),
             data_len,
             XDGVarType::XDGDataHome,
-            c"site",
+            Some(c"site"),
             SITE_SIZE,
-            c"after",
+            Some(c"after"),
             AFTER_SIZE,
         );
         add_env_sep_dirs(
             &mut rtp_vec,
             config_dirs,
-            c"after",
+            Some(c"after"),
             AFTER_SIZE,
-            ptr::null(),
+            None,
             0,
             false,
         );
         add_dir(
             &mut rtp_vec,
-            config_home,
+            config_home_cstr.as_deref(),
             config_len,
             XDGVarType::XDGConfigHome,
-            c"after",
+            Some(c"after"),
             AFTER_SIZE,
-            ptr::null(),
+            None,
             0,
         );
         debug_assert_eq!(rtp_vec.len(), rtp_size);
@@ -2413,42 +2342,36 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
     }
 }
 
-fn cmd_source(fname: impl crate::strings::IntoCCharPtr, mut eap: Option<&mut Exarg>) {
-    let fname = fname.into_c_char_ptr().cast_mut();
-    {
-        if !crate::memory::cstr_is_empty(fname)
-            && eap.is_some()
-            && eap.as_deref_mut().unwrap().addr_count > 0
-        {
-            emsg(gettext(E_NORANGE));
-            return;
-        }
+fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
+    if !fname.to_bytes().is_empty() && eap.is_some() && eap.as_deref_mut().unwrap().addr_count > 0 {
+        emsg(gettext(E_NORANGE));
+        return;
+    }
 
-        if eap.is_some() && crate::memory::cstr_is_empty(fname) {
-            if eap.as_deref_mut().unwrap().forceit != 0 {
-                emsg(gettext(E_ARGREQ));
-            } else {
-                cmd_source_buffer(eap.as_deref(), false);
-            }
-        } else if let Some(eap) = eap
-            && eap.forceit != 0
-        {
-            openscript(
-                crate::memory::cstr_from_ptr(fname),
-                g_st().global_busy != 0
-                    || g_st().listcmd_busy
-                    || !eap.nextcmd.is_null()
-                    || eap.cstack_mut().cs_idx >= 0,
-            );
-        } else if !do_source(fname, false, DOSO_NONE, ptr::null_mut()) {
-            semsg!(gettext(E_NOTOPEN), fname);
+    if eap.is_some() && fname.to_bytes().is_empty() {
+        if eap.as_deref_mut().unwrap().forceit != 0 {
+            emsg(gettext(E_ARGREQ));
+        } else {
+            cmd_source_buffer(eap.as_deref(), false);
         }
+    } else if let Some(eap) = eap
+        && eap.forceit != 0
+    {
+        openscript(
+            fname,
+            g_st().global_busy != 0
+                || g_st().listcmd_busy
+                || !eap.nextcmd.is_null()
+                || eap.cstack_mut().cs_idx >= 0,
+        );
+    } else if !do_source(fname, false, DOSO_NONE, None) {
+        semsg!(gettext(E_NOTOPEN), fname.as_ptr());
     }
 }
 
 /// ":source [{fname}]"
 pub fn ex_source(eap: &mut Exarg) {
-    cmd_source(eap.arg, Some(&mut *eap));
+    cmd_source(crate::memory::cstr_from_ptr(eap.arg), Some(&mut *eap));
 }
 
 /// ":options"
@@ -2463,26 +2386,23 @@ pub fn ex_options(_eap: &mut Exarg) {
     cmd_source(c"$VIMRUNTIME/scripts/optwin.lua", None);
 }
 
-pub fn source_breakpoint(sp: &mut SourceCookie) -> *mut Linenr {
-    &raw mut sp.breakpoint
+pub fn source_breakpoint(sp: &mut SourceCookie) -> &mut Linenr {
+    &mut sp.breakpoint
 }
 
-pub fn source_dbg_tick(sp: &mut SourceCookie) -> *mut i32 {
-    &raw mut sp.dbg_tick
+pub fn source_dbg_tick(sp: &mut SourceCookie) -> &mut i32 {
+    &mut sp.dbg_tick
 }
 
 pub fn source_level(sp: &mut SourceCookie) -> i32 {
     sp.level
 }
 
-fn fopen_noinh_readbin(
-    filename: impl crate::strings::IntoCCharPtr,
-) -> Option<crate::os::fs::CFile> {
-    let filename = filename.into_c_char_ptr();
+fn fopen_noinh_readbin(filename: &std::ffi::CStr) -> Option<crate::os::fs::CFile> {
     #[cfg(windows)]
-    let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
+    let fd_tmp = os_open(filename.as_ptr(), O_RDONLY | O_BINARY | O_NOINHERIT, 0);
     #[cfg(not(windows))]
-    let fd_tmp = os_open(filename, O_RDONLY, 0);
+    let fd_tmp = os_open(filename.as_ptr(), O_RDONLY, 0);
 
     if fd_tmp < 0 {
         return None;
@@ -2583,41 +2503,27 @@ fn do_source_buffer_init(
     Some(fname)
 }
 
-fn do_source_str_init(sp: &mut SourceCookie, str_ptr: impl crate::strings::IntoCCharPtr) {
-    let mut str_ptr = str_ptr.into_c_char_ptr();
-    {
-        sp.buflines.clear();
-        while !crate::memory::cstr_is_empty(str_ptr) {
-            let eol = skip_to_newline(str_ptr);
-            let slice = crate::memory::cstr_slice(str_ptr, (eol as usize) - (str_ptr as usize));
-            sp.buflines
-                .push(std::ffi::CString::new(slice).unwrap_or_default());
-            str_ptr = eol.wrapping_add(usize::from(!crate::memory::cstr_is_empty(eol)));
-        }
-        sp.buf_lnum = 0;
-        sp.source_from_buf_or_str = true;
+fn do_source_str_init(sp: &mut SourceCookie, str_cstr: &std::ffi::CStr) {
+    let mut str_ptr = str_cstr.as_ptr();
+    sp.buflines.clear();
+    while !crate::memory::cstr_is_empty(str_ptr) {
+        let eol = skip_to_newline(str_ptr);
+        let slice = crate::memory::cstr_slice(str_ptr, (eol as usize) - (str_ptr as usize));
+        sp.buflines
+            .push(std::ffi::CString::new(slice).unwrap_or_default());
+        str_ptr = eol.wrapping_add(usize::from(!crate::memory::cstr_is_empty(eol)));
     }
+    sp.buf_lnum = 0;
+    sp.source_from_buf_or_str = true;
 }
 
 pub fn cmd_source_buffer(eap: Option<&Exarg>, ex_lua: bool) {
-    do_source_ext(
-        ptr::null_mut(),
-        false,
-        DOSO_NONE,
-        ptr::null_mut(),
-        eap,
-        ex_lua,
-        ptr::null(),
-    );
+    do_source_ext(None, false, DOSO_NONE, None, eap, ex_lua, None);
 }
 
 /// Executes lines in `str` as Ex commands.
-pub fn do_source_str(
-    str_ptr: impl crate::strings::IntoCCharPtr,
-    traceback_name: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let str_ptr = str_ptr.into_c_char_ptr();
-    let mut traceback_name = traceback_name.into_c_char_ptr();
+pub fn do_source_str(str_ptr: &std::ffi::CStr, traceback_name_in: &std::ffi::CStr) -> bool {
+    let mut traceback_name = traceback_name_in;
     let slnum = sourcing_lnum();
     let mut sname_buf = [0u8; 256];
     if let Some(sname) = sourcing_name() {
@@ -2625,52 +2531,45 @@ pub fn do_source_str(
             sname_buf.as_mut_ptr().cast(),
             sname_buf.len(),
             c"%s called at %s:%d",
-            traceback_name,
+            traceback_name.as_ptr(),
             sname,
             slnum,
         );
-        traceback_name = sname_buf.as_ptr().cast();
+        traceback_name = crate::memory::cstr_until_nul(&sname_buf);
     }
     do_source_ext(
-        traceback_name,
+        Some(traceback_name),
         false,
         DOSO_NONE,
-        ptr::null_mut(),
+        None,
         None,
         false,
-        str_ptr,
+        Some(str_ptr),
     )
 }
 
 fn do_source_ext(
-    fname: impl crate::strings::IntoCCharPtr,
+    fname_opt: Option<&std::ffi::CStr>,
     check_other: bool,
     is_vimrc: i32,
-    ret_sid: *mut i32,
+    mut ret_sid: Option<&mut i32>,
     eap: Option<&Exarg>,
     ex_lua: bool,
-    str_ptr: impl crate::strings::IntoCCharPtr,
+    str_opt: Option<&std::ffi::CStr>,
 ) -> bool {
-    let fname = fname.into_c_char_ptr();
-    let str_ptr = str_ptr.into_c_char_ptr();
-    {
-        let mut cookie = SourceCookie::new();
-        let mut firstline: Option<std::ffi::CString> = None;
-        let mut retval = false;
-        let save_debug_break_level = g_st().debug_break_level;
-        let mut si: *mut Scriptitem = ptr::null_mut();
-        let mut wait_start: Proftime = 0;
-        let mut trigger_source_post = false;
+    let fname = fname_opt.map_or(ptr::null(), CStr::as_ptr);
+    let mut cookie = SourceCookie::new();
+    let mut firstline: Option<std::ffi::CString> = None;
+    let mut retval = false;
+    let save_debug_break_level = g_st().debug_break_level;
+    let mut si: *mut Scriptitem = ptr::null_mut();
+    let mut wait_start: Proftime = 0;
+    let mut trigger_source_post = false;
 
-        let fname_exp_owned: std::ffi::CString = if fname.is_null() {
-            debug_assert!(str_ptr.is_null());
-            let Some(fe) = do_source_buffer_init(&mut cookie, eap, ex_lua) else {
-                return false;
-            };
-            fe
-        } else if !str_ptr.is_null() {
-            do_source_str_init(&mut cookie, str_ptr);
-            cstr_to_cstring(fname)
+    let mut fname_exp_owned: std::ffi::CString = if let Some(fname_cstr) = fname_opt {
+        if let Some(str_cstr) = str_opt {
+            do_source_str_init(&mut cookie, str_cstr);
+            fname_cstr.to_owned()
         } else {
             let p = expand_env_save(fname);
             let Some(fe) = fix_fname(p.as_ptr()) else {
@@ -2681,340 +2580,326 @@ fn do_source_ext(
                 return retval;
             }
             fe
+        }
+    } else {
+        debug_assert!(str_opt.is_none());
+        let Some(fe) = do_source_buffer_init(&mut cookie, eap, ex_lua) else {
+            return false;
         };
+        fe
+    };
+    let fname_exp = fname_exp_owned.as_ptr().cast_mut();
+
+    'block: {
+        let mut sid = if str_opt.is_some() {
+            SID_STR
+        } else {
+            find_script_by_name(&fname_exp_owned)
+        };
+        if sid > 0
+            && let Some(ref mut ret_sid_ref) = ret_sid
+        {
+            **ret_sid_ref = sid;
+            retval = true;
+            break 'block;
+        }
+
+        if str_opt.is_none() {
+            let has_sourcecmd = if fname_opt.is_none() {
+                has_autocmd(EVENT_SOURCECMD, fname_exp, None)
+            } else {
+                has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, None)
+            };
+            if has_sourcecmd
+                && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
+            {
+                retval = !aborting();
+                if retval {
+                    apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
+                }
+                break 'block;
+            }
+
+            apply_autocmds(EVENT_SOURCEPRE, fname_exp, fname_exp, false, g_st().curbuf);
+        }
+
+        if !cookie.source_from_buf_or_str {
+            cookie.fp = fopen_noinh_readbin(&fname_exp_owned);
+        }
+        if cookie.fp.is_none() && check_other {
+            let tail_ptr = path_tail(fname_exp);
+            let tail_off = (tail_ptr as usize) - (fname_exp as usize);
+            let first_b = fname_exp_owned
+                .as_bytes()
+                .get(tail_off)
+                .copied()
+                .unwrap_or(0);
+            if first_b == b'.' || first_b == b'_' {
+                let rest = &fname_exp_owned.as_bytes()[tail_off + 1..];
+                if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
+                    let mut bytes = fname_exp_owned.into_bytes();
+                    bytes[tail_off] = if first_b == b'_' { b'.' } else { b'_' };
+                    fname_exp_owned = std::ffi::CString::new(bytes).unwrap();
+                    cookie.fp = fopen_noinh_readbin(&fname_exp_owned);
+                }
+            }
+        }
         let fname_exp = fname_exp_owned.as_ptr().cast_mut();
 
-        'block: {
-            let mut sid = if !str_ptr.is_null() {
-                SID_STR
-            } else {
-                find_script_by_name(fname_exp)
-            };
-            if sid > 0 && !ret_sid.is_null() {
-                *crate::globals::gptr(ret_sid) = sid;
-                retval = true;
-                break 'block;
-            }
-
-            if str_ptr.is_null() {
-                let has_sourcecmd = if fname.is_null() {
-                    has_autocmd(EVENT_SOURCECMD, fname_exp, None)
-                } else {
-                    has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, None)
-                };
-                if has_sourcecmd
-                    && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
-                {
-                    retval = !aborting();
-                    if retval {
-                        apply_autocmds(
-                            EVENT_SOURCEPOST,
-                            fname_exp,
-                            fname_exp,
-                            false,
-                            g_st().curbuf,
-                        );
-                    }
-                    break 'block;
-                }
-
-                apply_autocmds(EVENT_SOURCEPRE, fname_exp, fname_exp, false, g_st().curbuf);
-            }
-
-            if !cookie.source_from_buf_or_str {
-                cookie.fp = fopen_noinh_readbin(fname_exp);
-            }
-            if cookie.fp.is_none() && check_other {
-                let p = path_tail(fname_exp).cast::<u8>();
-                if crate::memory::cstr_first_byte(p.cast()) == b'.'
-                    || crate::memory::cstr_first_byte(p.cast()) == b'_'
-                {
-                    let rest = crate::memory::cstr_as_bytes(p.wrapping_add(1).cast());
-                    if rest.eq_ignore_ascii_case(b"nvimrc") || rest.eq_ignore_ascii_case(b"exrc") {
-                        *crate::globals::gptr(p) =
-                            if crate::memory::cstr_first_byte(p.cast()) == b'_' {
-                                b'.'
-                            } else {
-                                b'_'
-                            };
-                        cookie.fp = fopen_noinh_readbin(fname_exp);
-                    }
-                }
-            }
-
-            if cookie.fp.is_none() && !cookie.source_from_buf_or_str {
-                if opt_vars().p_verbose > 1 {
-                    verbose_enter();
-                    if sourcing_name().is_none() {
-                        smsg!(0, gettext(c"could not source \"%s\""), fname);
-                    } else {
-                        smsg!(
-                            0,
-                            gettext(c"line %lld: could not source \"%s\""),
-                            i64::from(sourcing_lnum()),
-                            fname,
-                        );
-                    }
-                    verbose_leave();
-                }
-                break 'block;
-            }
-
+        if cookie.fp.is_none() && !cookie.source_from_buf_or_str {
             if opt_vars().p_verbose > 1 {
                 verbose_enter();
                 if sourcing_name().is_none() {
-                    smsg!(0, gettext(c"sourcing \"%s\""), fname);
+                    smsg!(0, gettext(c"could not source \"%s\""), fname);
                 } else {
                     smsg!(
                         0,
-                        gettext(c"line %lld: sourcing \"%s\""),
+                        gettext(c"line %lld: could not source \"%s\""),
                         i64::from(sourcing_lnum()),
                         fname,
                     );
                 }
                 verbose_leave();
             }
-            if is_vimrc == DOSO_VIMRC {
-                vimrc_found(fname_exp, c"MYVIMRC");
-            }
+            break 'block;
+        }
 
-            #[cfg(windows)]
-            {
-                if crate::memory::cstr_is_empty(opt_vars().p_ffs) {
-                    cookie.fileformat = EOL_DOS;
-                } else {
-                    cookie.fileformat = EOL_UNKNOWN;
-                }
-            }
-
-            cookie.breakpoint =
-                dbg_find_breakpoint(true, crate::memory::cstr_from_ptr(fname_exp), 0);
-            cookie.fname = if fname_exp.is_null() {
-                None
+        if opt_vars().p_verbose > 1 {
+            verbose_enter();
+            if sourcing_name().is_none() {
+                smsg!(0, gettext(c"sourcing \"%s\""), fname);
             } else {
-                Some(crate::memory::cstr_to_cstring(fname_exp))
-            };
-            cookie.dbg_tick = g_st().debug_tick;
-            cookie.level = g_st().ex_nesting_level;
-
-            let mut rel_time: Proftime = 0;
-            let mut start_time: Proftime = 0;
-            let l_has_time_fd = has_time_fd();
-            if l_has_time_fd {
-                time_push(&mut rel_time, &mut start_time);
-            }
-
-            let l_do_profiling = g_st().do_profiling;
-            if l_do_profiling == PROF_YES {
-                prof_child_enter(&mut wait_start);
-            }
-
-            save_funccal();
-
-            let save_current_sctx = g_st().current_sctx;
-
-            rt_st().last_current_sid_seq += 1;
-            g_st().current_sctx.sc_seq = rt_st().last_current_sid_seq;
-
-            if sid > 0 {
-                si = script_item(sid);
-            } else if str_ptr.is_null() {
-                si = new_script_item(Some(crate::memory::cstr_to_cstring(fname_exp)), &mut sid);
-                crate::globals::gptr(si).sn_lua = path_with_extension(fname_exp, c"lua");
-                if !ret_sid.is_null() {
-                    *crate::globals::gptr(ret_sid) = sid;
-                }
-            }
-            debug_assert_eq!(!si.is_null(), str_ptr.is_null());
-
-            if str_ptr.is_null() || !script_is_lua(g_st().current_sctx.sc_sid) {
-                g_st().current_sctx.sc_sid = sid;
-                g_st().current_sctx.sc_lnum = 0;
-            }
-
-            estack_push(
-                ETYPE_SCRIPT,
-                if !si.is_null() {
-                    crate::globals::gptr(si)
-                        .name_cstr()
-                        .map_or(ptr::null(), CStr::as_ptr)
-                } else {
-                    fname_exp
-                },
-                0,
-            );
-
-            if l_do_profiling == PROF_YES && !si.is_null() {
-                let mut forceit = false;
-                if !crate::globals::gptr(si).sn_prof_on
-                    && has_profiling(
-                        true,
-                        crate::globals::gptr(si).name_cstr().unwrap_or(c""),
-                        Some(&mut forceit),
-                    )
-                {
-                    profile_init(crate::globals::gmut(si));
-                    crate::globals::gptr(si).sn_pr_force = forceit;
-                }
-                if crate::globals::gptr(si).sn_prof_on {
-                    crate::globals::gptr(si).sn_pr_count += 1;
-                    crate::globals::gptr(si).sn_pr_start = profile_start();
-                    crate::globals::gptr(si).sn_pr_children = profile_zero();
-                }
-            }
-
-            cookie.conv.vc_type = CONV_NONE;
-
-            let mut ts_lua = false;
-            if fname.is_null()
-                && let Some(eap) = eap
-                && !ex_lua
-                && !(crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
-                && !(!curbuf_mut().b_fname.is_null()
-                    && path_with_extension(curbuf_mut().b_fname, c"lua"))
-            {
-                let mut args_items = [
-                    integer_obj(Integer::from(curbuf_mut().b_fnum)),
-                    integer_obj(Integer::from(eap.line1)),
-                    integer_obj(Integer::from(eap.line2)),
-                ];
-                let args = Array {
-                    items: args_items.as_mut_ptr(),
-                    size: 3,
-                    capacity: 3,
-                };
-                let mut err = Error::new();
-                let result = nlua_exec(
-                    static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
-                    None,
-                    args,
-                    K_RET_NIL_BOOL,
-                    None,
-                    &mut err,
-                );
-                if err.err_type == ErrorType::ErrorTypeNone
-                    && result.obj_type == ObjectType::ObjectTypeBoolean
-                    && result.data.boolean()
-                {
-                    ts_lua = true;
-                }
-                api_clear_error(&mut err);
-            }
-
-            if fname.is_null()
-                && (ex_lua
-                    || ts_lua
-                    || (crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
-                    || (!curbuf_mut().b_fname.is_null()
-                        && path_with_extension(curbuf_mut().b_fname, c"lua")))
-            {
-                nlua_exec_lines(&cookie.buflines, crate::memory::cstr_from_ptr(fname_exp));
-            } else if !si.is_null() && crate::globals::gptr(si).sn_lua {
-                nlua_exec_file(crate::memory::cstr_from_ptr(fname_exp));
-            } else {
-                firstline = getsourceline(0, &mut cookie, 0, true);
-                if let Some(ref fl) = firstline
-                    && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
-                {
-                    convert_setup(&mut cookie.conv, c"utf-8", opt_vars().p_enc);
-                    let after_bom = fl.as_ptr().wrapping_add(3).cast_mut();
-                    firstline = Some(string_convert(&cookie.conv, after_bom, None).map_or_else(
-                        || cstr_to_cstring(after_bom),
-                        |v| cstr_to_cstring(v.as_ptr().cast()),
-                    ));
-                }
-                do_cmdline(
-                    firstline
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                    LineGetter::Source(&raw mut cookie),
-                    DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
+                smsg!(
+                    0,
+                    gettext(c"line %lld: sourcing \"%s\""),
+                    i64::from(sourcing_lnum()),
+                    fname,
                 );
             }
-            retval = true;
+            verbose_leave();
+        }
+        if is_vimrc == DOSO_VIMRC {
+            vimrc_found(fname_exp, c"MYVIMRC");
+        }
 
-            if l_do_profiling == PROF_YES && !si.is_null() {
-                si = script_item(g_st().current_sctx.sc_sid);
-                if crate::globals::gptr(si).sn_prof_on {
-                    crate::globals::gptr(si).sn_pr_start =
-                        profile_end(crate::globals::gptr(si).sn_pr_start);
-                    crate::globals::gptr(si).sn_pr_start =
-                        profile_sub_wait(wait_start, crate::globals::gptr(si).sn_pr_start);
-                    crate::globals::gptr(si).sn_pr_total = profile_add(
-                        crate::globals::gptr(si).sn_pr_total,
-                        crate::globals::gptr(si).sn_pr_start,
-                    );
-                    crate::globals::gptr(si).sn_pr_self = profile_self(
-                        crate::globals::gptr(si).sn_pr_self,
-                        crate::globals::gptr(si).sn_pr_start,
-                        crate::globals::gptr(si).sn_pr_children,
-                    );
-                }
-            }
-
-            if g_st().got_int {
-                emsg(gettext(E_INTERR));
-            }
-            estack_pop();
-            if opt_vars().p_verbose > 1 {
-                verbose_enter();
-                smsg!(0, gettext(c"finished sourcing %s"), fname);
-                if let Some(sname) = sourcing_name() {
-                    smsg!(0, gettext(c"continuing in %s"), sname);
-                }
-                verbose_leave();
-            }
-
-            if l_has_time_fd {
-                let iobuff = g_st().iobuff.as_mut_ptr();
-                vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
-                time_msg(crate::memory::cstr_from_ptr(iobuff), Some(&start_time));
-                time_pop(rel_time);
-            }
-
-            if !g_st().got_int {
-                trigger_source_post = true;
-            }
-
-            if save_debug_break_level > g_st().ex_nesting_level
-                && g_st().debug_break_level == g_st().ex_nesting_level
-            {
-                g_st().debug_break_level += 1;
-            }
-
-            g_st().current_sctx = save_current_sctx;
-            restore_funccal();
-            if l_do_profiling == PROF_YES {
-                prof_child_exit(&mut wait_start);
-            }
-            drop(firstline);
-            drop(cookie);
-
-            if str_ptr.is_null() && trigger_source_post {
-                apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
+        #[cfg(windows)]
+        {
+            if crate::memory::cstr_is_empty(opt_vars().p_ffs) {
+                cookie.fileformat = EOL_DOS;
+            } else {
+                cookie.fileformat = EOL_UNKNOWN;
             }
         }
 
-        drop(fname_exp_owned);
-        retval
+        cookie.breakpoint = dbg_find_breakpoint(true, &fname_exp_owned, 0);
+        cookie.fname = Some(fname_exp_owned.clone());
+        cookie.dbg_tick = g_st().debug_tick;
+        cookie.level = g_st().ex_nesting_level;
+
+        let mut rel_time: Proftime = 0;
+        let mut start_time: Proftime = 0;
+        let l_has_time_fd = has_time_fd();
+        if l_has_time_fd {
+            time_push(&mut rel_time, &mut start_time);
+        }
+
+        let l_do_profiling = g_st().do_profiling;
+        if l_do_profiling == PROF_YES {
+            prof_child_enter(&mut wait_start);
+        }
+
+        save_funccal();
+
+        let save_current_sctx = g_st().current_sctx;
+
+        rt_st().last_current_sid_seq += 1;
+        g_st().current_sctx.sc_seq = rt_st().last_current_sid_seq;
+
+        if sid > 0 {
+            si = script_item(sid);
+        } else if str_opt.is_none() {
+            si = new_script_item(Some(fname_exp_owned.clone()), &mut sid);
+            unsafe { (*si).sn_lua = path_with_extension(fname_exp, c"lua") };
+            if let Some(ref mut ret_sid_ref) = ret_sid {
+                **ret_sid_ref = sid;
+            }
+        }
+        debug_assert_eq!(!si.is_null(), str_opt.is_none());
+
+        if str_opt.is_none() || !script_is_lua(g_st().current_sctx.sc_sid) {
+            g_st().current_sctx.sc_sid = sid;
+            g_st().current_sctx.sc_lnum = 0;
+        }
+
+        estack_push(
+            ETYPE_SCRIPT,
+            if !si.is_null() {
+                unsafe { (*si).name_cstr() }
+            } else {
+                Some(&fname_exp_owned)
+            },
+            0,
+        );
+
+        if l_do_profiling == PROF_YES && !si.is_null() {
+            let si_mut = unsafe { &mut *si };
+            let mut forceit = false;
+            if !si_mut.sn_prof_on
+                && has_profiling(true, si_mut.name_cstr().unwrap_or(c""), Some(&mut forceit))
+            {
+                profile_init(si_mut);
+                si_mut.sn_pr_force = forceit;
+            }
+            if si_mut.sn_prof_on {
+                si_mut.sn_pr_count += 1;
+                si_mut.sn_pr_start = profile_start();
+                si_mut.sn_pr_children = profile_zero();
+            }
+        }
+
+        cookie.conv.vc_type = CONV_NONE;
+
+        let mut ts_lua = false;
+        if fname_opt.is_none()
+            && let Some(eap) = eap
+            && !ex_lua
+            && !(crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
+            && !(!curbuf_mut().b_fname.is_null()
+                && path_with_extension(curbuf_mut().b_fname, c"lua"))
+        {
+            let mut args_items = [
+                integer_obj(Integer::from(curbuf_mut().b_fnum)),
+                integer_obj(Integer::from(eap.line1)),
+                integer_obj(Integer::from(eap.line2)),
+            ];
+            let args = Array {
+                items: args_items.as_mut_ptr(),
+                size: 3,
+                capacity: 3,
+            };
+            let mut err = Error::new();
+            let result = nlua_exec(
+                static_cstr_as_string(c"return require('vim._core.util').source_is_lua(...)"),
+                None,
+                args,
+                K_RET_NIL_BOOL,
+                None,
+                &mut err,
+            );
+            if err.err_type == ErrorType::ErrorTypeNone
+                && result.obj_type == ObjectType::ObjectTypeBoolean
+                && result.data.boolean()
+            {
+                ts_lua = true;
+            }
+            api_clear_error(&mut err);
+        }
+
+        if fname_opt.is_none()
+            && (ex_lua
+                || ts_lua
+                || (crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
+                || (!curbuf_mut().b_fname.is_null()
+                    && path_with_extension(curbuf_mut().b_fname, c"lua")))
+        {
+            nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
+        } else if !si.is_null() && unsafe { (*si).sn_lua } {
+            nlua_exec_file(&fname_exp_owned);
+        } else {
+            firstline = getsourceline(0, &mut cookie, 0, true);
+            if let Some(ref fl) = firstline
+                && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
+            {
+                convert_setup(&mut cookie.conv, c"utf-8", opt_vars().p_enc);
+                let after_bom = fl.as_ptr().wrapping_add(3).cast_mut();
+                firstline = Some(string_convert(&cookie.conv, after_bom, None).map_or_else(
+                    || cstr_to_cstring(after_bom),
+                    |v| cstr_to_cstring(v.as_ptr().cast()),
+                ));
+            }
+            do_cmdline(
+                firstline
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                LineGetter::Source(&raw mut cookie),
+                DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
+            );
+        }
+        retval = true;
+
+        if l_do_profiling == PROF_YES && !si.is_null() {
+            let si_mut = script_item(g_st().current_sctx.sc_sid);
+            if si_mut.sn_prof_on {
+                si_mut.sn_pr_start = profile_end(si_mut.sn_pr_start);
+                si_mut.sn_pr_start = profile_sub_wait(wait_start, si_mut.sn_pr_start);
+                si_mut.sn_pr_total = profile_add(si_mut.sn_pr_total, si_mut.sn_pr_start);
+                si_mut.sn_pr_self =
+                    profile_self(si_mut.sn_pr_self, si_mut.sn_pr_start, si_mut.sn_pr_children);
+            }
+        }
+
+        if g_st().got_int {
+            emsg(gettext(E_INTERR));
+        }
+        estack_pop();
+        if opt_vars().p_verbose > 1 {
+            verbose_enter();
+            smsg!(0, gettext(c"finished sourcing %s"), fname);
+            if let Some(sname) = sourcing_name() {
+                smsg!(0, gettext(c"continuing in %s"), sname);
+            }
+            verbose_leave();
+        }
+
+        if l_has_time_fd {
+            let iobuff = g_st().iobuff.as_mut_ptr();
+            vim_snprintf!(iobuff, IOSIZE, c"sourcing %s", fname);
+            time_msg(crate::memory::cstr_from_ptr(iobuff), Some(&start_time));
+            time_pop(rel_time);
+        }
+
+        if !g_st().got_int {
+            trigger_source_post = true;
+        }
+
+        if save_debug_break_level > g_st().ex_nesting_level
+            && g_st().debug_break_level == g_st().ex_nesting_level
+        {
+            g_st().debug_break_level += 1;
+        }
+
+        g_st().current_sctx = save_current_sctx;
+        restore_funccal();
+        if l_do_profiling == PROF_YES {
+            prof_child_exit(&mut wait_start);
+        }
+        drop(firstline);
+        drop(cookie);
+
+        if str_opt.is_none() && trigger_source_post {
+            let fname_exp = fname_exp_owned.as_ptr().cast_mut();
+            apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
+        }
     }
+
+    drop(fname_exp_owned);
+    retval
 }
 
 pub fn do_source(
-    fname: impl crate::strings::IntoCCharPtr,
+    fname: &std::ffi::CStr,
     check_other: bool,
     is_vimrc: i32,
-    ret_sid: *mut i32,
+    ret_sid: Option<&mut i32>,
 ) -> bool {
-    let fname = fname.into_c_char_ptr().cast_mut();
     do_source_ext(
-        fname,
+        Some(fname),
         check_other,
         is_vimrc,
         ret_sid,
         None,
         false,
-        ptr::null(),
+        None,
     )
 }
 
@@ -3030,21 +2915,18 @@ pub fn script_is_lua(sid: Scid) -> bool {
 }
 
 /// Find an already loaded script "name".
-pub fn find_script_by_name(name: impl crate::strings::IntoCCharPtr) -> i32 {
-    let name = name.into_c_char_ptr();
-    {
-        let mut sid = script_items_len();
-        while sid > 0 {
-            let si = script_item(sid);
-            if let Some(ref sn) = si.sn_name
-                && path_equal(sn.as_ptr().cast_mut(), name, K_PATH_CMP_LITERAL)
-            {
-                return sid;
-            }
-            sid -= 1;
+pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
+    let mut sid = script_items_len();
+    while sid > 0 {
+        let si = script_item(sid);
+        if let Some(ref sn) = si.sn_name
+            && path_equal(sn.as_ptr().cast_mut(), name.as_ptr(), K_PATH_CMP_LITERAL)
+        {
+            return sid;
         }
-        -1
+        sid -= 1;
     }
+    -1
 }
 
 /// ":scriptnames"
@@ -3155,11 +3037,12 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
     let l = tv_list_alloc(functbl.len() as isize);
 
     for &fp in functbl.values() {
-        if crate::globals::gptr(fp).uf_script_ctx.sc_sid == sid {
-            let name = if let Some(ref exp) = *unsafe { &((*fp).uf_name_exp) } {
+        let fp_ref = unsafe { &*fp };
+        if fp_ref.uf_script_ctx.sc_sid == sid {
+            let name = if let Some(ref exp) = fp_ref.uf_name_exp {
                 exp.as_ptr()
             } else {
-                crate::globals::gptr(fp).uf_name.as_ptr()
+                fp_ref.uf_name.as_ptr()
             };
             tv_list_append_string(&mut *l, name, -1);
         }
@@ -3517,7 +3400,6 @@ pub fn script_autoload(slice: &[u8], reload: bool) -> bool {
 
     let mut ret = false;
     let scriptname_cstr = autoload_name(slice);
-    let scriptname = scriptname_cstr.as_ptr().cast_mut();
 
     let target_tail = &scriptname_cstr.as_bytes()[9..];
     let already_loaded = rt_st()
@@ -3530,7 +3412,7 @@ pub fn script_autoload(slice: &[u8], reload: bool) -> bool {
         }
 
         if do_in_runtimepath(
-            scriptname,
+            &scriptname_cstr,
             DIP_START,
             &mut RuntimeCallback::Source {
                 skip_if_loaded: true,

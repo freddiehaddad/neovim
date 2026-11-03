@@ -2928,16 +2928,12 @@ fn qf_jump_edit_buffer(
         }
         retval = if do_ecmd(
             fnum,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             None,
             1,
             ECMD_HIDE + ECMD_SET_HELP,
-            if prev_winid == curwin_mut().handle {
-                curwin_ptr()
-            } else {
-                ptr::null_mut()
-            },
+            (prev_winid == curwin_mut().handle).then(curwin_mut),
         ) {
             OK
         } else {
@@ -3848,24 +3844,24 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     if !qf_buf.is_null() {
         if !do_ecmd(
             crate::globals::gptr(qf_buf).b_fnum,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             None,
             ECMD_ONE,
             ECMD_HIDE + ECMD_OLDBUF + ECMD_NOWINENTER,
-            oldwin,
+            unsafe { oldwin.as_mut() },
         ) {
             return false;
         }
     } else {
         if !do_ecmd(
             0,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             None,
             ECMD_ONE,
             ECMD_HIDE + ECMD_NOWINENTER,
-            oldwin,
+            unsafe { oldwin.as_mut() },
         ) {
             return false;
         }
@@ -4480,7 +4476,11 @@ fn make_get_fullcmd(
         );
 
         if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
-            append_redir(cmd, len, opt_vars().p_sp, fname);
+            append_redir(
+                unsafe { std::slice::from_raw_parts_mut(cmd.cast(), len) },
+                crate::memory::cstr_from_ptr(opt_vars().p_sp),
+                crate::memory::cstr_from_ptr(fname),
+            );
         }
 
         if g_st().msg_col == 0 {
@@ -4534,7 +4534,7 @@ pub fn ex_make(eap: &mut Exarg) {
 
     let cmd = make_get_fullcmd(eap.arg, fname_ptr);
 
-    do_shell(cmd.as_ptr().cast_mut(), 0);
+    do_shell(Some(cmd.as_c_str()), 0);
 
     incr_quickfix_busy();
 
@@ -5409,13 +5409,17 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         MAXLNUM
     };
 
-    let mut spat = ptr::null_mut();
-    let mut p = skip_vimgrep_pat(eap.arg, Some(&mut spat), Some(&mut args.flags));
-    if p.is_null() {
+    let mut spat_cstr: Option<&CStr> = None;
+    let Some(p_cstr) = skip_vimgrep_pat(
+        crate::memory::cstr_from_ptr(eap.arg),
+        Some(&mut spat_cstr),
+        Some(&mut args.flags),
+    ) else {
         emsg(gettext(E_INVALPAT));
         return false;
-    }
-    args.spat = (!spat.is_null()).then(|| crate::memory::cstr_to_cstring(spat));
+    };
+    let mut p = p_cstr.as_ptr().cast_mut();
+    args.spat = spat_cstr.map(CStr::to_owned);
 
     vgr_init_regmatch(&mut args.regmatch, args.spat.as_deref());
     if args.regmatch.regprog.is_null() {

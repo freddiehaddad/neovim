@@ -1554,7 +1554,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         if g_st().got_int {
             vpeekc();
             g_st().got_int = false;
-            expand_one(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
+            expand_one(&mut s.xpc, None, None, 0, WILD_FREE);
             s.xpc.xp_context = EXPAND_NOTHING;
             return CMDLINE_CHANGED;
         }
@@ -1658,7 +1658,7 @@ fn command_line_end_wildmenu(s: &mut CommandLineState, key_is_wc: bool, c: i32) 
         cmdline_pum_remove(c != -1 && s.skip_pum_redraw);
     }
     if s.xpc.xp_numfiles != -1 {
-        expand_one(&mut s.xpc, ptr::null_mut(), None, 0, WILD_FREE);
+        expand_one(&mut s.xpc, None, None, 0, WILD_FREE);
     }
     s.did_wild_list = false;
     if opt_vars().p_wmnu == 0 || (c != K_UP && c != K_DOWN) {
@@ -2950,7 +2950,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
         unsafe { cmdpreview_buf.as_mut() },
         K_CTX_KEEP_DIRS,
     );
-    let retv = rename_buffer(c"[Preview]");
+    let retv = rename_buffer(Some(c"[Preview]"));
     ctx_restore(&mut aco);
 
     if !retv {
@@ -4333,9 +4333,6 @@ fn restore_cmdline() {
 
 /// Paste a yank register into the command line.
 fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
-    let mut arg: *mut u8 = ptr::null_mut();
-    let mut owned: Option<Vec<u8>> = None;
-
     if regname != CTRL_F_CONST
         && regname != CTRL_P
         && regname != CTRL_W_CONST
@@ -4352,13 +4349,14 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
     }
 
     g_st().textlock += 1;
-    let i = get_spec_reg(regname, &mut arg, &mut owned, true);
+    let spec_res = get_spec_reg(regname, true);
     g_st().textlock -= 1;
 
-    if i {
-        if arg.is_null() {
+    if let Some(opt_vec) = spec_res {
+        let Some(vec_val) = opt_vec else {
             return FAIL != 0;
-        }
+        };
+        let arg = vec_val.as_ptr().cast_mut();
 
         let mut p = arg;
         if opt_vars().p_is != 0 && regname == CTRL_W_CONST {

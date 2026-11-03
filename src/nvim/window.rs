@@ -1057,12 +1057,12 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
             reset_binding(curwin_mut());
             if !do_ecmd(
                 0,
-                ptr,
-                ptr::null_mut(),
+                crate::memory::cstr_as_opt_cstr(ptr),
+                None,
                 None,
                 ECMD_LASTL,
                 ECMD_HIDE,
-                ptr::null_mut(),
+                None,
             ) {
                 let old_got_int = g_st().got_int;
                 g_st().got_int = false;

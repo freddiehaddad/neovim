@@ -2503,7 +2503,7 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         break;
     }
     if found && let Some(source_path) = fix_fname(info.source.wrapping_add(1)) {
-        let mut sid = find_script_by_name(source_path.as_ptr().cast_mut());
+        let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
             let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);
             unsafe {

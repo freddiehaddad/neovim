@@ -24,7 +24,6 @@ use crate::window::{
     WSP_BOT, WSP_HELP, WSP_TOP, WinInfoInfo, win_close, win_enter, win_setheight, win_split,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::K_OPT_FOLDMETHOD;
@@ -199,12 +198,12 @@ pub fn ex_help(eap: &mut Exarg) {
                 alt_fnum = curbuf_mut().b_fnum;
                 do_ecmd(
                     0,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
+                    None,
                     None,
                     ECMD_LASTL,
                     ECMD_HIDE + ECMD_SET_HELP,
-                    ptr::null_mut(),
+                    None,
                 );
 
                 if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {

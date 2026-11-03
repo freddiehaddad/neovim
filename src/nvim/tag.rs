@@ -2810,7 +2810,14 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
         }
 
         if getfile_result == GETFILE_UNUSED {
-            getfile_result = getfile(0, fname.cast(), ptr::null_mut(), true, 0, forceit != 0);
+            getfile_result = getfile(
+                0,
+                crate::memory::cstr_as_opt_cstr(fname.cast()),
+                None,
+                true,
+                0,
+                forceit != 0,
+            );
         }
         g_st().keep_help_flag = false;
 
@@ -3020,7 +3027,7 @@ fn expand_tag_fname(
             xpc.xp_context = EXPAND_FILES;
             if let Some(exp) = expand_one(
                 &mut xpc,
-                fname.as_ptr().cast_mut(),
+                Some(fname.as_c_str()),
                 None,
                 WILD_LIST_NOTFOUND | WILD_SILENT,
                 WILD_EXPAND_FREE,

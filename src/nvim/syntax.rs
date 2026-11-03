@@ -3704,10 +3704,11 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     syn_st().current_syn_inc_tag = syn_st().running_syn_inc_tag;
     let prev_toplvl_grp = win_s(curwin_mut()).b_syn_topgrp;
     win_s(curwin_mut()).b_syn_topgrp = sgl_id;
+    let arg_cstr = crate::memory::cstr_from_ptr(eap.arg);
     let res = if source {
-        do_source(eap.arg, false, DOSO_NONE, ptr::null_mut())
+        do_source(arg_cstr, false, DOSO_NONE, None)
     } else {
-        source_runtime(eap.arg, DIP_ALL)
+        source_runtime(arg_cstr, DIP_ALL)
     };
     if !res {
         semsg!(gettext(E_NOTOPEN), eap.arg);

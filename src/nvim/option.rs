@@ -7676,7 +7676,7 @@ pub fn expand_settings(
 
         matches.clear();
         let mut fuzmatch: Vec<FuzmatchStr> = Vec::new();
-        let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr);
+        let fuzzy = can_fuzzy && cmdline_fuzzy_complete(crate::memory::cstr_from_ptr(fuzzystr));
 
         regmatch.rm_ic = ic;
         if xp.xp_context != EXPAND_BOOL_SETTINGS {

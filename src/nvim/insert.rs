@@ -2679,7 +2679,7 @@ fn ins_reg() {
 
             do_put(
                 regname,
-                ptr::null_mut(),
+                None,
                 BACKWARD,
                 1,
                 (if literally == CTRL_P {
@@ -2691,8 +2691,8 @@ fn ins_reg() {
         } else if reg.y_array.len() > 1 && is_literal_register(regname) {
             redo_append_char(CTRL_R_CONST);
             redo_append_char(regname);
-            do_put(regname, ptr::null_mut(), BACKWARD, 1, PUT_CURSEND);
-        } else if !insert_reg(regname, ptr::null_mut(), literally != 0) {
+            do_put(regname, None, BACKWARD, 1, PUT_CURSEND);
+        } else if !insert_reg(regname, None, literally != 0) {
             vim_beep(K_OPT_BO_FLAG_REGISTER);
             need_redraw = true;
         } else if g_st().ins_global.stop_insert_mode {

@@ -903,7 +903,7 @@ pub fn load_colors(name: &CStr) -> bool {
     buf.extend_from_slice(b"colors/");
     buf.extend_from_slice(name_bytes);
     buf.extend_from_slice(b".*\0");
-    let retval = source_runtime_vim_lua(buf.as_mut_ptr().cast(), DIP_START + DIP_OPT);
+    let retval = source_runtime_vim_lua(crate::memory::cstr_until_nul(&buf), DIP_START + DIP_OPT);
     if retval {
         apply_autocmds(
             EVENT_COLORSCHEME,

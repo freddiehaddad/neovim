@@ -926,7 +926,7 @@ pub fn ex_loadview(eap: &mut Exarg) {
         return;
     };
 
-    if !do_source(fname.as_ptr().cast_mut(), false, DOSO_NONE, ptr::null_mut()) {
+    if !do_source(fname.as_c_str(), false, DOSO_NONE, None) {
         semsg!(gettext(E_NOTOPEN), fname.as_ptr());
     }
 }

@@ -54,7 +54,6 @@ use crate::strings::{gettext, vim_strnsave_unquoted, vim_strsave_escaped_ext};
 use crate::tag::tag_freematch;
 use crate::ui::{ui_busy_start, ui_busy_stop, ui_flush, ui_has};
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::autocmd::PROF_YES;
 use crate::change::TAB;
@@ -703,9 +702,9 @@ pub fn get_cmd_output(
     let tempname = tempname_cstr.as_ptr().cast_mut();
 
     let command = make_filter_cmd(
-        cmd.map_or(ptr::null(), CStr::as_ptr),
-        infile.map_or(ptr::null(), CStr::as_ptr),
-        tempname,
+        cmd.unwrap_or(c""),
+        infile,
+        Some(tempname_cstr.as_c_str()),
         false,
     );
 

@@ -135,7 +135,7 @@ pub fn exec_impl(
     }
 
     let save_current_sctx = api_set_sctx(channel_id);
-    do_source_str(src.data, c"nvim_exec2()");
+    do_source_str(crate::memory::cstr_from_ptr(src.data), c"nvim_exec2()");
     if opts.output {
         g_st().capture_ga = save_capture_ga;
         g_st().msg_silent = save_msg_silent;

@@ -232,8 +232,13 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
             buf_set_name(buf.b_fnum, c"Untitled");
         }
 
-        if check_overwrite(&mut ea, buf, buf.b_fname, buf.b_ffname, false)
-            && buf_write_all(buf, false) == OK
+        if check_overwrite(
+            &mut ea,
+            buf,
+            crate::memory::cstr_as_opt_cstr(buf.b_fname),
+            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
+            false,
+        ) && buf_write_all(buf, false) == OK
         {
             return;
         }
@@ -254,7 +259,13 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 let b_fname = buf2_ref.b_fname;
                 let b_ffname = buf2_ref.b_ffname;
                 if !b_fname.is_null()
-                    && check_overwrite(&mut ea, buf2_ref, b_fname, b_ffname, false)
+                    && check_overwrite(
+                        &mut ea,
+                        buf2_ref,
+                        crate::memory::cstr_as_opt_cstr(b_fname),
+                        crate::memory::cstr_as_opt_cstr(b_ffname),
+                        false,
+                    )
                 {
                     buf_write_all(unsafe { &mut *buf2 }, false);
                 }
@@ -444,9 +455,9 @@ pub fn check_fname() -> bool {
 pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> i32 {
     let old_curbuf = g_st().curbuf;
     let retval = buf_write(
-        &raw mut *buf,
-        buf.b_ffname,
-        buf.b_fname,
+        buf,
+        crate::memory::cstr_as_opt_cstr(buf.b_ffname),
+        crate::memory::cstr_as_opt_cstr(buf.b_fname),
         1,
         buf.b_ml.ml_line_count,
         None,
@@ -744,7 +755,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
     do_unlet(b"b:current_compiler", true);
 
     vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, c"compiler/%s.*", eap.arg);
-    if !source_runtime_vim_lua(buf.as_mut_ptr().cast(), DIP_ALL) {
+    if !source_runtime_vim_lua(crate::memory::cstr_until_nul(&buf), DIP_ALL) {
         semsg!(gettext(E_COMPILER_NOT_SUPPORTED_STR), eap.arg);
     }
     drop(buf);
@@ -851,7 +862,8 @@ pub fn ex_drop(eap: &mut Exarg) {
                 }
 
                 if !eap.do_ecmd_cmd.is_null() {
-                    let did_set_swapcommand = set_swapcommand(eap.do_ecmd_cmd, 0);
+                    let did_set_swapcommand =
+                        set_swapcommand(crate::memory::cstr_as_opt_cstr(eap.do_ecmd_cmd), 0);
                     do_cmdline(
                         eap.do_ecmd_cmd,
                         crate::cmdexpand::LineGetter::None,

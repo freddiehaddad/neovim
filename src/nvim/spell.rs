@@ -1322,7 +1322,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             spell_enc(),
         );
         let ok = do_in_runtimepath(
-            (&raw mut fname_enc).cast(),
+            crate::memory::cstr_until_nul(&fname_enc),
             0,
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
@@ -1335,7 +1335,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 lang,
             );
             let ok2 = do_in_runtimepath(
-                (&raw mut fname_enc).cast(),
+                crate::memory::cstr_until_nul(&fname_enc),
                 0,
                 &mut RuntimeCallback::SpellLoad(&mut sl),
             );
@@ -1380,7 +1380,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         let fn_len = crate::memory::cstr_until_nul(&fname_enc).to_bytes().len();
         fname_enc[fn_len - 3..fn_len + 5].copy_from_slice(b"add.spl\0");
         do_in_runtimepath(
-            (&raw mut fname_enc).cast(),
+            crate::memory::cstr_until_nul(&fname_enc),
             DIP_ALL,
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
@@ -1497,13 +1497,8 @@ pub fn slang_clear_sug(lp: &mut Slang) {
 }
 pub fn spell_load_cb(fnames: &[std::ffi::CString], all: bool, slp: &mut Spelload) -> bool {
     for fname in fnames {
-        let slang = spell_load_file(
-            fname.as_ptr().cast_mut(),
-            Some(&mut slp.sl_lang),
-            ptr::null_mut(),
-            false,
-        );
-        let Some(slang) = (unsafe { slang.as_mut() }) else {
+        let Some(slang) = spell_load_file(fname.as_c_str(), Some(&mut slp.sl_lang), None, false)
+        else {
             continue;
         };
         if slp.sl_nobreak != 0 && slang.sl_add {
@@ -1715,12 +1710,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 if filename {
                     let fname_cstr =
                         crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(&lang));
-                    let _ = spell_load_file(
-                        fname_cstr.as_ptr(),
-                        Some(&mut lang),
-                        ptr::null_mut(),
-                        false,
-                    );
+                    let _ = spell_load_file(fname_cstr.as_c_str(), Some(&mut lang), None, false);
                 } else {
                     spell_load_lang(crate::memory::cstr_until_nul(&lang));
                     if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
@@ -1841,7 +1831,13 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
                     crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
                 }
-                slang = spell_load_file(spf_ptr.cast(), Some(&mut lang), ptr::null_mut(), true);
+                slang = spell_load_file(
+                    crate::memory::cstr_until_nul(&spf_name),
+                    Some(&mut lang),
+                    None,
+                    true,
+                )
+                .map_or(ptr::null_mut(), ptr::from_mut);
                 if !slang.is_null() && nobreak {
                     unsafe { (*slang).sl_nobreak = true };
                 }
@@ -2921,15 +2917,16 @@ fn dump_word(
     if let Some(pat_cstr) = pat {
         let pat_ptr = pat_cstr.as_ptr();
         let pat_bytes = pat_cstr.to_bytes();
+        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
         if (if (dumpflags & DUMPFLAG_ICASE) != 0 {
             mb_strnicmp(p.cast(), pat_ptr, pat_bytes.len()) == 0
         } else {
-            crate::memory::cstr_as_bytes(p.cast()).starts_with(pat_bytes)
+            p_bytes.starts_with(pat_bytes)
         }) && ins_compl_add_infercase(
-            p.cast(),
-            crate::memory::cstr_len(p.cast()) as i32,
+            p_bytes,
+            p_bytes.len() as i32,
             opt_vars().p_ic != 0,
-            ptr::null(),
+            None,
             *dir.as_deref_mut().unwrap(),
             false,
             0,

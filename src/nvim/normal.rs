@@ -4777,19 +4777,18 @@ fn nv_gotofile(cap: &mut Cmdarg) {
     }
 
     if let Some(fname_cstr) = grab_file_name(cap.count1, &mut lnum) {
-        let ptr = fname_cstr.as_ptr().cast_mut();
         if curbuf_is_changed_fn() && curbuf_mut().b_nwindows <= 1 && !buf_hide(curbuf_mut()) {
             autowrite(curbuf_mut(), false);
         }
         setpcmark();
         if do_ecmd(
             0,
-            ptr,
-            ptr::null_mut(),
+            Some(fname_cstr.as_c_str()),
+            None,
             None,
             ECMD_LAST,
             if buf_hide(curbuf_mut()) { ECMD_HIDE } else { 0 },
-            curwin_ptr(),
+            Some(curwin_mut()),
         ) && cap.nchar == b'F' as i32
             && lnum >= 0
         {
@@ -7395,10 +7394,13 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         }
         g_st().visual_global.active = true;
     }
-    let savereg_ptr = savereg
-        .as_mut()
-        .map_or(ptr::null_mut(), |r| r as *mut Yankreg);
-    do_put(cap.oap_mut().regname, savereg_ptr, dir, cap.count1, flags);
+    do_put(
+        cap.oap_mut().regname,
+        savereg.as_mut(),
+        dir,
+        cap.count1,
+        flags,
+    );
     drop(savereg);
 
     if was_visual {

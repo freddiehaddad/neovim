@@ -625,16 +625,16 @@ pub fn do_mouse(
 
         if (g_st().state_global & MODE_INSERT) != 0 {
             if regname == b'.' as i32 {
-                insert_reg(regname, ptr::null_mut(), true);
+                insert_reg(regname, None, true);
             } else {
                 if regname == 0 && eval_has_provider(c"clipboard", false) {
                     regname = b'*' as i32;
                 }
-                let mut reg: *mut Yankreg = ptr::null_mut();
+                let mut reg: Option<&'static mut Yankreg> = None;
                 if (g_st().state_global & REPLACE_FLAG) != 0
                     && !yank_register_mline(regname, &mut reg)
                 {
-                    insert_reg(regname, reg, true);
+                    insert_reg(regname, reg.as_deref(), true);
                 } else {
                     do_put(
                         regname,
@@ -987,7 +987,7 @@ pub fn do_mouse(
         if regname == 0 && eval_has_provider(c"clipboard", false) {
             regname = b'*' as i32;
         }
-        let mut reg: *mut Yankreg = ptr::null_mut();
+        let mut reg: Option<&'static mut Yankreg> = None;
         if yank_register_mline(regname, &mut reg) {
             if g_st().mouse_past_bottom {
                 dir = FORWARD;

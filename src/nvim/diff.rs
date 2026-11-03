@@ -785,9 +785,9 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         buf.b_ml.ml_flags |= ML_EMPTY;
     }
     let r = buf_write(
-        &raw mut *buf,
-        din_fname.as_ptr().cast_mut(),
-        ptr::null_mut(),
+        buf,
+        Some(din_fname.as_c_str()),
+        None,
         start,
         end,
         None,
@@ -1182,7 +1182,11 @@ fn diff_file(dio: &mut Diffio) -> bool {
         tmp_orig,
         tmp_new,
     );
-    append_redir(cmd, len, opt_vars().p_srr, tmp_diff);
+    append_redir(
+        unsafe { std::slice::from_raw_parts_mut(cmd.cast(), len) },
+        crate::memory::cstr_from_ptr(opt_vars().p_srr),
+        crate::memory::cstr_from_ptr(tmp_diff),
+    );
     crate::autocmd::block_autocmds();
     call_shell(
         crate::memory::cstr_as_opt_cstr(cmd),
@@ -1208,9 +1212,9 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let tmp_orig = tmp_orig_cstr.as_ptr().cast_mut();
         let tmp_new = tmp_new_cstr.as_ptr().cast_mut();
         if buf_write(
-            g_st().curbuf,
-            tmp_orig,
-            ptr::null_mut(),
+            curbuf_mut(),
+            Some(tmp_orig_cstr.as_c_str()),
+            None,
             1,
             curbuf_mut().b_ml.ml_line_count,
             None,

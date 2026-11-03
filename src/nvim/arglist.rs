@@ -665,9 +665,8 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
 
     if !do_ecmd(
         0,
-        alist_name(&arglist_slice()[curwin_mut().w_arg_idx as usize])
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-        ptr::null_mut(),
+        alist_name(&arglist_slice()[curwin_mut().w_arg_idx as usize]),
+        None,
         Some(&*eap),
         ECMD_LAST,
         (if buf_hide(curwin_mut().buf_mut()) {
@@ -675,7 +674,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         } else {
             0
         }) + (if eap.forceit != 0 { ECMD_FORCEIT } else { 0 }),
-        curwin_ptr(),
+        Some(curwin_mut()),
     ) {
         curwin_mut().w_arg_idx = old_arg_idx;
     } else if eap.cmdidx != CMD_ARGDO {
@@ -1062,9 +1061,8 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             }
             do_ecmd(
                 0,
-                alist_name(unsafe { &(&(*aall.alist).al_ga)[i as usize] })
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                ptr::null_mut(),
+                alist_name(unsafe { &(&(*aall.alist).al_ga)[i as usize] }),
+                None,
                 None,
                 ECMD_ONE,
                 (if buf_hide(curwin_mut().buf_mut()) || buf_is_changed_fn(curwin_mut().buf_mut()) {
@@ -1072,7 +1070,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 } else {
                     0
                 }) + ECMD_OLDBUF,
-                curwin_ptr(),
+                Some(curwin_mut()),
             );
             if tab_drop_empty_window && i == count - 1 {
                 g_st().autocmd_no_enter += 1;

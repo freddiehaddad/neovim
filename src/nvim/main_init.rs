@@ -2134,18 +2134,17 @@ fn edit_buffers(parmp: &mut Mparm) {
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {
                 alist_name(&garglist_slice()[arg_idx as usize])
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
             } else {
-                ptr::null_mut()
+                None
             };
             do_ecmd(
                 0,
                 fname,
-                ptr::null_mut(),
+                None,
                 None,
                 ECMD_LASTL,
                 ECMD_HIDE,
-                curwin_ptr(),
+                Some(curwin_mut()),
             );
             if g_st().swap_exists_did_quit {
                 if g_st().got_int || only_one_window() {
@@ -2208,7 +2207,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
     }
 
     curwin_mut().w_cursor.lnum = 0;
-    estack_push(ETYPE_ARGS, gettext(c"pre-vimrc command line"), 0);
+    estack_push(ETYPE_ARGS, Some(gettext(c"pre-vimrc command line")), 0);
     g_st().current_sctx.sc_sid = SID_CMDARG;
     for cmd in &parmp.pre_commands {
         do_cmdline_cmd(cmd.as_ptr());
@@ -2223,7 +2222,7 @@ fn exe_commands(parmp: &mut Mparm) {
     if parmp.tagname.is_none() && curwin_mut().w_cursor.lnum <= 1 {
         curwin_mut().w_cursor.lnum = 0;
     }
-    estack_push(ETYPE_ARGS, c"command line", 0);
+    estack_push(ETYPE_ARGS, Some(c"command line"), 0);
     g_st().current_sctx.sc_sid = SID_CARG;
     g_st().current_sctx.sc_seq = 0;
     let cmds = std::mem::take(&mut parmp.commands);
@@ -2267,7 +2266,12 @@ fn do_system_initialization() {
             }
             vimrc.extend_from_slice(appname_bytes);
             vimrc.extend_from_slice(&sysinit_suffix);
-            if do_source(vimrc.as_mut_ptr().cast(), false, DOSO_NONE, ptr::null_mut()) {
+            if do_source(
+                crate::memory::cstr_until_nul(&vimrc),
+                false,
+                DOSO_NONE,
+                None,
+            ) {
                 return;
             }
             if iter.is_none() {
@@ -2276,7 +2280,7 @@ fn do_system_initialization() {
         }
     }
 
-    do_source(c"$VIM/sysinit.vim", false, DOSO_NONE, ptr::null_mut());
+    do_source(c"$VIM/sysinit.vim", false, DOSO_NONE, None);
 }
 
 fn do_user_initialization() -> bool {
@@ -2291,7 +2295,7 @@ fn do_user_initialization() -> bool {
     let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
     let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
-    if os_path_exists(init_lua_ptr) && do_source(init_lua_ptr, true, DOSO_VIMRC, ptr::null_mut()) {
+    if os_path_exists(init_lua_ptr) && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None) {
         if os_path_exists(user_vimrc_ptr) {
             semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
         }
@@ -2300,7 +2304,7 @@ fn do_user_initialization() -> bool {
     }
     drop(init_lua_path);
 
-    if do_source(user_vimrc_ptr, true, DOSO_VIMRC, ptr::null_mut()) {
+    if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
         do_exrc = opt_vars().p_exrc != 0;
         if do_exrc {
             do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr, K_PATH_CMP_EXPAND);
@@ -2342,10 +2346,10 @@ fn do_user_initialization() -> bool {
 
             if os_path_exists(init_lua.as_ptr().cast())
                 && do_source(
-                    init_lua.as_mut_ptr().cast(),
+                    crate::memory::cstr_until_nul(&init_lua),
                     true,
                     DOSO_VIMRC,
-                    ptr::null_mut(),
+                    None,
                 )
             {
                 if os_path_exists(init_vim.as_ptr().cast()) {
@@ -2356,10 +2360,10 @@ fn do_user_initialization() -> bool {
             }
 
             if do_source(
-                init_vim.as_mut_ptr().cast(),
+                crate::memory::cstr_until_nul(&init_vim),
                 true,
                 DOSO_VIMRC,
-                ptr::null_mut(),
+                None,
             ) {
                 do_exrc = opt_vars().p_exrc != 0;
                 if do_exrc {
@@ -2398,12 +2402,7 @@ fn source_startup_scripts(parmp: &Mparm) {
     if let Some(ref use_vimrc) = parmp.use_vimrc {
         if use_vimrc.as_c_str() == c"NONE" || use_vimrc.as_c_str() == c"NORC" {
             // Do nothing.
-        } else if !do_source(
-            use_vimrc.as_ptr().cast_mut(),
-            false,
-            DOSO_NONE,
-            ptr::null_mut(),
-        ) {
+        } else if !do_source(use_vimrc.as_c_str(), false, DOSO_NONE, None) {
             semsg!(gettext(E_CANNOT_READ_FROM_STR_2), use_vimrc.as_ptr(),);
         }
     } else if !g_st().silent_mode {
@@ -2420,7 +2419,7 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
         return false;
     };
 
-    estack_push(ETYPE_ENV, env.as_ptr().cast_mut(), 0);
+    estack_push(ETYPE_ENV, Some(env), 0);
     let save_current_sctx = g_st().current_sctx;
     g_st().current_sctx.sc_sid = SID_ENV;
     g_st().current_sctx.sc_seq = 0;

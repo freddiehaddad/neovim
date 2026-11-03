@@ -5027,20 +5027,17 @@ pub fn do_cmdline(
             return false;
         }
 
-        let func_cookie = fgetline.as_func();
-        let source_cookie = fgetline.as_source();
-
-        if let Some(fcp) = func_cookie {
-            if g_st().ex_nesting_level == func_level(crate::globals::gmut(fcp)) {
+        if let Some(fcp) = fgetline.as_func() {
+            if g_st().ex_nesting_level == func_level(fcp) {
                 g_st().ex_nesting_level += 1;
             }
-            fname = func_name(crate::globals::gmut(fcp)).as_ptr().cast_mut();
-            breakpoint = func_breakpoint(crate::globals::gmut(fcp));
-            dbg_tick = func_dbg_tick(crate::globals::gmut(fcp));
-        } else if let Some(sp) = source_cookie {
+            fname = func_name(fcp).as_ptr().cast_mut();
+            breakpoint = func_breakpoint(fcp);
+            dbg_tick = func_dbg_tick(fcp);
+        } else if let Some(sp) = fgetline.as_source() {
             fname = sourcing_name().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            breakpoint = source_breakpoint(crate::globals::gmut(sp));
-            dbg_tick = source_dbg_tick(crate::globals::gmut(sp));
+            breakpoint = source_breakpoint(sp);
+            dbg_tick = source_dbg_tick(sp);
         }
 
         if RECURSIVE.load(std::sync::atomic::Ordering::Relaxed) == 0 {
@@ -5063,12 +5060,12 @@ pub fn do_cmdline(
 
         next_cmdline = cmdline;
         loop {
-            let func_cookie = fgetline.as_func();
-
             if next_cmdline.is_null()
                 && !g_st().force_abort
                 && cstack.cs_idx < 0
-                && !func_cookie.is_some_and(|fcp| func_has_abort(crate::globals::gmut(fcp)) != 0)
+                && !fgetline
+                    .as_func()
+                    .is_some_and(|fcp| func_has_abort(fcp) != 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5077,11 +5074,11 @@ pub fn do_cmdline(
                 cmdline_buf.clear();
                 cmdline_copy = ptr::null_mut();
 
-                if let Some(fcp) = func_cookie {
+                if let Some(fcp) = fgetline.as_func() {
                     if g_st().do_profiling == PROF_YES {
-                        func_line_end(crate::globals::gmut(fcp));
+                        func_line_end(fcp);
                     }
-                    if func_has_ended(crate::globals::gmut(fcp)) != 0 {
+                    if func_has_ended(fcp) != 0 {
                         retval = false;
                         break;
                     }
@@ -5123,8 +5120,8 @@ pub fn do_cmdline(
                     *crate::globals::gptr(dbg_tick) = g_st().debug_tick;
                 }
                 if g_st().do_profiling == PROF_YES {
-                    if let Some(fcp) = func_cookie {
-                        func_line_start(crate::globals::gmut(fcp));
+                    if let Some(fcp) = fgetline.as_func() {
+                        func_line_start(fcp);
                     } else if fgetline.is_source() {
                         script_line_start();
                     }
@@ -5269,7 +5266,7 @@ pub fn do_cmdline(
                 && !g_st().force_abort
                 && fgetline
                     .as_func()
-                    .is_some_and(|fcp| func_has_abort(crate::globals::gmut(fcp)) == 0)
+                    .is_some_and(|fcp| func_has_abort(fcp) == 0)
             {
                 g_st().did_emsg = 0;
             }
@@ -5379,7 +5376,7 @@ pub fn do_cmdline(
                 && ((fgetline.is_source() && !source_finished(fgetline))
                     || fgetline
                         .as_func()
-                        .is_some_and(|fcp| func_has_ended(crate::globals::gmut(fcp)) == 0))
+                        .is_some_and(|fcp| func_has_ended(fcp) == 0))
             {
                 let top_flags = cstack.cs_flags[cstack.cs_idx as usize];
                 if (top_flags & CSF_TRY) != 0 {
@@ -5426,10 +5423,10 @@ pub fn do_cmdline(
         }
         if fgetline
             .as_source()
-            .is_some_and(|sp| g_st().ex_nesting_level > source_level(crate::globals::gmut(sp)))
-            || fgetline.as_func().is_some_and(|fcp| {
-                g_st().ex_nesting_level > func_level(crate::globals::gmut(fcp)) + 1
-            })
+            .is_some_and(|sp| g_st().ex_nesting_level > source_level(sp))
+            || fgetline
+                .as_func()
+                .is_some_and(|fcp| g_st().ex_nesting_level > func_level(fcp) + 1)
         {
             if !g_st().did_throw {
                 g_st().check_cstack = true;
@@ -5509,7 +5506,7 @@ pub fn handle_did_throw() {
 
     estack_push(
         ETYPE_EXCEPT,
-        excp.throw_name.as_ptr().cast_mut(),
+        Some(excp.throw_name.as_c_str()),
         excp.throw_lnum,
     );
     drop(cur_excp);
@@ -6285,7 +6282,7 @@ fn profile_cmd(eap: &Exarg, cstack: &mut Cstack, fgetline: LineGetter) {
 
         if !skip {
             if let Some(fcp) = fgetline.as_func() {
-                func_line_exec(crate::globals::gmut(fcp));
+                func_line_exec(fcp);
             } else if fgetline.is_source() {
                 script_line_exec();
             }
@@ -6909,7 +6906,6 @@ pub fn parse_command_modifiers(
                 continue;
             }
             b'f' => {
-                let mut reg_pat: RawCCharPtrMut = ptr::null_mut();
                 if !checkforcmd(&mut p, b"filter", 4)
                     || crate::memory::cstr_is_empty(p)
                     || ends_excmd(crate::memory::cstr_first_byte(p)) != 0
@@ -6925,17 +6921,24 @@ pub fn parse_command_modifiers(
                         break;
                     }
                 }
-                if skip_only {
-                    p = skip_vimgrep_pat(p, None, None);
+                let mut reg_pat_cstr: Option<&CStr> = None;
+                p = if skip_only {
+                    skip_vimgrep_pat(crate::memory::cstr_from_ptr(p), None, None)
                 } else {
-                    p = skip_vimgrep_pat(p, Some(&mut reg_pat), None);
+                    skip_vimgrep_pat(
+                        crate::memory::cstr_from_ptr(p),
+                        Some(&mut reg_pat_cstr),
+                        None,
+                    )
                 }
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
                 if !skip_only {
-                    cmod.cmod_filter_pat = Some(cstr_to_cstring(reg_pat));
-                    cmod.cmod_filter_regmatch.regprog = vim_regcomp(reg_pat, RE_MAGIC);
+                    let pat_ptr = reg_pat_cstr.map_or(ptr::null(), CStr::as_ptr);
+                    cmod.cmod_filter_pat = Some(cstr_to_cstring(pat_ptr));
+                    cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat_ptr, RE_MAGIC);
                     if cmod.cmod_filter_regmatch.regprog.is_null() {
                         break;
                     }
@@ -8153,10 +8156,8 @@ fn skip_grep_pat(eap: &mut Exarg) -> RawCCharPtrMut {
             || eap.cmdidx == Cmdidx::CmdLvimgrepadd as i32
             || (eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0))
     {
-        p = skip_vimgrep_pat(p, None, None);
-        if p.is_null() {
-            p = eap.arg;
-        }
+        p = skip_vimgrep_pat(crate::memory::cstr_from_ptr(p), None, None)
+            .map_or(eap.arg, |s| s.as_ptr().cast_mut());
     }
     p
 }
@@ -8345,8 +8346,13 @@ pub fn expand_filename(
             if opt_vars().p_wic != 0 {
                 options += WILD_ICASE;
             }
-            let Some(expanded) = expand_one(&mut xpc, eap.arg, None, options, WILD_EXPAND_FREE)
-            else {
+            let Some(expanded) = expand_one(
+                &mut xpc,
+                crate::memory::cstr_as_opt_cstr(eap.arg),
+                None,
+                options,
+                WILD_EXPAND_FREE,
+            ) else {
                 return false;
             };
             repl_cmdline(
@@ -8689,7 +8695,14 @@ pub fn expand_argopt(
             }
 
             if cb.is_some() {
-                expand_generic(pat, xp, rmp, matches, cb, false);
+                expand_generic(
+                    crate::memory::cstr_from_ptr(pat),
+                    xp,
+                    rmp,
+                    matches,
+                    cb,
+                    false,
+                );
                 return true;
             }
             return false;
@@ -8702,7 +8715,14 @@ pub fn expand_argopt(
             return true;
         }
 
-        expand_generic(pat, xp, rmp, matches, Some(get_argopt_name), false);
+        expand_generic(
+            crate::memory::cstr_from_ptr(pat),
+            xp,
+            rmp,
+            matches,
+            Some(get_argopt_name),
+            false,
+        );
         true
     }
 }
@@ -10502,16 +10522,12 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin: *mut WinInfoInfo) {
         setpcmark();
         do_ecmd(
             0,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             Some(&*eap),
             ECMD_ONE,
             ECMD_HIDE + if eap.forceit != 0 { ECMD_FORCEIT } else { 0 },
-            if old_curwin.is_null() {
-                curwin_ptr()
-            } else {
-                ptr::null_mut()
-            },
+            old_curwin.is_null().then(curwin_mut),
         );
     } else if (eap.cmdidx != Cmdidx::CmdSplit as i32 && eap.cmdidx != Cmdidx::CmdVsplit as i32)
         || !crate::memory::cstr_is_empty(eap.arg)
@@ -10548,19 +10564,15 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin: *mut WinInfoInfo) {
         if !do_ecmd(
             0,
             if eap.cmdidx == Cmdidx::CmdEnew as i32 {
-                ptr::null_mut()
+                None
             } else {
-                eap.arg
+                crate::memory::cstr_as_opt_cstr(eap.arg)
             },
-            ptr::null_mut(),
+            None,
             Some(&*eap),
             eap.do_ecmd_lnum,
             ecmd_flags,
-            if old_curwin.is_null() {
-                curwin_ptr()
-            } else {
-                ptr::null_mut()
-            },
+            old_curwin.is_null().then(curwin_mut),
         ) {
             if !old_curwin.is_null() {
                 let need_hide = curbuf_is_changed_fn() && curbuf_mut().b_nwindows <= 1;
@@ -11082,7 +11094,7 @@ fn ex_put(eap: &mut Exarg) {
     check_cursor_col(curwin_mut());
     do_put(
         eap.regname,
-        ptr::null_mut(),
+        None,
         if eap.forceit != 0 { BACKWARD } else { FORWARD },
         1,
         PUT_LINE | PUT_CURSLINE,
@@ -11098,7 +11110,7 @@ fn ex_iput(eap: &mut Exarg) {
     check_cursor_col(curwin_mut());
     do_put(
         eap.regname,
-        ptr::null_mut(),
+        None,
         if eap.forceit != 0 { BACKWARD } else { FORWARD },
         1,
         PUT_LINE | PUT_CURSLINE | PUT_FIXINDENT,
@@ -11363,7 +11375,7 @@ fn ex_redir(eap: &mut Exarg) {
                     rem = after_gt;
                 }
                 if rem.is_empty() && !ascii_isupper(g_st().redir_reg) {
-                    write_reg_contents(g_st().redir_reg, c"", 0, i32::from(false));
+                    write_reg_contents(g_st().redir_reg, b"", 0, i32::from(false));
                 }
             }
         }
@@ -12532,7 +12544,7 @@ fn ex_folddo(eap: &mut Exarg) {
         lnum += 1;
     }
 
-    global_exe(eap.arg);
+    global_exe(crate::memory::cstr_from_ptr(eap.arg));
     ml_clearmarked();
 }
 

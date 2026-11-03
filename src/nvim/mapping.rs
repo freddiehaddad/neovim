@@ -1366,8 +1366,7 @@ pub fn set_context_in_map_cmd(
 
 /// Find all mapping/abbreviation names that match regexp "regmatch".
 pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CString>) -> bool {
-    let pat_ptr = pat.as_ptr();
-    let fuzzy = cmdline_fuzzy_complete(pat_ptr);
+    let fuzzy = cmdline_fuzzy_complete(pat);
 
     matches.clear();
 

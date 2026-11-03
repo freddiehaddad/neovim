@@ -2460,7 +2460,7 @@ pub fn validate_matchpairs(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'mkspellmem' option.
 pub fn validate_mkspellmem(args: &mut Optset) -> Option<&CStr> {
-    if spell_check_msm(args.os_newval.data.string().data, false) {
+    if spell_check_msm(args.os_newval.data.string().as_bytes(), false) {
         None
     } else {
         Some(E_INVARG)

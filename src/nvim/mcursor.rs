@@ -1092,7 +1092,7 @@ fn mc_reg_gather() {
             let r = i32::from(MC_REGS[idx]);
             write_reg_contents_ex(
                 r,
-                joined[idx].as_ptr().cast(),
+                &joined[idx],
                 joined[idx].len() as isize,
                 false,
                 crate::register::MotionType::MtLineWise,

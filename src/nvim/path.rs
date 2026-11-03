@@ -1174,8 +1174,8 @@ fn expand_in_path(
             glob_flags |= WILD_ADD_SLASH;
         }
         globpath(
-            paths.as_ptr().cast_mut(),
-            pattern,
+            paths.as_c_str(),
+            crate::memory::cstr_from_ptr(pattern),
             gap,
             glob_flags,
             (flags & EW_CDPATH) != 0,
