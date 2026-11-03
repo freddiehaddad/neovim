@@ -1143,133 +1143,130 @@ pub fn set_context_in_menu_cmd(
 
 /// Function given to `ExpandGeneric()` to obtain the list of (sub)menus (not entries) (`get_menu_name`).
 pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    unsafe {
-        if idx == 0 {
-            menu_st().get_menu_name_idx = 0;
-            menu_st().get_menu_name_advance = false;
-        }
-
-        if menu_st().expand_menu.is_null() {
-            return None;
-        }
-        let menus = (*menu_st().expand_menu).as_slice();
-
-        while menu_st().get_menu_name_idx < menus.len() {
-            let menu = &menus[menu_st().get_menu_name_idx];
-            let dname_ptr = menu.dname.as_ptr().cast_mut();
-            if menu_is_hidden(dname_ptr) || menu_is_separator(dname_ptr) || menu.children.is_empty()
-            {
-                menu_st().get_menu_name_idx += 1;
-            } else {
-                break;
-            }
-        }
-
-        if menu_st().get_menu_name_idx >= menus.len() {
-            return None;
-        }
-        let menu = &menus[menu_st().get_menu_name_idx];
-
-        let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
-            if menu_st().get_menu_name_advance {
-                menu.en_dname.as_deref()
-            } else {
-                if menu.en_dname.is_none() {
-                    menu_st().get_menu_name_advance = true;
-                }
-                Some(menu.dname.as_c_str())
-            }
-        } else {
-            Some(c"")
-        };
-
-        if menu_st().get_menu_name_advance {
-            menu_st().get_menu_name_idx += 1;
-        }
-
-        menu_st().get_menu_name_advance = !menu_st().get_menu_name_advance;
-
-        str_res
+    if idx == 0 {
+        menu_st().get_menu_name_idx = 0;
+        menu_st().get_menu_name_advance = false;
     }
+
+    if menu_st().expand_menu.is_null() {
+        return None;
+    }
+    let menus = unsafe { (*menu_st().expand_menu).as_slice() };
+
+    while menu_st().get_menu_name_idx < menus.len() {
+        let menu = &menus[menu_st().get_menu_name_idx];
+        let dname_ptr = menu.dname.as_ptr().cast_mut();
+        if menu_is_hidden(dname_ptr) || menu_is_separator(dname_ptr) || menu.children.is_empty() {
+            menu_st().get_menu_name_idx += 1;
+        } else {
+            break;
+        }
+    }
+
+    if menu_st().get_menu_name_idx >= menus.len() {
+        return None;
+    }
+    let menu = &menus[menu_st().get_menu_name_idx];
+
+    let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
+        if menu_st().get_menu_name_advance {
+            menu.en_dname.as_deref()
+        } else {
+            if menu.en_dname.is_none() {
+                menu_st().get_menu_name_advance = true;
+            }
+            Some(menu.dname.as_c_str())
+        }
+    } else {
+        Some(c"")
+    };
+
+    if menu_st().get_menu_name_advance {
+        menu_st().get_menu_name_idx += 1;
+    }
+
+    menu_st().get_menu_name_advance = !menu_st().get_menu_name_advance;
+
+    str_res
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of menus and menu entries (`get_menu_names`).
 pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    unsafe {
-        if idx == 0 {
-            menu_st().get_menu_names_idx = 0;
-            menu_st().get_menu_names_advance = false;
-        }
+    if idx == 0 {
+        menu_st().get_menu_names_idx = 0;
+        menu_st().get_menu_names_advance = false;
+    }
 
-        if menu_st().expand_menu.is_null() {
-            return None;
-        }
-        let menus = (*menu_st().expand_menu).as_slice();
+    if menu_st().expand_menu.is_null() {
+        return None;
+    }
+    let menus = unsafe { (*menu_st().expand_menu).as_slice() };
 
-        while menu_st().get_menu_names_idx < menus.len() && {
-            let dname = menus[menu_st().get_menu_names_idx]
-                .dname
-                .as_ptr()
-                .cast_mut();
-            let dlen = menus[menu_st().get_menu_names_idx].dname.as_bytes().len();
-            menu_is_hidden(dname)
-                || (menu_st().expand_emenu && menu_is_separator(dname))
-                || crate::memory::cstr_slice(dname, dlen).last() == Some(&b'.')
-        } {
-            menu_st().get_menu_names_idx += 1;
-        }
+    while menu_st().get_menu_names_idx < menus.len() && {
+        let dname = menus[menu_st().get_menu_names_idx]
+            .dname
+            .as_ptr()
+            .cast_mut();
+        let dlen = menus[menu_st().get_menu_names_idx].dname.as_bytes().len();
+        menu_is_hidden(dname)
+            || (menu_st().expand_emenu && menu_is_separator(dname))
+            || crate::memory::cstr_slice(dname, dlen).last() == Some(&b'.')
+    } {
+        menu_st().get_menu_names_idx += 1;
+    }
 
-        if menu_st().get_menu_names_idx >= menus.len() {
-            return None;
-        }
-        let menu = &menus[menu_st().get_menu_names_idx];
+    if menu_st().get_menu_names_idx >= menus.len() {
+        return None;
+    }
+    let menu = &menus[menu_st().get_menu_names_idx];
 
-        let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
-            if !menu.children.is_empty() {
-                if menu_st().get_menu_names_advance {
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut menu_st().get_menu_names_tbuffer,
-                        menu.en_dname.as_ref().map_or(&b""[..], |s| s.as_bytes()),
-                    );
-                } else {
-                    crate::memory::copy_bytes_to_c_buf(
-                        &mut menu_st().get_menu_names_tbuffer,
-                        menu.dname.as_bytes(),
-                    );
-                    if menu.en_dname.is_none() {
-                        menu_st().get_menu_names_advance = true;
-                    }
-                }
-                let tlen = crate::memory::cstr_until_nul(&menu_st().get_menu_names_tbuffer)
-                    .to_bytes()
-                    .len();
-                if tlen + 1 < TBUFFER_LEN {
-                    menu_st().get_menu_names_tbuffer[tlen] = 1;
-                    menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
-                }
-                Some(CStr::from_ptr(
-                    (&raw const menu_st().get_menu_names_tbuffer[0]).cast(),
-                ))
-            } else if menu_st().get_menu_names_advance {
-                menu.en_dname.as_deref()
+    let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
+        if !menu.children.is_empty() {
+            if menu_st().get_menu_names_advance {
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut menu_st().get_menu_names_tbuffer,
+                    menu.en_dname.as_ref().map_or(&b""[..], |s| s.as_bytes()),
+                );
             } else {
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut menu_st().get_menu_names_tbuffer,
+                    menu.dname.as_bytes(),
+                );
                 if menu.en_dname.is_none() {
                     menu_st().get_menu_names_advance = true;
                 }
-                Some(menu.dname.as_c_str())
             }
+            let tlen = crate::memory::cstr_until_nul(&menu_st().get_menu_names_tbuffer)
+                .to_bytes()
+                .len();
+            if tlen + 1 < TBUFFER_LEN {
+                menu_st().get_menu_names_tbuffer[tlen] = 1;
+                menu_st().get_menu_names_tbuffer[tlen + 1] = 0;
+            }
+            unsafe {
+                Some(CStr::from_ptr(
+                    (&raw const menu_st().get_menu_names_tbuffer[0]).cast(),
+                ))
+            }
+        } else if menu_st().get_menu_names_advance {
+            menu.en_dname.as_deref()
         } else {
-            Some(c"")
-        };
-
-        if menu_st().get_menu_names_advance {
-            menu_st().get_menu_names_idx += 1;
+            if menu.en_dname.is_none() {
+                menu_st().get_menu_names_advance = true;
+            }
+            Some(menu.dname.as_c_str())
         }
+    } else {
+        Some(c"")
+    };
 
-        menu_st().get_menu_names_advance = !menu_st().get_menu_names_advance;
-
-        str_res
+    if menu_st().get_menu_names_advance {
+        menu_st().get_menu_names_idx += 1;
     }
+
+    menu_st().get_menu_names_advance = !menu_st().get_menu_names_advance;
+
+    str_res
 }
 
 /// Skip over this element of the menu path and return the start of the next element (`menu_name_skip`).

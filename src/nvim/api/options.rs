@@ -243,85 +243,91 @@ fn validate_option_value_args(
 }
 
 fn do_ft_buf(filetype: Option<&CStr>, aco: &mut CtxSwitch, err: &mut Error) -> *mut FileBuf {
-    unsafe {
-        let Some(filetype) = filetype else {
-            return ptr::null_mut();
-        };
+    let Some(filetype) = filetype else {
+        return ptr::null_mut();
+    };
 
-        let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-        if ftbuf.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Could not create internal buffer",
-            );
-            return ptr::null_mut();
-        }
-
-        if !ml_open(&mut *ftbuf) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Could not load internal buffer",
-            );
-            return ftbuf;
-        }
-
-        let mut bufref = Bufref {
-            br_buf: ptr::null_mut(),
-            br_fnum: 0,
-            br_buf_free_count: 0,
-        };
-        set_bufref(&mut bufref, ftbuf);
-
-        ctx_switch(&mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
-
-        set_option_direct(
-            K_OPT_BUFHIDDEN,
-            static_cstr_as_obj(c"hide"),
-            OPT_LOCAL,
-            SID_NONE,
+    let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
+    if ftbuf.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Could not create internal buffer",
         );
-        set_option_direct(
-            K_OPT_BUFTYPE,
-            static_cstr_as_obj(c"nofile"),
-            OPT_LOCAL,
-            SID_NONE,
-        );
-        assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
-        (*ftbuf).b_p_swf = 0;
-        (*ftbuf).b_p_ml = 0;
-        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
-
-        if !has_event(EVENT_FILETYPE) {
-            return ftbuf;
-        }
-
-        let mut did_au_ft = false;
-        try_wrap(err, || {
-            did_au_ft = do_filetype_autocmd(&mut *ftbuf, true);
-        });
-
-        if !bufref_valid(Some(&bufref)) {
-            if !error_set(err) {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Internal buffer was deleted",
-                );
-            }
-            return ptr::null_mut();
-        }
-
-        if !did_au_ft && !error_set(err) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeException,
-                c"Could not execute FileType autocommands",
-            );
-        }
-        ftbuf
+        return ptr::null_mut();
     }
+
+    if unsafe { !ml_open(&mut *ftbuf) } {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Could not load internal buffer",
+        );
+        return ftbuf;
+    }
+
+    let mut bufref = Bufref {
+        br_buf: ptr::null_mut(),
+        br_fnum: 0,
+        br_buf_free_count: 0,
+    };
+    set_bufref(&mut bufref, ftbuf);
+
+    ctx_switch(&mut *aco, ptr::null_mut(), ptr::null_mut(), ftbuf.cast(), 0);
+
+    set_option_direct(
+        K_OPT_BUFHIDDEN,
+        static_cstr_as_obj(c"hide"),
+        OPT_LOCAL,
+        SID_NONE,
+    );
+    set_option_direct(
+        K_OPT_BUFTYPE,
+        static_cstr_as_obj(c"nofile"),
+        OPT_LOCAL,
+        SID_NONE,
+    );
+    unsafe {
+        assert!((*(*ftbuf).b_ml.mfp_ptr()).mf_fd < 0);
+    }
+    unsafe {
+        (*ftbuf).b_p_swf = 0;
+    }
+    unsafe {
+        (*ftbuf).b_p_ml = 0;
+    }
+    unsafe {
+        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
+    }
+
+    if !has_event(EVENT_FILETYPE) {
+        return ftbuf;
+    }
+
+    let mut did_au_ft = false;
+    try_wrap(err, || unsafe {
+        did_au_ft = do_filetype_autocmd(&mut *ftbuf, true);
+    });
+
+    if !bufref_valid(Some(&bufref)) {
+        if !error_set(err) {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Internal buffer was deleted",
+            );
+        }
+        return ptr::null_mut();
+    }
+
+    if !did_au_ft && !error_set(err) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeException,
+            c"Could not execute FileType autocommands",
+        );
+    }
+    ftbuf
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {

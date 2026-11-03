@@ -399,71 +399,69 @@ pub fn try_enter(tstate: &mut TryState) {
 
 /// Ends a `try_enter` block; sets error message if any (`try_leave`).
 pub fn try_leave(tstate: &TryState, err: &mut Error) {
-    unsafe {
-        debug_assert!(g_st().trylevel > 0);
-        g_st().trylevel -= 1;
+    debug_assert!(g_st().trylevel > 0);
+    g_st().trylevel -= 1;
 
-        g_st().did_emsg = 0;
-        g_st().force_abort = false;
+    g_st().did_emsg = 0;
+    g_st().force_abort = false;
 
-        let ml = &raw const g_st().msg_list;
-        let ce = &raw const g_st().current_exception;
-        if g_st().got_int {
-            if g_st().did_throw {
-                discard_current_exception();
-            }
-            api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
-            g_st().got_int = false;
-        } else if let Some(ref msgs) = *ml
-            && !msgs.is_empty()
-        {
-            let throw_ptr = msgs[msgs[0].throw_idx]
-                .msg
-                .as_ptr()
-                .wrapping_add(msgs[0].throw_off);
-            let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
-            api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
-            free_global_msglist();
-        } else if g_st().did_throw || g_st().need_rethrow {
-            if let Some(ref excp) = *ce {
-                if !excp.throw_name.as_bytes().is_empty() {
-                    if excp.throw_lnum != 0 {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"%s, line %d: %s",
-                            excp.throw_name.as_ptr(),
-                            excp.throw_lnum,
-                            excp.value.as_ptr(),
-                        );
-                    } else {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"%s: %s",
-                            excp.throw_name.as_ptr(),
-                            excp.value.as_ptr(),
-                        );
-                    }
+    let ml = &raw const g_st().msg_list;
+    let ce = &raw const g_st().current_exception;
+    if g_st().got_int {
+        if g_st().did_throw {
+            discard_current_exception();
+        }
+        api_set_error!(err, ErrorType::ErrorTypeException, c"Keyboard interrupt",);
+        g_st().got_int = false;
+    } else if let Some(ref msgs) = *unsafe { &(*ml) }
+        && !msgs.is_empty()
+    {
+        let throw_ptr = msgs[msgs[0].throw_idx]
+            .msg
+            .as_ptr()
+            .wrapping_add(msgs[0].throw_off);
+        let msg = get_error_exception_string(throw_ptr, ptr::null_mut());
+        api_set_error!(err, ErrorType::ErrorTypeException, c"%s", msg.as_ptr());
+        free_global_msglist();
+    } else if g_st().did_throw || g_st().need_rethrow {
+        if let Some(ref excp) = *unsafe { &(*ce) } {
+            if !excp.throw_name.as_bytes().is_empty() {
+                if excp.throw_lnum != 0 {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"%s, line %d: %s",
+                        excp.throw_name.as_ptr(),
+                        excp.throw_lnum,
+                        excp.value.as_ptr(),
+                    );
                 } else {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
-                        c"%s",
+                        c"%s: %s",
+                        excp.throw_name.as_ptr(),
                         excp.value.as_ptr(),
                     );
                 }
+            } else {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"%s",
+                    excp.value.as_ptr(),
+                );
             }
-            discard_current_exception();
         }
-
-        g_st().msg_list = tstate.msg_list.clone();
-        g_st().current_exception = tstate.current_exception.clone();
-        g_st().got_int = tstate.got_int != 0;
-        g_st().did_throw = tstate.did_throw;
-        g_st().need_rethrow = tstate.need_rethrow != 0;
-        g_st().did_emsg = tstate.did_emsg;
+        discard_current_exception();
     }
+
+    g_st().msg_list = tstate.msg_list.clone();
+    g_st().current_exception = tstate.current_exception.clone();
+    g_st().got_int = tstate.got_int != 0;
+    g_st().did_throw = tstate.did_throw;
+    g_st().need_rethrow = tstate.need_rethrow != 0;
+    g_st().did_emsg = tstate.did_emsg;
 }
 
 /// Recursively expands a vimscript value in a dict (`dict_get_value`).
@@ -535,74 +533,88 @@ pub fn dict_set_var(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    unsafe {
-        let mut rv = OBJECT_NIL;
-        let mut di = dict_check_writable(dict, key, del, err);
-        if error_set(err) {
-            return rv;
-        }
+    let mut rv = OBJECT_NIL;
+    let mut di = dict_check_writable(dict, key, del, err);
+    if error_set(err) {
+        return rv;
+    }
 
-        let watched = tv_dict_is_watched(Some(&*dict));
-        if del {
-            if di.is_null() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Key not found: %s",
-                    key.data,
-                );
-            } else {
-                if watched {
+    let watched = tv_dict_is_watched(Some(&*dict));
+    if del {
+        if di.is_null() {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Key not found: %s",
+                key.data,
+            );
+        } else {
+            if watched {
+                unsafe {
                     tv_dict_watcher_notify(dict, key.data, None, Some(&(*di).di_tv));
                 }
-                if retval {
+            }
+            if retval {
+                unsafe {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
+            }
+            unsafe {
                 tv_dict_item_remove(&mut *dict, &mut *di);
             }
-        } else {
-            let mut tv: TypVal = TypVal::new();
-            object_to_vim(value, &mut tv, err);
-            let mut oldtv: TypVal = TypVal::new();
+        }
+    } else {
+        let mut tv: TypVal = TypVal::new();
+        object_to_vim(value, &mut tv, err);
+        let mut oldtv: TypVal = TypVal::new();
 
-            if di.is_null() {
-                di = tv_dict_item_alloc_len(key.as_bytes());
-                tv_dict_add(dict, di);
-            } else {
-                if retval {
+        if di.is_null() {
+            di = tv_dict_item_alloc_len(key.as_bytes());
+            tv_dict_add(dict, di);
+        } else {
+            if retval {
+                unsafe {
                     rv = vim_to_object(&raw mut (*di).di_tv, arena, false);
                 }
-                let mut type_error = false;
-                if ptr::eq(dict, get_vimvar_dict())
-                    && !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
-                {
-                    tv_clear(&mut tv);
-                    if type_error {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"Setting v:%s to value with wrong type",
-                            key.data,
-                        );
-                    }
-                    return rv;
+            }
+            let mut type_error = false;
+            if ptr::eq(dict, get_vimvar_dict())
+                && unsafe {
+                    !before_set_vvar(key.data, &mut *di, &mut tv, true, watched, &mut type_error)
                 }
-                if watched {
+            {
+                tv_clear(&mut tv);
+                if type_error {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeValidation,
+                        c"Setting v:%s to value with wrong type",
+                        key.data,
+                    );
+                }
+                return rv;
+            }
+            if watched {
+                unsafe {
                     tv_copy(&(*di).di_tv, &mut oldtv);
                 }
+            }
+            unsafe {
                 tv_clear(&mut (*di).di_tv);
             }
-
-            tv_copy(&tv, &mut (*di).di_tv);
-            if watched {
-                tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
-                tv_clear(&mut oldtv);
-            }
-            tv_clear(&mut tv);
         }
 
-        rv
+        unsafe {
+            tv_copy(&tv, &mut (*di).di_tv);
+        }
+        if watched {
+            tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
+            tv_clear(&mut oldtv);
+        }
+        tv_clear(&mut tv);
     }
+
+    rv
 }
 
 pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
@@ -628,23 +640,21 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> *mut FileBuf {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut WinInfoInfo {
-    unsafe {
-        if window == 0 {
-            return curwin_ptr();
-        }
-        let map_ptr = &raw const g_st().window_handles;
-        let rv = (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut());
-        if rv.is_null() {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"Invalid window id: %lld",
-                i64::from(window),
-            );
-            return ptr::null_mut();
-        }
-        rv
+    if window == 0 {
+        return curwin_ptr();
     }
+    let map_ptr = &raw const g_st().window_handles;
+    let rv = unsafe { (*map_ptr).get(&window).copied().unwrap_or(ptr::null_mut()) };
+    if rv.is_null() {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"Invalid window id: %lld",
+            i64::from(window),
+        );
+        return ptr::null_mut();
+    }
+    rv
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> *mut TabPageInfo {
@@ -1188,161 +1198,178 @@ pub fn api_dict_to_keydict(
     mut dict: Dict,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        let Some(hashy_fn) = hashy else {
+    let Some(hashy_fn) = hashy else {
+        return false;
+    };
+    for i in 0..dict.size {
+        let k = dict[i].key;
+        let key_bytes = k.as_bytes();
+        let Some(field) = hashy_fn(key_bytes) else {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Invalid key: '%.*s'",
+                k.size as i32,
+                k.data,
+            );
             return false;
         };
-        for i in 0..dict.size {
-            let k = dict[i].key;
-            let key_bytes = k.as_bytes();
-            let Some(field) = hashy_fn(key_bytes) else {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Invalid key: '%.*s'",
-                    k.size as i32,
-                    k.data,
-                );
-                return false;
-            };
 
-            if field.opt_index >= 0 {
+        if field.opt_index >= 0 {
+            unsafe {
                 (*retval).is_set_ |= 1u64 << field.opt_index;
             }
+        }
 
-            let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
-            let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
-            let value: *mut Object = &raw mut dict[i].value;
-            let value = &mut *value;
-            let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
+        let field_name = field.str.map_or(ptr::null(), |s| s.as_ptr());
+        let mem = retval.cast::<u8>().wrapping_add(field.ptr_off);
+        let value: *mut Object = &raw mut dict[i].value;
+        let value = unsafe { &mut *value };
+        let field_type =
+            ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
 
-            match field_type {
-                ObjectType::ObjectTypeNil => {
-                    *mem.cast::<Object>() = *value;
-                }
-                ObjectType::ObjectTypeInteger => {
-                    if field.is_hlgroup {
-                        let mut hl_id: i32 = 0;
-                        if value.obj_type != ObjectType::ObjectTypeNil {
-                            hl_id = object_to_hl_id(*value, k.data, err);
-                            if error_set(err) {
-                                return false;
-                            }
-                        }
-                        *mem.cast::<Integer>() = Integer::from(hl_id);
-                    } else {
-                        if value.obj_type != ObjectType::ObjectTypeInteger {
-                            api_err_exp(
-                                err,
-                                field_name,
-                                api_typename(ObjectType::ObjectTypeInteger),
-                                api_typename(value.obj_type),
-                            );
+        match field_type {
+            ObjectType::ObjectTypeNil => unsafe {
+                *mem.cast::<Object>() = *value;
+            },
+            ObjectType::ObjectTypeInteger => {
+                if field.is_hlgroup {
+                    let mut hl_id: i32 = 0;
+                    if value.obj_type != ObjectType::ObjectTypeNil {
+                        hl_id = object_to_hl_id(*value, k.data, err);
+                        if error_set(err) {
                             return false;
                         }
+                    }
+                    unsafe {
+                        *mem.cast::<Integer>() = Integer::from(hl_id);
+                    }
+                } else {
+                    if value.obj_type != ObjectType::ObjectTypeInteger {
+                        api_err_exp(
+                            err,
+                            field_name,
+                            api_typename(ObjectType::ObjectTypeInteger),
+                            api_typename(value.obj_type),
+                        );
+                        return false;
+                    }
+                    unsafe {
                         *mem.cast::<Integer>() = value.data.integer();
                     }
                 }
-                ObjectType::ObjectTypeFloat => {
-                    let val = mem.cast::<Float>();
-                    if value.obj_type == ObjectType::ObjectTypeInteger {
+            }
+            ObjectType::ObjectTypeFloat => {
+                let val = mem.cast::<Float>();
+                if value.obj_type == ObjectType::ObjectTypeInteger {
+                    unsafe {
                         *val = value.data.integer() as Float;
-                    } else if value.obj_type == ObjectType::ObjectTypeFloat {
+                    }
+                } else if value.obj_type == ObjectType::ObjectTypeFloat {
+                    unsafe {
                         *val = value.data.floating();
-                    } else {
-                        api_err_exp(
-                            err,
-                            field_name,
-                            api_typename(ObjectType::ObjectTypeFloat),
-                            api_typename(value.obj_type),
-                        );
-                        return false;
                     }
+                } else {
+                    api_err_exp(
+                        err,
+                        field_name,
+                        api_typename(ObjectType::ObjectTypeFloat),
+                        api_typename(value.obj_type),
+                    );
+                    return false;
                 }
-                ObjectType::ObjectTypeBoolean => {
+            }
+            ObjectType::ObjectTypeBoolean => {
+                unsafe {
                     *mem.cast::<Boolean>() = api_object_to_bool(*value, field_name, false, err);
-                    if error_set(err) {
-                        return false;
-                    }
                 }
-                ObjectType::ObjectTypeString => {
-                    if value.obj_type != ObjectType::ObjectTypeString {
-                        api_err_exp(
-                            err,
-                            field_name,
-                            api_typename(ObjectType::ObjectTypeString),
-                            api_typename(value.obj_type),
-                        );
-                        return false;
-                    }
+                if error_set(err) {
+                    return false;
+                }
+            }
+            ObjectType::ObjectTypeString => {
+                if value.obj_type != ObjectType::ObjectTypeString {
+                    api_err_exp(
+                        err,
+                        field_name,
+                        api_typename(ObjectType::ObjectTypeString),
+                        api_typename(value.obj_type),
+                    );
+                    return false;
+                }
+                unsafe {
                     *mem.cast::<NvimString>() = value.data.string();
                 }
-                ObjectType::ObjectTypeArray => {
-                    if value.obj_type != ObjectType::ObjectTypeArray {
-                        api_err_exp(
-                            err,
-                            field_name,
-                            api_typename(ObjectType::ObjectTypeArray),
-                            api_typename(value.obj_type),
-                        );
-                        return false;
-                    }
+            }
+            ObjectType::ObjectTypeArray => {
+                if value.obj_type != ObjectType::ObjectTypeArray {
+                    api_err_exp(
+                        err,
+                        field_name,
+                        api_typename(ObjectType::ObjectTypeArray),
+                        api_typename(value.obj_type),
+                    );
+                    return false;
+                }
+                unsafe {
                     *mem.cast::<Array>() = value.data.array();
                 }
-                ObjectType::ObjectTypeDict => {
-                    let val = mem.cast::<Dict>();
-                    if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0
-                    {
+            }
+            ObjectType::ObjectTypeDict => {
+                let val = mem.cast::<Dict>();
+                if value.obj_type == ObjectType::ObjectTypeArray && value.data.array().size == 0 {
+                    unsafe {
                         *val = Dict {
                             items: ptr::null_mut(),
                             size: 0,
                             capacity: 0,
                         };
-                    } else if value.obj_type == ObjectType::ObjectTypeDict {
+                    }
+                } else if value.obj_type == ObjectType::ObjectTypeDict {
+                    unsafe {
                         *val = value.data.dict();
-                    } else {
-                        api_err_exp(
-                            err,
-                            field_name,
-                            api_typename(field_type),
-                            api_typename(value.obj_type),
-                        );
-                        return false;
                     }
-                }
-                ObjectType::ObjectTypeBuffer
-                | ObjectType::ObjectTypeWindow
-                | ObjectType::ObjectTypeTabpage => {
-                    if value.obj_type == ObjectType::ObjectTypeInteger
-                        || value.obj_type == field_type
-                    {
-                        *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle;
-                    } else {
-                        api_err_exp(
-                            err,
-                            field_name,
-                            api_typename(field_type),
-                            api_typename(value.obj_type),
-                        );
-                        return false;
-                    }
-                }
-                ObjectType::ObjectTypeLuaRef => {
-                    api_set_error!(
+                } else {
+                    api_err_exp(
                         err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Invalid key: '%.*s' is only allowed from Lua",
-                        k.size as i32,
-                        k.data,
+                        field_name,
+                        api_typename(field_type),
+                        api_typename(value.obj_type),
                     );
                     return false;
                 }
-                ObjectType::ObjectTypeUnset => std::process::abort(),
             }
+            ObjectType::ObjectTypeBuffer
+            | ObjectType::ObjectTypeWindow
+            | ObjectType::ObjectTypeTabpage => {
+                if value.obj_type == ObjectType::ObjectTypeInteger || value.obj_type == field_type {
+                    unsafe {
+                        *mem.cast::<ObjHandle>() = value.data.integer() as ObjHandle;
+                    }
+                } else {
+                    api_err_exp(
+                        err,
+                        field_name,
+                        api_typename(field_type),
+                        api_typename(value.obj_type),
+                    );
+                    return false;
+                }
+            }
+            ObjectType::ObjectTypeLuaRef => {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Invalid key: '%.*s' is only allowed from Lua",
+                    k.size as i32,
+                    k.data,
+                );
+                return false;
+            }
+            ObjectType::ObjectTypeUnset => std::process::abort(),
         }
-        true
     }
+    true
 }
 
 pub fn api_keydict_to_dict(
@@ -1423,21 +1450,19 @@ pub fn api_luarefs_free_object(value: Object) {
 }
 
 pub fn api_luarefs_free_keydict(dict: *mut OptKeySet, table: *mut KeySetLink) {
-    unsafe {
-        let mut i: usize = 0;
-        while (*table.wrapping_add(i)).str.is_some() {
-            let field = &*table.wrapping_add(i);
-            let mem = dict.cast::<u8>().wrapping_add(field.ptr_off);
-            let field_type =
-                ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
-            match field_type {
-                ObjectType::ObjectTypeNil => api_luarefs_free_object(*mem.cast::<Object>()),
-                ObjectType::ObjectTypeLuaRef => api_free_luaref(*mem.cast::<LuaRef>()),
-                ObjectType::ObjectTypeDict => api_luarefs_free_dict(*mem.cast::<Dict>()),
-                _ => {}
-            }
-            i += 1;
+    let mut i: usize = 0;
+    while unsafe { (*table.wrapping_add(i)).str.is_some() } {
+        let field = unsafe { &*table.wrapping_add(i) };
+        let mem = dict.cast::<u8>().wrapping_add(field.ptr_off);
+        let field_type =
+            ObjectType::from_raw(field.key_type).unwrap_or(ObjectType::ObjectTypeUnset);
+        match field_type {
+            ObjectType::ObjectTypeNil => unsafe { api_luarefs_free_object(*mem.cast::<Object>()) },
+            ObjectType::ObjectTypeLuaRef => unsafe { api_free_luaref(*mem.cast::<LuaRef>()) },
+            ObjectType::ObjectTypeDict => unsafe { api_luarefs_free_dict(*mem.cast::<Dict>()) },
+            _ => {}
         }
+        i += 1;
     }
 }
 

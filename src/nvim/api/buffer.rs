@@ -144,13 +144,11 @@ pub fn api_buf_ensure_loaded(buf: Buffer, err: &mut Error) -> *mut FileBuf {
 // DLLEXPORT Integer nvim_buf_line_count(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_line_count(buf: Buffer, err: &mut Error) -> Integer {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() || (*b).b_ml.ml_mfp.is_none() {
-            return 0;
-        }
-        i64::from((*b).b_ml.ml_line_count)
+    let b = find_buffer_by_handle(buf, err);
+    if b.is_null() || unsafe { (*b).b_ml.ml_mfp.is_none() } {
+        return 0;
     }
+    unsafe { i64::from((*b).b_ml.ml_line_count) }
 }
 
 /// Activates |api-buffer-updates| events on a channel, or as Lua callbacks.
@@ -631,238 +629,255 @@ pub fn nvim_buf_set_text(
     arena: &mut Arena,
     err: &mut Error,
 ) {
+    let mut scratch_items = [static_cstr_as_obj(c"")];
+    if replacement.size == 0 {
+        replacement = Array {
+            size: 1,
+            capacity: 1,
+            items: scratch_items.as_mut_ptr(),
+        };
+    }
+
+    let b = api_buf_ensure_loaded(buf, err);
+    if b.is_null() {
+        return;
+    }
+
+    let mut oob = false;
     unsafe {
-        let mut scratch_items = [static_cstr_as_obj(c"")];
-        if replacement.size == 0 {
-            replacement = Array {
-                size: 1,
-                capacity: 1,
-                items: scratch_items.as_mut_ptr(),
-            };
-        }
-
-        let b = api_buf_ensure_loaded(buf, err);
-        if b.is_null() {
-            return;
-        }
-
-        let mut oob = false;
         start_row = normalize_index(&mut *b, start_row, false, &mut oob);
-        if oob {
-            api_err_range(err, c"start_row");
-            return;
-        }
+    }
+    if oob {
+        api_err_range(err, c"start_row");
+        return;
+    }
 
+    unsafe {
         end_row = normalize_index(&mut *b, end_row, false, &mut oob);
-        if oob {
-            api_err_range(err, c"end_row");
-            return;
-        }
+    }
+    if oob {
+        api_err_range(err, c"end_row");
+        return;
+    }
 
-        let str_at_start_raw = ml_get_buf(&mut *b, start_row as Linenr);
-        let len_at_start = ml_get_buf_len(&mut *b, start_row as Linenr);
-        let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
-        if start_col < 0 {
-            start_col = i64::from(len_at_start) + start_col + 1;
-        }
-        if start_col < 0 || start_col > i64::from(len_at_start) {
-            api_err_range(err, c"start_col");
-            return;
-        }
+    let str_at_start_raw = unsafe { ml_get_buf(&mut *b, start_row as Linenr) };
+    let len_at_start = unsafe { ml_get_buf_len(&mut *b, start_row as Linenr) };
+    let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
+    if start_col < 0 {
+        start_col = i64::from(len_at_start) + start_col + 1;
+    }
+    if start_col < 0 || start_col > i64::from(len_at_start) {
+        api_err_range(err, c"start_col");
+        return;
+    }
 
-        let str_at_end_raw = ml_get_buf(&mut *b, end_row as Linenr);
-        let len_at_end = ml_get_buf_len(&mut *b, end_row as Linenr);
-        let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
-        if end_col < 0 {
-            end_col = i64::from(len_at_end) + end_col + 1;
-        }
-        if end_col < 0 || end_col > i64::from(len_at_end) {
-            api_err_range(err, c"end_col");
-            return;
-        }
+    let str_at_end_raw = unsafe { ml_get_buf(&mut *b, end_row as Linenr) };
+    let len_at_end = unsafe { ml_get_buf_len(&mut *b, end_row as Linenr) };
+    let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
+    if end_col < 0 {
+        end_col = i64::from(len_at_end) + end_col + 1;
+    }
+    if end_col < 0 || end_col > i64::from(len_at_end) {
+        api_err_range(err, c"end_col");
+        return;
+    }
 
-        if start_row > end_row || (end_row == start_row && start_col > end_col) {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"'start' is higher than 'end'",
-            );
-            return;
-        }
+    if start_row > end_row || (end_row == start_row && start_col > end_col) {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"'start' is higher than 'end'",
+        );
+        return;
+    }
 
-        let disallow_nl = channel_id != VIML_INTERNAL_CALL;
-        if !check_string_array(replacement, c"replacement string", disallow_nl, err) {
-            return;
-        }
+    let disallow_nl = channel_id != VIML_INTERNAL_CALL;
+    if !check_string_array(replacement, c"replacement string", disallow_nl, err) {
+        return;
+    }
 
-        let new_len = replacement.size;
-        let mut new_byte: Bcount = 0;
-        let mut old_byte: Bcount = 0;
+    let new_len = replacement.size;
+    let mut new_byte: Bcount = 0;
+    let mut old_byte: Bcount = 0;
 
-        if start_row == end_row {
-            old_byte = (end_col - start_col) as Bcount;
-        } else {
-            old_byte += (i64::from(len_at_start) - start_col) as Bcount;
-            for i in 1..(end_row - start_row) {
-                let lnum = start_row + i;
+    if start_row == end_row {
+        old_byte = (end_col - start_col) as Bcount;
+    } else {
+        old_byte += (i64::from(len_at_start) - start_col) as Bcount;
+        for i in 1..(end_row - start_row) {
+            let lnum = start_row + i;
+            unsafe {
                 old_byte += (ml_get_buf_len(&mut *b, lnum as Linenr) as Bcount) + 1;
             }
-            old_byte += (end_col as Bcount) + 1;
         }
+        old_byte += (end_col as Bcount) + 1;
+    }
 
-        let first_item = replacement[0].data.string();
-        let last_item = replacement[replacement.size - 1].data.string();
+    let first_item = replacement[0].data.string();
+    let last_item = replacement[replacement.size - 1].data.string();
 
-        let mut firstlen = (start_col as usize) + first_item.size;
-        let last_part_len = (len_at_end as usize) - (end_col as usize);
-        if replacement.size == 1 {
-            firstlen += last_part_len;
-        }
-        let first = arena_allocz(arena, firstlen).cast::<u8>();
-        let mut last: *mut u8 = ptr::null_mut();
+    let mut firstlen = (start_col as usize) + first_item.size;
+    let last_part_len = (len_at_end as usize) - (end_col as usize);
+    if replacement.size == 1 {
+        firstlen += last_part_len;
+    }
+    let first = arena_allocz(arena, firstlen).cast::<u8>();
+    let mut last: *mut u8 = ptr::null_mut();
+    unsafe {
         ptr::copy_nonoverlapping(str_at_start.cast::<u8>(), first, start_col as usize);
-        if first_item.size > 0 {
+    }
+    if first_item.size > 0 {
+        unsafe {
             ptr::copy_nonoverlapping(
                 first_item.data.cast::<u8>(),
                 first.wrapping_add(start_col as usize),
                 first_item.size,
             );
-            for b in std::slice::from_raw_parts_mut(first.add(start_col as usize), first_item.size)
-            {
-                if *b == 0 {
-                    *b = b'\n';
-                }
+        }
+        for b in unsafe {
+            std::slice::from_raw_parts_mut(first.add(start_col as usize), first_item.size)
+        } {
+            if *b == 0 {
+                *b = b'\n';
             }
         }
-        if replacement.size == 1 {
+    }
+    if replacement.size == 1 {
+        unsafe {
             ptr::copy_nonoverlapping(
                 str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
                 first.wrapping_add((start_col as usize) + first_item.size),
                 last_part_len,
             );
-        } else {
-            last = arena_allocz(arena, last_item.size + last_part_len).cast::<u8>();
-            if last_item.size > 0 {
+        }
+    } else {
+        last = arena_allocz(arena, last_item.size + last_part_len).cast::<u8>();
+        if last_item.size > 0 {
+            unsafe {
                 ptr::copy_nonoverlapping(last_item.data.cast::<u8>(), last, last_item.size);
-                for b in std::slice::from_raw_parts_mut(last, last_item.size) {
-                    if *b == 0 {
-                        *b = b'\n';
-                    }
+            }
+            for b in unsafe { std::slice::from_raw_parts_mut(last, last_item.size) } {
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
+        }
+        unsafe {
             ptr::copy_nonoverlapping(
                 str_at_end.wrapping_add(end_col as usize).cast::<u8>(),
                 last.wrapping_add(last_item.size),
                 last_part_len,
             );
         }
+    }
 
-        let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
-        lines.push(first);
-        new_byte += first_item.size as Bcount;
-        for i in 1..new_len.saturating_sub(1) {
-            let l = replacement[i].data.string();
-            let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
-            if l.size > 0 {
-                for b in std::slice::from_raw_parts_mut(p, l.size) {
-                    if *b == 0 {
-                        *b = b'\n';
-                    }
+    let mut lines: Vec<*mut u8> = Vec::with_capacity(new_len);
+    lines.push(first);
+    new_byte += first_item.size as Bcount;
+    for i in 1..new_len.saturating_sub(1) {
+        let l = replacement[i].data.string();
+        let p = arena_memdupz(arena, l.data, l.size).cast::<u8>();
+        if l.size > 0 {
+            for b in unsafe { std::slice::from_raw_parts_mut(p, l.size) } {
+                if *b == 0 {
+                    *b = b'\n';
                 }
             }
-            lines.push(p);
-            new_byte += (l.size as Bcount) + 1;
         }
-        if replacement.size > 1 {
-            lines.push(last);
-            new_byte += (last_item.size as Bcount) + 1;
+        lines.push(p);
+        new_byte += (l.size as Bcount) + 1;
+    }
+    if replacement.size > 1 {
+        lines.push(last);
+        new_byte += (last_item.size as Bcount) + 1;
+    }
+
+    try_wrap_err(err, |err| 'end: {
+        if unsafe { (*b).b_p_ma == 0 } {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Buffer is not 'modifiable'",
+            );
+            break 'end;
         }
 
-        try_wrap_err(err, |err| 'end: {
-            if (*b).b_p_ma == 0 {
+        if unsafe { !u_save_buf(&mut *b, (start_row as Linenr) - 1, (end_row as Linenr) + 1) } {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Failed to save undo information",
+            );
+            break 'end;
+        }
+
+        let mut extra: isize = 0;
+        let old_len = (end_row - start_row + 1) as usize;
+
+        let to_delete = old_len.saturating_sub(new_len);
+        for _ in 0..to_delete {
+            if unsafe { !ml_delete_buf(&mut *b, start_row as Linenr, false) } {
+                api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
+                break 'end;
+            }
+        }
+
+        if to_delete > 0 {
+            extra -= to_delete as isize;
+        }
+
+        let to_replace = old_len.min(new_len);
+        for (i, &line) in lines.iter().enumerate().take(to_replace) {
+            let lnum = start_row + (i as i64);
+            if lnum >= MAXLNUM {
                 api_set_error!(
                     err,
-                    ErrorType::ErrorTypeException,
-                    c"Buffer is not 'modifiable'",
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Index out of bounds",
                 );
                 break 'end;
             }
 
-            if !u_save_buf(&mut *b, (start_row as Linenr) - 1, (end_row as Linenr) + 1) {
+            if unsafe { !ml_replace_buf(&mut *b, lnum as Linenr, line.cast(), false, true) } {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
-                    c"Failed to save undo information",
+                    c"Failed to replace line",
+                );
+                break 'end;
+            }
+        }
+
+        for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
+            let lnum = start_row + (i as i64) - 1;
+            if lnum >= MAXLNUM {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Index out of bounds",
                 );
                 break 'end;
             }
 
-            let mut extra: isize = 0;
-            let old_len = (end_row - start_row + 1) as usize;
-
-            let to_delete = old_len.saturating_sub(new_len);
-            for _ in 0..to_delete {
-                if !ml_delete_buf(&mut *b, start_row as Linenr, false) {
-                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to delete line",);
-                    break 'end;
-                }
+            if unsafe { !ml_append_buf(&mut *b, lnum as Linenr, line.cast(), 0, false) } {
+                api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
+                break 'end;
             }
 
-            if to_delete > 0 {
-                extra -= to_delete as isize;
-            }
+            extra += 1;
+        }
 
-            let to_replace = old_len.min(new_len);
-            for (i, &line) in lines.iter().enumerate().take(to_replace) {
-                let lnum = start_row + (i as i64);
-                if lnum >= MAXLNUM {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"Index out of bounds",
-                    );
-                    break 'end;
-                }
+        let col_extent = (end_col - if end_row == start_row { start_col } else { 0 }) as Colnr;
 
-                if !ml_replace_buf(&mut *b, lnum as Linenr, line.cast(), false, true) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"Failed to replace line",
-                    );
-                    break 'end;
-                }
-            }
-
-            for (i, &line) in lines.iter().enumerate().take(new_len).skip(to_replace) {
-                let lnum = start_row + (i as i64) - 1;
-                if lnum >= MAXLNUM {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"Index out of bounds",
-                    );
-                    break 'end;
-                }
-
-                if !ml_append_buf(&mut *b, lnum as Linenr, line.cast(), 0, false) {
-                    api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
-                    break 'end;
-                }
-
-                extra += 1;
-            }
-
-            let col_extent = (end_col - if end_row == start_row { start_col } else { 0 }) as Colnr;
-
-            let adjust = if end_row >= start_row {
-                MAXLNUM as Linenr
-            } else {
-                0
-            };
+        let adjust = if end_row >= start_row {
+            MAXLNUM as Linenr
+        } else {
+            0
+        };
+        unsafe {
             mark_adjust_buf(
                 &mut *b,
                 start_row as Linenr,
@@ -873,11 +888,13 @@ pub fn nvim_buf_set_text(
                 K_MARK_ADJUST_API,
                 K_EXTMARK_NOOP,
             );
+        }
 
-            if g_st().visual_global.active
-                && b == g_st().curbuf
-                && g_st().visual_global.mode != CTRL_V_CONST
-            {
+        if g_st().visual_global.active
+            && b == g_st().curbuf
+            && g_st().visual_global.mode != CTRL_V_CONST
+        {
+            unsafe {
                 fix_pos_col(
                     &mut *b,
                     &mut g_st().visual_global.start,
@@ -889,9 +906,11 @@ pub fn nvim_buf_set_text(
                     last_item.size as Colnr,
                     1,
                 );
-                check_visual_pos();
             }
+            check_visual_pos();
+        }
 
+        unsafe {
             extmark_splice(
                 &mut *b,
                 (start_row as i32) - 1,
@@ -904,7 +923,9 @@ pub fn nvim_buf_set_text(
                 new_byte,
                 K_EXTMARK_UNDO,
             );
+        }
 
+        unsafe {
             changed_lines(
                 &mut *b,
                 start_row as Linenr,
@@ -913,35 +934,30 @@ pub fn nvim_buf_set_text(
                 extra as Linenr,
                 true,
             );
+        }
 
-            for tp in for_all_tabpages_ptr() {
-                for win in for_all_windows_in_tab_mut(&*tp) {
-                    if win.w_buffer == b {
-                        if i64::from(win.w_cursor.lnum) >= start_row
-                            && i64::from(win.w_cursor.lnum) <= end_row
-                        {
-                            fix_cursor_cols(
-                                win,
-                                start_row as Linenr,
-                                start_col as Colnr,
-                                end_row as Linenr,
-                                end_col as Colnr,
-                                new_len as Linenr,
-                                last_item.size as Colnr,
-                            );
-                        } else {
-                            fix_cursor(
-                                win,
-                                start_row as Linenr,
-                                end_row as Linenr,
-                                extra as Linenr,
-                            );
-                        }
+        for tp in for_all_tabpages_ptr() {
+            for win in for_all_windows_in_tab_mut(&*tp) {
+                if win.w_buffer == b {
+                    if i64::from(win.w_cursor.lnum) >= start_row
+                        && i64::from(win.w_cursor.lnum) <= end_row
+                    {
+                        fix_cursor_cols(
+                            win,
+                            start_row as Linenr,
+                            start_col as Colnr,
+                            end_row as Linenr,
+                            end_col as Colnr,
+                            new_len as Linenr,
+                            last_item.size as Colnr,
+                        );
+                    } else {
+                        fix_cursor(win, start_row as Linenr, end_row as Linenr, extra as Linenr);
                     }
                 }
             }
-        });
-    }
+        }
+    });
 }
 
 /// Gets a range from the buffer (may be partial lines, unlike |nvim_buf_get_lines()|).
@@ -1261,16 +1277,14 @@ pub fn nvim_buf_del_var(buf: Buffer, name: NvimString, err: &mut Error) {
 // DLLEXPORT String nvim_buf_get_name(Buffer buf, Error *err)
 //   FUNC_API_SINCE(1);
 pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
-    unsafe {
-        let b = find_buffer_by_handle(buf, err);
-        if b.is_null() || (*b).b_ffname.is_null() {
-            return NvimString {
-                data: ptr::null_mut(),
-                size: 0,
-            };
-        }
-        cstr_as_string((*b).b_ffname)
+    let b = find_buffer_by_handle(buf, err);
+    if b.is_null() || unsafe { (*b).b_ffname.is_null() } {
+        return NvimString {
+            data: ptr::null_mut(),
+            size: 0,
+        };
     }
+    unsafe { cstr_as_string((*b).b_ffname) }
 }
 
 /// Sets the full file name for a buffer, like |:file_f|
@@ -1327,12 +1341,10 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 // DLLEXPORT Boolean nvim_buf_is_loaded(Buffer buf)
 //   FUNC_API_SINCE(5);
 pub fn nvim_buf_is_loaded(buf: Buffer) -> Boolean {
-    unsafe {
-        let mut stub = Error::new();
-        let b = find_buffer_by_handle(buf, &mut stub);
-        api_clear_error(&mut stub);
-        !b.is_null() && (*b).b_ml.ml_mfp.is_some()
-    }
+    let mut stub = Error::new();
+    let b = find_buffer_by_handle(buf, &mut stub);
+    api_clear_error(&mut stub);
+    unsafe { !b.is_null() && (*b).b_ml.ml_mfp.is_some() }
 }
 
 /// Deletes a buffer and its metadata (like |:bwipeout|).

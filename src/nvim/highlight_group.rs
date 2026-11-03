@@ -950,93 +950,97 @@ fn lookup_color(idx: i32, foreground: bool, boldp: &mut TriState) -> i32 {
 }
 
 pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: i32) {
-    unsafe {
-        let idx = (id - 1) as usize;
-        let is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
+    let idx = (id - 1) as usize;
+    let is_default = (attrs.rgb_ae_attr & HL_DEFAULT) != 0;
 
-        if is_default && hl_has_settings(idx as i32, true) && !dict.force {
-            return;
+    if is_default && hl_has_settings(idx as i32, true) && !dict.force {
+        return;
+    }
+
+    let g = &mut *hl_table_at(idx);
+    g.sg_cleared = false;
+    let old_link = g.sg_link;
+
+    if link_id > 0 {
+        g.sg_link = link_id;
+        g.sg_script_ctx = g_st().current_sctx;
+        g.sg_script_ctx.sc_lnum += sourcing_lnum();
+        nlua_set_sctx(&mut g.sg_script_ctx);
+        g.sg_set |= SG_LINK;
+        if is_default {
+            g.sg_deflink = link_id;
+            g.sg_deflink_sctx = g_st().current_sctx;
+            g.sg_deflink_sctx.sc_lnum += sourcing_lnum();
+            nlua_set_sctx(&mut g.sg_deflink_sctx);
         }
+    } else {
+        g.sg_link = 0;
+    }
 
-        let g = &mut *hl_table_at(idx);
-        g.sg_cleared = false;
-        let old_link = g.sg_link;
+    let update = has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
+    g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
 
-        if link_id > 0 {
-            g.sg_link = link_id;
-            g.sg_script_ctx = g_st().current_sctx;
-            g.sg_script_ctx.sc_lnum += sourcing_lnum();
-            nlua_set_sctx(&mut g.sg_script_ctx);
-            g.sg_set |= SG_LINK;
-            if is_default {
-                g.sg_deflink = link_id;
-                g.sg_deflink_sctx = g_st().current_sctx;
-                g.sg_deflink_sctx.sc_lnum += sourcing_lnum();
-                nlua_set_sctx(&mut g.sg_deflink_sctx);
-            }
-        } else {
-            g.sg_link = 0;
-        }
+    g.sg_rgb_fg = attrs.rgb_fg_color;
+    g.sg_rgb_bg = attrs.rgb_bg_color;
+    g.sg_rgb_sp = attrs.rgb_sp_color;
 
-        let update = has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_UPDATE) && dict.update;
-        g.sg_gui = attrs.rgb_ae_attr & !HL_DEFAULT;
+    let cattrs: [(*mut i32, RgbValue, Object); 3] = [
+        (
+            &raw mut g.sg_rgb_fg_idx,
+            g.sg_rgb_fg,
+            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
+                dict.fg
+            } else {
+                dict.foreground
+            },
+        ),
+        (
+            &raw mut g.sg_rgb_bg_idx,
+            g.sg_rgb_bg,
+            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
+                dict.bg
+            } else {
+                dict.background
+            },
+        ),
+        (
+            &raw mut g.sg_rgb_sp_idx,
+            g.sg_rgb_sp,
+            if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
+                dict.sp
+            } else {
+                dict.special
+            },
+        ),
+    ];
 
-        g.sg_rgb_fg = attrs.rgb_fg_color;
-        g.sg_rgb_bg = attrs.rgb_bg_color;
-        g.sg_rgb_sp = attrs.rgb_sp_color;
-
-        let cattrs: [(*mut i32, RgbValue, Object); 3] = [
-            (
-                &raw mut g.sg_rgb_fg_idx,
-                g.sg_rgb_fg,
-                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FG) {
-                    dict.fg
-                } else {
-                    dict.foreground
-                },
-            ),
-            (
-                &raw mut g.sg_rgb_bg_idx,
-                g.sg_rgb_bg,
-                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_BG) {
-                    dict.bg
-                } else {
-                    dict.background
-                },
-            ),
-            (
-                &raw mut g.sg_rgb_sp_idx,
-                g.sg_rgb_sp,
-                if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_SP) {
-                    dict.sp
-                } else {
-                    dict.special
-                },
-            ),
-        ];
-
-        for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
-            if name.obj_type != ObjectType::ObjectTypeNil {
-                if val < 0 {
+    for (j, &(dest, val, name)) in cattrs.iter().enumerate() {
+        if name.obj_type != ObjectType::ObjectTypeNil {
+            if val < 0 {
+                unsafe {
                     *dest = K_COLOR_IDX_NONE;
-                } else if name.obj_type == ObjectType::ObjectTypeString
-                    && name.data.string().size > 0
-                {
-                    name_to_color(name.data.string().data, dest);
-                } else {
+                }
+            } else if name.obj_type == ObjectType::ObjectTypeString && name.data.string().size > 0 {
+                name_to_color(name.data.string().data, dest);
+            } else {
+                unsafe {
                     *dest = K_COLOR_IDX_HEX;
                 }
-            } else if !update {
+            }
+        } else if !update {
+            unsafe {
                 *dest = K_COLOR_IDX_NONE;
-            } else if old_link > 0 && val >= 0 {
-                let linked = &*hl_table_at((old_link - 1) as usize);
-                let linked_idx = if j == 0 {
-                    linked.sg_rgb_fg_idx
-                } else if j == 1 {
-                    linked.sg_rgb_bg_idx
-                } else {
-                    linked.sg_rgb_sp_idx
-                };
+            }
+        } else if old_link > 0 && val >= 0 {
+            let linked = &*hl_table_at((old_link - 1) as usize);
+            let linked_idx = if j == 0 {
+                linked.sg_rgb_fg_idx
+            } else if j == 1 {
+                linked.sg_rgb_bg_idx
+            } else {
+                linked.sg_rgb_sp_idx
+            };
+            unsafe {
                 *dest = if linked_idx != K_COLOR_IDX_NONE {
                     linked_idx
                 } else {
@@ -1044,53 +1048,53 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
                 };
             }
         }
-
-        g.sg_cterm = attrs.cterm_ae_attr & !HL_DEFAULT;
-        g.sg_cterm_bg = i32::from(attrs.cterm_bg_color);
-        g.sg_cterm_fg = i32::from(attrs.cterm_fg_color);
-
-        g.sg_cterm_bold = (g.sg_cterm & HL_BOLD) != 0;
-        if attrs.hl_blend != -1 {
-            g.sg_blend = attrs.hl_blend;
-        } else if !update {
-            g.sg_blend = -1;
-        }
-
-        if attrs.font >= 0 {
-            g.sg_font = hl_get_font(attrs.font).map(ToOwned::to_owned);
-        } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
-            g.sg_font = None;
-        }
-
-        g.sg_script_ctx = g_st().current_sctx;
-        g.sg_script_ctx.sc_lnum += sourcing_lnum();
-        nlua_set_sctx(&mut g.sg_script_ctx);
-
-        g.sg_attr = hl_get_syn_attr(0, id, attrs);
-
-        if g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL") {
-            g_st().cterm_normal_fg_color = g.sg_cterm_fg;
-            g_st().cterm_normal_bg_color = g.sg_cterm_bg;
-            let did_changed = g_st().normal_bg != g.sg_rgb_bg
-                || g_st().normal_fg != g.sg_rgb_fg
-                || g_st().normal_sp != g.sg_rgb_sp;
-            g_st().normal_fg = g.sg_rgb_fg;
-            g_st().normal_bg = g.sg_rgb_bg;
-            g_st().normal_sp = g.sg_rgb_sp;
-
-            if did_changed {
-                highlight_attr_set_all();
-            }
-            ui_default_colors_set();
-        } else if cursor_mode_uses_syn_id(id) {
-            ui_mode_info_set();
-        }
-
-        if !g_st().updating_screen {
-            redraw_all_later(UPD_NOT_VALID);
-        }
-        g_st().need_highlight_changed = true;
     }
+
+    g.sg_cterm = attrs.cterm_ae_attr & !HL_DEFAULT;
+    g.sg_cterm_bg = i32::from(attrs.cterm_bg_color);
+    g.sg_cterm_fg = i32::from(attrs.cterm_fg_color);
+
+    g.sg_cterm_bold = (g.sg_cterm & HL_BOLD) != 0;
+    if attrs.hl_blend != -1 {
+        g.sg_blend = attrs.hl_blend;
+    } else if !update {
+        g.sg_blend = -1;
+    }
+
+    if attrs.font >= 0 {
+        g.sg_font = hl_get_font(attrs.font).map(ToOwned::to_owned);
+    } else if has_key(dict.is_set_highlight, KEYSET_OPTIDX_HIGHLIGHT_FONT) || !update {
+        g.sg_font = None;
+    }
+
+    g.sg_script_ctx = g_st().current_sctx;
+    g.sg_script_ctx.sc_lnum += sourcing_lnum();
+    nlua_set_sctx(&mut g.sg_script_ctx);
+
+    g.sg_attr = hl_get_syn_attr(0, id, attrs);
+
+    if g.sg_name.to_bytes().eq_ignore_ascii_case(b"NORMAL") {
+        g_st().cterm_normal_fg_color = g.sg_cterm_fg;
+        g_st().cterm_normal_bg_color = g.sg_cterm_bg;
+        let did_changed = g_st().normal_bg != g.sg_rgb_bg
+            || g_st().normal_fg != g.sg_rgb_fg
+            || g_st().normal_sp != g.sg_rgb_sp;
+        g_st().normal_fg = g.sg_rgb_fg;
+        g_st().normal_bg = g.sg_rgb_bg;
+        g_st().normal_sp = g.sg_rgb_sp;
+
+        if did_changed {
+            highlight_attr_set_all();
+        }
+        ui_default_colors_set();
+    } else if cursor_mode_uses_syn_id(id) {
+        ui_mode_info_set();
+    }
+
+    if !g_st().updating_screen {
+        redraw_all_later(UPD_NOT_VALID);
+    }
+    g_st().need_highlight_changed = true;
 }
 
 fn set_gui_color(

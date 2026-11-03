@@ -1537,77 +1537,93 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 // DLLEXPORT Integer nvim_open_term(Buffer buf, Dict(open_term) *opts,
 //                                  Error *err) FUNC_API_SINCE(7) FUNC_API_TEXTLOCK;
 pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error) -> Integer {
-    unsafe {
-        let b = api_buf_ensure_loaded(buf, err);
-        if b.is_null() {
-            return 0;
-        }
+    let b = api_buf_ensure_loaded(buf, err);
+    if b.is_null() {
+        return 0;
+    }
 
-        let mut may_read_buffer = true;
-        if !(*b).terminal.is_null() {
-            if terminal_running(&*(*b).terminal) {
+    let mut may_read_buffer = true;
+    if unsafe { !(*b).terminal.is_null() } {
+        if unsafe { terminal_running(&*(*b).terminal) } {
+            unsafe {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
                     c"Terminal already connected to buffer %d",
                     (*b).b_fnum,
                 );
-                return 0;
             }
+            return 0;
+        }
+        unsafe {
             buf_close_terminal(&mut *b);
-            may_read_buffer = false;
         }
+        may_read_buffer = false;
+    }
 
-        let mut cb = LUA_NOREF;
-        if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_ON_INPUT)) != 0 {
-            cb = opts.on_input;
-            opts.on_input = LUA_NOREF;
-        }
+    let mut cb = LUA_NOREF;
+    if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_ON_INPUT)) != 0 {
+        cb = opts.on_input;
+        opts.on_input = LUA_NOREF;
+    }
 
-        let force_crlf =
-            if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF)) != 0 {
-                opts.force_crlf
-            } else {
-                true
-            };
+    let force_crlf = if (opts.is_set_open_term & (1u64 << KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF)) != 0
+    {
+        opts.force_crlf
+    } else {
+        true
+    };
 
-        let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-        let internal = &mut (*chan).internal;
-        let prefix = chan;
-        let tail = chan;
-        let tail = &mut *tail;
-        internal.cb = cb;
-        internal.closed = false;
-        let topts = TerminalOptions {
-            data: chan,
-            width: (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16,
-            height: curwin_mut().w_view_height as u16,
-            force_crlf,
-        };
+    let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
+    let internal = unsafe { &mut (*chan).internal };
+    let prefix = chan;
+    let tail = chan;
+    let tail = unsafe { &mut *tail };
+    internal.cb = cb;
+    internal.closed = false;
+    let topts = TerminalOptions {
+        data: chan,
+        width: (curwin_mut().w_view_width - win_col_off(curwin_ptr())).max(0) as u16,
+        height: curwin_mut().w_view_height as u16,
+        force_crlf,
+    };
 
-        let mut contents: Vec<u8> = Vec::new();
-        if may_read_buffer {
+    let mut contents: Vec<u8> = Vec::new();
+    if may_read_buffer {
+        unsafe {
             read_buffer_into(b.as_mut(), 1, (*b).b_ml.ml_line_count, &mut contents);
         }
+    }
 
+    unsafe {
         channel_incref(&mut *chan);
+    }
+    unsafe {
         tail.term = terminal_alloc(&mut *b, topts);
+    }
+    unsafe {
         terminal_open((&raw mut tail.term).cast(), &mut *b);
-        if !tail.term.is_null() {
+    }
+    if !tail.term.is_null() {
+        unsafe {
             terminal_check_size(&mut *tail.term.cast());
         }
-        channel_decref(&mut *chan);
-
-        if !contents.is_empty() {
-            let mut error = None;
-            channel_send((*prefix).id, contents, &mut error);
-            if let Some(err_str) = error {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
-            }
-        }
-
-        (*prefix).id as Integer
     }
+    unsafe {
+        channel_decref(&mut *chan);
+    }
+
+    if !contents.is_empty() {
+        let mut error = None;
+        unsafe {
+            channel_send((*prefix).id, contents, &mut error);
+        }
+        if let Some(err_str) = error {
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", err_str.as_ptr());
+        }
+    }
+
+    unsafe { (*prefix).id as Integer }
 }
 
 /// Sends raw data to channel `chan`. |channel-bytes|
@@ -2529,43 +2545,45 @@ pub fn nvim_inspect_cell(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Array {
-    unsafe {
-        let mut ret = Array::new();
-        let mut g: *mut ScreenGrid = &raw mut g_st().default_grid;
-        if grid == Integer::from(g_st().pum_grid.handle) {
-            g = &raw mut g_st().pum_grid;
-        } else if grid > 1 {
-            let wp = get_win_by_grid_handle(grid as ObjHandle);
-            if !validate_int(
+    let mut ret = Array::new();
+    let mut g: *mut ScreenGrid = &raw mut g_st().default_grid;
+    if grid == Integer::from(g_st().pum_grid.handle) {
+        g = &raw mut g_st().pum_grid;
+    } else if grid > 1 {
+        let wp = get_win_by_grid_handle(grid as ObjHandle);
+        if unsafe {
+            !validate_int(
                 !wp.is_null() && !(*wp).w_grid_alloc.chars.is_empty(),
                 c"grid handle",
                 grid,
                 err,
-            ) {
-                return ret;
-            }
-            g = &raw mut (*wp).w_grid_alloc;
-        }
-
-        let g = &*g;
-        if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
+            )
+        } {
             return ret;
         }
-        ret = arena_array(arena, 3);
-        let off = g.line_offset[row as usize] + (col as usize);
-        let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
-        schar_get(sc_buf, g.chars[off]);
-        add_c(&mut ret, cstr_as_obj(sc_buf.cast()));
-        let attr = g.attrs[off];
-        add_c(
-            &mut ret,
-            dict_obj(hl_get_attr_by_id(Integer::from(attr), true, arena, err)),
-        );
-        if !highlight_use_hlstate() {
-            add_c(&mut ret, array_obj(hl_inspect(attr, arena)));
+        unsafe {
+            g = &raw mut (*wp).w_grid_alloc;
         }
-        ret
     }
+
+    let g = unsafe { &*g };
+    if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
+        return ret;
+    }
+    ret = arena_array(arena, 3);
+    let off = g.line_offset[row as usize] + (col as usize);
+    let sc_buf = arena_alloc(arena, MAX_SCHAR_SIZE, false).cast::<u8>();
+    schar_get(sc_buf, g.chars[off]);
+    add_c(&mut ret, cstr_as_obj(sc_buf.cast()));
+    let attr = g.attrs[off];
+    add_c(
+        &mut ret,
+        dict_obj(hl_get_attr_by_id(Integer::from(attr), true, arena, err)),
+    );
+    if !highlight_use_hlstate() {
+        add_c(&mut ret, array_obj(hl_inspect(attr, arena)));
+    }
+    ret
 }
 
 /// @nodoc
@@ -2736,129 +2754,126 @@ pub fn nvim_eval_statusline(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    unsafe {
-        let mut result = Dict::new();
-        let mut fillchar: Schar = 0;
-        let mut statuscol_lnum: i32 = 0;
+    let mut result = Dict::new();
+    let mut fillchar: Schar = 0;
+    let mut statuscol_lnum: i32 = 0;
 
-        let str_bytes = str_.as_bytes();
-        if !str_bytes.starts_with(b"%!") {
-            let mut raw_errbuf = [0u8; ERR_BUFLEN];
-            let errbuf = CharBuf {
-                data: raw_errbuf.as_mut_ptr(),
-                size: ERR_BUFLEN,
-            };
-            if let Some(errmsg) = check_stl_option(str_.data, Some(errbuf)) {
-                api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
-                return result;
-            }
-        }
-
-        let window = opts.winid;
-
-        if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
-            let ci = utf_ptr2_str_char_info(opts.fillchar.data);
-            let cli = utf_cluster_info(ci);
-            if *ci.ptr == 0 || !crate::memory::cstr_is_empty(cli.next.ptr) || cli.cells != 1 {
-                api_err_exp(err, c"fillchar", c"one single-width character", ptr::null());
-                return result;
-            }
-            fillchar = crate::grid::schar_from_cluster(ci, cli);
-        }
-
-        let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
-
-        let wp = if opts.use_tabline {
-            curwin_ptr()
-        } else {
-            find_window_by_handle(window, err)
+    let str_bytes = str_.as_bytes();
+    if !str_bytes.starts_with(b"%!") {
+        let mut raw_errbuf = [0u8; ERR_BUFLEN];
+        let errbuf = CharBuf {
+            data: raw_errbuf.as_mut_ptr(),
+            size: ERR_BUFLEN,
         };
-        if wp.is_null() {
+        if let Some(errmsg) = check_stl_option(str_.data, Some(errbuf)) {
+            api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
             return result;
         }
-        let wp = &mut *wp;
+    }
 
-        if (opts.is_set_eval_statusline
-            & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
-            != 0
+    let window = opts.winid;
+
+    if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
+        let ci = utf_ptr2_str_char_info(opts.fillchar.data);
+        let cli = utf_cluster_info(ci);
+        if unsafe { *ci.ptr == 0 } || !crate::memory::cstr_is_empty(cli.next.ptr) || cli.cells != 1
         {
-            statuscol_lnum = opts.use_statuscol_lnum as i32;
-            if !validate_range(
-                statuscol_lnum > 0 && statuscol_lnum <= (*wp).buf_mut().b_ml.ml_line_count,
-                c"use_statuscol_lnum",
-                err,
-            ) {
-                return result;
-            }
-            use_bools += 1;
-        }
-        if use_bools > 1 {
-            api_set_error!(
-                err,
-                ErrorType::ErrorTypeValidation,
-                c"%s",
-                c"Can only use one of 'use_winbar', 'use_tabline' and 'use_statuscol_lnum'",
-            );
+            api_err_exp(err, c"fillchar", c"one single-width character", ptr::null());
             return result;
         }
+        fillchar = crate::grid::schar_from_cluster(ci, cli);
+    }
 
-        let mut stc_hl_id: i32 = 0;
-        let mut scl_hl_id: i32 = 0;
-        let mut statuscol = Statuscol::new();
+    let mut use_bools = i32::from(opts.use_winbar) + i32::from(opts.use_tabline);
 
-        if statuscol_lnum != 0 {
-            let mut line_id: i32 = 0;
-            let mut cul_id: i32 = 0;
-            let mut num_id: i32 = 0;
-            let lnum = statuscol_lnum as Linenr;
-            let mut cursorline_fi = Foldinfo::new();
-            decor_redraw_signs(
-                wp,
-                wp.w_buffer,
-                lnum - 1,
-                statuscol.sattrs.as_mut_ptr(),
-                Some(&mut line_id),
-                Some(&mut cul_id),
-                Some(&mut num_id),
-            );
+    let wp = if opts.use_tabline {
+        curwin_ptr()
+    } else {
+        find_window_by_handle(window, err)
+    };
+    if wp.is_null() {
+        return result;
+    }
+    let wp = unsafe { &mut *wp };
 
-            statuscol.foldinfo = fold_info(&mut *wp, lnum);
-            win_update_cursorline(&mut *wp, &mut cursorline_fi);
-            let use_cul = use_cursor_line_highlight(&mut *wp, lnum);
-            statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
-            scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
+    if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
+        != 0
+    {
+        statuscol_lnum = opts.use_statuscol_lnum as i32;
+        if !validate_range(
+            statuscol_lnum > 0 && statuscol_lnum <= (*wp).buf_mut().b_ml.ml_line_count,
+            c"use_statuscol_lnum",
+            err,
+        ) {
+            return result;
+        }
+        use_bools += 1;
+    }
+    if use_bools > 1 {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"Can only use one of 'use_winbar', 'use_tabline' and 'use_statuscol_lnum'",
+        );
+        return result;
+    }
 
-            if num_id != 0 {
-                stc_hl_id = num_id;
-            } else if use_cul {
-                stc_hl_id = HLF_CLN;
-            } else if wp.w_onebuf_opt.wo_rnu != 0 {
-                stc_hl_id = if lnum < wp.w_cursor.lnum {
-                    HLF_LNA
-                } else {
-                    HLF_LNB
-                };
+    let mut stc_hl_id: i32 = 0;
+    let mut scl_hl_id: i32 = 0;
+    let mut statuscol = Statuscol::new();
+
+    if statuscol_lnum != 0 {
+        let mut line_id: i32 = 0;
+        let mut cul_id: i32 = 0;
+        let mut num_id: i32 = 0;
+        let lnum = statuscol_lnum as Linenr;
+        let mut cursorline_fi = Foldinfo::new();
+        decor_redraw_signs(
+            wp,
+            wp.w_buffer,
+            lnum - 1,
+            statuscol.sattrs.as_mut_ptr(),
+            Some(&mut line_id),
+            Some(&mut cul_id),
+            Some(&mut num_id),
+        );
+
+        statuscol.foldinfo = fold_info(&mut *wp, lnum);
+        win_update_cursorline(&mut *wp, &mut cursorline_fi);
+        let use_cul = use_cursor_line_highlight(&mut *wp, lnum);
+        statuscol.sign_cul_id = if use_cul { cul_id } else { 0 };
+        scl_hl_id = if use_cul { HLF_CLS } else { HLF_SC };
+
+        if num_id != 0 {
+            stc_hl_id = num_id;
+        } else if use_cul {
+            stc_hl_id = HLF_CLN;
+        } else if wp.w_onebuf_opt.wo_rnu != 0 {
+            stc_hl_id = if lnum < wp.w_cursor.lnum {
+                HLF_LNA
             } else {
-                stc_hl_id = HLF_N;
-            }
-
-            set_vim_var_nr(VV_LNUM, i64::from(lnum));
-            let rel = get_cursor_rel_lnum(&mut *wp, lnum);
-            set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
-            set_vim_var_nr(VV_VIRTNUM, 0);
-        } else if fillchar == 0 && !opts.use_tabline {
-            if opts.use_winbar {
-                fillchar = wp.w_p_fcs_chars.wbr;
-            } else {
-                let mut group: Hlf = 0;
-                fillchar = fillchar_status(&mut group, &mut *wp);
-            }
+                HLF_LNB
+            };
+        } else {
+            stc_hl_id = HLF_N;
         }
 
-        let maxwidth = if (opts.is_set_eval_statusline
-            & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH))
-            != 0
-        {
+        set_vim_var_nr(VV_LNUM, i64::from(lnum));
+        let rel = get_cursor_rel_lnum(&mut *wp, lnum);
+        set_vim_var_nr(VV_RELNUM, (rel as i64).abs());
+        set_vim_var_nr(VV_VIRTNUM, 0);
+    } else if fillchar == 0 && !opts.use_tabline {
+        if opts.use_winbar {
+            fillchar = wp.w_p_fcs_chars.wbr;
+        } else {
+            let mut group: Hlf = 0;
+            fillchar = fillchar_status(&mut group, &mut *wp);
+        }
+    }
+
+    let maxwidth =
+        if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH)) != 0 {
             opts.maxwidth as i32
         } else if statuscol_lnum != 0 {
             win_col_off(wp)
@@ -2868,97 +2883,98 @@ pub fn nvim_eval_statusline(
             wp.w_width
         };
 
-        result = arena_dict(arena, 3);
-        let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
-        let buf = CharBuf {
-            data: buf_data,
-            size: MAXPATHL,
-        };
-        let mut hltab: *mut StlHlrec = ptr::null_mut();
-        let mut hltab_len: usize = 0;
+    result = arena_dict(arena, 3);
+    let buf_data = arena_alloc(arena, MAXPATHL, false).cast::<u8>();
+    let buf = CharBuf {
+        data: buf_data,
+        size: MAXPATHL,
+    };
+    let mut hltab: *mut StlHlrec = ptr::null_mut();
+    let mut hltab_len: usize = 0;
 
-        let p_crb_save = wp.w_onebuf_opt.wo_crb;
-        wp.w_onebuf_opt.wo_crb = 0;
+    let p_crb_save = wp.w_onebuf_opt.wo_crb;
+    wp.w_onebuf_opt.wo_crb = 0;
 
-        let width = build_stl_str_hl(
-            wp,
-            buf,
-            str_.data.cast(),
-            -1,
-            0,
-            fillchar,
-            maxwidth,
-            if opts.highlights {
-                &mut hltab
-            } else {
-                ptr::null_mut()
-            },
-            &mut hltab_len,
-            ptr::null_mut(),
-            if statuscol_lnum != 0 {
-                &mut statuscol
-            } else {
-                ptr::null_mut()
-            },
-        );
-
-        put_c(&mut result, c"width", integer_obj(Integer::from(width)));
-
-        wp.w_onebuf_opt.wo_crb = p_crb_save;
-
+    let width = build_stl_str_hl(
+        wp,
+        buf,
+        str_.data.cast(),
+        -1,
+        0,
+        fillchar,
+        maxwidth,
         if opts.highlights {
-            let mut hl_values = arena_array(arena, hltab_len + 1);
-            let dfltname = get_default_stl_hl(
-                if opts.use_tabline {
-                    ptr::null_mut()
-                } else {
-                    wp
-                },
-                opts.use_winbar,
-                stc_hl_id,
-            );
-            if (*hltab).start.is_null()
-                || crate::memory::ptr_offset_from((*hltab).start, buf_data.cast()) != 0
-            {
-                let mut hl_info = arena_dict(arena, 3);
-                put_c(&mut hl_info, c"start", integer_obj(0));
-                put_c(&mut hl_info, c"group", cstr_as_obj(dfltname));
-                let mut groups = arena_array(arena, 1);
-                add_c(&mut groups, cstr_as_obj(dfltname));
-                put_c(&mut hl_info, c"groups", array_obj(groups));
-                add_c(&mut hl_values, dict_obj(hl_info));
-            }
+            &mut hltab
+        } else {
+            ptr::null_mut()
+        },
+        &mut hltab_len,
+        ptr::null_mut(),
+        if statuscol_lnum != 0 {
+            &mut statuscol
+        } else {
+            ptr::null_mut()
+        },
+    );
 
-            let mut sp = hltab;
-            while !(*sp).start.is_null() {
-                const USER_HLS: [&CStr; 9] = [
-                    c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
-                    c"User9",
-                ];
-                let grpname: &'static CStr = if (*sp).userhl == 0 {
-                    get_default_stl_hl(
-                        if opts.use_tabline {
-                            ptr::null_mut()
-                        } else {
-                            wp
-                        },
-                        opts.use_winbar,
-                        stc_hl_id,
-                    )
-                } else if (*sp).userhl < 0 {
-                    syn_id2name(-(*sp).userhl)
-                } else {
-                    USER_HLS[((*sp).userhl - 1) as usize]
-                };
+    put_c(&mut result, c"width", integer_obj(Integer::from(width)));
 
-                let combine: &'static CStr = if (*sp).item == i32::from(STL_SIGNCOL) {
-                    syn_id2name(scl_hl_id)
-                } else if (*sp).item == i32::from(STL_FOLDCOL) {
-                    grpname
-                } else {
-                    dfltname
-                };
-                let mut hl_info = arena_dict(arena, 3);
+    wp.w_onebuf_opt.wo_crb = p_crb_save;
+
+    if opts.highlights {
+        let mut hl_values = arena_array(arena, hltab_len + 1);
+        let dfltname = get_default_stl_hl(
+            if opts.use_tabline {
+                ptr::null_mut()
+            } else {
+                wp
+            },
+            opts.use_winbar,
+            stc_hl_id,
+        );
+        if unsafe { (*hltab).start.is_null() }
+            || unsafe { crate::memory::ptr_offset_from((*hltab).start, buf_data.cast()) != 0 }
+        {
+            let mut hl_info = arena_dict(arena, 3);
+            put_c(&mut hl_info, c"start", integer_obj(0));
+            put_c(&mut hl_info, c"group", cstr_as_obj(dfltname));
+            let mut groups = arena_array(arena, 1);
+            add_c(&mut groups, cstr_as_obj(dfltname));
+            put_c(&mut hl_info, c"groups", array_obj(groups));
+            add_c(&mut hl_values, dict_obj(hl_info));
+        }
+
+        let mut sp = hltab;
+        while unsafe { !(*sp).start.is_null() } {
+            const USER_HLS: [&CStr; 9] = [
+                c"User1", c"User2", c"User3", c"User4", c"User5", c"User6", c"User7", c"User8",
+                c"User9",
+            ];
+            let grpname: &'static CStr = if unsafe { (*sp).userhl == 0 } {
+                get_default_stl_hl(
+                    if opts.use_tabline {
+                        ptr::null_mut()
+                    } else {
+                        wp
+                    },
+                    opts.use_winbar,
+                    stc_hl_id,
+                )
+            } else if unsafe { (*sp).userhl < 0 } {
+                unsafe { syn_id2name(-(*sp).userhl) }
+            } else {
+                unsafe { USER_HLS[((*sp).userhl - 1) as usize] }
+            };
+
+            let combine: &'static CStr = if unsafe { (*sp).item == i32::from(STL_SIGNCOL) } {
+                syn_id2name(scl_hl_id)
+            } else if unsafe { (*sp).item == i32::from(STL_FOLDCOL) } {
+                grpname
+            } else {
+                dfltname
+            };
+            let mut hl_info = arena_dict(arena, 3);
+            unsafe {
                 put_c(
                     &mut hl_info,
                     c"start",
@@ -2966,24 +2982,24 @@ pub fn nvim_eval_statusline(
                         crate::memory::ptr_offset_from((*sp).start, buf_data.cast()) as Integer
                     ),
                 );
-                put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
-                let diff_group = combine != grpname;
-                let mut groups = arena_array(arena, 1 + usize::from(diff_group));
-                if diff_group {
-                    add_c(&mut groups, cstr_as_obj(combine));
-                }
-                add_c(&mut groups, cstr_as_obj(grpname));
-                put_c(&mut hl_info, c"groups", array_obj(groups));
-                add_c(&mut hl_values, dict_obj(hl_info));
-
-                sp = sp.wrapping_add(1);
             }
-            put_c(&mut result, c"highlights", array_obj(hl_values));
-        }
-        put_c(&mut result, c"str", cstr_as_obj(buf_data.cast()));
+            put_c(&mut hl_info, c"group", cstr_as_obj(grpname));
+            let diff_group = combine != grpname;
+            let mut groups = arena_array(arena, 1 + usize::from(diff_group));
+            if diff_group {
+                add_c(&mut groups, cstr_as_obj(combine));
+            }
+            add_c(&mut groups, cstr_as_obj(grpname));
+            put_c(&mut hl_info, c"groups", array_obj(groups));
+            add_c(&mut hl_values, dict_obj(hl_info));
 
-        result
+            sp = sp.wrapping_add(1);
+        }
+        put_c(&mut result, c"highlights", array_obj(hl_values));
     }
+    put_c(&mut result, c"str", cstr_as_obj(buf_data.cast()));
+
+    result
 }
 
 /// Sets info for the completion item at the given index. If the info text was shown in a window,
@@ -3075,152 +3091,158 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
-    unsafe {
-        let mut win: *mut WinInfoInfo = ptr::null_mut();
-        let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut win: *mut WinInfoInfo = ptr::null_mut();
+    let mut buf: *mut FileBuf = ptr::null_mut();
 
-        if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
-            win = find_window_by_handle(opts.win, err);
-            if error_set(err) {
-                return;
-            }
+    if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
+        win = find_window_by_handle(opts.win, err);
+        if error_set(err) {
+            return;
         }
+    }
 
-        if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
-            if !win.is_null() {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"cannot use both 'buf' and 'win'",
-                );
-                return;
-            }
-            buf = find_buffer_by_handle(opts.buf, err);
-            if error_set(err) {
-                return;
-            }
-        }
-
-        let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
-        if xpopcount(opts.is_set_redraw) <= count {
+    if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_BUF)) != 0 {
+        if !win.is_null() {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
                 c"%s",
-                c"at least one action required",
+                c"cannot use both 'buf' and 'win'",
             );
             return;
         }
+        buf = find_buffer_by_handle(opts.buf, err);
+        if error_set(err) {
+            return;
+        }
+    }
 
-        let has_valid = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
-        let has_range = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_RANGE)) != 0;
-        let has_flush = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_FLUSH)) != 0;
+    let count = u32::from(!win.is_null()) + u32::from(!buf.is_null());
+    if xpopcount(opts.is_set_redraw) <= count {
+        api_set_error!(
+            err,
+            ErrorType::ErrorTypeValidation,
+            c"%s",
+            c"at least one action required",
+        );
+        return;
+    }
 
-        if has_valid {
-            let rtype = if opts.valid { UPD_VALID } else { UPD_NOT_VALID };
-            if !win.is_null() {
+    let has_valid = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_VALID)) != 0;
+    let has_range = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_RANGE)) != 0;
+    let has_flush = (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_FLUSH)) != 0;
+
+    if has_valid {
+        let rtype = if opts.valid { UPD_VALID } else { UPD_NOT_VALID };
+        if !win.is_null() {
+            unsafe {
                 redraw_later(win.as_mut(), rtype);
-            } else if !buf.is_null() {
-                redraw_buf_later(buf, rtype);
-            } else {
-                redraw_all_later(rtype);
             }
+        } else if !buf.is_null() {
+            redraw_buf_later(buf, rtype);
+        } else {
+            redraw_all_later(rtype);
         }
+    }
 
-        if has_range {
-            let r = opts.range;
-            let ok = r.size == 2
-                && r[0].obj_type == ObjectType::ObjectTypeInteger
-                && r[1].obj_type == ObjectType::ObjectTypeInteger
-                && r[0].data.integer() >= 0
-                && r[1].data.integer() >= -1;
-            if !ok {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"%s",
-                    c"Invalid 'range': Expected 2-tuple of Integers",
-                );
-                return;
-            }
-            let begin_raw = r[0].data.integer();
-            let end_raw = r[1].data.integer();
-
-            let rbuf = if !win.is_null() {
-                (*win).w_buffer
-            } else if !buf.is_null() {
-                buf
-            } else {
-                g_st().curbuf
-            };
-            let line_count = i64::from((*rbuf).b_ml.ml_line_count);
-            let begin = begin_raw.min(line_count) as i32;
-            let end = if end_raw == -1 {
-                line_count as i32
-            } else {
-                end_raw.max(i64::from(begin)).min(line_count) as i32
-            };
-
-            if begin < end {
-                redraw_buf_range_later(rbuf, 1 + begin, end);
-            }
+    if has_range {
+        let r = opts.range;
+        let ok = r.size == 2
+            && r[0].obj_type == ObjectType::ObjectTypeInteger
+            && r[1].obj_type == ObjectType::ObjectTypeInteger
+            && r[0].data.integer() >= 0
+            && r[1].data.integer() >= -1;
+        if !ok {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"%s",
+                c"Invalid 'range': Expected 2-tuple of Integers",
+            );
+            return;
         }
+        let begin_raw = r[0].data.integer();
+        let end_raw = r[1].data.integer();
 
-        if has_valid || has_range {
-            opts.flush = if has_flush { opts.flush } else { true };
+        let rbuf = if !win.is_null() {
+            unsafe { (*win).w_buffer }
+        } else if !buf.is_null() {
+            buf
+        } else {
+            g_st().curbuf
+        };
+        let line_count = unsafe { i64::from((*rbuf).b_ml.ml_line_count) };
+        let begin = begin_raw.min(line_count) as i32;
+        let end = if end_raw == -1 {
+            line_count as i32
+        } else {
+            end_raw.max(i64::from(begin)).min(line_count) as i32
+        };
+
+        if begin < end {
+            redraw_buf_range_later(rbuf, 1 + begin, end);
         }
+    }
 
-        let mut flush_ui = opts.flush;
-        if opts.tabline {
-            if g_st().redraw_tabline && firstwin_mut().w_lines_valid == 0 {
-                opts.flush = true;
-            } else {
-                draw_tabline();
-            }
-            flush_ui = true;
+    if has_valid || has_range {
+        opts.flush = if has_flush { opts.flush } else { true };
+    }
+
+    let mut flush_ui = opts.flush;
+    if opts.tabline {
+        if g_st().redraw_tabline && firstwin_mut().w_lines_valid == 0 {
+            opts.flush = true;
+        } else {
+            draw_tabline();
         }
+        flush_ui = true;
+    }
 
-        let save_lz = opt_vars().p_lz;
-        let save_rd = g_st().redrawing_disabled;
-        g_st().redrawing_disabled = 0;
-        opt_vars().p_lz = 0;
-        if opts.statuscolumn || opts.statusline || opts.winbar {
-            if win.is_null() {
-                for wp in for_all_windows_mut() {
-                    if buf.is_null() || wp.w_buffer == buf {
-                        redraw_status(wp, opts);
-                    }
+    let save_lz = opt_vars().p_lz;
+    let save_rd = g_st().redrawing_disabled;
+    g_st().redrawing_disabled = 0;
+    opt_vars().p_lz = 0;
+    if opts.statuscolumn || opts.statusline || opts.winbar {
+        if win.is_null() {
+            for wp in for_all_windows_mut() {
+                if buf.is_null() || wp.w_buffer == buf {
+                    redraw_status(wp, opts);
                 }
-            } else {
+            }
+        } else {
+            unsafe {
                 redraw_status(&mut *win, opts);
             }
-            flush_ui = true;
         }
-
-        let cwin = if !win.is_null() { win } else { curwin_ptr() };
-        if opts.cursor && ((*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid) {
-            opts.flush = true;
-        }
-
-        if opts.flush && !g_st().cmdpreview {
-            validate_cursor(curwin_mut());
-            update_topline(curwin_mut());
-            update_screen();
-        }
-
-        if opts.cursor {
-            setcursor_mayforce(&mut *cwin, true);
-            flush_ui = true;
-        }
-
-        if flush_ui {
-            ui_flush();
-        }
-
-        g_st().redrawing_disabled = save_rd;
-        opt_vars().p_lz = save_lz;
+        flush_ui = true;
     }
+
+    let cwin = if !win.is_null() { win } else { curwin_ptr() };
+    if opts.cursor
+        && (unsafe { (*cwin).w_grid.target.is_null() || !(*(*cwin).w_grid.target).valid })
+    {
+        opts.flush = true;
+    }
+
+    if opts.flush && !g_st().cmdpreview {
+        validate_cursor(curwin_mut());
+        update_topline(curwin_mut());
+        update_screen();
+    }
+
+    if opts.cursor {
+        unsafe {
+            setcursor_mayforce(&mut *cwin, true);
+        }
+        flush_ui = true;
+    }
+
+    if flush_ui {
+        ui_flush();
+    }
+
+    g_st().redrawing_disabled = save_rd;
+    opt_vars().p_lz = save_lz;
 }
 
 // DLLEXPORT void nvim__set_restart_on_crash(String progpath, Array argv);

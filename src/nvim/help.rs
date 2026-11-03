@@ -44,203 +44,199 @@ use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
 
 /// `:help`: open a read-only window on a help file (`ex_help`).
 pub fn ex_help(eap: &mut Exarg) {
-    unsafe {
-        let mut wp: *mut WinInfoInfo;
-        let mut empty_fnum: i32 = 0;
-        let mut alt_fnum: i32 = 0;
-        let old_key_typed = g_st().key_typed;
+    let mut wp: *mut WinInfoInfo;
+    let mut empty_fnum: i32 = 0;
+    let mut alt_fnum: i32 = 0;
+    let old_key_typed = g_st().key_typed;
 
-        let mut lang: Option<std::ffi::CString> = None;
-        let mut arg_cstr: &CStr = c"";
-        if !eap.arg.is_null() {
-            let full_len = crate::memory::cstr_len(eap.arg);
-            let slice = std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), full_len + 1);
-            for i in 0..full_len {
-                let b = slice[i];
-                if b == b'\n'
-                    || b == b'\r'
-                    || (b == b'|' && slice[i + 1] != 0 && slice[i + 1] != b'|')
-                {
-                    slice[i] = 0;
-                    eap.nextcmd = eap.arg.wrapping_add(i + 1);
-                    break;
-                }
-            }
-
-            if eap.skip != 0 {
-                return;
-            }
-
-            // remove trailing blanks
-            let mut end = slice.iter().position(|&b| b == 0).unwrap_or(full_len);
-            while end > 1 && ascii_iswhite(i32::from(slice[end - 1])) && slice[end - 2] != b'\\' {
-                end -= 1;
-                slice[end] = 0;
-            }
-
-            // Check for a specified language
-            lang = check_help_lang(slice).map(CStr::to_owned);
-            arg_cstr = CStr::from_bytes_until_nul(slice).unwrap_or(c"");
-        }
-
-        // ":help!" (bang, no args).
-        let helpbang = eap.forceit != 0 && arg_cstr.to_bytes().is_empty();
-
-        // When no argument given go to the index.
-        if arg_cstr.to_bytes().is_empty() && !helpbang {
-            arg_cstr = c"help.txt";
-        }
-
-        // ":help!" (bang, no args): DWIM help, resolve best tag at cursor via Lua.
-        let mut allocated_arg: Option<std::ffi::CString> = None;
-        if helpbang {
-            let mut no_args = [TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            }];
-            let mut rettv = TypVal {
-                v_type: VarType::VarUnknown,
-                v_lock: 0,
-                vval: TypvalVval::Number(0),
-            };
-            nlua_call_typval(
-                c"vim._core.help",
-                c"resolve_tag",
-                no_args.as_mut_ptr(),
-                Some(&mut rettv),
-            );
-            if rettv.v_type == VarType::VarString
-                && !rettv.vval.v_string().is_null()
-                && !crate::memory::cstr_is_empty(rettv.vval.v_string())
+    let mut lang: Option<std::ffi::CString> = None;
+    let mut arg_cstr: &CStr = c"";
+    if !eap.arg.is_null() {
+        let full_len = crate::memory::cstr_len(eap.arg);
+        let slice = unsafe { std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), full_len + 1) };
+        for i in 0..full_len {
+            let b = slice[i];
+            if b == b'\n' || b == b'\r' || (b == b'|' && slice[i + 1] != 0 && slice[i + 1] != b'|')
             {
-                allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
-                arg_cstr = allocated_arg.as_deref().unwrap();
-            } else {
-                tv_clear(&mut rettv);
-                emsg(gettext(E_NOIDENT));
-                return;
+                slice[i] = 0;
+                eap.nextcmd = eap.arg.wrapping_add(i + 1);
+                break;
             }
         }
 
-        // Check if there is a match for the argument.
-        let mut matches: Vec<std::ffi::CString> = Vec::new();
-        let found_tags = find_help_tags(arg_cstr, &mut matches, eap.forceit != 0);
-
-        let mut i: usize = 0;
-        if found_tags && let Some(ref lang_cstr) = lang {
-            let lang_bytes = lang_cstr.to_bytes();
-            while i < matches.len() {
-                let m_bytes = matches[i].as_bytes();
-                let len = m_bytes.len();
-                if len > 3
-                    && m_bytes[len - 3] == b'@'
-                    && m_bytes[len - 2..].eq_ignore_ascii_case(lang_bytes)
-                {
-                    break;
-                }
-                i += 1;
-            }
-        }
-        if i >= matches.len() || !found_tags {
-            if let Some(ref lang_cstr) = lang {
-                semsg!(
-                    gettext(c"E661: No '%s' help for %s"),
-                    lang_cstr.as_ptr(),
-                    arg_cstr.as_ptr()
-                );
-            } else {
-                semsg!(gettext(c"E149: No help for %s"), arg_cstr.as_ptr());
-            }
+        if eap.skip != 0 {
             return;
         }
 
-        // The first match (in the requested language) is the best match.
-        let tag = matches.swap_remove(i);
-        drop(matches);
+        // remove trailing blanks
+        let mut end = slice.iter().position(|&b| b == 0).unwrap_or(full_len);
+        while end > 1 && ascii_iswhite(i32::from(slice[end - 1])) && slice[end - 2] != b'\\' {
+            end -= 1;
+            slice[end] = 0;
+        }
 
-        // Re-use an existing help window or open a new one.
-        let mut early_ret = false;
-        if !bt_help(curwin_mut().w_buffer.as_ref()) || g_st().cmdmod.cmod_tab != 0 {
-            if g_st().cmdmod.cmod_tab != 0 {
-                wp = ptr::null_mut();
-            } else {
-                wp = ptr::null_mut();
-                for wp2 in for_all_windows_ptr() {
-                    if bt_help((wp2.w_buffer).as_ref())
-                        && !wp2.w_config.hide
-                        && wp2.w_config.focusable
-                    {
-                        wp = wp2;
-                        break;
-                    }
+        // Check for a specified language
+        lang = check_help_lang(slice).map(CStr::to_owned);
+        arg_cstr = CStr::from_bytes_until_nul(slice).unwrap_or(c"");
+    }
+
+    // ":help!" (bang, no args).
+    let helpbang = eap.forceit != 0 && arg_cstr.to_bytes().is_empty();
+
+    // When no argument given go to the index.
+    if arg_cstr.to_bytes().is_empty() && !helpbang {
+        arg_cstr = c"help.txt";
+    }
+
+    // ":help!" (bang, no args): DWIM help, resolve best tag at cursor via Lua.
+    let mut allocated_arg: Option<std::ffi::CString> = None;
+    if helpbang {
+        let mut no_args = [TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: 0,
+            vval: TypvalVval::Number(0),
+        }];
+        let mut rettv = TypVal {
+            v_type: VarType::VarUnknown,
+            v_lock: 0,
+            vval: TypvalVval::Number(0),
+        };
+        nlua_call_typval(
+            c"vim._core.help",
+            c"resolve_tag",
+            no_args.as_mut_ptr(),
+            Some(&mut rettv),
+        );
+        if rettv.v_type == VarType::VarString
+            && !rettv.vval.v_string().is_null()
+            && !crate::memory::cstr_is_empty(rettv.vval.v_string())
+        {
+            allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
+            arg_cstr = allocated_arg.as_deref().unwrap();
+        } else {
+            tv_clear(&mut rettv);
+            emsg(gettext(E_NOIDENT));
+            return;
+        }
+    }
+
+    // Check if there is a match for the argument.
+    let mut matches: Vec<std::ffi::CString> = Vec::new();
+    let found_tags = find_help_tags(arg_cstr, &mut matches, eap.forceit != 0);
+
+    let mut i: usize = 0;
+    if found_tags && let Some(ref lang_cstr) = lang {
+        let lang_bytes = lang_cstr.to_bytes();
+        while i < matches.len() {
+            let m_bytes = matches[i].as_bytes();
+            let len = m_bytes.len();
+            if len > 3
+                && m_bytes[len - 3] == b'@'
+                && m_bytes[len - 2..].eq_ignore_ascii_case(lang_bytes)
+            {
+                break;
+            }
+            i += 1;
+        }
+    }
+    if i >= matches.len() || !found_tags {
+        if let Some(ref lang_cstr) = lang {
+            semsg!(
+                gettext(c"E661: No '%s' help for %s"),
+                lang_cstr.as_ptr(),
+                arg_cstr.as_ptr()
+            );
+        } else {
+            semsg!(gettext(c"E149: No help for %s"), arg_cstr.as_ptr());
+        }
+        return;
+    }
+
+    // The first match (in the requested language) is the best match.
+    let tag = matches.swap_remove(i);
+    drop(matches);
+
+    // Re-use an existing help window or open a new one.
+    let mut early_ret = false;
+    if unsafe { !bt_help(curwin_mut().w_buffer.as_ref()) } || g_st().cmdmod.cmod_tab != 0 {
+        if g_st().cmdmod.cmod_tab != 0 {
+            wp = ptr::null_mut();
+        } else {
+            wp = ptr::null_mut();
+            for wp2 in for_all_windows_ptr() {
+                if unsafe { bt_help((wp2.w_buffer).as_ref()) }
+                    && !wp2.w_config.hide
+                    && wp2.w_config.focusable
+                {
+                    wp = wp2;
+                    break;
                 }
             }
-            if !wp.is_null() && (*wp).buf_mut().b_nwindows > 0 {
-                win_enter(wp, true);
-            } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
-                smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
+        }
+        if !wp.is_null() && unsafe { (*wp).buf_mut().b_nwindows > 0 } {
+            win_enter(wp, true);
+        } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
+            smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
+            early_ret = true;
+        } else {
+            let mut n = WSP_HELP;
+            if g_st().cmdmod.cmod_split == 0
+                && curwin_mut().w_width != g_st().columns_global
+                && curwin_mut().w_width < 80
+            {
+                n |= if opt_vars().p_sb != 0 {
+                    WSP_BOT
+                } else {
+                    WSP_TOP
+                };
+            }
+            if !win_split(0, n) {
                 early_ret = true;
             } else {
-                let mut n = WSP_HELP;
-                if g_st().cmdmod.cmod_split == 0
-                    && curwin_mut().w_width != g_st().columns_global
-                    && curwin_mut().w_width < 80
-                {
-                    n |= if opt_vars().p_sb != 0 {
-                        WSP_BOT
-                    } else {
-                        WSP_TOP
-                    };
+                if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
+                    win_setheight(opt_vars().p_hh as i32);
                 }
-                if !win_split(0, n) {
-                    early_ret = true;
-                } else {
-                    if (curwin_mut().w_height as OptInt) < opt_vars().p_hh {
-                        win_setheight(opt_vars().p_hh as i32);
-                    }
 
-                    alt_fnum = curbuf_mut().b_fnum;
-                    do_ecmd(
-                        0,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        None,
-                        ECMD_LASTL,
-                        ECMD_HIDE + ECMD_SET_HELP,
-                        ptr::null_mut(),
-                    );
+                alt_fnum = curbuf_mut().b_fnum;
+                do_ecmd(
+                    0,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    None,
+                    ECMD_LASTL,
+                    ECMD_HIDE + ECMD_SET_HELP,
+                    ptr::null_mut(),
+                );
 
-                    if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
-                        curwin_mut().w_alt_fnum = alt_fnum;
-                    }
-                    empty_fnum = curbuf_mut().b_fnum;
+                if (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0 {
+                    curwin_mut().w_alt_fnum = alt_fnum;
                 }
+                empty_fnum = curbuf_mut().b_fnum;
             }
         }
-
-        if !early_ret {
-            g_st().restart_edit = 0;
-            g_st().key_typed = old_key_typed;
-
-            do_tag(None, tag.as_ptr().cast_mut(), DT_HELP, 1, 0, true);
-
-            if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
-                let buf = buflist_findnr(empty_fnum);
-                if !buf.is_null() && (*buf).b_nwindows == 0 {
-                    wipe_buffer(buf, true);
-                }
-            }
-
-            if alt_fnum != 0
-                && curwin_mut().w_alt_fnum == empty_fnum
-                && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
-            {
-                curwin_mut().w_alt_fnum = alt_fnum;
-            }
-        }
-        drop(allocated_arg);
     }
+
+    if !early_ret {
+        g_st().restart_edit = 0;
+        g_st().key_typed = old_key_typed;
+
+        do_tag(None, tag.as_ptr().cast_mut(), DT_HELP, 1, 0, true);
+
+        if empty_fnum != 0 && curbuf_mut().b_fnum != empty_fnum {
+            let buf = buflist_findnr(empty_fnum);
+            if !buf.is_null() && unsafe { (*buf).b_nwindows == 0 } {
+                wipe_buffer(buf, true);
+            }
+        }
+
+        if alt_fnum != 0
+            && curwin_mut().w_alt_fnum == empty_fnum
+            && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
+        {
+            curwin_mut().w_alt_fnum = alt_fnum;
+        }
+    }
+    drop(allocated_arg);
 }
 
 /// `:helpclose`: Close one help window (`ex_helpclose`).

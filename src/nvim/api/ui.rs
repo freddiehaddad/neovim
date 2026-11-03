@@ -123,13 +123,13 @@ fn mpack_array_dyn16(buf: &mut *mut u8) -> *mut u8 {
 }
 
 fn mpack_str_small(buf: &mut *mut u8, str_: &[u8]) {
+    let len = str_.len();
+    debug_assert!(len < 0x20);
+    mpack_w(buf, (0xa0 | len) as u8);
     unsafe {
-        let len = str_.len();
-        debug_assert!(len < 0x20);
-        mpack_w(buf, (0xa0 | len) as u8);
         ptr::copy_nonoverlapping(str_.as_ptr(), *buf, len);
-        *buf = (*buf).wrapping_add(len);
     }
+    *buf = (*buf).wrapping_add(len);
 }
 
 /// Removes the client on the given channel from the list of UIs.
@@ -225,13 +225,15 @@ pub fn remote_ui_free_all_mem() {
 /// Wait until UI has connected.
 // DLLEXPORT void remote_ui_wait_for_attach(void);
 pub fn remote_ui_wait_for_attach() {
-    unsafe {
-        while ui_active() == 0 {
-            let events = loop_queues(&mut g_st().main_loop).events;
-            if !multiqueue_empty(&*events) {
+    while ui_active() == 0 {
+        let events = loop_queues(&mut g_st().main_loop).events;
+        if unsafe { !multiqueue_empty(&*events) } {
+            unsafe {
                 multiqueue_process_events(&mut *events);
-            } else {
-                loop_poll_events(&mut g_st().main_loop, -1);
+            }
+        } else {
+            loop_poll_events(&mut g_st().main_loop, -1);
+            unsafe {
                 multiqueue_process_events(&mut *events);
             }
         }
@@ -1187,117 +1189,127 @@ pub fn remote_ui_raw_line(
     chunk: *const Schar,
     attrs: *const Sattr,
 ) {
-    unsafe {
-        if ui.ui_ext[K_UILINEGRID] {
-            prepare_call(ui, c"grid_line");
+    if ui.ui_ext[K_UILINEGRID] {
+        prepare_call(ui, c"grid_line");
 
-            mpack_array(&mut ui.packer.ptr, 5);
-            mpack_uint(&mut ui.packer.ptr, grid as u32);
-            mpack_uint(&mut ui.packer.ptr, row as u32);
-            mpack_uint(&mut ui.packer.ptr, startcol as u32);
-            let mut lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
+        mpack_array(&mut ui.packer.ptr, 5);
+        mpack_uint(&mut ui.packer.ptr, grid as u32);
+        mpack_uint(&mut ui.packer.ptr, row as u32);
+        mpack_uint(&mut ui.packer.ptr, startcol as u32);
+        let mut lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
 
-            let mut repeat: u32 = 0;
-            let ncells = (endcol - startcol) as usize;
-            let mut last_hl: i32 = -1;
-            let mut nelem: u32 = 0;
-            let mut was_space = false;
+        let mut repeat: u32 = 0;
+        let ncells = (endcol - startcol) as usize;
+        let mut last_hl: i32 = -1;
+        let mut nelem: u32 = 0;
+        let mut was_space = false;
 
-            for i in 0..ncells {
-                repeat += 1;
-                if i == ncells - 1
-                    || *attrs.wrapping_add(i) != *attrs.wrapping_add(i + 1)
-                    || *chunk.wrapping_add(i) != *chunk.wrapping_add(i + 1)
+        for i in 0..ncells {
+            repeat += 1;
+            if i == ncells - 1
+                || unsafe { *attrs.wrapping_add(i) != *attrs.wrapping_add(i + 1) }
+                || unsafe { *chunk.wrapping_add(i) != *chunk.wrapping_add(i + 1) }
+            {
+                if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
+                    || ui.ncells_pending >= 500
                 {
-                    if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
-                        || ui.ncells_pending >= 500
-                    {
-                        if was_space {
-                            nelem += 1;
-                            ui.ncells_pending += 1;
-                            mpack_array(&mut ui.packer.ptr, 3);
-                            mpack_str_small(&mut ui.packer.ptr, b" ");
-                            mpack_uint(&mut ui.packer.ptr, clearattr as u32);
-                            mpack_uint(&mut ui.packer.ptr, 0);
-                        }
-                        mpack_w2(&mut lenpos, nelem);
-                        mpack_bool(&mut ui.packer.ptr, false);
-                        ui_flush_buf(ui, false);
+                    if was_space {
+                        nelem += 1;
+                        ui.ncells_pending += 1;
+                        mpack_array(&mut ui.packer.ptr, 3);
+                        mpack_str_small(&mut ui.packer.ptr, b" ");
+                        mpack_uint(&mut ui.packer.ptr, clearattr as u32);
+                        mpack_uint(&mut ui.packer.ptr, 0);
+                    }
+                    mpack_w2(&mut lenpos, nelem);
+                    mpack_bool(&mut ui.packer.ptr, false);
+                    ui_flush_buf(ui, false);
 
-                        prepare_call(ui, c"grid_line");
-                        mpack_array(&mut ui.packer.ptr, 5);
-                        mpack_uint(&mut ui.packer.ptr, grid as u32);
-                        mpack_uint(&mut ui.packer.ptr, row as u32);
-                        mpack_uint(
-                            &mut ui.packer.ptr,
-                            (startcol as u32) + (i as u32) - repeat + 1,
-                        );
-                        lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
-                        nelem = 0;
-                        last_hl = -1;
-                    }
-                    let csize: u32 = if repeat > 1 {
-                        3
-                    } else if (*attrs.wrapping_add(i)) != last_hl {
-                        2
-                    } else {
-                        1
-                    };
-                    nelem += 1;
-                    mpack_array(&mut ui.packer.ptr, csize);
-                    let size_byte = ui.packer.ptr;
-                    ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
-                    let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
-                    let len = schar_get_bytes(&mut cell_buf, *chunk.wrapping_add(i));
+                    prepare_call(ui, c"grid_line");
+                    mpack_array(&mut ui.packer.ptr, 5);
+                    mpack_uint(&mut ui.packer.ptr, grid as u32);
+                    mpack_uint(&mut ui.packer.ptr, row as u32);
+                    mpack_uint(
+                        &mut ui.packer.ptr,
+                        (startcol as u32) + (i as u32) - repeat + 1,
+                    );
+                    lenpos = mpack_array_dyn16(&mut ui.packer.ptr);
+                    nelem = 0;
+                    last_hl = -1;
+                }
+                let csize: u32 = if repeat > 1 {
+                    3
+                } else if unsafe { (*attrs.wrapping_add(i)) != last_hl } {
+                    2
+                } else {
+                    1
+                };
+                nelem += 1;
+                mpack_array(&mut ui.packer.ptr, csize);
+                let size_byte = ui.packer.ptr;
+                ui.packer.ptr = ui.packer.ptr.wrapping_add(1);
+                let mut cell_buf = [0u8; MAX_SCHAR_SIZE];
+                let len = unsafe { schar_get_bytes(&mut cell_buf, *chunk.wrapping_add(i)) };
+                unsafe {
                     ptr::copy_nonoverlapping(cell_buf.as_ptr(), ui.packer.ptr, len);
-                    ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
+                }
+                ui.packer.ptr = ui.packer.ptr.wrapping_add(len);
+                unsafe {
                     *size_byte = (0xa0 | len) as u8;
-                    if csize >= 2 {
+                }
+                if csize >= 2 {
+                    unsafe {
                         mpack_uint(&mut ui.packer.ptr, *attrs.wrapping_add(i) as u32);
-                        if csize >= 3 {
-                            mpack_uint(&mut ui.packer.ptr, repeat);
-                        }
                     }
-                    ui.ncells_pending += repeat.min(2) as usize;
+                    if csize >= 3 {
+                        mpack_uint(&mut ui.packer.ptr, repeat);
+                    }
+                }
+                ui.ncells_pending += repeat.min(2) as usize;
+                unsafe {
                     last_hl = *attrs.wrapping_add(i);
-                    repeat = 0;
+                }
+                repeat = 0;
+                unsafe {
                     was_space = *chunk.wrapping_add(i) == schar_from_ascii(b' ');
                 }
             }
+        }
 
-            if endcol < clearcol || was_space {
-                nelem += 1;
-                ui.ncells_pending += 1;
-                mpack_array(&mut ui.packer.ptr, 3);
-                mpack_str_small(&mut ui.packer.ptr, b" ");
-                mpack_uint(&mut ui.packer.ptr, clearattr as u32);
-                mpack_uint(&mut ui.packer.ptr, (clearcol - endcol) as u32);
-            }
-            mpack_w2(&mut lenpos, nelem);
-            mpack_bool(&mut ui.packer.ptr, (flags & K_LINE_FLAG_WRAP) != 0);
-        } else {
-            let count = (endcol - startcol) as usize;
-            for i in 0..count {
-                remote_ui_cursor_goto(ui, row, startcol + i as Integer);
+        if endcol < clearcol || was_space {
+            nelem += 1;
+            ui.ncells_pending += 1;
+            mpack_array(&mut ui.packer.ptr, 3);
+            mpack_str_small(&mut ui.packer.ptr, b" ");
+            mpack_uint(&mut ui.packer.ptr, clearattr as u32);
+            mpack_uint(&mut ui.packer.ptr, (clearcol - endcol) as u32);
+        }
+        mpack_w2(&mut lenpos, nelem);
+        mpack_bool(&mut ui.packer.ptr, (flags & K_LINE_FLAG_WRAP) != 0);
+    } else {
+        let count = (endcol - startcol) as usize;
+        for i in 0..count {
+            remote_ui_cursor_goto(ui, row, startcol + i as Integer);
+            unsafe {
                 remote_ui_highlight_set(ui, *attrs.wrapping_add(i));
-                let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
-                let len = schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i));
-                remote_ui_put(ui, &sc_buf[..len]);
-                if utf_ambiguous_width(&sc_buf[..len]) {
-                    ui.client_col = -1;
-                }
             }
-            if endcol < clearcol {
-                remote_ui_cursor_goto(ui, row, endcol);
-                remote_ui_highlight_set(ui, clearattr as i32);
-                if clearattr == 0 && clearcol == Integer::from(g_st().columns_global) {
-                    push_call(ui, c"eol_clear", ARRAY_INIT);
-                } else {
-                    let mut c = endcol;
-                    while c < clearcol {
-                        remote_ui_put(ui, b" ");
-                        c += 1;
-                    }
+            let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
+            let len = unsafe { schar_get_bytes(&mut sc_buf, *chunk.wrapping_add(i)) };
+            remote_ui_put(ui, &sc_buf[..len]);
+            if utf_ambiguous_width(&sc_buf[..len]) {
+                ui.client_col = -1;
+            }
+        }
+        if endcol < clearcol {
+            remote_ui_cursor_goto(ui, row, endcol);
+            remote_ui_highlight_set(ui, clearattr as i32);
+            if clearattr == 0 && clearcol == Integer::from(g_st().columns_global) {
+                push_call(ui, c"eol_clear", ARRAY_INIT);
+            } else {
+                let mut c = endcol;
+                while c < clearcol {
+                    remote_ui_put(ui, b" ");
+                    c += 1;
                 }
             }
         }

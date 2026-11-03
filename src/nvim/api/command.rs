@@ -623,574 +623,566 @@ pub fn nvim_cmd(
     arena: &mut Arena,
     err: &mut Error,
 ) -> NvimString {
-    unsafe {
-        let mut ea: Exarg = Exarg::new();
-        let mut cmod: Cmdmod = Cmdmod::new();
-        let mut cmdline_buf: Vec<u8> = Vec::new();
-        let mut cmdline;
-        let mut errormsg = None;
-        let mut args = Array::new();
-        let mut retv = NvimString {
-            data: ptr::null_mut(),
-            size: 0,
-        };
+    let mut ea: Exarg = Exarg::new();
+    let mut cmod: Cmdmod = Cmdmod::new();
+    let mut cmdline_buf: Vec<u8> = Vec::new();
+    let mut cmdline;
+    let mut errormsg = None;
+    let mut args = Array::new();
+    let mut retv = NvimString {
+        data: ptr::null_mut(),
+        size: 0,
+    };
 
-        let mask = cmd.is_set_cmd;
+    let mask = cmd.is_set_cmd;
 
-        'end: {
-            if !has_key(mask, KEYSET_OPTIDX_CMD_CMD) {
-                api_err_required(err, c"cmd");
-                break 'end;
-            }
+    'end: {
+        if !has_key(mask, KEYSET_OPTIDX_CMD_CMD) {
+            api_err_required(err, c"cmd");
+            break 'end;
+        }
 
-            if crate::memory::cstr_is_empty(cmd.cmd.data)
-                && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
-                    || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
-            {
-                api_err_exp(err, c"cmd", c"non-empty String", ptr::null());
-                break 'end;
-            }
+        if crate::memory::cstr_is_empty(cmd.cmd.data)
+            && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
+                || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
+        {
+            api_err_exp(err, c"cmd", c"non-empty String", ptr::null());
+            break 'end;
+        }
 
-            let cmdname = arena_string(arena, cmd.cmd).data;
-            ea.cmd = cmdname;
+        let cmdname = arena_string(arena, cmd.cmd).data;
+        ea.cmd = cmdname;
 
-            let mut p = find_ex_command(&mut ea, None);
+        let mut p = find_ex_command(&mut ea, None);
 
-            if !p.is_null()
-                && ea.cmdidx == CMD_SIZE
-                && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
-                && has_event(EVENT_CMDUNDEFINED)
-            {
-                p = arena_string(arena, cmd.cmd).data;
-                let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
-                p = if ret && !aborting() {
-                    find_ex_command(&mut ea, None)
-                } else {
-                    ea.cmd
-                };
-            }
+        if !p.is_null()
+            && ea.cmdidx == CMD_SIZE
+            && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
+            && has_event(EVENT_CMDUNDEFINED)
+        {
+            p = arena_string(arena, cmd.cmd).data;
+            let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
+            p = if ret && !aborting() {
+                find_ex_command(&mut ea, None)
+            } else {
+                ea.cmd
+            };
+        }
 
-            let range_only = ea.cmdidx == CMD_SIZE
-                && crate::memory::cstr_is_empty(cmd.cmd.data)
-                && has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
-                && cmd.range.size > 0;
+        let range_only = ea.cmdidx == CMD_SIZE
+            && crate::memory::cstr_is_empty(cmd.cmd.data)
+            && has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
+            && cmd.range.size > 0;
 
-            if ea.cmdidx == CMD_SIZE
-                && crate::memory::cstr_is_empty(cmd.cmd.data)
-                && (!has_key(mask, KEYSET_OPTIDX_CMD_RANGE) || cmd.range.size == 0)
-                && has_key(mask, KEYSET_OPTIDX_CMD_MODS)
-            {
-                break 'end;
-            }
+        if ea.cmdidx == CMD_SIZE
+            && crate::memory::cstr_is_empty(cmd.cmd.data)
+            && (!has_key(mask, KEYSET_OPTIDX_CMD_RANGE) || cmd.range.size == 0)
+            && has_key(mask, KEYSET_OPTIDX_CMD_MODS)
+        {
+            break 'end;
+        }
 
-            if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
+        if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Command not found: %s",
+                cmdname,
+            );
+            break 'end;
+        }
+
+        if !(range_only || !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))) {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Command not implemented: %s",
+                cmdname,
+            );
+            break 'end;
+        }
+
+        if !range_only {
+            let fullname = if is_user_cmdidx(ea.cmdidx) {
+                get_user_command_name(ea.useridx, ea.cmdidx).map_or(ptr::null(), |s| s.as_ptr())
+            } else {
+                get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
+                    .map_or(ptr::null(), |s| s.as_ptr())
+            };
+            let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
+            let fullname_bytes = crate::memory::cstr_as_bytes(fullname);
+            if !fullname_bytes.starts_with(cmdname_bytes) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeValidation,
-                    c"Command not found: %s",
+                    c"Invalid command: \"%s\"",
                     cmdname,
                 );
                 break 'end;
             }
+        }
 
-            if !(range_only || !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))) {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Command not implemented: %s",
-                    cmdname,
-                );
-                break 'end;
-            }
+        if range_only {
+            ea.argt = EX_RANGE | EX_SBOXOK;
+        } else if !is_user_cmdidx(ea.cmdidx) {
+            ea.argt = excmd_get_argt(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx));
+        }
 
-            if !range_only {
-                let fullname = if is_user_cmdidx(ea.cmdidx) {
-                    get_user_command_name(ea.useridx, ea.cmdidx).map_or(ptr::null(), |s| s.as_ptr())
-                } else {
-                    get_command_name(&mut crate::os::env::ExpandCtx::new(), ea.cmdidx)
-                        .map_or(ptr::null(), |s| s.as_ptr())
-                };
-                let cmdname_bytes = crate::memory::cstr_as_bytes(cmdname);
-                let fullname_bytes = crate::memory::cstr_as_bytes(fullname);
-                if !fullname_bytes.starts_with(cmdname_bytes) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Invalid command: \"%s\"",
-                        cmdname,
-                    );
-                    break 'end;
-                }
-            }
+        let mut count_from_first_arg = false;
+        if has_key(mask, KEYSET_OPTIDX_CMD_ARGS) {
+            if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
+                let first_arg = cmd.args[0];
+                let mut is_numeric = false;
+                let mut count_value: i64 = 0;
 
-            if range_only {
-                ea.argt = EX_RANGE | EX_SBOXOK;
-            } else if !is_user_cmdidx(ea.cmdidx) {
-                ea.argt = excmd_get_argt(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx));
-            }
-
-            let mut count_from_first_arg = false;
-            if has_key(mask, KEYSET_OPTIDX_CMD_ARGS) {
-                if cmd.args.size == 1 && (ea.argt & EX_COUNT) != 0 && (ea.argt & EX_EXTRA) == 0 {
-                    let first_arg = cmd.args[0];
-                    let mut is_numeric = false;
-                    let mut count_value: i64 = 0;
-
-                    if first_arg.obj_type == ObjectType::ObjectTypeInteger {
+                if first_arg.obj_type == ObjectType::ObjectTypeInteger {
+                    is_numeric = true;
+                    count_value = first_arg.data.integer();
+                } else if first_arg.obj_type == ObjectType::ObjectTypeString {
+                    let s = first_arg.data.string();
+                    let str_bytes = s.as_bytes();
+                    let mut rem = str_bytes;
+                    let val = getdigits_long(&mut rem, false, 0);
+                    if rem.is_empty() && !str_bytes.is_empty() {
                         is_numeric = true;
-                        count_value = first_arg.data.integer();
-                    } else if first_arg.obj_type == ObjectType::ObjectTypeString {
-                        let s = first_arg.data.string();
-                        let str_bytes = s.as_bytes();
-                        let mut rem = str_bytes;
-                        let val = getdigits_long(&mut rem, false, 0);
-                        if rem.is_empty() && !str_bytes.is_empty() {
-                            is_numeric = true;
-                            count_value = val as _;
-                        }
-                    }
-
-                    if is_numeric && count_value >= 0 {
-                        count_from_first_arg = true;
-                        ea.addr_count = 1;
-                        ea.line1 = count_value as Linenr;
-                        ea.line2 = count_value as Linenr;
-                        args = arena_array(arena, 0);
+                        count_value = val as _;
                     }
                 }
 
-                if !count_from_first_arg {
-                    args = arena_array(arena, cmd.args.size);
-                    for i in 0..cmd.args.size {
-                        let elem = cmd.args[i];
-                        match elem.obj_type {
-                            ObjectType::ObjectTypeBoolean => {
-                                let b = if elem.data.boolean() { b"1" } else { b"0" };
-                                add_c(&mut args, string_obj(arena_bytes(arena, b)));
-                            }
-                            ObjectType::ObjectTypeBuffer
-                            | ObjectType::ObjectTypeWindow
-                            | ObjectType::ObjectTypeTabpage
-                            | ObjectType::ObjectTypeInteger => {
-                                let s = elem.data.integer().to_string();
-                                add_c(&mut args, string_obj(arena_bytes(arena, s.as_bytes())));
-                            }
-                            ObjectType::ObjectTypeString => {
-                                if string_iswhite(elem.data.string()) {
-                                    api_err_exp(
-                                        err,
-                                        c"command arg",
-                                        c"non-whitespace",
-                                        ptr::null(),
-                                    );
-                                    break 'end;
-                                }
-                                add_c(&mut args, elem);
-                            }
-                            _ => {
-                                api_err_exp(
-                                    err,
-                                    c"command arg",
-                                    c"valid type",
-                                    api_typename(elem.obj_type),
-                                );
+                if is_numeric && count_value >= 0 {
+                    count_from_first_arg = true;
+                    ea.addr_count = 1;
+                    ea.line1 = count_value as Linenr;
+                    ea.line2 = count_value as Linenr;
+                    args = arena_array(arena, 0);
+                }
+            }
+
+            if !count_from_first_arg {
+                args = arena_array(arena, cmd.args.size);
+                for i in 0..cmd.args.size {
+                    let elem = cmd.args[i];
+                    match elem.obj_type {
+                        ObjectType::ObjectTypeBoolean => {
+                            let b = if elem.data.boolean() { b"1" } else { b"0" };
+                            add_c(&mut args, string_obj(arena_bytes(arena, b)));
+                        }
+                        ObjectType::ObjectTypeBuffer
+                        | ObjectType::ObjectTypeWindow
+                        | ObjectType::ObjectTypeTabpage
+                        | ObjectType::ObjectTypeInteger => {
+                            let s = elem.data.integer().to_string();
+                            add_c(&mut args, string_obj(arena_bytes(arena, s.as_bytes())));
+                        }
+                        ObjectType::ObjectTypeString => {
+                            if string_iswhite(elem.data.string()) {
+                                api_err_exp(err, c"command arg", c"non-whitespace", ptr::null());
                                 break 'end;
                             }
+                            add_c(&mut args, elem);
                         }
-                    }
-
-                    let argc_valid = match ea.argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG) {
-                        x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => args.size == 1,
-                        x if x == (EX_EXTRA | EX_NOSPC) => args.size <= 1,
-                        x if x == (EX_EXTRA | EX_NEEDARG) => args.size >= 1,
-                        EX_EXTRA => true,
-                        _ => args.size == 0,
-                    };
-
-                    if !argc_valid {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeValidation,
-                            c"%s",
-                            c"Wrong number of arguments",
-                        );
-                        break 'end;
-                    }
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) {
-                if (ea.argt & EX_RANGE) == 0 {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Command cannot accept %s: %s",
-                        c"range",
-                        cmd.cmd.data,
-                    );
-                    break 'end;
-                }
-                if cmd.range.size > 2 {
-                    api_err_exp(err, c"range", c"<=2 elements", ptr::null());
-                    break 'end;
-                }
-
-                let range = cmd.range;
-                ea.addr_count = range.size as i32;
-
-                for i in 0..range.size {
-                    let elem = range[i];
-                    if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
-                        api_err_exp(err, c"range element", c"non-negative Integer", ptr::null());
-                        break 'end;
-                    }
-                }
-
-                if range.size > 0 {
-                    ea.line1 = range[0].data.integer() as Linenr;
-                    ea.line2 = range[range.size - 1].data.integer() as Linenr;
-                }
-            }
-
-            build_cmdline_str(&mut cmdline_buf, &mut ea, args);
-            cmdline = cmdline_buf.as_mut_ptr().cast();
-            if !parse_cmdline(
-                &mut cmdline,
-                &mut cmdline_buf,
-                &mut ea,
-                &mut cmod,
-                &mut errormsg,
-                true,
-            ) {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"%s",
-                    errormsg.unwrap_or(c"Parsing command-line"),
-                );
-                break 'end;
-            }
-
-            if range_only {
-                ea.argt = EX_RANGE | EX_SBOXOK;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && invalid_range(&mut ea).is_some() {
-                api_err_invalid(err, c"range", c"", 0, true);
-                break 'end;
-            }
-
-            if ea.addr_count == 0 && (ea.argt & EX_DFLALL) == 0 && ea.addr_type == ADDR_OTHER {
-                ea.line2 = 1;
-            }
-
-            if args.size > 0 {
-                ea.args.reserve_exact(args.size);
-                ea.arglens.reserve_exact(args.size);
-                p = ea.arg;
-                for i in 0..args.size {
-                    ea.args.push(p);
-                    let arglen = args[i].data.string().size;
-                    ea.arglens.push(arglen);
-                    p = p.wrapping_add(arglen + 1);
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_COUNT) {
-                if count_from_first_arg {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"Cannot specify both 'count' and numeric argument",
-                    );
-                    break 'end;
-                }
-                if (ea.argt & EX_COUNT) == 0 {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Command cannot accept %s: %s",
-                        c"count",
-                        cmd.cmd.data,
-                    );
-                    break 'end;
-                }
-                if cmd.count < 0 {
-                    api_err_exp(err, c"count", c"non-negative Integer", ptr::null());
-                    break 'end;
-                }
-                set_cmd_count(&mut ea, cmd.count as Linenr, true);
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_REG) {
-                if (ea.argt & EX_REGSTR) == 0 {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Command cannot accept %s: %s",
-                        c"register",
-                        cmd.cmd.data,
-                    );
-                    break 'end;
-                }
-                if cmd.reg.size != 1 {
-                    api_err_exp(err, c"reg", c"single character", cmd.reg.data);
-                    break 'end;
-                }
-                let regname = *cmd.reg.data.cast::<u8>();
-                if regname == b'=' {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"%s",
-                        c"Cannot use register \"=",
-                    );
-                    break 'end;
-                }
-                if !valid_yank_reg(
-                    i32::from(regname),
-                    !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
-                ) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"Invalid register: \"%c",
-                        i32::from(regname),
-                    );
-                    break 'end;
-                }
-                ea.regname = i32::from(regname);
-            }
-
-            ea.forceit = i32::from(cmd.bang);
-            if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeValidation,
-                    c"Command cannot accept %s: %s",
-                    c"bang",
-                    cmd.cmd.data,
-                );
-                break 'end;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_MAGIC) {
-                let mut magic = KeyDict_cmd_magic::default();
-                if !api_dict_to_keydict(
-                    (&raw mut magic).cast(),
-                    Some(key_dict_cmd_magic_get_field),
-                    cmd.magic,
-                    err,
-                ) {
-                    break 'end;
-                }
-
-                ea.magic.file = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_FILE) {
-                    magic.file
-                } else {
-                    (ea.argt & EX_XFILE) != 0
-                };
-                ea.magic.bar = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_BAR) {
-                    magic.bar
-                } else {
-                    (ea.argt & EX_TRLBAR) != 0
-                };
-                if ea.magic.file {
-                    ea.argt |= EX_XFILE;
-                } else {
-                    ea.argt &= !EX_XFILE;
-                }
-            } else {
-                ea.magic.file = (ea.argt & EX_XFILE) != 0;
-                ea.magic.bar = (ea.argt & EX_TRLBAR) != 0;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
-                let mut mods = KeyDict_cmd_mods::default();
-                if !api_dict_to_keydict(
-                    (&raw mut mods).cast(),
-                    Some(key_dict_cmd_mods_get_field),
-                    cmd.mods,
-                    err,
-                ) {
-                    break 'end;
-                }
-
-                let mods_mask = mods.is_set_cmd_mods;
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
-                    let mut filter = KeyDict_cmd_mods_filter::default();
-                    if !api_dict_to_keydict(
-                        (&raw mut filter).cast(),
-                        Some(key_dict_cmd_mods_filter_get_field),
-                        mods.filter,
-                        err,
-                    ) {
-                        break 'end;
-                    }
-
-                    if has_key(
-                        filter.is_set_cmd_mods_filter,
-                        KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
-                    ) {
-                        cmod.cmod_filter_force = filter.force;
-                        if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
-                            let pat = cstr_from_bytes(filter.pattern.as_bytes());
-                            cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
-                            cmod.cmod_filter_pat = Some(pat);
-                        }
-                    }
-                }
-
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_TAB) && (mods.tab as i32) >= 0 {
-                    cmod.cmod_tab = (mods.tab as i32) + 1;
-                }
-
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_VERBOSE) && (mods.verbose as i32) >= 0
-                {
-                    cmod.cmod_verbose = (mods.verbose as i32) + 1;
-                }
-
-                if mods.vertical {
-                    cmod.cmod_split |= WSP_VERT;
-                }
-                if mods.horizontal {
-                    cmod.cmod_split |= WSP_HOR;
-                }
-
-                if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_SPLIT) {
-                    match mods.split.cstr_bytes() {
-                        b"" => {}
-                        b"aboveleft" | b"leftabove" => cmod.cmod_split |= WSP_ABOVE,
-                        b"belowright" | b"rightbelow" => cmod.cmod_split |= WSP_BELOW,
-                        b"topleft" => cmod.cmod_split |= WSP_TOP,
-                        b"botright" => cmod.cmod_split |= WSP_BOT,
                         _ => {
-                            api_err_invalid(err, c"mods.split", c"", 0, true);
+                            api_err_exp(
+                                err,
+                                c"command arg",
+                                c"valid type",
+                                api_typename(elem.obj_type),
+                            );
                             break 'end;
                         }
                     }
                 }
 
-                if mods.silent {
-                    cmod.cmod_flags |= CMOD_SILENT;
-                }
-                if mods.emsg_silent {
-                    cmod.cmod_flags |= CMOD_ERRSILENT;
-                }
-                if mods.unsilent {
-                    cmod.cmod_flags |= CMOD_UNSILENT;
-                }
-                if mods.sandbox {
-                    cmod.cmod_flags |= CMOD_SANDBOX;
-                }
-                if mods.noautocmd {
-                    cmod.cmod_flags |= CMOD_NOAUTOCMD;
-                }
-                if mods.browse {
-                    cmod.cmod_flags |= CMOD_BROWSE;
-                }
-                if mods.confirm {
-                    cmod.cmod_flags |= CMOD_CONFIRM;
-                }
-                if mods.hide {
-                    cmod.cmod_flags |= CMOD_HIDE;
-                }
-                if mods.keepalt {
-                    cmod.cmod_flags |= CMOD_KEEPALT;
-                }
-                if mods.keepjumps {
-                    cmod.cmod_flags |= CMOD_KEEPJUMPS;
-                }
-                if mods.keepmarks {
-                    cmod.cmod_flags |= CMOD_KEEPMARKS;
-                }
-                if mods.keeppatterns {
-                    cmod.cmod_flags |= CMOD_KEEPPATTERNS;
-                }
-                if mods.lockmarks {
-                    cmod.cmod_flags |= CMOD_LOCKMARKS;
-                }
-                if mods.noswapfile {
-                    cmod.cmod_flags |= CMOD_NOSWAPFILE;
-                }
+                let argc_valid = match ea.argt & (EX_EXTRA | EX_NOSPC | EX_NEEDARG) {
+                    x if x == (EX_EXTRA | EX_NOSPC | EX_NEEDARG) => args.size == 1,
+                    x if x == (EX_EXTRA | EX_NOSPC) => args.size <= 1,
+                    x if x == (EX_EXTRA | EX_NEEDARG) => args.size >= 1,
+                    EX_EXTRA => true,
+                    _ => args.size == 0,
+                };
 
-                if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
-                    cmod.cmod_flags |= CMOD_SILENT;
-                }
-
-                if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && (ea.argt & EX_SBOXOK) == 0 {
+                if !argc_valid {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeValidation,
                         c"%s",
-                        c"Command cannot be run in sandbox",
+                        c"Wrong number of arguments",
                     );
                     break 'end;
                 }
             }
+        }
 
-            let ea_arg = ea.arg;
-            p = replace_makeprg(&mut ea, ea_arg, &mut cmdline);
-            if p != ea.arg {
-                ea.arg = p;
-                ea.args.clear();
-                ea.arglens.clear();
+        if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) {
+            if (ea.argt & EX_RANGE) == 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Command cannot accept %s: %s",
+                    c"range",
+                    cmd.cmd.data,
+                );
+                break 'end;
+            }
+            if cmd.range.size > 2 {
+                api_err_exp(err, c"range", c"<=2 elements", ptr::null());
+                break 'end;
             }
 
-            if (ea.argt & EX_ARGOPT) != 0 {
-                while crate::memory::cstr_as_bytes(ea.arg).starts_with(b"++") {
-                    let orig_arg = ea.arg;
-                    let result = getargopt(&mut ea);
-                    if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {
-                        api_err_invalid(err, c"argument ", orig_arg, 0, true);
+            let range = cmd.range;
+            ea.addr_count = range.size as i32;
+
+            for i in 0..range.size {
+                let elem = range[i];
+                if elem.obj_type != ObjectType::ObjectTypeInteger || elem.data.integer() < 0 {
+                    api_err_exp(err, c"range element", c"non-negative Integer", ptr::null());
+                    break 'end;
+                }
+            }
+
+            if range.size > 0 {
+                ea.line1 = range[0].data.integer() as Linenr;
+                ea.line2 = range[range.size - 1].data.integer() as Linenr;
+            }
+        }
+
+        build_cmdline_str(&mut cmdline_buf, &mut ea, args);
+        cmdline = cmdline_buf.as_mut_ptr().cast();
+        if !parse_cmdline(
+            &mut cmdline,
+            &mut cmdline_buf,
+            &mut ea,
+            &mut cmod,
+            &mut errormsg,
+            true,
+        ) {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"%s",
+                errormsg.unwrap_or(c"Parsing command-line"),
+            );
+            break 'end;
+        }
+
+        if range_only {
+            ea.argt = EX_RANGE | EX_SBOXOK;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && invalid_range(&mut ea).is_some() {
+            api_err_invalid(err, c"range", c"", 0, true);
+            break 'end;
+        }
+
+        if ea.addr_count == 0 && (ea.argt & EX_DFLALL) == 0 && ea.addr_type == ADDR_OTHER {
+            ea.line2 = 1;
+        }
+
+        if args.size > 0 {
+            ea.args.reserve_exact(args.size);
+            ea.arglens.reserve_exact(args.size);
+            p = ea.arg;
+            for i in 0..args.size {
+                ea.args.push(p);
+                let arglen = args[i].data.string().size;
+                ea.arglens.push(arglen);
+                p = p.wrapping_add(arglen + 1);
+            }
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_CMD_COUNT) {
+            if count_from_first_arg {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Cannot specify both 'count' and numeric argument",
+                );
+                break 'end;
+            }
+            if (ea.argt & EX_COUNT) == 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Command cannot accept %s: %s",
+                    c"count",
+                    cmd.cmd.data,
+                );
+                break 'end;
+            }
+            if cmd.count < 0 {
+                api_err_exp(err, c"count", c"non-negative Integer", ptr::null());
+                break 'end;
+            }
+            set_cmd_count(&mut ea, cmd.count as Linenr, true);
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_CMD_REG) {
+            if (ea.argt & EX_REGSTR) == 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Command cannot accept %s: %s",
+                    c"register",
+                    cmd.cmd.data,
+                );
+                break 'end;
+            }
+            if cmd.reg.size != 1 {
+                api_err_exp(err, c"reg", c"single character", cmd.reg.data);
+                break 'end;
+            }
+            let regname = unsafe { *cmd.reg.data.cast::<u8>() };
+            if regname == b'=' {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Cannot use register \"=",
+                );
+                break 'end;
+            }
+            if !valid_yank_reg(
+                i32::from(regname),
+                !is_user_cmdidx(ea.cmdidx) && ea.cmdidx != CMD_PUT && ea.cmdidx != CMD_IPUT,
+            ) {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"Invalid register: \"%c",
+                    i32::from(regname),
+                );
+                break 'end;
+            }
+            ea.regname = i32::from(regname);
+        }
+
+        ea.forceit = i32::from(cmd.bang);
+        if ea.forceit != 0 && (ea.argt & EX_BANG) == 0 {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeValidation,
+                c"Command cannot accept %s: %s",
+                c"bang",
+                cmd.cmd.data,
+            );
+            break 'end;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_CMD_MAGIC) {
+            let mut magic = KeyDict_cmd_magic::default();
+            if !api_dict_to_keydict(
+                (&raw mut magic).cast(),
+                Some(key_dict_cmd_magic_get_field),
+                cmd.magic,
+                err,
+            ) {
+                break 'end;
+            }
+
+            ea.magic.file = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_FILE) {
+                magic.file
+            } else {
+                (ea.argt & EX_XFILE) != 0
+            };
+            ea.magic.bar = if has_key(magic.is_set_cmd_magic, KEYSET_OPTIDX_CMD_MAGIC_BAR) {
+                magic.bar
+            } else {
+                (ea.argt & EX_TRLBAR) != 0
+            };
+            if ea.magic.file {
+                ea.argt |= EX_XFILE;
+            } else {
+                ea.argt &= !EX_XFILE;
+            }
+        } else {
+            ea.magic.file = (ea.argt & EX_XFILE) != 0;
+            ea.magic.bar = (ea.argt & EX_TRLBAR) != 0;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_CMD_MODS) {
+            let mut mods = KeyDict_cmd_mods::default();
+            if !api_dict_to_keydict(
+                (&raw mut mods).cast(),
+                Some(key_dict_cmd_mods_get_field),
+                cmd.mods,
+                err,
+            ) {
+                break 'end;
+            }
+
+            let mods_mask = mods.is_set_cmd_mods;
+            if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_FILTER) {
+                let mut filter = KeyDict_cmd_mods_filter::default();
+                if !api_dict_to_keydict(
+                    (&raw mut filter).cast(),
+                    Some(key_dict_cmd_mods_filter_get_field),
+                    mods.filter,
+                    err,
+                ) {
+                    break 'end;
+                }
+
+                if has_key(
+                    filter.is_set_cmd_mods_filter,
+                    KEYSET_OPTIDX_CMD_MODS_FILTER_PATTERN,
+                ) {
+                    cmod.cmod_filter_force = filter.force;
+                    if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
+                        let pat = cstr_from_bytes(filter.pattern.as_bytes());
+                        cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
+                        cmod.cmod_filter_pat = Some(pat);
+                    }
+                }
+            }
+
+            if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_TAB) && (mods.tab as i32) >= 0 {
+                cmod.cmod_tab = (mods.tab as i32) + 1;
+            }
+
+            if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_VERBOSE) && (mods.verbose as i32) >= 0 {
+                cmod.cmod_verbose = (mods.verbose as i32) + 1;
+            }
+
+            if mods.vertical {
+                cmod.cmod_split |= WSP_VERT;
+            }
+            if mods.horizontal {
+                cmod.cmod_split |= WSP_HOR;
+            }
+
+            if has_key(mods_mask, KEYSET_OPTIDX_CMD_MODS_SPLIT) {
+                match mods.split.cstr_bytes() {
+                    b"" => {}
+                    b"aboveleft" | b"leftabove" => cmod.cmod_split |= WSP_ABOVE,
+                    b"belowright" | b"rightbelow" => cmod.cmod_split |= WSP_BELOW,
+                    b"topleft" => cmod.cmod_split |= WSP_TOP,
+                    b"botright" => cmod.cmod_split |= WSP_BOT,
+                    _ => {
+                        api_err_invalid(err, c"mods.split", c"", 0, true);
                         break 'end;
                     }
                 }
             }
 
-            if (ea.argt & EX_CMDARG) != 0 && ea.usefilter == 0 {
-                ea.do_ecmd_cmd = getargcmd(&mut ea.arg);
+            if mods.silent {
+                cmod.cmod_flags |= CMOD_SILENT;
+            }
+            if mods.emsg_silent {
+                cmod.cmod_flags |= CMOD_ERRSILENT;
+            }
+            if mods.unsilent {
+                cmod.cmod_flags |= CMOD_UNSILENT;
+            }
+            if mods.sandbox {
+                cmod.cmod_flags |= CMOD_SANDBOX;
+            }
+            if mods.noautocmd {
+                cmod.cmod_flags |= CMOD_NOAUTOCMD;
+            }
+            if mods.browse {
+                cmod.cmod_flags |= CMOD_BROWSE;
+            }
+            if mods.confirm {
+                cmod.cmod_flags |= CMOD_CONFIRM;
+            }
+            if mods.hide {
+                cmod.cmod_flags |= CMOD_HIDE;
+            }
+            if mods.keepalt {
+                cmod.cmod_flags |= CMOD_KEEPALT;
+            }
+            if mods.keepjumps {
+                cmod.cmod_flags |= CMOD_KEEPJUMPS;
+            }
+            if mods.keepmarks {
+                cmod.cmod_flags |= CMOD_KEEPMARKS;
+            }
+            if mods.keeppatterns {
+                cmod.cmod_flags |= CMOD_KEEPPATTERNS;
+            }
+            if mods.lockmarks {
+                cmod.cmod_flags |= CMOD_LOCKMARKS;
+            }
+            if mods.noswapfile {
+                cmod.cmod_flags |= CMOD_NOSWAPFILE;
             }
 
-            let mut capture_local: Vec<u8> = Vec::new();
-            let save_msg_silent = g_st().msg_silent;
-            let save_redir_off = g_st().redir_off;
-            let save_capture_ga = g_st().capture_ga;
-            let save_msg_col = g_st().msg_col;
-
-            if opts.output {
-                g_st().capture_ga = &raw mut capture_local;
+            if (cmod.cmod_flags & CMOD_ERRSILENT) != 0 {
+                cmod.cmod_flags |= CMOD_SILENT;
             }
 
-            try_wrap(err, || {
-                if opts.output {
-                    g_st().msg_silent += 1;
-                    g_st().redir_off = false;
-                    g_st().msg_col = 0;
-                }
-
-                with_script_context(channel_id, || {
-                    execute_cmd(&mut ea, &mut cmod, false);
-                });
-
-                if opts.output {
-                    g_st().capture_ga = save_capture_ga;
-                    g_st().msg_silent = save_msg_silent;
-                    g_st().redir_off = save_redir_off;
-                    g_st().msg_col = save_msg_col;
-                }
-            });
-
-            if !error_set(err) && opts.output && capture_local.len() > 1 {
-                let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
-                retv = crate::api::private::helpers::arena_bytes(arena, slice);
+            if (cmod.cmod_flags & CMOD_SANDBOX) != 0 && (ea.argt & EX_SBOXOK) == 0 {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"%s",
+                    c"Command cannot be run in sandbox",
+                );
+                break 'end;
             }
         }
 
-        drop(cmdline_buf);
-        retv
+        let ea_arg = ea.arg;
+        p = replace_makeprg(&mut ea, ea_arg, &mut cmdline);
+        if p != ea.arg {
+            ea.arg = p;
+            ea.args.clear();
+            ea.arglens.clear();
+        }
+
+        if (ea.argt & EX_ARGOPT) != 0 {
+            while crate::memory::cstr_as_bytes(ea.arg).starts_with(b"++") {
+                let orig_arg = ea.arg;
+                let result = getargopt(&mut ea);
+                if !result && !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx)) {
+                    api_err_invalid(err, c"argument ", orig_arg, 0, true);
+                    break 'end;
+                }
+            }
+        }
+
+        if (ea.argt & EX_CMDARG) != 0 && ea.usefilter == 0 {
+            ea.do_ecmd_cmd = getargcmd(&mut ea.arg);
+        }
+
+        let mut capture_local: Vec<u8> = Vec::new();
+        let save_msg_silent = g_st().msg_silent;
+        let save_redir_off = g_st().redir_off;
+        let save_capture_ga = g_st().capture_ga;
+        let save_msg_col = g_st().msg_col;
+
+        if opts.output {
+            g_st().capture_ga = &raw mut capture_local;
+        }
+
+        try_wrap(err, || {
+            if opts.output {
+                g_st().msg_silent += 1;
+                g_st().redir_off = false;
+                g_st().msg_col = 0;
+            }
+
+            with_script_context(channel_id, || {
+                execute_cmd(&mut ea, &mut cmod, false);
+            });
+
+            if opts.output {
+                g_st().capture_ga = save_capture_ga;
+                g_st().msg_silent = save_msg_silent;
+                g_st().redir_off = save_redir_off;
+                g_st().msg_col = save_msg_col;
+            }
+        });
+
+        if !error_set(err) && opts.output && capture_local.len() > 1 {
+            let slice = capture_local.strip_prefix(b"\n").unwrap_or(&capture_local);
+            retv = crate::api::private::helpers::arena_bytes(arena, slice);
+        }
     }
+
+    drop(cmdline_buf);
+    retv
 }
 
 fn string_iswhite(str_val: NvimString) -> bool {
@@ -1328,32 +1320,31 @@ pub fn nvim_buf_create_user_command(
 // DLLEXPORT void nvim_buf_del_user_command(Buffer buf, String name, Error *err)
 //   FUNC_API_SINCE(9);
 pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error) {
-    unsafe {
-        let gap = if buf == -1 {
-            &raw mut (*ucmds_mut())
-        } else {
-            let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
-                return;
-            };
-            &raw mut b.b_ucmds
+    let gap = if buf == -1 {
+        &raw mut (*ucmds_mut())
+    } else {
+        let Some(b) = crate::api::private::helpers::find_buffer_by_handle_mut(buf, err) else {
+            return;
         };
+        &raw mut b.b_ucmds
+    };
 
-        let name_bytes = crate::memory::cstr_as_bytes(name.data);
-        if let Some(i) = (*gap)
+    let name_bytes = crate::memory::cstr_as_bytes(name.data);
+    if let Some(i) = unsafe {
+        (*gap)
             .iter()
             .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
-        {
-            let _ = (*gap).remove(i);
-            return;
-        }
-
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeException,
-            c"Invalid command (not found): %s",
-            name.data,
-        );
+    } {
+        let _ = unsafe { (*gap).remove(i) };
+        return;
     }
+
+    api_set_error!(
+        err,
+        ErrorType::ErrorTypeException,
+        c"Invalid command (not found): %s",
+        name.data,
+    );
 }
 
 // DLLEXPORT void create_user_command(uint64_t channel_id, String name, Union(String, LuaRef) cmd,

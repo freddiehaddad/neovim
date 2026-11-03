@@ -1025,26 +1025,28 @@ pub fn alloc_string_option_bytes<R>(bytes: &[u8]) -> *mut R {
 
 /// Free the string allocated for an option.
 pub fn free_string_option<T>(p: *mut T) {
-    unsafe {
-        if !p.is_null() && p.cast::<u8>() != EMPTY_STRING_OPTION.as_ptr().cast::<u8>() {
+    if !p.is_null() && p.cast::<u8>() != EMPTY_STRING_OPTION.as_ptr().cast::<u8>() {
+        unsafe {
             drop(std::ffi::CString::from_raw(p.cast()));
         }
     }
 }
 
 pub fn clear_string_option<T>(pp: *mut *mut T) {
-    unsafe {
-        let empty = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
-        if !(*pp).is_null() && *pp != empty {
+    let empty = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
+    if unsafe { !(*pp).is_null() } && unsafe { *pp != empty } {
+        unsafe {
             drop(std::ffi::CString::from_raw((*pp).cast()));
         }
+    }
+    unsafe {
         *pp = empty;
     }
 }
 
 pub fn check_string_option<T>(pp: *mut *mut T) {
-    unsafe {
-        if (*pp).is_null() {
+    if unsafe { (*pp).is_null() } {
+        unsafe {
             *pp = EMPTY_STRING_OPTION.as_ptr().cast::<T>();
         }
     }

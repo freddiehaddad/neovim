@@ -634,170 +634,137 @@ fn win_config_split(
     fconfig: &mut WinConfig,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        let was_split = !win.w_floating;
-        let mask = config.is_set_win_config;
-        let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
-        let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
-        let old_split = win_split_dir(win);
-        if has_vertical && !has_split {
-            if config.vertical {
-                fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr != 0 {
-                    K_WIN_SPLIT_RIGHT
-                } else {
-                    K_WIN_SPLIT_LEFT
-                };
+    let was_split = !win.w_floating;
+    let mask = config.is_set_win_config;
+    let has_split = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT);
+    let has_vertical = has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL);
+    let old_split = win_split_dir(win);
+    if has_vertical && !has_split {
+        if config.vertical {
+            fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr != 0 {
+                K_WIN_SPLIT_RIGHT
             } else {
-                fconfig.split = if old_split == K_WIN_SPLIT_BELOW || opt_vars().p_sb != 0 {
-                    K_WIN_SPLIT_BELOW
-                } else {
-                    K_WIN_SPLIT_ABOVE
-                };
+                K_WIN_SPLIT_LEFT
+            };
+        } else {
+            fconfig.split = if old_split == K_WIN_SPLIT_BELOW || opt_vars().p_sb != 0 {
+                K_WIN_SPLIT_BELOW
+            } else {
+                K_WIN_SPLIT_ABOVE
+            };
+        }
+    }
+
+    'resize: {
+        if (!has_vertical && !has_split)
+            || (was_split
+                && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
+                && old_split == fconfig.split)
+        {
+            break 'resize;
+        }
+
+        let mut parent: *mut WinInfoInfo = ptr::null_mut();
+        let mut parent_tp: *mut TabPageInfo = ptr::null_mut();
+        if config.win == 0 {
+            parent = curwin_ptr();
+            parent_tp = g_st().curtab;
+        } else if config.win > 0 {
+            parent = find_window_by_handle(fconfig.window, err);
+            if parent.is_null() {
+                return false;
+            }
+            parent_tp = win_find_tabpage(parent);
+        }
+
+        let mut win_tp = win_find_tabpage(&raw mut *win);
+        if !parent.is_null() {
+            if unsafe { (*parent).w_floating } {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"Cannot split a floating window",
+                );
+                return false;
+            }
+            if win_tp != parent_tp && unsafe { !win_can_move_tp(win, &mut *win_tp, err) } {
+                return false;
             }
         }
 
-        'resize: {
-            if (!has_vertical && !has_split)
-                || (was_split
-                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
-                    && old_split == fconfig.split)
-            {
-                break 'resize;
-            }
+        if !check_split_disallowed_err((&raw mut *win), err) {
+            return false;
+        }
 
-            let mut parent: *mut WinInfoInfo = ptr::null_mut();
-            let mut parent_tp: *mut TabPageInfo = ptr::null_mut();
-            if config.win == 0 {
-                parent = curwin_ptr();
-                parent_tp = g_st().curtab;
-            } else if config.win > 0 {
-                parent = find_window_by_handle(fconfig.window, err);
-                if parent.is_null() {
-                    return false;
-                }
-                parent_tp = win_find_tabpage(parent);
-            }
+        let mut to_split_ok = false;
+        let curwin_moving_tp =
+            (&raw mut *win) == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
 
-            let mut win_tp = win_find_tabpage(&raw mut *win);
-            if !parent.is_null() {
-                if (*parent).w_floating {
+        'restore_curwin: {
+            if curwin_moving_tp {
+                let altwin = unsafe { win_find_altwin(win, &mut *win_tp) };
+                assert!(!altwin.is_null());
+                win_goto(altwin);
+
+                if curwin_ptr() == (&raw mut *win) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
-                        c"Cannot split a floating window",
+                        c"Failed to switch away from window %d",
+                        win.handle,
                     );
                     return false;
                 }
-                if win_tp != parent_tp && !win_can_move_tp(win, &mut *win_tp, err) {
-                    return false;
+                win_tp = win_find_tabpage(&raw mut *win);
+                if win_tp.is_null() || !win_valid_any_tab(parent) {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Windows to split were closed",
+                    );
+                    break 'restore_curwin;
+                }
+                if was_split == win.w_floating || unsafe { (*parent).w_floating } {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Floating state of windows to split changed",
+                    );
+                    break 'restore_curwin;
                 }
             }
 
-            if !check_split_disallowed_err((&raw mut *win), err) {
-                return false;
-            }
+            let mut dir: i32 = 0;
+            let mut unflat_altfr: *mut Frame = ptr::null_mut();
+            let altwin: *mut WinInfoInfo;
 
-            let mut to_split_ok = false;
-            let curwin_moving_tp =
-                (&raw mut *win) == curwin_ptr() && !parent.is_null() && win_tp != parent_tp;
-
-            'restore_curwin: {
-                if curwin_moving_tp {
-                    let altwin = win_find_altwin(win, &mut *win_tp);
-                    assert!(!altwin.is_null());
-                    win_goto(altwin);
-
-                    if curwin_ptr() == (&raw mut *win) {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Failed to switch away from window %d",
-                            win.handle,
-                        );
-                        return false;
+            if was_split {
+                if win.frame_mut().fr_parent.is_null() {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Cannot move last non-floating window",
+                    );
+                    break 'restore_curwin;
+                } else if !parent.is_null() && unsafe { (*parent).handle == win.handle } {
+                    let mut n_frames = 0;
+                    for _fr in unsafe { frame_iter_mut((*win.frame_mut().fr_parent).fr_child) } {
+                        n_frames += 1;
                     }
-                    win_tp = win_find_tabpage(&raw mut *win);
-                    if win_tp.is_null() || !win_valid_any_tab(parent) {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Windows to split were closed",
-                        );
-                        break 'restore_curwin;
-                    }
-                    if was_split == win.w_floating || (*parent).w_floating {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Floating state of windows to split changed",
-                        );
-                        break 'restore_curwin;
-                    }
-                }
 
-                let mut dir: i32 = 0;
-                let mut unflat_altfr: *mut Frame = ptr::null_mut();
-                let altwin: *mut WinInfoInfo;
+                    let mut neighbor: *mut WinInfoInfo = ptr::null_mut();
 
-                if was_split {
-                    if win.frame_mut().fr_parent.is_null() {
-                        api_set_error!(
-                            err,
-                            ErrorType::ErrorTypeException,
-                            c"Cannot move last non-floating window",
-                        );
-                        break 'restore_curwin;
-                    } else if !parent.is_null() && (*parent).handle == win.handle {
-                        let mut n_frames = 0;
-                        for _fr in frame_iter_mut((*win.frame_mut().fr_parent).fr_child) {
-                            n_frames += 1;
+                    if n_frames > 2 {
+                        let frame = win.frame_mut().fr_parent;
+                        if unsafe { !(*frame).fr_parent.is_null() } {
+                            neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
+                                || fconfig.split == K_WIN_SPLIT_LEFT
+                            {
+                                win.w_next
+                            } else {
+                                win.w_prev
+                            };
                         }
-
-                        let mut neighbor: *mut WinInfoInfo = ptr::null_mut();
-
-                        if n_frames > 2 {
-                            let frame = win.frame_mut().fr_parent;
-                            if !(*frame).fr_parent.is_null() {
-                                neighbor = if fconfig.split == K_WIN_SPLIT_ABOVE
-                                    || fconfig.split == K_WIN_SPLIT_LEFT
-                                {
-                                    win.w_next
-                                } else {
-                                    win.w_prev
-                                };
-                            }
-                            altwin = winframe_remove(
-                                win,
-                                &mut dir,
-                                if win_tp == g_st().curtab {
-                                    ptr::null_mut()
-                                } else {
-                                    win_tp
-                                },
-                                &mut unflat_altfr,
-                            );
-                        } else if n_frames == 2 {
-                            altwin = winframe_remove(
-                                win,
-                                &mut dir,
-                                if win_tp == g_st().curtab {
-                                    ptr::null_mut()
-                                } else {
-                                    win_tp
-                                },
-                                &mut unflat_altfr,
-                            );
-                            neighbor = altwin;
-                        } else {
-                            api_set_error!(
-                                err,
-                                ErrorType::ErrorTypeException,
-                                c"Cannot split window into itself",
-                            );
-                            break 'restore_curwin;
-                        }
-                        parent = neighbor;
-                    } else {
                         altwin = winframe_remove(
                             win,
                             &mut dir,
@@ -808,102 +775,138 @@ fn win_config_split(
                             },
                             &mut unflat_altfr,
                         );
-                    }
-                } else {
-                    altwin =
-                        win_float_find_altwin(win, (win_tp != g_st().curtab).then(|| &*win_tp));
-                }
-
-                win_remove(
-                    win,
-                    if win_tp == g_st().curtab {
-                        ptr::null_mut()
-                    } else {
-                        win_tp
-                    },
-                );
-                if win_tp == g_st().curtab {
-                    last_status(false);
-                    win_comp_pos();
-                }
-
-                let flags = win_split_flags(fconfig.split, parent.is_null()) | WSP_NOENTER;
-                parent_tp = if !parent.is_null() {
-                    win_find_tabpage(parent)
-                } else {
-                    g_st().curtab
-                };
-
-                try_wrap(err, || {
-                    let need_switch = !parent.is_null() && parent != curwin_ptr();
-                    let mut switchwin: CtxSwitch = CtxSwitch::new();
-                    if need_switch {
-                        let result = ctx_switch(
-                            &mut switchwin,
-                            parent,
-                            parent_tp,
-                            ptr::null_mut(),
-                            K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
-                        );
-                        assert!(result);
-                    }
-                    to_split_ok =
-                        !win_split_ins(0, flags, (&raw mut *win), 0, unflat_altfr).is_null();
-                    if !to_split_ok {
-                        win_append(
-                            win.w_prev,
-                            (&raw mut *win),
+                    } else if n_frames == 2 {
+                        altwin = winframe_remove(
+                            win,
+                            &mut dir,
                             if win_tp == g_st().curtab {
                                 ptr::null_mut()
                             } else {
                                 win_tp
                             },
+                            &mut unflat_altfr,
                         );
-                    }
-                    if need_switch {
-                        ctx_restore(&mut switchwin);
-                    }
-                });
-                if !to_split_ok {
-                    if was_split {
-                        winframe_restore(win, dir, &mut *unflat_altfr);
-                    }
-                    if !error_set(err) {
+                        neighbor = altwin;
+                    } else {
                         api_set_error!(
                             err,
                             ErrorType::ErrorTypeException,
-                            c"Failed to move window %d into split",
-                            win.handle,
+                            c"Cannot split window into itself",
                         );
+                        break 'restore_curwin;
                     }
-                    break 'restore_curwin;
+                    parent = neighbor;
+                } else {
+                    altwin = winframe_remove(
+                        win,
+                        &mut dir,
+                        if win_tp == g_st().curtab {
+                            ptr::null_mut()
+                        } else {
+                            win_tp
+                        },
+                        &mut unflat_altfr,
+                    );
                 }
+            } else {
+                unsafe {
+                    altwin =
+                        win_float_find_altwin(win, (win_tp != g_st().curtab).then(|| &*win_tp));
+                }
+            }
 
-                if win_tp != parent_tp && (*win_tp).tp_curwin == (&raw mut *win) {
+            win_remove(
+                win,
+                if win_tp == g_st().curtab {
+                    ptr::null_mut()
+                } else {
+                    win_tp
+                },
+            );
+            if win_tp == g_st().curtab {
+                last_status(false);
+                win_comp_pos();
+            }
+
+            let flags = win_split_flags(fconfig.split, parent.is_null()) | WSP_NOENTER;
+            parent_tp = if !parent.is_null() {
+                win_find_tabpage(parent)
+            } else {
+                g_st().curtab
+            };
+
+            try_wrap(err, || {
+                let need_switch = !parent.is_null() && parent != curwin_ptr();
+                let mut switchwin: CtxSwitch = CtxSwitch::new();
+                if need_switch {
+                    let result = ctx_switch(
+                        &mut switchwin,
+                        parent,
+                        parent_tp,
+                        ptr::null_mut(),
+                        K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
+                    );
+                    assert!(result);
+                }
+                to_split_ok = !win_split_ins(0, flags, (&raw mut *win), 0, unflat_altfr).is_null();
+                if !to_split_ok {
+                    win_append(
+                        win.w_prev,
+                        (&raw mut *win),
+                        if win_tp == g_st().curtab {
+                            ptr::null_mut()
+                        } else {
+                            win_tp
+                        },
+                    );
+                }
+                if need_switch {
+                    ctx_restore(&mut switchwin);
+                }
+            });
+            if !to_split_ok {
+                if was_split {
+                    unsafe {
+                        winframe_restore(win, dir, &mut *unflat_altfr);
+                    }
+                }
+                if !error_set(err) {
+                    api_set_error!(
+                        err,
+                        ErrorType::ErrorTypeException,
+                        c"Failed to move window %d into split",
+                        win.handle,
+                    );
+                }
+                break 'restore_curwin;
+            }
+
+            if win_tp != parent_tp && unsafe { (*win_tp).tp_curwin == (&raw mut *win) } {
+                unsafe {
                     (*win_tp).tp_curwin = altwin;
                 }
-                break 'resize;
             }
-
-            if curwin_moving_tp && win_valid(&raw mut *win) {
-                win_goto(&raw mut *win);
-            }
-            return false;
+            break 'resize;
         }
 
-        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
-            win_setwidth_win(fconfig.width, win, true);
+        if curwin_moving_tp && win_valid(&raw mut *win) {
+            win_goto(&raw mut *win);
         }
-        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
-            win_setheight_win(fconfig.height, win, true);
-        }
-
-        if !was_split {
-            clear_float_config(fconfig, false);
-        }
-        merge_win_config(&mut win.w_config, fconfig.clone());
-        true
+        return false;
     }
+
+    if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
+        win_setwidth_win(fconfig.width, win, true);
+    }
+    if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
+        win_setheight_win(fconfig.height, win, true);
+    }
+
+    if !was_split {
+        clear_float_config(fconfig, false);
+    }
+    merge_win_config(&mut win.w_config, fconfig.clone());
+    true
 }
 
 fn win_config_float_tp(
@@ -1584,342 +1587,351 @@ fn parse_win_config(
     will_float: bool,
     err: &mut Error,
 ) -> bool {
-    unsafe {
-        let mut has_relative = false;
-        let mut relative_is_win = false;
-        let mut is_split = false;
-        let mask = config.is_set_win_config;
+    let mut has_relative = false;
+    let mut relative_is_win = false;
+    let mut is_split = false;
+    let mask = config.is_set_win_config;
 
-        'fail: {
-            if config.relative.size > 0 {
-                if !parse_float_relative(config.relative, &mut fconfig.relative) {
-                    api_err_invalid(err, c"relative", config.relative.data, 0, true);
-                    break 'fail;
-                }
-
-                if !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW)
-                    && has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL))
-                    && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS)
-                {
-                    api_err_required(err, c"'relative' requires 'row'/'col' or 'bufpos'");
-                    break 'fail;
-                }
-
-                has_relative = true;
-                fconfig.external = false;
-                if fconfig.relative == K_FLOAT_RELATIVE_WINDOW {
-                    relative_is_win = true;
-                    fconfig.bufpos.lnum = -1;
-                }
-            } else if !config.external {
-                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
-                    || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
-                {
-                    is_split = true;
-                    fconfig.external = false;
-                } else if wp.is_null() {
-                    api_err_required(err, c"'relative' or 'external' when creating a float");
-                    break 'fail;
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL) && !is_split {
-                api_err_conflict(err, c"vertical", c"floating windows");
+    'fail: {
+        if config.relative.size > 0 {
+            if !parse_float_relative(config.relative, &mut fconfig.relative) {
+                api_err_invalid(err, c"relative", config.relative.data, 0, true);
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) && !is_split {
+            if !(has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW)
+                && has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL))
+                && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS)
+            {
+                api_err_required(err, c"'relative' requires 'row'/'col' or 'bufpos'");
+                break 'fail;
+            }
+
+            has_relative = true;
+            fconfig.external = false;
+            if fconfig.relative == K_FLOAT_RELATIVE_WINDOW {
+                relative_is_win = true;
+                fconfig.bufpos.lnum = -1;
+            }
+        } else if !config.external {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL)
+                || has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
+            {
+                is_split = true;
+                fconfig.external = false;
+            } else if wp.is_null() {
+                api_err_required(err, c"'relative' or 'external' when creating a float");
+                break 'fail;
+            }
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_VERTICAL) && !is_split {
+            api_err_conflict(err, c"vertical", c"floating windows");
+            break 'fail;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) && !is_split {
+            api_err_conflict(err, c"split", c"floating windows");
+            break 'fail;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) {
+            if !is_split {
                 api_err_conflict(err, c"split", c"floating windows");
                 break 'fail;
             }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT) {
-                if !is_split {
-                    api_err_conflict(err, c"split", c"floating windows");
-                    break 'fail;
-                }
-                if !parse_config_split(config.split, &mut fconfig.split) {
-                    api_err_invalid(err, c"split", config.split.data, 0, true);
-                    break 'fail;
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
-                && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
-            {
-                api_err_invalid(err, c"anchor", config.anchor.data, 0, true);
+            if !parse_config_split(config.split, &mut fconfig.split) {
+                api_err_invalid(err, c"split", config.split.data, 0, true);
                 break 'fail;
             }
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
-                if !has_relative || is_split {
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
+            && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
+        {
+            api_err_invalid(err, c"anchor", config.anchor.data, 0, true);
+            break 'fail;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
+            if !has_relative || is_split {
+                unsafe {
                     generate_api_error(wp.as_ref(), c"row", err);
-                    break 'fail;
                 }
-                fconfig.row = config.row;
+                break 'fail;
             }
+            fconfig.row = config.row;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
-                if !has_relative || is_split {
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
+            if !has_relative || is_split {
+                unsafe {
                     generate_api_error(wp.as_ref(), c"col", err);
-                    break 'fail;
                 }
-                fconfig.col = config.col;
+                break 'fail;
             }
+            fconfig.col = config.col;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS) {
-                if !has_relative || is_split {
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BUFPOS) {
+            if !has_relative || is_split {
+                unsafe {
                     generate_api_error(wp.as_ref(), c"bufpos", err);
+                }
+                break 'fail;
+            } else {
+                if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
+                    api_err_exp(err, c"bufpos", c"[row, col] array", ptr::null());
                     break 'fail;
-                } else {
-                    if !parse_float_bufpos(config.bufpos, &mut fconfig.bufpos) {
-                        api_err_exp(err, c"bufpos", c"[row, col] array", ptr::null());
-                        break 'fail;
-                    }
+                }
 
-                    if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
-                        fconfig.row = if (fconfig.anchor & K_FLOAT_ANCHOR_SOUTH) != 0 {
-                            0.0
-                        } else {
-                            1.0
-                        };
-                    }
-                    if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
-                        fconfig.col = 0.0;
-                    }
+                if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ROW) {
+                    fconfig.row = if (fconfig.anchor & K_FLOAT_ANCHOR_SOUTH) != 0 {
+                        0.0
+                    } else {
+                        1.0
+                    };
+                }
+                if !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_COL) {
+                    fconfig.col = 0.0;
                 }
             }
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
-                if config.width <= 0 {
-                    api_err_exp(err, c"width", c"positive Integer", ptr::null());
-                    break 'fail;
-                }
-                fconfig.width = config.width as i32;
-            } else if !reconf && !is_split {
-                api_err_required(err, c"width");
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIDTH) {
+            if config.width <= 0 {
+                api_err_exp(err, c"width", c"positive Integer", ptr::null());
                 break 'fail;
             }
+            fconfig.width = config.width as i32;
+        } else if !reconf && !is_split {
+            api_err_required(err, c"width");
+            break 'fail;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
-                if config.height <= 0 {
-                    api_err_exp(err, c"height", c"positive Integer", ptr::null());
-                    break 'fail;
-                }
-                fconfig.height = config.height as i32;
-            } else if !reconf && !is_split {
-                api_err_required(err, c"height");
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HEIGHT) {
+            if config.height <= 0 {
+                api_err_exp(err, c"height", c"positive Integer", ptr::null());
                 break 'fail;
             }
+            fconfig.height = config.height as i32;
+        } else if !reconf && !is_split {
+            api_err_required(err, c"height");
+            break 'fail;
+        }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) {
-                fconfig.external = config.external;
-                if has_relative && fconfig.external {
-                    api_err_conflict(err, c"relative", c"external");
-                    break 'fail;
-                }
-                if fconfig.external && !ui_has(K_UIMULTIGRID) {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"UI doesn't support external windows",
-                    );
-                    break 'fail;
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) && fconfig.external {
-                api_err_conflict(err, c"win", c"external window");
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_EXTERNAL) {
+            fconfig.external = config.external;
+            if has_relative && fconfig.external {
+                api_err_conflict(err, c"relative", c"external");
                 break 'fail;
             }
+            if fconfig.external && !ui_has(K_UIMULTIGRID) {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"UI doesn't support external windows",
+                );
+                break 'fail;
+            }
+        }
 
-            if relative_is_win
-                || (has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) && fconfig.external {
+            api_err_conflict(err, c"win", c"external window");
+            break 'fail;
+        }
+
+        if relative_is_win
+            || (unsafe {
+                has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN)
                     && !is_split
                     && !wp.is_null()
                     && (*wp).w_floating
-                    && fconfig.relative == K_FLOAT_RELATIVE_WINDOW)
-            {
-                let Some(target_win) =
-                    crate::api::private::helpers::find_window_by_handle_mut(config.win, err)
-                else {
+                    && fconfig.relative == K_FLOAT_RELATIVE_WINDOW
+            })
+        {
+            let Some(target_win) =
+                crate::api::private::helpers::find_window_by_handle_mut(config.win, err)
+            else {
+                break 'fail;
+            };
+            if (&raw mut *target_win) == wp {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeException,
+                    c"floating window cannot be relative to itself",
+                );
+                break 'fail;
+            }
+            fconfig.window = target_win.handle;
+        } else {
+            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
+                if !is_split && !has_relative && (unsafe { wp.is_null() || !(*wp).w_floating }) {
+                    api_err_required(err, c"non-float with 'win' requires 'split' or 'vertical'");
                     break 'fail;
-                };
-                if (&raw mut *target_win) == wp {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeException,
-                        c"floating window cannot be relative to itself",
-                    );
-                    break 'fail;
                 }
-                fconfig.window = target_win.handle;
-            } else {
-                if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-                    if !is_split && !has_relative && (wp.is_null() || !(*wp).w_floating) {
-                        api_err_required(
-                            err,
-                            c"non-float with 'win' requires 'split' or 'vertical'",
-                        );
-                        break 'fail;
-                    }
-                    fconfig.window = config.win;
-                }
-                if fconfig.window == 0 {
-                    fconfig.window = curwin_mut().handle;
-                }
+                fconfig.window = config.win;
+            }
+            if fconfig.window == 0 {
+                fconfig.window = curwin_mut().handle;
+            }
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE) {
+            fconfig.focusable = config.focusable;
+            fconfig.mouse = config.focusable;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_MOUSE) {
+            fconfig.mouse = config.mouse;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ZINDEX) {
+            if !will_float {
+                api_err_conflict(err, c"zindex", c"non-float window");
+                break 'fail;
+            }
+            if config.zindex <= 0 {
+                api_err_exp(err, c"zindex", c"positive Integer", ptr::null());
+                break 'fail;
+            }
+            fconfig.zindex = config.zindex as i32;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE) {
+            if !will_float {
+                api_err_conflict(err, c"title", c"non-float window");
+                break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOCUSABLE) {
-                fconfig.focusable = config.focusable;
-                fconfig.mouse = config.focusable;
+            parse_bordertext(config.title, K_BORDER_TEXT_TITLE, fconfig, err);
+            if error_set(err) {
+                break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_MOUSE) {
-                fconfig.mouse = config.mouse;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ZINDEX) {
-                if !will_float {
-                    api_err_conflict(err, c"zindex", c"non-float window");
-                    break 'fail;
-                }
-                if config.zindex <= 0 {
-                    api_err_exp(err, c"zindex", c"positive Integer", ptr::null());
-                    break 'fail;
-                }
-                fconfig.zindex = config.zindex as i32;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE) {
-                if !will_float {
-                    api_err_conflict(err, c"title", c"non-float window");
-                    break 'fail;
-                }
-
-                parse_bordertext(config.title, K_BORDER_TEXT_TITLE, fconfig, err);
-                if error_set(err) {
-                    break 'fail;
-                }
-
-                if !parse_bordertext_pos(
+            if unsafe {
+                !parse_bordertext_pos(
                     wp.as_ref(),
                     config.title_pos,
                     K_BORDER_TEXT_TITLE,
                     fconfig,
                     err,
-                ) {
-                    break 'fail;
-                }
-            } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS) {
-                api_err_required(err, c"'title' requires 'title_pos'");
+                )
+            } {
+                break 'fail;
+            }
+        } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_TITLE_POS) {
+            api_err_required(err, c"'title' requires 'title_pos'");
+            break 'fail;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER) {
+            if !will_float {
+                api_err_conflict(err, c"footer", c"non-float window");
                 break 'fail;
             }
 
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER) {
-                if !will_float {
-                    api_err_conflict(err, c"footer", c"non-float window");
-                    break 'fail;
-                }
+            parse_bordertext(config.footer, K_BORDER_TEXT_FOOTER, fconfig, err);
+            if error_set(err) {
+                break 'fail;
+            }
 
-                parse_bordertext(config.footer, K_BORDER_TEXT_FOOTER, fconfig, err);
-                if error_set(err) {
-                    break 'fail;
-                }
-
-                if !parse_bordertext_pos(
+            if unsafe {
+                !parse_bordertext_pos(
                     wp.as_ref(),
                     config.footer_pos,
                     K_BORDER_TEXT_FOOTER,
                     fconfig,
                     err,
-                ) {
-                    break 'fail;
-                }
-            } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS) {
-                api_err_required(err, c"'footer' requires 'footer_pos'");
-                break 'fail;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BORDER) {
-                if !will_float {
-                    api_err_conflict(err, c"border", c"non-float window");
-                    break 'fail;
-                }
-                let border_style = config.border;
-                if border_style.obj_type != ObjectType::ObjectTypeNil {
-                    parse_border_style(border_style, Some(&mut *fconfig), err);
-                    if error_set(err) {
-                        break 'fail;
-                    }
-                }
-            } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
-                && (wp.is_null() || !(*wp).w_floating)
-                && !parse_winborder(
-                    Some(&mut *fconfig),
-                    crate::memory::cstr_as_bytes(opt_vars().p_winborder),
-                    err,
                 )
-            {
+            } {
                 break 'fail;
             }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_STYLE) {
-                let style_bytes = config.style.cstr_bytes();
-                if style_bytes.is_empty() {
-                    fconfig.style = K_WIN_STYLE_UNUSED;
-                } else if style_bytes.eq_ignore_ascii_case(b"minimal") {
-                    fconfig.style = K_WIN_STYLE_MINIMAL;
-                } else {
-                    api_err_invalid(err, c"style", config.style.data, 0, true);
-                    break 'fail;
-                }
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_NOAUTOCMD) {
-                if !wp.is_null() && config.noautocmd != fconfig.noautocmd {
-                    api_set_error!(
-                        err,
-                        ErrorType::ErrorTypeValidation,
-                        c"'noautocmd' cannot be changed on existing window",
-                    );
-                    break 'fail;
-                }
-                fconfig.noautocmd = config.noautocmd;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FIXED) {
-                fconfig.fixed = config.fixed;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HIDE) {
-                if !will_float && config.hide {
-                    api_err_conflict(err, c"hide", c"non-float window");
-                    break 'fail;
-                }
-                if fconfig.hide && !config.hide {
-                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
-                }
-                fconfig.hide = config.hide;
-            }
-
-            if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET) {
-                fconfig._cmdline_offset = config._cmdline_offset as i32;
-            }
-
-            return true;
+        } else if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FOOTER_POS) {
+            api_err_required(err, c"'footer' requires 'footer_pos'");
+            break 'fail;
         }
 
-        merge_win_config(
-            fconfig,
-            if !wp.is_null() {
-                (*wp).w_config.clone()
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_BORDER) {
+            if !will_float {
+                api_err_conflict(err, c"border", c"non-float window");
+                break 'fail;
+            }
+            let border_style = config.border;
+            if border_style.obj_type != ObjectType::ObjectTypeNil {
+                parse_border_style(border_style, Some(&mut *fconfig), err);
+                if error_set(err) {
+                    break 'fail;
+                }
+            }
+        } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
+            && (unsafe { wp.is_null() || !(*wp).w_floating })
+            && !parse_winborder(
+                Some(&mut *fconfig),
+                crate::memory::cstr_as_bytes(opt_vars().p_winborder),
+                err,
+            )
+        {
+            break 'fail;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_STYLE) {
+            let style_bytes = config.style.cstr_bytes();
+            if style_bytes.is_empty() {
+                fconfig.style = K_WIN_STYLE_UNUSED;
+            } else if style_bytes.eq_ignore_ascii_case(b"minimal") {
+                fconfig.style = K_WIN_STYLE_MINIMAL;
             } else {
-                WIN_CONFIG_INIT
-            },
-        );
-        false
+                api_err_invalid(err, c"style", config.style.data, 0, true);
+                break 'fail;
+            }
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_NOAUTOCMD) {
+            if !wp.is_null() && config.noautocmd != fconfig.noautocmd {
+                api_set_error!(
+                    err,
+                    ErrorType::ErrorTypeValidation,
+                    c"'noautocmd' cannot be changed on existing window",
+                );
+                break 'fail;
+            }
+            fconfig.noautocmd = config.noautocmd;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_FIXED) {
+            fconfig.fixed = config.fixed;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_HIDE) {
+            if !will_float && config.hide {
+                api_err_conflict(err, c"hide", c"non-float window");
+                break 'fail;
+            }
+            if fconfig.hide && !config.hide {
+                unsafe {
+                    redraw_later(wp.as_mut(), UPD_NOT_VALID);
+                }
+            }
+            fconfig.hide = config.hide;
+        }
+
+        if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_CMDLINE_OFFSET) {
+            fconfig._cmdline_offset = config._cmdline_offset as i32;
+        }
+
+        return true;
     }
+
+    merge_win_config(
+        fconfig,
+        if !wp.is_null() {
+            unsafe { (*wp).w_config.clone() }
+        } else {
+            WIN_CONFIG_INIT
+        },
+    );
+    false
 }
 
 #[cfg(test)]

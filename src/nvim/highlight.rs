@@ -288,13 +288,11 @@ pub fn win_hl_attr(wp: &mut WinInfoInfo, hlf: i32) -> i32 {
 
 #[inline]
 pub fn hl_attr(n: i32) -> i32 {
-    unsafe {
-        let ha = &raw const g_st().hl_attr_active;
-        if let Some(ref tbl) = *ha {
-            tbl[n as usize].get()
-        } else {
-            g_st().highlight_attr[n as usize]
-        }
+    let ha = &raw const g_st().hl_attr_active;
+    if let Some(ref tbl) = *unsafe { &(*ha) } {
+        tbl[n as usize].get()
+    } else {
+        g_st().highlight_attr[n as usize]
     }
 }
 
@@ -1211,122 +1209,144 @@ pub fn hlattrs2dict(
     use_rgb: bool,
     short_keys: bool,
 ) {
+    let hl_attrs: *mut Dict = match hl_attrs {
+        Some(a) => &raw mut *a,
+        None => &raw mut *hl,
+    };
+    assert!(hl.capacity >= HLATTRS_DICT_SIZE);
     unsafe {
-        let hl_attrs: *mut Dict = match hl_attrs {
-            Some(a) => &raw mut *a,
-            None => &raw mut *hl,
-        };
-        assert!(hl.capacity >= HLATTRS_DICT_SIZE);
         assert!((*hl_attrs).capacity >= HLATTRS_DICT_SIZE);
-        let mask = if use_rgb {
-            ae.rgb_ae_attr
-        } else {
-            ae.cterm_ae_attr
-        };
+    }
+    let mask = if use_rgb {
+        ae.rgb_ae_attr
+    } else {
+        ae.cterm_ae_attr
+    };
 
-        if (mask & HL_INVERSE) != 0 {
+    if (mask & HL_INVERSE) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"reverse", boolean_obj(true));
         }
-        if (mask & HL_BOLD) != 0 {
+    }
+    if (mask & HL_BOLD) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"bold", boolean_obj(true));
         }
-        if (mask & HL_ITALIC) != 0 {
+    }
+    if (mask & HL_ITALIC) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"italic", boolean_obj(true));
         }
+    }
 
-        match mask & HL_UNDERLINE_MASK {
-            HL_UNDERLINE => put_c(&mut *hl_attrs, c"underline", boolean_obj(true)),
-            HL_UNDERCURL => put_c(&mut *hl_attrs, c"undercurl", boolean_obj(true)),
-            HL_UNDERDOUBLE => put_c(&mut *hl_attrs, c"underdouble", boolean_obj(true)),
-            HL_UNDERDOTTED => put_c(&mut *hl_attrs, c"underdotted", boolean_obj(true)),
-            HL_UNDERDASHED => put_c(&mut *hl_attrs, c"underdashed", boolean_obj(true)),
-            _ => {}
-        }
+    match mask & HL_UNDERLINE_MASK {
+        HL_UNDERLINE => unsafe { put_c(&mut *hl_attrs, c"underline", boolean_obj(true)) },
+        HL_UNDERCURL => unsafe { put_c(&mut *hl_attrs, c"undercurl", boolean_obj(true)) },
+        HL_UNDERDOUBLE => unsafe { put_c(&mut *hl_attrs, c"underdouble", boolean_obj(true)) },
+        HL_UNDERDOTTED => unsafe { put_c(&mut *hl_attrs, c"underdotted", boolean_obj(true)) },
+        HL_UNDERDASHED => unsafe { put_c(&mut *hl_attrs, c"underdashed", boolean_obj(true)) },
+        _ => {}
+    }
 
-        if (mask & HL_STANDOUT) != 0 {
+    if (mask & HL_STANDOUT) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"standout", boolean_obj(true));
         }
-        if (mask & HL_STRIKETHROUGH) != 0 {
+    }
+    if (mask & HL_STRIKETHROUGH) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"strikethrough", boolean_obj(true));
         }
-        if (mask & HL_ALTFONT) != 0 {
+    }
+    if (mask & HL_ALTFONT) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"altfont", boolean_obj(true));
         }
-        if (mask & HL_DIM) != 0 {
+    }
+    if (mask & HL_DIM) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"dim", boolean_obj(true));
         }
-        if (mask & HL_BLINK) != 0 {
+    }
+    if (mask & HL_BLINK) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"blink", boolean_obj(true));
         }
-        if (mask & HL_CONCEALED) != 0 {
+    }
+    if (mask & HL_CONCEALED) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"conceal", boolean_obj(true));
         }
-        if (mask & HL_OVERLINE) != 0 {
+    }
+    if (mask & HL_OVERLINE) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"overline", boolean_obj(true));
         }
-        if (mask & HL_NOCOMBINE) != 0 {
+    }
+    if (mask & HL_NOCOMBINE) != 0 {
+        unsafe {
             put_c(&mut *hl_attrs, c"nocombine", boolean_obj(true));
         }
+    }
 
-        if use_rgb {
-            if ae.rgb_fg_color != -1 {
-                put_c(
-                    &mut *hl,
-                    if short_keys { c"fg" } else { c"foreground" },
-                    integer_obj(Integer::from(ae.rgb_fg_color)),
-                );
-            }
-            if ae.rgb_bg_color != -1 {
-                put_c(
-                    &mut *hl,
-                    if short_keys { c"bg" } else { c"background" },
-                    integer_obj(Integer::from(ae.rgb_bg_color)),
-                );
-            }
-            if ae.rgb_sp_color != -1 {
-                put_c(
-                    &mut *hl,
-                    if short_keys { c"sp" } else { c"special" },
-                    integer_obj(Integer::from(ae.rgb_sp_color)),
-                );
-            }
-            if (mask & HL_FG_INDEXED) != 0 {
-                put_c(&mut *hl, c"fg_indexed", boolean_obj(true));
-            }
-            if (mask & HL_BG_INDEXED) != 0 {
-                put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
-            }
-            if let Some(font) = hl_get_font(ae.font) {
-                put_c(&mut *hl, c"font", string_obj(cstr_as_string(font)));
-            }
-        } else {
-            if ae.cterm_fg_color != 0 {
-                put_c(
-                    &mut *hl,
-                    if short_keys {
-                        c"ctermfg"
-                    } else {
-                        c"foreground"
-                    },
-                    integer_obj(Integer::from(ae.cterm_fg_color - 1)),
-                );
-            }
-            if ae.cterm_bg_color != 0 {
-                put_c(
-                    &mut *hl,
-                    if short_keys {
-                        c"ctermbg"
-                    } else {
-                        c"background"
-                    },
-                    integer_obj(Integer::from(ae.cterm_bg_color - 1)),
-                );
-            }
+    if use_rgb {
+        if ae.rgb_fg_color != -1 {
+            put_c(
+                &mut *hl,
+                if short_keys { c"fg" } else { c"foreground" },
+                integer_obj(Integer::from(ae.rgb_fg_color)),
+            );
         }
+        if ae.rgb_bg_color != -1 {
+            put_c(
+                &mut *hl,
+                if short_keys { c"bg" } else { c"background" },
+                integer_obj(Integer::from(ae.rgb_bg_color)),
+            );
+        }
+        if ae.rgb_sp_color != -1 {
+            put_c(
+                &mut *hl,
+                if short_keys { c"sp" } else { c"special" },
+                integer_obj(Integer::from(ae.rgb_sp_color)),
+            );
+        }
+        if (mask & HL_FG_INDEXED) != 0 {
+            put_c(&mut *hl, c"fg_indexed", boolean_obj(true));
+        }
+        if (mask & HL_BG_INDEXED) != 0 {
+            put_c(&mut *hl, c"bg_indexed", boolean_obj(true));
+        }
+        if let Some(font) = hl_get_font(ae.font) {
+            put_c(&mut *hl, c"font", string_obj(cstr_as_string(font)));
+        }
+    } else {
+        if ae.cterm_fg_color != 0 {
+            put_c(
+                &mut *hl,
+                if short_keys {
+                    c"ctermfg"
+                } else {
+                    c"foreground"
+                },
+                integer_obj(Integer::from(ae.cterm_fg_color - 1)),
+            );
+        }
+        if ae.cterm_bg_color != 0 {
+            put_c(
+                &mut *hl,
+                if short_keys {
+                    c"ctermbg"
+                } else {
+                    c"background"
+                },
+                integer_obj(Integer::from(ae.cterm_bg_color - 1)),
+            );
+        }
+    }
 
-        if ae.hl_blend > -1 && (use_rgb || !short_keys) {
-            put_c(&mut *hl, c"blend", integer_obj(Integer::from(ae.hl_blend)));
-        }
+    if ae.hl_blend > -1 && (use_rgb || !short_keys) {
+        put_c(&mut *hl, c"blend", integer_obj(Integer::from(ae.hl_blend)));
     }
 }
 

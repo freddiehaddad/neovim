@@ -907,95 +907,99 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: *mut WinInfoInfo) {
 }
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {
-    unsafe {
-        if cs.cs_mode == K_CTX_SWITCH_NONE {
-            return;
+    if cs.cs_mode == K_CTX_SWITCH_NONE {
+        return;
+    }
+
+    if cs.cs_mode == K_CTX_SWITCH_WIN {
+        if !cs.cs_curtab.is_null() && valid_tabpage(cs.cs_curtab) {
+            if (cs.cs_flags & K_CTX_NO_DISPLAY) != 0 {
+                let old_tp_curwin = curtab_mut().tp_curwin;
+                unuse_tabpage(curtab_mut());
+                curtab_mut().tp_curwin = old_tp_curwin;
+                use_tabpage(cs.cs_curtab);
+            } else {
+                goto_tabpage_tp(cs.cs_curtab, false, false);
+            }
+        }
+        ctx_restore_curwin(cs, ptr::null_mut());
+    } else if cs.cs_ctxwin_idx >= 0 {
+        let cwp = ctx_win_rest(cs);
+        ctx_restore_curwin(cs, g_st().firstwin);
+        entering_window(curwin_mut());
+        if bt_prompt(Some(crate::globals::curbuf_mut())) {
+            curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
         }
 
-        if cs.cs_mode == K_CTX_SWITCH_WIN {
-            if !cs.cs_curtab.is_null() && valid_tabpage(cs.cs_curtab) {
-                if (cs.cs_flags & K_CTX_NO_DISPLAY) != 0 {
-                    let old_tp_curwin = curtab_mut().tp_curwin;
-                    unuse_tabpage(curtab_mut());
-                    curtab_mut().tp_curwin = old_tp_curwin;
-                    use_tabpage(cs.cs_curtab);
-                } else {
-                    goto_tabpage_tp(cs.cs_curtab, false, false);
-                }
-            }
-            ctx_restore_curwin(cs, ptr::null_mut());
-        } else if cs.cs_ctxwin_idx >= 0 {
-            let cwp = ctx_win_rest(cs);
-            ctx_restore_curwin(cs, g_st().firstwin);
-            entering_window(curwin_mut());
-            if bt_prompt(Some(crate::globals::curbuf_mut())) {
-                curbuf_mut().b_prompt_insert = cs.cs_prompt_insert;
-            }
-
+        unsafe {
             vars_clear(&mut (*cwp).w_vars().dv_hashtab);
+        }
 
-            let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
+        let free_dirs = (cs.cs_flags & K_CTX_KEEP_DIRS) == 0;
+        unsafe {
             ctx_localdirs_restore(
                 &mut *cs,
                 cwp.as_ref(),
                 Some(crate::globals::curtab_mut()),
                 free_dirs,
             );
-
-            if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
-                curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
-                curwin_mut().w_topfill = 0;
-            }
-        } else if cs.cs_mode == K_CTX_SWITCH_BUF {
-            let saved_buf = cs.cs_new_curbuf.br_buf.cast::<FileBuf>();
-            if curwin_mut().handle == cs.cs_new_curwin
-                && g_st().curbuf != saved_buf
-                && bufref_valid(Some(&cs.cs_new_curbuf))
-                && (*saved_buf).b_ml.ml_mfp.is_some()
-            {
-                curbuf_mut().b_nwindows -= 1;
-                g_st().curbuf = saved_buf;
-                curwin_mut().w_buffer = g_st().curbuf;
-                curbuf_mut().b_nwindows += 1;
-            }
-
-            ctx_restore_curwin(cs, ptr::null_mut());
         }
 
-        if !cs.cs_same_win {
-            g_st().visual_global.active = cs.cs_visual_active;
+        if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
+            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
+            curwin_mut().w_topfill = 0;
         }
-        if cs.cs_mode == K_CTX_SWITCH_BUF {
-            check_cursor(curwin_mut());
-            if g_st().visual_global.active {
-                check_pos(curbuf_mut(), &mut g_st().visual_global.start);
-            }
+    } else if cs.cs_mode == K_CTX_SWITCH_BUF {
+        let saved_buf = cs.cs_new_curbuf.br_buf.cast::<FileBuf>();
+        if curwin_mut().handle == cs.cs_new_curwin
+            && g_st().curbuf != saved_buf
+            && bufref_valid(Some(&cs.cs_new_curbuf))
+            && unsafe { (*saved_buf).b_ml.ml_mfp.is_some() }
+        {
+            curbuf_mut().b_nwindows -= 1;
+            g_st().curbuf = saved_buf;
+            curwin_mut().w_buffer = g_st().curbuf;
+            curbuf_mut().b_nwindows += 1;
         }
 
-        if (cs.cs_flags & K_CTX_NO_EVENTS) != 0 {
-            unblock_autocmds();
+        ctx_restore_curwin(cs, ptr::null_mut());
+    }
+
+    if !cs.cs_same_win {
+        g_st().visual_global.active = cs.cs_visual_active;
+    }
+    if cs.cs_mode == K_CTX_SWITCH_BUF {
+        check_cursor(curwin_mut());
+        if g_st().visual_global.active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
         }
-        ctx_dirs_restore(cs);
-        if cs.cs_ctxwin_idx < 0 && ctx_st().ctx_did_chdir {
-            update_cwd(K_CD_CAUSE_WINDOW);
-        }
-        ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
-        if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
-            let wp = win_find_by_handle(cs.cs_target_win);
-            if !wp.is_null() && !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) {
+    }
+
+    if (cs.cs_flags & K_CTX_NO_EVENTS) != 0 {
+        unblock_autocmds();
+    }
+    ctx_dirs_restore(cs);
+    if cs.cs_ctxwin_idx < 0 && ctx_st().ctx_did_chdir {
+        update_cwd(K_CD_CAUSE_WINDOW);
+    }
+    ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
+    if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
+        let wp = win_find_by_handle(cs.cs_target_win);
+        if !wp.is_null() && unsafe { !equalpos(cs.cs_target_old_pos, (*wp).w_cursor) } {
+            unsafe {
                 (*wp).w_redr_status = true;
             }
-            check_cursor(curwin_mut());
-            if g_st().visual_global.active {
-                check_pos(curbuf_mut(), &mut g_st().visual_global.start);
-            }
         }
-        if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
-            assert!(ctx_st().ctx_switch_depth > 0);
-            ctx_st().ctx_switch_depth -= 1;
-            if ctx_st().ctx_switch_depth == 0 {
-                ctx_st().ctx_saved_curwin = 0;
-            }
+        check_cursor(curwin_mut());
+        if g_st().visual_global.active {
+            check_pos(curbuf_mut(), &mut g_st().visual_global.start);
+        }
+    }
+    if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
+        assert!(ctx_st().ctx_switch_depth > 0);
+        ctx_st().ctx_switch_depth -= 1;
+        if ctx_st().ctx_switch_depth == 0 {
+            ctx_st().ctx_saved_curwin = 0;
         }
     }
 }

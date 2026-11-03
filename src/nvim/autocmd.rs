@@ -2561,42 +2561,42 @@ pub fn aucmd_defer(
 }
 
 pub fn deferred_event(mut e: AutoCmdEvent) {
-    unsafe {
-        let event = e.event;
-        let fname = e
-            .fname
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let fname_io = e
-            .fname_io
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let group = e.group;
-        let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
+    let event = e.event;
+    let fname = e
+        .fname
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let fname_io = e
+        .fname_io
+        .as_ref()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let group = e.group;
+    let data = e.data.as_mut().map_or(ptr::null_mut(), |d| &raw mut *d);
 
-        let mut err = Error::new();
-        let buf = find_buffer_by_handle(e.buf, &mut err);
-        if !buf.is_null() {
-            let mut save_v_event: SaveVEvent = SaveVEvent::new();
-            let v_event = get_v_event(&mut save_v_event);
-            if !data.is_null() && (*data).obj_type == ObjectType::ObjectTypeDict {
-                for i in 0..(*data).data.dict().size {
-                    let item = (*data).data.dict()[i];
-                    let mut tv: TypVal = TypVal::new();
-                    object_to_vim(item.value, &mut tv, &mut err);
-                    if err.err_type != ErrorType::ErrorTypeNone {
-                        api_clear_error(&mut err);
-                        continue;
-                    }
-                    tv_dict_add_tv(&mut *v_event, item.key.as_bytes(), &mut tv);
-                    tv_clear(&mut tv);
+    let mut err = Error::new();
+    let buf = find_buffer_by_handle(e.buf, &mut err);
+    if !buf.is_null() {
+        let mut save_v_event: SaveVEvent = SaveVEvent::new();
+        let v_event = get_v_event(&mut save_v_event);
+        if !data.is_null() && unsafe { (*data).obj_type == ObjectType::ObjectTypeDict } {
+            for i in unsafe { 0..(*data).data.dict().size } {
+                let item = unsafe { (*data).data.dict()[i] };
+                let mut tv: TypVal = TypVal::new();
+                object_to_vim(item.value, &mut tv, &mut err);
+                if err.err_type != ErrorType::ErrorTypeNone {
+                    api_clear_error(&mut err);
+                    continue;
                 }
+                tv_dict_add_tv(&mut *v_event, item.key.as_bytes(), &mut tv);
+                tv_clear(&mut tv);
             }
-            tv_dict_set_keys_readonly(&mut *v_event);
+        }
+        tv_dict_set_keys_readonly(&mut *v_event);
 
-            let win = curwin_ptr();
-            let mut aco: CtxSwitch = CtxSwitch::new();
-            ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        let win = curwin_ptr();
+        let mut aco: CtxSwitch = CtxSwitch::new();
+        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+        unsafe {
             apply_autocmds_group(
                 event,
                 fname,
@@ -2609,10 +2609,10 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                 data,
                 false,
             );
-            ctx_restore(&mut aco);
-
-            restore_v_event(&mut *v_event, &mut save_v_event);
         }
+        ctx_restore(&mut aco);
+
+        restore_v_event(&mut *v_event, &mut save_v_event);
     }
 }
 

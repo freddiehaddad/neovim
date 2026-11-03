@@ -3853,62 +3853,64 @@ fn msg_ext_init_chunks() -> Array {
 }
 
 pub fn msg_ext_ui_flush() {
-    unsafe {
-        if !ui_has(K_UIMESSAGES) {
-            msg_st().msg_ext_kind = ptr::null();
-            return;
-        } else if g_st().msg_ext_skip_flush {
-            return;
-        }
+    if !ui_has(K_UIMESSAGES) {
+        msg_st().msg_ext_kind = ptr::null();
+        return;
+    } else if g_st().msg_ext_skip_flush {
+        return;
+    }
 
-        msg_ext_emit_chunk();
-        if msg_st().msg_ext_chunks.size > 0 {
-            let tofree = msg_ext_init_chunks();
+    msg_ext_emit_chunk();
+    if msg_st().msg_ext_chunks.size > 0 {
+        let tofree = msg_ext_init_chunks();
 
-            ui_call_msg_show(
-                cstr_as_string(msg_st().msg_ext_kind.cast()),
-                tofree,
-                g_st().msg_ext_overwrite,
-                msg_st().msg_ext_history,
-                msg_st().msg_ext_append,
-                msg_st().msg_ext_id,
-                cstr_as_string(msg_st().msg_ext_trigger.cast()),
-            );
-            if msg_st().msg_ext_history {
-                api_free_array(tofree);
-            } else {
-                // Add to history as temporary message for "g<".
-                let mut msg = HlMessage::new();
-                for i in 0..tofree.size {
-                    let chunk = tofree[i].data.array().items;
-                    let text = (*chunk.wrapping_add(1)).data.string();
+        ui_call_msg_show(
+            cstr_as_string(msg_st().msg_ext_kind.cast()),
+            tofree,
+            g_st().msg_ext_overwrite,
+            msg_st().msg_ext_history,
+            msg_st().msg_ext_append,
+            msg_st().msg_ext_id,
+            cstr_as_string(msg_st().msg_ext_trigger.cast()),
+        );
+        if msg_st().msg_ext_history {
+            api_free_array(tofree);
+        } else {
+            // Add to history as temporary message for "g<".
+            let mut msg = HlMessage::new();
+            for i in 0..tofree.size {
+                let chunk = tofree[i].data.array().items;
+                let text = unsafe { (*chunk.wrapping_add(1)).data.string() };
+                unsafe {
                     (*chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
                         data: ptr::null_mut(),
                         size: 0,
                     });
+                }
+                unsafe {
                     msg.push(HlMessageChunk {
                         text,
                         hl_id: (*chunk.wrapping_add(2)).data.integer() as i32,
                     });
                 }
-                api_free_array(tofree);
-                msg_hist_add_multihl(msg, true);
             }
-            g_st().msg_ext_overwrite = false;
-            msg_st().msg_ext_history = false;
-            msg_st().msg_ext_append = false;
-            g_st().msg_ext_fast = true;
-            msg_st().msg_ext_kind = ptr::null();
-            if msg_st().msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
-                && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
-            {
-                msg_st().msg_id_next += 1;
-            }
-            msg_st().msg_ext_id = Object {
-                obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(msg_st().msg_id_next),
-            };
+            api_free_array(tofree);
+            msg_hist_add_multihl(msg, true);
         }
+        g_st().msg_ext_overwrite = false;
+        msg_st().msg_ext_history = false;
+        msg_st().msg_ext_append = false;
+        g_st().msg_ext_fast = true;
+        msg_st().msg_ext_kind = ptr::null();
+        if msg_st().msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
+            && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
+        {
+            msg_st().msg_id_next += 1;
+        }
+        msg_st().msg_ext_id = Object {
+            obj_type: ObjectType::ObjectTypeInteger,
+            data: ObjectData::Integer(msg_st().msg_id_next),
+        };
     }
 }
 

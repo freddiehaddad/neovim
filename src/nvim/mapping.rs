@@ -2351,140 +2351,150 @@ fn get_map_mode_string(mode_string: &[u8], abbr: bool) -> i32 {
 
 /// "mapset()" function
 pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    unsafe {
-        if check_secure() {
-            return;
-        }
+    if check_secure() {
+        return;
+    }
 
-        let mut buf = [0u8; NUMBUFLEN];
-        let dict_only = argvars[0].v_type == VarType::VarDict;
+    let mut buf = [0u8; NUMBUFLEN];
+    let dict_only = argvars[0].v_type == VarType::VarDict;
 
-        let (which, is_abbr, d) = if dict_only {
-            let d = argvars[0].vval.v_dict();
-            let which = tv_dict_get_string(d.as_ref(), c"mode");
-            let is_abbr = tv_dict_get_bool(d.as_ref(), c"abbr", -1) as i32;
-            let Some(which) = which else {
-                emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
-                return;
-            };
-            if is_abbr < 0 {
-                emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
-                return;
-            }
-            (which.as_ptr(), is_abbr, d)
-        } else {
-            let Some(which) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
-                return;
-            };
-            let is_abbr = tv_get_bool(&argvars[1]) as i32;
-            if !tv_check_for_dict_arg(argvars, 2) {
-                return;
-            }
-            let d = argvars[2].vval.v_dict();
-            (which.as_ptr(), is_abbr, d)
-        };
-        let mode = get_map_mode_string(crate::memory::cstr_as_bytes(which), is_abbr != 0);
-        if mode == 0 {
-            semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
-            return;
-        }
-
-        let lhs = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhs");
-        let lhsraw = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsraw");
-        let lhsrawalt = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsrawalt");
-        let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"rhs");
-        let mut rhs_lua: LuaRef = LUA_NOREF;
-        let callback_di = tv_dict_find(d.as_ref(), c"callback", 8);
-        if !callback_di.is_null() && (*callback_di).di_tv.v_type == VarType::VarFunc {
-            let fp = find_func((*callback_di).di_tv.vval.v_string());
-            if !fp.is_null() && ((*fp).uf_flags & FC_LUAREF) != 0 {
-                rhs_lua = api_new_luaref((*fp).uf_luaref);
-                orig_rhs = Some(std::ffi::CString::default());
-            }
-        }
-        let (Some(lhs), Some(lhsraw), Some(orig_rhs)) = (lhs, lhsraw, orig_rhs) else {
+    let (which, is_abbr, d) = if dict_only {
+        let d = argvars[0].vval.v_dict();
+        let which = unsafe { tv_dict_get_string(d.as_ref(), c"mode") };
+        let is_abbr = unsafe { tv_dict_get_bool(d.as_ref(), c"abbr", -1) as i32 };
+        let Some(which) = which else {
             emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
-            api_free_luaref(rhs_lua);
             return;
         };
-
-        let mut noremap = if tv_dict_get_number(d.as_ref(), c"noremap") != 0 {
-            REMAP_NONE
-        } else {
-            0
-        };
-        if tv_dict_get_number(d.as_ref(), c"script") != 0 {
-            noremap = REMAP_SCRIPT;
+        if is_abbr < 0 {
+            emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
+            return;
         }
-        let mut args = MapArguments::new();
+        (which.as_ptr(), is_abbr, d)
+    } else {
+        let Some(which) = tv_get_string_buf_chk(&argvars[0], &mut buf) else {
+            return;
+        };
+        let is_abbr = tv_get_bool(&argvars[1]) as i32;
+        if !tv_check_for_dict_arg(argvars, 2) {
+            return;
+        }
+        let d = argvars[2].vval.v_dict();
+        (which.as_ptr(), is_abbr, d)
+    };
+    let mode = get_map_mode_string(crate::memory::cstr_as_bytes(which), is_abbr != 0);
+    if mode == 0 {
+        semsg!(gettext(E_ILLEGAL_MAP_MODE_STRING_STR), which);
+        return;
+    }
+
+    let lhs = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhs") };
+    let lhsraw = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsraw") };
+    let lhsrawalt = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"lhsrawalt") };
+    let mut orig_rhs = unsafe { crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"rhs") };
+    let mut rhs_lua: LuaRef = LUA_NOREF;
+    let callback_di = unsafe { tv_dict_find(d.as_ref(), c"callback", 8) };
+    if !callback_di.is_null() && unsafe { (*callback_di).di_tv.v_type == VarType::VarFunc } {
+        let fp = unsafe { find_func((*callback_di).di_tv.vval.v_string()) };
+        if !fp.is_null() && unsafe { ((*fp).uf_flags & FC_LUAREF) != 0 } {
+            unsafe {
+                rhs_lua = api_new_luaref((*fp).uf_luaref);
+            }
+            orig_rhs = Some(std::ffi::CString::default());
+        }
+    }
+    let (Some(lhs), Some(lhsraw), Some(orig_rhs)) = (lhs, lhsraw, orig_rhs) else {
+        emsg(gettext(E_ENTRIES_MISSING_IN_MAPSET_DICT_ARGUMENT));
+        api_free_luaref(rhs_lua);
+        return;
+    };
+
+    let mut noremap = if unsafe { tv_dict_get_number(d.as_ref(), c"noremap") != 0 } {
+        REMAP_NONE
+    } else {
+        0
+    };
+    if unsafe { tv_dict_get_number(d.as_ref(), c"script") != 0 } {
+        noremap = REMAP_SCRIPT;
+    }
+    let mut args = MapArguments::new();
+    unsafe {
         args.expr = tv_dict_get_number(d.as_ref(), c"expr") != 0;
+    }
+    unsafe {
         args.silent = tv_dict_get_number(d.as_ref(), c"silent") != 0;
+    }
+    unsafe {
         args.nowait = tv_dict_get_number(d.as_ref(), c"nowait") != 0;
+    }
+    unsafe {
         args.replace_keycodes = tv_dict_get_number(d.as_ref(), c"replace_keycodes") != 0;
+    }
+    unsafe {
         args.desc = crate::eval::typval::tv_dict_get_cstring(d.as_ref(), c"desc");
+    }
 
-        let sid = tv_dict_get_number(d.as_ref(), c"sid") as Scid;
-        let lnum = tv_dict_get_number(d.as_ref(), c"lnum") as Linenr;
-        let buffer = tv_dict_get_number(d.as_ref(), c"buffer") != 0;
+    let sid = unsafe { tv_dict_get_number(d.as_ref(), c"sid") as Scid };
+    let lnum = unsafe { tv_dict_get_number(d.as_ref(), c"lnum") as Linenr };
+    let buffer = unsafe { tv_dict_get_number(d.as_ref(), c"buffer") != 0 };
 
-        set_maparg_rhs(
-            orig_rhs.as_bytes(),
-            rhs_lua,
-            sid,
-            opt_vars().p_cpo,
-            &mut args,
-        );
+    set_maparg_rhs(
+        orig_rhs.as_bytes(),
+        rhs_lua,
+        sid,
+        opt_vars().p_cpo,
+        &mut args,
+    );
 
-        let mut unmap_args = MapArguments::new();
-        set_maparg_lhs_rhs(
-            lhs.as_bytes(),
-            b"",
-            LUA_NOREF,
-            opt_vars().p_cpo,
-            &mut unmap_args,
-        );
-        unmap_args.buffer = buffer;
-        buf_do_map(
-            MAPTYPE_UNMAP_LHS,
-            &mut unmap_args,
-            mode,
-            is_abbr != 0,
-            curbuf_mut(),
-        );
+    let mut unmap_args = MapArguments::new();
+    set_maparg_lhs_rhs(
+        lhs.as_bytes(),
+        b"",
+        LUA_NOREF,
+        opt_vars().p_cpo,
+        &mut unmap_args,
+    );
+    unmap_args.buffer = buffer;
+    buf_do_map(
+        MAPTYPE_UNMAP_LHS,
+        &mut unmap_args,
+        mode,
+        is_abbr != 0,
+        curbuf_mut(),
+    );
 
-        let alt = lhsrawalt.is_some().then(|| {
-            std::rc::Rc::new(MapAltLink {
-                keys: [std::cell::Cell::new(None), std::cell::Cell::new(None)],
-            })
-        });
+    let alt = lhsrawalt.is_some().then(|| {
+        std::rc::Rc::new(MapAltLink {
+            keys: [std::cell::Cell::new(None), std::cell::Cell::new(None)],
+        })
+    });
+    map_add(
+        curbuf_mut(),
+        buffer,
+        lhsraw.as_c_str(),
+        &args,
+        noremap,
+        mode,
+        is_abbr != 0,
+        sid,
+        lnum,
+        false,
+        alt.clone(),
+    );
+    if let Some(ref lhsrawalt) = lhsrawalt {
         map_add(
             curbuf_mut(),
             buffer,
-            lhsraw.as_c_str(),
+            lhsrawalt.as_c_str(),
             &args,
             noremap,
             mode,
             is_abbr != 0,
             sid,
             lnum,
-            false,
-            alt.clone(),
+            true,
+            alt,
         );
-        if let Some(ref lhsrawalt) = lhsrawalt {
-            map_add(
-                curbuf_mut(),
-                buffer,
-                lhsrawalt.as_c_str(),
-                &args,
-                noremap,
-                mode,
-                is_abbr != 0,
-                sid,
-                lnum,
-                true,
-                alt,
-            );
-        }
     }
 }
 

@@ -109,115 +109,123 @@ pub fn adjust_clipboard_name(name: &mut i32, quiet: bool, writing: bool) -> *mut
 
 /// Read clipboard contents into `*target` (`get_clipboard`).
 pub fn get_clipboard(mut name: i32, target: &mut *mut Yankreg, quiet: bool) -> bool {
-    unsafe {
-        let implicit = name == 0;
-        let mut errmsg = true;
+    let implicit = name == 0;
+    let mut errmsg = true;
 
-        let reg_ptr = adjust_clipboard_name(&mut name, quiet, false);
-        if reg_ptr.is_null() {
+    let reg_ptr = adjust_clipboard_name(&mut name, quiet, false);
+    if reg_ptr.is_null() {
+        return false;
+    }
+    if mc_replaying() {
+        if implicit {
             return false;
         }
-        if mc_replaying() {
-            if implicit {
-                return false;
-            }
-            *target = reg_ptr;
-            return true;
-        }
+        *target = reg_ptr;
+        return true;
+    }
+    unsafe {
         *reg_ptr = EMPTY_YANKREG;
-        let reg = &mut *reg_ptr;
+    }
+    let reg = unsafe { &mut *reg_ptr };
 
-        let args = tv_list_alloc(1);
-        tv_list_append_bytes(&mut *args, &[name as u8]);
+    let args = tv_list_alloc(1);
+    tv_list_append_bytes(&mut *args, &[name as u8]);
 
-        let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
+    let result = eval_call_provider(c"clipboard", c"get", &mut *args, false);
 
-        let fail_cleanup = |reg: &mut Yankreg, errmsg: bool, target: &mut *mut Yankreg| -> bool {
-            *reg = EMPTY_YANKREG;
-            if errmsg {
-                emsg(c"clipboard: provider returned invalid data");
-            }
-            *target = reg as *mut Yankreg;
-            false
-        };
+    let fail_cleanup = |reg: &mut Yankreg, errmsg: bool, target: &mut *mut Yankreg| -> bool {
+        *reg = EMPTY_YANKREG;
+        if errmsg {
+            emsg(c"clipboard: provider returned invalid data");
+        }
+        *target = reg as *mut Yankreg;
+        false
+    };
 
-        if result.v_type != VarType::VarList {
-            if result.v_type == VarType::VarNumber && result.vval.v_number() == 0 {
-                errmsg = false;
-            }
+    if result.v_type != VarType::VarList {
+        if result.v_type == VarType::VarNumber && result.vval.v_number() == 0 {
+            errmsg = false;
+        }
+        return fail_cleanup(reg, errmsg, target);
+    }
+
+    let res = result.vval.v_list();
+    let res_len = if res.is_null() {
+        0
+    } else {
+        unsafe { (*res).lv_len }
+    };
+    let lines: *mut TvList;
+
+    if res_len == 2
+        && unsafe { !(*res).lv_first.is_null() }
+        && unsafe { (*(*res).lv_first).li_tv.v_type == VarType::VarList }
+    {
+        unsafe {
+            lines = (*(*res).lv_first).li_tv.vval.v_list();
+        }
+        let last_li = unsafe { (*res).lv_last };
+        if last_li.is_null() || unsafe { (*last_li).li_tv.v_type != VarType::VarString } {
             return fail_cleanup(reg, errmsg, target);
         }
-
-        let res = result.vval.v_list();
-        let res_len = if res.is_null() { 0 } else { (*res).lv_len };
-        let lines: *mut TvList;
-
-        if res_len == 2
-            && !(*res).lv_first.is_null()
-            && (*(*res).lv_first).li_tv.v_type == VarType::VarList
-        {
-            lines = (*(*res).lv_first).li_tv.vval.v_list();
-            let last_li = (*res).lv_last;
-            if last_li.is_null() || (*last_li).li_tv.v_type != VarType::VarString {
-                return fail_cleanup(reg, errmsg, target);
-            }
-            let regtype = (*last_li).li_tv.vval.v_string();
-            if regtype.is_null() || crate::memory::cstr_len(regtype) > 1 {
-                return fail_cleanup(reg, errmsg, target);
-            }
-            reg.y_type = match crate::memory::cstr_first_byte(regtype) {
-                0 => MotionType::MtUnknown,
-                b'v' | b'c' => MotionType::MtCharWise,
-                b'V' | b'l' => MotionType::MtLineWise,
-                b'b' | CTRL_V => MotionType::MtBlockWise,
-                _ => return fail_cleanup(reg, errmsg, target),
-            };
-        } else {
-            lines = res;
-            reg.y_type = MotionType::MtUnknown;
+        let regtype = unsafe { (*last_li).li_tv.vval.v_string() };
+        if regtype.is_null() || crate::memory::cstr_len(regtype) > 1 {
+            return fail_cleanup(reg, errmsg, target);
         }
-
-        let lines_len = if lines.is_null() {
-            0
-        } else {
-            (*lines).lv_len.max(0) as usize
+        reg.y_type = match crate::memory::cstr_first_byte(regtype) {
+            0 => MotionType::MtUnknown,
+            b'v' | b'c' => MotionType::MtCharWise,
+            b'V' | b'l' => MotionType::MtLineWise,
+            b'b' | CTRL_V => MotionType::MtBlockWise,
+            _ => return fail_cleanup(reg, errmsg, target),
         };
-        reg.y_array = Vec::with_capacity(lines_len);
-        reg.y_allocated = true;
-        reg.y_width = 0;
-        reg.additional_data = None;
-        reg.timestamp = 0;
-
-        for li in crate::eval::typval::list_iter_mut(if lines.is_null() {
-            std::ptr::null_mut()
-        } else {
-            (*lines).lv_first
-        }) {
-            if li.li_tv.v_type != VarType::VarString {
-                return fail_cleanup(reg, errmsg, target);
-            }
-            let s = li.li_tv.vval.v_string();
-            reg.y_array
-                .push(cstr_to_string(if s.is_null() { c"".as_ptr() } else { s }));
-        }
-
-        if reg.y_array.last().is_some_and(|last| last.size == 0) {
-            if reg.y_type != MotionType::MtCharWise {
-                if let Some(mut popped) = reg.y_array.pop() {
-                    api_clear_string(&mut popped);
-                }
-                if reg.y_type == MotionType::MtUnknown {
-                    reg.y_type = MotionType::MtLineWise;
-                }
-            }
-        } else if reg.y_type == MotionType::MtUnknown {
-            reg.y_type = MotionType::MtCharWise;
-        }
-
-        update_yankreg_width(&mut *reg_ptr);
-        *target = reg_ptr;
-        true
+    } else {
+        lines = res;
+        reg.y_type = MotionType::MtUnknown;
     }
+
+    let lines_len = if lines.is_null() {
+        0
+    } else {
+        unsafe { (*lines).lv_len.max(0) as usize }
+    };
+    reg.y_array = Vec::with_capacity(lines_len);
+    reg.y_allocated = true;
+    reg.y_width = 0;
+    reg.additional_data = None;
+    reg.timestamp = 0;
+
+    for li in crate::eval::typval::list_iter_mut(if lines.is_null() {
+        std::ptr::null_mut()
+    } else {
+        unsafe { (*lines).lv_first }
+    }) {
+        if li.li_tv.v_type != VarType::VarString {
+            return fail_cleanup(reg, errmsg, target);
+        }
+        let s = li.li_tv.vval.v_string();
+        reg.y_array
+            .push(cstr_to_string(if s.is_null() { c"".as_ptr() } else { s }));
+    }
+
+    if reg.y_array.last().is_some_and(|last| last.size == 0) {
+        if reg.y_type != MotionType::MtCharWise {
+            if let Some(mut popped) = reg.y_array.pop() {
+                api_clear_string(&mut popped);
+            }
+            if reg.y_type == MotionType::MtUnknown {
+                reg.y_type = MotionType::MtLineWise;
+            }
+        }
+    } else if reg.y_type == MotionType::MtUnknown {
+        reg.y_type = MotionType::MtCharWise;
+    }
+
+    unsafe {
+        update_yankreg_width(&mut *reg_ptr);
+    }
+    *target = reg_ptr;
+    true
 }
 
 /// Write `reg` to the clipboard provider (`set_clipboard`).
