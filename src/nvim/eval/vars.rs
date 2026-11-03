@@ -727,7 +727,7 @@ pub fn set_internal_string_var(name: &std::ffi::CStr, value: impl crate::strings
             vval: TypvalVval::String(value.cast_mut()),
         };
 
-        set_var(name.as_ptr(), name.to_bytes().len(), &mut tv, true);
+        set_var(name.to_bytes(), &mut tv, true);
     }
 }
 
@@ -2053,14 +2053,11 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     let mut ret = true;
 
     if lp.ll_tv.is_null() {
-        let name_cstr =
-            cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), lp.ll_name_len));
-        if name_cstr.as_bytes().first() == Some(&b'$') {
-            let env_name = unsafe {
-                std::ffi::CStr::from_bytes_with_nul_unchecked(&name_cstr.to_bytes_with_nul()[1..])
-            };
-            vim_unsetenv_ext(env_name);
-        } else if !do_unlet(&name_cstr, lp.ll_name_len, forceit) {
+        let name_slice = crate::memory::cstr_slice(lp.ll_name.cast(), lp.ll_name_len);
+        if name_slice.first() == Some(&b'$') {
+            let env_cstr = cstr_from_bytes(&name_slice[1..]);
+            vim_unsetenv_ext(env_cstr.as_c_str());
+        } else if !do_unlet(name_slice, forceit) {
             ret = false;
         }
     } else if (!lp.ll_list.is_null()
@@ -2124,8 +2121,10 @@ fn tv_list_unlet_range(
 }
 
 /// unlet a variable.
-pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forceit: bool) -> bool {
-    let name = name.into_c_char_ptr();
+pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
+    let name_cstr = cstr_from_bytes(name_slice);
+    let name = name_cstr.as_ptr();
+    let name_len = name_slice.len();
     unsafe {
         let mut varname = ptr::null();
         let mut dict: *mut TvDict = ptr::null_mut();
@@ -2634,23 +2633,23 @@ pub fn eval_variable(
     }
 }
 
-/// Check if variable "name[len]" is a local variable or an argument.
-pub fn check_vars(name: impl crate::strings::IntoCCharPtr, len: usize) {
-    let name = name.into_c_char_ptr();
+/// Check if variable `name_slice` is a local variable or an argument.
+pub fn check_vars(name_slice: &[u8]) {
+    if eval_st().eval_lavars_used.is_null() {
+        return;
+    }
+
+    let name_cstr = cstr_from_bytes(name_slice);
+    let name = name_cstr.as_ptr();
+    let len = name_slice.len();
+    let mut varname: *const u8 = ptr::null();
+    let ht = find_var_ht(name, len, &raw mut varname);
+
+    if (ht == get_funccal_local_ht() || ht == get_funccal_args_ht())
+        && !find_var(name, len, ptr::null_mut(), 1).is_null()
     {
-        if eval_st().eval_lavars_used.is_null() {
-            return;
-        }
-
-        let mut varname: *const u8 = ptr::null();
-        let ht = find_var_ht(name, len, &raw mut varname);
-
-        if (ht == get_funccal_local_ht() || ht == get_funccal_args_ht())
-            && !find_var(name, len, ptr::null_mut(), 1).is_null()
-        {
-            unsafe {
-                *eval_st().eval_lavars_used = true;
-            }
+        unsafe {
+            *eval_st().eval_lavars_used = true;
         }
     }
 }
@@ -3035,25 +3034,15 @@ pub fn before_set_vvar(
 }
 
 /// Set variable to the given value.
-pub fn set_var(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
-    tv: &mut TypVal,
-    copy: bool,
-) {
-    let name = name.into_c_char_ptr();
-    set_var_const(name, name_len, tv, copy, false);
+pub fn set_var(name_slice: &[u8], tv: &mut TypVal, copy: bool) {
+    set_var_const(name_slice, tv, copy, false);
 }
 
 /// Set variable to the given value, optionally locking as const.
-pub fn set_var_const(
-    name: impl crate::strings::IntoCCharPtr,
-    name_len: usize,
-    tv: &mut TypVal,
-    copy: bool,
-    is_const: bool,
-) {
-    let name = name.into_c_char_ptr();
+pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: bool) {
+    let name_cstr = cstr_from_bytes(name_slice);
+    let name = name_cstr.as_ptr();
+    let name_len = name_slice.len();
     unsafe {
         let mut varname = ptr::null();
         let mut dict: *mut TvDict = ptr::null_mut();
@@ -3598,7 +3587,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
             winvarname.push(b'w');
             winvarname.push(b':');
             winvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));
-            set_var(winvarname.as_ptr().cast(), varname_len + 2, varp, true);
+            set_var(&winvarname[..varname_len + 2], varp, true);
         }
     }
     if need_switch_win {
@@ -3745,24 +3734,14 @@ pub fn var_redir_start(name: impl crate::strings::IntoCCharPtr, append: bool) ->
     }
 }
 
-/// Append "value[value_len]" to the variable set by var_redir_start().
-pub fn var_redir_str(value: impl crate::strings::IntoCCharPtr, value_len: i32) {
-    let value: *const u8 = value.into_c_char_ptr().cast();
-    {
-        if vars_st().redir_lval.is_none() {
-            return;
-        }
+/// Append `value` to the variable set by var_redir_start().
+pub fn var_redir_str(value: &[u8]) {
+    if vars_st().redir_lval.is_none() {
+        return;
+    }
 
-        let len = if value_len == -1 {
-            crate::memory::cstr_len(value.cast())
-        } else {
-            value_len.max(0) as usize
-        };
-
-        if len > 0 {
-            let slice = crate::memory::cstr_slice(value.cast(), len);
-            vars_st().redir_buf.extend_from_slice(slice);
-        }
+    if !value.is_empty() {
+        vars_st().redir_buf.extend_from_slice(value);
     }
 }
 
@@ -3891,7 +3870,7 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     let save_lu_tp = g_st().lastused_tabpage;
     goto_tabpage_tp(tp, false, false);
 
-    set_var(tabvarname.as_ptr().cast(), varname_len + 2, arg2, true);
+    set_var(&tabvarname[..varname_len + 2], arg2, true);
 
     if valid_tabpage(save_curtab) {
         goto_tabpage_tp(save_curtab, false, false);
@@ -3939,7 +3918,7 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
         bufvarname.push(b'b');
         bufvarname.push(b':');
         bufvarname.extend_from_slice(crate::memory::cstr_slice(varname, varname_len + 1));
-        set_var(bufvarname.as_ptr().cast(), varname_len + 2, arg2, true);
+        set_var(&bufvarname[..varname_len + 2], arg2, true);
         g_st().curbuf = save_curbuf;
     }
 }

@@ -1495,7 +1495,7 @@ pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
     if dark != (crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd')
         && get_var_value(c"g:colors_name").is_some()
     {
-        do_unlet(c"g:colors_name", 13, true);
+        do_unlet(b"g:colors_name", true);
         free_string_option(opt_vars().p_bg);
         opt_vars().p_bg = alloc_string_option(if dark {
             c"dark".as_ptr()

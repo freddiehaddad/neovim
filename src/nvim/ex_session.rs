@@ -507,7 +507,7 @@ fn store_session_globals(fd: &CFile) -> bool {
         let key_cstr = this_var.key_cstr();
         if (this_var.di_tv.v_type == VarType::VarNumber
             || this_var.di_tv.v_type == VarType::VarString)
-            && var_flavour(key_cstr) == VAR_FLAVOUR_SESSION
+            && var_flavour(key_cstr.to_bytes()) == VAR_FLAVOUR_SESSION
         {
             let p = vim_strsave_escaped(tv_get_string(&this_var.di_tv).to_bytes(), b"\\\"\n\r");
             let mut p_vec: Vec<u8> = p.into_bytes_with_nul();
@@ -538,7 +538,7 @@ fn store_session_globals(fd: &CFile) -> bool {
                 return false;
             }
         } else if this_var.di_tv.v_type == VarType::VarFloat
-            && var_flavour(key_cstr) == VAR_FLAVOUR_SESSION
+            && var_flavour(key_cstr.to_bytes()) == VAR_FLAVOUR_SESSION
         {
             let mut f = this_var.di_tv.vval.v_float();
             let sign = if f < 0.0 {

@@ -1239,7 +1239,7 @@ pub fn do_highlight(line: impl crate::strings::IntoCCharPtr, forceit: bool, init
         if doclear {
             line = linep;
             if ends_excmd(i32::from(crate::memory::cstr_first_byte(line))) != 0 {
-                do_unlet(c"g:colors_name", 13, true);
+                do_unlet(b"g:colors_name", true);
                 restore_cterm_colors();
 
                 for j in 0..hl_len() {

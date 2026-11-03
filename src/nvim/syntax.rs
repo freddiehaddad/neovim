@@ -2853,9 +2853,9 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
             } else {
                 syntax_clear(&mut *win_s(curwin_mut()));
                 if ptr::eq(win_s(curwin_mut()), &raw mut (*curwin_mut().w_buffer).b_s) {
-                    do_unlet(c"b:current_syntax", 16, true);
+                    do_unlet(b"b:current_syntax", true);
                 }
-                do_unlet(c"w:current_syntax", 16, true);
+                do_unlet(b"w:current_syntax", true);
             }
         } else {
             while ends_excmd(crate::memory::cstr_first_byte(arg)) == 0 {
@@ -4988,7 +4988,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     if let Some(ref old_cstr) = old_value {
         set_internal_string_var(c"b:current_syntax", old_cstr.as_ptr().cast_mut());
     } else {
-        do_unlet(c"b:current_syntax", 16, true);
+        do_unlet(b"b:current_syntax", true);
     }
 }
 

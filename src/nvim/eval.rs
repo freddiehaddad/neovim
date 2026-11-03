@@ -1622,12 +1622,12 @@ pub fn set_var_lval<T>(
                         ) && !tv_check_lock(&(*di).di_tv, name_cstr.as_ptr(), TV_CSTRING)))
                         && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
                     {
-                        set_var(name_cstr.as_ptr(), lp.ll_name_len, &mut tv, false);
+                        set_var(name_cstr.as_bytes(), &mut tv, false);
                     }
                     tv_clear(&mut tv);
                 }
             } else {
-                set_var_const(name_cstr.as_ptr(), lp.ll_name_len, rettv, copy, is_const);
+                set_var_const(name_cstr.as_bytes(), rettv, copy, is_const);
             }
         } else if value_check_lock(
             if lp.ll_newkey.is_none() {
@@ -2064,7 +2064,7 @@ fn eval_func<T>(
         let mut found_var = false;
 
         if !evaluate {
-            check_vars(s, len as usize);
+            check_vars(crate::memory::cstr_slice(s, len as usize));
         }
 
         let mut partial: *mut TvPartial = ptr::null_mut();
@@ -3007,7 +3007,7 @@ fn eval7<T>(
                         false,
                     )
                 } else {
-                    check_vars(s.cast(), len as usize);
+                    check_vars(crate::memory::cstr_slice(s.cast(), len as usize));
                     if rettv.v_type == VarType::VarUnknown
                         && !evaluate
                         && crate::memory::cstr_as_bytes(s.cast()).starts_with(b"v:lua.")
@@ -3602,9 +3602,9 @@ fn eval_index_inner(
                 let len = s_bytes.len() as Varnumber;
                 let v: Option<std::ffi::CString> = if exclusive {
                     if is_range {
-                        string_slice(s, n1, n2, exclusive)
+                        string_slice(s_bytes, n1, n2, exclusive)
                     } else {
-                        char_from_string(s, n1)
+                        char_from_string(s_bytes, n1)
                     }
                 } else if is_range {
                     if n1 < 0 {
@@ -6116,105 +6116,90 @@ pub fn check_luafunc_name(str_: impl crate::strings::IntoCCharPtr, paren: bool) 
 
 /// Return the character "str[index]" where "index" is the character index,
 /// including composing characters.
-pub fn char_from_string(
-    str_: impl crate::strings::IntoCCharPtr,
-    index: Varnumber,
-) -> Option<std::ffi::CString> {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut nchar = index;
+pub fn char_from_string(s: &[u8], index: Varnumber) -> Option<std::ffi::CString> {
+    let mut nchar = index;
+    let slen = s.len();
 
-        if str_.is_null() {
-            return None;
-        }
-        let s = crate::memory::cstr_as_bytes(str_);
-        let slen = s.len();
-
-        if index < 0 {
-            let mut clen: Varnumber = 0;
-            let mut nbyte: usize = 0;
-            while nbyte < slen {
-                nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
-                clen += 1;
-            }
-            nchar = clen + index;
-            if nchar < 0 {
-                return None;
-            }
-        }
-
+    if index < 0 {
+        let mut clen: Varnumber = 0;
         let mut nbyte: usize = 0;
-        while nchar > 0 && nbyte < slen {
-            nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
-            nchar -= 1;
+        while nbyte < slen {
+            nbyte += crate::mbyte::utfc_slice2len(&s[nbyte..]).max(1);
+            clen += 1;
         }
-        if nbyte >= slen {
+        nchar = clen + index;
+        if nchar < 0 {
             return None;
         }
-        let clen = utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
-        Some(cstr_from_bytes(&s[nbyte..nbyte + clen]))
     }
+
+    let mut nbyte: usize = 0;
+    while nchar > 0 && nbyte < slen {
+        nbyte += crate::mbyte::utfc_slice2len(&s[nbyte..]).max(1);
+        nchar -= 1;
+    }
+    if nbyte >= slen {
+        return None;
+    }
+    let clen = crate::mbyte::utfc_slice2len(&s[nbyte..])
+        .max(1)
+        .min(slen - nbyte);
+    Some(cstr_from_bytes(&s[nbyte..nbyte + clen]))
 }
 
-fn char_idx2byte(str_: impl crate::strings::IntoCCharPtr, str_len: usize, idx: Varnumber) -> isize {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut nchar = idx;
-        let mut nbyte: usize = 0;
+fn char_idx2byte(s: &[u8], idx: Varnumber) -> isize {
+    let str_len = s.len();
+    let mut nchar = idx;
+    let mut nbyte: usize = 0;
 
-        if nchar >= 0 {
-            while nchar > 0 && nbyte < str_len {
-                nbyte += utfc_ptr2len(str_.wrapping_add(nbyte)) as usize;
-                nchar -= 1;
-            }
-        } else {
-            nbyte = str_len;
-            while nchar < 0 && nbyte > 0 {
-                nbyte -= 1;
-                nbyte -= utf_head_off(str_, str_.wrapping_add(nbyte)) as usize;
-                nchar += 1;
-            }
-            if nchar < 0 {
-                return -1;
-            }
+    if nchar >= 0 {
+        while nchar > 0 && nbyte < str_len {
+            nbyte += crate::mbyte::utfc_slice2len(&s[nbyte..]).max(1);
+            nchar -= 1;
         }
-        nbyte as isize
+        nbyte = nbyte.min(str_len);
+    } else {
+        nbyte = str_len;
+        while nchar < 0 && nbyte > 0 {
+            nbyte -= 1;
+            nbyte -= crate::mbyte::utf_head_off_slice(s, nbyte) as usize;
+            nchar += 1;
+        }
+        if nchar < 0 {
+            return -1;
+        }
     }
+    nbyte as isize
 }
 
 /// Return the slice "str[first : last]" using character indexes.
 pub fn string_slice(
-    str_: impl crate::strings::IntoCCharPtr,
+    s: &[u8],
     first: Varnumber,
     last: Varnumber,
     exclusive: bool,
 ) -> Option<std::ffi::CString> {
-    let str_ = str_.into_c_char_ptr();
-    {
-        if str_.is_null() {
-            return None;
-        }
-        let s = crate::memory::cstr_as_bytes(str_);
-        let slen = s.len();
-        let mut start_byte = char_idx2byte(str_, slen, first);
-        if start_byte < 0 {
-            start_byte = 0;
-        }
-        let mut end_byte: isize;
-        if (last == -1 && !exclusive) || last == VARNUMBER_MAX {
-            end_byte = slen as isize;
-        } else {
-            end_byte = char_idx2byte(str_, slen, last);
-            if !exclusive && end_byte >= 0 && end_byte < (slen as isize) {
-                end_byte += utfc_ptr2len(str_.wrapping_add(end_byte as usize)) as isize;
-            }
-        }
-
-        if start_byte >= (slen as isize) || end_byte <= start_byte {
-            return None;
-        }
-        Some(cstr_from_bytes(&s[start_byte as usize..end_byte as usize]))
+    let slen = s.len();
+    let mut start_byte = char_idx2byte(s, first);
+    if start_byte < 0 {
+        start_byte = 0;
     }
+    let mut end_byte: isize;
+    if (last == -1 && !exclusive) || last == VARNUMBER_MAX {
+        end_byte = slen as isize;
+    } else {
+        end_byte = char_idx2byte(s, last);
+        if !exclusive && end_byte >= 0 && (end_byte as usize) < slen {
+            end_byte += crate::mbyte::utfc_slice2len(&s[end_byte as usize..]) as isize;
+        }
+    }
+
+    if start_byte >= (slen as isize) || end_byte <= start_byte {
+        return None;
+    }
+    Some(cstr_from_bytes(
+        &s[start_byte as usize..(end_byte as usize).min(slen)],
+    ))
 }
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
@@ -6636,32 +6621,24 @@ pub fn find_option_var_end<T>(
     }
 }
 
-pub fn var_flavour(varname: impl crate::strings::IntoCCharPtr) -> VarFlavour {
-    let varname = varname.into_c_char_ptr().cast_mut();
+pub fn var_flavour(varname: &[u8]) -> VarFlavour {
+    if varname
+        .first()
+        .is_some_and(|&b| ascii_isupper(i32::from(b)))
     {
-        let mut p = varname;
-
-        if ascii_isupper(crate::memory::cstr_first_byte(p)) {
-            loop {
-                p = p.wrapping_add(1);
-                if crate::memory::cstr_is_empty(p) {
-                    break;
-                }
-                if ascii_islower(crate::memory::cstr_first_byte(p)) {
-                    return VAR_FLAVOUR_SESSION;
-                }
-            }
-            return VAR_FLAVOUR_SHADA;
+        if varname[1..].iter().any(|&b| ascii_islower(i32::from(b))) {
+            return VAR_FLAVOUR_SESSION;
         }
-        VAR_FLAVOUR_DEFAULT
+        return VAR_FLAVOUR_SHADA;
     }
+    VAR_FLAVOUR_DEFAULT
 }
 
 pub fn var_set_global(name: impl crate::strings::IntoCCharPtr, mut vartv: TypVal) {
     let name = name.into_c_char_ptr();
     {
         save_funccal();
-        set_var(name, crate::memory::cstr_len(name), &mut vartv, false);
+        set_var(crate::memory::cstr_as_bytes(name), &mut vartv, false);
         restore_funccal();
     }
 }
@@ -7350,9 +7327,9 @@ mod tests {
 
     #[test]
     fn test_var_flavour_and_luafunc_name() {
-        assert_eq!(var_flavour(c"foo"), VAR_FLAVOUR_DEFAULT);
-        assert_eq!(var_flavour(c"Foo"), VAR_FLAVOUR_SESSION);
-        assert_eq!(var_flavour(c"FOO"), VAR_FLAVOUR_SHADA);
+        assert_eq!(var_flavour(b"foo"), VAR_FLAVOUR_DEFAULT);
+        assert_eq!(var_flavour(b"Foo"), VAR_FLAVOUR_SESSION);
+        assert_eq!(var_flavour(b"FOO"), VAR_FLAVOUR_SHADA);
 
         assert_eq!(check_luafunc_name(c"my_mod.fn(", true), 9);
         assert_eq!(check_luafunc_name(c"my_mod.fn", false), 9);

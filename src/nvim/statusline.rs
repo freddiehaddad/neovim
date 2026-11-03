@@ -1453,19 +1453,14 @@ pub extern "C" fn build_stl_str_hl(
                 v_lock: 0,
                 vval: TypvalVval::Number(Varnumber::from(wp.handle)),
             };
-            set_var(
-                c"g:statusline_winid",
-                "g:statusline_winid".len(),
-                &mut tv,
-                false,
-            );
+            set_var(b"g:statusline_winid", &mut tv, false);
 
             owned_usefmt = eval_to_string_safe(fmt.wrapping_add(2).cast(), use_sandbox, false);
             usefmt = owned_usefmt
                 .as_ref()
                 .map_or(fmt, |s| s.as_ptr().cast_mut().cast());
 
-            do_unlet(c"g:statusline_winid", "g:statusline_winid".len(), true);
+            do_unlet(b"g:statusline_winid", true);
         }
 
         if fillchar == 0 {
@@ -1959,8 +1954,8 @@ pub extern "C" fn build_stl_str_hl(
                         g_st().curbuf = save_curbuf;
                         g_st().visual_global.active = save_VIsual_active;
 
-                        do_unlet(c"g:actual_curbuf", "g:actual_curbuf".len(), true);
-                        do_unlet(c"g:actual_curwin", "g:actual_curwin".len(), true);
+                        do_unlet(b"g:actual_curbuf", true);
+                        do_unlet(b"g:actual_curwin", true);
 
                         if !zeropad
                             && !crate::memory::cstr_is_empty(str.cast())

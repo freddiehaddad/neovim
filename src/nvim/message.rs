@@ -3961,7 +3961,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, c" ", 1, 1);
                     } else if g_st().redir_vname {
-                        var_redir_str(c" ", -1);
+                        var_redir_str(b" ");
                     } else if let Some(ref rf) = g_st().redir_fd {
                         rf.puts(c" ");
                     }
@@ -3985,7 +3985,7 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 write_reg_contents(g_st().redir_reg, s, len as isize, 1);
             }
             if g_st().redir_vname {
-                var_redir_str(s, maxlen as i32);
+                var_redir_str(crate::memory::cstr_slice(s, len));
             }
 
             while (maxlen < 0 || (crate::memory::ptr_offset_from(s, str_) as i32) < maxlen as i32)
