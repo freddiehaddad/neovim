@@ -1638,56 +1638,55 @@ fn count_syllables(slang: &mut Slang, word: impl crate::strings::IntoCCharPtr) -
     }
 }
 pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> {
-    unsafe {
-        let mut region_cp: [u8; 3] = [0; 3];
-        let mut lang: [u8; MAXWLEN + 1] = [0; MAXWLEN + 1];
-        let mut spf_name: [u8; MAXPATHL] = [0; MAXPATHL];
-        let mut use_region: *mut u8 = ptr::null_mut();
-        let mut dont_use_region = false;
-        let mut nobreak = false;
-        let mut ret_msg: Option<&'static std::ffi::CStr> = None;
-        let mut bufref = Bufref {
-            br_buf: ptr::null_mut(),
-            br_fnum: 0,
-            br_buf_free_count: 0,
-        };
-        set_bufref(&mut bufref, wp.w_buffer);
-        if spell_priv_st().parse_spelllang_recursive {
-            return None;
-        }
-        spell_priv_st().parse_spelllang_recursive = true;
-        let mut ga: Vec<Langp> = Vec::with_capacity(2);
-        clear_midword(wp);
-        let w_s = wp.w_s_ptr();
-        let spl_copy = crate::memory::cstr_to_cstring(w_s.b_p_spl);
-        w_s.b_cjk = 0;
-        'theend: {
-            let mut splp = spl_copy.as_ptr().cast_mut();
-            while !crate::memory::cstr_is_empty(splp) {
-                let len =
-                    copy_option_part(&raw mut splp, (&raw mut lang).cast(), MAXWLEN, c",") as i32;
-                let mut region: *mut u8 = ptr::null_mut();
-                let lang_ptr = (&raw mut lang).cast::<u8>();
-                if !valid_spelllang(lang_ptr.cast()) {
-                    continue;
-                }
-                if crate::memory::cstr_as_bytes(lang_ptr.cast()) == b"cjk" {
-                    w_s.b_cjk = 1;
-                    continue;
-                }
-                let (filename, slang) = if len > 4
-                    && path_equal(
-                        lang_ptr.wrapping_add((len - 4) as usize).cast(),
-                        c".spl",
-                        K_PATH_CMP_LITERAL as PathCmpFlags,
-                    ) {
-                    let p = vim_strchr(path_tail(lang_ptr.cast()), b'_' as i32);
-                    let p_bytes = crate::memory::cstr_as_bytes(p);
-                    if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
-                        && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
-                        && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
-                    {
-                        crate::memory::copy_bytes_to_c_buf(&mut region_cp, &p_bytes[1..]);
+    let mut region_cp: [u8; 3] = [0; 3];
+    let mut lang: [u8; MAXWLEN + 1] = [0; MAXWLEN + 1];
+    let mut spf_name: [u8; MAXPATHL] = [0; MAXPATHL];
+    let mut use_region: *mut u8 = ptr::null_mut();
+    let mut dont_use_region = false;
+    let mut nobreak = false;
+    let mut ret_msg: Option<&'static std::ffi::CStr> = None;
+    let mut bufref = Bufref {
+        br_buf: ptr::null_mut(),
+        br_fnum: 0,
+        br_buf_free_count: 0,
+    };
+    set_bufref(&mut bufref, wp.w_buffer);
+    if spell_priv_st().parse_spelllang_recursive {
+        return None;
+    }
+    spell_priv_st().parse_spelllang_recursive = true;
+    let mut ga: Vec<Langp> = Vec::with_capacity(2);
+    clear_midword(wp);
+    let w_s = wp.w_s_ptr();
+    let spl_copy = crate::memory::cstr_to_cstring(w_s.b_p_spl);
+    w_s.b_cjk = 0;
+    'theend: {
+        let mut splp = spl_copy.as_ptr().cast_mut();
+        while !crate::memory::cstr_is_empty(splp) {
+            let len = copy_option_part(&raw mut splp, (&raw mut lang).cast(), MAXWLEN, c",") as i32;
+            let mut region: *mut u8 = ptr::null_mut();
+            let lang_ptr = (&raw mut lang).cast::<u8>();
+            if !valid_spelllang(lang_ptr.cast()) {
+                continue;
+            }
+            if crate::memory::cstr_as_bytes(lang_ptr.cast()) == b"cjk" {
+                w_s.b_cjk = 1;
+                continue;
+            }
+            let (filename, slang) = if len > 4
+                && path_equal(
+                    lang_ptr.wrapping_add((len - 4) as usize).cast(),
+                    c".spl",
+                    K_PATH_CMP_LITERAL as PathCmpFlags,
+                ) {
+                let p = vim_strchr(path_tail(lang_ptr.cast()), b'_' as i32);
+                let p_bytes = crate::memory::cstr_as_bytes(p);
+                if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
+                    && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
+                    && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
+                {
+                    crate::memory::copy_bytes_to_c_buf(&mut region_cp, &p_bytes[1..]);
+                    unsafe {
                         ptr::copy(
                             p.wrapping_add(3),
                             p,
@@ -1695,192 +1694,106 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                                 - (crate::memory::ptr_offset_from(p, lang_ptr.cast()) as usize)
                                 - 2,
                         );
-                        region = (&raw mut region_cp).cast();
-                    } else {
-                        dont_use_region = true;
                     }
-                    let slang = spell_priv_st()
-                        .first_lang
-                        .iter_mut()
-                        .rev()
-                        .find(|s| {
-                            s.sl_fname.as_ref().is_some_and(|f| {
-                                path_equal(
-                                    lang_ptr.cast(),
-                                    f.as_ptr(),
-                                    K_PATH_CMP_EXPAND as PathCmpFlags,
-                                )
-                            })
-                        })
-                        .map_or(ptr::null_mut(), |s| &raw mut **s);
-                    (true, slang)
+                    region = (&raw mut region_cp).cast();
                 } else {
-                    if len > 3 && lang[(len - 3) as usize] == b'_' {
-                        region = lang_ptr.wrapping_add((len - 2) as usize);
-                        lang[(len - 3) as usize] = 0;
-                    } else {
-                        dont_use_region = true;
-                    }
-                    let slang = spell_priv_st()
-                        .first_lang
-                        .iter_mut()
-                        .rev()
-                        .find(|s| {
-                            s.sl_name
-                                .as_ref()
-                                .is_some_and(|n| mb_stricmp(lang_ptr.cast(), n.as_ptr()) == 0)
-                        })
-                        .map_or(ptr::null_mut(), |s| &raw mut **s);
-                    (false, slang)
-                };
-                if !region.is_null() {
-                    if !use_region.is_null()
-                        && crate::memory::cstr_as_bytes(region.cast())
-                            != crate::memory::cstr_as_bytes(use_region.cast())
-                    {
-                        dont_use_region = true;
-                    }
-                    use_region = region;
+                    dont_use_region = true;
                 }
-                if slang.is_null() {
-                    if filename {
-                        let fname_cstr =
-                            crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(&lang));
-                        let _ = spell_load_file(
-                            fname_cstr.as_ptr(),
-                            Some(&mut lang),
-                            ptr::null_mut(),
-                            false,
-                        );
-                    } else {
-                        spell_load_lang(lang_ptr.cast());
-                        if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
-                            ret_msg = Some(c"E797: SpellFileMissing autocommand deleted buffer");
-                            break 'theend;
-                        }
-                    }
-                }
-                for s in spell_priv_st().first_lang.iter_mut().rev() {
-                    let slang: &mut Slang = s;
-                    let matched = if filename {
-                        slang.sl_fname.as_ref().is_some_and(|f| {
-                            path_equal(
-                                lang_ptr.cast(),
-                                f.as_ptr(),
-                                K_PATH_CMP_EXPAND as PathCmpFlags,
-                            )
-                        })
-                    } else {
-                        slang
-                            .sl_name
-                            .as_ref()
-                            .is_some_and(|n| mb_stricmp(lang_ptr.cast(), n.as_ptr()) == 0)
-                    };
-                    if matched {
-                        let mut region_mask = REGION_ALL;
-                        if !filename && !region.is_null() {
-                            let c =
-                                find_region((&raw const slang.sl_regions).cast(), region.cast());
-                            if c == REGION_ALL {
-                                if slang.sl_add {
-                                    if slang.sl_regions[0] != 0 {
-                                        region_mask = 0;
-                                    }
-                                } else {
-                                    smsg!(
-                                        0,
-                                        gettext(c"Warning: region %s not supported"),
-                                        region.cast::<std::ffi::c_void>(),
-                                    );
-                                }
-                            } else {
-                                region_mask = 1 << c;
-                            }
-                        }
-                        if region_mask != 0 {
-                            ga.push(Langp {
-                                lp_slang: &raw mut *slang,
-                                lp_sallang: ptr::null_mut(),
-                                lp_replang: ptr::null_mut(),
-                                lp_region: region_mask,
-                            });
-                            use_midword(slang, wp);
-                            if slang.sl_nobreak {
-                                nobreak = true;
-                            }
-                        }
-                    }
-                }
-            }
-            let cur_w_s = curwin_mut().w_s_ptr();
-            let mut spf = cur_w_s.b_p_spf;
-            let mut round = 0;
-            while round == 0 || !crate::memory::cstr_is_empty(spf) {
-                let cur_round = round;
-                round += 1;
-                let spf_ptr = (&raw mut spf_name).cast::<u8>();
-                if cur_round == 0 {
-                    if spell_priv_st().int_wordlist.is_none() {
-                        continue;
-                    }
-                    int_wordlist_spl(&mut spf_name);
-                } else {
-                    let len = copy_option_part(&raw mut spf, spf_ptr.cast(), MAXPATHL - 4, c",");
-                    spf_name[len..len + 5].copy_from_slice(b".spl\0");
-                    let mut c = 0;
-                    while c < ga.len() {
-                        if (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
-                            path_equal(
-                                spf_ptr.cast(),
-                                p.as_ptr(),
-                                K_PATH_CMP_EXPAND as PathCmpFlags,
-                            )
-                        }) {
-                            break;
-                        }
-                        c += 1;
-                    }
-                    if c < ga.len() {
-                        continue;
-                    }
-                }
-                let mut slang = spell_priv_st()
+                let slang = spell_priv_st()
                     .first_lang
                     .iter_mut()
                     .rev()
                     .find(|s| {
                         s.sl_fname.as_ref().is_some_and(|f| {
                             path_equal(
-                                spf_ptr.cast(),
+                                lang_ptr.cast(),
                                 f.as_ptr(),
                                 K_PATH_CMP_EXPAND as PathCmpFlags,
                             )
                         })
                     })
                     .map_or(ptr::null_mut(), |s| &raw mut **s);
-                if slang.is_null() {
-                    if cur_round == 0 {
-                        lang[..18].copy_from_slice(b"internal wordlist\0");
-                    } else {
-                        let tail = crate::memory::cstr_as_bytes(path_tail(spf_ptr.cast()));
-                        let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
-                        crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
-                    }
-                    slang = spell_load_file(spf_ptr.cast(), Some(&mut lang), ptr::null_mut(), true);
-                    if !slang.is_null() && nobreak {
-                        (*slang).sl_nobreak = true;
+                (true, slang)
+            } else {
+                if len > 3 && lang[(len - 3) as usize] == b'_' {
+                    region = lang_ptr.wrapping_add((len - 2) as usize);
+                    lang[(len - 3) as usize] = 0;
+                } else {
+                    dont_use_region = true;
+                }
+                let slang = spell_priv_st()
+                    .first_lang
+                    .iter_mut()
+                    .rev()
+                    .find(|s| {
+                        s.sl_name
+                            .as_ref()
+                            .is_some_and(|n| mb_stricmp(lang_ptr.cast(), n.as_ptr()) == 0)
+                    })
+                    .map_or(ptr::null_mut(), |s| &raw mut **s);
+                (false, slang)
+            };
+            if !region.is_null() {
+                if !use_region.is_null()
+                    && crate::memory::cstr_as_bytes(region.cast())
+                        != crate::memory::cstr_as_bytes(use_region.cast())
+                {
+                    dont_use_region = true;
+                }
+                use_region = region;
+            }
+            if slang.is_null() {
+                if filename {
+                    let fname_cstr =
+                        crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(&lang));
+                    let _ = spell_load_file(
+                        fname_cstr.as_ptr(),
+                        Some(&mut lang),
+                        ptr::null_mut(),
+                        false,
+                    );
+                } else {
+                    spell_load_lang(lang_ptr.cast());
+                    if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
+                        ret_msg = Some(c"E797: SpellFileMissing autocommand deleted buffer");
+                        break 'theend;
                     }
                 }
-                if !slang.is_null() {
-                    let slang = &mut *slang;
+            }
+            for s in spell_priv_st().first_lang.iter_mut().rev() {
+                let slang: &mut Slang = s;
+                let matched = if filename {
+                    slang.sl_fname.as_ref().is_some_and(|f| {
+                        path_equal(
+                            lang_ptr.cast(),
+                            f.as_ptr(),
+                            K_PATH_CMP_EXPAND as PathCmpFlags,
+                        )
+                    })
+                } else {
+                    slang
+                        .sl_name
+                        .as_ref()
+                        .is_some_and(|n| mb_stricmp(lang_ptr.cast(), n.as_ptr()) == 0)
+                };
+                if matched {
                     let mut region_mask = REGION_ALL;
-                    if !use_region.is_null() && !dont_use_region {
-                        let c =
-                            find_region((&raw const slang.sl_regions).cast(), use_region.cast());
-                        if c != REGION_ALL {
+                    if !filename && !region.is_null() {
+                        let c = find_region((&raw const slang.sl_regions).cast(), region.cast());
+                        if c == REGION_ALL {
+                            if slang.sl_add {
+                                if slang.sl_regions[0] != 0 {
+                                    region_mask = 0;
+                                }
+                            } else {
+                                smsg!(
+                                    0,
+                                    gettext(c"Warning: region %s not supported"),
+                                    region.cast::<std::ffi::c_void>(),
+                                );
+                            }
+                        } else {
                             region_mask = 1 << c;
-                        } else if slang.sl_regions[0] != 0 {
-                            region_mask = 0;
                         }
                     }
                     if region_mask != 0 {
@@ -1891,56 +1804,150 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                             lp_region: region_mask,
                         });
                         use_midword(slang, wp);
+                        if slang.sl_nobreak {
+                            nobreak = true;
+                        }
                     }
                 }
             }
-            for i in 0..ga.len() {
-                let lp_slang = ga[i].lp_slang;
-                let lp_name = (*lp_slang)
+        }
+        let cur_w_s = curwin_mut().w_s_ptr();
+        let mut spf = cur_w_s.b_p_spf;
+        let mut round = 0;
+        while round == 0 || !crate::memory::cstr_is_empty(spf) {
+            let cur_round = round;
+            round += 1;
+            let spf_ptr = (&raw mut spf_name).cast::<u8>();
+            if cur_round == 0 {
+                if spell_priv_st().int_wordlist.is_none() {
+                    continue;
+                }
+                int_wordlist_spl(&mut spf_name);
+            } else {
+                let len = copy_option_part(&raw mut spf, spf_ptr.cast(), MAXPATHL - 4, c",");
+                spf_name[len..len + 5].copy_from_slice(b".spl\0");
+                let mut c = 0;
+                while c < ga.len() {
+                    if unsafe {
+                        (*ga[c].lp_slang).sl_fname.as_ref().is_some_and(|p| {
+                            path_equal(
+                                spf_ptr.cast(),
+                                p.as_ptr(),
+                                K_PATH_CMP_EXPAND as PathCmpFlags,
+                            )
+                        })
+                    } {
+                        break;
+                    }
+                    c += 1;
+                }
+                if c < ga.len() {
+                    continue;
+                }
+            }
+            let mut slang = spell_priv_st()
+                .first_lang
+                .iter_mut()
+                .rev()
+                .find(|s| {
+                    s.sl_fname.as_ref().is_some_and(|f| {
+                        path_equal(
+                            spf_ptr.cast(),
+                            f.as_ptr(),
+                            K_PATH_CMP_EXPAND as PathCmpFlags,
+                        )
+                    })
+                })
+                .map_or(ptr::null_mut(), |s| &raw mut **s);
+            if slang.is_null() {
+                if cur_round == 0 {
+                    lang[..18].copy_from_slice(b"internal wordlist\0");
+                } else {
+                    let tail = crate::memory::cstr_as_bytes(path_tail(spf_ptr.cast()));
+                    let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
+                    crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
+                }
+                slang = spell_load_file(spf_ptr.cast(), Some(&mut lang), ptr::null_mut(), true);
+                if !slang.is_null() && nobreak {
+                    unsafe {
+                        (*slang).sl_nobreak = true;
+                    }
+                }
+            }
+            if !slang.is_null() {
+                let slang = unsafe { &mut *slang };
+                let mut region_mask = REGION_ALL;
+                if !use_region.is_null() && !dont_use_region {
+                    let c = find_region((&raw const slang.sl_regions).cast(), use_region.cast());
+                    if c != REGION_ALL {
+                        region_mask = 1 << c;
+                    } else if slang.sl_regions[0] != 0 {
+                        region_mask = 0;
+                    }
+                }
+                if region_mask != 0 {
+                    ga.push(Langp {
+                        lp_slang: &raw mut *slang,
+                        lp_sallang: ptr::null_mut(),
+                        lp_replang: ptr::null_mut(),
+                        lp_region: region_mask,
+                    });
+                    use_midword(slang, wp);
+                }
+            }
+        }
+        for i in 0..ga.len() {
+            let lp_slang = ga[i].lp_slang;
+            let lp_name = unsafe {
+                (*lp_slang)
                     .sl_name
                     .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr());
-                if (*lp_slang).has_sal() {
-                    ga[i].lp_sallang = lp_slang;
-                } else {
-                    for lp2 in &ga {
-                        let lp2_b = (*lp2.lp_slang)
+                    .map_or(c"".as_ptr(), |s| s.as_ptr())
+            };
+            if unsafe { (*lp_slang).has_sal() } {
+                ga[i].lp_sallang = lp_slang;
+            } else {
+                for lp2 in &ga {
+                    let lp2_b = unsafe {
+                        (*lp2.lp_slang)
                             .sl_name
                             .as_ref()
-                            .map_or(&b""[..], |s| s.as_bytes());
-                        let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                        if (*lp2.lp_slang).has_sal()
-                            && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
-                        {
-                            ga[i].lp_sallang = lp2.lp_slang;
-                            break;
-                        }
-                    }
-                }
-                if !(*lp_slang).sl_rep.is_empty() {
-                    ga[i].lp_replang = lp_slang;
-                } else {
-                    for lp2 in &ga {
-                        let lp2_b = (*lp2.lp_slang)
-                            .sl_name
-                            .as_ref()
-                            .map_or(&b""[..], |s| s.as_bytes());
-                        let lp_b = crate::memory::cstr_as_bytes(lp_name);
-                        if !(*lp2.lp_slang).sl_rep.is_empty()
-                            && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
-                        {
-                            ga[i].lp_replang = lp2.lp_slang;
-                            break;
-                        }
+                            .map_or(&b""[..], |s| s.as_bytes())
+                    };
+                    let lp_b = crate::memory::cstr_as_bytes(lp_name);
+                    if unsafe { (*lp2.lp_slang).has_sal() }
+                        && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
+                    {
+                        ga[i].lp_sallang = lp2.lp_slang;
+                        break;
                     }
                 }
             }
-            w_s.b_langp = ga;
-            redraw_later(Some(&mut *wp), UPD_NOT_VALID);
+            if unsafe { !(*lp_slang).sl_rep.is_empty() } {
+                ga[i].lp_replang = lp_slang;
+            } else {
+                for lp2 in &ga {
+                    let lp2_b = unsafe {
+                        (*lp2.lp_slang)
+                            .sl_name
+                            .as_ref()
+                            .map_or(&b""[..], |s| s.as_bytes())
+                    };
+                    let lp_b = crate::memory::cstr_as_bytes(lp_name);
+                    if unsafe { !(*lp2.lp_slang).sl_rep.is_empty() }
+                        && lp_b[..2.min(lp_b.len())] == lp2_b[..2.min(lp2_b.len())]
+                    {
+                        ga[i].lp_replang = lp2.lp_slang;
+                        break;
+                    }
+                }
+            }
         }
-        spell_priv_st().parse_spelllang_recursive = false;
-        ret_msg
+        w_s.b_langp = ga;
+        redraw_later(Some(&mut *wp), UPD_NOT_VALID);
     }
+    spell_priv_st().parse_spelllang_recursive = false;
+    ret_msg
 }
 fn clear_midword(wp: &mut WinInfoInfo) {
     let w_s = wp.w_s_ptr();

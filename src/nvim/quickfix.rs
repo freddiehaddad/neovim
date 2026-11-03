@@ -686,12 +686,10 @@ fn get_loc_list_opt(wp: &WinInfoInfo) -> Option<&'static mut QfInfo> {
 
 #[inline]
 fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
-    unsafe {
-        if ptr::eq(tp, g_st().curtab) {
-            &mut *g_st().firstwin
-        } else {
-            &mut *tp.tp_firstwin
-        }
+    if ptr::eq(tp, g_st().curtab) {
+        unsafe { &mut *g_st().firstwin }
+    } else {
+        unsafe { &mut *tp.tp_firstwin }
     }
 }
 
@@ -1056,36 +1054,41 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str: impl crate::strings::IntoCCh
 }
 
 fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> i32 {
-    unsafe {
-        while !p_li.is_null()
-            && ((*p_li).li_tv.v_type != VarType::VarString
-                || (*p_li).li_tv.vval.v_string().is_null())
-        {
+    while !p_li.is_null()
+        && (unsafe {
+            (*p_li).li_tv.v_type != VarType::VarString || (*p_li).li_tv.vval.v_string().is_null()
+        })
+    {
+        unsafe {
             p_li = (*p_li).li_next;
         }
+    }
 
-        if p_li.is_null() {
-            state.source = QfInputSource::List(ptr::null_mut());
-            return QF_END_OF_INPUT;
-        }
+    if p_li.is_null() {
+        state.source = QfInputSource::List(ptr::null_mut());
+        return QF_END_OF_INPUT;
+    }
 
-        let s = (*p_li).li_tv.vval.v_string();
-        let len = crate::memory::cstr_len(s);
-        let linebuf = if len > IOSIZE - 2 {
-            qf_grow_linebuf(state, len)
-        } else {
-            state.use_growbuf = false;
-            state.linelen = len;
-            g_st().iobuff.as_mut_ptr().cast()
-        };
+    let s = unsafe { (*p_li).li_tv.vval.v_string() };
+    let len = crate::memory::cstr_len(s);
+    let linebuf = if len > IOSIZE - 2 {
+        qf_grow_linebuf(state, len)
+    } else {
+        state.use_growbuf = false;
+        state.linelen = len;
+        g_st().iobuff.as_mut_ptr().cast()
+    };
 
+    unsafe {
         crate::memory::copy_bytes_to_c_buf(
             std::slice::from_raw_parts_mut(linebuf, state.linelen + 1),
             crate::memory::cstr_as_bytes(s),
         );
-        state.source = QfInputSource::List((*p_li).li_next);
-        QF_OK
     }
+    unsafe {
+        state.source = QfInputSource::List((*p_li).li_next);
+    }
+    QF_OK
 }
 
 fn qf_get_next_buf_line(
@@ -2053,21 +2056,29 @@ fn qf_free_list_stack_items(qi: &mut QfInfo) {
 }
 
 fn ll_free_all(pqi: *mut *mut QfInfo) {
+    let qi = unsafe { *pqi };
+    if qi.is_null() {
+        return;
+    }
     unsafe {
-        let qi = *pqi;
-        if qi.is_null() {
-            return;
-        }
         *pqi = ptr::null_mut();
+    }
 
-        if qf_st().quickfix_busy > 0 {
+    if qf_st().quickfix_busy > 0 {
+        unsafe {
             locstack_queue_delreq(&mut *qi);
-            return;
         }
+        return;
+    }
 
+    unsafe {
         (*qi).qf_refcount -= 1;
-        if (*qi).qf_refcount < 1 {
+    }
+    if unsafe { (*qi).qf_refcount < 1 } {
+        unsafe {
             wipe_qf_buffer(&mut *qi);
+        }
+        unsafe {
             drop(Box::from_raw(qi));
         }
     }
@@ -2236,9 +2247,9 @@ pub fn qf_init_stack() {
 }
 
 fn qf_sync_llw_to_win(llw: &mut WinInfoInfo) {
-    unsafe {
-        let wp = qf_find_win_with_loclist(&*llw.w_llist_ref);
-        if !wp.is_null() {
+    let wp = unsafe { qf_find_win_with_loclist(&*llw.w_llist_ref) };
+    if !wp.is_null() {
+        unsafe {
             (*wp).w_onebuf_opt.wo_lhi = llw.w_onebuf_opt.wo_lhi;
         }
     }
@@ -2774,84 +2785,86 @@ fn qf_open_new_file_win(ll_ref: Option<&mut QfInfo>) -> bool {
 }
 
 fn qf_goto_win_with_ll_file(use_win: *mut WinInfoInfo, qf_fnum: i32, ll_ref: Option<&mut QfInfo>) {
-    unsafe {
-        let mut win = use_win;
+    let mut win = use_win;
 
+    if win.is_null() {
+        for win2 in win_iter_ptr(tab_firstwin(curtab_mut())) {
+            if (*win2).buf_mut().b_fnum == qf_fnum {
+                win = win2;
+                break;
+            }
+        }
         if win.is_null() {
-            for win2 in win_iter_ptr(tab_firstwin(curtab_mut())) {
-                if (*win2).buf_mut().b_fnum == qf_fnum {
-                    win = win2;
+            win = curwin_ptr();
+            loop {
+                if unsafe { bt_normal(((*win).w_buffer).as_ref()) } {
+                    break;
+                }
+                if unsafe { (*win).w_prev.is_null() } {
+                    win = g_st().lastwin;
+                } else {
+                    unsafe {
+                        win = (*win).w_prev;
+                    }
+                }
+                if win == curwin_ptr() {
                     break;
                 }
             }
-            if win.is_null() {
-                win = curwin_ptr();
-                loop {
-                    if bt_normal(((*win).w_buffer).as_ref()) {
-                        break;
-                    }
-                    if (*win).w_prev.is_null() {
-                        win = g_st().lastwin;
-                    } else {
-                        win = (*win).w_prev;
-                    }
-                    if win == curwin_ptr() {
-                        break;
-                    }
-                }
-            }
         }
-        win_goto(win);
+    }
+    win_goto(win);
 
-        if (*win).w_llist.is_null()
-            && let Some(ll_ref) = ll_ref
-        {
+    if unsafe { (*win).w_llist.is_null() }
+        && let Some(ll_ref) = ll_ref
+    {
+        unsafe {
             win_set_loclist(&mut *win, ll_ref);
         }
     }
 }
 
 fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
-    unsafe {
-        let mut win = curwin_ptr();
-        let mut altwin: *mut WinInfoInfo = ptr::null_mut();
-        loop {
-            if (*win).buf_mut().b_fnum == qf_fnum {
-                break;
-            }
-            if (*win).w_prev.is_null() {
-                win = g_st().lastwin;
-            } else {
+    let mut win = curwin_ptr();
+    let mut altwin: *mut WinInfoInfo = ptr::null_mut();
+    loop {
+        if unsafe { (*win).buf_mut().b_fnum == qf_fnum } {
+            break;
+        }
+        if unsafe { (*win).w_prev.is_null() } {
+            win = g_st().lastwin;
+        } else {
+            unsafe {
                 win = (*win).w_prev;
-            }
-
-            if is_qf_window(&*win) {
-                if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
-                    && win_valid(g_st().prevwin)
-                    && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
-                {
-                    win = g_st().prevwin;
-                } else if !altwin.is_null() {
-                    win = altwin;
-                } else if !curwin_mut().w_prev.is_null() {
-                    win = curwin_mut().w_prev;
-                } else {
-                    win = curwin_mut().w_next;
-                }
-                break;
-            }
-
-            if altwin.is_null()
-                && (*win).w_onebuf_opt.wo_pvw == 0
-                && (*win).w_onebuf_opt.wo_wfb == 0
-                && bt_normal(((*win).w_buffer).as_ref())
-            {
-                altwin = win;
             }
         }
 
-        win_goto(win);
+        if unsafe { is_qf_window(&*win) } {
+            if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
+                && win_valid(g_st().prevwin)
+                && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
+            {
+                win = g_st().prevwin;
+            } else if !altwin.is_null() {
+                win = altwin;
+            } else if !curwin_mut().w_prev.is_null() {
+                win = curwin_mut().w_prev;
+            } else {
+                win = curwin_mut().w_next;
+            }
+            break;
+        }
+
+        if altwin.is_null()
+            && unsafe { (*win).w_onebuf_opt.wo_pvw == 0 }
+            && unsafe { (*win).w_onebuf_opt.wo_wfb == 0 }
+            && unsafe { bt_normal(((*win).w_buffer).as_ref()) }
+        {
+            altwin = win;
+        }
     }
+
+    win_goto(win);
 }
 
 fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool) -> bool {
@@ -5426,64 +5439,66 @@ fn vgr_process_files(
     first_match_buf: *mut *mut FileBuf,
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
-    unsafe {
-        let mut status = false;
-        let mut save_qfid = qf_get_curlist(&mut *qi).qf_id;
-        let mut duplicate_name = false;
+    let mut status = false;
+    let mut save_qfid = unsafe { qf_get_curlist(&mut *qi).qf_id };
+    let mut duplicate_name = false;
 
-        let mut dirname_start = vec![0u8; MAXPATHL];
-        let mut dirname_now = vec![0u8; MAXPATHL];
+    let mut dirname_start = vec![0u8; MAXPATHL];
+    let mut dirname_now = vec![0u8; MAXPATHL];
 
-        os_dirname(dirname_start.as_mut_ptr(), MAXPATHL);
+    os_dirname(dirname_start.as_mut_ptr(), MAXPATHL);
 
-        let mut seconds: time_t = 0;
-        let mut fi: usize = 0;
-        let mut aborted = false;
-        while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
-            let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
-            let fname = path_try_shorten_fname(fname_exp);
-            let now = os_time() as time_t;
-            if now > seconds {
-                seconds = now;
-                vgr_display_fname(fname);
-            }
+    let mut seconds: time_t = 0;
+    let mut fi: usize = 0;
+    let mut aborted = false;
+    while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
+        let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
+        let fname = path_try_shorten_fname(fname_exp);
+        let now = os_time() as time_t;
+        if now > seconds {
+            seconds = now;
+            vgr_display_fname(fname);
+        }
 
-            let mut buf = buflist_findname_exp(fname_exp);
-            let using_dummy: bool;
-            if buf.is_null() || (*buf).b_ml.ml_mfp.is_none() {
-                duplicate_name = !buf.is_null();
-                using_dummy = true;
-                *redraw_for_dummy = true;
-                buf = vgr_load_dummy_buf(
-                    fname,
-                    dirname_start.as_mut_ptr().cast(),
-                    dirname_now.as_mut_ptr().cast(),
-                );
-            } else {
-                using_dummy = false;
-            }
+        let mut buf = buflist_findname_exp(fname_exp);
+        let using_dummy: bool;
+        if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+            duplicate_name = !buf.is_null();
+            using_dummy = true;
+            *redraw_for_dummy = true;
+            buf = vgr_load_dummy_buf(
+                fname,
+                dirname_start.as_mut_ptr().cast(),
+                dirname_now.as_mut_ptr().cast(),
+            );
+        } else {
+            using_dummy = false;
+        }
 
-            if !vgr_qflist_valid(
-                wp,
-                qi,
-                save_qfid,
-                cmd_args
-                    .qf_title
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-            ) {
-                aborted = true;
-                break;
-            }
+        if !vgr_qflist_valid(
+            wp,
+            qi,
+            save_qfid,
+            cmd_args
+                .qf_title
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+        ) {
+            aborted = true;
+            break;
+        }
 
+        unsafe {
             save_qfid = qf_get_curlist(&mut *qi).qf_id;
+        }
 
-            if buf.is_null() {
-                if !g_st().got_int {
-                    smsg!(0, gettext(c"Cannot open file \"%s\""), fname);
-                }
-            } else {
-                let found_match = vgr_match_buflines(
+        if buf.is_null() {
+            if !g_st().got_int {
+                smsg!(0, gettext(c"Cannot open file \"%s\""), fname);
+            }
+        } else {
+            let found_match = unsafe {
+                vgr_match_buflines(
                     qf_get_curlist(&mut *qi),
                     fname,
                     &mut *buf,
@@ -5492,63 +5507,71 @@ fn vgr_process_files(
                     &mut cmd_args.tomatch,
                     i32::from(duplicate_name),
                     cmd_args.flags,
-                );
+                )
+            };
 
-                if using_dummy {
-                    if found_match && (*first_match_buf).is_null() {
+            if using_dummy {
+                if found_match && unsafe { (*first_match_buf).is_null() } {
+                    unsafe {
                         *first_match_buf = buf;
                     }
-                    if duplicate_name {
+                }
+                if duplicate_name {
+                    unsafe {
                         wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr().cast());
-                        buf = ptr::null_mut();
-                    } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
-                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'u'
-                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'w'
-                        || crate::memory::cstr_first_byte((*buf).b_p_bh) == b'd'
-                    {
-                        if !found_match {
-                            wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr().cast());
-                            buf = ptr::null_mut();
-                        } else if buf != *first_match_buf
-                            || (cmd_args.flags & VGR_NOJUMP) != 0
-                            || existing_swapfile(&*buf)
-                        {
-                            unload_dummy_buffer(buf, dirname_start.as_mut_ptr().cast());
-                            (*buf).b_flags &= !BF_DUMMY;
-                            buf = ptr::null_mut();
-                        }
                     }
-
-                    if !buf.is_null() {
-                        let buf = &mut *buf;
-                        buf.b_flags &= !BF_DUMMY;
-
-                        if std::ptr::eq(buf, *first_match_buf)
-                            && target_dir.is_none()
-                            && (crate::memory::cstr_as_bytes(dirname_start.as_ptr().cast())
-                                != crate::memory::cstr_as_bytes(dirname_now.as_ptr().cast()))
-                        {
-                            *target_dir =
-                                Some(crate::memory::cstr_to_cstring(dirname_now.as_ptr().cast()));
+                    buf = ptr::null_mut();
+                } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
+                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'u' }
+                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'w' }
+                    || unsafe { crate::memory::cstr_first_byte((*buf).b_p_bh) == b'd' }
+                {
+                    if !found_match {
+                        unsafe {
+                            wipe_dummy_buffer(&mut *buf, dirname_start.as_mut_ptr().cast());
                         }
-
-                        let mut aco: CtxSwitch = CtxSwitch::new();
-                        ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
-                        apply_autocmds(EVENT_FILETYPE, buf.b_p_ft, buf.b_fname, true, buf);
-                        do_modelines(OPT_NOWIN);
-                        ctx_restore(&mut aco);
+                        buf = ptr::null_mut();
+                    } else if unsafe { buf != *first_match_buf }
+                        || (cmd_args.flags & VGR_NOJUMP) != 0
+                        || unsafe { existing_swapfile(&*buf) }
+                    {
+                        unload_dummy_buffer(buf, dirname_start.as_mut_ptr().cast());
+                        unsafe {
+                            (*buf).b_flags &= !BF_DUMMY;
+                        }
+                        buf = ptr::null_mut();
                     }
                 }
+
+                if !buf.is_null() {
+                    let buf = unsafe { &mut *buf };
+                    buf.b_flags &= !BF_DUMMY;
+
+                    if unsafe { std::ptr::eq(buf, *first_match_buf) }
+                        && target_dir.is_none()
+                        && (crate::memory::cstr_as_bytes(dirname_start.as_ptr().cast())
+                            != crate::memory::cstr_as_bytes(dirname_now.as_ptr().cast()))
+                    {
+                        *target_dir =
+                            Some(crate::memory::cstr_to_cstring(dirname_now.as_ptr().cast()));
+                    }
+
+                    let mut aco: CtxSwitch = CtxSwitch::new();
+                    ctx_switch(&mut aco, ptr::null_mut(), ptr::null_mut(), buf, 0);
+                    apply_autocmds(EVENT_FILETYPE, buf.b_p_ft, buf.b_fname, true, buf);
+                    do_modelines(OPT_NOWIN);
+                    ctx_restore(&mut aco);
+                }
             }
-            fi += 1;
         }
-
-        if !aborted {
-            status = true;
-        }
-
-        status
+        fi += 1;
     }
+
+    if !aborted {
+        status = true;
+    }
+
+    status
 }
 
 pub fn ex_vimgrep(eap: &mut Exarg) {
@@ -6717,35 +6740,51 @@ fn qf_set_properties(
 }
 
 fn qf_free_stack(mut wp: *mut WinInfoInfo, qi: *mut QfInfo) {
-    unsafe {
-        let qfwin = qf_find_win(&*qi);
+    let qfwin = unsafe { qf_find_win(&*qi) };
 
-        if !qfwin.is_null() {
-            if (*qi).qf_curlist < (*qi).qf_listcount {
+    if !qfwin.is_null() {
+        if unsafe { (*qi).qf_curlist < (*qi).qf_listcount } {
+            unsafe {
                 qf_free(qf_get_curlist(&mut *qi));
             }
+        }
+        unsafe {
             qf_update_buffer(&mut *qi, 0);
         }
+    }
 
-        if !wp.is_null() && is_ll_window(&*wp) {
-            let llwin = qf_find_win_with_loclist(&*qi);
-            if !llwin.is_null() {
-                wp = llwin;
-            }
+    if !wp.is_null() && unsafe { is_ll_window(&*wp) } {
+        let llwin = unsafe { qf_find_win_with_loclist(&*qi) };
+        if !llwin.is_null() {
+            wp = llwin;
+        }
+    }
+
+    unsafe {
+        qf_free_all(wp.as_mut());
+    }
+    if wp.is_null() {
+        unsafe {
+            (*qi).qf_curlist = 0;
+        }
+        unsafe {
+            (*qi).qf_listcount = 0;
+        }
+    } else if !qfwin.is_null() {
+        let new_ll = unsafe { qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as i32) };
+        unsafe {
+            new_ll.qf_bufnr = (*qfwin).buf_mut().b_fnum;
         }
 
-        qf_free_all(wp.as_mut());
-        if wp.is_null() {
-            (*qi).qf_curlist = 0;
-            (*qi).qf_listcount = 0;
-        } else if !qfwin.is_null() {
-            let new_ll = qf_alloc_stack(QFLT_LOCATION, (*wp).w_onebuf_opt.wo_lhi as i32);
-            new_ll.qf_bufnr = (*qfwin).buf_mut().b_fnum;
-
+        unsafe {
             ll_free_all(&raw mut (*qfwin).w_llist_ref);
+        }
 
+        unsafe {
             (*qfwin).w_llist_ref = new_ll;
-            if wp != qfwin {
+        }
+        if wp != qfwin {
+            unsafe {
                 win_set_loclist(&mut *wp, &mut *new_ll);
             }
         }

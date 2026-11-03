@@ -5085,24 +5085,24 @@ pub fn ex_spell(eap: &mut Exarg) {
 
 /// Add `word_bytes` to 'spellfile' as a good or bad word.
 pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: bool) {
-    unsafe {
-        let mut buf: *mut FileBuf = ptr::null_mut();
-        let mut new_spf = false;
-        let mut fnamebuf_arr = [0u8; MAXPATHL];
-        let mut line = [0u8; MAXWLEN * 2];
+    let mut buf: *mut FileBuf = ptr::null_mut();
+    let mut new_spf = false;
+    let mut fnamebuf_arr = [0u8; MAXPATHL];
+    let mut line = [0u8; MAXWLEN * 2];
 
-        if !valid_spell_word(word_bytes) {
-            emsg(gettext(E_ILLEGAL_CHARACTER_IN_WORD));
-            return;
-        }
+    if !valid_spell_word(word_bytes) {
+        emsg(gettext(E_ILLEGAL_CHARACTER_IN_WORD));
+        return;
+    }
 
-        let fname: *mut u8 = if idx == 0 {
+    let fname: *mut u8 = if idx == 0 {
+        if spell_priv_st().int_wordlist.is_none() {
+            spell_priv_st().int_wordlist = vim_tempname();
             if spell_priv_st().int_wordlist.is_none() {
-                spell_priv_st().int_wordlist = vim_tempname();
-                if spell_priv_st().int_wordlist.is_none() {
-                    return;
-                }
+                return;
             }
+        }
+        unsafe {
             (&raw const spell_priv_st().int_wordlist)
                 .as_ref()
                 .unwrap()
@@ -5111,163 +5111,167 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 .as_ptr()
                 .cast_mut()
                 .cast()
-        } else {
-            if crate::memory::cstr_is_empty(win_s(curwin_mut()).b_p_spf) {
-                init_spellfile();
-                new_spf = true;
-            }
+        }
+    } else {
+        if crate::memory::cstr_is_empty(win_s(curwin_mut()).b_p_spf) {
+            init_spellfile();
+            new_spf = true;
+        }
 
-            if crate::memory::cstr_is_empty(win_s(curwin_mut()).b_p_spf) {
-                semsg!(gettext(E_NOTSET), c"spellfile");
+        if crate::memory::cstr_is_empty(win_s(curwin_mut()).b_p_spf) {
+            semsg!(gettext(E_NOTSET), c"spellfile");
+            return;
+        }
+        let fnamebuf = fnamebuf_arr.as_mut_ptr();
+
+        let mut spf = win_s(curwin_mut()).b_p_spf;
+        let mut i: i32 = 1;
+        while !crate::memory::cstr_is_empty(spf) {
+            copy_option_part(&raw mut spf, fnamebuf.cast(), MAXPATHL, c",");
+            if i == idx {
+                break;
+            }
+            if crate::memory::cstr_is_empty(spf) {
+                semsg!(gettext(c"E765: 'spellfile' does not have %d entries"), idx,);
                 return;
             }
-            let fnamebuf = fnamebuf_arr.as_mut_ptr();
+            i += 1;
+        }
 
-            let mut spf = win_s(curwin_mut()).b_p_spf;
-            let mut i: i32 = 1;
-            while !crate::memory::cstr_is_empty(spf) {
-                copy_option_part(&raw mut spf, fnamebuf.cast(), MAXPATHL, c",");
-                if i == idx {
-                    break;
-                }
-                if crate::memory::cstr_is_empty(spf) {
-                    semsg!(gettext(c"E765: 'spellfile' does not have %d entries"), idx,);
-                    return;
-                }
-                i += 1;
+        buf = buflist_findname_exp(fnamebuf.cast());
+        if !buf.is_null() && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+            buf = ptr::null_mut();
+        }
+        if !buf.is_null() && unsafe { buf_is_changed_fn(&mut *buf) } {
+            emsg(gettext(E_BUFLOADED));
+            return;
+        }
+
+        fnamebuf
+    };
+
+    let mut did_open = false;
+    if what == SPELL_ADD_BAD || undo {
+        let mut fpos_next: i64 = 0;
+        let mut fd = CFile::open(fname.cast(), c"r");
+        did_open = fd.is_some();
+        let ulen = word_bytes.len();
+        while let Some(ref cur_fd) = fd
+            && !vim_fgets(&mut line, cur_fd)
+        {
+            let fpos = fpos_next;
+            fpos_next = cur_fd.tell();
+            if fpos_next < 0 {
+                break;
             }
-
-            buf = buflist_findname_exp(fnamebuf.cast());
-            if !buf.is_null() && (*buf).b_ml.ml_mfp.is_none() {
-                buf = ptr::null_mut();
-            }
-            if !buf.is_null() && buf_is_changed_fn(&mut *buf) {
-                emsg(gettext(E_BUFLOADED));
-                return;
-            }
-
-            fnamebuf
-        };
-
-        let mut did_open = false;
-        if what == SPELL_ADD_BAD || undo {
-            let mut fpos_next: i64 = 0;
-            let mut fd = CFile::open(fname.cast(), c"r");
-            did_open = fd.is_some();
-            let ulen = word_bytes.len();
-            while let Some(ref cur_fd) = fd
-                && !vim_fgets(&mut line, cur_fd)
+            let linelen = crate::memory::cstr_until_nul(&line).to_bytes().len();
+            if linelen >= ulen
+                && word_bytes == &line[..ulen]
+                && (line[ulen] == b'/' || line[ulen] < b' ')
             {
-                let fpos = fpos_next;
-                fpos_next = cur_fd.tell();
-                if fpos_next < 0 {
+                drop(fd.take());
+                fd = CFile::open(fname.cast(), c"r+");
+                did_open = fd.is_some();
+                let Some(ref rw_fd) = fd else {
                     break;
-                }
-                let linelen = crate::memory::cstr_until_nul(&line).to_bytes().len();
-                if linelen >= ulen
-                    && word_bytes == &line[..ulen]
-                    && (line[ulen] == b'/' || line[ulen] < b' ')
-                {
-                    drop(fd.take());
-                    fd = CFile::open(fname.cast(), c"r+");
-                    did_open = fd.is_some();
-                    let Some(ref rw_fd) = fd else {
-                        break;
-                    };
-                    if rw_fd.seek(fpos, SEEK_SET) == 0 {
-                        rw_fd.putc(b'#' as i32);
-                        if undo {
-                            home_replace(
-                                None,
-                                fname.cast(),
-                                g_st().name_buff.as_mut_ptr(),
-                                MAXPATHL,
-                                true,
-                            );
-                            let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
-                            smsg!(
-                                0,
-                                gettext(c"Word '%.*s' removed from %s"),
-                                ulen as i32,
-                                word_cstr.as_ptr(),
-                                g_st().name_buff.as_ptr(),
-                            );
-                        }
+                };
+                if rw_fd.seek(fpos, SEEK_SET) == 0 {
+                    rw_fd.putc(b'#' as i32);
+                    if undo {
+                        home_replace(
+                            None,
+                            fname.cast(),
+                            g_st().name_buff.as_mut_ptr(),
+                            MAXPATHL,
+                            true,
+                        );
+                        let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
+                        smsg!(
+                            0,
+                            gettext(c"Word '%.*s' removed from %s"),
+                            ulen as i32,
+                            word_cstr.as_ptr(),
+                            g_st().name_buff.as_ptr(),
+                        );
                     }
-                    if rw_fd.seek(fpos_next, SEEK_SET) != 0 {
-                        let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+                }
+                if rw_fd.seek(fpos_next, SEEK_SET) != 0 {
+                    let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+                    unsafe {
                         semsg!(
                             c"%s: %s",
                             gettext(c"Seek error in spellfile"),
                             strerror(err),
                         );
-                        break;
                     }
+                    break;
                 }
             }
         }
+    }
 
-        if !undo {
-            let mut fd = CFile::open(fname.cast(), c"a");
-            if fd.is_none() && new_spf && !dir_of_file_exists(fname.cast()) {
-                let p = path_tail_with_sep(fname.cast());
-                if p != fname.cast() {
-                    let dir_len = crate::memory::ptr_offset_from(p, fname.cast()) as usize;
-                    let dir_cstr = crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-                        fname.cast(),
-                        dir_len,
-                    ));
-                    os_mkdir(dir_cstr.as_ptr(), 0o755);
-                    fd = CFile::open(fname.cast(), c"a");
-                }
-            }
-
-            did_open = fd.is_some();
-            if let Some(fd) = fd {
-                fd.write_all(word_bytes);
-                if what == SPELL_ADD_BAD {
-                    fd.write_all(b"/!\n");
-                } else if what == SPELL_ADD_RARE {
-                    fd.write_all(b"/?\n");
-                } else {
-                    fd.putc(b'\n' as i32);
-                }
-                drop(fd);
-
-                home_replace(
-                    None,
+    if !undo {
+        let mut fd = CFile::open(fname.cast(), c"a");
+        if fd.is_none() && new_spf && !dir_of_file_exists(fname.cast()) {
+            let p = path_tail_with_sep(fname.cast());
+            if p != fname.cast() {
+                let dir_len = crate::memory::ptr_offset_from(p, fname.cast()) as usize;
+                let dir_cstr = crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
                     fname.cast(),
-                    g_st().name_buff.as_mut_ptr(),
-                    MAXPATHL,
-                    true,
-                );
-                let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
-                smsg!(
-                    0,
-                    gettext(c"Word '%.*s' added to %s"),
-                    word_bytes.len() as i32,
-                    word_cstr.as_ptr(),
-                    g_st().name_buff.as_ptr(),
-                );
-            } else {
-                semsg!(gettext(E_NOTOPEN), fname.cast::<std::ffi::c_void>());
+                    dir_len,
+                ));
+                os_mkdir(dir_cstr.as_ptr(), 0o755);
+                fd = CFile::open(fname.cast(), c"a");
             }
         }
 
-        if did_open {
-            mkspell(
-                &[crate::memory::cstr_to_cstring(fname.cast())],
-                false,
-                true,
+        did_open = fd.is_some();
+        if let Some(fd) = fd {
+            fd.write_all(word_bytes);
+            if what == SPELL_ADD_BAD {
+                fd.write_all(b"/!\n");
+            } else if what == SPELL_ADD_RARE {
+                fd.write_all(b"/?\n");
+            } else {
+                fd.putc(b'\n' as i32);
+            }
+            drop(fd);
+
+            home_replace(
+                None,
+                fname.cast(),
+                g_st().name_buff.as_mut_ptr(),
+                MAXPATHL,
                 true,
             );
+            let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
+            smsg!(
+                0,
+                gettext(c"Word '%.*s' added to %s"),
+                word_bytes.len() as i32,
+                word_cstr.as_ptr(),
+                g_st().name_buff.as_ptr(),
+            );
+        } else {
+            semsg!(gettext(E_NOTOPEN), fname.cast::<std::ffi::c_void>());
+        }
+    }
 
-            if !buf.is_null() {
+    if did_open {
+        mkspell(
+            &[crate::memory::cstr_to_cstring(fname.cast())],
+            false,
+            true,
+            true,
+        );
+
+        if !buf.is_null() {
+            unsafe {
                 buf_reload(&mut *(buf), (*buf).b_orig_mode, false);
             }
-
-            redraw_all_later(UPD_SOME_VALID);
         }
+
+        redraw_all_later(UPD_SOME_VALID);
     }
 }
 

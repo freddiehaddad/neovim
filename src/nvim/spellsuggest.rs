@@ -2858,23 +2858,25 @@ fn rescore_suggestions(su: &mut Suginfo) {
     }
 }
 fn rescore_one(su: &mut Suginfo, stp: &mut Suggest) {
-    unsafe {
-        let slang = stp.st_slang;
-        let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
-        if !slang.is_null() && (*slang).has_sal() && !stp.st_had_bonus {
-            let p: *mut u8 = if slang == su.su_sallang {
-                su.su_sal_badword.as_mut_ptr()
-            } else {
+    let slang = stp.st_slang;
+    let mut sal_badword: [u8; MAXWLEN] = [0; MAXWLEN];
+    if !slang.is_null() && unsafe { (*slang).has_sal() } && !stp.st_had_bonus {
+        let p: *mut u8 = if slang == su.su_sallang {
+            su.su_sal_badword.as_mut_ptr()
+        } else {
+            unsafe {
                 spell_soundfold(&mut *slang, &su.su_fbadword, true, &mut sal_badword);
-                sal_badword.as_mut_ptr()
-            };
-            stp.st_altscore = stp_sal_score(stp, su, &mut *slang, p.cast());
-            if stp.st_altscore == SCORE_MAXMAX {
-                stp.st_altscore = SCORE_BIG;
             }
-            stp.st_score = rescore(stp.st_score, stp.st_altscore);
-            stp.st_had_bonus = true;
+            sal_badword.as_mut_ptr()
+        };
+        unsafe {
+            stp.st_altscore = stp_sal_score(stp, su, &mut *slang, p.cast());
         }
+        if stp.st_altscore == SCORE_MAXMAX {
+            stp.st_altscore = SCORE_BIG;
+        }
+        stp.st_score = rescore(stp.st_score, stp.st_altscore);
+        stp.st_had_bonus = true;
     }
 }
 fn sug_compare(p1: &Suggest, p2: &Suggest) -> std::cmp::Ordering {

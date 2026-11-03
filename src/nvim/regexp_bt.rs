@@ -700,28 +700,38 @@ fn reg_equi_class(c: i32) {
 }
 
 fn regnode(op: i32) -> *mut u8 {
-    unsafe {
-        let ret = re_st().regcode;
-        if ret == just_calc_size() {
-            re_st().regsize += 3;
-        } else {
+    let ret = re_st().regcode;
+    if ret == just_calc_size() {
+        re_st().regsize += 3;
+    } else {
+        unsafe {
             *re_st().regcode = op as u8;
-            *re_st().regcode.wrapping_add(1) = NUL;
-            *re_st().regcode.wrapping_add(2) = NUL;
-            re_st().regcode = re_st().regcode.wrapping_add(3);
         }
-        ret
+        unsafe {
+            *re_st().regcode.wrapping_add(1) = NUL;
+        }
+        unsafe {
+            *re_st().regcode.wrapping_add(2) = NUL;
+        }
+        re_st().regcode = re_st().regcode.wrapping_add(3);
     }
+    ret
 }
 
 fn re_put_uint32(p: *mut u8, val: u32) -> *mut u8 {
     unsafe {
         *p = ((val >> 24) & 0o377) as u8;
-        *p.wrapping_add(1) = ((val >> 16) & 0o377) as u8;
-        *p.wrapping_add(2) = ((val >> 8) & 0o377) as u8;
-        *p.wrapping_add(3) = (val & 0o377) as u8;
-        p.wrapping_add(4)
     }
+    unsafe {
+        *p.wrapping_add(1) = ((val >> 16) & 0o377) as u8;
+    }
+    unsafe {
+        *p.wrapping_add(2) = ((val >> 8) & 0o377) as u8;
+    }
+    unsafe {
+        *p.wrapping_add(3) = (val & 0o377) as u8;
+    }
+    p.wrapping_add(4)
 }
 
 fn regnext(p: *mut u8) -> *mut u8 {
@@ -740,27 +750,29 @@ fn regnext(p: *mut u8) -> *mut u8 {
 }
 
 fn regtail(p: *mut u8, val: *const u8) {
-    unsafe {
-        if p == just_calc_size() {
-            return;
+    if p == just_calc_size() {
+        return;
+    }
+    let mut scan = p;
+    loop {
+        let temp = regnext(scan);
+        if temp.is_null() {
+            break;
         }
-        let mut scan = p;
-        loop {
-            let temp = regnext(scan);
-            if temp.is_null() {
-                break;
-            }
-            scan = temp;
-        }
-        let offset = if op_fn(scan) == BACK {
-            scan.offset_from(val) as i32
-        } else {
-            val.offset_from(scan) as i32
-        };
-        if offset > 0xffff {
-            re_st().reg_toolong = 1;
-        } else {
+        scan = temp;
+    }
+    let offset = if op_fn(scan) == BACK {
+        unsafe { scan.offset_from(val) as i32 }
+    } else {
+        unsafe { val.offset_from(scan) as i32 }
+    };
+    if offset > 0xffff {
+        re_st().reg_toolong = 1;
+    } else {
+        unsafe {
             *scan.wrapping_add(1) = (((offset as u32) >> 8) & 0o377) as u8;
+        }
+        unsafe {
             *scan.wrapping_add(2) = (offset & 0o377) as u8;
         }
     }
@@ -777,67 +789,85 @@ fn regoptail(p: *mut u8, val: *mut u8) {
 }
 
 fn reginsert(op: i32, opnd: *mut u8) {
-    unsafe {
-        if re_st().regcode == just_calc_size() {
-            re_st().regsize += 3;
-            return;
-        }
-        let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.wrapping_add(3);
-        let mut dst = re_st().regcode;
-        while src > opnd {
-            src = src.wrapping_sub(1);
-            dst = dst.wrapping_sub(1);
+    if re_st().regcode == just_calc_size() {
+        re_st().regsize += 3;
+        return;
+    }
+    let mut src = re_st().regcode;
+    re_st().regcode = re_st().regcode.wrapping_add(3);
+    let mut dst = re_st().regcode;
+    while src > opnd {
+        src = src.wrapping_sub(1);
+        dst = dst.wrapping_sub(1);
+        unsafe {
             *dst = *src;
         }
+    }
+    unsafe {
         *opnd = op as u8;
+    }
+    unsafe {
         *opnd.wrapping_add(1) = NUL;
+    }
+    unsafe {
         *opnd.wrapping_add(2) = NUL;
     }
 }
 
 fn reginsert_nr(op: i32, val: i64, opnd: *mut u8) {
-    unsafe {
-        if re_st().regcode == just_calc_size() {
-            re_st().regsize += 7;
-            return;
-        }
-        let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.wrapping_add(7);
-        let mut dst = re_st().regcode;
-        while src > opnd {
-            src = src.wrapping_sub(1);
-            dst = dst.wrapping_sub(1);
+    if re_st().regcode == just_calc_size() {
+        re_st().regsize += 7;
+        return;
+    }
+    let mut src = re_st().regcode;
+    re_st().regcode = re_st().regcode.wrapping_add(7);
+    let mut dst = re_st().regcode;
+    while src > opnd {
+        src = src.wrapping_sub(1);
+        dst = dst.wrapping_sub(1);
+        unsafe {
             *dst = *src;
         }
-        *opnd = op as u8;
-        *opnd.wrapping_add(1) = NUL;
-        *opnd.wrapping_add(2) = NUL;
-        re_put_uint32(opnd.wrapping_add(3), val as u32);
     }
+    unsafe {
+        *opnd = op as u8;
+    }
+    unsafe {
+        *opnd.wrapping_add(1) = NUL;
+    }
+    unsafe {
+        *opnd.wrapping_add(2) = NUL;
+    }
+    re_put_uint32(opnd.wrapping_add(3), val as u32);
 }
 
 fn reginsert_limits(op: i32, minval: i64, maxval: i64, opnd: *mut u8) {
-    unsafe {
-        if re_st().regcode == just_calc_size() {
-            re_st().regsize += 11;
-            return;
-        }
-        let mut src = re_st().regcode;
-        re_st().regcode = re_st().regcode.wrapping_add(11);
-        let mut dst = re_st().regcode;
-        while src > opnd {
-            src = src.wrapping_sub(1);
-            dst = dst.wrapping_sub(1);
+    if re_st().regcode == just_calc_size() {
+        re_st().regsize += 11;
+        return;
+    }
+    let mut src = re_st().regcode;
+    re_st().regcode = re_st().regcode.wrapping_add(11);
+    let mut dst = re_st().regcode;
+    while src > opnd {
+        src = src.wrapping_sub(1);
+        dst = dst.wrapping_sub(1);
+        unsafe {
             *dst = *src;
         }
-        *opnd = op as u8;
-        *opnd.wrapping_add(1) = NUL;
-        *opnd.wrapping_add(2) = NUL;
-        let place = re_put_uint32(opnd.wrapping_add(3), minval as u32);
-        let place = re_put_uint32(place, maxval as u32);
-        regtail(opnd, place);
     }
+    unsafe {
+        *opnd = op as u8;
+    }
+    unsafe {
+        *opnd.wrapping_add(1) = NUL;
+    }
+    unsafe {
+        *opnd.wrapping_add(2) = NUL;
+    }
+    let place = re_put_uint32(opnd.wrapping_add(3), minval as u32);
+    let place = re_put_uint32(place, maxval as u32);
+    regtail(opnd, place);
 }
 
 fn regatom(flagp: &mut i32) -> *mut u8 {
@@ -2275,321 +2305,322 @@ fn restore_se_m(savep: &SaveSe, no: usize, is_end: bool) {
 }
 
 fn regrepeat(p: *mut u8, maxcount: i64) -> i32 {
-    unsafe {
-        let mut count: i64 = 0;
-        let mut testval: i16 = 0;
-        let mut scan = re_st().rex.input;
-        let opnd = operand_fn(p);
-        let op = op_fn(p);
+    let mut count: i64 = 0;
+    let mut testval: i16 = 0;
+    let mut scan = re_st().rex.input;
+    let opnd = operand_fn(p);
+    let op = op_fn(p);
 
-        let do_class = |mask: i16, testval: i16, scan: &mut *mut u8, count: &mut i64| {
-            while *count < maxcount {
-                if **scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    *scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else {
-                    let l = utfc_ptr2len((*scan).cast());
-                    if l > 1 {
-                        if testval != 0 {
-                            break;
-                        }
-                        *scan = (*scan).wrapping_add(l as usize);
-                    } else if ((re_st().class_tab[**scan as usize] & mask) == testval)
-                        || (re_st().rex.reg_line_lbr && **scan == b'\n' && with_nl(op))
-                    {
-                        *scan = (*scan).wrapping_add(1);
-                    } else {
-                        break;
-                    }
-                }
-                *count += 1;
-            }
-        };
-
-        if op == ANY || op == ANY + ADD_NL {
-            while count < maxcount {
-                while *scan != NUL && count < maxcount {
-                    count += 1;
-                    mb_ptr_adv(&mut scan);
-                }
+    let do_class = |mask: i16, testval: i16, scan: &mut *mut u8, count: &mut i64| {
+        while *count < maxcount {
+            if unsafe { **scan == NUL } {
                 if !reg_multi()
                     || !with_nl(op)
                     || re_st().rex.lnum > re_st().rex.reg_maxline
                     || re_st().rex.reg_line_lbr
-                    || count == maxcount
                 {
                     break;
                 }
+                reg_nextline();
+                *scan = re_st().rex.input;
+                if g_st().got_int {
+                    break;
+                }
+            } else {
+                let l = utfc_ptr2len((*scan).cast());
+                if l > 1 {
+                    if testval != 0 {
+                        break;
+                    }
+                    *scan = (*scan).wrapping_add(l as usize);
+                } else if (unsafe { (re_st().class_tab[**scan as usize] & mask) == testval })
+                    || (unsafe { re_st().rex.reg_line_lbr && **scan == b'\n' && with_nl(op) })
+                {
+                    *scan = (*scan).wrapping_add(1);
+                } else {
+                    break;
+                }
+            }
+            *count += 1;
+        }
+    };
+
+    if op == ANY || op == ANY + ADD_NL {
+        while count < maxcount {
+            while unsafe { *scan != NUL } && count < maxcount {
                 count += 1;
+                mb_ptr_adv(&mut scan);
+            }
+            if !reg_multi()
+                || !with_nl(op)
+                || re_st().rex.lnum > re_st().rex.reg_maxline
+                || re_st().rex.reg_line_lbr
+                || count == maxcount
+            {
+                break;
+            }
+            count += 1;
+            reg_nextline();
+            scan = re_st().rex.input;
+            if g_st().got_int {
+                break;
+            }
+        }
+    } else if op == IDENT || op == IDENT + ADD_NL || op == SIDENT || op == SIDENT + ADD_NL {
+        if op == IDENT || op == IDENT + ADD_NL {
+            testval = 1;
+        }
+        while count < maxcount {
+            if vim_is_idc(utf_ptr2char(scan.cast()))
+                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+            {
+                mb_ptr_adv(&mut scan);
+            } else if unsafe { *scan == NUL } {
+                if !reg_multi()
+                    || !with_nl(op)
+                    || re_st().rex.lnum > re_st().rex.reg_maxline
+                    || re_st().rex.reg_line_lbr
+                {
+                    break;
+                }
                 reg_nextline();
                 scan = re_st().rex.input;
                 if g_st().got_int {
                     break;
                 }
+            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+                scan = scan.wrapping_add(1);
+            } else {
+                break;
             }
-        } else if op == IDENT || op == IDENT + ADD_NL || op == SIDENT || op == SIDENT + ADD_NL {
-            if op == IDENT || op == IDENT + ADD_NL {
-                testval = 1;
-            }
-            while count < maxcount {
-                if vim_is_idc(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as i32))
-                {
-                    mb_ptr_adv(&mut scan);
-                } else if *scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.wrapping_add(1);
-                } else {
-                    break;
-                }
-                count += 1;
-            }
-        } else if op == KWORD || op == KWORD + ADD_NL || op == SKWORD || op == SKWORD + ADD_NL {
-            if op == KWORD || op == KWORD + ADD_NL {
-                testval = 1;
-            }
-            while count < maxcount {
-                if vim_iswordp_buf(
+            count += 1;
+        }
+    } else if op == KWORD || op == KWORD + ADD_NL || op == SKWORD || op == SKWORD + ADD_NL {
+        if op == KWORD || op == KWORD + ADD_NL {
+            testval = 1;
+        }
+        while count < maxcount {
+            if unsafe {
+                vim_iswordp_buf(
                     crate::memory::cstr_as_bytes(scan.cast()),
                     &mut *re_st().rex.reg_buf,
-                ) && (testval != 0 || !ascii_isdigit(*scan as i32))
-                {
-                    mb_ptr_adv(&mut scan);
-                } else if *scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.wrapping_add(1);
-                } else {
-                    break;
-                }
-                count += 1;
-            }
-        } else if op == FNAME || op == FNAME + ADD_NL || op == SFNAME || op == SFNAME + ADD_NL {
-            if op == FNAME || op == FNAME + ADD_NL {
-                testval = 1;
-            }
-            while count < maxcount {
-                if vim_isfilec(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as i32))
-                {
-                    mb_ptr_adv(&mut scan);
-                } else if *scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.wrapping_add(1);
-                } else {
-                    break;
-                }
-                count += 1;
-            }
-        } else if op == PRINT || op == PRINT + ADD_NL || op == SPRINT || op == SPRINT + ADD_NL {
-            if op == PRINT || op == PRINT + ADD_NL {
-                testval = 1;
-            }
-            while count < maxcount {
-                if *scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else if vim_isprintc(utf_ptr2char(scan.cast()))
-                    && (testval != 0 || !ascii_isdigit(*scan as i32))
-                {
-                    mb_ptr_adv(&mut scan);
-                } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.wrapping_add(1);
-                } else {
-                    break;
-                }
-                count += 1;
-            }
-        } else if op == WHITE || op == WHITE + ADD_NL {
-            do_class(RI_WHITE, RI_WHITE, &mut scan, &mut count);
-        } else if op == NWHITE || op == NWHITE + ADD_NL {
-            do_class(RI_WHITE, 0, &mut scan, &mut count);
-        } else if op == DIGIT || op == DIGIT + ADD_NL {
-            do_class(RI_DIGIT, RI_DIGIT, &mut scan, &mut count);
-        } else if op == NDIGIT || op == NDIGIT + ADD_NL {
-            do_class(RI_DIGIT, 0, &mut scan, &mut count);
-        } else if op == HEX || op == HEX + ADD_NL {
-            do_class(RI_HEX, RI_HEX, &mut scan, &mut count);
-        } else if op == NHEX || op == NHEX + ADD_NL {
-            do_class(RI_HEX, 0, &mut scan, &mut count);
-        } else if op == OCTAL || op == OCTAL + ADD_NL {
-            do_class(RI_OCTAL, RI_OCTAL, &mut scan, &mut count);
-        } else if op == NOCTAL || op == NOCTAL + ADD_NL {
-            do_class(RI_OCTAL, 0, &mut scan, &mut count);
-        } else if op == WORD || op == WORD + ADD_NL {
-            do_class(RI_WORD, RI_WORD, &mut scan, &mut count);
-        } else if op == NWORD || op == NWORD + ADD_NL {
-            do_class(RI_WORD, 0, &mut scan, &mut count);
-        } else if op == HEAD || op == HEAD + ADD_NL {
-            do_class(RI_HEAD, RI_HEAD, &mut scan, &mut count);
-        } else if op == NHEAD || op == NHEAD + ADD_NL {
-            do_class(RI_HEAD, 0, &mut scan, &mut count);
-        } else if op == ALPHA || op == ALPHA + ADD_NL {
-            do_class(RI_ALPHA, RI_ALPHA, &mut scan, &mut count);
-        } else if op == NALPHA || op == NALPHA + ADD_NL {
-            do_class(RI_ALPHA, 0, &mut scan, &mut count);
-        } else if op == LOWER || op == LOWER + ADD_NL {
-            do_class(RI_LOWER, RI_LOWER, &mut scan, &mut count);
-        } else if op == NLOWER || op == NLOWER + ADD_NL {
-            do_class(RI_LOWER, 0, &mut scan, &mut count);
-        } else if op == UPPER || op == UPPER + ADD_NL {
-            do_class(RI_UPPER, RI_UPPER, &mut scan, &mut count);
-        } else if op == NUPPER || op == NUPPER + ADD_NL {
-            do_class(RI_UPPER, 0, &mut scan, &mut count);
-        } else if op == EXACTLY {
-            if re_st().rex.reg_ic {
-                let cu = mb_toupper(*opnd as i32);
-                let cl = mb_tolower(*opnd as i32);
-                while count < maxcount && (*scan as i32 == cu || *scan as i32 == cl) {
-                    count += 1;
-                    scan = scan.wrapping_add(1);
-                }
-            } else {
-                let cu = *opnd;
-                while count < maxcount && *scan == cu {
-                    count += 1;
-                    scan = scan.wrapping_add(1);
-                }
-            }
-        } else if op == MULTIBYTECODE {
-            let len = utfc_ptr2len(opnd.cast()) as usize;
-            if len > 1 {
-                let cf = if re_st().rex.reg_ic {
-                    utf_fold(utf_ptr2char(opnd.cast()))
-                } else {
-                    0
-                };
-                while count < maxcount && (utfc_ptr2len(scan.cast()) as usize) >= len {
-                    let mut i = 0;
-                    while i < len {
-                        if *opnd.wrapping_add(i) != *scan.wrapping_add(i) {
-                            break;
-                        }
-                        i += 1;
-                    }
-                    if i < len && (!re_st().rex.reg_ic || utf_fold(utf_ptr2char(scan.cast())) != cf)
-                    {
-                        break;
-                    }
-                    scan = scan.wrapping_add(len);
-                    count += 1;
-                }
-            }
-        } else if op == ANYOF || op == ANYOF + ADD_NL || op == ANYBUT || op == ANYBUT + ADD_NL {
-            let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
-            while count < maxcount {
-                if *scan == NUL {
-                    if !reg_multi()
-                        || !with_nl(op)
-                        || re_st().rex.lnum > re_st().rex.reg_maxline
-                        || re_st().rex.reg_line_lbr
-                    {
-                        break;
-                    }
-                    reg_nextline();
-                    scan = re_st().rex.input;
-                    if g_st().got_int {
-                        break;
-                    }
-                } else if re_st().rex.reg_line_lbr && *scan == b'\n' && with_nl(op) {
-                    scan = scan.wrapping_add(1);
-                } else {
-                    let len = utfc_ptr2len(scan.cast());
-                    if len > 1 {
-                        if cstrchr(opnd.cast(), utf_ptr2char(scan.cast())).is_null() == is_anyof {
-                            break;
-                        }
-                        scan = scan.wrapping_add(len as usize);
-                    } else {
-                        if cstrchr(opnd.cast(), *scan as i32).is_null() == is_anyof {
-                            break;
-                        }
-                        scan = scan.wrapping_add(1);
-                    }
-                }
-                count += 1;
-            }
-        } else if op == NEWL {
-            while count < maxcount
-                && ((*scan == NUL
-                    && re_st().rex.lnum <= re_st().rex.reg_maxline
-                    && !re_st().rex.reg_line_lbr
-                    && reg_multi())
-                    || (*scan == b'\n' && re_st().rex.reg_line_lbr))
+                )
+            } && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
             {
-                count += 1;
-                if re_st().rex.reg_line_lbr {
-                    advance_reginput();
-                } else {
-                    reg_nextline();
+                mb_ptr_adv(&mut scan);
+            } else if unsafe { *scan == NUL } {
+                if !reg_multi()
+                    || !with_nl(op)
+                    || re_st().rex.lnum > re_st().rex.reg_maxline
+                    || re_st().rex.reg_line_lbr
+                {
+                    break;
                 }
+                reg_nextline();
                 scan = re_st().rex.input;
                 if g_st().got_int {
                     break;
                 }
+            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+                scan = scan.wrapping_add(1);
+            } else {
+                break;
+            }
+            count += 1;
+        }
+    } else if op == FNAME || op == FNAME + ADD_NL || op == SFNAME || op == SFNAME + ADD_NL {
+        if op == FNAME || op == FNAME + ADD_NL {
+            testval = 1;
+        }
+        while count < maxcount {
+            if vim_isfilec(utf_ptr2char(scan.cast()))
+                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+            {
+                mb_ptr_adv(&mut scan);
+            } else if unsafe { *scan == NUL } {
+                if !reg_multi()
+                    || !with_nl(op)
+                    || re_st().rex.lnum > re_st().rex.reg_maxline
+                    || re_st().rex.reg_line_lbr
+                {
+                    break;
+                }
+                reg_nextline();
+                scan = re_st().rex.input;
+                if g_st().got_int {
+                    break;
+                }
+            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+                scan = scan.wrapping_add(1);
+            } else {
+                break;
+            }
+            count += 1;
+        }
+    } else if op == PRINT || op == PRINT + ADD_NL || op == SPRINT || op == SPRINT + ADD_NL {
+        if op == PRINT || op == PRINT + ADD_NL {
+            testval = 1;
+        }
+        while count < maxcount {
+            if unsafe { *scan == NUL } {
+                if !reg_multi()
+                    || !with_nl(op)
+                    || re_st().rex.lnum > re_st().rex.reg_maxline
+                    || re_st().rex.reg_line_lbr
+                {
+                    break;
+                }
+                reg_nextline();
+                scan = re_st().rex.input;
+                if g_st().got_int {
+                    break;
+                }
+            } else if vim_isprintc(utf_ptr2char(scan.cast()))
+                && (unsafe { testval != 0 || !ascii_isdigit(*scan as i32) })
+            {
+                mb_ptr_adv(&mut scan);
+            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+                scan = scan.wrapping_add(1);
+            } else {
+                break;
+            }
+            count += 1;
+        }
+    } else if op == WHITE || op == WHITE + ADD_NL {
+        do_class(RI_WHITE, RI_WHITE, &mut scan, &mut count);
+    } else if op == NWHITE || op == NWHITE + ADD_NL {
+        do_class(RI_WHITE, 0, &mut scan, &mut count);
+    } else if op == DIGIT || op == DIGIT + ADD_NL {
+        do_class(RI_DIGIT, RI_DIGIT, &mut scan, &mut count);
+    } else if op == NDIGIT || op == NDIGIT + ADD_NL {
+        do_class(RI_DIGIT, 0, &mut scan, &mut count);
+    } else if op == HEX || op == HEX + ADD_NL {
+        do_class(RI_HEX, RI_HEX, &mut scan, &mut count);
+    } else if op == NHEX || op == NHEX + ADD_NL {
+        do_class(RI_HEX, 0, &mut scan, &mut count);
+    } else if op == OCTAL || op == OCTAL + ADD_NL {
+        do_class(RI_OCTAL, RI_OCTAL, &mut scan, &mut count);
+    } else if op == NOCTAL || op == NOCTAL + ADD_NL {
+        do_class(RI_OCTAL, 0, &mut scan, &mut count);
+    } else if op == WORD || op == WORD + ADD_NL {
+        do_class(RI_WORD, RI_WORD, &mut scan, &mut count);
+    } else if op == NWORD || op == NWORD + ADD_NL {
+        do_class(RI_WORD, 0, &mut scan, &mut count);
+    } else if op == HEAD || op == HEAD + ADD_NL {
+        do_class(RI_HEAD, RI_HEAD, &mut scan, &mut count);
+    } else if op == NHEAD || op == NHEAD + ADD_NL {
+        do_class(RI_HEAD, 0, &mut scan, &mut count);
+    } else if op == ALPHA || op == ALPHA + ADD_NL {
+        do_class(RI_ALPHA, RI_ALPHA, &mut scan, &mut count);
+    } else if op == NALPHA || op == NALPHA + ADD_NL {
+        do_class(RI_ALPHA, 0, &mut scan, &mut count);
+    } else if op == LOWER || op == LOWER + ADD_NL {
+        do_class(RI_LOWER, RI_LOWER, &mut scan, &mut count);
+    } else if op == NLOWER || op == NLOWER + ADD_NL {
+        do_class(RI_LOWER, 0, &mut scan, &mut count);
+    } else if op == UPPER || op == UPPER + ADD_NL {
+        do_class(RI_UPPER, RI_UPPER, &mut scan, &mut count);
+    } else if op == NUPPER || op == NUPPER + ADD_NL {
+        do_class(RI_UPPER, 0, &mut scan, &mut count);
+    } else if op == EXACTLY {
+        if re_st().rex.reg_ic {
+            let cu = unsafe { mb_toupper(*opnd as i32) };
+            let cl = unsafe { mb_tolower(*opnd as i32) };
+            while count < maxcount && (unsafe { *scan as i32 == cu || *scan as i32 == cl }) {
+                count += 1;
+                scan = scan.wrapping_add(1);
             }
         } else {
-            iemsg(tr(E_RE_CORR));
+            let cu = unsafe { *opnd };
+            while count < maxcount && unsafe { *scan == cu } {
+                count += 1;
+                scan = scan.wrapping_add(1);
+            }
         }
-
-        re_st().rex.input = scan;
-        count as i32
+    } else if op == MULTIBYTECODE {
+        let len = utfc_ptr2len(opnd.cast()) as usize;
+        if len > 1 {
+            let cf = if re_st().rex.reg_ic {
+                utf_fold(utf_ptr2char(opnd.cast()))
+            } else {
+                0
+            };
+            while count < maxcount && (utfc_ptr2len(scan.cast()) as usize) >= len {
+                let mut i = 0;
+                while i < len {
+                    if unsafe { *opnd.wrapping_add(i) != *scan.wrapping_add(i) } {
+                        break;
+                    }
+                    i += 1;
+                }
+                if i < len && (!re_st().rex.reg_ic || utf_fold(utf_ptr2char(scan.cast())) != cf) {
+                    break;
+                }
+                scan = scan.wrapping_add(len);
+                count += 1;
+            }
+        }
+    } else if op == ANYOF || op == ANYOF + ADD_NL || op == ANYBUT || op == ANYBUT + ADD_NL {
+        let is_anyof = op == ANYOF || op == ANYOF + ADD_NL;
+        while count < maxcount {
+            if unsafe { *scan == NUL } {
+                if !reg_multi()
+                    || !with_nl(op)
+                    || re_st().rex.lnum > re_st().rex.reg_maxline
+                    || re_st().rex.reg_line_lbr
+                {
+                    break;
+                }
+                reg_nextline();
+                scan = re_st().rex.input;
+                if g_st().got_int {
+                    break;
+                }
+            } else if re_st().rex.reg_line_lbr && unsafe { *scan == b'\n' } && with_nl(op) {
+                scan = scan.wrapping_add(1);
+            } else {
+                let len = utfc_ptr2len(scan.cast());
+                if len > 1 {
+                    if cstrchr(opnd.cast(), utf_ptr2char(scan.cast())).is_null() == is_anyof {
+                        break;
+                    }
+                    scan = scan.wrapping_add(len as usize);
+                } else {
+                    if unsafe { cstrchr(opnd.cast(), *scan as i32).is_null() == is_anyof } {
+                        break;
+                    }
+                    scan = scan.wrapping_add(1);
+                }
+            }
+            count += 1;
+        }
+    } else if op == NEWL {
+        while count < maxcount
+            && (unsafe {
+                (*scan == NUL
+                    && re_st().rex.lnum <= re_st().rex.reg_maxline
+                    && !re_st().rex.reg_line_lbr
+                    && reg_multi())
+                    || (*scan == b'\n' && re_st().rex.reg_line_lbr)
+            })
+        {
+            count += 1;
+            if re_st().rex.reg_line_lbr {
+                advance_reginput();
+            } else {
+                reg_nextline();
+            }
+            scan = re_st().rex.input;
+            if g_st().got_int {
+                break;
+            }
+        }
+    } else {
+        iemsg(tr(E_RE_CORR));
     }
+
+    re_st().rex.input = scan;
+    count as i32
 }
 
 fn regstack_push(state: Regstate, scan: *mut u8) -> *mut Regitem {
@@ -2679,533 +2710,542 @@ fn restore_subexpr(bp: &mut Regbehind) {
 }
 
 fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut i32>) -> bool {
-    unsafe {
-        let mut status: i32;
-        let mut tm_count: i32 = 0;
+    let mut status: i32;
+    let mut tm_count: i32 = 0;
 
-        re_st().regstack.clear();
-        let bp = &mut re_st().backpos;
-        (*bp).clear();
+    re_st().regstack.clear();
+    let bp = &mut re_st().backpos;
+    (*bp).clear();
+
+    loop {
+        reg_breakcheck();
 
         loop {
-            reg_breakcheck();
-
-            loop {
-                if g_st().got_int || scan.is_null() {
-                    status = RA_FAIL;
-                    break;
-                }
-                if let Some(tm_val) = tm {
-                    tm_count += 1;
-                    if tm_count == 100 {
-                        tm_count = 0;
-                        if profile_passed_limit(tm_val) {
-                            if let Some(ref mut p) = timed_out {
-                                **p = 1;
-                            }
-                            status = RA_FAIL;
-                            break;
+            if g_st().got_int || scan.is_null() {
+                status = RA_FAIL;
+                break;
+            }
+            if let Some(tm_val) = tm {
+                tm_count += 1;
+                if tm_count == 100 {
+                    tm_count = 0;
+                    if profile_passed_limit(tm_val) {
+                        if let Some(ref mut p) = timed_out {
+                            **p = 1;
                         }
+                        status = RA_FAIL;
+                        break;
                     }
                 }
-                status = RA_CONT;
+            }
+            status = RA_CONT;
 
-                let mut next = regnext(scan);
-                let mut op = op_fn(scan);
+            let mut next = regnext(scan);
+            let mut op = op_fn(scan);
 
-                if !re_st().rex.reg_line_lbr
-                    && with_nl(op)
-                    && reg_multi()
-                    && *re_st().rex.input == NUL
-                    && re_st().rex.lnum <= re_st().rex.reg_maxline
-                {
-                    reg_nextline();
-                } else if re_st().rex.reg_line_lbr && with_nl(op) && *re_st().rex.input == b'\n' {
-                    advance_reginput();
-                } else {
-                    if with_nl(op) {
-                        op -= ADD_NL;
+            if !re_st().rex.reg_line_lbr
+                && with_nl(op)
+                && reg_multi()
+                && unsafe { *re_st().rex.input == NUL }
+                && re_st().rex.lnum <= re_st().rex.reg_maxline
+            {
+                reg_nextline();
+            } else if re_st().rex.reg_line_lbr
+                && with_nl(op)
+                && unsafe { *re_st().rex.input == b'\n' }
+            {
+                advance_reginput();
+            } else {
+                if with_nl(op) {
+                    op -= ADD_NL;
+                }
+                let c = utf_ptr2char(re_st().rex.input.cast());
+                match op {
+                    BOL => {
+                        if re_st().rex.input != re_st().rex.line {
+                            status = RA_NOMATCH;
+                        }
                     }
-                    let c = utf_ptr2char(re_st().rex.input.cast());
-                    match op {
-                        BOL => {
-                            if re_st().rex.input != re_st().rex.line {
-                                status = RA_NOMATCH;
-                            }
+                    EOL => {
+                        if c != NUL as i32 {
+                            status = RA_NOMATCH;
                         }
-                        EOL => {
-                            if c != NUL as i32 {
-                                status = RA_NOMATCH;
-                            }
+                    }
+                    RE_BOF => {
+                        if re_st().rex.lnum != 0
+                            || re_st().rex.input != re_st().rex.line
+                            || (reg_multi() && re_st().rex.reg_firstlnum > 1)
+                        {
+                            status = RA_NOMATCH;
                         }
-                        RE_BOF => {
-                            if re_st().rex.lnum != 0
-                                || re_st().rex.input != re_st().rex.line
-                                || (reg_multi() && re_st().rex.reg_firstlnum > 1)
-                            {
-                                status = RA_NOMATCH;
-                            }
+                    }
+                    RE_EOF => {
+                        if re_st().rex.lnum != re_st().rex.reg_maxline || c != NUL as i32 {
+                            status = RA_NOMATCH;
                         }
-                        RE_EOF => {
-                            if re_st().rex.lnum != re_st().rex.reg_maxline || c != NUL as i32 {
-                                status = RA_NOMATCH;
-                            }
+                    }
+                    CURSOR => {
+                        if re_st().rex.reg_win.is_null()
+                            || (re_st().rex.lnum + re_st().rex.reg_firstlnum
+                                != re_st().rex.win_mut().w_cursor.lnum)
+                            || (unsafe {
+                                re_st().rex.input.offset_from(re_st().rex.line) as Colnr
+                                    != re_st().rex.win_mut().w_cursor.col
+                            })
+                        {
+                            status = RA_NOMATCH;
                         }
-                        CURSOR => {
-                            if re_st().rex.reg_win.is_null()
-                                || (re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                    != re_st().rex.win_mut().w_cursor.lnum)
-                                || (re_st().rex.input.offset_from(re_st().rex.line) as Colnr
-                                    != re_st().rex.win_mut().w_cursor.col)
-                            {
-                                status = RA_NOMATCH;
-                            }
-                        }
-                        RE_MARK => {
-                            let mark = *operand_fn(scan) as i32;
-                            let cmp = *operand_fn(scan).wrapping_add(1) as i32;
-                            let col = if reg_multi() {
-                                re_st().rex.input.offset_from(re_st().rex.line) as usize
-                            } else {
-                                0
-                            };
-                            let fm = mark_get(
+                    }
+                    RE_MARK => {
+                        let mark = unsafe { *operand_fn(scan) as i32 };
+                        let cmp = unsafe { *operand_fn(scan).wrapping_add(1) as i32 };
+                        let col = if reg_multi() {
+                            unsafe { re_st().rex.input.offset_from(re_st().rex.line) as usize }
+                        } else {
+                            0
+                        };
+                        let fm = unsafe {
+                            mark_get(
                                 &mut *re_st().rex.reg_buf,
                                 crate::globals::curwin_mut(),
                                 None,
                                 K_MARK_BUF_LOCAL,
                                 mark,
-                            );
-                            if reg_multi() {
-                                re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
-                                re_st().rex.input = re_st().rex.line.wrapping_add(col);
-                            }
-                            if fm.is_null() || (*fm).mark.lnum <= 0 {
-                                status = RA_NOMATCH;
+                            )
+                        };
+                        if reg_multi() {
+                            re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                            re_st().rex.input = re_st().rex.line.wrapping_add(col);
+                        }
+                        if fm.is_null() || unsafe { (*fm).mark.lnum <= 0 } {
+                            status = RA_NOMATCH;
+                        } else {
+                            let pos = unsafe { &raw const (*fm).mark };
+                            let pos_col = if unsafe {
+                                (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
+                            } && unsafe { (*pos).col == MAXCOL }
+                            {
+                                unsafe { reg_getline_len((*pos).lnum - re_st().rex.reg_firstlnum) }
                             } else {
-                                let pos = &raw const (*fm).mark;
-                                let pos_col = if (*pos).lnum
-                                    == re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                    && (*pos).col == MAXCOL
-                                {
-                                    reg_getline_len((*pos).lnum - re_st().rex.reg_firstlnum)
-                                } else {
-                                    (*pos).col
-                                };
-                                let cur_col =
-                                    re_st().rex.input.offset_from(re_st().rex.line) as Colnr;
-                                let nomatch = if (*pos).lnum
-                                    == re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                {
-                                    if pos_col == cur_col {
-                                        cmp == b'<' as i32 || cmp == b'>' as i32
-                                    } else if pos_col < cur_col {
-                                        cmp != b'>' as i32
-                                    } else {
-                                        cmp != b'<' as i32
-                                    }
-                                } else if (*pos).lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum
-                                {
+                                unsafe { (*pos).col }
+                            };
+                            let cur_col =
+                                unsafe { re_st().rex.input.offset_from(re_st().rex.line) as Colnr };
+                            let nomatch = if unsafe {
+                                (*pos).lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum
+                            } {
+                                if pos_col == cur_col {
+                                    cmp == b'<' as i32 || cmp == b'>' as i32
+                                } else if pos_col < cur_col {
                                     cmp != b'>' as i32
                                 } else {
                                     cmp != b'<' as i32
-                                };
-                                if nomatch {
-                                    status = RA_NOMATCH;
                                 }
-                            }
-                        }
-                        RE_VISUAL => {
-                            if !reg_match_visual() {
+                            } else if unsafe {
+                                (*pos).lnum < re_st().rex.lnum + re_st().rex.reg_firstlnum
+                            } {
+                                cmp != b'>' as i32
+                            } else {
+                                cmp != b'<' as i32
+                            };
+                            if nomatch {
                                 status = RA_NOMATCH;
                             }
                         }
-                        RE_LNUM => {
-                            if !reg_multi()
-                                || !re_num_cmp(
-                                    (re_st().rex.lnum + re_st().rex.reg_firstlnum) as u32,
-                                    scan,
-                                )
-                            {
-                                status = RA_NOMATCH;
-                            }
+                    }
+                    RE_VISUAL => {
+                        if !reg_match_visual() {
+                            status = RA_NOMATCH;
                         }
-                        RE_COL => {
-                            if !re_num_cmp(
+                    }
+                    RE_LNUM => {
+                        if !reg_multi()
+                            || !re_num_cmp(
+                                (re_st().rex.lnum + re_st().rex.reg_firstlnum) as u32,
+                                scan,
+                            )
+                        {
+                            status = RA_NOMATCH;
+                        }
+                    }
+                    RE_COL => {
+                        if unsafe {
+                            !re_num_cmp(
                                 (re_st().rex.input.offset_from(re_st().rex.line) + 1) as u32,
                                 scan,
-                            ) {
-                                status = RA_NOMATCH;
-                            }
+                            )
+                        } {
+                            status = RA_NOMATCH;
                         }
-                        RE_VCOL => {
-                            let wp = if re_st().rex.reg_win.is_null() {
-                                crate::globals::curwin_ptr()
-                            } else {
-                                re_st().rex.reg_win
-                            };
-                            let mut lnum = if reg_multi() {
-                                re_st().rex.reg_firstlnum + re_st().rex.lnum
-                            } else {
-                                1
-                            };
-                            if reg_multi()
-                                && (lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count)
-                            {
-                                lnum = 1;
-                            }
-                            let vcol = win_linetabsize(
+                    }
+                    RE_VCOL => {
+                        let wp = if re_st().rex.reg_win.is_null() {
+                            crate::globals::curwin_ptr()
+                        } else {
+                            re_st().rex.reg_win
+                        };
+                        let mut lnum = if reg_multi() {
+                            re_st().rex.reg_firstlnum + re_st().rex.lnum
+                        } else {
+                            1
+                        };
+                        if reg_multi()
+                            && (unsafe { lnum <= 0 || lnum > (*wp).buf_mut().b_ml.ml_line_count })
+                        {
+                            lnum = 1;
+                        }
+                        let vcol = unsafe {
+                            win_linetabsize(
                                 &mut *wp,
                                 lnum,
                                 re_st().rex.line.cast(),
                                 re_st().rex.input.offset_from(re_st().rex.line) as Colnr,
+                            )
+                        };
+                        if !re_num_cmp((vcol as u32).wrapping_add(1), scan) {
+                            status = RA_NOMATCH;
+                        }
+                    }
+                    BOW => {
+                        if c == NUL as i32 {
+                            status = RA_NOMATCH;
+                        } else {
+                            let this_class = mb_get_class_tab(
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                                &re_st().rex.buf_mut().b_chartab,
                             );
-                            if !re_num_cmp((vcol as u32).wrapping_add(1), scan) {
+                            if this_class <= 1 || reg_prev_class() == this_class {
                                 status = RA_NOMATCH;
                             }
                         }
-                        BOW => {
-                            if c == NUL as i32 {
+                    }
+                    EOW => {
+                        if re_st().rex.input == re_st().rex.line {
+                            status = RA_NOMATCH;
+                        } else {
+                            let this_class = mb_get_class_tab(
+                                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                                &re_st().rex.buf_mut().b_chartab,
+                            );
+                            let prev_class = reg_prev_class();
+                            if this_class == prev_class || prev_class == 0 || prev_class == 1 {
                                 status = RA_NOMATCH;
-                            } else {
-                                let this_class = mb_get_class_tab(
-                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
-                                    &re_st().rex.buf_mut().b_chartab,
-                                );
-                                if this_class <= 1 || reg_prev_class() == this_class {
-                                    status = RA_NOMATCH;
-                                }
                             }
                         }
-                        EOW => {
-                            if re_st().rex.input == re_st().rex.line {
-                                status = RA_NOMATCH;
-                            } else {
-                                let this_class = mb_get_class_tab(
-                                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
-                                    &re_st().rex.buf_mut().b_chartab,
-                                );
-                                let prev_class = reg_prev_class();
-                                if this_class == prev_class || prev_class == 0 || prev_class == 1 {
-                                    status = RA_NOMATCH;
-                                }
-                            }
+                    }
+                    ANY => {
+                        if c == NUL as i32 {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
                         }
-                        ANY => {
-                            if c == NUL as i32 {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
+                    }
+                    IDENT => {
+                        if !vim_is_idc(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
                         }
-                        IDENT => {
-                            if !vim_is_idc(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
+                    }
+                    SIDENT => {
+                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) } || !vim_is_idc(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
                         }
-                        SIDENT => {
-                            if ascii_isdigit(*re_st().rex.input as i32) || !vim_is_idc(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        KWORD => {
-                            if !vim_iswordp_buf(
+                    }
+                    KWORD => {
+                        if unsafe {
+                            !vim_iswordp_buf(
                                 crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                 &mut *re_st().rex.reg_buf,
-                            ) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
+                            )
+                        } {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
                         }
-                        SKWORD => {
-                            if ascii_isdigit(*re_st().rex.input as i32)
-                                || !vim_iswordp_buf(
+                    }
+                    SKWORD => {
+                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) }
+                            || unsafe {
+                                !vim_iswordp_buf(
                                     crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                     &mut *re_st().rex.reg_buf,
                                 )
+                            }
+                        {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    FNAME => {
+                        if !vim_isfilec(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    SFNAME => {
+                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) } || !vim_isfilec(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    PRINT => {
+                        if !vim_isprintc(utf_ptr2char(re_st().rex.input.cast())) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    SPRINT => {
+                        if unsafe { ascii_isdigit(*re_st().rex.input as i32) }
+                            || !vim_isprintc(utf_ptr2char(re_st().rex.input.cast()))
+                        {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    WHITE => {
+                        if !ascii_iswhite(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NWHITE => {
+                        if c == NUL as i32 || ascii_iswhite(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    DIGIT => {
+                        if !ri_digit(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NDIGIT => {
+                        if c == NUL as i32 || ri_digit(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    HEX => {
+                        if !ri_hex(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NHEX => {
+                        if c == NUL as i32 || ri_hex(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    OCTAL => {
+                        if !ri_octal(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NOCTAL => {
+                        if c == NUL as i32 || ri_octal(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    WORD => {
+                        if !ri_word(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NWORD => {
+                        if c == NUL as i32 || ri_word(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    HEAD => {
+                        if !ri_head(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NHEAD => {
+                        if c == NUL as i32 || ri_head(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    ALPHA => {
+                        if !ri_alpha(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NALPHA => {
+                        if c == NUL as i32 || ri_alpha(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    LOWER => {
+                        if !ri_lower(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NLOWER => {
+                        if c == NUL as i32 || ri_lower(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    UPPER => {
+                        if !ri_upper(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    NUPPER => {
+                        if c == NUL as i32 || ri_upper(c) {
+                            status = RA_NOMATCH;
+                        } else {
+                            advance_reginput();
+                        }
+                    }
+                    EXACTLY => {
+                        let opnd = operand_fn(scan);
+                        if unsafe { *opnd != *re_st().rex.input } && !re_st().rex.reg_ic {
+                            status = RA_NOMATCH;
+                        } else if unsafe { *opnd != NUL } {
+                            let len = if crate::memory::cstr_len(opnd.cast()) == 1
+                                && !re_st().rex.reg_ic
                             {
-                                status = RA_NOMATCH;
+                                1
                             } else {
-                                advance_reginput();
-                            }
-                        }
-                        FNAME => {
-                            if !vim_isfilec(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        SFNAME => {
-                            if ascii_isdigit(*re_st().rex.input as i32) || !vim_isfilec(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        PRINT => {
-                            if !vim_isprintc(utf_ptr2char(re_st().rex.input.cast())) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        SPRINT => {
-                            if ascii_isdigit(*re_st().rex.input as i32)
-                                || !vim_isprintc(utf_ptr2char(re_st().rex.input.cast()))
-                            {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        WHITE => {
-                            if !ascii_iswhite(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NWHITE => {
-                            if c == NUL as i32 || ascii_iswhite(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        DIGIT => {
-                            if !ri_digit(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NDIGIT => {
-                            if c == NUL as i32 || ri_digit(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        HEX => {
-                            if !ri_hex(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NHEX => {
-                            if c == NUL as i32 || ri_hex(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        OCTAL => {
-                            if !ri_octal(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NOCTAL => {
-                            if c == NUL as i32 || ri_octal(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        WORD => {
-                            if !ri_word(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NWORD => {
-                            if c == NUL as i32 || ri_word(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        HEAD => {
-                            if !ri_head(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NHEAD => {
-                            if c == NUL as i32 || ri_head(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        ALPHA => {
-                            if !ri_alpha(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NALPHA => {
-                            if c == NUL as i32 || ri_alpha(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        LOWER => {
-                            if !ri_lower(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NLOWER => {
-                            if c == NUL as i32 || ri_lower(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        UPPER => {
-                            if !ri_upper(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        NUPPER => {
-                            if c == NUL as i32 || ri_upper(c) {
-                                status = RA_NOMATCH;
-                            } else {
-                                advance_reginput();
-                            }
-                        }
-                        EXACTLY => {
-                            let opnd = operand_fn(scan);
-                            if *opnd != *re_st().rex.input && !re_st().rex.reg_ic {
-                                status = RA_NOMATCH;
-                            } else if *opnd != NUL {
-                                let len = if crate::memory::cstr_len(opnd.cast()) == 1
-                                    && !re_st().rex.reg_ic
-                                {
-                                    1
-                                } else {
-                                    let mut l = crate::memory::cstr_len(opnd.cast()) as i32;
-                                    if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut l) != 0
-                                    {
-                                        status = RA_NOMATCH;
-                                    }
-                                    l
-                                };
-                                if status != RA_NOMATCH
-                                    && utf_composinglike(
-                                        re_st().rex.input.cast(),
-                                        re_st().rex.input.wrapping_add(len as usize).cast(),
-                                        None,
-                                    )
-                                    && !re_st().rex.reg_icombine
-                                    && op_fn(next) != RE_COMPOSING
-                                {
+                                let mut l = crate::memory::cstr_len(opnd.cast()) as i32;
+                                if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut l) != 0 {
                                     status = RA_NOMATCH;
+                                }
+                                l
+                            };
+                            if status != RA_NOMATCH
+                                && utf_composinglike(
+                                    re_st().rex.input.cast(),
+                                    re_st().rex.input.wrapping_add(len as usize).cast(),
+                                    None,
+                                )
+                                && !re_st().rex.reg_icombine
+                                && op_fn(next) != RE_COMPOSING
+                            {
+                                status = RA_NOMATCH;
+                            }
+                            if status != RA_NOMATCH {
+                                re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
+                            }
+                        }
+                    }
+                    ANYOF | ANYBUT => {
+                        let mut q = operand_fn(scan);
+                        if c == NUL as i32 || (cstrchr(q.cast(), c).is_null() == (op == ANYOF)) {
+                            status = RA_NOMATCH;
+                        } else {
+                            let len = (utfc_ptr2len(q.cast()) - utf_ptr2len(q.cast())) as usize;
+                            re_st().rex.input = re_st()
+                                .rex
+                                .input
+                                .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
+                            q = q.wrapping_add(utf_ptr2len(q.cast()) as usize);
+                            if len != 0 {
+                                for i in 0..len {
+                                    if unsafe {
+                                        *q.wrapping_add(i) != *re_st().rex.input.wrapping_add(i)
+                                    } {
+                                        status = RA_NOMATCH;
+                                        break;
+                                    }
+                                }
+                                re_st().rex.input = re_st().rex.input.wrapping_add(len);
+                            }
+                        }
+                    }
+                    MULTIBYTECODE => {
+                        let opnd = operand_fn(scan);
+                        let mut len = utfc_ptr2len(opnd.cast());
+                        if len < 2 {
+                            status = RA_NOMATCH;
+                        } else {
+                            let opndc = utf_ptr2char(opnd.cast());
+                            if utf_iscomposing_legacy(opndc) {
+                                status = RA_NOMATCH;
+                                let mut i: usize = 0;
+                                while unsafe { *re_st().rex.input.wrapping_add(i) != NUL } {
+                                    let step = utf_ptr2len(re_st().rex.input.wrapping_add(i).cast())
+                                        as usize;
+                                    let inpc =
+                                        utf_ptr2char(re_st().rex.input.wrapping_add(i).cast());
+                                    if !utf_iscomposing_legacy(inpc) {
+                                        if i > 0 {
+                                            break;
+                                        }
+                                    } else if opndc == inpc {
+                                        len = (i as i32)
+                                            + utfc_ptr2len(
+                                                re_st().rex.input.wrapping_add(i).cast(),
+                                            );
+                                        status = RA_MATCH;
+                                        break;
+                                    }
+                                    i += step;
                                 }
                                 if status != RA_NOMATCH {
                                     re_st().rex.input =
                                         re_st().rex.input.wrapping_add(len as usize);
                                 }
-                            }
-                        }
-                        ANYOF | ANYBUT => {
-                            let mut q = operand_fn(scan);
-                            if c == NUL as i32 || (cstrchr(q.cast(), c).is_null() == (op == ANYOF))
+                            } else if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut len) != 0
                             {
                                 status = RA_NOMATCH;
                             } else {
-                                let len = (utfc_ptr2len(q.cast()) - utf_ptr2len(q.cast())) as usize;
-                                re_st().rex.input = re_st()
-                                    .rex
-                                    .input
-                                    .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
-                                q = q.wrapping_add(utf_ptr2len(q.cast()) as usize);
-                                if len != 0 {
-                                    for i in 0..len {
-                                        if *q.wrapping_add(i) != *re_st().rex.input.wrapping_add(i)
-                                        {
-                                            status = RA_NOMATCH;
-                                            break;
-                                        }
-                                    }
-                                    re_st().rex.input = re_st().rex.input.wrapping_add(len);
-                                }
+                                re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                             }
                         }
-                        MULTIBYTECODE => {
-                            let opnd = operand_fn(scan);
-                            let mut len = utfc_ptr2len(opnd.cast());
-                            if len < 2 {
-                                status = RA_NOMATCH;
-                            } else {
-                                let opndc = utf_ptr2char(opnd.cast());
-                                if utf_iscomposing_legacy(opndc) {
-                                    status = RA_NOMATCH;
-                                    let mut i: usize = 0;
-                                    while *re_st().rex.input.wrapping_add(i) != NUL {
-                                        let step =
-                                            utf_ptr2len(re_st().rex.input.wrapping_add(i).cast())
-                                                as usize;
-                                        let inpc =
-                                            utf_ptr2char(re_st().rex.input.wrapping_add(i).cast());
-                                        if !utf_iscomposing_legacy(inpc) {
-                                            if i > 0 {
-                                                break;
-                                            }
-                                        } else if opndc == inpc {
-                                            len = (i as i32)
-                                                + utfc_ptr2len(
-                                                    re_st().rex.input.wrapping_add(i).cast(),
-                                                );
-                                            status = RA_MATCH;
-                                            break;
-                                        }
-                                        i += step;
-                                    }
-                                    if status != RA_NOMATCH {
-                                        re_st().rex.input =
-                                            re_st().rex.input.wrapping_add(len as usize);
-                                    }
-                                } else if cstrncmp(opnd.cast(), re_st().rex.input.cast(), &mut len)
-                                    != 0
-                                {
-                                    status = RA_NOMATCH;
-                                } else {
-                                    re_st().rex.input =
-                                        re_st().rex.input.wrapping_add(len as usize);
-                                }
-                            }
+                    }
+                    RE_COMPOSING => {
+                        while utf_iscomposing_legacy(utf_ptr2char(re_st().rex.input.cast())) {
+                            re_st().rex.input = re_st()
+                                .rex
+                                .input
+                                .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
                         }
-                        RE_COMPOSING => {
-                            while utf_iscomposing_legacy(utf_ptr2char(re_st().rex.input.cast())) {
-                                re_st().rex.input = re_st()
-                                    .rex
-                                    .input
-                                    .wrapping_add(utf_ptr2len(re_st().rex.input.cast()) as usize);
-                            }
-                        }
-                        NOTHING => {}
-                        BACK => {
-                            let bp = &mut re_st().backpos;
-                            let idx = if let Some(pos) =
-                                (*bp).iter().position(|item| item.bp_scan == scan)
-                            {
+                    }
+                    NOTHING => {}
+                    BACK => {
+                        let bp = &mut re_st().backpos;
+                        let idx =
+                            if let Some(pos) = (*bp).iter().position(|item| item.bp_scan == scan) {
                                 if reg_save_equal(&(*bp).as_slice()[pos].bp_pos) {
                                     status = RA_NOMATCH;
                                 }
@@ -3218,35 +3258,42 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 });
                                 pos
                             };
-                            if status != RA_NOMATCH {
-                                let pos_ptr = &mut (*bp).as_mut_slice()[idx].bp_pos;
-                                reg_save(pos_ptr);
-                            }
+                        if status != RA_NOMATCH {
+                            let pos_ptr = &mut (*bp).as_mut_slice()[idx].bp_pos;
+                            reg_save(pos_ptr);
                         }
-                        x if (MOPEN..=MOPEN + 9).contains(&x) => {
-                            let no = (op - MOPEN) as usize;
-                            cleanup_subexpr();
-                            let rp = regstack_push(RS_MOPEN, scan);
-                            if rp.is_null() {
-                                status = RA_FAIL;
-                            } else {
+                    }
+                    x if (MOPEN..=MOPEN + 9).contains(&x) => {
+                        let no = (op - MOPEN) as usize;
+                        cleanup_subexpr();
+                        let rp = regstack_push(RS_MOPEN, scan);
+                        if rp.is_null() {
+                            status = RA_FAIL;
+                        } else {
+                            unsafe {
                                 (*rp).rs_no = no as i16;
+                            }
+                            unsafe {
                                 save_se_m((*rp).rs_un.sesave_mut(), no, false);
                             }
                         }
-                        NOPEN | NCLOSE => {
-                            if regstack_push(RS_NOPEN, scan).is_null() {
-                                status = RA_FAIL;
-                            }
+                    }
+                    NOPEN | NCLOSE => {
+                        if regstack_push(RS_NOPEN, scan).is_null() {
+                            status = RA_FAIL;
                         }
-                        x if (ZOPEN + 1..=ZOPEN + 9).contains(&x) => {
-                            let no = (op - ZOPEN) as usize;
-                            cleanup_zsubexpr();
-                            let rp = regstack_push(RS_ZOPEN, scan);
-                            if rp.is_null() {
-                                status = RA_FAIL;
-                            } else {
+                    }
+                    x if (ZOPEN + 1..=ZOPEN + 9).contains(&x) => {
+                        let no = (op - ZOPEN) as usize;
+                        cleanup_zsubexpr();
+                        let rp = regstack_push(RS_ZOPEN, scan);
+                        if rp.is_null() {
+                            status = RA_FAIL;
+                        } else {
+                            unsafe {
                                 (*rp).rs_no = no as i16;
+                            }
+                            unsafe {
                                 save_se_z(
                                     (*rp).rs_un.sesave_mut(),
                                     &mut re_st().reg_startzpos[no],
@@ -3254,25 +3301,33 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 );
                             }
                         }
-                        x if (MCLOSE..=MCLOSE + 9).contains(&x) => {
-                            let no = (op - MCLOSE) as usize;
-                            cleanup_subexpr();
-                            let rp = regstack_push(RS_MCLOSE, scan);
-                            if rp.is_null() {
-                                status = RA_FAIL;
-                            } else {
+                    }
+                    x if (MCLOSE..=MCLOSE + 9).contains(&x) => {
+                        let no = (op - MCLOSE) as usize;
+                        cleanup_subexpr();
+                        let rp = regstack_push(RS_MCLOSE, scan);
+                        if rp.is_null() {
+                            status = RA_FAIL;
+                        } else {
+                            unsafe {
                                 (*rp).rs_no = no as i16;
+                            }
+                            unsafe {
                                 save_se_m((*rp).rs_un.sesave_mut(), no, true);
                             }
                         }
-                        x if (ZCLOSE + 1..=ZCLOSE + 9).contains(&x) => {
-                            let no = (op - ZCLOSE) as usize;
-                            cleanup_zsubexpr();
-                            let rp = regstack_push(RS_ZCLOSE, scan);
-                            if rp.is_null() {
-                                status = RA_FAIL;
-                            } else {
+                    }
+                    x if (ZCLOSE + 1..=ZCLOSE + 9).contains(&x) => {
+                        let no = (op - ZCLOSE) as usize;
+                        cleanup_zsubexpr();
+                        let rp = regstack_push(RS_ZCLOSE, scan);
+                        if rp.is_null() {
+                            status = RA_FAIL;
+                        } else {
+                            unsafe {
                                 (*rp).rs_no = no as i16;
+                            }
+                            unsafe {
                                 save_se_z(
                                     (*rp).rs_un.sesave_mut(),
                                     &mut re_st().reg_endzpos[no],
@@ -3280,210 +3335,181 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                                 );
                             }
                         }
-                        x if (BACKREF + 1..=BACKREF + 9).contains(&x) => {
-                            let no = (op - BACKREF) as usize;
-                            let mut len: i32 = 0;
-                            cleanup_subexpr();
-                            if !reg_multi() {
-                                if !(*re_st().rex.reg_startp.wrapping_add(no)).is_null()
-                                    && !(*re_st().rex.reg_endp.wrapping_add(no)).is_null()
-                                {
+                    }
+                    x if (BACKREF + 1..=BACKREF + 9).contains(&x) => {
+                        let no = (op - BACKREF) as usize;
+                        let mut len: i32 = 0;
+                        cleanup_subexpr();
+                        if !reg_multi() {
+                            if unsafe { !(*re_st().rex.reg_startp.wrapping_add(no)).is_null() }
+                                && unsafe { !(*re_st().rex.reg_endp.wrapping_add(no)).is_null() }
+                            {
+                                unsafe {
                                     len = (*re_st().rex.reg_endp.wrapping_add(no))
                                         .offset_from(*re_st().rex.reg_startp.wrapping_add(no))
                                         as i32;
-                                    if cstrncmp(
+                                }
+                                if unsafe {
+                                    cstrncmp(
                                         (*re_st().rex.reg_startp.wrapping_add(no)).cast(),
+                                        re_st().rex.input.cast(),
+                                        &mut len,
+                                    ) != 0
+                                } {
+                                    status = RA_NOMATCH;
+                                }
+                            }
+                        } else {
+                            let spos = unsafe { *re_st().rex.reg_startpos.wrapping_add(no) };
+                            let epos = unsafe { *re_st().rex.reg_endpos.wrapping_add(no) };
+                            if spos.lnum >= 0 && epos.lnum >= 0 {
+                                if spos.lnum == re_st().rex.lnum && epos.lnum == re_st().rex.lnum {
+                                    len = epos.col - spos.col;
+                                    if cstrncmp(
+                                        re_st().rex.line.wrapping_add(spos.col as usize).cast(),
                                         re_st().rex.input.cast(),
                                         &mut len,
                                     ) != 0
                                     {
                                         status = RA_NOMATCH;
                                     }
-                                }
-                            } else {
-                                let spos = *re_st().rex.reg_startpos.wrapping_add(no);
-                                let epos = *re_st().rex.reg_endpos.wrapping_add(no);
-                                if spos.lnum >= 0 && epos.lnum >= 0 {
-                                    if spos.lnum == re_st().rex.lnum
-                                        && epos.lnum == re_st().rex.lnum
-                                    {
-                                        len = epos.col - spos.col;
-                                        if cstrncmp(
-                                            re_st().rex.line.wrapping_add(spos.col as usize).cast(),
-                                            re_st().rex.input.cast(),
-                                            &mut len,
-                                        ) != 0
-                                        {
-                                            status = RA_NOMATCH;
-                                        }
-                                    } else {
-                                        let r = match_with_backref(
-                                            spos.lnum, spos.col, epos.lnum, epos.col, &mut len,
-                                        );
-                                        if r != RA_MATCH {
-                                            status = r;
-                                        }
-                                    }
-                                }
-                            }
-                            re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
-                        }
-                        x if (ZREF + 1..=ZREF + 9).contains(&x) => {
-                            cleanup_zsubexpr();
-                            let no = (op - ZREF) as usize;
-                            let ext_in = &raw const g_st().re_extmatch_in;
-                            if let Some(ref em) = *ext_in
-                                && let Some(ref m_cstr) = em.matches[no]
-                            {
-                                let m = m_cstr.as_ptr();
-                                let mut len = m_cstr.as_bytes().len() as i32;
-                                if cstrncmp(m, re_st().rex.input.cast(), &mut len) != 0 {
-                                    status = RA_NOMATCH;
                                 } else {
-                                    re_st().rex.input =
-                                        re_st().rex.input.wrapping_add(len as usize);
-                                }
-                            }
-                        }
-                        BRANCH => {
-                            if op_fn(next) != BRANCH {
-                                next = operand_fn(scan);
-                            } else {
-                                let rp = regstack_push(RS_BRANCH, scan);
-                                if rp.is_null() {
-                                    status = RA_FAIL;
-                                } else {
-                                    status = RA_BREAK;
-                                }
-                            }
-                        }
-                        BRACE_LIMITS => {
-                            if op_fn(next) == BRACE_SIMPLE {
-                                bt_st().bl_minval = operand_min(scan);
-                                bt_st().bl_maxval = operand_max(scan);
-                            } else if op_fn(next) >= BRACE_COMPLEX
-                                && op_fn(next) < BRACE_COMPLEX + 10
-                            {
-                                let no = (op_fn(next) - BRACE_COMPLEX) as usize;
-                                re_st().brace_min[no] = operand_min(scan);
-                                re_st().brace_max[no] = operand_max(scan);
-                                re_st().brace_count[no] = 0;
-                            } else {
-                                internal_error(c"BRACE_LIMITS");
-                                status = RA_FAIL;
-                            }
-                        }
-                        x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
-                            let no = (op - BRACE_COMPLEX) as usize;
-                            let bmin = re_st().brace_min[no];
-                            let bmax = re_st().brace_max[no];
-                            re_st().brace_count[no] += 1;
-                            let bcount = re_st().brace_count[no];
-
-                            if i64::from(bcount) <= bmin.min(bmax) {
-                                let rp = regstack_push(RS_BRCPLX_MORE, scan);
-                                if rp.is_null() {
-                                    status = RA_FAIL;
-                                } else {
-                                    (*rp).rs_no = no as i16;
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                    next = operand_fn(scan);
-                                }
-                            } else if bmin <= bmax {
-                                if i64::from(bcount) <= bmax {
-                                    let rp = regstack_push(RS_BRCPLX_LONG, scan);
-                                    if rp.is_null() {
-                                        status = RA_FAIL;
-                                    } else {
-                                        (*rp).rs_no = no as i16;
-                                        reg_save((*rp).rs_un.regsave_mut());
-                                        next = operand_fn(scan);
-                                    }
-                                }
-                            } else if i64::from(bcount) <= bmin {
-                                let rp = regstack_push(RS_BRCPLX_SHORT, scan);
-                                if rp.is_null() {
-                                    status = RA_FAIL;
-                                } else {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                }
-                            }
-                        }
-                        BRACE_SIMPLE | STAR | PLUS => {
-                            let mut rst = Regstar::new();
-                            if op_fn(next) == EXACTLY {
-                                rst.nextb = *operand_fn(next) as i32;
-                                if re_st().rex.reg_ic {
-                                    if mb_isupper(rst.nextb) {
-                                        rst.nextb_ic = mb_tolower(rst.nextb);
-                                    } else {
-                                        rst.nextb_ic = mb_toupper(rst.nextb);
-                                    }
-                                } else {
-                                    rst.nextb_ic = rst.nextb;
-                                }
-                            } else {
-                                rst.nextb = NUL as i32;
-                                rst.nextb_ic = NUL as i32;
-                            }
-                            if op != BRACE_SIMPLE {
-                                rst.minval = if op == STAR { 0 } else { 1 };
-                                rst.maxval = i64::from(MAX_LIMIT);
-                            } else {
-                                rst.minval = bt_st().bl_minval;
-                                rst.maxval = bt_st().bl_maxval;
-                            }
-
-                            rst.count = i64::from(regrepeat(operand_fn(scan), rst.maxval));
-                            if g_st().got_int {
-                                status = RA_FAIL;
-                                break;
-                            }
-                            if if rst.minval <= rst.maxval {
-                                rst.count >= rst.minval
-                            } else {
-                                rst.count >= rst.maxval
-                            } {
-                                if i64::from(((re_st().regstack.len() * 8) as u32) >> 10)
-                                    >= opt_vars().p_mmp
-                                {
-                                    emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
-                                    status = RA_FAIL;
-                                } else {
-                                    re_st().regstack.resize(
-                                        re_st().regstack.len() + size_of::<Regstar>() / 8,
-                                        0,
+                                    let r = match_with_backref(
+                                        spos.lnum, spos.col, epos.lnum, epos.col, &mut len,
                                     );
-                                    let rp = regstack_push(
-                                        if rst.minval <= rst.maxval {
-                                            RS_STAR_LONG
-                                        } else {
-                                            RS_STAR_SHORT
-                                        },
-                                        scan,
-                                    );
-                                    if rp.is_null() {
-                                        status = RA_FAIL;
-                                    } else {
-                                        *rp.cast::<Regstar>().wrapping_sub(1) = rst;
-                                        status = RA_BREAK;
+                                    if r != RA_MATCH {
+                                        status = r;
                                     }
                                 }
-                            } else {
+                            }
+                        }
+                        re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
+                    }
+                    x if (ZREF + 1..=ZREF + 9).contains(&x) => {
+                        cleanup_zsubexpr();
+                        let no = (op - ZREF) as usize;
+                        let ext_in = &raw const g_st().re_extmatch_in;
+                        if let Some(ref em) = *unsafe { &(*ext_in) }
+                            && let Some(ref m_cstr) = em.matches[no]
+                        {
+                            let m = m_cstr.as_ptr();
+                            let mut len = m_cstr.as_bytes().len() as i32;
+                            if cstrncmp(m, re_st().rex.input.cast(), &mut len) != 0 {
                                 status = RA_NOMATCH;
+                            } else {
+                                re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                             }
                         }
-                        NOMATCH | MATCH | SUBPAT => {
-                            let rp = regstack_push(RS_NOMATCH, scan);
+                    }
+                    BRANCH => {
+                        if op_fn(next) != BRANCH {
+                            next = operand_fn(scan);
+                        } else {
+                            let rp = regstack_push(RS_BRANCH, scan);
                             if rp.is_null() {
                                 status = RA_FAIL;
                             } else {
-                                (*rp).rs_no = op as i16;
-                                reg_save((*rp).rs_un.regsave_mut());
-                                next = operand_fn(scan);
+                                status = RA_BREAK;
                             }
                         }
-                        BEHIND | NOBEHIND => {
+                    }
+                    BRACE_LIMITS => {
+                        if op_fn(next) == BRACE_SIMPLE {
+                            bt_st().bl_minval = operand_min(scan);
+                            bt_st().bl_maxval = operand_max(scan);
+                        } else if op_fn(next) >= BRACE_COMPLEX && op_fn(next) < BRACE_COMPLEX + 10 {
+                            let no = (op_fn(next) - BRACE_COMPLEX) as usize;
+                            re_st().brace_min[no] = operand_min(scan);
+                            re_st().brace_max[no] = operand_max(scan);
+                            re_st().brace_count[no] = 0;
+                        } else {
+                            internal_error(c"BRACE_LIMITS");
+                            status = RA_FAIL;
+                        }
+                    }
+                    x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
+                        let no = (op - BRACE_COMPLEX) as usize;
+                        let bmin = re_st().brace_min[no];
+                        let bmax = re_st().brace_max[no];
+                        re_st().brace_count[no] += 1;
+                        let bcount = re_st().brace_count[no];
+
+                        if i64::from(bcount) <= bmin.min(bmax) {
+                            let rp = regstack_push(RS_BRCPLX_MORE, scan);
+                            if rp.is_null() {
+                                status = RA_FAIL;
+                            } else {
+                                unsafe {
+                                    (*rp).rs_no = no as i16;
+                                }
+                                unsafe {
+                                    reg_save((*rp).rs_un.regsave_mut());
+                                }
+                                next = operand_fn(scan);
+                            }
+                        } else if bmin <= bmax {
+                            if i64::from(bcount) <= bmax {
+                                let rp = regstack_push(RS_BRCPLX_LONG, scan);
+                                if rp.is_null() {
+                                    status = RA_FAIL;
+                                } else {
+                                    unsafe {
+                                        (*rp).rs_no = no as i16;
+                                    }
+                                    unsafe {
+                                        reg_save((*rp).rs_un.regsave_mut());
+                                    }
+                                    next = operand_fn(scan);
+                                }
+                            }
+                        } else if i64::from(bcount) <= bmin {
+                            let rp = regstack_push(RS_BRCPLX_SHORT, scan);
+                            if rp.is_null() {
+                                status = RA_FAIL;
+                            } else {
+                                unsafe {
+                                    reg_save((*rp).rs_un.regsave_mut());
+                                }
+                            }
+                        }
+                    }
+                    BRACE_SIMPLE | STAR | PLUS => {
+                        let mut rst = Regstar::new();
+                        if op_fn(next) == EXACTLY {
+                            unsafe {
+                                rst.nextb = *operand_fn(next) as i32;
+                            }
+                            if re_st().rex.reg_ic {
+                                if mb_isupper(rst.nextb) {
+                                    rst.nextb_ic = mb_tolower(rst.nextb);
+                                } else {
+                                    rst.nextb_ic = mb_toupper(rst.nextb);
+                                }
+                            } else {
+                                rst.nextb_ic = rst.nextb;
+                            }
+                        } else {
+                            rst.nextb = NUL as i32;
+                            rst.nextb_ic = NUL as i32;
+                        }
+                        if op != BRACE_SIMPLE {
+                            rst.minval = if op == STAR { 0 } else { 1 };
+                            rst.maxval = i64::from(MAX_LIMIT);
+                        } else {
+                            rst.minval = bt_st().bl_minval;
+                            rst.maxval = bt_st().bl_maxval;
+                        }
+
+                        rst.count = i64::from(regrepeat(operand_fn(scan), rst.maxval));
+                        if g_st().got_int {
+                            status = RA_FAIL;
+                            break;
+                        }
+                        if if rst.minval <= rst.maxval {
+                            rst.count >= rst.minval
+                        } else {
+                            rst.count >= rst.maxval
+                        } {
                             if i64::from(((re_st().regstack.len() * 8) as u32) >> 10)
                                 >= opt_vars().p_mmp
                             {
@@ -3492,196 +3518,370 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             } else {
                                 re_st()
                                     .regstack
-                                    .resize(re_st().regstack.len() + size_of::<Regbehind>() / 8, 0);
-                                let rp = regstack_push(RS_BEHIND1, scan);
+                                    .resize(re_st().regstack.len() + size_of::<Regstar>() / 8, 0);
+                                let rp = regstack_push(
+                                    if rst.minval <= rst.maxval {
+                                        RS_STAR_LONG
+                                    } else {
+                                        RS_STAR_SHORT
+                                    },
+                                    scan,
+                                );
                                 if rp.is_null() {
                                     status = RA_FAIL;
                                 } else {
+                                    unsafe {
+                                        *rp.cast::<Regstar>().wrapping_sub(1) = rst;
+                                    }
+                                    status = RA_BREAK;
+                                }
+                            }
+                        } else {
+                            status = RA_NOMATCH;
+                        }
+                    }
+                    NOMATCH | MATCH | SUBPAT => {
+                        let rp = regstack_push(RS_NOMATCH, scan);
+                        if rp.is_null() {
+                            status = RA_FAIL;
+                        } else {
+                            unsafe {
+                                (*rp).rs_no = op as i16;
+                            }
+                            unsafe {
+                                reg_save((*rp).rs_un.regsave_mut());
+                            }
+                            next = operand_fn(scan);
+                        }
+                    }
+                    BEHIND | NOBEHIND => {
+                        if i64::from(((re_st().regstack.len() * 8) as u32) >> 10)
+                            >= opt_vars().p_mmp
+                        {
+                            emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
+                            status = RA_FAIL;
+                        } else {
+                            re_st()
+                                .regstack
+                                .resize(re_st().regstack.len() + size_of::<Regbehind>() / 8, 0);
+                            let rp = regstack_push(RS_BEHIND1, scan);
+                            if rp.is_null() {
+                                status = RA_FAIL;
+                            } else {
+                                unsafe {
                                     save_subexpr(&mut *rp.cast::<Regbehind>().wrapping_sub(1));
+                                }
+                                unsafe {
                                     (*rp).rs_no = op as i16;
+                                }
+                                unsafe {
                                     reg_save((*rp).rs_un.regsave_mut());
                                 }
                             }
                         }
-                        BHPOS => {
-                            if reg_multi() {
-                                let bpos = re_st().behind_pos.rs_u.pos();
-                                if bpos.col
-                                    != re_st().rex.input.offset_from(re_st().rex.line) as Colnr
-                                    || bpos.lnum != re_st().rex.lnum
-                                {
-                                    status = RA_NOMATCH;
-                                }
-                            } else if re_st().behind_pos.rs_u.ptr() != re_st().rex.input {
-                                status = RA_NOMATCH;
-                            }
-                        }
-                        NEWL => {
-                            if (c != NUL as i32
-                                || !reg_multi()
-                                || re_st().rex.lnum > re_st().rex.reg_maxline
-                                || re_st().rex.reg_line_lbr)
-                                && (c != b'\n' as i32 || !re_st().rex.reg_line_lbr)
+                    }
+                    BHPOS => {
+                        if reg_multi() {
+                            let bpos = re_st().behind_pos.rs_u.pos();
+                            if unsafe {
+                                bpos.col != re_st().rex.input.offset_from(re_st().rex.line) as Colnr
+                            } || bpos.lnum != re_st().rex.lnum
                             {
                                 status = RA_NOMATCH;
-                            } else if re_st().rex.reg_line_lbr {
-                                advance_reginput();
-                            } else {
-                                reg_nextline();
                             }
-                        }
-                        END => {
-                            status = RA_MATCH;
-                        }
-                        _ => {
-                            iemsg(tr(E_RE_CORR));
-                            status = RA_FAIL;
+                        } else if re_st().behind_pos.rs_u.ptr() != re_st().rex.input {
+                            status = RA_NOMATCH;
                         }
                     }
+                    NEWL => {
+                        if (c != NUL as i32
+                            || !reg_multi()
+                            || re_st().rex.lnum > re_st().rex.reg_maxline
+                            || re_st().rex.reg_line_lbr)
+                            && (c != b'\n' as i32 || !re_st().rex.reg_line_lbr)
+                        {
+                            status = RA_NOMATCH;
+                        } else if re_st().rex.reg_line_lbr {
+                            advance_reginput();
+                        } else {
+                            reg_nextline();
+                        }
+                    }
+                    END => {
+                        status = RA_MATCH;
+                    }
+                    _ => {
+                        iemsg(tr(E_RE_CORR));
+                        status = RA_FAIL;
+                    }
                 }
-
-                if status != RA_CONT {
-                    break;
-                }
-                scan = next;
             }
 
-            while !re_st().regstack.is_empty() && status != RA_FAIL {
-                let rp = re_st()
-                    .regstack
-                    .as_mut_ptr()
-                    .wrapping_add(re_st().regstack.len())
-                    .cast::<Regitem>()
-                    .wrapping_sub(1);
-                match (*rp).rs_state {
-                    RS_NOPEN => {
-                        regstack_pop(&mut scan);
-                    }
-                    RS_MOPEN => {
-                        if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+            if status != RA_CONT {
+                break;
+            }
+            scan = next;
+        }
+
+        while !re_st().regstack.is_empty() && status != RA_FAIL {
+            let rp = re_st()
+                .regstack
+                .as_mut_ptr()
+                .wrapping_add(re_st().regstack.len())
+                .cast::<Regitem>()
+                .wrapping_sub(1);
+            match unsafe { (*rp).rs_state } {
+                RS_NOPEN => {
+                    regstack_pop(&mut scan);
+                }
+                RS_MOPEN => {
+                    if status == RA_NOMATCH {
+                        let no = unsafe { (*rp).rs_no as usize };
+                        unsafe {
                             restore_se_m((*rp).rs_un.sesave(), no, false);
                         }
-                        regstack_pop(&mut scan);
                     }
-                    RS_ZOPEN => {
-                        if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                    regstack_pop(&mut scan);
+                }
+                RS_ZOPEN => {
+                    if status == RA_NOMATCH {
+                        let no = unsafe { (*rp).rs_no as usize };
+                        unsafe {
                             restore_se_z(
                                 (*rp).rs_un.sesave(),
                                 &mut re_st().reg_startzpos[no],
                                 &mut re_st().reg_startzp[no],
                             );
                         }
-                        regstack_pop(&mut scan);
                     }
-                    RS_MCLOSE => {
-                        if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                    regstack_pop(&mut scan);
+                }
+                RS_MCLOSE => {
+                    if status == RA_NOMATCH {
+                        let no = unsafe { (*rp).rs_no as usize };
+                        unsafe {
                             restore_se_m((*rp).rs_un.sesave(), no, true);
                         }
-                        regstack_pop(&mut scan);
                     }
-                    RS_ZCLOSE => {
-                        if status == RA_NOMATCH {
-                            let no = (*rp).rs_no as usize;
+                    regstack_pop(&mut scan);
+                }
+                RS_ZCLOSE => {
+                    if status == RA_NOMATCH {
+                        let no = unsafe { (*rp).rs_no as usize };
+                        unsafe {
                             restore_se_z(
                                 (*rp).rs_un.sesave(),
                                 &mut re_st().reg_endzpos[no],
                                 &mut re_st().reg_endzp[no],
                             );
                         }
-                        regstack_pop(&mut scan);
                     }
-                    RS_BRANCH => {
-                        if status == RA_MATCH {
-                            regstack_pop(&mut scan);
-                        } else {
-                            if status != RA_BREAK {
+                    regstack_pop(&mut scan);
+                }
+                RS_BRANCH => {
+                    if status == RA_MATCH {
+                        regstack_pop(&mut scan);
+                    } else {
+                        if status != RA_BREAK {
+                            unsafe {
                                 reg_restore((*rp).rs_un.regsave_mut());
+                            }
+                            unsafe {
                                 scan = (*rp).rs_scan;
                             }
-                            if scan.is_null() || op_fn(scan) != BRANCH {
-                                status = RA_NOMATCH;
-                                regstack_pop(&mut scan);
-                            } else {
-                                (*rp).rs_scan = regnext(scan);
-                                reg_save((*rp).rs_un.regsave_mut());
-                                scan = operand_fn(scan);
-                            }
                         }
-                    }
-                    RS_BRCPLX_MORE => {
-                        if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
-                        }
-                        regstack_pop(&mut scan);
-                    }
-                    RS_BRCPLX_LONG => {
-                        if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
-                            status = RA_CONT;
-                        }
-                        regstack_pop(&mut scan);
-                        if status == RA_CONT {
-                            scan = regnext(scan);
-                        }
-                    }
-                    RS_BRCPLX_SHORT => {
-                        if status == RA_NOMATCH {
-                            reg_restore((*rp).rs_un.regsave_mut());
-                        }
-                        regstack_pop(&mut scan);
-                        if status == RA_NOMATCH {
-                            scan = operand_fn(scan);
-                            status = RA_CONT;
-                        }
-                    }
-                    RS_NOMATCH => {
-                        if status
-                            == if (*rp).rs_no == NOMATCH as i16 {
-                                RA_MATCH
-                            } else {
-                                RA_NOMATCH
-                            }
-                        {
+                        if scan.is_null() || op_fn(scan) != BRANCH {
                             status = RA_NOMATCH;
+                            regstack_pop(&mut scan);
                         } else {
-                            status = RA_CONT;
-                            if (*rp).rs_no != SUBPAT as i16 {
+                            unsafe {
+                                (*rp).rs_scan = regnext(scan);
+                            }
+                            unsafe {
+                                reg_save((*rp).rs_un.regsave_mut());
+                            }
+                            scan = operand_fn(scan);
+                        }
+                    }
+                }
+                RS_BRCPLX_MORE => {
+                    if status == RA_NOMATCH {
+                        unsafe {
+                            reg_restore((*rp).rs_un.regsave_mut());
+                        }
+                        unsafe {
+                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
+                        }
+                    }
+                    regstack_pop(&mut scan);
+                }
+                RS_BRCPLX_LONG => {
+                    if status == RA_NOMATCH {
+                        unsafe {
+                            reg_restore((*rp).rs_un.regsave_mut());
+                        }
+                        unsafe {
+                            re_st().brace_count[(*rp).rs_no as usize] -= 1;
+                        }
+                        status = RA_CONT;
+                    }
+                    regstack_pop(&mut scan);
+                    if status == RA_CONT {
+                        scan = regnext(scan);
+                    }
+                }
+                RS_BRCPLX_SHORT => {
+                    if status == RA_NOMATCH {
+                        unsafe {
+                            reg_restore((*rp).rs_un.regsave_mut());
+                        }
+                    }
+                    regstack_pop(&mut scan);
+                    if status == RA_NOMATCH {
+                        scan = operand_fn(scan);
+                        status = RA_CONT;
+                    }
+                }
+                RS_NOMATCH => {
+                    if status
+                        == if unsafe { (*rp).rs_no == NOMATCH as i16 } {
+                            RA_MATCH
+                        } else {
+                            RA_NOMATCH
+                        }
+                    {
+                        status = RA_NOMATCH;
+                    } else {
+                        status = RA_CONT;
+                        if unsafe { (*rp).rs_no != SUBPAT as i16 } {
+                            unsafe {
                                 reg_restore((*rp).rs_un.regsave_mut());
                             }
                         }
-                        regstack_pop(&mut scan);
-                        if status == RA_CONT {
-                            scan = regnext(scan);
-                        }
                     }
-                    RS_BEHIND1 => {
-                        if status == RA_NOMATCH {
-                            regstack_pop(&mut scan);
-                            re_st()
-                                .regstack
-                                .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
-                        } else {
-                            let bp = &mut *rp.cast::<Regbehind>().wrapping_sub(1);
-                            reg_save(&mut bp.save_after);
-                            bp.save_behind = re_st().behind_pos;
+                    regstack_pop(&mut scan);
+                    if status == RA_CONT {
+                        scan = regnext(scan);
+                    }
+                }
+                RS_BEHIND1 => {
+                    if status == RA_NOMATCH {
+                        regstack_pop(&mut scan);
+                        re_st()
+                            .regstack
+                            .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
+                    } else {
+                        let bp = unsafe { &mut *rp.cast::<Regbehind>().wrapping_sub(1) };
+                        reg_save(&mut bp.save_after);
+                        bp.save_behind = re_st().behind_pos;
+                        unsafe {
                             re_st().behind_pos = *(*rp).rs_un.regsave();
+                        }
+                        unsafe {
                             (*rp).rs_state = RS_BEHIND2;
+                        }
+                        unsafe {
                             reg_restore((*rp).rs_un.regsave_mut());
+                        }
+                        unsafe {
                             scan = operand_fn((*rp).rs_scan).wrapping_add(4);
                         }
                     }
-                    RS_BEHIND2 => {
-                        let bp = &mut *rp.cast::<Regbehind>().wrapping_sub(1);
-                        if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
-                            re_st().behind_pos = bp.save_behind;
-                            if (*rp).rs_no == BEHIND as i16 {
-                                reg_restore(&mut bp.save_after);
+                }
+                RS_BEHIND2 => {
+                    let bp = unsafe { &mut *rp.cast::<Regbehind>().wrapping_sub(1) };
+                    if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
+                        re_st().behind_pos = bp.save_behind;
+                        if unsafe { (*rp).rs_no == BEHIND as i16 } {
+                            reg_restore(&mut bp.save_after);
+                        } else {
+                            status = RA_NOMATCH;
+                            restore_subexpr(&mut *bp);
+                        }
+                        regstack_pop(&mut scan);
+                        re_st()
+                            .regstack
+                            .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
+                    } else {
+                        let mut no = OK;
+                        let limit = unsafe { operand_min((*rp).rs_scan) };
+                        if reg_multi() {
+                            let rp_pos = unsafe { (*rp).rs_un.regsave().rs_u.pos() };
+                            let bpos = re_st().behind_pos.rs_u.pos();
+                            if limit > 0
+                                && i64::from(
+                                    (if rp_pos.lnum < bpos.lnum {
+                                        reg_getline_len(re_st().rex.lnum)
+                                    } else {
+                                        bpos.col
+                                    }) - rp_pos.col,
+                                ) >= limit
+                            {
+                                no = FAIL;
+                            } else if rp_pos.col == 0 {
+                                unsafe {
+                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
+                                }
+                                let new_lnum = unsafe { (*rp).rs_un.regsave().rs_u.pos().lnum };
+                                if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_null() {
+                                    no = FAIL;
+                                } else {
+                                    unsafe {
+                                        reg_restore((*rp).rs_un.regsave_mut());
+                                    }
+                                    unsafe {
+                                        (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
+                                            reg_getline_len(re_st().rex.lnum);
+                                    }
+                                }
                             } else {
+                                let line = reg_getline(rp_pos.lnum);
+                                unsafe {
+                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().col -= utf_head_off(
+                                        line.cast(),
+                                        line.wrapping_add(rp_pos.col as usize - 1).cast(),
+                                    ) + 1;
+                                }
+                            }
+                        } else if unsafe { (*rp).rs_un.regsave().rs_u.ptr() == re_st().rex.line } {
+                            no = FAIL;
+                        } else {
+                            unsafe {
+                                mb_ptr_back(
+                                    re_st().rex.line,
+                                    (*rp).rs_un.regsave_mut().rs_u.ptr_mut(),
+                                );
+                            }
+                            if limit > 0
+                                && unsafe {
+                                    re_st()
+                                        .behind_pos
+                                        .rs_u
+                                        .ptr()
+                                        .offset_from((*rp).rs_un.regsave().rs_u.ptr())
+                                        > limit as isize
+                                }
+                            {
+                                no = FAIL;
+                            }
+                        }
+                        if no == OK {
+                            unsafe {
+                                reg_restore((*rp).rs_un.regsave_mut());
+                            }
+                            unsafe {
+                                scan = operand_fn((*rp).rs_scan).wrapping_add(4);
+                            }
+                            if status == RA_MATCH {
+                                status = RA_NOMATCH;
+                                restore_subexpr(&mut *bp);
+                            }
+                        } else {
+                            re_st().behind_pos = bp.save_behind;
+                            if unsafe { (*rp).rs_no == NOBEHIND as i16 } {
+                                reg_restore(&mut bp.save_after);
+                                status = RA_MATCH;
+                            } else if status == RA_MATCH {
                                 status = RA_NOMATCH;
                                 restore_subexpr(&mut *bp);
                             }
@@ -3689,177 +3889,111 @@ fn regmatch(mut scan: *mut u8, tm: Option<Proftime>, mut timed_out: Option<&mut 
                             re_st()
                                 .regstack
                                 .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
-                        } else {
-                            let mut no = OK;
-                            let limit = operand_min((*rp).rs_scan);
-                            if reg_multi() {
-                                let rp_pos = (*rp).rs_un.regsave().rs_u.pos();
-                                let bpos = re_st().behind_pos.rs_u.pos();
-                                if limit > 0
-                                    && i64::from(
-                                        (if rp_pos.lnum < bpos.lnum {
-                                            reg_getline_len(re_st().rex.lnum)
-                                        } else {
-                                            bpos.col
-                                        }) - rp_pos.col,
-                                    ) >= limit
-                                {
-                                    no = FAIL;
-                                } else if rp_pos.col == 0 {
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
-                                    let new_lnum = (*rp).rs_un.regsave().rs_u.pos().lnum;
-                                    if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_null() {
-                                        no = FAIL;
-                                    } else {
-                                        reg_restore((*rp).rs_un.regsave_mut());
-                                        (*rp).rs_un.regsave_mut().rs_u.pos_mut().col =
-                                            reg_getline_len(re_st().rex.lnum);
-                                    }
-                                } else {
-                                    let line = reg_getline(rp_pos.lnum);
-                                    (*rp).rs_un.regsave_mut().rs_u.pos_mut().col -= utf_head_off(
-                                        line.cast(),
-                                        line.wrapping_add(rp_pos.col as usize - 1).cast(),
-                                    ) + 1;
-                                }
-                            } else if (*rp).rs_un.regsave().rs_u.ptr() == re_st().rex.line {
-                                no = FAIL;
-                            } else {
-                                mb_ptr_back(
-                                    re_st().rex.line,
-                                    (*rp).rs_un.regsave_mut().rs_u.ptr_mut(),
-                                );
-                                if limit > 0
-                                    && re_st()
-                                        .behind_pos
-                                        .rs_u
-                                        .ptr()
-                                        .offset_from((*rp).rs_un.regsave().rs_u.ptr())
-                                        > limit as isize
-                                {
-                                    no = FAIL;
-                                }
-                            }
-                            if no == OK {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                                scan = operand_fn((*rp).rs_scan).wrapping_add(4);
-                                if status == RA_MATCH {
-                                    status = RA_NOMATCH;
-                                    restore_subexpr(&mut *bp);
-                                }
-                            } else {
-                                re_st().behind_pos = bp.save_behind;
-                                if (*rp).rs_no == NOBEHIND as i16 {
-                                    reg_restore(&mut bp.save_after);
-                                    status = RA_MATCH;
-                                } else if status == RA_MATCH {
-                                    status = RA_NOMATCH;
-                                    restore_subexpr(&mut *bp);
-                                }
-                                regstack_pop(&mut scan);
-                                re_st()
-                                    .regstack
-                                    .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
-                            }
                         }
                     }
-                    RS_STAR_LONG | RS_STAR_SHORT => {
-                        let rst = &mut *rp.cast::<Regstar>().wrapping_sub(1);
-                        if status == RA_MATCH {
+                }
+                RS_STAR_LONG | RS_STAR_SHORT => {
+                    let rst = unsafe { &mut *rp.cast::<Regstar>().wrapping_sub(1) };
+                    if status == RA_MATCH {
+                        regstack_pop(&mut scan);
+                        re_st()
+                            .regstack
+                            .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
+                    } else {
+                        if status != RA_BREAK {
+                            unsafe {
+                                reg_restore((*rp).rs_un.regsave_mut());
+                            }
+                        }
+                        loop {
+                            if status != RA_BREAK {
+                                if unsafe { (*rp).rs_state == RS_STAR_LONG } {
+                                    rst.count -= 1;
+                                    if rst.count < rst.minval {
+                                        break;
+                                    }
+                                    if re_st().rex.input == re_st().rex.line {
+                                        if re_st().rex.lnum == 0 {
+                                            status = RA_NOMATCH;
+                                            break;
+                                        }
+                                        re_st().rex.lnum -= 1;
+                                        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                                        if re_st().rex.line.is_null() {
+                                            break;
+                                        }
+                                        re_st().rex.input =
+                                            re_st()
+                                                .rex
+                                                .line
+                                                .wrapping_add(
+                                                    reg_getline_len(re_st().rex.lnum) as usize
+                                                );
+                                        reg_breakcheck();
+                                    } else {
+                                        mb_ptr_back(re_st().rex.line, &mut re_st().rex.input);
+                                    }
+                                } else {
+                                    if rst.count == rst.minval
+                                        || unsafe { regrepeat(operand_fn((*rp).rs_scan), 1) == 0 }
+                                    {
+                                        break;
+                                    }
+                                    rst.count += 1;
+                                }
+                                if g_st().got_int {
+                                    break;
+                                }
+                            } else {
+                                status = RA_NOMATCH;
+                            }
+
+                            if rst.nextb == NUL as i32
+                                || unsafe { *re_st().rex.input as i32 == rst.nextb }
+                                || unsafe { *re_st().rex.input as i32 == rst.nextb_ic }
+                            {
+                                unsafe {
+                                    reg_save((*rp).rs_un.regsave_mut());
+                                }
+                                unsafe {
+                                    scan = regnext((*rp).rs_scan);
+                                }
+                                status = RA_CONT;
+                                break;
+                            }
+                        }
+                        if status != RA_CONT {
                             regstack_pop(&mut scan);
                             re_st()
                                 .regstack
                                 .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
-                        } else {
-                            if status != RA_BREAK {
-                                reg_restore((*rp).rs_un.regsave_mut());
-                            }
-                            loop {
-                                if status != RA_BREAK {
-                                    if (*rp).rs_state == RS_STAR_LONG {
-                                        rst.count -= 1;
-                                        if rst.count < rst.minval {
-                                            break;
-                                        }
-                                        if re_st().rex.input == re_st().rex.line {
-                                            if re_st().rex.lnum == 0 {
-                                                status = RA_NOMATCH;
-                                                break;
-                                            }
-                                            re_st().rex.lnum -= 1;
-                                            re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
-                                            if re_st().rex.line.is_null() {
-                                                break;
-                                            }
-                                            re_st().rex.input =
-                                                re_st()
-                                                    .rex
-                                                    .line
-                                                    .wrapping_add(
-                                                        reg_getline_len(re_st().rex.lnum) as usize,
-                                                    );
-                                            reg_breakcheck();
-                                        } else {
-                                            mb_ptr_back(re_st().rex.line, &mut re_st().rex.input);
-                                        }
-                                    } else {
-                                        if rst.count == rst.minval
-                                            || regrepeat(operand_fn((*rp).rs_scan), 1) == 0
-                                        {
-                                            break;
-                                        }
-                                        rst.count += 1;
-                                    }
-                                    if g_st().got_int {
-                                        break;
-                                    }
-                                } else {
-                                    status = RA_NOMATCH;
-                                }
-
-                                if rst.nextb == NUL as i32
-                                    || *re_st().rex.input as i32 == rst.nextb
-                                    || *re_st().rex.input as i32 == rst.nextb_ic
-                                {
-                                    reg_save((*rp).rs_un.regsave_mut());
-                                    scan = regnext((*rp).rs_scan);
-                                    status = RA_CONT;
-                                    break;
-                                }
-                            }
-                            if status != RA_CONT {
-                                regstack_pop(&mut scan);
-                                re_st()
-                                    .regstack
-                                    .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
-                                status = RA_NOMATCH;
-                            }
+                            status = RA_NOMATCH;
                         }
                     }
-                    _ => {}
                 }
-
-                let top = re_st()
-                    .regstack
-                    .as_mut_ptr()
-                    .wrapping_add(re_st().regstack.len())
-                    .cast::<Regitem>()
-                    .wrapping_sub(1);
-                if status == RA_CONT || rp == top {
-                    break;
-                }
+                _ => {}
             }
 
-            if status == RA_CONT {
-                continue;
+            let top = re_st()
+                .regstack
+                .as_mut_ptr()
+                .wrapping_add(re_st().regstack.len())
+                .cast::<Regitem>()
+                .wrapping_sub(1);
+            if status == RA_CONT || rp == top {
+                break;
             }
+        }
 
-            if re_st().regstack.is_empty() || status == RA_FAIL {
-                if scan.is_null() {
-                    iemsg(tr(E_RE_CORR));
-                }
-                return status == RA_MATCH;
+        if status == RA_CONT {
+            continue;
+        }
+
+        if re_st().regstack.is_empty() || status == RA_FAIL {
+            if scan.is_null() {
+                iemsg(tr(E_RE_CORR));
             }
+            return status == RA_MATCH;
         }
     }
 }
