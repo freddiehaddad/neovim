@@ -4880,7 +4880,10 @@ pub fn f_keytrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         return;
     }
     let escaped = vim_strsave_escape_ks(argvars[0].vval.v_string());
-    crate::eval::typval::tv_set_string(rettv, str2special_save(escaped.as_ptr(), true, 1).as_ptr());
+    crate::eval::typval::tv_set_string(
+        rettv,
+        str2special_save(escaped.as_bytes(), true, 1).as_ptr(),
+    );
 }
 
 /// "len()" function

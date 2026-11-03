@@ -443,7 +443,7 @@ fn showmap(mp: &Mapblock, local: bool) {
         msg_putchar(b' ' as i32);
     }
 
-    len = msg_outtrans_special(mp.m_keys.as_ptr(), true, 0) as usize;
+    len = msg_outtrans_special(mp.m_keys.as_bytes(), true, 0) as usize;
     loop {
         msg_putchar(b' ' as i32);
         len += 1;
@@ -472,7 +472,7 @@ fn showmap(mp: &Mapblock, local: bool) {
     } else if mp.m_str.as_bytes().is_empty() {
         msg_puts_hl(c"<Nop>", HLF_8, false);
     } else {
-        msg_outtrans_special(mp.m_str.as_ptr(), false, 0);
+        msg_outtrans_special(mp.m_str.as_bytes(), false, 0);
     }
 
     if let Some(ref desc) = mp.m_desc {
@@ -2101,7 +2101,7 @@ fn mapblock_fill_dict(
     let lhsrawalt = lhsrawalt.into_c_char_ptr();
     let mut dict = arena_dict(arena, 20);
     let lhs = str2special_arena(
-        mp.m_keys.as_ptr(),
+        mp.m_keys.as_bytes(),
         compatible,
         if compatible { K_FALSE } else { K_NONE },
         arena,
@@ -2126,7 +2126,7 @@ fn mapblock_fill_dict(
         let rhs = cstr_as_string(if compatible {
             mp.m_orig_str.as_c_str()
         } else {
-            str2special_arena(mp.m_str.as_ptr(), false, K_NONE, arena)
+            str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)
         });
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
@@ -2277,7 +2277,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
             } else {
                 crate::eval::typval::tv_set_string(
                     &mut *rettv,
-                    str2special_save(rhs.as_ptr(), false, K_FALSE).as_ptr(),
+                    str2special_save(rhs.to_bytes(), false, K_FALSE).as_ptr(),
                 );
             }
         } else if rhs_lua != LUA_NOREF
@@ -2531,7 +2531,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     pos: 0,
                     size: 0,
                 };
-                let lhs = str2special_arena(mp.m_keys.as_ptr(), true, K_FALSE, &mut arena);
+                let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
                 let keys_buf = replace_termcodes(
                     lhs,
                     crate::memory::cstr_len(lhs),

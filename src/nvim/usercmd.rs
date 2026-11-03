@@ -763,7 +763,7 @@ fn uc_list(name: impl crate::strings::IntoCCharPtr, name_len: usize) {
                 }
 
                 msg_outtrans_special(
-                    cmd.uc_rep.as_ptr(),
+                    cmd.uc_rep.as_bytes(),
                     false,
                     if name_len == 0 {
                         g_st().columns_global - 47

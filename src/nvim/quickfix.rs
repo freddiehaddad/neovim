@@ -3428,7 +3428,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     };
     qf_fmt_text(gap, text);
     gap.push(0);
-    msg_prt_line(gap.as_mut_ptr().cast(), false);
+    msg_prt_line(gap, false);
 }
 
 pub fn qf_list(eap: &mut Exarg) {
@@ -3589,12 +3589,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) 
             }
             crate::memory::append_bytes_to_c_buf(&mut buf, title.as_bytes());
         }
-        trunc_string(
-            buf.as_ptr().cast(),
-            buf.as_mut_ptr(),
-            g_st().columns_global - 1,
-            IOSIZE as i32,
-        );
+        trunc_string(None, &mut buf, g_st().columns_global - 1);
         msg(buf.as_ptr().cast(), 0);
     }
 }

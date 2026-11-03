@@ -744,14 +744,14 @@ unsafe extern "C-unwind" fn nlua_keyparse(lstate: *mut lua_State) -> i32 {
     }
 
     let escaped = vim_strsave_escape_ks(lua_tostring(lstate, 1));
-    let mut p = escaped.as_ptr();
+    let mut rem = escaped.as_bytes();
 
     lua_newtable(lstate);
 
     let mut data = KeyChord::new();
 
-    while !crate::memory::cstr_is_empty(p) {
-        let keys = str2special(&raw mut p, true, K_TRUE, Some(&mut data));
+    while !rem.is_empty() {
+        let keys = str2special(&mut rem, true, K_TRUE, Some(&mut data));
 
         unsafe { lua_createtable(lstate, 0, 3) };
 

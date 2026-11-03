@@ -3911,7 +3911,7 @@ fn show_pat_in_path(
             msg_puts_hl(iobuff_ptr, HLF_N, false);
             msg_puts(c" ");
         }
-        msg_prt_line(line, false);
+        msg_prt_line(crate::memory::cstr_as_bytes(line), false);
 
         if g_st().got_int || type_ != FIND_DEFINE || !has_trailing_bsl {
             break;

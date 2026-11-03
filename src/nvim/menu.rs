@@ -793,13 +793,11 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
         for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
             if (menu.modes & modes & (1 << bit)) != 0 {
                 let impl_dict = tv_dict_alloc();
-                let s_ptr = menu.strings[bit]
-                    .as_ref()
-                    .map_or(c"".as_ptr(), |s| s.as_ptr());
+                let s_bytes = menu.strings[bit].as_ref().map_or(&[][..], |s| s.as_bytes());
                 tv_dict_add_str(
                     &mut *impl_dict,
                     c"rhs",
-                    str2special_save(s_ptr, false, K_FALSE).as_ptr(),
+                    str2special_save(s_bytes, false, K_FALSE).as_ptr(),
                 );
                 tv_dict_add_nr(&mut *impl_dict, c"silent", i64::from(menu.silent[bit]));
                 tv_dict_add_nr(
@@ -1001,14 +999,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
                 if s_bytes.is_empty() {
                     msg_puts_hl(c"<Nop>", HLF_8, false);
                 } else {
-                    msg_outtrans_special(
-                        menu.as_deref_mut().unwrap().strings[bit]
-                            .as_ref()
-                            .unwrap()
-                            .as_ptr(),
-                        false,
-                        0,
-                    );
+                    msg_outtrans_special(s_bytes, false, 0);
                 }
             }
         }
@@ -1959,7 +1950,7 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
                     tv_dict_add_str(
                         dict,
                         c"rhs",
-                        str2special_save(s.as_ptr(), false, K_FALSE).as_ptr(),
+                        str2special_save(s.as_bytes(), false, K_FALSE).as_ptr(),
                     );
                 }
             }

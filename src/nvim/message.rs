@@ -52,9 +52,8 @@ use crate::keycodes::{
 use crate::log::{LOGLVL_DBG, LOGLVL_INF, log_get_stderr, logmsg};
 use crate::main_init::input_unanswerable;
 use crate::mbyte::{
-    UTF8LEN_TAB, mb_string2cells_len, mb_unescape, ptr2cells, utf_char2bytes, utf_char2cells,
-    utf_head_off, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
-    utfc_ptr2len_len,
+    UTF8LEN_TAB, mb_string2cells_len, mb_unescape, utf_char2bytes, utf_char2cells, utf_ptr2cells,
+    utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len, utfc_ptr2len_len,
 };
 use crate::memory::{Arena, arena_alloc, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
@@ -859,7 +858,7 @@ pub fn msg_strtrunc(s: impl crate::strings::IntoCCharPtr, force: i32) -> Option<
                 // composing chars)
                 let buflen = (room + 2) * 18;
                 let mut buf: Vec<u8> = vec![0; buflen as usize];
-                trunc_string(s, buf.as_mut_ptr(), room, buflen);
+                trunc_string(Some(crate::memory::cstr_as_bytes(s)), &mut buf, room);
                 return Some(crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
             }
         }
@@ -867,114 +866,122 @@ pub fn msg_strtrunc(s: impl crate::strings::IntoCCharPtr, force: i32) -> Option<
     }
 }
 
-/// Truncate a string "s" to "buf" with cell width "room".
-/// "s" and "buf" may be equal.
-pub fn trunc_string<T>(
-    s: impl crate::strings::IntoCCharPtr,
-    buf: *mut T,
-    room_in: i32,
-    buflen: i32,
-) {
-    let s: *const u8 = s.into_c_char_ptr().cast();
-    let buf: *mut u8 = buf.cast();
-    let same_buf = ptr::eq(s, buf);
-    let mut room = room_in - 3; // "..." takes 3 chars
-    let mut len: i32 = 0;
-    let mut e: i32 = 0;
+/// Truncate a string `s` (or `out` in place when `s` is `None`) to `out` with cell width `room_in`.
+pub fn trunc_string(s: Option<&[u8]>, out: &mut [u8], room_in: i32) {
+    if out.is_empty() {
+        return;
+    }
+    let buflen = out.len() as i32;
+    let room = (room_in - 3).max(0); // "..." takes 3 chars
 
-    if crate::memory::cstr_is_empty(s.cast()) {
-        if buflen > 0 {
-            unsafe {
-                *buf = 0;
+    let (s_len, e, i, fits_early) = {
+        let s_bytes: &[u8] = match s {
+            Some(b) => crate::memory::bytes_until_nul(b),
+            None => crate::memory::bytes_until_nul(out),
+        };
+        if s_bytes.is_empty() {
+            (0, 0, 0, true)
+        } else {
+            let s_len = s_bytes.len() as i32;
+            let mut len: i32 = 0;
+            let mut e: i32 = 0;
+            let mut half = room / 2;
+            let mut fits_early = false;
+
+            while len < half && e < buflen {
+                if (e as usize) >= s_bytes.len() {
+                    fits_early = true;
+                    break;
+                }
+                let rem = &s_bytes[e as usize..];
+                let n = crate::mbyte::slice2cells(rem);
+                if len + n > half {
+                    break;
+                }
+                len += n;
+                let mut step = crate::mbyte::utfc_slice2len(rem) as i32;
+                while {
+                    step -= 1;
+                    step > 0
+                } {
+                    e += 1;
+                    if e == buflen {
+                        break;
+                    }
+                }
+                e += 1;
             }
+
+            if fits_early {
+                (s_len, e, 0, true)
+            } else {
+                let mut i = s_len;
+                half = i;
+                loop {
+                    half =
+                        half - crate::mbyte::utf_head_off_slice(s_bytes, (half - 1) as usize) - 1;
+                    let n = crate::mbyte::slice2cells(&s_bytes[half as usize..]);
+                    if len + n > room || half == 0 {
+                        break;
+                    }
+                    len += n;
+                    i = half;
+                }
+                (s_len, e, i, false)
+            }
+        }
+    };
+
+    if s_len == 0 {
+        out[0] = 0;
+        return;
+    }
+    if fits_early {
+        if let Some(b) = s {
+            let s_bytes = crate::memory::bytes_until_nul(b);
+            let copy_len = s_bytes.len().min(out.len() - 1);
+            out[..copy_len].copy_from_slice(&s_bytes[..copy_len]);
+            out[copy_len] = 0;
         }
         return;
     }
 
-    if room_in < 3 {
-        room = 0;
-    }
-    let mut half = room / 2;
-
-    // First part: Start of the string.
-    while len < half && e < buflen {
-        let ch = crate::memory::cstr_first_byte(s.wrapping_add(e as usize).cast());
-        if ch == 0 {
-            // text fits without truncating!
-            if !same_buf {
-                let out = unsafe { std::slice::from_raw_parts_mut(buf, buflen as usize) };
-                out[..=e as usize]
-                    .copy_from_slice(crate::memory::cstr_slice(s.cast(), e as usize + 1));
-            }
-            return;
+    if let Some(b) = s {
+        let s_bytes = crate::memory::bytes_until_nul(b);
+        let copy_e = (e as usize).min(out.len()).min(s_bytes.len());
+        if copy_e > 0 {
+            out[..copy_e].copy_from_slice(&s_bytes[..copy_e]);
         }
-        let mut n = ptr2cells(s.wrapping_add(e as usize).cast());
-        if len + n > half {
-            break;
-        }
-        len += n;
-        n = utfc_ptr2len(s.wrapping_add(e as usize).cast());
-        while {
-            n -= 1;
-            n > 0
-        } {
-            e += 1;
-            if e == buflen {
-                break;
-            }
-        }
-        e += 1;
-    }
-
-    // Last part: End of the string.
-    let s_len = crate::memory::cstr_len(s.cast()) as i32;
-    let mut i = s_len;
-    half = i;
-    loop {
-        half = half - utf_head_off(s.cast(), s.wrapping_add((half - 1) as usize).cast()) - 1;
-        let n = ptr2cells(s.wrapping_add(half as usize).cast());
-        if len + n > room || half == 0 {
-            break;
-        }
-        len += n;
-        i = half;
-    }
-
-    let out = if buflen > 0 {
-        unsafe { std::slice::from_raw_parts_mut(buf, buflen as usize) }
-    } else {
-        &mut []
-    };
-    let copy_e = (e as usize).min(out.len());
-    if !same_buf && copy_e > 0 {
-        out[..copy_e].copy_from_slice(crate::memory::cstr_slice(s.cast(), copy_e));
     }
 
     if i <= e + 3 {
         // text fits without truncating
-        if !same_buf {
-            len = s_len.min(buflen - 1) - e + 1;
+        if let Some(b) = s {
+            let s_bytes = crate::memory::bytes_until_nul(b);
+            let len = s_len.min(buflen - 1) - e + 1;
             if len < 1 {
                 out[(e - 1).min(buflen - 1) as usize] = 0;
             } else {
                 let ue = e as usize;
-                let ulen = len as usize;
-                out[ue..ue + ulen]
-                    .copy_from_slice(crate::memory::cstr_slice(s.wrapping_add(ue).cast(), ulen));
+                let ulen = (len as usize).min(out.len() - ue);
+                let src_len = (ulen - 1).min(s_bytes.len().saturating_sub(ue));
+                out[ue..ue + src_len].copy_from_slice(&s_bytes[ue..ue + src_len]);
+                out[ue + src_len] = 0;
             }
         }
     } else if e + 3 < buflen {
         // set the middle and copy the last part
         let ue = e as usize;
         out[ue..ue + 3].copy_from_slice(b"...");
-        len = (s_len - i + 1).min(buflen - e - 3 - 1);
+        let len = (s_len - i + 1).min(buflen - e - 3 - 1);
         let ulen = len as usize;
         let ui = i as usize;
-        if same_buf {
-            out.copy_within(ui..ui + ulen, ue + 3);
+        if let Some(b) = s {
+            let s_bytes = crate::memory::bytes_until_nul(b);
+            let copy_tail = (ulen - 1).min(s_bytes.len().saturating_sub(ui));
+            out[ue + 3..ue + 3 + copy_tail].copy_from_slice(&s_bytes[ui..ui + copy_tail]);
         } else {
-            let tail = crate::memory::cstr_slice(s.wrapping_add(ui).cast(), ulen);
-            out[ue + 3..ue + 3 + ulen].copy_from_slice(tail);
+            out.copy_within(ui..ui + ulen, ue + 3);
         }
         out[ue + 3 + ulen - 1] = 0;
     } else {
@@ -2328,119 +2335,100 @@ pub fn msg_make(arg: impl crate::strings::IntoCCharPtr) {
 
 /// Output the string 'str' up to a NUL character.
 /// Return the number of characters it takes on the screen.
-pub fn msg_outtrans_special(
-    strstart: impl crate::strings::IntoCCharPtr,
-    from: bool,
-    maxlen: i32,
-) -> i32 {
-    let strstart = strstart.into_c_char_ptr();
-    {
-        if strstart.is_null() {
-            return 0;
-        }
-        let mut str_ = strstart;
-        let mut retval = 0;
-        let hl_id = HLF_8;
-
-        while !crate::memory::cstr_is_empty(str_) {
-            let mut text = if (str_ == strstart || crate::memory::cstr_len(str_) == 1)
-                && crate::memory::cstr_first_byte(str_) == b' '
-            {
-                str_ = str_.wrapping_add(1);
-                c"<Space>".as_ptr()
-            } else {
-                str2special(&raw mut str_, from, K_FALSE, None).as_ptr()
-            };
-            if crate::memory::cstr_len(text) == 1 {
-                text = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text)))
-                    .as_ptr();
-            }
-            let len = vim_strsize(text);
-            if maxlen > 0 && retval + len >= maxlen {
-                break;
-            }
-            // Highlight special keys
-            msg_puts_hl(
-                text,
-                if len > 1 && utfc_ptr2len(text) <= 1 {
-                    hl_id
-                } else {
-                    0
-                },
-                false,
-            );
-            retval += len;
-        }
-        retval
+pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
+    let strstart = crate::memory::bytes_until_nul(strstart);
+    if strstart.is_empty() {
+        return 0;
     }
+    let mut rem = strstart;
+    let mut retval = 0;
+    let hl_id = HLF_8;
+
+    while !rem.is_empty() {
+        let mut text = if (rem.len() == strstart.len() || rem.len() == 1) && rem[0] == b' ' {
+            rem = &rem[1..];
+            c"<Space>".as_ptr()
+        } else {
+            str2special(&mut rem, from, K_FALSE, None).as_ptr()
+        };
+        if crate::memory::cstr_len(text) == 1 {
+            text =
+                transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text))).as_ptr();
+        }
+        let len = vim_strsize(text);
+        if maxlen > 0 && retval + len >= maxlen {
+            break;
+        }
+        // Highlight special keys
+        msg_puts_hl(
+            text,
+            if len > 1 && utfc_ptr2len(text) <= 1 {
+                hl_id
+            } else {
+                0
+            },
+            false,
+        );
+        retval += len;
+    }
+    retval
 }
 
 /// Convert string, replacing key codes with printables
 pub fn str2special_save(
-    str_: impl crate::strings::IntoCCharPtr,
+    str_: &[u8],
     replace_spaces: bool,
     replace_others: TriState,
 ) -> std::ffi::CString {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut buf: Vec<u8> = Vec::with_capacity(40);
-        let mut p = str_;
-        while !crate::memory::cstr_is_empty(p) {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
-            buf.extend_from_slice(s.to_bytes());
-        }
-        crate::memory::cstr_from_bytes(&buf)
+    let mut buf: Vec<u8> = Vec::with_capacity(40);
+    let mut rem = crate::memory::bytes_until_nul(str_);
+    while !rem.is_empty() {
+        let s = str2special(&mut rem, replace_spaces, replace_others, None);
+        buf.extend_from_slice(s.to_bytes());
     }
+    crate::memory::cstr_from_bytes(&buf)
 }
 
 /// Convert string, replacing key codes with printables
 pub fn str2special_arena(
-    str_: impl crate::strings::IntoCCharPtr,
+    str_: &[u8],
     replace_spaces: bool,
     replace_others: TriState,
     arena: &mut Arena,
 ) -> &'static CStr {
-    let str_ = str_.into_c_char_ptr();
-    {
-        let mut p = str_;
-        let mut len = 0usize;
-        while !crate::memory::cstr_is_empty(p) {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
-            len += s.to_bytes().len();
-        }
-
-        let buf = arena_alloc(arena, len + 1, false).cast::<u8>();
-        let mut pos = 0usize;
-        p = str_;
-        while !crate::memory::cstr_is_empty(p) {
-            let s = str2special(&raw mut p, replace_spaces, replace_others, None);
-            let s_bytes = s.to_bytes();
-            unsafe {
-                ptr::copy_nonoverlapping(s_bytes.as_ptr(), buf.wrapping_add(pos), s_bytes.len())
-            };
-            pos += s_bytes.len();
-        }
-        unsafe {
-            *buf.wrapping_add(pos) = 0;
-            CStr::from_ptr(buf.cast())
-        }
+    let str_bytes = crate::memory::bytes_until_nul(str_);
+    let mut rem = str_bytes;
+    let mut len = 0usize;
+    while !rem.is_empty() {
+        let s = str2special(&mut rem, replace_spaces, replace_others, None);
+        len += s.to_bytes().len();
     }
+
+    let buf = arena_alloc(arena, len + 1, false).cast::<u8>();
+    let out = unsafe { std::slice::from_raw_parts_mut(buf, len + 1) };
+    let mut pos = 0usize;
+    rem = str_bytes;
+    while !rem.is_empty() {
+        let s = str2special(&mut rem, replace_spaces, replace_others, None);
+        let s_bytes = s.to_bytes();
+        out[pos..pos + s_bytes.len()].copy_from_slice(s_bytes);
+        pos += s_bytes.len();
+    }
+    out[pos] = 0;
+    unsafe { CStr::from_bytes_with_nul_unchecked(out) }
 }
 
 /// Convert character, replacing key with printable representation.
-pub fn str2special<T>(
-    sp: *mut *const T,
+pub fn str2special(
+    sp: &mut &[u8],
     replace_spaces: bool,
     replace_others: TriState,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    let mut str_: *const std::ffi::c_char = unsafe { (*sp).cast() };
-    let str_bytes = crate::memory::cstr_as_bytes(str_);
+    let str_bytes = crate::memory::bytes_until_nul(sp);
     let mut rem = str_bytes;
     if let Some(p) = mb_unescape(&mut rem) {
-        unsafe {
-            *sp = str_.wrapping_add(str_bytes.len() - rem.len()).cast();
-        }
+        *sp = rem;
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
             data.key = NvimString {
@@ -2462,13 +2450,11 @@ pub fn str2special<T>(
     if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
         if str_rem[1] == KS_MODIFIER {
             modifiers = str_rem[2] as i32;
-            str_ = str_.wrapping_add(3);
             str_rem = &str_rem[3..];
             c = str_rem.first().copied().unwrap_or(0) as i32;
         }
         if c == K_SPECIAL as i32 && str_rem.len() >= 3 {
             c = to_special(str_rem[1] as i32, str_rem[2] as i32);
-            str_ = str_.wrapping_add(2);
             str_rem = &str_rem[2..];
         }
         if is_special(c) || modifiers != 0 {
@@ -2479,19 +2465,13 @@ pub fn str2special<T>(
     if !is_special(c) && UTF8LEN_TAB[c as usize] > 1 {
         let mut rem = str_rem;
         if let Some(p) = mb_unescape(&mut rem) {
-            unsafe {
-                *sp = str_.wrapping_add(str_rem.len() - rem.len()).cast();
-            }
+            *sp = rem;
             c = utf_slice2char(p.to_bytes());
         } else {
-            unsafe {
-                *sp = str_.wrapping_add(1).cast();
-            }
+            *sp = &str_rem[1.min(str_rem.len())..];
         }
     } else {
-        unsafe {
-            *sp = str_.wrapping_add(usize::from(!str_rem.is_empty())).cast();
-        }
+        *sp = &str_rem[usize::from(!str_rem.is_empty())..];
     }
 
     if special
@@ -2533,223 +2513,211 @@ pub fn str2special<T>(
         }
     }
 
-    unsafe {
-        *buf_ptr = c as u8;
-        *buf_ptr.wrapping_add(1) = 0;
-        CStr::from_ptr(buf_ptr.cast())
-    }
+    msg_st().str2_special_buf[0] = c as u8;
+    msg_st().str2_special_buf[1] = 0;
+    unsafe { CStr::from_bytes_with_nul_unchecked(&msg_st().str2_special_buf[..2]) }
 }
 
 /// print line for :print or :list command
-pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
-    let mut s = s.into_c_char_ptr();
-    {
-        let mut sc: Schar;
-        let mut col = 0;
-        let mut n_extra = 0;
-        let mut sc_extra: Schar = 0;
-        let mut sc_final: Schar = 0;
-        let mut p_extra: *const u8 = ptr::null();
-        let mut hl_id = 0;
-        let mut lead = ptr::null();
-        let mut in_multispace: bool;
-        let mut multispace_pos = 0usize;
-        let mut trail = ptr::null();
+pub fn msg_prt_line(s: &[u8], mut list: bool) {
+    let bytes = crate::memory::bytes_until_nul(s);
+    let mut sc: Schar;
+    let mut col = 0;
+    let mut n_extra = 0;
+    let mut sc_extra: Schar = 0;
+    let mut sc_final: Schar = 0;
+    let mut p_extra: &[u8] = &[];
+    let mut hl_id = 0;
+    let mut lead_idx: Option<usize> = None;
+    let mut in_multispace: bool;
+    let mut multispace_pos = 0usize;
+    let mut trail_idx: Option<usize> = None;
 
-        if curwin_mut().w_onebuf_opt.wo_list != 0 {
-            list = true;
-        }
+    if curwin_mut().w_onebuf_opt.wo_list != 0 {
+        list = true;
+    }
 
-        if list {
-            // find start of trailing whitespace
-            if curwin_mut().w_p_lcs_chars.trail != 0 {
-                trail = s.wrapping_add(crate::memory::cstr_len(s));
-                while trail > s
-                    && ascii_iswhite(crate::memory::cstr_first_byte(trail.wrapping_sub(1)))
-                {
-                    trail = trail.wrapping_sub(1);
-                }
+    if list {
+        // find start of trailing whitespace
+        if curwin_mut().w_p_lcs_chars.trail != 0 {
+            let mut t = bytes.len();
+            while t > 0 && ascii_iswhite(bytes[t - 1]) {
+                t -= 1;
             }
-            // find end of leading whitespace
-            if curwin_mut().w_p_lcs_chars.lead != 0
-                || !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
-                || curwin_mut().w_p_lcs_chars.leadtab1 != 0
-            {
-                lead = s;
-                while ascii_iswhite(crate::memory::cstr_first_byte(lead)) {
-                    lead = lead.wrapping_add(1);
-                }
-                if crate::memory::cstr_is_empty(lead) {
-                    lead = ptr::null();
-                }
+            trail_idx = Some(t);
+        }
+        // find end of leading whitespace
+        if curwin_mut().w_p_lcs_chars.lead != 0
+            || !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
+            || curwin_mut().w_p_lcs_chars.leadtab1 != 0
+        {
+            let mut l = 0usize;
+            while l < bytes.len() && ascii_iswhite(bytes[l]) {
+                l += 1;
+            }
+            if l < bytes.len() {
+                lead_idx = Some(l);
             }
         }
+    }
 
-        // output a space for an empty line, otherwise the line will be overwritten
-        if crate::memory::cstr_is_empty(s) && !(list && curwin_mut().w_p_lcs_chars.eol != 0) {
-            msg_putchar(b' ' as i32);
-        }
+    // output a space for an empty line, otherwise the line will be overwritten
+    if bytes.is_empty() && !(list && curwin_mut().w_p_lcs_chars.eol != 0) {
+        msg_putchar(b' ' as i32);
+    }
 
-        while !g_st().got_int {
-            if n_extra > 0 {
-                n_extra -= 1;
-                if n_extra == 0 && sc_final != 0 {
-                    sc = sc_final;
-                } else if sc_extra != 0 {
-                    sc = sc_extra;
-                } else {
-                    assert!(!p_extra.is_null());
-                    sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra.cast()));
-                    p_extra = p_extra.wrapping_add(1);
-                }
+    let mut idx = 0usize;
+    while !g_st().got_int {
+        if n_extra > 0 {
+            n_extra -= 1;
+            if n_extra == 0 && sc_final != 0 {
+                sc = sc_final;
+            } else if sc_extra != 0 {
+                sc = sc_extra;
             } else {
-                let l = utfc_ptr2len(s);
-                if l > 1 {
-                    col += utf_ptr2cells(s);
-                    let mut buf = [0u8; MB_MAXBYTES + 1];
-                    if l as usize >= MB_MAXBYTES {
-                        crate::memory::copy_bytes_to_c_buf(&mut buf, b"?");
-                    } else if curwin_mut().w_p_lcs_chars.nbsp != 0
-                        && list
-                        && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)
-                    {
-                        schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
-                    } else {
-                        let ul = l as usize;
-                        buf[..ul].copy_from_slice(crate::memory::cstr_slice(s, ul));
-                        buf[ul] = 0;
-                    }
-                    msg_puts(buf.as_ptr().cast());
-                    s = s.wrapping_add(l as usize);
-                    continue;
+                sc = schar_from_ascii(p_extra.first().copied().unwrap_or(0));
+                p_extra = &p_extra[1.min(p_extra.len())..];
+            }
+        } else {
+            let rem = &bytes[idx.min(bytes.len())..];
+            let l = crate::mbyte::utfc_slice2len(rem);
+            if l > 1 {
+                col += crate::mbyte::utf_slice2cells(rem);
+                let mut buf = [0u8; MB_MAXBYTES + 1];
+                if l >= MB_MAXBYTES {
+                    crate::memory::copy_bytes_to_c_buf(&mut buf, b"?");
+                } else if curwin_mut().w_p_lcs_chars.nbsp != 0
+                    && list
+                    && matches!(utf_slice2char(rem), 160 | 0x202f)
+                {
+                    schar_get(buf.as_mut_ptr(), curwin_mut().w_p_lcs_chars.nbsp);
                 } else {
-                    hl_id = 0;
-                    let c = (crate::memory::cstr_first_byte(s)) as i32;
-                    s = s.wrapping_add(1);
-                    if c >= 0x80 {
-                        col += utf_char2cells(c);
-                        msg_putchar(c);
-                        continue;
+                    buf[..l].copy_from_slice(&rem[..l]);
+                    buf[l] = 0;
+                }
+                msg_puts(buf.as_ptr().cast());
+                idx += l;
+                continue;
+            } else {
+                hl_id = 0;
+                let c = rem.first().copied().unwrap_or(0) as i32;
+                idx += 1;
+                if c >= 0x80 {
+                    col += utf_char2cells(c);
+                    msg_putchar(c);
+                    continue;
+                }
+                sc_extra = 0;
+                sc_final = 0;
+                if list {
+                    in_multispace = c == b' ' as i32
+                        && (bytes.get(idx) == Some(&b' ')
+                            || (col > 0 && idx >= 2 && bytes.get(idx - 2) == Some(&b' ')));
+                    if !in_multispace {
+                        multispace_pos = 0;
                     }
-                    sc_extra = 0;
-                    sc_final = 0;
-                    if list {
-                        in_multispace = c == b' ' as i32
-                            && (crate::memory::cstr_first_byte(s) == b' '
-                                || (col > 0
-                                    && crate::memory::cstr_first_byte(s.wrapping_sub(2)) == b' '));
-                        if !in_multispace {
+                } else {
+                    in_multispace = false;
+                }
+                if c == TAB && (!list || curwin_mut().w_p_lcs_chars.tab1 != 0) {
+                    n_extra =
+                        tabstop_padding(col, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array) - 1;
+                    if !list {
+                        sc = schar_from_ascii(b' ');
+                        sc_extra = schar_from_ascii(b' ');
+                    } else {
+                        let mut lcs_tab1 = curwin_mut().w_p_lcs_chars.tab1;
+                        let mut lcs_tab2 = curwin_mut().w_p_lcs_chars.tab2;
+                        let mut lcs_tab3 = curwin_mut().w_p_lcs_chars.tab3;
+                        if lead_idx.is_some_and(|lead| idx <= lead)
+                            && curwin_mut().w_p_lcs_chars.leadtab1 != 0
+                        {
+                            lcs_tab1 = curwin_mut().w_p_lcs_chars.leadtab1;
+                            lcs_tab2 = curwin_mut().w_p_lcs_chars.leadtab2;
+                            lcs_tab3 = curwin_mut().w_p_lcs_chars.leadtab3;
+                        }
+                        sc = if n_extra == 0 && lcs_tab3 != 0 {
+                            lcs_tab3
+                        } else {
+                            lcs_tab1
+                        };
+                        sc_extra = lcs_tab2;
+                        sc_final = lcs_tab3;
+                        hl_id = HLF_0;
+                    }
+                } else if c == NUL as i32 && list && curwin_mut().w_p_lcs_chars.eol != 0 {
+                    p_extra = b"";
+                    n_extra = 1;
+                    sc = curwin_mut().w_p_lcs_chars.eol;
+                    hl_id = HLF_AT;
+                    idx -= 1;
+                } else if c != NUL as i32 && {
+                    let n = ascii2cells(c);
+                    if n > 1 {
+                        n_extra = n - 1;
+                        let tc = transchar_byte_buf(None, i32::from(c as u8)).to_bytes();
+                        sc = schar_from_ascii(tc.first().copied().unwrap_or(0));
+                        p_extra = &tc[1.min(tc.len())..];
+                        hl_id = HLF_0;
+                        true
+                    } else {
+                        sc = 0;
+                        false
+                    }
+                } {
+                    // handled in condition
+                } else if c == b' ' as i32 {
+                    if lead_idx.is_some_and(|lead| idx <= lead)
+                        && in_multispace
+                        && !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
+                    {
+                        sc = curwin_mut().w_p_lcs_chars.leadmultispace.as_slice()[multispace_pos];
+                        multispace_pos += 1;
+                        if multispace_pos >= curwin_mut().w_p_lcs_chars.leadmultispace.len() {
                             multispace_pos = 0;
                         }
+                        hl_id = HLF_0;
+                    } else if lead_idx.is_some_and(|lead| idx <= lead)
+                        && curwin_mut().w_p_lcs_chars.lead != 0
+                    {
+                        sc = curwin_mut().w_p_lcs_chars.lead;
+                        hl_id = HLF_0;
+                    } else if trail_idx.is_some_and(|trail| idx > trail) {
+                        sc = curwin_mut().w_p_lcs_chars.trail;
+                        hl_id = HLF_0;
+                    } else if in_multispace && !curwin_mut().w_p_lcs_chars.multispace.is_empty() {
+                        sc = curwin_mut().w_p_lcs_chars.multispace.as_slice()[multispace_pos];
+                        multispace_pos += 1;
+                        if multispace_pos >= curwin_mut().w_p_lcs_chars.multispace.len() {
+                            multispace_pos = 0;
+                        }
+                        hl_id = HLF_0;
+                    } else if list && curwin_mut().w_p_lcs_chars.space != 0 {
+                        sc = curwin_mut().w_p_lcs_chars.space;
+                        hl_id = HLF_0;
                     } else {
-                        in_multispace = false;
+                        sc = schar_from_ascii(b' ');
                     }
-                    if c == TAB && (!list || curwin_mut().w_p_lcs_chars.tab1 != 0) {
-                        n_extra =
-                            tabstop_padding(col, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array)
-                                - 1;
-                        if !list {
-                            sc = schar_from_ascii(b' ');
-                            sc_extra = schar_from_ascii(b' ');
-                        } else {
-                            let mut lcs_tab1 = curwin_mut().w_p_lcs_chars.tab1;
-                            let mut lcs_tab2 = curwin_mut().w_p_lcs_chars.tab2;
-                            let mut lcs_tab3 = curwin_mut().w_p_lcs_chars.tab3;
-                            if !lead.is_null()
-                                && s <= lead
-                                && curwin_mut().w_p_lcs_chars.leadtab1 != 0
-                            {
-                                lcs_tab1 = curwin_mut().w_p_lcs_chars.leadtab1;
-                                lcs_tab2 = curwin_mut().w_p_lcs_chars.leadtab2;
-                                lcs_tab3 = curwin_mut().w_p_lcs_chars.leadtab3;
-                            }
-                            sc = if n_extra == 0 && lcs_tab3 != 0 {
-                                lcs_tab3
-                            } else {
-                                lcs_tab1
-                            };
-                            sc_extra = lcs_tab2;
-                            sc_final = lcs_tab3;
-                            hl_id = HLF_0;
-                        }
-                    } else if c == NUL as i32 && list && curwin_mut().w_p_lcs_chars.eol != 0 {
-                        p_extra = c"".as_ptr().cast();
-                        n_extra = 1;
-                        sc = curwin_mut().w_p_lcs_chars.eol;
-                        hl_id = HLF_AT;
-                        s = s.wrapping_sub(1);
-                    } else if c != NUL as i32 && {
-                        let n = ascii2cells(c);
-                        if n > 1 {
-                            n_extra = n - 1;
-                            p_extra = transchar_byte_buf(None, i32::from(c as u8)).as_ptr().cast();
-                            sc = schar_from_ascii(crate::memory::cstr_first_byte(p_extra.cast()));
-                            p_extra = p_extra.wrapping_add(1);
-                            hl_id = HLF_0;
-                            true
-                        } else {
-                            sc = 0;
-                            false
-                        }
-                    } {
-                        // handled in condition
-                    } else if c == b' ' as i32 {
-                        if !lead.is_null()
-                            && s <= lead
-                            && in_multispace
-                            && !curwin_mut().w_p_lcs_chars.leadmultispace.is_empty()
-                        {
-                            sc = curwin_mut().w_p_lcs_chars.leadmultispace.as_slice()
-                                [multispace_pos];
-                            multispace_pos += 1;
-                            if multispace_pos >= curwin_mut().w_p_lcs_chars.leadmultispace.len() {
-                                multispace_pos = 0;
-                            }
-                            hl_id = HLF_0;
-                        } else if !lead.is_null()
-                            && s <= lead
-                            && curwin_mut().w_p_lcs_chars.lead != 0
-                        {
-                            sc = curwin_mut().w_p_lcs_chars.lead;
-                            hl_id = HLF_0;
-                        } else if !trail.is_null() && s > trail {
-                            sc = curwin_mut().w_p_lcs_chars.trail;
-                            hl_id = HLF_0;
-                        } else if in_multispace && !curwin_mut().w_p_lcs_chars.multispace.is_empty()
-                        {
-                            sc = curwin_mut().w_p_lcs_chars.multispace.as_slice()[multispace_pos];
-                            multispace_pos += 1;
-                            if multispace_pos >= curwin_mut().w_p_lcs_chars.multispace.len() {
-                                multispace_pos = 0;
-                            }
-                            hl_id = HLF_0;
-                        } else if list && curwin_mut().w_p_lcs_chars.space != 0 {
-                            sc = curwin_mut().w_p_lcs_chars.space;
-                            hl_id = HLF_0;
-                        } else {
-                            sc = schar_from_ascii(b' ');
-                        }
-                    } else {
-                        sc = schar_from_ascii(c as u8);
-                    }
+                } else {
+                    sc = schar_from_ascii(c as u8);
                 }
             }
-
-            if sc == 0 {
-                break;
-            }
-
-            let mut buf = [0u8; MAX_SCHAR_SIZE];
-            schar_get(buf.as_mut_ptr(), sc);
-            msg_puts_hl(
-                CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                hl_id,
-                false,
-            );
-            col += 1;
         }
-        msg_clr_eos();
+
+        if sc == 0 {
+            break;
+        }
+
+        let mut buf = [0u8; MAX_SCHAR_SIZE];
+        schar_get(buf.as_mut_ptr(), sc);
+        msg_puts_hl(
+            CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+            hl_id,
+            false,
+        );
+        col += 1;
     }
+    msg_clr_eos();
 }
 
 /// Output a string to the screen at position msg_row, msg_col.
@@ -2948,7 +2916,7 @@ fn msg_puts_display(
         loop {
             if g_st().msg_col >= g_st().columns_global {
                 if opt_vars().p_more != 0 && recurse == 0 {
-                    store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 1);
+                    store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 1);
                 }
                 if g_st().msg_no_more && g_st().lines_left == 0 {
                     break;
@@ -3046,7 +3014,7 @@ fn msg_puts_display(
                     g_st().msg_col = 0;
                     g_st().msg_row += 1;
                     if opt_vars().p_more != 0 && recurse == 0 {
-                        store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 1);
+                        store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 1);
                     }
                 } else if c == b'\r' {
                     g_st().msg_col = 0;
@@ -3075,7 +3043,7 @@ fn msg_puts_display(
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
         if opt_vars().p_more != 0 && recurse == 0 {
-            store_sb_text(&raw mut sb_str, s, hl_id, &mut sb_col, 0);
+            store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 0);
         }
 
         msg_check();
@@ -3285,50 +3253,49 @@ fn inc_msg_scrolled() {
 }
 
 /// Store part of a printed message for displaying when scrolling back.
-fn store_sb_text<T>(
-    sb_str: *mut *const T,
-    s: impl crate::strings::IntoCCharPtr,
+fn store_sb_text(
+    sb_str: &mut *const std::ffi::c_char,
+    s: *const std::ffi::c_char,
     hl_id: i32,
     sb_col: &mut i32,
     finish: i32,
 ) {
-    let sb_str: *mut *const u8 = sb_str.cast();
-    let s: *const u8 = s.into_c_char_ptr().cast();
-    unsafe {
-        if msg_st().do_clear_sb_text == SbClear::SbClearAll
-            || msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
+    let sb_ptr = (*sb_str).cast::<u8>();
+    let s_ptr = s.cast::<u8>();
+    if msg_st().do_clear_sb_text == SbClear::SbClearAll
+        || msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
+    {
+        clear_sb_text(msg_st().do_clear_sb_text == SbClear::SbClearAll);
+        msg_sb_eol();
+        if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
+            && s_ptr > sb_ptr
+            && unsafe { *sb_ptr } == b'\n'
         {
-            clear_sb_text(msg_st().do_clear_sb_text == SbClear::SbClearAll);
-            msg_sb_eol();
-            if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
-                && s > *sb_str
-                && **sb_str == b'\n'
-            {
-                *sb_str = (*sb_str).wrapping_add(1);
-            }
-            msg_st().do_clear_sb_text = SbClear::SbClearNone;
+            *sb_str = (*sb_str).wrapping_add(1);
         }
-
-        if s > *sb_str {
-            let text_len = crate::memory::ptr_offset_from(s, *sb_str) as usize;
-            let mut text = Vec::with_capacity(text_len + 1);
-            text.extend_from_slice(std::slice::from_raw_parts(*sb_str, text_len));
-            text.push(0);
-            msg_st().msgchunks.push(Msgchunk {
-                sb_eol: finish as u8,
-                sb_msg_col: *sb_col,
-                sb_hl_id: hl_id,
-                sb_text: text,
-            });
-        } else if finish != 0
-            && let Some(last) = msg_st().msgchunks.last_mut()
-        {
-            last.sb_eol = 1;
-        }
-
-        *sb_str = s;
-        *sb_col = 0;
+        msg_st().do_clear_sb_text = SbClear::SbClearNone;
     }
+
+    let sb_ptr = (*sb_str).cast::<u8>();
+    if s_ptr > sb_ptr {
+        let text_len = crate::memory::ptr_offset_from(s_ptr, sb_ptr) as usize;
+        let mut text = Vec::with_capacity(text_len + 1);
+        text.extend_from_slice(crate::memory::cstr_slice(*sb_str, text_len));
+        text.push(0);
+        msg_st().msgchunks.push(Msgchunk {
+            sb_eol: finish as u8,
+            sb_msg_col: *sb_col,
+            sb_hl_id: hl_id,
+            sb_text: text,
+        });
+    } else if finish != 0
+        && let Some(last) = msg_st().msgchunks.last_mut()
+    {
+        last.sb_eol = 1;
+    }
+
+    *sb_str = s;
+    *sb_col = 0;
 }
 
 /// Finished showing messages, clear the scroll-back text on the next message.
@@ -4248,7 +4215,7 @@ mod tests {
         for &(s, expected, room) in cases {
             let mut buf = [0u8; 40];
             let c_s = std::ffi::CString::new(s).unwrap();
-            trunc_string(c_s.as_ptr(), buf.as_mut_ptr(), room, 40);
+            trunc_string(Some(c_s.as_bytes()), &mut buf, room);
             assert_eq!(
                 CStr::from_bytes_until_nul(&buf).unwrap().to_str().unwrap(),
                 expected
@@ -4256,7 +4223,7 @@ mod tests {
 
             let mut inplace = [0u8; 40];
             inplace[..s.len() + 1].copy_from_slice(c_s.as_bytes_with_nul());
-            trunc_string(inplace.as_ptr().cast(), inplace.as_mut_ptr(), room, 40);
+            trunc_string(None, &mut inplace, room);
             assert_eq!(
                 CStr::from_bytes_until_nul(&inplace)
                     .unwrap()

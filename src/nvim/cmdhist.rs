@@ -674,10 +674,9 @@ pub fn ex_history(eap: &mut Exarg) {
                     iobuf[..len].copy_from_slice(prefix_bytes);
                     if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
                         trunc_string(
-                            entry_ptr,
-                            iobuf.as_mut_ptr().wrapping_add(len),
+                            Some(crate::memory::cstr_as_bytes(entry_ptr)),
+                            &mut iobuf[len..],
                             g_st().columns_global - 10,
-                            (IOSIZE - len) as i32,
                         );
                     } else {
                         crate::memory::copy_bytes_to_c_buf(

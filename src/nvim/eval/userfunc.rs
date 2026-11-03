@@ -1403,7 +1403,7 @@ pub fn call_user_func(
                         let mut s = tf.as_ptr().cast_mut();
                         let mut buf = [0u8; MSG_BUF_LEN];
                         if vim_strsize(s) > MSG_BUF_CLEN {
-                            trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
+                            trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                             s = buf.as_mut_ptr().cast();
                         }
                         msg_puts(s);
@@ -1513,7 +1513,7 @@ pub fn call_user_func(
                 g_st().emsg_off -= 1;
                 let mut s = tf.as_ptr().cast_mut();
                 if vim_strsize(s) > MSG_BUF_CLEN {
-                    trunc_string(s, buf.as_mut_ptr(), MSG_BUF_CLEN, MSG_BUF_LEN as i32);
+                    trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                     s = buf.as_mut_ptr().cast();
                 }
                 smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
@@ -2578,7 +2578,7 @@ fn list_one_function<T>(
                     break;
                 }
             }
-            msg_prt_line(line, false);
+            msg_prt_line(crate::memory::cstr_as_bytes(line), false);
             line_breakcheck();
             j += 1;
         }

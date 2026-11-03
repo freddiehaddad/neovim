@@ -2010,7 +2010,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
         );
         msg_puts_hl(numbuf.as_ptr().cast(), HLF_N + 1, false);
     }
-    msg_prt_line(ml_get(lnum), list);
+    msg_prt_line(crate::memline::ml_get_slice(lnum), list);
 }
 
 /// Print a text line. Also in silent mode (`"ex -s"`).
