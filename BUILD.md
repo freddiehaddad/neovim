@@ -53,8 +53,9 @@ cargo xtask functionaltest --release test/functional/api/version_spec.lua
 cargo xtask oldtest
 cargo xtask oldtest --release test_syntax
 
-# Performance benchmarks
+# Performance benchmarks (Rust --release or custom upstream C binary)
 cargo xtask benchmark --release
+cargo xtask benchmark --nvim-bin /path/to/upstream/build/bin/nvim
 ```
 
 ## Build Options
