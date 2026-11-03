@@ -3700,13 +3700,13 @@ impl SubBuf {
     }
 
     #[inline]
-    fn from_cbuf(p: impl crate::strings::IntoCCharPtr, len: usize) -> Self {
-        let p = p.into_c_char_ptr();
-        let mut v = crate::memory::cstr_slice(p, len).to_vec();
+    fn from_cbuf(bytes: &[u8]) -> Self {
+        let mut v = Vec::with_capacity(bytes.len() + 1);
+        v.extend_from_slice(bytes);
         v.push(0);
         Self {
             vec: Some(v),
-            size: len,
+            size: bytes.len(),
         }
     }
 
@@ -4100,7 +4100,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 }
                 if sub_firstline.is_null() {
                     let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                    sub_firstline = SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
+                    sub_firstline = SubBuf::from_cbuf(sub_slice);
                 }
 
                 curwin_mut().w_cursor.lnum = lnum;
@@ -4169,8 +4169,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                             if !new_start.is_null() {
                                 let lnum_slice = crate::memline::ml_get_slice(lnum);
-                                orig_line =
-                                    SubBuf::from_cbuf(lnum_slice.as_ptr().cast(), lnum_slice.len());
+                                orig_line = SubBuf::from_cbuf(lnum_slice);
                                 let new_line = concat_str(
                                     crate::memory::cstr_as_bytes(new_start.data().cast()),
                                     crate::memory::cstr_as_bytes(
@@ -4298,8 +4297,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
                             let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                            sub_firstline =
-                                SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
+                            sub_firstline = SubBuf::from_cbuf(sub_slice);
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -4307,7 +4305,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             }
                         }
                         if skip_match {
-                            sub_firstline = SubBuf::from_cbuf(c"", 0);
+                            sub_firstline = SubBuf::from_cbuf(b"");
                             copycol = 0;
                         }
                         lnum += nmatch - 1;
@@ -4417,8 +4415,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         if nmatch > 1 {
                             sub_firstlnum += nmatch - 1;
                             let sub_slice = crate::memline::ml_get_slice(sub_firstlnum);
-                            sub_firstline =
-                                SubBuf::from_cbuf(sub_slice.as_ptr().cast(), sub_slice.len());
+                            sub_firstline = SubBuf::from_cbuf(sub_slice);
                             if sub_firstlnum <= line2 {
                                 do_again = true;
                             } else {
@@ -4426,7 +4423,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             }
                         }
                         if skip_match {
-                            sub_firstline = SubBuf::from_cbuf(c"", 0);
+                            sub_firstline = SubBuf::from_cbuf(b"");
                             copycol = 0;
                         }
 

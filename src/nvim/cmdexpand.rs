@@ -3252,7 +3252,7 @@ fn set_cmd_index(
             return ptr::null();
         }
 
-        eap.cmdidx = excmd_get_cmdidx(cmd.cast(), p_idx) as i32;
+        eap.cmdidx = excmd_get_cmdidx(cmd_bytes, p_idx) as i32;
 
         if cmd_bytes[0].is_ascii_uppercase()
             || (fuzzy && eap.cmdidx != Cmdidx::CmdBang as i32 && p_idx < cmd_bytes.len())
@@ -6248,35 +6248,28 @@ fn is_regex_match(
 
 /// Constructs a new match string by appending text from the buffer to `pat`.
 fn concat_pattern_with_buffer_match(
-    pat: impl crate::strings::IntoCCharPtr,
-    pat_len: i32,
+    pat: &[u8],
     end_match_pos: &mut CursorPos,
     lowercase: bool,
 ) -> CString {
-    let pat = pat.into_c_char_ptr();
-    {
-        let line = ml_get(end_match_pos.lnum);
-        let word_end = find_word_end(line.wrapping_add(end_match_pos.col as usize));
-        let match_len =
-            crate::memory::ptr_offset_from(word_end, line.wrapping_add(end_match_pos.col as usize))
-                as i32;
-        let mut out = Vec::with_capacity((match_len as usize) + (pat_len as usize));
-        out.extend_from_slice(crate::memory::cstr_slice(pat, pat_len as usize));
-        if match_len > 0 {
-            let match_slice = crate::memory::cstr_slice(
-                line.wrapping_add(end_match_pos.col as usize),
-                match_len as usize,
-            );
-            if lowercase {
-                let lower = strcase_save(match_slice, false);
-                let lower_bytes = lower.to_bytes();
-                out.extend_from_slice(&lower_bytes[..lower_bytes.len().min(match_len as usize)]);
-            } else {
-                out.extend_from_slice(match_slice);
-            }
+    let line = crate::memline::ml_get_slice(end_match_pos.lnum);
+    let col_u = (end_match_pos.col as usize).min(line.len());
+    let start_ptr = line[col_u..].as_ptr().cast_mut();
+    let word_end = find_word_end(start_ptr);
+    let match_len = crate::memory::ptr_offset_from(word_end, start_ptr).max(0) as usize;
+    let mut out = Vec::with_capacity(match_len + pat.len());
+    out.extend_from_slice(pat);
+    if match_len > 0 {
+        let match_slice = &line[col_u..(col_u + match_len).min(line.len())];
+        if lowercase {
+            let lower = strcase_save(match_slice, false);
+            let lower_bytes = lower.to_bytes();
+            out.extend_from_slice(&lower_bytes[..lower_bytes.len().min(match_len)]);
+        } else {
+            out.extend_from_slice(match_slice);
         }
-        cstr_from_bytes(&out)
     }
+    cstr_from_bytes(&out)
 }
 
 /// Search for strings matching "pat" in the specified range and return them.
@@ -6394,11 +6387,11 @@ fn expand_pattern_in_buf(
             let match_cstr = if exacttext {
                 full_match
             } else {
-                let mut m =
-                    concat_pattern_with_buffer_match(pat, pat_len, &mut end_match_pos, false);
+                let pat_slice = crate::memory::cstr_slice(pat, pat_len as usize);
+                let mut m = concat_pattern_with_buffer_match(pat_slice, &mut end_match_pos, false);
 
                 if !is_regex_match(m.as_ptr(), full_match.as_ptr()) {
-                    m = concat_pattern_with_buffer_match(pat, pat_len, &mut end_match_pos, true);
+                    m = concat_pattern_with_buffer_match(pat_slice, &mut end_match_pos, true);
                     if !is_regex_match(m.as_ptr(), full_match.as_ptr()) {
                         continue;
                     }

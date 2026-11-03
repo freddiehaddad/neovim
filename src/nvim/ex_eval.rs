@@ -1633,7 +1633,7 @@ pub fn has_loop_cmd(p: impl crate::strings::IntoCCharPtr) -> bool {
             .take_while(|&&b| matches!(b, b' ' | b'\t' | b':'))
             .count();
         p = p.wrapping_add(skip);
-        let len = modifier_len(p);
+        let len = modifier_len(crate::memory::cstr_as_bytes(p));
         if len == 0 {
             break;
         }

@@ -2698,7 +2698,7 @@ fn get_function_body(
                     p = p.wrapping_add(1);
                 }
 
-                if checkforcmd(&raw mut p, c"endfunction", 4) {
+                if checkforcmd(&mut p, b"endfunction", 4) {
                     let prev_nesting = nesting;
                     nesting -= 1;
                     if prev_nesting == 0 {
@@ -2746,7 +2746,7 @@ fn get_function_body(
                     indent += 2;
                 }
 
-                if checkforcmd(&raw mut p, c"function", 2) {
+                if checkforcmd(&mut p, b"function", 2) {
                     if *p as u8 == b'!' {
                         p = skipwhite(p.wrapping_add(1));
                     }
@@ -2764,9 +2764,9 @@ fn get_function_body(
 
                 p = skip_range(p, None);
                 let tp = p;
-                if (checkforcmd(&raw mut p, c"append", 1)
-                    || checkforcmd(&raw mut p, c"change", 1)
-                    || checkforcmd(&raw mut p, c"insert", 1))
+                if (checkforcmd(&mut p, b"append", 1)
+                    || checkforcmd(&mut p, b"change", 1)
+                    || checkforcmd(&mut p, b"insert", 1))
                     && (*p as u8 == b'!' || *p as u8 == b'|' || ascii_iswhite_nl_or_nul(*p as i32))
                 {
                     skip_until = Some(c".".to_owned());
@@ -2821,8 +2821,7 @@ fn get_function_body(
 
                 if !is_heredoc {
                     arg = p;
-                    if checkforcmd(&raw mut arg, c"let", 2) || checkforcmd(&raw mut p, c"const", 5)
-                    {
+                    if checkforcmd(&mut arg, b"let", 2) || checkforcmd(&mut p, b"const", 5) {
                         let mut var_count = 0;
                         let mut semicolon = 0;
                         arg = skip_var_list(arg, &mut var_count, &mut semicolon, true).cast_mut();
