@@ -339,7 +339,7 @@ fn find_substr(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bo
 pub fn search_regcomp(
     pat: impl crate::strings::IntoCCharPtr,
     mut patlen: usize,
-    used_pat: *mut *mut u8,
+    used_pat: Option<&mut *mut u8>,
     pat_save: i32,
     pat_use: i32,
     options: i32,
@@ -375,10 +375,8 @@ pub fn search_regcomp(
             add_to_history(HIST_SEARCH, pat, patlen, true, i32::from(NUL));
         }
 
-        if !used_pat.is_null() {
-            unsafe {
-                *used_pat = pat.cast();
-            }
+        if let Some(used_pat) = used_pat {
+            *used_pat = pat.cast();
         }
 
         srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0
@@ -674,7 +672,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
     search_regcomp(
         c"",
         0,
-        ptr::null_mut(),
+        None,
         0,
         srch().last_idx,
         SEARCH_KEEP,
@@ -726,7 +724,7 @@ pub fn searchit(
         if !search_regcomp(
             pat,
             patlen,
-            ptr::null_mut(),
+            None,
             RE_SEARCH,
             pat_use,
             options & (SEARCH_HIS + SEARCH_KEEP),
@@ -1159,24 +1157,17 @@ fn first_submatch(rp: &Regmmatch) -> i32 {
 }
 
 pub fn parse_search_pattern_offset<T>(
-    pat: *mut *mut T,
+    pat: &mut *mut T,
     patlen: &mut usize,
     search_delim: i32,
     options: i32,
     strcopy: &mut Vec<u8>,
-    searchstr: *mut *mut T,
+    searchstr: &mut *mut T,
     searchstrlen: &mut usize,
-    dircp: *mut *mut T,
+    dircp: &mut *mut T,
     offset: &mut SearchOffset,
 ) -> i32 {
-    let (pat, searchstr, dircp) = unsafe {
-        (
-            &mut *pat.cast::<crate::strings::RawCCharPtrMut>(),
-            &mut *searchstr.cast::<crate::strings::RawCCharPtrMut>(),
-            &mut *dircp.cast::<crate::strings::RawCCharPtrMut>(),
-        )
-    };
-    if crate::memory::cstr_is_empty(*pat) {
+    if crate::memory::cstr_is_empty((*pat).cast()) {
         return 0;
     }
 
@@ -1188,7 +1179,7 @@ pub fn parse_search_pattern_offset<T>(
     *dircp = ptr::null_mut();
 
     let mut p = skip_regexp_ex(
-        *pat,
+        (*pat).cast(),
         search_delim,
         opt_vars().p_magic,
         true,
@@ -1200,14 +1191,14 @@ pub fn parse_search_pattern_offset<T>(
         let new_ptr: crate::strings::RawCCharPtrMut = strcopy.as_mut_ptr().cast();
         let len = crate::memory::cstr_len(new_ptr);
         cmdlen += (*patlen).wrapping_sub(len) as i32;
-        *pat = new_ptr;
+        *pat = new_ptr.cast();
         *patlen = len;
-        *searchstr = new_ptr;
+        *searchstr = new_ptr.cast();
         *searchstrlen = len;
     }
     if i32::from(crate::memory::cstr_first_byte(p)) == search_delim {
-        *searchstrlen = crate::memory::ptr_offset_from(p, *pat) as usize;
-        *dircp = p;
+        *searchstrlen = crate::memory::ptr_offset_from(p, (*pat).cast()) as usize;
+        *dircp = p.cast();
         unsafe {
             *p = 0;
         }
@@ -1252,10 +1243,10 @@ pub fn parse_search_pattern_offset<T>(
     }
     p = p.wrapping_add(p_bytes.len() - rem.len());
 
-    let consumed = crate::memory::ptr_offset_from(p, *pat) as usize;
+    let consumed = crate::memory::ptr_offset_from(p, (*pat).cast()) as usize;
     cmdlen += consumed as i32;
     *patlen = (*patlen).wrapping_sub(consumed);
-    *pat = p;
+    *pat = p.cast();
 
     cmdlen
 }
@@ -1352,14 +1343,14 @@ pub fn do_search(
             let prev_searchstr = searchstr;
             let prev_searchstrlen = searchstrlen;
             g_st().search_global.cmdlen += parse_search_pattern_offset(
-                &raw mut pat,
+                &mut pat,
                 &mut patlen,
                 search_delim,
                 options,
                 &mut strcopy,
-                &raw mut searchstr,
+                &mut searchstr,
                 &mut searchstrlen,
-                &raw mut dircp,
+                &mut dircp,
                 &mut srch().spats[0].off,
             );
             if crate::memory::cstr_is_empty(searchstr) {
@@ -2720,7 +2711,7 @@ fn is_zero_width(
         if !search_regcomp(
             pattern,
             patternlen,
-            ptr::null_mut(),
+            None,
             RE_SEARCH,
             RE_SEARCH,
             SEARCH_KEEP,
@@ -3114,13 +3105,12 @@ pub fn f_searchcount(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     restore_incsearch_state();
 }
 
-fn get_line_and_copy<T>(lnum: Linenr, buf: *mut T) -> *mut T {
+fn get_line_and_copy(lnum: Linenr, buf: &mut [u8]) -> crate::strings::RawCCharPtrMut {
     let line = crate::memline::ml_get_slice(lnum);
-    let copy_len = line.len().min(LSIZE - 1);
-    let dst = unsafe { std::slice::from_raw_parts_mut(buf.cast::<u8>(), copy_len + 1) };
-    dst[..copy_len].copy_from_slice(&line[..copy_len]);
-    dst[copy_len] = 0;
-    buf
+    let copy_len = line.len().min(buf.len().saturating_sub(1));
+    buf[..copy_len].copy_from_slice(&line[..copy_len]);
+    buf[copy_len] = 0;
+    buf.as_mut_ptr().cast()
 }
 
 pub fn find_pattern_in_path(
@@ -3225,7 +3215,7 @@ pub fn find_pattern_in_path(
 
         end_lnum = end_lnum.min(curbuf_mut().b_ml.ml_line_count);
         let mut lnum = start_lnum.min(end_lnum);
-        let mut line = get_line_and_copy(lnum, file_line);
+        let mut line = get_line_and_copy(lnum, &mut file_line_vec);
 
         loop {
             if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line, 0) {
@@ -3550,10 +3540,10 @@ pub fn find_pattern_in_path(
                                             skip_add = true;
                                         } else {
                                             lnum += 1;
-                                            line = get_line_and_copy(lnum, file_line);
+                                            line = get_line_and_copy(lnum, &mut file_line_vec);
                                         }
                                     } else {
-                                        line = file_line;
+                                        line = file_line_vec.as_mut_ptr().cast();
                                         if vim_fgets(
                                             &mut file_line_vec,
                                             files[depth as usize].fp.as_ref().unwrap(),
@@ -3835,7 +3825,7 @@ pub fn find_pattern_in_path(
                 if lnum > end_lnum {
                     break;
                 }
-                line = get_line_and_copy(lnum, file_line);
+                line = get_line_and_copy(lnum, &mut file_line_vec);
             }
             already = ptr::null_mut();
         }

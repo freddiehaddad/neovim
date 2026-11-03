@@ -836,7 +836,7 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
     let mut arg: *mut u8 = ptr::null_mut();
     if regname == i32::from(b'.') {
         retval = stuff_inserted(0, 1, 1);
-    } else if get_spec_reg(regname, &raw mut arg, &mut owned, true) {
+    } else if get_spec_reg(regname, &mut arg, &mut owned, true) {
         if arg.is_null() {
             return false;
         }
@@ -889,110 +889,107 @@ pub fn insert_reg(regname: i32, mut reg: *mut Yankreg, literally_arg: bool) -> b
 
 pub fn get_spec_reg(
     regname: i32,
-    argp: *mut *mut u8,
+    argp: &mut *mut u8,
     owned: &mut Option<Vec<u8>>,
     errmsg: bool,
 ) -> bool {
-    unsafe {
-        *argp = ptr::null_mut();
-        *owned = None;
-        let set_owned =
-            |argp: *mut *mut u8, owned: &mut Option<Vec<u8>>, cstr: Option<std::ffi::CString>| {
-                if let Some(s) = cstr {
-                    let mut v: Vec<u8> = s.into_bytes_with_nul();
-                    *argp = v.as_mut_ptr();
-                    *owned = Some(v);
-                }
-            };
-        match regname {
-            x if x == i32::from(b'%') => {
-                if errmsg {
-                    check_fname();
-                }
-                *argp = curbuf_mut().b_fname.cast();
-                true
+    *argp = ptr::null_mut();
+    *owned = None;
+    let set_owned =
+        |argp: &mut *mut u8, owned: &mut Option<Vec<u8>>, cstr: Option<std::ffi::CString>| {
+            if let Some(s) = cstr {
+                let mut v: Vec<u8> = s.into_bytes_with_nul();
+                *argp = v.as_mut_ptr();
+                *owned = Some(v);
             }
-            x if x == i32::from(b'#') => {
-                *argp =
-                    getaltfname(errmsg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-                true
+        };
+    match regname {
+        x if x == i32::from(b'%') => {
+            if errmsg {
+                check_fname();
             }
-            x if x == i32::from(b'=') => {
-                set_owned(argp, owned, get_expr_line());
-                true
-            }
-            x if x == i32::from(b':') => {
-                let last_cmd_ptr = g_st()
-                    .last_cmdline
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                if last_cmd_ptr.is_null() && errmsg {
-                    emsg(gettext(E_NOLASTCMD));
-                }
-                *argp = last_cmd_ptr.cast();
-                true
-            }
-            x if x == i32::from(b'/') => {
-                if last_search_pat().is_none() && errmsg {
-                    emsg(gettext(E_NOPREVRE));
-                }
-                *argp = last_search_pat().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-                true
-            }
-            x if x == i32::from(b'.') => {
-                set_owned(argp, owned, get_last_insert_save());
-                if (*argp).is_null() && errmsg {
-                    emsg(gettext(E_NOINSTEXT));
-                }
-                true
-            }
-            CTRL_F_CONST | CTRL_P => {
-                if !errmsg {
-                    return false;
-                }
-                set_owned(
-                    argp,
-                    owned,
-                    file_name_at_cursor(
-                        FNAME_MESS | FNAME_HYP | if regname == CTRL_P { FNAME_EXP } else { 0 },
-                        1,
-                        None,
-                    ),
-                );
-                true
-            }
-            CTRL_W_CONST | CTRL_A => {
-                if !errmsg {
-                    return false;
-                }
-                let ident = find_ident_under_cursor(
-                    if regname == CTRL_W_CONST {
-                        FIND_IDENT | FIND_STRING
-                    } else {
-                        FIND_STRING
-                    },
-                    None,
-                );
-                if !ident.is_empty() {
-                    set_owned(argp, owned, Some(crate::memory::cstr_from_bytes(ident)));
-                } else {
-                    *argp = ptr::null_mut();
-                }
-                true
-            }
-            CTRL_L_CONST => {
-                if !errmsg {
-                    return false;
-                }
-                *argp = ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum).cast();
-                true
-            }
-            x if x == i32::from(b'_') => {
-                *argp = c"".as_ptr().cast_mut().cast();
-                true
-            }
-            _ => false,
+            *argp = curbuf_mut().b_fname.cast();
+            true
         }
+        x if x == i32::from(b'#') => {
+            *argp = getaltfname(errmsg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+            true
+        }
+        x if x == i32::from(b'=') => {
+            set_owned(argp, owned, get_expr_line());
+            true
+        }
+        x if x == i32::from(b':') => {
+            let last_cmd_ptr = g_st()
+                .last_cmdline
+                .as_ref()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            if last_cmd_ptr.is_null() && errmsg {
+                emsg(gettext(E_NOLASTCMD));
+            }
+            *argp = last_cmd_ptr.cast();
+            true
+        }
+        x if x == i32::from(b'/') => {
+            if last_search_pat().is_none() && errmsg {
+                emsg(gettext(E_NOPREVRE));
+            }
+            *argp = last_search_pat().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+            true
+        }
+        x if x == i32::from(b'.') => {
+            set_owned(argp, owned, get_last_insert_save());
+            if (*argp).is_null() && errmsg {
+                emsg(gettext(E_NOINSTEXT));
+            }
+            true
+        }
+        CTRL_F_CONST | CTRL_P => {
+            if !errmsg {
+                return false;
+            }
+            set_owned(
+                argp,
+                owned,
+                file_name_at_cursor(
+                    FNAME_MESS | FNAME_HYP | if regname == CTRL_P { FNAME_EXP } else { 0 },
+                    1,
+                    None,
+                ),
+            );
+            true
+        }
+        CTRL_W_CONST | CTRL_A => {
+            if !errmsg {
+                return false;
+            }
+            let ident = find_ident_under_cursor(
+                if regname == CTRL_W_CONST {
+                    FIND_IDENT | FIND_STRING
+                } else {
+                    FIND_STRING
+                },
+                None,
+            );
+            if !ident.is_empty() {
+                set_owned(argp, owned, Some(crate::memory::cstr_from_bytes(ident)));
+            } else {
+                *argp = ptr::null_mut();
+            }
+            true
+        }
+        CTRL_L_CONST => {
+            if !errmsg {
+                return false;
+            }
+            *argp = ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum).cast();
+            true
+        }
+        x if x == i32::from(b'_') => {
+            *argp = c"".as_ptr().cast_mut().cast();
+            true
+        }
+        _ => false,
     }
 }
 
@@ -1618,12 +1615,8 @@ pub fn do_put(regname: i32, mut reg: *mut Yankreg, mut dir: i32, mut count: i32,
         let mut insert_string_owned: Option<Vec<u8>> = None;
         let mut insert_data_u8: *mut u8 = ptr::null_mut();
         if reg.is_null() {
-            let got_spec = get_spec_reg(
-                regname,
-                &raw mut insert_data_u8,
-                &mut insert_string_owned,
-                true,
-            );
+            let got_spec =
+                get_spec_reg(regname, &mut insert_data_u8, &mut insert_string_owned, true);
             insert_string.data = insert_data_u8.cast();
             if got_spec && insert_string.data.is_null() {
                 return;
@@ -2657,7 +2650,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
 
     let mut retval: *mut u8 = ptr::null_mut();
     let mut owned: Option<Vec<u8>> = None;
-    if get_spec_reg(regname, &raw mut retval, &mut owned, false) {
+    if get_spec_reg(regname, &mut retval, &mut owned, false) {
         if retval.is_null() {
             return None;
         }
@@ -2711,7 +2704,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> *mut TvList {
 
     let mut retval: *mut u8 = ptr::null_mut();
     let mut owned: Option<Vec<u8>> = None;
-    if get_spec_reg(regname, &raw mut retval, &mut owned, false) {
+    if get_spec_reg(regname, &mut retval, &mut owned, false) {
         if retval.is_null() {
             return ptr::null_mut();
         }

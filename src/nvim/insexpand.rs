@@ -5925,17 +5925,14 @@ fn get_normal_compl_info(
                 insexp().compl_col += startcol;
                 insexp().compl_length = curs_col - startcol;
             }
+            let pat_bytes = crate::memory::cstr_slice(
+                line.wrapping_add(insexp().compl_col as usize),
+                insexp().compl_length.max(0) as usize,
+            );
             if opt_vars().p_ic != 0 {
-                insexp().compl_pattern = str_foldcase(
-                    line.wrapping_add(insexp().compl_col as usize),
-                    insexp().compl_length,
-                    None,
-                );
+                insexp().compl_pattern = str_foldcase(pat_bytes, None);
             } else {
-                set_compl_pattern_bytes(crate::memory::cstr_slice(
-                    line.wrapping_add(insexp().compl_col as usize),
-                    insexp().compl_length as usize,
-                ));
+                set_compl_pattern_bytes(pat_bytes);
             }
         } else if compl_status_adding() {
             let mut prefix = c"\\<".as_ptr();
@@ -6038,17 +6035,14 @@ fn get_wholeline_compl_info(line: impl crate::strings::IntoCCharPtr, curs_col: C
         if insexp().compl_length < 0 {
             insexp().compl_length = 0;
         }
+        let pat_bytes = crate::memory::cstr_slice(
+            line.wrapping_add(insexp().compl_col as usize),
+            insexp().compl_length as usize,
+        );
         if opt_vars().p_ic != 0 {
-            insexp().compl_pattern = str_foldcase(
-                line.wrapping_add(insexp().compl_col as usize),
-                insexp().compl_length,
-                None,
-            );
+            insexp().compl_pattern = str_foldcase(pat_bytes, None);
         } else {
-            set_compl_pattern_bytes(crate::memory::cstr_slice(
-                line.wrapping_add(insexp().compl_col as usize),
-                insexp().compl_length as usize,
-            ));
+            set_compl_pattern_bytes(pat_bytes);
         }
 
         true

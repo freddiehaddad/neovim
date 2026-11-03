@@ -4006,7 +4006,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     if !search_regcomp(
         pat.data,
         pat.size,
-        ptr::null_mut(),
+        None,
         RE_SUBST,
         which_pat,
         if cmdpreview_ns > 0 { 0 } else { SEARCH_HIS },
@@ -4895,7 +4895,7 @@ pub fn ex_global(eap: &mut Exarg) {
     if !search_regcomp(
         pat.cast(),
         patlen,
-        &raw mut used_pat,
+        Some(&mut used_pat),
         RE_BOTH,
         which_pat,
         SEARCH_HIS,

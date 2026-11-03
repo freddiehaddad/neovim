@@ -1974,14 +1974,14 @@ fn may_do_command_line_next_incsearch(
     let mut patlen_s = (getln_st().ccline.cmdlen - skiplen) as usize;
 
     parse_search_pattern_offset(
-        &raw mut pat,
+        &mut pat,
         &mut patlen_s,
         search_delim,
         SEARCH_OPT,
         &mut strcopy,
-        &raw mut searchstr,
+        &mut searchstr,
         &mut searchstrlen,
-        &raw mut dircp,
+        &mut dircp,
         &mut offset,
     );
 
@@ -4385,7 +4385,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
     }
 
     g_st().textlock += 1;
-    let i = get_spec_reg(regname, &raw mut arg, &mut owned, true);
+    let i = get_spec_reg(regname, &mut arg, &mut owned, true);
     g_st().textlock -= 1;
 
     if i {

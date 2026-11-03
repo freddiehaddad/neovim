@@ -494,13 +494,7 @@ pub fn kv_transstr(str_: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr, unt
     }
 }
 
-pub fn str_foldcase(
-    str_: impl crate::strings::IntoCCharPtr,
-    orglen: i32,
-    mut buf: Option<&mut [u8]>,
-) -> Option<CString> {
-    let str_ = str_.into_c_char_ptr();
-    let src = crate::memory::cstr_slice(str_, orglen.max(0) as usize);
+pub fn str_foldcase(src: &[u8], mut buf: Option<&mut [u8]>) -> Option<CString> {
     let mut vec: Vec<u8> = Vec::new();
     let mut len: usize;
 

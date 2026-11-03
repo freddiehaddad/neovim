@@ -2642,11 +2642,7 @@ pub fn win_line(
 
                             decor_attr = get_syntax_attr(
                                 v - 1,
-                                if spv.spv_has_spell {
-                                    &raw mut can_spell
-                                } else {
-                                    ptr::null_mut()
-                                },
+                                spv.spv_has_spell.then_some(&mut can_spell),
                                 false,
                             );
 
