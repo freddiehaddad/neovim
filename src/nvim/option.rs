@@ -661,17 +661,6 @@ pub fn opt_error_int<'a>(
 }
 
 #[inline]
-fn c_str_contains(haystack: impl crate::strings::IntoCCharPtr, needle: &[u8]) -> bool {
-    let haystack = haystack.into_c_char_ptr();
-    {
-        needle.is_empty()
-            || crate::memory::cstr_as_bytes(haystack)
-                .windows(needle.len())
-                .any(|w| w == needle)
-    }
-}
-
-#[inline]
 const fn unset_obj() -> Object {
     Object {
         obj_type: ObjectType::ObjectTypeUnset,
@@ -801,16 +790,11 @@ fn set_init_default_backupskip() {
             ) as usize;
 
             if find_dup_item(
-                if buf.is_empty() {
-                    ptr::null()
-                } else {
-                    buf.as_ptr().cast()
-                },
-                crate::memory::cstr_until_nul(&item),
-                itemlen,
+                crate::memory::bytes_until_nul(&buf),
+                &item[..itemlen],
                 get_option(opt_idx).flags,
             )
-            .is_null()
+            .is_none()
             {
                 if !buf.is_empty() {
                     // Replace trailing NUL with ','
@@ -1049,28 +1033,16 @@ fn set_string_default(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr)
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
-fn find_dup_item(
-    origval: impl crate::strings::IntoCCharPtr,
-    newval: impl crate::strings::IntoCCharPtr,
-    newvallen: usize,
-    flags: u32,
-) -> *const u8 {
-    let origval = origval.into_c_char_ptr();
-    let newval = newval.into_c_char_ptr();
-    if origval.is_null() {
-        return ptr::null();
-    }
-
-    let orig_bytes = crate::memory::cstr_as_bytes(origval);
-    let new_bytes = crate::memory::cstr_slice(newval, crate::memory::xstrnlen(newval, newvallen));
+fn find_dup_item(orig_bytes: &[u8], new_bytes: &[u8], flags: u32) -> Option<usize> {
     let comma_flag = (flags & K_OPT_FLAG_COMMA) != 0;
+    let newvallen = new_bytes.len();
     let mut bs: i32 = 0;
     for idx in 0..orig_bytes.len() {
         if (!comma_flag || idx == 0 || (orig_bytes[idx - 1] == b',' && (bs & 1) == 0))
             && orig_bytes[idx..].starts_with(new_bytes)
             && (!comma_flag || orig_bytes.get(idx + newvallen).is_none_or(|&b| b == b','))
         {
-            return origval.wrapping_add(idx).cast();
+            return Some(idx);
         }
         if (idx > 1 && orig_bytes[idx - 1] == b'\\' && orig_bytes[idx - 2] != b',')
             || (idx == 1 && orig_bytes[0] == b'\\')
@@ -1080,7 +1052,7 @@ fn find_dup_item(
             bs = 0;
         }
     }
-    ptr::null()
+    None
 }
 
 /// Free all options.
@@ -1152,11 +1124,11 @@ pub fn set_init_3() {
     parse_shape_opt(SHAPE_CURSOR);
 
     let mut len: usize = 0;
-    let mut name = [0u8; MAXPATHL];
     let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
-    name[..len].copy_from_slice(crate::memory::cstr_slice(p, len));
+    let name_slice = crate::memory::cstr_slice(p, len);
     for (i, rule) in SHELL_RULES.iter().enumerate() {
-        if !c_str_contains(crate::memory::cstr_until_nul(&name), rule.pat.to_bytes()) {
+        let pat = rule.pat.to_bytes();
+        if !pat.is_empty() && !name_slice.windows(pat.len()).any(|w| w == pat) {
             continue;
         }
         change_option_and_default_if_unset(K_OPT_SHELLCMDFLAG, rule.shcf);
@@ -1338,28 +1310,28 @@ fn stropt_remove_val(
     origval: impl crate::strings::IntoCCharPtr,
     newval: &mut [u8],
     flags: u32,
-    strval: impl crate::strings::IntoCCharPtr,
-    mut len: i32,
+    dup_idx: Option<usize>,
+    mut len: usize,
 ) {
     let origval = origval.into_c_char_ptr();
-    let mut strval = strval.into_c_char_ptr();
     let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
     newval[..orig_bytes.len()].copy_from_slice(orig_bytes);
-    if !crate::memory::cstr_is_empty(strval) {
+    let orig_slice = &orig_bytes[..orig_bytes.len() - 1];
+    if let Some(mut idx) = dup_idx
+        && idx < orig_slice.len()
+    {
         if (flags & K_OPT_FLAG_COMMA) != 0 {
-            if strval == origval {
-                if crate::memory::cstr_first_byte(strval.wrapping_add(len as usize)) == b',' {
+            if idx == 0 {
+                if orig_slice.get(len) == Some(&b',') {
                     len += 1;
                 }
             } else {
-                strval = strval.wrapping_offset(-1);
+                idx -= 1;
                 len += 1;
             }
         }
-        let src_bytes =
-            crate::memory::cstr_from_ptr(strval.wrapping_add(len as usize)).to_bytes_with_nul();
-        let dst_off = crate::memory::ptr_offset_from(strval, origval) as usize;
-        newval[dst_off..dst_off + src_bytes.len()].copy_from_slice(src_bytes);
+        let src_bytes = &orig_bytes[(idx + len).min(orig_bytes.len() - 1)..];
+        newval[idx..idx + src_bytes.len()].copy_from_slice(src_bytes);
     }
 }
 
@@ -1483,12 +1455,11 @@ fn stropt_handle_keymatch(
             }
         } else if op == OP_ADDING || op == OP_PREPENDING {
             let found = find_dup_item(
-                newval_slice.as_ptr().cast(),
-                item.as_ptr().cast(),
-                item.len(),
+                crate::memory::bytes_until_nul(newval_slice),
+                item,
                 K_OPT_FLAG_COMMA,
             );
-            if found.is_null() {
+            if found.is_none() {
                 if op == OP_PREPENDING {
                     prepend_item(newval_slice, item);
                 } else {
@@ -1497,15 +1468,11 @@ fn stropt_handle_keymatch(
             }
         } else if op == OP_REMOVING {
             let found = find_dup_item(
-                newval_slice.as_ptr().cast(),
-                item.as_ptr().cast(),
-                item.len(),
+                crate::memory::bytes_until_nul(newval_slice),
+                item,
                 K_OPT_FLAG_COMMA,
             );
-            if !found.is_null() {
-                let found_off =
-                    crate::memory::ptr_offset_from(found.cast::<u8>(), newval_slice.as_ptr())
-                        as usize;
+            if let Some(found_off) = found {
                 remove_comma_item(newval_slice, found_off, item.len());
             }
         }
@@ -1548,7 +1515,6 @@ fn stropt_get_newval<T>(
         let mut arg = unsafe { (*argp).cast::<u8>() };
         let mut op = *op_arg;
         let mut save_arg: *mut u8 = ptr::null_mut();
-        let mut s: *const u8 = ptr::null();
         let flags = get_option(opt_idx).flags;
 
         arg = arg.wrapping_add(1);
@@ -1574,29 +1540,27 @@ fn stropt_get_newval<T>(
         {
             // fully handled
         } else {
-            let mut len: i32 = 0;
+            let mut len: usize = 0;
+            let mut dup_idx: Option<usize> = None;
             if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-                let newval_cstr = crate::memory::cstr_until_nul(&newval_vec);
-                len = newval_cstr.to_bytes().len() as i32;
-                s = find_dup_item(origval, newval_cstr, len as usize, flags);
+                let newval_bytes = crate::memory::cstr_until_nul(&newval_vec).to_bytes();
+                len = newval_bytes.len();
+                if !origval.is_null() {
+                    dup_idx =
+                        find_dup_item(crate::memory::cstr_as_bytes(origval), newval_bytes, flags);
+                }
 
-                if (op == OP_ADDING || op == OP_PREPENDING) && !s.is_null() {
+                if (op == OP_ADDING || op == OP_PREPENDING) && dup_idx.is_some() {
                     op = OP_NONE;
                     let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
                     newval_vec[..orig_bytes.len()].copy_from_slice(orig_bytes);
-                }
-
-                if s.is_null() {
-                    s = origval
-                        .wrapping_add(crate::memory::cstr_len(origval))
-                        .cast();
                 }
             }
 
             if op == OP_ADDING || op == OP_PREPENDING {
                 stropt_concat_with_comma(origval, &mut newval_vec, op, flags);
             } else if op == OP_REMOVING {
-                stropt_remove_val(origval, &mut newval_vec, flags, s.cast(), len);
+                stropt_remove_val(origval, &mut newval_vec, flags, dup_idx, len);
             }
         }
 
@@ -2374,19 +2338,13 @@ pub fn redraw_titles() {
 }
 
 /// Return true if "val" is a valid name.
-pub fn valid_name(val: impl crate::strings::IntoCCharPtr, allowed: &std::ffi::CStr) -> bool {
-    let val = val.into_c_char_ptr();
-    {
-        let s = val;
-        for &s_byte in crate::memory::cstr_as_bytes(s) {
-            if !ascii_isalnum(i32::from(s_byte))
-                && !crate::strings::vim_haschr(allowed.as_ptr(), i32::from(s_byte))
-            {
-                return false;
-            }
+pub fn valid_name(val: &[u8], allowed: &[u8]) -> bool {
+    for &s_byte in val {
+        if !ascii_isalnum(i32::from(s_byte)) && !allowed.contains(&s_byte) {
+            return false;
         }
-        true
     }
+    true
 }
 
 pub fn check_blending(wp: &mut WinInfoInfo) {
@@ -2443,30 +2401,21 @@ pub fn parse_winhl_opt(
             }
         }
 
-        let mut key = ptr::null();
-        let mut val = ptr::null();
-        let mut keylen: usize = 0;
-        let mut vallen: usize = 0;
-        while option_next_keyval(
-            &raw mut p,
-            &raw mut key,
-            &mut keylen,
-            &raw mut val,
-            &mut vallen,
-        ) {
-            if val.is_null() {
+        let mut p = crate::memory::cstr_as_bytes(p);
+        while let Some((key, val)) = option_next_keyval(&mut p) {
+            let Some(val) = val else {
                 return false;
-            }
-            let hl_id = if vallen != 0 {
-                syn_check_group(val, vallen)
+            };
+            let hl_id = if !val.is_empty() {
+                syn_check_group(val.as_ptr().cast(), val.len())
             } else {
                 -1
             };
             if hl_id == 0 {
                 return false;
             }
-            let hl_id_link = if keylen != 0 {
-                syn_check_group(key, keylen)
+            let hl_id_link = if !key.is_empty() {
+                syn_check_group(key.as_ptr().cast(), key.len())
             } else {
                 0
             };
@@ -5404,7 +5353,7 @@ fn did_set_option<'a>(
         errmsg = Some(E_SECURE);
     } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
         && !is_callback_option(opt_idx)
-        && check_illegal_path_names(args.var_cstr_ptr(), opt.flags)
+        && check_illegal_path_names(crate::memory::cstr_as_bytes(args.var_cstr_ptr()), opt.flags)
     {
         errmsg = Some(E_INVARG);
     } else if let Some(cb) = opt.opt_did_set_cb {
@@ -8286,62 +8235,44 @@ pub fn copy_option_part<T>(
 }
 
 /// Iterates comma-separated parts of option, splitting each part at its first ':' into key/value.
-pub fn option_next_keyval<T>(
-    p: *mut *const T,
-    key: *mut *const T,
-    keylen: &mut usize,
-    val: *mut *const T,
-    vallen: &mut usize,
-) -> bool {
-    unsafe {
-        let s: *const std::ffi::c_char = (*p).cast();
-        let bytes = crate::memory::cstr_as_bytes(s);
-        if bytes.is_empty() {
-            return false;
-        }
-
-        let comma_off = bytes.iter().position(|&b| b == b',');
-        let end_off = comma_off.unwrap_or(bytes.len());
-        let part = &bytes[..end_off];
-
-        *key = s.cast();
-        if let Some(colon_off) = part.iter().position(|&b| b == b':') {
-            *keylen = colon_off;
-            *val = s.wrapping_add(colon_off + 1).cast();
-            *vallen = end_off - (colon_off + 1);
-        } else {
-            *keylen = end_off;
-            *val = ptr::null();
-            *vallen = 0;
-        }
-
-        *p = if let Some(c_off) = comma_off {
-            s.wrapping_add(c_off + 1).cast()
-        } else {
-            s.wrapping_add(end_off).cast()
-        };
-        true
+pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a [u8]>)> {
+    let bytes = *p;
+    if bytes.is_empty() {
+        return None;
     }
-}
 
-/// Compare a (non-NUL-terminated) slice from option_next_keyval() against a name.
-pub fn option_slice_eq(
-    slice: impl crate::strings::IntoCCharPtr,
-    slicelen: usize,
-    name: &std::ffi::CStr,
-) -> bool {
-    let slice = slice.into_c_char_ptr();
-    !slice.is_null() && crate::memory::cstr_slice(slice, slicelen) == name.to_bytes()
+    let comma_off = bytes.iter().position(|&b| b == b',');
+    let end_off = comma_off.unwrap_or(bytes.len());
+    let part = &bytes[..end_off];
+
+    let (key, val) = if let Some(colon_off) = part.iter().position(|&b| b == b':') {
+        (&part[..colon_off], Some(&part[colon_off + 1..]))
+    } else {
+        (part, None)
+    };
+
+    *p = if let Some(c_off) = comma_off {
+        &bytes[c_off + 1..]
+    } else {
+        &bytes[end_off..]
+    };
+    Some((key, val))
 }
 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> i32 {
-    i32::from(c_str_contains(path_tail(opt_vars().p_sh), b"csh"))
+    i32::from(
+        crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh))
+            .windows(3)
+            .any(|w| w == b"csh"),
+    )
 }
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    c_str_contains(path_tail(opt_vars().p_sh), b"fish")
+    crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh))
+        .windows(4)
+        .any(|w| w == b"fish")
 }
 
 /// Get window or buffer local options.

@@ -46,9 +46,9 @@ use crate::option::{
     K_OPT_FILEFORMATS, K_OPT_FLAG_COMMA, K_OPT_FLAG_NDNAME, K_OPT_FLAG_NFNAME,
     K_OPT_FLAG_ONE_COMMA, K_OPT_LISTCHARS, K_OPT_STATUSLINE, K_OPT_TAGCASE, K_OPT_VARSOFTTABSTOP,
     K_OPT_VIRTUALEDIT, copy_option_part, did_set_title, fill_culopt_flags, get_fileformat,
-    get_option, get_option_default, opt_error, option_next_keyval, option_slice_eq,
-    optval_free_read, parse_winhl_opt, redraw_titles, set_iminsert_global, set_imsearch_global,
-    set_option_direct, valid_name,
+    get_option, get_option_default, opt_error, option_next_keyval, optval_free_read,
+    parse_winhl_opt, redraw_titles, set_iminsert_global, set_imsearch_global, set_option_direct,
+    valid_name,
 };
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, vim_unsetenv_ext};
@@ -1051,9 +1051,8 @@ pub fn check_string_option<T>(pp: *mut *mut T) {
 }
 
 /// Return true if "val" is a valid 'filetype' name.
-fn valid_filetype(val: impl crate::strings::IntoCCharPtr) -> bool {
-    let val = val.into_c_char_ptr();
-    valid_name(val, c".-_")
+fn valid_filetype(val: &[u8]) -> bool {
+    valid_name(val, b".-_")
 }
 
 /// Handle setting 'signcolumn' for value 'val'.
@@ -1253,23 +1252,15 @@ pub fn check_stl_option<'a>(
 }
 
 /// Check for a "normal" directory or file name in some options.
-pub fn check_illegal_path_names(val: impl crate::strings::IntoCCharPtr, flags: u32) -> bool {
-    let val = val.into_c_char_ptr();
-    {
-        let nfname_illegal = if g_st().secure != 0 {
-            c"/\\*?[|;&<>\r\n".as_ptr()
-        } else {
-            c"/\\*?[<>\r\n".as_ptr()
-        };
-        ((flags & K_OPT_FLAG_NFNAME) != 0
-            && crate::memory::cstr_as_bytes(val)
-                .iter()
-                .any(|b| crate::memory::cstr_as_bytes(nfname_illegal).contains(b)))
-            || ((flags & K_OPT_FLAG_NDNAME) != 0
-                && crate::memory::cstr_as_bytes(val)
-                    .iter()
-                    .any(|b| b"*?[|;&<>\r\n".contains(b)))
-    }
+pub fn check_illegal_path_names(val_bytes: &[u8], flags: u32) -> bool {
+    let nfname_illegal: &[u8] = if g_st().secure != 0 {
+        b"/\\*?[|;&<>\r\n"
+    } else {
+        b"/\\*?[<>\r\n"
+    };
+    ((flags & K_OPT_FLAG_NFNAME) != 0 && val_bytes.iter().any(|b| nfname_illegal.contains(b)))
+        || ((flags & K_OPT_FLAG_NDNAME) != 0
+            && val_bytes.iter().any(|b| b"*?[|;&<>\r\n".contains(b)))
 }
 
 fn opt_values(idx: OptIndex) -> &'static [&'static CStr] {
@@ -2220,7 +2211,7 @@ pub fn get_fileformat_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CSt
 
 /// Validate the 'filetype', 'syntax' or 'keymap' option.
 pub fn validate_filetype(args: &mut Optset) -> Option<&CStr> {
-    if valid_filetype(args.os_newval.data.string().data) {
+    if valid_filetype(args.os_newval.data.string().as_bytes()) {
         None
     } else {
         Some(E_INVARG)
@@ -3101,42 +3092,38 @@ pub fn expand_set_winhighlight(args: &mut Optexpand, matches: &mut Vec<std::ffi:
 fn opt_values_err<'a>(
     errbuf: Option<CharBuf>,
     fmt: &std::ffi::CStr,
-    item: impl crate::strings::IntoCCharPtr,
-    itemlen: usize,
+    item: &[u8],
     values: &[&CStr],
 ) -> Option<&'a CStr> {
-    let item = item.into_c_char_ptr();
-    {
-        let Some(errbuf) = errbuf else {
-            return Some(E_INVARG);
-        };
-        let mut itembuf = [0u8; 64];
-        let copy_len = itemlen.min(itembuf.len() - 1);
-        itembuf[..copy_len].copy_from_slice(crate::memory::cstr_slice(item, copy_len));
-        let mut n = vim_snprintf!(
-            errbuf.data.cast(),
-            errbuf.size,
-            gettext(fmt.as_ptr()),
-            itembuf.as_ptr(),
-        );
-        for (j, &v) in values.iter().enumerate() {
-            if n <= 0 || (n as usize) >= errbuf.size {
-                break;
-            }
-            n += vim_snprintf!(
-                errbuf.data.wrapping_add(n as usize).cast(),
-                errbuf.size - (n as usize),
-                c"%s%s",
-                if j == 0 {
-                    c" ".as_ptr()
-                } else {
-                    c", ".as_ptr()
-                },
-                v.as_ptr(),
-            );
+    let Some(errbuf) = errbuf else {
+        return Some(E_INVARG);
+    };
+    let mut itembuf = [0u8; 64];
+    let copy_len = item.len().min(itembuf.len() - 1);
+    itembuf[..copy_len].copy_from_slice(&item[..copy_len]);
+    let mut n = vim_snprintf!(
+        errbuf.data.cast(),
+        errbuf.size,
+        gettext(fmt.as_ptr()),
+        itembuf.as_ptr(),
+    );
+    for (j, &v) in values.iter().enumerate() {
+        if n <= 0 || (n as usize) >= errbuf.size {
+            break;
         }
-        Some(errbuf.as_cstr())
+        n += vim_snprintf!(
+            errbuf.data.wrapping_add(n as usize).cast(),
+            errbuf.size - (n as usize),
+            c"%s%s",
+            if j == 0 {
+                c" ".as_ptr()
+            } else {
+                c", ".as_ptr()
+            },
+            v.as_ptr(),
+        );
     }
+    Some(errbuf.as_cstr())
 }
 
 /// Handle an option that can be a range of string values.
@@ -3170,13 +3157,11 @@ fn opt_strings_flags<'a>(
             }
         }
         if !matched {
-            let cur_ptr = val_start.wrapping_add(val_bytes.len() - rem.len());
             let item_len = rem.iter().position(|&b| b == b',').unwrap_or(rem.len());
             return opt_values_err(
                 errbuf,
                 c"E474: Invalid value '%s', expected one of:",
-                cur_ptr,
-                item_len,
+                &rem[..item_len],
                 values,
             );
         }
@@ -3197,19 +3182,13 @@ fn opt_strings_flags<'a>(
 fn opt_schema_err<'a>(
     errbuf: Option<CharBuf>,
     fmt: &std::ffi::CStr,
-    key: impl crate::strings::IntoCCharPtr,
-    keylen: usize,
+    key: &[u8],
 ) -> Option<&'a CStr> {
-    let key = key.into_c_char_ptr();
-    {
-        if errbuf.is_none() {
-            return Some(E_INVARG);
-        }
-        let mut keybuf = [0u8; 64];
-        let copy_len = keylen.min(keybuf.len() - 1);
-        keybuf[..copy_len].copy_from_slice(crate::memory::cstr_slice(key, copy_len));
-        opt_error(errbuf, fmt.as_ptr(), crate::memory::cstr_until_nul(&keybuf))
-    }
+    errbuf?;
+    let mut keybuf = [0u8; 64];
+    let copy_len = key.len().min(keybuf.len() - 1);
+    keybuf[..copy_len].copy_from_slice(&key[..copy_len]);
+    opt_error(errbuf, fmt.as_ptr(), crate::memory::cstr_until_nul(&keybuf))
 }
 
 /// Validates a dict option against its schema (options.lua).
@@ -3218,104 +3197,60 @@ pub fn opt_strings_check<'a>(
     schema: &[OptSchemaItem],
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
-    let val = val.into_c_char_ptr();
-    {
-        let mut key = ptr::null();
-        let mut v = ptr::null();
-        let mut keylen: usize = 0;
-        let mut vlen: usize = 0;
-        let mut p = val;
-        while option_next_keyval(&raw mut p, &raw mut key, &mut keylen, &raw mut v, &mut vlen) {
-            if keylen == 0 && v.is_null() {
-                continue;
+    let mut p = crate::memory::cstr_as_bytes(val);
+    while let Some((key, v)) = option_next_keyval(&mut p) {
+        if key.is_empty() && v.is_none() {
+            continue;
+        }
+        let Some(it) = schema.iter().find(|item| item.name.to_bytes() == key) else {
+            return opt_schema_err(errbuf, c"E474: Unknown item '%s'", key);
+        };
+        match it.kind {
+            OptSchemaKind::OptSchemaFlag => {
+                if v.is_some() {
+                    return opt_schema_err(errbuf, c"E474: '%s' does not take a value", key);
+                }
             }
-            let Some(it) = schema
-                .iter()
-                .find(|item| option_slice_eq(key, keylen, item.name))
-            else {
-                return opt_schema_err(errbuf, c"E474: Unknown item '%s'", key, keylen);
-            };
-            match it.kind {
-                OptSchemaKind::OptSchemaFlag => {
-                    if !v.is_null() {
-                        return opt_schema_err(
-                            errbuf,
-                            c"E474: '%s' does not take a value",
-                            key,
-                            keylen,
-                        );
-                    }
+            OptSchemaKind::OptSchemaNum | OptSchemaKind::OptSchemaSNum => {
+                let Some(v_bytes) = v else {
+                    return opt_schema_err(errbuf, c"E474: '%s' requires a number", key);
+                };
+                let digits = if it.kind == OptSchemaKind::OptSchemaSNum {
+                    v_bytes.strip_prefix(b"-").unwrap_or(v_bytes)
+                } else {
+                    v_bytes
+                };
+                if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+                    return opt_schema_err(errbuf, c"E474: '%s' requires a number", key);
                 }
-                OptSchemaKind::OptSchemaNum | OptSchemaKind::OptSchemaSNum => {
-                    let i: usize = if !v.is_null()
-                        && it.kind == OptSchemaKind::OptSchemaSNum
-                        && crate::memory::cstr_first_byte(v) == b'-'
-                    {
-                        1
-                    } else {
-                        0
-                    };
-                    let ok = !v.is_null()
-                        && vlen > i
-                        && crate::memory::cstr_slice(v, vlen)[i..]
-                            .iter()
-                            .all(u8::is_ascii_digit);
-                    if !ok {
-                        return opt_schema_err(
-                            errbuf,
-                            c"E474: '%s' requires a number",
-                            key,
-                            keylen,
-                        );
-                    }
-                    let mut rem = crate::memory::cstr_slice(v, vlen);
-                    let mut n: i64 = 0;
-                    if !try_getdigits(&mut rem, &mut n)
-                        || n < i64::from(i32::MIN)
-                        || n > i64::from(i32::MAX)
-                    {
-                        return opt_schema_err(
-                            errbuf,
-                            c"E474: '%s' number is out of range",
-                            key,
-                            keylen,
-                        );
-                    }
+                let mut rem = v_bytes;
+                let mut n: i64 = 0;
+                if !try_getdigits(&mut rem, &mut n)
+                    || n < i64::from(i32::MIN)
+                    || n > i64::from(i32::MAX)
+                {
+                    return opt_schema_err(errbuf, c"E474: '%s' number is out of range", key);
                 }
-                OptSchemaKind::OptSchemaEnum => {
-                    if !v.is_null()
-                        && it
-                            .enum_values
-                            .iter()
-                            .any(|&ev| option_slice_eq(v, vlen, ev))
-                    {
-                        continue;
-                    }
-                    return opt_values_err(
-                        errbuf,
-                        c"E474: '%s' must be one of:",
-                        key,
-                        keylen,
-                        it.enum_values,
-                    );
+            }
+            OptSchemaKind::OptSchemaEnum => {
+                if let Some(v_bytes) = v
+                    && it.enum_values.iter().any(|&ev| ev.to_bytes() == v_bytes)
+                {
+                    continue;
                 }
-                OptSchemaKind::OptSchemaStr => {
-                    if v.is_null() {
-                        return opt_schema_err(errbuf, c"E474: '%s' requires a value", key, keylen);
-                    }
-                    if vlen >= 256 {
-                        return opt_schema_err(
-                            errbuf,
-                            c"E474: '%s' value is too long",
-                            key,
-                            keylen,
-                        );
-                    }
+                return opt_values_err(errbuf, c"E474: '%s' must be one of:", key, it.enum_values);
+            }
+            OptSchemaKind::OptSchemaStr => {
+                let Some(v_bytes) = v else {
+                    return opt_schema_err(errbuf, c"E474: '%s' requires a value", key);
+                };
+                if v_bytes.len() >= 256 {
+                    return opt_schema_err(errbuf, c"E474: '%s' value is too long", key);
                 }
             }
         }
-        None
     }
+    None
 }
 
 /// Parses a validated dict option into `out`.
@@ -3324,44 +3259,33 @@ pub fn opt_fill(
     get_field: FieldHashfn,
     out: *mut OptKeySet,
 ) {
-    let value = value.into_c_char_ptr();
-    {
-        let Some(get_field_fn) = get_field else {
-            return;
+    let Some(get_field_fn) = get_field else {
+        return;
+    };
+    let mut p = crate::memory::cstr_as_bytes(value);
+    while let Some((key_bytes, v)) = option_next_keyval(&mut p) {
+        let Some(f) = get_field_fn(key_bytes) else {
+            continue;
         };
-        let mut key = ptr::null();
-        let mut v = ptr::null();
-        let mut keylen: usize = 0;
-        let mut vlen: usize = 0;
-        let mut p = value;
-        while option_next_keyval(&raw mut p, &raw mut key, &mut keylen, &raw mut v, &mut vlen) {
-            let key_bytes = if key.is_null() || keylen == 0 {
-                &[][..]
-            } else {
-                crate::memory::cstr_slice(key, keylen)
-            };
-            let Some(f) = get_field_fn(key_bytes) else {
-                continue;
-            };
-            let field = out.cast::<u8>().wrapping_add(f.ptr_off);
-            if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
-                unsafe {
-                    *field.cast::<Boolean>() = true;
-                }
-            } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
-                let mut rem = crate::memory::cstr_slice(v, vlen);
-                unsafe {
-                    *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
-                }
-            } else if f.key_type == ObjectType::ObjectTypeString as i32 {
-                unsafe { ptr::copy_nonoverlapping(v.cast::<u8>(), field, vlen) };
-                unsafe {
-                    *field.wrapping_add(vlen) = 0;
-                }
-            }
+        let field = out.cast::<u8>().wrapping_add(f.ptr_off);
+        if f.key_type == ObjectType::ObjectTypeBoolean as i32 {
             unsafe {
-                (*out).is_set_ |= 1u64 << (f.opt_index as u32);
+                *field.cast::<Boolean>() = true;
             }
+        } else if f.key_type == ObjectType::ObjectTypeInteger as i32 {
+            let mut rem = v.unwrap_or(&[]);
+            unsafe {
+                *field.cast::<Integer>() = Integer::from(getdigits_int(&mut rem, false, 0));
+            }
+        } else if f.key_type == ObjectType::ObjectTypeString as i32 {
+            let v_bytes = v.unwrap_or(&[]);
+            unsafe { ptr::copy_nonoverlapping(v_bytes.as_ptr(), field, v_bytes.len()) };
+            unsafe {
+                *field.wrapping_add(v_bytes.len()) = 0;
+            }
+        }
+        unsafe {
+            (*out).is_set_ |= 1u64 << (f.opt_index as u32);
         }
     }
 }

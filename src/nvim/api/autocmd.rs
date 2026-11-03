@@ -595,14 +595,13 @@ pub fn nvim_get_autocmds(
                             continue;
                         };
                         let mut pat_cstr = raw_cstr;
-                        let patlen = pat_cstr.to_bytes().len() as i32;
                         let mut pattern_buflocal = [0u8; BUFLOCAL_PAT_LEN];
-                        if aupat_is_buflocal(pat_cstr.as_ptr(), patlen) {
+                        let pat_bytes = pat_cstr.to_bytes();
+                        if aupat_is_buflocal(pat_bytes) {
                             aupat_normalize_buflocal_pat(
                                 &mut pattern_buflocal,
-                                pat_cstr.as_ptr(),
-                                patlen,
-                                aupat_get_buflocal_nr(pat_cstr.as_ptr(), patlen),
+                                pat_bytes,
+                                aupat_get_buflocal_nr(pat_bytes),
                             );
                             pat_cstr = CStr::from_bytes_until_nul(&pattern_buflocal).unwrap_or(c"");
                         }

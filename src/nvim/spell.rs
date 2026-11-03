@@ -3167,8 +3167,7 @@ pub fn expand_spelling(
     *matches = spell_suggest_list(pat, 100, spell_priv_st().spell_expand_need_cap, true);
 }
 pub fn valid_spelllang(val: impl crate::strings::IntoCCharPtr) -> bool {
-    let val = val.into_c_char_ptr();
-    valid_name(val, c".-_,@")
+    valid_name(crate::memory::cstr_as_bytes(val), b".-_,@")
 }
 pub fn valid_spellfile(val: impl crate::strings::IntoCCharPtr) -> bool {
     let val = val.into_c_char_ptr();

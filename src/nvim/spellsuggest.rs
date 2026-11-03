@@ -1,7 +1,7 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
 use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
 use crate::cursor::{
     Colnr, check_cursor, get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice,
 };
@@ -24,7 +24,7 @@ use crate::mbyte::{
 use crate::memline::ml_replace;
 use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
-use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
+use crate::option::{copy_option_part, option_next_keyval};
 use crate::option_vars::*;
 use crate::os::fs::{CFile, MAXPATHL};
 use crate::os::input::{line_breakcheck, os_breakcheck};
@@ -526,48 +526,32 @@ pub fn spell_check_sps(
     {
         let mut flags: i32 = 0;
         let mut limit: i32 = 9999;
-        let mut key = ptr::null();
-        let mut val = ptr::null();
-        let mut keylen: usize = 0;
-        let mut vallen: usize = 0;
-        let mut p = value;
-        while option_next_keyval(
-            &raw mut p,
-            &raw mut key,
-            &mut keylen,
-            &raw mut val,
-            &mut vallen,
-        ) {
+        let mut p = crate::memory::cstr_as_bytes(value);
+        while let Some((key, val)) = option_next_keyval(&mut p) {
             let mut f: i32 = 0;
-            if val.is_null() {
-                if keylen > 0 && ascii_isdigit(crate::memory::cstr_first_byte(key)) {
-                    let mut rem = crate::memory::cstr_slice(key, keylen);
-                    limit = getdigits_int(&mut rem, true, 0);
-                    if !rem.is_empty() {
+            if let Some(val) = val {
+                if key == b"expr" || key == b"file" {
+                    // consumed later in spell_find_suggest()
+                } else if key == b"timeout" {
+                    let v = val.strip_prefix(b"-").unwrap_or(val);
+                    if !v.first().is_some_and(u8::is_ascii_digit) {
                         f = -1;
                     }
-                } else if option_slice_eq(key, keylen, c"best") {
-                    f = SPS_BEST;
-                } else if option_slice_eq(key, keylen, c"fast") {
-                    f = SPS_FAST;
-                } else if option_slice_eq(key, keylen, c"double") {
-                    f = SPS_DOUBLE;
                 } else {
                     f = -1;
                 }
-            } else if option_slice_eq(key, keylen, c"expr") || option_slice_eq(key, keylen, c"file")
-            {
-                // consumed later in spell_find_suggest()
-            } else if option_slice_eq(key, keylen, c"timeout") {
-                let mut v = val;
-                let mut vl = vallen;
-                if vl > 0 && crate::memory::cstr_first_byte(v) == b'-' {
-                    v = v.wrapping_add(1);
-                    vl -= 1;
-                }
-                if vl == 0 || !ascii_isdigit(crate::memory::cstr_first_byte(v)) {
+            } else if key.first().is_some_and(u8::is_ascii_digit) {
+                let mut rem = key;
+                limit = getdigits_int(&mut rem, true, 0);
+                if !rem.is_empty() {
                     f = -1;
                 }
+            } else if key == b"best" {
+                f = SPS_BEST;
+            } else if key == b"fast" {
+                f = SPS_FAST;
+            } else if key == b"double" {
+                f = SPS_DOUBLE;
             } else {
                 f = -1;
             }

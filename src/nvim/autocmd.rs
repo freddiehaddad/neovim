@@ -1560,15 +1560,10 @@ fn au_show_for_event(group: i32, event: AuEvent, pat: impl crate::strings::IntoC
             let mut last_ap: Option<std::rc::Rc<AutoPat>> = None;
 
             if let Some(span) = pat_opt
-                && aupat_is_buflocal(span.as_ptr().cast(), span.len() as i32)
+                && aupat_is_buflocal(span)
             {
-                let nr = aupat_get_buflocal_nr(span.as_ptr().cast(), span.len() as i32);
-                aupat_normalize_buflocal_pat(
-                    &mut buflocal_pat,
-                    span.as_ptr().cast(),
-                    span.len() as i32,
-                    nr,
-                );
+                let nr = aupat_get_buflocal_nr(span);
+                aupat_normalize_buflocal_pat(&mut buflocal_pat, span, nr);
                 let norm = CStr::from_bytes_until_nul(&buflocal_pat)
                     .unwrap_or(c"")
                     .to_bytes();
@@ -2044,7 +2039,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
         arg = c"".as_ptr().cast_mut();
         AUGROUP_ALL
     } else {
-        arg_augroup_get(&raw mut arg)
+        arg_augroup_get(&mut arg)
     };
 
     let pat = arg_event_skip(arg, group != AUGROUP_ALL);
@@ -2088,9 +2083,9 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: impl crate::strings::IntoCCharPtr, fo
                 if crate::memory::cstr_is_empty(cmd) {
                     continue;
                 }
-                invalid_flags |= arg_autocmd_flag_get(&mut once, &raw mut cmd, c"++once", 6);
-                invalid_flags |= arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"++nested", 8);
-                invalid_flags |= arg_autocmd_flag_get(&mut nested, &raw mut cmd, c"nested", 6);
+                invalid_flags |= arg_autocmd_flag_get(&mut once, &mut cmd, b"++once");
+                invalid_flags |= arg_autocmd_flag_get(&mut nested, &mut cmd, b"++nested");
+                invalid_flags |= arg_autocmd_flag_get(&mut nested, &mut cmd, b"nested");
             }
 
             if invalid_flags {
@@ -2198,20 +2193,14 @@ pub fn do_autocmd_event(
             rem_bytes = rest;
             let mut pat_slice = span;
 
-            let is_buflocal = aupat_is_buflocal(pat_slice.as_ptr().cast(), pat_slice.len() as i32);
+            let is_buflocal = aupat_is_buflocal(pat_slice);
             if is_buflocal {
-                let buflocal_nr =
-                    aupat_get_buflocal_nr(pat_slice.as_ptr().cast(), pat_slice.len() as i32);
+                let buflocal_nr = aupat_get_buflocal_nr(pat_slice);
                 if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                     semsg!(tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER), buflocal_nr,);
                     return false;
                 }
-                aupat_normalize_buflocal_pat(
-                    &mut buflocal_pat,
-                    pat_slice.as_ptr().cast(),
-                    pat_slice.len() as i32,
-                    buflocal_nr,
-                );
+                aupat_normalize_buflocal_pat(&mut buflocal_pat, pat_slice, buflocal_nr);
                 pat_slice = CStr::from_bytes_until_nul(&buflocal_pat)
                     .unwrap_or(c"")
                     .to_bytes();
@@ -2282,17 +2271,18 @@ pub fn autocmd_register(
             group
         };
 
-        let is_buflocal = aupat_is_buflocal(pat, patlen);
+        let pat_slice = crate::memory::cstr_slice(pat, patlen.max(0) as usize);
+        let is_buflocal = aupat_is_buflocal(pat_slice);
         let mut buflocal_nr: i32 = 0;
         let mut buflocal_pat = [0u8; BUFLOCAL_PAT_LEN];
 
         if is_buflocal {
-            buflocal_nr = aupat_get_buflocal_nr(pat, patlen);
+            buflocal_nr = aupat_get_buflocal_nr(pat_slice);
             if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
                 semsg!(tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER), buflocal_nr,);
                 return false;
             }
-            aupat_normalize_buflocal_pat(&mut buflocal_pat, pat, patlen, buflocal_nr);
+            aupat_normalize_buflocal_pat(&mut buflocal_pat, pat_slice, buflocal_nr);
             pat = buflocal_pat.as_ptr().cast();
             patlen = crate::memory::cstr_len(pat) as i32;
         }
@@ -2438,7 +2428,7 @@ pub fn do_doautocmd(
             **p = false;
         }
 
-        let group = arg_augroup_get(&raw mut arg);
+        let group = arg_augroup_get(&mut arg);
 
         if crate::memory::cstr_first_byte(arg) == b'*' {
             emsg(tr(c"E217: Can't execute autocommands for ALL events"));
@@ -3517,7 +3507,7 @@ pub fn expand_get_augroup_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static
 pub fn aucmd_set_expand_context<T>(xp: &mut ExpandCtx, mut arg: *mut T, doautocmd: bool) -> *mut T {
     au_st().autocmd_include_groups = false;
     let p = arg;
-    let mut group = arg_augroup_get(&raw mut arg);
+    let mut group = arg_augroup_get(&mut arg);
 
     if crate::memory::cstr_is_empty(arg.cast())
         && group != AUGROUP_ALL
@@ -3698,30 +3688,24 @@ pub fn au_exists(arg: impl crate::strings::IntoCCharPtr) -> bool {
     retval
 }
 
-pub fn aupat_is_buflocal(pat: impl crate::strings::IntoCCharPtr, patlen: i32) -> bool {
-    let pat = pat.into_c_char_ptr();
-    if patlen < 8 {
-        return false;
-    }
-    let slice = crate::memory::cstr_slice(pat, patlen as usize);
-    slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
+pub fn aupat_is_buflocal(slice: &[u8]) -> bool {
+    slice.len() >= 8 && slice.starts_with(b"<buffer") && slice[slice.len() - 1] == b'>'
 }
 
-pub fn aupat_get_buflocal_nr(pat: impl crate::strings::IntoCCharPtr, patlen: i32) -> i32 {
-    let pat = pat.into_c_char_ptr();
-    assert!(aupat_is_buflocal(pat, patlen));
+pub fn aupat_get_buflocal_nr(slice: &[u8]) -> i32 {
+    assert!(aupat_is_buflocal(slice));
+    let patlen = slice.len();
 
     if patlen == 8 {
         return curbuf_mut().b_fnum;
     }
 
-    let slice = crate::memory::cstr_slice(pat, patlen as usize);
     if patlen > 9 && slice.get(7) == Some(&b'=') {
         if patlen == 13 && slice.eq_ignore_ascii_case(b"<buffer=abuf>") {
             return g_st().autocmd_bufnr;
         }
 
-        let digits = &slice[8..(patlen as usize - 1)];
+        let digits = &slice[8..(patlen - 1)];
         if !digits.is_empty() && digits.iter().all(u8::is_ascii_digit) {
             let mut rem = digits;
             return getdigits_int(&mut rem, false, 0);
@@ -3731,14 +3715,8 @@ pub fn aupat_get_buflocal_nr(pat: impl crate::strings::IntoCCharPtr, patlen: i32
     0
 }
 
-pub fn aupat_normalize_buflocal_pat(
-    dest: &mut [u8],
-    pat: impl crate::strings::IntoCCharPtr,
-    patlen: i32,
-    mut buflocal_nr: i32,
-) {
-    let pat = pat.into_c_char_ptr();
-    assert!(aupat_is_buflocal(pat, patlen));
+pub fn aupat_normalize_buflocal_pat(dest: &mut [u8], pat: &[u8], mut buflocal_nr: i32) {
+    assert!(aupat_is_buflocal(pat));
 
     if buflocal_nr == 0 {
         buflocal_nr = curbuf_mut().b_fnum;
@@ -3805,8 +3783,7 @@ fn arg_event_skip(arg: impl crate::strings::IntoCCharPtr, have_group: bool) -> *
     }
 }
 
-fn arg_augroup_get<T>(argp: *mut *mut T) -> i32 {
-    let argp_ref = unsafe { &mut *argp };
+fn arg_augroup_get<T>(argp_ref: &mut *mut T) -> i32 {
     let arg: *const _ = (*argp_ref).cast();
     let arg_bytes = crate::memory::cstr_as_bytes(arg);
     let len = arg_bytes
@@ -3827,30 +3804,22 @@ fn arg_augroup_get<T>(argp: *mut *mut T) -> i32 {
     group
 }
 
-fn arg_autocmd_flag_get<T>(
-    flag: &mut bool,
-    cmd_ptr: *mut *mut T,
-    pattern: &std::ffi::CStr,
-    len: i32,
-) -> bool {
-    unsafe {
-        let cur: *const _ = (*cmd_ptr).cast();
-        let cmd_bytes = crate::memory::cstr_as_bytes(cur);
-        let pat_slice = pattern.to_bytes();
-        if cmd_bytes.starts_with(pat_slice)
-            && cmd_bytes
-                .get(len as usize)
-                .is_some_and(|&b| ascii_iswhite(b as i32))
-        {
-            if *flag {
-                semsg!(tr(E_DUPARG2), pattern.as_ptr());
-                return true;
-            }
-            *flag = true;
-            *cmd_ptr = skipwhite(cur.wrapping_add(len as usize)).cast();
+fn arg_autocmd_flag_get<T>(flag: &mut bool, cmd_ptr: &mut *mut T, pat_slice: &[u8]) -> bool {
+    let cur: *const _ = (*cmd_ptr).cast();
+    let cmd_bytes = crate::memory::cstr_as_bytes(cur);
+    let len = pat_slice.len();
+    if cmd_bytes.starts_with(pat_slice)
+        && cmd_bytes.get(len).is_some_and(|&b| ascii_iswhite(b as i32))
+    {
+        if *flag {
+            let pat_cstr = CString::new(pat_slice).unwrap_or_default();
+            semsg!(tr(E_DUPARG2), pat_cstr.as_ptr());
+            return true;
         }
-        false
+        *flag = true;
+        *cmd_ptr = skipwhite(cur.wrapping_add(len)).cast();
     }
+    false
 }
 
 pub fn vimresume_event() {
