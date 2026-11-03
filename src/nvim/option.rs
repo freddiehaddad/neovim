@@ -93,7 +93,7 @@ use crate::mbyte::enc_locale;
 use crate::mcursor::{K_OPT_FOLLOW, mc_ins_replay_can_join};
 use crate::memfile::mf_close_file;
 use crate::memline::{ml_open_file, ml_open_files};
-use crate::memory::{Arena, xstrlcpy};
+use crate::memory::Arena;
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_advance, msg_ext_set_kind, msg_outtrans, msg_putchar,
     msg_puts, msg_puts_title, msg_source,
@@ -7953,11 +7953,17 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let namebuf_ptr = g_st().name_buff.as_mut_ptr();
     let mut wc: OptInt = 0;
     if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-        xstrlcpy(namebuf_ptr, get_special_key_name(wc as i32, 0), MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(
+            g_st().name_buff_bytes_mut(),
+            get_special_key_name(wc as i32, 0).to_bytes(),
+        );
         return;
     }
     if wc != 0 {
-        xstrlcpy(namebuf_ptr, transchar(wc as i32), MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(
+            g_st().name_buff_bytes_mut(),
+            crate::memory::cstr_as_bytes(transchar(wc as i32)),
+        );
         return;
     }
     if (opt.flags & K_OPT_FLAG_EXPAND) != 0
@@ -7976,7 +7982,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
 
     let o = opt_from_varp(opt_idx, varp);
     let s = optval_to_cstr(o, false);
-    xstrlcpy(namebuf_ptr, s.as_ptr(), MAXPATHL);
+    crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
 }
 

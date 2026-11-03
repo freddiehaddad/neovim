@@ -52,7 +52,7 @@ use crate::hashtab::{
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
 use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::message::{
     emsg, internal_error, message_filtered, msg_advance, msg_clr_eos, msg_ext_set_kind,
     msg_outtrans, msg_putchar, msg_puts, msg_puts_len, msg_start, semsg,
@@ -1499,13 +1499,8 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
         }
         let mut buf = [0u8; IOSIZE];
 
-        xstrlcpy(buf.as_mut_ptr().cast(), prefix.as_ptr(), IOSIZE);
-        {
-            let _dst = buf.as_mut_ptr().cast();
-            let _dsize: usize = IOSIZE;
-            let _dlen = crate::memory::cstr_len(_dst);
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), di.key_cstr(), _dsize - _dlen);
-        };
+        crate::memory::copy_bytes_to_c_buf(&mut buf, prefix.to_bytes());
+        crate::memory::append_bytes_to_c_buf(&mut buf, di.key_bytes());
         if message_filtered(buf.as_ptr().cast()) {
             continue;
         }

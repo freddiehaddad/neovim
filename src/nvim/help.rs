@@ -13,7 +13,6 @@ use crate::ex_cmds::{ECMD_HIDE, ECMD_LASTL, ECMD_SET_HELP, do_ecmd};
 use crate::ex_docmd::{CMOD_KEEPALT, Exarg, do_cmdline_cmd};
 use crate::globals::*;
 use crate::lua::executor::nlua_call_typval;
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg, smsg};
 use crate::option::{K_OPT_BUFTYPE, OPT_LOCAL, OptInt, set_option_direct};
 use crate::option_vars::*;
@@ -29,7 +28,6 @@ use std::ptr;
 
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::K_OPT_FOLDMETHOD;
-use crate::globals::IOSIZE;
 use crate::math::OK;
 
 pub(crate) const DT_HELP: i32 = 8;
@@ -344,7 +342,10 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         tv_clear(&mut rettv);
         return false;
     }
-    xstrlcpy(g_st().iobuff.as_mut_ptr(), rettv.vval.v_string(), IOSIZE);
+    crate::memory::copy_bytes_to_c_buf(
+        g_st().iobuff_bytes_mut(),
+        crate::memory::cstr_as_bytes(rettv.vval.v_string()),
+    );
     tv_clear(&mut rettv);
 
     matches.clear();

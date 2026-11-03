@@ -22,7 +22,6 @@ use crate::mbyte::{
     utf_char2len, utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::memline::ml_replace;
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, internal_error, msg, msg_ext_set_kind, semsg, smsg};
 use crate::normal::end_visual_mode;
 use crate::option::{copy_option_part, option_next_keyval, option_slice_eq};
@@ -2911,12 +2910,11 @@ fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
     while i >= 0 {
         let ui = i as usize;
         let st = &gap[ui];
-        xstrlcpy((&raw mut longword).cast(), st.st_word.as_ptr(), MAXWLEN + 1);
+        crate::memory::copy_bytes_to_c_buf(&mut longword, st.st_word.as_bytes());
         let len = st.st_wordlen as usize;
-        xstrlcpy(
-            longword.as_mut_ptr().wrapping_add(len).cast(),
-            badptr.wrapping_add(st.st_orglen as usize).cast(),
-            MAXWLEN + 1 - len,
+        crate::memory::copy_bytes_to_c_buf(
+            &mut longword[len..],
+            crate::memory::cstr_as_bytes(badptr.wrapping_add(st.st_orglen as usize).cast()),
         );
         let mut attr: Hlf = HLF_COUNT;
         let _ = spell_check(

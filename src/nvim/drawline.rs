@@ -58,7 +58,6 @@ use crate::mbyte::{
     utf_ptr2_str_char_info, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
-use crate::memory::xstrlcpy;
 use crate::r#move::{
     cursor_disp_vcol, set_empty_rows, validate_virtcol, win_col_off, win_col_off2,
 };
@@ -3124,10 +3123,12 @@ pub fn win_line(
                             wlv.n_attr = 1;
                             mb_schar_width = schar_get_single_width(mb_schar);
                         } else if mb_schar != 0 {
-                            xstrlcpy(
-                                wlv.extra.as_mut_ptr().cast(),
-                                transchar_buf(wp.w_buffer.as_ref(), mb_c),
-                                wlv.extra.len(),
+                            crate::memory::copy_bytes_to_c_buf(
+                                &mut wlv.extra,
+                                crate::memory::cstr_as_bytes(transchar_buf(
+                                    wp.w_buffer.as_ref(),
+                                    mb_c,
+                                )),
                             );
                             if wlv.n_extra == 0 {
                                 wlv.n_extra = opt_vars().dy_escape_width - 1;

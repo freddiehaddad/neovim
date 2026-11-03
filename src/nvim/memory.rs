@@ -416,26 +416,6 @@ pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
     }
 }
 
-/// Copy `src` into sized buffer `dst[..dsize]` (`xstrlcpy`).
-pub fn xstrlcpy<S: crate::strings::IntoCCharPtr>(
-    dst: RawCCharPtrMut,
-    src: S,
-    dsize: usize,
-) -> usize {
-    let src = src.into_c_char_ptr();
-    let slen = unsafe { CStr::from_ptr(src).to_bytes().len() };
-    if dsize != 0 {
-        let len = slen.min(dsize - 1);
-        unsafe {
-            if len > 0 {
-                std::ptr::copy_nonoverlapping(src.cast::<u8>(), dst.cast::<u8>(), len);
-            }
-            *dst.add(len) = 0;
-        }
-    }
-    slen
-}
-
 /// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
 pub fn cstr_to_cstring<S: crate::strings::IntoCCharPtr>(ptr: S) -> CString {
     let ptr = ptr.into_c_char_ptr();

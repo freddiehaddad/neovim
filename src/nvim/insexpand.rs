@@ -78,7 +78,6 @@ use crate::mbyte::{
     utf_slice2char, utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, internal_error, msg, msg_clr_cmdline, msg_delay, msg_ext_set_kind, msg_progress, semsg,
 };
@@ -4564,10 +4563,9 @@ fn ins_compl_get_next_word_or_line(
                     {
                         tmp_ptr = ptr.wrapping_add(IOSIZE - len as usize - 1);
                     }
-                    xstrlcpy(
-                        iobuff[len as usize..].as_mut_ptr().cast(),
-                        ptr.cast(),
-                        IOSIZE - len as usize,
+                    crate::memory::copy_bytes_to_c_buf(
+                        &mut iobuff[len as usize..],
+                        crate::memory::cstr_as_bytes(ptr.cast()),
                     );
                     len += crate::memory::ptr_offset_from(tmp_ptr, ptr) as i32;
                     *cont_s_ipos = true;

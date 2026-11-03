@@ -29,7 +29,7 @@ use crate::hashtab::{
 use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{api_free_luaref, api_new_luaref, nlua_funcref_str};
 use crate::mbyte::{Vimconv, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len};
-use crate::memory::{cstr_from_bytes, xstrlcpy};
+use crate::memory::cstr_from_bytes;
 use crate::message::{emsg, internal_error, semsg};
 use crate::os::input::{fast_breakcheck, line_breakcheck};
 use crate::strings::{RawCCharPtr, RawCCharPtrMut, strcoll, strtod, tr, vim_snprintf};
@@ -4994,18 +4994,16 @@ pub fn tv_get_string_buf_chk<'a>(
             }
         }
         VarType::VarBool => {
-            xstrlcpy(
-                buf_c,
-                ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize],
-                NUMBUFLEN,
+            crate::memory::copy_bytes_to_c_buf(
+                buf,
+                ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize].to_bytes(),
             );
             Some(crate::memory::cstr_from_ptr(buf_c))
         }
         VarType::VarSpecial => {
-            xstrlcpy(
-                buf_c,
-                ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize],
-                NUMBUFLEN,
+            crate::memory::copy_bytes_to_c_buf(
+                buf,
+                ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize].to_bytes(),
             );
             Some(crate::memory::cstr_from_ptr(buf_c))
         }

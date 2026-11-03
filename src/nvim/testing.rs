@@ -20,7 +20,6 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::hashtab::hashitem_empty;
 use crate::mbyte::{mb_cptr2char_adv, utf_slice2char};
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg_reset_scroll};
 use crate::os::fs::CFile;
 use crate::regexp::NUMBUFLEN;
@@ -420,21 +419,23 @@ fn assert_equalfile(argvars: &mut [TypVal]) -> i32 {
                 let c2 = fd2.getc();
                 if c1 == EOF_VAL {
                     if c2 != EOF_VAL {
-                        iobuflen =
-                            xstrlcpy(iobuf.as_mut_ptr().cast(), c"first file is shorter", IOSIZE);
+                        iobuflen = crate::memory::copy_bytes_to_c_buf(
+                            &mut iobuf,
+                            b"first file is shorter",
+                        );
                     }
                     break;
                 } else if c2 == EOF_VAL {
                     iobuflen =
-                        xstrlcpy(iobuf.as_mut_ptr().cast(), c"second file is shorter", IOSIZE);
+                        crate::memory::copy_bytes_to_c_buf(&mut iobuf, b"second file is shorter");
                     break;
                 } else {
                     line1[lineidx] = c1 as u8;
                     line2[lineidx] = c2 as u8;
                     lineidx += 1;
                     if c1 != c2 {
-                        let msg = format!("difference at byte {count}, line {linecount}\0");
-                        iobuflen = xstrlcpy(iobuf.as_mut_ptr().cast(), msg.as_ptr().cast(), IOSIZE);
+                        let msg = format!("difference at byte {count}, line {linecount}");
+                        iobuflen = crate::memory::copy_bytes_to_c_buf(&mut iobuf, msg.as_bytes());
                         break;
                     }
                 }

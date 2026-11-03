@@ -32,7 +32,7 @@ use crate::fileio::{
 use crate::globals::*;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_head_off, utfc_slice2len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::message::{emsg, semsg};
 use crate::option_vars::*;
 use crate::os::env::{ExpandCtx, expand_env_save, home_replace};
@@ -992,7 +992,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
 
         if let Some(from_cstr) = from {
-            xstrlcpy(cwd.as_mut_ptr().cast(), from_cstr.as_ptr(), MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(&mut cwd, from_cstr.to_bytes());
         }
 
         #[cfg(windows)]

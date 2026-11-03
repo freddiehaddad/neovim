@@ -56,7 +56,7 @@ use crate::mbyte::{
     utf_head_off, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
     utfc_ptr2len_len,
 };
-use crate::memory::{Arena, arena_alloc, xstrlcpy, xstrnlen};
+use crate::memory::{Arena, arena_alloc, xstrnlen};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -2046,16 +2046,10 @@ pub fn msgmore(n: i32) {
             );
         }
         if g_st().got_int {
-            {
-                let _dst: *mut _ = msg_ptr;
-                let _dsize: usize = MSG_BUF_LEN;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(
-                    _dst.wrapping_add(_dlen),
-                    gettext(c" (Interrupted)"),
-                    _dsize - _dlen,
-                );
-            };
+            crate::memory::append_bytes_to_c_buf(
+                g_st().msg_buf_bytes_mut(),
+                gettext(c" (Interrupted)").to_bytes(),
+            );
         }
         if msg(msg_ptr, 0) {
             set_keep_msg(msg_ptr, 0);
@@ -2614,7 +2608,7 @@ pub fn msg_prt_line(s: impl crate::strings::IntoCCharPtr, mut list: bool) {
                     col += utf_ptr2cells(s);
                     let mut buf = [0u8; MB_MAXBYTES + 1];
                     if l as usize >= MB_MAXBYTES {
-                        xstrlcpy(buf.as_mut_ptr().cast(), c"?", buf.len());
+                        crate::memory::copy_bytes_to_c_buf(&mut buf, b"?");
                     } else if curwin_mut().w_p_lcs_chars.nbsp != 0
                         && list
                         && (utf_ptr2char(s) == 160 || utf_ptr2char(s) == 0x202f)

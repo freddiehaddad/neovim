@@ -7,7 +7,7 @@ use crate::eval::vars::{VV_SEND_SERVER, get_vim_var_str};
 use crate::event::r#loop::{uv_mutex_lock, uv_mutex_unlock, uv_strerror};
 use crate::fileio::{EOF, FILE, fclose, fflush, fopen, fprintf, fputc};
 use crate::globals::*;
-use crate::memory::{mem_st, xstrlcpy};
+use crate::memory::mem_st;
 use crate::message::msg_schedule_semsg;
 use crate::os::env::{expand_env, os_get_pid, os_getenv_buf, os_setenv};
 use crate::os::fs::{CFile, MAXPATHL, os_isdir, os_mkdir_recurse};
@@ -163,7 +163,7 @@ fn log_try_create(fname: &CStr) -> bool {
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 fn log_path_init() {
     let size = MAXPATHL + 1;
-    let path_ptr = (&raw mut log_st().log_file_path).cast();
+    let path_ptr = log_st().log_file_path.as_mut_ptr();
     expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
     let path_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
     let user_set = path_cstr.to_bytes() != b"$NVIM_LOG_FILE";
@@ -187,7 +187,8 @@ fn log_path_init() {
         drop(loghome);
 
         let defaultpath = stdpaths_user_state_subpath(c"logs/nvim.log", 0, true);
-        let mut len = xstrlcpy(path_ptr, defaultpath.as_ptr(), size);
+        let mut len =
+            crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, defaultpath.as_bytes());
         drop(defaultpath);
 
         let cur_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
@@ -195,7 +196,7 @@ fn log_path_init() {
             if !user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", cur_cstr.as_ptr(), 1);
             }
-            len = xstrlcpy(path_ptr, c"nvim.log", size);
+            len = crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, b"nvim.log");
         }
         let cur_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {

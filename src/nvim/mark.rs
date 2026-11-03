@@ -26,7 +26,6 @@ use crate::lua::executor::nlua_call_excmd;
 use crate::mbyte::{ptr2cells, slice2cells, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
 use crate::memline::ml_get;
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, message_filtered, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts, msg_puts_title,
     semsg,
@@ -885,13 +884,12 @@ fn fname2fnum(fm: *mut Xfmark) {
                     .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
             {
                 let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
-                xstrlcpy(
-                    (g_st().name_buff.as_mut_ptr()).wrapping_add(len),
-                    fname.wrapping_add(2),
-                    MAXPATHL - len,
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut g_st().name_buff_bytes_mut()[len..],
+                    &fname_bytes[2..],
                 );
             } else {
-                xstrlcpy(g_st().name_buff.as_mut_ptr(), fname, MAXPATHL);
+                crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), fname_bytes);
             }
         }
 
@@ -1207,12 +1205,8 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let dist = (i - curwin_mut().w_jumplistidx).abs();
             let lnum = curwin_mut().w_jumplist[idx].fmark.mark.lnum;
             let col = curwin_mut().w_jumplist[idx].fmark.mark.col;
-            let s = format!("{indicator} {dist:2} {lnum:5} {col:4} \0");
-            xstrlcpy(
-                g_st().iobuff.as_mut_ptr(),
-                crate::memory::cstr_until_nul(s.as_bytes()),
-                IOSIZE,
-            );
+            let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
+            crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             msg_outtrans(
@@ -1260,12 +1254,8 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let dist = (i - curwin_mut().w_changelistidx).abs();
             let lnum = curbuf_mut().b_changelist[idx].mark.lnum;
             let col = curbuf_mut().b_changelist[idx].mark.col;
-            let s = format!("{indicator} {dist:3} {lnum:5} {col:4} \0");
-            xstrlcpy(
-                g_st().iobuff.as_mut_ptr(),
-                crate::memory::cstr_until_nul(s.as_bytes()),
-                IOSIZE,
-            );
+            let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
+            crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
             msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);

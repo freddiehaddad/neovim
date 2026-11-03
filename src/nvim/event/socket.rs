@@ -11,7 +11,6 @@ use crate::event::stream::{
     Stream, StreamInternalData, UV_TCP, stream_init, stream_may_close, uv_pipe_t, uv_stream_t,
 };
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::xstrlcpy;
 use crate::os::fs::{UV_EINVAL, UV_ENOENT, os_path_exists, os_remove};
 use crate::os::time::os_hrtime;
 use crate::path::path_tail;
@@ -168,11 +167,7 @@ pub fn socket_address_tcp_host_end(address: &[u8]) -> Option<usize> {
 }
 
 pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoint: &CStr) -> i32 {
-    xstrlcpy(
-        watcher.addr.as_mut_ptr().cast(),
-        endpoint.as_ptr(),
-        ADDRESS_MAX_SIZE,
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut watcher.addr, endpoint.to_bytes());
     let host_end_idx = socket_address_tcp_host_end(watcher.addr_bytes());
     let uv_ptr: *mut c_void = (&raw mut watcher.uv).cast();
 

@@ -72,7 +72,6 @@ use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
 use crate::math::{FAIL, OK};
-use crate::memory::xstrlcpy;
 use crate::message::{
     K_ZINDEX_MESSAGES, emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -1031,19 +1030,9 @@ fn do_window_newwindow(nchar: i32, Prenum: i32, cbuf: &mut [u8; 40]) {
         cbuf[0] = 0;
     }
     if nchar == b'v' as i32 || nchar == CTRL_V_CONST {
-        {
-            let _dst = cbuf.as_mut_ptr();
-            let _dsize: usize = cbuf.len();
-            let _dlen = crate::memory::cstr_len(_dst.cast());
-            crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), c"v", _dsize - _dlen);
-        };
+        crate::memory::append_bytes_to_c_buf(cbuf, b"v");
     }
-    {
-        let _dst = cbuf.as_mut_ptr();
-        let _dsize: usize = cbuf.len();
-        let _dlen = crate::memory::cstr_len(_dst.cast());
-        crate::memory::xstrlcpy(_dst.wrapping_add(_dlen).cast(), c"new", _dsize - _dlen);
-    };
+    crate::memory::append_bytes_to_c_buf(cbuf, b"new");
     do_cmdline_cmd(cbuf.as_ptr().cast());
 }
 
@@ -1485,12 +1474,11 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
 }
 
 fn cmd_with_count(cmd: &std::ffi::CStr, cbuf: &mut [u8], prenum: i64) {
-    let bufp = cbuf.as_mut_ptr();
     let bufsize = cbuf.len();
-    let len = xstrlcpy(bufp.cast(), cmd.as_ptr(), bufsize);
+    let len = crate::memory::copy_bytes_to_c_buf(cbuf, cmd.to_bytes());
     if prenum > 0 && len < bufsize {
         vim_snprintf!(
-            bufp.wrapping_add(len).cast(),
+            cbuf.as_mut_ptr().wrapping_add(len).cast(),
             bufsize - len,
             c"%lld",
             prenum

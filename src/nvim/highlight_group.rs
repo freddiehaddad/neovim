@@ -1881,17 +1881,10 @@ fn highlight_list_arg(
                 if ((flag & HL_UNDERLINE_MASK) != 0 && ((iarg & HL_UNDERLINE_MASK) == flag))
                     || ((flag & HL_UNDERLINE_MASK) == 0 && (iarg & flag) != 0)
                 {
-                    let dst: *mut _ = buf.as_mut_ptr().cast();
                     if buf[0] != 0 {
-                        let dlen = crate::memory::cstr_len(dst);
-                        crate::memory::xstrlcpy(dst.wrapping_add(dlen), c",", 100 - dlen);
+                        crate::memory::append_bytes_to_c_buf(&mut buf, b",");
                     }
-                    let dlen = crate::memory::cstr_len(dst);
-                    crate::memory::xstrlcpy(
-                        dst.wrapping_add(dlen),
-                        HL_NAME_TABLE[i].as_ptr(),
-                        100 - dlen,
-                    );
+                    crate::memory::append_bytes_to_c_buf(&mut buf, HL_NAME_TABLE[i].to_bytes());
                     if (flag & HL_UNDERLINE_MASK) == 0 {
                         iarg &= !flag;
                     }

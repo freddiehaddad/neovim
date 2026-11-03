@@ -10,7 +10,6 @@ use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{CMOD_KEEPPATTERNS, Exarg};
 use crate::ex_getln::{get_cmdline_firstc, get_list_range};
 use crate::globals::*;
-use crate::memory::xstrlcpy;
 use crate::message::{
     message_filtered, msg, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts_title, semsg,
     trunc_string,
@@ -681,10 +680,9 @@ pub fn ex_history(eap: &mut Exarg) {
                             (IOSIZE - len) as i32,
                         );
                     } else {
-                        xstrlcpy(
-                            iobuf.as_mut_ptr().wrapping_add(len).cast(),
-                            entry_ptr,
-                            IOSIZE - len,
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut iobuf[len..],
+                            crate::memory::cstr_as_bytes(entry_ptr),
                         );
                     }
                     msg_outtrans(iobuf.as_ptr().cast(), 0, false);

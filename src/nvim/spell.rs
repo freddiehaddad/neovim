@@ -28,7 +28,6 @@ use crate::mbyte::{
 use crate::memline::{
     ml_append, ml_close, ml_delete, ml_get_buf, ml_get_buf_len, ml_open, ml_open_file, ml_replace,
 };
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, give_warning, msg_end, msg_ext_set_kind, msg_putchar, msg_puts, msg_start, semsg, smsg,
 };
@@ -1330,11 +1329,11 @@ pub fn spell_cat_line(buf: *mut u8, line: impl crate::strings::IntoCCharPtr, max
         }
         let n = crate::memory::ptr_offset_from(p, line) as i32 + 1;
         if n < maxlen - 1 {
-            unsafe { ptr::write_bytes(buf, b' ', n as usize) };
-            xstrlcpy(
-                buf.wrapping_add(n as usize).cast(),
-                p,
-                (maxlen - n) as usize,
+            let buf_slice = unsafe { std::slice::from_raw_parts_mut(buf, maxlen as usize) };
+            buf_slice[..n as usize].fill(b' ');
+            crate::memory::copy_bytes_to_c_buf(
+                &mut buf_slice[n as usize..],
+                crate::memory::cstr_as_bytes(p),
             );
         }
     }
@@ -1712,7 +1711,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                         && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
                         && !p_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
                     {
-                        xstrlcpy((&raw mut region_cp).cast(), p.wrapping_add(1), 3);
+                        crate::memory::copy_bytes_to_c_buf(&mut region_cp, &p_bytes[1..]);
                         ptr::copy(
                             p.wrapping_add(3),
                             p,
@@ -1881,7 +1880,10 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     if cur_round == 0 {
                         lang[..18].copy_from_slice(b"internal wordlist\0");
                     } else {
-                        xstrlcpy(lang_ptr.cast(), path_tail(spf_ptr.cast()), MAXWLEN + 1);
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut lang,
+                            crate::memory::cstr_as_bytes(path_tail(spf_ptr.cast())),
+                        );
                         let p = vim_strchr(lang_ptr.cast(), b'.' as i32);
                         if !p.is_null() {
                             *p = NUL;
@@ -2371,8 +2373,10 @@ pub fn onecap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut u8, uppe
         spell_tofold(c)
     };
     let l = utf_char2bytes(c, wcopy.cast()) as usize;
-    let p = word.wrapping_add(word_bytes.len() - rem.len());
-    xstrlcpy(wcopy.wrapping_add(l).cast(), p, MAXWLEN - l);
+    crate::memory::copy_bytes_to_c_buf(
+        unsafe { std::slice::from_raw_parts_mut(wcopy.wrapping_add(l), MAXWLEN - l) },
+        rem,
+    );
 }
 pub fn allcap_copy(word: impl crate::strings::IntoCCharPtr, wcopy: *mut u8) {
     let word = word.into_c_char_ptr();
@@ -3120,10 +3124,9 @@ fn dump_prefixes(
                         curi[udepth] += i - 1;
                         c = valid_word_prefix(i, n, flags, word, slang, false);
                         if c != 0 {
-                            xstrlcpy(
-                                (&raw mut prefix).cast::<u8>().wrapping_add(udepth).cast(),
-                                word,
-                                MAXWLEN - udepth,
+                            crate::memory::copy_bytes_to_c_buf(
+                                &mut prefix[udepth..],
+                                crate::memory::cstr_as_bytes(word),
                             );
                             dump_word(
                                 slang,
@@ -3152,11 +3155,7 @@ fn dump_prefixes(
                                 true,
                             );
                             if c != 0 {
-                                xstrlcpy(
-                                    (&raw mut prefix).cast::<u8>().wrapping_add(udepth).cast(),
-                                    (&raw const word_up).cast(),
-                                    MAXWLEN - udepth,
-                                );
+                                crate::memory::copy_bytes_to_c_buf(&mut prefix[udepth..], &word_up);
                                 dump_word(
                                     slang,
                                     (&raw mut prefix).cast(),

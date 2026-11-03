@@ -33,7 +33,6 @@ use crate::memfile::{
     mf_free, mf_free_fnames, mf_get, mf_need_trans, mf_new, mf_new_page_size, mf_open,
     mf_open_file, mf_put, mf_set_dirty, mf_set_fnames, mf_sync, mf_trans_del, pmap_get_bhdr,
 };
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, iemsg, msg, msg_end, msg_ext_set_kind, msg_multiline, msg_outnum, msg_outtrans,
     msg_putchar, msg_puts, msg_puts_hl, msg_reset_scroll, msg_start, semsg, set_keep_msg, siemsg,
@@ -494,7 +493,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     b0p.b0_magic_short = B0_MAGIC_SHORT;
     b0p.b0_magic_char = B0_MAGIC_CHAR;
     b0p.b0_version[..4].copy_from_slice(b"VIM ");
-    xstrlcpy((&raw mut b0p.b0_version[4]).cast(), VERSIONS[0].as_ptr(), 6);
+    crate::memory::copy_bytes_to_c_buf(&mut b0p.b0_version[4..], VERSIONS[0].to_bytes());
     long_to_char(mfp.mf_page_size as i64, &mut b0p.b0_page_size);
 
     if !buf.b_spell {
@@ -791,7 +790,10 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
             let retval = os_get_username(&mut uname);
             let ulen = crate::memory::cstr_until_nul(&uname).to_bytes().len();
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
-                xstrlcpy(fname_ptr, buf.b_ffname, B0_FNAME_SIZE_CRYPT);
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
+                    crate::memory::cstr_as_bytes(buf.b_ffname),
+                );
             } else {
                 b0p.b0_fname.copy_within(1..(1 + flen), ulen + 1);
                 b0p.b0_fname[1..(1 + ulen)].copy_from_slice(&uname[..ulen]);
@@ -1107,7 +1109,7 @@ pub fn ml_recover(checkext: bool) {
         smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
         if let Some(sp) = buf_spname(&*(g_st().curbuf)) {
-            xstrlcpy(namebuff_ptr, sp, MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
         } else {
             home_replace(None, curbuf_mut().b_ffname, namebuff_ptr, MAXPATHL, true);
         }
@@ -3328,7 +3330,7 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPt
         }
 
         let tmp_ptr: RawCCharPtrMut = (&raw mut tmp).cast();
-        xstrlcpy(tmp_ptr, fname, MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(&mut tmp, crate::memory::cstr_as_bytes(fname));
 
         loop {
             depth += 1;
@@ -3350,15 +3352,16 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPt
             }
             *buf.add(ret as usize) = NUL;
 
+            let buf_bytes = crate::memory::cstr_as_bytes(buf);
             if path_is_absolute(buf) {
-                xstrlcpy(tmp_ptr, buf, MAXPATHL);
+                crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
             } else {
                 let tail = path_tail(tmp_ptr);
-                if crate::memory::cstr_len(tail) + crate::memory::cstr_len(buf) >= MAXPATHL {
+                if crate::memory::cstr_len(tail) + buf_bytes.len() >= MAXPATHL {
                     return false;
                 }
-                let rem = MAXPATHL - tail.offset_from(tmp_ptr) as usize;
-                xstrlcpy(tail, buf, rem);
+                let off = tail.offset_from(tmp_ptr) as usize;
+                crate::memory::copy_bytes_to_c_buf(&mut tmp[off..], buf_bytes);
             }
         }
 

@@ -19,7 +19,7 @@ use crate::lua::converter::{
     luaL_newmetatable, luaL_ref, luaL_register, luaL_unref,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
-use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc, xstrlcpy};
+use crate::memory::{raw_alloc, raw_calloc, raw_dealloc, raw_realloc};
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::os::dl::UvLib;
 use crate::os::time::os_hrtime;
@@ -753,7 +753,10 @@ fn load_language_from_object(
         _opaque: [ptr::null_mut(); 4],
     };
     if unsafe { uv_dlopen(path.as_ptr(), &mut lib) } != 0 {
-        xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
+        crate::memory::copy_bytes_to_c_buf(
+            g_st().iobuff_bytes_mut(),
+            crate::memory::cstr_as_bytes(unsafe { uv_dlerror(&lib) }),
+        );
         unsafe { uv_dlclose(&mut lib) };
         unsafe {
             luaL_error(
@@ -775,7 +778,10 @@ fn load_language_from_object(
 
     let mut fn_ptr: *mut c_void = ptr::null_mut();
     if unsafe { uv_dlsym(&mut lib, symbol_buf.as_ptr().cast(), &mut fn_ptr) } != 0 {
-        xstrlcpy(iobuff, unsafe { uv_dlerror(&lib) }, IOSIZE);
+        crate::memory::copy_bytes_to_c_buf(
+            g_st().iobuff_bytes_mut(),
+            crate::memory::cstr_as_bytes(unsafe { uv_dlerror(&lib) }),
+        );
         unsafe { uv_dlclose(&mut lib) };
         unsafe {
             luaL_error(

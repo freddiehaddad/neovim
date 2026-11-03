@@ -20,7 +20,6 @@ use crate::mbyte::{
     utf_head_off_slice, utf_ptr2cells, utf_ptr2char, utf_ptr2len, utf_slice2_char_info,
     utf_slice2char, utf_slice2len, utfc_ptr2len, utfc_slice2len,
 };
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, semsg};
 use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
@@ -1836,15 +1835,15 @@ fn vim_vsnprintf_typval_inner(
                         }
 
                         if xisinf(f) != 0 || (matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0e307) {
-                            xstrlcpy(
-                                tmp.as_mut_ptr().cast(),
+                            crate::memory::copy_bytes_to_c_buf(
+                                &mut tmp,
                                 infinity_str(
                                     f > 0.0,
                                     fmt_spec,
                                     i32::from(force_sign),
                                     space_for_positive,
-                                ),
-                                tmp.len(),
+                                )
+                                .to_bytes(),
                             );
                             str_arg_l = crate::memory::cstr_until_nul(&tmp).to_bytes().len();
                             zero_padding = false;

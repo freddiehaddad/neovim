@@ -33,7 +33,7 @@ use crate::highlight_group::{syn_id2attr, syn_name2id_len};
 use crate::keycodes::NL;
 use crate::mbyte::{ptr2cells, utfc_ptr2len};
 use crate::memline::ml_find_line_or_offset;
-use crate::memory::{Arena, arena_finish, arena_mem_free, xstrlcpy};
+use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::message::HLF_MSG;
 use crate::message::msg_clr_eos;
 use crate::mouse::{
@@ -380,7 +380,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
 pub fn get_trans_bufname(buf: &mut FileBuf) {
     let name_buff = g_st().name_buff.as_mut_ptr();
     if let Some(sp) = buf_spname(&*buf) {
-        xstrlcpy(name_buff, sp, MAXPATHL);
+        crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
         home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
     }
@@ -1876,7 +1876,10 @@ pub extern "C" fn build_stl_str_hl(
                 STL_FILEPATH | STL_FULLPATH | STL_FILENAME => {
                     fillable = false;
                     if let Some(name) = buf_spname(&*(wp.w_buffer)) {
-                        xstrlcpy(name_buff, name, MAXPATHL);
+                        crate::memory::copy_bytes_to_c_buf(
+                            g_st().name_buff_bytes_mut(),
+                            name.to_bytes(),
+                        );
                     } else {
                         let t = if opt == STL_FULLPATH {
                             (*wp).buf_mut().b_ffname

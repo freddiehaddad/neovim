@@ -116,7 +116,6 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_counter, mc_follow_set, mc_replaying, mc_showcmd, mc_toggle, mc_zq_start,
 };
 use crate::memline::{goto_byte, inc, ml_delete_flags, ml_get_buf, ml_get_len, ml_get_pos};
-use crate::memory::xstrlcpy;
 use crate::message::{
     NIL_OBJ, emsg, may_clear_sb_text, messaging, msg, msg_delay, msg_ext_set_trigger,
     msg_grid_validate, show_sb_text, wait_return,
@@ -3015,14 +3014,13 @@ pub fn display_showcmd() {
         let mut chunk_items: [Object; 3] = [NIL_OBJ; 3];
         let mut ext_buf: [u8; 16 + SHOWCMD_BUFLEN] = [0; 16 + SHOWCMD_BUFLEN];
         ext_buf[..mc_len].copy_from_slice(&mc_buf[..mc_len]);
-        xstrlcpy(
-            ext_buf.as_mut_ptr().wrapping_add(mc_len).cast(),
+        crate::memory::copy_bytes_to_c_buf(
+            &mut ext_buf[mc_len..],
             if norm_st().showcmd_is_clear {
-                c"".as_ptr()
+                b""
             } else {
-                sc_buf
+                crate::memory::cstr_as_bytes(sc_buf)
             },
-            ext_buf.len() - mc_len,
         );
         let mut size = 0;
         if ext_buf[0] != 0 {

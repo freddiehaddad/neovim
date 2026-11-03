@@ -45,7 +45,7 @@ use crate::mbyte::{
     mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char,
     utfc_ptr2len,
 };
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free, xstrlcpy};
+use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::message::{
     emsg, iemsg, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_outtrans,
     msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl, msg_start, semsg, semsg_multiline,
@@ -513,11 +513,7 @@ fn set_maparg_lhs_rhs(
         return false;
     };
     mapargs.lhs_len = replaced.as_bytes().len();
-    xstrlcpy(
-        mapargs.lhs.as_mut_ptr().cast(),
-        replaced.as_ptr(),
-        mapargs.lhs.len(),
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut mapargs.lhs, replaced.as_bytes());
     if did_simplify {
         let Some(alt_replaced) = replace_termcodes(
             orig_lhs,
@@ -531,11 +527,7 @@ fn set_maparg_lhs_rhs(
             return false;
         };
         mapargs.alt_lhs_len = alt_replaced.as_bytes().len();
-        xstrlcpy(
-            mapargs.alt_lhs.as_mut_ptr().cast(),
-            alt_replaced.as_ptr(),
-            mapargs.alt_lhs.len(),
-        );
+        crate::memory::copy_bytes_to_c_buf(&mut mapargs.alt_lhs, alt_replaced.as_bytes());
     } else {
         mapargs.alt_lhs_len = 0;
     }

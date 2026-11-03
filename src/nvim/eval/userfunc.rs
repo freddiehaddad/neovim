@@ -52,7 +52,7 @@ use crate::lua::executor::{
 };
 use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strnicmp;
-use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st, xstrlcpy};
+use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
     msg_prt_line, msg_putchar, msg_puts, msg_start, semsg, smsg, swmsg, trunc_string,
@@ -3376,20 +3376,11 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         }
 
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let mut len = cat_func_name(iobuff_ptr, IOSIZE, &*fp);
+        let len = cat_func_name(iobuff_ptr, IOSIZE, &*fp) as usize;
         if xp.xp_context != EXPAND_USER_FUNC {
-            xstrlcpy(
-                iobuff_ptr.wrapping_add(len as usize),
-                c"(",
-                IOSIZE - len as usize,
-            );
+            crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
             if fp.uf_varargs == 0 && fp.uf_args.is_empty() {
-                len += 1;
-                xstrlcpy(
-                    iobuff_ptr.wrapping_add(len as usize),
-                    c")",
-                    IOSIZE - len as usize,
-                );
+                crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len + 1..], b")");
             }
         }
         return Some(crate::memory::cstr_from_ptr(iobuff_ptr));
@@ -3997,11 +3988,14 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
     };
 
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-    xstrlcpy(iobuff_ptr, c":return ", IOSIZE);
-    xstrlcpy(iobuff_ptr.wrapping_add(8), s, IOSIZE - 8);
+    crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
+    crate::memory::copy_bytes_to_c_buf(
+        &mut g_st().iobuff_bytes_mut()[8..],
+        crate::memory::cstr_slice(s, slen),
+    );
     let mut iobuff_len = 8 + slen;
     if iobuff_len >= IOSIZE {
-        xstrlcpy(iobuff_ptr.wrapping_add(IOSIZE - 4), c"...", 4);
+        crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[IOSIZE - 4..], b"...");
         iobuff_len = IOSIZE - 1;
     }
     drop(tofree);

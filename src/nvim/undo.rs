@@ -2416,8 +2416,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[cur_len..], uh_time);
             if uh_save_nr > 0 {
                 while crate::memory::cstr_len(iobuf_ptr) < 33 {
-                    let dlen = crate::memory::cstr_len(iobuf_ptr);
-                    crate::memory::xstrlcpy(iobuf_ptr.wrapping_add(dlen), c" ", IOSIZE - dlen);
+                    crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b" ");
                 }
                 vim_snprintf_add!(iobuf_ptr, IOSIZE, c"  %3d", uh_save_nr);
             }

@@ -19,7 +19,6 @@ use crate::mbyte::{
     utf_valid_string, utfc_ptr2len,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, msg, msg_clr_eos, msg_outtrans_long, msg_puts, msg_start, semsg, smsg, verbose_enter,
     verbose_leave,
@@ -2028,7 +2027,10 @@ fn spell_read_aff(
                     };
 
                     let item2_bytes = crate::memory::cstr_as_bytes(items[2].cast());
-                    xstrlcpy(key.as_mut_ptr().cast(), items[1].cast(), AH_KEY_LEN);
+                    crate::memory::copy_bytes_to_c_buf(
+                        &mut key,
+                        crate::memory::cstr_as_bytes(items[1].cast()),
+                    );
                     let key_bytes = crate::memory::cstr_as_bytes(key.as_ptr().cast());
                     if let Some(existing_aff) = tp.get_mut(key_bytes) {
                         cur_aff = &raw mut *existing_aff;
@@ -3193,7 +3195,10 @@ fn store_aff_word(
                         {
                             if xht.is_none() {
                                 if let Some(ae_add) = ae_add {
-                                    xstrlcpy(newword.as_mut_ptr().cast(), ae_add, MAXWLEN);
+                                    crate::memory::copy_bytes_to_c_buf(
+                                        &mut newword,
+                                        ae_add.to_bytes(),
+                                    );
                                 } else {
                                     newword[0] = 0;
                                 }
@@ -3205,18 +3210,15 @@ fn store_aff_word(
                                         i -= 1;
                                     }
                                 }
-                                {
-                                    let _dst = newword.as_mut_ptr();
-                                    let _dsize: usize = MAXWLEN;
-                                    let _dlen = crate::memory::cstr_len(_dst.cast());
-                                    crate::memory::xstrlcpy(
-                                        _dst.wrapping_add(_dlen).cast(),
-                                        p.cast(),
-                                        _dsize - _dlen,
-                                    );
-                                };
+                                crate::memory::append_bytes_to_c_buf(
+                                    &mut newword,
+                                    crate::memory::cstr_as_bytes(p.cast()),
+                                );
                             } else {
-                                xstrlcpy(newword.as_mut_ptr().cast(), word.cast(), MAXWLEN);
+                                crate::memory::copy_bytes_to_c_buf(
+                                    &mut newword,
+                                    crate::memory::cstr_as_bytes(word.cast()),
+                                );
                                 if let Some(ae_chop) = ae_chop {
                                     let nw_bytes =
                                         crate::memory::cstr_as_bytes(newword.as_ptr().cast());
@@ -3229,16 +3231,10 @@ fn store_aff_word(
                                     newword[end_idx] = 0;
                                 }
                                 if let Some(ae_add) = ae_add {
-                                    {
-                                        let _dst = newword.as_mut_ptr();
-                                        let _dsize: usize = MAXWLEN;
-                                        let _dlen = crate::memory::cstr_len(_dst.cast());
-                                        crate::memory::xstrlcpy(
-                                            _dst.wrapping_add(_dlen).cast(),
-                                            ae_add,
-                                            _dsize - _dlen,
-                                        );
-                                    };
+                                    crate::memory::append_bytes_to_c_buf(
+                                        &mut newword,
+                                        ae_add.to_bytes(),
+                                    );
                                 }
                             }
 
@@ -4585,7 +4581,10 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname: impl crate::strings::IntoCCh
             wordtree_compress(spin, spin.si_foldroot, c"case-folded");
 
             let mut fname_buf = [0u8; MAXPATHL];
-            xstrlcpy(fname_buf.as_mut_ptr().cast(), wfname, MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(
+                &mut fname_buf,
+                crate::memory::cstr_as_bytes(wfname),
+            );
             let len = crate::memory::cstr_len(fname_buf.as_ptr().cast());
             fname_buf[len - 2] = b'u';
             fname_buf[len - 1] = b'g';
@@ -4903,7 +4902,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 },
             );
         } else if len > 4 && (crate::memory::cstr_as_bytes(f0.wrapping_add(len - 4)) == b".spl") {
-            xstrlcpy(wfname.cast(), f0, MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(&mut wfname_buf, crate::memory::cstr_as_bytes(f0));
         } else {
             vim_snprintf!(
                 wfname.cast(),
@@ -5319,14 +5318,8 @@ fn init_spellfile() {
     if !aspath {
         let buf = buf_arr.as_mut_ptr();
         let xdg_path = get_xdg_home(XDGVarType::XDGDataHome).unwrap_or_default();
-        xstrlcpy(buf.cast(), xdg_path.as_ptr(), buf_len);
-
-        let dlen = crate::memory::cstr_len(buf.cast());
-        crate::memory::xstrlcpy(
-            buf.wrapping_add(dlen).cast(),
-            c"/site/spell",
-            buf_len - dlen,
-        );
+        crate::memory::copy_bytes_to_c_buf(&mut buf_arr, xdg_path.as_bytes());
+        crate::memory::append_bytes_to_c_buf(&mut buf_arr, b"/site/spell");
 
         let mut failed_dir: Option<std::ffi::CString> = None;
         if os_mkdir_recurse(buf.cast(), 0o755, &mut failed_dir, None) != 0 {

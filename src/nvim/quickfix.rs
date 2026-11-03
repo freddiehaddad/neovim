@@ -84,7 +84,6 @@ use crate::mbyte::{Vimconv, convert_setup, ptr2cells, remove_bom, string_convert
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
 };
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, internal_error, message_filtered, msg, msg_clr_eos, msg_ext_set_kind, msg_keep,
     msg_outtrans, msg_prt_line, msg_putchar, msg_puts, msg_puts_hl, msg_start, msg_strtrunc, semsg,
@@ -1100,7 +1099,10 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: *mut Listitem) -> i32 {
             g_st().iobuff.as_mut_ptr().cast()
         };
 
-        xstrlcpy(linebuf.cast(), s, state.linelen + 1);
+        crate::memory::copy_bytes_to_c_buf(
+            std::slice::from_raw_parts_mut(linebuf, state.linelen + 1),
+            crate::memory::cstr_as_bytes(s),
+        );
         state.source = QfInputSource::List((*p_li).li_next);
         QF_OK
     }
@@ -1130,7 +1132,10 @@ fn qf_get_next_buf_line(
         state.linelen = len;
         g_st().iobuff.as_mut_ptr().cast()
     };
-    xstrlcpy(linebuf.cast(), p_buf, state.linelen + 1);
+    crate::memory::copy_bytes_to_c_buf(
+        unsafe { std::slice::from_raw_parts_mut(linebuf, state.linelen + 1) },
+        crate::memory::cstr_as_bytes(p_buf),
+    );
     QF_OK
 }
 
@@ -1217,13 +1222,16 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
         && let Some(line) = string_convert(&state.vc, cur_linebuf.cast(), Some(&mut state.linelen))
     {
         if state.linelen < IOSIZE {
-            xstrlcpy(cur_linebuf.cast(), line.as_ptr().cast(), state.linelen + 1);
+            crate::memory::copy_bytes_to_c_buf(
+                unsafe { std::slice::from_raw_parts_mut(cur_linebuf, state.linelen + 1) },
+                &line,
+            );
         } else {
             let cap = (state.linelen + 1).min(LINE_MAXLEN);
             if state.growbuf.len() < cap {
                 state.growbuf.resize(cap, 0);
             }
-            xstrlcpy(state.growbuf.as_mut_ptr().cast(), line.as_ptr().cast(), cap);
+            crate::memory::copy_bytes_to_c_buf(&mut state.growbuf[..cap], &line);
             state.use_growbuf = true;
         }
     }
@@ -1735,7 +1743,10 @@ fn copy_nonerror_line(
     if linelen >= fields.errmsg.len() {
         fields.errmsg.resize(linelen + 1, 0);
     }
-    xstrlcpy(fields.errmsg.as_mut_ptr().cast(), linebuf, linelen + 1);
+    crate::memory::copy_bytes_to_c_buf(
+        &mut fields.errmsg[..linelen + 1],
+        crate::memory::cstr_as_bytes(linebuf),
+    );
     QF_OK
 }
 
@@ -1747,10 +1758,9 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     if len >= fields.errmsg.len() {
         fields.errmsg.resize(len + 1, 0);
     }
-    xstrlcpy(
-        fields.errmsg.as_mut_ptr().cast(),
-        rmp.startp[midx].cast(),
-        len + 1,
+    crate::memory::copy_bytes_to_c_buf(
+        &mut fields.errmsg[..len + 1],
+        crate::memory::cstr_slice(rmp.startp[midx].cast(), len),
     );
     QF_OK
 }
@@ -1810,18 +1820,11 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         return QF_FAIL;
     }
     let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
-    let mod_ptr: *mut _ = fields.module.as_mut_ptr().cast();
-    let dsize = (crate::memory::cstr_len(mod_ptr) + len + 1).min(CMDBUFFSIZE);
-    {
-        let _dst: *mut _ = mod_ptr;
-        let _dsize: usize = dsize;
-        let _dlen = crate::memory::cstr_len(_dst);
-        crate::memory::xstrlcpy(
-            _dst.wrapping_add(_dlen),
-            rmp.startp[midx].cast(),
-            _dsize - _dlen,
-        );
-    };
+    let dsize = (crate::memory::bytes_until_nul(&fields.module).len() + len + 1).min(CMDBUFFSIZE);
+    crate::memory::append_bytes_to_c_buf(
+        &mut fields.module[..dsize],
+        crate::memory::cstr_slice(rmp.startp[midx].cast(), len),
+    );
     QF_OK
 }
 
@@ -3584,12 +3587,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: impl crate::strings::IntoCCharPtr) 
                 buf[len..34].fill(b' ');
                 buf[34] = 0;
             }
-            {
-                let _dst: *mut _ = buf.as_mut_ptr().cast();
-                let _dsize: usize = IOSIZE;
-                let _dlen = crate::memory::cstr_len(_dst);
-                crate::memory::xstrlcpy(_dst.wrapping_add(_dlen), title.as_ptr(), _dsize - _dlen);
-            };
+            crate::memory::append_bytes_to_c_buf(&mut buf, title.as_bytes());
         }
         trunc_string(
             buf.as_ptr().cast(),

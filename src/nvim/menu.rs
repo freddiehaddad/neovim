@@ -19,7 +19,6 @@ use crate::globals::*;
 use crate::input::{REMAP_SCRIPT, Tasave, ins_typebuf};
 use crate::keycodes::{REPTERM_DO_LT, replace_termcodes};
 use crate::mbyte::utf_char2bytes;
-use crate::memory::xstrlcpy;
 use crate::message::{
     emsg, msg_outnum, msg_outtrans, msg_outtrans_special, msg_putchar, msg_puts, msg_puts_hl,
     msg_puts_title, semsg, str2special_save,
@@ -1110,8 +1109,11 @@ pub fn set_context_in_menu_cmd(
             if after_dot > arg {
                 let path_len = crate::memory::ptr_offset_from(after_dot, arg) as usize;
                 path_name_vec = vec![0; path_len];
+                crate::memory::copy_bytes_to_c_buf(
+                    &mut path_name_vec,
+                    crate::memory::cstr_as_bytes(arg),
+                );
                 path_name = path_name_vec.as_mut_ptr();
-                xstrlcpy(path_name.cast(), arg, path_len);
             }
             let mut name = path_name;
             while !name.is_null() && *name != 0 {
@@ -1234,16 +1236,14 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
         let str_res = if (menu.modes & menu_st().expand_modes) != 0 {
             if !menu.children.is_empty() {
                 if menu_st().get_menu_names_advance {
-                    xstrlcpy(
-                        (&raw mut menu_st().get_menu_names_tbuffer[0]).cast(),
-                        menu.en_dname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-                        TBUFFER_LEN,
+                    crate::memory::copy_bytes_to_c_buf(
+                        &mut menu_st().get_menu_names_tbuffer,
+                        menu.en_dname.as_ref().map_or(&b""[..], |s| s.as_bytes()),
                     );
                 } else {
-                    xstrlcpy(
-                        (&raw mut menu_st().get_menu_names_tbuffer[0]).cast(),
-                        menu.dname.as_ptr(),
-                        TBUFFER_LEN,
+                    crate::memory::copy_bytes_to_c_buf(
+                        &mut menu_st().get_menu_names_tbuffer,
+                        menu.dname.as_bytes(),
                     );
                     if menu.en_dname.is_none() {
                         menu_st().get_menu_names_advance = true;

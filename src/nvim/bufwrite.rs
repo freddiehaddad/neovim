@@ -37,7 +37,6 @@ use crate::globals::IOSIZE;
 use crate::globals::*;
 use crate::mbyte::{enc_canonize, my_iconv_open, utf_ptr2char, utf_ptr2len_len};
 use crate::memline::{get_file_in_dir, make_percent_swname, ml_get_buf, ml_preserve, ml_timestamp};
-use crate::memory::xstrlcpy;
 use crate::message::{emsg, msg, msg_progress, msg_puts_hl, msg_with_id, semsg, set_keep_msg};
 use crate::option::{copy_option_part, get_bkc_flags, get_fileformat_force, shortmess};
 use crate::option_vars::*;
@@ -713,7 +712,7 @@ fn emit_err(e: &mut BwError, msg_id: impl crate::strings::IntoCCharPtr) {
         } else if e.arg != 0 {
             let _ = vim_snprintf!(errmsg_ptr, IOSIZE, msg_ptr, unsafe { uv_strerror(e.arg) });
         } else {
-            xstrlcpy(errmsg_ptr, msg_ptr, IOSIZE);
+            crate::memory::copy_bytes_to_c_buf(&mut errmsg, crate::memory::cstr_as_bytes(msg_ptr));
         }
 
         if !msg_id.is_null() {
@@ -1873,8 +1872,10 @@ pub fn buf_write(
                     if !filtering {
                         let iobuf = g_st().iobuff.as_mut_ptr();
                         let iobuf_append = |src: &std::ffi::CStr| {
-                            let dlen = crate::memory::cstr_len(iobuf);
-                            crate::memory::xstrlcpy(iobuf.wrapping_add(dlen), src, IOSIZE - dlen);
+                            crate::memory::append_bytes_to_c_buf(
+                                g_st().iobuff_bytes_mut(),
+                                src.to_bytes(),
+                            );
                         };
                         add_quoted_fname(iobuf, IOSIZE, buf, fname);
                         let mut insert_space = false;

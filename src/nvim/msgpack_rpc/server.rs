@@ -10,7 +10,6 @@ use crate::event::socket::{
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE, TriState};
 use crate::globals::*;
 use crate::log::{LOGLVL_ERR, LOGLVL_WRN, logmsg};
-use crate::memory::xstrlcpy;
 use crate::os::env::{os_env_exists, os_get_pid, os_getenv_cstr, os_unsetenv};
 use crate::os::stdpaths::get_appname;
 use crate::path::{fix_fname, to_slash, to_slash_save};
@@ -284,7 +283,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     unsafe {
         let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
-        xstrlcpy(addr.as_mut_ptr().cast(), endpoint.as_ptr(), addr.len());
+        crate::memory::copy_bytes_to_c_buf(&mut addr, endpoint.to_bytes());
         to_slash(addr.as_mut_ptr().cast());
         let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
         let addr_bytes = addr_cstr.to_bytes();

@@ -39,7 +39,7 @@ use crate::insexpand::{TAG_INS_COMP, TAG_NOIC, ins_compl_check_keys, ins_compl_i
 use crate::lua::executor::nlua_call_excmd;
 use crate::mark::{Fmark, Fmarkv, fm_getname, mark_view_make, mark_view_restore, setpcmark};
 use crate::mbyte::{Vimconv, convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len};
-use crate::memory::{cstr_to_cstring, xstrlcpy};
+use crate::memory::cstr_to_cstring;
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
     smsg, verbose_enter, verbose_leave, wait_return,
@@ -866,11 +866,9 @@ pub fn do_tag(
                             more_str,
                         );
                         if ic {
-                            let dlen = crate::memory::cstr_len(iobuf_ptr);
-                            crate::memory::xstrlcpy(
-                                iobuf_ptr.wrapping_add(dlen),
-                                gettext(c"  Using tag with different case!"),
-                                IOSIZE - dlen,
+                            crate::memory::append_bytes_to_c_buf(
+                                g_st().iobuff_bytes_mut(),
+                                gettext(c"  Using tag with different case!").to_bytes(),
                             );
                         }
                         if (do_tag_num_matches > prev_num_matches || new_tag)
@@ -1052,7 +1050,10 @@ fn add_llist_tags(tag: impl crate::strings::IntoCCharPtr, matches: &[Vec<u8>]) -
             tag_name[len] = 0;
 
             let p = tag_full_fname(&mut tagp);
-            xstrlcpy(fname.cast(), p.as_ptr(), MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(
+                unsafe { std::slice::from_raw_parts_mut(fname, MAXPATHL) },
+                p.as_bytes(),
+            );
 
             let mut lnum: Linenr = 0;
             let cmd_bytes = crate::memory::cstr_as_bytes(tagp.command.cast());
@@ -2469,7 +2470,10 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 return false;
             }
             tnp.tn_hf_idx += 1;
-            xstrlcpy(buf_ptr.cast(), opt_vars().p_hf, MAXPATHL - 4);
+            crate::memory::copy_bytes_to_c_buf(
+                &mut buf[..MAXPATHL - 4],
+                crate::memory::cstr_as_bytes(opt_vars().p_hf),
+            );
             let tail_off =
                 crate::memory::ptr_offset_from(path_tail(buf_ptr.cast()), buf_ptr.cast()) as usize;
             buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
@@ -2484,10 +2488,9 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 return false;
             }
         } else {
-            xstrlcpy(
-                buf_ptr.cast(),
-                tag_st().tag_fnames.as_slice()[tnp.tn_hf_idx as usize].as_ptr(),
-                MAXPATHL,
+            crate::memory::copy_bytes_to_c_buf(
+                buf,
+                tag_st().tag_fnames.as_slice()[tnp.tn_hf_idx as usize].as_bytes(),
             );
             tnp.tn_hf_idx += 1;
         }
@@ -3047,11 +3050,7 @@ fn expand_tag_fname(
                 let mut retval = [0u8; MAXPATHL];
                 let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
                 retval[..off].copy_from_slice(crate::memory::cstr_slice(tag_fname, off));
-                xstrlcpy(
-                    retval.as_mut_ptr().wrapping_add(off).cast(),
-                    fname.as_ptr(),
-                    MAXPATHL - off,
-                );
+                crate::memory::copy_bytes_to_c_buf(&mut retval[off..], fname.as_bytes());
                 simplify_filename(retval.as_mut_ptr().cast());
                 return crate::memory::cstr_to_cstring(retval.as_ptr().cast());
             }

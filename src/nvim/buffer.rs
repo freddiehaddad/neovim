@@ -76,7 +76,7 @@ use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
     ml_close, ml_delete, ml_get_buf_slice, ml_open, ml_recover, ml_setname, ml_timestamp,
 };
-use crate::memory::{cstr_to_cstring, mem_st, xstrlcpy};
+use crate::memory::{cstr_to_cstring, mem_st};
 use crate::message::{
     emsg, message_filtered, msg, msg_delay, msg_ext_set_kind, msg_outtrans, msg_putchar, msg_puts,
     msg_start, msg_trunc, semsg, set_keep_msg, smsg,
@@ -2015,25 +2015,14 @@ pub fn do_bufdel(
 
         if deleted == 0 {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            if command == DOBUF_UNLOAD {
-                xstrlcpy(
-                    iobuff_ptr,
-                    gettext(c"E515: No buffers were unloaded"),
-                    IOSIZE,
-                );
+            let msg_cstr = if command == DOBUF_UNLOAD {
+                gettext(c"E515: No buffers were unloaded")
             } else if command == DOBUF_DEL {
-                xstrlcpy(
-                    iobuff_ptr,
-                    gettext(c"E516: No buffers were deleted"),
-                    IOSIZE,
-                );
+                gettext(c"E516: No buffers were deleted")
             } else {
-                xstrlcpy(
-                    iobuff_ptr,
-                    gettext(c"E517: No buffers were wiped out"),
-                    IOSIZE,
-                );
-            }
+                gettext(c"E517: No buffers were wiped out")
+            };
+            crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg_cstr.to_bytes());
             errormsg = Some(crate::memory::cstr_from_ptr(iobuff_ptr));
         } else if i64::from(deleted) >= opt_vars().p_report {
             if command == DOBUF_UNLOAD {
@@ -3643,7 +3632,7 @@ pub fn buflist_list(eap: &mut Exarg) {
 
         let namebuff_ptr = g_st().name_buff.as_mut_ptr();
         if let Some(name) = buf_spname(&*(buf)) {
-            xstrlcpy(namebuff_ptr, name, MAXPATHL);
+            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), name.to_bytes());
         } else {
             home_replace(Some(&*buf), buf.b_fname, namebuff_ptr, MAXPATHL, true);
         }
