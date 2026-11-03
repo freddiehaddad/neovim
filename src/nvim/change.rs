@@ -994,53 +994,49 @@ pub fn open_line(
                 && (p_extra.is_null() || first_char != b'{' as i32)
             {
                 let old_cursor = curwin_mut().w_cursor;
-                let mut ptr = saved_line.cast();
+                let mut ptr_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
                 if (flags & OPENLINE_DO_COM) != 0 {
-                    lead_len = get_leader_len(ptr, None, false, true);
+                    lead_len = get_leader_len(ptr_bytes, None, false, true);
                 } else {
                     lead_len = 0;
                 }
                 if dir == FORWARD {
-                    if lead_len == 0 && crate::memory::cstr_first_byte(ptr) == b'#' {
-                        while crate::memory::cstr_first_byte(ptr) == b'#'
-                            && curwin_mut().w_cursor.lnum > 1
-                        {
+                    if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
+                        while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.lnum > 1 {
                             curwin_mut().w_cursor.lnum -= 1;
-                            ptr = ml_get(curwin_mut().w_cursor.lnum);
+                            ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
                         }
                         newindent = get_indent();
                     }
                     if (flags & OPENLINE_DO_COM) != 0 {
-                        lead_len = get_leader_len(ptr, None, false, true);
+                        lead_len = get_leader_len(ptr_bytes, None, false, true);
                     } else {
                         lead_len = 0;
                     }
                     if lead_len > 0 {
-                        let mut p = skipwhite(ptr);
-                        let p_bytes = crate::memory::cstr_as_bytes(p);
-                        if p_bytes.starts_with(b"/*") {
-                            p = p.wrapping_add(1);
+                        let mut p_slice = crate::charset::skipwhite_slice(ptr_bytes);
+                        if p_slice.starts_with(b"/*") {
+                            p_slice = &p_slice[1..];
                         }
-                        if crate::memory::cstr_first_byte(p) == b'*' {
-                            p = p.wrapping_add(1);
-                            while !crate::memory::cstr_is_empty(p) {
-                                if *p == b'/' as _ && *p.wrapping_sub(1) == b'*' as _ {
-                                    curwin_mut().w_cursor.col =
-                                        crate::memory::ptr_offset_from(p, ptr) as Colnr;
+                        if let Some(after_star) = p_slice.strip_prefix(b"*") {
+                            let mut idx = ptr_bytes.len() - after_star.len();
+                            while idx < ptr_bytes.len() {
+                                if ptr_bytes[idx] == b'/' && ptr_bytes[idx - 1] == b'*' {
+                                    curwin_mut().w_cursor.col = idx as Colnr;
                                     let pos = findmatch(None, 0);
                                     if !pos.is_null() {
                                         curwin_mut().w_cursor.lnum = (*pos).lnum;
                                         newindent = get_indent();
                                         break;
                                     }
-                                    ptr = ml_get(curwin_mut().w_cursor.lnum);
-                                    p = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
+                                    ptr_bytes =
+                                        crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                                    idx = (curwin_mut().w_cursor.col as usize).min(ptr_bytes.len());
                                 }
-                                p = p.wrapping_add(1);
+                                idx += 1;
                             }
                         }
                     } else {
-                        let ptr_bytes = crate::memory::cstr_as_bytes(ptr);
                         let mut p_idx = ptr_bytes.len().saturating_sub(1);
                         while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
                             p_idx -= 1;
@@ -1059,27 +1055,29 @@ pub fn open_line(
                             if !pos.is_null() {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
                                 newindent = get_indent();
-                                ptr = get_cursor_line_ptr();
+                                ptr_bytes = crate::cursor::get_cursor_line_slice();
                             }
                         }
                         if last_char == b'{' {
                             g_st().ins_global.did_si = true;
                             no_si = true;
-                        } else if last_char != b';' && last_char != b'}' && cin_is_cinword(ptr) {
+                        } else if last_char != b';'
+                            && last_char != b'}'
+                            && cin_is_cinword(ptr_bytes)
+                        {
                             g_st().ins_global.did_si = true;
                         }
                     }
                 } else {
-                    if lead_len == 0 && crate::memory::cstr_first_byte(ptr) == b'#' {
+                    if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
                         let mut was_backslashed = false;
 
-                        while (crate::memory::cstr_first_byte(ptr) == b'#' || was_backslashed)
+                        while (ptr_bytes.first() == Some(&b'#') || was_backslashed)
                             && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
                         {
-                            was_backslashed =
-                                crate::memory::cstr_as_bytes(ptr).last() == Some(&b'\\');
+                            was_backslashed = ptr_bytes.last() == Some(&b'\\');
                             curwin_mut().w_cursor.lnum += 1;
-                            ptr = ml_get(curwin_mut().w_cursor.lnum);
+                            ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
                         }
                         if was_backslashed {
                             newindent = 0;
@@ -1087,8 +1085,7 @@ pub fn open_line(
                             newindent = get_indent();
                         }
                     }
-                    let p = skipwhite(ptr);
-                    if crate::memory::cstr_first_byte(p) == b'}' {
+                    if crate::charset::skipwhite_slice(ptr_bytes).first() == Some(&b'}') {
                         g_st().ins_global.did_si = true;
                     } else {
                         g_st().ins_global.can_si_back = true;
@@ -1119,8 +1116,9 @@ pub fn open_line(
 
         g_st().ins_global.end_comment_pending = 0;
         if (flags & OPENLINE_DO_COM) != 0 {
+            let saved_line_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
             lead_len = get_leader_len(
-                saved_line.cast(),
+                saved_line_bytes,
                 Some(&mut lead_flags),
                 dir == BACKWARD,
                 true,
@@ -1131,10 +1129,10 @@ pub fn open_line(
                 && dir == FORWARD
                 && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
             {
-                comment_start = check_linecomment(saved_line.cast());
+                comment_start = check_linecomment(saved_line_bytes);
                 if comment_start != MAXCOL {
                     lead_len = get_leader_len(
-                        saved_line.wrapping_add(comment_start as usize).cast(),
+                        &saved_line_bytes[(comment_start as usize).min(saved_line_bytes.len())..],
                         Some(&mut lead_flags),
                         false,
                         true,
@@ -1897,13 +1895,11 @@ pub fn del_lines(nlines: Linenr, undo: bool) {
 
 /// Returns the length in bytes of the prefix of the given string which introduces a comment.
 pub fn get_leader_len(
-    line: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
     mut flags: Option<&mut Option<&'static CStr>>,
     backward: bool,
     include_space: bool,
 ) -> i32 {
-    let line = line.into_c_char_ptr();
-    let line_bytes = crate::memory::cstr_as_bytes(line);
     let mut got_com = false;
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
     let mut middle_match_len: usize = 0;
@@ -2026,11 +2022,9 @@ pub fn get_leader_len(
 
 /// Return the offset at which the last comment in `line` starts, or -1 if none.
 pub fn get_last_leader_offset(
-    line: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
     mut flags: Option<&mut Option<&'static CStr>>,
 ) -> i32 {
-    let line = line.into_c_char_ptr();
-    let line_bytes = crate::memory::cstr_as_bytes(line);
     let mut result: i32 = -1;
     let mut lower_check_bound: i32 = 0;
     let mut com_leader_range: std::ops::Range<usize> = 0..0;

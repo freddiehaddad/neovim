@@ -29,7 +29,7 @@ use crate::indent::{get_indent_buf, get_sw_value};
 use crate::mark::setpcmark;
 use crate::mbyte::{mb_adjust_cursor, ptr2cells, utf_ptr2char, utfc_ptr2len};
 use crate::mcursor::mc_replaying;
-use crate::memline::{ml_get, ml_get_buf, ml_get_buf_len, ml_get_len, ml_replace_buf};
+use crate::memline::{ml_get, ml_get_len, ml_replace_buf};
 use crate::message::emsg;
 use crate::r#move::changed_window_setting;
 use crate::ops::skip_comment;
@@ -1316,17 +1316,18 @@ fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
     let mut line_is_comment = false;
     let lnum = pos.lnum;
 
-    let line = ml_get_buf(buf, lnum);
-    let line_len = ml_get_buf_len(buf, lnum) as usize;
+    let line = crate::memline::ml_get_buf_slice(buf, lnum);
 
     if !u_save(lnum - 1, lnum + 1) {
         return;
     }
 
     skip_comment(line, false, false, &mut line_is_comment);
+    let line = crate::memline::ml_get_buf_slice(buf, lnum);
+    let line_len = line.len();
     let cms_len = crate::memory::cstr_len(cms);
     let mut newline_vec = Vec::with_capacity(line_len + markerlen + cms_len + 1);
-    newline_vec.extend_from_slice(crate::memory::cstr_slice(line, line_len));
+    newline_vec.extend_from_slice(line);
     let added = if p.is_null() || line_is_comment {
         newline_vec.extend_from_slice(marker);
         markerlen

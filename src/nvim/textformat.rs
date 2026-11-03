@@ -242,13 +242,13 @@ pub fn internal_format(
         }
 
         if do_comments {
-            let line = get_cursor_line_ptr();
+            let line = crate::cursor::get_cursor_line_slice();
             leader_len = get_leader_len(line, None, false, true);
             if leader_len == 0 && curbuf_mut().b_p_cin != 0 {
                 let comment_start = check_linecomment(line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
-                        line.wrapping_add(comment_start as usize),
+                        &line[(comment_start as usize).min(line.len())..],
                         None,
                         false,
                         true,
@@ -554,7 +554,12 @@ fn fmt_check_par(
     let ptr = ml_get(lnum);
     if do_comments {
         *leader_flags = None;
-        *leader_len = get_leader_len(ptr, Some(leader_flags), false, true);
+        *leader_len = get_leader_len(
+            crate::memline::ml_get_slice(lnum),
+            Some(leader_flags),
+            false,
+            true,
+        );
     } else {
         *leader_len = 0;
         *leader_flags = None;
@@ -738,7 +743,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
 
     if has_format_option(K_FO_WRAP_COMS)
         && !has_format_option(K_FO_WRAP)
-        && get_leader_len(old, None, false, true) == 0
+        && get_leader_len(crate::memory::cstr_as_bytes(old), None, false, true) == 0
     {
         return;
     }
@@ -1030,7 +1035,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                     next_leader_flags,
                 ))
                 && (!next_leader_flags.is_some_and(|f| f.to_bytes().starts_with(b"://"))
-                    || check_linecomment(get_cursor_line_ptr()) == MAXCOL)
+                    || check_linecomment(crate::cursor::get_cursor_line_slice()) == MAXCOL)
             {
                 is_end_par = true;
             }

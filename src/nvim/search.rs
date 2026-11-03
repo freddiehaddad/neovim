@@ -2119,8 +2119,8 @@ pub fn findmatchlimit(
     };
 
     if (backwards && comment_dir != 0) || lisp || skip_comments {
-        comment_col = check_linecomment(ml_get(srch().findmatch_pos.lnum));
         line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+        comment_col = check_linecomment(line);
     }
     if lisp && comment_col != MAXCOL && srch().findmatch_pos.col > comment_col {
         lispcomm = true;
@@ -2156,8 +2156,7 @@ pub fn findmatchlimit(
                 line_breakcheck();
 
                 if comment_dir != 0 || lisp || skip_comments {
-                    comment_col = check_linecomment(ml_get(srch().findmatch_pos.lnum));
-                    line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+                    comment_col = check_linecomment(line);
                 }
                 if (lisp
                     || (skip_comments
@@ -2191,8 +2190,7 @@ pub fn findmatchlimit(
             do_quotes = -1;
             line_breakcheck();
             if lisp || skip_comments {
-                comment_col = check_linecomment(ml_get(srch().findmatch_pos.lnum));
-                line = crate::memline::ml_get_slice(srch().findmatch_pos.lnum);
+                comment_col = check_linecomment(line);
             }
         } else {
             let col_u = (srch().findmatch_pos.col as usize).min(line.len());
@@ -3471,7 +3469,7 @@ pub fn find_pattern_in_path(
                                 if (line_bytes.first() != Some(&b'#')
                                     || !crate::charset::skipwhite_slice(&line_bytes[1..])
                                         .starts_with(b"define"))
-                                    && get_leader_len(line, None, false, true) != 0
+                                    && get_leader_len(line_bytes, None, false, true) != 0
                                 {
                                     matched = false;
                                 }

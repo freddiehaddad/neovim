@@ -720,7 +720,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     let mut lead_len: i32 = 0;
 
     if (g_st().state_global & MODE_INSERT) != 0 || has_format_option(K_FO_QCOMS) {
-        lead_len = get_leader_len(ml_get(lnum), None, false, true);
+        lead_len = get_leader_len(crate::memline::ml_get_slice(lnum), None, false, true);
     }
 
     let mut regmatch = Regmatch {

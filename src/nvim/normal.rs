@@ -3373,7 +3373,7 @@ pub fn find_decl(
                 }
                 break;
             }
-            if get_leader_len(get_cursor_line_ptr(), None, false, true) > 0 {
+            if get_leader_len(crate::cursor::get_cursor_line_slice(), None, false, true) > 0 {
                 curwin_mut().w_cursor.lnum += 1;
                 curwin_mut().w_cursor.col = 0;
                 continue;
@@ -5458,7 +5458,7 @@ fn nv_percent(cap: &mut Cmdarg) {
     } else {
         let mut flags = 0;
         if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCH) && buf_has_cstyle_comments() {
-            let comment_col = check_linecomment(get_cursor_line_ptr());
+            let comment_col = check_linecomment(crate::cursor::get_cursor_line_slice());
             if comment_col == MAXCOL || curwin_mut().w_cursor.col < comment_col {
                 flags = FM_SKIPCOMM;
             }

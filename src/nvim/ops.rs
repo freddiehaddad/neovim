@@ -54,7 +54,7 @@ use crate::math::trim_to_int;
 use crate::mbyte::{
     bomb_size, mb_islower, mb_isupper, mb_prevptr, mb_tolower, mb_toupper, utf_char2cells,
     utf_char2len, utf_char2slice, utf_cluster_info, utf_eat_space, utf_head_off,
-    utf_ptr2_str_char_info, utf_ptr2char, utfc_ptr2len,
+    utf_ptr2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_zq;
 use crate::memline::{
@@ -1858,13 +1858,12 @@ pub fn adjust_cursor_eol() {
     }
 }
 
-pub fn skip_comment(
-    line: impl crate::strings::IntoCCharPtr,
+pub fn skip_comment<'a>(
+    mut line: &'a [u8],
     process: bool,
     include_space: bool,
     is_comment: &mut bool,
-) -> *mut u8 {
-    let mut line = line.into_c_char_ptr().cast_mut();
+) -> &'a [u8] {
     let mut comment_flags: Option<&'static std::ffi::CStr> = None;
     let leader_offset = get_last_leader_offset(line, Some(&mut comment_flags));
 
@@ -1882,13 +1881,13 @@ pub fn skip_comment(
     }
 
     if !process {
-        return line.cast();
+        return line;
     }
 
     let lead_len = get_leader_len(line, Some(&mut comment_flags), false, include_space);
 
     if lead_len == 0 {
-        return line.cast();
+        return line;
     }
 
     let mut is_end = false;
@@ -1905,10 +1904,10 @@ pub fn skip_comment(
     }
 
     if !is_end {
-        line = line.wrapping_add(lead_len as usize);
+        line = &line[(lead_len as usize).min(line.len())..];
     }
 
-    line.cast()
+    line
 }
 
 pub fn do_join(
@@ -1918,224 +1917,201 @@ pub fn do_join(
     use_formatoptions: bool,
     setmark: bool,
 ) -> bool {
-    unsafe {
-        let mut curr: *mut u8 = ptr::null_mut();
-        let mut curr_start: *mut u8 = ptr::null_mut();
-        let mut cend: *mut u8;
-        let mut endcurr1: i32 = i32::from(NUL);
-        let mut endcurr2: i32 = i32::from(NUL);
-        let mut currsize: i32 = 0;
-        let mut sumsize: i32 = 0;
-        let mut ret = true;
-        let remove_comments = use_formatoptions && has_format_option(K_FO_REMOVE_COMS);
-        let mut prev_was_comment = false;
-        debug_assert!(count >= 1);
+    let mut curr: &[u8] = &[];
+    let mut curr_start: &[u8] = &[];
+    let mut endcurr1: i32 = i32::from(NUL);
+    let mut endcurr2: i32 = i32::from(NUL);
+    let mut currsize: i32 = 0;
+    let mut sumsize: i32 = 0;
+    let mut ret = true;
+    let remove_comments = use_formatoptions && has_format_option(K_FO_REMOVE_COMS);
+    let mut prev_was_comment = false;
+    debug_assert!(count >= 1);
 
-        if save_undo
-            && !u_save(
-                curwin_mut().w_cursor.lnum - 1,
-                curwin_mut().w_cursor.lnum + (count as Linenr),
-            )
-        {
-            return false;
+    if save_undo
+        && !u_save(
+            curwin_mut().w_cursor.lnum - 1,
+            curwin_mut().w_cursor.lnum + (count as Linenr),
+        )
+    {
+        return false;
+    }
+    let mut spaces_vec = vec![0u8; count];
+    let mut comments_vec = if remove_comments {
+        vec![0_i32; count]
+    } else {
+        Vec::new()
+    };
+
+    let mut aborted = false;
+    for t in 0..(count as Linenr) {
+        curr_start = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum + t);
+        curr = curr_start;
+        if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+            curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
+            curwin_mut().buf_mut().b_op_start.col = curr.len() as Colnr;
         }
-        let mut spaces_vec = vec![0u8; count];
-        let spaces: *mut u8 = spaces_vec.as_mut_ptr();
-        let mut comments_vec = if remove_comments {
-            vec![0_i32; count]
-        } else {
-            Vec::new()
-        };
-        let comments: *mut i32 = comments_vec.as_mut_ptr();
-
-        let mut aborted = false;
-        for t in 0..(count as Linenr) {
-            curr_start = ml_get(curwin_mut().w_cursor.lnum + t).cast();
-            curr = curr_start;
-            if t == 0 && setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                curwin_mut().buf_mut().b_op_start.lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().buf_mut().b_op_start.col =
-                    crate::memory::cstr_len(curr.cast()) as Colnr;
+        if remove_comments {
+            if t > 0 && prev_was_comment {
+                let new_curr = skip_comment(curr, true, insert_space, &mut prev_was_comment);
+                comments_vec[t as usize] = (curr.len() - new_curr.len()) as i32;
+                curr = new_curr;
+            } else {
+                curr = skip_comment(curr, false, insert_space, &mut prev_was_comment);
             }
-            if remove_comments {
-                if t > 0 && prev_was_comment {
-                    let new_curr = skip_comment(
-                        curr.cast_const().cast(),
-                        true,
-                        insert_space,
-                        &mut prev_was_comment,
-                    );
-                    *comments.wrapping_add(t as usize) =
-                        crate::memory::ptr_offset_from(new_curr, curr) as i32;
-                    curr = new_curr;
+        }
+
+        if insert_space && t > 0 {
+            curr = crate::charset::skipwhite_slice(curr);
+            if !curr.is_empty()
+                && curr[0] != b')'
+                && sumsize != 0
+                && endcurr1 != TAB
+                && (!has_format_option(K_FO_MBYTE_JOIN)
+                    || (crate::mbyte::utf_slice2char(curr) < 0x100 && endcurr1 < 0x100))
+                && (!has_format_option(K_FO_MBYTE_JOIN2)
+                    || (crate::mbyte::utf_slice2char(curr) < 0x100 && !utf_eat_space(endcurr1))
+                    || (endcurr1 < 0x100 && !utf_eat_space(crate::mbyte::utf_slice2char(curr))))
+            {
+                if endcurr1 == b' ' as i32 {
+                    endcurr1 = endcurr2;
                 } else {
-                    curr = skip_comment(
-                        curr.cast_const().cast(),
-                        false,
-                        insert_space,
-                        &mut prev_was_comment,
-                    );
+                    spaces_vec[t as usize] += 1;
                 }
-            }
-
-            if insert_space && t > 0 {
-                curr = skipwhite(curr.cast()).cast();
-                if !crate::memory::cstr_is_empty(curr.cast())
-                    && crate::memory::cstr_first_byte(curr.cast()) != b')'
-                    && sumsize != 0
-                    && endcurr1 != TAB
-                    && (!has_format_option(K_FO_MBYTE_JOIN)
-                        || (utf_ptr2char(curr.cast()) < 0x100 && endcurr1 < 0x100))
-                    && (!has_format_option(K_FO_MBYTE_JOIN2)
-                        || (utf_ptr2char(curr.cast()) < 0x100 && !utf_eat_space(endcurr1))
-                        || (endcurr1 < 0x100 && !utf_eat_space(utf_ptr2char(curr.cast()))))
+                if opt_vars().p_js != 0
+                    && (endcurr1 == b'.' as i32
+                        || endcurr1 == b'?' as i32
+                        || endcurr1 == b'!' as i32)
                 {
-                    if endcurr1 == b' ' as i32 {
-                        endcurr1 = endcurr2;
-                    } else {
-                        *spaces.wrapping_add(t as usize) += 1;
-                    }
-                    if opt_vars().p_js != 0
-                        && (endcurr1 == b'.' as i32
-                            || endcurr1 == b'?' as i32
-                            || endcurr1 == b'!' as i32)
-                    {
-                        *spaces.wrapping_add(t as usize) += 1;
-                    }
+                    spaces_vec[t as usize] += 1;
                 }
+            }
+        }
+
+        let space_t = i32::from(spaces_vec[t as usize]);
+        if t > 0 && g_st().curbuf_splice_pending == 0 {
+            let removed = (curr_start.len() - curr.len()) as Colnr;
+            extmark_splice(
+                curbuf_mut(),
+                curwin_mut().w_cursor.lnum - 1,
+                sumsize,
+                1,
+                removed,
+                (removed + 1) as isize,
+                0,
+                space_t,
+                space_t as isize,
+                K_EXTMARK_UNDO,
+            );
+        }
+        currsize = curr.len() as i32;
+        sumsize += currsize + space_t;
+        endcurr1 = i32::from(NUL);
+        endcurr2 = i32::from(NUL);
+        if insert_space && currsize > 0 {
+            let mut cend_idx = curr.len();
+            cend_idx -= (crate::mbyte::utf_head_off_slice(curr, cend_idx - 1) as usize) + 1;
+            endcurr1 = crate::mbyte::utf_slice2char(&curr[cend_idx..]);
+            if cend_idx > 0 {
+                cend_idx -= (crate::mbyte::utf_head_off_slice(curr, cend_idx - 1) as usize) + 1;
+                endcurr2 = crate::mbyte::utf_slice2char(&curr[cend_idx..]);
+            }
+        }
+        line_breakcheck();
+        if g_st().got_int {
+            ret = false;
+            aborted = true;
+            break;
+        }
+    }
+
+    if !aborted {
+        let col = sumsize - currsize - i32::from(spaces_vec[count - 1]);
+
+        let newp_len = sumsize as usize;
+        let mut newp_vec = vec![0u8; newp_len + 1];
+        let mut cend_idx = sumsize as usize;
+
+        g_st().curbuf_splice_pending += 1;
+
+        let mut t = (count as Linenr) - 1;
+        loop {
+            let csize_u = currsize as usize;
+            cend_idx -= csize_u;
+            newp_vec[cend_idx..cend_idx + csize_u].copy_from_slice(&curr[..csize_u]);
+
+            let space_t = i32::from(spaces_vec[t as usize]);
+            if space_t > 0 {
+                let space_u = space_t as usize;
+                cend_idx -= space_u;
+                newp_vec[cend_idx..cend_idx + space_u].fill(b' ');
             }
 
-            let space_t = i32::from(*spaces.wrapping_add(t as usize));
-            if t > 0 && g_st().curbuf_splice_pending == 0 {
-                let removed = crate::memory::ptr_offset_from(curr, curr_start) as Colnr;
-                extmark_splice(
-                    curbuf_mut(),
-                    curwin_mut().w_cursor.lnum - 1,
-                    sumsize,
-                    1,
-                    removed,
-                    (removed + 1) as isize,
-                    0,
-                    space_t,
-                    space_t as isize,
-                    K_EXTMARK_UNDO,
-                );
-            }
-            currsize = crate::memory::cstr_len(curr.cast()) as i32;
-            sumsize += currsize + space_t;
-            endcurr1 = i32::from(NUL);
-            endcurr2 = i32::from(NUL);
-            if insert_space && currsize > 0 {
-                cend = curr.wrapping_add(currsize as usize);
-                cend = cend.wrapping_sub(
-                    (utf_head_off(curr.cast(), cend.wrapping_sub(1).cast()) + 1) as usize,
-                );
-                endcurr1 = utf_ptr2char(cend.cast());
-                if cend > curr {
-                    cend = cend.wrapping_sub(
-                        (utf_head_off(curr.cast(), cend.wrapping_sub(1).cast()) + 1) as usize,
-                    );
-                    endcurr2 = utf_ptr2char(cend.cast());
-                }
-            }
-            line_breakcheck();
-            if g_st().got_int {
-                ret = false;
-                aborted = true;
+            let spaces_removed = ((curr_start.len() - curr.len()) as i32) - space_t;
+            let lnum = curwin_mut().w_cursor.lnum + t;
+            let mincol: Colnr = 0;
+            let lnum_amount = -t;
+            let col_amount = (cend_idx as Colnr) - spaces_removed;
+
+            mark_col_adjust(lnum, mincol, lnum_amount, col_amount, spaces_removed);
+
+            if t == 0 {
                 break;
             }
+
+            curr_start = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum + t - 1);
+            curr = curr_start;
+            if remove_comments {
+                curr = &curr[(comments_vec[(t - 1) as usize] as usize).min(curr.len())..];
+            }
+            if insert_space && t > 1 {
+                curr = crate::charset::skipwhite_slice(curr);
+            }
+            currsize = curr.len() as i32;
+            t -= 1;
         }
 
-        if !aborted {
-            let col = sumsize - currsize - i32::from(*spaces.wrapping_add(count - 1));
+        ml_replace_len(
+            curwin_mut().w_cursor.lnum,
+            newp_vec.as_ptr().cast(),
+            newp_len,
+            true,
+        );
+        drop(newp_vec);
 
-            let newp_len = sumsize as usize;
-            let mut newp_vec = vec![0u8; newp_len + 1];
-            let newp: *mut u8 = newp_vec.as_mut_ptr();
-            cend = newp.wrapping_add(sumsize as usize);
-
-            g_st().curbuf_splice_pending += 1;
-
-            let mut t = (count as Linenr) - 1;
-            loop {
-                cend = cend.wrapping_sub(currsize as usize);
-                ptr::copy(curr, cend, currsize as usize);
-
-                let space_t = i32::from(*spaces.wrapping_add(t as usize));
-                if space_t > 0 {
-                    cend = cend.wrapping_sub(space_t as usize);
-                    ptr::write_bytes(cend, b' ', space_t as usize);
-                }
-
-                let spaces_removed =
-                    (crate::memory::ptr_offset_from(curr, curr_start) as i32) - space_t;
-                let lnum = curwin_mut().w_cursor.lnum + t;
-                let mincol: Colnr = 0;
-                let lnum_amount = -t;
-                let col_amount =
-                    (crate::memory::ptr_offset_from(cend, newp) as Colnr) - spaces_removed;
-
-                mark_col_adjust(lnum, mincol, lnum_amount, col_amount, spaces_removed);
-
-                if t == 0 {
-                    break;
-                }
-
-                curr_start = ml_get(curwin_mut().w_cursor.lnum + t - 1).cast();
-                curr = curr_start;
-                if remove_comments {
-                    curr = curr.wrapping_add(*comments.wrapping_add((t - 1) as usize) as usize);
-                }
-                if insert_space && t > 1 {
-                    curr = skipwhite(curr.cast()).cast();
-                }
-                currsize = crate::memory::cstr_len(curr.cast()) as i32;
-                t -= 1;
-            }
-
-            ml_replace_len(
-                curwin_mut().w_cursor.lnum,
-                newp_vec.as_ptr().cast(),
-                newp_len,
-                true,
-            );
-            drop(newp_vec);
-
-            if setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-                curwin_mut().buf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum;
-                curwin_mut().buf_mut().b_op_end.col = sumsize;
-            }
-
-            changed_lines(
-                curbuf_mut(),
-                curwin_mut().w_cursor.lnum,
-                currsize,
-                curwin_mut().w_cursor.lnum + 1,
-                0,
-                true,
-            );
-
-            let saved_lnum = curwin_mut().w_cursor.lnum;
-            curwin_mut().w_cursor.lnum += 1;
-            del_lines((count as i32) - 1, false);
-            curwin_mut().w_cursor.lnum = saved_lnum;
-            g_st().curbuf_splice_pending -= 1;
-            curbuf_mut().deleted_bytes2 = 0;
-
-            curwin_mut().w_cursor.col =
-                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_JOINCOL) {
-                    currsize
-                } else {
-                    col
-                };
-            check_cursor_col(curwin_mut());
-
-            curwin_mut().w_cursor.coladd = 0;
-            curwin_mut().w_set_curswant = true;
+        if setmark && (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+            curwin_mut().buf_mut().b_op_end.lnum = curwin_mut().w_cursor.lnum;
+            curwin_mut().buf_mut().b_op_end.col = sumsize;
         }
 
-        ret
+        changed_lines(
+            curbuf_mut(),
+            curwin_mut().w_cursor.lnum,
+            currsize,
+            curwin_mut().w_cursor.lnum + 1,
+            0,
+            true,
+        );
+
+        let saved_lnum = curwin_mut().w_cursor.lnum;
+        curwin_mut().w_cursor.lnum += 1;
+        del_lines((count as i32) - 1, false);
+        curwin_mut().w_cursor.lnum = saved_lnum;
+        g_st().curbuf_splice_pending -= 1;
+        curbuf_mut().deleted_bytes2 = 0;
+
+        curwin_mut().w_cursor.col = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_JOINCOL) {
+            currsize
+        } else {
+            col
+        };
+        check_cursor_col(curwin_mut());
+
+        curwin_mut().w_cursor.coladd = 0;
+        curwin_mut().w_set_curswant = true;
     }
+
+    ret
 }
 
 /// Reset 'linebreak' and take care of side effects.
@@ -2963,46 +2939,42 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 }
 
 fn line_count_info(
-    line: impl crate::strings::IntoCCharPtr,
+    line_bytes: &[u8],
     wc: &mut Varnumber,
     cc: &mut Varnumber,
     limit: Varnumber,
     eol_size: i32,
 ) -> Varnumber {
-    let line = line.into_c_char_ptr();
-    {
-        let line_bytes = crate::memory::cstr_as_bytes(line);
-        let mut i: Varnumber = 0;
-        let mut words: Varnumber = 0;
-        let mut chars: Varnumber = 0;
-        let mut is_word = false;
+    let mut i: Varnumber = 0;
+    let mut words: Varnumber = 0;
+    let mut chars: Varnumber = 0;
+    let mut is_word = false;
 
-        while i < limit && (i as usize) < line_bytes.len() {
-            let ch = i32::from(line_bytes[i as usize]);
-            if is_word {
-                if ascii_isspace(ch) {
-                    words += 1;
-                    is_word = false;
-                }
-            } else if !ascii_isspace(ch) {
-                is_word = true;
-            }
-            chars += 1;
-            i += Varnumber::from(utfc_ptr2len(line.wrapping_add(i as usize)));
-        }
-
+    while i < limit && (i as usize) < line_bytes.len() {
+        let ch = i32::from(line_bytes[i as usize]);
         if is_word {
-            words += 1;
+            if ascii_isspace(ch) {
+                words += 1;
+                is_word = false;
+            }
+        } else if !ascii_isspace(ch) {
+            is_word = true;
         }
-        *wc += words;
-
-        if i < limit && (i as usize) >= line_bytes.len() {
-            i += Varnumber::from(eol_size);
-            chars += Varnumber::from(eol_size);
-        }
-        *cc += chars;
-        i
+        chars += 1;
+        i += Varnumber::from(crate::mbyte::utfc_slice2len(&line_bytes[i as usize..]) as i32);
     }
+
+    if is_word {
+        words += 1;
+    }
+    *wc += words;
+
+    if i < limit && (i as usize) >= line_bytes.len() {
+        i += Varnumber::from(eol_size);
+        chars += Varnumber::from(eol_size);
+    }
+    *cc += chars;
+    i
 }
 
 pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
@@ -3120,8 +3092,9 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     len = end_col;
                 }
                 if !s.is_null() {
+                    let s_bytes = crate::memory::cstr_as_bytes(s.cast());
                     byte_count_cursor += line_count_info(
-                        s.cast_const().cast(),
+                        s_bytes,
                         &mut word_count_cursor,
                         &mut char_count_cursor,
                         Varnumber::from(len),
@@ -3130,7 +3103,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     if lnum == curbuf_mut().b_ml.ml_line_count
                         && curbuf_mut().b_p_eol == 0
                         && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
-                        && (crate::memory::cstr_len(s.cast()) as i32) < len
+                        && (s_bytes.len() as i32) < len
                     {
                         byte_count_cursor -= Varnumber::from(eol_size);
                     }
@@ -3140,7 +3113,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 char_count_cursor += char_count;
                 byte_count_cursor = byte_count
                     + line_count_info(
-                        ml_get(lnum),
+                        crate::memline::ml_get_slice(lnum),
                         &mut word_count_cursor,
                         &mut char_count_cursor,
                         Varnumber::from(curwin_mut().w_cursor.col) + 1,
@@ -3148,7 +3121,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     );
             }
             byte_count += line_count_info(
-                ml_get(lnum),
+                crate::memline::ml_get_slice(lnum),
                 &mut word_count,
                 &mut char_count,
                 Varnumber::from(MAXCOL),

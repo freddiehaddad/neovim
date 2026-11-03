@@ -1866,7 +1866,12 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
         let mut lead_end = [0u8; COM_MAX_LEN];
         let mut flags_opt: Option<&'static CStr> = None;
         let line = get_cursor_line_ptr();
-        let mut i = get_leader_len(line, Some(&mut flags_opt), false, true);
+        let mut i = get_leader_len(
+            crate::cursor::get_cursor_line_slice(),
+            Some(&mut flags_opt),
+            false,
+            true,
+        );
         if i > 0 && crate::strings::vim_haschr(flags_opt, i32::from(COM_MIDDLE)) {
             let mut p = flags_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             while !crate::memory::cstr_is_empty(p)
