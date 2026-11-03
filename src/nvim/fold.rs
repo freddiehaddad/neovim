@@ -588,80 +588,94 @@ pub fn delete_fold(
     recursive: i32,
     had_visual: bool,
 ) {
-    unsafe {
-        let mut found_fp: *mut FoldEntry = ptr::null_mut();
-        let mut found_off: Linenr = 0;
-        let mut maybe_small = false;
-        let mut level: i32 = 0;
-        let mut lnum = start;
-        let mut did_one = false;
-        let mut first_lnum = MAXLNUM;
-        let mut last_lnum: Linenr = 0;
+    let mut found_fp: *mut FoldEntry = ptr::null_mut();
+    let mut found_off: Linenr = 0;
+    let mut maybe_small = false;
+    let mut level: i32 = 0;
+    let mut lnum = start;
+    let mut did_one = false;
+    let mut first_lnum = MAXLNUM;
+    let mut last_lnum: Linenr = 0;
 
-        checkupdate(wp);
+    checkupdate(wp);
 
-        while lnum <= end {
-            let mut gap = &raw mut wp.w_folds;
-            let mut found_ga: *mut Vec<FoldEntry> = ptr::null_mut();
-            let mut lnum_off: Linenr = 0;
-            let mut use_level = false;
-            while let (true, idx) = fold_find(&*gap, lnum - lnum_off) {
-                let fp = &raw mut (&mut *gap)[idx];
-                found_ga = gap;
-                found_fp = fp;
-                found_off = lnum_off;
+    while lnum <= end {
+        let mut gap = &raw mut wp.w_folds;
+        let mut found_ga: *mut Vec<FoldEntry> = ptr::null_mut();
+        let mut lnum_off: Linenr = 0;
+        let mut use_level = false;
+        while let (true, idx) = unsafe { fold_find(&*gap, lnum - lnum_off) } {
+            let fp = unsafe { &raw mut (&mut *gap)[idx] };
+            found_ga = gap;
+            found_fp = fp;
+            found_off = lnum_off;
 
-                if check_closed(
+            if unsafe {
+                check_closed(
                     wp,
                     &mut *fp,
                     &mut use_level,
                     level,
                     &mut maybe_small,
                     lnum_off,
-                ) {
-                    break;
-                }
-
-                gap = &raw mut (*fp).fd_nested;
-                lnum_off += (*fp).fd_top;
-                level += 1;
+                )
+            } {
+                break;
             }
-            if found_ga.is_null() {
-                lnum += 1;
-            } else {
-                lnum = (*found_fp).fd_top + (*found_fp).fd_len + found_off;
 
-                if foldmethod_is_manual(&mut *wp) {
-                    let idx = crate::memory::ptr_offset_from(found_fp, (*found_ga).as_ptr()) as i32;
+            unsafe {
+                gap = &raw mut (*fp).fd_nested;
+            }
+            unsafe {
+                lnum_off += (*fp).fd_top;
+            }
+            level += 1;
+        }
+        if found_ga.is_null() {
+            lnum += 1;
+        } else {
+            unsafe {
+                lnum = (*found_fp).fd_top + (*found_fp).fd_len + found_off;
+            }
+
+            if foldmethod_is_manual(&mut *wp) {
+                let idx = unsafe {
+                    crate::memory::ptr_offset_from(found_fp, (*found_ga).as_ptr()) as i32
+                };
+                unsafe {
                     delete_fold_entry(&mut *found_ga, idx, recursive != 0);
-                } else {
+                }
+            } else {
+                unsafe {
                     first_lnum = first_lnum.min((*found_fp).fd_top + found_off);
-                    last_lnum = last_lnum.max(lnum);
-                    if !did_one {
-                        parse_marker(&mut *wp);
-                    }
+                }
+                last_lnum = last_lnum.max(lnum);
+                if !did_one {
+                    parse_marker(&mut *wp);
+                }
+                unsafe {
                     delete_fold_markers(wp, &mut *found_fp, recursive != 0, found_off);
                 }
-                did_one = true;
-
-                changed_window_setting(&mut *wp);
             }
-        }
-        if !did_one {
-            emsg(gettext(E_NOFOLD));
-            if had_visual {
-                redraw_buf_later(wp.w_buffer, UPD_INVERTED);
-            }
-        } else {
-            check_cursor_col(&mut *wp);
-        }
+            did_one = true;
 
-        if last_lnum > 0 {
-            changed_lines(wp.buf_mut(), first_lnum, 0, last_lnum, 0, false);
-
-            let num_changed = i64::from(last_lnum - first_lnum);
-            buf_updates_send_changes(wp.buf_mut(), first_lnum, num_changed, num_changed);
+            changed_window_setting(&mut *wp);
         }
+    }
+    if !did_one {
+        emsg(gettext(E_NOFOLD));
+        if had_visual {
+            redraw_buf_later(wp.w_buffer, UPD_INVERTED);
+        }
+    } else {
+        check_cursor_col(&mut *wp);
+    }
+
+    if last_lnum > 0 {
+        changed_lines(wp.buf_mut(), first_lnum, 0, last_lnum, 0, false);
+
+        let num_changed = i64::from(last_lnum - first_lnum);
+        buf_updates_send_changes(wp.buf_mut(), first_lnum, num_changed, num_changed);
     }
 }
 
@@ -860,41 +874,47 @@ pub fn find_wl_entry(win: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// Adjust the Visual area to include any fold at the start or end completely.
 pub fn fold_adjust_visual() {
-    unsafe {
-        if !g_st().visual_global.active || has_any_folding(curwin_mut()) == 0 {
-            return;
-        }
+    if !g_st().visual_global.active || has_any_folding(curwin_mut()) == 0 {
+        return;
+    }
 
-        let (start, end) = if ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
-            (
-                &raw mut g_st().visual_global.start,
-                &raw mut curwin_mut().w_cursor,
-            )
-        } else {
-            (
-                &raw mut curwin_mut().w_cursor,
-                &raw mut g_st().visual_global.start,
-            )
-        };
-        if has_folding(
+    let (start, end) = if ltoreq(g_st().visual_global.start, curwin_mut().w_cursor) {
+        (
+            &raw mut g_st().visual_global.start,
+            &raw mut curwin_mut().w_cursor,
+        )
+    } else {
+        (
+            &raw mut curwin_mut().w_cursor,
+            &raw mut g_st().visual_global.start,
+        )
+    };
+    if unsafe {
+        has_folding(
             curwin_ptr(),
             (*start).lnum,
             Some(&mut (*start).lnum),
             ptr::null_mut(),
-        ) {
+        )
+    } {
+        unsafe {
             (*start).col = 0;
         }
+    }
 
-        if !has_folding(curwin_ptr(), (*end).lnum, None, &raw mut (*end).lnum) {
-            return;
-        }
+    if unsafe { !has_folding(curwin_ptr(), (*end).lnum, None, &raw mut (*end).lnum) } {
+        return;
+    }
 
+    unsafe {
         (*end).col = ml_get_len((*end).lnum);
-        if (*end).col > 0 && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o' {
+    }
+    if unsafe { (*end).col > 0 } && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o' {
+        unsafe {
             (*end).col -= 1;
         }
-        mb_adjust_cursor();
     }
+    mb_adjust_cursor();
 }
 
 /// Move the cursor to the first line of a closed fold.

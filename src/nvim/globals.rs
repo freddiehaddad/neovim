@@ -955,6 +955,129 @@ pub fn prevwin_opt() -> Option<&'static mut WinInfoInfo> {
     unsafe { g_st().prevwin.as_mut() }
 }
 
+/// Zero-cost typed handle for a raw pointer to a global graph node (`WinInfoInfo`,
+/// `FileBuf`, `TabPageInfo`, `Frame`, `TvList`, `TvDict`, etc.).
+///
+/// Holding a `GraphPtr<T>` across callbacks, autocommands, or event-loop ticks does not
+/// assert LLVM `noalias` uniqueness (unlike `&mut T`), while providing checked `.opt()`,
+/// `.opt_mut()`, `.borrow()`, and `.borrow_mut()` accessors for synchronous local borrows.
+#[repr(transparent)]
+pub struct GraphPtr<T>(pub *mut T);
+
+impl<T> Copy for GraphPtr<T> {}
+
+impl<T> Clone for GraphPtr<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Default for GraphPtr<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::NULL
+    }
+}
+
+impl<T> PartialEq for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        ptr::eq(self.0, other.0)
+    }
+}
+
+impl<T> Eq for GraphPtr<T> {}
+
+impl<T> PartialEq<*mut T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &*mut T) -> bool {
+        ptr::eq(self.0, *other)
+    }
+}
+
+impl<T> PartialEq<*const T> for GraphPtr<T> {
+    #[inline]
+    fn eq(&self, other: &*const T) -> bool {
+        ptr::eq(self.0.cast_const(), *other)
+    }
+}
+
+impl<T> From<*mut T> for GraphPtr<T> {
+    #[inline]
+    fn from(p: *mut T) -> Self {
+        Self(p)
+    }
+}
+
+impl<T> From<&mut T> for GraphPtr<T> {
+    #[inline]
+    fn from(r: &mut T) -> Self {
+        Self(&raw mut *r)
+    }
+}
+
+impl<T> GraphPtr<T> {
+    pub const NULL: Self = Self(ptr::null_mut());
+
+    #[inline]
+    pub const fn new(ptr: *mut T) -> Self {
+        Self(ptr)
+    }
+
+    #[inline]
+    pub const fn as_ptr(self) -> *mut T {
+        self.0
+    }
+
+    #[inline]
+    pub fn is_null(self) -> bool {
+        self.0.is_null()
+    }
+
+    #[inline]
+    pub fn opt<'a>(self) -> Option<&'a T> {
+        unsafe { self.0.as_ref() }
+    }
+
+    #[inline]
+    pub fn opt_mut<'a>(self) -> Option<&'a mut T> {
+        unsafe { self.0.as_mut() }
+    }
+
+    #[inline]
+    pub fn borrow<'a>(self) -> &'a T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &*self.0 }
+    }
+
+    #[inline]
+    pub fn borrow_mut<'a>(self) -> &'a mut T {
+        debug_assert!(!self.0.is_null());
+        unsafe { &mut *self.0 }
+    }
+}
+
+pub type WinPtr = GraphPtr<WinInfoInfo>;
+pub type BufPtr = GraphPtr<FileBuf>;
+pub type TabpagePtr = GraphPtr<TabPageInfo>;
+pub type FramePtr = GraphPtr<Frame>;
+
+#[inline]
+pub fn curwin_handle() -> WinPtr {
+    WinPtr::new(curwin_ptr())
+}
+
+#[inline]
+pub fn curbuf_handle() -> BufPtr {
+    BufPtr::new(g_st().curbuf)
+}
+
+#[inline]
+pub fn curtab_handle() -> TabpagePtr {
+    TabpagePtr::new(g_st().curtab)
+}
+
 pub struct BufMutIter(*mut FileBuf);
 
 impl Iterator for BufMutIter {

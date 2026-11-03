@@ -54,97 +54,107 @@ pub fn win_new_float(
     fconfig: WinConfig,
     err: &mut Error,
 ) -> *mut WinInfoInfo {
-    unsafe {
-        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
-        if wp.is_null() {
-            let mut tp_last = if last {
-                g_st().lastwin
-            } else {
-                lastwin_nofloating(ptr::null_mut())
-            };
-            if fconfig.window != 0 {
-                debug_assert!(!last);
-                let parent_wp = find_window_by_handle(fconfig.window, err);
-                if parent_wp.is_null() {
-                    return ptr::null_mut();
-                }
-                let tp = win_find_tabpage(parent_wp);
-                if tp.is_null() {
-                    return ptr::null_mut();
-                }
-                tp_last = lastwin_nofloating(if tp == g_st().curtab {
-                    ptr::null_mut()
-                } else {
-                    tp
-                });
-            }
-            wp = win_alloc(tp_last, false);
-            let wp = &mut *wp;
-            win_init(wp, curwin_mut(), 0);
-            if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
-                if wp.w_onebuf_opt.wo_wbr != empty_opt {
-                    free_string_option(wp.w_onebuf_opt.wo_wbr);
-                }
-                wp.w_onebuf_opt.wo_wbr = empty_opt;
-            }
-            if !wp.w_onebuf_opt.wo_stl.is_null() && wp.w_onebuf_opt.wo_stl != empty_opt {
-                free_string_option(wp.w_onebuf_opt.wo_stl);
-                wp.w_onebuf_opt.wo_stl = empty_opt;
-            }
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
+    if wp.is_null() {
+        let mut tp_last = if last {
+            g_st().lastwin
         } else {
+            lastwin_nofloating(ptr::null_mut())
+        };
+        if fconfig.window != 0 {
             debug_assert!(!last);
-            debug_assert!(!(*wp).w_floating);
-            let win_tp = win_find_tabpage(wp);
-            debug_assert!(!win_tp.is_null());
-            if (win_tp == g_st().curtab
-                && g_st().firstwin == wp
-                && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
-                || (win_tp != g_st().curtab
-                    && (*win_tp).tp_firstwin == wp
-                    && ptr::eq(lastwin_nofloating(win_tp), wp))
-            {
-                api_set_error!(
-                    err,
-                    ErrorType::ErrorTypeException,
-                    c"Cannot change last window into float",
-                );
+            let parent_wp = find_window_by_handle(fconfig.window, err);
+            if parent_wp.is_null() {
                 return ptr::null_mut();
             }
-            let tp = if win_tp == g_st().curtab {
+            let tp = win_find_tabpage(parent_wp);
+            if tp.is_null() {
+                return ptr::null_mut();
+            }
+            tp_last = lastwin_nofloating(if tp == g_st().curtab {
                 ptr::null_mut()
             } else {
-                win_tp
-            };
-            let mut dir: i32 = 0;
+                tp
+            });
+        }
+        wp = win_alloc(tp_last, false);
+        let wp = unsafe { &mut *wp };
+        win_init(wp, curwin_mut(), 0);
+        if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
+            if wp.w_onebuf_opt.wo_wbr != empty_opt {
+                free_string_option(wp.w_onebuf_opt.wo_wbr);
+            }
+            wp.w_onebuf_opt.wo_wbr = empty_opt;
+        }
+        if !wp.w_onebuf_opt.wo_stl.is_null() && wp.w_onebuf_opt.wo_stl != empty_opt {
+            free_string_option(wp.w_onebuf_opt.wo_stl);
+            wp.w_onebuf_opt.wo_stl = empty_opt;
+        }
+    } else {
+        debug_assert!(!last);
+        unsafe {
+            debug_assert!(!(*wp).w_floating);
+        }
+        let win_tp = win_find_tabpage(wp);
+        debug_assert!(!win_tp.is_null());
+        if (win_tp == g_st().curtab
+            && g_st().firstwin == wp
+            && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
+            || unsafe {
+                win_tp != g_st().curtab
+                    && (*win_tp).tp_firstwin == wp
+                    && ptr::eq(lastwin_nofloating(win_tp), wp)
+            }
+        {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Cannot change last window into float",
+            );
+            return ptr::null_mut();
+        }
+        let tp = if win_tp == g_st().curtab {
+            ptr::null_mut()
+        } else {
+            win_tp
+        };
+        let mut dir: i32 = 0;
+        unsafe {
             winframe_remove(&mut *wp, &mut dir, tp, ptr::null_mut());
-            if !(*wp).w_frame.is_null() {
+        }
+        if unsafe { !(*wp).w_frame.is_null() } {
+            unsafe {
                 drop(Box::from_raw((*wp).w_frame));
             }
-            (*wp).w_frame = ptr::null_mut();
-            win_remove(&mut *wp, tp);
-            if win_tp == g_st().curtab {
-                last_status(false);
-                win_comp_pos();
-            }
-            win_append(lastwin_nofloating(tp), wp, tp);
         }
-        let wp = &mut *wp;
-        wp.w_floating = true;
-        wp.w_status_height = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-            && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
-        {
-            STATUS_HEIGHT
-        } else {
-            0
-        };
-        wp.w_winbar_height = 0;
-        wp.w_hsep_height = 0;
-        wp.w_vsep_width = 0;
-
-        win_config_float(&mut *wp, fconfig);
-        redraw_later(Some(&mut *wp), UPD_VALID);
-        wp
+        unsafe {
+            (*wp).w_frame = ptr::null_mut();
+        }
+        unsafe {
+            win_remove(&mut *wp, tp);
+        }
+        if win_tp == g_st().curtab {
+            last_status(false);
+            win_comp_pos();
+        }
+        win_append(lastwin_nofloating(tp), wp, tp);
     }
+    let wp = unsafe { &mut *wp };
+    wp.w_floating = true;
+    wp.w_status_height = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
+        && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
+    {
+        STATUS_HEIGHT
+    } else {
+        0
+    };
+    wp.w_winbar_height = 0;
+    wp.w_hsep_height = 0;
+    wp.w_vsep_width = 0;
+
+    win_config_float(&mut *wp, fconfig);
+    redraw_later(Some(&mut *wp), UPD_VALID);
+    wp
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {

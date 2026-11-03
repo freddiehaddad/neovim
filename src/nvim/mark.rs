@@ -525,42 +525,44 @@ pub fn checkpcmark() {
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
 pub fn get_jumplist(win: *mut WinInfoInfo, mut count: i32) -> *mut Fmark {
-    unsafe {
-        cleanup_jumplist(win, true);
+    cleanup_jumplist(win, true);
 
-        if (*win).w_jumplistlen == 0 {
+    if unsafe { (*win).w_jumplistlen == 0 } {
+        return ptr::null_mut();
+    }
+
+    loop {
+        if unsafe { (*win).w_jumplistidx + count < 0 }
+            || unsafe { (*win).w_jumplistidx + count >= (*win).w_jumplistlen }
+        {
             return ptr::null_mut();
         }
 
-        loop {
-            if (*win).w_jumplistidx + count < 0
-                || (*win).w_jumplistidx + count >= (*win).w_jumplistlen
-            {
+        if unsafe { (*win).w_jumplistidx == (*win).w_jumplistlen } {
+            setpcmark();
+            unsafe {
+                (*win).w_jumplistidx -= 1;
+            }
+            if unsafe { (*win).w_jumplistidx + count < 0 } {
                 return ptr::null_mut();
             }
-
-            if (*win).w_jumplistidx == (*win).w_jumplistlen {
-                setpcmark();
-                (*win).w_jumplistidx -= 1;
-                if (*win).w_jumplistidx + count < 0 {
-                    return ptr::null_mut();
-                }
-            }
-
-            (*win).w_jumplistidx += count;
-
-            let jmp = &raw mut (*win).w_jumplist[(*win).w_jumplistidx as usize];
-            if (*jmp).fmark.fnum == 0 {
-                fname2fnum(jmp);
-            }
-            if (*jmp).fmark.fnum != curbuf_mut().b_fnum
-                && buflist_findnr((*jmp).fmark.fnum).is_null()
-            {
-                count += if count < 0 { -1 } else { 1 };
-                continue;
-            }
-            return &raw mut (*jmp).fmark;
         }
+
+        unsafe {
+            (*win).w_jumplistidx += count;
+        }
+
+        let jmp = unsafe { &raw mut (*win).w_jumplist[(*win).w_jumplistidx as usize] };
+        if unsafe { (*jmp).fmark.fnum == 0 } {
+            fname2fnum(jmp);
+        }
+        if unsafe { (*jmp).fmark.fnum != curbuf_mut().b_fnum }
+            && unsafe { buflist_findnr((*jmp).fmark.fnum).is_null() }
+        {
+            count += if count < 0 { -1 } else { 1 };
+            continue;
+        }
+        return unsafe { &raw mut (*jmp).fmark };
     }
 }
 
@@ -599,33 +601,35 @@ pub fn mark_get(
     flag: MarkGet,
     name: i32,
 ) -> *mut Fmark {
-    unsafe {
-        let mut fm: *mut Fmark = ptr::null_mut();
-        if ascii_isupper(name) || ascii_isdigit(name) {
-            let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
+    let mut fm: *mut Fmark = ptr::null_mut();
+    if ascii_isupper(name) || ascii_isdigit(name) {
+        let xfm = mark_get_global(flag != K_MARK_ALL_NO_RESOLVE, name);
+        unsafe {
             fm = &raw mut (*xfm).fmark;
-            if flag == K_MARK_BUF_LOCAL && (*xfm).fmark.fnum != buf.b_fnum {
-                return pos_to_mark(
-                    &*buf,
-                    None,
-                    CursorPos {
-                        lnum: 0,
-                        col: 0,
-                        coladd: 0,
-                    },
-                );
-            }
-        } else if name > 0 && name < NMARK_LOCAL_MAX {
-            fm = mark_get_local(buf, win, name);
         }
-        if let Some(fmp) = fmp
-            && !fm.is_null()
-        {
-            *fmp = (*fm).clone();
-            return &raw mut *fmp;
+        if flag == K_MARK_BUF_LOCAL && unsafe { (*xfm).fmark.fnum != buf.b_fnum } {
+            return pos_to_mark(
+                &*buf,
+                None,
+                CursorPos {
+                    lnum: 0,
+                    col: 0,
+                    coladd: 0,
+                },
+            );
         }
-        fm
+    } else if name > 0 && name < NMARK_LOCAL_MAX {
+        fm = mark_get_local(buf, win, name);
     }
+    if let Some(fmp) = fmp
+        && !fm.is_null()
+    {
+        unsafe {
+            *fmp = (*fm).clone();
+        }
+        return &raw mut *fmp;
+    }
+    fm
 }
 
 /// Get a global mark `{A-Z0-9}` (`mark_get_global`).
@@ -758,56 +762,63 @@ fn switch_to_mark_buf(fm: &mut Fmark, pcmark_on_switch: bool) -> MarkMoveRes {
 
 /// Move to the given file mark, changing the buffer and cursor position (`mark_move_to`).
 pub fn mark_move_to(mut fm: *mut Fmark, flags: MarkMove) -> MarkMoveRes {
-    unsafe {
-        let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
-        let mut errormsg: Option<&'static CStr> = None;
-        if !mark_check(fm.as_mut(), &mut errormsg) {
+    let mut res: MarkMoveRes = K_MARK_MOVE_SUCCESS;
+    let mut errormsg: Option<&'static CStr> = None;
+    if unsafe { !mark_check(fm.as_mut(), &mut errormsg) } {
+        if let Some(err) = errormsg {
+            emsg(err);
+        }
+        return K_MARK_MOVE_FAILED;
+    }
+
+    if unsafe { (*fm).fnum != curbuf_mut().b_fnum } {
+        unsafe {
+            mark_st().mark_move_to_fm_copy = (*fm).clone();
+        }
+        fm = &raw mut mark_st().mark_move_to_fm_copy;
+        unsafe {
+            res |= switch_to_mark_buf(&mut *fm, (flags & K_MARK_JUMP_LIST) == 0);
+        }
+        if (res & K_MARK_MOVE_FAILED) != 0 {
+            return res;
+        }
+        if unsafe {
+            !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), &mut *fm, &mut errormsg)
+        } {
             if let Some(err) = errormsg {
                 emsg(err);
             }
-            return K_MARK_MOVE_FAILED;
+            res |= K_MARK_MOVE_FAILED;
+            return res;
         }
+    } else if (flags & K_MARK_CONTEXT) != 0 {
+        setpcmark();
+    }
 
-        if (*fm).fnum != curbuf_mut().b_fnum {
-            mark_st().mark_move_to_fm_copy = (*fm).clone();
-            fm = &raw mut mark_st().mark_move_to_fm_copy;
-            res |= switch_to_mark_buf(&mut *fm, (flags & K_MARK_JUMP_LIST) == 0);
-            if (res & K_MARK_MOVE_FAILED) != 0 {
-                return res;
-            }
-            if !mark_check_line_bounds(Some(crate::globals::curbuf_mut()), &mut *fm, &mut errormsg)
-            {
-                if let Some(err) = errormsg {
-                    emsg(err);
-                }
-                res |= K_MARK_MOVE_FAILED;
-                return res;
-            }
-        } else if (flags & K_MARK_CONTEXT) != 0 {
-            setpcmark();
-        }
-
-        let prev_pos = curwin_mut().w_cursor;
-        let pos = (*fm).mark;
+    let prev_pos = curwin_mut().w_cursor;
+    let pos = unsafe { (*fm).mark };
+    unsafe {
         curwin_mut().w_cursor = (*fm).mark;
-        if (flags & K_MARK_BEGIN_LINE) != 0 {
-            beginline(BL_WHITE | BL_FIX);
-        }
-        if prev_pos.lnum != pos.lnum {
-            res |= K_MARK_CHANGED_LINE | K_MARK_CHANGED_CURSOR;
-        }
-        if prev_pos.col != pos.col {
-            res |= K_MARK_CHANGED_COL | K_MARK_CHANGED_CURSOR;
-        }
-        if (flags & K_MARK_SET_VIEW) != 0 {
+    }
+    if (flags & K_MARK_BEGIN_LINE) != 0 {
+        beginline(BL_WHITE | BL_FIX);
+    }
+    if prev_pos.lnum != pos.lnum {
+        res |= K_MARK_CHANGED_LINE | K_MARK_CHANGED_CURSOR;
+    }
+    if prev_pos.col != pos.col {
+        res |= K_MARK_CHANGED_COL | K_MARK_CHANGED_CURSOR;
+    }
+    if (flags & K_MARK_SET_VIEW) != 0 {
+        unsafe {
             mark_view_restore(fm.as_ref());
         }
-
-        if (res & K_MARK_SWITCHED_BUF) != 0 || (res & K_MARK_CHANGED_CURSOR) != 0 {
-            check_cursor(curwin_mut());
-        }
-        res
     }
+
+    if (res & K_MARK_SWITCHED_BUF) != 0 || (res & K_MARK_CHANGED_CURSOR) != 0 {
+        check_cursor(curwin_mut());
+    }
+    res
 }
 
 /// Restore the mark view (`mark_view_restore`).
@@ -870,37 +881,35 @@ pub fn getnextmark(startpos: &mut CursorPos, dir: i32, begin_line: i32) -> *mut 
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
 fn fname2fnum(fm: *mut Xfmark) {
-    unsafe {
+    {
+        let Some(ref fname_cstr) = (*unsafe { &((*fm).fname) }) else {
+            return;
+        };
+        let fname = fname_cstr.as_ptr();
+
+        let fname_bytes = crate::memory::cstr_as_bytes(fname);
+        if fname_bytes.first() == Some(&b'~')
+            && fname_bytes
+                .get(1)
+                .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
         {
-            let Some(ref fname_cstr) = (*fm).fname else {
-                return;
-            };
-            let fname = fname_cstr.as_ptr();
-
-            let fname_bytes = crate::memory::cstr_as_bytes(fname);
-            if fname_bytes.first() == Some(&b'~')
-                && fname_bytes
-                    .get(1)
-                    .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
-            {
-                let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
-                crate::memory::copy_bytes_to_c_buf(
-                    &mut g_st().name_buff_bytes_mut()[len..],
-                    &fname_bytes[2..],
-                );
-            } else {
-                crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), fname_bytes);
-            }
+            let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
+            crate::memory::copy_bytes_to_c_buf(
+                &mut g_st().name_buff_bytes_mut()[len..],
+                &fname_bytes[2..],
+            );
+        } else {
+            crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), fname_bytes);
         }
-
-        os_dirname(g_st().iobuff.as_mut_ptr(), IOSIZE);
-        let p = path_shorten_fname(
-            g_st().name_buff.as_mut_ptr(),
-            g_st().iobuff.as_mut_ptr().cast(),
-        );
-
-        let _ = buflist_new(g_st().name_buff.as_mut_ptr(), p, 1, 0);
     }
+
+    os_dirname(g_st().iobuff.as_mut_ptr(), IOSIZE);
+    let p = path_shorten_fname(
+        g_st().name_buff.as_mut_ptr(),
+        g_st().iobuff.as_mut_ptr().cast(),
+    );
+
+    let _ = buflist_new(g_st().name_buff.as_mut_ptr(), p, 1, 0);
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
@@ -1805,65 +1814,67 @@ pub fn mark_col_adjust(
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
 pub fn cleanup_jumplist(wp: *mut WinInfoInfo, loadfiles: bool) {
-    unsafe {
-        if loadfiles {
-            for i in 0..((*wp).w_jumplistlen as usize) {
-                if (*wp).w_jumplist[i].fmark.fnum == 0 && (*wp).w_jumplist[i].fmark.mark.lnum != 0 {
+    if loadfiles {
+        for i in unsafe { 0..((*wp).w_jumplistlen as usize) } {
+            if unsafe { (*wp).w_jumplist[i].fmark.fnum == 0 }
+                && unsafe { (*wp).w_jumplist[i].fmark.mark.lnum != 0 }
+            {
+                unsafe {
                     fname2fnum(&raw mut (*wp).w_jumplist[i]);
                 }
             }
         }
+    }
 
-        let wp = &mut *wp;
-        let mut to: i32 = 0;
-        for from in 0..wp.w_jumplistlen {
-            let from_u = from as usize;
-            if wp.w_jumplistidx == from {
-                wp.w_jumplistidx = to;
-            }
-            let mut i = from + 1;
-            while i < wp.w_jumplistlen {
-                let i_u = i as usize;
-                if wp.w_jumplist[i_u].fmark.fnum == wp.w_jumplist[from_u].fmark.fnum
-                    && wp.w_jumplist[from_u].fmark.fnum != 0
-                    && wp.w_jumplist[i_u].fmark.mark.lnum == wp.w_jumplist[from_u].fmark.mark.lnum
-                {
-                    break;
-                }
-                i += 1;
-            }
-
-            let mustfree = if i >= wp.w_jumplistlen {
-                false
-            } else if i > from + 1 {
-                (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) == 0
-            } else {
-                true
-            };
-
-            if mustfree {
-                wp.w_jumplist[from_u].fname = None;
-            } else {
-                if to != from {
-                    wp.w_jumplist[to as usize] = wp.w_jumplist[from_u].clone();
-                }
-                to += 1;
-            }
-        }
-        if wp.w_jumplistidx == wp.w_jumplistlen {
+    let wp = unsafe { &mut *wp };
+    let mut to: i32 = 0;
+    for from in 0..wp.w_jumplistlen {
+        let from_u = from as usize;
+        if wp.w_jumplistidx == from {
             wp.w_jumplistidx = to;
         }
-        wp.w_jumplistlen = to;
-
-        if loadfiles && wp.w_jumplistlen != 0 && wp.w_jumplistidx == wp.w_jumplistlen {
-            let last_idx = (wp.w_jumplistlen - 1) as usize;
-            if wp.w_jumplist[last_idx].fmark.fnum == curbuf_mut().b_fnum
-                && wp.w_jumplist[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
+        let mut i = from + 1;
+        while i < wp.w_jumplistlen {
+            let i_u = i as usize;
+            if wp.w_jumplist[i_u].fmark.fnum == wp.w_jumplist[from_u].fmark.fnum
+                && wp.w_jumplist[from_u].fmark.fnum != 0
+                && wp.w_jumplist[i_u].fmark.mark.lnum == wp.w_jumplist[from_u].fmark.mark.lnum
             {
-                wp.w_jumplist[last_idx].fname = None;
-                wp.w_jumplistlen -= 1;
-                wp.w_jumplistidx -= 1;
+                break;
             }
+            i += 1;
+        }
+
+        let mustfree = if i >= wp.w_jumplistlen {
+            false
+        } else if i > from + 1 {
+            (opt_vars().jop_flags & K_OPT_JOP_FLAG_STACK) == 0
+        } else {
+            true
+        };
+
+        if mustfree {
+            wp.w_jumplist[from_u].fname = None;
+        } else {
+            if to != from {
+                wp.w_jumplist[to as usize] = wp.w_jumplist[from_u].clone();
+            }
+            to += 1;
+        }
+    }
+    if wp.w_jumplistidx == wp.w_jumplistlen {
+        wp.w_jumplistidx = to;
+    }
+    wp.w_jumplistlen = to;
+
+    if loadfiles && wp.w_jumplistlen != 0 && wp.w_jumplistidx == wp.w_jumplistlen {
+        let last_idx = (wp.w_jumplistlen - 1) as usize;
+        if wp.w_jumplist[last_idx].fmark.fnum == curbuf_mut().b_fnum
+            && wp.w_jumplist[last_idx].fmark.mark.lnum == wp.w_cursor.lnum
+        {
+            wp.w_jumplist[last_idx].fname = None;
+            wp.w_jumplistlen -= 1;
+            wp.w_jumplistidx -= 1;
         }
     }
 }
