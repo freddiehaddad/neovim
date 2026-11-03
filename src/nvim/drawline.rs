@@ -63,7 +63,6 @@ use crate::r#move::{
 };
 use crate::option::get_showbreak_value;
 use crate::option_vars::*;
-use crate::optionstr::CharBuf;
 use crate::os::fs::MAXPATHL;
 use crate::plines::{
     CharInfo, CharSize, CharsizeArg, ConcealSpans, GETVCOL_DISP, StrCharInfo,
@@ -930,7 +929,6 @@ fn draw_statuscol(
     dl_st().stc_prev_wp = wp;
 
     let mut buf = [0u8; MAXPATHL];
-    let buf_ptr = buf.as_mut_ptr();
     if wp.w_statuscol_line_count != wp.w_nrwidth_line_count {
         wp.w_statuscol_line_count = wp.w_nrwidth_line_count;
         let width = build_statuscol_str(
@@ -938,10 +936,7 @@ fn draw_statuscol(
             wp.w_nrwidth_line_count,
             wp.w_nrwidth_line_count,
             0,
-            CharBuf {
-                data: buf_ptr,
-                size: MAXPATHL,
-            },
+            &mut buf,
             stcp,
         );
         if width > stcp.width {
@@ -958,17 +953,7 @@ fn draw_statuscol(
         }
     }
 
-    let width = build_statuscol_str(
-        wp,
-        lnum,
-        relnum,
-        virtnum,
-        CharBuf {
-            data: buf_ptr,
-            size: MAXPATHL,
-        },
-        stcp,
-    );
+    let width = build_statuscol_str(wp, lnum, relnum, virtnum, &mut buf, stcp);
     if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
         || (width > stcp.width && stcp.width < MAX_STCWIDTH)
     {
@@ -985,6 +970,7 @@ fn draw_statuscol(
         return;
     }
 
+    let buf_ptr = buf.as_mut_ptr();
     let mut p = buf_ptr;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: *const Colnr = ptr::null();

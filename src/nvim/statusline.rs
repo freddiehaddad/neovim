@@ -1144,7 +1144,7 @@ pub fn build_statuscol_str(
     lnum: Linenr,
     relnum: i32,
     virtnum: i32,
-    buf: CharBuf,
+    buf: &mut [u8],
     stcp: &mut Statuscol,
 ) -> i32 {
     unsafe {
@@ -1156,11 +1156,14 @@ pub fn build_statuscol_str(
 
         let mut clickrec: *mut StlClickRecord = ptr::null_mut();
         let mut hlrec_ptr: *mut StlHlrec = ptr::null_mut();
-        let buf_data = buf.data;
+        let buf_data = buf.as_mut_ptr();
         let stc = crate::memory::cstr_to_cstring(wp.w_onebuf_opt.wo_stc);
         let width = build_stl_str_hl(
             wp,
-            buf,
+            CharBuf {
+                data: buf_data,
+                size: buf.len(),
+            },
             stc.as_ptr().cast_mut().cast(),
             K_OPT_STATUSCOLUMN,
             OPT_LOCAL,
@@ -1203,10 +1206,9 @@ fn stl_truncate(
     stl_items: &mut [StlItem],
     startitem: i32,
     curitem: &mut i32,
-    start_p: impl crate::strings::IntoCCharPtr,
-    out_p: *mut *mut u8,
+    start_p: *mut u8,
+    out_p: &mut *mut u8,
 ) {
-    let start_p: *mut u8 = start_p.into_c_char_ptr().cast_mut().cast();
     unsafe {
         minwid = minwid.min(maxwid);
 
@@ -1286,7 +1288,7 @@ fn stl_truncate(
             if *width >= minwid {
                 break;
             }
-            schar_get_adv(&mut *out_p, fillchar);
+            schar_get_adv(out_p, fillchar);
         }
         **out_p = 0;
     }
@@ -1637,8 +1639,8 @@ pub extern "C" fn build_stl_str_hl(
                         stl_items!(),
                         gidx + 1,
                         &mut stl_st().curitem,
-                        t.cast(),
-                        &raw mut out_p,
+                        t,
+                        &mut out_p,
                     );
                 } else if minwid > group_len {
                     stl_expand(
@@ -2495,8 +2497,8 @@ pub extern "C" fn build_stl_str_hl(
                 stl_items!(),
                 evalstart,
                 &mut stl_st().curitem,
-                out.data.cast(),
-                &raw mut out_p,
+                out.data,
+                &mut out_p,
             );
         } else if width < maxwidth {
             stl_expand(
