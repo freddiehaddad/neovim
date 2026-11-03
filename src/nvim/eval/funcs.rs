@@ -1989,8 +1989,7 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
     tv_dict_watcher_add(
         argvars[0].vval.v_dict_opt(),
-        key_pattern.as_ptr(),
-        key_pattern_len,
+        &key_pattern.to_bytes()[..key_pattern_len],
         callback,
     );
 }
@@ -2020,8 +2019,7 @@ pub fn f_dictwatcherdel(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
     if !tv_dict_watcher_remove(
         argvars[0].vval.v_dict_opt(),
-        key_pattern.as_ptr(),
-        key_pattern.to_bytes().len(),
+        key_pattern.to_bytes(),
         &callback,
     ) {
         emsg(c"Couldn't find a watcher matching key and callback");
@@ -5613,14 +5611,8 @@ pub fn f_mode(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     crate::eval::typval::tv_set_string(rettv, cstr);
 }
 
-fn may_add_state_char(
-    buf: &mut [u8],
-    len: &mut usize,
-    include: impl crate::strings::IntoCCharPtr,
-    c: u8,
-) {
-    let include = include.into_c_char_ptr();
-    if include.is_null() || crate::strings::vim_haschr(include, i32::from(c)) {
+fn may_add_state_char(buf: &mut [u8], len: &mut usize, include: Option<&[u8]>, c: u8) {
+    if include.is_none_or(|inc| inc.contains(&c)) {
         buf[*len] = c;
         *len += 1;
     }
@@ -5630,10 +5622,8 @@ fn may_add_state_char(
 pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; 16];
     let mut len = 0usize;
-    let mut include = ptr::null();
-    if argvars[0].v_type != VarType::VarUnknown {
-        include = tv_get_string(&argvars[0]).as_ptr();
-    }
+    let include =
+        (argvars[0].v_type != VarType::VarUnknown).then(|| tv_get_string(&argvars[0]).to_bytes());
 
     if !(stuff_empty() && g_st().typebuf.tb_len == 0 && using_script() == 0) {
         may_add_state_char(&mut buf, &mut len, include, b'm');
@@ -5662,7 +5652,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     } else {
-        crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr().cast(), len);
+        crate::eval::typval::tv_set_bytes(rettv, &buf[..len]);
     }
 }
 
@@ -7546,13 +7536,13 @@ pub fn f_setpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     set_position(argvars, rettv, false);
 }
 
-fn get_yank_type<T>(
-    pp: *mut *mut T,
+fn get_yank_type(
+    pp: &mut &[u8],
     yank_type: &mut crate::register::MotionType,
     block_len: &mut i32,
 ) -> bool {
-    let mut stropt: *mut u8 = unsafe { *pp }.cast();
-    match crate::memory::cstr_first_byte(stropt.cast()) {
+    let mut stropt = *pp;
+    match stropt.first().copied().unwrap_or(0) {
         b'v' | b'c' => {
             *yank_type = crate::register::MotionType::MtCharWise;
         }
@@ -7561,18 +7551,16 @@ fn get_yank_type<T>(
         }
         c if c == b'b' || c == CTRL_V_CONST as u8 => {
             *yank_type = crate::register::MotionType::MtBlockWise;
-            let tail = crate::memory::cstr_as_bytes(stropt.wrapping_add(1).cast());
+            let tail = &stropt[1..];
             if tail.first().is_some_and(u8::is_ascii_digit) {
                 let mut rem = tail;
                 *block_len = getdigits_int(&mut rem, false, 0) - 1;
-                stropt = stropt.wrapping_add(tail.len() - rem.len());
+                stropt = &stropt[tail.len() - rem.len()..];
             }
         }
         _ => return false,
     }
-    unsafe {
-        *pp = stropt.cast();
-    }
+    *pp = stropt;
     true
 }
 
@@ -7614,10 +7602,10 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             }
 
             if let Some(s) = tv_dict_get_string(d.as_ref(), c"regtype") {
-                let mut stropt = s.as_ptr().cast_mut();
-                let ret = get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
-                stropt = stropt.wrapping_add(1);
-                if !ret || !crate::memory::cstr_is_empty(stropt) {
+                let mut stropt = s.to_bytes();
+                let ret = get_yank_type(&mut stropt, &mut yank_type, &mut block_len);
+                stropt = stropt.get(1..).unwrap_or(&[]);
+                if !ret || !stropt.is_empty() {
                     semsg!(gettext(E_INVARGVAL), c"value");
                     return;
                 }
@@ -7645,16 +7633,16 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             let Some(stropt_cstr) = tv_get_string_chk(&argvars[2]) else {
                 return;
             };
-            let mut stropt = stropt_cstr.as_ptr().cast_mut();
-            while !crate::memory::cstr_is_empty(stropt) {
-                match crate::memory::cstr_first_byte(stropt) {
+            let mut stropt = stropt_cstr.to_bytes();
+            while !stropt.is_empty() {
+                match stropt[0] {
                     b'a' | b'A' => append = true,
                     b'u' | b'"' => set_unnamed = true,
                     _ => {
-                        get_yank_type(&raw mut stropt, &mut yank_type, &mut block_len);
+                        get_yank_type(&mut stropt, &mut yank_type, &mut block_len);
                     }
                 }
-                stropt = stropt.wrapping_add(1);
+                stropt = stropt.get(1..).unwrap_or(&[]);
             }
         }
 

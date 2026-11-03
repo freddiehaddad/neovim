@@ -66,7 +66,7 @@ fn json_err(fmt: &std::ffi::CStr, slice: &[u8]) {
 
 fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let dict = tv_dict_alloc();
-    let type_di = tv_dict_item_alloc_len(c"_TYPE", 5);
+    let type_di = tv_dict_item_alloc_len(b"_TYPE");
     type_di.di_tv.v_type = VarType::VarList;
     type_di.di_tv.v_lock = VAR_UNLOCKED;
     type_di.di_tv.vval =
@@ -74,7 +74,7 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     tv_list_ref(type_di.di_tv.vval.v_list_opt());
     tv_dict_add(&mut *dict, type_di);
 
-    let val_di = tv_dict_item_alloc_len(c"_VAL", 4);
+    let val_di = tv_dict_item_alloc_len(b"_VAL");
     val_di.di_tv = val;
     tv_dict_add(&mut *dict, val_di);
     dict.dv_refcount += 1;
@@ -1121,8 +1121,9 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 };
                 for pair in &items[..len] {
                     let key = pair[0].vval.v_string();
-                    let keylen = crate::memory::cstr_len(key);
-                    let di = crate::eval::typval::tv_dict_item_alloc_len(key, keylen);
+                    let di = crate::eval::typval::tv_dict_item_alloc_len(
+                        crate::memory::cstr_as_bytes(key),
+                    );
                     if !tv_dict_add(&mut *dict, di) {
                         for (_, d) in dict.dv_hashtab.iter_items_mut() {
                             d.di_tv.v_type = VarType::VarSpecial;

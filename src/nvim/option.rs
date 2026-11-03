@@ -8358,12 +8358,7 @@ pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
             if !varp.is_null() {
                 let ov = opt_from_varp(opt_idx, varp);
                 let mut opt_tv = opt_to_tv(ov, true);
-                tv_dict_add_tv(
-                    &mut *d,
-                    opt.fullname.as_ptr(),
-                    opt.fullname.to_bytes().len(),
-                    &mut opt_tv,
-                );
+                tv_dict_add_tv(&mut *d, opt.fullname.to_bytes(), &mut opt_tv);
                 tv_clear(&mut opt_tv);
                 optval_free_read(opt_idx, ov);
             }

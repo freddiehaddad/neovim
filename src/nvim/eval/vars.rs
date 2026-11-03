@@ -2156,7 +2156,7 @@ pub fn do_unlet(name: impl crate::strings::IntoCCharPtr, name_len: usize, forcei
 
             let mut hi = hash_find(&*ht, varname);
             if hashitem_empty(&*hi) {
-                hi = find_hi_in_scoped_ht(name, &raw mut ht);
+                hi = find_hi_in_scoped_ht(name, &mut ht);
             }
             if !hi.is_null() && !hashitem_empty(&*hi) {
                 let di = tv_dict_hi2di(hi);
@@ -2686,8 +2686,7 @@ pub fn find_var(
         }
 
         find_var_in_scoped_ht(
-            name,
-            name_len,
+            crate::memory::cstr_slice(name, name_len),
             i32::from(no_autoload != 0 || !htp.is_null()),
         )
     }
@@ -3069,7 +3068,7 @@ pub fn set_var_const(
         let mut di = find_var_in_ht(&mut *ht, 0, varname, varname_len, 1);
 
         if di.is_null() {
-            di = find_var_in_scoped_ht(name, name_len, 1);
+            di = find_var_in_scoped_ht(crate::memory::cstr_slice(name, name_len), 1);
         }
 
         if tv_is_func(tv) && var_wrong_func_name(name, di.is_null()) {
@@ -3117,7 +3116,10 @@ pub fn set_var_const(
 
             debug_assert!(!dict.is_null());
 
-            di = crate::eval::typval::tv_dict_item_alloc_len(varname, varname_len);
+            di = crate::eval::typval::tv_dict_item_alloc_len(crate::memory::cstr_slice(
+                varname,
+                varname_len,
+            ));
             if !hash_add(&mut *ht, &mut *di) {
                 crate::eval::typval::tv_dict_item_free(di);
                 return;

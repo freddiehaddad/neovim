@@ -3748,7 +3748,7 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool)
     if match_.cp_user_data.v_type == VAR_UNKNOWN {
         tv_dict_add_str_len(di, c"user_data", c"", 0);
     } else {
-        tv_dict_add_tv(di, c"user_data", 9, &mut match_.cp_user_data);
+        tv_dict_add_tv(di, b"user_data", &mut match_.cp_user_data);
     }
 }
 

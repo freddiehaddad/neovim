@@ -765,7 +765,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: *mut TypVal) -> bool {
                                 idx: 0,
                             };
                         } else {
-                            let di = tv_dict_item_alloc_len(s, len);
+                            let di = tv_dict_item_alloc_len(crate::memory::cstr_slice(s, len));
                             if !tv_dict_add(&mut *cur.tv_mut().vval.v_dict(), di) {
                                 std::process::abort();
                             }

@@ -459,7 +459,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             let mut oldtv: TypVal = TypVal::new();
 
             if di.is_null() {
-                di = tv_dict_item_alloc_len(key.data, key.size);
+                di = tv_dict_item_alloc_len(key.as_bytes());
                 let _ = tv_dict_add(&mut *dict, di);
             } else {
                 let mut type_error = false;

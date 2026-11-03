@@ -51,7 +51,6 @@ use crate::lua::executor::{
     api_free_luaref, nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx,
 };
 use crate::math::{FAIL, OK};
-use crate::mbyte::mb_strnicmp;
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -524,50 +523,48 @@ fn get_lambda_name() -> NvimString {
 }
 
 /// Allocate a `UserFunc` for a function called `name`.
-fn alloc_ufunc(name: impl crate::strings::IntoCCharPtr, namelen: usize) -> &'static mut UserFunc {
-    let name = name.into_c_char_ptr();
-    {
-        let name_cstr = cstr_from_bytes(crate::memory::cstr_slice(name, namelen));
-        let mut fp = Box::new(UserFunc {
-            uf_varargs: 0,
-            uf_flags: 0,
-            uf_calls: 0,
-            uf_cleared: false,
-            uf_args: Vec::new(),
-            uf_def_args: Vec::new(),
-            uf_lines: Vec::new(),
-            uf_profiling: 0,
-            uf_prof_initialized: 0,
-            uf_luaref: 0,
-            uf_tm_count: 0,
-            uf_tm_total: 0,
-            uf_tm_self: 0,
-            uf_tm_children: 0,
-            uf_tml_count: Vec::new(),
-            uf_tml_total: Vec::new(),
-            uf_tml_self: Vec::new(),
-            uf_tml_start: 0,
-            uf_tml_children: 0,
-            uf_tml_wait: 0,
-            uf_tml_idx: 0,
-            uf_tml_execed: 0,
-            uf_script_ctx: crate::runtime::Sctx::new(),
-            uf_refcount: 0,
-            uf_scoped: ptr::null_mut(),
-            uf_name_exp: None,
-            uf_namelen: namelen,
-            uf_name: name_cstr,
-        });
+fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
+    let namelen = name.len();
+    let name_cstr = cstr_from_bytes(name);
+    let mut fp = Box::new(UserFunc {
+        uf_varargs: 0,
+        uf_flags: 0,
+        uf_calls: 0,
+        uf_cleared: false,
+        uf_args: Vec::new(),
+        uf_def_args: Vec::new(),
+        uf_lines: Vec::new(),
+        uf_profiling: 0,
+        uf_prof_initialized: 0,
+        uf_luaref: 0,
+        uf_tm_count: 0,
+        uf_tm_total: 0,
+        uf_tm_self: 0,
+        uf_tm_children: 0,
+        uf_tml_count: Vec::new(),
+        uf_tml_total: Vec::new(),
+        uf_tml_self: Vec::new(),
+        uf_tml_start: 0,
+        uf_tml_children: 0,
+        uf_tml_wait: 0,
+        uf_tml_idx: 0,
+        uf_tml_execed: 0,
+        uf_script_ctx: crate::runtime::Sctx::new(),
+        uf_refcount: 0,
+        uf_scoped: ptr::null_mut(),
+        uf_name_exp: None,
+        uf_namelen: namelen,
+        uf_name: name_cstr,
+    });
 
-        if crate::memory::cstr_first_byte(name) == K_SPECIAL {
-            let mut bytes = Vec::with_capacity(namelen + 2);
-            bytes.extend_from_slice(b"<SNR>");
-            bytes.extend_from_slice(&uf2hikey(&fp).to_bytes()[3..]);
-            fp.uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
-        }
-
-        Box::leak(fp)
+    if name.first() == Some(&K_SPECIAL) {
+        let mut bytes = Vec::with_capacity(namelen + 2);
+        bytes.extend_from_slice(b"<SNR>");
+        bytes.extend_from_slice(&uf2hikey(&fp).to_bytes()[3..]);
+        fp.uf_name_exp = Some(std::ffi::CString::new(bytes).unwrap());
     }
+
+    Box::leak(fp)
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
@@ -631,7 +628,7 @@ pub fn get_lambda_tv<T>(
             let mut flags = 0;
 
             let name = get_lambda_name();
-            let fp = alloc_ufunc(name.data, name.size);
+            let fp = alloc_ufunc(name.as_bytes());
             let pt = Box::leak(Box::new(TvPartial::default()));
 
             let expr_len = crate::memory::ptr_offset_from(end, start) as usize;
@@ -874,8 +871,7 @@ pub fn get_func_tv<T>(
 
 /// Check whether function name starts with `<SID>` or `s:`.
 #[inline]
-fn eval_fname_sid(name: impl crate::strings::IntoCCharPtr) -> bool {
-    let name_bytes = crate::memory::cstr_as_bytes(name);
+fn eval_fname_sid(name_bytes: &[u8]) -> bool {
     name_bytes.first() == Some(&b's')
         || name_bytes
             .get(2)
@@ -890,7 +886,8 @@ fn fname_trans_sid(
     error: &mut i32,
 ) -> *mut u8 {
     let name: *const u8 = name.into_c_char_ptr().cast();
-    let script_off = eval_fname_script(name.cast()) as usize;
+    let name_bytes = crate::memory::cstr_as_bytes(name.cast());
+    let script_off = eval_fname_script(name_bytes);
     if script_off == 0 {
         return name.cast_mut();
     }
@@ -898,7 +895,7 @@ fn fname_trans_sid(
 
     fname_buf[..4].copy_from_slice(&[K_SPECIAL, KS_EXTRA, KE_SNR, 0]);
     let mut fname_buflen = 3usize;
-    if eval_fname_sid(name.cast()) {
+    if eval_fname_sid(name_bytes) {
         if g_st().current_sctx.sc_sid <= 0 {
             *error = FCERR_SCRIPT;
         } else {
@@ -991,27 +988,27 @@ fn func_is_global(ufunc: &UserFunc) -> bool {
     ufunc.uf_name.as_bytes_with_nul()[0] != K_SPECIAL
 }
 
-fn cat_func_name<T>(buf: *mut T, bufsize: usize, fp: &UserFunc) -> i32 {
-    let buf = buf.cast();
+fn cat_func_name(buf: &mut [u8], fp: &UserFunc) -> usize {
+    let bufsize = buf.len();
     let uflen = fp.uf_namelen;
     debug_assert!(uflen > 0);
 
     let len = if !func_is_global(fp) && uflen > 3 {
         vim_snprintf!(
-            buf,
+            buf.as_mut_ptr().cast(),
             bufsize,
             c"<SNR>%s",
             uf2hikey(fp).as_ptr().wrapping_add(3)
         )
     } else {
-        vim_snprintf!(buf, bufsize, c"%s", uf2hikey(fp))
+        vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, c"%s", uf2hikey(fp))
     };
 
     debug_assert!(len > 0);
-    if len >= bufsize as i32 {
-        bufsize as i32 - 1
+    if len as usize >= bufsize {
+        bufsize.saturating_sub(1)
     } else {
-        len
+        len as usize
     }
 }
 
@@ -1254,7 +1251,7 @@ pub fn call_user_func(
             VAR_DEF_SCOPE,
         );
         if !selfdict.is_null() {
-            let v = tv_dict_item_alloc_len(c"self", 4);
+            let v = tv_dict_item_alloc_len(b"self");
             v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             v.di_tv.v_type = VarType::VarDict;
             v.di_tv.v_lock = VAR_UNLOCKED;
@@ -1283,7 +1280,7 @@ pub fn call_user_func(
         }
         fc.fc_l_avars.dv_lock = VAR_FIXED;
         if (fp.uf_flags & FC_NOARGS) == 0 {
-            let v = tv_dict_item_alloc_len(c"000", 3);
+            let v = tv_dict_item_alloc_len(b"000");
             v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
             v.di_tv.v_type = VarType::VarList;
             v.di_tv.v_lock = VAR_FIXED;
@@ -1342,7 +1339,7 @@ pub fn call_user_func(
                 name = numbuf.as_ptr();
             }
 
-            let v = tv_dict_item_alloc_len(name.cast(), namelen);
+            let v = tv_dict_item_alloc_len(crate::memory::cstr_slice(name.cast(), namelen));
             v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
 
             v.di_tv = if isdefault {
@@ -1697,25 +1694,12 @@ pub fn free_all_functions() {
 }
 
 /// Checks if a builtin function with the given name exists.
-fn builtin_function(name: impl crate::strings::IntoCCharPtr, len: i32) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let name_bytes = crate::memory::cstr_as_bytes(name);
-        if !name_bytes
-            .first()
-            .is_some_and(|&b| ascii_islower(i32::from(b)))
-            || name_bytes.get(1) == Some(&b':')
-        {
-            return false;
-        }
-
-        let bytes = if len == -1 {
-            crate::memory::cstr_as_bytes(name)
-        } else {
-            crate::memory::cstr_slice(name, len as usize)
-        };
-        !bytes.contains(&AUTOLOAD_CHAR)
+fn builtin_function(bytes: &[u8]) -> bool {
+    if !bytes.first().is_some_and(|&b| ascii_islower(i32::from(b))) || bytes.get(1) == Some(&b':') {
+        return false;
     }
+
+    !bytes.contains(&AUTOLOAD_CHAR)
 }
 
 pub fn func_call(
@@ -1928,7 +1912,9 @@ pub fn call_func(
                     name_owned = None;
                     funcname = c"v:lua".as_ptr();
                 }
-            } else if !fp.is_null() || !builtin_function(rfname.cast(), -1) {
+            } else if !fp.is_null()
+                || !builtin_function(crate::memory::cstr_as_bytes(rfname.cast()))
+            {
                 if fp.is_null() {
                     fp = find_func(rfname.cast());
                 }
@@ -2012,80 +1998,74 @@ pub fn call_func(
     }
 }
 
-pub fn call_simple_luafunc(
-    funcname: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    rettv: &mut TypVal,
-) -> i32 {
-    let funcname = funcname.into_c_char_ptr();
+pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> i32 {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
     let mut argvars: [TypVal; 1] = [TypVal::new(); 1];
     argvars[0].v_type = VarType::VarUnknown;
-    nlua_call_vlua(funcname, len, argvars.as_mut_ptr(), 0, &mut *rettv);
+    nlua_call_vlua(
+        funcname.as_ptr().cast(),
+        funcname.len(),
+        argvars.as_mut_ptr(),
+        0,
+        &mut *rettv,
+    );
     OK
 }
 
-pub fn call_simple_func(
-    funcname: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    rettv: &mut TypVal,
-) -> i32 {
-    let funcname = funcname.into_c_char_ptr();
-    {
-        let mut ret = FAIL;
+pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> i32 {
+    let mut ret = FAIL;
 
-        rettv.v_type = VarType::VarNumber;
-        rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    rettv.v_type = VarType::VarNumber;
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
-        let name = cstr_from_bytes(crate::memory::cstr_slice(funcname, len));
+    let name = cstr_from_bytes(funcname);
 
-        let mut error = FCERR_NONE;
-        let mut tofree: Option<std::ffi::CString> = None;
-        let mut fname_buf = [0u8; FLEN_FIXED + 1];
-        let fname = fname_trans_sid(name.as_ptr(), &mut fname_buf, &mut tofree, &mut error);
+    let mut error = FCERR_NONE;
+    let mut tofree: Option<std::ffi::CString> = None;
+    let mut fname_buf = [0u8; FLEN_FIXED + 1];
+    let fname = fname_trans_sid(name.as_ptr(), &mut fname_buf, &mut tofree, &mut error);
 
-        let is_global = crate::memory::cstr_as_bytes(fname.cast()).starts_with(b"g:");
-        let rfname = if is_global {
-            fname.wrapping_add(2)
-        } else {
-            fname
-        };
+    let is_global = crate::memory::cstr_as_bytes(fname.cast()).starts_with(b"g:");
+    let rfname = if is_global {
+        fname.wrapping_add(2)
+    } else {
+        fname
+    };
 
-        let fp = find_func(rfname.cast());
-        let Some(fp_ref) = (unsafe { fp.as_mut() }) else {
-            ret = NOTDONE;
-            user_func_error(error, name.as_ptr(), false);
-            drop(tofree);
-            return ret;
-        };
-        if (fp_ref.uf_flags & FC_DELETED) != 0 {
-            error = FCERR_DELETED;
-        } else {
-            let mut argvars: [TypVal; 1] = [TypVal::new(); 1];
-            argvars[0].v_type = VarType::VarUnknown;
-            let mut funcexe = Funcexe::new();
-            funcexe.fe_evaluate = true;
-
-            error = call_user_func_check(
-                fp_ref,
-                0,
-                argvars.as_mut_ptr(),
-                &mut *rettv,
-                &mut funcexe,
-                ptr::null_mut(),
-            );
-            if error == FCERR_NONE {
-                ret = OK;
-            }
-        }
-
+    let fp = find_func(rfname.cast());
+    let Some(fp_ref) = (unsafe { fp.as_mut() }) else {
+        ret = NOTDONE;
         user_func_error(error, name.as_ptr(), false);
         drop(tofree);
+        return ret;
+    };
+    if (fp_ref.uf_flags & FC_DELETED) != 0 {
+        error = FCERR_DELETED;
+    } else {
+        let mut argvars: [TypVal; 1] = [TypVal::new(); 1];
+        argvars[0].v_type = VarType::VarUnknown;
+        let mut funcexe = Funcexe::new();
+        funcexe.fe_evaluate = true;
 
-        ret
+        error = call_user_func_check(
+            fp_ref,
+            0,
+            argvars.as_mut_ptr(),
+            &mut *rettv,
+            &mut funcexe,
+            ptr::null_mut(),
+        );
+        if error == FCERR_NONE {
+            ret = OK;
+        }
     }
+
+    user_func_error(error, name.as_ptr(), false);
+    drop(tofree);
+
+    ret
 }
 
 pub fn printable_func_name(fp: &mut UserFunc) -> &CStr {
@@ -2195,7 +2175,7 @@ pub fn trans_function_name<T>(
             )));
         }
 
-        let mut lead = eval_fname_script(start.cast());
+        let mut lead = eval_fname_script(crate::memory::cstr_as_bytes(start.cast())) as i32;
         if lead > 2 {
             start = start.wrapping_add(lead as usize);
         }
@@ -2343,8 +2323,8 @@ pub fn trans_function_name<T>(
             if lv
                 .ll_exp_name
                 .as_ref()
-                .is_some_and(|s| eval_fname_sid(s.as_ptr()))
-                || eval_fname_sid((*pp).cast())
+                .is_some_and(|s| eval_fname_sid(s.as_bytes()))
+                || eval_fname_sid(crate::memory::cstr_as_bytes((*pp).cast()))
             {
                 if g_st().current_sctx.sc_sid <= 0 {
                     emsg(gettext(E_USINGSID));
@@ -2359,7 +2339,7 @@ pub fn trans_function_name<T>(
                 lead += sid_buflen as i32;
             }
         } else if (flags & TFN_INT) == 0
-            && builtin_function(lv.ll_name.cast(), lv.ll_name_len as i32)
+            && builtin_function(crate::memory::cstr_slice(lv.ll_name.cast(), lv.ll_name_len))
         {
             semsg!(
                 gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
@@ -2770,7 +2750,7 @@ fn get_function_body(
                     if *p as u8 == b'!' {
                         p = skipwhite(p.wrapping_add(1));
                     }
-                    p = p.wrapping_add(eval_fname_script(p) as usize);
+                    p = p.wrapping_add(eval_fname_script(crate::memory::cstr_as_bytes(p)));
                     let _ = trans_function_name(&raw mut p, true, 0, None, ptr::null_mut());
                     if *skipwhite(p) as u8 == b'(' {
                         if nesting == MAX_FUNC_NESTING - 1 {
@@ -3227,7 +3207,7 @@ pub fn ex_function(eap: &mut Exarg) {
             if namelen == 0 {
                 namelen = crate::memory::cstr_len(name);
             }
-            fp = alloc_ufunc(name, namelen);
+            fp = alloc_ufunc(crate::memory::cstr_slice(name, namelen));
 
             if !fudi.fd_dict.is_null() {
                 if fudi.fd_di.is_null() {
@@ -3283,25 +3263,22 @@ pub fn ex_function(eap: &mut Exarg) {
 
 /// Return 5 if `p` starts with `<SID>` or `<SNR>` (ignoring case),
 /// 2 if `p` starts with `s:`, 0 otherwise.
-pub fn eval_fname_script(p: impl crate::strings::IntoCCharPtr) -> i32 {
-    let p = p.into_c_char_ptr();
+pub fn eval_fname_script(bytes: &[u8]) -> usize {
+    if bytes.len() >= 5
+        && bytes[0] == b'<'
+        && (bytes[1..5].eq_ignore_ascii_case(b"SID>") || bytes[1..5].eq_ignore_ascii_case(b"SNR>"))
     {
-        if crate::memory::cstr_first_byte(p) == b'<'
-            && (mb_strnicmp(p.wrapping_add(1), c"SID>", 4) == 0
-                || mb_strnicmp(p.wrapping_add(1), c"SNR>", 4) == 0)
-        {
-            return 5;
-        }
-        if crate::memory::cstr_as_bytes(p).starts_with(b"s:") {
-            return 2;
-        }
-        0
+        return 5;
     }
+    if bytes.starts_with(b"s:") {
+        return 2;
+    }
+    0
 }
 
 pub fn translated_function_exists(name: impl crate::strings::IntoCCharPtr) -> bool {
     let name = name.into_c_char_ptr();
-    if builtin_function(name, -1) {
+    if builtin_function(crate::memory::cstr_as_bytes(name)) {
         return !find_internal_func(name).is_null();
     }
     !find_func(name).is_null()
@@ -3353,7 +3330,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
         }
 
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let len = cat_func_name(iobuff_ptr, IOSIZE, &*fp) as usize;
+        let len = cat_func_name(g_st().iobuff_bytes_mut(), &*fp);
         if xp.xp_context != EXPAND_USER_FUNC {
             crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
             if fp.uf_varargs == 0 && fp.uf_args.is_empty() {
@@ -3665,7 +3642,7 @@ fn ex_defer_inner<T>(
         argcount += partial_argc;
 
         if r {
-            if builtin_function(name, -1) {
+            if builtin_function(crate::memory::cstr_as_bytes(name)) {
                 let fdef = find_internal_func(name);
                 if fdef.is_null() {
                     emsg_funcname(E_UNKNOWN_FUNCTION_STR, name);
@@ -4220,7 +4197,7 @@ pub fn get_current_funccal_dict(ht: *mut Hashtab) -> *mut TvDict {
 
 pub fn find_hi_in_scoped_ht(
     name: impl crate::strings::IntoCCharPtr,
-    pht: *mut *mut Hashtab,
+    pht: &mut *mut Hashtab,
 ) -> *mut Hashitem {
     let name = name.into_c_char_ptr();
     unsafe {
@@ -4258,12 +4235,9 @@ pub fn find_hi_in_scoped_ht(
     }
 }
 
-pub fn find_var_in_scoped_ht(
-    name: impl crate::strings::IntoCCharPtr,
-    namelen: usize,
-    no_autoload: i32,
-) -> *mut Dictitem {
-    let name = name.into_c_char_ptr();
+pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> *mut Dictitem {
+    let name: *const i8 = name_slice.as_ptr().cast();
+    let namelen = name_slice.len();
     unsafe {
         if uf_st().current_funccal.is_null() || (*cur_funccal_mut().fc_func).uf_scoped.is_null() {
             return ptr::null_mut();
@@ -4427,7 +4401,7 @@ pub fn set_ref_in_func(
 /// Registers a luaref as a lambda.
 pub fn register_luafunc(ref_: LuaRef) -> &'static std::ffi::CStr {
     let name = get_lambda_name();
-    let fp = alloc_ufunc(name.data, name.size);
+    let fp = alloc_ufunc(name.as_bytes());
 
     fp.uf_refcount = 1;
     fp.uf_varargs = 1;
@@ -4451,16 +4425,16 @@ mod tests {
 
     #[test]
     fn builtin_function_and_func_name_helpers_work() {
-        assert!(eval_fname_sid(c"s:Foo"));
-        assert!(eval_fname_sid(c"<SID>Foo"));
-        assert!(eval_fname_sid(c"<sid>Foo"));
-        assert!(!eval_fname_sid(c"<SNR>12_Foo"));
+        assert!(eval_fname_sid(b"s:Foo"));
+        assert!(eval_fname_sid(b"<SID>Foo"));
+        assert!(eval_fname_sid(b"<sid>Foo"));
+        assert!(!eval_fname_sid(b"<SNR>12_Foo"));
         assert!(func_name_refcount(c"123"));
         assert!(func_name_refcount(c"<lambda>1"));
         assert!(!func_name_refcount(c"MyFunc"));
-        assert!(builtin_function(c"abs", -1));
-        assert!(!builtin_function(c"s:abs", -1));
-        assert!(!builtin_function(c"foo#bar", -1));
-        assert!(!builtin_function(c"Foo", -1));
+        assert!(builtin_function(b"abs"));
+        assert!(!builtin_function(b"s:abs"));
+        assert!(!builtin_function(b"foo#bar"));
+        assert!(!builtin_function(b"Foo"));
     }
 }

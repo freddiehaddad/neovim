@@ -566,7 +566,7 @@ pub fn dict_set_var(
             let mut oldtv: TypVal = TypVal::new();
 
             if di.is_null() {
-                di = tv_dict_item_alloc_len(key.data, key.size);
+                di = tv_dict_item_alloc_len(key.as_bytes());
                 tv_dict_add(dict, di);
             } else {
                 if retval {

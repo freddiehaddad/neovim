@@ -2181,7 +2181,10 @@ pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut 
             if crate::memory::cstr_as_bytes(arg).starts_with(b"v:lua.") {
                 let p = arg.wrapping_add(6);
                 if p != parens && skip_luafunc_name(p) == parens.cast() {
-                    r = call_simple_luafunc(p, (parens as usize).wrapping_sub(p as usize), rettv);
+                    r = call_simple_luafunc(
+                        crate::memory::cstr_slice(p, (parens as usize).wrapping_sub(p as usize)),
+                        rettv,
+                    );
                 }
             } else {
                 let p = if crate::memory::cstr_as_bytes(arg).starts_with(b"<SNR>") {
@@ -2190,7 +2193,13 @@ pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut 
                     arg
                 };
                 if to_name_end(p, true) == parens {
-                    r = call_simple_func(arg, (parens as usize).wrapping_sub(arg as usize), rettv);
+                    r = call_simple_func(
+                        crate::memory::cstr_slice(
+                            arg,
+                            (parens as usize).wrapping_sub(arg as usize),
+                        ),
+                        rettv,
+                    );
                 }
             }
         }
@@ -5863,7 +5872,7 @@ pub fn get_name_len<T>(
             *arg = (*arg).wrapping_add(3);
             return get_id_len(arg) + 3;
         }
-        let mut len = eval_fname_script((*arg).cast());
+        let mut len = eval_fname_script(crate::memory::cstr_as_bytes((*arg).cast())) as i32;
         if len > 0 {
             *arg = (*arg).wrapping_add(len as usize);
         }

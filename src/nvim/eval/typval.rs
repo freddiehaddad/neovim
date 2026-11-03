@@ -2590,28 +2590,18 @@ pub fn tv_list_idx_of_item(l: Option<&TvList>, item: *const Listitem) -> i32 {
 }
 
 /// Add watcher to a dictionary.
-pub fn tv_dict_watcher_add(
-    dict: Option<&mut TvDict>,
-    key_pattern: impl crate::strings::IntoCCharPtr,
-    key_pattern_len: usize,
-    callback: Callback,
-) {
-    let key_pattern = key_pattern.into_c_char_ptr();
-    {
-        if dict.is_none() {
-            return;
-        }
-        dict.unwrap().watchers.push(DictWatcher {
-            key_pattern: crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-                key_pattern,
-                key_pattern_len,
-            )),
-            key_pattern_len,
-            callback,
-            busy: false,
-            needs_free: false,
-        });
-    }
+pub fn tv_dict_watcher_add(dict: Option<&mut TvDict>, key_pattern: &[u8], callback: Callback) {
+    let Some(dict) = dict else {
+        return;
+    };
+    let key_pattern_len = key_pattern.len();
+    dict.watchers.push(DictWatcher {
+        key_pattern: crate::memory::cstr_from_bytes(key_pattern),
+        key_pattern_len,
+        callback,
+        busy: false,
+        needs_free: false,
+    });
 }
 
 /// Check whether two callbacks are equal.
@@ -2741,59 +2731,51 @@ pub fn callback_to_string(cb: &mut Callback) -> std::ffi::CString {
 /// Remove watcher from a dictionary.
 pub fn tv_dict_watcher_remove(
     mut dict: Option<&mut TvDict>,
-    key_pattern: impl crate::strings::IntoCCharPtr,
-    key_pattern_len: usize,
+    key_pattern: &[u8],
     callback: &Callback,
 ) -> bool {
-    let key_pattern = key_pattern.into_c_char_ptr();
-    {
-        if dict.is_none() {
-            return false;
-        }
-
-        let mut matched_idx: Option<usize> = None;
-        let mut queue_is_busy = false;
-        for (idx, w) in dict.as_deref_mut().unwrap().watchers.iter().enumerate() {
-            if w.busy {
-                queue_is_busy = true;
-            }
-            if matched_idx.is_none()
-                && tv_callback_equal(&w.callback, callback)
-                && w.key_pattern_len == key_pattern_len
-                && w.key_pattern.as_bytes()
-                    == crate::memory::cstr_slice(key_pattern, key_pattern_len)
-            {
-                matched_idx = Some(idx);
-                if queue_is_busy {
-                    break;
-                }
-            }
-        }
-
-        let Some(idx) = matched_idx else {
-            return false;
-        };
-
-        if queue_is_busy {
-            (&mut dict.as_deref_mut().unwrap().watchers)[idx].needs_free = true;
-        } else {
-            dict.unwrap().watchers.remove(idx);
-        }
-        true
+    if dict.is_none() {
+        return false;
     }
+    let key_pattern_len = key_pattern.len();
+
+    let mut matched_idx: Option<usize> = None;
+    let mut queue_is_busy = false;
+    for (idx, w) in dict.as_deref_mut().unwrap().watchers.iter().enumerate() {
+        if w.busy {
+            queue_is_busy = true;
+        }
+        if matched_idx.is_none()
+            && tv_callback_equal(&w.callback, callback)
+            && w.key_pattern_len == key_pattern_len
+            && w.key_pattern.as_bytes() == key_pattern
+        {
+            matched_idx = Some(idx);
+            if queue_is_busy {
+                break;
+            }
+        }
+    }
+
+    let Some(idx) = matched_idx else {
+        return false;
+    };
+
+    if queue_is_busy {
+        (&mut dict.as_deref_mut().unwrap().watchers)[idx].needs_free = true;
+    } else {
+        dict.unwrap().watchers.remove(idx);
+    }
+    true
 }
 
 /// Test if `key` matches with `watcher->key_pattern`.
-fn tv_dict_watcher_matches(watcher: &DictWatcher, key: impl crate::strings::IntoCCharPtr) -> bool {
-    let key = key.into_c_char_ptr();
-    {
-        let pat_bytes = watcher.key_pattern.as_bytes();
-        let key_bytes = crate::memory::cstr_as_bytes(key);
-        if let Some(prefix) = pat_bytes.strip_suffix(b"*") {
-            key_bytes.starts_with(prefix)
-        } else {
-            key_bytes == pat_bytes
-        }
+fn tv_dict_watcher_matches(watcher: &DictWatcher, key_bytes: &[u8]) -> bool {
+    let pat_bytes = watcher.key_pattern.as_bytes();
+    if let Some(prefix) = pat_bytes.strip_suffix(b"*") {
+        key_bytes.starts_with(prefix)
+    } else {
+        key_bytes == pat_bytes
     }
 }
 
@@ -2820,7 +2802,7 @@ pub fn tv_dict_watcher_notify(
         changes_dict.dv_refcount += 1;
 
         if let Some(newtv) = newtv {
-            let v = tv_dict_item_alloc_len(c"new", 3);
+            let v = tv_dict_item_alloc_len(b"new");
             tv_copy(newtv, &mut v.di_tv);
             tv_dict_add(&mut *changes_dict, v);
         }
@@ -2828,18 +2810,19 @@ pub fn tv_dict_watcher_notify(
         if let Some(oldtv) = oldtv
             && oldtv.v_type != VarType::VarUnknown
         {
-            let v = tv_dict_item_alloc_len(c"old", 3);
+            let v = tv_dict_item_alloc_len(b"old");
             tv_copy(oldtv, &mut v.di_tv);
             tv_dict_add(&mut *changes_dict, v);
         }
 
         let mut any_needs_free = false;
         dict.dv_refcount += 1;
+        let key_bytes = crate::memory::cstr_as_bytes(key);
         let len = dict.watchers.len();
         for i in 0..len {
             let matches = {
                 let w = &(&dict.watchers)[i];
-                !w.busy && tv_dict_watcher_matches(w, key)
+                !w.busy && tv_dict_watcher_matches(w, key_bytes)
             };
             if matches {
                 let mut rettv = tv_initial_value();
@@ -2867,15 +2850,9 @@ pub fn tv_dict_watcher_notify(
 }
 
 /// Allocate a dictionary item.
-pub fn tv_dict_item_alloc_len(
-    key: impl crate::strings::IntoCCharPtr,
-    key_len: usize,
-) -> &'static mut Dictitem {
-    let key = key.into_c_char_ptr();
-    let mut key_vec = Vec::with_capacity(key_len + 1);
-    if key_len > 0 {
-        key_vec.extend_from_slice(crate::memory::cstr_slice(key, key_len));
-    }
+pub fn tv_dict_item_alloc_len(key: &[u8]) -> &'static mut Dictitem {
+    let mut key_vec = Vec::with_capacity(key.len() + 1);
+    key_vec.extend_from_slice(key);
     key_vec.push(0);
     Box::leak(Box::new(Dictitem {
         di_tv: TypVal {
@@ -2890,8 +2867,7 @@ pub fn tv_dict_item_alloc_len(
 
 /// Allocate a dictionary item.
 pub fn tv_dict_item_alloc(key: impl crate::strings::IntoCCharPtr) -> &'static mut Dictitem {
-    let key = key.into_c_char_ptr();
-    tv_dict_item_alloc_len(key, crate::memory::cstr_len(key))
+    tv_dict_item_alloc_len(crate::memory::cstr_as_bytes(key))
 }
 
 /// Free a dictionary item, also clearing the value.
@@ -3177,7 +3153,7 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
 ) -> bool {
     let key = key.into_c_char_ptr();
     {
-        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
+        let item = tv_dict_item_alloc_len(crate::memory::cstr_as_bytes(key));
         item.di_tv.v_type = VarType::VarList;
         item.di_tv.vval = crate::eval::typval::TypvalVval::List(list);
         if !tv_dict_add(d, item) {
@@ -3191,22 +3167,14 @@ pub fn tv_dict_add_list<S: crate::strings::IntoCCharPtr>(
 }
 
 /// Add a typval entry to dictionary.
-pub fn tv_dict_add_tv(
-    d: &mut TvDict,
-    key: impl crate::strings::IntoCCharPtr,
-    key_len: usize,
-    tv: &mut TypVal,
-) -> bool {
-    let key = key.into_c_char_ptr();
-    {
-        let item = tv_dict_item_alloc_len(key, key_len);
-        tv_copy(&*tv, &mut item.di_tv);
-        if !tv_dict_add(d, item) {
-            tv_dict_item_free(item);
-            return false;
-        }
-        true
+pub fn tv_dict_add_tv(d: &mut TvDict, key: &[u8], tv: &mut TypVal) -> bool {
+    let item = tv_dict_item_alloc_len(key);
+    tv_copy(&*tv, &mut item.di_tv);
+    if !tv_dict_add(d, item) {
+        tv_dict_item_free(item);
+        return false;
     }
+    true
 }
 
 /// Add a dictionary entry to dictionary.
@@ -3217,7 +3185,7 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
 ) -> bool {
     let key = key.into_c_char_ptr();
     {
-        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
+        let item = tv_dict_item_alloc_len(crate::memory::cstr_as_bytes(key));
         item.di_tv.v_type = VarType::VarDict;
         item.di_tv.vval = crate::eval::typval::TypvalVval::Dict(dict);
         if !tv_dict_add(d, item) {
@@ -3234,7 +3202,7 @@ pub fn tv_dict_add_dict<S: crate::strings::IntoCCharPtr>(
 
 /// Add a number entry to dictionary.
 pub fn tv_dict_add_nr(d: &mut TvDict, key: &std::ffi::CStr, nr: Varnumber) -> bool {
-    let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+    let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarNumber;
     item.di_tv.vval = crate::eval::typval::TypvalVval::Number(nr);
     if !tv_dict_add(d, item) {
@@ -3246,7 +3214,7 @@ pub fn tv_dict_add_nr(d: &mut TvDict, key: &std::ffi::CStr, nr: Varnumber) -> bo
 
 /// Add a floating point number entry to dictionary.
 pub fn tv_dict_add_float(d: &mut TvDict, key: &std::ffi::CStr, nr: TvFloat) -> bool {
-    let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+    let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarFloat;
     item.di_tv.vval = crate::eval::typval::TypvalVval::Float(nr);
     if !tv_dict_add(d, item) {
@@ -3258,7 +3226,7 @@ pub fn tv_dict_add_float(d: &mut TvDict, key: &std::ffi::CStr, nr: TvFloat) -> b
 
 /// Add a boolean entry to dictionary.
 pub fn tv_dict_add_bool(d: &mut TvDict, key: &std::ffi::CStr, val: BoolVarValue) -> bool {
-    let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+    let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarBool;
     item.di_tv.vval = crate::eval::typval::TypvalVval::Bool(val);
     if !tv_dict_add(d, item) {
@@ -3295,7 +3263,7 @@ pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
         } else {
             tv_alloc_string_bytes(crate::memory::cstr_slice(val, len as usize))
         };
-        let item = tv_dict_item_alloc_len(key, crate::memory::cstr_len(key));
+        let item = tv_dict_item_alloc_len(crate::memory::cstr_as_bytes(key));
         item.di_tv.v_type = VarType::VarString;
         item.di_tv.vval = crate::eval::typval::TypvalVval::String(s);
         if !tv_dict_add(d, item) {
@@ -3308,7 +3276,7 @@ pub fn tv_dict_add_str_len<S: crate::strings::IntoCCharPtr>(
 
 /// Add a function entry to dictionary.
 pub fn tv_dict_add_func(d: &mut TvDict, key: &std::ffi::CStr, fp: &mut UserFunc) -> bool {
-    let item = tv_dict_item_alloc_len(key.as_ptr(), key.to_bytes().len());
+    let item = tv_dict_item_alloc_len(key.to_bytes());
     let name_ptr = fp.uf_name.as_ptr();
     tv_set_string_len(&mut item.di_tv, name_ptr, fp.uf_namelen);
     item.di_tv.v_type = VarType::VarFunc;
@@ -3468,9 +3436,9 @@ pub fn tv_dict_copy(
         let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
             let mut len = crate::memory::cstr_len(key_ptr);
             if let Some(key) = string_convert(conv, key_ptr, Some(&mut len)) {
-                tv_dict_item_alloc_len(key.as_ptr().cast(), len)
+                tv_dict_item_alloc_len(&key[..len])
             } else {
-                tv_dict_item_alloc_len(key_ptr, len)
+                tv_dict_item_alloc_len(crate::memory::cstr_slice(key_ptr, len))
             }
         } else {
             tv_dict_item_alloc(key_ptr)

@@ -2598,7 +2598,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
                         api_clear_error(&mut err);
                         continue;
                     }
-                    tv_dict_add_tv(&mut *v_event, item.key.data, item.key.size, &mut tv);
+                    tv_dict_add_tv(&mut *v_event, item.key.as_bytes(), &mut tv);
                     tv_clear(&mut tv);
                 }
             }

@@ -5840,7 +5840,7 @@ fn get_qfline_items(qfp: &mut Qfline, list: &mut TvList) -> bool {
         || !tv_dict_add_str(&mut *dict, c"text", qfp.qf_text.as_ptr())
         || !tv_dict_add_str_len(&mut *dict, c"type", buf.as_ptr().cast(), buflen as i32)
         || (qfp.qf_user_data.v_type != VarType::VarUnknown
-            && !tv_dict_add_tv(&mut *dict, c"user_data", 9, &mut qfp.qf_user_data))
+            && !tv_dict_add_tv(&mut *dict, b"user_data", &mut qfp.qf_user_data))
         || !tv_dict_add_nr(&mut *dict, c"valid", Varnumber::from(qfp.qf_valid))
     {
         std::process::abort();
@@ -6130,7 +6130,7 @@ fn qf_getprop_items(qi: &mut QfInfo, qf_idx: i32, eidx: i32, retdict: &mut TvDic
 
 fn qf_getprop_ctx(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     if let Some(ref ctx) = qfl.qf_ctx {
-        let di = tv_dict_item_alloc_len(c"context", 7);
+        let di = tv_dict_item_alloc_len(b"context");
         tv_copy(ctx, &mut di.di_tv);
         let status = tv_dict_add(retdict, di);
         if !status {
@@ -6156,7 +6156,7 @@ fn qf_getprop_qftf(qfl: &mut QfList, retdict: &mut TvDict) -> bool {
     if qfl.qf_qftf_cb.cb_type() != K_CALLBACK_NONE_CONST {
         let mut tv: TypVal = TypVal::new();
         callback_put(&mut qfl.qf_qftf_cb, &mut tv);
-        let status = tv_dict_add_tv(retdict, c"quickfixtextfunc", 16, &mut tv);
+        let status = tv_dict_add_tv(retdict, b"quickfixtextfunc", &mut tv);
         tv_clear(&mut tv);
         status
     } else {

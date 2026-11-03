@@ -152,11 +152,9 @@ fn filter_map_dict(
                     newtv.v_lock = VAR_UNLOCKED;
                     di.di_tv = newtv;
                 } else if filtermap == FilterMap::MapNew {
-                    let key_cstr = di.key_cstr();
                     let add_res = tv_dict_add_tv(
                         d_ret.as_deref_mut().unwrap(),
-                        key_cstr,
-                        key_cstr.to_bytes().len(),
+                        di.key_cstr().to_bytes(),
                         &mut newtv,
                     );
                     tv_clear(&mut newtv);
