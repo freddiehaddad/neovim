@@ -1474,120 +1474,126 @@ pub fn parse_cino(buf: &mut FileBuf) {
 /// Return the desired indent for C code.
 /// Return -1 if the indent should be left alone (inside a raw string).
 pub fn get_c_indent() -> i32 {
-    unsafe {
-        let mut amount: i32;
-        let mut scope_amount: i32;
-        let mut cur_amount: i32 = MAXCOL;
-        let mut col: Colnr = 0;
-        let mut trypos: *mut CursorPos;
-        let mut comment_pos: *mut CursorPos;
-        let mut trypos_brace: *mut CursorPos = ptr::null_mut();
-        let mut trypos_copy: CursorPos;
-        let mut our_paren_pos: CursorPos;
-        let start_brace: i32;
-        let mut ourscope: Linenr;
-        let mut l: &'static [u8] = &[];
-        let mut look: &'static [u8] = &[];
-        let mut terminated: u8;
-        let mut lookfor: i32;
-        let mut whilelevel: i32;
-        let mut lnum: Linenr;
-        let mut n: i32;
-        let mut lookfor_break: bool;
-        let mut lookfor_cpp_namespace = false;
-        let mut cont_amount: i32 = 0;
-        let mut added_to_amount: i32 = 0;
-        let mut raw_string_start: Linenr = 0;
-        let mut cache_cpp_baseclass = CppBaseclassCache {
-            found: 0,
-            lpos: Lpos {
-                lnum: MAXLNUM,
-                col: 0,
-            },
-        };
-        let mut ind_continuation = curbuf_mut().b_ind_continuation;
-        let cur_curpos = curwin_mut().w_cursor;
-        if cur_curpos.lnum == 1 {
-            return 0;
-        }
-        let mut linecopy_bytes = crate::memline::ml_get_slice(cur_curpos.lnum).to_vec();
-        linecopy_bytes.push(0);
-        if (g_st().state_global & MODE_INSERT) != 0
-            && (curwin_mut().w_cursor.col as usize) < linecopy_bytes.len().saturating_sub(1)
-            && linecopy_bytes[curwin_mut().w_cursor.col as usize] == b')'
-        {
-            linecopy_bytes[curwin_mut().w_cursor.col as usize] = 0;
-        }
-        let linecopy_len = linecopy_bytes
-            .iter()
-            .position(|&b| b == 0)
-            .unwrap_or(linecopy_bytes.len());
-        let linecopy_slice = &linecopy_bytes[..linecopy_len];
-        let theline_slice = crate::charset::skipwhite_slice(linecopy_slice);
-        let theline_b0 = theline_slice.first().copied().unwrap_or(0);
-        curwin_mut().w_cursor.col = 0;
-        let original_line_islabel = cin_islabel();
-        comment_pos = ind_find_start_comment();
-        if !comment_pos.is_null() {
+    let mut amount: i32;
+    let mut scope_amount: i32;
+    let mut cur_amount: i32 = MAXCOL;
+    let mut col: Colnr = 0;
+    let mut trypos: *mut CursorPos;
+    let mut comment_pos: *mut CursorPos;
+    let mut trypos_brace: *mut CursorPos = ptr::null_mut();
+    let mut trypos_copy: CursorPos;
+    let mut our_paren_pos: CursorPos;
+    let start_brace: i32;
+    let mut ourscope: Linenr;
+    let mut l: &'static [u8] = &[];
+    let mut look: &'static [u8] = &[];
+    let mut terminated: u8;
+    let mut lookfor: i32;
+    let mut whilelevel: i32;
+    let mut lnum: Linenr;
+    let mut n: i32;
+    let mut lookfor_break: bool;
+    let mut lookfor_cpp_namespace = false;
+    let mut cont_amount: i32 = 0;
+    let mut added_to_amount: i32 = 0;
+    let mut raw_string_start: Linenr = 0;
+    let mut cache_cpp_baseclass = CppBaseclassCache {
+        found: 0,
+        lpos: Lpos {
+            lnum: MAXLNUM,
+            col: 0,
+        },
+    };
+    let mut ind_continuation = curbuf_mut().b_ind_continuation;
+    let cur_curpos = curwin_mut().w_cursor;
+    if cur_curpos.lnum == 1 {
+        return 0;
+    }
+    let mut linecopy_bytes = crate::memline::ml_get_slice(cur_curpos.lnum).to_vec();
+    linecopy_bytes.push(0);
+    if (g_st().state_global & MODE_INSERT) != 0
+        && (curwin_mut().w_cursor.col as usize) < linecopy_bytes.len().saturating_sub(1)
+        && linecopy_bytes[curwin_mut().w_cursor.col as usize] == b')'
+    {
+        linecopy_bytes[curwin_mut().w_cursor.col as usize] = 0;
+    }
+    let linecopy_len = linecopy_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(linecopy_bytes.len());
+    let linecopy_slice = &linecopy_bytes[..linecopy_len];
+    let theline_slice = crate::charset::skipwhite_slice(linecopy_slice);
+    let theline_b0 = theline_slice.first().copied().unwrap_or(0);
+    curwin_mut().w_cursor.col = 0;
+    let original_line_islabel = cin_islabel();
+    comment_pos = ind_find_start_comment();
+    if !comment_pos.is_null() {
+        unsafe {
             trypos_copy = *comment_pos;
-            comment_pos = &raw mut trypos_copy;
         }
-        trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
-        'laterend: {
-            if !trypos.is_null() && (comment_pos.is_null() || lt(*trypos, *comment_pos)) {
-                amount = -1;
-                break 'laterend;
-            }
-            'theend: {
-                if theline_b0 == b'#'
-                    && (linecopy_slice.first() == Some(&b'#')
-                        || in_cinkeys(b'#' as i32, b' ' as i32, true))
-                {
-                    let directive = crate::charset::skipwhite_slice(&theline_slice[1..]);
-                    if curbuf_mut().b_ind_pragma == 0 || !directive.starts_with(b"pragma") {
-                        amount = curbuf_mut().b_ind_hash_comment;
-                        break 'theend;
-                    }
-                }
-                if original_line_islabel
-                    && curbuf_mut().b_ind_js == 0
-                    && curbuf_mut().b_ind_jump_label < 0
-                {
-                    amount = 0;
+        comment_pos = &raw mut trypos_copy;
+    }
+    trypos = find_start_rawstring(curbuf_mut().b_ind_maxcomment);
+    'laterend: {
+        if !trypos.is_null() && (unsafe { comment_pos.is_null() || lt(*trypos, *comment_pos) }) {
+            amount = -1;
+            break 'laterend;
+        }
+        'theend: {
+            if theline_b0 == b'#'
+                && (linecopy_slice.first() == Some(&b'#')
+                    || in_cinkeys(b'#' as i32, b' ' as i32, true))
+            {
+                let directive = crate::charset::skipwhite_slice(&theline_slice[1..]);
+                if curbuf_mut().b_ind_pragma == 0 || !directive.starts_with(b"pragma") {
+                    amount = curbuf_mut().b_ind_hash_comment;
                     break 'theend;
                 }
-                if cin_islinecomment_slice(theline_slice) {
-                    let mut linecomment_pos = CursorPos {
-                        lnum: 0,
-                        col: 0,
-                        coladd: 0,
-                    };
-                    trypos = find_line_comment();
-                    if trypos.is_null() && curwin_mut().w_cursor.lnum > 1 {
-                        linecomment_pos.col = check_linecomment(crate::memline::ml_get_slice(
-                            curwin_mut().w_cursor.lnum - 1,
-                        ));
-                        if linecomment_pos.col != MAXCOL {
-                            trypos = &raw mut linecomment_pos;
+            }
+            if original_line_islabel
+                && curbuf_mut().b_ind_js == 0
+                && curbuf_mut().b_ind_jump_label < 0
+            {
+                amount = 0;
+                break 'theend;
+            }
+            if cin_islinecomment_slice(theline_slice) {
+                let mut linecomment_pos = CursorPos {
+                    lnum: 0,
+                    col: 0,
+                    coladd: 0,
+                };
+                trypos = find_line_comment();
+                if trypos.is_null() && curwin_mut().w_cursor.lnum > 1 {
+                    linecomment_pos.col = check_linecomment(crate::memline::ml_get_slice(
+                        curwin_mut().w_cursor.lnum - 1,
+                    ));
+                    if linecomment_pos.col != MAXCOL {
+                        trypos = &raw mut linecomment_pos;
+                        unsafe {
                             (*trypos).lnum = curwin_mut().w_cursor.lnum - 1;
                         }
                     }
-                    if !trypos.is_null() {
-                        getvcol(curwin_mut(), &mut *trypos, Some(&mut col), None, None, 0);
-                        amount = col;
-                        break 'theend;
-                    }
                 }
-                if !cin_iscomment_slice(theline_slice) && !comment_pos.is_null() {
-                    let mut lead_start_len: usize = 2;
-                    let mut lead_middle_len: usize = 1;
-                    let mut lead_start: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-                    let mut lead_middle: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-                    let mut lead_end: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-                    let mut lead_end_len: usize;
-                    let mut start_align: i32 = 0;
-                    let mut start_off: i32 = 0;
-                    let mut done = false;
+                if !trypos.is_null() {
+                    unsafe {
+                        getvcol(curwin_mut(), &mut *trypos, Some(&mut col), None, None, 0);
+                    }
+                    amount = col;
+                    break 'theend;
+                }
+            }
+            if !cin_iscomment_slice(theline_slice) && !comment_pos.is_null() {
+                let mut lead_start_len: usize = 2;
+                let mut lead_middle_len: usize = 1;
+                let mut lead_start: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+                let mut lead_middle: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+                let mut lead_end: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+                let mut lead_end_len: usize;
+                let mut start_align: i32 = 0;
+                let mut start_off: i32 = 0;
+                let mut done = false;
+                unsafe {
                     getvcol(
                         curwin_mut(),
                         &mut *comment_pos,
@@ -1596,130 +1602,129 @@ pub fn get_c_indent() -> i32 {
                         None,
                         0,
                     );
-                    amount = col;
-                    lead_start[0] = 0;
-                    lead_middle[0] = 0;
-                    let mut p = curbuf_mut().b_p_com;
-                    while !crate::memory::cstr_is_empty(p) {
-                        let mut align: i32 = 0;
-                        let mut off: i32 = 0;
-                        let mut what: i32 = 0;
-                        while !crate::memory::cstr_is_empty(p)
-                            && crate::memory::cstr_first_byte(p) != b':'
+                }
+                amount = col;
+                lead_start[0] = 0;
+                lead_middle[0] = 0;
+                let mut p = curbuf_mut().b_p_com;
+                while !crate::memory::cstr_is_empty(p) {
+                    let mut align: i32 = 0;
+                    let mut off: i32 = 0;
+                    let mut what: i32 = 0;
+                    while !crate::memory::cstr_is_empty(p)
+                        && crate::memory::cstr_first_byte(p) != b':'
+                    {
+                        let b = crate::memory::cstr_first_byte(p);
+                        if b == COM_START || b == COM_END || b == COM_MIDDLE {
+                            what = i32::from(b);
+                            p = p.wrapping_add(1);
+                        } else if b == COM_LEFT || b == COM_RIGHT {
+                            align = i32::from(b);
+                            p = p.wrapping_add(1);
+                        } else if ascii_isdigit(crate::memory::cstr_first_byte(p))
+                            || crate::memory::cstr_first_byte(p) == b'-'
                         {
-                            let b = crate::memory::cstr_first_byte(p);
-                            if b == COM_START || b == COM_END || b == COM_MIDDLE {
-                                what = i32::from(b);
-                                p = p.wrapping_add(1);
-                            } else if b == COM_LEFT || b == COM_RIGHT {
-                                align = i32::from(b);
-                                p = p.wrapping_add(1);
-                            } else if ascii_isdigit(crate::memory::cstr_first_byte(p))
-                                || crate::memory::cstr_first_byte(p) == b'-'
-                            {
-                                let p_bytes = crate::memory::cstr_as_bytes(p);
-                                let mut rem = p_bytes;
-                                off = getdigits_int(&mut rem, true, 0);
-                                p = p.wrapping_add(p_bytes.len() - rem.len());
-                            } else {
-                                p = p.wrapping_add(1);
-                            }
-                        }
-                        if crate::memory::cstr_first_byte(p) == b':' {
+                            let p_bytes = crate::memory::cstr_as_bytes(p);
+                            let mut rem = p_bytes;
+                            off = getdigits_int(&mut rem, true, 0);
+                            p = p.wrapping_add(p_bytes.len() - rem.len());
+                        } else {
                             p = p.wrapping_add(1);
                         }
-                        lead_end_len = copy_option_part(
-                            &raw mut p,
-                            (&raw mut lead_end).cast(),
-                            COM_MAX_LEN,
-                            c",",
-                        );
-                        if what == i32::from(COM_START) {
-                            lead_start = lead_end;
-                            lead_start_len = lead_end_len;
-                            start_off = off;
-                            start_align = align;
-                        } else if what == i32::from(COM_MIDDLE) {
-                            lead_middle = lead_end;
-                            lead_middle_len = lead_end_len;
-                        } else if what == i32::from(COM_END) {
-                            if theline_slice.starts_with(&lead_middle[..lead_middle_len])
-                                && !theline_slice.starts_with(&lead_end[..lead_end_len])
-                            {
-                                done = true;
-                                if curwin_mut().w_cursor.lnum > 1 {
-                                    let prev_look = crate::charset::skipwhite_slice(
-                                        crate::memline::ml_get_slice(
-                                            curwin_mut().w_cursor.lnum - 1,
-                                        ),
-                                    );
-                                    if prev_look.starts_with(&lead_start[..lead_start_len]) {
-                                        amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
-                                    } else if prev_look.starts_with(&lead_middle[..lead_middle_len])
+                    }
+                    if crate::memory::cstr_first_byte(p) == b':' {
+                        p = p.wrapping_add(1);
+                    }
+                    lead_end_len =
+                        copy_option_part(&raw mut p, (&raw mut lead_end).cast(), COM_MAX_LEN, c",");
+                    if what == i32::from(COM_START) {
+                        lead_start = lead_end;
+                        lead_start_len = lead_end_len;
+                        start_off = off;
+                        start_align = align;
+                    } else if what == i32::from(COM_MIDDLE) {
+                        lead_middle = lead_end;
+                        lead_middle_len = lead_end_len;
+                    } else if what == i32::from(COM_END) {
+                        if theline_slice.starts_with(&lead_middle[..lead_middle_len])
+                            && !theline_slice.starts_with(&lead_end[..lead_end_len])
+                        {
+                            done = true;
+                            if curwin_mut().w_cursor.lnum > 1 {
+                                let prev_look = crate::charset::skipwhite_slice(
+                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1),
+                                );
+                                if prev_look.starts_with(&lead_start[..lead_start_len]) {
+                                    amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                                } else if prev_look.starts_with(&lead_middle[..lead_middle_len]) {
+                                    amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                                    break;
+                                } else {
+                                    let cp_line = unsafe {
+                                        crate::memline::ml_get_slice((*comment_pos).lnum)
+                                    };
+                                    let cp_col =
+                                        unsafe { ((*comment_pos).col as usize).min(cp_line.len()) };
+                                    if !cp_line[cp_col..].starts_with(&lead_start[..lead_start_len])
                                     {
-                                        amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
-                                        break;
-                                    } else {
-                                        let cp_line =
-                                            crate::memline::ml_get_slice((*comment_pos).lnum);
-                                        let cp_col =
-                                            ((*comment_pos).col as usize).min(cp_line.len());
-                                        if !cp_line[cp_col..]
-                                            .starts_with(&lead_start[..lead_start_len])
-                                        {
-                                            continue;
-                                        }
+                                        continue;
                                     }
                                 }
-                                if start_off != 0 {
-                                    amount += start_off;
-                                } else if start_align == i32::from(COM_RIGHT) {
-                                    amount += vim_strsize((&raw const lead_start).cast())
-                                        - vim_strsize((&raw const lead_middle).cast());
-                                }
-                                break;
                             }
-                            if !theline_slice.starts_with(&lead_middle[..lead_middle_len])
-                                && theline_slice.starts_with(&lead_end[..lead_end_len])
-                            {
-                                amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
-                                if off != 0 {
-                                    amount += off;
-                                } else if align == i32::from(COM_RIGHT) {
-                                    amount += vim_strsize((&raw const lead_start).cast())
-                                        - vim_strsize((&raw const lead_middle).cast());
-                                }
-                                done = true;
-                                break;
+                            if start_off != 0 {
+                                amount += start_off;
+                            } else if start_align == i32::from(COM_RIGHT) {
+                                amount += vim_strsize((&raw const lead_start).cast())
+                                    - vim_strsize((&raw const lead_middle).cast());
                             }
-                        }
-                    }
-                    if done {
-                        // skip
-                    } else if theline_b0 == b'*' {
-                        amount += 1;
-                    } else {
-                        amount = -1;
-                        lnum = cur_curpos.lnum - 1;
-                        while lnum > (*comment_pos).lnum {
-                            if linewhite(lnum) {
-                                lnum -= 1;
-                                continue;
-                            }
-                            amount = get_indent_lnum(lnum);
                             break;
                         }
-                        if amount == -1 {
-                            if curbuf_mut().b_ind_in_comment2 == 0 {
-                                let start_slice = crate::memline::ml_get_slice((*comment_pos).lnum);
-                                let off = ((*comment_pos).col as usize + 2).min(start_slice.len());
-                                look = &start_slice[off..];
-                                if !look.is_empty() {
-                                    let trimmed = crate::charset::skipwhite_slice(look);
+                        if !theline_slice.starts_with(&lead_middle[..lead_middle_len])
+                            && theline_slice.starts_with(&lead_end[..lead_end_len])
+                        {
+                            amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                            if off != 0 {
+                                amount += off;
+                            } else if align == i32::from(COM_RIGHT) {
+                                amount += vim_strsize((&raw const lead_start).cast())
+                                    - vim_strsize((&raw const lead_middle).cast());
+                            }
+                            done = true;
+                            break;
+                        }
+                    }
+                }
+                if done {
+                    // skip
+                } else if theline_b0 == b'*' {
+                    amount += 1;
+                } else {
+                    amount = -1;
+                    lnum = cur_curpos.lnum - 1;
+                    while unsafe { lnum > (*comment_pos).lnum } {
+                        if linewhite(lnum) {
+                            lnum -= 1;
+                            continue;
+                        }
+                        amount = get_indent_lnum(lnum);
+                        break;
+                    }
+                    if amount == -1 {
+                        if curbuf_mut().b_ind_in_comment2 == 0 {
+                            let start_slice =
+                                unsafe { crate::memline::ml_get_slice((*comment_pos).lnum) };
+                            let off =
+                                unsafe { ((*comment_pos).col as usize + 2).min(start_slice.len()) };
+                            look = &start_slice[off..];
+                            if !look.is_empty() {
+                                let trimmed = crate::charset::skipwhite_slice(look);
+                                unsafe {
                                     (*comment_pos).col =
                                         (start_slice.len() - trimmed.len()) as Colnr;
                                 }
                             }
+                        }
+                        unsafe {
                             getvcol(
                                 curwin_mut(),
                                 &mut *comment_pos,
@@ -1728,356 +1733,460 @@ pub fn get_c_indent() -> i32 {
                                 None,
                                 0,
                             );
-                            amount = col;
-                            if curbuf_mut().b_ind_in_comment2 != 0 || look.is_empty() {
-                                amount += curbuf_mut().b_ind_in_comment;
-                            }
+                        }
+                        amount = col;
+                        if curbuf_mut().b_ind_in_comment2 != 0 || look.is_empty() {
+                            amount += curbuf_mut().b_ind_in_comment;
                         }
                     }
-                    break 'theend;
                 }
-                if theline_b0 == b']' && {
-                    trypos = find_match_char(b'[', curbuf_mut().b_ind_maxparen);
-                    !trypos.is_null()
-                } {
+                break 'theend;
+            }
+            if theline_b0 == b']' && {
+                trypos = find_match_char(b'[', curbuf_mut().b_ind_maxparen);
+                !trypos.is_null()
+            } {
+                unsafe {
                     amount = get_indent_lnum((*trypos).lnum);
-                    break 'theend;
                 }
-                if ({
-                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                    !trypos.is_null() && curbuf_mut().b_ind_java == 0
-                }) || ({
-                    trypos_brace = find_start_brace();
-                    !trypos_brace.is_null()
-                }) || !trypos.is_null()
-                {
-                    if !trypos.is_null() && !trypos_brace.is_null() {
-                        if if (*trypos).lnum != (*trypos_brace).lnum {
-                            (*trypos).lnum < (*trypos_brace).lnum
-                        } else {
-                            (*trypos).col < (*trypos_brace).col
-                        } {
-                            trypos = ptr::null_mut();
-                        } else {
-                            trypos_brace = ptr::null_mut();
+                break 'theend;
+            }
+            if ({
+                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                !trypos.is_null() && curbuf_mut().b_ind_java == 0
+            }) || ({
+                trypos_brace = find_start_brace();
+                !trypos_brace.is_null()
+            }) || !trypos.is_null()
+            {
+                if !trypos.is_null() && !trypos_brace.is_null() {
+                    if if unsafe { (*trypos).lnum != (*trypos_brace).lnum } {
+                        unsafe { (*trypos).lnum < (*trypos_brace).lnum }
+                    } else {
+                        unsafe { (*trypos).col < (*trypos_brace).col }
+                    } {
+                        trypos = ptr::null_mut();
+                    } else {
+                        trypos_brace = ptr::null_mut();
+                    }
+                }
+                if !trypos.is_null() {
+                    unsafe {
+                        our_paren_pos = *trypos;
+                    }
+                    if theline_b0 == b')' && curbuf_mut().b_ind_paren_prev != 0 {
+                        amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
+                    } else {
+                        amount = -1;
+                        lnum = cur_curpos.lnum - 1;
+                        while lnum > our_paren_pos.lnum {
+                            l = crate::charset::skipwhite_slice(crate::memline::ml_get_slice(lnum));
+                            if cin_nocode_slice(l) {
+                                lnum -= 1;
+                                continue;
+                            }
+                            if cin_ispreproc_cont(&mut l, &mut lnum, &mut amount) {
+                                lnum -= 1;
+                                continue;
+                            }
+                            curwin_mut().w_cursor.lnum = lnum;
+                            trypos = ind_find_start_cors(None);
+                            if !trypos.is_null() {
+                                unsafe {
+                                    lnum = (*trypos).lnum;
+                                }
+                                continue;
+                            }
+                            trypos = find_match_paren(corr_ind_maxparen(&cur_curpos));
+                            if !trypos.is_null()
+                                && unsafe { (*trypos).lnum == our_paren_pos.lnum }
+                                && unsafe { (*trypos).col == our_paren_pos.col }
+                            {
+                                amount = get_indent_lnum(lnum);
+                                if theline_b0 == b')' {
+                                    if our_paren_pos.lnum != lnum && cur_amount > amount {
+                                        cur_amount = amount;
+                                    }
+                                    amount = -1;
+                                }
+                                break;
+                            }
+                            lnum -= 1;
                         }
                     }
-                    if !trypos.is_null() {
-                        our_paren_pos = *trypos;
-                        if theline_b0 == b')' && curbuf_mut().b_ind_paren_prev != 0 {
-                            amount = get_indent_lnum(curwin_mut().w_cursor.lnum - 1);
-                        } else {
-                            amount = -1;
-                            lnum = cur_curpos.lnum - 1;
-                            while lnum > our_paren_pos.lnum {
-                                l = crate::charset::skipwhite_slice(crate::memline::ml_get_slice(
-                                    lnum,
-                                ));
-                                if cin_nocode_slice(l) {
-                                    lnum -= 1;
-                                    continue;
+                    if amount == -1 {
+                        let mut ignore_paren_col: i32 = 0;
+                        let mut is_if_for_while: i32 = 0;
+                        if curbuf_mut().b_ind_if_for_while != 0 {
+                            let cursor_save = curwin_mut().w_cursor;
+                            let mut outermost: CursorPos;
+                            trypos = &raw mut our_paren_pos;
+                            loop {
+                                unsafe {
+                                    outermost = *trypos;
                                 }
-                                if cin_ispreproc_cont(&mut l, &mut lnum, &mut amount) {
-                                    lnum -= 1;
-                                    continue;
-                                }
-                                curwin_mut().w_cursor.lnum = lnum;
-                                trypos = ind_find_start_cors(None);
-                                if !trypos.is_null() {
-                                    lnum = (*trypos).lnum;
-                                    continue;
-                                }
-                                trypos = find_match_paren(corr_ind_maxparen(&cur_curpos));
-                                if !trypos.is_null()
-                                    && (*trypos).lnum == our_paren_pos.lnum
-                                    && (*trypos).col == our_paren_pos.col
-                                {
-                                    amount = get_indent_lnum(lnum);
-                                    if theline_b0 == b')' {
-                                        if our_paren_pos.lnum != lnum && cur_amount > amount {
-                                            cur_amount = amount;
-                                        }
-                                        amount = -1;
-                                    }
+                                curwin_mut().w_cursor.lnum = outermost.lnum;
+                                curwin_mut().w_cursor.col = outermost.col;
+                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                                if trypos.is_null() || unsafe { (*trypos).lnum != outermost.lnum } {
                                     break;
                                 }
-                                lnum -= 1;
                             }
+                            curwin_mut().w_cursor = cursor_save;
+                            let line = crate::memline::ml_get_slice(outermost.lnum);
+                            is_if_for_while =
+                                cin_is_if_for_while_before_offset(line, &mut outermost.col);
                         }
-                        if amount == -1 {
-                            let mut ignore_paren_col: i32 = 0;
-                            let mut is_if_for_while: i32 = 0;
-                            if curbuf_mut().b_ind_if_for_while != 0 {
-                                let cursor_save = curwin_mut().w_cursor;
-                                let mut outermost: CursorPos;
-                                trypos = &raw mut our_paren_pos;
-                                loop {
-                                    outermost = *trypos;
-                                    curwin_mut().w_cursor.lnum = outermost.lnum;
-                                    curwin_mut().w_cursor.col = outermost.col;
-                                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                                    if trypos.is_null() || (*trypos).lnum != outermost.lnum {
-                                        break;
-                                    }
-                                }
-                                curwin_mut().w_cursor = cursor_save;
-                                let line = crate::memline::ml_get_slice(outermost.lnum);
-                                is_if_for_while =
-                                    cin_is_if_for_while_before_offset(line, &mut outermost.col);
-                            }
-                            amount = skip_label(our_paren_pos.lnum, &mut look);
-                            look = crate::charset::skipwhite_slice(look);
-                            if look.first() == Some(&b'(') {
-                                let save_lnum = curwin_mut().w_cursor.lnum;
-                                curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
-                                let line = crate::cursor::get_cursor_line_slice();
-                                let look_col = (line.len() - look.len()) as Colnr;
-                                curwin_mut().w_cursor.col = look_col + 1;
-                                trypos = findmatchlimit(
-                                    None,
-                                    b')' as i32,
-                                    FM_SKIPCOMM,
-                                    curbuf_mut().b_ind_maxparen as i64,
-                                );
-                                if !trypos.is_null()
-                                    && (*trypos).lnum == our_paren_pos.lnum
-                                    && (*trypos).col < our_paren_pos.col
-                                {
+                        amount = skip_label(our_paren_pos.lnum, &mut look);
+                        look = crate::charset::skipwhite_slice(look);
+                        if look.first() == Some(&b'(') {
+                            let save_lnum = curwin_mut().w_cursor.lnum;
+                            curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
+                            let line = crate::cursor::get_cursor_line_slice();
+                            let look_col = (line.len() - look.len()) as Colnr;
+                            curwin_mut().w_cursor.col = look_col + 1;
+                            trypos = findmatchlimit(
+                                None,
+                                b')' as i32,
+                                FM_SKIPCOMM,
+                                curbuf_mut().b_ind_maxparen as i64,
+                            );
+                            if !trypos.is_null()
+                                && unsafe { (*trypos).lnum == our_paren_pos.lnum }
+                                && unsafe { (*trypos).col < our_paren_pos.col }
+                            {
+                                unsafe {
                                     ignore_paren_col = (*trypos).col + 1;
                                 }
-                                curwin_mut().w_cursor.lnum = save_lnum;
-                                let paren_line = crate::memline::ml_get_slice(our_paren_pos.lnum);
-                                look = &paren_line[(look_col as usize).min(paren_line.len())..];
                             }
-                            if theline_b0 == b')'
-                                || (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
-                                || (curbuf_mut().b_ind_unclosed_noignore == 0
-                                    && look.first() == Some(&b'(')
-                                    && ignore_paren_col == 0)
-                            {
-                                if theline_b0 != b')' {
-                                    cur_amount = MAXCOL;
-                                    let l_slice = crate::memline::ml_get_slice(our_paren_pos.lnum);
-                                    if curbuf_mut().b_ind_unclosed_wrapped != 0
-                                        && cin_ends_in_slice(l_slice, b"(")
+                            curwin_mut().w_cursor.lnum = save_lnum;
+                            let paren_line = crate::memline::ml_get_slice(our_paren_pos.lnum);
+                            look = &paren_line[(look_col as usize).min(paren_line.len())..];
+                        }
+                        if theline_b0 == b')'
+                            || (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
+                            || (curbuf_mut().b_ind_unclosed_noignore == 0
+                                && look.first() == Some(&b'(')
+                                && ignore_paren_col == 0)
+                        {
+                            if theline_b0 != b')' {
+                                cur_amount = MAXCOL;
+                                let l_slice = crate::memline::ml_get_slice(our_paren_pos.lnum);
+                                if curbuf_mut().b_ind_unclosed_wrapped != 0
+                                    && cin_ends_in_slice(l_slice, b"(")
+                                {
+                                    n = 1;
+                                    for &b in
+                                        &l_slice[..(our_paren_pos.col as usize).min(l_slice.len())]
                                     {
-                                        n = 1;
-                                        for &b in &l_slice
-                                            [..(our_paren_pos.col as usize).min(l_slice.len())]
-                                        {
-                                            match b {
-                                                b'(' | b'{' => n += 1,
-                                                b')' | b'}' if n > 1 => n -= 1,
-                                                _ => {}
-                                            }
-                                        }
-                                        our_paren_pos.col = 0;
-                                        amount += n * curbuf_mut().b_ind_unclosed_wrapped;
-                                    } else if curbuf_mut().b_ind_unclosed_whiteok != 0 {
-                                        our_paren_pos.col += 1;
-                                    } else {
-                                        col = our_paren_pos.col + 1;
-                                        while l_slice
-                                            .get(col as usize)
-                                            .is_some_and(|&b| ascii_iswhite(i32::from(b)))
-                                        {
-                                            col += 1;
-                                        }
-                                        if (col as usize) < l_slice.len() {
-                                            our_paren_pos.col = col;
-                                        } else {
-                                            our_paren_pos.col += 1;
+                                        match b {
+                                            b'(' | b'{' => n += 1,
+                                            b')' | b'}' if n > 1 => n -= 1,
+                                            _ => {}
                                         }
                                     }
-                                }
-                                if our_paren_pos.col > 0 {
-                                    getvcol(
-                                        curwin_mut(),
-                                        &mut our_paren_pos,
-                                        Some(&mut col),
-                                        None,
-                                        None,
-                                        0,
-                                    );
-                                    if cur_amount > col {
-                                        cur_amount = col;
-                                    }
-                                }
-                            }
-                            if theline_b0 == b')' && curbuf_mut().b_ind_matching_paren != 0 {
-                                // Line up with the start of the matching paren line.
-                            } else if (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
-                                || (curbuf_mut().b_ind_unclosed_noignore == 0
-                                    && look.first() == Some(&b'(')
-                                    && ignore_paren_col == 0)
-                            {
-                                if cur_amount != MAXCOL {
-                                    amount = cur_amount;
-                                }
-                            } else {
-                                col = our_paren_pos.col;
-                                while our_paren_pos.col > ignore_paren_col {
-                                    our_paren_pos.col -= 1;
-                                    match crate::memline::ml_get_pos_slice(&our_paren_pos)
-                                        .first()
-                                        .copied()
-                                        .unwrap_or(0)
-                                    {
-                                        b'(' => {
-                                            amount += curbuf_mut().b_ind_unclosed2;
-                                            col = our_paren_pos.col;
-                                        }
-                                        b')' => {
-                                            amount -= curbuf_mut().b_ind_unclosed2;
-                                            col = MAXCOL;
-                                        }
-                                        _ => {}
-                                    }
-                                }
-                                if col == MAXCOL {
-                                    amount += curbuf_mut().b_ind_unclosed;
+                                    our_paren_pos.col = 0;
+                                    amount += n * curbuf_mut().b_ind_unclosed_wrapped;
+                                } else if curbuf_mut().b_ind_unclosed_whiteok != 0 {
+                                    our_paren_pos.col += 1;
                                 } else {
-                                    curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
-                                    curwin_mut().w_cursor.col = col;
-                                    if !find_match_paren_after_brace(curbuf_mut().b_ind_maxparen)
-                                        .is_null()
+                                    col = our_paren_pos.col + 1;
+                                    while l_slice
+                                        .get(col as usize)
+                                        .is_some_and(|&b| ascii_iswhite(i32::from(b)))
                                     {
-                                        amount += curbuf_mut().b_ind_unclosed2;
-                                    } else if is_if_for_while != 0 {
-                                        amount += curbuf_mut().b_ind_if_for_while;
+                                        col += 1;
+                                    }
+                                    if (col as usize) < l_slice.len() {
+                                        our_paren_pos.col = col;
                                     } else {
-                                        amount += curbuf_mut().b_ind_unclosed;
+                                        our_paren_pos.col += 1;
                                     }
                                 }
-                                if cur_amount < amount {
-                                    amount = cur_amount;
+                            }
+                            if our_paren_pos.col > 0 {
+                                getvcol(
+                                    curwin_mut(),
+                                    &mut our_paren_pos,
+                                    Some(&mut col),
+                                    None,
+                                    None,
+                                    0,
+                                );
+                                if cur_amount > col {
+                                    cur_amount = col;
                                 }
                             }
                         }
-                        if cin_iscomment_slice(theline_slice) {
-                            amount += curbuf_mut().b_ind_comment;
-                        }
-                    } else {
-                        trypos_copy = *trypos_brace;
-                        trypos_brace = &raw mut trypos_copy;
-                        trypos = trypos_brace;
-                        ourscope = (*trypos).lnum;
-                        let start_slice = crate::memline::ml_get_slice(ourscope);
-                        let look_slice = crate::charset::skipwhite_slice(start_slice);
-                        if look_slice.first() == Some(&b'{') {
-                            getvcol(curwin_mut(), &mut *trypos, Some(&mut col), None, None, 0);
-                            amount = col;
-                            if start_slice.first() == Some(&b'{') {
-                                start_brace = BRACE_IN_COL0;
-                            } else {
-                                start_brace = BRACE_AT_START;
+                        if theline_b0 == b')' && curbuf_mut().b_ind_matching_paren != 0 {
+                            // Line up with the start of the matching paren line.
+                        } else if (curbuf_mut().b_ind_unclosed == 0 && is_if_for_while == 0)
+                            || (curbuf_mut().b_ind_unclosed_noignore == 0
+                                && look.first() == Some(&b'(')
+                                && ignore_paren_col == 0)
+                        {
+                            if cur_amount != MAXCOL {
+                                amount = cur_amount;
                             }
                         } else {
-                            curwin_mut().w_cursor.lnum = ourscope;
-                            lnum = ourscope;
-                            if find_last_paren_slice(start_slice, b'(', b')') {
-                                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                                if !trypos.is_null() {
+                            col = our_paren_pos.col;
+                            while our_paren_pos.col > ignore_paren_col {
+                                our_paren_pos.col -= 1;
+                                match crate::memline::ml_get_pos_slice(&our_paren_pos)
+                                    .first()
+                                    .copied()
+                                    .unwrap_or(0)
+                                {
+                                    b'(' => {
+                                        amount += curbuf_mut().b_ind_unclosed2;
+                                        col = our_paren_pos.col;
+                                    }
+                                    b')' => {
+                                        amount -= curbuf_mut().b_ind_unclosed2;
+                                        col = MAXCOL;
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            if col == MAXCOL {
+                                amount += curbuf_mut().b_ind_unclosed;
+                            } else {
+                                curwin_mut().w_cursor.lnum = our_paren_pos.lnum;
+                                curwin_mut().w_cursor.col = col;
+                                if !find_match_paren_after_brace(curbuf_mut().b_ind_maxparen)
+                                    .is_null()
+                                {
+                                    amount += curbuf_mut().b_ind_unclosed2;
+                                } else if is_if_for_while != 0 {
+                                    amount += curbuf_mut().b_ind_if_for_while;
+                                } else {
+                                    amount += curbuf_mut().b_ind_unclosed;
+                                }
+                            }
+                            if cur_amount < amount {
+                                amount = cur_amount;
+                            }
+                        }
+                    }
+                    if cin_iscomment_slice(theline_slice) {
+                        amount += curbuf_mut().b_ind_comment;
+                    }
+                } else {
+                    unsafe {
+                        trypos_copy = *trypos_brace;
+                    }
+                    trypos_brace = &raw mut trypos_copy;
+                    trypos = trypos_brace;
+                    unsafe {
+                        ourscope = (*trypos).lnum;
+                    }
+                    let start_slice = crate::memline::ml_get_slice(ourscope);
+                    let look_slice = crate::charset::skipwhite_slice(start_slice);
+                    if look_slice.first() == Some(&b'{') {
+                        unsafe {
+                            getvcol(curwin_mut(), &mut *trypos, Some(&mut col), None, None, 0);
+                        }
+                        amount = col;
+                        if start_slice.first() == Some(&b'{') {
+                            start_brace = BRACE_IN_COL0;
+                        } else {
+                            start_brace = BRACE_AT_START;
+                        }
+                    } else {
+                        curwin_mut().w_cursor.lnum = ourscope;
+                        lnum = ourscope;
+                        if find_last_paren_slice(start_slice, b'(', b')') {
+                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                            if !trypos.is_null() {
+                                unsafe {
                                     lnum = (*trypos).lnum;
                                 }
                             }
-                            if (curbuf_mut().b_ind_js != 0
-                                || curbuf_mut().b_ind_keep_case_label != 0)
-                                && cin_iscase_slice(
-                                    crate::charset::skipwhite_slice(
-                                        crate::cursor::get_cursor_line_slice(),
-                                    ),
-                                    false,
-                                )
-                            {
-                                amount = get_indent();
-                            } else if curbuf_mut().b_ind_js != 0 {
-                                amount = get_indent_lnum(lnum);
-                            } else {
-                                amount = skip_label(lnum, &mut l);
-                            }
-                            start_brace = BRACE_AT_END;
                         }
-                        let mut js_cur_has_key = if curbuf_mut().b_ind_js != 0 {
-                            cin_has_js_key(theline_slice)
-                        } else {
-                            false
-                        };
-                        if theline_b0 == b'}' {
-                            amount += curbuf_mut().b_ind_close_extra;
-                        } else {
-                            lookfor = LOOKFOR_INITIAL;
-                            if cin_iselse_slice(theline_slice) {
-                                lookfor = LOOKFOR_IF;
-                            } else if cin_iswhileofdo(theline_slice, cur_curpos.lnum) {
-                                lookfor = LOOKFOR_DO;
-                            }
-                            if lookfor != LOOKFOR_INITIAL {
-                                curwin_mut().w_cursor.lnum = cur_curpos.lnum;
-                                if find_match(lookfor, ourscope) {
-                                    amount = get_indent();
-                                    break 'theend;
-                                }
-                            }
-                            if start_brace == BRACE_IN_COL0 {
-                                amount = curbuf_mut().b_ind_open_left_imag;
-                                lookfor_cpp_namespace = true;
-                            } else if start_brace == BRACE_AT_START && lookfor_cpp_namespace {
-                                lookfor_cpp_namespace = true;
-                            } else if start_brace == BRACE_AT_END {
-                                amount += curbuf_mut().b_ind_open_imag;
-                                let l_slice = crate::charset::skipwhite_slice(
+                        if (curbuf_mut().b_ind_js != 0 || curbuf_mut().b_ind_keep_case_label != 0)
+                            && cin_iscase_slice(
+                                crate::charset::skipwhite_slice(
                                     crate::cursor::get_cursor_line_slice(),
-                                );
-                                if cin_is_cpp_namespace_slice(l_slice) {
-                                    amount += curbuf_mut().b_ind_cpp_namespace;
-                                } else if cin_is_cpp_extern_c_slice(l_slice) {
-                                    amount += curbuf_mut().b_ind_cpp_extern_c;
-                                }
-                            } else {
-                                amount -= curbuf_mut().b_ind_open_extra;
-                                if amount < 0 {
-                                    amount = 0;
-                                }
+                                ),
+                                false,
+                            )
+                        {
+                            amount = get_indent();
+                        } else if curbuf_mut().b_ind_js != 0 {
+                            amount = get_indent_lnum(lnum);
+                        } else {
+                            amount = skip_label(lnum, &mut l);
+                        }
+                        start_brace = BRACE_AT_END;
+                    }
+                    let mut js_cur_has_key = if curbuf_mut().b_ind_js != 0 {
+                        cin_has_js_key(theline_slice)
+                    } else {
+                        false
+                    };
+                    if theline_b0 == b'}' {
+                        amount += curbuf_mut().b_ind_close_extra;
+                    } else {
+                        lookfor = LOOKFOR_INITIAL;
+                        if cin_iselse_slice(theline_slice) {
+                            lookfor = LOOKFOR_IF;
+                        } else if cin_iswhileofdo(theline_slice, cur_curpos.lnum) {
+                            lookfor = LOOKFOR_DO;
+                        }
+                        if lookfor != LOOKFOR_INITIAL {
+                            curwin_mut().w_cursor.lnum = cur_curpos.lnum;
+                            if find_match(lookfor, ourscope) {
+                                amount = get_indent();
+                                break 'theend;
                             }
-                            lookfor_break = false;
-                            if cin_iscase_slice(theline_slice, false) {
-                                lookfor = LOOKFOR_CASE;
-                                amount += curbuf_mut().b_ind_case;
-                            } else if cin_isscopedecl_slice(theline_slice) {
-                                lookfor = LOOKFOR_SCOPEDECL;
-                                amount += curbuf_mut().b_ind_scopedecl;
-                            } else {
-                                if curbuf_mut().b_ind_case_break != 0
-                                    && cin_isbreak_slice(theline_slice)
-                                {
-                                    lookfor_break = true;
-                                }
-                                lookfor = LOOKFOR_INITIAL;
-                                amount += curbuf_mut().b_ind_level;
+                        }
+                        if start_brace == BRACE_IN_COL0 {
+                            amount = curbuf_mut().b_ind_open_left_imag;
+                            lookfor_cpp_namespace = true;
+                        } else if start_brace == BRACE_AT_START && lookfor_cpp_namespace {
+                            lookfor_cpp_namespace = true;
+                        } else if start_brace == BRACE_AT_END {
+                            amount += curbuf_mut().b_ind_open_imag;
+                            let l_slice = crate::charset::skipwhite_slice(
+                                crate::cursor::get_cursor_line_slice(),
+                            );
+                            if cin_is_cpp_namespace_slice(l_slice) {
+                                amount += curbuf_mut().b_ind_cpp_namespace;
+                            } else if cin_is_cpp_extern_c_slice(l_slice) {
+                                amount += curbuf_mut().b_ind_cpp_extern_c;
                             }
-                            scope_amount = amount;
-                            whilelevel = 0;
-                            curwin_mut().w_cursor = cur_curpos;
-                            'scope_loop: loop {
-                                curwin_mut().w_cursor.lnum -= 1;
-                                curwin_mut().w_cursor.col = 0;
-                                if curwin_mut().w_cursor.lnum <= ourscope {
-                                    if lookfor == LOOKFOR_ENUM_OR_INIT {
+                        } else {
+                            amount -= curbuf_mut().b_ind_open_extra;
+                            if amount < 0 {
+                                amount = 0;
+                            }
+                        }
+                        lookfor_break = false;
+                        if cin_iscase_slice(theline_slice, false) {
+                            lookfor = LOOKFOR_CASE;
+                            amount += curbuf_mut().b_ind_case;
+                        } else if cin_isscopedecl_slice(theline_slice) {
+                            lookfor = LOOKFOR_SCOPEDECL;
+                            amount += curbuf_mut().b_ind_scopedecl;
+                        } else {
+                            if curbuf_mut().b_ind_case_break != 0
+                                && cin_isbreak_slice(theline_slice)
+                            {
+                                lookfor_break = true;
+                            }
+                            lookfor = LOOKFOR_INITIAL;
+                            amount += curbuf_mut().b_ind_level;
+                        }
+                        scope_amount = amount;
+                        whilelevel = 0;
+                        curwin_mut().w_cursor = cur_curpos;
+                        'scope_loop: loop {
+                            curwin_mut().w_cursor.lnum -= 1;
+                            curwin_mut().w_cursor.col = 0;
+                            if curwin_mut().w_cursor.lnum <= ourscope {
+                                if lookfor == LOOKFOR_ENUM_OR_INIT {
+                                    if curwin_mut().w_cursor.lnum == 0
+                                        || curwin_mut().w_cursor.lnum
+                                            < ourscope - curbuf_mut().b_ind_maxparen
+                                    {
+                                        if cont_amount > 0 {
+                                            amount = cont_amount;
+                                        } else if curbuf_mut().b_ind_js == 0 {
+                                            amount += ind_continuation;
+                                        }
+                                        break;
+                                    }
+                                    trypos = ind_find_start_cors(None);
+                                    if !trypos.is_null() {
+                                        unsafe {
+                                            curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                                        }
+                                        curwin_mut().w_cursor.col = 0;
+                                        continue;
+                                    }
+                                    l = crate::cursor::get_cursor_line_slice();
+                                    if cin_ispreproc_cont(
+                                        &mut l,
+                                        &mut curwin_mut().w_cursor.lnum,
+                                        &mut amount,
+                                    ) {
+                                        continue;
+                                    }
+                                    if cin_nocode_slice(l) {
+                                        continue;
+                                    }
+                                    terminated = cin_isterminated_slice(l, false, true);
+                                    if start_brace != BRACE_IN_COL0
+                                        || !cin_isfuncdecl(
+                                            Some(&mut l),
+                                            curwin_mut().w_cursor.lnum,
+                                            0,
+                                        )
+                                    {
+                                        if terminated == b',' {
+                                            break;
+                                        }
+                                        if terminated != b';' && cin_isinit() {
+                                            break;
+                                        }
+                                        if terminated == 0 || terminated == b'{' {
+                                            continue;
+                                        }
+                                    }
+                                    if terminated != b';' {
+                                        trypos = ptr::null_mut();
+                                        if find_last_paren_slice(l, b'(', b')') {
+                                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                                        }
+                                        if trypos.is_null() && find_last_paren_slice(l, b'{', b'}')
+                                        {
+                                            trypos = find_start_brace();
+                                        }
+                                        if !trypos.is_null() {
+                                            unsafe {
+                                                curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                                            }
+                                            curwin_mut().w_cursor.col = 0;
+                                            continue;
+                                        }
+                                    }
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
+                                    } else {
+                                        amount += ind_continuation;
+                                    }
+                                } else if lookfor == LOOKFOR_UNTERM {
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
+                                    } else {
+                                        amount += ind_continuation;
+                                    }
+                                } else {
+                                    if lookfor != LOOKFOR_TERM
+                                        && lookfor != LOOKFOR_CPP_BASECLASS
+                                        && lookfor != LOOKFOR_COMMA
+                                    {
+                                        amount = scope_amount;
+                                        if theline_b0 == b'{' {
+                                            amount += curbuf_mut().b_ind_open_extra;
+                                            added_to_amount = curbuf_mut().b_ind_open_extra;
+                                        }
+                                    }
+                                    if lookfor_cpp_namespace {
+                                        if curwin_mut().w_cursor.lnum == ourscope {
+                                            continue;
+                                        }
                                         if curwin_mut().w_cursor.lnum == 0
                                             || curwin_mut().w_cursor.lnum
-                                                < ourscope - curbuf_mut().b_ind_maxparen
+                                                < ourscope - FIND_NAMESPACE_LIM
                                         {
-                                            if cont_amount > 0 {
-                                                amount = cont_amount;
-                                            } else if curbuf_mut().b_ind_js == 0 {
-                                                amount += ind_continuation;
-                                            }
                                             break;
                                         }
                                         trypos = ind_find_start_cors(None);
                                         if !trypos.is_null() {
-                                            curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                                            unsafe {
+                                                curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                                            }
                                             curwin_mut().w_cursor.col = 0;
                                             continue;
                                         }
@@ -2089,720 +2198,639 @@ pub fn get_c_indent() -> i32 {
                                         ) {
                                             continue;
                                         }
+                                        if cin_is_cpp_namespace_slice(l) {
+                                            amount +=
+                                                curbuf_mut().b_ind_cpp_namespace - added_to_amount;
+                                            break;
+                                        } else if cin_is_cpp_extern_c_slice(l) {
+                                            amount +=
+                                                curbuf_mut().b_ind_cpp_extern_c - added_to_amount;
+                                            break;
+                                        }
                                         if cin_nocode_slice(l) {
                                             continue;
                                         }
-                                        terminated = cin_isterminated_slice(l, false, true);
-                                        if start_brace != BRACE_IN_COL0
-                                            || !cin_isfuncdecl(
-                                                Some(&mut l),
-                                                curwin_mut().w_cursor.lnum,
-                                                0,
-                                            )
-                                        {
-                                            if terminated == b',' {
-                                                break;
-                                            }
-                                            if terminated != b';' && cin_isinit() {
-                                                break;
-                                            }
-                                            if terminated == 0 || terminated == b'{' {
-                                                continue;
-                                            }
-                                        }
-                                        if terminated != b';' {
-                                            trypos = ptr::null_mut();
-                                            if find_last_paren_slice(l, b'(', b')') {
-                                                trypos =
-                                                    find_match_paren(curbuf_mut().b_ind_maxparen);
-                                            }
-                                            if trypos.is_null()
-                                                && find_last_paren_slice(l, b'{', b'}')
-                                            {
-                                                trypos = find_start_brace();
-                                            }
-                                            if !trypos.is_null() {
-                                                curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
-                                                curwin_mut().w_cursor.col = 0;
-                                                continue;
-                                            }
-                                        }
-                                        if cont_amount > 0 {
-                                            amount = cont_amount;
-                                        } else {
-                                            amount += ind_continuation;
-                                        }
-                                    } else if lookfor == LOOKFOR_UNTERM {
-                                        if cont_amount > 0 {
-                                            amount = cont_amount;
-                                        } else {
-                                            amount += ind_continuation;
-                                        }
+                                    }
+                                }
+                                break;
+                            }
+                            trypos = ind_find_start_cors(Some(&mut raw_string_start));
+                            if !trypos.is_null() {
+                                unsafe {
+                                    curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                                }
+                                curwin_mut().w_cursor.col = 0;
+                                continue;
+                            }
+                            let l_slice = crate::cursor::get_cursor_line_slice();
+                            let mut iscase = cin_iscase_slice(l_slice, false);
+                            if iscase || cin_isscopedecl_slice(l_slice) {
+                                if lookfor == LOOKFOR_CPP_BASECLASS {
+                                    break;
+                                }
+                                if whilelevel > 0 {
+                                    continue;
+                                }
+                                if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT {
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
                                     } else {
-                                        if lookfor != LOOKFOR_TERM
-                                            && lookfor != LOOKFOR_CPP_BASECLASS
-                                            && lookfor != LOOKFOR_COMMA
-                                        {
-                                            amount = scope_amount;
-                                            if theline_b0 == b'{' {
-                                                amount += curbuf_mut().b_ind_open_extra;
-                                                added_to_amount = curbuf_mut().b_ind_open_extra;
-                                            }
-                                        }
-                                        if lookfor_cpp_namespace {
-                                            if curwin_mut().w_cursor.lnum == ourscope {
-                                                continue;
-                                            }
-                                            if curwin_mut().w_cursor.lnum == 0
-                                                || curwin_mut().w_cursor.lnum
-                                                    < ourscope - FIND_NAMESPACE_LIM
-                                            {
-                                                break;
-                                            }
-                                            trypos = ind_find_start_cors(None);
-                                            if !trypos.is_null() {
-                                                curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
-                                                curwin_mut().w_cursor.col = 0;
-                                                continue;
-                                            }
-                                            l = crate::cursor::get_cursor_line_slice();
-                                            if cin_ispreproc_cont(
-                                                &mut l,
-                                                &mut curwin_mut().w_cursor.lnum,
-                                                &mut amount,
-                                            ) {
-                                                continue;
-                                            }
-                                            if cin_is_cpp_namespace_slice(l) {
-                                                amount += curbuf_mut().b_ind_cpp_namespace
-                                                    - added_to_amount;
-                                                break;
-                                            } else if cin_is_cpp_extern_c_slice(l) {
-                                                amount += curbuf_mut().b_ind_cpp_extern_c
-                                                    - added_to_amount;
-                                                break;
-                                            }
-                                            if cin_nocode_slice(l) {
-                                                continue;
-                                            }
+                                        amount += ind_continuation;
+                                    }
+                                    break;
+                                }
+                                if (iscase && lookfor == LOOKFOR_CASE)
+                                    || (iscase && lookfor_break)
+                                    || (!iscase && lookfor == LOOKFOR_SCOPEDECL)
+                                {
+                                    trypos = find_start_brace();
+                                    if trypos.is_null() || unsafe { (*trypos).lnum == ourscope } {
+                                        amount = get_indent();
+                                        break;
+                                    }
+                                    continue;
+                                }
+                                n = get_indent_nolabel(curwin_mut().w_cursor.lnum);
+                                if lookfor == LOOKFOR_TERM {
+                                    if n != 0 {
+                                        amount = n;
+                                    }
+                                    if !lookfor_break {
+                                        break;
+                                    }
+                                }
+                                if n != 0 {
+                                    amount = n;
+                                    if let Some(after_l) =
+                                        after_label_slice(crate::cursor::get_cursor_line_slice())
+                                        && cin_is_cinword(after_l)
+                                    {
+                                        if theline_b0 == b'{' {
+                                            amount += curbuf_mut().b_ind_open_extra;
+                                        } else {
+                                            amount += curbuf_mut().b_ind_level
+                                                + curbuf_mut().b_ind_no_brace;
                                         }
                                     }
                                     break;
                                 }
-                                trypos = ind_find_start_cors(Some(&mut raw_string_start));
-                                if !trypos.is_null() {
-                                    curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
-                                    curwin_mut().w_cursor.col = 0;
-                                    continue;
-                                }
-                                let l_slice = crate::cursor::get_cursor_line_slice();
-                                let mut iscase = cin_iscase_slice(l_slice, false);
-                                if iscase || cin_isscopedecl_slice(l_slice) {
-                                    if lookfor == LOOKFOR_CPP_BASECLASS {
-                                        break;
-                                    }
-                                    if whilelevel > 0 {
-                                        continue;
-                                    }
-                                    if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT
-                                    {
-                                        if cont_amount > 0 {
-                                            amount = cont_amount;
-                                        } else {
-                                            amount += ind_continuation;
-                                        }
-                                        break;
-                                    }
-                                    if (iscase && lookfor == LOOKFOR_CASE)
-                                        || (iscase && lookfor_break)
-                                        || (!iscase && lookfor == LOOKFOR_SCOPEDECL)
-                                    {
-                                        trypos = find_start_brace();
-                                        if trypos.is_null() || (*trypos).lnum == ourscope {
-                                            amount = get_indent();
-                                            break;
-                                        }
-                                        continue;
-                                    }
-                                    n = get_indent_nolabel(curwin_mut().w_cursor.lnum);
-                                    if lookfor == LOOKFOR_TERM {
-                                        if n != 0 {
-                                            amount = n;
-                                        }
-                                        if !lookfor_break {
-                                            break;
-                                        }
-                                    }
-                                    if n != 0 {
-                                        amount = n;
-                                        if let Some(after_l) = after_label_slice(
-                                            crate::cursor::get_cursor_line_slice(),
-                                        ) && cin_is_cinword(after_l)
-                                        {
-                                            if theline_b0 == b'{' {
-                                                amount += curbuf_mut().b_ind_open_extra;
-                                            } else {
-                                                amount += curbuf_mut().b_ind_level
-                                                    + curbuf_mut().b_ind_no_brace;
-                                            }
-                                        }
-                                        break;
-                                    }
-                                    scope_amount = get_indent()
-                                        + if iscase {
-                                            curbuf_mut().b_ind_case_code
-                                        } else {
-                                            curbuf_mut().b_ind_scopedecl_code
-                                        };
-                                    lookfor = if curbuf_mut().b_ind_case_break != 0 {
-                                        LOOKFOR_NOBREAK
+                                scope_amount = get_indent()
+                                    + if iscase {
+                                        curbuf_mut().b_ind_case_code
                                     } else {
-                                        LOOKFOR_ANY
+                                        curbuf_mut().b_ind_scopedecl_code
                                     };
-                                    continue;
-                                }
-                                if lookfor == LOOKFOR_CASE || lookfor == LOOKFOR_SCOPEDECL {
-                                    if find_last_paren_slice(l_slice, b'{', b'}') {
-                                        trypos = find_start_brace();
-                                        if !trypos.is_null() {
+                                lookfor = if curbuf_mut().b_ind_case_break != 0 {
+                                    LOOKFOR_NOBREAK
+                                } else {
+                                    LOOKFOR_ANY
+                                };
+                                continue;
+                            }
+                            if lookfor == LOOKFOR_CASE || lookfor == LOOKFOR_SCOPEDECL {
+                                if find_last_paren_slice(l_slice, b'{', b'}') {
+                                    trypos = find_start_brace();
+                                    if !trypos.is_null() {
+                                        unsafe {
                                             curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
-                                            curwin_mut().w_cursor.col = 0;
                                         }
+                                        curwin_mut().w_cursor.col = 0;
                                     }
+                                }
+                                continue;
+                            }
+                            if curbuf_mut().b_ind_js == 0 && cin_islabel() {
+                                let Some(after_l) =
+                                    after_label_slice(crate::cursor::get_cursor_line_slice())
+                                else {
+                                    continue;
+                                };
+                                if cin_nocode_slice(after_l) {
                                     continue;
                                 }
-                                if curbuf_mut().b_ind_js == 0 && cin_islabel() {
-                                    let Some(after_l) =
-                                        after_label_slice(crate::cursor::get_cursor_line_slice())
-                                    else {
+                            }
+                            l = crate::cursor::get_cursor_line_slice();
+                            if cin_ispreproc_cont(
+                                &mut l,
+                                &mut curwin_mut().w_cursor.lnum,
+                                &mut amount,
+                            ) || cin_nocode_slice(l)
+                            {
+                                continue;
+                            }
+                            n = 0;
+                            if lookfor != LOOKFOR_TERM && curbuf_mut().b_ind_cpp_baseclass > 0 {
+                                n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
+                                l = crate::cursor::get_cursor_line_slice();
+                            }
+                            if n != 0 {
+                                if lookfor == LOOKFOR_UNTERM {
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
+                                    } else {
+                                        amount += ind_continuation;
+                                    }
+                                } else if theline_b0 == b'{' {
+                                    lookfor = LOOKFOR_UNTERM;
+                                    ind_continuation = 0;
+                                    continue;
+                                } else {
+                                    amount = get_baseclass_amount(cache_cpp_baseclass.lpos.col);
+                                }
+                                break;
+                            } else if lookfor == LOOKFOR_CPP_BASECLASS {
+                                if cin_isterminated_slice(l, true, false) != 0 {
+                                    break;
+                                } else {
+                                    continue;
+                                }
+                            }
+                            terminated = cin_isterminated_slice(l, false, true);
+                            if js_cur_has_key {
+                                js_cur_has_key = false;
+                                if curbuf_mut().b_ind_js != 0 && terminated == b',' {
+                                    lookfor = LOOKFOR_JS_KEY;
+                                }
+                            }
+                            if lookfor == LOOKFOR_JS_KEY && cin_has_js_key(l) {
+                                amount = get_indent();
+                                break;
+                            }
+                            if lookfor == LOOKFOR_COMMA {
+                                if !trypos_brace.is_null()
+                                    && unsafe { (*trypos_brace).lnum >= curwin_mut().w_cursor.lnum }
+                                {
+                                    break;
+                                }
+                                if terminated == b',' {
+                                    break;
+                                }
+                                amount = get_indent();
+                                if curwin_mut().w_cursor.lnum - 1 == ourscope {
+                                    break;
+                                }
+                            }
+                            if terminated == 0 || (lookfor != LOOKFOR_UNTERM && terminated == b',')
+                            {
+                                if lookfor != LOOKFOR_ENUM_OR_INIT
+                                    && (crate::charset::skipwhite_slice(l).first() == Some(&b'[')
+                                        || l.last() == Some(&b'['))
+                                {
+                                    amount += ind_continuation;
+                                }
+                                let _ = find_last_paren_slice(l, b'(', b')');
+                                trypos = find_match_paren(corr_ind_maxparen(&cur_curpos));
+                                if !trypos.is_null()
+                                    && (unsafe {
+                                        (*trypos).lnum < (*trypos_brace).lnum
+                                            || ((*trypos).lnum == (*trypos_brace).lnum
+                                                && (*trypos).col < (*trypos_brace).col)
+                                    })
+                                {
+                                    trypos = ptr::null_mut();
+                                }
+                                if trypos.is_null()
+                                    && terminated == b','
+                                    && find_last_paren_slice(
+                                        crate::cursor::get_cursor_line_slice(),
+                                        b'{',
+                                        b'}',
+                                    )
+                                {
+                                    trypos = find_start_brace();
+                                }
+                                if !trypos.is_null() {
+                                    unsafe {
+                                        curwin_mut().w_cursor = *trypos;
+                                    }
+                                    let cur_s = crate::cursor::get_cursor_line_slice();
+                                    if cin_iscase_slice(cur_s, false)
+                                        || cin_isscopedecl_slice(cur_s)
+                                    {
+                                        curwin_mut().w_cursor.lnum += 1;
+                                        curwin_mut().w_cursor.col = 0;
                                         continue;
-                                    };
-                                    if cin_nocode_slice(after_l) {
-                                        continue;
+                                    }
+                                }
+                                if terminated == b',' {
+                                    while curwin_mut().w_cursor.lnum > 1 {
+                                        let prev_s = crate::memline::ml_get_slice(
+                                            curwin_mut().w_cursor.lnum - 1,
+                                        );
+                                        if prev_s.last() != Some(&b'\\') {
+                                            break;
+                                        }
+                                        curwin_mut().w_cursor.lnum -= 1;
+                                        curwin_mut().w_cursor.col = 0;
                                     }
                                 }
                                 l = crate::cursor::get_cursor_line_slice();
-                                if cin_ispreproc_cont(
-                                    &mut l,
-                                    &mut curwin_mut().w_cursor.lnum,
-                                    &mut amount,
-                                ) || cin_nocode_slice(l)
+                                if curbuf_mut().b_ind_js != 0 {
+                                    cur_amount = get_indent();
+                                } else {
+                                    cur_amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
+                                }
+                                if terminated != b','
+                                    && lookfor != LOOKFOR_TERM
+                                    && theline_b0 == b'{'
                                 {
-                                    continue;
+                                    amount = cur_amount;
+                                    if crate::charset::skipwhite_slice(l).first() != Some(&b'{') {
+                                        amount += curbuf_mut().b_ind_open_extra;
+                                    }
+                                    if curbuf_mut().b_ind_cpp_baseclass != 0
+                                        && curbuf_mut().b_ind_js == 0
+                                    {
+                                        lookfor = LOOKFOR_CPP_BASECLASS;
+                                        continue;
+                                    }
+                                    break;
                                 }
-                                n = 0;
-                                if lookfor != LOOKFOR_TERM && curbuf_mut().b_ind_cpp_baseclass > 0 {
-                                    n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
-                                    l = crate::cursor::get_cursor_line_slice();
-                                }
-                                if n != 0 {
-                                    if lookfor == LOOKFOR_UNTERM {
+                                if cin_is_cinword(l)
+                                    || cin_iselse_slice(crate::charset::skipwhite_slice(l))
+                                {
+                                    if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT
+                                    {
                                         if cont_amount > 0 {
                                             amount = cont_amount;
                                         } else {
                                             amount += ind_continuation;
                                         }
-                                    } else if theline_b0 == b'{' {
-                                        lookfor = LOOKFOR_UNTERM;
-                                        ind_continuation = 0;
-                                        continue;
-                                    } else {
-                                        amount = get_baseclass_amount(cache_cpp_baseclass.lpos.col);
-                                    }
-                                    break;
-                                } else if lookfor == LOOKFOR_CPP_BASECLASS {
-                                    if cin_isterminated_slice(l, true, false) != 0 {
-                                        break;
-                                    } else {
-                                        continue;
-                                    }
-                                }
-                                terminated = cin_isterminated_slice(l, false, true);
-                                if js_cur_has_key {
-                                    js_cur_has_key = false;
-                                    if curbuf_mut().b_ind_js != 0 && terminated == b',' {
-                                        lookfor = LOOKFOR_JS_KEY;
-                                    }
-                                }
-                                if lookfor == LOOKFOR_JS_KEY && cin_has_js_key(l) {
-                                    amount = get_indent();
-                                    break;
-                                }
-                                if lookfor == LOOKFOR_COMMA {
-                                    if !trypos_brace.is_null()
-                                        && (*trypos_brace).lnum >= curwin_mut().w_cursor.lnum
-                                    {
                                         break;
                                     }
+                                    amount = cur_amount;
+                                    if theline_b0 == b'{' {
+                                        amount += curbuf_mut().b_ind_open_extra;
+                                    }
+                                    if lookfor != LOOKFOR_TERM {
+                                        amount +=
+                                            curbuf_mut().b_ind_level + curbuf_mut().b_ind_no_brace;
+                                        break;
+                                    }
+                                    let cur_s = crate::cursor::get_cursor_line_slice();
+                                    let l_trim = crate::charset::skipwhite_slice(cur_s);
+                                    if cin_isdo_slice(l_trim) {
+                                        if whilelevel == 0 {
+                                            break;
+                                        }
+                                        whilelevel -= 1;
+                                    }
+                                    if cin_iselse_slice(l_trim) && whilelevel == 0 {
+                                        if l_trim.first() == Some(&b'}') {
+                                            curwin_mut().w_cursor.col =
+                                                (cur_s.len() - l_trim.len()) as Colnr + 1;
+                                        }
+                                        trypos = find_start_brace();
+                                        if trypos.is_null()
+                                            || unsafe { !find_match(LOOKFOR_IF, (*trypos).lnum) }
+                                        {
+                                            break;
+                                        }
+                                    }
+                                } else if lookfor == LOOKFOR_UNTERM {
                                     if terminated == b',' {
-                                        break;
-                                    }
-                                    amount = get_indent();
-                                    if curwin_mut().w_cursor.lnum - 1 == ourscope {
-                                        break;
-                                    }
-                                }
-                                if terminated == 0
-                                    || (lookfor != LOOKFOR_UNTERM && terminated == b',')
-                                {
-                                    if lookfor != LOOKFOR_ENUM_OR_INIT
-                                        && (crate::charset::skipwhite_slice(l).first()
-                                            == Some(&b'[')
-                                            || l.last() == Some(&b'['))
-                                    {
                                         amount += ind_continuation;
                                     }
-                                    let _ = find_last_paren_slice(l, b'(', b')');
-                                    trypos = find_match_paren(corr_ind_maxparen(&cur_curpos));
-                                    if !trypos.is_null()
-                                        && ((*trypos).lnum < (*trypos_brace).lnum
-                                            || ((*trypos).lnum == (*trypos_brace).lnum
-                                                && (*trypos).col < (*trypos_brace).col))
-                                    {
-                                        trypos = ptr::null_mut();
-                                    }
-                                    if trypos.is_null()
-                                        && terminated == b','
-                                        && find_last_paren_slice(
-                                            crate::cursor::get_cursor_line_slice(),
-                                            b'{',
-                                            b'}',
-                                        )
-                                    {
-                                        trypos = find_start_brace();
-                                    }
-                                    if !trypos.is_null() {
-                                        curwin_mut().w_cursor = *trypos;
-                                        let cur_s = crate::cursor::get_cursor_line_slice();
-                                        if cin_iscase_slice(cur_s, false)
-                                            || cin_isscopedecl_slice(cur_s)
-                                        {
-                                            curwin_mut().w_cursor.lnum += 1;
-                                            curwin_mut().w_cursor.col = 0;
-                                            continue;
-                                        }
-                                    }
+                                    break;
+                                } else if lookfor == LOOKFOR_ENUM_OR_INIT {
                                     if terminated == b',' {
-                                        while curwin_mut().w_cursor.lnum > 1 {
-                                            let prev_s = crate::memline::ml_get_slice(
-                                                curwin_mut().w_cursor.lnum - 1,
-                                            );
-                                            if prev_s.last() != Some(&b'\\') {
-                                                break;
-                                            }
-                                            curwin_mut().w_cursor.lnum -= 1;
-                                            curwin_mut().w_cursor.col = 0;
-                                        }
-                                    }
-                                    l = crate::cursor::get_cursor_line_slice();
-                                    if curbuf_mut().b_ind_js != 0 {
-                                        cur_amount = get_indent();
-                                    } else {
-                                        cur_amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
-                                    }
-                                    if terminated != b','
-                                        && lookfor != LOOKFOR_TERM
-                                        && theline_b0 == b'{'
-                                    {
-                                        amount = cur_amount;
-                                        if crate::charset::skipwhite_slice(l).first() != Some(&b'{')
-                                        {
-                                            amount += curbuf_mut().b_ind_open_extra;
-                                        }
-                                        if curbuf_mut().b_ind_cpp_baseclass != 0
-                                            && curbuf_mut().b_ind_js == 0
-                                        {
-                                            lookfor = LOOKFOR_CPP_BASECLASS;
-                                            continue;
-                                        }
-                                        break;
-                                    }
-                                    if cin_is_cinword(l)
-                                        || cin_iselse_slice(crate::charset::skipwhite_slice(l))
-                                    {
-                                        if lookfor == LOOKFOR_UNTERM
-                                            || lookfor == LOOKFOR_ENUM_OR_INIT
-                                        {
-                                            if cont_amount > 0 {
-                                                amount = cont_amount;
-                                            } else {
-                                                amount += ind_continuation;
-                                            }
+                                        if curbuf_mut().b_ind_cpp_baseclass == 0 {
                                             break;
                                         }
-                                        amount = cur_amount;
-                                        if theline_b0 == b'{' {
-                                            amount += curbuf_mut().b_ind_open_extra;
-                                        }
-                                        if lookfor != LOOKFOR_TERM {
-                                            amount += curbuf_mut().b_ind_level
-                                                + curbuf_mut().b_ind_no_brace;
-                                            break;
-                                        }
-                                        let cur_s = crate::cursor::get_cursor_line_slice();
-                                        let l_trim = crate::charset::skipwhite_slice(cur_s);
-                                        if cin_isdo_slice(l_trim) {
-                                            if whilelevel == 0 {
-                                                break;
-                                            }
-                                            whilelevel -= 1;
-                                        }
-                                        if cin_iselse_slice(l_trim) && whilelevel == 0 {
-                                            if l_trim.first() == Some(&b'}') {
-                                                curwin_mut().w_cursor.col =
-                                                    (cur_s.len() - l_trim.len()) as Colnr + 1;
-                                            }
-                                            trypos = find_start_brace();
-                                            if trypos.is_null()
-                                                || !find_match(LOOKFOR_IF, (*trypos).lnum)
-                                            {
-                                                break;
-                                            }
-                                        }
-                                    } else if lookfor == LOOKFOR_UNTERM {
-                                        if terminated == b',' {
-                                            amount += ind_continuation;
-                                        }
-                                        break;
-                                    } else if lookfor == LOOKFOR_ENUM_OR_INIT {
-                                        if terminated == b',' {
-                                            if curbuf_mut().b_ind_cpp_baseclass == 0 {
-                                                break;
-                                            }
-                                            lookfor = LOOKFOR_CPP_BASECLASS;
-                                            continue;
-                                        }
-                                        if amount > cur_amount {
-                                            amount = cur_amount;
-                                        }
-                                    } else {
-                                        let cur_s = crate::cursor::get_cursor_line_slice();
-                                        amount = cur_amount;
-                                        let n_len = cur_s.len();
-                                        if curbuf_mut().b_ind_js != 0
-                                            && terminated == b','
-                                            && (crate::charset::skipwhite_slice(cur_s).first()
-                                                == Some(&b']')
-                                                || (n_len >= 2 && cur_s[n_len - 2] == b']'))
-                                        {
-                                            break;
-                                        }
-                                        if lookfor == LOOKFOR_INITIAL && terminated == b',' {
-                                            if curbuf_mut().b_ind_js != 0 {
-                                                if cin_iscomment_slice(
-                                                    crate::charset::skipwhite_slice(cur_s),
-                                                ) {
-                                                    break;
-                                                }
-                                                lookfor = LOOKFOR_COMMA;
-                                                trypos = find_match_char(
-                                                    b'[',
-                                                    curbuf_mut().b_ind_maxparen,
-                                                );
-                                                if !trypos.is_null() {
-                                                    let trypos = &mut *trypos;
-                                                    if trypos.lnum == curwin_mut().w_cursor.lnum - 1
-                                                    {
-                                                        break;
-                                                    }
-                                                    ourscope = trypos.lnum;
-                                                }
-                                            } else {
-                                                lookfor = LOOKFOR_ENUM_OR_INIT;
-                                                cont_amount = cin_first_id_amount();
-                                            }
-                                        } else {
-                                            if lookfor == LOOKFOR_INITIAL
-                                                && cur_s.last() == Some(&b'\\')
-                                            {
-                                                cont_amount = cin_get_equal_amount(
-                                                    curwin_mut().w_cursor.lnum,
-                                                );
-                                            }
-                                            if lookfor != LOOKFOR_TERM
-                                                && lookfor != LOOKFOR_JS_KEY
-                                                && lookfor != LOOKFOR_COMMA
-                                                && raw_string_start != curwin_mut().w_cursor.lnum
-                                            {
-                                                lookfor = LOOKFOR_UNTERM;
-                                            }
-                                        }
-                                    }
-                                } else if cin_iswhileofdo_end(i32::from(terminated)) {
-                                    if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT
-                                    {
-                                        if cont_amount > 0 {
-                                            amount = cont_amount;
-                                        } else {
-                                            amount += ind_continuation;
-                                        }
-                                        break;
-                                    }
-                                    if whilelevel == 0 {
-                                        lookfor = LOOKFOR_TERM;
-                                        amount = get_indent();
-                                        if theline_b0 == b'{' {
-                                            amount += curbuf_mut().b_ind_open_extra;
-                                        }
-                                    }
-                                    whilelevel += 1;
-                                } else {
-                                    if lookfor == LOOKFOR_NOBREAK
-                                        && cin_isbreak_slice(crate::charset::skipwhite_slice(
-                                            crate::cursor::get_cursor_line_slice(),
-                                        ))
-                                    {
-                                        lookfor = LOOKFOR_ANY;
+                                        lookfor = LOOKFOR_CPP_BASECLASS;
                                         continue;
                                     }
-                                    if whilelevel > 0 {
-                                        let cur_s = cin_skipcomment_slice(
-                                            crate::cursor::get_cursor_line_slice(),
-                                        );
-                                        if cin_isdo_slice(cur_s) {
-                                            amount = get_indent();
-                                            whilelevel -= 1;
-                                            continue;
-                                        }
+                                    if amount > cur_amount {
+                                        amount = cur_amount;
                                     }
-                                    if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT
+                                } else {
+                                    let cur_s = crate::cursor::get_cursor_line_slice();
+                                    amount = cur_amount;
+                                    let n_len = cur_s.len();
+                                    if curbuf_mut().b_ind_js != 0
+                                        && terminated == b','
+                                        && (crate::charset::skipwhite_slice(cur_s).first()
+                                            == Some(&b']')
+                                            || (n_len >= 2 && cur_s[n_len - 2] == b']'))
                                     {
-                                        if cont_amount > 0 {
-                                            amount = cont_amount;
-                                        } else {
-                                            amount += ind_continuation;
-                                        }
                                         break;
                                     }
-                                    if lookfor == LOOKFOR_TERM {
-                                        if !lookfor_break && whilelevel == 0 {
-                                            break;
+                                    if lookfor == LOOKFOR_INITIAL && terminated == b',' {
+                                        if curbuf_mut().b_ind_js != 0 {
+                                            if cin_iscomment_slice(crate::charset::skipwhite_slice(
+                                                cur_s,
+                                            )) {
+                                                break;
+                                            }
+                                            lookfor = LOOKFOR_COMMA;
+                                            trypos =
+                                                find_match_char(b'[', curbuf_mut().b_ind_maxparen);
+                                            if !trypos.is_null() {
+                                                let trypos = unsafe { &mut *trypos };
+                                                if trypos.lnum == curwin_mut().w_cursor.lnum - 1 {
+                                                    break;
+                                                }
+                                                ourscope = trypos.lnum;
+                                            }
+                                        } else {
+                                            lookfor = LOOKFOR_ENUM_OR_INIT;
+                                            cont_amount = cin_first_id_amount();
                                         }
                                     } else {
-                                        loop {
-                                            let cur_s = crate::cursor::get_cursor_line_slice();
-                                            if find_last_paren_slice(cur_s, b'(', b')') {
-                                                trypos =
-                                                    find_match_paren(curbuf_mut().b_ind_maxparen);
-                                                if !trypos.is_null() {
+                                        if lookfor == LOOKFOR_INITIAL
+                                            && cur_s.last() == Some(&b'\\')
+                                        {
+                                            cont_amount =
+                                                cin_get_equal_amount(curwin_mut().w_cursor.lnum);
+                                        }
+                                        if lookfor != LOOKFOR_TERM
+                                            && lookfor != LOOKFOR_JS_KEY
+                                            && lookfor != LOOKFOR_COMMA
+                                            && raw_string_start != curwin_mut().w_cursor.lnum
+                                        {
+                                            lookfor = LOOKFOR_UNTERM;
+                                        }
+                                    }
+                                }
+                            } else if cin_iswhileofdo_end(i32::from(terminated)) {
+                                if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT {
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
+                                    } else {
+                                        amount += ind_continuation;
+                                    }
+                                    break;
+                                }
+                                if whilelevel == 0 {
+                                    lookfor = LOOKFOR_TERM;
+                                    amount = get_indent();
+                                    if theline_b0 == b'{' {
+                                        amount += curbuf_mut().b_ind_open_extra;
+                                    }
+                                }
+                                whilelevel += 1;
+                            } else {
+                                if lookfor == LOOKFOR_NOBREAK
+                                    && cin_isbreak_slice(crate::charset::skipwhite_slice(
+                                        crate::cursor::get_cursor_line_slice(),
+                                    ))
+                                {
+                                    lookfor = LOOKFOR_ANY;
+                                    continue;
+                                }
+                                if whilelevel > 0 {
+                                    let cur_s = cin_skipcomment_slice(
+                                        crate::cursor::get_cursor_line_slice(),
+                                    );
+                                    if cin_isdo_slice(cur_s) {
+                                        amount = get_indent();
+                                        whilelevel -= 1;
+                                        continue;
+                                    }
+                                }
+                                if lookfor == LOOKFOR_UNTERM || lookfor == LOOKFOR_ENUM_OR_INIT {
+                                    if cont_amount > 0 {
+                                        amount = cont_amount;
+                                    } else {
+                                        amount += ind_continuation;
+                                    }
+                                    break;
+                                }
+                                if lookfor == LOOKFOR_TERM {
+                                    if !lookfor_break && whilelevel == 0 {
+                                        break;
+                                    }
+                                } else {
+                                    loop {
+                                        let cur_s = crate::cursor::get_cursor_line_slice();
+                                        if find_last_paren_slice(cur_s, b'(', b')') {
+                                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                                            if !trypos.is_null() {
+                                                unsafe {
                                                     curwin_mut().w_cursor = *trypos;
-                                                    let tp_s =
-                                                        crate::cursor::get_cursor_line_slice();
-                                                    if cin_iscase_slice(tp_s, false)
-                                                        || cin_isscopedecl_slice(tp_s)
-                                                    {
-                                                        curwin_mut().w_cursor.lnum += 1;
-                                                        curwin_mut().w_cursor.col = 0;
-                                                        continue 'scope_loop;
-                                                    }
                                                 }
-                                            }
-                                            let cur_s = crate::cursor::get_cursor_line_slice();
-                                            iscase = curbuf_mut().b_ind_keep_case_label != 0
-                                                && cin_iscase_slice(cur_s, false);
-                                            amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
-                                            if theline_b0 == b'{' {
-                                                amount += curbuf_mut().b_ind_open_extra;
-                                            }
-                                            let l_trim = crate::charset::skipwhite_slice(l);
-                                            if l_trim.first() == Some(&b'{') {
-                                                amount -= curbuf_mut().b_ind_open_extra;
-                                            }
-                                            lookfor =
-                                                if iscase { LOOKFOR_ANY } else { LOOKFOR_TERM };
-                                            if lookfor == LOOKFOR_TERM
-                                                && l_trim.first() != Some(&b'}')
-                                                && cin_iselse_slice(l_trim)
-                                                && whilelevel == 0
-                                            {
-                                                trypos = find_start_brace();
-                                                if trypos.is_null()
-                                                    || !find_match(LOOKFOR_IF, (*trypos).lnum)
+                                                let tp_s = crate::cursor::get_cursor_line_slice();
+                                                if cin_iscase_slice(tp_s, false)
+                                                    || cin_isscopedecl_slice(tp_s)
                                                 {
-                                                    break 'scope_loop;
-                                                }
-                                                continue 'scope_loop;
-                                            }
-                                            let cur_s = crate::cursor::get_cursor_line_slice();
-                                            if find_last_paren_slice(cur_s, b'{', b'}') {
-                                                trypos = find_start_brace();
-                                                if !trypos.is_null() {
-                                                    curwin_mut().w_cursor = *trypos;
-                                                    let tp_s = cin_skipcomment_slice(
-                                                        crate::cursor::get_cursor_line_slice(),
-                                                    );
-                                                    if tp_s.first() == Some(&b'}')
-                                                        || !cin_iselse_slice(tp_s)
-                                                    {
-                                                        continue;
-                                                    }
                                                     curwin_mut().w_cursor.lnum += 1;
                                                     curwin_mut().w_cursor.col = 0;
+                                                    continue 'scope_loop;
                                                 }
                                             }
-                                            break;
                                         }
+                                        let cur_s = crate::cursor::get_cursor_line_slice();
+                                        iscase = curbuf_mut().b_ind_keep_case_label != 0
+                                            && cin_iscase_slice(cur_s, false);
+                                        amount = skip_label(curwin_mut().w_cursor.lnum, &mut l);
+                                        if theline_b0 == b'{' {
+                                            amount += curbuf_mut().b_ind_open_extra;
+                                        }
+                                        let l_trim = crate::charset::skipwhite_slice(l);
+                                        if l_trim.first() == Some(&b'{') {
+                                            amount -= curbuf_mut().b_ind_open_extra;
+                                        }
+                                        lookfor = if iscase { LOOKFOR_ANY } else { LOOKFOR_TERM };
+                                        if lookfor == LOOKFOR_TERM
+                                            && l_trim.first() != Some(&b'}')
+                                            && cin_iselse_slice(l_trim)
+                                            && whilelevel == 0
+                                        {
+                                            trypos = find_start_brace();
+                                            if trypos.is_null()
+                                                || unsafe {
+                                                    !find_match(LOOKFOR_IF, (*trypos).lnum)
+                                                }
+                                            {
+                                                break 'scope_loop;
+                                            }
+                                            continue 'scope_loop;
+                                        }
+                                        let cur_s = crate::cursor::get_cursor_line_slice();
+                                        if find_last_paren_slice(cur_s, b'{', b'}') {
+                                            trypos = find_start_brace();
+                                            if !trypos.is_null() {
+                                                unsafe {
+                                                    curwin_mut().w_cursor = *trypos;
+                                                }
+                                                let tp_s = cin_skipcomment_slice(
+                                                    crate::cursor::get_cursor_line_slice(),
+                                                );
+                                                if tp_s.first() == Some(&b'}')
+                                                    || !cin_iselse_slice(tp_s)
+                                                {
+                                                    continue;
+                                                }
+                                                curwin_mut().w_cursor.lnum += 1;
+                                                curwin_mut().w_cursor.col = 0;
+                                            }
+                                        }
+                                        break;
                                     }
                                 }
                             }
                         }
                     }
-                    if cin_iscomment_slice(theline_slice) {
-                        amount += curbuf_mut().b_ind_comment;
-                    }
-                    if curbuf_mut().b_ind_jump_label > 0 && original_line_islabel {
-                        amount -= curbuf_mut().b_ind_jump_label;
-                    }
-                    break 'theend;
-                }
-                if theline_b0 == b'{' {
-                    amount = curbuf_mut().b_ind_first_open;
-                    break 'theend;
-                }
-                if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
-                    && !cin_nocode_slice(theline_slice)
-                    && !theline_slice.contains(&b'{')
-                    && !theline_slice.contains(&b'}')
-                    && !cin_ends_in_slice(theline_slice, b":")
-                    && !cin_ends_in_slice(theline_slice, b",")
-                    && cin_isfuncdecl(None, cur_curpos.lnum + 1, cur_curpos.lnum + 1)
-                    && cin_isterminated_slice(theline_slice, false, true) == 0
-                {
-                    amount = curbuf_mut().b_ind_func_type;
-                    break 'theend;
-                }
-                amount = 0;
-                curwin_mut().w_cursor = cur_curpos;
-                while curwin_mut().w_cursor.lnum > 1 {
-                    curwin_mut().w_cursor.lnum -= 1;
-                    curwin_mut().w_cursor.col = 0;
-                    l = crate::cursor::get_cursor_line_slice();
-                    trypos = ind_find_start_cors(None);
-                    if !trypos.is_null() {
-                        curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
-                        curwin_mut().w_cursor.col = 0;
-                        continue;
-                    }
-                    n = 0;
-                    if curbuf_mut().b_ind_cpp_baseclass != 0 {
-                        n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
-                        l = crate::cursor::get_cursor_line_slice();
-                    }
-                    if n != 0 {
-                        amount = get_baseclass_amount(cache_cpp_baseclass.lpos.col);
-                        break;
-                    }
-                    if cin_ispreproc_cont(&mut l, &mut curwin_mut().w_cursor.lnum, &mut amount) {
-                        continue;
-                    }
-                    if cin_nocode_slice(l) {
-                        continue;
-                    }
-                    if cin_ends_in_slice(l, b",") || {
-                        n = l.last().copied().map_or(0, i32::from);
-                        n == b'\\' as i32
-                    } {
-                        if find_last_paren_slice(l, b'(', b')') {
-                            trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                            if !trypos.is_null() {
-                                curwin_mut().w_cursor = *trypos;
-                            }
-                        }
-                        while n == 0 && curwin_mut().w_cursor.lnum > 1 {
-                            let prev_s =
-                                crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
-                            if prev_s.last() != Some(&b'\\') {
-                                break;
-                            }
-                            curwin_mut().w_cursor.lnum -= 1;
-                            curwin_mut().w_cursor.col = 0;
-                        }
-                        amount = get_indent();
-                        if amount == 0 {
-                            amount = cin_first_id_amount();
-                        }
-                        if amount == 0 {
-                            amount = ind_continuation;
-                        }
-                        break;
-                    }
-                    if cin_isfuncdecl(None, cur_curpos.lnum, 0) {
-                        break;
-                    }
-                    let l_bytes = crate::cursor::get_cursor_line_slice();
-                    if crate::charset::skipwhite_slice(l_bytes).first() == Some(&b'}') {
-                        break;
-                    }
-                    if cin_ends_in_slice(l_bytes, b"};") {
-                        break;
-                    }
-                    if cin_ends_in_slice(l_bytes, b"[") {
-                        amount = get_indent() + ind_continuation;
-                        break;
-                    }
-                    let look_s = crate::charset::skipwhite_slice(l_bytes);
-                    if look_s.first() == Some(&b';') && cin_nocode_slice(&look_s[1..]) {
-                        let curpos_save = curwin_mut().w_cursor;
-                        while curwin_mut().w_cursor.lnum > 1 {
-                            curwin_mut().w_cursor.lnum -= 1;
-                            look = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-                            if !(cin_nocode_slice(look)
-                                || cin_ispreproc_cont(
-                                    &mut look,
-                                    &mut curwin_mut().w_cursor.lnum,
-                                    &mut amount,
-                                ))
-                            {
-                                break;
-                            }
-                        }
-                        if curwin_mut().w_cursor.lnum > 0 && cin_ends_in_slice(look, b"}") {
-                            break;
-                        }
-                        curwin_mut().w_cursor = curpos_save;
-                    }
-                    l = crate::cursor::get_cursor_line_slice();
-                    if cin_isfuncdecl(Some(&mut l), curwin_mut().w_cursor.lnum, 0) {
-                        amount = curbuf_mut().b_ind_param;
-                        break;
-                    }
-                    if cin_ends_in_slice(l, b";") {
-                        let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
-                        if cin_ends_in_slice(prev_s, b",") || prev_s.last() == Some(&b'\\') {
-                            break;
-                        }
-                    }
-                    let _ =
-                        find_last_paren_slice(crate::cursor::get_cursor_line_slice(), b'(', b')');
-                    trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
-                    if !trypos.is_null() {
-                        curwin_mut().w_cursor = *trypos;
-                    }
-                    amount = get_indent();
-                    break;
                 }
                 if cin_iscomment_slice(theline_slice) {
                     amount += curbuf_mut().b_ind_comment;
                 }
-                if cur_curpos.lnum > 1 {
-                    let prev_s = crate::memline::ml_get_slice(cur_curpos.lnum - 1);
-                    if prev_s.last() == Some(&b'\\') {
-                        cur_amount = cin_get_equal_amount(cur_curpos.lnum - 1);
-                        if cur_amount > 0 {
-                            amount = cur_amount;
-                        } else if cur_amount == 0 {
-                            amount += ind_continuation;
+                if curbuf_mut().b_ind_jump_label > 0 && original_line_islabel {
+                    amount -= curbuf_mut().b_ind_jump_label;
+                }
+                break 'theend;
+            }
+            if theline_b0 == b'{' {
+                amount = curbuf_mut().b_ind_first_open;
+                break 'theend;
+            }
+            if cur_curpos.lnum < curbuf_mut().b_ml.ml_line_count
+                && !cin_nocode_slice(theline_slice)
+                && !theline_slice.contains(&b'{')
+                && !theline_slice.contains(&b'}')
+                && !cin_ends_in_slice(theline_slice, b":")
+                && !cin_ends_in_slice(theline_slice, b",")
+                && cin_isfuncdecl(None, cur_curpos.lnum + 1, cur_curpos.lnum + 1)
+                && cin_isterminated_slice(theline_slice, false, true) == 0
+            {
+                amount = curbuf_mut().b_ind_func_type;
+                break 'theend;
+            }
+            amount = 0;
+            curwin_mut().w_cursor = cur_curpos;
+            while curwin_mut().w_cursor.lnum > 1 {
+                curwin_mut().w_cursor.lnum -= 1;
+                curwin_mut().w_cursor.col = 0;
+                l = crate::cursor::get_cursor_line_slice();
+                trypos = ind_find_start_cors(None);
+                if !trypos.is_null() {
+                    unsafe {
+                        curwin_mut().w_cursor.lnum = (*trypos).lnum + 1;
+                    }
+                    curwin_mut().w_cursor.col = 0;
+                    continue;
+                }
+                n = 0;
+                if curbuf_mut().b_ind_cpp_baseclass != 0 {
+                    n = i32::from(cin_is_cpp_baseclass(&mut cache_cpp_baseclass));
+                    l = crate::cursor::get_cursor_line_slice();
+                }
+                if n != 0 {
+                    amount = get_baseclass_amount(cache_cpp_baseclass.lpos.col);
+                    break;
+                }
+                if cin_ispreproc_cont(&mut l, &mut curwin_mut().w_cursor.lnum, &mut amount) {
+                    continue;
+                }
+                if cin_nocode_slice(l) {
+                    continue;
+                }
+                if cin_ends_in_slice(l, b",") || {
+                    n = l.last().copied().map_or(0, i32::from);
+                    n == b'\\' as i32
+                } {
+                    if find_last_paren_slice(l, b'(', b')') {
+                        trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                        if !trypos.is_null() {
+                            unsafe {
+                                curwin_mut().w_cursor = *trypos;
+                            }
                         }
+                    }
+                    while n == 0 && curwin_mut().w_cursor.lnum > 1 {
+                        let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
+                        if prev_s.last() != Some(&b'\\') {
+                            break;
+                        }
+                        curwin_mut().w_cursor.lnum -= 1;
+                        curwin_mut().w_cursor.col = 0;
+                    }
+                    amount = get_indent();
+                    if amount == 0 {
+                        amount = cin_first_id_amount();
+                    }
+                    if amount == 0 {
+                        amount = ind_continuation;
+                    }
+                    break;
+                }
+                if cin_isfuncdecl(None, cur_curpos.lnum, 0) {
+                    break;
+                }
+                let l_bytes = crate::cursor::get_cursor_line_slice();
+                if crate::charset::skipwhite_slice(l_bytes).first() == Some(&b'}') {
+                    break;
+                }
+                if cin_ends_in_slice(l_bytes, b"};") {
+                    break;
+                }
+                if cin_ends_in_slice(l_bytes, b"[") {
+                    amount = get_indent() + ind_continuation;
+                    break;
+                }
+                let look_s = crate::charset::skipwhite_slice(l_bytes);
+                if look_s.first() == Some(&b';') && cin_nocode_slice(&look_s[1..]) {
+                    let curpos_save = curwin_mut().w_cursor;
+                    while curwin_mut().w_cursor.lnum > 1 {
+                        curwin_mut().w_cursor.lnum -= 1;
+                        look = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                        if !(cin_nocode_slice(look)
+                            || cin_ispreproc_cont(
+                                &mut look,
+                                &mut curwin_mut().w_cursor.lnum,
+                                &mut amount,
+                            ))
+                        {
+                            break;
+                        }
+                    }
+                    if curwin_mut().w_cursor.lnum > 0 && cin_ends_in_slice(look, b"}") {
+                        break;
+                    }
+                    curwin_mut().w_cursor = curpos_save;
+                }
+                l = crate::cursor::get_cursor_line_slice();
+                if cin_isfuncdecl(Some(&mut l), curwin_mut().w_cursor.lnum, 0) {
+                    amount = curbuf_mut().b_ind_param;
+                    break;
+                }
+                if cin_ends_in_slice(l, b";") {
+                    let prev_s = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum - 1);
+                    if cin_ends_in_slice(prev_s, b",") || prev_s.last() == Some(&b'\\') {
+                        break;
+                    }
+                }
+                let _ = find_last_paren_slice(crate::cursor::get_cursor_line_slice(), b'(', b')');
+                trypos = find_match_paren(curbuf_mut().b_ind_maxparen);
+                if !trypos.is_null() {
+                    unsafe {
+                        curwin_mut().w_cursor = *trypos;
+                    }
+                }
+                amount = get_indent();
+                break;
+            }
+            if cin_iscomment_slice(theline_slice) {
+                amount += curbuf_mut().b_ind_comment;
+            }
+            if cur_curpos.lnum > 1 {
+                let prev_s = crate::memline::ml_get_slice(cur_curpos.lnum - 1);
+                if prev_s.last() == Some(&b'\\') {
+                    cur_amount = cin_get_equal_amount(cur_curpos.lnum - 1);
+                    if cur_amount > 0 {
+                        amount = cur_amount;
+                    } else if cur_amount == 0 {
+                        amount += ind_continuation;
                     }
                 }
             }
-            if amount < 0 {
-                amount = 0;
-            }
         }
-        curwin_mut().w_cursor = cur_curpos;
-        amount
+        if amount < 0 {
+            amount = 0;
+        }
     }
+    curwin_mut().w_cursor = cur_curpos;
+    amount
 }
 fn find_match(lookfor: i32, ourscope: Linenr) -> bool {
     let mut elselevel: i32;

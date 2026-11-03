@@ -916,446 +916,458 @@ pub fn open_line(
     second_line_indent: i32,
     mut did_do_comment: Option<&mut bool>,
 ) -> bool {
-    unsafe {
-        let mut next_line_vec: Vec<u8> = Vec::new();
-        let mut p_extra: *mut u8 = ptr::null_mut();
-        let mut less_cols: Colnr = 0;
-        let mut less_cols_off: Colnr = 0;
-        let mut newcol: Colnr = 0;
-        let mut newindent: i32 = 0;
-        let mut trunc_line = false;
-        let mut retval = false;
-        let mut extra_len: i32 = 0;
-        let mut lead_len: i32;
-        let mut comment_start: i32 = 0;
-        let mut lead_flags: Option<&'static CStr> = None;
-        let mut leader: *mut u8 = ptr::null_mut();
-        let mut allocated_vec: Vec<u8> = Vec::new();
-        let mut saved_char: u8 = 0;
-        let do_si = may_do_si();
-        let mut no_si = false;
-        let mut first_char: i32 = 0;
-        let saved_pi = curbuf_mut().b_p_pi;
+    let mut next_line_vec: Vec<u8> = Vec::new();
+    let mut p_extra: *mut u8 = ptr::null_mut();
+    let mut less_cols: Colnr = 0;
+    let mut less_cols_off: Colnr = 0;
+    let mut newcol: Colnr = 0;
+    let mut newindent: i32 = 0;
+    let mut trunc_line = false;
+    let mut retval = false;
+    let mut extra_len: i32 = 0;
+    let mut lead_len: i32;
+    let mut comment_start: i32 = 0;
+    let mut lead_flags: Option<&'static CStr> = None;
+    let mut leader: *mut u8 = ptr::null_mut();
+    let mut allocated_vec: Vec<u8> = Vec::new();
+    let mut saved_char: u8 = 0;
+    let do_si = may_do_si();
+    let mut no_si = false;
+    let mut first_char: i32 = 0;
+    let saved_pi = curbuf_mut().b_p_pi;
 
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mincol = curwin_mut().w_cursor.col + 1;
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mincol = curwin_mut().w_cursor.col + 1;
 
-        let mut saved_line_vec = crate::cursor::get_cursor_line_slice().to_vec();
-        saved_line_vec.push(0);
-        let saved_line = saved_line_vec.as_mut_ptr();
+    let mut saved_line_vec = crate::cursor::get_cursor_line_slice().to_vec();
+    saved_line_vec.push(0);
+    let saved_line = saved_line_vec.as_mut_ptr();
 
-        if (g_st().state_global & VREPLACE_FLAG) != 0 {
-            if curwin_mut().w_cursor.lnum < g_st().orig_line_count {
-                let next_lnum = curwin_mut().w_cursor.lnum + 1;
-                next_line_vec = crate::memline::ml_get_slice(next_lnum).to_vec();
-                next_line_vec.push(0);
-            } else {
-                next_line_vec = vec![0];
-            }
+    if (g_st().state_global & VREPLACE_FLAG) != 0 {
+        if curwin_mut().w_cursor.lnum < g_st().orig_line_count {
+            let next_lnum = curwin_mut().w_cursor.lnum + 1;
+            next_line_vec = crate::memline::ml_get_slice(next_lnum).to_vec();
+            next_line_vec.push(0);
+        } else {
+            next_line_vec = vec![0];
+        }
 
-            replace_push_nul();
-            replace_push_nul();
-            let p = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
-            replace_push(p.cast(), crate::memory::cstr_len(p.cast()));
+        replace_push_nul();
+        replace_push_nul();
+        let p = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
+        replace_push(p.cast(), crate::memory::cstr_len(p.cast()));
+        unsafe {
             *saved_line.wrapping_add(curwin_mut().w_cursor.col as usize) = 0;
         }
+    }
 
-        if (g_st().state_global & MODE_INSERT) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
-            p_extra = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
-            if do_si {
-                let p = skipwhite(p_extra.cast());
-                first_char = i32::from(crate::memory::cstr_first_byte(p));
-            }
-            extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
+    if (g_st().state_global & MODE_INSERT) != 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
+        p_extra = saved_line.wrapping_add(curwin_mut().w_cursor.col as usize);
+        if do_si {
+            let p = skipwhite(p_extra.cast());
+            first_char = i32::from(crate::memory::cstr_first_byte(p));
+        }
+        extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
+        unsafe {
             saved_char = *p_extra;
+        }
+        unsafe {
             *p_extra = 0;
         }
+    }
 
-        u_clearline(curbuf_mut());
-        g_st().ins_global.did_si = false;
-        g_st().ins_global.ai_col = 0;
+    u_clearline(curbuf_mut());
+    g_st().ins_global.did_si = false;
+    g_st().ins_global.ai_col = 0;
 
-        if dir == FORWARD && g_st().ins_global.did_ai {
-            trunc_line = true;
+    if dir == FORWARD && g_st().ins_global.did_ai {
+        trunc_line = true;
+    }
+
+    if (flags & OPENLINE_FORCE_INDENT) != 0 {
+        newindent = second_line_indent;
+    } else if curbuf_mut().b_p_ai != 0 || do_si {
+        newindent = indent_size_ts(
+            saved_line.cast(),
+            curbuf_mut().b_p_ts,
+            &curbuf_mut().b_p_vts_array,
+        );
+        if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
+            newindent = second_line_indent;
         }
 
-        if (flags & OPENLINE_FORCE_INDENT) != 0 {
-            newindent = second_line_indent;
-        } else if curbuf_mut().b_p_ai != 0 || do_si {
-            newindent = indent_size_ts(
-                saved_line.cast(),
-                curbuf_mut().b_p_ts,
-                &curbuf_mut().b_p_vts_array,
-            );
-            if newindent == 0 && (flags & OPENLINE_COM_LIST) == 0 {
-                newindent = second_line_indent;
+        if !trunc_line
+            && do_si
+            && !crate::memory::cstr_is_empty(saved_line.cast())
+            && (p_extra.is_null() || first_char != b'{' as i32)
+        {
+            let old_cursor = curwin_mut().w_cursor;
+            let mut ptr_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
+            if (flags & OPENLINE_DO_COM) != 0 {
+                lead_len = get_leader_len(ptr_bytes, None, false, true);
+            } else {
+                lead_len = 0;
             }
-
-            if !trunc_line
-                && do_si
-                && !crate::memory::cstr_is_empty(saved_line.cast())
-                && (p_extra.is_null() || first_char != b'{' as i32)
-            {
-                let old_cursor = curwin_mut().w_cursor;
-                let mut ptr_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
+            if dir == FORWARD {
+                if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
+                    while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.lnum > 1 {
+                        curwin_mut().w_cursor.lnum -= 1;
+                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                    }
+                    newindent = get_indent();
+                }
                 if (flags & OPENLINE_DO_COM) != 0 {
                     lead_len = get_leader_len(ptr_bytes, None, false, true);
                 } else {
                     lead_len = 0;
                 }
-                if dir == FORWARD {
-                    if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
-                        while ptr_bytes.first() == Some(&b'#') && curwin_mut().w_cursor.lnum > 1 {
-                            curwin_mut().w_cursor.lnum -= 1;
-                            ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-                        }
-                        newindent = get_indent();
+                if lead_len > 0 {
+                    let mut p_slice = crate::charset::skipwhite_slice(ptr_bytes);
+                    if p_slice.starts_with(b"/*") {
+                        p_slice = &p_slice[1..];
                     }
-                    if (flags & OPENLINE_DO_COM) != 0 {
-                        lead_len = get_leader_len(ptr_bytes, None, false, true);
-                    } else {
-                        lead_len = 0;
-                    }
-                    if lead_len > 0 {
-                        let mut p_slice = crate::charset::skipwhite_slice(ptr_bytes);
-                        if p_slice.starts_with(b"/*") {
-                            p_slice = &p_slice[1..];
-                        }
-                        if let Some(after_star) = p_slice.strip_prefix(b"*") {
-                            let mut idx = ptr_bytes.len() - after_star.len();
-                            while idx < ptr_bytes.len() {
-                                if ptr_bytes[idx] == b'/' && ptr_bytes[idx - 1] == b'*' {
-                                    curwin_mut().w_cursor.col = idx as Colnr;
-                                    let pos = findmatch(None, 0);
-                                    if !pos.is_null() {
+                    if let Some(after_star) = p_slice.strip_prefix(b"*") {
+                        let mut idx = ptr_bytes.len() - after_star.len();
+                        while idx < ptr_bytes.len() {
+                            if ptr_bytes[idx] == b'/' && ptr_bytes[idx - 1] == b'*' {
+                                curwin_mut().w_cursor.col = idx as Colnr;
+                                let pos = findmatch(None, 0);
+                                if !pos.is_null() {
+                                    unsafe {
                                         curwin_mut().w_cursor.lnum = (*pos).lnum;
-                                        newindent = get_indent();
-                                        break;
                                     }
-                                    ptr_bytes =
-                                        crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-                                    idx = (curwin_mut().w_cursor.col as usize).min(ptr_bytes.len());
+                                    newindent = get_indent();
+                                    break;
                                 }
-                                idx += 1;
+                                ptr_bytes =
+                                    crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                                idx = (curwin_mut().w_cursor.col as usize).min(ptr_bytes.len());
                             }
+                            idx += 1;
                         }
-                    } else {
-                        let mut p_idx = ptr_bytes.len().saturating_sub(1);
+                    }
+                } else {
+                    let mut p_idx = ptr_bytes.len().saturating_sub(1);
+                    while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
+                        p_idx -= 1;
+                    }
+                    let last_char = ptr_bytes.get(p_idx).copied().unwrap_or(0);
+
+                    if last_char == b'{' || last_char == b';' {
+                        p_idx = p_idx.saturating_sub(1);
                         while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
                             p_idx -= 1;
                         }
-                        let last_char = ptr_bytes.get(p_idx).copied().unwrap_or(0);
-
-                        if last_char == b'{' || last_char == b';' {
-                            p_idx = p_idx.saturating_sub(1);
-                            while p_idx > 0 && ascii_iswhite(ptr_bytes[p_idx]) {
-                                p_idx -= 1;
-                            }
-                        }
-                        if ptr_bytes.get(p_idx) == Some(&b')') {
-                            curwin_mut().w_cursor.col = p_idx as Colnr;
-                            let pos = findmatch(None, b'(' as i32);
-                            if !pos.is_null() {
+                    }
+                    if ptr_bytes.get(p_idx) == Some(&b')') {
+                        curwin_mut().w_cursor.col = p_idx as Colnr;
+                        let pos = findmatch(None, b'(' as i32);
+                        if !pos.is_null() {
+                            unsafe {
                                 curwin_mut().w_cursor.lnum = (*pos).lnum;
-                                newindent = get_indent();
-                                ptr_bytes = crate::cursor::get_cursor_line_slice();
                             }
-                        }
-                        if last_char == b'{' {
-                            g_st().ins_global.did_si = true;
-                            no_si = true;
-                        } else if last_char != b';'
-                            && last_char != b'}'
-                            && cin_is_cinword(ptr_bytes)
-                        {
-                            g_st().ins_global.did_si = true;
-                        }
-                    }
-                } else {
-                    if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
-                        let mut was_backslashed = false;
-
-                        while (ptr_bytes.first() == Some(&b'#') || was_backslashed)
-                            && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
-                        {
-                            was_backslashed = ptr_bytes.last() == Some(&b'\\');
-                            curwin_mut().w_cursor.lnum += 1;
-                            ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
-                        }
-                        if was_backslashed {
-                            newindent = 0;
-                        } else {
                             newindent = get_indent();
+                            ptr_bytes = crate::cursor::get_cursor_line_slice();
                         }
                     }
-                    if crate::charset::skipwhite_slice(ptr_bytes).first() == Some(&b'}') {
+                    if last_char == b'{' {
                         g_st().ins_global.did_si = true;
+                        no_si = true;
+                    } else if last_char != b';' && last_char != b'}' && cin_is_cinword(ptr_bytes) {
+                        g_st().ins_global.did_si = true;
+                    }
+                }
+            } else {
+                if lead_len == 0 && ptr_bytes.first() == Some(&b'#') {
+                    let mut was_backslashed = false;
+
+                    while (ptr_bytes.first() == Some(&b'#') || was_backslashed)
+                        && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+                    {
+                        was_backslashed = ptr_bytes.last() == Some(&b'\\');
+                        curwin_mut().w_cursor.lnum += 1;
+                        ptr_bytes = crate::memline::ml_get_slice(curwin_mut().w_cursor.lnum);
+                    }
+                    if was_backslashed {
+                        newindent = 0;
                     } else {
-                        g_st().ins_global.can_si_back = true;
+                        newindent = get_indent();
                     }
                 }
-                curwin_mut().w_cursor = old_cursor;
-            }
-            if do_si {
-                g_st().ins_global.can_si = true;
-            }
-
-            g_st().ins_global.did_ai = true;
-        }
-
-        let do_cindent = opt_vars().p_paste == 0
-            && (curbuf_mut().b_p_cin != 0
-                || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
-            && in_cinkeys(
-                if dir == FORWARD {
-                    KEY_OPEN_FORW
+                if crate::charset::skipwhite_slice(ptr_bytes).first() == Some(&b'}') {
+                    g_st().ins_global.did_si = true;
                 } else {
-                    KEY_OPEN_BACK
-                },
-                b' ' as i32,
-                linewhite(curwin_mut().w_cursor.lnum),
-            )
-            && (flags & OPENLINE_FORCE_INDENT) == 0;
+                    g_st().ins_global.can_si_back = true;
+                }
+            }
+            curwin_mut().w_cursor = old_cursor;
+        }
+        if do_si {
+            g_st().ins_global.can_si = true;
+        }
 
-        g_st().ins_global.end_comment_pending = 0;
-        if (flags & OPENLINE_DO_COM) != 0 {
-            let saved_line_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
-            lead_len = get_leader_len(
-                saved_line_bytes,
-                Some(&mut lead_flags),
-                dir == BACKWARD,
-                true,
-            );
-            if lead_len == 0
-                && curbuf_mut().b_p_cin != 0
-                && do_cindent
-                && dir == FORWARD
-                && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
-            {
-                comment_start = check_linecomment(saved_line_bytes);
-                if comment_start != MAXCOL {
-                    lead_len = get_leader_len(
-                        &saved_line_bytes[(comment_start as usize).min(saved_line_bytes.len())..],
-                        Some(&mut lead_flags),
-                        false,
-                        true,
-                    );
-                    if lead_len != 0 {
-                        lead_len += comment_start;
-                        if let Some(ref mut p) = did_do_comment {
-                            **p = true;
-                        }
+        g_st().ins_global.did_ai = true;
+    }
+
+    let do_cindent = opt_vars().p_paste == 0
+        && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
+        && in_cinkeys(
+            if dir == FORWARD {
+                KEY_OPEN_FORW
+            } else {
+                KEY_OPEN_BACK
+            },
+            b' ' as i32,
+            linewhite(curwin_mut().w_cursor.lnum),
+        )
+        && (flags & OPENLINE_FORCE_INDENT) == 0;
+
+    g_st().ins_global.end_comment_pending = 0;
+    if (flags & OPENLINE_DO_COM) != 0 {
+        let saved_line_bytes = crate::memory::cstr_as_bytes(saved_line.cast());
+        lead_len = get_leader_len(
+            saved_line_bytes,
+            Some(&mut lead_flags),
+            dir == BACKWARD,
+            true,
+        );
+        if lead_len == 0
+            && curbuf_mut().b_p_cin != 0
+            && do_cindent
+            && dir == FORWARD
+            && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
+        {
+            comment_start = check_linecomment(saved_line_bytes);
+            if comment_start != MAXCOL {
+                lead_len = get_leader_len(
+                    &saved_line_bytes[(comment_start as usize).min(saved_line_bytes.len())..],
+                    Some(&mut lead_flags),
+                    false,
+                    true,
+                );
+                if lead_len != 0 {
+                    lead_len += comment_start;
+                    if let Some(ref mut p) = did_do_comment {
+                        **p = true;
                     }
                 }
             }
-        } else {
-            lead_len = 0;
         }
+    } else {
+        lead_len = 0;
+    }
 
-        if lead_len > 0 {
-            let mut lead_repl: *mut u8 = ptr::null_mut();
-            let mut lead_repl_len: i32 = 0;
-            let mut lead_middle: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-            let lead_middle_len: i32;
-            let mut lead_end: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-            let mut comment_end: *mut u8 = ptr::null_mut();
-            let mut extra_space = false;
-            let mut require_blank = false;
+    if lead_len > 0 {
+        let mut lead_repl: *mut u8 = ptr::null_mut();
+        let mut lead_repl_len: i32 = 0;
+        let mut lead_middle: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+        let lead_middle_len: i32;
+        let mut lead_end: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
+        let mut comment_end: *mut u8 = ptr::null_mut();
+        let mut extra_space = false;
+        let mut require_blank = false;
 
-            let mut p = lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
-            while !crate::memory::cstr_is_empty(p.cast())
-                && crate::memory::cstr_first_byte(p.cast()) != b':'
-            {
-                if *p == COM_BLANK {
-                    require_blank = true;
-                    p = p.wrapping_add(1);
-                    continue;
-                }
-                if *p == COM_START || *p == COM_MIDDLE {
-                    let current_flag = *p;
-                    if *p == COM_START {
-                        if dir == BACKWARD {
-                            lead_len = 0;
-                            break;
-                        }
-                        copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",");
-                        require_blank = false;
-                    }
-
-                    while !crate::memory::cstr_is_empty(p.cast()) && *p.wrapping_sub(1) != b':' {
-                        if *p == COM_BLANK {
-                            require_blank = true;
-                        }
-                        p = p.wrapping_add(1);
-                    }
-                    lead_middle_len =
-                        copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",")
-                            as i32;
-
-                    while !crate::memory::cstr_is_empty(p.cast()) && *p.wrapping_sub(1) != b':' {
-                        if *p == COM_AUTO_END {
-                            g_st().ins_global.end_comment_pending = -1;
-                        }
-                        p = p.wrapping_add(1);
-                    }
-                    let n = copy_option_part(&raw mut p, lead_end.as_mut_ptr(), COM_MAX_LEN, c",");
-
-                    if g_st().ins_global.end_comment_pending == -1 {
-                        g_st().ins_global.end_comment_pending = i32::from(lead_end[n - 1]);
-                    }
-
-                    if dir == FORWARD {
-                        let mut q = saved_line.wrapping_add(lead_len as usize);
-                        let end_bytes = &lead_end[..n];
-                        while !crate::memory::cstr_is_empty(q.cast()) {
-                            let q_bytes = crate::memory::cstr_as_bytes(q.cast());
-                            if q_bytes.len() >= n && &q_bytes[..n] == end_bytes {
-                                comment_end = q;
-                                lead_len = 0;
-                                break;
-                            }
-                            q = q.wrapping_add(1);
-                        }
-                    }
-
-                    if lead_len > 0 {
-                        if current_flag == COM_START {
-                            lead_repl = lead_middle.as_mut_ptr();
-                            lead_repl_len = lead_middle_len;
-                        }
-
-                        if !ascii_iswhite(*saved_line.wrapping_add((lead_len - 1) as usize))
-                            && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
-                                || (p_extra.is_null()
-                                    && crate::memory::cstr_is_empty(
-                                        saved_line.wrapping_add(lead_len as usize).cast(),
-                                    ))
-                                || require_blank)
-                        {
-                            extra_space = true;
-                        }
-                    }
-                    break;
-                }
-                if *p == COM_END {
-                    if dir == FORWARD {
-                        comment_end = skipwhite(saved_line.cast()).cast();
+        let mut p = lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
+        while !crate::memory::cstr_is_empty(p.cast())
+            && crate::memory::cstr_first_byte(p.cast()) != b':'
+        {
+            if unsafe { *p == COM_BLANK } {
+                require_blank = true;
+                p = p.wrapping_add(1);
+                continue;
+            }
+            if unsafe { *p == COM_START } || unsafe { *p == COM_MIDDLE } {
+                let current_flag = unsafe { *p };
+                if unsafe { *p == COM_START } {
+                    if dir == BACKWARD {
                         lead_len = 0;
                         break;
                     }
+                    copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",");
+                    require_blank = false;
+                }
 
-                    while p > curbuf_mut().b_p_com.cast()
-                        && crate::memory::cstr_first_byte(p.cast()) != b','
-                    {
-                        p = p.wrapping_sub(1);
+                while !crate::memory::cstr_is_empty(p.cast())
+                    && unsafe { *p.wrapping_sub(1) != b':' }
+                {
+                    if unsafe { *p == COM_BLANK } {
+                        require_blank = true;
                     }
-                    lead_repl = p;
-                    while lead_repl > curbuf_mut().b_p_com.cast()
-                        && *lead_repl.wrapping_sub(1) != b':'
-                    {
-                        lead_repl = lead_repl.wrapping_sub(1);
+                    p = p.wrapping_add(1);
+                }
+                lead_middle_len =
+                    copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",")
+                        as i32;
+
+                while !crate::memory::cstr_is_empty(p.cast())
+                    && unsafe { *p.wrapping_sub(1) != b':' }
+                {
+                    if unsafe { *p == COM_AUTO_END } {
+                        g_st().ins_global.end_comment_pending = -1;
                     }
-                    lead_repl_len = crate::memory::ptr_offset_from(p, lead_repl) as i32;
+                    p = p.wrapping_add(1);
+                }
+                let n = copy_option_part(&raw mut p, lead_end.as_mut_ptr(), COM_MAX_LEN, c",");
 
-                    extra_space = true;
+                if g_st().ins_global.end_comment_pending == -1 {
+                    g_st().ins_global.end_comment_pending = i32::from(lead_end[n - 1]);
+                }
 
-                    let mut p2 = p;
-                    while !crate::memory::cstr_is_empty(p2.cast())
-                        && crate::memory::cstr_first_byte(p2.cast()) != b':'
-                    {
-                        if *p2 == COM_AUTO_END {
-                            g_st().ins_global.end_comment_pending = -1;
+                if dir == FORWARD {
+                    let mut q = saved_line.wrapping_add(lead_len as usize);
+                    let end_bytes = &lead_end[..n];
+                    while !crate::memory::cstr_is_empty(q.cast()) {
+                        let q_bytes = crate::memory::cstr_as_bytes(q.cast());
+                        if q_bytes.len() >= n && &q_bytes[..n] == end_bytes {
+                            comment_end = q;
+                            lead_len = 0;
+                            break;
                         }
+                        q = q.wrapping_add(1);
+                    }
+                }
+
+                if lead_len > 0 {
+                    if current_flag == COM_START {
+                        lead_repl = lead_middle.as_mut_ptr();
+                        lead_repl_len = lead_middle_len;
+                    }
+
+                    if unsafe { !ascii_iswhite(*saved_line.wrapping_add((lead_len - 1) as usize)) }
+                        && ((!p_extra.is_null() && curwin_mut().w_cursor.col == lead_len)
+                            || (p_extra.is_null()
+                                && crate::memory::cstr_is_empty(
+                                    saved_line.wrapping_add(lead_len as usize).cast(),
+                                ))
+                            || require_blank)
+                    {
+                        extra_space = true;
+                    }
+                }
+                break;
+            }
+            if unsafe { *p == COM_END } {
+                if dir == FORWARD {
+                    comment_end = skipwhite(saved_line.cast()).cast();
+                    lead_len = 0;
+                    break;
+                }
+
+                while p > curbuf_mut().b_p_com.cast()
+                    && crate::memory::cstr_first_byte(p.cast()) != b','
+                {
+                    p = p.wrapping_sub(1);
+                }
+                lead_repl = p;
+                while lead_repl > curbuf_mut().b_p_com.cast()
+                    && unsafe { *lead_repl.wrapping_sub(1) != b':' }
+                {
+                    lead_repl = lead_repl.wrapping_sub(1);
+                }
+                lead_repl_len = crate::memory::ptr_offset_from(p, lead_repl) as i32;
+
+                extra_space = true;
+
+                let mut p2 = p;
+                while !crate::memory::cstr_is_empty(p2.cast())
+                    && crate::memory::cstr_first_byte(p2.cast()) != b':'
+                {
+                    if unsafe { *p2 == COM_AUTO_END } {
+                        g_st().ins_global.end_comment_pending = -1;
+                    }
+                    p2 = p2.wrapping_add(1);
+                }
+                if g_st().ins_global.end_comment_pending == -1 {
+                    while !crate::memory::cstr_is_empty(p2.cast())
+                        && crate::memory::cstr_first_byte(p2.cast()) != b','
+                    {
                         p2 = p2.wrapping_add(1);
                     }
-                    if g_st().ins_global.end_comment_pending == -1 {
-                        while !crate::memory::cstr_is_empty(p2.cast())
-                            && crate::memory::cstr_first_byte(p2.cast()) != b','
-                        {
-                            p2 = p2.wrapping_add(1);
-                        }
+                    unsafe {
                         g_st().ins_global.end_comment_pending = i32::from(*p2.wrapping_sub(1));
                     }
-                    break;
                 }
-                if *p == COM_FIRST {
-                    if dir == BACKWARD {
-                        lead_len = 0;
-                    } else {
-                        lead_repl = c"".as_ptr().cast_mut().cast();
-                        lead_repl_len = 0;
-                    }
-                    break;
-                }
-                p = p.wrapping_add(1);
+                break;
             }
-
-            if lead_len > 0 {
-                let bytes = lead_len
-                    + lead_repl_len
-                    + i32::from(extra_space)
-                    + extra_len
-                    + second_line_indent.max(0)
-                    + 1;
-                debug_assert!(bytes >= 0);
-                allocated_vec = vec![0u8; bytes as usize];
-                allocated_vec[..lead_len as usize].copy_from_slice(crate::memory::cstr_slice(
-                    saved_line.cast(),
-                    lead_len as usize,
-                ));
-                allocated_vec[lead_len as usize] = 0;
-                for b in &mut allocated_vec[..comment_start as usize] {
-                    if !ascii_iswhite(*b) {
-                        *b = b' ';
-                    }
+            if unsafe { *p == COM_FIRST } {
+                if dir == BACKWARD {
+                    lead_len = 0;
+                } else {
+                    lead_repl = c"".as_ptr().cast_mut().cast();
+                    lead_repl_len = 0;
                 }
-                leader = allocated_vec.as_mut_ptr();
+                break;
+            }
+            p = p.wrapping_add(1);
+        }
 
-                if !lead_repl.is_null() {
-                    let mut c: u8 = 0;
-                    let mut off: i32 = 0;
+        if lead_len > 0 {
+            let bytes = lead_len
+                + lead_repl_len
+                + i32::from(extra_space)
+                + extra_len
+                + second_line_indent.max(0)
+                + 1;
+            debug_assert!(bytes >= 0);
+            allocated_vec = vec![0u8; bytes as usize];
+            allocated_vec[..lead_len as usize].copy_from_slice(crate::memory::cstr_slice(
+                saved_line.cast(),
+                lead_len as usize,
+            ));
+            allocated_vec[lead_len as usize] = 0;
+            for b in &mut allocated_vec[..comment_start as usize] {
+                if !ascii_iswhite(*b) {
+                    *b = b' ';
+                }
+            }
+            leader = allocated_vec.as_mut_ptr();
 
-                    let mut p =
-                        lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
-                    while !crate::memory::cstr_is_empty(p.cast())
-                        && crate::memory::cstr_first_byte(p.cast()) != b':'
-                    {
-                        if *p == COM_RIGHT || *p == COM_LEFT {
+            if !lead_repl.is_null() {
+                let mut c: u8 = 0;
+                let mut off: i32 = 0;
+
+                let mut p =
+                    lead_flags.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast::<u8>());
+                while !crate::memory::cstr_is_empty(p.cast())
+                    && crate::memory::cstr_first_byte(p.cast()) != b':'
+                {
+                    if unsafe { *p == COM_RIGHT } || unsafe { *p == COM_LEFT } {
+                        unsafe {
                             c = *p;
-                            p = p.wrapping_add(1);
-                        } else if ascii_isdigit(crate::memory::cstr_first_byte(p.cast()))
-                            || crate::memory::cstr_first_byte(p.cast()) == b'-'
-                        {
-                            let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-                            let mut rem = p_bytes;
-                            off = getdigits_int(&mut rem, true, 0);
-                            p = p.wrapping_add(p_bytes.len() - rem.len());
-                        } else {
-                            p = p.wrapping_add(1);
-                        }
-                    }
-                    if c == COM_RIGHT {
-                        let mut p = leader.wrapping_add((lead_len - 1) as usize);
-                        while p > leader && ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
-                        {
-                            p = p.wrapping_sub(1);
                         }
                         p = p.wrapping_add(1);
+                    } else if ascii_isdigit(crate::memory::cstr_first_byte(p.cast()))
+                        || crate::memory::cstr_first_byte(p.cast()) == b'-'
+                    {
+                        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+                        let mut rem = p_bytes;
+                        off = getdigits_int(&mut rem, true, 0);
+                        p = p.wrapping_add(p_bytes.len() - rem.len());
+                    } else {
+                        p = p.wrapping_add(1);
+                    }
+                }
+                if c == COM_RIGHT {
+                    let mut p = leader.wrapping_add((lead_len - 1) as usize);
+                    while p > leader && ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
+                        p = p.wrapping_sub(1);
+                    }
+                    p = p.wrapping_add(1);
 
-                        {
-                            let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
-                            let mut old_size: i32 = 0;
-                            let endp = p;
+                    {
+                        let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
+                        let mut old_size: i32 = 0;
+                        let endp = p;
 
-                            while old_size < repl_size && p > leader {
-                                p = p.wrapping_sub(
-                                    utf_head_off(leader.cast(), p.wrapping_sub(1).cast()) as usize
-                                        + 1,
-                                );
-                                old_size += ptr2cells(p.cast());
-                            }
-                            let l = lead_repl_len - crate::memory::ptr_offset_from(endp, p) as i32;
-                            if l != 0 {
+                        while old_size < repl_size && p > leader {
+                            p = p.wrapping_sub(
+                                utf_head_off(leader.cast(), p.wrapping_sub(1).cast()) as usize + 1,
+                            );
+                            old_size += ptr2cells(p.cast());
+                        }
+                        let l = lead_repl_len - crate::memory::ptr_offset_from(endp, p) as i32;
+                        if l != 0 {
+                            unsafe {
                                 ptr::copy(
                                     endp,
                                     endp.wrapping_offset(l as isize),
@@ -1365,26 +1377,34 @@ pub fn open_line(
                                     ) as usize,
                                 );
                             }
-                            lead_len += l;
                         }
+                        lead_len += l;
+                    }
+                    unsafe {
                         ptr::copy(lead_repl, p, lead_repl_len as usize);
-                        if p.wrapping_add(lead_repl_len as usize)
-                            > leader.wrapping_add(lead_len as usize)
-                        {
+                    }
+                    if p.wrapping_add(lead_repl_len as usize)
+                        > leader.wrapping_add(lead_len as usize)
+                    {
+                        unsafe {
                             *p.wrapping_add(lead_repl_len as usize) = 0;
                         }
+                    }
 
-                        while {
-                            p = p.wrapping_sub(1);
-                            p >= leader
-                        } {
-                            let mut l = utf_head_off(leader.cast(), p.cast());
-                            if l > 1 {
-                                p = p.wrapping_sub(l as usize);
-                                if ptr2cells(p.cast()) > 1 {
+                    while {
+                        p = p.wrapping_sub(1);
+                        p >= leader
+                    } {
+                        let mut l = utf_head_off(leader.cast(), p.cast());
+                        if l > 1 {
+                            p = p.wrapping_sub(l as usize);
+                            if ptr2cells(p.cast()) > 1 {
+                                unsafe {
                                     *p.wrapping_add(1) = b' ';
-                                    l -= 1;
                                 }
+                                l -= 1;
+                            }
+                            unsafe {
                                 ptr::copy(
                                     p.wrapping_add(l as usize + 1),
                                     p.wrapping_add(1),
@@ -1393,27 +1413,33 @@ pub fn open_line(
                                         p.wrapping_add(l as usize + 1),
                                     ) as usize,
                                 );
-                                lead_len -= l;
+                            }
+                            lead_len -= l;
+                            unsafe {
                                 *p = b' ';
-                            } else if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
+                            }
+                        } else if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
+                            unsafe {
                                 *p = b' ';
                             }
                         }
-                    } else {
-                        let mut p = skipwhite(leader.cast()).cast::<u8>();
+                    }
+                } else {
+                    let mut p = skipwhite(leader.cast()).cast::<u8>();
+                    {
+                        let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
+                        let mut i: i32 = 0;
+                        while i < lead_len
+                            && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
                         {
-                            let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
-                            let mut i: i32 = 0;
-                            while i < lead_len
-                                && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
-                            {
-                                let l = utfc_ptr2len(p.wrapping_add(i as usize).cast());
-                                if vim_strnsize(p.cast(), i + l) > repl_size {
-                                    break;
-                                }
-                                i += l;
+                            let l = utfc_ptr2len(p.wrapping_add(i as usize).cast());
+                            if vim_strnsize(p.cast(), i + l) > repl_size {
+                                break;
                             }
-                            if i != lead_repl_len {
+                            i += l;
+                        }
+                        if i != lead_repl_len {
+                            unsafe {
                                 ptr::copy(
                                     p.wrapping_add(i as usize),
                                     p.wrapping_add(lead_repl_len as usize),
@@ -1422,18 +1448,22 @@ pub fn open_line(
                                         - crate::memory::ptr_offset_from(p, leader) as i32)
                                         as usize,
                                 );
-                                lead_len += lead_repl_len - i;
                             }
+                            lead_len += lead_repl_len - i;
                         }
+                    }
+                    unsafe {
                         ptr::copy(lead_repl, p, lead_repl_len as usize);
+                    }
 
-                        p = p.wrapping_add(lead_repl_len as usize);
-                        while p < leader.wrapping_add(lead_len as usize) {
-                            if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
-                                if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
-                                    && *p.wrapping_add(1) == TAB
-                                {
-                                    lead_len -= 1;
+                    p = p.wrapping_add(lead_repl_len as usize);
+                    while p < leader.wrapping_add(lead_len as usize) {
+                        if !ascii_iswhite(crate::memory::cstr_first_byte(p.cast())) {
+                            if p.wrapping_add(1) < leader.wrapping_add(lead_len as usize)
+                                && unsafe { *p.wrapping_add(1) == TAB }
+                            {
+                                lead_len -= 1;
+                                unsafe {
                                     ptr::copy(
                                         p.wrapping_add(1),
                                         p,
@@ -1442,14 +1472,18 @@ pub fn open_line(
                                             p,
                                         ) as usize,
                                     );
-                                } else {
-                                    let mut l = utfc_ptr2len(p.cast());
-                                    if l > 1 {
-                                        if ptr2cells(p.cast()) > 1 {
-                                            l -= 1;
+                                }
+                            } else {
+                                let mut l = utfc_ptr2len(p.cast());
+                                if l > 1 {
+                                    if ptr2cells(p.cast()) > 1 {
+                                        l -= 1;
+                                        unsafe {
                                             *p = b' ';
-                                            p = p.wrapping_add(1);
                                         }
+                                        p = p.wrapping_add(1);
+                                    }
+                                    unsafe {
                                         ptr::copy(
                                             p.wrapping_add(l as usize),
                                             p.wrapping_add(1),
@@ -1458,386 +1492,405 @@ pub fn open_line(
                                                 p,
                                             ) as usize,
                                         );
-                                        lead_len -= l - 1;
                                     }
+                                    lead_len -= l - 1;
+                                }
+                                unsafe {
                                     *p = b' ';
                                 }
                             }
-                            p = p.wrapping_add(1);
                         }
+                        p = p.wrapping_add(1);
+                    }
+                    unsafe {
                         *p = 0;
                     }
-
-                    if curbuf_mut().b_p_ai != 0 || do_si {
-                        newindent = indent_size_ts(
-                            leader.cast(),
-                            curbuf_mut().b_p_ts,
-                            &curbuf_mut().b_p_vts_array,
-                        );
-                    }
-
-                    if newindent + off < 0 {
-                        off = -newindent;
-                        newindent = 0;
-                    } else {
-                        newindent += off;
-                    }
-
-                    while off > 0
-                        && lead_len > 0
-                        && *leader.wrapping_add((lead_len - 1) as usize) == b' '
-                    {
-                        if crate::strings::vim_haschr(skipwhite(leader.cast()), b'\t' as i32) {
-                            break;
-                        }
-                        lead_len -= 1;
-                        off -= 1;
-                    }
-
-                    if lead_len > 0 && ascii_iswhite(*leader.wrapping_add((lead_len - 1) as usize))
-                    {
-                        extra_space = false;
-                    }
-                    *leader.wrapping_add(lead_len as usize) = 0;
                 }
 
-                if extra_space {
+                if curbuf_mut().b_p_ai != 0 || do_si {
+                    newindent = indent_size_ts(
+                        leader.cast(),
+                        curbuf_mut().b_p_ts,
+                        &curbuf_mut().b_p_vts_array,
+                    );
+                }
+
+                if newindent + off < 0 {
+                    off = -newindent;
+                    newindent = 0;
+                } else {
+                    newindent += off;
+                }
+
+                while off > 0
+                    && lead_len > 0
+                    && unsafe { *leader.wrapping_add((lead_len - 1) as usize) == b' ' }
+                {
+                    if crate::strings::vim_haschr(skipwhite(leader.cast()), b'\t' as i32) {
+                        break;
+                    }
+                    lead_len -= 1;
+                    off -= 1;
+                }
+
+                if lead_len > 0
+                    && unsafe { ascii_iswhite(*leader.wrapping_add((lead_len - 1) as usize)) }
+                {
+                    extra_space = false;
+                }
+                unsafe {
+                    *leader.wrapping_add(lead_len as usize) = 0;
+                }
+            }
+
+            if extra_space {
+                unsafe {
                     *leader.wrapping_add(lead_len as usize) = b' ';
-                    lead_len += 1;
+                }
+                lead_len += 1;
+                unsafe {
                     *leader.wrapping_add(lead_len as usize) = 0;
                 }
+            }
 
-                newcol = lead_len;
+            newcol = lead_len;
 
-                if newindent != 0 || g_st().ins_global.did_si {
-                    while lead_len != 0
-                        && ascii_iswhite(crate::memory::cstr_first_byte(leader.cast()))
-                    {
-                        lead_len -= 1;
-                        newcol -= 1;
-                        leader = leader.wrapping_add(1);
-                    }
+            if newindent != 0 || g_st().ins_global.did_si {
+                while lead_len != 0 && ascii_iswhite(crate::memory::cstr_first_byte(leader.cast()))
+                {
+                    lead_len -= 1;
+                    newcol -= 1;
+                    leader = leader.wrapping_add(1);
                 }
-                g_st().ins_global.did_si = false;
-                g_st().ins_global.can_si = false;
-            } else if !comment_end.is_null()
-                && crate::memory::cstr_as_bytes(comment_end.cast()).starts_with(b"*/")
-                && (curbuf_mut().b_p_ai != 0 || do_si)
-            {
-                let old_cursor = curwin_mut().w_cursor;
-                curwin_mut().w_cursor.col =
-                    crate::memory::ptr_offset_from(comment_end, saved_line) as Colnr;
-                let pos = findmatch(None, 0);
-                if !pos.is_null() {
+            }
+            g_st().ins_global.did_si = false;
+            g_st().ins_global.can_si = false;
+        } else if !comment_end.is_null()
+            && crate::memory::cstr_as_bytes(comment_end.cast()).starts_with(b"*/")
+            && (curbuf_mut().b_p_ai != 0 || do_si)
+        {
+            let old_cursor = curwin_mut().w_cursor;
+            curwin_mut().w_cursor.col =
+                crate::memory::ptr_offset_from(comment_end, saved_line) as Colnr;
+            let pos = findmatch(None, 0);
+            if !pos.is_null() {
+                unsafe {
                     curwin_mut().w_cursor.lnum = (*pos).lnum;
-                    newindent = get_indent();
                 }
-                curwin_mut().w_cursor = old_cursor;
+                newindent = get_indent();
+            }
+            curwin_mut().w_cursor = old_cursor;
+        }
+    }
+
+    if !p_extra.is_null() {
+        unsafe {
+            *p_extra = saved_char;
+        }
+
+        if replace_normal(g_st().state_global) {
+            replace_push_nul();
+        }
+        if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
+            while (crate::memory::cstr_first_byte(p_extra.cast()) == b' '
+                || crate::memory::cstr_first_byte(p_extra.cast()) == b'\t')
+                && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1).cast()))
+            {
+                if replace_normal(g_st().state_global) {
+                    replace_push(p_extra.cast(), 1);
+                }
+                p_extra = p_extra.wrapping_add(1);
+                less_cols_off += 1;
             }
         }
 
-        if !p_extra.is_null() {
-            *p_extra = saved_char;
+        less_cols = crate::memory::ptr_offset_from(p_extra, saved_line) as Colnr;
+    }
+
+    if p_extra.is_null() {
+        p_extra = c"".as_ptr().cast_mut().cast();
+    }
+
+    if lead_len > 0 {
+        let lead_off = crate::memory::ptr_offset_from(leader, allocated_vec.as_ptr()) as usize;
+        let mut cur_len = crate::memory::cstr_until_nul(&allocated_vec[lead_off..])
+            .to_bytes()
+            .len();
+        if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
+            let padding = second_line_indent - (newindent + cur_len as i32);
+            for _ in 0..padding {
+                allocated_vec[lead_off + cur_len] = b' ';
+                cur_len += 1;
+                less_cols -= 1;
+                newcol += 1;
+            }
+        }
+        let extra_bytes = crate::memory::cstr_from_ptr(p_extra.cast()).to_bytes_with_nul();
+        allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
+            .copy_from_slice(extra_bytes);
+        p_extra = allocated_vec[lead_off..].as_mut_ptr();
+        g_st().ins_global.did_ai = true;
+        less_cols -= lead_len;
+    } else {
+        g_st().ins_global.end_comment_pending = 0;
+    }
+
+    g_st().curbuf_splice_pending += 1;
+    let old_cursor = curwin_mut().w_cursor;
+    let old_cmod_flags = g_st().cmdmod.cmod_flags;
+    let mut prompt_moved: Option<std::ffi::CString> = None;
+
+    if dir == BACKWARD {
+        if bt_prompt(Some(crate::globals::curbuf_mut()))
+            && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum
+        {
+            let prompt_line = ml_get(curwin_mut().w_cursor.lnum);
+            let prompt = prompt_text();
+            let prompt_len = crate::memory::cstr_len(prompt);
+
+            if crate::memory::cstr_as_bytes(prompt_line)
+                .starts_with(crate::memory::cstr_as_bytes(prompt))
+            {
+                let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
+                unsafe {
+                    ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len);
+                }
+                g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
+                ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
+                prompt_moved = Some(concat_str(
+                    crate::memory::cstr_as_bytes(prompt),
+                    crate::memory::cstr_as_bytes(p_extra.cast()),
+                ));
+                p_extra = prompt_moved
+                    .as_ref()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+            }
+        }
+        curwin_mut().w_cursor.lnum -= 1;
+    }
+
+    let mut did_append: bool;
+    let append_failed = if (g_st().state_global & VREPLACE_FLAG) == 0
+        || old_cursor.lnum >= g_st().orig_line_count
+    {
+        if !ml_append(curwin_mut().w_cursor.lnum, p_extra.cast(), 0, false) {
+            did_append = false;
+            true
+        } else {
+            mark_adjust(
+                curwin_mut().w_cursor.lnum + 1,
+                MAXLNUM,
+                1,
+                0,
+                K_EXTMARK_NOOP,
+            );
+            did_append = true;
+            false
+        }
+    } else {
+        curwin_mut().w_cursor.lnum += 1;
+        if curwin_mut().w_cursor.lnum >= g_st().ins_global.start.lnum + g_st().vr_lines_changed {
+            u_save_cursor();
+            g_st().vr_lines_changed += 1;
+        }
+        ml_replace(curwin_mut().w_cursor.lnum, p_extra.cast(), true);
+        changed_bytes(curwin_mut().w_cursor.lnum, 0);
+        curwin_mut().w_cursor.lnum -= 1;
+        did_append = false;
+        false
+    };
+
+    if !append_failed {
+        g_st().inhibit_delete_count += 1;
+        if newindent != 0 || g_st().ins_global.did_si {
+            curwin_mut().w_cursor.lnum += 1;
+            if g_st().ins_global.did_si {
+                let sw = get_sw_value(curbuf_mut());
+                if opt_vars().p_sr != 0 {
+                    newindent -= newindent % sw;
+                }
+                newindent += sw;
+            }
+            if curbuf_mut().b_p_ci != 0 {
+                copy_indent(newindent, saved_line.cast());
+                curbuf_mut().b_p_pi = 1;
+            } else {
+                set_indent(newindent, SIN_INSERT | SIN_NOMARK);
+            }
+            less_cols -= curwin_mut().w_cursor.col;
+
+            g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
 
             if replace_normal(g_st().state_global) {
+                for _ in 0..curwin_mut().w_cursor.col {
+                    replace_push_nul();
+                }
+            }
+            newcol += curwin_mut().w_cursor.col;
+            if no_si {
+                g_st().ins_global.did_si = false;
+            }
+        }
+        g_st().inhibit_delete_count -= 1;
+
+        if replace_normal(g_st().state_global) {
+            while lead_len > 0 {
                 replace_push_nul();
+                lead_len -= 1;
             }
-            if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
-                while (crate::memory::cstr_first_byte(p_extra.cast()) == b' '
-                    || crate::memory::cstr_first_byte(p_extra.cast()) == b'\t')
-                    && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1).cast()))
-                {
-                    if replace_normal(g_st().state_global) {
-                        replace_push(p_extra.cast(), 1);
+        }
+
+        curwin_mut().w_cursor = old_cursor;
+
+        if dir == FORWARD {
+            if trunc_line || (g_st().state_global & MODE_INSERT) != 0 {
+                unsafe {
+                    *saved_line.wrapping_add(curwin_mut().w_cursor.col as usize) = 0;
+                }
+                if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
+                    let col_idx = curwin_mut().w_cursor.col as usize;
+                    truncate_spaces(saved_line.cast(), col_idx);
+                }
+                ml_replace(curwin_mut().w_cursor.lnum, saved_line.cast(), true);
+
+                let new_len = crate::memory::cstr_len(saved_line.cast()) as i32;
+
+                let mut cols_spliced: i32 = 0;
+                if new_len < curwin_mut().w_cursor.col {
+                    extmark_splice_cols(
+                        curbuf_mut(),
+                        curwin_mut().w_cursor.lnum - 1,
+                        new_len,
+                        curwin_mut().w_cursor.col - new_len,
+                        0,
+                        K_EXTMARK_UNDO,
+                    );
+                    cols_spliced = curwin_mut().w_cursor.col - new_len;
+                }
+
+                if did_append {
+                    let cols_added = mincol - 1 + less_cols_off - less_cols;
+                    extmark_splice(
+                        curbuf_mut(),
+                        lnum - 1,
+                        mincol - 1 - cols_spliced,
+                        0,
+                        less_cols_off,
+                        less_cols_off as Bcount,
+                        1,
+                        cols_added,
+                        (1 + cols_added) as Bcount,
+                        K_EXTMARK_UNDO,
+                    );
+
+                    changed_lines(
+                        curbuf_mut(),
+                        curwin_mut().w_cursor.lnum,
+                        curwin_mut().w_cursor.col,
+                        curwin_mut().w_cursor.lnum + 1,
+                        1,
+                        true,
+                    );
+                    did_append = false;
+
+                    if (flags & OPENLINE_MARKFIX) != 0 {
+                        mark_col_adjust(
+                            curwin_mut().w_cursor.lnum,
+                            curwin_mut().w_cursor.col + less_cols_off,
+                            1,
+                            -less_cols,
+                            0,
+                        );
                     }
-                    p_extra = p_extra.wrapping_add(1);
-                    less_cols_off += 1;
+                } else {
+                    changed_bytes(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.col);
                 }
             }
 
-            less_cols = crate::memory::ptr_offset_from(p_extra, saved_line) as Colnr;
+            curwin_mut().w_cursor.lnum = old_cursor.lnum + 1;
         }
-
-        if p_extra.is_null() {
-            p_extra = c"".as_ptr().cast_mut().cast();
+        if did_append {
+            let extra = ml_get_len(curwin_mut().w_cursor.lnum) as Bcount;
+            extmark_splice(
+                curbuf_mut(),
+                curwin_mut().w_cursor.lnum - 1,
+                0,
+                0,
+                0,
+                0,
+                1,
+                0,
+                1 + extra,
+                K_EXTMARK_UNDO,
+            );
+            changed_lines(
+                curbuf_mut(),
+                curwin_mut().w_cursor.lnum,
+                0,
+                curwin_mut().w_cursor.lnum,
+                1,
+                true,
+            );
         }
+        g_st().curbuf_splice_pending -= 1;
 
-        if lead_len > 0 {
-            let lead_off = crate::memory::ptr_offset_from(leader, allocated_vec.as_ptr()) as usize;
-            let mut cur_len = crate::memory::cstr_until_nul(&allocated_vec[lead_off..])
-                .to_bytes()
-                .len();
-            if (flags & OPENLINE_COM_LIST) != 0 && second_line_indent > 0 {
-                let padding = second_line_indent - (newindent + cur_len as i32);
-                for _ in 0..padding {
-                    allocated_vec[lead_off + cur_len] = b' ';
-                    cur_len += 1;
-                    less_cols -= 1;
-                    newcol += 1;
-                }
-            }
-            let extra_bytes = crate::memory::cstr_from_ptr(p_extra.cast()).to_bytes_with_nul();
-            allocated_vec[lead_off + cur_len..lead_off + cur_len + extra_bytes.len()]
-                .copy_from_slice(extra_bytes);
-            p_extra = allocated_vec[lead_off..].as_mut_ptr();
-            g_st().ins_global.did_ai = true;
-            less_cols -= lead_len;
+        curwin_mut().w_cursor.col = newcol;
+        curwin_mut().w_cursor.coladd = 0;
+
+        let vreplace_mode = if (g_st().state_global & VREPLACE_FLAG) != 0 {
+            let m = g_st().state_global;
+            g_st().state_global = MODE_INSERT;
+            m
         } else {
-            g_st().ins_global.end_comment_pending = 0;
-        }
-
-        g_st().curbuf_splice_pending += 1;
-        let old_cursor = curwin_mut().w_cursor;
-        let old_cmod_flags = g_st().cmdmod.cmod_flags;
-        let mut prompt_moved: Option<std::ffi::CString> = None;
-
-        if dir == BACKWARD {
-            if bt_prompt(Some(crate::globals::curbuf_mut()))
-                && curwin_mut().w_cursor.lnum == curbuf_mut().b_prompt_start.mark.lnum
-            {
-                let prompt_line = ml_get(curwin_mut().w_cursor.lnum);
-                let prompt = prompt_text();
-                let prompt_len = crate::memory::cstr_len(prompt);
-
-                if crate::memory::cstr_as_bytes(prompt_line)
-                    .starts_with(crate::memory::cstr_as_bytes(prompt))
-                {
-                    let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
-                    ptr::copy(prompt_line.wrapping_add(prompt_len), prompt_line, rem_len);
-                    g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
-                    ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
-                    prompt_moved = Some(concat_str(
-                        crate::memory::cstr_as_bytes(prompt),
-                        crate::memory::cstr_as_bytes(p_extra.cast()),
-                    ));
-                    p_extra = prompt_moved
-                        .as_ref()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-                }
-            }
-            curwin_mut().w_cursor.lnum -= 1;
-        }
-
-        let mut did_append: bool;
-        let append_failed = if (g_st().state_global & VREPLACE_FLAG) == 0
-            || old_cursor.lnum >= g_st().orig_line_count
-        {
-            if !ml_append(curwin_mut().w_cursor.lnum, p_extra.cast(), 0, false) {
-                did_append = false;
-                true
-            } else {
-                mark_adjust(
-                    curwin_mut().w_cursor.lnum + 1,
-                    MAXLNUM,
-                    1,
-                    0,
-                    K_EXTMARK_NOOP,
-                );
-                did_append = true;
-                false
-            }
-        } else {
-            curwin_mut().w_cursor.lnum += 1;
-            if curwin_mut().w_cursor.lnum >= g_st().ins_global.start.lnum + g_st().vr_lines_changed
-            {
-                u_save_cursor();
-                g_st().vr_lines_changed += 1;
-            }
-            ml_replace(curwin_mut().w_cursor.lnum, p_extra.cast(), true);
-            changed_bytes(curwin_mut().w_cursor.lnum, 0);
-            curwin_mut().w_cursor.lnum -= 1;
-            did_append = false;
-            false
+            0
         };
 
-        if !append_failed {
-            g_st().inhibit_delete_count += 1;
-            if newindent != 0 || g_st().ins_global.did_si {
-                curwin_mut().w_cursor.lnum += 1;
-                if g_st().ins_global.did_si {
-                    let sw = get_sw_value(curbuf_mut());
-                    if opt_vars().p_sr != 0 {
-                        newindent -= newindent % sw;
-                    }
-                    newindent += sw;
-                }
-                if curbuf_mut().b_p_ci != 0 {
-                    copy_indent(newindent, saved_line.cast());
-                    curbuf_mut().b_p_pi = 1;
-                } else {
-                    set_indent(newindent, SIN_INSERT | SIN_NOMARK);
-                }
-                less_cols -= curwin_mut().w_cursor.col;
-
-                g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
-
-                if replace_normal(g_st().state_global) {
-                    for _ in 0..curwin_mut().w_cursor.col {
-                        replace_push_nul();
-                    }
-                }
-                newcol += curwin_mut().w_cursor.col;
-                if no_si {
-                    g_st().ins_global.did_si = false;
-                }
+        if opt_vars().p_paste == 0 {
+            if leader.is_null()
+                && !use_indentexpr_for_lisp()
+                && curbuf_mut().b_p_lisp != 0
+                && curbuf_mut().b_p_ai != 0
+            {
+                fixthisline(get_lisp_indent);
+                g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
+            } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
+                do_c_expr_indent();
+                g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
             }
-            g_st().inhibit_delete_count -= 1;
+        }
 
-            if replace_normal(g_st().state_global) {
-                while lead_len > 0 {
-                    replace_push_nul();
-                    lead_len -= 1;
-                }
-            }
+        if vreplace_mode != 0 {
+            g_st().state_global = vreplace_mode;
+        }
 
-            curwin_mut().w_cursor = old_cursor;
-
-            if dir == FORWARD {
-                if trunc_line || (g_st().state_global & MODE_INSERT) != 0 {
-                    *saved_line.wrapping_add(curwin_mut().w_cursor.col as usize) = 0;
-                    if trunc_line && (flags & OPENLINE_KEEPTRAIL) == 0 {
-                        let col_idx = curwin_mut().w_cursor.col as usize;
-                        truncate_spaces(saved_line.cast(), col_idx);
-                    }
-                    ml_replace(curwin_mut().w_cursor.lnum, saved_line.cast(), true);
-
-                    let new_len = crate::memory::cstr_len(saved_line.cast()) as i32;
-
-                    let mut cols_spliced: i32 = 0;
-                    if new_len < curwin_mut().w_cursor.col {
-                        extmark_splice_cols(
-                            curbuf_mut(),
-                            curwin_mut().w_cursor.lnum - 1,
-                            new_len,
-                            curwin_mut().w_cursor.col - new_len,
-                            0,
-                            K_EXTMARK_UNDO,
-                        );
-                        cols_spliced = curwin_mut().w_cursor.col - new_len;
-                    }
-
-                    if did_append {
-                        let cols_added = mincol - 1 + less_cols_off - less_cols;
-                        extmark_splice(
-                            curbuf_mut(),
-                            lnum - 1,
-                            mincol - 1 - cols_spliced,
-                            0,
-                            less_cols_off,
-                            less_cols_off as Bcount,
-                            1,
-                            cols_added,
-                            (1 + cols_added) as Bcount,
-                            K_EXTMARK_UNDO,
-                        );
-
-                        changed_lines(
-                            curbuf_mut(),
-                            curwin_mut().w_cursor.lnum,
-                            curwin_mut().w_cursor.col,
-                            curwin_mut().w_cursor.lnum + 1,
-                            1,
-                            true,
-                        );
-                        did_append = false;
-
-                        if (flags & OPENLINE_MARKFIX) != 0 {
-                            mark_col_adjust(
-                                curwin_mut().w_cursor.lnum,
-                                curwin_mut().w_cursor.col + less_cols_off,
-                                1,
-                                -less_cols,
-                                0,
-                            );
-                        }
-                    } else {
-                        changed_bytes(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.col);
-                    }
-                }
-
-                curwin_mut().w_cursor.lnum = old_cursor.lnum + 1;
-            }
-            if did_append {
-                let extra = ml_get_len(curwin_mut().w_cursor.lnum) as Bcount;
-                extmark_splice(
-                    curbuf_mut(),
-                    curwin_mut().w_cursor.lnum - 1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    1 + extra,
-                    K_EXTMARK_UNDO,
-                );
-                changed_lines(
-                    curbuf_mut(),
-                    curwin_mut().w_cursor.lnum,
-                    0,
-                    curwin_mut().w_cursor.lnum,
-                    1,
-                    true,
-                );
-            }
-            g_st().curbuf_splice_pending -= 1;
-
-            curwin_mut().w_cursor.col = newcol;
-            curwin_mut().w_cursor.coladd = 0;
-
-            let vreplace_mode = if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                let m = g_st().state_global;
-                g_st().state_global = MODE_INSERT;
-                m
-            } else {
-                0
-            };
-
-            if opt_vars().p_paste == 0 {
-                if leader.is_null()
-                    && !use_indentexpr_for_lisp()
-                    && curbuf_mut().b_p_lisp != 0
-                    && curbuf_mut().b_p_ai != 0
-                {
-                    fixthisline(get_lisp_indent);
-                    g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
-                } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
-                    do_c_expr_indent();
-                    g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
-                }
-            }
-
-            if vreplace_mode != 0 {
-                g_st().state_global = vreplace_mode;
-            }
-
-            if (g_st().state_global & VREPLACE_FLAG) != 0 {
-                let mut extra_vec = std::slice::from_raw_parts(
+        if (g_st().state_global & VREPLACE_FLAG) != 0 {
+            let mut extra_vec = unsafe {
+                std::slice::from_raw_parts(
                     get_cursor_line_ptr(),
                     get_cursor_line_len() as usize + 1,
                 )
-                .to_vec();
-                ml_replace(
-                    curwin_mut().w_cursor.lnum,
-                    next_line_vec.as_mut_ptr().cast(),
-                    true,
-                );
-                curwin_mut().w_cursor.col = 0;
-                curwin_mut().w_cursor.coladd = 0;
-                ins_bytes(extra_vec.as_mut_ptr());
-            }
-
-            retval = true;
+                .to_vec()
+            };
+            ml_replace(
+                curwin_mut().w_cursor.lnum,
+                next_line_vec.as_mut_ptr().cast(),
+                true,
+            );
+            curwin_mut().w_cursor.col = 0;
+            curwin_mut().w_cursor.coladd = 0;
+            ins_bytes(extra_vec.as_mut_ptr());
         }
 
-        curbuf_mut().b_p_pi = saved_pi;
-        drop(saved_line_vec);
-        drop(next_line_vec);
-        drop(allocated_vec);
-        drop(prompt_moved);
-        g_st().cmdmod.cmod_flags = old_cmod_flags;
-        retval
+        retval = true;
     }
+
+    curbuf_mut().b_p_pi = saved_pi;
+    drop(saved_line_vec);
+    drop(next_line_vec);
+    drop(allocated_vec);
+    drop(prompt_moved);
+    g_st().cmdmod.cmod_flags = old_cmod_flags;
+    retval
 }
 
 /// Delete from cursor to end of line.

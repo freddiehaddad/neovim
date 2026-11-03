@@ -438,143 +438,156 @@ pub fn pum_display(
     array_changed: bool,
     cmd_startcol: i32,
 ) {
-    unsafe {
-        let mut redo_count: i32 = 0;
+    let mut redo_count: i32 = 0;
 
-        if !pum().is_visible {
-            pum().external = ui_has(K_UIPOPUPMENU_CONST)
-                || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
+    if !pum().is_visible {
+        pum().external = ui_has(K_UIPOPUPMENU_CONST)
+            || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
+    }
+
+    pum().rl = (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
+
+    let border_width = pum_border_width();
+    loop {
+        pum().is_visible = true;
+        pum().is_drawn = true;
+        validate_cursor_col(curwin_mut());
+        let mut above_row: i32 = 0;
+        let mut below_row = g_st()
+            .cmdline_row
+            .max(curwin_mut().w_winrow + curwin_mut().w_view_height);
+        if (g_st().state_global & MODE_CMDLINE) != 0 {
+            below_row = g_st().cmdline_row;
+        }
+        let target_win = if (g_st().state_global & MODE_CMDLINE) != 0 {
+            g_st().cmdline_win
+        } else {
+            curwin_ptr()
+        };
+        pum().win_row_offset = 0;
+        pum().win_col_offset = 0;
+
+        let mut pum_win_row: i32;
+        let mut cursor_col: i32;
+
+        if (g_st().state_global & MODE_CMDLINE) != 0 {
+            pum_win_row = if !g_st().cmdline_win.is_null() {
+                unsafe { (*g_st().cmdline_win).w_wrow }
+            } else if ui_has(K_UICMDLINE) {
+                0
+            } else {
+                g_st().cmdline_row
+            };
+            cursor_col = (if !g_st().cmdline_win.is_null() {
+                unsafe { (*g_st().cmdline_win).w_config._cmdline_offset }
+            } else {
+                0
+            }) + cmd_startcol;
+            cursor_col %= if !g_st().cmdline_win.is_null() {
+                unsafe { (*g_st().cmdline_win).w_view_width }
+            } else {
+                g_st().columns_global
+            };
+            pum().anchor_grid = if ui_has(K_UICMDLINE) {
+                -1
+            } else {
+                DEFAULT_GRID_HANDLE
+            };
+        } else {
+            pum_win_row = curwin_mut().w_wrow;
+            let mut wcol = curwin_mut().w_wcol;
+            if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
+                wcol -= curwin_mut().w_wcol_conceal_off;
+                if wcol < 0 {
+                    wcol = 0;
+                }
+            }
+            if pum().rl {
+                cursor_col = curwin_mut().w_view_width - wcol - 1;
+            } else {
+                cursor_col = wcol;
+            }
         }
 
-        pum().rl =
-            (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
-
-        let border_width = pum_border_width();
-        loop {
-            pum().is_visible = true;
-            pum().is_drawn = true;
-            validate_cursor_col(curwin_mut());
-            let mut above_row: i32 = 0;
-            let mut below_row = g_st()
-                .cmdline_row
-                .max(curwin_mut().w_winrow + curwin_mut().w_view_height);
-            if (g_st().state_global & MODE_CMDLINE) != 0 {
-                below_row = g_st().cmdline_row;
-            }
-            let target_win = if (g_st().state_global & MODE_CMDLINE) != 0 {
-                g_st().cmdline_win
-            } else {
-                curwin_ptr()
-            };
-            pum().win_row_offset = 0;
-            pum().win_col_offset = 0;
-
-            let mut pum_win_row: i32;
-            let mut cursor_col: i32;
-
-            if (g_st().state_global & MODE_CMDLINE) != 0 {
-                pum_win_row = if !g_st().cmdline_win.is_null() {
-                    (*g_st().cmdline_win).w_wrow
-                } else if ui_has(K_UICMDLINE) {
-                    0
-                } else {
-                    g_st().cmdline_row
-                };
-                cursor_col = (if !g_st().cmdline_win.is_null() {
-                    (*g_st().cmdline_win).w_config._cmdline_offset
-                } else {
-                    0
-                }) + cmd_startcol;
-                cursor_col %= if !g_st().cmdline_win.is_null() {
-                    (*g_st().cmdline_win).w_view_width
-                } else {
-                    g_st().columns_global
-                };
-                pum().anchor_grid = if ui_has(K_UICMDLINE) {
-                    -1
-                } else {
-                    DEFAULT_GRID_HANDLE
-                };
-            } else {
-                pum_win_row = curwin_mut().w_wrow;
-                let mut wcol = curwin_mut().w_wcol;
-                if curwin_mut().w_onebuf_opt.wo_cole > 0 && conceal_cursor_line(curwin_mut()) {
-                    wcol -= curwin_mut().w_wcol_conceal_off;
-                    if wcol < 0 {
-                        wcol = 0;
-                    }
-                }
-                if pum().rl {
-                    cursor_col = curwin_mut().w_view_width - wcol - 1;
-                } else {
-                    cursor_col = wcol;
-                }
-            }
-
-            if !target_win.is_null() {
+        if !target_win.is_null() {
+            unsafe {
                 pum().anchor_grid = (*(*target_win).w_grid.target).handle;
+            }
+            unsafe {
                 pum_win_row += (*target_win).w_grid.row_offset;
+            }
+            unsafe {
                 cursor_col += (*target_win).w_grid.col_offset;
-                if !ptr::eq((*target_win).w_grid.target, &raw const g_st().default_grid) {
+            }
+            if unsafe { !ptr::eq((*target_win).w_grid.target, &raw const g_st().default_grid) } {
+                unsafe {
                     pum_win_row += (*target_win).w_winrow;
+                }
+                unsafe {
                     cursor_col += (*target_win).w_wincol;
-                    if !ui_has(K_UIMULTIGRID) {
-                        pum().anchor_grid = DEFAULT_GRID_HANDLE;
-                    } else {
+                }
+                if !ui_has(K_UIMULTIGRID) {
+                    pum().anchor_grid = DEFAULT_GRID_HANDLE;
+                } else {
+                    unsafe {
                         pum().win_row_offset = (*target_win).w_winrow;
+                    }
+                    unsafe {
                         pum().win_col_offset = (*target_win).w_wincol;
                     }
                 }
             }
+        }
 
-            if pum().external {
-                if array_changed {
-                    let mut arena = Arena {
-                        cur_blk: ptr::null_mut(),
-                        pos: 0,
-                        size: 0,
-                    };
-                    let mut arr = arena_array(&mut arena, size as usize);
-                    for i in 0..(size as usize) {
-                        let elem = &*array.wrapping_add(i);
-                        let mut item = arena_array(&mut arena, 4);
-                        add_c(&mut item, cstr_as_obj(elem.text_cstr()));
-                        add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
-                        add_c(&mut item, cstr_as_obj(elem.extra_cstr()));
-                        add_c(&mut item, cstr_as_obj(elem.info_cstr()));
-                        add_c(&mut arr, array_obj(item));
-                    }
-                    ui_call_popupmenu_show(
-                        arr,
-                        i64::from(selected),
-                        i64::from(pum_win_row - pum().win_row_offset),
-                        i64::from(cursor_col - pum().win_col_offset),
-                        i64::from(pum().anchor_grid),
-                    );
-                    arena_mem_free(arena_finish(&mut arena));
-                } else {
-                    ui_call_popupmenu_select(i64::from(selected));
-                    return;
+        if pum().external {
+            if array_changed {
+                let mut arena = Arena {
+                    cur_blk: ptr::null_mut(),
+                    pos: 0,
+                    size: 0,
+                };
+                let mut arr = arena_array(&mut arena, size as usize);
+                for i in 0..(size as usize) {
+                    let elem = unsafe { &*array.wrapping_add(i) };
+                    let mut item = arena_array(&mut arena, 4);
+                    add_c(&mut item, cstr_as_obj(elem.text_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.kind_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.extra_cstr()));
+                    add_c(&mut item, cstr_as_obj(elem.info_cstr()));
+                    add_c(&mut arr, array_obj(item));
                 }
+                ui_call_popupmenu_show(
+                    arr,
+                    i64::from(selected),
+                    i64::from(pum_win_row - pum().win_row_offset),
+                    i64::from(cursor_col - pum().win_col_offset),
+                    i64::from(pum().anchor_grid),
+                );
+                arena_mem_free(arena_finish(&mut arena));
+            } else {
+                ui_call_popupmenu_select(i64::from(selected));
+                return;
             }
+        }
 
-            let mut pvwin: *mut WinInfoInfo = ptr::null_mut();
-            for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
-                if wp.w_onebuf_opt.wo_pvw != 0 {
-                    pvwin = wp;
-                    break;
-                }
+        let mut pvwin: *mut WinInfoInfo = ptr::null_mut();
+        for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
+            if wp.w_onebuf_opt.wo_pvw != 0 {
+                pvwin = wp;
+                break;
             }
+        }
 
-            if !pvwin.is_null() {
-                let pvwin = &mut *pvwin;
-                if pvwin.w_winrow < curwin_mut().w_winrow {
-                    above_row = pvwin.w_winrow + pvwin.w_height;
-                } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
-                    below_row = pvwin.w_winrow;
-                }
+        if !pvwin.is_null() {
+            let pvwin = unsafe { &mut *pvwin };
+            if pvwin.w_winrow < curwin_mut().w_winrow {
+                above_row = pvwin.w_winrow + pvwin.w_height;
+            } else if pvwin.w_winrow > curwin_mut().w_winrow + curwin_mut().w_height {
+                below_row = pvwin.w_winrow;
             }
+        }
 
+        unsafe {
             pum_compute_vertical_placement(
                 size,
                 target_win.as_mut(),
@@ -583,39 +596,41 @@ pub fn pum_display(
                 below_row,
                 border_width,
             );
-
-            if border_width == 0 && (pum().height < 1 || (pum().height == 1 && size > 1)) {
-                return;
-            }
-
-            pum().array = array;
-            pum().size = size;
-
-            if pum().external {
-                return;
-            }
-
-            pum_compute_size();
-
-            pum().scrollbar = if pum().height < size { 1 } else { 0 };
-
-            pum_compute_horizontal_placement(target_win.as_ref(), cursor_col, border_width);
-
-            if !(pum_set_selected(selected, redo_count) && {
-                redo_count += 1;
-                redo_count <= 2
-            }) {
-                break;
-            }
         }
 
-        g_st().pum_grid.zindex = if (g_st().state_global & MODE_CMDLINE) != 0 {
-            K_ZINDEX_CMDLINE_POPUP_MENU
-        } else {
-            K_ZINDEX_POPUP_MENU
-        };
-        pum_redraw();
+        if border_width == 0 && (pum().height < 1 || (pum().height == 1 && size > 1)) {
+            return;
+        }
+
+        pum().array = array;
+        pum().size = size;
+
+        if pum().external {
+            return;
+        }
+
+        pum_compute_size();
+
+        pum().scrollbar = if pum().height < size { 1 } else { 0 };
+
+        unsafe {
+            pum_compute_horizontal_placement(target_win.as_ref(), cursor_col, border_width);
+        }
+
+        if !(pum_set_selected(selected, redo_count) && {
+            redo_count += 1;
+            redo_count <= 2
+        }) {
+            break;
+        }
     }
+
+    g_st().pum_grid.zindex = if (g_st().state_global & MODE_CMDLINE) != 0 {
+        K_ZINDEX_CMDLINE_POPUP_MENU
+    } else {
+        K_ZINDEX_POPUP_MENU
+    };
+    pum_redraw();
 }
 
 /// Computes attributes of text on the popup menu (`pum_compute_text_attrs`).
@@ -1344,153 +1359,140 @@ pub fn pum_set_info(selected: i32, info: *mut u8) -> *mut WinInfoInfo {
 
 /// Set the index of the currently selected item (`pum_set_selected`).
 fn pum_set_selected(n: i32, repeat: i32) -> bool {
-    unsafe {
-        let mut resized = false;
-        let mut context = pum().height / 2;
-        let prev_selected = pum().selected;
+    let mut resized = false;
+    let mut context = pum().height / 2;
+    let prev_selected = pum().selected;
 
-        pum().selected = n;
-        let scroll_offset = pum().selected - pum().height;
-        let cur_cot_flags = get_cot_flags();
-        let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
+    pum().selected = n;
+    let scroll_offset = pum().selected - pum().height;
+    let cur_cot_flags = get_cot_flags();
+    let use_float = (cur_cot_flags & K_OPT_COT_FLAG_POPUP) != 0;
 
-        if use_float
-            && (pum().selected < 0
+    if use_float
+        && (unsafe {
+            pum().selected < 0
                 || (*pum().array.wrapping_add(pum().selected as usize))
                     .pum_info
-                    .is_none())
-        {
-            let wp = win_float_find(K_WIN_INFO);
-            if !wp.is_null() {
-                let wp = &mut *wp;
-                wp.w_config.hide = true;
-                let cfg = wp.w_config.clone();
-                win_config_float(wp, cfg);
+                    .is_none()
+        })
+    {
+        let wp = win_float_find(K_WIN_INFO);
+        if !wp.is_null() {
+            let wp = unsafe { &mut *wp };
+            wp.w_config.hide = true;
+            let cfg = wp.w_config.clone();
+            win_config_float(wp, cfg);
+        }
+    }
+
+    if pum().selected >= 0 && pum().selected < pum().size {
+        if pum().first > pum().selected - 4 {
+            if pum().first > pum().selected - 2 {
+                pum().first -= pum().height - 2;
+                if pum().first < 0 {
+                    pum().first = 0;
+                } else if pum().first > pum().selected {
+                    pum().first = pum().selected;
+                }
+            } else {
+                pum().first = pum().selected;
+            }
+        } else if pum().first < scroll_offset + 5 {
+            if pum().first < scroll_offset + 3 {
+                pum().first = (pum().first + pum().height - 2).max(scroll_offset + 1);
+            } else {
+                pum().first = scroll_offset + 1;
             }
         }
 
-        if pum().selected >= 0 && pum().selected < pum().size {
-            if pum().first > pum().selected - 4 {
-                if pum().first > pum().selected - 2 {
-                    pum().first -= pum().height - 2;
-                    if pum().first < 0 {
-                        pum().first = 0;
-                    } else if pum().first > pum().selected {
-                        pum().first = pum().selected;
-                    }
-                } else {
-                    pum().first = pum().selected;
-                }
-            } else if pum().first < scroll_offset + 5 {
-                if pum().first < scroll_offset + 3 {
-                    pum().first = (pum().first + pum().height - 2).max(scroll_offset + 1);
-                } else {
-                    pum().first = scroll_offset + 1;
-                }
+        context = context.min(3);
+
+        if pum().height > 2 {
+            if pum().first > pum().selected - context {
+                pum().first = (pum().selected - context).max(0);
+            } else if pum().first < pum().selected + context - pum().height + 1 {
+                pum().first = pum().selected + context - pum().height + 1;
             }
+        }
+        pum().first = pum().first.min(pum().size - pum().height);
 
-            context = context.min(3);
-
-            if pum().height > 2 {
-                if pum().first > pum().selected - context {
-                    pum().first = (pum().selected - context).max(0);
-                } else if pum().first < pum().selected + context - pum().height + 1 {
-                    pum().first = pum().selected + context - pum().height + 1;
-                }
-            }
-            pum().first = pum().first.min(pum().size - pum().height);
-
-            if (*pum().array.wrapping_add(pum().selected as usize))
+        if unsafe {
+            (*pum().array.wrapping_add(pum().selected as usize))
                 .pum_info
                 .is_some()
-                && g_st().rows_global > 10
-                && repeat <= 1
-                && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
-                && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
-            {
-                let curwin_save = curwin_ptr();
-                let curtab_save = g_st().curtab;
+        } && g_st().rows_global > 10
+            && repeat <= 1
+            && (cur_cot_flags & (K_OPT_COT_FLAG_POPUP | K_OPT_COT_FLAG_PREVIEW)) != 0
+            && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
+        {
+            let curwin_save = curwin_ptr();
+            let curtab_save = g_st().curtab;
 
-                if use_float {
-                    block_autocmds();
-                }
+            if use_float {
+                block_autocmds();
+            }
 
-                g_st().g_do_tagpreview = 3;
-                if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_st().g_do_tagpreview) {
-                    g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
-                }
-                g_st().redrawing_disabled += 1;
-                g_st().no_u_sync += 1;
+            g_st().g_do_tagpreview = 3;
+            if opt_vars().p_pvh > 0 && opt_vars().p_pvh < i64::from(g_st().g_do_tagpreview) {
+                g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
+            }
+            g_st().redrawing_disabled += 1;
+            g_st().no_u_sync += 1;
 
-                if !use_float {
-                    resized = prepare_tagpreview(false, false);
+            if !use_float {
+                resized = prepare_tagpreview(false, false);
+            } else {
+                let mut wp = win_float_find(K_WIN_INFO);
+                if !wp.is_null() {
+                    win_enter(wp, false);
                 } else {
-                    let mut wp = win_float_find(K_WIN_INFO);
+                    wp = win_float_special(true, true, K_WIN_INFO);
                     if !wp.is_null() {
-                        win_enter(wp, false);
-                    } else {
-                        wp = win_float_special(true, true, K_WIN_INFO);
-                        if !wp.is_null() {
-                            resized = true;
-                        }
+                        resized = true;
+                    }
+                }
+            }
+
+            g_st().no_u_sync -= 1;
+            g_st().redrawing_disabled -= 1;
+            g_st().g_do_tagpreview = 0;
+
+            if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == K_WIN_INFO {
+                let mut res = OK;
+                if !resized
+                    && curbuf_mut().b_nwindows == 1
+                    && curbuf_mut().b_fname.is_null()
+                    && bt_nofile(Some(crate::globals::curbuf_mut()))
+                    && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
+                {
+                    buf_clear();
+                } else {
+                    g_st().no_u_sync += 1;
+                    let ok = do_ecmd(
+                        0,
+                        ptr::null_mut(),
+                        ptr::null_mut(),
+                        None,
+                        ECMD_ONE,
+                        0,
+                        ptr::null_mut(),
+                    );
+                    res = i32::from(ok);
+                    g_st().no_u_sync -= 1;
+
+                    if ok {
+                        set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
+                        set_option_value_give_err(K_OPT_BUFLISTED, boolean_obj(false), OPT_LOCAL);
+                        set_option_value_give_err(K_OPT_BUFTYPE, cstr_as_obj(c"nofile"), OPT_LOCAL);
+                        set_option_value_give_err(K_OPT_BUFHIDDEN, cstr_as_obj(c"wipe"), OPT_LOCAL);
+                        set_option_value_give_err(K_OPT_DIFF, boolean_obj(false), OPT_LOCAL);
                     }
                 }
 
-                g_st().no_u_sync -= 1;
-                g_st().redrawing_disabled -= 1;
-                g_st().g_do_tagpreview = 0;
-
-                if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == K_WIN_INFO {
-                    let mut res = OK;
-                    if !resized
-                        && curbuf_mut().b_nwindows == 1
-                        && curbuf_mut().b_fname.is_null()
-                        && bt_nofile(Some(crate::globals::curbuf_mut()))
-                        && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
-                    {
-                        buf_clear();
-                    } else {
-                        g_st().no_u_sync += 1;
-                        let ok = do_ecmd(
-                            0,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            None,
-                            ECMD_ONE,
-                            0,
-                            ptr::null_mut(),
-                        );
-                        res = i32::from(ok);
-                        g_st().no_u_sync -= 1;
-
-                        if ok {
-                            set_option_value_give_err(
-                                K_OPT_SWAPFILE,
-                                boolean_obj(false),
-                                OPT_LOCAL,
-                            );
-                            set_option_value_give_err(
-                                K_OPT_BUFLISTED,
-                                boolean_obj(false),
-                                OPT_LOCAL,
-                            );
-                            set_option_value_give_err(
-                                K_OPT_BUFTYPE,
-                                cstr_as_obj(c"nofile"),
-                                OPT_LOCAL,
-                            );
-                            set_option_value_give_err(
-                                K_OPT_BUFHIDDEN,
-                                cstr_as_obj(c"wipe"),
-                                OPT_LOCAL,
-                            );
-                            set_option_value_give_err(K_OPT_DIFF, boolean_obj(false), OPT_LOCAL);
-                        }
-                    }
-
-                    if res == OK {
-                        let mut lnum: Linenr = 0;
-                        let mut max_info_width: i32 = 0;
+                if res == OK {
+                    let mut lnum: Linenr = 0;
+                    let mut max_info_width: i32 = 0;
+                    unsafe {
                         pum_preview_set_text(
                             curwin_mut(),
                             (*pum().array.wrapping_add(pum().selected as usize))
@@ -1499,83 +1501,83 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                             &mut lnum,
                             &mut max_info_width,
                         );
-                        if repeat == 0 && !use_float {
-                            lnum = lnum.min(opt_vars().p_pvh as Linenr);
-                            if curwin_mut().w_height < lnum {
-                                win_setheight(lnum);
-                                resized = true;
-                            }
-                        }
-
-                        curbuf_mut().b_changed = 0;
-                        curbuf_mut().b_p_ma = 0;
-                        if pum().selected != prev_selected {
-                            curwin_mut().w_topline = 1;
-                        } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
-                            curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
-                        }
-                        curwin_mut().w_cursor.lnum = 1;
-                        curwin_mut().w_cursor.col = 0;
-
-                        if use_float
-                            && !pum_adjust_info_position(curwin_mut(), max_info_width)
-                            && win_valid(curwin_save)
-                        {
-                            win_enter(curwin_save, false);
-                        }
-
-                        if (curwin_ptr() != curwin_save && win_valid(curwin_save))
-                            || (g_st().curtab != curtab_save && valid_tabpage(curtab_save))
-                        {
-                            if g_st().curtab != curtab_save && valid_tabpage(curtab_save) {
-                                goto_tabpage_tp(curtab_save, false, false);
-                            }
-
-                            if ins_compl_active() && !resized {
-                                curwin_mut().w_redr_status = false;
-                            }
-
-                            validate_cursor(curwin_mut());
-                            redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
-
-                            if resized && win_valid(curwin_save) {
-                                g_st().no_u_sync += 1;
-                                win_enter(curwin_save, true);
-                                g_st().no_u_sync -= 1;
-                                update_topline(curwin_mut());
-                            }
-
-                            let save_pum_is_drawn = pum().is_drawn;
-
-                            pum().is_visible = false;
-                            pum().is_drawn = false;
-                            update_screen();
-                            pum().is_visible = true;
-                            pum().is_drawn = save_pum_is_drawn;
-
-                            if !resized && win_valid(curwin_save) {
-                                g_st().no_u_sync += 1;
-                                win_enter(curwin_save, true);
-                                g_st().no_u_sync -= 1;
-                            }
-
-                            pum().is_visible = false;
-                            pum().is_drawn = false;
-                            update_screen();
-                            pum().is_visible = true;
-                            pum().is_drawn = save_pum_is_drawn;
+                    }
+                    if repeat == 0 && !use_float {
+                        lnum = lnum.min(opt_vars().p_pvh as Linenr);
+                        if curwin_mut().w_height < lnum {
+                            win_setheight(lnum);
+                            resized = true;
                         }
                     }
-                }
 
-                if use_float {
-                    unblock_autocmds();
+                    curbuf_mut().b_changed = 0;
+                    curbuf_mut().b_p_ma = 0;
+                    if pum().selected != prev_selected {
+                        curwin_mut().w_topline = 1;
+                    } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
+                        curwin_mut().w_topline = curbuf_mut().b_ml.ml_line_count;
+                    }
+                    curwin_mut().w_cursor.lnum = 1;
+                    curwin_mut().w_cursor.col = 0;
+
+                    if use_float
+                        && !pum_adjust_info_position(curwin_mut(), max_info_width)
+                        && win_valid(curwin_save)
+                    {
+                        win_enter(curwin_save, false);
+                    }
+
+                    if (curwin_ptr() != curwin_save && win_valid(curwin_save))
+                        || (g_st().curtab != curtab_save && valid_tabpage(curtab_save))
+                    {
+                        if g_st().curtab != curtab_save && valid_tabpage(curtab_save) {
+                            goto_tabpage_tp(curtab_save, false, false);
+                        }
+
+                        if ins_compl_active() && !resized {
+                            curwin_mut().w_redr_status = false;
+                        }
+
+                        validate_cursor(curwin_mut());
+                        redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
+
+                        if resized && win_valid(curwin_save) {
+                            g_st().no_u_sync += 1;
+                            win_enter(curwin_save, true);
+                            g_st().no_u_sync -= 1;
+                            update_topline(curwin_mut());
+                        }
+
+                        let save_pum_is_drawn = pum().is_drawn;
+
+                        pum().is_visible = false;
+                        pum().is_drawn = false;
+                        update_screen();
+                        pum().is_visible = true;
+                        pum().is_drawn = save_pum_is_drawn;
+
+                        if !resized && win_valid(curwin_save) {
+                            g_st().no_u_sync += 1;
+                            win_enter(curwin_save, true);
+                            g_st().no_u_sync -= 1;
+                        }
+
+                        pum().is_visible = false;
+                        pum().is_drawn = false;
+                        update_screen();
+                        pum().is_visible = true;
+                        pum().is_drawn = save_pum_is_drawn;
+                    }
                 }
             }
-        }
 
-        resized
+            if use_float {
+                unblock_autocmds();
+            }
+        }
     }
+
+    resized
 }
 
 /// Undisplay the popup menu (`pum_undisplay`).

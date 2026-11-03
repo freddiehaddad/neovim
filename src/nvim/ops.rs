@@ -2560,382 +2560,391 @@ pub fn op_addsub(oap: &mut Oparg, prenum1: Linenr, g_cmd: bool) {
 }
 
 pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Linenr) -> bool {
-    unsafe {
-        let mut pre: i32 = 0;
-        let mut n: Uvarnumber = 0;
-        let mut blank_unsigned = false;
-        let mut negative = false;
-        let mut was_positive = true;
-        let visual = g_st().visual_global.active;
-        let did_change: bool;
-        let save_cursor = curwin_mut().w_cursor;
-        let mut maxlen: i32 = 0;
-        let startpos: CursorPos;
-        let endpos: CursorPos;
-        let mut save_coladd: Colnr = 0;
+    let mut pre: i32 = 0;
+    let mut n: Uvarnumber = 0;
+    let mut blank_unsigned = false;
+    let mut negative = false;
+    let mut was_positive = true;
+    let visual = g_st().visual_global.active;
+    let did_change: bool;
+    let save_cursor = curwin_mut().w_cursor;
+    let mut maxlen: i32 = 0;
+    let startpos: CursorPos;
+    let endpos: CursorPos;
+    let mut save_coladd: Colnr = 0;
 
-        let do_hex = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'x' as i32);
-        let do_oct = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'o' as i32);
-        let do_bin = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'b' as i32);
-        let do_alpha = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'p' as i32);
-        let do_unsigned = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'u' as i32);
-        let do_blank = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'k' as i32);
+    let do_hex = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'x' as i32);
+    let do_oct = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'o' as i32);
+    let do_bin = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'b' as i32);
+    let do_alpha = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'p' as i32);
+    let do_unsigned = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'u' as i32);
+    let do_blank = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'k' as i32);
 
-        if virtual_active(curwin_mut()) {
-            save_coladd = pos.coladd;
-            pos.coladd = 0;
+    if virtual_active(curwin_mut()) {
+        save_coladd = pos.coladd;
+        pos.coladd = 0;
+    }
+
+    curwin_mut().w_cursor = *pos;
+    let ptr_line = ml_get(pos.lnum);
+    let linelen = ml_get_len(pos.lnum);
+    let line_bytes =
+        unsafe { std::slice::from_raw_parts(ptr_line.cast::<u8>(), linelen as usize + 1) };
+    let mut col = pos.col;
+
+    if col + i32::from(save_coladd != 0) >= linelen {
+        if visual {
+            curwin_mut().w_cursor = save_cursor;
+        } else if virtual_active(curwin_mut()) {
+            curwin_mut().w_cursor.coladd = save_coladd;
+        }
+        return false;
+    }
+
+    if !g_st().visual_global.active {
+        if do_bin {
+            while col > 0 && ascii_isbdigit(i32::from(line_bytes[col as usize])) {
+                col -= 1;
+                col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
+            }
         }
 
-        curwin_mut().w_cursor = *pos;
-        let ptr_line = ml_get(pos.lnum);
-        let linelen = ml_get_len(pos.lnum);
-        let line_bytes = std::slice::from_raw_parts(ptr_line.cast::<u8>(), linelen as usize + 1);
-        let mut col = pos.col;
-
-        if col + i32::from(save_coladd != 0) >= linelen {
-            if visual {
-                curwin_mut().w_cursor = save_cursor;
-            } else if virtual_active(curwin_mut()) {
-                curwin_mut().w_cursor.coladd = save_coladd;
+        if do_hex {
+            while col > 0 && ascii_isxdigit(i32::from(line_bytes[col as usize])) {
+                col -= 1;
+                col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
             }
-            return false;
         }
-
-        if !g_st().visual_global.active {
-            if do_bin {
-                while col > 0 && ascii_isbdigit(i32::from(line_bytes[col as usize])) {
-                    col -= 1;
-                    col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
-                }
-            }
-
-            if do_hex {
-                while col > 0 && ascii_isxdigit(i32::from(line_bytes[col as usize])) {
-                    col -= 1;
-                    col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
-                }
-            }
-            if do_bin
-                && do_hex
-                && !(col > 0
-                    && matches!(line_bytes[col as usize], b'X' | b'x')
-                    && line_bytes[(col - 1) as usize] == b'0'
-                    && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                    && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
-            {
-                col = curwin_mut().w_cursor.col;
-
-                while col > 0 && ascii_isdigit(i32::from(line_bytes[col as usize])) {
-                    col -= 1;
-                    col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
-                }
-            }
-
-            if (do_hex
-                && col > 0
+        if do_bin
+            && do_hex
+            && !(col > 0
                 && matches!(line_bytes[col as usize], b'X' | b'x')
                 && line_bytes[(col - 1) as usize] == b'0'
                 && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
                 && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
-                || (do_bin
-                    && col > 0
-                    && matches!(line_bytes[col as usize], b'B' | b'b')
-                    && line_bytes[(col - 1) as usize] == b'0'
-                    && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                    && ascii_isbdigit(i32::from(line_bytes[(col + 1) as usize])))
-            {
+        {
+            col = curwin_mut().w_cursor.col;
+
+            while col > 0 && ascii_isdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
                 col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
-            } else {
-                col = pos.col;
-
-                while line_bytes[col as usize] != 0
-                    && !ascii_isdigit(i32::from(line_bytes[col as usize]))
-                    && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
-                {
-                    col += 1;
-                }
-
-                while col > 0
-                    && ascii_isdigit(i32::from(line_bytes[(col - 1) as usize]))
-                    && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
-                {
-                    col -= 1;
-                }
             }
         }
 
-        if visual {
+        if (do_hex
+            && col > 0
+            && matches!(line_bytes[col as usize], b'X' | b'x')
+            && line_bytes[(col - 1) as usize] == b'0'
+            && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
+            && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
+            || (do_bin
+                && col > 0
+                && matches!(line_bytes[col as usize], b'B' | b'b')
+                && line_bytes[(col - 1) as usize] == b'0'
+                && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
+                && ascii_isbdigit(i32::from(line_bytes[(col + 1) as usize])))
+        {
+            col -= 1;
+            col -= utf_head_off(ptr_line, ptr_line.wrapping_add(col as usize));
+        } else {
+            col = pos.col;
+
             while line_bytes[col as usize] != 0
-                && length > 0
                 && !ascii_isdigit(i32::from(line_bytes[col as usize]))
                 && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
             {
-                let mb_len = utfc_ptr2len(ptr_line.wrapping_add(col as usize));
-                col += mb_len;
-                length -= mb_len;
+                col += 1;
             }
 
-            if length == 0 {
-                curwin_mut().w_cursor = save_cursor;
-                return false;
-            }
-
-            if col > pos.col
-                && line_bytes[(col - 1) as usize] == b'-'
-                && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                && !do_unsigned
+            while col > 0
+                && ascii_isdigit(i32::from(line_bytes[(col - 1) as usize]))
+                && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
             {
-                if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize]))
-                {
-                    blank_unsigned = true;
-                } else {
-                    negative = true;
-                    was_positive = false;
-                }
+                col -= 1;
             }
         }
+    }
 
-        let mut firstdigit = i32::from(line_bytes[col as usize]);
-        if !ascii_isdigit(firstdigit) && !(do_alpha && ascii_isalpha(firstdigit)) {
-            beep_flush();
-            if visual {
-                curwin_mut().w_cursor = save_cursor;
-            } else if virtual_active(curwin_mut()) {
-                curwin_mut().w_cursor.coladd = save_coladd;
-            }
+    if visual {
+        while line_bytes[col as usize] != 0
+            && length > 0
+            && !ascii_isdigit(i32::from(line_bytes[col as usize]))
+            && !(do_alpha && ascii_isalpha(i32::from(line_bytes[col as usize])))
+        {
+            let mb_len = utfc_ptr2len(ptr_line.wrapping_add(col as usize));
+            col += mb_len;
+            length -= mb_len;
+        }
+
+        if length == 0 {
+            curwin_mut().w_cursor = save_cursor;
             return false;
         }
 
-        if do_alpha && ascii_isalpha(firstdigit) {
-            if op_type == OP_NR_SUB {
-                if char_ord(firstdigit) < prenum1 {
-                    firstdigit = if ascii_isupper(firstdigit) {
-                        b'A' as i32
-                    } else {
-                        b'a' as i32
-                    };
-                } else {
-                    firstdigit -= prenum1;
-                }
-            } else if 26 - char_ord(firstdigit) - 1 < prenum1 {
-                firstdigit = if ascii_isupper(firstdigit) {
-                    b'Z' as i32
-                } else {
-                    b'z' as i32
-                };
+        if col > pos.col
+            && line_bytes[(col - 1) as usize] == b'-'
+            && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
+            && !do_unsigned
+        {
+            if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize])) {
+                blank_unsigned = true;
             } else {
-                firstdigit += prenum1;
-            }
-            curwin_mut().w_cursor.col = col;
-            startpos = curwin_mut().w_cursor;
-            did_change = true;
-            del_char(false);
-            ins_char(firstdigit);
-            endpos = curwin_mut().w_cursor;
-            curwin_mut().w_cursor.col = col;
-        } else {
-            if col > 0
-                && line_bytes[(col - 1) as usize] == b'-'
-                && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
-                && !visual
-                && !do_unsigned
-            {
-                if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize]))
-                {
-                    blank_unsigned = true;
-                } else {
-                    col -= 1;
-                    negative = true;
-                }
-            }
-
-            if visual && g_st().visual_global.mode != b'V' as i32 {
-                maxlen = if curbuf_mut().b_visual.vi_curswant == MAXCOL {
-                    linelen - col
-                } else {
-                    length
-                };
-            }
-
-            let mut overflow = false;
-            vim_str2nr(
-                ptr_line.wrapping_add(col as usize),
-                Some(&mut pre),
-                Some(&mut length),
-                (if do_bin { STR2NR_BIN } else { 0 })
-                    + (if do_oct { STR2NR_OCT } else { 0 })
-                    + (if do_hex { STR2NR_HEX } else { 0 }),
-                None,
-                Some(&mut n),
-                maxlen,
-                false,
-                Some(&mut overflow),
-            );
-
-            if pre != 0 && negative {
-                col += 1;
-                length -= 1;
-                negative = false;
-            }
-
-            let mut subtract = false;
-            if op_type == OP_NR_SUB {
-                subtract ^= true;
-            }
-            if negative {
-                subtract ^= true;
-            }
-
-            let oldn = n;
-
-            if !overflow {
-                n = if subtract {
-                    n.wrapping_sub(prenum1 as Uvarnumber)
-                } else {
-                    n.wrapping_add(prenum1 as Uvarnumber)
-                };
-            }
-
-            if pre == 0 {
-                if subtract {
-                    if n > oldn {
-                        n = 1u64.wrapping_add(n ^ u64::MAX);
-                        negative ^= true;
-                    }
-                } else if n < oldn {
-                    n ^= u64::MAX;
-                    negative ^= true;
-                }
-                if n == 0 {
-                    negative = false;
-                }
-            }
-
-            if (do_unsigned || blank_unsigned) && negative {
-                if subtract {
-                    n = 0;
-                } else {
-                    n = u64::MAX;
-                }
-                negative = false;
-            }
-
-            if visual && !was_positive && !negative && col > 0 {
-                col -= 1;
-                length += 1;
-            }
-
-            curwin_mut().w_cursor.col = col;
-            startpos = curwin_mut().w_cursor;
-            did_change = true;
-            let mut todel = length;
-            let mut c = gchar_cursor();
-
-            if c == b'-' as i32 {
-                length -= 1;
-            }
-            while todel > 0 {
-                todel -= 1;
-                if c < 0x100 && ascii_isalpha(c) {
-                    ops_st().addsub_hexupper = ascii_isupper(c);
-                }
-                del_char(false);
-                c = gchar_cursor();
-            }
-
-            let mut buf1_vec = vec![0u8; (length as usize) + NUMBUFLEN];
-            let buf1 = buf1_vec.as_mut_ptr();
-            let mut ptr_line = buf1;
-            if negative && (!visual || was_positive) {
-                *ptr_line = b'-';
-                ptr_line = ptr_line.wrapping_add(1);
-            }
-            if pre != 0 {
-                *ptr_line = b'0';
-                ptr_line = ptr_line.wrapping_add(1);
-                length -= 1;
-            }
-            if pre == b'b' as i32 || pre == b'B' as i32 || pre == b'x' as i32 || pre == b'X' as i32
-            {
-                *ptr_line = pre as u8;
-                ptr_line = ptr_line.wrapping_add(1);
-                length -= 1;
-            }
-
-            let mut buf2 = [0u8; NUMBUFLEN];
-            let buf2_ptr = buf2.as_mut_ptr();
-            let mut buf2len: i32 = 0;
-            if pre == b'b' as i32 || pre == b'B' as i32 {
-                let mut bits = Uvarnumber::BITS as usize;
-                while bits > 0 {
-                    if ((n >> (bits - 1)) & 0x1) != 0 {
-                        break;
-                    }
-                    bits -= 1;
-                }
-
-                while bits > 0 && (buf2len as usize) < NUMBUFLEN - 1 {
-                    bits -= 1;
-                    *buf2_ptr.wrapping_add(buf2len as usize) =
-                        if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
-                    buf2len += 1;
-                }
-
-                *buf2_ptr.wrapping_add(buf2len as usize) = 0;
-            } else if pre == 0 {
-                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llu", n as u64,);
-            } else if pre == b'0' as i32 {
-                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llo", n as u64,);
-            } else if ops_st().addsub_hexupper {
-                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llX", n as u64,);
-            } else {
-                buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llx", n as u64,);
-            }
-            length -= buf2len;
-
-            if firstdigit == b'0' as i32 && !(do_oct && pre == 0) {
-                while length > 0 {
-                    length -= 1;
-                    *ptr_line = b'0';
-                    ptr_line = ptr_line.wrapping_add(1);
-                }
-            }
-            *ptr_line = 0;
-            let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
-
-            let buf2_bytes = crate::memory::cstr_from_ptr(buf2_ptr.cast()).to_bytes_with_nul();
-            buf1_vec[buf1len as usize..buf1len as usize + buf2_bytes.len()]
-                .copy_from_slice(buf2_bytes);
-            buf1len += buf2len;
-
-            ins_str(buf1_vec.as_ptr().cast(), buf1len as usize);
-            drop(buf1_vec);
-
-            endpos = curwin_mut().w_cursor;
-            if curwin_mut().w_cursor.col != 0 {
-                curwin_mut().w_cursor.col -= 1;
+                negative = true;
+                was_positive = false;
             }
         }
+    }
 
-        if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
-            curbuf_mut().b_op_start = startpos;
-            curbuf_mut().b_op_end = endpos;
-            if curbuf_mut().b_op_end.col > 0 {
-                curbuf_mut().b_op_end.col -= 1;
-            }
-        }
-
+    let mut firstdigit = i32::from(line_bytes[col as usize]);
+    if !ascii_isdigit(firstdigit) && !(do_alpha && ascii_isalpha(firstdigit)) {
+        beep_flush();
         if visual {
             curwin_mut().w_cursor = save_cursor;
-        } else if did_change {
-            curwin_mut().w_set_curswant = true;
         } else if virtual_active(curwin_mut()) {
             curwin_mut().w_cursor.coladd = save_coladd;
         }
-
-        did_change
+        return false;
     }
+
+    if do_alpha && ascii_isalpha(firstdigit) {
+        if op_type == OP_NR_SUB {
+            if char_ord(firstdigit) < prenum1 {
+                firstdigit = if ascii_isupper(firstdigit) {
+                    b'A' as i32
+                } else {
+                    b'a' as i32
+                };
+            } else {
+                firstdigit -= prenum1;
+            }
+        } else if 26 - char_ord(firstdigit) - 1 < prenum1 {
+            firstdigit = if ascii_isupper(firstdigit) {
+                b'Z' as i32
+            } else {
+                b'z' as i32
+            };
+        } else {
+            firstdigit += prenum1;
+        }
+        curwin_mut().w_cursor.col = col;
+        startpos = curwin_mut().w_cursor;
+        did_change = true;
+        del_char(false);
+        ins_char(firstdigit);
+        endpos = curwin_mut().w_cursor;
+        curwin_mut().w_cursor.col = col;
+    } else {
+        if col > 0
+            && line_bytes[(col - 1) as usize] == b'-'
+            && utf_head_off(ptr_line, ptr_line.wrapping_add((col - 1) as usize)) == 0
+            && !visual
+            && !do_unsigned
+        {
+            if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize])) {
+                blank_unsigned = true;
+            } else {
+                col -= 1;
+                negative = true;
+            }
+        }
+
+        if visual && g_st().visual_global.mode != b'V' as i32 {
+            maxlen = if curbuf_mut().b_visual.vi_curswant == MAXCOL {
+                linelen - col
+            } else {
+                length
+            };
+        }
+
+        let mut overflow = false;
+        vim_str2nr(
+            ptr_line.wrapping_add(col as usize),
+            Some(&mut pre),
+            Some(&mut length),
+            (if do_bin { STR2NR_BIN } else { 0 })
+                + (if do_oct { STR2NR_OCT } else { 0 })
+                + (if do_hex { STR2NR_HEX } else { 0 }),
+            None,
+            Some(&mut n),
+            maxlen,
+            false,
+            Some(&mut overflow),
+        );
+
+        if pre != 0 && negative {
+            col += 1;
+            length -= 1;
+            negative = false;
+        }
+
+        let mut subtract = false;
+        if op_type == OP_NR_SUB {
+            subtract ^= true;
+        }
+        if negative {
+            subtract ^= true;
+        }
+
+        let oldn = n;
+
+        if !overflow {
+            n = if subtract {
+                n.wrapping_sub(prenum1 as Uvarnumber)
+            } else {
+                n.wrapping_add(prenum1 as Uvarnumber)
+            };
+        }
+
+        if pre == 0 {
+            if subtract {
+                if n > oldn {
+                    n = 1u64.wrapping_add(n ^ u64::MAX);
+                    negative ^= true;
+                }
+            } else if n < oldn {
+                n ^= u64::MAX;
+                negative ^= true;
+            }
+            if n == 0 {
+                negative = false;
+            }
+        }
+
+        if (do_unsigned || blank_unsigned) && negative {
+            if subtract {
+                n = 0;
+            } else {
+                n = u64::MAX;
+            }
+            negative = false;
+        }
+
+        if visual && !was_positive && !negative && col > 0 {
+            col -= 1;
+            length += 1;
+        }
+
+        curwin_mut().w_cursor.col = col;
+        startpos = curwin_mut().w_cursor;
+        did_change = true;
+        let mut todel = length;
+        let mut c = gchar_cursor();
+
+        if c == b'-' as i32 {
+            length -= 1;
+        }
+        while todel > 0 {
+            todel -= 1;
+            if c < 0x100 && ascii_isalpha(c) {
+                ops_st().addsub_hexupper = ascii_isupper(c);
+            }
+            del_char(false);
+            c = gchar_cursor();
+        }
+
+        let mut buf1_vec = vec![0u8; (length as usize) + NUMBUFLEN];
+        let buf1 = buf1_vec.as_mut_ptr();
+        let mut ptr_line = buf1;
+        if negative && (!visual || was_positive) {
+            unsafe {
+                *ptr_line = b'-';
+            }
+            ptr_line = ptr_line.wrapping_add(1);
+        }
+        if pre != 0 {
+            unsafe {
+                *ptr_line = b'0';
+            }
+            ptr_line = ptr_line.wrapping_add(1);
+            length -= 1;
+        }
+        if pre == b'b' as i32 || pre == b'B' as i32 || pre == b'x' as i32 || pre == b'X' as i32 {
+            unsafe {
+                *ptr_line = pre as u8;
+            }
+            ptr_line = ptr_line.wrapping_add(1);
+            length -= 1;
+        }
+
+        let mut buf2 = [0u8; NUMBUFLEN];
+        let buf2_ptr = buf2.as_mut_ptr();
+        let mut buf2len: i32 = 0;
+        if pre == b'b' as i32 || pre == b'B' as i32 {
+            let mut bits = Uvarnumber::BITS as usize;
+            while bits > 0 {
+                if ((n >> (bits - 1)) & 0x1) != 0 {
+                    break;
+                }
+                bits -= 1;
+            }
+
+            while bits > 0 && (buf2len as usize) < NUMBUFLEN - 1 {
+                bits -= 1;
+                unsafe {
+                    *buf2_ptr.wrapping_add(buf2len as usize) =
+                        if ((n >> bits) & 0x1) != 0 { b'1' } else { b'0' };
+                }
+                buf2len += 1;
+            }
+
+            unsafe {
+                *buf2_ptr.wrapping_add(buf2len as usize) = 0;
+            }
+        } else if pre == 0 {
+            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llu", n as u64,);
+        } else if pre == b'0' as i32 {
+            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llo", n as u64,);
+        } else if ops_st().addsub_hexupper {
+            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llX", n as u64,);
+        } else {
+            buf2len = vim_snprintf!(buf2_ptr.cast(), NUMBUFLEN, c"%llx", n as u64,);
+        }
+        length -= buf2len;
+
+        if firstdigit == b'0' as i32 && !(do_oct && pre == 0) {
+            while length > 0 {
+                length -= 1;
+                unsafe {
+                    *ptr_line = b'0';
+                }
+                ptr_line = ptr_line.wrapping_add(1);
+            }
+        }
+        unsafe {
+            *ptr_line = 0;
+        }
+        let mut buf1len = crate::memory::ptr_offset_from(ptr_line, buf1) as i32;
+
+        let buf2_bytes = crate::memory::cstr_from_ptr(buf2_ptr.cast()).to_bytes_with_nul();
+        buf1_vec[buf1len as usize..buf1len as usize + buf2_bytes.len()].copy_from_slice(buf2_bytes);
+        buf1len += buf2len;
+
+        ins_str(buf1_vec.as_ptr().cast(), buf1len as usize);
+        drop(buf1_vec);
+
+        endpos = curwin_mut().w_cursor;
+        if curwin_mut().w_cursor.col != 0 {
+            curwin_mut().w_cursor.col -= 1;
+        }
+    }
+
+    if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
+        curbuf_mut().b_op_start = startpos;
+        curbuf_mut().b_op_end = endpos;
+        if curbuf_mut().b_op_end.col > 0 {
+            curbuf_mut().b_op_end.col -= 1;
+        }
+    }
+
+    if visual {
+        curwin_mut().w_cursor = save_cursor;
+    } else if did_change {
+        curwin_mut().w_set_curswant = true;
+    } else if virtual_active(curwin_mut()) {
+        curwin_mut().w_cursor.coladd = save_coladd;
+    }
+
+    did_change
 }
 
 fn line_count_info(
