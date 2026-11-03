@@ -356,15 +356,9 @@ pub fn path_head_length() -> i32 {
     }
 }
 
-pub fn is_path_head(bytes: &[u8]) -> bool {
-    #[cfg(windows)]
-    {
-        bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':')
-    }
-    #[cfg(not(windows))]
-    {
-        bytes.first().is_some_and(|&b| vim_ispathsep(b as i32))
-    }
+#[cfg(windows)]
+fn is_path_head(bytes: &[u8]) -> bool {
+    bytes.first().is_some_and(u8::is_ascii_alphabetic) && bytes.get(1) == Some(&b':')
 }
 
 pub fn get_past_head(path: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
@@ -2161,7 +2155,7 @@ pub fn path_shorten_fname<T>(full_path: *mut T, dir_name: *mut u8) -> *mut T {
         }
 
         if len == path_head_length() as usize
-            && is_path_head(crate::memory::cstr_as_bytes(dir_name))
+            && get_past_head(dir_name) == dir_name.wrapping_add(len).cast_mut()
         {
             return full_u8.wrapping_add(len).cast();
         }
@@ -2343,31 +2337,31 @@ fn path_to_absolute(
     force: i32,
 ) -> bool {
     let fname = fname.into_c_char_ptr();
-    let mut p = fname;
     unsafe {
         *buf = 0;
     }
 
     #[cfg(windows)]
-    let need_expand = force != 0
-        || !path_is_absolute(p)
-        || vim_ispathsep_nocolon(crate::memory::cstr_first_byte(p));
+    let is_abs =
+        path_is_absolute(fname) && !vim_ispathsep_nocolon(crate::memory::cstr_first_byte(fname));
     #[cfg(not(windows))]
-    let need_expand = force != 0 || !path_is_absolute(p);
+    let is_abs = path_is_absolute(fname);
 
-    if need_expand {
-        p = path_tail(p);
-        if crate::memory::cstr_as_bytes(p) == b".." {
-            p = p.wrapping_add(2);
-        }
-
-        let rel_len = (p as usize) - (fname as usize);
-        let relative_directory = cstr_from_bytes(crate::memory::cstr_slice(fname, rel_len));
-        if !path_full_dir_name(relative_directory.as_ptr(), buf, len) {
-            return false;
-        }
+    if force == 0 && is_abs {
+        return append_path(buf, fname, len);
     }
-    append_path(buf, p, len)
+
+    let mut tail = path_tail(fname);
+    if crate::memory::cstr_as_bytes(tail) == b".." {
+        tail = tail.wrapping_add(2);
+    }
+
+    let rel_len = (tail as usize) - (fname as usize);
+    let dir = cstr_from_bytes(crate::memory::cstr_slice(fname, rel_len));
+    if !path_full_dir_name(dir.as_ptr(), buf, len) {
+        return false;
+    }
+    append_path(buf, tail, len)
 }
 
 pub fn path_is_absolute(fname: impl crate::strings::IntoCCharPtr) -> bool {
@@ -2571,6 +2565,23 @@ mod tests {
                 crate::memory::cstr_as_bytes(shortened_dup.cast()),
                 b"directory/file.txt"
             );
+            #[cfg(windows)]
+            {
+                let mut drive_nonroot = *b"c:x\0";
+                let mut drive_rel = *b"c:xyz\\foo\0";
+                assert!(
+                    path_shorten_fname(drive_rel.as_mut_ptr(), drive_nonroot.as_mut_ptr())
+                        .is_null()
+                );
+                let mut drive_root = *b"c:\\\0";
+                let mut drive_abs = *b"c:\\xyz\\foo\0";
+                let shortened_root =
+                    path_shorten_fname(drive_abs.as_mut_ptr(), drive_root.as_mut_ptr());
+                assert_eq!(
+                    crate::memory::cstr_as_bytes(shortened_root.cast()),
+                    b"xyz\\foo"
+                );
+            }
 
             assert!(path_try_shorten_fname(ptr::null_mut::<u8>()).is_null());
             let mut cwd_buf = [0u8; MAXPATHL];
