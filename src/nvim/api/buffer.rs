@@ -102,7 +102,6 @@ pub struct KeyDict_buf_delete {
     pub unload: Boolean,
 }
 
-use crate::math::{FAIL, OK};
 use crate::regexp::CTRL_V_CONST;
 use crate::state::MODE_INSERT;
 
@@ -1327,7 +1326,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
     };
     let b_ptr: *mut FileBuf = b;
 
-    let mut ren_ret = OK;
+    let mut ren_ret = true;
     try_wrap(err, || {
         let is_curbuf = b_ptr == g_st().curbuf;
         let save_acd = opt_vars().p_acd;
@@ -1338,11 +1337,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(b), 0);
-        ren_ret = if rename_buffer(crate::memory::cstr_as_opt_cstr(name.data)) {
-            OK
-        } else {
-            FAIL
-        };
+        ren_ret = rename_buffer(crate::memory::cstr_as_opt_cstr(name.data));
         ctx_restore(&mut aco);
 
         if !is_curbuf {
@@ -1355,7 +1350,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         return;
     }
 
-    if ren_ret == FAIL {
+    if !ren_ret {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,

@@ -3,7 +3,6 @@
 
 use crate::api::private::converter::{K_BOOL_VAR_TRUE, K_SPECIAL_VAR_NULL};
 use crate::api::private::validate::NvimString;
-use crate::buffer::NOTDONE;
 use crate::eval::decode::{
     K_MP_EXT, K_MP_INTEGER, K_MP_MAP, SURROGATE_FIRST_CHAR, SURROGATE_HI_END, SURROGATE_HI_START,
     SURROGATE_LO_END, SURROGATE_LO_START,
@@ -17,7 +16,6 @@ use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
-use crate::math::{FAIL, OK};
 use crate::mbyte::{utf_char2len, utf_printable, utf_slice2char, utf_slice2len};
 use crate::memory::cstr_from_bytes;
 use crate::message::{emsg, internal_error, semsg};
@@ -195,7 +193,7 @@ pub fn encode_read_from_list(
     state: &mut ListReaderState,
     buf: &mut [u8],
     read_bytes: &mut usize,
-) -> i32 {
+) -> Option<bool> {
     let nbuf = buf.len();
     let mut p = 0usize;
     while p < nbuf {
@@ -213,18 +211,18 @@ pub fn encode_read_from_list(
         if p < nbuf {
             let Some(cur_li) = state.li_opt() else {
                 *read_bytes = p;
-                return OK;
+                return Some(true);
             };
             state.li = cur_li.li_next;
             let Some(next_li) = state.li_opt() else {
                 *read_bytes = p;
-                return OK;
+                return Some(true);
             };
             buf[p] = b'\n';
             p += 1;
             if next_li.li_tv.v_type != VarType::VarString {
                 *read_bytes = p;
-                return FAIL;
+                return Some(false);
             }
             state.offset = 0;
             let s = next_li.li_tv.vval.v_string();
@@ -237,9 +235,9 @@ pub fn encode_read_from_list(
     }
     *read_bytes = nbuf;
     if state.offset < state.li_length || state.li_opt().is_some_and(|li| !li.li_next.is_null()) {
-        NOTDONE
+        None
     } else {
-        OK
+        Some(true)
     }
 }
 
@@ -264,7 +262,7 @@ pub fn encode_vim_list_to_buf(list: Option<&TvList>) -> Option<Vec<u8>> {
     let mut lrstate = encode_init_lrstate(list);
     let mut buf = vec![0u8; len];
     let mut read_bytes = 0usize;
-    if encode_read_from_list(&mut lrstate, &mut buf, &mut read_bytes) == FAIL {
+    if encode_read_from_list(&mut lrstate, &mut buf, &mut read_bytes) == Some(false) {
         std::process::abort();
     }
     assert_eq!(len, read_bytes);
@@ -311,7 +309,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     true
 }
 
-fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
+fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
     let mut msg_ga: Vec<u8> = Vec::with_capacity(80);
 
     for (i, v) in mpstack.iter().enumerate() {
@@ -395,7 +393,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
         path_cstr.as_ptr()
     };
     semsg!(msg, objname.as_ptr(), path_ptr);
-    FAIL
+    false
 }
 
 fn convert_to_single_quoted_string(gap: &mut Vec<u8>, buf: Option<&[u8]>) {
@@ -807,7 +805,7 @@ impl EncodeBackend<'_> {
         prefix: &[u8],
         mpstack: &[MPConvStackVal],
         objname: &CStr,
-    ) -> i32 {
+    ) -> bool {
         match self {
             Self::Text {
                 gap,
@@ -816,7 +814,7 @@ impl EncodeBackend<'_> {
                 let Some(fun_bytes) = fun else {
                     internal_error(c"string(): NULL function name");
                     ga_concat_literal(gap, b"function(NULL");
-                    return OK;
+                    return true;
                 };
                 ga_concat_literal(gap, b"function(");
                 let name_off = gap.len();
@@ -826,7 +824,7 @@ impl EncodeBackend<'_> {
                 if !prefix.is_empty() {
                     gap[name_off + 1..name_off + 1 + prefix.len()].copy_from_slice(prefix);
                 }
-                OK
+                true
             }
             Self::Text {
                 mode: TextEncodeMode::Json,
@@ -959,10 +957,10 @@ impl EncodeBackend<'_> {
         mpstack: &[MPConvStackVal],
         copy_id: i32,
         objname: &CStr,
-    ) -> i32 {
+    ) -> Option<bool> {
         if *val_copy_id != copy_id {
             *val_copy_id = copy_id;
-            return NOTDONE;
+            return None;
         }
         let find_backref = || -> usize {
             for (idx, mpval) in mpstack.iter().enumerate() {
@@ -997,7 +995,7 @@ impl EncodeBackend<'_> {
                 let backref = find_backref();
                 let s = format!("{{E724@{backref}}}");
                 ga_concat_literal(gap, s.as_bytes());
-                OK
+                Some(true)
             }
             Self::Text {
                 gap,
@@ -1010,7 +1008,7 @@ impl EncodeBackend<'_> {
                     format!("[...@{backref}]")
                 };
                 ga_concat_literal(gap, s.as_bytes());
-                OK
+                Some(true)
             }
             Self::Text {
                 mode: TextEncodeMode::Json,
@@ -1022,13 +1020,13 @@ impl EncodeBackend<'_> {
                         c"E724: unable to correctly dump variable with self-referencing container",
                     );
                 }
-                OK
+                Some(true)
             }
-            Self::Msgpack { .. } => conv_error(
+            Self::Msgpack { .. } => Some(conv_error(
                 c"E5005: Unable to dump %s: container references itself in %s",
                 mpstack,
                 objname,
-            ),
+            )),
         }
     }
 }
@@ -1039,14 +1037,14 @@ fn convert_one_value(
     tv_ref: &mut TypVal,
     copy_id: i32,
     objname: &CStr,
-) -> i32 {
+) -> bool {
     backend.check_before();
     let tv: *mut TypVal = tv_ref;
     match tv_ref.v_type {
         VarType::VarString => {
             let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
             if !backend.conv_string(s) {
-                return FAIL;
+                return false;
             }
         }
         VarType::VarNumber => {
@@ -1054,7 +1052,7 @@ fn convert_one_value(
         }
         VarType::VarFloat => {
             if !backend.conv_float(tv_ref.vval.v_float()) {
-                return FAIL;
+                return false;
             }
         }
         VarType::VarBlob => {
@@ -1065,8 +1063,8 @@ fn convert_one_value(
         }
         VarType::VarFunc => {
             let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
-            if backend.conv_func_start(fun, b"", mpstack, objname) == FAIL {
-                return FAIL;
+            if !backend.conv_func_start(fun, b"", mpstack, objname) {
+                return false;
             }
             backend.conv_func_before_args(0);
             backend.conv_func_before_self(-1);
@@ -1084,8 +1082,8 @@ fn convert_one_value(
             } else {
                 b""
             };
-            if backend.conv_func_start(fun, prefix, mpstack, objname) == FAIL {
-                return FAIL;
+            if !backend.conv_func_start(fun, prefix, mpstack, objname) {
+                return false;
             }
             mpstack.push(MPConvStackVal {
                 tv,
@@ -1102,15 +1100,14 @@ fn convert_one_value(
                 backend.conv_empty_list();
             } else {
                 let saved_copy_id = unsafe { (*list).lv_copy_id };
-                let csr = backend.check_self_reference(
+                if let Some(done_ok) = backend.check_self_reference(
                     MPContainerRef::List(list),
                     unsafe { &mut (*list).lv_copy_id },
                     mpstack,
                     copy_id,
                     objname,
-                );
-                if csr != NOTDONE {
-                    return csr;
+                ) {
+                    return done_ok;
                 }
 
                 backend.conv_list_start(tv_list_len(unsafe { list.as_ref() }));
@@ -1138,7 +1135,7 @@ fn convert_one_value(
             let dict = tv_ref.vval.v_dict();
             if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used } == 0 {
                 backend.conv_empty_dict();
-                return OK;
+                return true;
             }
             let mut handled_special = false;
             if backend.allow_specials()
@@ -1208,7 +1205,7 @@ fn convert_one_value(
                         K_MP_FLOAT => {
                             if val_di.di_tv.v_type == VarType::VarFloat {
                                 if !backend.conv_float(val_di.di_tv.vval.v_float()) {
-                                    return FAIL;
+                                    return false;
                                 }
                                 handled_special = true;
                             }
@@ -1220,7 +1217,7 @@ fn convert_one_value(
                                 })
                             {
                                 if !backend.conv_str_string(Some(&buf)) {
-                                    return FAIL;
+                                    return false;
                                 }
                                 handled_special = true;
                             }
@@ -1229,15 +1226,14 @@ fn convert_one_value(
                             if val_di.di_tv.v_type == VarType::VarList {
                                 let val_list = val_di.di_tv.vval.v_list();
                                 let saved_copy_id = unsafe { (*val_list).lv_copy_id };
-                                let csr = backend.check_self_reference(
+                                if let Some(done_ok) = backend.check_self_reference(
                                     MPContainerRef::List(val_list),
                                     unsafe { &mut (*val_list).lv_copy_id },
                                     mpstack,
                                     copy_id,
                                     objname,
-                                );
-                                if csr != NOTDONE {
-                                    return csr;
+                                ) {
+                                    return done_ok;
                                 }
 
                                 backend.conv_list_start(tv_list_len(unsafe { val_list.as_ref() }));
@@ -1281,15 +1277,14 @@ fn convert_one_value(
                                     }
                                     if all_pairs {
                                         let saved_copy_id = unsafe { (*val_list).lv_copy_id };
-                                        let csr = backend.check_self_reference(
+                                        if let Some(done_ok) = backend.check_self_reference(
                                             MPContainerRef::Pairs(val_list),
                                             unsafe { &mut (*val_list).lv_copy_id },
                                             mpstack,
                                             copy_id,
                                             objname,
-                                        );
-                                        if csr != NOTDONE {
-                                            return csr;
+                                        ) {
+                                            return done_ok;
                                         }
 
                                         backend.conv_dict_start(tv_list_len(unsafe {
@@ -1330,7 +1325,7 @@ fn convert_one_value(
                                 {
                                     let ext_type = first.li_tv.vval.v_number() as i8;
                                     if !backend.conv_ext_string(&buf, ext_type) {
-                                        return FAIL;
+                                        return false;
                                     }
                                     handled_special = true;
                                 }
@@ -1342,15 +1337,14 @@ fn convert_one_value(
             }
             if !handled_special {
                 let saved_copy_id = unsafe { (*dict).dv_copy_id };
-                let csr = backend.check_self_reference(
+                if let Some(done_ok) = backend.check_self_reference(
                     MPContainerRef::Dict(dict),
                     unsafe { &mut (*dict).dv_copy_id },
                     mpstack,
                     copy_id,
                     objname,
-                );
-                if csr != NOTDONE {
-                    return csr;
+                ) {
+                    return done_ok;
                 }
 
                 backend.conv_dict_start(unsafe { (*dict).dv_hashtab.ht_used });
@@ -1368,10 +1362,10 @@ fn convert_one_value(
         }
         VarType::VarUnknown => {
             internal_error(backend.convert_one_value_err_name());
-            return FAIL;
+            return false;
         }
     }
-    OK
+    true
 }
 
 fn encode_vim_with_backend(
@@ -1382,7 +1376,7 @@ fn encode_vim_with_backend(
     let copy_id = get_copy_id();
     let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
-    if convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) == FAIL {
+    if !convert_one_value(backend, &mut mpstack, top_tv, copy_id, objname) {
         return false;
     }
 
@@ -1463,14 +1457,13 @@ fn encode_vim_with_backend(
                 if !backend.special_dict_key_check(&first_item.li_tv) {
                     return false;
                 }
-                if convert_one_value(
+                if !convert_one_value(
                     backend,
                     &mut mpstack,
                     &mut first_item.li_tv,
                     copy_id,
                     objname,
-                ) == FAIL
-                {
+                ) {
                     return false;
                 }
                 backend.conv_dict_after_key();
@@ -1535,19 +1528,17 @@ fn encode_vim_with_backend(
                                 continue;
                             }
                             let saved_copy_id = dict.dv_copy_id;
-                            let csr = backend.check_self_reference(
+                            if let Some(done_ok) = backend.check_self_reference(
                                 MPContainerRef::Dict(dict),
                                 &mut dict.dv_copy_id,
                                 &mpstack,
                                 copy_id,
                                 objname,
-                            );
-                            if csr != NOTDONE {
-                                if csr == FAIL {
+                            ) {
+                                if !done_ok {
                                     return false;
-                                } else {
-                                    continue;
                                 }
+                                continue;
                             }
                             backend.conv_dict_start(dict.dv_hashtab.ht_used);
 
@@ -1590,14 +1581,13 @@ fn encode_vim_with_backend(
             }
         };
 
-        if convert_one_value(
+        if !convert_one_value(
             backend,
             &mut mpstack,
             unsafe { &mut *next_tv },
             copy_id,
             objname,
-        ) == FAIL
-        {
+        ) {
             return false;
         }
     }

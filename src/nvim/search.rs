@@ -43,7 +43,6 @@ use crate::insexpand::{
 };
 use crate::mark::setpcmark;
 use crate::r#match::K_CPO_SEARCH;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_iscomposing_first, utf_ptr2char,
     utfc_ptr2len,
@@ -720,7 +719,7 @@ pub fn searchit(
             if (options & SEARCH_MSG) != 0 && !g_st().rc_did_emsg {
                 semsg!(tr(c"E383: Invalid search string: %s"), get_search_pat());
             }
-            return FAIL;
+            return 0;
         }
 
         let search_from_match_end =
@@ -1120,7 +1119,7 @@ pub fn searchit(
                     );
                 }
             }
-            return FAIL;
+            return 0;
         }
 
         if pos.lnum > buf.b_ml.ml_line_count {
@@ -1555,7 +1554,7 @@ pub fn do_search(
             show_top_bot_msg = true;
         }
 
-        if c == i64::from(FAIL) {
+        if c == 0 {
             retval = 0;
             success = false;
             break;
@@ -2749,7 +2748,7 @@ fn is_zero_width(
             RE_SEARCH,
             opt_vars().p_magic,
             None,
-        ) != FAIL
+        ) != 0
         {
             let mut nmatched: i32;
             loop {
@@ -2949,7 +2948,7 @@ fn update_search_stat(
                 RE_LAST,
                 opt_vars().p_magic,
                 None,
-            ) != FAIL
+            ) != 0
         {
             done_search = true;
             if timeout > 0 && profile_passed_limit(start) {
@@ -3662,9 +3661,9 @@ pub fn find_pattern_in_path(
                                         cont_s_ipos,
                                         0,
                                     );
-                                    if add_r == OK {
+                                    if add_r == Some(true) {
                                         dir = FORWARD;
-                                    } else if add_r == FAIL {
+                                    } else if add_r == Some(false) {
                                         stop_fpip_loop = true;
                                     }
                                 }

@@ -70,7 +70,6 @@ use crate::mark::{
     mark_forget_file, mark_jumplist_forget_file, mark_view_make, mark_view_restore,
     set_last_cursor, setpcmark,
 };
-use crate::math::{FAIL, OK};
 use crate::mbyte::utf_cp_bounds;
 use crate::mcursor::{mc_buf_clear, mc_buf_free};
 use crate::memline::{
@@ -813,7 +812,6 @@ pub const BFA_IGNORE_ABORT: i32 = 8;
 const K_BFF_CLEAR_WIN_INFO: i32 = 1;
 const K_BFF_INIT_CHANGEDTICK: i32 = 2;
 
-pub(crate) const NOTDONE: i32 = 2;
 pub(crate) const MAXLNUM: Linenr = 0x7fffffff;
 pub(crate) const NMARKS: usize = 26;
 pub(crate) const JUMPLISTSIZE: usize = 100;
@@ -995,8 +993,8 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
         eap,
         flags | READ_BUFFER,
         silent,
-    );
-    if retval == OK {
+    ) == Some(true);
+    if retval {
         while line_count > 0 {
             line_count -= 1;
             ml_delete(1);
@@ -1012,7 +1010,7 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
     if read_stdin {
         if !g_st().readonlymode && !buf_is_empty(curbuf_mut()) {
             changed(crate::globals::curbuf_mut());
-        } else if retval == OK {
+        } else if retval {
             unchanged(curbuf_mut(), false, true);
         }
 
@@ -1025,7 +1023,7 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
             &mut retval,
         );
     }
-    retval == OK
+    retval
 }
 
 /// Ensure buffer `buf` is loaded.
@@ -1046,14 +1044,14 @@ pub fn buf_ensure_loaded(buf: &mut FileBuf) -> bool {
     );
     let status = open_buffer(false, None, 0);
     ctx_restore(&mut aco);
-    status != FAIL && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
+    status && bufref_valid(Some(&bufref)) && buf.b_ml.ml_mfp.is_some()
 }
 
 /// Open current buffer, that is: open the memfile and read the file into
 /// memory.
-pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32 {
+pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> bool {
     let mut flags = flags_arg;
-    let mut retval = OK;
+    let mut retval = Some(true);
     let mut old_curbuf: Bufref = Bufref::new();
     let old_tw = curbuf_mut().b_p_tw;
     #[cfg(unix)]
@@ -1098,7 +1096,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         if old_tw != curbuf_mut().b_p_tw {
             check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
         }
-        return FAIL;
+        return false;
     }
 
     if let Some(mfp) = curbuf_mut().b_ml.ml_mfp.as_deref_mut() {
@@ -1164,12 +1162,8 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         #[cfg(unix)]
         if read_fifo {
             curbuf_mut().b_p_bin = save_bin;
-            if retval == OK {
-                retval = if read_buffer(false, eap, flags) {
-                    OK
-                } else {
-                    FAIL
-                };
+            if retval == Some(true) {
+                retval = Some(read_buffer(false, eap, flags));
             }
         }
 
@@ -1191,12 +1185,12 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
             silent,
         );
         curbuf_mut().b_p_bin = save_bin;
-        if retval == OK {
-            retval = if read_buffer(true, (eap.is_some()).then(|| eap.unwrap()), flags) {
-                OK
-            } else {
-                FAIL
-            };
+        if retval == Some(true) {
+            retval = Some(read_buffer(
+                true,
+                (eap.is_some()).then(|| eap.unwrap()),
+                flags,
+            ));
         }
     }
 
@@ -1216,7 +1210,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         || (aborting() && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
     {
         changed(crate::globals::curbuf_mut());
-    } else if retval != FAIL && !read_stdin && !read_fifo {
+    } else if retval != Some(false) && !read_stdin && !read_fifo {
         unchanged(curbuf_mut(), false, true);
     }
     save_file_ff(curbuf_mut());
@@ -1230,7 +1224,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         curbuf_mut().b_flags |= BF_READERR;
     }
 
-    if retval == NOTDONE
+    if retval.is_none()
         && curbuf_mut().b_p_ft.is_empty()
         && curbuf_mut().b_ffname.is_some()
         && after_pathsep(curbuf_mut().ffname_bytes()) != 0
@@ -1240,7 +1234,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         set_bufref(&mut bufref, unsafe { g_st().curbuf.as_mut() });
         do_doautocmd(c"filetypedetect BufRead", false, None);
         if !bufref_valid(Some(&bufref)) || g_st().curbuf != old_curbuf.br_buf || aborting() {
-            return FAIL;
+            return false;
         }
     }
 
@@ -1250,17 +1244,18 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         curwin_mut().w_topline = 1;
         curwin_mut().w_topfill = 0;
     }
+    let mut ok_retval = retval != Some(false);
     apply_autocmds_retval(
         EVENT_BUFENTER,
         None,
         None,
         false,
         curbuf_opt_mut(),
-        &mut retval,
+        &mut ok_retval,
     );
 
-    if retval == FAIL {
-        return retval;
+    if !ok_retval {
+        return false;
     }
 
     if bufref_valid(Some(&old_curbuf))
@@ -1281,14 +1276,14 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
                 None,
                 false,
                 curbuf_opt_mut(),
-                &mut retval,
+                &mut ok_retval,
             );
         }
 
         ctx_restore(&mut aco);
     }
 
-    retval
+    ok_retval
 }
 
 /// Store `buf` in `bufref` and set the free count.
@@ -4504,7 +4499,7 @@ pub fn bt_cmdwin(buf: Option<&FileBuf>) -> bool {
 /// Open a window for a number of buffers.
 pub fn ex_buffer_all(eap: &mut Exarg) {
     let mut wpnext: crate::globals::WinPtr;
-    let mut split_ret = OK;
+    let mut split_ret = true;
     let mut open_wins = 0;
     let had_tab = g_st().cmdmod.cmod_tab;
 
@@ -4607,13 +4602,13 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             }
         }
 
-        if wp.is_null() && split_ret == OK {
+        if wp.is_null() && split_ret {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf.opt_mut());
             let p_ea_save = opt_vars().p_ea;
             opt_vars().p_ea = true;
             let ok = win_split(0, WSP_ROOM | WSP_BELOW);
-            split_ret = if ok { OK } else { FAIL };
+            split_ret = ok;
             open_wins += 1;
             opt_vars().p_ea = p_ea_save;
             if !ok {
@@ -4992,7 +4987,7 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
             Some(&ea),
             READ_NEW | READ_DUMMY,
             false,
-        ) == OK
+        ) == Some(true)
         && buf.b_ml.ml_line_count == curbuf_mut().b_ml.ml_line_count
     {
         differ = false;

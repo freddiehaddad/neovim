@@ -8,7 +8,7 @@ use crate::eval::userfunc::{
 use crate::cursor::Linenr;
 use crate::errors::*;
 
-use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, NOTDONE, VAR_FIXED};
+use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, VAR_FIXED};
 use crate::eval::encode::{
     ENCODE_BOOL_VAR_NAMES, ENCODE_SPECIAL_VAR_NAMES, MPConvPartialStage, MPConvStackData,
     MPConvStackVal, encode_tv2echo, encode_tv2string,
@@ -41,7 +41,6 @@ use crate::cmdexpand::MB_MAXBYTES;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 
 use crate::eval::funcs::K_SPECIAL_VAR_NULL_CONST;
-use crate::math::OK;
 use crate::regexp::NUMBUFLEN;
 use crate::viml::parser::parser::CONV_NONE;
 pub type TvFloat = f64;
@@ -3790,7 +3789,7 @@ pub fn tv_blob_copy(from: Option<&TvBlob>, to: &mut TypVal) {
 }
 
 #[inline]
-fn nothing_conv_func_start(tv: &mut TypVal) -> i32 {
+fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
     tv.v_lock = VAR_UNLOCKED;
     if tv.v_type == VarType::VarPartial {
         if let Some(pt) = tv.vval.v_partial_opt()
@@ -3798,7 +3797,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> i32 {
         {
             pt.pt_refcount -= 1;
             tv.vval = crate::eval::typval::TypvalVval::Partial(ptr::null_mut());
-            return OK;
+            return true;
         }
     } else {
         let fun = tv.vval.v_string();
@@ -3808,7 +3807,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> i32 {
         }
         tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
     }
-    NOTDONE
+    false
 }
 
 #[inline]
@@ -3829,7 +3828,7 @@ fn nothing_conv_func_end(tv: &mut TypVal, copy_id: i32) {
 }
 
 #[inline]
-fn nothing_conv_real_list_after_start(tv: &mut TypVal, mpsv: &mut MPConvStackVal) -> i32 {
+fn nothing_conv_real_list_after_start(tv: &mut TypVal, mpsv: &mut MPConvStackVal) {
     tv.v_lock = VAR_UNLOCKED;
     let list = tv.vval.v_list_ref();
     if list.lv_refcount > 1 {
@@ -3838,9 +3837,7 @@ fn nothing_conv_real_list_after_start(tv: &mut TypVal, mpsv: &mut MPConvStackVal
         if let MPConvStackData::List { ref mut li, .. } = mpsv.data {
             *li = ptr::null_mut();
         }
-        return OK;
     }
-    NOTDONE
 }
 
 #[inline]
@@ -3882,7 +3879,7 @@ fn nothing_convert_one_value(
         }
         VarType::VarPartial => {
             let pt = tv.vval.v_partial();
-            if nothing_conv_func_start(tv) != NOTDONE {
+            if nothing_conv_func_start(tv) {
                 return true;
             }
             mpstack.push(MPConvStackVal {
@@ -3919,7 +3916,7 @@ fn nothing_convert_one_value(
                     li: unsafe { (*list).lv_first },
                 },
             };
-            let _ = nothing_conv_real_list_after_start(tv, &mut mpsv);
+            nothing_conv_real_list_after_start(tv, &mut mpsv);
             mpstack.push(mpsv);
         }
         VarType::VarBool => {

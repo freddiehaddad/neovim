@@ -190,7 +190,6 @@ impl Default for ExceptionState {
 }
 
 use crate::globals::IOSIZE;
-use crate::math::FAIL;
 
 struct ExEvalModuleState {
     cause_abort: bool,
@@ -235,8 +234,8 @@ pub fn update_force_abort() {
     }
 }
 
-pub fn should_abort(retcode: i32) -> bool {
-    (retcode == FAIL && g_st().trylevel != 0 && g_st().emsg_silent == 0) || aborting()
+pub fn should_abort(ok: bool) -> bool {
+    (!ok && g_st().trylevel != 0 && g_st().emsg_silent == 0) || aborting()
 }
 
 pub fn aborted_in_try() -> bool {

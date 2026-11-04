@@ -6,7 +6,7 @@ use crate::autocmd::{
     EVENT_BUFREADPOST, EVENT_BUFWINENTER, EVENT_SWAPEXISTS, apply_autocmds, has_autocmd,
 };
 use crate::buffer::{
-    FileBuf, K_UIMESSAGES, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_NONE, SEA_QUIT,
+    FileBuf, K_UIMESSAGES, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, SEA_NONE, SEA_QUIT,
     SEA_RECOVER, buf_inc_changedtick, buf_spname, open_buffer, setfname,
 };
 use crate::change::{ML_DEL_MESSAGE, changed_internal, unchanged};
@@ -359,7 +359,6 @@ use crate::ex_docmd::{CMOD_NOSWAPFILE, FLUSH_TYPEAHEAD};
 use crate::fileio::readlink;
 use crate::fileio::vim_lseek;
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 #[cfg(unix)]
@@ -853,7 +852,7 @@ pub fn ml_recover(checkext: bool) {
     let mut b0_fenc: Option<std::ffi::CString> = None;
     let directly: bool;
     let mut serious_error = true;
-    let mut orig_file_status = NOTDONE;
+    let mut orig_file_status = None;
 
     g_st().recoverymode = true;
     let called_from_main = curbuf_mut().b_ml.ml_mfp.is_none();
@@ -1257,7 +1256,7 @@ pub fn ml_recover(checkext: bool) {
                                     None,
                                     0,
                                     false,
-                                ) != OK
+                                ) != Some(true)
                             {
                                 cannot_open = true;
                             } else {
@@ -1428,7 +1427,7 @@ pub fn ml_recover(checkext: bool) {
         line_breakcheck();
     }
 
-    if orig_file_status != OK || curbuf_mut().b_ml.ml_line_count != lnum * 2 + 1 {
+    if orig_file_status != Some(true) || curbuf_mut().b_ml.ml_line_count != lnum * 2 + 1 {
         if !(curbuf_mut().b_ml.ml_line_count == 2 && ml_get_slice(1).is_empty()) {
             changed_internal(curbuf_mut());
             buf_inc_changedtick(curbuf_mut());
@@ -2575,7 +2574,7 @@ pub fn ml_append(lnum: Linenr, line: &[u8], len: Colnr, newfile: bool) -> bool {
 
 /// Append a line after `lnum` using `ML_APPEND_` flags.
 pub fn ml_append_flags(lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
-    if curbuf_mut().b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
+    if curbuf_mut().b_ml.ml_mfp.is_none() && !open_buffer(false, None, 0) {
         return false;
     }
     ml_append_flush(curbuf_mut(), lnum, line, len, flags)
@@ -2654,7 +2653,7 @@ pub fn ml_replace_buf_len(
     copy: bool,
     noalloc: bool,
 ) -> bool {
-    if buf.b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
+    if buf.b_ml.ml_mfp.is_none() && !open_buffer(false, None, 0) {
         return false;
     }
 

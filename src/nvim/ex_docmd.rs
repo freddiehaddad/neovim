@@ -146,7 +146,6 @@ use crate::mark::{
     mark_get_visual, mark_move_to, setmark, setpcmark,
 };
 use crate::r#match::ex_match;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
 use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
@@ -8087,7 +8086,7 @@ pub fn get_address(
                             pat_use,
                             opt_vars().p_magic,
                             None,
-                        ) != FAIL
+                        ) != 0
                         {
                             lnum = pos.lnum;
                         } else {
@@ -10991,7 +10990,7 @@ fn ex_read(eap: &mut Exarg) {
             false,
         )
     };
-    if i != OK {
+    if i != Some(true) {
         if !aborting() {
             let _ = semsg!(gettext(E_NOTOPEN), eap.arg);
         }

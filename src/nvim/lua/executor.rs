@@ -50,7 +50,6 @@ use crate::lua::converter::{
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
 use crate::main_init::{getout, os_exit, preserve_exit};
-use crate::math::{FAIL, OK};
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
 use crate::message::{
@@ -2312,7 +2311,7 @@ pub fn nlua_exec_file(path: &CStr) -> bool {
 
 pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     let lstate = nlua_st().global_lstate;
-    let mut status = FAIL;
+    let mut status = false;
 
     lua_getglobal(lstate, c"vim");
     lua_getfield(lstate, -1, c"_expand_pat");
@@ -2358,13 +2357,13 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
 
             if all_strings {
                 xp.xp_pattern = xp.xp_pattern.wrapping_offset(prefix_len);
-                status = OK;
+                status = true;
             }
         }
         arena_mem_free(arena_finish(&mut arena));
     }
 
-    if status == FAIL {
+    if !status {
         nlua_st().expand_result_array.clear();
     }
 }

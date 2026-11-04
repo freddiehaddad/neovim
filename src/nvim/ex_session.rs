@@ -29,7 +29,6 @@ use std::ptr;
 
 use crate::api::win_config::FR_COL;
 use crate::drawscreen::FR_LEAF;
-use crate::math::FAIL;
 use crate::regexp::MAXCOL;
 
 pub(crate) const OPT_SKIPRTP: i32 = 0x80;
@@ -88,13 +87,13 @@ fn write_fmt(fd: &CFile, s: String) -> bool {
     write_bytes(fd, s.as_bytes())
 }
 
-fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> i32 {
+fn put_view_curpos(fd: &CFile, wp: &WinInfoInfo, spaces: &str) -> bool {
     let s = if wp.w_curswant == MAXCOL {
         format!("{spaces}normal! $\n")
     } else {
         format!("{spaces}normal! 0{}|\n", wp.w_virtcol + 1)
     };
-    i32::from(write_fmt(fd, s))
+    write_fmt(fd, s)
 }
 
 fn ses_winsizes(fd: &CFile, restore_size: bool, tab_firstwin: Option<&mut WinInfoInfo>) -> bool {
@@ -470,12 +469,12 @@ fn put_view(
                     i64::from(wp.w_width / 2),
                     i64::from(wp.w_width),
                 ),
-            ) || put_view_curpos(fd, &*wp, "  ") == FAIL
+            ) || !put_view_curpos(fd, &*wp, "  ")
                 || !put_line(fd, c"endif")
             {
                 return false;
             }
-        } else if put_view_curpos(fd, &*wp, "") == FAIL {
+        } else if !put_view_curpos(fd, &*wp, "") {
             return false;
         }
     }

@@ -53,7 +53,6 @@ use std::ptr;
 pub type SpellAddType = i32;
 use crate::change::TAB;
 use crate::globals::IOSIZE;
-use crate::math::OK;
 use crate::viml::parser::parser::CONV_NONE;
 
 pub const SPELL_ADD_GOOD: SpellAddType = 0;
@@ -636,7 +635,7 @@ pub fn spell_load_file(
                     break;
                 };
                 lp.sl_syllable = Some(crate::memory::cstr_to_cstring(raw.as_ptr().cast()));
-                if init_syl_tab(&mut *lp) != OK {
+                if !init_syl_tab(&mut *lp) {
                     fail = true;
                     break;
                 }

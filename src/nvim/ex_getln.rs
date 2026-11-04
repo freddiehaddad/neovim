@@ -88,7 +88,6 @@ use crate::keycodes::{
 use crate::lua::executor::nlua_call_typval;
 use crate::mapping::{REMAP_NONE, check_abbr, map_to_exists_mode};
 use crate::mark::setpcmark;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     UTF8LEN_TAB_ZERO, mb_cptr2char_adv, mb_get_class, mb_tolower, ptr2cells, utf_char2bytes,
     utf_char2len, utf_iscomposing_first, utf_ptr2cells, utf_ptr2char, utfc_ptr2len,
@@ -1484,7 +1483,7 @@ fn command_line_handle_ctrl_bsl(s: &mut CommandLineState) -> i32 {
 
 /// Completion for `'wildchar'` or `'wildcharm'` key.
 fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
-    let res: i32;
+    let res: bool;
     let mut options = WILD_NO_BEEP;
     let escape = s.firstc != b'@' as i32;
     let redraw_if_menu_empty = s.c == K_WILD;
@@ -1513,19 +1512,11 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             s.did_wild_list = true;
         }
         if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_LONGEST) != 0 {
-            res = if nextwild(&mut s.xpc, WILD_LONGEST, options, escape) {
-                OK
-            } else {
-                FAIL
-            };
+            res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
         } else if (g_st().wim_flags[s.wim_index as usize] & K_OPT_WIM_FLAG_FULL) != 0 {
-            res = if nextwild(&mut s.xpc, WILD_NEXT, options, escape) {
-                OK
-            } else {
-                FAIL
-            };
+            res = nextwild(&mut s.xpc, WILD_NEXT, options, escape);
         } else {
-            res = OK;
+            res = true;
         }
     } else {
         let wim_longest = (g_st().wim_flags[0] & K_OPT_WIM_FLAG_LONGEST) != 0;
@@ -1547,11 +1538,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         let cmdpos_before = getln_st().ccline.cmdpos;
 
         if wim_longest {
-            res = if nextwild(&mut s.xpc, WILD_LONGEST, options, escape) {
-                OK
-            } else {
-                FAIL
-            };
+            res = nextwild(&mut s.xpc, WILD_LONGEST, options, escape);
         } else {
             if wim_noselect || (wim_list && !wim_full) {
                 options |= WILD_NOSELECT;
@@ -1559,11 +1546,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             if wim_noinsert {
                 options |= WILD_NOINSERT;
             }
-            res = if nextwild(&mut s.xpc, WILD_EXPAND_KEEP, options, escape) {
-                OK
-            } else {
-                FAIL
-            };
+            res = nextwild(&mut s.xpc, WILD_EXPAND_KEEP, options, escape);
         }
 
         if redraw_if_menu_empty && s.xpc.xp_numfiles <= 0 {
@@ -1578,7 +1561,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
             return CMDLINE_CHANGED;
         }
 
-        if res == OK && s.xpc.xp_numfiles > if wim_noselect || wim_noinsert { 0 } else { 1 } {
+        if res && s.xpc.xp_numfiles > if wim_noselect || wim_noinsert { 0 } else { 1 } {
             if wim_longest {
                 let found_longest_prefix = getln_st().ccline.cmdpos != cmdpos_before;
                 let show_menu = opt_vars().p_wmnu && wim_full;
@@ -1652,7 +1635,7 @@ fn command_line_wildchar_complete(s: &mut CommandLineState) -> i32 {
         s.gotesc = true;
     }
 
-    if res == OK {
+    if res {
         CMDLINE_CHANGED
     } else {
         CMDLINE_NOT_CHANGED
@@ -4386,12 +4369,12 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         && regname != CTRL_L_CONST
         && !valid_yank_reg(regname, false)
     {
-        return FAIL != 0;
+        return false;
     }
 
     line_breakcheck();
     if g_st().got_int {
-        return FAIL != 0;
+        return false;
     }
 
     g_st().textlock += 1;
@@ -4400,7 +4383,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
 
     if let Some(opt_vec) = spec_res {
         let Some(vec_val) = opt_vec else {
-            return FAIL != 0;
+            return false;
         };
         let arg = vec_val.as_ptr().cast_mut();
 
@@ -4446,7 +4429,7 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
         }
 
         cmdline_paste_str(crate::memory::cstr_as_bytes(p.cast()), literally);
-        return OK != 0;
+        return true;
     }
 
     cmdline_paste_reg(regname, literally, remcr)

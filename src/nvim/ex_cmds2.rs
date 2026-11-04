@@ -49,7 +49,6 @@ use std::ptr;
 
 use crate::cursor::Linenr;
 use crate::eval::funcs::VIM_QUESTION;
-use crate::math::OK;
 use crate::os::fs::MAXPATHL;
 use crate::search::FORWARD;
 
@@ -129,7 +128,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
     }
     let mut bufref: Bufref = Bufref::new();
     set_bufref(&mut bufref, Some(&mut *buf));
-    let mut r = buf_write_all(buf, forceit) == OK;
+    let mut r = buf_write_all(buf, forceit);
 
     if bufref_valid(Some(&bufref)) && buf_is_changed_fn(buf) {
         r = false;
@@ -229,7 +228,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         }
 
         if check_overwrite(&mut ea, buf, buf.fname_opt(), buf.ffname_opt(), false)
-            && buf_write_all(buf, false) == OK
+            && buf_write_all(buf, false)
         {
             return;
         }
@@ -431,7 +430,7 @@ pub fn check_fname() -> bool {
 }
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
-pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> i32 {
+pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
     let old_curbuf = g_st().curbuf;
     let retval = buf_write(
         buf,

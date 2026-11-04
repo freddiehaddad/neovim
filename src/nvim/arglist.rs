@@ -41,7 +41,6 @@ use crate::window::{
 use std::ffi::{CStr, CString};
 use std::ptr;
 
-use crate::math::{FAIL, OK};
 use crate::option::OptInt;
 use crate::os::env::ExpandCtx;
 
@@ -981,7 +980,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
         tab_drop_empty_window = true;
     }
 
-    let mut split_ret = OK;
+    let mut split_ret = true;
     let mut i: i32 = 0;
     while i < count && !g_st().got_int {
         if ptr::eq(aall.alist, &raw const g_st().global_alist) && i == gargcount() - 1 {
@@ -1007,7 +1006,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                     }
                 }
             }
-        } else if split_ret == OK {
+        } else if split_ret {
             if tab_drop_empty_window && i == count - 1 {
                 g_st().autocmd_no_enter -= 1;
             }
@@ -1015,7 +1014,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 let p_ea_save = opt_vars().p_ea;
                 opt_vars().p_ea = true;
                 let ok = win_split(0, WSP_ROOM | WSP_BELOW);
-                split_ret = if ok { OK } else { FAIL };
+                split_ret = ok;
                 opt_vars().p_ea = p_ea_save;
                 if !ok {
                     i += 1;

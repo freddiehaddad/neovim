@@ -40,7 +40,6 @@ use crate::globals::*;
 use crate::input::{RedoState, restore_redobuff, save_redobuff};
 use crate::insexpand::ins_compl_active;
 use crate::lua::executor::{K_RET_NIL_BOOL, nlua_call_ref, nlua_set_sctx};
-use crate::math::{FAIL, OK};
 use crate::mbyte::mb_strcmp_ic;
 
 use crate::message::{
@@ -2445,7 +2444,7 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
 }
 
 pub fn ex_doautoall(eap: &mut Exarg) {
-    let mut retval = OK;
+    let mut retval = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut arg = unsafe { CStr::from_ptr(eap.arg) };
     let call_do_modelines = check_nomodeline(&mut arg);
@@ -2461,7 +2460,7 @@ pub fn ex_doautoall(eap: &mut Exarg) {
         set_bufref(&mut bufref, Some(&mut *buf));
 
         let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
-        retval = if ok { OK } else { FAIL };
+        retval = ok;
 
         if call_do_modelines && did_aucmd {
             do_modelines(if is_ctx_win(curwin_mut()) {
@@ -2474,12 +2473,12 @@ pub fn ex_doautoall(eap: &mut Exarg) {
         ctx_restore(&mut aco);
 
         if !ok || !bufref_valid(Some(&bufref)) {
-            retval = FAIL;
+            retval = false;
             break;
         }
     }
 
-    if retval == OK {
+    if retval {
         do_doautocmd(arg, false, Some(&mut did_aucmd));
         if call_do_modelines && did_aucmd {
             do_modelines(0);
@@ -2680,7 +2679,7 @@ pub fn apply_autocmds_retval(
     fname_io: Option<&CStr>,
     force: bool,
     buf: Option<&mut FileBuf>,
-    retval: &mut i32,
+    retval: &mut bool,
 ) -> bool {
     let buf_ptr: *mut FileBuf =
         buf.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
@@ -2701,7 +2700,7 @@ pub fn apply_autocmds_retval(
         false,
     );
     if did_cmd && aborting() {
-        *retval = FAIL;
+        *retval = false;
     }
     did_cmd
 }

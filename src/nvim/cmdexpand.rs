@@ -53,7 +53,6 @@ use crate::lua::executor::{
     K_RET_OBJECT, nlua_call_user_expand_func, nlua_exec, nlua_expand_get_matches, nlua_expand_pat,
 };
 use crate::mapping::{expand_mappings, set_context_in_map_cmd};
-use crate::math::FAIL;
 use crate::mbyte::{mb_tolower, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
 use crate::memory::{cstr_from_bytes, cstr_to_cstring};
@@ -6329,7 +6328,7 @@ fn expand_pattern_in_buf(pat: &CStr, dir: Direction, matches: &mut Vec<CString>)
         g_st().msg_silent -= 1;
         g_st().emsg_off -= 1;
 
-        if found_new_match == FAIL {
+        if found_new_match == 0 {
             break;
         }
 

@@ -54,7 +54,6 @@ pub type Smt = i32;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::drawline::{HLF_COUNT, K_OPT_SPO_FLAG_NOPLAINBUFFER, SMT_ALL};
 use crate::eval::funcs::{HLF_SPB, HLF_SPC, HLF_SPL, HLF_SPR, SEARCH_KEEP};
-use crate::math::{FAIL, OK};
 use crate::normal::{SMT_BAD, SMT_RARE};
 pub(crate) const MAXWLEN: usize = 254;
 const REGION_ALL: i32 = 0xff;
@@ -1299,7 +1298,7 @@ pub fn spell_cat_line(buf: &mut [u8], line: &[u8]) {
 fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
     let lang = lang_cstr.as_ptr();
     let mut fname_enc: [u8; 85] = [0; 85];
-    let mut r: i32 = FAIL;
+    let mut r = false;
     let mut sl = Spelload {
         sl_lang: [0; MAXWLEN + 1],
         sl_loaded: false,
@@ -1321,7 +1320,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             0,
             &mut RuntimeCallback::SpellLoad(&mut sl),
         );
-        r = if ok { OK } else { FAIL };
+        r = ok;
         if !ok && sl.sl_lang[0] != 0 {
             vim_snprintf!(
                 (&raw mut fname_enc).cast(),
@@ -1334,7 +1333,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 0,
                 &mut RuntimeCallback::SpellLoad(&mut sl),
             );
-            r = if ok2 { OK } else { FAIL };
+            r = ok2;
             if !ok2
                 && sl.sl_lang[0] != 0
                 && round == 1
@@ -1352,7 +1351,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
         }
         break;
     }
-    if r == FAIL {
+    if !r {
         if starting_val() != 0 {
             let mut autocmd_buf: [u8; 512] = [0; 512];
             vim_snprintf!(
@@ -1523,15 +1522,15 @@ pub fn count_common_word(lp: &mut Slang, word: &[u8], len: i32, count: u8) {
 pub fn byte_in_str(str_: Option<&std::ffi::CStr>, n: i32) -> bool {
     str_.is_some_and(|s| s.to_bytes().contains(&(n as u8)))
 }
-pub fn init_syl_tab(slang: &mut Slang) -> i32 {
+pub fn init_syl_tab(slang: &mut Slang) -> bool {
     let syl_items = &mut slang.sl_syl_items;
     syl_items.clear();
     let Some(ref syl_cstr) = slang.sl_syllable else {
-        return OK;
+        return true;
     };
     let syl_bytes = syl_cstr.as_bytes();
     let Some(first_slash) = syl_bytes.iter().position(|&b| b == b'/') else {
-        return OK;
+        return true;
     };
     let rest = &syl_bytes[first_slash + 1..];
     if !rest.is_empty() {
@@ -1540,7 +1539,7 @@ pub fn init_syl_tab(slang: &mut Slang) -> i32 {
                 break;
             }
             if part.len() >= SY_MAXLEN {
-                return SP_FORMERROR;
+                return false;
             }
             let mut syl = SylItem {
                 sy_chars: [0; SY_MAXLEN],
@@ -1552,7 +1551,7 @@ pub fn init_syl_tab(slang: &mut Slang) -> i32 {
     }
     let prefix = syl_bytes[..first_slash].to_vec();
     slang.sl_syllable = Some(std::ffi::CString::new(prefix).unwrap());
-    OK
+    true
 }
 fn count_syllables(slang: &mut Slang, word: &[u8]) -> i32 {
     let Some(ref sl_syllable) = slang.sl_syllable else {
@@ -2975,7 +2974,7 @@ fn dump_word(
             *dir.as_deref_mut().unwrap(),
             false,
             0,
-        ) == OK
+        ) == Some(true)
         {
             *dir.unwrap() = FORWARD;
         }

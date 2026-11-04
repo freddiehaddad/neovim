@@ -19,9 +19,9 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BLN_LISTED, Bufref, DOBUF_FIRST, DOBUF_GOTO, DOBUF_UNLOAD, FileBuf, GETF_ALT, K_UIMESSAGES,
-    MAXLNUM, NOTDONE, VALID_TOPLINE, VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, buf_hide,
-    buf_valid, buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, bufref_valid,
-    close_buffer, do_autochdir, do_buffer, maketitle, set_bufref,
+    MAXLNUM, VALID_TOPLINE, VAR_SCOPE, bt_help, bt_prompt, bt_quickfix, buf_hide, buf_valid,
+    buflist_findname_exp, buflist_findnr, buflist_getfile, buflist_new, bufref_valid, close_buffer,
+    do_autochdir, do_buffer, maketitle, set_bufref,
 };
 use crate::charset::getdigits_int;
 use crate::cmdexpand::{CTRL_N, CTRL_P, Cmdidx};
@@ -71,7 +71,6 @@ use crate::keycodes::{CAR, K_BS, K_DOWN, K_KENTER, K_LEFT, K_RIGHT, K_UP, TAB};
 use crate::main_init::getout;
 use crate::mark::{copy_jumplist, free_jumplist, setmark, setpcmark};
 use crate::r#match::clear_matches;
-use crate::math::{FAIL, OK};
 use crate::message::{
     K_ZINDEX_MESSAGES, emsg, iemsg, internal_error, msg, msg_clr_eos_force, msg_grid_validate,
     msg_ui_flush, semsg, set_keep_msg,
@@ -7721,7 +7720,7 @@ fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
     }
 }
 
-pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool) -> i32 {
+pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool) -> Option<bool> {
     let winbar_height = if wp.w_floating {
         i32::from(!wp.w_onebuf_opt.wo_wbr.is_empty())
     } else {
@@ -7732,9 +7731,9 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
         if winbar_height == 1 && wp.w_view_height <= 1 {
             if wp.w_floating {
                 emsg(gettext(E_NOROOM));
-                return NOTDONE;
+                return None;
             } else if !make_room || !resize_frame_for_winbar(wp.frame_mut()) {
-                return FAIL;
+                return Some(false);
             }
         }
         wp.w_winbar_height = winbar_height;
@@ -7746,12 +7745,12 @@ pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool)
         }
     }
 
-    OK
+    Some(true)
 }
 
 fn set_winbar_curtab(make_room: bool, valid_cursor: bool) -> bool {
     for wp in for_all_windows_ptr() {
-        if set_winbar_win(&mut *wp, make_room, valid_cursor) == FAIL {
+        if set_winbar_win(&mut *wp, make_room, valid_cursor) == Some(false) {
             return false;
         }
     }

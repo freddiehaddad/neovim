@@ -5,7 +5,7 @@ use crate::api::private::helpers::{
     tv_dict_is_watched,
 };
 use crate::api::private::validate::{Object, ObjectType};
-use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, NOTDONE, VAR_FIXED, VAR_SCOPE};
+use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, VAR_FIXED, VAR_SCOPE};
 use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int};
 use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
@@ -50,7 +50,6 @@ use crate::hashtab::{
     hash_unlock, hashitem_empty,
 };
 use crate::lua::executor::{nlua_funcref_str, nlua_set_sctx};
-use crate::math::{FAIL, OK};
 use crate::mbyte::utf_char2bytes;
 use crate::memory::cstr_from_bytes;
 use crate::message::{
@@ -825,15 +824,9 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
     let ctx = get_option_sctx(K_OPT_SPELLSUGGEST);
     g_st().current_sctx = *ctx;
 
-    let mut r = may_call_simple_func(p, &mut rettv);
-    if r == NOTDONE {
-        r = if eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
-            OK
-        } else {
-            FAIL
-        };
-    }
-    if r == OK {
+    let r = may_call_simple_func(p, &mut rettv)
+        .unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));
+    if r {
         if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
         } else {

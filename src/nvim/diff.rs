@@ -179,7 +179,6 @@ use crate::arglist::ML_EMPTY;
 use crate::charset::{NL, NUL};
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::extmark::{K_EXTMARK_NOOP, K_EXTMARK_UNDO, K_FALSE, K_NONE, K_TRUE};
-use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
 #[cfg(unix)]
 use crate::os::fs::MAXPATHL;
@@ -797,7 +796,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
     buf.b_p_ff.clear_option_str();
     buf.b_p_ff = save_ff;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
-    r == OK
+    r
 }
 fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
     let take_tempname = || vim_tempname();
@@ -1206,7 +1205,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         };
         let tmp_orig = tmp_orig_cstr.as_ptr().cast_mut();
         let tmp_new = tmp_new_cstr.as_ptr().cast_mut();
-        if buf_write(
+        if !buf_write(
             curbuf_mut(),
             Some(tmp_orig_cstr.as_c_str()),
             None,
@@ -1217,8 +1216,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             false,
             false,
             true,
-        ) == FAIL
-        {
+        ) {
             break 'theend;
         }
         #[cfg(unix)]

@@ -30,7 +30,6 @@ use crate::fileio::{
     vim_rename, vim_tempname,
 };
 use crate::globals::*;
-use crate::math::{FAIL, OK};
 use crate::mbyte::utfc_slice2len;
 use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::message::{emsg, semsg};
@@ -1299,7 +1298,7 @@ pub fn f_isdirectory(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut prot: i32 = 0o755;
 
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     if check_secure() {
         return;
     }
@@ -1353,13 +1352,13 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                     failed_dir.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
                     unsafe { uv_strerror(ret) },
                 );
-                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
+                rettv.vval = crate::eval::typval::TypvalVval::Number(0);
                 return;
             }
-            rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(OK));
+            rettv.vval = crate::eval::typval::TypvalVval::Number(1);
         }
     }
-    if rettv.vval.v_number() == Varnumber::from(FAIL) {
+    if rettv.vval.v_number() == 0 {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(
             crate::memory::cstr_from_ptr(dir),
             prot,
@@ -1367,8 +1366,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
 
     // Handle "D" and "R": deferred deletion of the created directory.
-    if rettv.vval.v_number() == Varnumber::from(OK) && created.is_none() && (defer || defer_recurse)
-    {
+    if rettv.vval.v_number() == 1 && created.is_none() && (defer || defer_recurse) {
         created = FullName_save(crate::memory::cstr_as_opt_cstr((dir).cast()), false);
     }
     if let Some(created_cstr) = created {

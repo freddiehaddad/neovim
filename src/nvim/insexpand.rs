@@ -7,9 +7,7 @@ use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     EVENT_COMPLETECHANGED, EVENT_COMPLETEDONE, EVENT_COMPLETEDONEPRE, apply_autocmds, has_event,
 };
-use crate::buffer::{
-    FileBuf, K_UIMESSAGES, MAXLNUM, NOTDONE, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid,
-};
+use crate::buffer::{FileBuf, K_UIMESSAGES, MAXLNUM, VAR_FIXED, bt_cmdwin, buf_spname, buf_valid};
 use crate::change::{
     HLF_W, MB_MAXCHAR, OPENLINE_FORCE_INDENT, OPENLINE_KEEPTRAIL, deleted_lines_mark,
     ins_bytes_len, ins_char, ins_char_bytes, ins_str, open_line,
@@ -71,7 +69,6 @@ use crate::keycodes::{
     K_S_UP, K_UP, NL, TAB,
 };
 use crate::lua::executor::nlua_expand_pat;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, mb_toupper, ptr2cells,
     utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
@@ -1052,7 +1049,7 @@ pub fn ins_compl_add_infercase(
     dir: Direction,
     cont_s_ipos: bool,
     score: i32,
-) -> i32 {
+) -> Option<bool> {
     let str_slice = if len >= 0 && (len as usize) <= str_arg.len() {
         crate::memory::bytes_until_nul(&str_arg[..len as usize])
     } else {
@@ -1150,7 +1147,7 @@ fn ins_compl_add(
     score: i32,
     preselect: bool,
     commit_chars: Option<std::ffi::CString>,
-) -> i32 {
+) -> Option<bool> {
     let dir = if cdir == K_DIRECTION_NOT_SET {
         insexp().compl_direction
     } else {
@@ -1164,7 +1161,7 @@ fn ins_compl_add(
         os_breakcheck();
     }
     if g_st().got_int {
-        return FAIL;
+        return Some(false);
     }
     let str_bytes = crate::memory::bytes_until_nul(str_slice);
     if len < 0 {
@@ -1193,7 +1190,7 @@ fn ins_compl_add(
                 }
             }
         }
-        return NOTDONE;
+        return None;
     }
 
     ins_compl_del_pum();
@@ -1291,7 +1288,7 @@ fn ins_compl_add(
         ins_compl_longest_match(&mut *match_ptr);
     }
 
-    OK
+    Some(true)
 }
 
 /// Check that "str[len]" matches with "match->cp_str", considering "match->cp_flags".
@@ -1499,11 +1496,11 @@ fn ins_compl_longest_match(match_: &mut Compl) {
 
 /// Add an array of matches to the list of matches. Frees matches[].
 fn ins_compl_add_matches(matches: &mut Vec<std::ffi::CString>, icase: i32) {
-    let mut add_r = OK;
+    let mut add_r = Some(true);
     let mut dir = insexp().compl_direction;
 
     for m in matches.drain(..) {
-        if add_r == FAIL {
+        if add_r == Some(false) {
             break;
         }
         add_r = ins_compl_add(
@@ -1520,7 +1517,7 @@ fn ins_compl_add_matches(matches: &mut Vec<std::ffi::CString>, icase: i32) {
             false,
             None,
         );
-        if add_r == OK {
+        if add_r == Some(true) {
             dir = FORWARD;
         }
     }
@@ -2182,7 +2179,7 @@ fn thesaurus_add_words_in_line(
                 dir,
                 false,
                 FUZZY_SCORE_NONE,
-            ) != FAIL;
+            ) != Some(false);
             if !status {
                 break;
             }
@@ -2269,7 +2266,7 @@ fn ins_compl_files(
                             false,
                             score,
                         );
-                        if add_r == FAIL {
+                        if add_r == Some(false) {
                             break;
                         }
                         rem_slice = &rem_slice[(match_len as usize).min(rem_slice.len())..];
@@ -2307,21 +2304,17 @@ fn ins_compl_files(
                     col_off = start_off + match_len;
                     if thesaurus {
                         let mut rem_line = line_bytes;
-                        add_r = if thesaurus_add_words_in_line(
+                        add_r = Some(thesaurus_add_words_in_line(
                             Some(file_cstr.as_c_str()),
                             &mut rem_line,
                             *dir,
                             regmatch.startp[0] as usize,
-                        ) {
-                            OK
-                        } else {
-                            FAIL
-                        };
+                        ));
                         col_off = line_bytes.len() - rem_line.len();
                     }
-                    if add_r == OK {
+                    if add_r == Some(true) {
                         *dir = FORWARD;
-                    } else if add_r == FAIL {
+                    } else if add_r == Some(false) {
                         break;
                     }
                     if line_bytes.get(col_off) == Some(&b'\n') || g_st().got_int {
@@ -3322,7 +3315,7 @@ fn get_user_highlight_id(hlname: Option<&CStr>) -> i32 {
     0
 }
 
-fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
+fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> Option<bool> {
     let word: *const u8;
     let mut dup = false;
     let mut empty = false;
@@ -3368,7 +3361,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
     }
     if word.is_null() || (!empty && crate::memory::cstr_is_empty(word.cast())) {
         tv_clear(&mut user_data);
-        return FAIL;
+        return Some(false);
     }
     let status = ins_compl_add(
         crate::memory::cstr_as_bytes(word.cast()),
@@ -3384,7 +3377,7 @@ fn ins_compl_add_tv(tv: &mut TypVal, dir: Direction, fast: bool) -> i32 {
         preselect,
         commit_chars,
     );
-    if status == FAIL {
+    if status == Some(false) {
         tv_clear(&mut user_data);
     }
     status
@@ -3397,7 +3390,7 @@ fn ins_compl_add_list(list: Option<&TvList>) {
         return;
     }
     for li in crate::eval::typval::list_iter_mut(list.unwrap().first_opt()) {
-        if ins_compl_add_tv(&mut li.li_tv, dir, true) != FAIL {
+        if ins_compl_add_tv(&mut li.li_tv, dir, true) != Some(false) {
             dir = FORWARD;
         } else if g_st().did_emsg != 0 {
             break;
@@ -3488,7 +3481,7 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
         FUZZY_SCORE_NONE,
         false,
         None,
-    ) != OK
+    ) != Some(true)
     {
         return;
     }
@@ -3549,11 +3542,12 @@ pub fn f_complete(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
 }
 
 pub fn f_complete_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(ins_compl_add_tv(
-        &mut argvars[0],
-        0,
-        false,
-    )));
+    let rc = match ins_compl_add_tv(&mut argvars[0], 0, false) {
+        Some(true) => 1,
+        Some(false) => 0,
+        None => 2,
+    };
+    rettv.vval = crate::eval::typval::TypvalVval::Number(rc);
 }
 
 pub fn f_complete_check(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -4068,13 +4062,12 @@ fn get_next_tag_completion() {
             },
         TAG_MANY,
         curbuf_mut().ffname_opt(),
-    ) == OK
-        && !matches.is_empty()
+    ) && !matches.is_empty()
     {
-        let mut add_r = OK;
+        let mut add_r = Some(true);
         let mut dir = insexp().compl_direction;
         for m in &matches {
-            if add_r == FAIL {
+            if add_r == Some(false) {
                 break;
             }
             add_r = ins_compl_add(
@@ -4091,7 +4084,7 @@ fn get_next_tag_completion() {
                 false,
                 None,
             );
-            if add_r == OK {
+            if add_r == Some(true) {
                 dir = FORWARD;
             }
         }
@@ -4302,7 +4295,7 @@ fn get_next_filename_completion() {
                     current_score,
                     false,
                     None,
-                ) == OK
+                ) == Some(true)
                 {
                     dir = FORWARD;
                 }
@@ -4337,11 +4330,11 @@ fn get_next_cmdline_completion() {
         &mut matches,
     ) == EXPAND_OK
     {
-        let mut add_r = OK;
+        let mut add_r = Some(true);
         let mut dir = insexp().compl_direction;
 
         for (i, match_i) in matches.iter().enumerate() {
-            if add_r == FAIL {
+            if add_r == Some(false) {
                 break;
             }
             let mut cptext: [Option<std::ffi::CString>; CPT_COUNT] = [const { None }; CPT_COUNT];
@@ -4374,7 +4367,7 @@ fn get_next_cmdline_completion() {
                 false,
                 None,
             );
-            if add_r == OK {
+            if add_r == Some(true) {
                 dir = FORWARD;
             }
         }
@@ -4474,7 +4467,7 @@ fn ins_compl_get_next_word_or_line(
     Some(&res_slice[..(len.max(0) as usize).min(res_slice.len())])
 }
 
-fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut CursorPos) -> i32 {
+fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut CursorPos) -> bool {
     let mut matched_slice: Option<&'static [u8]> = None;
     let mut len: i32 = 0;
     let in_fuzzy_collect = !compl_status_adding() && cot_fuzzy() && insexp().compl_length > 0;
@@ -4495,7 +4488,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         opt_vars().p_ws = true;
     }
     let mut looped_around = false;
-    let mut found_new_match: i32;
+    let mut found_new_match: bool;
     loop {
         let mut cont_s_ipos = false;
         let ins_buf_ref = unsafe { &mut *st.ins_buf };
@@ -4504,7 +4497,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 
         if in_fuzzy_collect {
             let mut matched_line: &'static [u8] = &[];
-            found_new_match = i32::from(search_for_fuzzy_match(
+            found_new_match = search_for_fuzzy_match(
                 ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 Some(leader_slice),
@@ -4513,22 +4506,18 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 &mut len,
                 &mut matched_line,
                 &mut score,
-            ));
+            );
             matched_slice = Some(matched_line);
         } else if ctrl_x_mode_whole_line()
             || ctrl_x_mode_eval()
             || (insexp().compl_cont_status & CONT_SOL) != 0
         {
-            found_new_match = if search_for_exact_line(
+            found_new_match = search_for_exact_line(
                 ins_buf_ref,
                 &mut *st.cur_match_pos_ptr(),
                 insexp().compl_direction,
                 compl_pattern_cstr().unwrap_or(c""),
-            ) {
-                OK
-            } else {
-                FAIL
-            };
+            );
         } else {
             found_new_match = searchit(
                 None,
@@ -4543,7 +4532,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 RE_LAST,
                 opt_vars().p_magic,
                 None,
-            );
+            ) != 0;
         }
         g_st().msg_silent -= 1;
         let cur_pos = st.cur_match_pos();
@@ -4555,7 +4544,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         } else if st.first_match_pos.lnum == st.last_match_pos.lnum
             && st.first_match_pos.col == st.last_match_pos.col
         {
-            found_new_match = FAIL;
+            found_new_match = false;
         } else if (compl_dir_forward()
             && (st.prev_match_pos.lnum > cur_pos.lnum
                 || (st.prev_match_pos.lnum == cur_pos.lnum
@@ -4566,13 +4555,13 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                         && st.prev_match_pos.col <= cur_pos.col)))
         {
             if looped_around {
-                found_new_match = FAIL;
+                found_new_match = false;
             } else {
                 looped_around = true;
             }
         }
         st.prev_match_pos = cur_pos;
-        if found_new_match == FAIL {
+        if !found_new_match {
             break;
         }
 
@@ -4617,7 +4606,8 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             0,
             cont_s_ipos,
             score,
-        ) != NOTDONE
+        )
+        .is_some()
         {
             if in_fuzzy_collect
                 && let Some(next_i) = compl_next_idx(0)
@@ -4625,7 +4615,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             {
                 insexp().compl_num_bests += 1;
             }
-            found_new_match = OK;
+            found_new_match = true;
             break;
         }
     }
@@ -4681,7 +4671,7 @@ fn get_register_completion() {
                         dir,
                         false,
                         FUZZY_SCORE_NONE,
-                    ) == OK
+                    ) == Some(true)
                 {
                     dir = FORWARD;
                 }
@@ -4719,7 +4709,7 @@ fn get_register_completion() {
                             dir,
                             false,
                             FUZZY_SCORE_NONE,
-                        ) == OK
+                        ) == Some(true)
                     {
                         dir = FORWARD;
                     }
@@ -4762,7 +4752,7 @@ fn get_callback_if_cpt_func(p: &CStr, idx: i32) -> CptFuncSource {
 }
 
 fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut CursorPos) -> bool {
-    let mut found_new_match = FAIL;
+    let mut found_new_match = false;
 
     match type_ {
         -1 => {}
@@ -4805,17 +4795,17 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
         }
         _ => {
             found_new_match = get_next_default_completion(st, ini);
-            if found_new_match == FAIL && ptr::eq(st.ins_buf, g_st().curbuf) {
+            if !found_new_match && ptr::eq(st.ins_buf, g_st().curbuf) {
                 st.found_all = true;
             }
         }
     }
 
     if type_ != 0 && insexp().compl_curr_idx != insexp().compl_old_idx {
-        found_new_match = OK;
+        found_new_match = true;
     }
 
-    found_new_match != FAIL
+    found_new_match
 }
 
 fn get_next_bufname_token() {
@@ -4937,7 +4927,7 @@ fn advance_cpt_sources_index_safe() -> bool {
 
 fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
     let st = &mut insexp().next_state;
-    let mut found_new_match: i32;
+    let mut found_new_match: bool;
     let mut type_ = insexp().ctrl_x_mode;
     let mut may_advance_cpt_idx = false;
     let mut start_pos = *ini;
@@ -4996,7 +4986,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
     }
 
     loop {
-        found_new_match = FAIL;
+        found_new_match = false;
         st.set_match_pos = false;
 
         if (ctrl_x_mode_normal() || ctrl_x_mode_line_or_eval())
@@ -5036,7 +5026,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             };
         }
 
-        found_new_match = i32::from(get_next_completion_match(type_, st, &mut start_pos));
+        found_new_match = get_next_completion_match(type_, st, &mut start_pos);
 
         if compl_pattern_cstr().is_none() {
             break;
@@ -5049,7 +5039,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             compl_source_start_timer(insexp().cpt_sources_index);
         }
 
-        if (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()) || found_new_match != FAIL {
+        if (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()) || found_new_match {
             if g_st().got_int {
                 break;
             }
@@ -5096,11 +5086,11 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
 
     let st_ptr = &st;
     if (ctrl_x_mode_normal() || ctrl_x_mode_line_or_eval()) && st_ptr.e_cpt_char() == 0 {
-        found_new_match = FAIL;
+        found_new_match = false;
     }
 
     let mut match_count: i32 = -1;
-    if found_new_match == FAIL || (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()) {
+    if !found_new_match || (ctrl_x_mode_not_default() && !ctrl_x_mode_line_or_eval()) {
         match_count = ins_compl_make_cyclic();
     }
 
@@ -5508,7 +5498,7 @@ fn find_next_completion_match(
     mut todo: i32,
     advance: bool,
     num_matches: &mut i32,
-) -> i32 {
+) -> bool {
     let mut found_end: bool;
     let mut found_compl: Option<usize> = None;
     let cur_cot_flags = get_cot_flags();
@@ -5548,7 +5538,7 @@ fn find_next_completion_match(
                         insexp().compl_pending += todo + 1;
                     }
                 }
-                return -1;
+                return false;
             }
 
             if !compl_no_select && advance {
@@ -5605,7 +5595,7 @@ fn find_next_completion_match(
         }
     }
 
-    OK
+    true
 }
 
 fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> i32 {
@@ -5645,7 +5635,7 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
         insexp().compl_restarting = false;
     }
 
-    if find_next_completion_match(allow_get_expansion, todo, advance, &mut num_matches) == -1 {
+    if !find_next_completion_match(allow_get_expansion, todo, advance, &mut num_matches) {
         return -1;
     }
 
@@ -6377,7 +6367,7 @@ fn ins_compl_start() -> bool {
         FUZZY_SCORE_NONE,
         false,
         None,
-    ) != OK
+    ) != Some(true)
     {
         insexp().compl_pattern = None;
         api_clear_string(&mut insexp().compl_orig_text);

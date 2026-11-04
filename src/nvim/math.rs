@@ -1,9 +1,5 @@
 //! Mathematical and bit-manipulation utilities (`src/nvim/math.c`).
 
-/// Return value from Neovim functions (`src/nvim/vim_defs.h`).
-pub const OK: i32 = 1;
-pub const FAIL: i32 = 0;
-
 pub const FP_NAN: i32 = if cfg!(any(
     target_os = "windows",
     target_os = "freebsd",

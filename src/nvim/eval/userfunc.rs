@@ -47,7 +47,6 @@ use crate::lua::converter::{LUA_NOREF, LuaRef};
 use crate::lua::executor::{
     api_free_luaref, nlua_call_vlua, nlua_exec_typval_callable, nlua_set_sctx,
 };
-use crate::math::{FAIL, OK};
 use crate::memory::{cstr_from_bytes, cstr_to_cstring, mem_st};
 use crate::message::{
     emsg, iemsg, internal_error, message_filtered, msg_clr_eos, msg_ext_set_kind, msg_outnum,
@@ -108,7 +107,7 @@ pub struct UserFunc {
     pub uf_name: std::ffi::CString,
 }
 use crate::api::private::helpers::{DI_FLAGS_FIX, DI_FLAGS_RO};
-use crate::buffer::{DO_NOT_FREE_CNT, NOTDONE, VAR_FIXED, VAR_SCOPE};
+use crate::buffer::{DO_NOT_FREE_CNT, VAR_FIXED, VAR_SCOPE};
 use crate::globals::IOSIZE;
 
 pub const FC_ABORT: i32 = 0x01;
@@ -610,7 +609,11 @@ fn alloc_ufunc(name: &[u8]) -> &'static mut UserFunc {
 }
 
 /// Parse a lambda expression and get a Funcref from `*arg`.
-pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut Evalarg>) -> i32 {
+pub fn get_lambda_tv(
+    arg: &mut &CStr,
+    rettv: &mut TypVal,
+    evalarg: Option<&mut Evalarg>,
+) -> Option<bool> {
     let evaluate = evalarg
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
@@ -629,7 +632,7 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     };
     let mut ret = get_function_args(&mut s, b'-', None, None, None, true);
     if !ret || s.to_bytes().first() != Some(&b'>') {
-        return NOTDONE;
+        return None;
     }
 
     *arg = unsafe {
@@ -651,7 +654,7 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     );
     if !ret || arg.to_bytes().first() != Some(&b'>') {
         eval_st().eval_lavars_used = old_eval_lavars;
-        return FAIL;
+        return Some(false);
     }
 
     if evaluate {
@@ -672,7 +675,7 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     *arg = arg_cstr;
     if !ret {
         eval_st().eval_lavars_used = old_eval_lavars;
-        return FAIL;
+        return Some(false);
     }
 
     let arg_ptr: *mut u8 = {
@@ -687,7 +690,7 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     if unsafe { *arg_ptr } != b'}' {
         semsg!(gettext(c"E451: Expected }: %s"), arg_ptr);
         eval_st().eval_lavars_used = old_eval_lavars;
-        return FAIL;
+        return Some(false);
     }
 
     *arg = unsafe { CStr::from_ptr(arg_ptr.wrapping_add(1).cast()) };
@@ -741,7 +744,7 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     }
 
     eval_st().eval_lavars_used = old_eval_lavars;
-    OK
+    Some(true)
 }
 
 /// Return name of the function corresponding to `name`.
@@ -2070,16 +2073,16 @@ pub fn call_func(
     ret
 }
 
-pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> i32 {
+pub fn call_simple_luafunc(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 
     nlua_call_vlua(funcname, &mut [], &mut *rettv);
-    OK
+    Some(true)
 }
 
-pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> i32 {
-    let mut ret = FAIL;
+pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> Option<bool> {
+    let mut ret = Some(false);
 
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
@@ -2099,10 +2102,9 @@ pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> i32 {
     };
 
     let Some(fp_ref) = find_func(Some(rfname)) else {
-        ret = NOTDONE;
         user_func_error(error, &name, false);
         drop(tofree);
-        return ret;
+        return None;
     };
     if (fp_ref.uf_flags & FC_DELETED) != 0 {
         error = FCERR_DELETED;
@@ -2114,7 +2116,7 @@ pub fn call_simple_func(funcname: &[u8], rettv: &mut TypVal) -> i32 {
 
         error = call_user_func_check(fp_ref, 0, &mut argvars, &mut *rettv, &mut funcexe, None);
         if error == FCERR_NONE {
-            ret = OK;
+            ret = Some(true);
         }
     }
 
@@ -3382,7 +3384,7 @@ pub fn ex_function(eap: &mut Exarg) {
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
             .is_null()
         {
-            let mut j = FAIL;
+            let mut j = false;
             if let Some(sname) = sourcing_name() {
                 let sn = autoload_name(crate::memory::cstr_as_bytes(name));
                 p = vim_strchr(&(sn), b'/' as i32)
@@ -3398,10 +3400,10 @@ pub fn ex_function(eap: &mut Exarg) {
                         K_PATH_CMP_LITERAL,
                     )
                 {
-                    j = OK;
+                    j = true;
                 }
             }
-            if j == FAIL {
+            if !j {
                 semsg!(
                     gettext(c"E746: Function name does not match script file name: %s",),
                     name,

@@ -127,7 +127,7 @@ use crate::lua::executor::{
 use crate::mark::{
     cleanup_jumplist, get_buf_local_marks, get_global_marks, setmark_pos, setpcmark,
 };
-use crate::math::{FAIL, OK, xisinf, xisnan};
+use crate::math::{xisinf, xisnan};
 use crate::mbyte::{
     Vimconv, convert_setup, enc_locale, mb_adjust_cursor, string_convert, utf_char2bytes,
     utf_ptr2char, utf_ptr2len, utfc_ptr2len,
@@ -1903,7 +1903,7 @@ pub fn f_cursor(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// "debugbreak()" function
 pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(FAIL));
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     let pid = tv_get_number(&argvars[0]) as i32;
     if pid == 0 {
         emsg(gettext(E_INVARG));
@@ -1918,7 +1918,7 @@ pub fn f_debugbreak(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         unsafe { DebugBreakProcess(h_process) };
         unsafe { CloseHandle(h_process) };
-        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(OK));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(1);
     }
     #[cfg(not(windows))]
     {
@@ -5818,7 +5818,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
                 )
             };
             let rlret = encode_read_from_list(&mut lrstate, dest_slice, &mut read_bytes);
-            if rlret == FAIL {
+            if rlret == Some(false) {
                 semsg!(gettext(E_INVARG2), c"List item is not a string",);
                 break 'end;
             }
@@ -5838,7 +5838,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
             let ptr_ = parse_slice.as_ptr();
             buf_size = parse_slice.len();
 
-            if rlret == OK {
+            if rlret == Some(true) {
                 break;
             }
 
@@ -6714,9 +6714,9 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 Some(&mut sia),
             );
             if firstpos.lnum != 0 && equalpos(pos, firstpos) {
-                subpatnum = FAIL;
+                subpatnum = 0;
             }
-            if subpatnum == FAIL || !use_skip {
+            if subpatnum == 0 || !use_skip {
                 break;
             }
             if firstpos.lnum == 0 {
@@ -6731,7 +6731,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             let do_skip = eval_expr_to_bool(&argvars[4], &mut err);
             curwin_mut().w_cursor = save_pos;
             if err {
-                subpatnum = FAIL;
+                subpatnum = 0;
                 break;
             }
             if !do_skip {
@@ -6741,7 +6741,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
             options &= !SEARCH_START;
         }
 
-        if subpatnum != FAIL {
+        if subpatnum != 0 {
             if (flags & SP_SUBPAT) != 0 {
                 retval = subpatnum;
             } else {
@@ -7274,7 +7274,7 @@ pub fn do_searchpair(
             true,
             Some(&mut sia),
         );
-        if n == FAIL || (firstpos.lnum != 0 && equalpos(pos, firstpos)) {
+        if n == 0 || (firstpos.lnum != 0 && equalpos(pos, firstpos)) {
             break;
         }
         if firstpos.lnum == 0 {

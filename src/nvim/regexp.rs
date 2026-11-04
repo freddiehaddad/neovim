@@ -40,7 +40,6 @@ mod nfa;
 use self::bt::*;
 use self::nfa::*;
 
-use crate::math::{FAIL, OK};
 use crate::option::OptInt;
 pub type RegMagic = i32;
 

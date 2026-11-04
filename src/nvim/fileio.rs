@@ -10,7 +10,7 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BF_CHECK_RO, BF_NEW, BF_NOTEDITED, BLN_DUMMY, Bufref, FileBuf, K_SHM_FILEINFO, K_SHM_RO,
-    K_UIMESSAGES, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, NOTDONE, SEA_QUIT, bt_dontwrite,
+    K_UIMESSAGES, MAXLNUM, MF_DIRTY_YES, MF_DIRTY_YES_NOSYNC, SEA_QUIT, bt_dontwrite,
     bt_nofilename, bt_normal, buf_contents_changed, buf_is_empty, buflist_new, bufref_valid,
     do_modelines, set_bufref, setfname, wipe_buffer,
 };
@@ -245,7 +245,6 @@ use crate::eval::funcs::VIM_WARNING;
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
 use crate::ex_cmds::{BL_FIX, BL_WHITE, K_SHM_OVERALL};
 use crate::ex_docmd::UNDO_HASH_SIZE;
-use crate::math::{FAIL, OK};
 use crate::option::OPT_LOCAL;
 use crate::os::fs::MAXPATHL;
 
@@ -993,13 +992,13 @@ pub fn readfile(
     eap: Option<&Exarg>,
     flags: i32,
     silent: bool,
-) -> i32 {
+) -> Option<bool> {
     let fname: *mut u8 = fname_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
     let mut sfname: *mut u8 = sfname_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
     #[cfg(unix)]
     let mut fname = fname;
     {
-        let mut retval = FAIL;
+        let mut retval = Some(false);
         let mut fd: i32 = if g_st().stdin_fd >= 0 {
             g_st().stdin_fd
         } else {
@@ -1110,12 +1109,9 @@ pub fn readfile(
                         curbuf_opt_mut(),
                         eap,
                     ) {
-                        retval = OK;
-                        if aborting() {
-                            retval = FAIL;
-                        }
+                        retval = Some(!aborting());
 
-                        if retval == OK
+                        if retval == Some(true)
                             && !curbuf_mut().b_au_did_filetype
                             && !curbuf_mut().b_p_ft.is_empty()
                         {
@@ -1127,10 +1123,10 @@ pub fn readfile(
                                 curbuf_opt_mut(),
                             );
                             if aborting() {
-                                retval = FAIL;
+                                retval = Some(false);
                             }
                         }
-                        if retval == OK {
+                        if retval == Some(true) {
                             curbuf_mut().b_flags &= !BF_NOTEDITED;
                         }
                         break 'theend;
@@ -1143,14 +1139,14 @@ pub fn readfile(
                     None,
                     eap,
                 ) {
-                    retval = if aborting() { FAIL } else { OK };
+                    retval = Some(!aborting());
                     break 'theend;
                 }
 
                 curbuf_mut().b_op_start = orig_start;
 
                 if (flags & READ_NOFILE) != 0 {
-                    retval = NOTDONE;
+                    retval = None;
                     break 'theend;
                 }
             }
@@ -1193,7 +1189,7 @@ pub fn readfile(
                     }
                     msg_end();
                     g_st().msg_scroll = msg_save;
-                    retval = NOTDONE;
+                    retval = None;
                     break 'theend;
                 }
             }
@@ -1238,7 +1234,7 @@ pub fn readfile(
                             None,
                         );
                     }
-                    retval = NOTDONE;
+                    retval = None;
                 } else {
                     filemess(
                         unsafe { g_st().curbuf.as_ref() },
@@ -1351,7 +1347,7 @@ pub fn readfile(
                     save_file_ff(curbuf_mut());
 
                     if !aborting() {
-                        retval = OK;
+                        retval = Some(true);
                     }
                     break 'theend;
                 }
@@ -2744,7 +2740,7 @@ pub fn readfile(
                     }
                     g_st().msg_scroll = msg_save;
                     check_marks_read();
-                    retval = OK;
+                    retval = Some(true);
                     break 'theend;
                 }
 
@@ -3031,12 +3027,12 @@ pub fn readfile(
                     g_st().msg_scroll = m;
                 }
                 if aborting() {
-                    return FAIL;
+                    return Some(false);
                 }
             }
 
             if !(g_st().recoverymode && error) {
-                retval = OK;
+                retval = Some(true);
             }
         }
 
@@ -4170,7 +4166,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     let old_ro = buf.b_p_ro;
     let savebuf: *mut FileBuf;
     let mut bufref: Bufref = Bufref::new();
-    let mut saved = OK;
+    let mut saved = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
     let mut flags = READ_NEW;
 
@@ -4189,21 +4185,17 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
 
     if opt_vars().p_ur < 0 || i64::from(curbuf_mut().b_ml.ml_line_count) <= opt_vars().p_ur {
         u_sync(false);
-        saved = if u_savecommon(
+        saved = u_savecommon(
             curbuf_mut(),
             0,
             curbuf_mut().b_ml.ml_line_count + 1,
             0,
             true,
-        ) {
-            OK
-        } else {
-            FAIL
-        };
+        );
         flags |= READ_KEEP_UNDO;
     }
 
-    if buf_is_empty(curbuf_mut()) || saved == FAIL {
+    if buf_is_empty(curbuf_mut()) || !saved {
         savebuf = ptr::null_mut();
     } else {
         savebuf = buflist_new(None, None, 1, BLN_DUMMY).map_or(ptr::null_mut(), ptr::from_mut);
@@ -4211,12 +4203,12 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         if !savebuf.is_null() && ptr::eq(buf, g_st().curbuf) {
             g_st().curbuf = savebuf;
             curwin_mut().w_buffer = savebuf;
-            saved = if ml_open(curbuf_mut()) { OK } else { FAIL };
+            saved = ml_open(curbuf_mut());
             g_st().curbuf = buf;
             curwin_mut().w_buffer = buf;
         }
         if savebuf.is_null()
-            || saved == FAIL
+            || !saved
             || !ptr::eq(buf, g_st().curbuf)
             || !move_lines(&mut *buf, unsafe { &mut *savebuf })
         {
@@ -4224,11 +4216,11 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
                 tr(c"E462: Could not prepare for reloading \"%s\""),
                 buf.fname_cstr(),
             );
-            saved = FAIL;
+            saved = false;
         }
     }
 
-    if saved == OK {
+    if saved {
         curbuf_mut().b_flags |= BF_CHECK_RO;
         curbuf_mut().b_keep_filetype = true;
         if readfile(
@@ -4240,7 +4232,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
             Some(&ea),
             flags,
             shortmess(K_SHM_FILEINFO),
-        ) != OK
+        ) != Some(true)
         {
             if !aborting() {
                 semsg!(tr(c"E321: Could not reload \"%s\""), buf.fname_cstr(),);

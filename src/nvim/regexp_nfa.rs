@@ -322,11 +322,11 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
     std::ffi::CString::new(ret).ok()
 }
 
-fn nfa_recognize_char_class(slice: &[u8], mut extra_newl: i32) -> i32 {
+fn nfa_recognize_char_class(slice: &[u8], mut extra_newl: i32) -> Option<i32> {
     let mut newl = false;
     let config = get_char_class_bits(slice, &mut newl);
     if config < 0 {
-        return FAIL;
+        return None;
     }
     if extra_newl == 1 {
         newl = true;
@@ -335,39 +335,39 @@ fn nfa_recognize_char_class(slice: &[u8], mut extra_newl: i32) -> i32 {
         extra_newl = NFA_ADD_NL;
     }
     if config == CLASS_O9 {
-        extra_newl + NFA_DIGIT
+        Some(extra_newl + NFA_DIGIT)
     } else if config == (CLASS_NOT | CLASS_O9) {
-        extra_newl + NFA_NDIGIT
+        Some(extra_newl + NFA_NDIGIT)
     } else if config == (CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
-        extra_newl + NFA_HEX
+        Some(extra_newl + NFA_HEX)
     } else if config == (CLASS_NOT | CLASS_AF_CONST | CLASS_AF | CLASS_O9) {
-        extra_newl + NFA_NHEX
+        Some(extra_newl + NFA_NHEX)
     } else if config == CLASS_O7 {
-        extra_newl + NFA_OCTAL
+        Some(extra_newl + NFA_OCTAL)
     } else if config == (CLASS_NOT | CLASS_O7) {
-        extra_newl + NFA_NOCTAL
+        Some(extra_newl + NFA_NOCTAL)
     } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
-        extra_newl + NFA_WORD
+        Some(extra_newl + NFA_WORD)
     } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_O9 | CLASS_UNDERSCORE) {
-        extra_newl + NFA_NWORD
+        Some(extra_newl + NFA_NWORD)
     } else if config == (CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
-        extra_newl + NFA_HEAD
+        Some(extra_newl + NFA_HEAD)
     } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ | CLASS_UNDERSCORE) {
-        extra_newl + NFA_NHEAD
+        Some(extra_newl + NFA_NHEAD)
     } else if config == (CLASS_AZ_CONST | CLASS_AZ) {
-        extra_newl + NFA_ALPHA
+        Some(extra_newl + NFA_ALPHA)
     } else if config == (CLASS_NOT | CLASS_AZ_CONST | CLASS_AZ) {
-        extra_newl + NFA_NALPHA
+        Some(extra_newl + NFA_NALPHA)
     } else if config == CLASS_AZ_CONST {
-        extra_newl + NFA_LOWER_IC
+        Some(extra_newl + NFA_LOWER_IC)
     } else if config == (CLASS_NOT | CLASS_AZ_CONST) {
-        extra_newl + NFA_NLOWER_IC
+        Some(extra_newl + NFA_NLOWER_IC)
     } else if config == CLASS_AZ {
-        extra_newl + NFA_UPPER_IC
+        Some(extra_newl + NFA_UPPER_IC)
     } else if config == (CLASS_NOT | CLASS_AZ) {
-        extra_newl + NFA_NUPPER_IC
+        Some(extra_newl + NFA_NUPPER_IC)
     } else {
-        FAIL
+        None
     }
 }
 
@@ -1056,9 +1056,8 @@ fn nfa_regatom() -> bool {
 
     if goto_collection {
         let mut mb_c = c;
-        let res = nfa_regatom_collection(&mut extra, &mut startc, &mut mb_c);
-        if res != -2 {
-            return res == OK;
+        if let Some(ok) = nfa_regatom_collection(&mut extra, &mut startc, &mut mb_c) {
+            return ok;
         }
         c = mb_c;
     }
@@ -1295,14 +1294,15 @@ fn nfa_regatom_percent(mut c: i32, save_prev_at_start: i32) -> bool {
 }
 
 #[inline(never)]
-fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> i32 {
+fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> Option<bool> {
     let p_bytes = re_st().regparse_bytes();
     let rem_bytes = skip_anyof_slice(p_bytes);
     let len = p_bytes.len() - rem_bytes.len();
     let end_off = re_st().regparse_off + len;
     if rem_bytes.first() == Some(&b']') {
-        let result = nfa_recognize_char_class(&p_bytes[..len + 1], i32::from(*extra == NFA_ADD_NL));
-        if result != FAIL {
+        if let Some(result) =
+            nfa_recognize_char_class(&p_bytes[..len + 1], i32::from(*extra == NFA_ADD_NL))
+        {
             if (NFA_FIRST_NL..=NFA_LAST_NL).contains(&result) {
                 emit_fn(result - NFA_ADD_NL);
                 emit_fn(NFA_NEWL);
@@ -1312,7 +1312,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> i32
             }
             re_st().regparse_off = end_off;
             re_st().regparse_mb_adv();
-            return OK;
+            return Some(true);
         }
 
         let mut negated = false;
@@ -1422,7 +1422,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> i32
                     if *startc == i32::MAX {
                         emsg(tr(E_UNICODE_VAL_TOO_LARGE));
                         g_st().rc_did_emsg = true;
-                        return FAIL;
+                        return Some(false);
                     }
                     got_coll_char = true;
                     re_st().regparse_prev_char();
@@ -1442,7 +1442,7 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> i32
                 if *startc > endc {
                     emsg(tr(E_REVERSE_RANGE));
                     g_st().rc_did_emsg = true;
-                    return FAIL;
+                    return Some(false);
                 }
                 if endc > *startc + 2 {
                     if *startc == 0 {
@@ -1524,15 +1524,15 @@ fn nfa_regatom_collection(extra: &mut i32, startc: &mut i32, c: &mut i32) -> i32
             emit_fn(NFA_OR);
         }
 
-        return OK;
+        return Some(true);
     }
 
     if re_st().reg_strict != 0 {
         emsg(tr(E_MISSINGBRACKET));
         g_st().rc_did_emsg = true;
-        return FAIL;
+        return Some(false);
     }
-    -2
+    None
 }
 
 fn nfa_regpiece() -> bool {

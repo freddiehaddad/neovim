@@ -9,7 +9,6 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectData, ObjectType,
 };
-use crate::buffer::NOTDONE;
 use crate::eval::decode::{
     K_MP_EXT, K_MP_INTEGER, K_MP_MAP, decode_create_map_special_dict, decode_string,
 };
@@ -29,7 +28,6 @@ use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
-use crate::math::{FAIL, OK};
 use crate::memory::{Arena, arena_memdupz_opt};
 use crate::message::{emsg, internal_error, semsg};
 use crate::msgpack_rpc::packer::{Integer, ObjHandle};
@@ -1017,10 +1015,10 @@ fn lua_check_self_reference(
     val_copy_id: &mut i32,
     mpstack: &[MPConvStackVal],
     copy_id: i32,
-) -> i32 {
+) -> bool {
     if *val_copy_id != copy_id {
         *val_copy_id = copy_id;
-        return NOTDONE;
+        return false;
     }
     let mut backref = mpstack.len();
     while backref > 0 {
@@ -1038,7 +1036,7 @@ fn lua_check_self_reference(
         }
         backref -= 1;
     }
-    OK
+    true
 }
 
 fn lua_convert_one_value(
@@ -1046,7 +1044,7 @@ fn lua_convert_one_value(
     mpstack: &mut Vec<MPConvStackVal>,
     tv: &mut TypVal,
     copy_id: i32,
-) -> i32 {
+) -> bool {
     let tv_ptr: *mut TypVal = &raw mut *tv;
     unsafe {
         if lua_checkstack(lstate, 3) == 0 {
@@ -1054,7 +1052,7 @@ fn lua_convert_one_value(
                 c"E5102: Lua failed to grow stack to %i",
                 lua_gettop(lstate) + 3,
             );
-            return FAIL;
+            return false;
         }
         let tv_ref = tv;
         match tv_ref.v_type {
@@ -1118,15 +1116,14 @@ fn lua_convert_one_value(
                     lua_createtable(lstate, 0, 0);
                 } else {
                     let saved_copy_id = (*list).lv_copy_id;
-                    let csr = lua_check_self_reference(
+                    if lua_check_self_reference(
                         lstate,
                         MPContainerRef::List(list),
                         &mut (*list).lv_copy_id,
                         mpstack,
                         copy_id,
-                    );
-                    if csr != NOTDONE {
-                        return csr;
+                    ) {
+                        return true;
                     }
                     lua_conv_list_start(lstate, tv_list_len(list.as_ref()));
                     mpstack.push(MPConvStackVal {
@@ -1155,7 +1152,7 @@ fn lua_convert_one_value(
                 let dict = tv_ref.vval.v_dict();
                 if dict.is_null() || (*dict).dv_hashtab.ht_used == 0 {
                     lua_conv_empty_dict(lstate);
-                    return OK;
+                    return true;
                 }
                 let mut handled_special = false;
                 if (*dict).dv_hashtab.ht_used == 2
@@ -1248,15 +1245,14 @@ fn lua_convert_one_value(
                                 if val_di.di_tv.v_type == VarType::VarList {
                                     let val_list = val_di.di_tv.vval.v_list();
                                     let saved_copy_id = (*val_list).lv_copy_id;
-                                    let csr = lua_check_self_reference(
+                                    if lua_check_self_reference(
                                         lstate,
                                         MPContainerRef::List(val_list),
                                         &mut (*val_list).lv_copy_id,
                                         mpstack,
                                         copy_id,
-                                    );
-                                    if csr != NOTDONE {
-                                        return csr;
+                                    ) {
+                                        return true;
                                     }
                                     lua_conv_list_start(lstate, tv_list_len(val_list.as_ref()));
                                     mpstack.push(MPConvStackVal {
@@ -1293,15 +1289,14 @@ fn lua_convert_one_value(
                                         }
                                         if all_pairs {
                                             let saved_copy_id = (*val_list).lv_copy_id;
-                                            let csr = lua_check_self_reference(
+                                            if lua_check_self_reference(
                                                 lstate,
                                                 MPContainerRef::Pairs(val_list),
                                                 &mut (*val_list).lv_copy_id,
                                                 mpstack,
                                                 copy_id,
-                                            );
-                                            if csr != NOTDONE {
-                                                return csr;
+                                            ) {
+                                                return true;
                                             }
                                             lua_conv_dict_start(
                                                 lstate,
@@ -1348,15 +1343,14 @@ fn lua_convert_one_value(
                 }
                 if !handled_special {
                     let saved_copy_id = (*dict).dv_copy_id;
-                    let csr = lua_check_self_reference(
+                    if lua_check_self_reference(
                         lstate,
                         MPContainerRef::Dict(dict),
                         &mut (*dict).dv_copy_id,
                         mpstack,
                         copy_id,
-                    );
-                    if csr != NOTDONE {
-                        return csr;
+                    ) {
+                        return true;
                     }
                     lua_conv_dict_start(lstate, (*dict).dv_hashtab.ht_used);
                     mpstack.push(MPConvStackVal {
@@ -1372,10 +1366,10 @@ fn lua_convert_one_value(
             }
             VarType::VarUnknown => {
                 internal_error(c"_typval_encode_lua_convert_one_value()");
-                return FAIL;
+                return false;
             }
         }
-        OK
+        true
     }
 }
 
@@ -1384,7 +1378,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
         let copy_id = get_copy_id();
         let mut mpstack: Vec<MPConvStackVal> = Vec::with_capacity(8);
 
-        if lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) == FAIL {
+        if !lua_convert_one_value(lstate, &mut mpstack, top_tv, copy_id) {
             return false;
         }
 
@@ -1449,8 +1443,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                     }
                     let kv_pair = (*li).li_tv.vval.v_list();
                     let first_item = tv_list_first(kv_pair.as_ref()).unwrap();
-                    if lua_convert_one_value(lstate, &mut mpstack, &mut first_item.li_tv, copy_id)
-                        == FAIL
+                    if !lua_convert_one_value(lstate, &mut mpstack, &mut first_item.li_tv, copy_id)
                     {
                         return false;
                     }
@@ -1469,7 +1462,7 @@ fn encode_vim_to_lua(lstate: *mut lua_State, top_tv: &mut TypVal) -> bool {
                 }
             };
 
-            if lua_convert_one_value(lstate, &mut mpstack, &mut *next_tv, copy_id) == FAIL {
+            if !lua_convert_one_value(lstate, &mut mpstack, &mut *next_tv, copy_id) {
                 return false;
             }
         }

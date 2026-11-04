@@ -25,7 +25,6 @@ use std::ffi::CStr;
 
 use crate::cmdexpand::TAG_MANY;
 use crate::diff::K_OPT_FOLDMETHOD;
-use crate::math::OK;
 
 pub(crate) const DT_HELP: i32 = 8;
 pub(crate) const TAG_HELP: i32 = 1;
@@ -349,8 +348,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         flags,
         crate::regexp::MAXCOL,
         None,
-    ) == OK
-        && !raw_matches.is_empty()
+    ) && !raw_matches.is_empty()
     {
         raw_matches.sort_unstable_by(|a, b| help_compare(a, b));
         raw_matches.truncate(TAG_MANY as usize);

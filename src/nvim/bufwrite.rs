@@ -8,8 +8,8 @@ use crate::autocmd::{
 #[cfg(unix)]
 use crate::buffer::buf_set_file_id;
 use crate::buffer::{
-    BF_NEW, BF_WRITE_MASK, Bufref, FileBuf, NOTDONE, bt_nofilename, buf_get_changedtick,
-    bufref_valid, set_bufref,
+    BF_NEW, BF_WRITE_MASK, Bufref, FileBuf, bt_nofilename, buf_get_changedtick, bufref_valid,
+    set_bufref,
 };
 use crate::change::unchanged;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
@@ -63,7 +63,6 @@ use crate::api::private::helpers::HLF_E;
 use crate::arglist::ML_EMPTY;
 use crate::charset::EOL_MAC;
 use crate::eval::typval::K_CALLBACK_NONE_CONST;
-use crate::math::{FAIL, OK};
 use crate::optionstr::{K_OPT_BKC_FLAG_AUTO, K_OPT_BKC_FLAG_YES};
 #[cfg(windows)]
 use crate::os::fs::NODE_OTHER;
@@ -236,7 +235,7 @@ fn buf_write_convert(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -
                     need = 4;
                 }
                 if p_idx + need > conv_buflen {
-                    return FAIL;
+                    return 0;
                 }
             }
 
@@ -369,7 +368,7 @@ fn buf_write_do_autocmds(
     whole: bool,
     orig_start: CursorPos,
     orig_end: CursorPos,
-) -> i32 {
+) -> Option<bool> {
     let mut buf = bufref.br_buf;
     let old_line_count = unsafe { (*buf).b_ml.ml_line_count };
     let msg_save = g_st().msg_scroll;
@@ -496,11 +495,11 @@ fn buf_write_do_autocmds(
         }
 
         if nofile_err || aborting() {
-            return FAIL;
+            return Some(false);
         }
         if did_cmd {
             let Some(b) = (unsafe { buf.as_mut() }) else {
-                return OK;
+                return Some(true);
             };
             if overwriting {
                 ml_timestamp(b);
@@ -516,16 +515,16 @@ fn buf_write_do_autocmds(
                 && (overwriting
                     || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
             {
-                return FAIL;
+                return Some(false);
             }
-            return OK;
+            return Some(true);
         }
         if !aborting() {
             emsg(gettext(
                 c"E203: Autocommands deleted or unloaded buffer to be written",
             ));
         }
-        return FAIL;
+        return Some(false);
     }
 
     let b = unsafe { &mut *buf };
@@ -542,7 +541,7 @@ fn buf_write_do_autocmds(
                 emsg(gettext(
                     c"E204: Autocommand changed number of lines in unexpected way",
                 ));
-                return FAIL;
+                return Some(false);
             }
         }
     }
@@ -559,7 +558,7 @@ fn buf_write_do_autocmds(
     if names.buf_fname_s {
         names.fname = b.fname_opt().map(CStr::to_owned);
     }
-    NOTDONE
+    None
 }
 
 fn buf_write_do_post_autocmds(
@@ -1134,11 +1133,11 @@ pub fn buf_write(
     forceit: bool,
     reset_changed: bool,
     filtering: bool,
-) -> i32 {
+) -> bool {
     let mut buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_arg));
     let mut fname = fname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut sfname = sfname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let mut retval = OK;
+    let mut retval = true;
     let msg_save = g_st().msg_scroll;
     let mut prev_got_int = g_st().got_int;
     let whole = start == 1 && end == unsafe { (*buf).b_ml.ml_line_count };
@@ -1147,18 +1146,18 @@ pub fn buf_write(
     let bkc = get_bkc_flags(unsafe { &mut *buf });
 
     if crate::memory::cstr_is_empty(fname) {
-        return FAIL;
+        return false;
     }
     if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
         emsg(gettext(E_EMPTY_BUFFER));
-        return FAIL;
+        return false;
     }
     if check_secure() {
-        return FAIL;
+        return false;
     }
     if crate::memory::cstr_len(fname) >= MAXPATHL {
         emsg(gettext(E_LONGNAME));
-        return FAIL;
+        return false;
     }
 
     let mut write_info = BwInfo {
@@ -1187,7 +1186,7 @@ pub fn buf_write(
             crate::memory::cstr_as_opt_cstr(fname),
             crate::memory::cstr_as_opt_cstr(sfname),
         ) {
-            return FAIL;
+            return false;
         }
         buf = g_st().curbuf;
     }
@@ -1261,8 +1260,8 @@ pub fn buf_write(
         orig_start,
         orig_end,
     );
-    if res != NOTDONE {
-        return res;
+    if let Some(ok) = res {
+        return ok;
     }
     let buf = unsafe { &mut *bufref.br_buf };
 
@@ -1382,7 +1381,7 @@ pub fn buf_write(
                     &mut err,
                 )
             {
-                retval = FAIL;
+                retval = false;
                 break 'fail;
             }
 
@@ -2129,7 +2128,7 @@ pub fn buf_write(
             (progress >= 0).then(|| crate::memory::cstr_until_nul(&msg_id)),
         );
 
-        retval = FAIL;
+        retval = false;
         if end == 0 {
             msg_puts_hl(
                 gettext(c"\nWARNING: Original file may be lost or damaged\n"),
@@ -2156,7 +2155,7 @@ pub fn buf_write(
     buf.b_saving = false;
     g_st().msg_scroll = msg_save;
 
-    if retval == OK && write_undo_file {
+    if retval && write_undo_file {
         let mut hash = [0u8; UNDO_HASH_SIZE];
         sha_ctx.finish_into(&mut hash);
         u_write_undo(None, false, &mut *buf, &hash);
@@ -2173,7 +2172,7 @@ pub fn buf_write(
             whole,
         );
         if aborting() {
-            retval = FAIL;
+            retval = false;
         }
     }
 

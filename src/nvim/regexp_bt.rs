@@ -3721,7 +3721,7 @@ fn regmatch(
                             .regstack
                             .truncate(re_st().regstack.len() - size_of::<Regbehind>() / 8);
                     } else {
-                        let mut no = OK;
+                        let mut no = true;
                         let limit = operand_min(prog, rp.rs_scan.unwrap());
                         if reg_multi() {
                             let rp_pos = rp.rs_un.regsave().rs_u.pos();
@@ -3735,13 +3735,13 @@ fn regmatch(
                                     }) - rp_pos.col,
                                 ) >= limit
                             {
-                                no = FAIL;
+                                no = false;
                             } else if rp_pos.col == 0 {
                                 rp.rs_un.regsave_mut().rs_u.pos_mut().lnum -= 1;
 
                                 let new_lnum = rp.rs_un.regsave().rs_u.pos().lnum;
                                 if new_lnum + 1 < bpos.lnum || reg_getline(new_lnum).is_none() {
-                                    no = FAIL;
+                                    no = false;
                                 } else {
                                     reg_restore(rp.rs_un.regsave_mut());
                                     rp.rs_un.regsave_mut().rs_u.pos_mut().col =
@@ -3759,7 +3759,7 @@ fn regmatch(
                                 } + 1;
                             }
                         } else if rp.rs_un.regsave().rs_u.ptr == re_st().rex.line {
-                            no = FAIL;
+                            no = false;
                         } else {
                             let mut p = rp.rs_un.regsave().rs_u.ptr;
                             {
@@ -3779,10 +3779,10 @@ fn regmatch(
                                     rp.rs_un.regsave().rs_u.ptr,
                                 ) > limit as isize
                             {
-                                no = FAIL;
+                                no = false;
                             }
                         }
-                        if no == OK {
+                        if no {
                             reg_restore(rp.rs_un.regsave_mut());
                             scan = rp.rs_scan.map(|idx| operand_idx(idx) + 4);
 

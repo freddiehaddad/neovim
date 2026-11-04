@@ -9,10 +9,10 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BCO_ENTER, BCO_NOHELP, BF_DUMMY, BF_NEW, BLN_DUMMY, BLN_NOOPT, Bufref, DOBUF_UNLOAD,
-    DOBUF_WIPE, FileBuf, GETF_SETMARK, GETF_SWITCH, K_EXTMARK_NO_UNDO, MAXLNUM, NOTDONE, VAR_FIXED,
-    bt_help, bt_normal, bt_quickfix, buf_valid, buflist_findname_exp, buflist_findnr,
-    buflist_findnr_opt, buflist_getfile, buflist_new, bufref_valid, close_buffer, do_modelines,
-    no_write_message, set_bufref, setfname, wipe_buffer,
+    DOBUF_WIPE, FileBuf, GETF_SETMARK, GETF_SWITCH, K_EXTMARK_NO_UNDO, MAXLNUM, VAR_FIXED, bt_help,
+    bt_normal, bt_quickfix, buf_valid, buflist_findname_exp, buflist_findnr, buflist_findnr_opt,
+    buflist_getfile, buflist_new, bufref_valid, close_buffer, do_modelines, no_write_message,
+    set_bufref, setfname, wipe_buffer,
 };
 use crate::change::{TAB, changed_lines};
 use crate::charset::{NL, NUL, ascii_iswhite, skipdigits_slice, skipwhite_slice, vim_isprintc};
@@ -79,7 +79,6 @@ use crate::window::{
     win_split, win_valid,
 };
 
-use crate::math::{FAIL, OK};
 use crate::mbyte::{Vimconv, convert_setup, ptr2cells, remove_bom, string_convert, utfc_ptr2len};
 use crate::memline::{
     check_need_swap, ml_append_buf, ml_delete, ml_get_buf, ml_get_buf_len, ml_open,
@@ -2864,7 +2863,7 @@ fn qf_jump_edit_buffer(
     let old_changetick = unsafe { (*qfl).qf_changedtick };
     let old_qf_curlist = unsafe { (*qi).qf_curlist };
     let qfl_type = unsafe { (*qfl).qfl_type };
-    let mut retval = OK;
+    let mut retval = QF_OK;
     let save_qfid = unsafe { (*qfl).qf_id };
     let (qf_type, fnum) = {
         let qfp = &unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize];
@@ -2874,7 +2873,7 @@ fn qf_jump_edit_buffer(
     if qf_type == 1 {
         if !can_abandon(curbuf_mut(), forceit != 0) {
             no_write_message();
-            return FAIL;
+            return QF_FAIL;
         }
         retval = if do_ecmd(
             fnum,
@@ -2885,15 +2884,15 @@ fn qf_jump_edit_buffer(
             ECMD_HIDE + ECMD_SET_HELP,
             (prev_winid == curwin_mut().handle).then(curwin_mut),
         ) {
-            OK
+            QF_OK
         } else {
-            FAIL
+            QF_FAIL
         };
     } else {
         if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb && curbuf_mut().b_fnum != fnum {
             if unsafe { (*qi).qfl_type } == QFLT_LOCATION {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
-                return FAIL;
+                return QF_FAIL;
             }
 
             if win_valid(unsafe { g_st().prevwin.as_ref() })
@@ -2908,16 +2907,16 @@ fn qf_jump_edit_buffer(
                 }
                 if curwin_mut().w_onebuf_opt.wo_wfb {
                     emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
-                    retval = FAIL;
+                    retval = QF_FAIL;
                 }
             }
         }
 
-        if retval == OK {
+        if retval == QF_OK {
             retval = if buflist_getfile(fnum, 1, GETF_SETMARK | GETF_SWITCH, forceit) {
-                OK
+                QF_OK
             } else {
-                FAIL
+                QF_FAIL
             };
         }
     }
@@ -3066,7 +3065,7 @@ fn qf_jump_open_window(
     qf_index: i32,
     newwin: bool,
     opened_window: &mut bool,
-) -> i32 {
+) -> Option<i32> {
     let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
     let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
     let old_changetick = unsafe { (*qfl).qf_changedtick };
@@ -3078,7 +3077,7 @@ fn qf_jump_open_window(
         && (!bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0)
         && !jump_to_help_window(unsafe { &mut *qi }, newwin, opened_window)
     {
-        return FAIL;
+        return Some(QF_FAIL);
     }
     if old_qf_curlist != unsafe { (*qi).qf_curlist }
         || old_changetick != unsafe { (*qfl).qf_changedtick }
@@ -3089,17 +3088,17 @@ fn qf_jump_open_window(
         } else {
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
         }
-        return QF_ABORT;
+        return Some(QF_ABORT);
     }
 
     let qf_fnum = unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum;
     if bt_quickfix(Some(crate::globals::curbuf_mut())) && !*opened_window {
         if qf_fnum == 0 {
-            return NOTDONE;
+            return None;
         }
 
         if !qf_jump_to_usable_window(qf_fnum, newwin, opened_window) {
-            return FAIL;
+            return Some(QF_FAIL);
         }
     }
     if old_qf_curlist != unsafe { (*qi).qf_curlist }
@@ -3111,10 +3110,10 @@ fn qf_jump_open_window(
         } else {
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
         }
-        return QF_ABORT;
+        return Some(QF_ABORT);
     }
 
-    OK
+    Some(QF_OK)
 }
 
 fn qf_jump_to_buffer(
@@ -3140,11 +3139,11 @@ fn qf_jump_to_buffer(
             prev_winid,
             opened_window,
         );
-        if retval != OK {
+        if retval != QF_OK {
             return retval;
         }
     } else {
-        retval = OK;
+        retval = QF_OK;
     }
 
     if g_st().curbuf == old_curbuf {
@@ -3210,14 +3209,13 @@ fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: 
         let print_message = !qf_win_pos_update(unsafe { &mut *qi }, old_qf_index);
         let prev_winid = curwin_mut().handle;
         let mut opened_window = false;
-        let mut retval =
-            qf_jump_open_window(unsafe { &mut *qi }, qf_index, newwin, &mut opened_window);
-        if retval == FAIL {
+        let retval = qf_jump_open_window(unsafe { &mut *qi }, qf_index, newwin, &mut opened_window);
+        if retval == Some(QF_FAIL) {
             qf_index = old_qf_index;
-        } else if retval == QF_ABORT {
+        } else if retval == Some(QF_ABORT) {
             qi = ptr::null_mut();
-        } else if retval != NOTDONE {
-            retval = qf_jump_to_buffer(
+        } else if retval.is_some() {
+            let retval = qf_jump_to_buffer(
                 unsafe { &mut *qi },
                 qf_index,
                 forceit,
@@ -3229,7 +3227,7 @@ fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: 
             if retval == QF_ABORT {
                 qi = ptr::null_mut();
             }
-            if retval != OK {
+            if retval != QF_OK {
                 if opened_window {
                     win_close(curwin_mut(), true, false);
                 }
@@ -5673,7 +5671,8 @@ fn load_dummy_buffer(
 
         unsafe { (*newbuf).b_locked -= 1 };
 
-        if readfile_result == OK && !g_st().got_int && (curbuf_mut().b_flags & BF_NEW) == 0 {
+        if readfile_result == Some(true) && !g_st().got_int && (curbuf_mut().b_flags & BF_NEW) == 0
+        {
             failed = false;
             if g_st().curbuf != newbuf {
                 set_bufref(&mut newbuf_to_wipe, unsafe { newbuf.as_mut() });
@@ -6340,7 +6339,7 @@ fn qf_add_entries(
     action: i32,
 ) -> i32 {
     let mut qfl = qf_get_list(&mut *qi, qf_idx);
-    let mut retval = OK;
+    let mut retval = QF_OK;
     let mut valid_entry = false;
 
     let mut old_count: usize = 0;

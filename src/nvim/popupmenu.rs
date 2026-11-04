@@ -72,7 +72,6 @@ use crate::change::TAB;
 use crate::diff::K_OPT_DIFF;
 use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::ex_getln::Hlf;
-use crate::math::OK;
 use crate::regexp::MAXCOL;
 use crate::state::MODE_CMDLINE;
 
@@ -1430,7 +1429,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             g_st().g_do_tagpreview = 0;
 
             if curwin_mut().w_onebuf_opt.wo_pvw || curwin_mut().w_kind == K_WIN_INFO {
-                let mut res = OK;
+                let mut res = true;
                 if !resized
                     && curbuf_mut().b_nwindows == 1
                     && curbuf_mut().fname_opt().is_none()
@@ -1440,11 +1439,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     buf_clear();
                 } else {
                     g_st().no_u_sync += 1;
-                    let ok = do_ecmd(0, None, None, None, ECMD_ONE, 0, None);
-                    res = i32::from(ok);
+                    res = do_ecmd(0, None, None, None, ECMD_ONE, 0, None);
                     g_st().no_u_sync -= 1;
 
-                    if ok {
+                    if res {
                         set_option_value_give_err(K_OPT_SWAPFILE, boolean_obj(false), OPT_LOCAL);
                         set_option_value_give_err(K_OPT_BUFLISTED, boolean_obj(false), OPT_LOCAL);
                         set_option_value_give_err(
@@ -1461,7 +1459,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     }
                 }
 
-                if res == OK {
+                if res {
                     let mut lnum: Linenr = 0;
                     let mut max_info_width: i32 = 0;
 

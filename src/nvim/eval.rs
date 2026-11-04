@@ -53,7 +53,7 @@ pub mod userfunc;
 pub mod vars;
 pub mod window;
 
-use crate::buffer::{FileBuf, K_UIMESSAGES, NOTDONE, VAR_FIXED, bt_prompt, buflist_findnr};
+use crate::buffer::{FileBuf, K_UIMESSAGES, VAR_FIXED, bt_prompt, buflist_findnr};
 use crate::channel::{CallbackReader, Channel, K_CHANNEL_STREAM_PROC};
 use crate::errors::*;
 use crate::eval::funcs::{E_STRING_LIST_OR_BLOB_REQUIRED, K_OPT_CPOPTIONS};
@@ -124,7 +124,6 @@ use crate::keycodes::{
     trans_special,
 };
 use crate::mark::mark_get;
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len,
 };
@@ -784,7 +783,7 @@ pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
             )))
         })
     };
-    let mut r = NOTDONE;
+    let mut r: Option<bool> = None;
 
     {
         g_st().emsg_off += 1;
@@ -793,14 +792,8 @@ pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
     if use_simple_function {
         r = may_call_simple_func(expr, &mut rettv);
     }
-    if r == NOTDONE {
-        r = if eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
-            OK
-        } else {
-            FAIL
-        };
-    }
-    if r == FAIL {
+    let ok = r.unwrap_or_else(|| eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)));
+    if !ok {
         retval = -1;
     } else {
         retval = tv_get_number_chk(&rettv, None);
@@ -2215,14 +2208,14 @@ pub fn eval0(
 
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
-pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> i32 {
+pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> Option<bool> {
     let arg = arg_cstr.as_ptr();
     let parens = arg_cstr
         .to_bytes()
         .windows(2)
         .position(|w| w == b"()")
         .map_or(ptr::null(), |i| arg.wrapping_add(i));
-    let mut r = NOTDONE;
+    let mut r = None;
 
     if !parens.is_null()
         && crate::memory::cstr_is_empty({
@@ -2265,13 +2258,7 @@ fn eval0_simple_funccal(
     eap: Option<&mut Exarg>,
     evalarg: &mut Evalarg,
 ) -> bool {
-    let r = may_call_simple_func(arg, rettv);
-
-    if r == NOTDONE {
-        eval0(arg, rettv, eap, evalarg)
-    } else {
-        r == OK
-    }
+    may_call_simple_func(arg, rettv).unwrap_or_else(|| eval0(arg, rettv, eap, evalarg))
 }
 
 /// Handle top level expression:
@@ -2960,52 +2947,22 @@ fn eval7(
     }
     eval_st().eval7_recurse += 1;
 
-    let ret: i32 = match arg.to_bytes_with_nul()[0] {
+    let ret: Option<bool> = match arg.to_bytes_with_nul()[0] {
         b'0'..=b'9' => {
             let mut ok = eval_number(arg, &mut *rettv, evaluate, want_string);
 
             if ok && evaluate && leader_len > 0 {
                 ok = eval7_leader(&mut *rettv, true, leader_slice, &mut leader_len);
             }
-            if ok { OK } else { FAIL }
+            Some(ok)
         }
-        b'"' => {
-            if eval_string(arg, &mut *rettv, evaluate, false) {
-                OK
-            } else {
-                FAIL
-            }
-        }
-        b'\'' => {
-            if eval_lit_string(arg, &mut *rettv, evaluate, false) {
-                OK
-            } else {
-                FAIL
-            }
-        }
-        b'[' => {
-            if eval_list(arg, &mut *rettv, evalarg.as_deref_mut()) {
-                OK
-            } else {
-                FAIL
-            }
-        }
+        b'"' => Some(eval_string(arg, &mut *rettv, evaluate, false)),
+        b'\'' => Some(eval_lit_string(arg, &mut *rettv, evaluate, false)),
+        b'[' => Some(eval_list(arg, &mut *rettv, evalarg.as_deref_mut())),
         b'#' => eval_lit_dict(arg, &mut *rettv, evalarg.as_deref_mut()),
-        b'{' => {
-            let r = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
-            if r == NOTDONE {
-                eval_dict(arg, &mut *rettv, evalarg.as_deref_mut(), false)
-            } else {
-                r
-            }
-        }
-        b'&' => {
-            if eval_option(arg, Some(&mut *rettv), evaluate) {
-                OK
-            } else {
-                FAIL
-            }
-        }
+        b'{' => get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut())
+            .or_else(|| eval_dict(arg, &mut *rettv, evalarg.as_deref_mut(), false)),
+        b'&' => Some(eval_option(arg, Some(&mut *rettv), evaluate)),
         b'$' => {
             let next_c = arg.to_bytes().get(1).copied().unwrap_or(0);
             let ok = if next_c == b'"' || next_c == b'\'' {
@@ -3013,7 +2970,7 @@ fn eval7(
             } else {
                 eval_env_var(arg, &mut *rettv, i32::from(evaluate))
             };
-            if ok { OK } else { FAIL }
+            Some(ok)
         }
         b'@' => {
             *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
@@ -3025,7 +2982,7 @@ fn eval7(
             if !arg.to_bytes().is_empty() {
                 *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
             }
-            OK
+            Some(true)
         }
         b'(' => {
             *arg = unsafe {
@@ -3045,12 +3002,14 @@ fn eval7(
                 tv_clear(rettv);
                 ok = false;
             }
-            if ok { OK } else { FAIL }
+            Some(ok)
         }
-        _ => NOTDONE,
+        _ => None,
     };
 
-    let mut ok = if ret == NOTDONE {
+    let mut ok = if let Some(r) = ret {
+        r
+    } else {
         let mut s = *arg;
         let mut alias: Option<std::ffi::CString> = None;
         let len = get_name_len(arg, &mut alias, evaluate, true);
@@ -3101,8 +3060,6 @@ fn eval7(
         };
         drop(alias);
         res
-    } else {
-        ret == OK
     };
 
     *arg = unsafe {
@@ -3274,7 +3231,7 @@ fn eval_lambda(
     rettv.v_type = VarType::VarUnknown;
 
     let lambda_rc = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
-    let ret = if lambda_rc != OK {
+    let ret = if lambda_rc != Some(true) {
         return false;
     } else if arg.to_bytes_with_nul()[0] != b'(' {
         if verbose {
@@ -4812,7 +4769,7 @@ fn eval_dict(
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     literal: bool,
-) -> i32 {
+) -> Option<bool> {
     let evaluate = evalarg
         .as_ref()
         .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
@@ -4838,7 +4795,7 @@ fn eval_dict(
             )))
         }) == b'}'
     {
-        return NOTDONE;
+        return None;
     }
 
     let mut d: *mut TvDict = ptr::null_mut();
@@ -4866,7 +4823,7 @@ fn eval_dict(
             if let Some(d_ref) = unsafe { d.as_mut() } {
                 tv_dict_free(d_ref);
             }
-            return FAIL;
+            return Some(false);
         }
         if arg.to_bytes_with_nul()[0] != b':' {
             semsg!(
@@ -4877,7 +4834,7 @@ fn eval_dict(
             if let Some(d_ref) = unsafe { d.as_mut() } {
                 tv_dict_free(d_ref);
             }
-            return FAIL;
+            return Some(false);
         }
         if evaluate {
             let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
@@ -4885,7 +4842,7 @@ fn eval_dict(
                 if let Some(d_ref) = unsafe { d.as_mut() } {
                     tv_dict_free(d_ref);
                 }
-                return FAIL;
+                return Some(false);
             };
             key = key_cstr.as_ptr().cast_mut();
         }
@@ -4903,7 +4860,7 @@ fn eval_dict(
             if let Some(d_ref) = unsafe { d.as_mut() } {
                 tv_dict_free(d_ref);
             }
-            return FAIL;
+            return Some(false);
         }
         if evaluate {
             let key_cstr = unsafe { CStr::from_ptr(key) };
@@ -4914,7 +4871,7 @@ fn eval_dict(
                 if let Some(d_ref) = unsafe { d.as_mut() } {
                     tv_dict_free(d_ref);
                 }
-                return FAIL;
+                return Some(false);
             }
             let item = tv_dict_item_alloc(key_cstr);
             item.di_tv = tv;
@@ -4948,7 +4905,7 @@ fn eval_dict(
             if let Some(d_ref) = unsafe { d.as_mut() } {
                 tv_dict_free(d_ref);
             }
-            return FAIL;
+            return Some(false);
         }
     }
 
@@ -4957,7 +4914,7 @@ fn eval_dict(
         if let Some(d_ref) = unsafe { d.as_mut() } {
             tv_dict_free(d_ref);
         }
-        return FAIL;
+        return Some(false);
     }
 
     *arg = unsafe {
@@ -4972,18 +4929,22 @@ fn eval_dict(
         tv_dict_set_ret(rettv, unsafe { d.as_mut() });
     }
 
-    OK
+    Some(true)
 }
 
 const E_723_END: &CStr = c"E723: Missing end of Dictionary '}': %s";
 
 /// Evaluate a literal dictionary: #{key: val, key: val}
-fn eval_lit_dict(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut Evalarg>) -> i32 {
+fn eval_lit_dict(
+    arg: &mut &CStr,
+    rettv: &mut TypVal,
+    evalarg: Option<&mut Evalarg>,
+) -> Option<bool> {
     if arg.to_bytes().get(1) == Some(&b'{') {
         *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
         eval_dict(arg, rettv, evalarg, true)
     } else {
-        NOTDONE
+        None
     }
 }
 
@@ -5218,7 +5179,7 @@ pub fn f_systemlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// Get a callback from "arg". It can be a Funcref or a function name.
 pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
-    let mut r = OK;
+    let mut r = true;
 
     let is_lua_tbl = nlua_is_table_from_lua(arg);
 
@@ -5231,11 +5192,11 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         && !arg.vval.v_string().is_null()
         && ascii_isdigit(crate::memory::cstr_first_byte(arg.vval.v_string()))
     {
-        r = FAIL;
+        r = false;
     } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
         let name = arg.vval.v_string();
         if name.is_null() {
-            r = FAIL;
+            r = false;
         } else if crate::memory::cstr_is_empty(name) {
             *callback = Callback::NONE;
         } else {
@@ -5253,17 +5214,17 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         if let Some(name) = nlua_register_table_as_callable(arg) {
             callback.data = crate::eval::typval::CallbackData::funcref(name.to_owned());
         } else {
-            r = FAIL;
+            r = false;
         }
     } else if arg.v_type == VarType::VarSpecial
         || (arg.v_type == VarType::VarNumber && arg.vval.v_number() == 0)
     {
         *callback = Callback::NONE;
     } else {
-        r = FAIL;
+        r = false;
     }
 
-    if r == FAIL {
+    if !r {
         emsg(gettext(c"E921: Invalid callback argument"));
         return false;
     }

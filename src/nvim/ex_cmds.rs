@@ -87,7 +87,6 @@ use crate::window::{
     win_split, win_valid,
 };
 
-use crate::math::{FAIL, OK};
 use crate::mbyte::{
     utf_char2bytes, utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
@@ -1622,7 +1621,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
         g_st().no_wait_return += 1;
         if let Some(itmp_s) = itmp_cstr
-            && buf_write(
+            && !buf_write(
                 curbuf_mut(),
                 Some(itmp_s),
                 None,
@@ -1633,7 +1632,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                 false,
                 false,
                 true,
-            ) == FAIL
+            )
         {
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
@@ -1688,7 +1687,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                         Some(&*eap),
                         READ_FILTER,
                         false,
-                    ) != OK
+                    ) != Some(true)
                     {
                         if !aborting() {
                             msg_putchar(b'\n' as i32);
@@ -2315,7 +2314,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 eap.forceit != 0,
                 true,
                 false,
-            ) == OK;
+            );
 
             if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
                 curbuf_mut().b_p_ro = false;
@@ -2478,8 +2477,7 @@ pub fn do_wqall(eap: &mut Exarg) {
         } else {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
-            if !handle_mkdir_p_arg(eap, b.fname_opt()) || buf_write_all(b, eap.forceit != 0) == FAIL
-            {
+            if !handle_mkdir_p_arg(eap, b.fname_opt()) || !buf_write_all(b, eap.forceit != 0) {
                 error += 1;
             }
             if !bufref_valid(Some(&bufref)) {
@@ -3086,14 +3084,13 @@ pub fn do_ecmd(
             } else {
                 do_modelines(OPT_WINONLY);
 
-                let mut au_retval = if retval { OK } else { FAIL };
                 apply_autocmds_retval(
                     EVENT_BUFENTER,
                     None,
                     None,
                     false,
                     curbuf_opt_mut(),
-                    &mut au_retval,
+                    &mut retval,
                 );
                 if (flags & ECMD_NOWINENTER) == 0 {
                     apply_autocmds_retval(
@@ -3102,10 +3099,9 @@ pub fn do_ecmd(
                         None,
                         false,
                         curbuf_opt_mut(),
-                        &mut au_retval,
+                        &mut retval,
                     );
                 }
-                retval = au_retval == OK;
             }
             check_arg_idx(curwin_mut());
 

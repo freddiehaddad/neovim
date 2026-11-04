@@ -3,7 +3,7 @@
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
     GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, K_OPT_JOP_FLAG_VIEW,
-    K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT, MAXLNUM, NOTDONE, VAR_FIXED, bt_help,
+    K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT, MAXLNUM, VAR_FIXED, bt_help,
     buflist_findname_exp, buflist_findnr, buflist_getfile,
 };
 use crate::charset::{ascii_islower, ascii_iswhite, vim_isblankline};
@@ -100,7 +100,6 @@ const MT_RE_OFF: usize = 8;
 const MT_MASK: usize = 7;
 const MT_COUNT: usize = 16;
 
-const NOTAGFILE: i32 = 99;
 const TAG_SEP: u8 = 0x02;
 const ML_EXTRA: usize = 3;
 
@@ -167,7 +166,6 @@ use crate::digraph::{K_BOOL_VAR_FALSE_CONST, K_BOOL_VAR_TRUE_CONST};
 use crate::eval::funcs::{K_SPECIAL_VAR_NULL_CONST, SEARCH_KEEP};
 use crate::fileio::{SEEK_END, SEEK_SET};
 use crate::globals::IOSIZE;
-use crate::math::{FAIL, OK};
 use crate::os::env::ExpandCtx;
 use crate::os::fs::MAXPATHL;
 use crate::viml::parser::parser::CONV_NONE;
@@ -697,8 +695,7 @@ pub fn do_tag(
                         tag_st().do_tag_flags,
                         tag_st().do_tag_max_num_matches,
                         buf_ffname,
-                    ) == OK
-                        && (new_matches.len() as i32) < tag_st().do_tag_max_num_matches
+                    ) && (new_matches.len() as i32) < tag_st().do_tag_max_num_matches
                     {
                         tag_st().do_tag_max_num_matches = MAXCOL;
                     }
@@ -862,7 +859,7 @@ pub fn do_tag(
 
                     set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
-                    if i == NOTAGFILE {
+                    if i.is_none() {
                         if (type_ == DT_PREV && cur_match > 0)
                             || ((type_ == DT_TAG || type_ == DT_NEXT || type_ == DT_FIRST)
                                 && (tag_st().do_tag_max_num_matches != MAXCOL
@@ -1243,7 +1240,7 @@ fn find_tagfunc_tags(
     match_count: &mut i32,
     flags: i32,
     buf_ffname: Option<&std::ffi::CStr>,
-) -> i32 {
+) -> Option<bool> {
     let pat = pat.as_ptr().cast_mut();
     let buf_ffname = buf_ffname.map_or(ptr::null(), std::ffi::CStr::as_ptr);
     let mut ntags: i32 = 0;
@@ -1272,7 +1269,7 @@ fn find_tagfunc_tags(
     };
 
     if curbuf_mut().b_p_tfu.cb_type() == K_CALLBACK_NONE_CONST {
-        return FAIL;
+        return Some(false);
     }
 
     args[0].v_type = VarType::VarString;
@@ -1322,26 +1319,22 @@ fn find_tagfunc_tags(
     );
 
     let save_pos = curwin_mut().w_cursor;
-    let mut result = if callback_call(&mut curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv) {
-        OK
-    } else {
-        FAIL
-    };
+    let mut result = callback_call(&mut curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv);
     curwin_mut().w_cursor = save_pos;
     check_cursor(curwin_mut());
     d.dv_refcount -= 1;
 
-    if result == FAIL {
-        return FAIL;
+    if !result {
+        return Some(false);
     }
     if rettv.v_type == VarType::VarSpecial && rettv.vval.v_special() == K_SPECIAL_VAR_NULL_CONST {
         tv_clear(&mut rettv);
-        return NOTDONE;
+        return None;
     }
     if rettv.v_type != VarType::VarList || rettv.vval.v_list().is_null() {
         tv_clear(&mut rettv);
         emsg(gettext(E_INVALID_RETURN_VALUE_FROM_TAGFUNC));
-        return FAIL;
+        return Some(false);
     }
     let taglist = rettv.vval.v_list_opt();
 
@@ -1468,13 +1461,13 @@ fn find_tagfunc_tags(
 
         ga.push(mfp_vec);
         ntags += 1;
-        result = OK;
+        result = true;
     }
 
     tv_clear(&mut rettv);
 
     *match_count = ntags;
-    result
+    Some(result)
 }
 
 impl FindtagsState {
@@ -1608,7 +1601,7 @@ fn findtags_apply_tfu(
     st: &mut FindtagsState,
     pat: &std::ffi::CStr,
     buf_ffname: Option<&std::ffi::CStr>,
-) -> i32 {
+) -> Option<bool> {
     {
         let use_tfu = (st.flags & TAG_NO_TAGFUNC) == 0;
 
@@ -1616,7 +1609,7 @@ fn findtags_apply_tfu(
             || tag_st().tfu_in_use
             || curbuf_mut().b_p_tfu.cb_type() == K_CALLBACK_NONE_CONST
         {
-            return NOTDONE;
+            return None;
         }
 
         tag_st().tfu_in_use = true;
@@ -2260,11 +2253,11 @@ pub fn find_tags(
     flags: i32,
     mincount: i32,
     buf_ffname: Option<&std::ffi::CStr>,
-) -> i32 {
+) -> bool {
     let pat = pat_cstr.as_ptr().cast_mut();
     {
         let mut st = FindtagsState::new();
-        let mut retval: i32;
+        let mut retval: bool;
         let mut saved_pat: Option<std::ffi::CString> = None;
 
         let findall = mincount == MAXCOL || mincount == TAG_MANY;
@@ -2324,65 +2317,64 @@ pub fn find_tags(
         prepare_pats(&mut st.orgpat, has_re);
         g_st().emsg_off = save_emsg_off;
         if has_re && st.orgpat.regmatch.regprog.is_null() {
-            retval = FAIL;
+            retval = false;
+        } else if let Some(tfu_ret) = findtags_apply_tfu(&mut st, pat_cstr, buf_ffname) {
+            retval = tfu_ret;
         } else {
-            retval = findtags_apply_tfu(&mut st, pat_cstr, buf_ffname);
-            if retval == NOTDONE {
-                retval = FAIL;
+            retval = false;
 
-                if (flags & TAG_KEEP_LANG) != 0
-                    && st.help_lang_find.is_none()
-                    && curbuf_mut().fname_opt().is_some()
+            if (flags & TAG_KEEP_LANG) != 0
+                && st.help_lang_find.is_none()
+                && curbuf_mut().fname_opt().is_some()
+            {
+                let fname_bytes = curbuf_mut().fname_bytes();
+                if fname_bytes.len() > 4
+                    && mb_strnicmp(
+                        &fname_bytes[fname_bytes.len() - 4..],
+                        (c".txt").to_bytes(),
+                        MAXCOL as usize,
+                    ) == 0
                 {
-                    let fname_bytes = curbuf_mut().fname_bytes();
-                    if fname_bytes.len() > 4
-                        && mb_strnicmp(
-                            &fname_bytes[fname_bytes.len() - 4..],
-                            (c".txt").to_bytes(),
-                            MAXCOL as usize,
-                        ) == 0
-                    {
-                        st.is_txt = true;
-                    }
+                    st.is_txt = true;
                 }
+            }
 
-                st.orgpat.regmatch.rm_ic = (opt_vars().p_ic || !noic)
-                    && (findall || st.orgpat.headlen == 0 || !opt_vars().p_tbs);
-                for round in 1..=2 {
-                    st.linear = st.orgpat.headlen == 0 || !opt_vars().p_tbs || round == 2;
+            st.orgpat.regmatch.rm_ic = (opt_vars().p_ic || !noic)
+                && (findall || st.orgpat.headlen == 0 || !opt_vars().p_tbs);
+            for round in 1..=2 {
+                st.linear = st.orgpat.headlen == 0 || !opt_vars().p_tbs || round == 2;
 
-                    let mut tn = Tagname::new();
-                    let mut first_file: i32 = 1;
-                    while get_tagfname(&mut tn, first_file, &mut st.tag_fname) {
-                        findtags_in_file(&mut st, flags, buf_ffname);
-                        if st.stop_searching {
-                            retval = OK;
-                            break;
-                        }
-                        first_file = 0;
-                    }
-
-                    if st.stop_searching
-                        || st.linear
-                        || (!opt_vars().p_ic && noic)
-                        || st.orgpat.regmatch.rm_ic
-                    {
+                let mut tn = Tagname::new();
+                let mut first_file: i32 = 1;
+                while get_tagfname(&mut tn, first_file, &mut st.tag_fname) {
+                    findtags_in_file(&mut st, flags, buf_ffname);
+                    if st.stop_searching {
+                        retval = true;
                         break;
                     }
-
-                    st.orgpat.regmatch.rm_ic = true;
+                    first_file = 0;
                 }
 
-                if !st.stop_searching {
-                    if !st.did_open && verbose {
-                        emsg(gettext(c"E433: No tags file"));
-                    }
-                    retval = OK;
+                if st.stop_searching
+                    || st.linear
+                    || (!opt_vars().p_ic && noic)
+                    || st.orgpat.regmatch.rm_ic
+                {
+                    break;
                 }
+
+                st.orgpat.regmatch.rm_ic = true;
+            }
+
+            if !st.stop_searching {
+                if !st.did_open && verbose {
+                    emsg(gettext(c"E433: No tags file"));
+                }
+                retval = true;
             }
         }
 
-        if retval == FAIL {
+        if !retval {
             st.match_count = 0;
         }
 
@@ -2669,14 +2661,14 @@ fn tag_full_fname(tagp: &mut Tagptrs) -> std::ffi::CString {
     expand_tag_fname(&fname_cstr, tagp.tag_fname.unwrap_or(c""), false)
 }
 
-fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
+fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> Option<bool> {
     if g_st().postponed_split == 0 && !check_can_set_curbuf_forceit(forceit) {
-        return FAIL;
+        return Some(false);
     }
 
     let mut tofree_fname: Option<std::ffi::CString> = None;
     let mut tagp = Tagptrs::default();
-    let mut retval = FAIL;
+    let mut retval = Some(false);
     let mut getfile_result = GETFILE_UNUSED;
     let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
     let mut full_fname: Option<std::ffi::CString> = None;
@@ -2731,7 +2723,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 None,
             )
         {
-            retval = NOTAGFILE;
+            retval = None;
             tag_st().nofile_fname = tofree_fname.take();
             break 'erret;
         }
@@ -2859,7 +2851,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                     None,
                 ) != 0
                 {
-                    retval = OK;
+                    retval = Some(true);
                 } else {
                     let mut found = 1;
                     opt_vars().p_ic = true;
@@ -2928,7 +2920,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                                 msg_delay(1010, true);
                             }
                         }
-                        retval = OK;
+                        retval = Some(true);
                     }
                 }
                 opt_vars().p_ws = save_p_ws;
@@ -2945,7 +2937,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 curwin_mut().w_cursor.col = 0;
                 curwin_mut().w_cursor.coladd = 0;
                 do_cmdline_cmd(crate::memory::cstr_from_ptr(pbuf.cast()));
-                retval = OK;
+                retval = Some(true);
 
                 if g_st().secure == 2 {
                     wait_return(1);
@@ -2959,10 +2951,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
             }
 
             if getfile_result == GETFILE_OPEN_OTHER {
-                retval = OK;
+                retval = Some(true);
             }
 
-            if retval == OK {
+            if retval == Some(true) {
                 if curbuf_mut().b_help {
                     set_topline(curwin_mut(), curwin_mut().w_cursor.lnum);
                 }
@@ -3141,7 +3133,7 @@ pub fn expand_tags(
     };
     file.clear();
     tag_st().tag_listfiles_extra.clear();
-    if ret == OK {
+    if ret {
         file.reserve_exact(raw_matches.len());
         if tagnames {
             for m in raw_matches {
@@ -3161,7 +3153,7 @@ pub fn expand_tags(
             }
         }
     }
-    ret == OK
+    ret
 }
 
 fn add_tag_field(
@@ -3205,7 +3197,7 @@ pub fn get_tags(
         let mut matches: Vec<Vec<u8>> = Vec::new();
         let mut tp = Tagptrs::default();
 
-        let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname) == OK;
+        let mut ret = find_tags(pat, &mut matches, TAG_REGEXP | TAG_NOIC, MAXCOL, buf_fname);
         if !ret || matches.is_empty() {
             return ret;
         }
