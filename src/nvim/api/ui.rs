@@ -399,6 +399,11 @@ pub fn nvim_ui_detach(channel_id: u64, err: &mut Error) {
     remote_ui_disconnect(channel_id, err, false);
 }
 
+/// Checks that a UI is attached on channel `channel_id`.
+pub fn remote_ui_attached(channel_id: u64) -> bool {
+    api_ui_st().connected_uis.contains_key(&channel_id)
+}
+
 // DLLEXPORT void remote_ui_connect(uint64_t channel_id, char *server_addr, Error *err);
 pub fn remote_ui_connect(channel_id: u64, server_addr: &[u8], err: &mut Error) {
     let Some(ui) = get_ui_or_err(channel_id, err) else {

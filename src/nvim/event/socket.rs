@@ -252,13 +252,17 @@ pub fn socket_watcher_init(loop_: &mut Loop, watcher: &mut SocketWatcher, endpoi
     0
 }
 
-/// Check if a socket is alive by attempting to connect to it.
-fn socket_alive(loop_: &mut Loop, addr: &CStr) -> bool {
+/// Checks if a socket is alive by attempting to connect to it.
+pub fn socket_alive(
+    loop_: &mut Loop,
+    is_tcp: bool,
+    addr: &CStr,
+    error: &mut Option<&'static CStr>,
+) -> bool {
     let mut stream = RStream::new();
-    let mut error = None;
 
     let stream_ptr = &mut stream;
-    let connected = socket_connect(loop_, stream_ptr, false, addr, 500, &mut error);
+    let connected = socket_connect(loop_, stream_ptr, is_tcp, addr, 500, error);
     if !connected {
         return false;
     }
@@ -319,8 +323,9 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
             if result == UV_EACCES || result == UV_EADDRINUSE {
                 let uv_loop = uv_handle_get_loop(ptr::from_mut(watcher.stream_mut()).cast());
                 let loop_ = *uv_loop.cast::<*mut Loop>();
+                let mut error = None;
 
-                if !socket_alive(&mut *loop_, watcher.addr_cstr()) {
+                if !socket_alive(&mut *loop_, false, watcher.addr_cstr(), &mut error) {
                     let rm_result = os_remove(crate::memory::cstr_from_ptr((addr).cast()));
 
                     if rm_result != 0 {

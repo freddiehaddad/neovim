@@ -8,7 +8,9 @@ use crate::api::private::helpers::{
     integer_obj,
 };
 use crate::api::private::validate::{Array, Dict, KeyValuePair, Object, ObjectData, ObjectType};
-use crate::api::ui::{remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others};
+use crate::api::ui::{
+    remote_ui_attached, remote_ui_connect, remote_ui_restart, ui_detach_channel, ui_detach_others,
+};
 use crate::api::vimscript::nvim_command;
 use crate::arglist::{
     CCGD_AW, CCGD_EXCMD, CCGD_FORCEIT, CCGD_MULTWIN, ML_EMPTY, arg_all, argcount, check_arg_idx,
@@ -9402,6 +9404,10 @@ fn ex_exmode(_eap: &mut Exarg) {
 }
 
 fn ex_restart(eap: &mut Exarg) {
+    if get_vim_var_str(crate::eval::vars::VV_STARTREASON).to_bytes() == b"remote-ssh" {
+        let _ = emsg(gettext(c"E6103: :restart is not supported with remote-ssh"));
+        return;
+    }
     if eap.forceit == 0 {
         let extra_d = tv_dict_alloc();
         tv_dict_add_str(
@@ -10514,14 +10520,16 @@ fn ex_tabs(_eap: &mut Exarg) {
 }
 
 fn ex_detach(eap: &mut Exarg) {
-    let Some(chan_ref) = find_channel(g_st().current_ui) else {
+    if !remote_ui_attached(g_st().current_ui) {
         let _ = emsg(gettext(E_NOUI));
         return;
-    };
+    }
 
     if eap.forceit != 0 {
-        chan_ref.detach = true;
-        channel_event(chan_ref, EVENT_CHANINFO);
+        if let Some(chan_ref) = find_channel(g_st().current_ui) {
+            chan_ref.detach = true;
+            channel_event(chan_ref, EVENT_CHANINFO);
+        }
         let _ = msg(
             gettext(c"Nvim will continue running if the UI disconnects"),
             0,
@@ -10578,26 +10586,63 @@ fn ex_detach(eap: &mut Exarg) {
 fn ex_connect(eap: &mut Exarg) {
     let mut addr = eap.arg;
     let mut ssh_rettv = TypVal::new();
+    let addr_bytes = crate::memory::cstr_as_bytes(addr);
+    let is_tcp = crate::event::socket::socket_address_tcp_host_end(addr_bytes).is_some();
+    let mut error: Option<&'static CStr> = None;
 
-    if crate::memory::cstr_as_bytes(addr).starts_with(b"ssh://") {
+    if addr_bytes
+        .get(..6)
+        .is_some_and(|p| p.eq_ignore_ascii_case(b"ssh://"))
+    {
+        if eap.forceit != 0 {
+            let _ = emsg(gettext(E_NOBANG));
+            return;
+        }
+        if !remote_ui_attached(g_st().current_ui) {
+            let _ = emsg(gettext(E_NOUI));
+            return;
+        }
+
         let mut argvars = [
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
                 vval: TypvalVval::String(addr),
             },
+            TypVal {
+                v_type: VarType::VarNumber,
+                v_lock: 0,
+                vval: TypvalVval::Number(g_st().current_ui as Varnumber),
+            },
             TypVal::new(),
         ];
 
         nlua_call_typval(c"vim.net._ssh", c"start", &mut argvars, Some(&mut ssh_rettv));
 
+        if ssh_rettv.v_type == VarType::VarSpecial {
+            return;
+        }
         if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string().is_null() {
-            let _ = emsg(c"E6101: SSH connection failed");
+            let _ = emsg(gettext(c"E6101: SSH connection failed"));
             tv_clear(&mut ssh_rettv);
             return;
         }
 
         addr = ssh_rettv.vval.v_string();
+    } else if (is_tcp || crate::path::path_is_absolute(addr_bytes))
+        && !crate::event::socket::socket_alive(
+            &mut g_st().main_loop,
+            is_tcp,
+            crate::memory::cstr_from_ptr(addr),
+            &mut error,
+        )
+    {
+        let _ = semsg!(
+            gettext(c"E6102: Cannot connect to %s: %s"),
+            addr,
+            error.unwrap_or(c""),
+        );
+        return;
     }
 
     let stop_server = if eap.forceit != 0 {

@@ -659,9 +659,10 @@ pub fn evalvars_init() {
 
     let mut startreason_buf = [0u8; 32];
     let startreason = os_getenv_buf(ENV_STARTREASON, &mut startreason_buf);
-    if startreason.map(CStr::to_bytes) == Some(b"restart!")
-        || startreason.map(CStr::to_bytes) == Some(b"restart")
-    {
+    if matches!(
+        startreason.map(CStr::to_bytes),
+        Some(b"restart!" | b"restart" | b"remote-ssh")
+    ) {
         set_vim_var_string(VV_STARTREASON, startreason, -1);
     }
     if os_env_exists(ENV_STARTREASON, false) {
