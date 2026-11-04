@@ -5892,7 +5892,11 @@ pub fn update_cwd(cause: CdCause) {
         if g_st().globaldir.is_none() && cwd[0] != 0 {
             g_st().globaldir = Some(crate::memory::cstr_to_cstring(cwd.as_ptr().cast()));
         }
-        let dir_differs = !path_equal(new_dir_ptr, cwd.as_ptr().cast(), K_PATH_CMP_LITERAL);
+        let dir_differs = !path_equal(
+            crate::memory::cstr_from_ptr((new_dir_ptr).cast()),
+            crate::memory::cstr_from_ptr(cwd.as_ptr().cast()),
+            K_PATH_CMP_LITERAL,
+        );
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, true);
         }
@@ -5906,7 +5910,11 @@ pub fn update_cwd(cause: CdCause) {
         shorten_fnames(1);
     } else if let Some(gdir) = g_st().globaldir.take() {
         let gdir_ptr = gdir.as_ptr().cast_mut();
-        let dir_differs = !path_equal(gdir_ptr, cwd.as_ptr().cast(), K_PATH_CMP_LITERAL);
+        let dir_differs = !path_equal(
+            crate::memory::cstr_from_ptr((gdir_ptr).cast()),
+            crate::memory::cstr_from_ptr(cwd.as_ptr().cast()),
+            K_PATH_CMP_LITERAL,
+        );
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, true);
         }

@@ -827,7 +827,7 @@ unsafe extern "C-unwind" fn nlua_path_is_url(lstate: *mut lua_State) -> i32 {
     unsafe {
         lua_pushboolean(
             lstate,
-            i32::from(path_with_url(luaL_checkstring(lstate, 1).as_ptr())),
+            i32::from(path_with_url(luaL_checkstring(lstate, 1).to_bytes())),
         );
     }
     1

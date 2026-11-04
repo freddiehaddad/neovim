@@ -912,13 +912,13 @@ fn fname2fnum(fm: &mut Xfmark) {
 
     os_dirname(g_st().iobuff_bytes_mut());
     let p = path_shorten_fname(
-        g_st().name_buff.as_mut_ptr(),
-        g_st().iobuff.as_mut_ptr().cast(),
+        crate::memory::cstr_as_opt_cstr((g_st().name_buff.as_mut_ptr()).cast()),
+        crate::memory::cstr_from_ptr(g_st().iobuff.as_mut_ptr().cast()),
     );
 
     let _ = buflist_new(
         crate::memory::cstr_as_opt_cstr(g_st().name_buff.as_ptr()),
-        crate::memory::cstr_as_opt_cstr(p),
+        p,
         1,
         0,
     );
@@ -946,7 +946,7 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
         && fm
             .fname
             .as_ref()
-            .is_some_and(|f| path_equal(name.as_ptr(), f.as_ptr(), K_PATH_CMP_LITERAL))
+            .is_some_and(|f| path_equal(name, f, K_PATH_CMP_LITERAL))
     {
         fm.fmark.fnum = buf.b_fnum;
         fm.fname = None;

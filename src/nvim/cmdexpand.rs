@@ -2556,7 +2556,9 @@ fn expand_one_start(
                 {
                     non_suf_match = 0;
                     for i in 0..2 {
-                        if match_suffix(xp.xp_files.as_slice()[i].as_ptr().cast_mut()) {
+                        if match_suffix(crate::memory::cstr_from_ptr(
+                            (xp.xp_files.as_slice()[i].as_ptr().cast_mut()).cast(),
+                        )) {
                             non_suf_match += 1;
                         }
                     }
@@ -3022,7 +3024,7 @@ fn expand_showtail(xp: &mut ExpandCtx) -> bool {
         return false;
     }
 
-    let end = path_tail(xp.xp_pattern.cast());
+    let end = path_tail(crate::memory::cstr_from_ptr(xp.xp_pattern.cast())).as_ptr();
     if end.cast::<u8>() == xp.xp_pattern {
         return false;
     }
@@ -3137,7 +3139,10 @@ pub fn addstar(fname_slice: &[u8], context: i32) -> CString {
             retval_vec[..len].copy_from_slice(fname_slice);
             let retval = retval_vec.as_mut_ptr();
 
-            let tail = path_tail(retval.cast()).cast::<u8>();
+            let tail = path_tail(crate::memory::cstr_from_ptr(retval.cast()))
+                .as_ptr()
+                .cast_mut()
+                .cast::<u8>();
             #[cfg(windows)]
             let ends_in_star = len > 0 && retval_vec[len - 1] == b'*';
             #[cfg(not(windows))]
@@ -4535,8 +4540,7 @@ fn expand_files_and_dirs(
             if (options & WILD_ICASE) != 0 {
                 flags |= EW_ICASE;
             }
-            let mut pat_c = pat.cast();
-            expand_wildcards_eval(&raw mut pat_c, matches, flags)
+            expand_wildcards_eval(crate::memory::cstr_from_ptr(pat.cast()), matches, flags)
         };
         drop(pat_owned);
         #[cfg(windows)]
@@ -5284,9 +5288,8 @@ fn expand_shellcmd_onedir(
     found_ht: &mut std::collections::HashSet<Vec<u8>>,
     gap: &mut Vec<CString>,
 ) {
-    let mut pathed_pattern = pathed_pattern.as_ptr().cast_mut();
     let mut dir_matches: Vec<std::ffi::CString> = Vec::new();
-    if !expand_wildcards_vec(1, (&raw mut pathed_pattern).cast(), &mut dir_matches, flags) {
+    if !expand_wildcards_vec(&[pathed_pattern], &mut dir_matches, flags) {
         return;
     }
 
@@ -5336,7 +5339,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
     {
         c".".as_ptr().cast_mut().cast()
     } else {
-        if !path_is_absolute(pat.cast()) {
+        if !path_is_absolute(crate::memory::cstr_as_bytes(pat.cast())) {
             path_owned = vim_getenv(c"PATH");
         }
         path_owned
@@ -5377,7 +5380,7 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
                 flags &= !EW_DIR;
             }
 
-            seplen = if after_pathsep(s.cast(), e.cast()) == 0 {
+            seplen = if after_pathsep(crate::memory::ptr_span_bytes(s.cast(), e.cast())) == 0 {
                 PATHSEPSTR.len()
             } else {
                 0
@@ -5640,10 +5643,10 @@ pub fn globpath(
     while !path_bytes.is_empty() {
         let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
         let seplen = if buf_vec[0] != 0
-            && after_pathsep(
+            && after_pathsep(crate::memory::ptr_span_bytes(
                 buf_vec.as_ptr().cast(),
                 buf_vec.as_ptr().wrapping_add(pathlen).cast(),
-            ) == 0
+            )) == 0
         {
             PATHSEPSTR.len()
         } else {

@@ -2885,7 +2885,7 @@ pub fn apply_autocmds_group(
                 }
                 Some(crate::memory::cstr_to_cstring(fname))
             } else {
-                sfname_owned = to_slash_save(fname);
+                sfname_owned = to_slash_save(crate::memory::cstr_as_opt_cstr((fname).cast()));
                 if event == EVENT_CMDATOM
                     || event == EVENT_CMDLINECHANGED
                     || event == EVENT_CMDLINEENTER
@@ -2920,9 +2920,9 @@ pub fn apply_autocmds_group(
                     || event == EVENT_WINSCROLLED
                 {
                     g_st().autocmd_fname_full = true;
-                    to_slash_save(fname)
+                    to_slash_save(crate::memory::cstr_as_opt_cstr((fname).cast()))
                 } else {
-                    FullName_save(fname, false)
+                    FullName_save(crate::memory::cstr_as_opt_cstr((fname).cast()), false)
                 }
             };
             fname = fname_owned
@@ -3191,7 +3191,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 let tail_cstr = apc
                     .fname
                     .as_deref()
-                    .map_or(c"", |f| unsafe { CStr::from_ptr(path_tail(f.as_ptr())) });
+                    .map_or(c"", |f| unsafe { CStr::from_ptr((path_tail(f)).as_ptr()) });
                 match_file_pat(
                     None,
                     ap.reg_prog.as_deref(),
@@ -3401,13 +3401,13 @@ fn has_autocmd_ext(
     }
 
     let sfname_ptr = sfname.map_or(ptr::null(), CStr::as_ptr);
-    let tail = path_tail(sfname_ptr);
+    let tail = path_tail(crate::memory::cstr_from_ptr((sfname_ptr).cast()));
     let mut retval = false;
 
     let fname = if is_full {
         sfname.map(CStr::to_owned)
     } else {
-        FullName_save(sfname_ptr, false)
+        FullName_save(crate::memory::cstr_as_opt_cstr((sfname_ptr).cast()), false)
     };
     let Some(fname) = fname else {
         return false;
@@ -3422,7 +3422,7 @@ fn has_autocmd_ext(
                     ap.reg_prog.as_deref(),
                     Some(&fname),
                     sfname,
-                    unsafe { CStr::from_ptr(tail) },
+                    unsafe { CStr::from_ptr((tail).as_ptr()) },
                     i32::from(ap.allow_dirs),
                 )
             } else {

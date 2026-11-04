@@ -458,6 +458,31 @@ pub fn cstr_span_to_char<'a>(
     )
 }
 
+/// View the byte span `[b .. p)` between two pointers into the same buffer.
+#[inline]
+pub fn ptr_span_bytes<'a>(b: *const std::ffi::c_char, p: *const std::ffi::c_char) -> &'a [u8] {
+    if b.is_null() || p.is_null() || (p as usize) <= (b as usize) {
+        return &[];
+    }
+    unsafe { std::slice::from_raw_parts(b.cast::<u8>(), (p as usize) - (b as usize)) }
+}
+
+/// View a NUL-terminated C string buffer (including the trailing NUL byte) as a mutable byte slice.
+#[inline]
+pub fn cstr_as_mut_bytes<'a>(s: *mut std::ffi::c_char) -> &'a mut [u8] {
+    cstr_buf_as_mut_bytes(s, 0)
+}
+
+/// View a NUL-terminated C string buffer (plus `extra` trailing capacity bytes) as a mutable byte slice.
+#[inline]
+pub fn cstr_buf_as_mut_bytes<'a>(s: *mut std::ffi::c_char, extra: usize) -> &'a mut [u8] {
+    if s.is_null() {
+        return &mut [];
+    }
+    let len = unsafe { CStr::from_ptr(s).to_bytes().len() };
+    unsafe { std::slice::from_raw_parts_mut(s.cast::<u8>(), len + 1 + extra) }
+}
+
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
 #[inline]
 pub fn cstr_as_opt_bytes<'a>(s: *const std::ffi::c_char) -> Option<&'a [u8]> {

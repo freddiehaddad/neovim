@@ -60,7 +60,7 @@ pub fn server_init(listen_addr: Option<&CStr>) -> bool {
         if os_env_exists(ENV_LISTEN, true) {
             user_arg = K_FALSE;
             let raw = os_getenv_cstr(ENV_LISTEN);
-            owned_addr = to_slash_save(raw.as_ref().map_or(ptr::null(), |c| c.as_ptr()));
+            owned_addr = to_slash_save(raw.as_deref());
         } else {
             user_arg = K_NONE;
             owned_addr = Some(server_address_new(None));
@@ -179,9 +179,9 @@ pub fn server_address_new(name: Option<&CStr>) -> std::ffi::CString {
 }
 
 pub fn server_owns_pipe_address(address: &CStr) -> bool {
-    let path = fix_fname(address.as_ptr());
+    let path = fix_fname(Some(address));
     for &watcher in &srv_st().watchers {
-        let addr = fix_fname(unsafe { (*watcher).addr_cstr().as_ptr() });
+        let addr = fix_fname(unsafe { Some((*watcher).addr_cstr()) });
         if path == addr {
             return true;
         }
@@ -277,7 +277,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     let mut addr: [u8; ADDRESS_MAX_SIZE] = [0; ADDRESS_MAX_SIZE];
 
     crate::memory::copy_bytes_to_c_buf(&mut addr, endpoint.to_bytes());
-    to_slash(addr.as_mut_ptr().cast());
+    to_slash(crate::memory::cstr_as_mut_bytes(addr.as_mut_ptr().cast()));
     let addr_cstr = CStr::from_bytes_until_nul(&addr).unwrap_or(c"");
     let addr_bytes = addr_cstr.to_bytes();
 

@@ -832,7 +832,11 @@ fn set_init_default_backupskip() {
 
             if plen == 0 {
                 plen = crate::memory::cstr_len(p);
-                if after_pathsep(p, p.wrapping_add(plen)) != 0 {
+                if after_pathsep(crate::memory::ptr_span_bytes(
+                    (p).cast(),
+                    (p.wrapping_add(plen)).cast(),
+                )) != 0
+                {
                     has_trailing_path_sep = true;
                 }
             }
@@ -1197,8 +1201,11 @@ pub fn set_init_3() {
     parse_shape_opt(SHAPE_CURSOR);
 
     let mut len: usize = 0;
-    let p = invocation_path_tail(opt_vars().p_sh, Some(&mut len));
-    let name_slice = crate::memory::cstr_slice(p, len);
+    let p = invocation_path_tail(
+        crate::memory::cstr_from_ptr((opt_vars().p_sh).cast()),
+        Some(&mut len),
+    );
+    let name_slice = crate::memory::cstr_slice((p).as_ptr(), len);
     for (i, rule) in SHELL_RULES.iter().enumerate() {
         let pat = rule.pat.to_bytes();
         if !pat.is_empty() && !name_slice.windows(pat.len()).any(|w| w == pat) {
@@ -8041,7 +8048,7 @@ pub fn shortmess(x: i32) -> bool {
 pub fn vimrc_found(fname: Option<&std::ffi::CStr>, envname: &std::ffi::CStr) {
     if let Some(fname) = fname
         && vim_getenv(envname).is_none()
-        && let Some(p) = FullName_save(fname.as_ptr(), false)
+        && let Some(p) = FullName_save(Some(fname), false)
     {
         os_setenv(envname, p.as_c_str(), 1);
     }
@@ -8352,17 +8359,21 @@ pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> i32 {
     i32::from(
-        crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh))
-            .windows(3)
-            .any(|w| w == b"csh"),
+        crate::memory::cstr_as_bytes(
+            (path_tail(crate::memory::cstr_from_ptr((opt_vars().p_sh).cast()))).as_ptr(),
+        )
+        .windows(3)
+        .any(|w| w == b"csh"),
     )
 }
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh))
-        .windows(4)
-        .any(|w| w == b"fish")
+    crate::memory::cstr_as_bytes(
+        (path_tail(crate::memory::cstr_from_ptr((opt_vars().p_sh).cast()))).as_ptr(),
+    )
+    .windows(4)
+    .any(|w| w == b"fish")
 }
 
 /// Get window or buffer local options.

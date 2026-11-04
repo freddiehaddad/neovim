@@ -240,7 +240,11 @@ fn ses_arglist(
     for entry in gap {
         if let Some(s_cstr) = alist_name(entry) {
             let s = if fullname {
-                vim_full_name(s_cstr.as_ptr(), buf.as_mut_ptr().cast(), MAXPATHL, false);
+                vim_full_name(
+                    crate::memory::cstr_as_opt_cstr((s_cstr.as_ptr()).cast()),
+                    unsafe { std::slice::from_raw_parts_mut(buf.as_mut_ptr().cast(), MAXPATHL) },
+                    false,
+                );
                 crate::memory::cstr_until_nul(&buf)
             } else {
                 s_cstr
@@ -1084,7 +1088,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             emsg(gettext(E_WRITE));
         } else if eap.cmdidx == CMD_MKSESSION {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
-            if vim_full_name(fname.as_ptr(), tbuf.as_mut_ptr().cast(), MAXPATHL, false) {
+            if vim_full_name(
+                crate::memory::cstr_as_opt_cstr((fname.as_ptr()).cast()),
+                unsafe { std::slice::from_raw_parts_mut(tbuf.as_mut_ptr().cast(), MAXPATHL) },
+                false,
+            ) {
                 set_vim_var_string(
                     VV_THIS_SESSION,
                     Some(crate::memory::cstr_until_nul(&tbuf)),
@@ -1124,7 +1132,7 @@ fn get_view_file(c: u8) -> Option<CString> {
     let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
     retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);
     let retval = retval_vec.as_mut_ptr();
-    add_pathsep(retval.cast());
+    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(retval.cast(), 2));
     let mut s_idx = crate::memory::cstr_len(retval.cast());
     for &b in sname_bytes {
         if b == b'=' {

@@ -1730,11 +1730,14 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             }
             let (filename, slang) = if len > 4
                 && path_equal(
-                    lang_ptr.wrapping_add((len - 4) as usize).cast(),
+                    crate::memory::cstr_from_ptr(lang_ptr.wrapping_add((len - 4) as usize).cast()),
                     c".spl",
                     K_PATH_CMP_LITERAL as PathCmpFlags,
                 ) {
-                let p = vim_strchr(path_tail(lang_ptr.cast()), b'_' as i32);
+                let p = vim_strchr(
+                    path_tail(crate::memory::cstr_from_ptr(lang_ptr.cast())),
+                    b'_' as i32,
+                );
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
                     && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
@@ -1763,8 +1766,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     .find(|s| {
                         s.sl_fname.as_ref().is_some_and(|f| {
                             path_equal(
-                                lang_ptr.cast(),
-                                f.as_ptr(),
+                                crate::memory::cstr_from_ptr(lang_ptr.cast()),
+                                f,
                                 K_PATH_CMP_EXPAND as PathCmpFlags,
                             )
                         })
@@ -1820,8 +1823,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 let matched = if filename {
                     slang.sl_fname.as_ref().is_some_and(|f| {
                         path_equal(
-                            lang_ptr.cast(),
-                            f.as_ptr(),
+                            crate::memory::cstr_from_ptr(lang_ptr.cast()),
+                            f,
                             K_PATH_CMP_EXPAND as PathCmpFlags,
                         )
                     })
@@ -1896,8 +1899,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                         .as_ref()
                         .is_some_and(|p| {
                             path_equal(
-                                spf_ptr.cast(),
-                                p.as_ptr(),
+                                crate::memory::cstr_from_ptr(spf_ptr.cast()),
+                                p,
                                 K_PATH_CMP_EXPAND as PathCmpFlags,
                             )
                         })
@@ -1917,8 +1920,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 .find(|s| {
                     s.sl_fname.as_ref().is_some_and(|f| {
                         path_equal(
-                            spf_ptr.cast(),
-                            f.as_ptr(),
+                            crate::memory::cstr_from_ptr(spf_ptr.cast()),
+                            f,
                             K_PATH_CMP_EXPAND as PathCmpFlags,
                         )
                     })
@@ -1928,7 +1931,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 if cur_round == 0 {
                     lang[..18].copy_from_slice(b"internal wordlist\0");
                 } else {
-                    let tail = crate::memory::cstr_as_bytes(path_tail(spf_ptr.cast()));
+                    let tail = crate::memory::cstr_as_bytes(
+                        (path_tail(crate::memory::cstr_from_ptr(spf_ptr.cast()))).as_ptr(),
+                    );
                     let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
                     crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
                 }
@@ -3271,7 +3276,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
         }
         #[cfg(windows)]
         {
-            path_to_slash(spf_ptr.cast());
+            path_to_slash(crate::memory::cstr_as_mut_bytes(spf_ptr.cast()));
         }
         let s = spf_ptr;
         for &s_byte in crate::memory::cstr_as_bytes(s.cast()) {

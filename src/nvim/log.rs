@@ -174,7 +174,7 @@ fn log_path_init() {
         }
         let state_home =
             get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
-        let loghome = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
+        let loghome = concat_fnames_cstr(&state_home, c"logs", true);
         let mut failed_dir: Option<std::ffi::CString> = None;
         let mut log_dir_failure: i32 = 0;
         if !os_isdir(&loghome) {
@@ -392,17 +392,15 @@ fn do_log_to_file_str(
 
     if regen {
         let mut parent_buf = [0u8; MAXPATHL];
-        let parent = path_tail(
-            os_getenv_buf(c"NVIM", &mut parent_buf).map_or(std::ptr::null(), CStr::as_ptr),
-        );
+        let parent = path_tail(os_getenv_buf(c"NVIM", &mut parent_buf).unwrap_or(c""));
         let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
         let mut formatted = Vec::with_capacity(32);
-        if !crate::memory::cstr_is_empty(parent) {
-            let p = crate::memory::cstr_as_bytes(parent);
+        if !crate::memory::cstr_is_empty((parent).as_ptr()) {
+            let p = crate::memory::cstr_as_bytes((parent).as_ptr());
             formatted.extend_from_slice(if ui { b"ui/c/" } else { b"c/" });
             formatted.extend_from_slice(p);
-        } else if !crate::memory::cstr_is_empty(serv) {
-            let s = crate::memory::cstr_as_bytes(serv);
+        } else if !crate::memory::cstr_is_empty((serv).as_ptr()) {
+            let s = crate::memory::cstr_as_bytes((serv).as_ptr());
             if ui {
                 formatted.extend_from_slice(b"ui/");
             }

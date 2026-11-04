@@ -3742,7 +3742,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     separate_nextcmd(&mut *eap);
     if crate::memory::cstr_first_byte(eap.arg) == b'<'
         || crate::memory::cstr_first_byte(eap.arg) == b'$'
-        || path_is_absolute(eap.arg)
+        || path_is_absolute(crate::memory::cstr_as_bytes((eap.arg).cast()))
     {
         source = true;
         if !expand_filename(eap, &mut errormsg) {
@@ -3753,7 +3753,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         }
     } else {
         #[cfg(windows)]
-        path_to_slash(eap.arg.cast());
+        path_to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
     }
 
     if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {

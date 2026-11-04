@@ -2104,17 +2104,19 @@ fn qf_add_entry(
         qfp.qf_fnum = qf_get_fnum(qfl, dir, fname);
         buflist_findnr_opt(qfp.qf_fnum)
     };
-    let fullname = fname.and_then(|f| fix_fname(f.as_ptr()));
+    let fullname = fname.and_then(|f| fix_fname(Some(f)));
     qfp.qf_fname = None;
     if let Some(buf) = buf
         && !buf.b_ffname.is_null()
         && let Some(ref full) = fullname
-        && !path_equal(full.as_ptr(), buf.b_ffname, K_PATH_CMP_LITERAL)
+        && !path_equal(
+            full,
+            crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+            K_PATH_CMP_LITERAL,
+        )
+        && let Some(p) = path_try_shorten_fname(Some(full))
     {
-        let p = path_try_shorten_fname(full.as_ptr().cast_mut());
-        if !p.is_null() {
-            qfp.qf_fname = Some(crate::memory::cstr_to_cstring(p));
-        }
+        qfp.qf_fname = Some(p.to_owned());
     }
     drop(fullname);
     qfp.qf_text = mesg.to_owned();
@@ -2368,7 +2370,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
     let mut ptr_cstr: Option<std::ffi::CString> = None;
     let fname_str = cstr_as_string(Some(fname));
     let bufname_ptr = if let Some(dir) = directory
-        && !vim_isAbsName(fname.as_ptr())
+        && !vim_isAbsName(fname.to_bytes())
     {
         let mut joined = concat_fnames(cstr_as_string(Some(dir)), fname_str, true);
         if !os_path_exists(&joined) {
@@ -2386,7 +2388,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         fname.as_ptr().cast_mut()
     };
     #[cfg(windows)]
-    path_to_slash(bufname_ptr.cast());
+    path_to_slash(crate::memory::cstr_as_mut_bytes(bufname_ptr.cast()));
 
     let same_as_last = qf_st().qf_last_bufname.as_ref().is_some_and(|last| {
         crate::memory::cstr_as_bytes(bufname_ptr) == crate::memory::cstr_as_bytes(last.as_ptr())
@@ -2419,7 +2421,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
 }
 
 fn qf_push_dir(dirbuf: &CStr, stack: &mut Vec<std::ffi::CString>, is_file_stack: bool) {
-    if vim_isAbsName(dirbuf.as_ptr()) || stack.is_empty() || is_file_stack {
+    if vim_isAbsName(dirbuf.to_bytes()) || stack.is_empty() || is_file_stack {
         stack.push(dirbuf.to_owned());
         return;
     }
@@ -3271,7 +3273,9 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
                 .as_ref()
                 .map_or(buf.b_fname, |s| s.as_ptr().cast_mut());
             if qfp.qf_type == 1 {
-                fname = path_tail(fname);
+                fname = path_tail(crate::memory::cstr_from_ptr((fname).cast()))
+                    .as_ptr()
+                    .cast_mut();
             }
         }
         if fname.is_null() {
@@ -4113,9 +4117,16 @@ fn qf_buf_add_line(
             && !errbuf.b_fname.is_null()
         {
             if qfp.qf_type == 1 {
-                qfga_concat(gap, crate::memory::cstr_as_bytes(path_tail(errbuf.b_fname)));
+                qfga_concat(
+                    gap,
+                    crate::memory::cstr_as_bytes(
+                        (path_tail(crate::memory::cstr_from_ptr((errbuf.b_fname).cast()))).as_ptr(),
+                    ),
+                );
             } else {
-                if first_bufline && (errbuf.b_sfname.is_null() || path_is_absolute(errbuf.b_sfname))
+                if first_bufline
+                    && (errbuf.b_sfname.is_null()
+                        || path_is_absolute(crate::memory::cstr_as_bytes((errbuf.b_sfname).cast())))
                 {
                     if dirname[0] == 0 {
                         os_dirname(dirname);
@@ -5399,8 +5410,8 @@ fn vgr_process_files(
     let mut aborted = false;
     while fi < cmd_args.fnames.len() && !g_st().got_int && cmd_args.tomatch > 0 {
         let fname_exp = cmd_args.fnames.as_slice()[fi].as_ptr().cast_mut();
-        let fname = path_try_shorten_fname(fname_exp);
-        let fname_cstr = crate::memory::cstr_from_ptr(fname);
+        let fname = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((fname_exp).cast()));
+        let fname_cstr = fname.unwrap_or(c"");
         let now = os_time() as time_t;
         if now > seconds {
             seconds = now;
@@ -5434,12 +5445,12 @@ fn vgr_process_files(
 
         if buf.is_null() {
             if !g_st().got_int {
-                smsg!(0, gettext(c"Cannot open file \"%s\""), fname);
+                smsg!(0, gettext(c"Cannot open file \"%s\""), fname_cstr);
             }
         } else {
             let found_match = vgr_match_buflines(
                 qf_get_curlist(unsafe { &mut *qi }),
-                crate::memory::cstr_as_opt_cstr(fname),
+                fname,
                 unsafe { &mut *buf },
                 cmd_args.spat.as_deref(),
                 &mut cmd_args.regmatch,
@@ -7097,15 +7108,20 @@ fn hgr_search_files_in_dir(
 ) {
     let mut fnames: Vec<std::ffi::CString> = Vec::new();
 
-    add_pathsep(dirname.as_mut_ptr().cast());
+    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
+        dirname.as_mut_ptr().cast(),
+        2,
+    ));
     let dir_len = crate::memory::cstr_len(dirname.as_ptr());
     let pat_suffix = b"doc/*.\\(txt\\|??x\\)\0";
     for (i, &b) in pat_suffix.iter().enumerate() {
         dirname[dir_len + i] = b as crate::strings::RawCChar;
     }
-    let mut dirname_ptr: *mut u8 = dirname.as_mut_ptr().cast();
-    if gen_expand_wildcards_vec(1, &raw mut dirname_ptr, &mut fnames, EW_FILE | EW_SILENT)
-        && !fnames.is_empty()
+    if gen_expand_wildcards_vec(
+        &[crate::memory::cstr_from_ptr(dirname.as_ptr())],
+        &mut fnames,
+        EW_FILE | EW_SILENT,
+    ) && !fnames.is_empty()
     {
         for f_cstr in &fnames {
             if g_st().got_int {

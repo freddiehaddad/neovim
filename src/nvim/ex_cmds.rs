@@ -1844,7 +1844,10 @@ pub fn make_filter_cmd(
     otmp: Option<&CStr>,
     do_in: bool,
 ) -> std::ffi::CString {
-    let sh_tail = crate::memory::cstr_as_bytes(invocation_path_tail(opt_vars().p_sh, None));
+    let sh_tail = crate::memory::cstr_as_bytes(
+        (invocation_path_tail(crate::memory::cstr_from_ptr((opt_vars().p_sh).cast()), None))
+            .as_ptr(),
+    );
     #[cfg(unix)]
     let is_fish_shell = sh_tail.starts_with(b"fish");
     #[cfg(not(unix))]
@@ -2164,7 +2167,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             other = false;
         } else {
             fname = ffname;
-            free_fname = fix_fname(ffname);
+            free_fname = fix_fname(crate::memory::cstr_as_opt_cstr((ffname).cast()));
             if let Some(ref ff) = free_fname {
                 ffname = ff.as_ptr().cast_mut();
             }
@@ -2714,7 +2717,7 @@ pub fn do_ecmd(
                 sfname = ffname;
             }
             if CASE_INSENSITIVE_FILENAME && !sfname.is_null() {
-                path_fix_case(sfname.cast());
+                path_fix_case(crate::memory::cstr_as_mut_bytes(sfname.cast()));
             }
 
             if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 && (crate::memory::cstr_is_empty(ffname))
@@ -2731,7 +2734,7 @@ pub fn do_ecmd(
                     ffname = curbuf_mut().b_ffname;
                     sfname = curbuf_mut().b_fname;
                 }
-                free_fname = fix_fname(ffname);
+                free_fname = fix_fname(crate::memory::cstr_as_opt_cstr((ffname).cast()));
                 if let Some(ref ff) = free_fname {
                     ffname = ff.as_ptr().cast_mut();
                 }

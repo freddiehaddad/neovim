@@ -649,7 +649,7 @@ fn source_callback_vim_lua(
 
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
-        if path_with_extension(fname, c"vim") {
+        if path_with_extension(crate::memory::cstr_from_ptr((fname).cast()), c"vim") {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -660,7 +660,7 @@ fn source_callback_vim_lua(
 
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
-        if path_with_extension(fname, c"lua") {
+        if path_with_extension(crate::memory::cstr_from_ptr((fname).cast()), c"lua") {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -681,7 +681,9 @@ fn source_callback(fnames: &[std::ffi::CString], all: bool, mut cookie: Option<&
 
     for fname_cstr in fnames {
         let fname = fname_cstr.as_ptr().cast_mut();
-        if !path_with_extension(fname, c"vim") && !path_with_extension(fname, c"lua") {
+        if !path_with_extension(crate::memory::cstr_from_ptr((fname).cast()), c"vim")
+            && !path_with_extension(crate::memory::cstr_from_ptr((fname).cast()), c"lua")
+        {
             do_source(fname_cstr, false, DOSO_NONE, cookie.as_deref_mut());
             did_one = true;
             if !all {
@@ -747,7 +749,7 @@ pub fn do_in_path(
                 let prefix_len = prefix.to_bytes().len();
                 let name_len = crate::memory::cstr_len(name);
                 if buflen + 2 + prefix_len + name_len < MAXPATHL {
-                    add_pathsep(buf.cast());
+                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.cast(), 2));
                     let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
                     buf_vec[cur_len..(cur_len + prefix_len + 1)]
                         .copy_from_slice(prefix.to_bytes_with_nul());
@@ -857,7 +859,10 @@ fn do_in_cached_path(
             callback.invoke(std::slice::from_ref(&item.path), do_all);
         } else if buflen + crate::memory::cstr_len(name) + 2 < MAXPATHL {
             buf[..=buflen].copy_from_slice(item.path.to_bytes_with_nul());
-            add_pathsep(buf.as_mut_ptr().cast());
+            add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
+                buf.as_mut_ptr().cast(),
+                2,
+            ));
             let tail = buf
                 .as_mut_ptr()
                 .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
@@ -992,7 +997,7 @@ fn runtime_get_named_common(
                     pat_item.data.string().data,
                 ) as usize;
                 if size < buf_len && os_file_is_readable(crate::memory::cstr_from_ptr(buf.cast())) {
-                    to_slash(buf.cast());
+                    to_slash(crate::memory::cstr_as_mut_bytes(buf.cast()));
                     let astr = arena_string_opt(
                         arena.as_deref_mut(),
                         cstr_as_string(crate::memory::cstr_as_opt_cstr(buf.cast())),
@@ -1088,8 +1093,7 @@ fn expand_rtp_entry(
     }
 
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    let mut pat = [entry.as_ptr().cast_mut()];
-    if gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR | EW_NOBREAK) {
+    if gen_expand_wildcards_vec(&[entry], &mut files, EW_DIR | EW_NOBREAK) {
         for file in &files {
             push_path(search_path, rtp_used, file, after, pos_in_rtp);
         }
@@ -1316,9 +1320,8 @@ fn gen_expand_wildcards_and_cb(
     callback: &mut RuntimeCallback<'_>,
 ) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    let mut pats = [pat.as_ptr().cast_mut()];
 
-    if !gen_expand_wildcards_vec(1, pats.as_mut_ptr().cast(), &mut files, flags) {
+    if !gen_expand_wildcards_vec(&[pat], &mut files, flags) {
         return false;
     }
 
@@ -1331,7 +1334,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
     let fname = fname_cstr.as_ptr().cast_mut();
     let mut retval = false;
 
-    let past_head = get_past_head(fname);
+    let past_head = get_past_head(fname_cstr).as_ptr();
     let mut p1 = past_head;
     let mut p2 = p1;
     let mut p3 = p1;
@@ -1353,7 +1356,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
     p4 = p4.wrapping_add(1);
     let prefix_len = (p4 as usize) - (fname as usize);
     let prefix_cstr = cstr_from_bytes(&fname_cstr.to_bytes()[..prefix_len]);
-    let ffname_cstr = fix_fname(prefix_cstr.as_ptr());
+    let ffname_cstr = fix_fname(Some(&prefix_cstr));
 
     let Some(ref ffname_owned) = ffname_cstr else {
         return false;
@@ -1410,14 +1413,16 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             }
 
             if insp.is_null() {
-                add_pathsep(buf.data.cast());
-                let Some(rtp_ffname) = fix_fname(buf.data) else {
+                add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.data.cast(), 2));
+                let Some(rtp_ffname) =
+                    fix_fname(crate::memory::cstr_as_opt_cstr((buf.data).cast()))
+                else {
                     break 'block;
                 };
                 if path_cmp(
                     opt_vars().p_fic != 0,
-                    rtp_ffname.as_ptr(),
-                    ffname,
+                    &rtp_ffname,
+                    crate::memory::cstr_from_ptr((ffname).cast()),
                     fname_len,
                 ) == 0
                 {
@@ -1432,7 +1437,11 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         }
 
         fname_len = crate::memory::cstr_len(fname);
-        let ad = crate::path::concat_fnames_cstr(fname, c"after", true);
+        let ad = crate::path::concat_fnames_cstr(
+            crate::memory::cstr_from_ptr((fname).cast()),
+            c"after",
+            true,
+        );
         let mut afterdir = NvimString {
             data: ad.as_ptr().cast_mut(),
             size: ad.as_bytes().len(),
@@ -1559,7 +1568,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 }
 
 fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
-    let ffname_cstr = fix_fname(fname.as_ptr()).unwrap_or_default();
+    let ffname_cstr = fix_fname(Some(fname)).unwrap_or_default();
     let ffname = ffname_cstr.as_ptr();
     let len = ffname_cstr.as_bytes().len() + 14;
     let mut pat_vec = vec![0u8; len + 1];
@@ -1599,7 +1608,11 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
             let mut p = crate::memory::cstr_as_bytes(opt_vars().p_rtp);
             while !p.is_empty() {
                 copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
-                if path_equal(buf.as_ptr().cast(), fname, K_PATH_CMP_LITERAL) {
+                if path_equal(
+                    crate::memory::cstr_from_ptr(buf.as_ptr().cast()),
+                    crate::memory::cstr_from_ptr((fname).cast()),
+                    K_PATH_CMP_LITERAL,
+                ) {
                     found = true;
                     break;
                 }
@@ -1641,8 +1654,7 @@ pub fn add_pack_start_dirs() {
 
 fn pack_has_entries(buf: &std::ffi::CStr) -> bool {
     let mut files: Vec<std::ffi::CString> = Vec::new();
-    let mut pat = [buf.as_ptr().cast_mut()];
-    gen_expand_wildcards_vec(1, pat.as_mut_ptr().cast(), &mut files, EW_DIR) && !files.is_empty()
+    gen_expand_wildcards_vec(&[buf], &mut files, EW_DIR) && !files.is_empty()
 }
 
 fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
@@ -2034,8 +2046,8 @@ pub fn ExpandPackAddDir(pat_cstr: &std::ffi::CStr, file: &mut Vec<std::ffi::CStr
     drop(s_vec);
 
     for slot in file.iter_mut() {
-        let tail = path_tail(slot.as_ptr());
-        *slot = crate::memory::cstr_to_cstring(tail);
+        let tail = path_tail(slot);
+        *slot = crate::memory::cstr_to_cstring((tail).as_ptr());
     }
 
     if file.is_empty() {
@@ -2070,10 +2082,10 @@ fn compute_double_env_sep_len(
         let mut dir: &[u8] = &[];
         iter = vim_env_iter(ENV_SEPCHAR, val_bytes, iter, &mut dir);
         if !dir.is_empty() {
-            let has_trailing_sep = after_pathsep(
+            let has_trailing_sep = after_pathsep(crate::memory::ptr_span_bytes(
                 dir.as_ptr().cast(),
                 dir.as_ptr().wrapping_add(dir.len()).cast(),
-            ) != 0;
+            )) != 0;
             ret += (dir.len()
                 + dir.iter().filter(|&&b| b == b',').count()
                 + common_suf_len
@@ -2182,7 +2194,7 @@ pub fn get_lib_dir() -> Option<std::ffi::CString> {
 
     let mut exe_name = [0u8; MAXPATHL];
     vim_get_prefix_from_exepath(&mut exe_name);
-    if append_path(exe_name.as_mut_ptr().cast(), c"lib/nvim", MAXPATHL) {
+    if append_path(&mut exe_name, c"lib/nvim") {
         return Some(crate::memory::cstr_to_cstring(exe_name.as_ptr().cast()));
     }
     None
@@ -2241,7 +2253,12 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + 1
                 + SITE_SIZE
                 + 1
-                + usize::from(after_pathsep(data_home, data_home.wrapping_add(data_len)) == 0))
+                + usize::from(
+                    after_pathsep(crate::memory::ptr_span_bytes(
+                        (data_home).cast(),
+                        (data_home.wrapping_add(data_len)).cast(),
+                    )) == 0,
+                ))
                 * 2
                 + AFTER_SIZE
                 + 1;
@@ -2255,7 +2272,10 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + appname_len
                 + 1
                 + usize::from(
-                    after_pathsep(config_home, config_home.wrapping_add(config_len)) == 0,
+                    after_pathsep(crate::memory::ptr_span_bytes(
+                        (config_home).cast(),
+                        (config_home.wrapping_add(config_len)).cast(),
+                    )) == 0,
                 ))
                 * 2
                 + AFTER_SIZE
@@ -2607,7 +2627,7 @@ fn do_source_ext(
             fname_cstr.to_owned()
         } else {
             let p = expand_env_save(crate::memory::cstr_from_ptr((fname).cast()));
-            let Some(fe) = fix_fname(p.as_ptr()) else {
+            let Some(fe) = fix_fname(Some(&p)) else {
                 return retval;
             };
             if os_isdir(&fe) {
@@ -2681,7 +2701,7 @@ fn do_source_ext(
             cookie.fp = fopen_noinh_readbin(&fname_exp_owned);
         }
         if cookie.fp.is_none() && check_other {
-            let tail_ptr = path_tail(fname_exp);
+            let tail_ptr = path_tail(crate::memory::cstr_from_ptr((fname_exp).cast())).as_ptr();
             let tail_off = (tail_ptr as usize) - (fname_exp as usize);
             let first_b = fname_exp_owned
                 .as_bytes()
@@ -2773,7 +2793,10 @@ fn do_source_ext(
             si = script_item(sid);
         } else if str_opt.is_none() {
             si = new_script_item(Some(fname_exp_owned.clone()), &mut sid);
-            unsafe { (*si).sn_lua = path_with_extension(fname_exp, c"lua") };
+            unsafe {
+                (*si).sn_lua =
+                    path_with_extension(crate::memory::cstr_from_ptr((fname_exp).cast()), c"lua")
+            };
             if let Some(ref mut ret_sid_ref) = ret_sid {
                 **ret_sid_ref = sid;
             }
@@ -2819,7 +2842,10 @@ fn do_source_ext(
             && !ex_lua
             && !(crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
             && !(!curbuf_mut().b_fname.is_null()
-                && path_with_extension(curbuf_mut().b_fname, c"lua"))
+                && path_with_extension(
+                    crate::memory::cstr_from_ptr((curbuf_mut().b_fname).cast()),
+                    c"lua",
+                ))
         {
             let mut args_items = [
                 integer_obj(Integer::from(curbuf_mut().b_fnum)),
@@ -2854,7 +2880,10 @@ fn do_source_ext(
                 || ts_lua
                 || (crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
                 || (!curbuf_mut().b_fname.is_null()
-                    && path_with_extension(curbuf_mut().b_fname, c"lua")))
+                    && path_with_extension(
+                        crate::memory::cstr_from_ptr((curbuf_mut().b_fname).cast()),
+                        c"lua",
+                    )))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
         } else if !si.is_null() && unsafe { (*si).sn_lua } {
@@ -2989,7 +3018,11 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
     while sid > 0 {
         let si = script_item(sid);
         if let Some(ref sn) = si.sn_name
-            && path_equal(sn.as_ptr().cast_mut(), name.as_ptr(), K_PATH_CMP_LITERAL)
+            && path_equal(
+                crate::memory::cstr_from_ptr((sn.as_ptr().cast_mut()).cast()),
+                name,
+                K_PATH_CMP_LITERAL,
+            )
         {
             return sid;
         }
@@ -3016,7 +3049,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                     g_st().name_buff_bytes_mut(),
                 );
                 eap.arg = namebuff;
-                to_slash(eap.arg.cast());
+                to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
             }
             do_exedit(eap, None);
         }

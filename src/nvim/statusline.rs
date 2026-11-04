@@ -1093,7 +1093,7 @@ pub fn draw_tabline() {
             if room > 0 {
                 get_trans_bufname(unsafe { (*cwp).buf_mut() });
 
-                shorten_dir(name_buff);
+                shorten_dir(crate::memory::cstr_as_mut_bytes((name_buff).cast()));
                 let mut len = vim_strsize(crate::memory::cstr_from_ptr(name_buff));
                 let mut p = name_buff;
                 while len > room {
@@ -1983,7 +1983,10 @@ pub extern "C" fn build_stl_str_hl(
                 if opt != STL_FILENAME {
                     str = name_buff.cast();
                 } else {
-                    str = path_tail(name_buff).cast();
+                    str = path_tail(crate::memory::cstr_from_ptr((name_buff).cast()))
+                        .as_ptr()
+                        .cast_mut()
+                        .cast();
                 }
             }
             STL_VIM_EXPR => {

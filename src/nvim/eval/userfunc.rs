@@ -3379,8 +3379,10 @@ pub fn ex_function(eap: &mut Exarg) {
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen
                     && path_equal(
-                        p,
-                        sname.as_ptr().wrapping_add((slen - plen) as usize),
+                        crate::memory::cstr_from_ptr((p).cast()),
+                        crate::memory::cstr_from_ptr(
+                            (sname.as_ptr().wrapping_add((slen - plen) as usize)).cast(),
+                        ),
                         K_PATH_CMP_LITERAL,
                     )
                 {

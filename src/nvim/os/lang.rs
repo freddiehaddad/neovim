@@ -624,11 +624,17 @@ pub fn init_locale() {
         &mut localepath,
         crate::memory::cstr_as_bytes((get_vim_var_str(VV_PROGPATH)).as_ptr()),
     );
-    let mut tail = path_tail_with_sep(localepath.as_mut_ptr().cast()).cast::<u8>();
+    let mut tail = path_tail_with_sep(crate::memory::cstr_from_ptr(localepath.as_mut_ptr().cast()))
+        .as_ptr()
+        .cast_mut()
+        .cast::<u8>();
     unsafe {
         *tail = 0;
     }
-    tail = path_tail(localepath.as_ptr().cast()).cast::<u8>();
+    tail = path_tail(crate::memory::cstr_from_ptr(localepath.as_ptr().cast()))
+        .as_ptr()
+        .cast_mut()
+        .cast::<u8>();
     let offset = (tail as usize) - (localepath.as_ptr() as usize);
     crate::memory::copy_bytes_to_c_buf(&mut localepath[offset..], b"share/locale");
 

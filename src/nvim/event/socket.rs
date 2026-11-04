@@ -370,7 +370,9 @@ pub fn socket_watcher_start(watcher: &mut SocketWatcher, backlog: i32) -> i32 {
         debug_assert!(result <= 0);
         if result < 0 {
             if result == UV_EACCES {
-                *path_tail(addr) = NUL;
+                *path_tail(crate::memory::cstr_from_ptr((addr).cast()))
+                    .as_ptr()
+                    .cast_mut() = NUL;
                 if !os_path_exists(crate::memory::cstr_from_ptr((addr).cast())) {
                     result = UV_ENOENT;
                 }

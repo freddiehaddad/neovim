@@ -283,7 +283,7 @@ fn time_msg_if_enabled(s: &std::ffi::CStr) {
 #[inline]
 fn to_slash_if_needed(buf: &mut [u8]) {
     if !buf.is_empty() {
-        path_to_slash(buf.as_mut_ptr().cast());
+        path_to_slash(crate::memory::cstr_as_mut_bytes(buf.as_mut_ptr().cast()));
     }
 }
 
@@ -1702,18 +1702,17 @@ fn command_line_scan(parmp: &mut Mparm) {
                 && gargcount() > 0
                 && !os_isdir(alist_name(&garglist_slice()[0]).unwrap_or(c""))
             {
-                let tail =
-                    path_tail(alist_name(&garglist_slice()[0]).map_or(ptr::null(), CStr::as_ptr));
+                let tail = path_tail(alist_name(&garglist_slice()[0]).unwrap_or(c""));
                 let joined = concat_fnames(
                     cstr_as_string(crate::memory::cstr_as_opt_cstr(p_vec.as_ptr().cast())),
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(tail)),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr((tail).as_ptr())),
                     true,
                 );
                 p_vec = joined.as_bytes_with_nul().to_vec();
             }
 
             if CASE_INSENSITIVE_FILENAME {
-                path_fix_case(p_vec.as_mut_ptr().cast());
+                path_fix_case(crate::memory::cstr_as_mut_bytes(p_vec.as_mut_ptr().cast()));
             }
 
             let alist_fnum_flag = if edit_stdin(parmp) { 1 } else { 2 };
@@ -1763,9 +1762,10 @@ fn set_argf_var() {
     for i in 0..count {
         if let Some(fname) = alist_name(&garglist_slice()[i as usize]) {
             let _ = vim_full_name(
-                fname.as_ptr(),
-                g_st().name_buff.as_mut_ptr().cast(),
-                MAXPATHL,
+                crate::memory::cstr_as_opt_cstr((fname.as_ptr()).cast()),
+                unsafe {
+                    std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast(), MAXPATHL)
+                },
                 false,
             );
             tv_list_append_string(
@@ -1828,7 +1828,7 @@ fn init_path(exename: &CStr) {
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
     if os_exepath(&mut exepath, &mut exepathlen) != 0 {
-        path_guess_exepath(exename, &mut exepath);
+        path_guess_exepath(crate::memory::cstr_from_ptr((exename).cast()), &mut exepath);
     }
     set_vim_var_string(
         VV_PROGPATH,
@@ -1837,7 +1837,9 @@ fn init_path(exename: &CStr) {
     );
     set_vim_var_string(
         VV_PROGNAME,
-        crate::memory::cstr_as_opt_cstr(path_tail(exename)),
+        crate::memory::cstr_as_opt_cstr(
+            (path_tail(crate::memory::cstr_from_ptr((exename).cast()))).as_ptr(),
+        ),
         -1,
     );
 
@@ -2290,7 +2292,11 @@ fn do_user_initialization() -> bool {
     if do_source(user_vimrc.as_c_str(), true, DOSO_VIMRC, None) {
         do_exrc = opt_vars().p_exrc != 0;
         if do_exrc {
-            do_exrc = !path_equal(c".nvimrc", user_vimrc_ptr, K_PATH_CMP_EXPAND);
+            do_exrc = !path_equal(
+                c".nvimrc",
+                crate::memory::cstr_from_ptr((user_vimrc_ptr).cast()),
+                K_PATH_CMP_EXPAND,
+            );
         }
         return do_exrc;
     }
@@ -2350,7 +2356,11 @@ fn do_user_initialization() -> bool {
             ) {
                 do_exrc = opt_vars().p_exrc != 0;
                 if do_exrc {
-                    do_exrc = !path_equal(c".nvimrc", init_vim.as_ptr().cast(), K_PATH_CMP_EXPAND);
+                    do_exrc = !path_equal(
+                        c".nvimrc",
+                        crate::memory::cstr_from_ptr(init_vim.as_ptr().cast()),
+                        K_PATH_CMP_EXPAND,
+                    );
                 }
                 return do_exrc;
             }
@@ -2421,12 +2431,7 @@ fn mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) -> ! {
 }
 
 fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
-    let prgname = path_tail(
-        main_init_st()
-            .argv0
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
-    );
+    let prgname = path_tail(main_init_st().argv0.as_deref().unwrap_or(c""));
     signal_stop();
 
     let stderr = log_get_stderr();

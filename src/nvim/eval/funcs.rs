@@ -4680,7 +4680,11 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             let namebuff = g_st().name_buff.as_mut_ptr();
             let iobuff = g_st().iobuff.as_mut_ptr();
-            vim_full_name(cwd, namebuff.cast(), MAXPATHL, false);
+            vim_full_name(
+                crate::memory::cstr_as_opt_cstr((cwd).cast()),
+                unsafe { std::slice::from_raw_parts_mut(namebuff.cast(), MAXPATHL) },
+                false,
+            );
             let len = home_replace(
                 None,
                 crate::memory::cstr_as_opt_cstr(namebuff),
@@ -7443,7 +7447,7 @@ pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             emsg(gettext(E_INVARG));
             return;
         }
-        to_slash_save(tv_get_string(&argvars[0])).unwrap_or_default()
+        to_slash_save(Some(tv_get_string(&argvars[0]))).unwrap_or_default()
     } else {
         server_address_new(None)
     };
@@ -7892,7 +7896,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     }
 
     let mode = tv_get_string(&argvars[0]);
-    let address = to_slash_save(tv_get_string(&argvars[1])).unwrap_or_default();
+    let address = to_slash_save(Some(tv_get_string(&argvars[1]))).unwrap_or_default();
 
     'cleanup: {
         let tcp = if crate::memory::cstr_as_bytes((mode).as_ptr()) == b"tcp" {
@@ -8205,7 +8209,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
         iter = vim_env_iter(ENV_SEPCHAR, dirs_bytes, iter, &mut dir);
         if !dir.is_empty() {
             let dir_cstr = cstr_from_bytes(dir);
-            let dir_with_nvim = concat_fnames_cstr(dir_cstr.as_ptr(), appname, true);
+            let dir_with_nvim = concat_fnames_cstr(&dir_cstr, appname, true);
             tv_list_append_string(&mut *list, Some(dir_with_nvim.as_c_str()), -1);
         }
         if iter.is_none() {
@@ -8245,7 +8249,7 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         }
         b"log" => {
             if let Some(state_home) = get_xdg_home(XDGVarType::XDGStateHome) {
-                let log_dir = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
+                let log_dir = concat_fnames_cstr(&state_home, c"logs", true);
                 crate::eval::typval::tv_set_string(rettv, Some(log_dir.as_c_str()));
             }
         }

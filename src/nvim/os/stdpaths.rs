@@ -80,7 +80,9 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
         name_buff[..5].copy_from_slice(b"nvim\0");
     }
     #[cfg(windows)]
-    path_to_slash(name_buff.as_mut_ptr().cast());
+    path_to_slash(crate::memory::cstr_as_mut_bytes(
+        name_buff.as_mut_ptr().cast(),
+    ));
     if namelike {
         for b in name_buff.iter_mut() {
             if *b == 0 {
@@ -97,7 +99,7 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
 /// Return true if `$NVIM_APPNAME` is a valid name or relative path (`appname_is_valid`).
 pub fn appname_is_valid() -> bool {
     let appname = get_appname(false);
-    if path_is_absolute(appname) {
+    if path_is_absolute((appname).to_bytes()) {
         return false;
     }
     let bytes = appname.to_bytes();
@@ -123,7 +125,7 @@ fn xdg_remove_duplicate(ret: CString, sep: u8) -> Option<CString> {
         };
         let is_dup = token_cstrs
             .iter()
-            .any(|existing| path_equal(existing.as_ptr(), cand.as_ptr(), K_PATH_CMP_LITERAL));
+            .any(|existing| path_equal(existing, &cand, K_PATH_CMP_LITERAL));
         if !is_dup {
             token_cstrs.push(cand);
         }
@@ -175,7 +177,9 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(windows)]
     if let Some(ref ev) = env_val {
-        path_to_slash(ev.as_ptr().cast_mut().cast());
+        path_to_slash(crate::memory::cstr_as_mut_bytes(
+            ev.as_ptr().cast_mut().cast(),
+        ));
     }
 
     let mut ret: Option<CString> = if env_val.is_some() {
@@ -212,7 +216,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
     }
     let suffix_cstr = cstr_from_bytes(&suffix);
 
-    Some(concat_fnames_cstr(dir.as_ptr(), suffix_cstr.as_ptr(), true))
+    Some(concat_fnames_cstr(&dir, &suffix_cstr, true))
 }
 
 /// Return `$XDG_CONFIG_HOME/$NVIM_APPNAME/{fname}` (`stdpaths_user_conf_subpath`).
@@ -221,7 +225,7 @@ pub fn get_xdg_home(idx: XDGVarType) -> Option<CString> {
 /// `fname` must be a valid C string.
 pub fn stdpaths_user_conf_subpath(fname: &std::ffi::CStr) -> CString {
     let home = get_xdg_home(XDGVarType::XDGConfigHome).unwrap_or_default();
-    concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true)
+    concat_fnames_cstr(&home, fname, true)
 }
 
 /// Return `$XDG_STATE_HOME/$NVIM_APPNAME/{fname}` with optional trailing path separators and
@@ -235,7 +239,7 @@ pub fn stdpaths_user_state_subpath(
     escape_commas: bool,
 ) -> CString {
     let home = get_xdg_home(XDGVarType::XDGStateHome).unwrap_or_default();
-    let ret = concat_fnames_cstr(home.as_ptr(), fname.as_ptr(), true);
+    let ret = concat_fnames_cstr(&home, fname, true);
     let bytes = ret.as_bytes();
     let numcommas = if escape_commas {
         bytes.iter().filter(|&&b| b == b',').count()

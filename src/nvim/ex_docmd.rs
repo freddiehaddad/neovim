@@ -4934,7 +4934,11 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
         && !curbuf_mut().b_sfname.is_null()
         && !crate::memory::cstr_is_empty(curbuf_mut().b_sfname)
     {
-        return !path_equal(ffname.as_ptr(), curbuf_mut().b_sfname, K_PATH_CMP_LITERAL);
+        return !path_equal(
+            ffname,
+            crate::memory::cstr_from_ptr((curbuf_mut().b_sfname).cast()),
+            K_PATH_CMP_LITERAL,
+        );
     }
 
     otherfile(Some(ffname))
@@ -8548,7 +8552,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                 &expanded,
             );
         } else {
-            to_slash(eap.arg.cast());
+            to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
         }
     }
     true
@@ -9496,7 +9500,7 @@ fn ex_restart(eap: &mut Exarg) {
                     .iter()
                     .any(|b| matches!(b, b':' | b'/' | b'\\'))
                 {
-                    listen_arg = to_slash_save(addr);
+                    listen_arg = to_slash_save(Some(addr));
                     #[cfg(windows)]
                     {
                         li = next_li.li_next;
@@ -10265,7 +10269,9 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     }
 
     if let Some(ref rf) = ret_fname {
-        to_slash(rf.as_ptr().cast_mut().cast());
+        to_slash(crate::memory::cstr_as_mut_bytes(
+            rf.as_ptr().cast_mut().cast(),
+        ));
     }
     ret_fname
 }
@@ -11038,14 +11044,19 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir = g_st().name_buff.as_mut_ptr();
     }
 
-    let new_dir_owned = to_slash_save(new_dir).unwrap_or_default();
+    let new_dir_owned =
+        to_slash_save(crate::memory::cstr_as_opt_cstr((new_dir).cast())).unwrap_or_default();
     new_dir = new_dir_owned.as_ptr().cast_mut();
 
     let bcd_active = scope != K_CD_SCOPE_BUFFER && curbuf_mut().b_localdir.is_some();
 
-    let dir_differs = pdir
-        .as_ref()
-        .is_none_or(|p| !path_equal(p.as_ptr(), new_dir, K_PATH_CMP_LITERAL));
+    let dir_differs = pdir.as_ref().is_none_or(|p| {
+        !path_equal(
+            p,
+            crate::memory::cstr_from_ptr((new_dir).cast()),
+            K_PATH_CMP_LITERAL,
+        )
+    });
     if dir_differs {
         if !bcd_active {
             do_autocmd_dirchanged(&new_dir_owned, scope, K_CD_CAUSE_MANUAL, true);
@@ -11122,7 +11133,9 @@ pub fn ex_cd(eap: &mut Exarg) {
 fn ex_pwd(_eap: &mut Exarg) {
     if os_dirname(g_st().name_buff_bytes_mut()) {
         #[cfg(windows)]
-        slash_adjust(g_st().name_buff.as_mut_ptr().cast());
+        slash_adjust(crate::memory::cstr_as_mut_bytes(
+            g_st().name_buff.as_mut_ptr().cast(),
+        ));
         if opt_vars().p_verbose > 0 {
             let context = if let Some(reason) = g_st().last_chdir_reason {
                 reason.as_ptr()
@@ -12343,7 +12356,7 @@ pub fn eval_vars(
                     && let Some(ref cur_fname) = g_st().autocmd_fname
                 {
                     g_st().autocmd_fname_full = true;
-                    if let Some(full) = FullName_save(cur_fname.as_ptr(), false) {
+                    if let Some(full) = FullName_save(Some(cur_fname), false) {
                         g_st().autocmd_fname = Some(full);
                     }
                 }
@@ -12355,7 +12368,8 @@ pub fn eval_vars(
                     *errormsg = Some(gettext(E_NO_AUTOCOMMAND_FILE_NAME_TO_SUBSTITUTE_FOR_AFILE));
                     return None;
                 }
-                result = path_try_shorten_fname(result);
+                result = path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((result).cast()))
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
             SPEC_ABUF => {
                 if g_st().autocmd_bufnr <= 0 {
@@ -12451,7 +12465,10 @@ pub fn eval_vars(
                 .iter()
                 .rposition(|&b| b == b'.')
                 .map_or(ptr::null_mut(), |i| result.wrapping_add(i));
-            if !s.is_null() && s >= path_tail(result) {
+            if !s.is_null()
+                && (s as usize)
+                    >= (path_tail(crate::memory::cstr_from_ptr((result).cast())).as_ptr() as usize)
+            {
                 resultlen = (s as usize) - (result as usize);
             }
         } else if !skip_mod {

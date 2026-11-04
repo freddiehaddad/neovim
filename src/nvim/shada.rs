@@ -802,8 +802,8 @@ impl PartialEq for PathKey {
         }
         path_cmp(
             CASE_INSENSITIVE_FILENAME,
-            self.0.cast(),
-            other.0.cast(),
+            crate::memory::cstr_from_ptr(self.0.cast()),
+            crate::memory::cstr_from_ptr(other.0.cast()),
             MAXPATHL,
         ) == 0
     }
@@ -1256,7 +1256,13 @@ fn find_buffer(
     }
 
     for buf in for_all_buffers_ptr() {
-        if !buf.b_ffname.is_null() && path_equal(fname.as_ptr(), buf.b_ffname, K_PATH_CMP_LITERAL) {
+        if !buf.b_ffname.is_null()
+            && path_equal(
+                fname,
+                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                K_PATH_CMP_LITERAL,
+            )
+        {
             fname_bufs.insert(key.to_vec(), ptr::from_mut(buf) as usize);
             return Some(buf);
         }
@@ -1585,10 +1591,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .fname
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                    let sfname = path_try_shorten_fname(fname_ptr);
+                    let sfname =
+                        path_try_shorten_fname(crate::memory::cstr_as_opt_cstr((fname_ptr).cast()));
                     if let Some(buf) = buflist_new(
                         crate::memory::cstr_as_opt_cstr(fname_ptr),
-                        crate::memory::cstr_as_opt_cstr(sfname),
+                        sfname,
                         0,
                         BLN_LISTED,
                     ) {
@@ -1691,8 +1698,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
 fn shada_get_default_file() -> &'static CStr {
     if shada_st().default_shada_file.is_none() {
         let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
-        shada_st().default_shada_file =
-            Some(concat_fnames_cstr(shada_dir.as_ptr(), c"main.shada", true));
+        shada_st().default_shada_file = Some(concat_fnames_cstr(&shada_dir, c"main.shada", true));
     }
     shada_st().default_shada_file.as_deref().unwrap_or(c"")
 }
@@ -2278,7 +2284,11 @@ fn shada_read_when_writing(
                         } else {
                             for buf in for_all_buffers_mut() {
                                 if !buf.b_ffname.is_null()
-                                    && path_equal(fname_ptr, buf.b_ffname, K_PATH_CMP_LITERAL)
+                                    && path_equal(
+                                        crate::memory::cstr_from_ptr((fname_ptr).cast()),
+                                        crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                                        K_PATH_CMP_LITERAL,
+                                    )
                                 {
                                     let mut fm = Fmark::new();
                                     mark_get(
@@ -3689,7 +3699,7 @@ fn shada_read_next_item(
                         let mut bytes = crate::memory::cstr_slice(it.f.data, it.f.size).to_vec();
                         bytes.push(0);
                         #[cfg(windows)]
-                        path_to_slash(bytes.as_mut_ptr().cast());
+                        path_to_slash(crate::memory::cstr_as_mut_bytes(bytes.as_mut_ptr().cast()));
                         fm.fname = Some(
                             CStr::from_bytes_with_nul(&bytes)
                                 .unwrap_or_default()
@@ -3984,7 +3994,9 @@ fn shada_read_next_item(
                                 let mut bytes = it.f.as_bytes().to_vec();
                                 bytes.push(0);
                                 #[cfg(windows)]
-                                path_to_slash(bytes.as_mut_ptr().cast());
+                                path_to_slash(crate::memory::cstr_as_mut_bytes(
+                                    bytes.as_mut_ptr().cast(),
+                                ));
                                 e.fname = Some(
                                     CStr::from_bytes_with_nul(&bytes)
                                         .unwrap_or_default()

@@ -577,7 +577,7 @@ pub fn mf_free_fnames(mfp: &mut Memfile) {
 
 /// Set the simple file name and the full file name of memfile's swapfile.
 pub fn mf_set_fnames(mfp: &mut Memfile, fname: std::ffi::CString) {
-    mfp.mf_ffname = FullName_save(fname.as_ptr(), false);
+    mfp.mf_ffname = FullName_save(Some(&fname), false);
     mfp.mf_fname = Some(fname);
 }
 

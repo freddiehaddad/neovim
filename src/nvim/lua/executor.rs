@@ -2497,7 +2497,11 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
         found = true;
         break;
     }
-    if found && let Some(source_path) = fix_fname(info.source.wrapping_add(1)) {
+    if found
+        && let Some(source_path) = fix_fname(crate::memory::cstr_as_opt_cstr(
+            (info.source.wrapping_add(1)).cast(),
+        ))
+    {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
             let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);

@@ -152,10 +152,13 @@ pub fn modify_fname(
 
                 // FullName_save() is slow, don't use it when not needed.
                 if has_dot_comp
-                    || !vim_isAbsName(fname.cast_const().cast())
+                    || !vim_isAbsName(crate::memory::cstr_as_bytes(fname.cast_const().cast()))
                     || (cfg!(windows) && matches!(fname_bytes.first(), Some(b'/' | b'\\')))
                 {
-                    let Some(full) = FullName_save(fname.cast_const().cast(), has_dot_comp) else {
+                    let Some(full) = FullName_save(
+                        crate::memory::cstr_as_opt_cstr(fname.cast_const().cast()),
+                        has_dot_comp,
+                    ) else {
                         fbuf.clear();
                         *fname_off = 0;
                         return -1;
@@ -174,7 +177,7 @@ pub fn modify_fname(
                     }
                     *fbuf = v;
                     fname = fbuf.as_mut_ptr();
-                    add_pathsep(fname.cast());
+                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(fname.cast(), 2));
                 }
             }
 
@@ -199,7 +202,10 @@ pub fn modify_fname(
                             .into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
-                    } else if let Some(full) = FullName_save(fname.cast_const().cast(), false) {
+                    } else if let Some(full) = FullName_save(
+                        crate::memory::cstr_as_opt_cstr(fname.cast_const().cast()),
+                        false,
+                    ) {
                         let full_vec = full.into_bytes_with_nul();
                         p = full_vec.as_ptr().cast_mut();
                         pbuf = Some(full_vec);
@@ -231,8 +237,8 @@ pub fn modify_fname(
                         // even though the path does not have a prefix.
                         if path_cmp(
                             opt_vars().p_fic != 0,
-                            p.cast_const().cast(),
-                            dirname.as_ptr().cast(),
+                            crate::memory::cstr_from_ptr(p.cast_const().cast()),
+                            crate::memory::cstr_from_ptr(dirname.as_ptr().cast()),
                             dirnamelen,
                         ) == 0
                         {
@@ -289,7 +295,10 @@ pub fn modify_fname(
                 fname = fname.wrapping_add(file_info.prefix_off);
             }
 
-            let mut tail = path_tail(fname.cast_const().cast()).cast::<u8>();
+            let mut tail = path_tail(crate::memory::cstr_from_ptr(fname.cast_const().cast()))
+                .as_ptr()
+                .cast_mut()
+                .cast::<u8>();
             *fnamelen = crate::memory::cstr_len(fname.cast());
 
             // ":h" - head, remove "/file_name", can be repeated
@@ -300,7 +309,9 @@ pub fn modify_fname(
             {
                 valid |= VALID_HEAD;
                 *usedlen += 2;
-                while (tail as usize) > (s as usize) && after_pathsep(s.cast(), tail.cast()) != 0 {
+                while (tail as usize) > (s as usize)
+                    && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) != 0
+                {
                     tail = tail.wrapping_sub(
                         {
                             let (_b, _i) = crate::memory::cstr_span_to_char(
@@ -326,7 +337,7 @@ pub fn modify_fname(
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize)
-                        && after_pathsep(s.cast(), tail.cast()) == 0
+                        && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) == 0
                     {
                         tail = tail.wrapping_sub(
                             {
@@ -410,7 +421,7 @@ pub fn modify_fname(
             #[cfg(windows)]
             if !didit && use_shellslash && !fname.is_null() {
                 let mut v = cstr_to_cstring(fname.cast()).into_bytes_with_nul();
-                slash_adjust(v.as_mut_ptr().cast());
+                slash_adjust(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
                 *fbuf = v;
                 fname = fbuf.as_mut_ptr();
             }
@@ -526,7 +537,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut cwd = vec![0u8; MAXPATHL];
     if os_dirname(&mut cwd) {
         #[cfg(windows)]
-        slash_adjust(cwd.as_mut_ptr().cast());
+        slash_adjust(crate::memory::cstr_as_mut_bytes(cwd.as_mut_ptr().cast()));
         crate::eval::typval::tv_set_string(
             rettv,
             Some(CStr::from_bytes_until_nul(&cwd).unwrap_or_default()),
@@ -636,7 +647,7 @@ pub fn f_exepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         #[cfg(windows)]
         {
             let mut v = p.into_bytes_with_nul();
-            slash_adjust(v.as_mut_ptr().cast());
+            slash_adjust(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
             crate::eval::typval::tv_set_string(
                 rettv,
                 Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
@@ -793,7 +804,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     };
 
     #[cfg(windows)]
-    let initial_cstr = path_to_slash_save(fname_cstr.as_ptr()).unwrap_or_default();
+    let initial_cstr = path_to_slash_save(Some(fname_cstr)).unwrap_or_default();
     #[cfg(not(windows))]
     let initial_cstr = fname_cstr.to_owned();
     len = initial_cstr.as_bytes().len();
@@ -1010,7 +1021,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     }
 
     #[cfg(windows)]
-    slash_adjust(cwd.as_mut_ptr().cast());
+    slash_adjust(crate::memory::cstr_as_mut_bytes(cwd.as_mut_ptr().cast()));
     crate::eval::typval::tv_set_string(
         rettv,
         Some(CStr::from_bytes_until_nul(&cwd).unwrap_or_default()),
@@ -1273,7 +1284,7 @@ pub fn f_haslocaldir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// "isabsolutepath()" function
 pub fn f_isabsolutepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(path_is_absolute(
-        tv_get_string(&argvars[0]),
+        (tv_get_string(&argvars[0])).to_bytes(),
     )));
 }
 
@@ -1300,9 +1311,15 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
     let dir = dir.as_ptr();
 
-    if crate::memory::cstr_is_empty(path_tail(dir)) {
+    if crate::memory::cstr_is_empty(
+        (path_tail(crate::memory::cstr_from_ptr((dir).cast()))).as_ptr(),
+    ) {
         // Remove trailing slashes.
-        unsafe { *path_tail_with_sep(dir.cast_mut()) = NUL };
+        unsafe {
+            *path_tail_with_sep(crate::memory::cstr_from_ptr((dir.cast_mut()).cast()))
+                .as_ptr()
+                .cast_mut() = NUL
+        };
     }
 
     let mut defer = false;
@@ -1352,7 +1369,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     // Handle "D" and "R": deferred deletion of the created directory.
     if rettv.vval.v_number() == Varnumber::from(OK) && created.is_none() && (defer || defer_recurse)
     {
-        created = FullName_save(dir, false);
+        created = FullName_save(crate::memory::cstr_as_opt_cstr((dir).cast()), false);
     }
     if let Some(created_cstr) = created {
         let mut tv = [TypVal::new(), TypVal::new()];
@@ -1378,7 +1395,10 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     if let Some(p) = tv_get_string_chk(&argvars[0]) {
         let mut v = p.to_owned().into_bytes_with_nul();
-        shorten_dir_len(v.as_mut_ptr().cast(), trim_len);
+        shorten_dir_len(
+            crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()),
+            trim_len,
+        );
         crate::eval::typval::tv_set_string(
             rettv,
             Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
@@ -1737,13 +1757,21 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1 && after_pathsep(p.cast(), unsafe { p.add(p_len) }.cast()) != 0 {
+        if p_len > 1
+            && after_pathsep(crate::memory::ptr_span_bytes(
+                p.cast(),
+                unsafe { p.add(p_len) }.cast(),
+            )) != 0
+        {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
         }
 
-        let mut q = path_next_component(p.cast()).cast_mut().cast::<u8>();
+        let mut q = path_next_component(crate::memory::cstr_from_ptr(p.cast()))
+            .as_ptr()
+            .cast_mut()
+            .cast::<u8>();
         let mut remain_vec: Option<Vec<u8>> = None;
         if unsafe { *q } != 0 {
             // Separate the first path component in "p", and keep the
@@ -1780,7 +1808,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 // Ensure that the result will have a trailing path separator
                 // if the argument has one.
                 if remain_vec.is_none() && has_trailing_pathsep {
-                    add_pathsep(buf.cast());
+                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.cast(), 2));
                     buf_len = crate::memory::cstr_len(buf.cast());
                 }
 
@@ -1791,7 +1819,8 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 } else {
                     buf
                 };
-                q = path_next_component(start_comp.cast())
+                q = path_next_component(crate::memory::cstr_from_ptr(start_comp.cast()))
+                    .as_ptr()
                     .cast_mut()
                     .cast::<u8>();
                 if unsafe { *q } != 0 {
@@ -1811,13 +1840,21 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     buf_vec[buf_len] = 0;
                 }
 
-                q = path_tail(p.cast()).cast::<u8>();
+                q = path_tail(crate::memory::cstr_from_ptr(p.cast()))
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<u8>();
                 if (q as usize) > (p as usize) && unsafe { *q } == 0 {
                     // Ignore trailing path separator.
                     unsafe { *q.wrapping_sub(1) = 0 };
-                    q = path_tail(p.cast()).cast::<u8>();
+                    q = path_tail(crate::memory::cstr_from_ptr(p.cast()))
+                        .as_ptr()
+                        .cast_mut()
+                        .cast::<u8>();
                 }
-                if (q as usize) > (p as usize) && !path_is_absolute(buf.cast()) {
+                if (q as usize) > (p as usize)
+                    && !path_is_absolute(crate::memory::cstr_as_bytes(buf.cast()))
+                {
                     // Symlink is relative to directory of argument. Replace the
                     // symlink with the resolved name in the same directory.
                     let prefix_len = (q as usize) - (p as usize);
@@ -1845,9 +1882,12 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let remain = rem_v.as_mut_ptr();
 
             // Append the first path component of "remain" to "p".
-            q = path_next_component(unsafe { remain.add(1) }.cast())
-                .cast_mut()
-                .cast::<u8>();
+            q = path_next_component(crate::memory::cstr_from_ptr(
+                unsafe { remain.add(1) }.cast(),
+            ))
+            .as_ptr()
+            .cast_mut()
+            .cast::<u8>();
             let comp_len =
                 (q as usize).wrapping_sub(remain as usize) - usize::from(unsafe { *q } != 0);
             let mut new_p = vec![0u8; p_len + comp_len + 1];
@@ -1905,8 +1945,13 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         // if the argument had none.  But keep "/" or "//".
         if !has_trailing_pathsep {
             q = unsafe { p.add(p_len) };
-            if after_pathsep(p.cast(), q.cast()) != 0 {
-                unsafe { *path_tail_with_sep(p.cast()).cast::<u8>() = 0 };
+            if after_pathsep(crate::memory::ptr_span_bytes(p.cast(), q.cast())) != 0 {
+                unsafe {
+                    *path_tail_with_sep(crate::memory::cstr_from_ptr(p.cast()))
+                        .as_ptr()
+                        .cast_mut()
+                        .cast::<u8>() = 0
+                };
             }
         }
 
@@ -1916,14 +1961,16 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         );
     }
 
-    simplify_filename(rettv.vval.v_string().cast());
+    simplify_filename(crate::memory::cstr_as_mut_bytes(
+        rettv.vval.v_string().cast(),
+    ));
 }
 
 /// "simplify()" function
 pub fn f_simplify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let p = tv_get_string(&argvars[0]);
     let mut v = cstr_to_cstring((p).as_ptr()).into_bytes_with_nul();
-    simplify_filename(v.as_mut_ptr().cast()); // Simplify in place.
+    simplify_filename(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast())); // Simplify in place.
     crate::eval::typval::tv_set_string(
         rettv,
         Some(CStr::from_bytes_until_nul(&v).unwrap_or_default()),
@@ -2124,7 +2171,9 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         } else {
             if defer {
                 let mut tv = TypVal::new();
-                if let Some(full) = FullName_save(fname, false) {
+                if let Some(full) =
+                    FullName_save(crate::memory::cstr_as_opt_cstr((fname).cast()), false)
+                {
                     crate::eval::typval::tv_set_string(&mut tv, Some(full.as_c_str()));
                 } else {
                     tv.v_type = VarType::VarString;

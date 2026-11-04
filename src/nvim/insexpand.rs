@@ -2049,7 +2049,7 @@ fn ins_compl_dictionaries(
     }
 
     let mut buf_vec = vec![0u8; LSIZE];
-    let mut buf = buf_vec.as_mut_ptr();
+    let buf = buf_vec.as_mut_ptr();
     regmatch.regprog = ptr::null_mut();
 
     let save_p_scs = opt_vars().p_scs;
@@ -2088,7 +2088,11 @@ fn ins_compl_dictionaries(
             if !thesaurus && crate::memory::cstr_as_bytes(buf.cast()) == b"spell" {
                 count = -1;
             } else if crate::strings::vim_haschr(buf.cast(), b'`' as i32)
-                || !expand_wildcards_vec(1, (&raw mut buf).cast(), &mut files, EW_FILE | EW_SILENT)
+                || !expand_wildcards_vec(
+                    &[crate::memory::cstr_until_nul(&buf_vec)],
+                    &mut files,
+                    EW_FILE | EW_SILENT,
+                )
             {
                 count = 0;
             } else {
@@ -4204,7 +4208,9 @@ fn get_next_filename_completion() {
     if in_fuzzy_collect {
         #[cfg(windows)]
         if let Some(leader_cstr) = ins_compl_leader() {
-            path_to_slash(leader_cstr.as_ptr().cast_mut().cast());
+            path_to_slash(crate::memory::cstr_as_mut_bytes(
+                leader_cstr.as_ptr().cast_mut().cast(),
+            ));
             leader_slice = ins_compl_leader_slice();
         }
         if let Some(sep_idx) = leader_slice.iter().rposition(|&b| b == PATHSEP) {
@@ -4227,8 +4233,8 @@ fn get_next_filename_completion() {
     if (get_cot_flags() & K_OPT_COT_FLAG_PATHOPT) != 0 {
         flags |= EW_PATH;
     }
-    let mut pat_ptr = compl_pattern_cstr().map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if !expand_wildcards_vec(1, (&raw mut pat_ptr).cast(), &mut matches, flags) {
+    let pat_cstr = compl_pattern_cstr().unwrap_or(c"");
+    if !expand_wildcards_vec(&[pat_cstr], &mut matches, flags) {
         return;
     }
 
@@ -4814,9 +4820,9 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
         if b.b_p_bl != 0 && !b.b_sfname.is_null() {
-            let tail = path_tail(b.b_sfname);
+            let tail = path_tail(crate::memory::cstr_from_ptr((b.b_sfname).cast()));
             let orig_bytes = insexp().compl_orig_text.as_bytes();
-            let tail_b = crate::memory::cstr_as_bytes(tail);
+            let tail_b = crate::memory::cstr_as_bytes((tail).as_ptr());
             if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {
                 ins_compl_add(
                     tail_b,

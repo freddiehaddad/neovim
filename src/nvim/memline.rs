@@ -599,7 +599,11 @@ pub fn ml_setname(buf: &mut FileBuf) {
         };
 
         let mfp = buf.b_ml.mfp_mut();
-        if path_equal(fname.as_ptr(), mf_fname_ptr, K_PATH_CMP_LITERAL) {
+        if path_equal(
+            &fname,
+            crate::memory::cstr_from_ptr((mf_fname_ptr).cast()),
+            K_PATH_CMP_LITERAL,
+        ) {
             success = true;
             break;
         }
@@ -845,7 +849,10 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         .mf_fname
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if same_directory(mf_fname_ptr, buf.b_ffname) {
+    if same_directory(
+        crate::memory::cstr_as_opt_cstr((mf_fname_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast()),
+    ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
     } else {
         b0p.set_flags(b0p.flags() & !B0_SAME_DIR);
@@ -1126,7 +1133,9 @@ pub fn ml_recover(checkext: bool) {
     let namebuff_ptr = g_st().name_buff.as_mut_ptr();
     if directly {
         #[cfg(windows)]
-        path_to_slash((&raw mut crate::globals::gptr(b0p).b0_fname).cast());
+        path_to_slash(crate::memory::cstr_as_mut_bytes(
+            (&raw mut crate::globals::gptr(b0p).b0_fname).cast(),
+        ));
 
         expand_env(
             crate::memory::cstr_until_nul(&crate::globals::gptr(b0p).b0_fname),
@@ -1669,16 +1678,19 @@ pub fn recover_names(
             }
         } else {
             let p = dir_name.data.wrapping_add(dir_name.size);
-            let tail = if after_pathsep(dir_name.data, p) != 0
+            let tail = if after_pathsep(crate::memory::ptr_span_bytes(
+                (dir_name.data).cast(),
+                (p).cast(),
+            )) != 0
                 && dir_bytes.len() > 1
                 && dir_bytes[dir_bytes.len() - 1] == dir_bytes[dir_bytes.len() - 2]
             {
                 make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], fname_res)
             } else {
-                let t = path_tail(fname_res);
+                let t = path_tail(crate::memory::cstr_from_ptr((fname_res).cast()));
                 Some(concat_fnames(
                     dir_name,
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(t)),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr((t).as_ptr())),
                     true,
                 ))
             };
@@ -1689,16 +1701,9 @@ pub fn recover_names(
 
         let mut files: Vec<std::ffi::CString> = Vec::new();
         if !names_vec.is_empty() {
-            let mut name_ptrs: Vec<*mut u8> = names_vec
-                .iter()
-                .map(|s| s.as_ptr().cast_mut().cast())
-                .collect();
-            let _ = expand_wildcards_vec(
-                name_ptrs.len() as i32,
-                name_ptrs.as_mut_ptr(),
-                &mut files,
-                EW_KEEPALL | EW_FILE | EW_SILENT,
-            );
+            let name_cstrs: Vec<&std::ffi::CStr> =
+                names_vec.iter().map(std::ffi::CString::as_c_str).collect();
+            let _ = expand_wildcards_vec(&name_cstrs, &mut files, EW_KEEPALL | EW_FILE | EW_SILENT);
         }
 
         let cur_mfp_fname = if skip_curbuf {
@@ -1711,7 +1716,13 @@ pub fn recover_names(
         };
 
         if let Some(cur_p) = cur_mfp_fname {
-            files.retain(|f| !path_equal(cur_p, f.as_ptr(), K_PATH_CMP_FULL));
+            files.retain(|f| {
+                !path_equal(
+                    crate::memory::cstr_from_ptr((cur_p).cast()),
+                    f,
+                    K_PATH_CMP_FULL,
+                )
+            });
         }
 
         if dirp.is_empty()
@@ -1721,8 +1732,13 @@ pub fn recover_names(
             && let Some(swapname) =
                 modname(crate::memory::cstr_as_opt_cstr(fname_res), c".swp", true)
             && os_path_exists(&swapname)
-            && cur_mfp_fname
-                .is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), K_PATH_CMP_FULL))
+            && cur_mfp_fname.is_none_or(|cur_p| {
+                !path_equal(
+                    crate::memory::cstr_from_ptr((cur_p).cast()),
+                    &swapname,
+                    K_PATH_CMP_FULL,
+                )
+            })
         {
             crate::eval::typval::tv_list_append_string(ret_list, Some(swapname.as_c_str()), -1);
         }
@@ -1743,7 +1759,11 @@ pub fn make_percent_swname(
     name: impl crate::strings::IntoCCharPtr,
 ) -> Option<std::ffi::CString> {
     let name = name.into_c_char_ptr();
-    let fname = fix_fname(if !name.is_null() { name } else { c"".as_ptr() })?;
+    let fname = fix_fname(if !name.is_null() {
+        crate::memory::cstr_as_opt_cstr((name).cast())
+    } else {
+        Some(c"")
+    })?;
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
 
     let mut file_info = FileInfo::new();
@@ -2244,7 +2264,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
                 ml_st().ml_get_recursive += 1;
                 get_trans_bufname(buf);
                 let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-                shorten_dir(namebuff_ptr);
+                shorten_dir(crate::memory::cstr_as_mut_bytes((namebuff_ptr).cast()));
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
@@ -3477,19 +3497,23 @@ pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPt
             *crate::globals::gptr(buf.wrapping_add(ret as usize)) = NUL;
 
             let buf_bytes = crate::memory::cstr_as_bytes(buf);
-            if path_is_absolute(buf) {
+            if path_is_absolute(buf_bytes) {
                 crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
             } else {
-                let tail = path_tail(tmp_ptr);
-                if crate::memory::cstr_len(tail) + buf_bytes.len() >= MAXPATHL {
+                let tail = path_tail(crate::memory::cstr_from_ptr(tmp_ptr));
+                if tail.to_bytes().len() + buf_bytes.len() >= MAXPATHL {
                     return false;
                 }
-                let off = unsafe { tail.offset_from(tmp_ptr) } as usize;
+                let off = unsafe { tail.as_ptr().offset_from(tmp_ptr) } as usize;
                 crate::memory::copy_bytes_to_c_buf(&mut tmp[off..], buf_bytes);
             }
         }
 
-        vim_full_name(tmp_ptr, buf.cast(), MAXPATHL, true)
+        vim_full_name(
+            crate::memory::cstr_as_opt_cstr(tmp_ptr.cast()),
+            unsafe { std::slice::from_raw_parts_mut(buf.cast(), MAXPATHL) },
+            true,
+        )
     }
 }
 
@@ -3518,7 +3542,10 @@ pub fn makeswapname(
         let dir_bytes = crate::memory::cstr_as_bytes(dir_name);
         let len = dir_bytes.len();
         let s = dir_name.wrapping_add(len);
-        if after_pathsep(dir_name, s) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
+        if after_pathsep(crate::memory::ptr_span_bytes((dir_name).cast(), (s).cast())) != 0
+            && len > 1
+            && dir_bytes[len - 1] == dir_bytes[len - 2]
+        {
             let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
             return modname(Some(&sw), c".swp", false);
         }
@@ -3540,7 +3567,9 @@ pub fn get_file_in_dir(
 ) -> Option<std::ffi::CString> {
     let fname = fname.into_c_char_ptr().cast_mut();
     let dname = dname.into_c_char_ptr().cast_mut();
-    let tail = cstr_as_string(crate::memory::cstr_as_opt_cstr(path_tail(fname)));
+    let tail = cstr_as_string(crate::memory::cstr_as_opt_cstr(
+        (path_tail(crate::memory::cstr_from_ptr((fname).cast()))).as_ptr(),
+    ));
     let dname_bytes = crate::memory::cstr_as_bytes(dname);
 
     if dname_bytes == b"." {
@@ -3722,7 +3751,13 @@ fn findswapname(
                 break;
             }
 
-            if !old_fname.is_null() && path_equal(fname, old_fname, K_PATH_CMP_LITERAL) {
+            if !old_fname.is_null()
+                && path_equal(
+                    crate::memory::cstr_from_ptr((fname).cast()),
+                    crate::memory::cstr_from_ptr((old_fname).cast()),
+                    K_PATH_CMP_LITERAL,
+                )
+            {
                 break;
             }
 
@@ -3747,17 +3782,21 @@ fn findswapname(
                     };
                     if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                         #[cfg(windows)]
-                        path_to_slash(b0.b0_fname.as_mut_ptr());
+                        path_to_slash(crate::memory::cstr_as_mut_bytes(
+                            (b0.b0_fname.as_mut_ptr()).cast(),
+                        ));
                         ml_st().proc_running = swapfile_proc_running(&b0, fname);
 
                         let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
                         if (b0.flags() & B0_SAME_DIR) != 0 {
                             if !path_equal(
-                                path_tail(buf.b_ffname),
+                                path_tail(crate::memory::cstr_from_ptr((buf.b_ffname).cast())),
                                 path_tail(b0_fname_cstr),
                                 K_PATH_CMP_LITERAL,
-                            ) || !same_directory(fname, buf.b_ffname)
-                            {
+                            ) || !same_directory(
+                                crate::memory::cstr_as_opt_cstr((fname).cast()),
+                                crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast()),
+                            ) {
                                 expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                                 if fnamecmp_ino(
                                     buf.b_ffname,
@@ -3979,8 +4018,16 @@ fn fnamecmp_ino(
             return ino_c != ino_s;
         }
 
-        let retval_c = vim_full_name(fname_c, buf_c.as_mut_ptr(), MAXPATHL, true);
-        let retval_s = vim_full_name(fname_s, buf_s.as_mut_ptr(), MAXPATHL, true);
+        let retval_c = vim_full_name(
+            crate::memory::cstr_as_opt_cstr((fname_c).cast()),
+            unsafe { std::slice::from_raw_parts_mut((buf_c.as_mut_ptr()).cast(), MAXPATHL) },
+            true,
+        );
+        let retval_s = vim_full_name(
+            crate::memory::cstr_as_opt_cstr((fname_s).cast()),
+            unsafe { std::slice::from_raw_parts_mut((buf_s.as_mut_ptr()).cast(), MAXPATHL) },
+            true,
+        );
         if retval_c && retval_s {
             return crate::memory::cstr_until_nul(&buf_c) != crate::memory::cstr_until_nul(&buf_s);
         }

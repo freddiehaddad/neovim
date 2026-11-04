@@ -1234,12 +1234,13 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
     if retval == NOTDONE
         && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
         && !curbuf_mut().b_ffname.is_null()
-        && after_pathsep(
-            curbuf_mut().b_ffname,
-            curbuf_mut()
+        && after_pathsep(crate::memory::ptr_span_bytes(
+            (curbuf_mut().b_ffname).cast(),
+            (curbuf_mut()
                 .b_ffname
-                .wrapping_add(crate::memory::cstr_len(curbuf_mut().b_ffname)),
-        ) != 0
+                .wrapping_add(crate::memory::cstr_len(curbuf_mut().b_ffname)))
+            .cast(),
+        )) != 0
         && augroup_exists(Some(c"filetypedetect"))
     {
         let mut bufref: Bufref = Bufref::new();
@@ -2858,7 +2859,9 @@ pub fn buflist_new(
     let buf_ref = unsafe { &mut *buf };
     if let Some((ff_cstr, sf_cstr)) = expanded {
         let mut sf_vec = sf_cstr.into_bytes_with_nul();
-        to_slash(sf_vec.as_mut_ptr());
+        to_slash(crate::memory::cstr_as_mut_bytes(
+            (sf_vec.as_mut_ptr()).cast(),
+        ));
         buf_ref.set_ffname(Some(ff_cstr));
         buf_ref.set_sfname(Some(std::ffi::CString::from_vec_with_nul(sf_vec).unwrap()));
     }
@@ -3146,7 +3149,7 @@ fn buflist_getfpos() {
 
 /// Find file in buffer list by name (it has to be for the current window).
 pub fn buflist_findname_exp(fname: Option<&CStr>) -> Option<&'static mut FileBuf> {
-    let ffname = FullName_save(fname.map_or(ptr::null(), CStr::as_ptr), cfg!(unix))?;
+    let ffname = FullName_save(fname, cfg!(unix))?;
     buflist_findname(Some(ffname.as_c_str()))
 }
 
@@ -3856,8 +3859,12 @@ pub fn setfname(
         }
         let mut sf_vec = sfname_raw.into_bytes_with_nul();
         if CASE_INSENSITIVE_FILENAME {
-            to_slash(sf_vec.as_mut_ptr());
-            path_fix_case(sf_vec.as_mut_ptr());
+            to_slash(crate::memory::cstr_as_mut_bytes(
+                (sf_vec.as_mut_ptr()).cast(),
+            ));
+            path_fix_case(crate::memory::cstr_as_mut_bytes(
+                (sf_vec.as_mut_ptr()).cast(),
+            ));
         }
         let sfname_cstr = crate::memory::cstring_until_nul(&sf_vec);
         buf.set_ffname(Some(ffname_cstr));
@@ -3963,7 +3970,11 @@ fn otherfile_buf(
     if ffname_cstr.to_bytes().is_empty() || buf.b_ffname.is_null() {
         return true;
     }
-    if path_equal(ffname_cstr.as_ptr(), buf.b_ffname, K_PATH_CMP_LITERAL) {
+    if path_equal(
+        ffname_cstr,
+        crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+        K_PATH_CMP_LITERAL,
+    ) {
         return false;
     }
     let mut local_file_id: FileID = FileID::new();
@@ -4267,7 +4278,10 @@ pub fn maketitle() {
             let name_bytes = if let Some(sp) = buf_spname(curbuf_mut()) {
                 sp.to_bytes()
             } else {
-                crate::memory::cstr_as_bytes(path_tail(curbuf_mut().b_ffname))
+                crate::memory::cstr_as_bytes(
+                    (path_tail(crate::memory::cstr_from_ptr((curbuf_mut().b_ffname).cast())))
+                        .as_ptr(),
+                )
             };
             let mut off = 0usize;
             if name_bytes.len() > 100 {
@@ -4396,7 +4410,7 @@ pub fn fname_expand(
     let _ = buf;
     let ffname_in = ffname?;
     let sfname_in = sfname.unwrap_or(ffname_in);
-    let mut full_cstr = fix_fname(ffname_in.as_ptr())?;
+    let mut full_cstr = fix_fname(Some(ffname_in))?;
     #[cfg_attr(not(windows), expect(unused_mut))]
     let mut sf_cstr = sfname_in.to_owned();
     if os_isdir(&full_cstr) {
@@ -4404,19 +4418,25 @@ pub fn fname_expand(
         let name: RawCCharPtrMut = name_vec.as_mut_ptr().cast();
         let name_len = name_vec.len() - 1;
         if name_len > 0
-            && after_pathsep(name, name.wrapping_add(name_len)) != 0
-            && name.wrapping_add(name_len) > get_past_head(name)
+            && after_pathsep(crate::memory::ptr_span_bytes(
+                (name).cast(),
+                (name.wrapping_add(name_len)).cast(),
+            )) != 0
+            && (name.wrapping_add(name_len) as usize)
+                > (get_past_head(crate::memory::cstr_from_ptr((name).cast())).as_ptr() as usize)
         {
             unsafe {
-                *path_tail_with_sep(name) = 0;
+                *path_tail_with_sep(crate::memory::cstr_from_ptr((name).cast()))
+                    .as_ptr()
+                    .cast_mut() = 0;
             }
         }
-        let full = fix_fname(crate::memory::cstr_until_nul(&name_vec));
+        let full = fix_fname(Some(crate::memory::cstr_until_nul(&name_vec)));
         drop(name_vec);
         if let Some(dir_full) = full {
             full_cstr = dir_full;
         }
-        full_cstr = concat_fnames_cstr(full_cstr.as_ptr(), c"", true);
+        full_cstr = concat_fnames_cstr(&full_cstr, c"", true);
     }
 
     #[cfg(windows)]

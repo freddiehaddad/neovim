@@ -3266,7 +3266,7 @@ pub fn find_pattern_in_path(
                 }
                 .map(|cstr| {
                     let mut v: Vec<u8> = cstr.into_bytes_with_nul();
-                    to_slash(v.as_mut_ptr().cast());
+                    to_slash(crate::memory::cstr_as_mut_bytes(v.as_mut_ptr().cast()));
                     crate::memory::cstr_to_cstring(v.as_ptr().cast())
                 });
                 let mut already_searched = false;
@@ -3281,8 +3281,8 @@ pub fn find_pattern_in_path(
                             break;
                         }
                         if path_equal(
-                            nf_ptr,
-                            files[i as usize].name_ptr(),
+                            crate::memory::cstr_from_ptr((nf_ptr).cast()),
+                            files[i as usize].name_ptr().unwrap_or(c""),
                             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                         ) {
                             if type_ != CHECK_PATH
@@ -3654,8 +3654,8 @@ pub fn find_pattern_in_path(
                                         if curr_fname == curbuf_mut().b_fname {
                                             None
                                         } else {
-                                            crate::memory::cstr_as_opt_cstr(path_try_shorten_fname(
-                                                curr_fname,
+                                            path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(
+                                                (curr_fname).cast(),
                                             ))
                                         },
                                         dir,

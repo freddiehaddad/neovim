@@ -165,9 +165,8 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
 
         #[cfg(unix)]
         let is_fish_shell = {
-            let tail = invocation_path_tail(opt_vars().p_sh, None);
-            let bytes = crate::memory::cstr_as_bytes(tail);
-            bytes.starts_with(b"fish")
+            let tail = invocation_path_tail(crate::memory::cstr_from_ptr(opt_vars().p_sh), None);
+            tail.to_bytes().starts_with(b"fish")
         };
         #[cfg(not(unix))]
         let is_fish_shell = false;
@@ -215,7 +214,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             }
         }
         if shell_style == STYLE_ECHO {
-            let sh_tail = crate::memory::cstr_as_bytes(path_tail(opt_vars().p_sh));
+            let sh_tail = path_tail(crate::memory::cstr_from_ptr(opt_vars().p_sh)).to_bytes();
             if sh_tail.windows(4).any(|w| w == b"bash") {
                 shell_style = STYLE_GLOBSTAR;
             } else if sh_tail.windows(2).any(|w| w == b"sh") {
@@ -537,7 +536,10 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             let mut new_vec = vec![0u8; entry_bytes.len() + usize::from(dir)];
             new_vec[..entry_bytes.len()].copy_from_slice(entry_bytes);
             if dir {
-                add_pathsep(new_vec.as_mut_ptr().cast());
+                add_pathsep(crate::memory::cstr_buf_as_mut_bytes(
+                    new_vec.as_mut_ptr().cast(),
+                    2,
+                ));
             }
             file.push(crate::memory::cstr_to_cstring(new_vec.as_ptr().cast()));
         }

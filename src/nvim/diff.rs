@@ -1224,7 +1224,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
         #[cfg(unix)]
         {
-            fullname = crate::path::FullName_save(eap.arg, false);
+            fullname = crate::path::FullName_save(crate::memory::cstr_as_opt_cstr(eap.arg), false);
             esc_name = Some(vim_strsave_shellescape(
                 fullname
                     .as_ref()

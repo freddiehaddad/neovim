@@ -851,7 +851,7 @@ pub fn buf_get_backup_name(
         }
     }
     if dir_len > 1
-        && after_pathsep(iobuf, p) != 0
+        && after_pathsep(crate::memory::ptr_span_bytes((iobuf).cast(), (p).cast())) != 0
         && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
         && let Some(swname) =
             make_percent_swname(&g_st().iobuff_bytes_mut()[..dir_len - 1], fname_ptr)
@@ -900,7 +900,9 @@ fn buf_write_make_backup(
         {
             *backup_copyp = true;
         } else {
-            let dirlen = (path_tail(fname) as usize) - (fname as usize);
+            let dirlen = (path_tail(crate::memory::cstr_from_ptr((fname).cast())).as_ptr()
+                as usize)
+                - (fname as usize);
             assert!(dirlen < MAXPATHL);
             let mut tmp_fname = [0u8; MAXPATHL];
             tmp_fname[..dirlen].copy_from_slice(crate::memory::cstr_slice(fname, dirlen));
@@ -1196,7 +1198,12 @@ pub fn buf_write(
     }
 
     let overwriting = unsafe {
-        !(*buf).b_ffname.is_null() && path_equal(ffname, (*buf).b_ffname, K_PATH_CMP_LITERAL)
+        !(*buf).b_ffname.is_null()
+            && path_equal(
+                crate::memory::cstr_from_ptr((ffname).cast()),
+                crate::memory::cstr_from_ptr(((*buf).b_ffname).cast()),
+                K_PATH_CMP_LITERAL,
+            )
     };
 
     g_st().no_wait_return += 1;

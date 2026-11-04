@@ -2479,7 +2479,9 @@ pub fn find_tags(
 pub fn found_tagfile_cb(fnames: &[std::ffi::CString], all: bool) -> bool {
     for fname in fnames {
         let mut tag_fname = fname.clone().into_bytes_with_nul();
-        simplify_filename(tag_fname.as_mut_ptr().cast());
+        simplify_filename(crate::memory::cstr_as_mut_bytes(
+            tag_fname.as_mut_ptr().cast(),
+        ));
         tag_st()
             .tag_fnames
             .push(crate::memory::cstr_to_cstring(tag_fname.as_ptr().cast()));
@@ -2530,10 +2532,12 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 &mut buf[..MAXPATHL - 4],
                 crate::memory::cstr_as_bytes(opt_vars().p_hf),
             );
-            let tail_off =
-                crate::memory::ptr_offset_from(path_tail(buf_ptr.cast()), buf_ptr.cast()) as usize;
+            let tail_off = crate::memory::ptr_offset_from(
+                path_tail(crate::memory::cstr_from_ptr(buf_ptr.cast())).as_ptr(),
+                buf_ptr.cast(),
+            ) as usize;
             buf[tail_off..tail_off + 5].copy_from_slice(b"tags\0");
-            simplify_filename(buf_ptr.cast());
+            simplify_filename(crate::memory::cstr_as_mut_bytes(buf_ptr.cast()));
 
             let buf_bytes = crate::memory::cstr_as_bytes(buf_ptr.cast());
             if tag_st()
@@ -2585,9 +2589,10 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             let stop_off = vim_findfile_stopdir(buf);
             let stopdirs_cstr =
                 stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]).to_owned());
-            let tail_off =
-                crate::memory::ptr_offset_from(path_tail(buf.as_ptr().cast()), buf.as_ptr().cast())
-                    as usize;
+            let tail_off = crate::memory::ptr_offset_from(
+                path_tail(crate::memory::cstr_from_ptr(buf.as_ptr().cast())).as_ptr(),
+                buf.as_ptr().cast(),
+            ) as usize;
             let filename_cstr = crate::memory::cstr_to_cstring(buf[tail_off..].as_ptr().cast());
             buf[tail_off] = 0;
 
@@ -2851,7 +2856,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
             curwin_save = curwin_ptr();
 
             if curwin_mut().w_onebuf_opt.wo_pvw == 0 {
-                full_fname = FullName_save(fname.cast(), false);
+                full_fname = FullName_save(crate::memory::cstr_as_opt_cstr(fname.cast()), false);
                 fname = full_fname
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -3120,7 +3125,8 @@ fn expand_tag_fname(
     {
         let mut xpc: ExpandCtx = ExpandCtx::new();
 
-        let mut fname = to_slash_save(fname_arg).unwrap_or_default();
+        let mut fname =
+            to_slash_save(crate::memory::cstr_as_opt_cstr((fname_arg).cast())).unwrap_or_default();
 
         if expand
             && path_has_wildcard(fname.as_bytes(), true)
@@ -3138,14 +3144,14 @@ fn expand_tag_fname(
             }
         }
 
-        if (opt_vars().p_tr != 0 || curbuf_mut().b_help) && !vim_isAbsName(fname.as_ptr()) {
-            let p = path_tail(tag_fname);
-            if p != tag_fname {
+        if (opt_vars().p_tr != 0 || curbuf_mut().b_help) && !vim_isAbsName(fname.to_bytes()) {
+            let p = path_tail(crate::memory::cstr_from_ptr((tag_fname).cast())).as_ptr();
+            if p != tag_fname.cast_const() {
                 let mut retval = [0u8; MAXPATHL];
                 let off = crate::memory::ptr_offset_from(p, tag_fname) as usize;
                 retval[..off].copy_from_slice(crate::memory::cstr_slice(tag_fname, off));
                 crate::memory::copy_bytes_to_c_buf(&mut retval[off..], fname.as_bytes());
-                simplify_filename(retval.as_mut_ptr().cast());
+                simplify_filename(crate::memory::cstr_as_mut_bytes(retval.as_mut_ptr().cast()));
                 return crate::memory::cstr_to_cstring(retval.as_ptr().cast());
             }
         }
@@ -3165,8 +3171,8 @@ fn test_for_current(
             std::ffi::CString::new(crate::memory::bytes_until_nul(fname)).unwrap_or_default();
         let fullname = expand_tag_fname(&fname_cstr, tag_fname, true);
         retval = path_equal(
-            fullname.as_ptr(),
-            buf_ffname.as_ptr(),
+            &fullname,
+            buf_ffname,
             (K_PATH_CMP_EXPAND | K_PATH_CMP_FULL) as PathCmpFlags,
         );
     }
