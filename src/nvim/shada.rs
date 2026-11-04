@@ -1707,11 +1707,7 @@ fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
                 file = Some(shada_get_default_file());
             }
             let name_buff_ptr = g_st().name_buff.as_mut_ptr();
-            let len = expand_env(
-                file.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                name_buff_ptr,
-                MAXPATHL as i32,
-            );
+            let len = expand_env(file.unwrap_or(c""), g_st().name_buff_bytes_mut());
             return Some(
                 std::ffi::CString::new(crate::memory::cstr_slice(name_buff_ptr, len))
                     .unwrap_or_default(),
@@ -3132,7 +3128,7 @@ fn shada_open_tmp(
             return None;
         }
         let mut info = FileInfo::new();
-        if os_fileinfo_link(tempname_bytes.as_ptr().cast(), &mut info)
+        if os_fileinfo_link(crate::memory::cstr_until_nul(&tempname_bytes), &mut info)
             && (oldest == 0 || info.stat.st_mtim.tv_sec < oldest_mtime)
         {
             oldest = c;
@@ -3141,7 +3137,7 @@ fn shada_open_tmp(
     }
     if oldest != 0 {
         tempname_bytes[last_idx] = oldest;
-        if os_remove(tempname_bytes.as_ptr().cast()) == 0
+        if os_remove(crate::memory::cstr_until_nul(&tempname_bytes)) == 0
             && file_open(
                 sd_writer,
                 CStr::from_bytes_with_nul(&tempname_bytes).ok(),
@@ -3195,13 +3191,13 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         }
     }
 
-    let mut perm = os_getperm(fname.cast());
+    let mut perm = os_getperm(crate::memory::cstr_from_ptr(fname.cast()));
     perm = if perm >= 0 {
         (perm & 0o777) | 0o600
     } else {
         0o600
     };
-    let tempname_opt = if os_file_mkdir(fname.cast(), 0o700) == 0 {
+    let tempname_opt = if os_file_mkdir(crate::memory::cstr_from_ptr(fname.cast()), 0o700) == 0 {
         shada_open_tmp(&fname_bytes, &mut sd_writer, perm)
     } else {
         None
@@ -3252,7 +3248,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
         #[cfg(not(unix))]
         let unix_not_writable = |_info: &FileInfo| -> bool { false };
 
-        if os_fileinfo(fname, &mut old_info) {
+        if os_fileinfo(crate::memory::cstr_from_ptr((fname).cast()), &mut old_info) {
             if (old_info.stat.st_mode & S_IFMT) == S_IFDIR || unix_not_writable(&old_info) {
                 semsg!(gettext(c"E137: ShaDa file is not writable: %s"), fname,);
                 can_rename = false;
@@ -3291,7 +3287,7 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
                 );
             } else {
                 did_remove = true;
-                os_remove(tempname);
+                os_remove(crate::memory::cstr_from_ptr((tempname).cast()));
             }
         }
     } else if sw_ret == ShaDaWriteResult::SDWriteReadNotShada {
@@ -4067,7 +4063,7 @@ fn shada_read_next_item(
 fn shada_removable(name: &CStr) -> bool {
     let mut part = [0u8; MAXPATHL + 1];
     let mut retval = false;
-    let new_name = home_replace_save(None, name.as_ptr());
+    let new_name = home_replace_save(None, Some(name));
     let mut p = crate::memory::cstr_as_bytes(opt_vars().p_shada);
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
@@ -4075,9 +4071,8 @@ fn shada_removable(name: &CStr) -> bool {
             let name_buff_ptr = g_st().name_buff.as_mut_ptr();
             let n = home_replace(
                 None,
-                part.as_ptr().wrapping_add(1).cast(),
-                name_buff_ptr,
-                MAXPATHL,
+                Some(crate::memory::cstr_until_nul(&part[1..])),
+                g_st().name_buff_bytes_mut(),
                 true,
             );
             if mb_strnicmp(name_buff_ptr, new_name.as_ptr(), n) == 0 {

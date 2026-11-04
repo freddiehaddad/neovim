@@ -974,7 +974,9 @@ fn runtime_get_named_common(
             if item.has_lua == K_NONE {
                 let size =
                     vim_snprintf!(buf.cast(), buf_len, c"%s/lua/", item.path.as_ptr()) as usize;
-                item.has_lua = TriState::from(size < buf_len && os_isdir(buf.cast()));
+                item.has_lua = TriState::from(
+                    size < buf_len && os_isdir(crate::memory::cstr_from_ptr(buf.cast())),
+                );
             }
             if item.has_lua == K_FALSE {
                 continue;
@@ -991,7 +993,7 @@ fn runtime_get_named_common(
                     item.path.as_ptr(),
                     pat_item.data.string().data,
                 ) as usize;
-                if size < buf_len && os_file_is_readable(buf.cast()) {
+                if size < buf_len && os_file_is_readable(crate::memory::cstr_from_ptr(buf.cast())) {
                     to_slash(buf.cast());
                     let astr = arena_string_opt(
                         arena.as_deref_mut(),
@@ -1438,7 +1440,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let afterdir_has_entries = if is_pack {
             pack_has_entries(&ad)
         } else {
-            os_isdir(afterdir.data)
+            os_isdir(crate::memory::cstr_from_ptr((afterdir.data).cast()))
         };
         afterdir_cstr = Some(ad);
         if !afterdir_has_entries {
@@ -2164,7 +2166,7 @@ fn add_dir(
 
 pub fn get_lib_dir() -> Option<std::ffi::CString> {
     let dld = default_lib_dir();
-    if !dld.to_bytes().is_empty() && os_isdir(dld.as_ptr().cast_mut()) {
+    if !dld.to_bytes().is_empty() && os_isdir(dld) {
         return Some(dld.to_owned());
     }
 
@@ -2406,7 +2408,7 @@ pub fn ex_options(_eap: &mut Exarg) {
     add_win_cmd_modifiers(&mut buf, &g_st().cmdmod, &mut multi_mods);
     buf.push(0);
 
-    os_setenv(c"OPTWIN_CMD", buf.as_ptr().cast(), 1);
+    os_setenv(c"OPTWIN_CMD", crate::memory::cstr_until_nul(&buf), 1);
     cmd_source(c"$VIMRUNTIME/scripts/optwin.lua", None);
 }
 
@@ -2424,9 +2426,9 @@ pub fn source_level(sp: &mut SourceCookie) -> i32 {
 
 fn fopen_noinh_readbin(filename: &std::ffi::CStr) -> Option<crate::os::fs::CFile> {
     #[cfg(windows)]
-    let fd_tmp = os_open(filename.as_ptr(), O_RDONLY | O_BINARY | O_NOINHERIT, 0);
+    let fd_tmp = os_open(filename, O_RDONLY | O_BINARY | O_NOINHERIT, 0);
     #[cfg(not(windows))]
-    let fd_tmp = os_open(filename.as_ptr(), O_RDONLY, 0);
+    let fd_tmp = os_open(filename, O_RDONLY, 0);
 
     if fd_tmp < 0 {
         return None;
@@ -2594,11 +2596,11 @@ fn do_source_ext(
             do_source_str_init(&mut cookie, str_cstr);
             fname_cstr.to_owned()
         } else {
-            let p = expand_env_save(fname);
+            let p = expand_env_save(crate::memory::cstr_from_ptr((fname).cast()));
             let Some(fe) = fix_fname(p.as_ptr()) else {
                 return retval;
             };
-            if os_isdir(fe.as_ptr()) {
+            if os_isdir(&fe) {
                 smsg!(0, gettext(c"Cannot source a directory: \"%s\""), fname,);
                 return retval;
             }
@@ -2988,7 +2990,10 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                     .name_cstr()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             } else {
-                expand_env(eap.arg, namebuff, MAXPATHL as i32);
+                expand_env(
+                    crate::memory::cstr_from_ptr(eap.arg),
+                    g_st().name_buff_bytes_mut(),
+                );
                 eap.arg = namebuff;
                 to_slash(eap.arg.cast());
             }
@@ -3002,7 +3007,12 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
     while i <= script_items_len() && !g_st().got_int {
         let si = script_item(i);
         if let Some(ref sn) = si.sn_name {
-            home_replace(None, sn.as_ptr(), namebuff, MAXPATHL, true);
+            home_replace(
+                None,
+                crate::memory::cstr_as_opt_cstr((sn.as_ptr()).cast()),
+                g_st().name_buff_bytes_mut(),
+                true,
+            );
             vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
             if !message_filtered(crate::memory::cstr_until_nul(g_st().iobuff_bytes())) {
                 if g_st().msg_col > 0 {
@@ -3046,7 +3056,7 @@ pub fn get_scriptname(script_ctx: Sctx, home_replace: bool) -> std::borrow::Cow<
             _ => {
                 if let Some(sname) = script_item(script_ctx.sc_sid).name_cstr() {
                     if home_replace {
-                        return Cow::Owned(home_replace_save(None, sname.as_ptr()));
+                        return Cow::Owned(home_replace_save(None, Some(sname)));
                     } else {
                         return Cow::Borrowed(sname);
                     }

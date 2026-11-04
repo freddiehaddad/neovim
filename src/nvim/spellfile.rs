@@ -476,7 +476,7 @@ pub fn spell_load_file(
     silent: bool,
 ) -> Option<&'static mut Slang> {
     let fname = fname_cstr.as_ptr();
-    let Some(fd) = CFile::open(fname, c"r") else {
+    let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"r") else {
         if !silent {
             semsg!(gettext(E_NOTOPEN), fname);
         } else if opt_vars().p_verbose > 2 {
@@ -800,7 +800,7 @@ pub fn suggest_load_files() {
             sug_bytes.extend_from_slice(b".sug");
             let sug_fname = std::ffi::CString::new(sug_bytes).unwrap();
             let sug_ptr = sug_fname.as_ptr();
-            if let Some(fd) = CFile::open(sug_ptr, c"r") {
+            if let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((sug_ptr).cast()), c"r") {
                 let mut ok = true;
                 for slot in buf.iter_mut().take(VIMSUGMAGICL) {
                     *slot = spell_getc(&fd) as u8;
@@ -1659,7 +1659,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     let mut sofofrom: Option<std::ffi::CString> = None;
     let mut sofoto: Option<std::ffi::CString> = None;
 
-    let Some(fd) = CFile::open(fname, c"r") else {
+    let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"r") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return None;
     };
@@ -2767,7 +2767,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     let mut duplicate: i32 = 0;
     let mut last_msg_time: Timestamp = 0;
 
-    let Some(fd) = CFile::open(fname, c"r") else {
+    let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"r") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return false;
     };
@@ -3364,7 +3364,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
         let mut did_word = false;
         let mut non_ascii: i32 = 0;
 
-        let Some(fd) = CFile::open(fname, c"r") else {
+        let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"r") else {
             semsg!(gettext(E_NOTOPEN), fname);
             return false;
         };
@@ -3980,7 +3980,7 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
     let fname = fname_cstr.as_ptr();
     let mut retval = true;
 
-    let Some(fd) = CFile::open(fname, c"w") else {
+    let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"w") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return false;
     };
@@ -4672,7 +4672,7 @@ fn offset2bytes(nr: i32, buf: &mut [u8; 8]) -> i32 {
 
 fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     let fname = fname_cstr.as_ptr();
-    let Some(fd) = CFile::open(fname, c"w") else {
+    let Some(fd) = CFile::open(crate::memory::cstr_from_ptr((fname).cast()), c"w") else {
         semsg!(gettext(E_NOTOPEN), fname);
         return;
     };
@@ -4823,9 +4823,9 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             gettext(c"E754: Only up to %d regions supported"),
             MAXREGIONS as i32,
         );
-    } else if !over_write && os_path_exists(wfname.cast()) {
+    } else if !over_write && os_path_exists(crate::memory::cstr_from_ptr(wfname.cast())) {
         emsg(gettext(E_EXISTS));
-    } else if os_isdir(wfname.cast()) {
+    } else if os_isdir(crate::memory::cstr_from_ptr(wfname.cast())) {
         semsg!(gettext(E_ISADIR2), wfname.cast::<std::ffi::c_void>(),);
     } else {
         let fname = fname_buf.as_mut_ptr();
@@ -4865,7 +4865,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 spin.si_region = 1 << i;
 
                 vim_snprintf!(fname.cast(), MAXPATHL, c"%s.aff", in_i);
-                if os_path_exists(fname.cast()) {
+                if os_path_exists(crate::memory::cstr_from_ptr(fname.cast())) {
                     afile[i] = spell_read_aff(&mut spin, crate::memory::cstr_until_nul(&fname_buf));
                     if let Some(ref aff) = afile[i] {
                         vim_snprintf!(fname.cast(), MAXPATHL, c"%s.dic", in_i);
@@ -5046,7 +5046,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
     let mut did_open = false;
     if what == SPELL_ADD_BAD || undo {
         let mut fpos_next: i64 = 0;
-        let mut fd = CFile::open(fname.cast(), c"r");
+        let mut fd = CFile::open(crate::memory::cstr_from_ptr(fname.cast()), c"r");
         did_open = fd.is_some();
         let ulen = word_bytes.len();
         while let Some(ref cur_fd) = fd
@@ -5063,7 +5063,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                 && (line[ulen] == b'/' || line[ulen] < b' ')
             {
                 drop(fd.take());
-                fd = CFile::open(fname.cast(), c"r+");
+                fd = CFile::open(crate::memory::cstr_from_ptr(fname.cast()), c"r+");
                 did_open = fd.is_some();
                 let Some(ref rw_fd) = fd else {
                     break;
@@ -5073,9 +5073,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                     if undo {
                         home_replace(
                             None,
-                            fname.cast(),
-                            g_st().name_buff.as_mut_ptr(),
-                            MAXPATHL,
+                            crate::memory::cstr_as_opt_cstr(fname.cast()),
+                            g_st().name_buff_bytes_mut(),
                             true,
                         );
                         let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
@@ -5102,7 +5101,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
     }
 
     if !undo {
-        let mut fd = CFile::open(fname.cast(), c"a");
+        let mut fd = CFile::open(crate::memory::cstr_from_ptr(fname.cast()), c"a");
         if fd.is_none() && new_spf && !dir_of_file_exists(fname.cast()) {
             let p = path_tail_with_sep(fname.cast());
             if p != fname.cast() {
@@ -5111,8 +5110,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
                     fname.cast(),
                     dir_len,
                 ));
-                os_mkdir(dir_cstr.as_ptr(), 0o755);
-                fd = CFile::open(fname.cast(), c"a");
+                os_mkdir(&dir_cstr, 0o755);
+                fd = CFile::open(crate::memory::cstr_from_ptr(fname.cast()), c"a");
             }
         }
 
@@ -5130,9 +5129,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
 
             home_replace(
                 None,
-                fname.cast(),
-                g_st().name_buff.as_mut_ptr(),
-                MAXPATHL,
+                crate::memory::cstr_as_opt_cstr(fname.cast()),
+                g_st().name_buff_bytes_mut(),
                 true,
             );
             let word_cstr = crate::memory::cstr_from_bytes(word_bytes);
@@ -5196,7 +5194,13 @@ fn init_spellfile() {
         crate::memory::append_bytes_to_c_buf(&mut buf_arr, b"/site/spell");
 
         let mut failed_dir: Option<std::ffi::CString> = None;
-        if os_mkdir_recurse(buf.cast(), 0o755, &mut failed_dir, None) != 0 {
+        if os_mkdir_recurse(
+            crate::memory::cstr_from_ptr(buf.cast()),
+            0o755,
+            &mut failed_dir,
+            None,
+        ) != 0
+        {
             return;
         }
     } else {

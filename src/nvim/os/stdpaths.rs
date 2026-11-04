@@ -75,8 +75,8 @@ pub fn get_appname(namelike: bool) -> &'static CStr {
     let name_buff = unsafe {
         std::slice::from_raw_parts_mut(g_st().name_buff.as_mut_ptr().cast::<u8>(), MAXPATHL)
     };
-    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff.as_mut_ptr(), MAXPATHL);
-    if env_val.is_null() {
+    let env_val = os_getenv_buf(c"NVIM_APPNAME", name_buff);
+    if env_val.is_none() {
         name_buff[..5].copy_from_slice(b"nvim\0");
     }
     #[cfg(windows)]
@@ -149,18 +149,18 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     let env = XDG_ENV_VARS[i].as_ptr();
     let fallback = XDG_DEFAULTS[i];
 
-    let mut env_val = os_getenv_cstr(env);
+    let mut env_val = os_getenv_cstr(crate::memory::cstr_from_ptr((env).cast()));
 
     #[cfg(target_os = "windows")]
     {
         if env_val.is_none()
             && let Some(def_env) = XDG_DEFAULTS_ENV_VARS[i]
         {
-            env_val = os_getenv_cstr(def_env.as_ptr());
+            env_val = os_getenv_cstr(def_env);
         }
         if let Some(ref ev) = env_val
             && idx == XDGVarType::XDGCacheHome
-            && let Some(real_path) = os_realpath_cstr(ev.as_ptr(), MAXPATHL)
+            && let Some(real_path) = os_realpath_cstr(ev, MAXPATHL)
         {
             env_val = Some(real_path);
         }
@@ -168,7 +168,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
 
     #[cfg(not(target_os = "windows"))]
     {
-        if env_val.is_none() && os_env_exists(env, false) {
+        if env_val.is_none() && os_env_exists(crate::memory::cstr_from_ptr(env), false) {
             env_val = Some(CString::default());
         }
     }
@@ -181,7 +181,7 @@ pub fn stdpaths_get_xdg_var(idx: XDGVarType) -> Option<CString> {
     let mut ret: Option<CString> = if env_val.is_some() {
         env_val
     } else if let Some(fb) = fallback {
-        Some(expand_env_save(fb.as_ptr().cast_mut()))
+        Some(expand_env_save(fb))
     } else if idx == XDGVarType::XDGRuntimeDir {
         let raw = vim_gettempdir().map_or(b"/tmp/" as &[u8], |s| s.to_bytes());
         let trimmed_len = if raw.len() >= 2 { raw.len() - 1 } else { 0 };

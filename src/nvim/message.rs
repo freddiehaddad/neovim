@@ -2177,7 +2177,7 @@ pub fn msg_home_replace(fname: Option<&std::ffi::CStr>) {
 }
 
 fn msg_home_replace_hl(fname: Option<&std::ffi::CStr>, hl_id: i32) {
-    let name = home_replace_save(None, fname.map_or(ptr::null(), std::ffi::CStr::as_ptr));
+    let name = home_replace_save(None, fname);
     msg_outtrans(name.as_c_str(), hl_id, false);
 }
 
@@ -4052,7 +4052,10 @@ pub fn verbose_open() -> bool {
     if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
         msg_st().verbose_did_open = true;
 
-        msg_st().verbose_fd = CFile::open(opt_vars().p_vfile, c"a");
+        msg_st().verbose_fd = CFile::open(
+            crate::memory::cstr_from_ptr((opt_vars().p_vfile).cast()),
+            c"a",
+        );
         if msg_st().verbose_fd.is_none() {
             semsg!(gettext(E_NOTOPEN), opt_vars().p_vfile);
             return false;

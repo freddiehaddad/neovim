@@ -342,7 +342,7 @@ pub fn os_icon_init() {
     if let Some(vimruntime) = os_getenv_cstr(c"VIMRUNTIME") {
         let namebuff = std::ptr::addr_of_mut!(g_st().name_buff).cast();
         vim_snprintf!(namebuff, MAXPATHL, c"%s/neovim.ico", vimruntime.as_ptr());
-        if !os_path_exists(namebuff) {
+        if !os_path_exists(crate::memory::cstr_from_ptr((namebuff).cast())) {
             logmsg!(
                 LOGLVL_WRN,
                 None,
@@ -401,9 +401,8 @@ pub fn os_title_reset() {
 pub fn os_tty_guess_term(out_fd: i32) -> &'static std::ffi::CStr {
     unsafe {
         let mut conemu_buf = [0u8; 16];
-        let conemu_env = os_getenv_buf(c"ConEmuANSI", conemu_buf.as_mut_ptr(), conemu_buf.len());
-        let conemu_ansi =
-            !conemu_env.is_null() && crate::memory::cstr_as_bytes(conemu_env.cast()) == b"ON";
+        let conemu_env = os_getenv_buf(c"ConEmuANSI", &mut conemu_buf);
+        let conemu_ansi = conemu_env.map(std::ffi::CStr::to_bytes) == Some(b"ON");
         let mut vtp = false;
 
         let handle = _get_osfhandle(out_fd) as HANDLE;

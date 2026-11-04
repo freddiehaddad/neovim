@@ -362,7 +362,7 @@ pub fn freopen(filename: &CStr, mode: &CStr, stream: &crate::os::fs::CFile) -> b
         c_freopen(
             filename.as_ptr().cast(),
             mode.as_ptr().cast(),
-            stream.as_ptr().cast(),
+            stream.as_nonnull().as_ptr().cast(),
         )
     }
     .is_null()
@@ -1194,7 +1194,7 @@ pub fn readfile(
             }
 
             if !read_stdin && !fname.is_null() {
-                perm = os_getperm(fname.cast());
+                perm = os_getperm(crate::memory::cstr_from_ptr(fname.cast()));
             }
 
             #[cfg(any(
@@ -1255,7 +1255,7 @@ pub fn readfile(
             }
 
             if newfile && !read_stdin && !read_buffer && !read_fifo {
-                if os_fileinfo(fname.cast(), &mut file_info) {
+                if os_fileinfo(crate::memory::cstr_from_ptr(fname.cast()), &mut file_info) {
                     buf_store_file_info(curbuf_mut(), &mut file_info);
                     curbuf_mut().b_mtime_read = curbuf_mut().b_mtime;
                     curbuf_mut().b_mtime_read_ns = curbuf_mut().b_mtime_ns;
@@ -1280,11 +1280,11 @@ pub fn readfile(
                 if !newfile
                     || g_st().readonlymode
                     || (perm & 0o222) == 0
-                    || os_file_is_writable(fname.cast()) == 0
+                    || os_file_is_writable(crate::memory::cstr_from_ptr(fname.cast())) == 0
                 {
                     file_readonly = true;
                 }
-                fd = os_open(fname.cast(), O_RDONLY, 0);
+                fd = os_open(crate::memory::cstr_from_ptr(fname.cast()), O_RDONLY, 0);
             }
 
             if fd < 0 {
@@ -1396,10 +1396,10 @@ pub fn readfile(
                         && !mfp.is_null()
                         && let Some(ref swap_fname) = *unsafe { &(*mfp).mf_fname }
                     {
-                        let swap_fname = swap_fname.as_ptr();
+                        let swap_cstr = swap_fname.as_c_str();
                         if (swap_mode & 0o44) == 0o40 {
                             let mut swap_info: FileInfo = FileInfo::new();
-                            if os_fileinfo(swap_fname, &mut swap_info)
+                            if os_fileinfo(swap_cstr, &mut swap_info)
                                 && file_info.stat.st_gid != swap_info.stat.st_gid
                                 && os_fchown(
                                     unsafe { (*mfp).mf_fd },
@@ -1410,7 +1410,7 @@ pub fn readfile(
                                 swap_mode &= 0o600;
                             }
                         }
-                        os_setperm(swap_fname, swap_mode);
+                        os_setperm(swap_cstr, swap_mode);
                     }
                 }
             }
@@ -1501,7 +1501,7 @@ pub fn readfile(
                         || (using_b_ffname && old_b_ffname != curbuf_mut().b_ffname)
                         || (using_b_fname && old_b_fname != curbuf_mut().b_fname)
                         || {
-                            fd = os_open(fname.cast(), O_RDONLY, 0);
+                            fd = os_open(crate::memory::cstr_from_ptr(fname.cast()), O_RDONLY, 0);
                             fd < 0
                         })
                 {
@@ -1640,7 +1640,7 @@ pub fn readfile(
                         fenc = c"".as_ptr().cast_mut().cast();
                     }
                     if let Some(ref tn) = tmpname {
-                        os_remove(tn.as_ptr());
+                        os_remove(tn);
                         tmpname = None;
                     }
                 }
@@ -2612,7 +2612,7 @@ pub fn readfile(
             }
 
             if let Some(ref tn) = tmpname {
-                os_remove(tn.as_ptr());
+                os_remove(tn);
             }
             g_st().no_wait_return -= 1;
 
@@ -3083,7 +3083,7 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
                 errmsg = Some(tr(c"Conversion with 'charconvert' failed"));
             }
             if errmsg.is_none() {
-                *fdp = os_open(tn.as_ptr(), O_RDONLY, 0);
+                *fdp = os_open(tn, O_RDONLY, 0);
                 if *fdp < 0 {
                     errmsg = Some(tr(c"can't read output of 'charconvert'"));
                 }
@@ -3094,13 +3094,13 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
     if let Some(errmsg) = errmsg {
         msg(errmsg, 0);
         if let Some(ref tn) = tmpname {
-            os_remove(tn.as_ptr());
+            os_remove(tn);
             tmpname = None;
         }
     }
 
     if *fdp < 0 {
-        *fdp = os_open(fname.as_ptr(), O_RDONLY, 0);
+        *fdp = os_open(fname, O_RDONLY, 0);
     }
 
     tmpname
@@ -3157,11 +3157,11 @@ pub fn add_quoted_fname(ret_buf: &mut [u8], buf: Option<&FileBuf>, fname: Option
     let bufsize = ret_buf.len();
     ret_buf[0] = b'"';
     let mut len: usize = 1;
+    let max_len = bufsize.saturating_sub(4);
     len += home_replace(
         buf,
-        fname_cstr.as_ptr(),
-        ret_buf[len..].as_mut_ptr(),
-        bufsize.saturating_sub(4),
+        Some(fname_cstr),
+        &mut ret_buf[len..max_len.max(len)],
         true,
     );
     crate::memory::copy_bytes_to_c_buf(&mut ret_buf[len..], b"\" ");
@@ -3387,7 +3387,7 @@ pub fn shorten_fnames(force: i32) {
     let mut dirname: [u8; MAXPATHL] = [0; MAXPATHL];
     let mut changed = false;
 
-    os_dirname(dirname.as_mut_ptr(), MAXPATHL);
+    os_dirname(&mut dirname);
     let dirname_cstr = crate::memory::cstr_until_nul(&dirname);
     for buf in for_all_buffers_mut() {
         changed |= shorten_buf_fname(buf, dirname_cstr, force);
@@ -3414,7 +3414,7 @@ pub fn modname(
 
     if fname_bytes.is_empty() {
         retval_vec = vec![0; MAXPATHL + extlen + 3];
-        if !os_dirname(retval_vec.as_mut_ptr(), MAXPATHL) || retval_vec[0] == 0 {
+        if !os_dirname(&mut retval_vec) || retval_vec[0] == 0 {
             return None;
         }
         add_pathsep(retval_vec.as_mut_ptr().cast());
@@ -3620,7 +3620,6 @@ pub fn put_time(fd: &crate::os::fs::CFile, time_: time_t) -> bool {
 fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     let from_bytes = from.to_bytes();
     let from_ptr = from.as_ptr();
-    let to_ptr = to.as_ptr();
     if from_bytes.len() >= MAXPATHL - 5 {
         return -1;
     }
@@ -3633,12 +3632,13 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
             - crate::memory::ptr_offset_from(tail, tempname.as_ptr().cast()) as usize;
         vim_snprintf!(tail, rem, c"%d", n);
 
-        if !os_path_exists(tempname.as_ptr().cast()) {
-            if os_rename(from_ptr, tempname.as_ptr().cast()) {
-                if os_rename(tempname.as_ptr().cast(), to_ptr) {
+        let temp_cstr = crate::memory::cstr_until_nul(&tempname);
+        if !os_path_exists(temp_cstr) {
+            if os_rename(from, temp_cstr) {
+                if os_rename(temp_cstr, to) {
                     return 0;
                 }
-                if !os_rename(tempname.as_ptr().cast(), from_ptr) {
+                if !os_rename(temp_cstr, from) {
                     logmsg!(
                         LOG_ERR,
                         None,
@@ -3676,12 +3676,12 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
     }
 
     let mut from_info: FileInfo = FileInfo::new();
-    if !os_fileinfo(from_ptr, &mut from_info) {
+    if !os_fileinfo(from, &mut from_info) {
         return -1;
     }
 
     let mut to_info: FileInfo = FileInfo::new();
-    if os_fileinfo(to_ptr, &mut to_info) && os_fileinfo_id_equal(&from_info, &to_info) {
+    if os_fileinfo(to, &mut to_info) && os_fileinfo_id_equal(&from_info, &to_info) {
         use_tmp_file = true;
     }
 
@@ -3689,11 +3689,11 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
         return rename_with_tmp(from, to);
     }
 
-    if os_rename(from_ptr, to_ptr) {
+    if os_rename(from, to) {
         return 0;
     }
 
-    if os_remove(to_ptr) == 0 && os_rename(from_ptr, to_ptr) {
+    if os_remove(to) == 0 && os_rename(from, to) {
         return 0;
     }
 
@@ -3701,8 +3701,8 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
         return -1;
     }
 
-    if os_fileinfo(from_ptr, &mut from_info) {
-        os_remove(from_ptr);
+    if os_fileinfo(from, &mut from_info) {
+        os_remove(from);
     }
 
     0
@@ -3710,12 +3710,12 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
 
 /// Create the new file with same permissions as the original.
 pub fn vim_copyfile(from: &CStr, to: &CStr) -> bool {
-    let from_ptr = from.as_ptr();
-    let to_ptr = to.as_ptr();
     #[cfg(not(windows))]
     {
+        let from_ptr = from.as_ptr();
+        let to_ptr = to.as_ptr();
         let mut from_info: FileInfo = FileInfo::new();
-        if os_fileinfo_link(from_ptr, &mut from_info) && s_islnk(from_info.stat.st_mode) {
+        if os_fileinfo_link(from, &mut from_info) && s_islnk(from_info.stat.st_mode) {
             let mut ret = -1;
             let mut linkbuf: [u8; MAXPATHL + 1] = [0; MAXPATHL + 1];
             let len = unsafe { readlink(from_ptr.cast(), linkbuf.as_mut_ptr(), MAXPATHL) };
@@ -3727,14 +3727,14 @@ pub fn vim_copyfile(from: &CStr, to: &CStr) -> bool {
         }
     }
 
-    let acl: VimAcl = os_get_acl(from_ptr);
+    let acl: VimAcl = os_get_acl(from);
 
-    if os_copy(from_ptr, to_ptr, UV_FS_COPYFILE_EXCL) != 0 {
+    if os_copy(from, to, UV_FS_COPYFILE_EXCL) != 0 {
         os_free_acl(acl);
         return false;
     }
 
-    os_set_acl(to_ptr, acl);
+    os_set_acl(to, acl);
     os_free_acl(acl);
 
     true
@@ -3855,7 +3855,10 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     if (buf.b_flags & BF_NOTEDITED) == 0
         && buf.b_mtime != 0
         && ({
-            file_info_ok = os_fileinfo(buf.b_ffname, &mut file_info);
+            file_info_ok = os_fileinfo(
+                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                &mut file_info,
+            );
             !file_info_ok
                 || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
                 || (file_info.stat.st_mode as i32) != buf.b_orig_mode
@@ -3873,7 +3876,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             buf_store_file_info(&mut *buf, &mut file_info);
         }
 
-        if os_isdir(buf.b_fname) {
+        if os_isdir(crate::memory::cstr_from_ptr((buf.b_fname).cast())) {
             // Don't do anything for a directory.
         } else if (if buf.b_p_ar >= 0 {
             buf.b_p_ar
@@ -3960,7 +3963,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         }
     } else if (buf.b_flags & BF_NEW) != 0
         && (buf.b_flags & BF_NEW_W) == 0
-        && os_path_exists(buf.b_ffname)
+        && os_path_exists(crate::memory::cstr_from_ptr((buf.b_ffname).cast()))
     {
         retval = 1;
         mesg = Some(tr(
@@ -3971,7 +3974,10 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if let Some(mesg) = mesg {
-        let path = home_replace_save(Some(buf), buf.b_fname);
+        let path = home_replace_save(
+            Some(buf),
+            crate::memory::cstr_as_opt_cstr((buf.b_fname).cast()),
+        );
         if !helpmesg {
             mesg2 = c"";
         }
@@ -4231,12 +4237,8 @@ fn vim_mktempdir() {
 
     let umask_save = call_umask(0o077);
     for temp_dir in TEMP_DIRS {
-        let mut tmplen = expand_env(
-            temp_dir.as_ptr().cast_mut(),
-            tmp.as_mut_ptr(),
-            (TEMP_FILE_PATH_MAXLEN - 64) as i32,
-        );
-        if !os_isdir(tmp.as_ptr().cast()) {
+        let mut tmplen = expand_env(temp_dir, &mut tmp[..TEMP_FILE_PATH_MAXLEN - 64]);
+        if !os_isdir(crate::memory::cstr_until_nul(&tmp)) {
             if crate::memory::cstr_as_opt_bytes(temp_dir.as_ptr()) == Some(b"$TMPDIR") {
                 if !os_env_exists(c"TMPDIR", true) {
                     logmsg!(
@@ -4282,11 +4284,11 @@ fn vim_mktempdir() {
             user.as_ptr(),
         ) as usize;
         debug_assert!(tmplen < tmp.len());
-        os_mkdir(tmp.as_ptr().cast(), 0o700);
-        let owned = os_file_owned(tmp.as_ptr().cast());
-        let isdir = os_isdir(tmp.as_ptr().cast());
+        os_mkdir(crate::memory::cstr_until_nul(&tmp), 0o700);
+        let owned = os_file_owned(crate::memory::cstr_until_nul(&tmp));
+        let isdir = os_isdir(crate::memory::cstr_until_nul(&tmp));
         #[cfg(unix)]
-        let perm = os_getperm(tmp.as_ptr().cast());
+        let perm = os_getperm(crate::memory::cstr_until_nul(&tmp));
         #[cfg(unix)]
         let valid = isdir && owned && 0o700 == (perm & 0o777);
         #[cfg(not(unix))]
@@ -4352,7 +4354,7 @@ fn vim_mktempdir() {
         ) as usize;
         debug_assert!(tmplen < tmp.len());
         let _ = tmplen;
-        let r = os_mkdtemp(tmp.as_ptr().cast(), &mut path);
+        let r = os_mkdtemp(crate::memory::cstr_until_nul(&tmp), &mut path);
         if r != 0 {
             logmsg!(
                 LOG_WARN,
@@ -4370,7 +4372,7 @@ fn vim_mktempdir() {
         if vim_settempdir(crate::memory::cstr_until_nul(&path)) {
             break;
         }
-        os_rmdir(path.as_ptr().cast());
+        os_rmdir(crate::memory::cstr_until_nul(&path));
     }
     call_umask(umask_save);
 }
@@ -4385,12 +4387,12 @@ pub fn readdir_core(
     entries.clear();
 
     let mut dir = Directory::new();
-    if !os_scandir(&mut dir, path_ptr) {
+    if !os_scandir(&mut dir, crate::memory::cstr_from_ptr((path_ptr).cast())) {
         smsg!(0, tr(E_NOTOPEN), path_ptr);
         return false;
     }
 
-    while let Some(p) = os_scandir_next(&raw mut dir) {
+    while let Some(p) = os_scandir_next(&mut dir) {
         let p_bytes = p.to_bytes();
 
         let mut ignore = p_bytes == b"." || p_bytes == b"..";
@@ -4420,7 +4422,7 @@ pub fn readdir_core(
 pub fn delete_recursive(name: &CStr) -> i32 {
     let mut result: i32 = 0;
 
-    if os_isrealdir(name.as_ptr()) {
+    if os_isrealdir(name) {
         let exp = name.to_owned();
         let mut entries: Vec<std::ffi::CString> = Vec::new();
         if readdir_core(&mut entries, &exp, None) {
@@ -4440,14 +4442,14 @@ pub fn delete_recursive(name: &CStr) -> i32 {
                 }
             }
             drop(entries);
-            if os_rmdir(exp.as_ptr()) != 0 {
+            if os_rmdir(&exp) != 0 {
                 result = -1;
             }
         } else {
             result = -1;
         }
     } else {
-        result = if os_remove(name.as_ptr()) == 0 { 0 } else { -1 };
+        result = if os_remove(name) == 0 { 0 } else { -1 };
     }
 
     result
@@ -4503,11 +4505,7 @@ pub fn vim_deltempdir() {
 
 /// Gets path to Nvim's own temp dir (ending with slash).
 pub fn vim_gettempdir() -> Option<&'static CStr> {
-    if fio_st()
-        .vim_tempdir
-        .as_ref()
-        .is_none_or(|td| !os_isdir(td.as_ptr()))
-    {
+    if fio_st().vim_tempdir.as_ref().is_none_or(|td| !os_isdir(td)) {
         if let Some(current_td) = fio_st().vim_tempdir.take() {
             fio_st().notfound += 1;
             if fio_st().notfound == 1 {
@@ -4830,7 +4828,7 @@ pub fn vim_fprintf_fmt(
     fmt: &CStr,
     args: &[crate::strings::FmtVal],
 ) -> i32 {
-    let stream = stream_file.as_ptr();
+    let stream = stream_file.as_nonnull().as_ptr();
     let fmt_bytes = fmt.to_bytes();
     if args.is_empty() && !fmt_bytes.contains(&b'%') {
         if fmt_bytes.is_empty() {

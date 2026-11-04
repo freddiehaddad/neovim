@@ -3047,11 +3047,11 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     if crate::memory::cstr_is_empty(s) {
         s = unsafe { setlocale(LC_CTYPE, ptr::null()) }.cast();
         if crate::memory::cstr_is_empty(s) {
-            s = os_getenv_buf(c"LC_ALL", env_buf.as_mut_ptr().cast(), env_buf.len());
+            s = os_getenv_buf(c"LC_ALL", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
             if s.is_null() {
-                s = os_getenv_buf(c"LC_CTYPE", env_buf.as_mut_ptr().cast(), env_buf.len());
+                s = os_getenv_buf(c"LC_CTYPE", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
                 if s.is_null() {
-                    s = os_getenv_buf(c"LANG", env_buf.as_mut_ptr().cast(), env_buf.len());
+                    s = os_getenv_buf(c"LANG", &mut env_buf).map_or(ptr::null(), CStr::as_ptr);
                 }
             }
         }

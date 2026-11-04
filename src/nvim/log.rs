@@ -81,7 +81,7 @@ pub fn log_get_stdout() -> CFile {
     let fp = unsafe { __acrt_iob_func(1) };
     #[cfg(not(windows))]
     let fp = unsafe { C_STDOUT };
-    CFile::from_std_stream(fp)
+    CFile::from_std_stream(unsafe { std::ptr::NonNull::new_unchecked(fp) })
 }
 
 pub fn log_get_stderr() -> CFile {
@@ -89,7 +89,7 @@ pub fn log_get_stderr() -> CFile {
     let fp = unsafe { __acrt_iob_func(2) };
     #[cfg(not(windows))]
     let fp = unsafe { C_STDERR };
-    CFile::from_std_stream(fp)
+    CFile::from_std_stream(unsafe { std::ptr::NonNull::new_unchecked(fp) })
 }
 
 #[macro_export]
@@ -160,26 +160,25 @@ fn log_try_create(fname: &CStr) -> bool {
 /// Initializes the log file path and sets `$NVIM_LOG_FILE` if empty.
 fn log_path_init() {
     let size = MAXPATHL + 1;
-    let path_ptr = log_st().log_file_path.as_mut_ptr();
-    expand_env(c"$NVIM_LOG_FILE", path_ptr, (size - 1) as i32);
+    expand_env(c"$NVIM_LOG_FILE", &mut log_st().log_file_path[..size - 1]);
     let path_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
     let user_set = path_cstr.to_bytes() != b"$NVIM_LOG_FILE";
 
     if !user_set
         || path_cstr.to_bytes().is_empty()
-        || os_isdir(path_cstr.as_ptr())
+        || os_isdir(path_cstr)
         || !log_try_create(path_cstr)
     {
         if user_set {
-            os_setenv(c"__NVIM_LOG_FILE_WANT", path_cstr.as_ptr(), 1);
+            os_setenv(c"__NVIM_LOG_FILE_WANT", path_cstr, 1);
         }
         let state_home =
             get_xdg_home(crate::os::stdpaths::XDGVarType::XDGStateHome).unwrap_or_default();
         let loghome = concat_fnames_cstr(state_home.as_ptr(), c"logs", true);
         let mut failed_dir: Option<std::ffi::CString> = None;
         let mut log_dir_failure: i32 = 0;
-        if !os_isdir(loghome.as_ptr()) {
-            log_dir_failure = os_mkdir_recurse(loghome.as_ptr(), 0o700, &mut failed_dir, None);
+        if !os_isdir(&loghome) {
+            log_dir_failure = os_mkdir_recurse(&loghome, 0o700, &mut failed_dir, None);
         }
         drop(loghome);
 
@@ -191,7 +190,7 @@ fn log_path_init() {
         let cur_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {
             if !user_set {
-                os_setenv(c"__NVIM_LOG_FILE_WANT", cur_cstr.as_ptr(), 1);
+                os_setenv(c"__NVIM_LOG_FILE_WANT", cur_cstr, 1);
             }
             len = crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, b"nvim.log");
         }
@@ -200,7 +199,7 @@ fn log_path_init() {
             log_st().log_file_path[0] = 0;
             return;
         }
-        os_setenv(c"NVIM_LOG_FILE", cur_cstr.as_ptr(), 1);
+        os_setenv(c"NVIM_LOG_FILE", cur_cstr, 1);
         if log_dir_failure != 0 {
             let err_str = unsafe { uv_strerror(log_dir_failure) };
             let failed_s = match failed_dir {
@@ -309,7 +308,7 @@ pub fn logmsg_str(
 pub fn log_uv_handles(loop_: &mut crate::event::r#loop::uv_loop_t) {
     log_lock();
     let log_file = open_log_file();
-    unsafe { uv_print_all_handles(&raw mut *loop_, log_file.as_ptr()) };
+    unsafe { uv_print_all_handles(&raw mut *loop_, log_file.as_nonnull().as_ptr()) };
     drop(log_file);
     log_unlock();
 }
@@ -393,11 +392,9 @@ fn do_log_to_file_str(
 
     if regen {
         let mut parent_buf = [0u8; MAXPATHL];
-        let parent = path_tail(os_getenv_buf(
-            c"NVIM",
-            parent_buf.as_mut_ptr().cast(),
-            parent_buf.len(),
-        ));
+        let parent = path_tail(
+            os_getenv_buf(c"NVIM", &mut parent_buf).map_or(std::ptr::null(), CStr::as_ptr),
+        );
         let serv = path_tail(get_vim_var_str(VV_SEND_SERVER));
         let mut formatted = Vec::with_capacity(32);
         if !crate::memory::cstr_is_empty(parent) {

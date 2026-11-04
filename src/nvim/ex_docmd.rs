@@ -8426,7 +8426,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         if crate::strings::vim_haschr(repl_cstr.as_ptr(), b'$' as i32)
             || crate::strings::vim_haschr(repl_cstr.as_ptr(), b'~' as i32)
         {
-            repl_cstr = expand_env_save(repl_cstr.as_ptr().cast_mut());
+            repl_cstr = expand_env_save(&repl_cstr);
         }
 
         if eap.usefilter == 0
@@ -8481,16 +8481,15 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                 || crate::strings::vim_haschr(eap.arg, b'~' as i32)
             {
                 #[cfg(windows)]
-                let esc_wildcards = c" \t*?[".as_ptr().cast_mut();
+                let esc_wildcards = c" \t*?[";
                 #[cfg(not(windows))]
-                let esc_wildcards = c" \t*?[{".as_ptr().cast_mut();
+                let esc_wildcards = c" \t*?[{";
                 expand_env_esc(
-                    eap.arg,
-                    g_st().name_buff.as_mut_ptr(),
-                    MAXPATHL as i32,
-                    esc_wildcards,
+                    crate::memory::cstr_from_ptr(eap.arg),
+                    g_st().name_buff_bytes_mut(),
+                    Some(esc_wildcards),
                     true,
-                    ptr::null_mut(),
+                    None,
                 );
                 has_wildcards = path_has_wildcard(
                     crate::memory::cstr_as_bytes(g_st().name_buff.as_ptr()),
@@ -10492,9 +10491,8 @@ fn ex_tabs(_eap: &mut Exarg) {
             } else {
                 home_replace(
                     wp.buf_opt(),
-                    wp.buf_mut().b_fname,
-                    g_st().iobuff.as_mut_ptr(),
-                    IOSIZE,
+                    crate::memory::cstr_as_opt_cstr(wp.buf_mut().b_fname),
+                    g_st().iobuff_bytes_mut(),
                     true,
                 );
             }
@@ -10970,7 +10968,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
     }
 
     let mut cwd = [0u8; MAXPATHL];
-    if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+    if !os_dirname(&mut cwd) {
         return;
     }
     let cwd_cstr = crate::memory::cstring_until_nul(&cwd);
@@ -11029,14 +11027,14 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         new_dir = prev_dir_cstr.as_ref().unwrap().as_ptr().cast_mut();
     }
 
-    let pdir = if os_dirname(g_st().name_buff.as_mut_ptr(), MAXPATHL) {
+    let pdir = if os_dirname(g_st().name_buff_bytes_mut()) {
         Some(crate::memory::cstr_to_cstring(g_st().name_buff.as_ptr()))
     } else {
         None
     };
 
     if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh != 0 {
-        expand_env(c"$HOME", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
+        expand_env(c"$HOME", g_st().name_buff_bytes_mut());
         new_dir = g_st().name_buff.as_mut_ptr();
     }
 
@@ -11064,7 +11062,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
     post_chdir(scope, dir_differs && !bcd_active);
     if bcd_active {
-        os_chdir(curbuf_mut().b_localdir.as_ref().unwrap().as_ptr());
+        os_chdir(curbuf_mut().b_localdir.as_ref().unwrap());
         shorten_fnames(i32::from(true));
     }
     ctx_did_chdir();
@@ -11122,7 +11120,7 @@ pub fn ex_cd(eap: &mut Exarg) {
 }
 
 fn ex_pwd(_eap: &mut Exarg) {
-    if os_dirname(g_st().name_buff.as_mut_ptr(), MAXPATHL) {
+    if os_dirname(g_st().name_buff_bytes_mut()) {
         #[cfg(windows)]
         slash_adjust(g_st().name_buff.as_mut_ptr().cast());
         if opt_vars().p_verbose > 0 {
@@ -11580,7 +11578,7 @@ fn ex_redir(eap: &mut Exarg) {
 
         close_redir();
 
-        let fname = expand_env_save(arg);
+        let fname = expand_env_save(crate::memory::cstr_from_ptr((arg).cast()));
         g_st().redir_fd = open_exfile(&fname, eap.forceit, mode);
     } else if let Some(mut rem) = arg_bytes.strip_prefix(b"@") {
         close_redir();
@@ -11710,7 +11708,7 @@ fn close_redir() {
 }
 
 pub fn vim_mkdir_emsg(name: &CStr, prot: i32) -> bool {
-    let ret = os_mkdir(name.as_ptr(), prot);
+    let ret = os_mkdir(name, prot);
     if ret != 0 {
         let _ = semsg!(gettext(E_MKDIR), name.as_ptr(), unsafe { uv_strerror(ret) });
         return false;
@@ -11721,12 +11719,15 @@ pub fn vim_mkdir_emsg(name: &CStr, prot: i32) -> bool {
 pub fn open_exfile(fname: &CStr, forceit: i32, mode: &std::ffi::CStr) -> Option<CFile> {
     let fname_ptr = fname.as_ptr();
     #[cfg(unix)]
-    if os_isdir(fname_ptr) {
+    if os_isdir(fname) {
         let _ = semsg!(gettext(E_ISADIR2), fname_ptr);
         return None;
     }
 
-    if forceit == 0 && mode.to_bytes().first() != Some(&b'a') && os_path_exists(fname_ptr) {
+    if forceit == 0
+        && mode.to_bytes().first() != Some(&b'a')
+        && os_path_exists(crate::memory::cstr_from_ptr((fname_ptr).cast()))
+    {
         let _ = semsg!(
             gettext(c"E189: \"%s\" exists (add ! to override)"),
             fname_ptr,
@@ -11734,7 +11735,7 @@ pub fn open_exfile(fname: &CStr, forceit: i32, mode: &std::ffi::CStr) -> Option<
         return None;
     }
 
-    let fd = CFile::open(fname_ptr, mode);
+    let fd = CFile::open(crate::memory::cstr_from_ptr((fname_ptr).cast()), mode);
     if fd.is_none() {
         let _ = semsg!(gettext(c"E190: Cannot open \"%s\" for writing"), fname_ptr,);
     }

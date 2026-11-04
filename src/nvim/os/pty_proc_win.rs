@@ -235,10 +235,14 @@ mod win_impl {
                 }
 
                 let arg0 = hdr.argv.as_slice()[0].as_ptr();
-                let is_cmdexe = os_shell_is_cmdexe(arg0);
+                let is_cmdexe = os_shell_is_cmdexe(crate::memory::cstr_from_ptr((arg0).cast()));
                 if is_cmdexe {
                     let mut path: Option<std::ffi::CString> = None;
-                    if !os_can_exe(arg0, Some(&mut path), true) {
+                    if !os_can_exe(
+                        crate::memory::cstr_from_ptr((arg0).cast()),
+                        Some(&mut path),
+                        true,
+                    ) {
                         status = UV_ENOENT;
                         emsg = Some(c"executable not found");
                         break 'cleanup;

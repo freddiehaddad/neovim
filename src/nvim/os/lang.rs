@@ -453,9 +453,9 @@ fn locale_candidates(locale: &str) -> Vec<String> {
 fn current_message_locale() -> Option<String> {
     let mut buf = [0u8; 256];
     for var in [c"LANGUAGE", c"LC_ALL", c"LC_MESSAGES", c"LANG"] {
-        let p = os_getenv_buf(var.as_ptr(), buf.as_mut_ptr(), buf.len());
-        if !crate::memory::cstr_is_empty(p.cast())
-            && let Ok(s) = crate::memory::cstr_from_ptr(p.cast()).to_str()
+        if let Some(p) = os_getenv_buf(var, &mut buf)
+            && !p.to_bytes().is_empty()
+            && let Ok(s) = p.to_str()
         {
             return Some(s.to_string());
         }
@@ -583,22 +583,20 @@ fn get_mess_env(
     }
     #[cfg(windows)]
     {
-        let mut p = os_getenv_buf(c"LC_ALL", buf.as_mut_ptr(), buf.len());
-        if !p.is_null() {
-            return Some(unsafe { CStr::from_ptr(p.cast()) });
+        if let Some(p) = os_getenv_buf(c"LC_ALL", buf) {
+            return Some(unsafe { CStr::from_ptr(p.as_ptr()) });
         }
-        p = os_getenv_buf(c"LC_MESSAGES", buf.as_mut_ptr(), buf.len());
-        if !p.is_null() {
-            return Some(unsafe { CStr::from_ptr(p.cast()) });
+        if let Some(p) = os_getenv_buf(c"LC_MESSAGES", buf) {
+            return Some(unsafe { CStr::from_ptr(p.as_ptr()) });
         }
-        p = os_getenv_buf(c"LANG", buf.as_mut_ptr(), buf.len());
-        if !p.is_null() && (crate::memory::cstr_first_byte(p.cast())).is_ascii_digit() {
-            p = ptr::null_mut();
+        let mut p = os_getenv_buf(c"LANG", buf);
+        if p.is_some_and(|s| s.to_bytes().first().is_some_and(u8::is_ascii_digit)) {
+            p = None;
         }
-        if p.is_null() {
+        let Some(p) = p else {
             return get_locale_val(LC_CTYPE);
-        }
-        Some(unsafe { CStr::from_ptr(p.cast()) })
+        };
+        Some(unsafe { CStr::from_ptr(p.as_ptr()) })
     }
 }
 
@@ -724,11 +722,15 @@ pub fn ex_language(eap: &mut Exarg) {
 
             if what != LC_TIME && what != LC_COLLATE {
                 if what == LC_ALL {
-                    let _ = os_setenv(c"LANG", name, 1);
+                    let _ = os_setenv(c"LANG", crate::memory::cstr_from_ptr((name).cast()), 1);
                     let _ = os_setenv(c"LANGUAGE", c"", 1);
                 }
                 if what != LC_CTYPE {
-                    let _ = os_setenv(c"LC_MESSAGES", name, 1);
+                    let _ = os_setenv(
+                        c"LC_MESSAGES",
+                        crate::memory::cstr_from_ptr((name).cast()),
+                        1,
+                    );
                     set_helplang_default(crate::memory::cstr_as_opt_cstr(name));
                 }
             }

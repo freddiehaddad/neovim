@@ -357,7 +357,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         drop(command_vec);
 
         if res != 0 {
-            os_remove(tempname);
+            os_remove(tempname_cstr.as_c_str());
             if (flags & EW_SILENT) == 0 {
                 msg_putchar(b'\n' as i32);
                 g_st().cmdline_row = g_st().rows_global - 1;
@@ -375,7 +375,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
             return false;
         }
 
-        let Some(f) = CFile::open_libc(tempname, c"rb") else {
+        let Some(f) = CFile::open_libc(tempname_cstr.as_c_str(), c"rb") else {
             if (flags & EW_SILENT) == 0 {
                 msg(gettext(E_WILDEXPAND), 0);
                 msg_start();
@@ -399,7 +399,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         let buffer = buffer_vec.as_mut_ptr();
         let readlen = f.read_bytes(&mut buffer_vec[..len]);
         drop(f);
-        os_remove(tempname);
+        os_remove(tempname_cstr.as_c_str());
         if readlen != len {
             semsg!(gettext(E_CANT_READ_FILE_STR), tempname);
             return false;
@@ -516,23 +516,24 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
         }
 
         for entry in raw_entries {
-            if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry.cast()) {
+            let entry_cstr = crate::memory::cstr_from_ptr(entry.cast());
+            if (flags & EW_NOTFOUND) == 0 && !os_path_exists(entry_cstr) {
                 continue;
             }
 
-            let dir = os_isdir(entry.cast());
+            let dir = os_isdir(entry_cstr);
             if (dir && (flags & EW_DIR) == 0) || (!dir && (flags & EW_FILE) == 0) {
                 continue;
             }
 
             if !dir
                 && (flags & EW_EXEC) != 0
-                && !os_can_exe(entry.cast(), None, (flags & EW_SHELLCMD) == 0)
+                && !os_can_exe(entry_cstr, None, (flags & EW_SHELLCMD) == 0)
             {
                 continue;
             }
 
-            let entry_bytes = crate::memory::cstr_from_ptr(entry.cast()).to_bytes_with_nul();
+            let entry_bytes = entry_cstr.to_bytes_with_nul();
             let mut new_vec = vec![0u8; entry_bytes.len() + usize::from(dir)];
             new_vec[..entry_bytes.len()].copy_from_slice(entry_bytes);
             if dir {
@@ -736,7 +737,7 @@ pub fn get_cmd_output(
 
     let mut result: Option<std::ffi::CString> = None;
 
-    if let Some(f) = CFile::open(tempname, c"rb") {
+    if let Some(f) = CFile::open(crate::memory::cstr_from_ptr((tempname).cast()), c"rb") {
         'done: {
             if f.seek(0, SEEK_END) == -1 {
                 semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
@@ -767,7 +768,7 @@ pub fn get_cmd_output(
         semsg!(gettext(E_CANNOT_READ_FROM_STR_2), tempname);
     }
 
-    os_remove(tempname);
+    os_remove(crate::memory::cstr_from_ptr((tempname).cast()));
     drop(tempname_cstr);
     result
 }

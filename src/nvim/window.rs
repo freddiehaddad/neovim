@@ -5883,7 +5883,7 @@ pub fn update_cwd(cause: CdCause) {
     }
 
     let mut cwd = [0u8; MAXPATHL];
-    if !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+    if !os_dirname(&mut cwd) {
         cwd[0] = 0;
     }
 
@@ -5896,7 +5896,10 @@ pub fn update_cwd(cause: CdCause) {
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, true);
         }
-        if os_chdir(new_dir_ptr) == 0 && opt_vars().p_acd == 0 && dir_differs {
+        if os_chdir(crate::memory::cstr_from_ptr((new_dir_ptr).cast())) == 0
+            && opt_vars().p_acd == 0
+            && dir_differs
+        {
             do_autocmd_dirchanged(new_dir_cstr, scope, cause, false);
         }
         g_st().last_chdir_reason = None;
@@ -5907,7 +5910,10 @@ pub fn update_cwd(cause: CdCause) {
         if opt_vars().p_acd == 0 && dir_differs {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, true);
         }
-        if os_chdir(gdir_ptr) == 0 && opt_vars().p_acd == 0 && dir_differs {
+        if os_chdir(crate::memory::cstr_from_ptr((gdir_ptr).cast())) == 0
+            && opt_vars().p_acd == 0
+            && dir_differs
+        {
             do_autocmd_dirchanged(&gdir, K_CD_SCOPE_GLOBAL, cause, false);
         }
         g_st().last_chdir_reason = None;

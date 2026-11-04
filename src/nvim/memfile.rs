@@ -165,7 +165,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
             emsg(gettext(E_SWAPCLOSE));
         }
         if del_file && let Some(ref fname) = mfp.mf_fname {
-            os_remove(fname.as_ptr());
+            os_remove(fname);
         }
 
         drop(mfp);
@@ -195,7 +195,7 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
     mfp_ref.mf_fd = -1;
 
     if let Some(ref fname) = mfp_ref.mf_fname {
-        os_remove(fname.as_ptr());
+        os_remove(fname);
 
         mf_free_fnames(mfp_ref);
     }
@@ -490,7 +490,7 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
                 }
                 {
                     mfp.mf_fd = os_open(
-                        mfp.mf_fname.as_ref().unwrap().as_ptr(),
+                        mfp.mf_fname.as_ref().unwrap(),
                         mfp.mf_flags,
                         S_IREAD | S_IWRITE,
                     );
@@ -608,13 +608,22 @@ fn mf_do_open(mfp: &mut Memfile, fname: std::ffi::CString, mut flags: i32) -> bo
 
     {
         let mut file_info = FileInfo::new();
-        if (flags & O_CREAT) != 0 && os_fileinfo_link(fname_ptr, &mut file_info) {
+        if (flags & O_CREAT) != 0
+            && os_fileinfo_link(
+                crate::memory::cstr_from_ptr((fname_ptr).cast()),
+                &mut file_info,
+            )
+        {
             mfp.mf_fd = -1;
             emsg(gettext(c"E300: Swap file already exists (symlink attack?)"));
         } else {
             flags |= O_NOFOLLOW;
             mfp.mf_flags = flags;
-            mfp.mf_fd = os_open(fname_ptr, flags, S_IREAD | S_IWRITE);
+            mfp.mf_fd = os_open(
+                crate::memory::cstr_from_ptr((fname_ptr).cast()),
+                flags,
+                S_IREAD | S_IWRITE,
+            );
         }
     }
 

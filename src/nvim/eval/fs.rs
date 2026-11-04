@@ -128,7 +128,7 @@ pub fn modify_fname(
                         || fname_bytes.len() == 1)
                     && !(tilde_file && fname_bytes.len() == 1);
                 if tilde_cond {
-                    let exp = expand_env_save(fname.cast_const().cast());
+                    let exp = expand_env_save(crate::memory::cstr_from_ptr(fname.cast()));
                     *fbuf = exp.into_bytes_with_nul();
                     fname = fbuf.as_mut_ptr();
                 }
@@ -165,7 +165,7 @@ pub fn modify_fname(
                 }
 
                 // Append a path separator to a directory.
-                if os_isdir(fname.cast_const().cast()) {
+                if os_isdir(crate::memory::cstr_from_ptr(fname.cast())) {
                     // Make room for one or two extra characters.
                     let cur_len = crate::memory::cstr_len(fname.cast());
                     let mut v = vec![0u8; cur_len + 3];
@@ -195,7 +195,8 @@ pub fn modify_fname(
                 // Need full path first (use expand_env() to remove a "~/")
                 if !has_fullname && !has_homerelative {
                     if crate::memory::cstr_first_byte(fname.cast()) == b'~' {
-                        let exp = expand_env_save(fname.cast_const().cast()).into_bytes_with_nul();
+                        let exp = expand_env_save(crate::memory::cstr_from_ptr(fname.cast()))
+                            .into_bytes_with_nul();
                         p = exp.as_ptr().cast_mut();
                         pbuf = Some(exp);
                     } else if let Some(full) = FullName_save(fname.cast_const().cast(), false) {
@@ -215,16 +216,11 @@ pub fn modify_fname(
                     let mut dirnamelen: usize = 0;
 
                     if c == b'.' as i32 {
-                        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
+                        os_dirname(&mut dirname);
                         if has_homerelative {
                             let s_cstr = cstr_to_cstring(dirname.as_ptr().cast());
-                            dirnamelen = home_replace(
-                                None,
-                                s_cstr.as_ptr(),
-                                dirname.as_mut_ptr(),
-                                MAXPATHL,
-                                true,
-                            );
+                            dirnamelen =
+                                home_replace(None, Some(s_cstr.as_c_str()), &mut dirname, true);
                         }
 
                         if dirnamelen == 0 {
@@ -260,9 +256,8 @@ pub fn modify_fname(
                     } else {
                         dirnamelen = home_replace(
                             None,
-                            p.cast_const().cast(),
-                            dirname.as_mut_ptr(),
-                            MAXPATHL,
+                            crate::memory::cstr_as_opt_cstr(p.cast()),
+                            &mut dirname,
                             true,
                         );
                         // Only replace it when it starts with '~'
@@ -285,7 +280,7 @@ pub fn modify_fname(
             }
 
             let mut file_info = FileInfo::new();
-            os_fileinfo2(fname.cast_const().cast(), &mut file_info);
+            os_fileinfo2(crate::memory::cstr_from_ptr(fname.cast()), &mut file_info);
             if src_bytes
                 .get(*usedlen..)
                 .is_some_and(|r| r.starts_with(b":h"))
@@ -515,7 +510,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     // Return the current directory
     let mut cwd = vec![0u8; MAXPATHL];
-    if os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+    if os_dirname(&mut cwd) {
         #[cfg(windows)]
         slash_adjust(cwd.as_mut_ptr().cast());
         crate::eval::typval::tv_set_string(
@@ -992,7 +987,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             cur_scope = K_CD_SCOPE_INVALID;
         }
     }
-    if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(cwd.as_mut_ptr(), MAXPATHL) {
+    if cur_scope == K_CD_SCOPE_INVALID && !os_dirname(&mut cwd) {
         from = Some(c""); // Return empty string on failure.
     }
 
@@ -1316,7 +1311,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         if crate::strings::vim_haschr(arg2, b'p' as i32) {
             let mut failed_dir: Option<std::ffi::CString> = None;
             let ret = os_mkdir_recurse(
-                dir,
+                crate::memory::cstr_from_ptr((dir).cast()),
                 prot,
                 &mut failed_dir,
                 (defer || defer_recurse).then_some(&mut created),
@@ -1700,7 +1695,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let fname = tv_get_string(&argvars[0]);
     #[cfg(windows)]
     {
-        let mut v = os_resolve_shortcut(fname);
+        let mut v = os_resolve_shortcut(Some(fname));
         if v.is_none() && os_is_reparse_point_include(fname) {
             v = os_realpath_cstr(fname, MAXPATHL + 1);
         }

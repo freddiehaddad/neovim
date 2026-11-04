@@ -2212,10 +2212,13 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut p = p_cstr.as_ptr();
     match p_bytes.first() {
         Some(&b'$') => {
-            if os_env_exists(p.wrapping_add(1), false) {
+            if os_env_exists(
+                crate::memory::cstr_from_ptr((p.wrapping_add(1)).cast()),
+                false,
+            ) {
                 n = 1;
             } else {
-                let exp = expand_env_save(p.cast_mut());
+                let exp = expand_env_save(crate::memory::cstr_from_ptr((p.cast_mut()).cast()));
                 if exp.to_bytes().first() != Some(&b'$') {
                     n = 1;
                 }
@@ -4438,7 +4441,7 @@ pub fn create_environment(
         for &req in REQUIRED_ENV_VARS {
             let len = req.to_bytes().len();
             if tv_dict_find(Some(&*env), req, len as isize).is_none()
-                && let Some(env_var) = os_getenv_cstr(req.as_ptr())
+                && let Some(env_var) = os_getenv_cstr(req)
             {
                 tv_dict_add_str(&mut *env, req, Some(env_var.as_c_str()));
             }
@@ -4538,7 +4541,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             && !new_cwd.to_bytes().is_empty()
         {
             cwd = new_cwd.as_ptr();
-            if !os_isdir(cwd) {
+            if !os_isdir(crate::memory::cstr_from_ptr((cwd).cast())) {
                 semsg!(gettext(E_INVARG2), c"expected valid directory",);
                 return;
             }
@@ -4676,7 +4679,12 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let namebuff = g_st().name_buff.as_mut_ptr();
             let iobuff = g_st().iobuff.as_mut_ptr();
             vim_full_name(cwd, namebuff.cast(), MAXPATHL, false);
-            let len = home_replace(None, namebuff, iobuff, IOSIZE, true);
+            let len = home_replace(
+                None,
+                crate::memory::cstr_as_opt_cstr(namebuff),
+                g_st().iobuff_bytes_mut(),
+                true,
+            );
             if len > 1 && matches!(g_st().iobuff[len - 1] as u8, b'\\' | b'/') {
                 g_st().iobuff[len - 1] = NUL;
             }
@@ -8971,7 +8979,6 @@ use crate::ex_getln::{
 };
 use crate::fold::{f_foldclosed, f_foldclosedend, f_foldlevel, f_foldtext, f_foldtextresult};
 use crate::fuzzy::{f_matchfuzzy, f_matchfuzzypos};
-use crate::globals::IOSIZE;
 use crate::indent::{f_indent, f_lispindent};
 use crate::indent_c::f_cindent;
 use crate::input::{f_getchar, f_getcharmod, f_getcharstr};

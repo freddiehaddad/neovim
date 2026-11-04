@@ -2013,9 +2013,9 @@ pub fn spell_delete_wordlist() {
         return;
     };
     let mut fname: [u8; MAXPATHL] = [0; MAXPATHL];
-    let _ = os_remove(wl.as_ptr());
+    let _ = os_remove(wl);
     int_wordlist_spl(&mut fname);
-    let _ = os_remove((&raw const fname).cast());
+    let _ = os_remove(crate::memory::cstr_until_nul(&fname));
     spell_priv_st().int_wordlist = None;
 }
 pub fn spell_free_all() {

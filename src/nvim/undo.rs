@@ -618,10 +618,15 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
                 dir_name[dir_len] = 0;
             }
 
-            let mut has_directory = os_isdir(dir_name.as_ptr().cast());
+            let mut has_directory = os_isdir(crate::memory::cstr_until_nul(&dir_name));
             if !has_directory && dirp.is_empty() && !reading {
                 let mut failed_dir: Option<std::ffi::CString> = None;
-                let ret = os_mkdir_recurse(dir_name.as_ptr().cast(), 0o755, &mut failed_dir, None);
+                let ret = os_mkdir_recurse(
+                    crate::memory::cstr_until_nul(&dir_name),
+                    0o755,
+                    &mut failed_dir,
+                    None,
+                );
                 if ret != 0 {
                     semsg!(
                         gettext(c"E5003: Unable to create directory \"%s\" for undo file: %s",),
@@ -650,7 +655,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
         }
 
         if let Some(ref ufn) = undo_file_name
-            && (!reading || os_path_exists(ufn.as_ptr()))
+            && (!reading || os_path_exists(ufn))
         {
             break;
         }
@@ -1010,7 +1015,7 @@ pub fn u_write_undo(
 
     let mut perm: i32 = 0o600;
     if !buf.b_ffname.is_null() {
-        perm = os_getperm(buf.b_ffname);
+        perm = os_getperm(crate::memory::cstr_from_ptr((buf.b_ffname).cast()));
         if perm < 0 {
             perm = 0o600;
         }
@@ -1018,9 +1023,13 @@ pub fn u_write_undo(
     perm &= 0o666;
 
     'theend: {
-        if os_path_exists(file_name) {
+        if os_path_exists(crate::memory::cstr_from_ptr((file_name).cast())) {
             if name.is_none() || !forceit {
-                let fd = os_open(file_name, O_RDONLY, 0);
+                let fd = os_open(
+                    crate::memory::cstr_from_ptr((file_name).cast()),
+                    O_RDONLY,
+                    0,
+                );
                 if fd < 0 {
                     if name.is_some() || opt_vars().p_verbose > 0 {
                         if name.is_none() {
@@ -1060,7 +1069,7 @@ pub fn u_write_undo(
                     }
                 }
             }
-            os_remove(file_name);
+            os_remove(crate::memory::cstr_from_ptr((file_name).cast()));
         }
 
         if buf.b_u_numhead == 0 && buf.b_u_line_ptr.is_none() {
@@ -1070,12 +1079,16 @@ pub fn u_write_undo(
             break 'theend;
         }
 
-        let fd = os_open(file_name, O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW, perm);
+        let fd = os_open(
+            crate::memory::cstr_from_ptr((file_name).cast()),
+            O_CREAT | O_WRONLY | O_EXCL | O_NOFOLLOW,
+            perm,
+        );
         if fd < 0 {
             semsg!(gettext(E_NOT_OPEN), file_name);
             break 'theend;
         }
-        os_setperm(file_name, perm);
+        os_setperm(crate::memory::cstr_from_ptr((file_name).cast()), perm);
         if opt_vars().p_verbose > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Writing undo file: %s"), file_name);
@@ -1086,9 +1099,13 @@ pub fn u_write_undo(
         {
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
+            let file_name_cstr = crate::memory::cstr_from_ptr(file_name);
             if !buf.b_ffname.is_null()
-                && os_fileinfo(buf.b_ffname, &mut file_info_old)
-                && os_fileinfo(file_name, &mut file_info_new)
+                && os_fileinfo(
+                    crate::memory::cstr_from_ptr(buf.b_ffname),
+                    &mut file_info_old,
+                )
+                && os_fileinfo(file_name_cstr, &mut file_info_new)
                 && file_info_old.stat.st_gid != file_info_new.stat.st_gid
                 && os_fchown(
                     fd,
@@ -1096,14 +1113,14 @@ pub fn u_write_undo(
                     file_info_old.stat.st_gid as uv_gid_t,
                 ) != 0
             {
-                os_setperm(file_name, (perm & 0o707) | ((perm & 0o7) << 3));
+                os_setperm(file_name_cstr, (perm & 0o707) | ((perm & 0o7) << 3));
             }
         }
 
         let Some(bi_fp) = CFile::from_fd(fd, c"w") else {
             semsg!(gettext(E_NOT_OPEN), file_name);
             os_close(fd);
-            os_remove(file_name);
+            os_remove(crate::memory::cstr_from_ptr((file_name).cast()));
             break 'theend;
         };
 
@@ -1176,8 +1193,8 @@ pub fn u_write_undo(
         }
 
         if !buf.b_ffname.is_null() {
-            let acl: VimAcl = os_get_acl(buf.b_ffname);
-            os_set_acl(file_name, acl);
+            let acl: VimAcl = os_get_acl(crate::memory::cstr_from_ptr((buf.b_ffname).cast()));
+            os_set_acl(crate::memory::cstr_from_ptr((file_name).cast()), acl);
             os_free_acl(acl);
         }
     }
@@ -1223,10 +1240,8 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
         {
             let mut file_info_orig = FileInfo::new();
             let mut file_info_undo = FileInfo::new();
-            if os_fileinfo(
-                orig_name.map_or(ptr::null(), CStr::as_ptr),
-                &mut file_info_orig,
-            ) && os_fileinfo(f_cstr.as_ptr(), &mut file_info_undo)
+            if os_fileinfo(orig_name.unwrap_or(c""), &mut file_info_orig)
+                && os_fileinfo(f_cstr, &mut file_info_undo)
                 && file_info_orig.stat.st_uid != file_info_undo.stat.st_uid
                 && file_info_undo.stat.st_uid != u64::from(unsafe { getuid() })
             {
@@ -3041,7 +3056,7 @@ mod tests {
             g_st().emsg_skip += 1;
 
             let mut cwd_buf = [0u8; MAXPATHL];
-            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
+            assert!(os_dirname(&mut cwd_buf));
             let cwd = CStr::from_bytes_until_nul(&cwd_buf)
                 .unwrap()
                 .to_str()

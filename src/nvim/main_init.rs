@@ -535,7 +535,12 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
     g_st().redrawing_disabled += 1;
 
-    unsafe { setbuf(crate::log::log_get_stdout().as_ptr(), ptr::null_mut()) };
+    unsafe {
+        setbuf(
+            crate::log::log_get_stdout().as_nonnull().as_ptr(),
+            ptr::null_mut(),
+        )
+    };
 
     g_st().full_screen = !g_st().silent_mode;
 
@@ -596,7 +601,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     }
     if let Some(ref scriptout_name) = params.scriptout {
         g_st().scriptout = CFile::open(
-            scriptout_name.as_ptr(),
+            scriptout_name,
             if params.scriptout_append {
                 c"ab"
             } else {
@@ -1125,9 +1130,8 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             os_exit(1);
         } else {
             let mut nvim_env_buf = [0u8; MAXPATHL];
-            let nvim_env = os_getenv_buf(c"NVIM", nvim_env_buf.as_mut_ptr(), nvim_env_buf.len());
-            if server_addr.map(CStr::to_bytes) == crate::memory::cstr_as_opt_bytes(nvim_env.cast())
-            {
+            let nvim_env = os_getenv_buf(c"NVIM", &mut nvim_env_buf);
+            if server_addr.map(CStr::to_bytes) == nvim_env.map(CStr::to_bytes) {
                 fprintf!(
                     stderr,
                     c"%s",
@@ -1694,9 +1698,9 @@ fn command_line_scan(parmp: &mut Mparm) {
             }
 
             if parmp.diff_mode != 0
-                && os_isdir(p_vec.as_ptr().cast())
+                && os_isdir(crate::memory::cstr_until_nul(&p_vec))
                 && gargcount() > 0
-                && !os_isdir(alist_name(&garglist_slice()[0]).map_or(ptr::null(), CStr::as_ptr))
+                && !os_isdir(alist_name(&garglist_slice()[0]).unwrap_or(c""))
             {
                 let tail =
                     path_tail(alist_name(&garglist_slice()[0]).map_or(ptr::null(), CStr::as_ptr));
@@ -1823,7 +1827,7 @@ fn init_path(exename: &CStr) {
     let exename = exename.as_ptr();
     let mut exepath = [0u8; MAXPATHL];
     let mut exepathlen: usize = MAXPATHL;
-    if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
+    if os_exepath(&mut exepath, &mut exepathlen) != 0 {
         path_guess_exepath(exename, &mut exepath);
     }
     set_vim_var_string(
@@ -1839,7 +1843,7 @@ fn init_path(exename: &CStr) {
 
     #[cfg(windows)]
     {
-        os_setenv_append_path(exepath.as_ptr().cast());
+        os_setenv_append_path(crate::memory::cstr_until_nul(&exepath));
     }
 }
 
@@ -2272,8 +2276,10 @@ fn do_user_initialization() -> bool {
     let init_lua_ptr = init_lua_path.as_ptr().cast_mut();
     let user_vimrc_ptr = user_vimrc.as_ptr().cast_mut();
 
-    if os_path_exists(init_lua_ptr) && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None) {
-        if os_path_exists(user_vimrc_ptr) {
+    if os_path_exists(crate::memory::cstr_from_ptr((init_lua_ptr).cast()))
+        && do_source(init_lua_path.as_c_str(), true, DOSO_VIMRC, None)
+    {
+        if os_path_exists(crate::memory::cstr_from_ptr((user_vimrc_ptr).cast())) {
             semsg!(E_CONFLICTING_CONFIGS, init_lua_ptr, user_vimrc_ptr,);
         }
         do_exrc = opt_vars().p_exrc != 0;
@@ -2321,7 +2327,7 @@ fn do_user_initialization() -> bool {
             init_vim.extend_from_slice(appname_bytes);
             init_vim.extend_from_slice(&init_vim_suffix);
 
-            if os_path_exists(init_lua.as_ptr().cast())
+            if os_path_exists(crate::memory::cstr_until_nul(&init_lua))
                 && do_source(
                     crate::memory::cstr_until_nul(&init_lua),
                     true,
@@ -2329,7 +2335,7 @@ fn do_user_initialization() -> bool {
                     None,
                 )
             {
-                if os_path_exists(init_vim.as_ptr().cast()) {
+                if os_path_exists(crate::memory::cstr_until_nul(&init_vim)) {
                     semsg!(E_CONFLICTING_CONFIGS, init_lua.as_ptr(), init_vim.as_ptr(),);
                 }
                 do_exrc = opt_vars().p_exrc != 0;
@@ -2392,7 +2398,7 @@ fn source_startup_scripts(parmp: &Mparm) {
 }
 
 fn execute_env(env: &std::ffi::CStr) -> bool {
-    let Some(initstr) = os_getenv_cstr(env.as_ptr().cast_mut()) else {
+    let Some(initstr) = os_getenv_cstr(env) else {
         return false;
     };
 

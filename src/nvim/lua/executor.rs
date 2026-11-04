@@ -1715,7 +1715,7 @@ unsafe extern "C-unwind" fn nlua_empty_dict_tostring(lstate: *mut lua_State) -> 
 unsafe extern "C-unwind" fn nlua_getenv(lstate: *mut lua_State) -> i32 {
     unsafe {
         let name = luaL_checklstring(lstate, 1, ptr::null_mut());
-        let val = os_getenv_cstr(name);
+        let val = os_getenv_cstr(crate::memory::cstr_from_ptr((name).cast()));
         crate::lua::converter::lua_pushstring_opt(lstate, val.as_deref());
         1
     }
@@ -2613,7 +2613,10 @@ pub fn nlua_funcref_str(ref_: LuaRef, show_ref: bool) -> std::ffi::CString {
                 && crate::memory::cstr_first_byte(ar.source) == b'@'
                 && ar.linedefined >= 0
             {
-                let src = home_replace_save(None, ar.source.wrapping_add(1));
+                let src = home_replace_save(
+                    None,
+                    crate::memory::cstr_as_opt_cstr((ar.source.wrapping_add(1)).cast()),
+                );
                 let src_s = src.to_string_lossy();
                 let formatted = if show_ref {
                     format!("<Lua {ref_}: {src_s}:{}>", ar.linedefined)

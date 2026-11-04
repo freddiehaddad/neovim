@@ -2193,7 +2193,7 @@ fn ins_compl_files(
         if g_st().got_int || ins_compl_interrupted() {
             break;
         }
-        let fp = CFile::open(file, c"r");
+        let fp = CFile::open(crate::memory::cstr_from_ptr((file).cast()), c"r");
         if flags != DICT_EXACT && !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(

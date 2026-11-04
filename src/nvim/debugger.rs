@@ -555,8 +555,8 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             bp.dbg_name = crate::memory::cstr_to_cstring(p);
             bp.dbg_val = eval_expr_no_emsg(&bp.dbg_name);
         } else {
-            let q = expand_env_save(p);
-            let p_exp = expand_env_save(q.as_ptr().cast_mut());
+            let q = expand_env_save(crate::memory::cstr_from_ptr((p).cast()));
+            let p_exp = expand_env_save(&q);
             let raw_name = if crate::memory::cstr_first_byte(p_exp.as_ptr()) != b'*' {
                 fix_fname(p_exp.as_ptr())?
             } else {
@@ -683,13 +683,7 @@ pub fn ex_breaklist(_eap: &mut Exarg) {
     let mut namebuf = [0u8; MAXPATHL];
     for bp in gap {
         if bp.dbg_type == DBG_FILE {
-            home_replace(
-                None,
-                bp.dbg_name.as_ptr(),
-                namebuf.as_mut_ptr(),
-                MAXPATHL,
-                true,
-            );
+            home_replace(None, Some(bp.dbg_name.as_c_str()), &mut namebuf, true);
         }
         if bp.dbg_type != DBG_EXPR {
             let kind = if bp.dbg_type == DBG_FUNC {

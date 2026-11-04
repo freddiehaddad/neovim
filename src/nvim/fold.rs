@@ -2566,7 +2566,7 @@ fn put_folds_recurse(fd: &CFile, gap: &[FoldEntry], off: Linenr) -> bool {
             i64::from(fp.fd_top + off),
             i64::from(fp.fd_top + off + fp.fd_len - 1),
         );
-        if fd.puts(buf.as_ptr().cast()) < 0 || !put_eol(fd) {
+        if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0 || !put_eol(fd) {
             return false;
         }
     }
@@ -2584,7 +2584,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
                     c"%lld",
                     i64::from(fp.fd_top + off),
                 );
-                if fd.puts(buf.as_ptr().cast()) < 0
+                if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0
                     || !put_eol(fd)
                     || !put_line(fd, c"sil! normal! zo")
                 {
@@ -2614,7 +2614,7 @@ fn put_foldopen_recurse(fd: &CFile, wp: &mut WinInfoInfo, gap: &[FoldEntry], off
 fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     let mut buf = [0u8; 32];
     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%d", fp.fd_top + off);
-    if fd.puts(buf.as_ptr().cast()) < 0 || !put_eol(fd) {
+    if fd.puts(crate::memory::cstr_until_nul(&buf)) < 0 || !put_eol(fd) {
         return false;
     }
     let cmd = if fp.fd_flags == FD_CLOSED {
@@ -2622,7 +2622,7 @@ fn put_fold_open_close(fd: &CFile, fp: &FoldEntry, off: Linenr) -> bool {
     } else {
         c"sil! normal! zo".as_ptr()
     };
-    if fd.puts(cmd) < 0 || !put_eol(fd) {
+    if fd.puts(crate::memory::cstr_from_ptr((cmd).cast())) < 0 || !put_eol(fd) {
         return false;
     }
     true

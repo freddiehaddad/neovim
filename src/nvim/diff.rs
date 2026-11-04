@@ -680,7 +680,7 @@ pub fn diff_redraw(dofold: bool) {
 }
 fn clear_diffin(din: &mut Diffin) {
     if let Some(ref fname) = din.din_fname {
-        let _ = os_remove(fname.as_ptr());
+        let _ = os_remove(fname);
     } else {
         din.din_buf = Vec::new();
         din.din_mmfile.ptr = ptr::null_mut();
@@ -689,7 +689,7 @@ fn clear_diffin(din: &mut Diffin) {
 }
 fn clear_diffout(dout: &mut Diffout) {
     if let Some(ref fname) = dout.dout_fname {
-        let _ = os_remove(fname.as_ptr());
+        let _ = os_remove(fname);
     } else {
         dout.dout_ga = Vec::new();
     }
@@ -1002,7 +1002,7 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
     let diff_fname = diffio.dio_diff.dout_fname.as_ref().unwrap().as_ptr();
     loop {
         ok = K_FALSE;
-        let Some(fd1) = CFile::open(orig_fname, c"w") else {
+        let Some(fd1) = CFile::open(crate::memory::cstr_from_ptr((orig_fname).cast()), c"w") else {
             io_error = true;
             if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex)
                 != K_CALLBACK_NONE_CONST
@@ -1017,13 +1017,13 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             io_error = true;
         }
         drop(fd1);
-        if let Some(fd2) = CFile::open(new_fname, c"w") {
+        if let Some(fd2) = CFile::open(crate::memory::cstr_from_ptr((new_fname).cast()), c"w") {
             if !fd2.write_all(b"line2\n") {
                 io_error = true;
             }
             drop(fd2);
             let fd3 = diff_file(diffio)
-                .then(|| CFile::open(diff_fname, c"r"))
+                .then(|| CFile::open(crate::memory::cstr_from_ptr((diff_fname).cast()), c"r"))
                 .flatten();
             if let Some(fd3) = fd3 {
                 let mut linebuf: [u8; LBUFLEN] = [0; LBUFLEN];
@@ -1035,12 +1035,12 @@ fn check_external_diff(diffio: &mut Diffio) -> bool {
             } else {
                 io_error = true;
             }
-            let _ = os_remove(diff_fname);
-            let _ = os_remove(new_fname);
+            let _ = os_remove(crate::memory::cstr_from_ptr((diff_fname).cast()));
+            let _ = os_remove(crate::memory::cstr_from_ptr((new_fname).cast()));
         } else {
             io_error = true;
         }
-        let _ = os_remove(orig_fname);
+        let _ = os_remove(crate::memory::cstr_from_ptr((orig_fname).cast()));
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
             break;
         }
@@ -1252,8 +1252,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]
         {
-            if !crate::os::fs::os_dirname(dirbuf.as_mut_ptr(), MAXPATHL)
-                || crate::os::fs::os_chdir(dirbuf.as_ptr().cast()) != 0
+            if !crate::os::fs::os_dirname(&mut dirbuf)
+                || crate::os::fs::os_chdir(crate::memory::cstr_until_nul(&dirbuf)) != 0
             {
                 dirbuf[0] = 0;
             } else {
@@ -1296,7 +1296,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
         #[cfg(unix)]
         if dirbuf[0] != 0 {
-            if crate::os::fs::os_chdir(dirbuf.as_ptr().cast()) != 0 {
+            if crate::os::fs::os_chdir(crate::memory::cstr_until_nul(&dirbuf)) != 0 {
                 emsg(gettext(E_PREV_DIR));
             }
             shorten_fnames(1);
@@ -1304,11 +1304,14 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let tmp_new_bytes = crate::memory::cstr_as_bytes(tmp_new);
         buf_vec[..tmp_new_bytes.len()].copy_from_slice(tmp_new_bytes);
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 6].copy_from_slice(b".orig\0");
-        let _ = os_remove(buf);
+        let _ = os_remove(crate::memory::cstr_from_ptr((buf).cast()));
         buf_vec[tmp_new_bytes.len()..tmp_new_bytes.len() + 5].copy_from_slice(b".rej\0");
-        let _ = os_remove(buf);
+        let _ = os_remove(crate::memory::cstr_from_ptr((buf).cast()));
         let mut file_info = FileInfo::new();
-        let info_ok = os_fileinfo(tmp_new, &mut file_info);
+        let info_ok = os_fileinfo(
+            crate::memory::cstr_from_ptr((tmp_new).cast()),
+            &mut file_info,
+        );
         let filesize = os_fileinfo_size(&file_info);
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
@@ -1346,10 +1349,10 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
     }
     if let Some(ref tmp_orig) = tmp_orig_owned {
-        let _ = os_remove(tmp_orig.as_ptr());
+        let _ = os_remove(tmp_orig);
     }
     if let Some(ref tmp_new) = tmp_new_owned {
-        let _ = os_remove(tmp_new.as_ptr());
+        let _ = os_remove(tmp_new);
     }
 }
 pub fn ex_diffsplit(eap: &mut Exarg) {
@@ -1682,7 +1685,7 @@ fn diff_read(idx_orig: usize, idx_new: usize, dio: &mut Diffio) {
     let mut notset = true;
     let mut diffstyle = Diffstyle::DiffNone;
     if dio.dio_internal == 0 {
-        let Some(f) = CFile::open(dout.dout_fname.as_ref().unwrap().as_ptr(), c"r") else {
+        let Some(f) = CFile::open(dout.dout_fname.as_ref().unwrap(), c"r") else {
             emsg(gettext(c"E98: Cannot read diff output"));
             return;
         };

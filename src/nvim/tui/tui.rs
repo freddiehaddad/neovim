@@ -2210,7 +2210,9 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
 pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
 
 pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
-    let Some(f) = crate::os::fs::CFile::open_libc(path.data, c"w") else {
+    let Some(f) =
+        crate::os::fs::CFile::open_libc(crate::memory::cstr_from_ptr((path.data).cast()), c"w")
+    else {
         return;
     };
 

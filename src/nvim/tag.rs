@@ -2774,7 +2774,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
         fname = expanded.as_ptr().cast_mut().cast();
         tofree_fname = Some(expanded);
 
-        if !os_path_exists(fname.cast())
+        if !os_path_exists(crate::memory::cstr_from_ptr(fname.cast()))
             && !has_autocmd(
                 EVENT_BUFREADCMD,
                 crate::memory::cstr_as_opt_cstr(fname.cast()),

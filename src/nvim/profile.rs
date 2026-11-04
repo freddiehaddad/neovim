@@ -390,7 +390,11 @@ pub fn ex_profile(eap: &mut Exarg) {
 
     let arg_bytes = crate::memory::cstr_as_bytes(arg);
     if len == 5 && &arg_bytes[..5] == b"start" && !crate::memory::cstr_is_empty(e) {
-        prof_st().profile_fname = Some(expand_env_save_opt(e, true, std::ptr::null_mut()));
+        prof_st().profile_fname = Some(expand_env_save_opt(
+            crate::memory::cstr_from_ptr(e),
+            true,
+            None,
+        ));
         g_st().do_profiling = PROF_YES;
         profile_set_wait(profile_zero());
         set_vim_var_nr(VV_PROFILING, 1);
@@ -782,7 +786,7 @@ fn script_dump_profile(fd: &CFile) {
             fprintf!(fd, c"\n");
             fprintf!(fd, c"count  total (s)   self (s)\n");
 
-            if let Some(sfd) = CFile::open(si_name, c"r") {
+            if let Some(sfd) = CFile::open(crate::memory::cstr_from_ptr((si_name).cast()), c"r") {
                 let mut i: i32 = 0;
                 loop {
                     if vim_fgets(&mut iobuf, &sfd) {
@@ -831,7 +835,7 @@ pub fn profile_dump() {
         return;
     };
 
-    if let Some(fd) = CFile::open(profile_fname.as_ptr(), c"w") {
+    if let Some(fd) = CFile::open(profile_fname, c"w") {
         script_dump_profile(&fd);
         func_dump_profile(&fd);
     } else {

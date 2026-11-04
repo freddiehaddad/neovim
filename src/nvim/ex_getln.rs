@@ -4643,7 +4643,10 @@ pub fn tilde_replace(orig_pat: &[u8], files: &mut [std::ffi::CString]) {
             .is_some_and(|&b| vim_ispathsep(i32::from(b)))
     {
         for f in files {
-            *f = home_replace_save(None, f.as_ptr().cast_mut());
+            *f = home_replace_save(
+                None,
+                crate::memory::cstr_as_opt_cstr((f.as_ptr().cast_mut()).cast()),
+            );
         }
     }
 }

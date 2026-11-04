@@ -869,7 +869,6 @@ pub(crate) const SID_MODELINE: i32 = -1;
 pub(crate) const OPT_MODELINE: i32 = 0x04;
 
 use crate::charset::NL;
-use crate::os::fs::MAXPATHL;
 use crate::search::FORWARD;
 
 #[repr(C)]
@@ -1123,7 +1122,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
             const S_IFMT: i32 = 0o170000;
             const S_IFIFO: i32 = 0o010000;
             const S_IFSOCK: i32 = 0o140000;
-            let perm = os_getperm(curbuf_mut().b_ffname);
+            let perm = os_getperm(crate::memory::cstr_from_ptr(curbuf_mut().b_ffname));
             if perm >= 0 {
                 let fmt = perm & S_IFMT;
                 #[cfg(any(
@@ -2792,7 +2791,7 @@ pub fn buflist_new(
     let mut file_id: FileID = FileID::new();
     let file_id_valid = expanded
         .as_ref()
-        .is_some_and(|(_, sf)| os_fileid(sf.as_ptr(), &mut file_id));
+        .is_some_and(|(_, sf)| os_fileid(sf, &mut file_id));
     if let Some((ref ff_cstr, _)) = expanded
         && (flags & (BLN_DUMMY | BLN_NEW)) == 0
         && let Some(buf_ref) = buflist_findname_file_id(Some(ff_cstr), &mut file_id, file_id_valid)
@@ -3154,7 +3153,7 @@ pub fn buflist_findname_exp(fname: Option<&CStr>) -> Option<&'static mut FileBuf
 /// Find file in buffer list by name.
 pub fn buflist_findname(ffname: Option<&CStr>) -> Option<&'static mut FileBuf> {
     let mut file_id: FileID = FileID::new();
-    let file_id_valid = ffname.is_some_and(|s| os_fileid(s.as_ptr(), &mut file_id));
+    let file_id_valid = ffname.is_some_and(|s| os_fileid(s, &mut file_id));
     buflist_findname_file_id(ffname, &mut file_id, file_id_valid)
 }
 
@@ -3353,7 +3352,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
             };
 
             let p_cstr = if (options & WILD_HOME_REPLACE) != 0 {
-                home_replace_save(Some(&*buf), p)
+                home_replace_save(Some(&*buf), Some(p))
             } else {
                 p.to_owned()
             };
@@ -3448,7 +3447,7 @@ fn fname_match(
     if vim_regexec(rmp, name_cstr, 0) {
         match_ = Some(name_cstr);
     } else if !rmp.regprog.is_null() {
-        let p = home_replace_save(None, name_cstr.as_ptr());
+        let p = home_replace_save(None, Some(name_cstr));
         if vim_regexec(rmp, &p, 0) {
             match_ = Some(name_cstr);
         }
@@ -3480,9 +3479,9 @@ pub fn buflist_nr2name(n: i32, fullname: i32, helptail: i32) -> Option<std::ffi:
     Some(home_replace_save(
         (helptail != 0).then_some(&*buf),
         if fullname != 0 {
-            buf.b_ffname
+            crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast())
         } else {
-            buf.b_fname
+            crate::memory::cstr_as_opt_cstr((buf.b_fname).cast())
         },
     ))
 }
@@ -3685,7 +3684,12 @@ pub fn buflist_list(eap: &mut Exarg) {
         if let Some(name) = buf_spname(&*(buf)) {
             crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), name.to_bytes());
         } else {
-            home_replace(Some(&*buf), buf.b_fname, namebuff_ptr, MAXPATHL, true);
+            home_replace(
+                Some(&*buf),
+                crate::memory::cstr_as_opt_cstr((buf.b_fname).cast()),
+                g_st().name_buff_bytes_mut(),
+                true,
+            );
         }
 
         if message_filtered(crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut())) {
@@ -3819,7 +3823,7 @@ pub fn setfname(
             return false;
         };
 
-        file_id_valid = os_fileid(ffname_cstr.as_ptr(), &mut file_id);
+        file_id_valid = os_fileid(&ffname_cstr, &mut file_id);
         if (buf.b_flags & BF_DUMMY) == 0 {
             obuf = buflist_findname_file_id(Some(&ffname_cstr), &mut file_id, file_id_valid)
                 .map_or(ptr::null_mut(), ptr::from_mut);
@@ -3966,7 +3970,7 @@ fn otherfile_buf(
     let file_id_ref: &FileID = if let Some(fid) = file_id_p {
         fid
     } else {
-        file_id_valid = os_fileid(ffname_cstr.as_ptr(), &mut local_file_id);
+        file_id_valid = os_fileid(ffname_cstr, &mut local_file_id);
         &local_file_id
     };
     if !file_id_valid {
@@ -3984,7 +3988,12 @@ fn otherfile_buf(
 /// Set `file_id` for a buffer.
 pub fn buf_set_file_id(buf: &mut FileBuf) {
     let mut file_id: FileID = FileID::new();
-    if !buf.b_fname.is_null() && os_fileid(buf.b_fname, &mut file_id) {
+    if !buf.b_fname.is_null()
+        && os_fileid(
+            crate::memory::cstr_from_ptr((buf.b_fname).cast()),
+            &mut file_id,
+        )
+    {
         buf.file_id_valid = true;
         buf.file_id = file_id;
     } else {
@@ -4025,9 +4034,8 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         };
         bufferlen += home_replace(
             (shorthelp != 0).then(|| &*curbuf_mut()),
-            name,
-            buffer.wrapping_add(bufferlen),
-            IOSIZE - bufferlen,
+            crate::memory::cstr_as_opt_cstr(name),
+            &mut buffer_vec[bufferlen..],
             true,
         );
     }
@@ -4391,7 +4399,7 @@ pub fn fname_expand(
     let mut full_cstr = fix_fname(ffname_in.as_ptr())?;
     #[cfg_attr(not(windows), expect(unused_mut))]
     let mut sf_cstr = sfname_in.to_owned();
-    if os_isdir(full_cstr.as_ptr()) {
+    if os_isdir(&full_cstr) {
         let mut name_vec: Vec<u8> = sf_cstr.as_bytes_with_nul().to_vec();
         let name: RawCCharPtrMut = name_vec.as_mut_ptr().cast();
         let name_len = name_vec.len() - 1;
@@ -4413,7 +4421,7 @@ pub fn fname_expand(
 
     #[cfg(windows)]
     if buf.is_some_and(|b| b.b_p_bin == 0)
-        && let Some(rfname_cstr) = os_resolve_shortcut(full_cstr.as_ptr())
+        && let Some(rfname_cstr) = os_resolve_shortcut(Some(&full_cstr))
     {
         sf_cstr.clone_from(&rfname_cstr);
         full_cstr = rfname_cstr;

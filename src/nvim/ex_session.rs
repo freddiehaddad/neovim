@@ -275,8 +275,7 @@ fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> b
 }
 
 fn ses_escape_fname(name: Option<&CStr>) -> CString {
-    let mut sname_vec: Vec<u8> =
-        home_replace_save(None, name.map_or(ptr::null(), CStr::as_ptr)).into_bytes_with_nul();
+    let mut sname_vec: Vec<u8> = home_replace_save(None, name).into_bytes_with_nul();
 
     let mut idx = 0usize;
     while idx < sname_vec.len() && sname_vec[idx] != 0 {
@@ -291,7 +290,7 @@ fn ses_escape_fname(name: Option<&CStr>) -> CString {
 
 fn ses_put_fname(fd: &CFile, name: Option<&CStr>, _flagp: &mut u32) -> bool {
     let p = ses_escape_fname(name);
-    fd.puts(p.as_ptr()) >= 0
+    fd.puts(&p) >= 0
 }
 
 fn put_view(
@@ -590,8 +589,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 None,
                 g_st()
                     .globaldir
-                    .as_ref()
-                    .map_or(dirnow, |s| s.as_ptr().cast_mut()),
+                    .as_deref()
+                    .or_else(|| crate::memory::cstr_as_opt_cstr(dirnow.cast())),
             );
             let fname_esc = ses_escape_fname(Some(sname.as_c_str()));
             if !write_fmt(fd, format!("cd {}\n", cstr_to_str(&fname_esc))) {
@@ -666,7 +665,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 ) < 0
                     || fd.puts(ses_get_fname(&mut *b, &opt_vars().ssop_flags).unwrap_or(c"")) < 0
                     || fd.puts(c"]==]), callback = function() vim.cmd.bcd({ [==[") < 0
-                    || fd.puts(b_localdir_ptr) < 0
+                    || fd.puts(crate::memory::cstr_from_ptr((b_localdir_ptr).cast())) < 0
                     || fd.puts(c"]==], magic = { file = false, bar = false } }) end })\n") < 0
                 {
                     return false;
@@ -970,7 +969,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         fname = c".exrc";
     }
 
-    if using_vdir && !os_isdir(opt_vars().p_vdir) {
+    if using_vdir && !os_isdir(crate::memory::cstr_from_ptr((opt_vars().p_vdir).cast())) {
         vim_mkdir_emsg(crate::memory::cstr_from_ptr(opt_vars().p_vdir), 0o755);
     }
 
@@ -1014,11 +1013,13 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 }
             if eap.cmdidx == CMD_MKSESSION {
                 let mut dirnow_vec: Vec<u8> = vec![0; MAXPATHL];
-                let dirnow = dirnow_vec.as_mut_ptr().cast();
 
-                if !os_dirname(dirnow, MAXPATHL) || os_chdir(dirnow) != 0 {
+                if !os_dirname(&mut dirnow_vec)
+                    || os_chdir(crate::memory::cstr_until_nul(&dirnow_vec)) != 0
+                {
                     dirnow_vec[0] = 0;
                 }
+                let dirnow: *mut std::ffi::c_char = dirnow_vec.as_mut_ptr().cast();
                 if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_SESDIR) != 0
                 {
@@ -1028,7 +1029,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                 } else if !crate::memory::cstr_is_empty(dirnow)
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                     && let Some(ref gdir) = g_st().globaldir
-                    && os_chdir(gdir.as_ptr()) == 0
+                    && os_chdir(gdir) == 0
                 {
                     shorten_fnames(1);
                 }
@@ -1040,7 +1041,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
                         || ((opt_vars().ssop_flags & K_OPT_SSOP_FLAG_CURDIR) != 0
                             && g_st().globaldir.is_some()))
                 {
-                    if os_chdir(dirnow) != 0 {
+                    if os_chdir(crate::memory::cstr_from_ptr((dirnow).cast())) != 0 {
                         emsg(gettext(E_PREV_DIR));
                     }
                     shorten_fnames(1);
@@ -1102,7 +1103,10 @@ fn get_view_file(c: u8) -> Option<CString> {
         emsg(gettext(E_NONAME));
         return None;
     }
-    let sname_cstr = home_replace_save(None, curbuf_mut().b_ffname);
+    let sname_cstr = home_replace_save(
+        None,
+        crate::memory::cstr_as_opt_cstr((curbuf_mut().b_ffname).cast()),
+    );
     let sname_bytes = sname_cstr.as_bytes();
 
     let mut len: usize = 0;

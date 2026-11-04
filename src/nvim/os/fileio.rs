@@ -111,13 +111,20 @@ pub fn file_open(
     }
 
     if (flags & K_FILE_MK_DIR) != 0 {
-        let mkdir_ret = os_file_mkdir(fname.cast_mut(), 0o755);
+        let mkdir_ret = os_file_mkdir(
+            crate::memory::cstr_from_ptr((fname.cast_mut()).cast()),
+            0o755,
+        );
         if mkdir_ret < 0 {
             return mkdir_ret;
         }
     }
 
-    let fd = os_open(fname, os_open_flags, mode);
+    let fd = os_open(
+        crate::memory::cstr_from_ptr((fname).cast()),
+        os_open_flags,
+        mode,
+    );
     if fd < 0 {
         return fd;
     }
@@ -271,13 +278,7 @@ pub fn file_read(fp: &mut FileDescriptor, ret_buf: &mut [u8]) -> isize {
                     iov_len: ARENA_BLOCK_SIZE,
                 },
             ];
-            let r_ret = os_readv(
-                fp.fd,
-                &mut fp.eof,
-                iov.as_mut_ptr(),
-                iov.len(),
-                fp.non_blocking,
-            );
+            let r_ret = os_readv(fp.fd, &mut fp.eof, &mut iov, fp.non_blocking);
             if r_ret > 0 {
                 let r_usize = r_ret as usize;
                 if r_usize > read_remaining {

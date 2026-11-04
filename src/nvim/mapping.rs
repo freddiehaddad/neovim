@@ -1970,7 +1970,7 @@ pub fn put_escstr(fd: &CFile, strstart: &CStr, what: i32) -> bool {
                 rem = &rem[2.min(rem.len())..];
             }
             if is_special(c) || modifiers != 0 {
-                if fd.puts(get_special_key_name(c, modifiers).as_ptr()) < 0 {
+                if fd.puts(get_special_key_name(c, modifiers)) < 0 {
                     return false;
                 }
                 if !consumed_unescaped && !rem.is_empty() {

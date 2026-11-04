@@ -658,19 +658,11 @@ pub fn evalvars_init() {
     set_reg_var(0);
 
     let mut startreason_buf = [0u8; 32];
-    let startreason = os_getenv_buf(
-        ENV_STARTREASON,
-        startreason_buf.as_mut_ptr(),
-        startreason_buf.len(),
-    );
-    if (crate::memory::cstr_as_opt_bytes(startreason.cast()) == Some(b"restart!"))
-        || (crate::memory::cstr_as_opt_bytes(startreason.cast()) == Some(b"restart"))
+    let startreason = os_getenv_buf(ENV_STARTREASON, &mut startreason_buf);
+    if startreason.map(CStr::to_bytes) == Some(b"restart!")
+        || startreason.map(CStr::to_bytes) == Some(b"restart")
     {
-        set_vim_var_string(
-            VV_STARTREASON,
-            crate::memory::cstr_as_opt_cstr(startreason.cast()),
-            -1,
-        );
+        set_vim_var_string(VV_STARTREASON, startreason, -1);
     }
     if os_env_exists(ENV_STARTREASON, false) {
         os_unsetenv(ENV_STARTREASON);
@@ -1728,7 +1720,7 @@ fn ex_let_env<'a>(
             tofree = Some(joined);
         }
         if !p.is_null() {
-            vim_setenv_ext(&name_cstr, p);
+            vim_setenv_ext(&name_cstr, crate::memory::cstr_from_ptr((p).cast()));
             arg_end = arg;
         }
         drop(tofree);

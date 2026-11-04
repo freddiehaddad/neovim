@@ -122,12 +122,8 @@ pub fn os_localtime_r<'a>(clock: &time_t, result: &'a mut Tm) -> Option<&'a mut 
     #[cfg(unix)]
     unsafe {
         let mut tz_buf = [0u8; 64];
-        let tz_ptr = os_getenv_buf(c"TZ", tz_buf.as_mut_ptr(), tz_buf.len());
-        let tz_bytes = if tz_ptr.is_null() {
-            &[][..]
-        } else {
-            crate::memory::cstr_as_bytes(tz_ptr.cast())
-        };
+        let tz_cstr = os_getenv_buf(c"TZ", &mut tz_buf);
+        let tz_bytes = tz_cstr.map_or(&[][..], std::ffi::CStr::to_bytes);
         let cache = &mut ostime_st().tz_cache;
         let cache_len = cache.iter().position(|&b| b == 0).unwrap_or(cache.len());
         let cmp_len = tz_bytes.len().min(cache.len() - 1);

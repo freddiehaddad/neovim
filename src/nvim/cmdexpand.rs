@@ -2783,11 +2783,11 @@ fn showmatches_oneline(
         {
             let match_j = matches[j as usize].as_ptr();
             if xp.xp_numfiles != -1 {
-                let exp_path = expand_env_save_opt(match_j.cast_mut(), true, ptr::null_mut());
+                let exp_path = expand_env_save_opt(&matches[j as usize], true, None);
                 let halved_slash = backslash_halve_save(exp_path.as_bytes());
-                isdir = os_isdir(halved_slash.as_ptr());
+                isdir = os_isdir(&halved_slash);
             } else {
-                isdir = os_isdir(match_j);
+                isdir = os_isdir(crate::memory::cstr_from_ptr((match_j).cast()));
             }
             if showtail {
                 p = show_match(matches, j as usize, showtail)
@@ -2796,7 +2796,12 @@ fn showmatches_oneline(
                     .cast();
             } else {
                 let name_buff = g_st().name_buff.as_mut_ptr();
-                home_replace(None, match_j, name_buff, MAXPATHL, true);
+                home_replace(
+                    None,
+                    crate::memory::cstr_as_opt_cstr((match_j).cast()),
+                    g_st().name_buff_bytes_mut(),
+                    true,
+                );
                 p = name_buff.cast();
             }
         } else {
@@ -2911,7 +2916,12 @@ pub fn showmatches(
                     || xp.xp_context == EXPAND_BUFFERS)
             {
                 let name_buff = g_st().name_buff.as_mut_ptr();
-                home_replace(None, match_i.as_ptr(), name_buff, MAXPATHL, true);
+                home_replace(
+                    None,
+                    crate::memory::cstr_as_opt_cstr((match_i.as_ptr()).cast()),
+                    g_st().name_buff_bytes_mut(),
+                    true,
+                );
                 vim_strsize(crate::memory::cstr_from_ptr(name_buff))
             } else {
                 vim_strsize(show_match(matches, i, showtail))
@@ -4593,13 +4603,7 @@ fn get_scriptnames_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 
     let si = script_item(idx + 1);
     let name_buff = g_st().name_buff.as_mut_ptr();
-    home_replace(
-        None,
-        (*si).name_cstr().map_or(ptr::null(), CStr::as_ptr),
-        name_buff,
-        MAXPATHL,
-        true,
-    );
+    home_replace(None, (*si).name_cstr(), g_st().name_buff_bytes_mut(), true);
     Some(unsafe { CStr::from_ptr(name_buff) })
 }
 

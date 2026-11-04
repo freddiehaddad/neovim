@@ -1771,10 +1771,10 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
     }
 
     if let Some(ref itmp) = itmp_owned {
-        os_remove(itmp.as_ptr());
+        os_remove(itmp);
     }
     if let Some(ref otmp) = otmp_owned {
-        os_remove(otmp.as_ptr());
+        os_remove(otmp);
     }
 }
 
@@ -2093,7 +2093,7 @@ pub fn ex_update(eap: &mut Exarg) {
     if curbuf_is_changed_fn()
         || (!bt_nofilename(Some(crate::globals::curbuf_mut()))
             && !curbuf_mut().b_ffname.is_null()
-            && !os_path_exists(curbuf_mut().b_ffname))
+            && !os_path_exists(crate::memory::cstr_from_ptr((curbuf_mut().b_ffname).cast())))
     {
         do_write(eap);
     }
@@ -2115,7 +2115,7 @@ pub fn ex_write(eap: &mut Exarg) {
 
 #[cfg(unix)]
 fn check_writable(fname: &CStr) -> bool {
-    if os_nodetype(fname.as_ptr()) == NODE_OTHER {
+    if os_nodetype(fname) == NODE_OTHER {
         semsg!(
             gettext(c"E503: \"%s\" is not a file or writable device"),
             fname.as_ptr(),
@@ -2127,7 +2127,9 @@ fn check_writable(fname: &CStr) -> bool {
 
 fn handle_mkdir_p_arg(eap: &mut Exarg, fname: Option<&CStr>) -> bool {
     let fname_ptr = fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    if eap.mkdir_p != 0 && os_file_mkdir(fname_ptr, 0o755) < 0 {
+    if eap.mkdir_p != 0
+        && os_file_mkdir(crate::memory::cstr_from_ptr((fname_ptr).cast()), 0o755) < 0
+    {
         return false;
     }
     true
@@ -2319,10 +2321,10 @@ pub fn check_overwrite(
                     && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_OVERNEW))
                 || (buf.b_flags & BF_READERR) != 0)))
         && opt_vars().p_wa == 0
-        && os_path_exists(ffname)
+        && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
     {
         if eap.forceit == 0 && eap.append == 0 {
-            if os_isdir(ffname) {
+            if os_isdir(crate::memory::cstr_from_ptr((ffname).cast())) {
                 semsg!(gettext(E_ISADIR2), ffname);
                 return false;
             }
@@ -2356,7 +2358,7 @@ pub fn check_overwrite(
                 copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) = makeswapname(fname, crate::memory::cstr_until_nul(&dir))
-                && os_path_exists(swapname.as_ptr())
+                && os_path_exists(&swapname)
             {
                 if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
@@ -2492,7 +2494,8 @@ fn not_writing() -> bool {
 fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
     if *forceit == 0
         && (buf.b_p_ro != 0
-            || (os_path_exists(buf.b_ffname) && os_file_is_writable(buf.b_ffname) == 0))
+            || (os_path_exists(crate::memory::cstr_from_ptr((buf.b_ffname).cast()))
+                && os_file_is_writable(crate::memory::cstr_from_ptr((buf.b_ffname).cast())) == 0))
     {
         if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
             && !buf.b_fname.is_null()

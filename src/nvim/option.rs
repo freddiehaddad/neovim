@@ -2251,20 +2251,11 @@ fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'st
         || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
     let namebuf_ptr = g_st().name_buff.as_mut_ptr();
     expand_env_esc(
-        val_cstr.as_ptr(),
-        namebuf_ptr,
-        MAXPATHL as i32,
-        if esc {
-            c" \t".as_ptr().cast_mut()
-        } else {
-            ptr::null_mut()
-        },
+        val_cstr,
+        g_st().name_buff_bytes_mut(),
+        esc.then_some(c" \t"),
         false,
-        if ptr::eq(var, (&raw mut opt_vars().p_sps).cast()) {
-            c"file:".as_ptr().cast_mut()
-        } else {
-            ptr::null_mut()
-        },
+        ptr::eq(var, (&raw mut opt_vars().p_sps).cast()).then_some(c"file:"),
     );
     if crate::memory::cstr_as_bytes(namebuf_ptr) == val_cstr.to_bytes() {
         return None;
@@ -6375,12 +6366,12 @@ fn put_set_value(
             let value_num = value.data.integer();
             let mut wc: OptInt = 0;
             if wc_use_keyname(varp, &mut wc) != 0 {
-                if fd.puts(get_special_key_name(wc as i32, 0).as_ptr()) < 0 {
+                if fd.puts(get_special_key_name(wc as i32, 0)) < 0 {
                     return false;
                 }
             } else {
                 let num_s = format!("{value_num}\0");
-                if fd.puts(num_s.as_ptr().cast()) < 0 {
+                if fd.puts(crate::memory::cstr_until_nul(num_s.as_bytes())) < 0 {
                     return false;
                 }
             }
@@ -6394,8 +6385,12 @@ fn put_set_value(
                 if (flags & K_OPT_FLAG_EXPAND) != 0 {
                     let size = crate::memory::cstr_len(value_str) + 1;
                     let mut buf_vec = vec![0u8; size];
-                    let buf = buf_vec.as_mut_ptr();
-                    home_replace(None, value_str, buf, size, false);
+                    home_replace(
+                        None,
+                        crate::memory::cstr_as_opt_cstr(value_str),
+                        &mut buf_vec,
+                        false,
+                    );
 
                     if size >= MAXPATHL
                         && (flags & K_OPT_FLAG_COMMA) != 0
@@ -7988,7 +7983,6 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let opt = get_option(opt_idx);
     let vp = get_varp_scope(opt, opt_flags).unwrap();
 
-    let namebuf_ptr = g_st().name_buff.as_mut_ptr();
     let mut wc: OptInt = 0;
     if wc_use_keyname(vp, &mut wc) != 0 {
         crate::memory::copy_bytes_to_c_buf(
@@ -8008,7 +8002,12 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
         && !is_callback_option(opt_idx)
         && option_has_type(opt_idx, ObjectType::ObjectTypeString)
     {
-        home_replace(None, varp_cstr(vp).as_ptr(), namebuf_ptr, MAXPATHL, false);
+        home_replace(
+            None,
+            Some(varp_cstr(vp)),
+            g_st().name_buff_bytes_mut(),
+            false,
+        );
         return;
     }
 
@@ -8037,10 +8036,10 @@ pub fn shortmess(x: i32) -> bool {
 
 pub fn vimrc_found(fname: Option<&std::ffi::CStr>, envname: &std::ffi::CStr) {
     if let Some(fname) = fname
-        && vim_getenv(envname.as_ptr().cast_mut()).is_none()
+        && vim_getenv(envname).is_none()
         && let Some(p) = FullName_save(fname.as_ptr(), false)
     {
-        os_setenv(envname.as_ptr().cast_mut(), p.as_ptr(), 1);
+        os_setenv(envname, p.as_c_str(), 1);
     }
 }
 

@@ -207,19 +207,18 @@ pub fn path_equal<S1: crate::strings::IntoCCharPtr, S2: crate::strings::IntoCCha
 
         if (flags & K_PATH_CMP_EXPAND) != 0 {
             expand_env_esc(
-                s1,
-                expanded_s1.as_mut_ptr(),
-                MAXPATHL as i32,
-                ptr::null_mut(),
+                crate::memory::cstr_from_ptr(s1),
+                &mut expanded_s1,
+                None,
                 false,
-                ptr::null_mut(),
+                None,
             );
         } else if flags != 0 {
             crate::memory::copy_bytes_to_c_buf(&mut expanded_s1, crate::memory::cstr_as_bytes(s1));
         }
 
         let id_ok1 = os_fileid(crate::memory::cstr_until_nul(&expanded_s1), &mut file_id1);
-        let id_ok2 = os_fileid(s2, &mut file_id2);
+        let id_ok2 = os_fileid(crate::memory::cstr_from_ptr((s2).cast()), &mut file_id2);
         if id_ok1 && id_ok2 && os_fileid_equal(&file_id1, &file_id2) {
             return true;
         }
@@ -459,7 +458,7 @@ pub fn dir_of_file_exists(fname: *mut u8) -> bool {
 
     *crate::globals::gptr(p) = 0;
 
-    let retval = os_isdir(fname.cast());
+    let retval = os_isdir(crate::memory::cstr_from_ptr(fname.cast()));
 
     *crate::globals::gptr(p) = c;
 
@@ -726,7 +725,9 @@ fn do_path_expand(
         } else {
             buf
         };
-        if os_file_is_readable(dirpath) && os_scandir(&mut dir, dirpath) {
+        if os_file_is_readable(crate::memory::cstr_from_ptr((dirpath).cast()))
+            && os_scandir(&mut dir, crate::memory::cstr_from_ptr((dirpath).cast()))
+        {
             scandir_next_with_dots(None);
             while !g_st().got_int {
                 let Some(name) = scandir_next_with_dots(Some(&mut dir)) else {
@@ -775,9 +776,12 @@ fn do_path_expand(
                             });
                         }
                         if if (flags & EW_ALLLINKS) != 0 {
-                            os_fileinfo_link(buf, &mut file_info)
+                            os_fileinfo_link(
+                                crate::memory::cstr_from_ptr((buf).cast()),
+                                &mut file_info,
+                            )
                         } else {
-                            os_path_exists(buf)
+                            os_path_exists(crate::memory::cstr_from_ptr((buf).cast()))
                         } {
                             addfile(gap, buf, flags);
                         }
@@ -997,8 +1001,8 @@ fn uniquefy_paths(
         }
 
         let mut curdir_arr = [0u8; MAXPATHL];
+        os_dirname(&mut curdir_arr);
         let curdir = curdir_arr.as_mut_ptr();
-        os_dirname(curdir, MAXPATHL);
         let curdir_cstr = crate::memory::cstr_until_nul(&curdir_arr);
         expand_path_option(curdir_cstr, path_option, &mut path_ga);
 
@@ -1152,8 +1156,7 @@ fn expand_in_path(
         };
 
         let mut curdir_arr = [0u8; MAXPATHL];
-        let curdir = curdir_arr.as_mut_ptr();
-        os_dirname(curdir, MAXPATHL);
+        os_dirname(&mut curdir_arr);
         let curdir_cstr = crate::memory::cstr_until_nul(&curdir_arr);
 
         if (flags & EW_CDPATH) != 0 {
@@ -1306,7 +1309,11 @@ pub fn gen_expand_wildcards_vec(
         } else {
             if (has_env_var(p_bytes) && (flags & EW_NOTENV) == 0) || p_bytes.first() == Some(&b'~')
             {
-                let po = expand_env_save_opt(p, true, PATH_ESC_WILDCARDS);
+                let po = expand_env_save_opt(
+                    crate::memory::cstr_from_ptr(p),
+                    true,
+                    Some(PATH_ESC_WILDCARDS),
+                );
                 p = po.as_ptr().cast_mut();
                 p_owned = Some(po);
                 #[cfg(unix)]
@@ -1546,9 +1553,9 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
 
         if (flags & EW_NOTFOUND) == 0
             && if (flags & EW_ALLLINKS) != 0 {
-                !os_fileinfo_link(f, &mut file_info)
+                !os_fileinfo_link(crate::memory::cstr_from_ptr((f).cast()), &mut file_info)
             } else {
-                !os_path_exists(f)
+                !os_path_exists(crate::memory::cstr_from_ptr((f).cast()))
             }
         {
             return;
@@ -1562,12 +1569,19 @@ pub fn addfile(gap: &mut Vec<std::ffi::CString>, f: impl crate::strings::IntoCCh
             }
         }
 
-        let isdir = os_isdir(f);
+        let isdir = os_isdir(crate::memory::cstr_from_ptr((f).cast()));
         if (isdir && (flags & EW_DIR) == 0) || (!isdir && (flags & EW_FILE) == 0) {
             return;
         }
 
-        if !isdir && (flags & EW_EXEC) != 0 && !os_can_exe(f, None, (flags & EW_SHELLCMD) == 0) {
+        if !isdir
+            && (flags & EW_EXEC) != 0
+            && !os_can_exe(
+                crate::memory::cstr_from_ptr((f).cast()),
+                None,
+                (flags & EW_SHELLCMD) == 0,
+            )
+        {
             return;
         }
 
@@ -1660,7 +1674,10 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
                     *crate::globals::gptr(p.wrapping_sub(1)) = 0;
 
                     let mut file_info: FileInfo = FileInfo::new();
-                    if !os_fileinfo_link(filename.cast(), &mut file_info) {
+                    if !os_fileinfo_link(
+                        crate::memory::cstr_from_ptr(filename.cast()),
+                        &mut file_info,
+                    ) {
                         do_strip = true;
                     }
 
@@ -1677,7 +1694,10 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
 
                         *crate::globals::gptr(tail) = 0;
 
-                        if os_fileinfo(filename.cast(), &mut file_info) {
+                        if os_fileinfo(
+                            crate::memory::cstr_from_ptr(filename.cast()),
+                            &mut file_info,
+                        ) {
                             do_strip = true;
                         } else {
                             stripping_disabled = true;
@@ -1694,7 +1714,10 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
 
                                 *crate::globals::gptr(p) = 0;
 
-                                os_fileinfo(filename.cast(), &mut new_file_info);
+                                os_fileinfo(
+                                    crate::memory::cstr_from_ptr(filename.cast()),
+                                    &mut new_file_info,
+                                );
 
                                 *crate::globals::gptr(p) = saved_char;
                             }
@@ -1892,7 +1915,7 @@ pub fn fix_fname(fname: impl crate::strings::IntoCCharPtr) -> Option<std::ffi::C
 
 pub fn path_fix_case(name: *mut u8) {
     let mut file_info: FileInfo = FileInfo::new();
-    if !os_fileinfo_link(name.cast(), &mut file_info) {
+    if !os_fileinfo_link(crate::memory::cstr_from_ptr(name.cast()), &mut file_info) {
         return;
     }
 
@@ -1904,7 +1927,7 @@ pub fn path_fix_case(name: *mut u8) {
 
         *crate::globals::gptr(slash) = 0;
 
-        let ok = os_scandir(&mut dir, name.cast());
+        let ok = os_scandir(&mut dir, crate::memory::cstr_from_ptr(name.cast()));
 
         *crate::globals::gptr(slash) = b'/';
 
@@ -2083,7 +2106,7 @@ pub fn path_try_shorten_fname<T>(full_path: *mut T) -> *mut T {
     let mut dirname = [0u8; MAXPATHL];
     let mut p = full_path;
 
-    if os_dirname(dirname.as_mut_ptr(), MAXPATHL) {
+    if os_dirname(&mut dirname) {
         p = path_shorten_fname(full_path, dirname.as_mut_ptr());
         if crate::memory::cstr_is_empty(p.cast_const().cast()) {
             p = full_path;
@@ -2224,13 +2247,13 @@ pub fn path_full_dir_name(
     let directory = directory.into_c_char_ptr();
     {
         if crate::memory::cstr_is_empty(directory) {
-            return os_dirname(buffer, len);
+            return os_dirname(unsafe { std::slice::from_raw_parts_mut(buffer, len) });
         }
 
-        if !os_realpath(directory, unsafe {
+        if os_realpath(crate::memory::cstr_from_ptr((directory).cast()), unsafe {
             std::slice::from_raw_parts_mut(buffer, len)
         })
-        .is_null()
+        .is_some()
         {
             return true;
         }
@@ -2240,7 +2263,7 @@ pub fn path_full_dir_name(
         }
 
         let mut old_dir = [0u8; MAXPATHL];
-        if !os_dirname(old_dir.as_mut_ptr(), MAXPATHL) {
+        if !os_dirname(&mut old_dir) {
             return false;
         }
 
@@ -2354,7 +2377,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
             crate::memory::copy_bytes_to_c_buf(buf_slice, argv0_bytes);
         } else if let Some(ref path_cstr) = path_cstr {
             if crate::memory::cstr_first_byte(argv0) == b'.' || argv0_bytes.contains(&PATHSEP) {
-                if !os_dirname(buf, MAXPATHL) {
+                if !os_dirname(buf_slice) {
                     buf_slice[0] = 0;
                 }
                 crate::memory::append_bytes_to_c_buf(buf_slice, PATHSEPSTR);
@@ -2375,7 +2398,7 @@ pub fn path_guess_exepath(argv0: impl crate::strings::IntoCCharPtr, buf_slice: &
                     crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), dir);
                     crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), PATHSEPSTR);
                     crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), argv0_bytes);
-                    if os_can_exe(namebuff, None, false) {
+                    if os_can_exe(crate::memory::cstr_from_ptr((namebuff).cast()), None, false) {
                         crate::memory::copy_bytes_to_c_buf(
                             buf_slice,
                             crate::memory::cstr_as_bytes(namebuff),
@@ -2540,7 +2563,7 @@ mod tests {
 
             assert!(path_try_shorten_fname(ptr::null_mut::<u8>()).is_null());
             let mut cwd_buf = [0u8; MAXPATHL];
-            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
+            assert!(os_dirname(&mut cwd_buf));
             let cwd_str = crate::memory::cstr_until_nul(&cwd_buf).to_str().unwrap();
             let mut in_cwd = CString::new(format!("{cwd_str}/subdir/file.txt"))
                 .unwrap()
@@ -2624,7 +2647,7 @@ mod tests {
             init_progpath();
 
             let mut cwd_buf = [0u8; MAXPATHL];
-            assert!(os_dirname(cwd_buf.as_mut_ptr(), MAXPATHL));
+            assert!(os_dirname(&mut cwd_buf));
             let cwd = crate::memory::cstr_until_nul(&cwd_buf)
                 .to_str()
                 .unwrap()

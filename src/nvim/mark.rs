@@ -33,7 +33,7 @@ use crate::message::{
 use crate::r#move::set_topline;
 use crate::option_vars::*;
 use crate::os::env::expand_env;
-use crate::os::fs::{MAXPATHL, os_dirname};
+use crate::os::fs::os_dirname;
 use crate::os::input::os_breakcheck;
 use crate::os::time::{Timestamp, os_time};
 use crate::path::{K_PATH_CMP_LITERAL, path_equal, path_shorten_fname, vim_ispathsep_nocolon};
@@ -129,7 +129,6 @@ use crate::change::TAB;
 use crate::cmdexpand::HLF_D;
 use crate::eval::K_LIST_LEN_MAY_KNOW_CONST;
 use crate::ex_cmds::{BL_FIX, BL_WHITE};
-use crate::globals::IOSIZE;
 use crate::regexp::{K_MARK_BUF_LOCAL, MAXCOL};
 use crate::search::{BACKWARD, FORWARD};
 
@@ -901,7 +900,7 @@ fn fname2fnum(fm: &mut Xfmark) {
                 .get(1)
                 .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
         {
-            let len = expand_env(c"~/", g_st().name_buff.as_mut_ptr(), MAXPATHL as i32);
+            let len = expand_env(c"~/", g_st().name_buff_bytes_mut());
             crate::memory::copy_bytes_to_c_buf(
                 &mut g_st().name_buff_bytes_mut()[len..],
                 &fname_bytes[2..],
@@ -911,7 +910,7 @@ fn fname2fnum(fm: &mut Xfmark) {
         }
     }
 
-    os_dirname(g_st().iobuff.as_mut_ptr(), IOSIZE);
+    os_dirname(g_st().iobuff_bytes_mut());
     let p = path_shorten_fname(
         g_st().name_buff.as_mut_ptr(),
         g_st().iobuff.as_mut_ptr().cast(),

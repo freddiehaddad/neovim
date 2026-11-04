@@ -375,11 +375,15 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
 }
 
 pub fn get_trans_bufname(buf: &mut FileBuf) {
-    let name_buff = g_st().name_buff.as_mut_ptr();
     if let Some(sp) = buf_spname(&*buf) {
         crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
-        home_replace(Some(&*buf), buf.b_fname, name_buff, MAXPATHL, true);
+        home_replace(
+            Some(&*buf),
+            crate::memory::cstr_as_opt_cstr((buf.b_fname).cast()),
+            g_st().name_buff_bytes_mut(),
+            true,
+        );
     }
     trans_characters(g_st().name_buff_bytes_mut());
 }
@@ -1962,9 +1966,8 @@ pub extern "C" fn build_stl_str_hl(
 
                     home_replace(
                         unsafe { wp.w_buffer.as_ref() },
-                        t,
-                        name_buff,
-                        MAXPATHL,
+                        crate::memory::cstr_as_opt_cstr(t),
+                        g_st().name_buff_bytes_mut(),
                         true,
                     );
                 }

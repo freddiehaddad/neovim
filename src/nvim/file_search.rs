@@ -238,7 +238,7 @@ pub fn vim_findfile_init(
             #[cfg(not(windows))]
             let handled_drive = false;
 
-            if !handled_drive && !os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) {
+            if !handled_drive && !os_dirname(&mut expand_buf) {
                 return None;
             }
             let expand_len = crate::memory::cstr_until_nul(&expand_buf).to_bytes().len();
@@ -388,7 +388,7 @@ pub fn vim_findfile_init(
                 expand_ptr,
                 search_ctx.ffsc_fix_path.data,
             );
-            if os_isdir(buf) {
+            if os_isdir(crate::memory::cstr_from_ptr((buf).cast())) {
                 if search_ctx.ffsc_fix_path.size > 0 {
                     add_sep = after_pathsep(
                         search_ctx.ffsc_fix_path.data,
@@ -714,7 +714,9 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 if crate::memory::cstr_is_empty(rest_of_wildcards.data) {
                     for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
                         let entry = stackp.ffs_filearray.as_slice()[i].as_ptr().cast_mut();
-                        if !path_with_url(entry) && !os_isdir(entry) {
+                        if !path_with_url(entry)
+                            && !os_isdir(crate::memory::cstr_from_ptr((entry).cast()))
+                        {
                             continue;
                         }
                         let mut len = stackp.ffs_filearray.as_slice()[i].as_bytes().len();
@@ -747,10 +749,13 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         loop {
                             let vis_idx = search_ctx.ffsc_visited_list.unwrap();
                             if (path_with_url(file_path.data)
-                                || (os_path_exists(file_path.data)
-                                    && (search_ctx.ffsc_find_what == FINDFILE_BOTH
-                                        || ((search_ctx.ffsc_find_what == FINDFILE_DIR)
-                                            == os_isdir(file_path.data)))))
+                                || (os_path_exists(crate::memory::cstr_from_ptr(
+                                    (file_path.data).cast(),
+                                )) && (search_ctx.ffsc_find_what == FINDFILE_BOTH
+                                    || ((search_ctx.ffsc_find_what == FINDFILE_DIR)
+                                        == os_isdir(crate::memory::cstr_from_ptr(
+                                            (file_path.data).cast(),
+                                        ))))))
                                 && ff_check_visited(
                                     &mut search_ctx.ffsc_visited_lists_list[vis_idx]
                                         .ffvl_visited_list,
@@ -766,7 +771,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 }
 
                                 let mut expand_buf: [u8; MAXPATHL] = [0; MAXPATHL];
-                                if os_dirname(expand_buf.as_mut_ptr(), MAXPATHL) {
+                                if os_dirname(&mut expand_buf) {
                                     let p = path_shorten_fname(
                                         file_path.data,
                                         expand_buf.as_mut_ptr().cast(),
@@ -801,7 +806,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                 } else {
                     for i in stackp.ffs_filearray_cur..stackp.ffs_filearray.len() {
                         let entry_cstr = &stackp.ffs_filearray.as_slice()[i];
-                        if !os_isdir(entry_cstr.as_ptr()) {
+                        if !os_isdir(entry_cstr) {
                             continue;
                         }
                         ff_push(
@@ -829,7 +834,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                     ) {
                         continue;
                     }
-                    if !os_isdir(entry_cstr.as_ptr()) {
+                    if !os_isdir(entry_cstr) {
                         continue;
                     }
                     ff_push(
@@ -999,7 +1004,7 @@ fn ff_check_visited(
     if path_with_url(fname_cstr.as_ptr()) {
         expand_size = crate::memory::copy_bytes_to_c_buf(&mut expand_buf, fname_bytes);
         url = true;
-    } else if !os_fileid(fname_cstr.as_ptr(), &mut file_id) {
+    } else if !os_fileid(&fname_cstr, &mut file_id) {
         return false;
     }
 
@@ -1205,12 +1210,11 @@ pub fn find_file_in_path_option(
 
             let ptr_cstr = std::ffi::CString::new(ptr_slice).unwrap_or_default();
             ff_opt.file_to_findlen = expand_env_esc(
-                ptr_cstr.as_ptr(),
-                name_buff,
-                MAXPATHL as i32,
-                ptr::null_mut(),
+                ptr_cstr.as_c_str(),
+                g_st().name_buff_bytes_mut(),
+                None,
                 true,
-                ptr::null_mut(),
+                None,
             );
 
             let mut ftf_bytes =
@@ -1288,9 +1292,10 @@ pub fn find_file_in_path_option(
 
                     let mut suffix = suffixes;
                     loop {
-                        if os_path_exists(name_buff)
+                        if os_path_exists(crate::memory::cstr_from_ptr((name_buff).cast()))
                             && (find_what == FINDFILE_BOTH
-                                || ((find_what == FINDFILE_DIR) == os_isdir(name_buff)))
+                                || ((find_what == FINDFILE_DIR)
+                                    == os_isdir(crate::memory::cstr_from_ptr((name_buff).cast()))))
                         {
                             let slen = simplify_filename(name_buff.cast());
                             return Some(
@@ -1737,7 +1742,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         ) as usize;
         dir[tail_off] = NUL as u8;
 
-        if !os_dirname(name_buff, MAXPATHL) {
+        if !os_dirname(g_st().name_buff_bytes_mut()) {
             g_st().name_buff[0] = NUL;
         }
 
@@ -1777,7 +1782,7 @@ pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
         return -1;
     };
 
-    os_chdir(dir_name.as_ptr())
+    os_chdir(&dir_name)
 }
 
 #[cfg(test)]

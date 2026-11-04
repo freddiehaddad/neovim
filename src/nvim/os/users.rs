@@ -138,13 +138,13 @@ fn collect_usernames() -> Vec<CString> {
         endpwent();
 
         let mut user_buf = [0u8; 256];
-        let user_env = os_getenv_buf(c"USER", user_buf.as_mut_ptr(), user_buf.len());
-
-        if !user_env.is_null() && *user_env != 0 {
-            let env_bytes = crate::memory::cstr_as_bytes(user_env.cast());
+        if let Some(user_env) = os_getenv_buf(c"USER", &mut user_buf)
+            && !user_env.to_bytes().is_empty()
+        {
+            let env_bytes = user_env.to_bytes();
             let found = users.iter().any(|u| u.as_bytes() == env_bytes);
             if !found {
-                let pw = getpwnam(user_env.cast());
+                let pw = getpwnam(user_env.as_ptr().cast());
                 if !pw.is_null() {
                     add_user(
                         &mut users,

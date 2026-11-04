@@ -2593,7 +2593,7 @@ fn unibi_from_dirs(list: &str, term: &str) -> Option<UnibiTerm> {
 }
 
 fn get_env_str(name: &CStr) -> Option<String> {
-    crate::os::env::os_getenv_cstr(name.as_ptr()).map(|c| c.to_string_lossy().into_owned())
+    crate::os::env::os_getenv_cstr(name).map(|c| c.to_string_lossy().into_owned())
 }
 
 fn unibi_from_term(term_bytes: Option<&[u8]>) -> Option<UnibiTerm> {

@@ -64,7 +64,6 @@ use crate::os::fileio::{
     FileDescriptor, K_FILE_NON_BLOCKING, K_FILE_READ_ONLY, file_close, file_open, file_open_stdin,
     file_read,
 };
-use crate::os::fs::MAXPATHL;
 use crate::os::input::{input_available, input_get, line_breakcheck, os_breakcheck};
 use crate::plines::{
     CSType, CharsizeArg, ClusterInfo, StrCharInfo, init_charsize_arg, win_charsize,
@@ -1298,8 +1297,11 @@ pub fn openscript(name: &CStr, directly: bool) {
         }
 
         inp_st().curscript += 1;
+        expand_env(
+            crate::memory::cstr_from_ptr(name_ptr),
+            g_st().name_buff_bytes_mut(),
+        );
         let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-        expand_env(name_ptr, namebuff_ptr, MAXPATHL as i32);
         let cur_idx = inp_st().curscript as usize;
         let error = file_open(
             &mut inp_st().scriptin[cur_idx],

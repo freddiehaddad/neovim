@@ -3364,7 +3364,7 @@ pub fn find_pattern_in_path(
                         max_path_depth *= 2;
                         files = bigger;
                     }
-                    let fp = CFile::open(nf_cstr.as_ptr(), c"r");
+                    let fp = CFile::open(&nf_cstr, c"r");
                     let opened = fp.is_some();
                     files[(depth + 1) as usize].fp = fp;
                     if opened {

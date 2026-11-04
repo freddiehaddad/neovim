@@ -171,7 +171,12 @@ pub fn ex_help(eap: &mut Exarg) {
             && wp.buf_mut().b_nwindows > 0
         {
             win_enter(wp, true);
-        } else if CFile::open(opt_vars().p_hf, c"rb").is_none() {
+        } else if CFile::open(
+            crate::memory::cstr_from_ptr((opt_vars().p_hf).cast()),
+            c"rb",
+        )
+        .is_none()
+        {
             smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
             early_ret = true;
         } else {

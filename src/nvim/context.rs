@@ -686,7 +686,7 @@ fn ctx_dirs_restore(cs: &mut CtxSwitch) {
     } else if let Some(ref cs_cwd) = cs.cs_cwd
         && ((cs.cs_flags & K_CTX_KEEP_DIRS) != 0 || !ctx_st().ctx_did_chdir)
     {
-        os_chdir(cs_cwd.as_ptr());
+        os_chdir(cs_cwd);
         shorten_fnames(1);
     }
     cs.cs_cwd = None;

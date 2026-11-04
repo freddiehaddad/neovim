@@ -203,7 +203,7 @@ pub fn libuv_proc_spawn(uvproc: &mut LibuvProc) -> i32 {
 
     #[cfg(windows)]
     {
-        if os_shell_is_cmdexe(proc_.argv.as_slice()[0].as_ptr()) {
+        if os_shell_is_cmdexe(&proc_.argv.as_slice()[0]) {
             uvproc.uvopts.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
             path_to_backslash(proc_.argv.as_slice()[0].as_ptr().cast_mut());
         }

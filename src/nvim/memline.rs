@@ -513,7 +513,7 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         set_b0_fname(b0p, buf);
         os_get_username(&mut b0p.b0_uname);
         b0p.b0_uname[B0_UNAME_SIZE - 1] = 0;
-        os_get_hostname(&raw mut b0p.b0_hname, B0_HNAME_SIZE);
+        os_get_hostname(&mut b0p.b0_hname);
         b0p.b0_hname[B0_HNAME_SIZE - 1] = 0;
         long_to_char(os_get_pid(), &mut b0p.b0_pid);
     }
@@ -619,7 +619,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
 
     let mfp = buf.b_ml.mfp_mut();
     if mfp.mf_fd == -1 {
-        mfp.mf_fd = os_open(mfp.mf_fname.as_ref().unwrap().as_ptr(), O_RDWR, 0);
+        mfp.mf_fd = os_open(mfp.mf_fname.as_ref().unwrap(), O_RDWR, 0);
         if mfp.mf_fd < 0 {
             emsg(tr(c"E301: Oops, lost the swap file!!!"));
             return;
@@ -794,8 +794,12 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         b0p.b0_fname[0] = 0;
     } else {
         let mut uname = [0u8; B0_UNAME_SIZE];
-        let fname_ptr: RawCCharPtrMut = (&raw mut b0p.b0_fname).cast();
-        let flen = home_replace(None, buf.b_ffname, fname_ptr, B0_FNAME_SIZE_CRYPT, true);
+        let flen = home_replace(
+            None,
+            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
+            &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
+            true,
+        );
         if b0p.b0_fname[0] == b'~' {
             let retval = os_get_username(&mut uname);
             let ulen = crate::memory::cstr_until_nul(&uname).to_bytes().len();
@@ -810,7 +814,10 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
             }
         }
         let mut file_info = FileInfo::new();
-        if os_fileinfo(buf.b_ffname, &mut file_info) {
+        if os_fileinfo(
+            crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+            &mut file_info,
+        ) {
             buf_store_file_info(buf, &mut file_info);
             long_to_char(buf.b_mtime, &mut b0p.b0_mtime);
             long_to_char(os_fileinfo_inode(&file_info) as i64, &mut b0p.b0_ino);
@@ -869,7 +876,7 @@ fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: impl crate::strings::IntoC
     {
         let mut st = FileInfo::new();
         let mut uptime: f64 = 0.0;
-        if os_fileinfo(swap_fname, &mut st)
+        if os_fileinfo(crate::memory::cstr_from_ptr((swap_fname).cast()), &mut st)
             && unsafe { uv_uptime(&mut uptime) } == 0
             && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
         {
@@ -1122,9 +1129,8 @@ pub fn ml_recover(checkext: bool) {
         path_to_slash((&raw mut crate::globals::gptr(b0p).b0_fname).cast());
 
         expand_env(
-            (&raw mut crate::globals::gptr(b0p).b0_fname).cast(),
-            namebuff_ptr,
-            MAXPATHL as i32,
+            crate::memory::cstr_until_nul(&crate::globals::gptr(b0p).b0_fname),
+            g_st().name_buff_bytes_mut(),
         );
 
         if !setfname(
@@ -1150,13 +1156,23 @@ pub fn ml_recover(checkext: bool) {
         .mf_fname
         .as_ref()
         .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
-    home_replace(None, mf_fname_ptr, namebuff_ptr, MAXPATHL, true);
+    home_replace(
+        None,
+        crate::memory::cstr_as_opt_cstr((mf_fname_ptr).cast()),
+        g_st().name_buff_bytes_mut(),
+        true,
+    );
     smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
     if let Some(sp) = buf_spname(crate::globals::gref(g_st().curbuf)) {
         crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
-        home_replace(None, curbuf_mut().b_ffname, namebuff_ptr, MAXPATHL, true);
+        home_replace(
+            None,
+            crate::memory::cstr_as_opt_cstr((curbuf_mut().b_ffname).cast()),
+            g_st().name_buff_bytes_mut(),
+            true,
+        );
     }
     msg_putchar(b'\n' as i32);
     smsg!(0, tr(c"Original file \"%s\""), namebuff_ptr);
@@ -1167,9 +1183,14 @@ pub fn ml_recover(checkext: bool) {
     let mut swp_file_info = FileInfo::new();
     let mtime = char_to_long(&crate::globals::gptr(b0p).b0_mtime);
     if !curbuf_mut().b_ffname.is_null()
-        && os_fileinfo(curbuf_mut().b_ffname, &mut org_file_info)
-        && ((os_fileinfo(mf_fname_ptr, &mut swp_file_info)
-            && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
+        && os_fileinfo(
+            crate::memory::cstr_from_ptr((curbuf_mut().b_ffname).cast()),
+            &mut org_file_info,
+        )
+        && ((os_fileinfo(
+            crate::memory::cstr_from_ptr((mf_fname_ptr).cast()),
+            &mut swp_file_info,
+        ) && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
             || mtime != org_file_info.stat.st_mtim.tv_sec as _)
     {
         emsg(tr(c"E308: Warning: Original file may have been changed"));
@@ -1699,7 +1720,7 @@ pub fn recover_names(
             && !fname.is_null()
             && let Some(swapname) =
                 modname(crate::memory::cstr_as_opt_cstr(fname_res), c".swp", true)
-            && os_path_exists(swapname.as_ptr())
+            && os_path_exists(&swapname)
             && cur_mfp_fname
                 .is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), K_PATH_CMP_FULL))
         {
@@ -1763,7 +1784,7 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
     let fname = fname.into_c_char_ptr();
     {
         let mut b0 = ZeroBlock::new();
-        let fd = os_open(fname, O_RDONLY, 0);
+        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
         if fd >= 0 {
             let b0_slice = unsafe {
                 std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
@@ -1824,7 +1845,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
         let mut x: time_t = 0;
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname, &mut file_info) {
+        if os_fileinfo(crate::memory::cstr_from_ptr((fname).cast()), &mut file_info) {
             #[cfg(unix)]
             {
                 let mut uname = [0u8; B0_UNAME_SIZE];
@@ -1846,7 +1867,7 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
             sb_push_cstr(msg, ct.as_ptr());
         }
 
-        let fd = os_open(fname, O_RDONLY, 0);
+        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
         if fd >= 0 {
             let b0_slice = unsafe {
                 std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
@@ -1920,10 +1941,10 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
 fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
     let fname = fname.into_c_char_ptr();
     {
-        if !os_path_exists(fname) {
+        if !os_path_exists(crate::memory::cstr_from_ptr((fname).cast())) {
             return false;
         }
-        let fd = os_open(fname, O_RDONLY, 0);
+        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
         if fd < 0 {
             return false;
         }
@@ -1947,7 +1968,7 @@ fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
             ret = false;
         } else {
             let mut hostname = [0u8; B0_HNAME_SIZE];
-            os_get_hostname(&raw mut hostname, B0_HNAME_SIZE);
+            os_get_hostname(&mut hostname);
             hostname[B0_HNAME_SIZE - 1] = 0;
             b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
             if !crate::memory::cstr_until_nul(&b0.b0_hname)
@@ -2019,8 +2040,10 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
             && !buf.b_ffname.is_null()
         {
             let mut file_info = FileInfo::new();
-            if !os_fileinfo(buf.b_ffname, &mut file_info)
-                || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
+            if !os_fileinfo(
+                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                &mut file_info,
+            ) || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
                 || buf.b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
                 || os_fileinfo_size(&file_info) != buf.b_orig_size
             {
@@ -3591,7 +3614,10 @@ fn attention_message(
     sb_push_cstr(msg, buf.b_fname);
     msg.extend_from_slice(b"\"\n");
     let mut file_info = FileInfo::new();
-    if !os_fileinfo(buf.b_fname, &mut file_info) {
+    if !os_fileinfo(
+        crate::memory::cstr_from_ptr((buf.b_fname).cast()),
+        &mut file_info,
+    ) {
         sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
     } else {
         sb_push_cstr(msg, tr(c"             dated: "));
@@ -3690,7 +3716,8 @@ fn findswapname(
                 break;
             }
             let mut file_info = FileInfo::new();
-            let file_or_link_found = os_fileinfo_link(fname, &mut file_info);
+            let file_or_link_found =
+                os_fileinfo_link(crate::memory::cstr_from_ptr((fname).cast()), &mut file_info);
             if !file_or_link_found {
                 break;
             }
@@ -3710,7 +3737,7 @@ fn findswapname(
                 let mut differ = false;
                 let namebuff_ptr = g_st().name_buff.as_mut_ptr();
 
-                let fd = os_open(fname, O_RDONLY, 0);
+                let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
                 if fd >= 0 {
                     let b0_slice = unsafe {
                         std::slice::from_raw_parts_mut(
@@ -3731,7 +3758,7 @@ fn findswapname(
                                 K_PATH_CMP_LITERAL,
                             ) || !same_directory(fname, buf.b_ffname)
                             {
-                                expand_env(b0_fname_cstr, namebuff_ptr, MAXPATHL as i32);
+                                expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                                 if fnamecmp_ino(
                                     buf.b_ffname,
                                     namebuff_ptr,
@@ -3741,7 +3768,7 @@ fn findswapname(
                                 }
                             }
                         } else {
-                            expand_env(b0_fname_cstr, namebuff_ptr, MAXPATHL as i32);
+                            expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
                             if fnamecmp_ino(buf.b_ffname, namebuff_ptr, char_to_long(&b0.b0_ino)) {
                                 differ = true;
                             }
@@ -3756,7 +3783,9 @@ fn findswapname(
                 {
                     let mut choice: SeaChoice = SEA_CHOICE_NONE;
 
-                    if os_path_exists(buf.b_fname) && swapfile_unchanged(fname) {
+                    if os_path_exists(crate::memory::cstr_from_ptr((buf.b_fname).cast()))
+                        && swapfile_unchanged(fname)
+                    {
                         choice = SEA_CHOICE_DELETE;
                         if opt_vars().p_verbose > 0 {
                             verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
@@ -3782,7 +3811,10 @@ fn findswapname(
                     if choice == SEA_CHOICE_NONE {
                         g_st().no_wait_return += 1;
                         let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                        let fhname = home_replace_save(None, fname);
+                        let fhname = home_replace_save(
+                            None,
+                            crate::memory::cstr_as_opt_cstr((fname).cast()),
+                        );
                         let fhname_ptr = fhname.as_ptr().cast_mut();
                         attention_message(buf, fname, fhname_ptr, &mut msg_sb);
 
@@ -3845,7 +3877,7 @@ fn findswapname(
                             g_st().swap_exists_action = SEA_RECOVER;
                         }
                         SEA_CHOICE_DELETE => {
-                            os_remove(fname);
+                            os_remove(crate::memory::cstr_from_ptr((fname).cast()));
                         }
                         SEA_CHOICE_QUIT => {
                             g_st().swap_exists_action = SEA_QUIT;
@@ -3863,7 +3895,9 @@ fn findswapname(
                         _ => {}
                     }
 
-                    if choice != SEA_CHOICE_NONE && !os_path_exists(fname) {
+                    if choice != SEA_CHOICE_NONE
+                        && !os_path_exists(crate::memory::cstr_from_ptr((fname).cast()))
+                    {
                         break;
                     }
                 }
@@ -3881,11 +3915,16 @@ fn findswapname(
             fvec[n - 1] -= 1;
         }
 
-        if os_isdir(dir_name) {
+        if os_isdir(crate::memory::cstr_from_ptr((dir_name).cast())) {
             *found_existing_dir = true;
         } else if !*found_existing_dir && crate::memory::cstr_is_empty(*dirp) {
             let mut failed_dir: Option<std::ffi::CString> = None;
-            let ret = os_mkdir_recurse(dir_name, 0o755, &mut failed_dir, None);
+            let ret = os_mkdir_recurse(
+                crate::memory::cstr_from_ptr((dir_name).cast()),
+                0o755,
+                &mut failed_dir,
+                None,
+            );
             if ret != 0 {
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
@@ -3920,11 +3959,17 @@ fn fnamecmp_ino(
         let mut buf_s = [0u8; MAXPATHL];
 
         let mut file_info = FileInfo::new();
-        if os_fileinfo(fname_c, &mut file_info) {
+        if os_fileinfo(
+            crate::memory::cstr_from_ptr((fname_c).cast()),
+            &mut file_info,
+        ) {
             ino_c = os_fileinfo_inode(&file_info);
         }
 
-        let ino_s: u64 = if os_fileinfo(fname_s, &mut file_info) {
+        let ino_s: u64 = if os_fileinfo(
+            crate::memory::cstr_from_ptr((fname_s).cast()),
+            &mut file_info,
+        ) {
             os_fileinfo_inode(&file_info)
         } else {
             ino_block0 as u64

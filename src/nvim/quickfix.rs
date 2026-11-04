@@ -1359,7 +1359,7 @@ fn qf_setup_state(
         let fd_opt = if efile.to_bytes() == b"-" {
             CFile::from_fd(os_open_stdin_fd(), c"r")
         } else {
-            CFile::open(efile.as_ptr(), c"r")
+            CFile::open(efile, c"r")
         };
         let Some(fd) = fd_opt else {
             semsg!(gettext(E_OPENERRF), efile.as_ptr());
@@ -1581,13 +1581,10 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
         match_len,
     ))
     .unwrap_or_default();
-    expand_env(
-        match_cstr.as_ptr(),
-        fields.namebuf.as_mut_ptr(),
-        CMDBUFFSIZE as i32,
-    );
+    expand_env(match_cstr.as_c_str(), &mut fields.namebuf[..CMDBUFFSIZE]);
 
-    if crate::strings::vim_haschr(c"OPQ", prefix) && !os_path_exists(fields.namebuf.as_ptr().cast())
+    if crate::strings::vim_haschr(c"OPQ", prefix)
+        && !os_path_exists(crate::memory::cstr_until_nul(&fields.namebuf))
     {
         return QF_FAIL;
     }
@@ -1894,7 +1891,7 @@ fn qf_parse_file_pfx(
 ) -> i32 {
     fields.valid = false;
     let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
-    if namebuf_cstr.to_bytes().is_empty() || os_path_exists(namebuf_cstr.as_ptr()) {
+    if namebuf_cstr.to_bytes().is_empty() || os_path_exists(namebuf_cstr) {
         if !namebuf_cstr.to_bytes().is_empty() && idx == i32::from(b'P') {
             qf_push_dir(namebuf_cstr, &mut qfl.qf_file_stack, true);
         } else if idx == i32::from(b'Q') {
@@ -2366,7 +2363,7 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         && !vim_isAbsName(fname.as_ptr())
     {
         let mut joined = concat_fnames(cstr_as_string(Some(dir)), fname_str, true);
-        if !os_path_exists(joined.as_ptr()) {
+        if !os_path_exists(&joined) {
             let dir2 = qf_guess_filepath(qfl, fname);
             joined = if let Some(dir2) = dir2 {
                 concat_fnames(cstr_as_string(Some(dir2)), fname_str, true)
@@ -2428,7 +2425,7 @@ fn qf_push_dir(dirbuf: &CStr, stack: &mut Vec<std::ffi::CString>, is_file_stack:
             cbuf_as_string(dirbuf.as_ptr().cast_mut(), dirbuf_len),
             true,
         );
-        if os_isdir(dirname_cstr.as_ptr()) {
+        if os_isdir(&dirname_cstr) {
             found_idx = Some(i);
             new_dirname = Some(dirname_cstr);
             break;
@@ -2461,7 +2458,7 @@ fn qf_guess_filepath<'a>(qfl: &'a mut QfList, filename: &CStr) -> Option<&'a CSt
             filename_str,
             true,
         );
-        if os_path_exists(fullname_cstr.as_ptr()) {
+        if os_path_exists(&fullname_cstr) {
             found_idx = Some(i);
             break;
         }
@@ -4113,7 +4110,7 @@ fn qf_buf_add_line(
                 if first_bufline && (errbuf.b_sfname.is_null() || path_is_absolute(errbuf.b_sfname))
                 {
                     if dirname[0] == 0 {
-                        os_dirname(dirname.as_mut_ptr(), MAXPATHL);
+                        os_dirname(dirname);
                     }
                     shorten_buf_fname(errbuf, crate::memory::cstr_until_nul(dirname), 0);
                 }
@@ -4462,7 +4459,7 @@ pub fn ex_make(eap: &mut Exarg) {
         return;
     };
     let fname_ptr = fname.as_ptr().cast_mut();
-    os_remove(fname_ptr);
+    os_remove(crate::memory::cstr_from_ptr((fname_ptr).cast()));
 
     let cmd = make_get_fullcmd(crate::memory::cstr_from_ptr(eap.arg), &fname);
 
@@ -4517,7 +4514,7 @@ pub fn ex_make(eap: &mut Exarg) {
     }
 
     decr_quickfix_busy();
-    os_remove(fname_ptr);
+    os_remove(crate::memory::cstr_from_ptr((fname_ptr).cast()));
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
@@ -4545,9 +4542,10 @@ fn get_mef_name() -> Option<std::ffi::CString> {
         name_vec.extend_from_slice(format!("{}{}", qf_st().mef_start, qf_st().mef_off).as_bytes());
         name_vec.extend_from_slice(&mef_bytes[off_idx + 2..]);
         name_vec.push(0);
-        let name: *mut _ = name_vec.as_mut_ptr().cast();
+        let name: *mut std::ffi::c_char = name_vec.as_mut_ptr().cast();
         let mut file_info = FileInfo::new();
-        let file_or_link_found = os_fileinfo_link(name, &mut file_info);
+        let file_or_link_found =
+            os_fileinfo_link(crate::memory::cstr_from_ptr(name), &mut file_info);
         if !file_or_link_found {
             return Some(crate::memory::cstr_to_cstring(name));
         }
@@ -5385,7 +5383,7 @@ fn vgr_process_files(
     let mut dirname_start = vec![0u8; MAXPATHL];
     let mut dirname_now = vec![0u8; MAXPATHL];
 
-    os_dirname(dirname_start.as_mut_ptr(), MAXPATHL);
+    os_dirname(&mut dirname_start);
     let dirname_start_cstr = crate::memory::cstr_until_nul(&dirname_start);
 
     let mut seconds: time_t = 0;
@@ -5610,7 +5608,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
 fn restore_start_dir(dirname_start: &CStr) {
     let mut dirname_now = vec![0u8; MAXPATHL];
 
-    os_dirname(dirname_now.as_mut_ptr(), MAXPATHL);
+    os_dirname(&mut dirname_now);
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
         ea.arg = dirname_start.as_ptr().cast_mut();
@@ -5682,7 +5680,7 @@ fn load_dummy_buffer(
         unsafe { (*newbuf).b_flags |= BF_DUMMY };
     }
 
-    os_dirname(resulting_dir.as_mut_ptr(), MAXPATHL);
+    os_dirname(resulting_dir);
     restore_start_dir(dirname_start);
 
     if !bufref_valid(Some(&newbufref)) {
@@ -7039,7 +7037,7 @@ fn hgr_get_ll(new_ll: &mut bool) -> &'static mut QfInfo {
 }
 
 fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
-    let Some(fd) = CFile::open(fname.as_ptr(), c"r") else {
+    let Some(fd) = CFile::open(fname, c"r") else {
         return;
     };
 
