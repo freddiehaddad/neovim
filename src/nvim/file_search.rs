@@ -1532,7 +1532,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         let save_sctx = g_st().current_sctx;
         set_vim_var_string(
             VV_FNAME,
-            ptr_cstr.as_ptr(),
+            Some(&ptr_cstr),
             ptr_cstr.as_bytes().len() as isize,
         );
         g_st().current_sctx = curbuf_mut().b_p_script_ctx[K_BUF_OPT_INCLUDEEXPR];
@@ -1550,7 +1550,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
             tv_clear(&mut tv);
         }
 
-        set_vim_var_string(VV_FNAME, ptr::null(), 0);
+        set_vim_var_string(VV_FNAME, None, 0);
         g_st().current_sctx = save_sctx;
         res
     }
@@ -1682,11 +1682,19 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
         crate::memory::copy_bytes_to_c_buf(&mut buf, scope_cstr.to_bytes());
 
         if pre {
-            tv_dict_add_str(&mut *dict, c"directory", new_dir);
+            tv_dict_add_str(
+                &mut *dict,
+                c"directory",
+                crate::memory::cstr_as_opt_cstr(new_dir),
+            );
         } else {
-            tv_dict_add_str(&mut *dict, c"cwd", new_dir);
+            tv_dict_add_str(&mut *dict, c"cwd", crate::memory::cstr_as_opt_cstr(new_dir));
         }
-        tv_dict_add_str(&mut *dict, c"scope", buf.as_ptr().cast());
+        tv_dict_add_str(
+            &mut *dict,
+            c"scope",
+            Some(crate::memory::cstr_until_nul(&buf)),
+        );
         tv_dict_add_bool(
             &mut *dict,
             c"changed_window",

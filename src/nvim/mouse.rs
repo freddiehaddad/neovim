@@ -365,11 +365,9 @@ fn call_click_def_func(click_defs: &[StlClickDefinition], col: i32, which_button
     let mut rettv: TypVal = TypVal::new();
 
     call_vim_function(
-        def.func
-            .as_ref()
-            .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut()),
+        def.func.as_deref().unwrap_or(c""),
         argv.len() as i32,
-        argv.as_mut_ptr(),
+        &mut argv,
         &mut rettv,
     );
 
@@ -627,7 +625,7 @@ pub fn do_mouse(
             if regname == b'.' as i32 {
                 insert_reg(regname, None, true);
             } else {
-                if regname == 0 && eval_has_provider(c"clipboard", false) {
+                if regname == 0 && eval_has_provider(b"clipboard", false) {
                     regname = b'*' as i32;
                 }
                 let mut reg: Option<&'static mut Yankreg> = None;
@@ -984,7 +982,7 @@ pub fn do_mouse(
     }
 
     if which_button == MOUSE_MIDDLE {
-        if regname == 0 && eval_has_provider(c"clipboard", false) {
+        if regname == 0 && eval_has_provider(b"clipboard", false) {
             regname = b'*' as i32;
         }
         let mut reg: Option<&'static mut Yankreg> = None;

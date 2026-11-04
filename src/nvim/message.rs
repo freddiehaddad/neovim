@@ -762,7 +762,7 @@ pub fn msg_keep(
         }
 
         if hl_id == 0 {
-            set_vim_var_string(VV_STATUSMSG, s, -1);
+            set_vim_var_string(VV_STATUSMSG, crate::memory::cstr_as_opt_cstr(s), -1);
         }
 
         // It is possible that displaying a messages causes a problem (e.g.,
@@ -1143,7 +1143,7 @@ pub fn emsg_multiline(
             }
 
             // set "v:errmsg", also when using ":silent! cmd"
-            set_vim_var_string(VV_ERRMSG, s, -1);
+            set_vim_var_string(VV_ERRMSG, crate::memory::cstr_as_opt_cstr(s), -1);
 
             let sname = sourcing_name();
             let slnum = sourcing_lnum();
@@ -3264,7 +3264,11 @@ fn inc_msg_scrolled() {
         } else {
             cstr_as_string(Some(gettext(c"Unknown")))
         };
-        set_vim_var_string(VV_SCROLLSTART, p.data, p.size as isize);
+        set_vim_var_string(
+            VV_SCROLLSTART,
+            crate::memory::cstr_as_opt_cstr(p.data),
+            p.size as isize,
+        );
     }
     g_st().msg_scrolled += 1;
     set_must_redraw(UPD_VALID);
@@ -3445,7 +3449,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 v_lock: VAR_UNLOCKED,
                 vval: TypvalVval::Number(0),
             };
-            callback_call(&mut g_st().on_print, 1, argv.as_mut_ptr(), &mut rettv);
+            callback_call(&mut g_st().on_print, 1, &mut argv, &mut rettv);
             tv_clear(&mut rettv);
             return;
         }
@@ -4137,7 +4141,7 @@ pub fn give_warning(message: impl crate::strings::IntoCCharPtr, hl: bool, hist: 
 
     g_st().no_wait_return += 1;
 
-    set_vim_var_string(VV_WARNINGMSG, message, -1);
+    set_vim_var_string(VV_WARNINGMSG, crate::memory::cstr_as_opt_cstr(message), -1);
     g_st().keep_msg = None;
     if hl {
         g_st().keep_msg_hl_id = HLF_W;

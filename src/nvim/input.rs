@@ -718,7 +718,8 @@ pub fn redo_append_lit(s: &[u8]) {
 }
 
 /// Appends `s` to `buf`, leaving 3-byte special key codes unmodified and escaping other K_SPECIAL bytes.
-pub fn sb_add_spec(buf: &mut Vec<u8>, mut rem: &[u8]) {
+pub fn sb_add_spec(buf: &mut Vec<u8>, rem: &[u8]) {
+    let mut rem = crate::memory::bytes_until_nul(rem);
     while !rem.is_empty() {
         if rem.len() >= 3 && rem[0] == K_SPECIAL && rem[1] != 0 && rem[2] != 0 {
             buf.extend_from_slice(&rem[..3]);
@@ -790,7 +791,8 @@ pub fn stuffnum_readbuff(n: i32) {
 }
 
 /// Stuff a string into the typeahead buffer.
-pub fn stuffescaped(mut rem: &[u8], literally: bool) {
+pub fn stuffescaped(rem: &[u8], literally: bool) {
+    let mut rem = crate::memory::cstr_until_nul(rem).to_bytes();
     while !rem.is_empty() {
         let span_len = rem
             .iter()

@@ -336,8 +336,8 @@ pub fn may_trigger_modechanged() {
 
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let v_event = get_v_event(&mut save_v_event);
-    tv_dict_add_str(&mut *v_event, c"new_mode", curr_cstr);
-    tv_dict_add_str(&mut *v_event, c"old_mode", old_cstr);
+    tv_dict_add_str(&mut *v_event, c"new_mode", Some(curr_cstr));
+    tv_dict_add_str(&mut *v_event, c"old_mode", Some(old_cstr));
     tv_dict_set_keys_readonly(&mut *v_event);
 
     vim_snprintf!(

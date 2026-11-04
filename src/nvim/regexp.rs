@@ -2614,18 +2614,19 @@ pub(crate) fn fill_submatch_list(
     let static_list = unsafe { &mut *listarg.vval.v_list().cast::<StaticList10>() };
     tv_list_init_static10(static_list);
 
-    let mut li = tv_list_first(unsafe { listarg.vval.v_list().as_ref() });
+    let mut li = tv_list_first(unsafe { listarg.vval.v_list().as_ref() })
+        .map_or(ptr::null_mut(), ptr::from_mut);
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
         let li_mut = unsafe { &mut *li };
         if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
-            tv_set_string(&mut li_mut.li_tv, ptr::null());
+            tv_set_string(&mut li_mut.li_tv, None);
         } else {
             let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
             let bytes = crate::memory::cstr_slice(s.cast(), len);
             let cs = cstring_from_bytes(bytes).unwrap_or_default();
 
-            tv_set_string(&mut li_mut.li_tv, cs.as_ptr());
+            tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
         }
 
         li = li_mut.li_next;
@@ -2776,12 +2777,17 @@ fn vim_regsub_both(
                 };
                 if expr.v_type == VarType::VarFunc {
                     let s = expr.vval.v_string();
-                    call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
+                    let s_cstr = if s.is_null() {
+                        c""
+                    } else {
+                        unsafe { CStr::from_ptr(s) }
+                    };
+                    call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();
                     let s = partial_name(unsafe { partial.as_ref() });
                     funcexe.fe_partial = partial;
-                    call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
+                    call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {
                     *eval_slot = None;
@@ -2793,7 +2799,11 @@ fn vim_regsub_both(
                 }
                 tv_clear(&mut rettv);
             } else if let Some(src) = source {
-                *eval_slot = eval_to_string(src.as_ptr().wrapping_add(2), true, false);
+                *eval_slot = eval_to_string(
+                    unsafe { CStr::from_ptr(src.as_ptr().wrapping_add(2)) },
+                    true,
+                    false,
+                );
             }
             re_st().regsub_nesting -= 1;
 
@@ -3160,16 +3170,22 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
         let first_line = reg_getline_submatch_slice(slnum).unwrap_or_else(|| c"".to_bytes());
         let s = &first_line[(scol as usize).min(first_line.len())..];
         if slnum == elnum {
-            tv_list_append_string(list, s.as_ptr().cast(), (ecol - scol) as isize);
+            crate::eval::typval::tv_list_append_bytes(
+                list,
+                &s[..((ecol - scol) as usize).min(s.len())],
+            );
         } else {
             let max_lnum = elnum - slnum;
-            tv_list_append_string(list, s.as_ptr().cast(), -1);
+            crate::eval::typval::tv_list_append_bytes(list, s);
             for i in 1..max_lnum {
                 let line = reg_getline_submatch_slice(slnum + i).unwrap_or_else(|| c"".to_bytes());
-                tv_list_append_string(list, line.as_ptr().cast(), -1);
+                crate::eval::typval::tv_list_append_bytes(list, line);
             }
             let last_line = reg_getline_submatch_slice(elnum).unwrap_or_else(|| c"".to_bytes());
-            tv_list_append_string(list, last_line.as_ptr().cast(), ecol as isize);
+            crate::eval::typval::tv_list_append_bytes(
+                list,
+                &last_line[..(ecol as usize).min(last_line.len())],
+            );
         }
     } else {
         let s = re_st().rsm.match_mut().startp[no];
@@ -3178,7 +3194,11 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
             return None;
         }
         list = tv_list_alloc(1);
-        tv_list_append_string(list, s.cast(), crate::memory::ptr_offset_from(e, s));
+        tv_list_append_string(
+            list,
+            Some(unsafe { CStr::from_ptr(s.cast()) }),
+            crate::memory::ptr_offset_from(e, s),
+        );
     }
 
     tv_list_ref(Some(list));

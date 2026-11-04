@@ -5952,9 +5952,11 @@ pub fn parse_cmdline(
             break 'end;
         }
 
-        eap.cmd = skip_colon_white(crate::memory::cstr_from_ptr(eap.cmd), true)
-            .as_ptr()
-            .cast_mut();
+        eap.cmd = {
+            let s = skip_colon_white(crate::memory::cstr_from_ptr(eap.cmd), true);
+            eap.cmd
+                .wrapping_add((s.as_ptr() as usize) - (eap.cmd as usize))
+        };
         if crate::memory::cstr_first_byte(eap.cmd) == b'"' {
             break 'end;
         }
@@ -5993,7 +5995,8 @@ pub fn parse_cmdline(
         }
 
         eap.forceit = i32::from(parse_bang(eap, &mut p_cstr));
-        let p = p_cstr.as_ptr().cast_mut();
+        let p =
+            unsafe { (*cmdline).wrapping_add((p_cstr.as_ptr() as usize) - ((*cmdline) as usize)) };
 
         if eap.cmdidx >= 0 {
             eap.argt = CMDNAMES[eap.cmdidx as usize].cmd_argt;
@@ -6022,7 +6025,9 @@ pub fn parse_cmdline(
             {
                 let start = arg;
                 g_st().emsg_skip += 1;
-                skip_expr(&raw mut arg, None);
+                let mut arg_cstr = unsafe { CStr::from_ptr(arg) };
+                skip_expr(&mut arg_cstr, None);
+                arg = arg.wrapping_add((arg_cstr.as_ptr() as usize) - (start as usize));
                 g_st().emsg_skip -= 1;
                 if arg == start {
                     arg = arg.wrapping_add(1);
@@ -6449,9 +6454,11 @@ fn do_one_cmd(
             break 'doend;
         }
 
-        ea.cmd = skip_colon_white(crate::memory::cstr_from_ptr(ea.cmd), true)
-            .as_ptr()
-            .cast_mut();
+        ea.cmd = {
+            let s = skip_colon_white(crate::memory::cstr_from_ptr(ea.cmd), true);
+            ea.cmd
+                .wrapping_add((s.as_ptr() as usize) - (ea.cmd as usize))
+        };
 
         if crate::memory::cstr_is_empty(ea.cmd)
             || crate::memory::cstr_first_byte(ea.cmd) == b'"'
@@ -6528,7 +6535,7 @@ fn do_one_cmd(
         let ni = is_cmd_ni(Cmdidx::from_raw(ea.cmdidx));
 
         ea.forceit = i32::from(parse_bang(&ea, &mut p_cstr));
-        let mut p = p_cstr.as_ptr().cast_mut();
+        let mut p = init_cmd.wrapping_add((p_cstr.as_ptr() as usize) - (init_cmd as usize));
 
         if ea.cmdidx >= 0 {
             ea.argt = CMDNAMES[ea.cmdidx as usize].cmd_argt;
@@ -6607,12 +6614,10 @@ fn do_one_cmd(
             has_folding(curwin_mut(), ea.line2, None, Some(&mut ea.line2));
         }
 
-        p = replace_makeprg(&mut ea, crate::memory::cstr_from_ptr(p))
-            .as_ptr()
-            .cast_mut();
-        if p.is_null() {
-            break 'doend;
-        }
+        let p_cstr = replace_makeprg(&mut ea, crate::memory::cstr_from_ptr(p));
+        p = unsafe {
+            (*ea.cmdlinep).wrapping_add((p_cstr.as_ptr() as usize) - ((*ea.cmdlinep) as usize))
+        };
 
         ea.arg = if ea.cmdidx == Cmdidx::CmdBang as i32 {
             p
@@ -6937,25 +6942,23 @@ pub fn parse_command_modifiers(
                         break;
                     }
                 }
-                let mut reg_pat_cstr: Option<&CStr> = None;
-                p = if skip_only {
+                let mut reg_pat: Option<std::ffi::CString> = None;
+                let p_opt = if skip_only {
                     skip_vimgrep_pat(crate::memory::cstr_from_ptr(p), None, None)
                 } else {
-                    skip_vimgrep_pat(
-                        crate::memory::cstr_from_ptr(p),
-                        Some(&mut reg_pat_cstr),
-                        None,
-                    )
-                }
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    skip_vimgrep_pat(crate::memory::cstr_from_ptr(p), Some(&mut reg_pat), None)
+                };
+                p = p_opt.map_or(ptr::null_mut(), |s| {
+                    p.wrapping_add((s.as_ptr() as usize) - (p as usize))
+                });
                 if crate::memory::cstr_is_empty(p) {
                     break;
                 }
                 if !skip_only {
-                    let pat_cstr = reg_pat_cstr.unwrap_or(c"");
-                    cmod.cmod_filter_pat = Some(pat_cstr.to_owned());
+                    let pat_owned = reg_pat.unwrap_or_default();
                     cmod.cmod_filter_regmatch
-                        .set_prog(vim_regcomp(pat_cstr, RE_MAGIC));
+                        .set_prog(vim_regcomp(&pat_owned, RE_MAGIC));
+                    cmod.cmod_filter_pat = Some(pat_owned);
                     if cmod.cmod_filter_regmatch.regprog.is_null() {
                         break;
                     }
@@ -7029,7 +7032,8 @@ pub fn parse_command_modifiers(
                 if checkforcmd(&mut p, b"tab", 3) {
                     if !skip_only {
                         let skip_flag = eap.skip != 0;
-                        let mut cmd_opt = crate::memory::cstr_as_opt_cstr(eap.cmd);
+                        let base_cmd = eap.cmd;
+                        let mut cmd_opt = crate::memory::cstr_as_opt_cstr(base_cmd);
                         let tabnr = get_address(
                             Some(eap),
                             &mut cmd_opt,
@@ -7040,7 +7044,9 @@ pub fn parse_command_modifiers(
                             1,
                             errormsg,
                         );
-                        eap.cmd = cmd_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                        eap.cmd = cmd_opt.map_or(ptr::null_mut(), |s| {
+                            base_cmd.wrapping_add((s.as_ptr() as usize) - (base_cmd as usize))
+                        });
                         if eap.cmd.is_null() {
                             return false;
                         }
@@ -8237,13 +8243,18 @@ pub fn replace_makeprg(eap: &mut Exarg, arg_in: &CStr) -> &'static CStr {
 }
 
 pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi::CStr>) -> bool {
-    let mut p = skip_grep_pat(&mut *eap).as_ptr().cast_mut();
+    let grep_cstr = skip_grep_pat(&mut *eap);
+    let mut p = eap
+        .arg
+        .wrapping_add((grep_cstr.as_ptr() as usize) - (eap.arg as usize));
     let mut has_wildcards = path_has_wildcard(crate::memory::cstr_as_bytes(p), true);
 
     while !crate::memory::cstr_is_empty(p) {
         if crate::memory::cstr_as_bytes(p).starts_with(b"`=") {
             p = p.wrapping_add(2);
-            skip_expr(&raw mut p, None);
+            let mut p_cstr = unsafe { CStr::from_ptr(p) };
+            skip_expr(&mut p_cstr, None);
+            p = p_cstr.as_ptr().cast_mut();
             if crate::memory::cstr_first_byte(p) == b'`' {
                 p = p.wrapping_add(1);
             }
@@ -8460,7 +8471,10 @@ fn repl_cmdline(eap: &mut Exarg, src_in: &CStr, srclen: usize, repl: &CStr) -> &
 }
 
 pub fn separate_nextcmd(eap: &mut Exarg) {
-    let mut p = skip_grep_pat(eap).as_ptr().cast_mut();
+    let grep_cstr = skip_grep_pat(eap);
+    let mut p = eap
+        .arg
+        .wrapping_add((grep_cstr.as_ptr() as usize) - (eap.arg as usize));
 
     while unsafe { *p } != 0 {
         let b0 = unsafe { *p } as u8;
@@ -8480,7 +8494,9 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
             && (eap.argt & EX_XFILE) != 0
         {
             p = p.wrapping_add(2);
-            skip_expr(&raw mut p, None);
+            let mut p_cstr = unsafe { CStr::from_ptr(p) };
+            skip_expr(&mut p_cstr, None);
+            p = p.wrapping_add((p_cstr.as_ptr() as usize) - (p as usize));
             if unsafe { *p } == 0 {
                 break;
             }
@@ -8536,9 +8552,11 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
             command = (&raw mut docmd_st().dollar_command).cast();
         } else {
             command = arg;
-            arg = skip_cmd_arg(crate::memory::cstr_from_ptr(command), true)
-                .as_ptr()
-                .cast_mut();
+            let cmd_len = crate::memory::cstr_len(command);
+            let cmd_buf =
+                unsafe { std::slice::from_raw_parts_mut(command.cast::<u8>(), cmd_len + 1) };
+            let off = skip_cmd_arg_mut(cmd_buf);
+            arg = command.wrapping_add(off);
             if !crate::memory::cstr_is_empty(arg) {
                 unsafe {
                     *arg = NUL;
@@ -8553,25 +8571,40 @@ pub fn getargcmd(eap: &mut Exarg) -> Option<&'static CStr> {
     crate::memory::cstr_as_opt_cstr(command)
 }
 
-pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
-    let p_ptr = p.as_ptr().cast_mut().cast::<u8>();
-    let mut len = p.to_bytes().len();
-    let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
+fn skip_cmd_arg_mut(buf: &mut [u8]) -> usize {
+    let mut len = crate::memory::bytes_until_nul(buf).len();
     let mut idx = 0;
     while idx < len && !ascii_isspace(i32::from(buf[idx])) {
         if buf[idx] == b'\\' && idx + 1 < len {
-            if rembs {
-                buf.copy_within(idx + 1..=len, idx);
-                len -= 1;
-            } else {
-                idx += 1;
-            }
+            buf.copy_within(idx + 1..=len, idx);
+            len -= 1;
         }
         if idx < len {
             idx += crate::mbyte::utfc_slice2len(&buf[idx..len]);
         }
     }
-    unsafe { CStr::from_ptr(p_ptr.wrapping_add(idx).cast()) }
+    idx
+}
+
+pub fn skip_cmd_arg(p: &CStr, rembs: bool) -> &CStr {
+    let p_ptr = p.as_ptr().cast_mut().cast::<u8>();
+    let len = p.to_bytes().len();
+    if rembs {
+        let buf = unsafe { std::slice::from_raw_parts_mut(p_ptr, len + 1) };
+        let idx = skip_cmd_arg_mut(buf);
+        return unsafe { CStr::from_ptr(p_ptr.wrapping_add(idx).cast()) };
+    }
+    let bytes = p.to_bytes();
+    let mut idx = 0;
+    while idx < len && !ascii_isspace(i32::from(bytes[idx])) {
+        if bytes[idx] == b'\\' && idx + 1 < len {
+            idx += 1;
+        }
+        if idx < len {
+            idx += crate::mbyte::utfc_slice2len(&bytes[idx..len]);
+        }
+    }
+    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(idx)) }
 }
 
 pub fn get_bad_opt(bytes: &[u8], eap: &mut Exarg) -> bool {
@@ -8654,9 +8687,8 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
         *pp = ((arg as usize) - (eap.cmd as usize)) as i32;
     }
 
-    arg = skip_cmd_arg(crate::memory::cstr_from_ptr(arg), false)
-        .as_ptr()
-        .cast_mut();
+    let after_cstr = skip_cmd_arg(crate::memory::cstr_from_ptr(arg), false);
+    arg = arg.wrapping_add((after_cstr.as_ptr() as usize) - (arg as usize));
     eap.arg = skipwhite(arg);
 
     unsafe {
@@ -9024,9 +9056,8 @@ pub fn get_command_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 
 fn ex_colorscheme(eap: &mut Exarg) {
     if crate::memory::cstr_is_empty(eap.arg) {
-        let mut expr = *b"g:colors_name\0";
         g_st().emsg_off += 1;
-        let p = eval_to_string(expr.as_mut_ptr().cast(), false, false);
+        let p = eval_to_string(c"g:colors_name", false, false);
         g_st().emsg_off -= 1;
 
         msg_ext_set_kind(c"list_cmd");
@@ -9055,13 +9086,13 @@ fn ex_highlight(eap: &mut Exarg) {
 
 pub fn not_exiting(save_exiting: bool) {
     g_st().exiting = save_exiting;
-    set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+    set_vim_var_string(VV_EXITREASON, None, -1);
 }
 
 pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
     let wp = std::hint::black_box(ptr::from_mut(wp_in));
     if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
-        set_vim_var_string(VV_EXITREASON, c"quit", 4);
+        set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
 
     apply_autocmds_win(
@@ -9077,7 +9108,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
         || curbuf_locked()
         || unsafe { (*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0 }
     {
-        set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+        set_vim_var_string(VV_EXITREASON, None, -1);
         return true;
     }
 
@@ -9087,7 +9118,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
             || curbuf_locked()
             || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
         {
-            set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+            set_vim_var_string(VV_EXITREASON, None, -1);
             return true;
         }
     }
@@ -9200,11 +9231,11 @@ fn ex_restart(eap: &mut Exarg) {
         tv_dict_add_str(
             &mut *extra_d,
             c"quit_cmd",
-            if !eap.do_ecmd_cmd.is_null() {
-                eap.do_ecmd_cmd
+            Some(if !eap.do_ecmd_cmd.is_null() {
+                unsafe { std::ffi::CStr::from_ptr(eap.do_ecmd_cmd) }
             } else {
-                c"".as_ptr()
-            },
+                c""
+            }),
         );
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
@@ -9253,20 +9284,12 @@ fn ex_restart(eap: &mut Exarg) {
     let no_ui = ui_active() == 0;
     let exepath = get_vim_var_str(VV_PROGPATH);
     let l = get_vim_var_list(VV_ARGV);
-    let argc = if l.is_null() {
-        0
-    } else {
-        unsafe { (*l).lv_len }
-    };
+    let argc = l.as_ref().map_or(0, |l| l.lv_len);
 
     let mut argv_vec = Vec::<std::ffi::CString>::with_capacity((argc as usize) + 2);
     let mut listen_arg: Option<std::ffi::CString> = None;
 
-    let mut li = if l.is_null() {
-        ptr::null_mut()
-    } else {
-        unsafe { (*l).lv_first }
-    };
+    let mut li = l.map_or(ptr::null_mut(), |l| l.lv_first);
     while !li.is_null() {
         let arg = tv_get_string(unsafe { &(*li).li_tv });
         let i = argv_vec.len();
@@ -9364,8 +9387,12 @@ fn ex_restart(eap: &mut Exarg) {
         false
     };
 
-    let env = create_environment(None, false, false, false, ptr::null());
-    tv_dict_add_str(&mut *env, ENV_STARTREASON, startreason);
+    let env = create_environment(None, false, false, false, None);
+    tv_dict_add_str(
+        &mut *env,
+        ENV_STARTREASON,
+        crate::memory::cstr_as_opt_cstr(startreason),
+    );
 
     let on_stdout = CallbackReader::none();
     let mut on_err = CallbackReader::none();
@@ -9563,7 +9590,11 @@ fn ex_restart(eap: &mut Exarg) {
         ui_flush();
         drop(listen_addr);
 
-        set_vim_var_string(VV_EXITREASON, startreason, -1);
+        set_vim_var_string(
+            VV_EXITREASON,
+            crate::memory::cstr_as_opt_cstr(startreason),
+            -1,
+        );
 
         let mut quit_cmd_copy: Option<std::ffi::CString> = None;
         if (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
@@ -9587,7 +9618,7 @@ fn ex_restart(eap: &mut Exarg) {
         drop(quit_cmd_copy);
     }
 
-    set_vim_var_string(VV_EXITREASON, ptr::null(), -1);
+    set_vim_var_string(VV_EXITREASON, None, -1);
     if error_set(&err) {
         let _ = emsg(err.msg_cstr());
         api_clear_error(&mut err);
@@ -10000,12 +10031,12 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
 
     let cb = get_findfunc();
     let mut rettv: TypVal = TypVal::new();
-    let retval = callback_call(&mut *cb, 2, args.as_mut_ptr(), &mut rettv);
+    let retval = callback_call(&mut *cb, 2, &mut args, &mut rettv);
 
     g_st().current_sctx = saved_sctx;
     g_st().textlock -= 1;
 
-    let mut retlist: *mut TvList = ptr::null_mut();
+    let mut retlist: Option<&'static mut TvList> = None;
     if retval {
         if rettv.v_type == VarType::VarList {
             retlist = tv_list_copy(None, rettv.vval.v_list_opt(), false, get_copy_id());
@@ -10015,7 +10046,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
         tv_clear(&mut rettv);
     }
 
-    unsafe { retlist.as_mut() }
+    retlist
 }
 
 pub fn expand_findfunc(xp: &mut ExpandCtx, pat: &CStr, files: &mut Vec<std::ffi::CString>) -> bool {
@@ -10026,12 +10057,12 @@ pub fn expand_findfunc(xp: &mut ExpandCtx, pat: &CStr, files: &mut Vec<std::ffi:
     };
 
     if l.lv_len == 0 {
-        tv_list_free(l);
+        tv_list_free(Some(l));
         return false;
     }
 
     crate::cmdexpand::expand_process_user_list(Some(l), files, xp);
-    tv_list_free(l);
+    tv_list_free(Some(l));
 
     true
 }
@@ -10064,7 +10095,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     }
 
     if let Some(l) = fname_list {
-        tv_list_free(l);
+        tv_list_free(Some(l));
     }
 
     if let Some(ref rf) = ret_fname {
@@ -10078,12 +10109,7 @@ pub fn free_findfunc_option() {
 }
 
 pub fn set_ref_in_findfunc(copy_id: i32) -> bool {
-    set_ref_in_callback(
-        &mut opt_vars().p_ffu,
-        copy_id,
-        ptr::null_mut(),
-        ptr::null_mut(),
-    )
+    set_ref_in_callback(&mut opt_vars().p_ffu, copy_id, None, None)
 }
 
 fn set_browse_edit_arg(eap: &mut Exarg) {
@@ -11405,7 +11431,7 @@ fn ex_redir(eap: &mut Exarg) {
         let rem = skipwhite_slice(rem);
         let arg = arg_base.wrapping_add(arg_bytes.len() - rem.len());
 
-        if var_redir_start(arg, append) {
+        if var_redir_start(crate::memory::cstr_from_ptr(arg), append) {
             g_st().redir_vname = true;
         }
     } else {
@@ -11808,13 +11834,14 @@ fn ex_findpat(eap: &mut Exarg) {
     if crate::memory::cstr_first_byte(eap.arg) == b'/' {
         whole = false;
         eap.arg = eap.arg.wrapping_add(1);
-        let mut p = skip_regexp(
+        let p_cstr = skip_regexp(
             unsafe { CStr::from_ptr(eap.arg) },
             b'/' as i32,
             opt_vars().p_magic,
-        )
-        .as_ptr()
-        .cast_mut();
+        );
+        let mut p = eap
+            .arg
+            .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg as usize));
         if !crate::memory::cstr_is_empty(p) {
             unsafe {
                 *p = NUL;
@@ -12082,10 +12109,8 @@ pub fn eval_vars(
                             *usedlen = 1;
                             return None;
                         }
-                        let Some(oldfile) = tv_list_find_str(
-                            unsafe { get_vim_var_list(VV_OLDFILES).as_mut() },
-                            i - 1,
-                        ) else {
+                        let Some(oldfile) = tv_list_find_str(get_vim_var_list(VV_OLDFILES), i - 1)
+                        else {
                             *errormsg = Some(c"");
                             return None;
                         };
@@ -12608,7 +12633,7 @@ fn ex_terminal(eap: &mut Exarg) {
         for arg in argv {
             tv_list_append_string(
                 unsafe { &mut *shell_tv.vval.v_list() },
-                arg.as_ptr(),
+                Some(arg.as_c_str()),
                 arg.as_bytes().len() as isize,
             );
         }

@@ -381,8 +381,8 @@ fn insert_enter(s: &mut InsertState) {
         } else {
             c"i".as_ptr()
         };
-        set_vim_var_string(VV_INSERTMODE, ptr, 1);
-        set_vim_var_string(VV_CHAR, ptr::null(), -1);
+        set_vim_var_string(VV_INSERTMODE, crate::memory::cstr_as_opt_cstr(ptr), 1);
+        set_vim_var_string(VV_CHAR, None, -1);
         ins_apply_autocmds(EVENT_INSERTENTER);
 
         if g_st().need_highlight_changed {
@@ -2899,7 +2899,7 @@ fn ins_insert(replace_state: i32) {
     } else {
         c"r".as_ptr()
     };
-    set_vim_var_string(VV_INSERTMODE, mode_str, 1);
+    set_vim_var_string(VV_INSERTMODE, crate::memory::cstr_as_opt_cstr(mode_str), 1);
     ins_apply_autocmds(EVENT_INSERTCHANGE);
     if (g_st().state_global & REPLACE_FLAG) != 0 {
         g_st().state_global = MODE_INSERT | (g_st().state_global & MODE_LANGMAP);
@@ -3946,7 +3946,11 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
     buf[buflen] = 0;
 
     g_st().textlock += 1;
-    set_vim_var_string(VV_CHAR, buf.as_ptr().cast(), buflen as isize);
+    set_vim_var_string(
+        VV_CHAR,
+        Some(crate::memory::cstr_until_nul(&buf)),
+        buflen as isize,
+    );
 
     let mut res: Option<std::ffi::CString> = None;
     if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
@@ -3956,7 +3960,7 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
         }
     }
 
-    set_vim_var_string(VV_CHAR, ptr::null(), -1);
+    set_vim_var_string(VV_CHAR, None, -1);
     g_st().textlock -= 1;
     g_st().state_global = save_state;
     res

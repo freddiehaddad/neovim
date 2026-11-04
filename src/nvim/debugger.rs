@@ -469,7 +469,7 @@ pub fn dbg_check_skipped(eap: &mut Exarg) -> bool {
 
 fn eval_expr_no_emsg(name: &CStr) -> Option<TypVal> {
     g_st().emsg_off += 1;
-    let tv = eval_expr(name.as_ptr(), None);
+    let tv = eval_expr(name, None);
     g_st().emsg_off -= 1;
     tv
 }

@@ -446,7 +446,12 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
                 return 0;
             };
             if watched {
-                tv_dict_watcher_notify(dict, key.data, None, Some(&di.di_tv));
+                tv_dict_watcher_notify(
+                    dict,
+                    crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                    None,
+                    Some(&di.di_tv),
+                );
             }
             tv_dict_item_remove(dict, di);
         } else {
@@ -462,7 +467,14 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             let di = if let Some(di) = di_opt {
                 let mut type_error = false;
                 if ptr::eq(dict, get_vimvar_dict())
-                    && !before_set_vvar(key.data, di, &mut tv, true, watched, &mut type_error)
+                    && !before_set_vvar(
+                        crate::memory::cstr_from_ptr(key.data),
+                        di,
+                        &mut tv,
+                        true,
+                        watched,
+                        &mut type_error,
+                    )
                 {
                     tv_clear(&mut tv);
                     if type_error {
@@ -488,7 +500,12 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             tv_copy(&tv, &mut di.di_tv);
 
             if watched {
-                tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
+                tv_dict_watcher_notify(
+                    dict,
+                    crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                    Some(&tv),
+                    Some(&oldtv),
+                );
                 tv_clear(&mut oldtv);
             }
 
@@ -505,18 +522,19 @@ pub unsafe extern "C-unwind" fn nlua_getvar(lstate: *mut lua_State) -> i32 {
         };
         let mut len: usize = 0;
         let name = luaL_checklstring(lstate, 3, &raw mut len);
+        let name_cstr = std::ffi::CStr::from_ptr(name);
 
-        let mut di = tv_dict_find(Some(&*dict), name, len as isize);
-        if di.is_null() && ptr::eq(dict, get_globvar_dict()) {
+        let mut di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
+        if di.is_none() && ptr::eq(dict, get_globvar_dict()) {
             if !script_autoload(crate::memory::cstr_slice(name, len), false) || aborting() {
                 return 0;
             }
-            di = tv_dict_find(Some(&*dict), name, len as isize);
+            di = tv_dict_find(Some(&*dict), name_cstr, len as isize);
         }
-        if di.is_null() {
+        let Some(di) = di else {
             return 0;
-        }
-        nlua_push_typval(lstate, &mut (*di).di_tv, 0);
+        };
+        nlua_push_typval(lstate, &mut di.di_tv, 0);
         1
     }
 }

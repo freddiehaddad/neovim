@@ -768,8 +768,8 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
     lnum
 }
 
-fn sign_define_cmd(name: &CStr, cmdline_in: &CStr) {
-    let mut cmdline = cmdline_in.as_ptr().cast_mut();
+fn sign_define_cmd(name: &CStr, cmdline_in: &mut [u8]) {
+    let mut cmdline: *mut std::ffi::c_char = cmdline_in.as_mut_ptr().cast();
     let mut icon = ptr::null_mut();
     let mut text = ptr::null_mut();
     let mut linehl = ptr::null_mut();
@@ -900,7 +900,7 @@ fn sign_jump_cmd(
 
 fn parse_sign_cmd_args<'a>(
     cmd: i32,
-    arg_in: &'a CStr,
+    arg_in: &'a mut [u8],
     name: &mut Option<&'a CStr>,
     id: &mut i32,
     group: &mut Option<&'a CStr>,
@@ -908,7 +908,7 @@ fn parse_sign_cmd_args<'a>(
     buf: &mut Option<&'static mut FileBuf>,
     lnum: &mut Linenr,
 ) -> bool {
-    let mut arg = arg_in.as_ptr().cast_mut();
+    let mut arg: *mut std::ffi::c_char = arg_in.as_mut_ptr().cast();
     let arg1 = arg;
     let mut filename = ptr::null_mut();
     let mut lnum_arg = false;
@@ -1036,7 +1036,9 @@ pub fn ex_sign(eap: &mut Exarg) {
             let arg_cstr = crate::memory::cstr_from_ptr(arg);
 
             if idx == SIGNCMD_DEFINE {
-                sign_define_cmd(arg_cstr, crate::memory::cstr_from_ptr(p));
+                let p_len = crate::memory::cstr_len(p);
+                let p_slice = unsafe { std::slice::from_raw_parts_mut(p.cast::<u8>(), p_len + 1) };
+                sign_define_cmd(arg_cstr, p_slice);
             } else if idx == SIGNCMD_LIST {
                 sign_list_by_name(arg_cstr);
             } else {
@@ -1051,15 +1053,10 @@ pub fn ex_sign(eap: &mut Exarg) {
         let mut prio: i32 = -1;
         let mut buf: Option<&mut FileBuf> = None;
 
+        let arg_len = crate::memory::cstr_len(arg);
+        let arg_slice = unsafe { std::slice::from_raw_parts_mut(arg.cast::<u8>(), arg_len + 1) };
         if !parse_sign_cmd_args(
-            idx,
-            crate::memory::cstr_from_ptr(arg),
-            &mut name,
-            &mut id,
-            &mut group,
-            &mut prio,
-            &mut buf,
-            &mut lnum,
+            idx, arg_slice, &mut name, &mut id, &mut group, &mut prio, &mut buf, &mut lnum,
         ) {
             return;
         }
@@ -1077,15 +1074,15 @@ pub fn ex_sign(eap: &mut Exarg) {
 fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
     let d = tv_dict_alloc();
 
-    tv_dict_add_str(&mut *d, c"name", sp.sn_name.as_ptr());
+    tv_dict_add_str(&mut *d, c"name", Some(sp.sn_name.as_c_str()));
 
     if let Some(ref icon) = sp.sn_icon {
-        tv_dict_add_str(&mut *d, c"icon", icon.as_ptr());
+        tv_dict_add_str(&mut *d, c"icon", Some(icon.as_c_str()));
     }
     if sp.sn_text[0] != 0 {
         let mut buf = [0u8; SIGN_WIDTH * MAX_SCHAR_SIZE];
         describe_sign_text(&mut buf, &sp.sn_text);
-        tv_dict_add_str(&mut *d, c"text", buf.as_ptr().cast());
+        tv_dict_add_str(&mut *d, c"text", Some(crate::memory::cstr_until_nul(&buf)));
     }
     if sp.sn_priority > 0 {
         tv_dict_add_nr(&mut *d, c"priority", i64::from(sp.sn_priority));
@@ -1101,9 +1098,9 @@ fn sign_get_info_dict(sp: &mut Sign) -> &'static mut TvDict {
             if let Some(p) =
                 get_highlight_name_ext(&mut crate::os::env::ExpandCtx::new(), hl - 1, false)
             {
-                tv_dict_add_str(&mut *d, name, p);
+                tv_dict_add_str(&mut *d, name, Some(p));
             } else {
-                tv_dict_add_str_len(&mut *d, name, c"NONE", 4);
+                tv_dict_add_str_len(&mut *d, name, Some(b"NONE"));
             }
         }
     }
@@ -1114,9 +1111,9 @@ fn sign_get_placed_info_dict(mark: MTKey) -> &'static mut TvDict {
     let d = tv_dict_alloc();
     let sh = decor_find_sign(mt_decor(mark)).unwrap();
 
-    tv_dict_add_str(&mut *d, c"name", sign_get_name(sh));
+    tv_dict_add_str(&mut *d, c"name", Some(sign_get_name(sh)));
     tv_dict_add_nr(&mut *d, c"id", i64::from(mark.id as i32));
-    tv_dict_add_str(&mut *d, c"group", describe_ns(mark.ns as i32, c""));
+    tv_dict_add_str(&mut *d, c"group", Some(describe_ns(mark.ns as i32, c"")));
     tv_dict_add_nr(&mut *d, c"lnum", i64::from(mark.pos.row + 1));
     tv_dict_add_nr(&mut *d, c"priority", i64::from(sh.priority));
     d
@@ -1131,7 +1128,7 @@ pub fn get_buffer_signs(buf: &mut FileBuf) -> &'static mut TvList {
     while itr.x.is_some() {
         let mark = marktree_itr_current(b, &itr);
         if !mt_end(mark) && mt_decor_sign(mark) {
-            tv_list_append_dict(&mut *l, sign_get_placed_info_dict(mark));
+            tv_list_append_dict(&mut *l, Some(sign_get_placed_info_dict(mark)));
         }
         marktree_itr_next(b, &mut itr);
     }
@@ -1147,12 +1144,12 @@ fn sign_get_placed_in_buf(
     retlist: &mut TvList,
 ) {
     let d = tv_dict_alloc();
-    tv_list_append_dict(&mut *retlist, d);
+    tv_list_append_dict(&mut *retlist, Some(d));
 
     tv_dict_add_nr(&mut *d, c"bufnr", i64::from(buf.b_fnum));
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    tv_dict_add_list(&mut *d, c"signs", l);
+    tv_dict_add_list(&mut *d, c"signs", Some(l));
 
     let ns = group_get_ns(group);
     if !buf_has_signs(buf) || ns < 0 {
@@ -1185,7 +1182,7 @@ fn sign_get_placed_in_buf(
     if !signs.is_empty() {
         signs.sort_by(sign_row_cmp_slice);
         for mark in signs {
-            tv_list_append_dict(&mut *l, sign_get_placed_info_dict(mark));
+            tv_list_append_dict(&mut *l, Some(sign_get_placed_info_dict(mark)));
         }
     }
 }
@@ -1450,10 +1447,10 @@ pub fn f_sign_getdefined(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 
     if argvars[0].v_type == VarType::VarUnknown {
         for sp in &mut sign_st().sign_map {
-            tv_list_append_dict(rettv.vval.v_list_ref(), sign_get_info_dict(sp));
+            tv_list_append_dict(rettv.vval.v_list_ref(), Some(sign_get_info_dict(sp)));
         }
     } else if let Some(sp) = pmap_get_sign(tv_get_string(&argvars[0]).to_bytes()) {
-        tv_list_append_dict(rettv.vval.v_list_ref(), sign_get_info_dict(sp));
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(sign_get_info_dict(sp)));
     }
 }
 
@@ -1467,7 +1464,7 @@ pub fn f_sign_getplaced(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     tv_list_alloc_ret(rettv, 0);
 
     if argvars[0].v_type != VarType::VarUnknown {
-        buf = get_buf_arg(&mut argvars[0]);
+        buf = get_buf_arg(&mut argvars[0]).map_or(ptr::null_mut(), ptr::from_mut);
         if buf.is_null() {
             return;
         }
@@ -1527,8 +1524,7 @@ pub fn f_sign_jump(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     };
     let group_owned = (!group_cstr.is_empty()).then(|| group_cstr.to_owned());
 
-    let buf = get_buf_arg(&mut argvars[2]);
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = get_buf_arg(&mut argvars[2]) else {
         return;
     };
 
@@ -1599,8 +1595,7 @@ fn sign_place_from_dict(
     let Some(buf_tv) = buf_tv else {
         return -1;
     };
-    let buf = get_buf_arg(buf_tv);
-    let Some(buf_ref) = (unsafe { buf.as_mut() }) else {
+    let Some(buf_ref) = get_buf_arg(buf_tv) else {
         return -1;
     };
 
@@ -1728,12 +1723,12 @@ fn sign_unplace_from_dict(group_tv: Option<&TypVal>, dict: Option<&TvDict>) -> i
 
     if dict.is_some() {
         if let Some(di_buf) = tv_dict_find_opt(dict, c"buffer", -1) {
-            buf = get_buf_arg(&mut di_buf.di_tv);
+            buf = get_buf_arg(&mut di_buf.di_tv).map_or(ptr::null_mut(), ptr::from_mut);
             if buf.is_null() {
                 return -1;
             }
         }
-        if !tv_dict_find(dict, c"id", -1).is_null() {
+        if tv_dict_find(dict, c"id", -1).is_some() {
             id = tv_dict_get_number(dict, c"id") as i32;
             if id <= 0 {
                 emsg(gettext(E_INVARG));

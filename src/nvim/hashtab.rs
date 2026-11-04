@@ -445,7 +445,7 @@ mod tests {
 
             let items: Vec<*mut crate::eval::typval::Dictitem> = keys
                 .iter()
-                .map(|k| &raw mut *crate::eval::typval::tv_dict_item_alloc(k.as_ptr()))
+                .map(|k| &raw mut *crate::eval::typval::tv_dict_item_alloc(k.as_c_str()))
                 .collect();
 
             for &di in &items {
@@ -475,7 +475,7 @@ mod tests {
             assert!(std::ptr::eq(ht.array_ptr(), empty_hasharray_ptr()));
 
             for di in items {
-                crate::eval::typval::tv_dict_item_free(di);
+                crate::eval::typval::tv_dict_item_free(unsafe { &mut *di });
             }
         }
     }

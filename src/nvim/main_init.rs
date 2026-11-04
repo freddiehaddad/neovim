@@ -279,17 +279,11 @@ fn time_msg_if_enabled(s: &std::ffi::CStr) {
     }
 }
 
+#[cfg(windows)]
 #[inline]
 fn to_slash_if_needed(buf: &mut [u8]) {
-    #[cfg(windows)]
-    {
-        if !buf.is_empty() {
-            path_to_slash(buf.as_mut_ptr().cast());
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        let _ = buf;
+    if !buf.is_empty() {
+        path_to_slash(buf.as_mut_ptr().cast());
     }
 }
 
@@ -672,8 +666,8 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         shada_read_everything(None, false, true);
         time_msg_if_enabled(c"reading ShaDa");
     }
-    if get_vim_var_list(VV_OLDFILES).is_null() {
-        set_vim_var_list(VV_OLDFILES, tv_list_alloc(0));
+    if get_vim_var_list(VV_OLDFILES).is_none() {
+        set_vim_var_list(VV_OLDFILES, Some(tv_list_alloc(0)));
     }
 
     handle_quickfix(&mut params);
@@ -695,7 +689,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     create_windows(&mut params);
     time_msg_if_enabled(c"opening buffers");
 
-    set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
+    set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
     if params.exmode {
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
@@ -766,7 +760,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     if (opt_vars().cb_flags & (K_OPT_CB_FLAG_UNNAMED_CONST | K_OPT_CB_FLAG_UNNAMEDPLUS_CONST)) != 0
     {
-        eval_has_provider(c"clipboard", false);
+        eval_has_provider(b"clipboard", false);
     }
 
     if let Some(ref luaf) = params.luaf {
@@ -894,7 +888,7 @@ pub fn getout(mut exitval: i32) -> ! {
     set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
     if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
-        set_vim_var_string(VV_EXITREASON, c"quit", 4);
+        set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
 
     invoke_all_defer();
@@ -1749,7 +1743,11 @@ fn command_line_scan(parmp: &mut Mparm) {
         swcmd.extend_from_slice(cmd0_bytes);
         swcmd.push(b'\r');
         swcmd.push(0);
-        set_vim_var_string(VV_SWAPCOMMAND, swcmd.as_ptr().cast(), swcmd_len as isize);
+        set_vim_var_string(
+            VV_SWAPCOMMAND,
+            Some(crate::memory::cstr_until_nul(&swcmd)),
+            swcmd_len as isize,
+        );
     }
 
     time_msg_if_enabled(c"parsing arguments");
@@ -1766,11 +1764,15 @@ fn set_argf_var() {
                 MAXPATHL,
                 false,
             );
-            tv_list_append_string(&mut *list, g_st().name_buff.as_ptr(), -1);
+            tv_list_append_string(
+                &mut *list,
+                Some(unsafe { std::ffi::CStr::from_ptr(g_st().name_buff.as_ptr()) }),
+                -1,
+            );
         }
     }
     tv_list_set_lock(Some(&mut *list), VAR_FIXED);
-    set_vim_var_list(VV_ARGF, list);
+    set_vim_var_list(VV_ARGF, Some(list));
 }
 
 fn init_params(paramp: &mut Mparm, argv: Vec<std::ffi::CString>) {
@@ -1824,8 +1826,16 @@ fn init_path(exename: &CStr) {
     if os_exepath(exepath.as_mut_ptr(), &mut exepathlen) != 0 {
         path_guess_exepath(exename, &mut exepath);
     }
-    set_vim_var_string(VV_PROGPATH, exepath.as_ptr().cast(), -1);
-    set_vim_var_string(VV_PROGNAME, path_tail(exename), -1);
+    set_vim_var_string(
+        VV_PROGPATH,
+        Some(crate::memory::cstr_until_nul(&exepath)),
+        -1,
+    );
+    set_vim_var_string(
+        VV_PROGNAME,
+        crate::memory::cstr_as_opt_cstr(path_tail(exename)),
+        -1,
+    );
 
     #[cfg(windows)]
     {

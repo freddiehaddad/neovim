@@ -1255,7 +1255,7 @@ pub fn gen_expand_wildcards_vec(
         #[cfg(unix)]
         {
             let pat_slice: Vec<&CStr> = (0..num_pat as usize)
-                .map(|i| crate::memory::cstr_from_ptr(unsafe { *pat.add(i) }))
+                .map(|i| crate::memory::cstr_from_ptr(unsafe { (*pat.add(i)).cast() }))
                 .collect();
             return os_expand_wildcards(&pat_slice, file, flags);
         }
@@ -1275,7 +1275,7 @@ pub fn gen_expand_wildcards_vec(
             && !(vim_backtick(pi_bytes) && pi_bytes.get(1) == Some(&b'='))
         {
             let pat_slice: Vec<&CStr> = (0..num_pat as usize)
-                .map(|j| crate::memory::cstr_from_ptr(unsafe { *pat.add(j) }))
+                .map(|j| crate::memory::cstr_from_ptr(unsafe { (*pat.add(j)).cast() }))
                 .collect();
             return os_expand_wildcards(&pat_slice, file, flags);
         }
@@ -1312,7 +1312,7 @@ pub fn gen_expand_wildcards_vec(
                         drop(p_owned);
                         file.clear();
                         let pat_slice: Vec<&CStr> = (0..num_pat as usize)
-                            .map(|j| crate::memory::cstr_from_ptr(unsafe { *pat.add(j) }))
+                            .map(|j| crate::memory::cstr_from_ptr(unsafe { (*pat.add(j)).cast() }))
                             .collect();
                         let res = os_expand_wildcards(&pat_slice, file, flags | EW_KEEPDOLLAR);
                         path_st().expand_recursive = false;
@@ -2399,7 +2399,7 @@ mod tests {
 
     fn init_progpath() {
         if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
-            set_vim_var_string(VV_PROGPATH, c"nvim", -1);
+            set_vim_var_string(VV_PROGPATH, Some(c"nvim"), -1);
         }
     }
 

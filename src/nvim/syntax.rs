@@ -5005,7 +5005,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     }
 
     if let Some(ref old_cstr) = old_value {
-        set_internal_string_var(c"b:current_syntax", old_cstr.as_ptr().cast_mut());
+        set_internal_string_var(c"b:current_syntax", old_cstr);
     } else {
         do_unlet(b"b:current_syntax", true);
     }

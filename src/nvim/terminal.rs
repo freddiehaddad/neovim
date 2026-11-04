@@ -41,7 +41,7 @@ use crate::eval::typval::{
     tv_dict_add_nr, tv_dict_set_keys_readonly, tv_list_alloc, tv_list_append_bytes,
     tv_list_append_list,
 };
-use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_string};
+use crate::eval::vars::{VV_TERMREQUEST, get_globvar_dict, set_vim_var_bytes};
 use crate::eval::{K_LIST_LEN_MAY_KNOW_CONST, eval_call_provider, get_v_event, restore_v_event};
 use crate::event::r#loop::loop_queues;
 use crate::event::multiqueue::{
@@ -471,18 +471,12 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
         return;
     }
 
-    let sequence_length = req.sequence.len();
-    let sequence_ptr = if sequence_length == 0 {
-        c"".as_ptr()
-    } else {
-        req.sequence.as_ptr().cast()
-    };
     let row = req.row;
     let col = req.col;
     let sb_deleted = req.sb_deleted;
     let terminator = req.terminator;
 
-    set_vim_var_string(VV_TERMREQUEST, sequence_ptr, sequence_length as isize);
+    set_vim_var_bytes(VV_TERMREQUEST, &req.sequence);
 
     let mut cursor_items = [
         integer_obj(i64::from(row) - (term.sb_deleted.wrapping_sub(sb_deleted) as i64)),
@@ -1954,7 +1948,7 @@ pub fn term_clipboard_set(mask: VTermSelectionMask, data: std::ffi::CString) {
     drop(data);
 
     let args = tv_list_alloc(3);
-    tv_list_append_list(&mut *args, lines);
+    tv_list_append_list(&mut *args, Some(lines));
 
     tv_list_append_bytes(&mut *args, b"v");
     tv_list_append_bytes(&mut *args, regname);

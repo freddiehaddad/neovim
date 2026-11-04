@@ -2760,7 +2760,9 @@ fn buf_init_changedtick(buf: &mut FileBuf) {
         vval: TypvalVval::Number(buf_get_changedtick(buf)),
     };
     buf.changedtick_di.di_flags = DI_FLAGS_RO | DI_FLAGS_FIX;
-    tv_dict_add(&mut *buf.b_vars(), (&raw mut buf.changedtick_di).cast());
+    tv_dict_add(&mut *buf.b_vars(), unsafe {
+        &mut *(&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>()
+    });
 }
 
 /// Add a file name to the buffer list.
@@ -4960,12 +4962,14 @@ pub fn buf_set_changedtick(buf: &mut FileBuf, changedtick: Varnumber) {
     let old_val = buf.changedtick_di.di_tv;
 
     let changedtick_di = tv_dict_find(Some(&*buf.b_vars()), c"changedtick", 11);
-    debug_assert!(!changedtick_di.is_null());
-    debug_assert!(changedtick_di == (&raw mut buf.changedtick_di).cast());
+    debug_assert!(changedtick_di.is_some());
+    debug_assert!(std::ptr::eq(
+        changedtick_di.unwrap(),
+        (&raw mut buf.changedtick_di).cast::<crate::eval::typval::Dictitem>()
+    ));
     debug_assert!(buf.changedtick_di.di_tv.v_type == VarType::VarNumber);
     debug_assert!(buf.changedtick_di.di_tv.v_lock == VAR_FIXED);
     debug_assert!(buf.changedtick_di.di_flags == (DI_FLAGS_RO | DI_FLAGS_FIX));
-    let _ = changedtick_di;
 
     buf.changedtick_di.di_tv.vval = crate::eval::typval::TypvalVval::Number(changedtick);
 

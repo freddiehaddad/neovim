@@ -1785,7 +1785,14 @@ pub fn buf_write(
                     }
 
                     if wfname != fname {
-                        if end != 0 && !eval_charconvert(c"utf-8", fenc, wfname, fname) {
+                        if end != 0
+                            && !eval_charconvert(
+                                c"utf-8",
+                                crate::memory::cstr_from_ptr(fenc),
+                                crate::memory::cstr_from_ptr(wfname),
+                                crate::memory::cstr_from_ptr(fname),
+                            )
+                        {
                             write_info.bw_conv_error = 1;
                             end = 0;
                         }

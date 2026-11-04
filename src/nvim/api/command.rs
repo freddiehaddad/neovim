@@ -1128,7 +1128,10 @@ pub fn nvim_cmd(
         }
 
         let ea_arg = crate::memory::cstr_from_ptr(ea.arg);
-        p = replace_makeprg(&mut ea, ea_arg).as_ptr().cast_mut();
+        let p_cstr = replace_makeprg(&mut ea, ea_arg);
+        p = unsafe {
+            (*ea.cmdlinep).wrapping_add((p_cstr.as_ptr() as usize) - ((*ea.cmdlinep) as usize))
+        };
         if p != ea.arg {
             ea.arg = p;
             ea.args.clear();

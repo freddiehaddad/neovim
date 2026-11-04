@@ -1225,11 +1225,7 @@ fn get_arglist_as_rettv(entries: Option<&[Aentry]>, rettv: &mut TypVal) {
     tv_list_alloc_ret(&mut *rettv, count as isize);
     if let Some(entries) = entries {
         for entry in entries {
-            tv_list_append_string(
-                rettv.vval.v_list_ref(),
-                alist_name(entry).map_or(ptr::null(), CStr::as_ptr),
-                -1,
-            );
+            tv_list_append_string(rettv.vval.v_list_ref(), alist_name(entry), -1);
         }
     }
 }
@@ -1251,16 +1247,13 @@ pub fn f_argv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         entries = Some(&warglist_slice(wp_ref)[..(wargcount(wp_ref) as usize)]);
     }
 
-    tv_set_string(rettv, ptr::null());
+    tv_set_string(rettv, None);
     let idx = tv_get_number_chk(&argvars[0], None) as i32;
     if let Some(entries) = entries
         && idx >= 0
         && (idx as usize) < entries.len()
     {
-        tv_set_string(
-            rettv,
-            alist_name(&entries[idx as usize]).map_or(ptr::null(), CStr::as_ptr),
-        );
+        tv_set_string(rettv, alist_name(&entries[idx as usize]));
     } else if idx == -1 {
         get_arglist_as_rettv(entries, rettv);
     }

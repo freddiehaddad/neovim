@@ -3373,12 +3373,7 @@ pub fn free_operatorfunc_option() {
 }
 
 pub fn set_ref_in_opfunc(copy_id: i32) -> bool {
-    set_ref_in_callback(
-        &mut opt_vars().p_opfunc,
-        copy_id,
-        ptr::null_mut(),
-        ptr::null_mut(),
-    )
+    set_ref_in_callback(&mut opt_vars().p_opfunc, copy_id, None, None)
 }
 
 fn op_function(oap: &Oparg) {
@@ -3422,12 +3417,7 @@ fn op_function(oap: &Oparg) {
         save_redobuff(&mut save_redo);
 
         let mut rettv: TypVal = TypVal::new();
-        if callback_call(
-            &mut opt_vars().p_opfunc,
-            1,
-            (&raw mut argv).cast::<TypVal>(),
-            &mut rettv,
-        ) {
+        if callback_call(&mut opt_vars().p_opfunc, 1, &mut argv, &mut rettv) {
             tv_clear(&mut rettv);
         }
         restore_redobuff(&mut save_redo);

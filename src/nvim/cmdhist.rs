@@ -533,7 +533,7 @@ pub fn f_histdel(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 /// `"histget()"` function (`f_histget`).
 pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let Some(str_ptr) = tv_get_string_chk(&argvars[0]) else {
-        tv_set_string(rettv, std::ptr::null());
+        tv_set_string(rettv, None);
         return;
     };
     let htype = get_histtype(str_ptr.to_bytes(), false);
@@ -545,10 +545,10 @@ pub fn f_histget(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     };
     let idx = calc_hist_idx(htype, req_idx);
     if idx < 0 {
-        tv_set_string(rettv, c"");
+        tv_set_string(rettv, Some(c""));
     } else {
         let entry = &hist_st().history[htype as usize][idx as usize];
-        tv_set_string(rettv, entry.hisstr_cstr().map_or(ptr::null(), CStr::as_ptr));
+        tv_set_string(rettv, entry.hisstr_cstr());
     }
 }
 

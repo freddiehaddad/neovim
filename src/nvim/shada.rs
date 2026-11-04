@@ -1288,7 +1288,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut oldfiles_list = get_vim_var_list(VV_OLDFILES);
     let force = (flags & K_SHA_DA_FORCEIT) != 0;
     let get_old_files = (flags & K_SHA_DA_GET_OLDFILES) != 0
-        && (force || tv_list_len(unsafe { oldfiles_list.as_ref() }) == 0);
+        && (force || tv_list_len(oldfiles_list.as_deref()) == 0);
     let want_marks = (flags & K_SHA_DA_WANT_MARKS) != 0;
     let no_opt = (flags & K_SHA_DA_NO_OPT) != 0;
     let argcount = crate::arglist::argcount();
@@ -1353,9 +1353,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut fname_bufs: std::collections::HashMap<Vec<u8>, usize> =
         std::collections::HashMap::new();
     let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
-    if get_old_files && (oldfiles_list.is_null() || force) {
-        oldfiles_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        set_vim_var_list(VV_OLDFILES, oldfiles_list);
+    if get_old_files && (oldfiles_list.is_none() || force) {
+        let new_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
+        let new_list_ptr: *mut crate::eval::typval::TvList = new_list;
+        set_vim_var_list(VV_OLDFILES, Some(new_list));
+        oldfiles_list = Some(unsafe { &mut *new_list_ptr });
     }
 
     loop {
@@ -1500,10 +1502,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
             }
             ShadaEntryType::SDItemVariable => {
                 let gv = cur_entry.data.global_var();
-                var_set_global(
-                    gv.name.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    gv.value,
-                );
+                var_set_global(gv.name.as_ref().map_or(&[], |s| s.as_bytes()), gv.value);
                 cur_entry.data.global_var_mut().value.v_type = VarType::VarUnknown;
                 shada_free_shada_entry(&mut cur_entry);
             }
@@ -1607,14 +1606,11 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                 let fname_cstr = cur_entry.data.filemark().fname.as_deref().unwrap_or(c"");
                 let fname_ptr = fname_cstr.as_ptr();
                 if get_old_files && !oldfiles_set.contains(&PathKey(fname_ptr.cast())) {
-                    crate::eval::typval::tv_list_append_string(
-                        unsafe { &mut *oldfiles_list },
-                        fname_ptr,
-                        -1,
-                    );
+                    let ol = oldfiles_list.as_deref_mut().unwrap();
+                    crate::eval::typval::tv_list_append_string(ol, Some(fname_cstr), -1);
 
                     oldfiles_set.insert(PathKey(
-                        unsafe { (*(*oldfiles_list).lv_last).li_tv.vval.v_string() }.cast(),
+                        unsafe { (*ol.lv_last).li_tv.vval.v_string() }.cast(),
                     ));
                 }
                 if !want_marks {
@@ -2729,7 +2725,7 @@ fn shada_write(
                     VarType::VarDict => {
                         let di = unsafe { &mut *vartv.vval.v_dict() };
                         let copy_id = get_copy_id();
-                        if !set_ref_in_ht(&mut di.dv_hashtab, copy_id, ptr::null_mut())
+                        if !set_ref_in_ht(Some(&mut di.dv_hashtab), copy_id, None)
                             && copy_id == di.dv_copy_id
                         {
                             tv_clear(&mut vartv);
@@ -2739,7 +2735,7 @@ fn shada_write(
                     VarType::VarList => {
                         let l = vartv.vval.v_list();
                         let copy_id = get_copy_id();
-                        if !set_ref_in_list_items(l, copy_id, ptr::null_mut())
+                        if !set_ref_in_list_items(unsafe { l.as_mut() }, copy_id, None)
                             && copy_id == unsafe { (*l).lv_copy_id }
                         {
                             tv_clear(&mut vartv);

@@ -428,9 +428,9 @@ fn fuzzy_match_in_list(
     let mut len = tv_list_len(l);
     if len == 0 {
         if retmatchpos {
-            tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-            tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+            tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
+            tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
+            tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
         }
         return;
     }
@@ -442,7 +442,7 @@ fn fuzzy_match_in_list(
     let mut match_count: i32 = 0;
     let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];
 
-    for li in crate::eval::typval::list_iter_ptr(l.map_or(std::ptr::null_mut(), |l| l.lv_first)) {
+    for li in crate::eval::typval::list_iter_ptr(l.and_then(|l| l.first_opt())) {
         if max_matches > 0 && match_count >= max_matches {
             break;
         }
@@ -462,7 +462,7 @@ fn fuzzy_match_in_list(
         {
             let d = tv.vval.v_dict_ref();
             if let Some(k) = key {
-                itemstr = tv_dict_get_string(Some(&*d), k.as_ptr());
+                itemstr = tv_dict_get_string(Some(&*d), k);
             } else {
                 d.dv_refcount += 1;
                 let d_ptr = &raw mut *d;
@@ -478,12 +478,12 @@ fn fuzzy_match_in_list(
                         vval: TypvalVval::Number(0),
                     },
                 ];
-                if callback_call(item_cb, 1, argv.as_mut_ptr(), &mut rettv)
+                if callback_call(item_cb, 1, &mut argv, &mut rettv)
                     && rettv.v_type == VarType::VarString
                 {
                     itemstr = rettv.vval.v_string_cstr();
                 }
-                tv_dict_unref(d_ptr);
+                tv_dict_unref(unsafe { d_ptr.as_mut() });
             }
         }
 
@@ -542,23 +542,23 @@ fn fuzzy_match_in_list(
                 for &pos in &cur.matchpos {
                     tv_list_append_number(match_positions_list, pos);
                 }
-                tv_list_append_list(pos_list, match_positions_list);
+                tv_list_append_list(pos_list, Some(match_positions_list));
 
                 tv_list_append_number(score_list, i64::from(cur.score));
             }
 
-            tv_list_append_list(fmatchlist, match_list);
-            tv_list_append_list(fmatchlist, pos_list);
-            tv_list_append_list(fmatchlist, score_list);
+            tv_list_append_list(fmatchlist, Some(match_list));
+            tv_list_append_list(fmatchlist, Some(pos_list));
+            tv_list_append_list(fmatchlist, Some(score_list));
         } else {
             for cur in &mut items {
                 tv_list_append_tv(fmatchlist, &mut cur.item.li_tv);
             }
         }
     } else if retmatchpos {
-        tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-        tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
-        tv_list_append_list(fmatchlist, tv_list_alloc(K_LIST_LEN_UNKNOWN));
+        tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
+        tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
+        tv_list_append_list(fmatchlist, Some(tv_list_alloc(K_LIST_LEN_UNKNOWN)));
     }
 }
 

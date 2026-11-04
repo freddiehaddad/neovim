@@ -1401,7 +1401,7 @@ pub fn readfile(
                     let mfp = curbuf_mut().b_ml.mfp_ptr();
                     if swap_mode > 0
                         && !mfp.is_null()
-                        && let Some(ref swap_fname) = unsafe { (*mfp).mf_fname }
+                        && let Some(ref swap_fname) = *unsafe { &(*mfp).mf_fname }
                     {
                         let swap_fname = swap_fname.as_ptr();
                         if (swap_mode & 0o44) == 0o40 {
@@ -3087,7 +3087,7 @@ fn readfile_charconvert(fname: &CStr, fenc: &CStr, fdp: &mut i32) -> Option<std:
         Some(ref tn) => {
             os_close(*fdp);
             *fdp = -1;
-            if !eval_charconvert(fenc.as_ptr(), c"utf-8", fname.as_ptr(), tn.as_ptr()) {
+            if !eval_charconvert(fenc, c"utf-8", fname, tn) {
                 errmsg = Some(tr(c"Conversion with 'charconvert' failed"));
             }
             if errmsg.is_none() {
@@ -3901,8 +3901,8 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             };
 
             BUSY.store(true, std::sync::atomic::Ordering::Relaxed);
-            set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
-            set_vim_var_string(VV_FCS_CHOICE, c"", 0);
+            set_vim_var_string(VV_FCS_REASON, Some(reason), reasonlen);
+            set_vim_var_string(VV_FCS_CHOICE, Some(c""), 0);
             g_st().allbuf_lock += 1;
             let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
             let mut n = apply_autocmds(
@@ -3982,7 +3982,11 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         let mut tbuf_vec = vec![0u8; tbufsize];
         let tbuf = tbuf_vec.as_mut_ptr();
         let tbuflen = vim_snprintf!(tbuf.cast(), tbufsize, mesg, path.as_ptr());
-        set_vim_var_string(VV_WARNINGMSG, tbuf.cast(), tbuflen as isize);
+        set_vim_var_string(
+            VV_WARNINGMSG,
+            Some(crate::memory::cstr_until_nul(&tbuf_vec)),
+            tbuflen as isize,
+        );
         if can_reload {
             if !mesg2.to_bytes().is_empty() {
                 vim_snprintf!(
@@ -4977,7 +4981,11 @@ mod tests {
             if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(
                 crate::eval::vars::VV_PROGPATH,
             )) {
-                crate::eval::vars::set_vim_var_string(crate::eval::vars::VV_PROGPATH, c"nvim", -1);
+                crate::eval::vars::set_vim_var_string(
+                    crate::eval::vars::VV_PROGPATH,
+                    Some(c"nvim"),
+                    -1,
+                );
             }
             vim_deltempdir();
             let dir1_cstr = vim_gettempdir().unwrap();

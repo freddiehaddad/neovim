@@ -69,7 +69,7 @@ fn filter_map_one(
             vval: TypvalVval::Number(0),
         },
     ];
-    if !eval_expr_typval(&*expr, false, argv.as_mut_ptr(), 2, &mut *newtv) {
+    if !eval_expr_typval(&*expr, false, &mut argv, 2, &mut *newtv) {
         tv_clear(get_vim_var_tv(VV_VAL));
         return false;
     }
@@ -103,7 +103,11 @@ fn filter_map_dict(
         }
         if d.is_none()
             || (filtermap == FilterMap::Filter
-                && value_check_lock(d.as_deref_mut().unwrap().dv_lock, arg_errmsg, TV_TRANSLATE))
+                && value_check_lock(
+                    d.as_deref_mut().unwrap().dv_lock,
+                    Some(arg_errmsg),
+                    TV_TRANSLATE,
+                ))
         {
             return;
         }
@@ -129,12 +133,12 @@ fn filter_map_dict(
             if let Some(di) = d.as_deref_mut().unwrap().dv_hashtab.ht_array[i].di_opt() {
                 todo -= 1;
                 if filtermap == FilterMap::Map
-                    && (value_check_lock(di.di_tv.v_lock, arg_errmsg, TV_TRANSLATE)
+                    && (value_check_lock(di.di_tv.v_lock, Some(arg_errmsg), TV_TRANSLATE)
                         || var_check_ro(di.di_flags as i32, arg_errmsg, TV_TRANSLATE))
                 {
                     break;
                 }
-                set_vim_var_string(VV_KEY, di.key_cstr(), -1);
+                set_vim_var_string(VV_KEY, Some(di.key_cstr()), -1);
                 let mut newtv = TypVal {
                     v_type: VarType::VarUnknown,
                     v_lock: VAR_UNLOCKED,
@@ -168,7 +172,7 @@ fn filter_map_dict(
                         break;
                     }
                     d.as_deref_mut().unwrap().dv_hashtab.remove_at(i);
-                    tv_dict_item_free(&raw mut *di);
+                    tv_dict_item_free(di);
                 }
             }
         }
@@ -192,7 +196,8 @@ fn filter_map_blob(
     let Some(b) = blob_arg else {
         return;
     };
-    if filtermap == FilterMap::Filter && value_check_lock(b.bv_lock, arg_errmsg, TV_TRANSLATE) {
+    if filtermap == FilterMap::Filter && value_check_lock(b.bv_lock, Some(arg_errmsg), TV_TRANSLATE)
+    {
         return;
     }
 
@@ -317,7 +322,7 @@ fn filter_map_list(
         }
         if l.is_none()
             || (filtermap == FilterMap::Filter
-                && value_check_lock(tv_list_locked(l.as_deref()), arg_errmsg, TV_TRANSLATE))
+                && value_check_lock(tv_list_locked(l.as_deref()), Some(arg_errmsg), TV_TRANSLATE))
         {
             return;
         }
@@ -336,9 +341,9 @@ fn filter_map_list(
 
         let mut idx: i64 = 0;
         let mut li = tv_list_first(l.as_deref());
-        while let Some(cur_li) = unsafe { li.as_mut() } {
+        while let Some(cur_li) = li {
             if filtermap == FilterMap::Map
-                && value_check_lock(cur_li.li_tv.v_lock, arg_errmsg, TV_TRANSLATE)
+                && value_check_lock(cur_li.li_tv.v_lock, Some(arg_errmsg), TV_TRANSLATE)
             {
                 break;
             }
@@ -364,9 +369,9 @@ fn filter_map_list(
                 tv_list_append_owned_tv(l_ret.as_deref_mut().unwrap(), newtv);
             }
             if filtermap == FilterMap::Filter && rem {
-                li = tv_list_item_remove(l.as_deref_mut().unwrap(), li);
+                li = tv_list_item_remove(l.as_deref_mut().unwrap(), cur_li);
             } else {
-                li = cur_li.li_next;
+                li = cur_li.next_opt();
             }
             idx += 1;
         }
@@ -471,7 +476,7 @@ pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let l = arg0.vval.v_list_opt();
         if !value_check_lock(
             tv_list_locked(l.as_deref()),
-            c"add() argument",
+            Some(c"add() argument"),
             TV_TRANSLATE,
         ) {
             tv_list_append_tv(l.unwrap(), &mut argvars[1]);
@@ -479,7 +484,7 @@ pub fn f_add(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     } else if arg0.v_type == VarType::VarBlob {
         if let Some(b) = arg0.vval.v_blob_opt()
-            && !value_check_lock(b.bv_lock, c"add() argument", TV_TRANSLATE)
+            && !value_check_lock(b.bv_lock, Some(c"add() argument"), TV_TRANSLATE)
         {
             let mut error = false;
             let n = tv_get_number_chk(&argvars[1], Some(&mut error));
@@ -537,7 +542,7 @@ fn count_list(l: Option<&mut TvList>, needle: &TypVal, idx: i64, ic: bool) -> i6
         return 0;
     }
     let li = tv_list_find(l, idx as i32);
-    if li.is_null() {
+    if li.is_none() {
         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, idx);
         return 0;
     }
@@ -612,18 +617,19 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &mut TypVal) {
     {
         let Some(d1_ref) = argvars[0].vval.v_dict_opt() else {
-            let locked = value_check_lock(VAR_FIXED, arg_errmsg, TV_TRANSLATE);
+            let locked = value_check_lock(VAR_FIXED, Some(arg_errmsg), TV_TRANSLATE);
             assert!(locked);
             return;
         };
 
-        if !is_new && value_check_lock(d1_ref.dv_lock, arg_errmsg, TV_TRANSLATE) {
+        if !is_new && value_check_lock(d1_ref.dv_lock, Some(arg_errmsg), TV_TRANSLATE) {
             return;
         }
 
         let mut d1: *mut TvDict = d1_ref;
         if is_new {
-            d1 = tv_dict_copy(None, Some(d1_ref), false, get_copy_id());
+            d1 = tv_dict_copy(None, Some(d1_ref), false, get_copy_id())
+                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
             if d1.is_null() {
                 return;
             }
@@ -635,7 +641,7 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             if arg2.v_type != VarType::VarUnknown {
                 let Some(act) = tv_get_string_chk(arg2) else {
                     if is_new {
-                        tv_dict_unref(d1);
+                        tv_dict_unref(unsafe { d1.as_mut() });
                     }
                     return;
                 };
@@ -643,13 +649,13 @@ fn extend_dict(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let action_bytes = action.to_bytes();
                 if action_bytes != b"keep" && action_bytes != b"force" && action_bytes != b"error" {
                     if is_new {
-                        tv_dict_unref(d1);
+                        tv_dict_unref(unsafe { d1.as_mut() });
                     }
                     semsg!(E_INVARG2, action);
                     return;
                 }
             }
-            tv_dict_extend(unsafe { &mut *d1 }, d2, action.as_ptr());
+            tv_dict_extend(unsafe { &mut *d1 }, d2, action.to_bytes());
         }
 
         if is_new {
@@ -669,14 +675,20 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
         let mut error = false;
         let l1_opt = argvars[0].vval.v_list_opt();
 
-        if !is_new && value_check_lock(tv_list_locked(l1_opt.as_deref()), arg_errmsg, TV_TRANSLATE)
+        if !is_new
+            && value_check_lock(
+                tv_list_locked(l1_opt.as_deref()),
+                Some(arg_errmsg),
+                TV_TRANSLATE,
+            )
         {
             return;
         }
 
         let mut l1 = argvars[0].vval.v_list();
         if is_new {
-            l1 = tv_list_copy(None, l1_opt, false, get_copy_id());
+            l1 = tv_list_copy(None, l1_opt, false, get_copy_id())
+                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
             if l1.is_null() {
                 return;
             }
@@ -690,22 +702,23 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
                 if error {
                     if is_new {
-                        tv_list_unref(l1);
+                        tv_list_unref(unsafe { l1.as_mut() });
                     }
                     return;
                 }
                 if before != tv_list_len(Some(l1_ref)) {
-                    item = tv_list_find(Some(l1_ref), before);
+                    item = tv_list_find(Some(l1_ref), before)
+                        .map_or(std::ptr::null_mut(), std::ptr::from_mut);
                     if item.is_null() {
                         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
-                            tv_list_unref(l1);
+                            tv_list_unref(unsafe { l1.as_mut() });
                         }
                         return;
                     }
                 }
             }
-            tv_list_extend(l1_ref, Some(l2), item);
+            tv_list_extend(l1_ref, Some(l2), unsafe { item.as_mut() });
         }
 
         if is_new {
@@ -765,7 +778,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let Some(b) = arg0.vval.v_blob_opt() else {
             return;
         };
-        if value_check_lock(b.bv_lock, c"insert() argument", TV_TRANSLATE) {
+        if value_check_lock(b.bv_lock, Some(c"insert() argument"), TV_TRANSLATE) {
             return;
         }
 
@@ -801,7 +814,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut l = arg0.vval.v_list_opt();
         if value_check_lock(
             tv_list_locked(l.as_deref()),
-            c"insert() argument",
+            Some(c"insert() argument"),
             TV_TRANSLATE,
         ) {
             return;
@@ -817,14 +830,15 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
         let mut item: *mut Listitem = std::ptr::null_mut();
         if before != (tv_list_len(l.as_deref()) as i64) {
-            item = tv_list_find(l.as_deref_mut(), before as i32);
+            item = tv_list_find(l.as_deref_mut(), before as i32)
+                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
             if item.is_null() {
                 semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before);
                 l = None;
             }
         }
         if let Some(l) = l {
-            tv_list_insert_tv(l, arg1, item);
+            tv_list_insert_tv(l, arg1, unsafe { item.as_mut() });
             tv_copy(arg0, rettv);
         }
     }
@@ -832,7 +846,7 @@ pub fn f_insert(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 
 /// `"remove()"` function (`f_remove`).
 pub fn f_remove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let arg_errmsg = c"remove() argument".as_ptr();
+    let arg_errmsg = c"remove() argument";
     match argvars[0].v_type {
         VarType::VarDict => tv_dict_remove(argvars, rettv, arg_errmsg),
         VarType::VarBlob => tv_blob_remove(argvars, rettv, arg_errmsg),
@@ -851,29 +865,30 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
     let arg0 = &argvars[0];
     if arg0.v_type == VarType::VarBlob {
-        let b_ptr = arg0.vval.v_blob();
         if let Some(b) = arg0.vval.v_blob_opt() {
             b.bv_ga.reverse();
+            tv_blob_set_ret(rettv, Some(b));
+        } else {
+            tv_blob_set_ret(rettv, None);
         }
-        tv_blob_set_ret(rettv, b_ptr);
     } else if arg0.v_type == VarType::VarString {
         rettv.v_type = VarType::VarString;
         if !arg0.vval.v_string().is_null() {
             let s_bytes = crate::memory::cstr_as_bytes(arg0.vval.v_string());
-            crate::eval::typval::tv_set_string(rettv, reverse_text(s_bytes).as_ptr());
+            let rev = reverse_text(s_bytes);
+            crate::eval::typval::tv_set_string(rettv, Some(rev.as_c_str()));
         } else {
             rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
         }
     } else if arg0.v_type == VarType::VarList {
-        let l_ptr = arg0.vval.v_list();
-        let l = arg0.vval.v_list_opt();
+        let mut l = arg0.vval.v_list_opt();
         if !value_check_lock(
             tv_list_locked(l.as_deref()),
-            c"reverse() argument",
+            Some(c"reverse() argument"),
             TV_TRANSLATE,
         ) {
-            tv_list_reverse(l.unwrap());
-            tv_list_set_ret(rettv, l_ptr);
+            tv_list_reverse(l.as_deref_mut().unwrap());
+            tv_list_set_ret(rettv, l);
         }
     }
 }
@@ -886,7 +901,7 @@ mod tests {
     fn list_lock_and_len_helpers_handle_null() {
         assert_eq!(tv_list_locked(None), VAR_FIXED);
         assert_eq!(tv_list_len(None), 0);
-        assert!(tv_list_first(None).is_null());
+        assert!(tv_list_first(None).is_none());
         assert_eq!(tv_blob_len(None), 0);
     }
 }

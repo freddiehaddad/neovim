@@ -117,9 +117,7 @@ fn set_vservername() {
     let default_server = srv_st()
         .watchers
         .first()
-        .map_or(ptr::null(), |&first| unsafe {
-            (*first).addr_cstr().as_ptr()
-        });
+        .map(|&first| unsafe { (*first).addr_cstr() });
     set_vim_var_string(VV_SEND_SERVER, default_server, -1);
 }
 

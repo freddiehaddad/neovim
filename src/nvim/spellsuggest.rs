@@ -577,13 +577,20 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             tv_dict_add_str(
                 &mut *d,
                 c"word",
-                CStr::from_bytes_until_nul(&word_vec).unwrap_or_default(),
+                Some(CStr::from_bytes_until_nul(&word_vec).unwrap_or_default()),
             );
         } else {
-            tv_dict_add_str(&mut *d, c"word", stp.st_word.as_ptr());
+            tv_dict_add_str(&mut *d, c"word", Some(stp.st_word.as_c_str()));
         }
         if sug.su_badlen < stp.st_orglen {
-            tv_dict_add_str_len(&mut *d, c"extra", sug.su_badptr.cast(), stp.st_orglen);
+            tv_dict_add_str_len(
+                &mut *d,
+                c"extra",
+                Some(crate::memory::cstr_slice(
+                    sug.su_badptr.cast(),
+                    stp.st_orglen as usize,
+                )),
+            );
         }
         tv_dict_add_nr(&mut *d, c"score", stp.st_score as i64);
         if (sps_st().sps_flags & (SPS_DOUBLE | SPS_BEST)) != 0 {
@@ -614,7 +621,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         v_lock: 0,
         vval: TypvalVval::Number(0),
     };
-    tv_set_string(&mut bad_tv, bad_cstr.as_ptr());
+    tv_set_string(&mut bad_tv, Some(bad_cstr.as_c_str()));
     let mut lua_args = [
         items_tv,
         bad_tv,
@@ -912,9 +919,10 @@ fn spell_find_suggest(
 }
 fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let mut p: Option<&CStr> = None;
-    let list = eval_spell_expr((&raw mut su.su_badword).cast(), expr);
-    if !list.is_null() {
-        for li in crate::eval::typval::list_iter_mut(unsafe { (*list).lv_first }) {
+    let list_opt = eval_spell_expr(crate::memory::cstr_until_nul(&su.su_badword), expr);
+    if let Some(list) = list_opt {
+        let list_ptr: *mut crate::eval::typval::TvList = list;
+        for li in crate::eval::typval::list_iter_mut(unsafe { (*list_ptr).first_opt() }) {
             if li.li_tv.v_type == VarType::VarList
                 && let Some(sublist) = li.li_tv.vval.v_list_opt()
             {
@@ -934,7 +942,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                 }
             }
         }
-        tv_list_unref(list);
+        tv_list_unref(unsafe { list_ptr.as_mut() });
     }
     check_suggestions(su, false);
     cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);

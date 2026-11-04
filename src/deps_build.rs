@@ -749,7 +749,10 @@ fn build_lua(
             .filter(|l| !l.contains("#define LUA_USE_READLINE"))
             .collect::<Vec<_>>()
             .join("\n")
-            .replace("/usr/local", &deps_prefix.to_string_lossy());
+            .replace(
+                "/usr/local",
+                &deps_prefix.to_string_lossy().replace('\\', "/"),
+            );
         fs::write(&luaconf_path, patched).unwrap();
     }
 

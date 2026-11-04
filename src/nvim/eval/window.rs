@@ -275,24 +275,24 @@ fn get_framelayout(fr: Option<&Frame>, l: &mut TvList, outer: bool) {
         l
     } else {
         let sub = tv_list_alloc(2);
-        tv_list_append_list(l, sub);
+        tv_list_append_list(l, Some(sub));
         sub
     };
 
     if fr.fr_layout == FR_LEAF {
         if let Some(wp) = fr.win_opt() {
-            tv_list_append_string(fr_list, c"leaf", 4);
+            tv_list_append_string(fr_list, Some(c"leaf"), 4);
             tv_list_append_number(fr_list, wp.handle as Varnumber);
         }
     } else {
         if fr.fr_layout == FR_ROW {
-            tv_list_append_string(fr_list, c"row", 3);
+            tv_list_append_string(fr_list, Some(c"row"), 3);
         } else {
-            tv_list_append_string(fr_list, c"col", 3);
+            tv_list_append_string(fr_list, Some(c"col"), 3);
         }
 
         let win_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        tv_list_append_list(fr_list, win_list);
+        tv_list_append_list(fr_list, Some(win_list));
         for child in frame_iter_ptr(fr.fr_child) {
             get_framelayout(Some(&*child), &mut *win_list, false);
         }
@@ -421,7 +421,7 @@ fn get_win_info(wp: &mut WinInfoInfo, tpnr: i16, winnr: i16) -> &'static mut TvD
         Varnumber::from(bt_quickfix(wp.buf_opt()) && !wp.w_llist_ref.is_null()),
     );
 
-    tv_dict_add_dict(&mut *dict, c"variables", wp.w_vars());
+    tv_dict_add_dict(&mut *dict, c"variables", Some(wp.w_vars()));
 
     dict
 }
@@ -436,9 +436,9 @@ fn get_tabpage_info(tp: &mut TabPageInfo, tp_idx: i32) -> &'static mut TvDict {
     for wp in win_iter_mut(first_win_in_tab(tp)) {
         tv_list_append_number(&mut *l, wp.handle as Varnumber);
     }
-    tv_dict_add_list(&mut *dict, c"windows", l);
+    tv_dict_add_list(&mut *dict, c"windows", Some(l));
 
-    tv_dict_add_dict(&mut *dict, c"variables", tp.tp_vars());
+    tv_dict_add_dict(&mut *dict, c"variables", Some(tp.tp_vars()));
 
     dict
 }
@@ -470,7 +470,7 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             continue;
         }
         let d = get_tabpage_info(&mut *tp, tpnr);
-        tv_list_append_dict(rettv.vval.v_list_ref(), d);
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(d));
         if !tparg.is_null() {
             return;
         }
@@ -501,7 +501,7 @@ pub fn f_getwininfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 continue;
             }
             let d = get_win_info(wp, tabnr, if has_winnr { winnr } else { 0 });
-            tv_list_append_dict(rettv.vval.v_list_ref(), d);
+            tv_list_append_dict(rettv.vval.v_list_ref(), Some(d));
             if !wparg.is_null() {
                 return;
             }
@@ -756,30 +756,30 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut wp: &mut WinInfoInfo = curwin_mut();
 
-    tv_set_string(rettv, ptr::null());
+    tv_set_string(rettv, None);
     if argvars[0].v_type != VarType::VarUnknown {
         let Some(found) = find_win_by_nr_or_id(&argvars[0]) else {
-            tv_set_string(rettv, c"unknown");
+            tv_set_string(rettv, Some(c"unknown"));
             return;
         };
         wp = found;
     }
     if is_ctx_win(wp) {
-        tv_set_string(rettv, c"autocmd");
+        tv_set_string(rettv, Some(c"autocmd"));
     } else if wp.w_onebuf_opt.wo_pvw != 0 {
-        tv_set_string(rettv, c"preview");
+        tv_set_string(rettv, Some(c"preview"));
     } else if wp.w_floating {
-        tv_set_string(rettv, c"popup");
+        tv_set_string(rettv, Some(c"popup"));
     } else if bt_cmdwin(wp.w_buffer) {
-        tv_set_string(rettv, c"command");
+        tv_set_string(rettv, Some(c"command"));
     } else if bt_quickfix(wp.buf_opt()) {
         tv_set_string(
             rettv,
-            if !wp.w_llist_ref.is_null() {
-                c"loclist".as_ptr()
+            Some(if !wp.w_llist_ref.is_null() {
+                c"loclist"
             } else {
-                c"quickfix".as_ptr()
-            },
+                c"quickfix"
+            }),
         );
     }
 }
@@ -788,7 +788,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 pub fn f_getcmdwintype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let ch = g_st().cmdwin_type as u8;
     if ch == 0 {
-        tv_set_string(rettv, c"");
+        tv_set_string(rettv, Some(c""));
     } else {
         tv_set_bytes(rettv, &[ch]);
     }

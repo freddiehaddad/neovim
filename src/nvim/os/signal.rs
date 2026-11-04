@@ -104,7 +104,7 @@ pub fn signal_init() {
     unsafe {
         let mut mask = [0u64; 16];
         sigemptyset((&raw mut mask).cast());
-        if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), ptr::null_mut()) != 0 {
+        if pthread_sigmask(SIG_SETMASK, (&raw const mask).cast(), std::ptr::null_mut()) != 0 {
             logmsg!(
                 LOGLVL_ERR,
                 None,

@@ -559,7 +559,7 @@ pub fn func_do_profile(fp: &mut UserFunc) {
 
 /// Prepare profiling for entering a child (`prof_child_enter`).
 pub fn prof_child_enter(tm: &mut Proftime) {
-    if let Some(fc) = unsafe { get_current_funccal().as_mut() }
+    if let Some(fc) = get_current_funccal()
         && fc.func_mut().uf_profiling != 0
     {
         fc.fc_prof_child = profile_start();
@@ -569,7 +569,7 @@ pub fn prof_child_enter(tm: &mut Proftime) {
 
 /// Take care of time spent in a child (`prof_child_exit`).
 pub fn prof_child_exit(tm: &mut Proftime) {
-    if let Some(fc) = unsafe { get_current_funccal().as_mut() }
+    if let Some(fc) = get_current_funccal()
         && fc.func_mut().uf_profiling != 0
     {
         let child_elapsed = profile_sub_wait(*tm, profile_end(fc.fc_prof_child));

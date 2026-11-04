@@ -151,7 +151,7 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
         msg_source(HLF_W);
         msg_ext_set_kind(c"wmsg");
         msg_puts_hl(tr(W_READONLY), HLF_W, true);
-        set_vim_var_string(VV_WARNINGMSG, tr(W_READONLY), -1);
+        set_vim_var_string(VV_WARNINGMSG, Some(tr(W_READONLY)), -1);
         msg_clr_eos();
         msg_end();
         if g_st().msg_silent == 0 && !g_st().silent_mode && ui_active() != 0 {

@@ -577,7 +577,9 @@ pub fn expand_env_esc<T>(
         if src_bytes.starts_with(b"`=") {
             let var = src;
             src = src.wrapping_add(2);
-            let _ = skip_expr(&raw mut src, None);
+            let mut src_cstr = unsafe { CStr::from_ptr(src.cast()) };
+            let _ = skip_expr(&mut src_cstr, None);
+            src = src_cstr.as_ptr().cast_mut().cast();
             if crate::memory::cstr_first_byte(src.cast()) == b'`' {
                 src = src.wrapping_add(1);
             }
@@ -1320,7 +1322,7 @@ mod tests {
             assert!(iter.is_none());
 
             if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
-                crate::eval::vars::set_vim_var_string(VV_PROGPATH, c"nvim", -1);
+                crate::eval::vars::set_vim_var_string(VV_PROGPATH, Some(c"nvim"), -1);
             }
 
             assert!(!os_env_exists(c"", false));

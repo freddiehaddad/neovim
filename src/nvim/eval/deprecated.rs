@@ -50,7 +50,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         args = arg1.vval.v_list_opt();
         argsl = args.as_deref().map_or(0, |a| a.lv_len);
         for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(
-            args.as_deref().map_or(std::ptr::null_mut(), |a| a.lv_first),
+            args.as_deref().and_then(|a| a.first_opt()),
         )) {
             if li.li_tv.v_type != VarType::VarString {
                 semsg!(
@@ -74,7 +74,7 @@ pub fn f_rpcstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if argsl > 0
         && let Some(args) = args
     {
-        for li in crate::eval::typval::list_iter_mut(args.lv_first) {
+        for li in crate::eval::typval::list_iter_mut(args.first_opt()) {
             argv.push(tv_get_string(&li.li_tv).to_owned());
         }
     }
@@ -117,7 +117,7 @@ pub fn f_rpcstop(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData)
     }
 
     let id = arg0.vval.v_number() as u64;
-    if !find_job(id, false).is_null() {
+    if find_job(id, false).is_some() {
         f_jobstop(argvars, rettv, fptr);
     } else {
         let mut error = None;
@@ -162,8 +162,8 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     let dict = arg1.vval.v_dict();
     tv_dict_add_bool(arg1.vval.v_dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
-    if must_free {
-        tv_dict_free(dict);
+    if must_free && let Some(dict_ref) = unsafe { dict.as_mut() } {
+        tv_dict_free(dict_ref);
     }
 }
 

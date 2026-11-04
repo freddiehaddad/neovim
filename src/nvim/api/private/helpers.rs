@@ -467,7 +467,8 @@ pub fn dict_get_value(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key.data, key.size as isize) else {
+    let key_cstr = crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c"");
+    let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key_cstr, key.size as isize) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -485,7 +486,8 @@ pub fn dict_check_writable(
     del: bool,
     err: &mut Error,
 ) -> Option<&'static mut Dictitem> {
-    let di = tv_dict_find_opt(Some(dict), key.data, key.size as isize);
+    let key_cstr = crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c"");
+    let di = tv_dict_find_opt(Some(dict), key_cstr, key.size as isize);
     if let Some(ref di) = di {
         if (di.di_flags & DI_FLAGS_RO) != 0 {
             api_set_error!(
@@ -547,7 +549,12 @@ pub fn dict_set_var(
             return rv;
         };
         if watched {
-            tv_dict_watcher_notify(dict, key.data, None, Some(&di.di_tv));
+            tv_dict_watcher_notify(
+                dict,
+                crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                None,
+                Some(&di.di_tv),
+            );
         }
         if retval {
             rv = vim_to_object(&mut di.di_tv, arena, false);
@@ -565,7 +572,14 @@ pub fn dict_set_var(
             }
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && !before_set_vvar(key.data, di, &mut tv, true, watched, &mut type_error)
+                && !before_set_vvar(
+                    crate::memory::cstr_from_ptr(key.data),
+                    di,
+                    &mut tv,
+                    true,
+                    watched,
+                    &mut type_error,
+                )
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -593,7 +607,12 @@ pub fn dict_set_var(
         tv_copy(&tv, &mut di.di_tv);
 
         if watched {
-            tv_dict_watcher_notify(dict, key.data, Some(&tv), Some(&oldtv));
+            tv_dict_watcher_notify(
+                dict,
+                crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                Some(&tv),
+                Some(&oldtv),
+            );
             tv_clear(&mut oldtv);
         }
         tv_clear(&mut tv);

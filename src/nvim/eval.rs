@@ -330,28 +330,28 @@ pub struct CallerScope {
 }
 
 #[inline]
-fn tv_partial(tv: &TypVal) -> *mut TvPartial {
-    tv.vval.v_partial()
+fn tv_partial(tv: &TypVal) -> Option<&'static mut TvPartial> {
+    tv.vval.v_partial_opt()
 }
 
 #[inline]
-fn tv_set_partial(tv: &mut TypVal, pt: *mut TvPartial) {
-    tv.vval = crate::eval::typval::TypvalVval::Partial(pt);
+fn tv_set_partial(tv: &mut TypVal, pt: Option<&mut TvPartial>) {
+    tv.vval = crate::eval::typval::TypvalVval::Partial(pt.map_or(ptr::null_mut(), ptr::from_mut));
 }
 
 #[inline]
-pub fn tv_blob_set_ret(tv: &mut TypVal, b: *mut TvBlob) {
+pub fn tv_blob_set_ret(tv: &mut TypVal, b: Option<&mut TvBlob>) {
     tv.v_type = VarType::VarBlob;
-    tv.vval = crate::eval::typval::TypvalVval::Blob(b);
+    tv.vval = crate::eval::typval::TypvalVval::Blob(b.map_or(ptr::null_mut(), ptr::from_mut));
     if let Some(b_ref) = tv.vval.v_blob_opt() {
         b_ref.bv_refcount += 1;
     }
 }
 
 #[inline]
-pub fn tv_dict_set_ret(tv: &mut TypVal, d: *mut TvDict) {
+pub fn tv_dict_set_ret(tv: &mut TypVal, d: Option<&mut TvDict>) {
     tv.v_type = VarType::VarDict;
-    tv.vval = crate::eval::typval::TypvalVval::Dict(d);
+    tv.vval = crate::eval::typval::TypvalVval::Dict(d.map_or(ptr::null_mut(), ptr::from_mut));
     if let Some(d_ref) = tv.vval.v_dict_opt() {
         d_ref.dv_refcount += 1;
     }
@@ -363,8 +363,8 @@ fn tv_list_copyid(l: &TvList) -> i32 {
 }
 
 #[inline]
-fn tv_list_latest_copy(l: &TvList) -> *mut TvList {
-    l.lv_copylist
+fn tv_list_latest_copy(l: &TvList) -> Option<&'static mut TvList> {
+    unsafe { l.lv_copylist.as_mut() }
 }
 
 #[inline]
@@ -378,8 +378,8 @@ fn tv_list_item_tv(li: &mut Listitem) -> &mut TypVal {
 }
 
 #[inline]
-fn tv_list_item_next(li: &Listitem) -> *mut Listitem {
-    li.li_next
+fn tv_list_item_next(li: &Listitem) -> Option<&'static mut Listitem> {
+    unsafe { li.li_next.as_mut() }
 }
 
 pub fn get_v_event(sve: &mut SaveVEvent) -> &'static mut TvDict {
@@ -446,13 +446,12 @@ pub fn fill_evalarg_from_eap(evalarg: &mut Evalarg, skip: bool) {
 /// Top level evaluation function, returning a boolean.
 /// Sets "error" to true if there was an error.
 pub fn eval_to_bool(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     error: &mut bool,
     eap: &mut Exarg,
     skip: bool,
     use_simple_function: bool,
 ) -> bool {
-    let arg = arg.into_c_char_ptr();
     let mut tv = tv_initial_value();
     let mut retval = false;
     let mut evalarg = Evalarg::new();
@@ -484,8 +483,8 @@ pub fn eval_to_bool(
 }
 
 /// Call eval1() and give an error message if not done at a lower level.
-fn eval1_emsg<T>(arg: *mut *mut T, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> bool {
-    let start = *crate::globals::gptr(arg);
+fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> bool {
+    let start = *arg;
     let did_emsg_before = g_st().did_emsg;
     let called_emsg_before = g_st().called_emsg;
     let mut evalarg = Evalarg::new();
@@ -498,7 +497,7 @@ fn eval1_emsg<T>(arg: *mut *mut T, rettv: &mut TypVal, eap: Option<&mut Exarg>) 
         && g_st().did_emsg == did_emsg_before
         && g_st().called_emsg == called_emsg_before
     {
-        semsg!(gettext(E_INVEXPR2), start.cast::<std::ffi::c_void>());
+        semsg!(gettext(E_INVEXPR2), start.as_ptr());
     }
     ret
 }
@@ -512,14 +511,14 @@ pub fn eval_expr_valid_arg(tv: &TypVal) -> bool {
 }
 
 /// Evaluate a partial.
-fn eval_expr_partial(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVal) -> bool {
+fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut TypVal) -> bool {
     let partial_ptr = expr.vval.v_partial();
     let Some(partial) = expr.vval.v_partial_opt() else {
         return false;
     };
 
-    let s = partial_name(Some(partial)).as_ptr();
-    if crate::memory::cstr_is_empty(s) {
+    let s = partial_name(Some(partial));
+    if s.to_bytes().is_empty() {
         return false;
     }
 
@@ -542,7 +541,7 @@ fn eval_expr_partial(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut Ty
 }
 
 /// Evaluate an expression which is a function.
-fn eval_expr_func(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVal) -> bool {
+fn eval_expr_func(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut TypVal) -> bool {
     let mut buf = [0u8; NUMBUFLEN];
     let s = if expr.v_type == VarType::VarFunc {
         expr.vval.v_string().cast_const()
@@ -564,7 +563,14 @@ fn eval_expr_func(expr: &TypVal, argv: *mut TypVal, argc: i32, rettv: &mut TypVa
         fe_basetv: ptr::null_mut(),
         fe_found_var: false,
     };
-    if !call_func(s, -1, rettv, argc, argv, &mut funcexe) {
+    if !call_func(
+        unsafe { CStr::from_ptr(s) },
+        -1,
+        rettv,
+        argc,
+        argv,
+        &mut funcexe,
+    ) {
         return false;
     }
 
@@ -577,14 +583,15 @@ fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
     let Some(s_cstr) = tv_get_string_buf_chk(expr, &mut buf) else {
         return false;
     };
-    let mut s = skipwhite(s_cstr.as_ptr().cast_mut());
-    if !eval1_emsg(&raw mut s, rettv, None) {
+    let mut s = unsafe { CStr::from_ptr(skipwhite(s_cstr.as_ptr().cast_mut())) };
+    if !eval1_emsg(&mut s, rettv, None) {
         return false;
     }
 
-    if !crate::memory::cstr_is_empty(skipwhite(s)) {
+    let rem = skipwhite(s.as_ptr().cast_mut());
+    if !crate::memory::cstr_is_empty(rem) {
         tv_clear(rettv);
-        semsg!(gettext(E_INVEXPR2), s);
+        semsg!(gettext(E_INVEXPR2), rem);
         return false;
     }
 
@@ -595,7 +602,7 @@ fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
 pub fn eval_expr_typval(
     expr: &TypVal,
     want_func: bool,
-    argv: *mut TypVal,
+    argv: &mut [TypVal],
     argc: i32,
     rettv: &mut TypVal,
 ) -> bool {
@@ -611,10 +618,10 @@ pub fn eval_expr_typval(
 
 /// Like eval_to_bool() but using a TypVal instead of a string.
 pub fn eval_expr_to_bool(expr: &TypVal, error: &mut bool) -> bool {
-    let mut argv = tv_initial_value();
+    let mut argv = [tv_initial_value()];
     let mut rettv = tv_initial_value();
 
-    if !eval_expr_typval(expr, false, &raw mut argv, 0, &mut rettv) {
+    if !eval_expr_typval(expr, false, &mut argv, 0, &mut rettv) {
         *error = true;
         return false;
     }
@@ -624,12 +631,7 @@ pub fn eval_expr_to_bool(expr: &TypVal, error: &mut bool) -> bool {
 }
 
 /// Top level evaluation function, returning a string.
-pub fn eval_to_string_skip(
-    arg: impl crate::strings::IntoCCharPtr,
-    eap: &mut Exarg,
-    skip: bool,
-) -> Option<std::ffi::CString> {
-    let arg = arg.into_c_char_ptr();
+pub fn eval_to_string_skip(arg: &CStr, eap: &mut Exarg, skip: bool) -> Option<std::ffi::CString> {
     let mut tv = tv_initial_value();
     let retval: Option<std::ffi::CString>;
     let mut evalarg = Evalarg::new();
@@ -652,7 +654,7 @@ pub fn eval_to_string_skip(
 }
 
 /// Skip over an expression at "*pp".
-pub fn skip_expr<T>(pp: *mut *mut T, mut evalarg: Option<&mut Evalarg>) -> bool {
+pub fn skip_expr(pp: &mut &CStr, mut evalarg: Option<&mut Evalarg>) -> bool {
     let save_flags = if evalarg.is_none() {
         0
     } else {
@@ -663,7 +665,7 @@ pub fn skip_expr<T>(pp: *mut *mut T, mut evalarg: Option<&mut Evalarg>) -> bool 
         evalarg.as_deref_mut().unwrap().eval_flags &= !EVAL_EVALUATE;
     }
 
-    *crate::globals::gptr(pp) = skipwhite(crate::globals::gptr(pp).cast()).cast();
+    *pp = unsafe { CStr::from_ptr(skipwhite(pp.as_ptr().cast_mut())) };
 
     let mut rettv = tv_initial_value();
     let res = eval1(pp, &mut rettv, None);
@@ -695,50 +697,45 @@ fn typval2string(tv: &mut TypVal, join_list: bool) -> Option<std::ffi::CString> 
 
 /// Top level evaluation function, returning a string.
 pub fn eval_to_string_eap(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     join_list: bool,
     eap: Option<&mut Exarg>,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
-    let arg = arg.into_c_char_ptr();
-    {
-        let mut tv = tv_initial_value();
-        let retval: Option<std::ffi::CString>;
-        let mut evalarg = Evalarg::new();
+    let mut tv = tv_initial_value();
+    let retval: Option<std::ffi::CString>;
+    let mut evalarg = Evalarg::new();
 
-        fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
-        let r = if use_simple_function {
-            eval0_simple_funccal(arg, &mut tv, None, &mut evalarg)
-        } else {
-            eval0(arg, &mut tv, None, &mut evalarg)
-        };
-        if !r {
-            retval = None;
-        } else {
-            retval = typval2string(&mut tv, join_list);
-            tv_clear(&mut tv);
-        }
-
-        retval
+    fill_evalarg_from_eap(&mut evalarg, eap.is_some() && eap.unwrap().skip != 0);
+    let r = if use_simple_function {
+        eval0_simple_funccal(arg, &mut tv, None, &mut evalarg)
+    } else {
+        eval0(arg, &mut tv, None, &mut evalarg)
+    };
+    if !r {
+        retval = None;
+    } else {
+        retval = typval2string(&mut tv, join_list);
+        tv_clear(&mut tv);
     }
+
+    retval
 }
 
 pub fn eval_to_string(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     join_list: bool,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
-    let arg = arg.into_c_char_ptr().cast_mut();
     eval_to_string_eap(arg, join_list, None, use_simple_function)
 }
 
 /// Call eval_to_string() without using current local variables and using textlock.
 pub fn eval_to_string_safe(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     use_sandbox: bool,
     use_simple_function: bool,
 ) -> Option<std::ffi::CString> {
-    let arg = arg.into_c_char_ptr();
     save_funccal();
     {
         if use_sandbox {
@@ -758,14 +755,10 @@ pub fn eval_to_string_safe(
 }
 
 /// Top level evaluation function, returning a number.
-pub fn eval_to_number(
-    expr: impl crate::strings::IntoCCharPtr,
-    use_simple_function: bool,
-) -> Varnumber {
-    let expr = expr.into_c_char_ptr();
+pub fn eval_to_number(expr: &CStr, use_simple_function: bool) -> Varnumber {
     let mut rettv = tv_initial_value();
     let retval: Varnumber;
-    let mut p = skipwhite(expr);
+    let mut p = unsafe { CStr::from_ptr(skipwhite(expr.as_ptr().cast_mut())) };
     let mut r = NOTDONE;
 
     {
@@ -776,7 +769,7 @@ pub fn eval_to_number(
         r = may_call_simple_func(expr, &mut rettv);
     }
     if r == NOTDONE {
-        r = if eval1(&raw mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
+        r = if eval1(&mut p, &mut rettv, Some(&mut g_st().evalarg_evaluate)) {
             OK
         } else {
             FAIL
@@ -796,90 +789,75 @@ pub fn eval_to_number(
 }
 
 /// Top level evaluation function.
-pub fn eval_expr(
-    arg: impl crate::strings::IntoCCharPtr,
-    eap: Option<&mut Exarg>,
-) -> Option<TypVal> {
-    let arg = arg.into_c_char_ptr();
+pub fn eval_expr(arg: &CStr, eap: Option<&mut Exarg>) -> Option<TypVal> {
     eval_expr_ext(arg, eap, false)
 }
 
 pub fn eval_expr_ext(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     mut eap: Option<&mut Exarg>,
     use_simple_function: bool,
 ) -> Option<TypVal> {
-    let arg = arg.into_c_char_ptr();
-    {
-        let mut tv = tv_initial_value();
-        let mut evalarg = Evalarg::new();
+    let mut tv = tv_initial_value();
+    let mut evalarg = Evalarg::new();
 
-        fill_evalarg_from_eap(
-            &mut evalarg,
-            eap.is_some() && eap.as_deref_mut().unwrap().skip != 0,
-        );
+    fill_evalarg_from_eap(
+        &mut evalarg,
+        eap.is_some() && eap.as_deref_mut().unwrap().skip != 0,
+    );
 
-        let ok = if use_simple_function {
-            eval0_simple_funccal(arg, &mut tv, eap, &mut evalarg)
-        } else {
-            eval0(arg, &mut tv, eap, &mut evalarg)
-        };
-        ok.then_some(tv)
-    }
+    let ok = if use_simple_function {
+        eval0_simple_funccal(arg, &mut tv, eap, &mut evalarg)
+    } else {
+        eval0(arg, &mut tv, eap, &mut evalarg)
+    };
+    ok.then_some(tv)
 }
 
 /// Call some Vim script function and return the result in "*rettv".
 pub fn call_vim_function(
-    func: impl crate::strings::IntoCCharPtr,
+    mut func: &CStr,
     argc: i32,
-    argv: *mut TypVal,
+    argv: &mut [TypVal],
     rettv: &mut TypVal,
 ) -> bool {
-    let mut func = func.into_c_char_ptr();
-    {
-        let mut len = crate::memory::cstr_len(func) as i32;
-        let mut pt: *mut TvPartial = ptr::null_mut();
+    let mut len = func.to_bytes().len() as i32;
+    let mut pt: *mut TvPartial = ptr::null_mut();
 
-        if len >= 6 && crate::memory::cstr_slice(func, 6) == b"v:lua." {
-            func = func.wrapping_add(6);
-            len = check_luafunc_name(func, false);
-            if len == 0 {
-                tv_clear(&mut *rettv);
-                return false;
-            }
-            pt = get_vim_var_partial(VV_LUA);
-        }
-
-        rettv.v_type = VarType::VarUnknown;
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = Funcexe {
-            fe_fill_submatch: false,
-            fe_firstline: lnum,
-            fe_lastline: lnum,
-            fe_doesrange: false,
-            fe_evaluate: true,
-            fe_partial: pt.cast(),
-            fe_selfdict: ptr::null_mut(),
-            fe_basetv: ptr::null_mut(),
-            fe_found_var: false,
-        };
-        let ret = call_func(func, len, &mut *rettv, argc, argv, &mut funcexe);
-
-        if !ret {
+    if len >= 6 && func.to_bytes().starts_with(b"v:lua.") {
+        func = unsafe { CStr::from_ptr(func.as_ptr().wrapping_add(6)) };
+        len = check_luafunc_name(func, false);
+        if len == 0 {
             tv_clear(&mut *rettv);
+            return false;
         }
-
-        ret
+        pt = get_vim_var_partial(VV_LUA).map_or(ptr::null_mut(), ptr::from_mut);
     }
+
+    rettv.v_type = VarType::VarUnknown;
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mut funcexe = Funcexe {
+        fe_fill_submatch: false,
+        fe_firstline: lnum,
+        fe_lastline: lnum,
+        fe_doesrange: false,
+        fe_evaluate: true,
+        fe_partial: pt.cast(),
+        fe_selfdict: ptr::null_mut(),
+        fe_basetv: ptr::null_mut(),
+        fe_found_var: false,
+    };
+    let ret = call_func(func, len, &mut *rettv, argc, argv, &mut funcexe);
+
+    if !ret {
+        tv_clear(&mut *rettv);
+    }
+
+    ret
 }
 
 /// Call Vim script function and return the result as a string.
-pub fn call_func_retstr(
-    func: impl crate::strings::IntoCCharPtr,
-    argc: i32,
-    argv: *mut TypVal,
-) -> Option<std::ffi::CString> {
-    let func = func.into_c_char_ptr();
+pub fn call_func_retstr(func: &CStr, argc: i32, argv: &mut [TypVal]) -> Option<std::ffi::CString> {
     let mut rettv = tv_initial_value();
     if !call_vim_function(func, argc, argv, &mut rettv) {
         return None;
@@ -892,23 +870,22 @@ pub fn call_func_retstr(
 
 /// Call Vim script function and return the result as a List.
 pub fn call_func_retlist(
-    func: impl crate::strings::IntoCCharPtr,
+    func: &CStr,
     argc: i32,
-    argv: *mut TypVal,
-) -> *mut TvList {
-    let func = func.into_c_char_ptr();
+    argv: &mut [TypVal],
+) -> Option<&'static mut TvList> {
     let mut rettv = tv_initial_value();
 
     if !call_vim_function(func, argc, argv, &mut rettv) {
-        return ptr::null_mut();
+        return None;
     }
 
     if rettv.v_type != VarType::VarList {
         tv_clear(&mut rettv);
-        return ptr::null_mut();
+        return None;
     }
 
-    rettv.vval.v_list()
+    rettv.vval.v_list_opt()
 }
 
 /// Evaluate a number-valued "expr" option ('indentexpr'/'formatexpr') via its callback.
@@ -922,7 +899,7 @@ pub fn eval_expr_option_number(cb: &mut Callback, use_sandbox: bool) -> i32 {
     let mut tv = tv_initial_value();
     let mut argv = [tv_initial_value()];
     let mut retval = -1;
-    if callback_call(&mut copy, 0, argv.as_mut_ptr(), &mut tv) {
+    if callback_call(&mut copy, 0, &mut argv, &mut tv) {
         retval = tv_get_number_chk(&tv, None) as i32;
         tv_clear(&mut tv);
     }
@@ -945,7 +922,7 @@ pub fn eval_expr_option_tv(cb: &mut Callback, use_sandbox: bool, ret_tv: &mut Ty
         g_st().textlock += 1;
     }
     let mut argv = [tv_initial_value()];
-    let ok = callback_call(cb, 0, argv.as_mut_ptr(), &mut *ret_tv);
+    let ok = callback_call(cb, 0, &mut argv, &mut *ret_tv);
     {
         g_st().textlock -= 1;
         if use_sandbox {
@@ -975,9 +952,9 @@ pub fn eval_foldexpr(wp: &mut WinInfoInfo, cp: &mut i32) -> i32 {
     let mut argv = [tv_initial_value()];
     let retval: Varnumber;
     if !callback_call(
-        crate::globals::gmut((&raw mut wp.w_onebuf_opt.wo_fde).cast()),
+        unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fde).cast() },
         0,
-        argv.as_mut_ptr(),
+        &mut argv,
         &mut tv,
     ) {
         retval = 0;
@@ -1018,7 +995,7 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
     let mut tv = tv_initial_value();
     let retval: Object;
     if !eval_expr_option_tv(
-        crate::globals::gmut((&raw mut wp.w_onebuf_opt.wo_fdt).cast()),
+        unsafe { &mut *(&raw mut wp.w_onebuf_opt.wo_fdt).cast() },
         use_sandbox,
         &mut tv,
     ) {
@@ -1045,131 +1022,136 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 
 /// Find the end of a variable or function name. Unlike find_name_end() this
 /// does not recognize magic braces.
-fn to_name_end<T>(arg: *const T, use_namespace: bool) -> *const T {
-    let arg: *const u8 = arg.cast();
-    if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg.cast()))) {
-        return arg.cast();
+fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
+    let arg_ptr: *const u8 = arg.as_ptr().cast();
+    if !eval_isnamec1(i32::from(crate::memory::cstr_first_byte(arg_ptr.cast()))) {
+        return arg;
     }
 
-    let mut p = arg.wrapping_add(1);
+    let mut p = arg_ptr.wrapping_add(1);
     while !crate::memory::cstr_is_empty(p.cast())
         && eval_isnamec(i32::from(crate::memory::cstr_first_byte(p.cast())))
     {
         if crate::memory::cstr_first_byte(p.cast()) == b':'
-            && (p != arg.wrapping_add(1)
+            && (p != arg_ptr.wrapping_add(1)
                 || !use_namespace
                 || !crate::strings::vim_haschr(
                     c"bgstvw",
-                    i32::from(crate::memory::cstr_first_byte(arg.cast())),
+                    i32::from(crate::memory::cstr_first_byte(arg_ptr.cast())),
                 ))
         {
             break;
         }
         p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
     }
-    p.cast()
+    unsafe { CStr::from_ptr(p.cast()) }
 }
 
-fn get_lval_dict_item<T, U>(
+fn get_lval_dict_item<'a>(
     lp: &mut Lval,
-    name: impl crate::strings::IntoCCharPtr,
-    key: *mut T,
+    name: &CStr,
+    key_in: &'a CStr,
     len: i32,
-    key_end: *mut *mut U,
+    key_end: &mut &'a CStr,
     var1: &mut TypVal,
     flags: i32,
     unlet: bool,
     rettv: Option<&mut TypVal>,
 ) -> GlvStatus {
-    let name = name.into_c_char_ptr();
-    let mut key = key.cast();
-    {
-        let quiet = (flags & GLV_QUIET) != 0;
-        let p = crate::globals::gptr(key_end).cast();
+    let mut key = key_in.as_ptr();
+    let quiet = (flags & GLV_QUIET) != 0;
+    let p_cstr = *key_end;
+    let p = p_cstr.as_ptr();
 
-        if len == -1 {
-            key = tv_get_string(&*var1).as_ptr().cast_mut();
-        }
-        lp.ll_list = ptr::null_mut();
-
-        if lp.tv_mut().vval.v_dict().is_null() {
-            lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
-            crate::globals::gptr(lp.tv_mut().vval.v_dict()).dv_refcount += 1;
-        }
-        lp.ll_dict = lp.tv_mut().vval.v_dict();
-
-        lp.ll_di = tv_dict_find(crate::globals::gopt(lp.ll_dict), key, len as isize);
-
-        if let Some(rettv) = rettv.as_deref()
-            && crate::globals::gptr(lp.ll_dict).dv_scope != 0
-        {
-            let key_cstr =
-                (len != -1).then(|| cstr_from_bytes(crate::memory::cstr_slice(key, len as usize)));
-            let key_ptr = key_cstr.as_ref().map_or(key.cast_const(), |c| c.as_ptr());
-            let wrong = (crate::globals::gptr(lp.ll_dict).dv_scope == VAR_DEF_SCOPE
-                && tv_is_func(rettv)
-                && var_wrong_func_name(key_ptr, lp.ll_di.is_null()))
-                || !valid_varname(key_ptr);
-            if wrong {
-                return GLV_FAIL;
-            }
-        }
-
-        if !lp.ll_di.is_null()
-            && tv_is_luafunc(&mut crate::globals::gptr(lp.ll_di).di_tv)
-            && len == -1
-            && rettv.is_none()
-        {
-            semsg!(E_ILLVAR, c"v:['lua']");
-            return GLV_FAIL;
-        }
-
-        if lp.ll_di.is_null() {
-            if lp.ll_dict == get_vimvar_dict()
-                || ptr::eq(
-                    &raw mut crate::globals::gptr(lp.ll_dict).dv_hashtab,
-                    get_funccal_args_ht(),
-                )
-            {
-                semsg!(gettext(E_ILLVAR), name);
-                return GLV_FAIL;
-            }
-
-            if crate::memory::cstr_first_byte(p) == b'['
-                || crate::memory::cstr_first_byte(p) == b'.'
-                || unlet
-            {
-                if !quiet {
-                    semsg!(gettext(E_DICTKEY), key);
-                }
-                return GLV_FAIL;
-            }
-            if len == -1 {
-                lp.ll_newkey = Some(crate::memory::cstr_to_cstring(key));
-            } else {
-                let slice = crate::memory::cstr_slice(key, len as usize);
-                lp.ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
-            }
-            *crate::globals::gptr(key_end) = p.cast();
-            return GLV_STOP;
-        } else if (flags & GLV_READ_ONLY) == 0
-            && (var_check_ro(
-                i32::from(crate::globals::gptr(lp.ll_di).di_flags),
-                name,
-                (p as usize).wrapping_sub(name as usize),
-            ) || var_check_lock(
-                i32::from(crate::globals::gptr(lp.ll_di).di_flags),
-                name,
-                (p as usize).wrapping_sub(name as usize),
-            ))
-        {
-            return GLV_FAIL;
-        }
-
-        lp.ll_tv = &raw mut crate::globals::gptr(lp.ll_di).di_tv;
-
-        GLV_OK
+    if len == -1 {
+        key = tv_get_string(&*var1).as_ptr();
     }
+    lp.ll_list = ptr::null_mut();
+
+    if lp.tv_mut().vval.v_dict().is_null() {
+        lp.tv_mut().vval = crate::eval::typval::TypvalVval::Dict(tv_dict_alloc());
+        unsafe {
+            (*lp.tv_mut().vval.v_dict()).dv_refcount += 1;
+        }
+    }
+    lp.ll_dict = lp.tv_mut().vval.v_dict();
+
+    lp.ll_di = tv_dict_find(
+        unsafe { lp.ll_dict.as_ref() },
+        unsafe { CStr::from_ptr(key) },
+        len as isize,
+    )
+    .map_or(ptr::null_mut(), ptr::from_mut);
+
+    if let Some(rettv) = rettv.as_deref()
+        && unsafe { (*lp.ll_dict).dv_scope } != 0
+    {
+        let key_cstr =
+            (len != -1).then(|| cstr_from_bytes(crate::memory::cstr_slice(key, len as usize)));
+        let key_ref = key_cstr
+            .as_deref()
+            .unwrap_or_else(|| crate::memory::cstr_from_ptr(key));
+        let wrong = (unsafe { (*lp.ll_dict).dv_scope } == VAR_DEF_SCOPE
+            && tv_is_func(rettv)
+            && var_wrong_func_name(key_ref, lp.ll_di.is_null()))
+            || !valid_varname(key_ref);
+        if wrong {
+            return GLV_FAIL;
+        }
+    }
+
+    if !lp.ll_di.is_null()
+        && tv_is_luafunc(unsafe { &mut (*lp.ll_di).di_tv })
+        && len == -1
+        && rettv.is_none()
+    {
+        semsg!(E_ILLVAR, c"v:['lua']");
+        return GLV_FAIL;
+    }
+
+    if lp.ll_di.is_null() {
+        if lp.ll_dict == get_vimvar_dict()
+            || get_funccal_args_ht()
+                .is_some_and(|aht| ptr::eq(unsafe { &raw mut (*lp.ll_dict).dv_hashtab }, aht))
+        {
+            semsg!(gettext(E_ILLVAR), name.as_ptr());
+            return GLV_FAIL;
+        }
+
+        if crate::memory::cstr_first_byte(p) == b'['
+            || crate::memory::cstr_first_byte(p) == b'.'
+            || unlet
+        {
+            if !quiet {
+                semsg!(gettext(E_DICTKEY), key);
+            }
+            return GLV_FAIL;
+        }
+        if len == -1 {
+            lp.ll_newkey = Some(crate::memory::cstr_to_cstring(key));
+        } else {
+            let slice = crate::memory::cstr_slice(key, len as usize);
+            lp.ll_newkey = Some(std::ffi::CString::new(slice).unwrap());
+        }
+        *key_end = p_cstr;
+        return GLV_STOP;
+    } else if (flags & GLV_READ_ONLY) == 0
+        && (var_check_ro(
+            i32::from(unsafe { (*lp.ll_di).di_flags }),
+            name,
+            (p as usize).wrapping_sub(name.as_ptr() as usize),
+        ) || var_check_lock(
+            i32::from(unsafe { (*lp.ll_di).di_flags }),
+            name,
+            (p as usize).wrapping_sub(name.as_ptr() as usize),
+        ))
+    {
+        return GLV_FAIL;
+    }
+
+    lp.ll_tv = unsafe { &raw mut (*lp.ll_di).di_tv };
+
+    GLV_OK
 }
 
 fn get_lval_blob(
@@ -1224,7 +1206,8 @@ fn get_lval_list(
 
     lp.ll_dict = ptr::null_mut();
     lp.ll_list = lp.tv_mut().vval.v_list();
-    lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet);
+    lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet)
+        .map_or(ptr::null_mut(), ptr::from_mut);
     if lp.ll_li.is_null() {
         return false;
     }
@@ -1234,7 +1217,7 @@ fn get_lval_list(
         if !tv_list_check_range_index_two(
             lp.list_opt(),
             &mut lp.ll_n1,
-            lp.ll_li,
+            unsafe { lp.ll_li.as_ref() },
             &mut lp.ll_n2,
             quiet,
         ) {
@@ -1247,321 +1230,312 @@ fn get_lval_list(
     true
 }
 
-fn get_lval_subscript<T>(
+fn get_lval_subscript<'a>(
     lp: &mut Lval,
-    p: *mut T,
-    name: impl crate::strings::IntoCCharPtr,
+    mut p_cstr: &'a CStr,
+    name: &CStr,
     mut rettv: Option<&mut TypVal>,
     unlet: bool,
     flags: i32,
-) -> *mut T {
-    let mut p = p.cast();
-    let name = name.into_c_char_ptr();
-    {
-        let quiet = (flags & GLV_QUIET) != 0;
-        let mut var1 = tv_initial_value();
-        let mut var2 = tv_initial_value();
-        let mut empty1 = false;
+) -> Option<&'a CStr> {
+    let quiet = (flags & GLV_QUIET) != 0;
+    let mut var1 = tv_initial_value();
+    let mut var2 = tv_initial_value();
+    let mut empty1 = false;
 
-        loop {
-            let p_bytes = crate::memory::cstr_as_bytes(p);
-            let Some(&p0) = p_bytes.first() else {
-                break;
-            };
-            if p0 != b'[' && !(p0 == b'.' && !matches!(p_bytes.get(1), Some(b'=' | b'.'))) {
-                break;
-            }
-            if p0 == b'.' && lp.tv_mut().v_type != VarType::VarDict {
-                if !quiet {
-                    semsg!(gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR), name,);
-                }
-                return ptr::null_mut();
-            }
-            if lp.tv_mut().v_type != VarType::VarList
-                && lp.tv_mut().v_type != VarType::VarDict
-                && lp.tv_mut().v_type != VarType::VarBlob
-            {
-                if !quiet {
-                    emsg(gettext(c"E689: Can only index a List, Dictionary or Blob"));
-                }
-                return ptr::null_mut();
-            }
-
-            if lp.tv_mut().v_type == VarType::VarList && lp.tv_mut().vval.v_list().is_null() {
-                tv_list_alloc_ret(lp.tv_mut(), K_LIST_LEN_UNKNOWN_CONST);
-            } else if lp.tv_mut().v_type == VarType::VarBlob && lp.tv_mut().vval.v_blob().is_null()
-            {
-                tv_blob_alloc_ret(lp.tv_mut());
-            }
-
-            if lp.ll_range {
-                if !quiet {
-                    emsg(gettext(c"E708: [:] must come last"));
-                }
-                tv_clear(&mut var1);
-                tv_clear(&mut var2);
-                return ptr::null_mut();
-            }
-
-            let mut len: i32 = -1;
-            let mut key = ptr::null_mut();
-            if p0 == b'.' {
-                key = p.wrapping_add(1);
-                len = p_bytes[1..]
-                    .iter()
-                    .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_')
-                    .count() as i32;
-                if len == 0 {
-                    if !quiet {
-                        emsg(gettext(c"E713: Cannot use empty key after ."));
-                    }
-                    return ptr::null_mut();
-                }
-                p = key.wrapping_add(len as usize);
-            } else {
-                p = skipwhite(p.wrapping_add(1));
-                if crate::memory::cstr_first_byte(p) == b':' {
-                    empty1 = true;
-                } else {
-                    empty1 = false;
-                    if !eval1(&raw mut p, &mut var1, Some(&mut g_st().evalarg_evaluate)) {
-                        tv_clear(&mut var1);
-                        tv_clear(&mut var2);
-                        return ptr::null_mut();
-                    }
-                    if !tv_check_str(&var1) {
-                        tv_clear(&mut var1);
-                        tv_clear(&mut var2);
-                        return ptr::null_mut();
-                    }
-                    p = skipwhite(p);
-                }
-
-                if crate::memory::cstr_first_byte(p) == b':' {
-                    if lp.tv_mut().v_type == VarType::VarDict {
-                        if !quiet {
-                            emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
-                        }
-                        tv_clear(&mut var1);
-                        tv_clear(&mut var2);
-                        return ptr::null_mut();
-                    }
-                    if rettv.is_some()
-                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarList
-                            && !rettv.as_deref_mut().unwrap().vval.v_list().is_null())
-                        && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarBlob
-                            && !rettv.as_deref_mut().unwrap().vval.v_blob().is_null())
-                    {
-                        if !quiet {
-                            emsg(gettext(c"E709: [:] requires a List or Blob value"));
-                        }
-                        tv_clear(&mut var1);
-                        tv_clear(&mut var2);
-                        return ptr::null_mut();
-                    }
-                    p = skipwhite(p.wrapping_add(1));
-                    if crate::memory::cstr_first_byte(p) == b']' {
-                        lp.ll_empty2 = true;
-                    } else {
-                        lp.ll_empty2 = false;
-                        if !eval1(&raw mut p, &mut var2, Some(&mut g_st().evalarg_evaluate))
-                            || !tv_check_str(&var2)
-                        {
-                            tv_clear(&mut var1);
-                            tv_clear(&mut var2);
-                            return ptr::null_mut();
-                        }
-                    }
-                    lp.ll_range = true;
-                } else {
-                    lp.ll_range = false;
-                }
-
-                if crate::memory::cstr_first_byte(p) != b']' {
-                    if !quiet {
-                        emsg(gettext(E_MISSBRAC));
-                    }
-                    tv_clear(&mut var1);
-                    tv_clear(&mut var2);
-                    return ptr::null_mut();
-                }
-
-                p = p.wrapping_add(1);
-            }
-
-            if lp.tv_mut().v_type == VarType::VarDict {
-                let glv_status = get_lval_dict_item(
-                    &mut *lp,
-                    name,
-                    key,
-                    len,
-                    &raw mut p,
-                    &mut var1,
-                    flags,
-                    unlet,
-                    (rettv.is_some()).then(|| rettv.as_deref_mut().unwrap()),
+    loop {
+        let p = p_cstr.as_ptr();
+        let p_bytes = p_cstr.to_bytes();
+        let Some(&p0) = p_bytes.first() else {
+            break;
+        };
+        if p0 != b'[' && !(p0 == b'.' && !matches!(p_bytes.get(1), Some(b'=' | b'.'))) {
+            break;
+        }
+        if p0 == b'.' && lp.tv_mut().v_type != VarType::VarDict {
+            if !quiet {
+                semsg!(
+                    gettext(E_DOT_CAN_ONLY_BE_USED_ON_DICTIONARY_STR),
+                    name.as_ptr(),
                 );
-                if glv_status == GLV_FAIL {
-                    tv_clear(&mut var1);
-                    tv_clear(&mut var2);
-                    return ptr::null_mut();
-                }
-                if glv_status == GLV_STOP {
-                    break;
-                }
-            } else if lp.tv_mut().v_type == VarType::VarBlob {
-                if !get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) {
-                    tv_clear(&mut var1);
-                    tv_clear(&mut var2);
-                    return ptr::null_mut();
-                }
-                break;
-            } else if !get_lval_list(&mut *lp, &mut var1, &mut var2, empty1, flags, quiet) {
-                tv_clear(&mut var1);
-                tv_clear(&mut var2);
-                return ptr::null_mut();
             }
+            return None;
+        }
+        if lp.tv_mut().v_type != VarType::VarList
+            && lp.tv_mut().v_type != VarType::VarDict
+            && lp.tv_mut().v_type != VarType::VarBlob
+        {
+            if !quiet {
+                emsg(gettext(c"E689: Can only index a List, Dictionary or Blob"));
+            }
+            return None;
+        }
 
+        if lp.tv_mut().v_type == VarType::VarList && lp.tv_mut().vval.v_list().is_null() {
+            tv_list_alloc_ret(lp.tv_mut(), K_LIST_LEN_UNKNOWN_CONST);
+        } else if lp.tv_mut().v_type == VarType::VarBlob && lp.tv_mut().vval.v_blob().is_null() {
+            tv_blob_alloc_ret(lp.tv_mut());
+        }
+
+        if lp.ll_range {
+            if !quiet {
+                emsg(gettext(c"E708: [:] must come last"));
+            }
             tv_clear(&mut var1);
             tv_clear(&mut var2);
-            var1.v_type = VarType::VarUnknown;
-            var2.v_type = VarType::VarUnknown;
+            return None;
+        }
+
+        let mut len: i32 = -1;
+        let mut key_cstr: &'a CStr = c"";
+        if p0 == b'.' {
+            let key = p.wrapping_add(1);
+            key_cstr = unsafe { CStr::from_ptr(key) };
+            len = p_bytes[1..]
+                .iter()
+                .take_while(|&&b| b.is_ascii_alphanumeric() || b == b'_')
+                .count() as i32;
+            if len == 0 {
+                if !quiet {
+                    emsg(gettext(c"E713: Cannot use empty key after ."));
+                }
+                return None;
+            }
+            p_cstr = unsafe { CStr::from_ptr(key.wrapping_add(len as usize)) };
+        } else {
+            p_cstr = unsafe { CStr::from_ptr(skipwhite(p.wrapping_add(1).cast_mut())) };
+            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b':' {
+                empty1 = true;
+            } else {
+                empty1 = false;
+                if !eval1(&mut p_cstr, &mut var1, Some(&mut g_st().evalarg_evaluate)) {
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
+                    return None;
+                }
+                if !tv_check_str(&var1) {
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
+                    return None;
+                }
+                p_cstr = unsafe { CStr::from_ptr(skipwhite(p_cstr.as_ptr().cast_mut())) };
+            }
+
+            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b':' {
+                if lp.tv_mut().v_type == VarType::VarDict {
+                    if !quiet {
+                        emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
+                    }
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
+                    return None;
+                }
+                if rettv.is_some()
+                    && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarList
+                        && !rettv.as_deref_mut().unwrap().vval.v_list().is_null())
+                    && !(rettv.as_deref_mut().unwrap().v_type == VarType::VarBlob
+                        && !rettv.as_deref_mut().unwrap().vval.v_blob().is_null())
+                {
+                    if !quiet {
+                        emsg(gettext(c"E709: [:] requires a List or Blob value"));
+                    }
+                    tv_clear(&mut var1);
+                    tv_clear(&mut var2);
+                    return None;
+                }
+                p_cstr = unsafe {
+                    CStr::from_ptr(skipwhite(p_cstr.as_ptr().wrapping_add(1).cast_mut()))
+                };
+                if crate::memory::cstr_first_byte(p_cstr.as_ptr()) == b']' {
+                    lp.ll_empty2 = true;
+                } else {
+                    lp.ll_empty2 = false;
+                    if !eval1(&mut p_cstr, &mut var2, Some(&mut g_st().evalarg_evaluate))
+                        || !tv_check_str(&var2)
+                    {
+                        tv_clear(&mut var1);
+                        tv_clear(&mut var2);
+                        return None;
+                    }
+                }
+                lp.ll_range = true;
+            } else {
+                lp.ll_range = false;
+            }
+
+            if crate::memory::cstr_first_byte(p_cstr.as_ptr()) != b']' {
+                if !quiet {
+                    emsg(gettext(E_MISSBRAC));
+                }
+                tv_clear(&mut var1);
+                tv_clear(&mut var2);
+                return None;
+            }
+
+            p_cstr = unsafe { CStr::from_ptr(p_cstr.as_ptr().wrapping_add(1)) };
+        }
+
+        if lp.tv_mut().v_type == VarType::VarDict {
+            let glv_status = get_lval_dict_item(
+                &mut *lp,
+                name,
+                key_cstr,
+                len,
+                &mut p_cstr,
+                &mut var1,
+                flags,
+                unlet,
+                (rettv.is_some()).then(|| rettv.as_deref_mut().unwrap()),
+            );
+            if glv_status == GLV_FAIL {
+                tv_clear(&mut var1);
+                tv_clear(&mut var2);
+                return None;
+            }
+            if glv_status == GLV_STOP {
+                break;
+            }
+        } else if lp.tv_mut().v_type == VarType::VarBlob {
+            if !get_lval_blob(&mut *lp, &mut var1, &mut var2, empty1, quiet) {
+                tv_clear(&mut var1);
+                tv_clear(&mut var2);
+                return None;
+            }
+            break;
+        } else if !get_lval_list(&mut *lp, &mut var1, &mut var2, empty1, flags, quiet) {
+            tv_clear(&mut var1);
+            tv_clear(&mut var2);
+            return None;
         }
 
         tv_clear(&mut var1);
         tv_clear(&mut var2);
-        p.cast()
+        var1.v_type = VarType::VarUnknown;
+        var2.v_type = VarType::VarUnknown;
     }
+
+    tv_clear(&mut var1);
+    tv_clear(&mut var2);
+    Some(p_cstr)
 }
 
 /// Get an lvalue
-pub fn get_lval<T>(
-    name: *mut T,
+pub fn get_lval<'a>(
+    name_in: &'a CStr,
     rettv: Option<&mut TypVal>,
     lp: &mut Lval,
     unlet: bool,
     skip: bool,
     flags: i32,
     fne_flags: i32,
-) -> *mut T {
-    let name: *const u8 = name.cast();
-    {
-        let quiet = (flags & GLV_QUIET) != 0;
+) -> Option<&'a CStr> {
+    let name: *const u8 = name_in.as_ptr().cast();
+    let quiet = (flags & GLV_QUIET) != 0;
 
-        *lp = Lval::new();
+    *lp = Lval::new();
 
-        if skip {
-            lp.ll_name = name.cast();
-            return find_name_end(name, None, FNE_INCL_BR | fne_flags)
-                .cast_mut()
-                .cast();
-        }
-
-        let mut expr_range: Option<(usize, usize)> = None;
-        let mut p = find_name_end(name, Some(&mut expr_range), fne_flags).cast_mut();
-        if let Some((expr_start_off, expr_end_off)) = expr_range {
-            if unlet
-                && !ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
-                && ends_excmd(i32::from(crate::memory::cstr_first_byte(p.cast()))) == 0
-                && crate::memory::cstr_first_byte(p.cast()) != b'['
-                && crate::memory::cstr_first_byte(p.cast()) != b'.'
-            {
-                semsg!(gettext(E_TRAILING_ARG), p);
-                return ptr::null_mut();
-            }
-
-            let in_len = (p as usize).wrapping_sub(name as usize);
-            if let Some(cstr) = make_expanded_name(
-                crate::memory::cstr_slice(name.cast(), in_len),
-                expr_start_off,
-                expr_end_off,
-            ) {
-                lp.ll_name_len = cstr.as_bytes().len();
-                lp.ll_exp_name = Some(cstr);
-                lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr().cast();
-            } else {
-                lp.ll_exp_name = None;
-                lp.ll_name = ptr::null();
-                if !aborting() && !quiet {
-                    {
-                        g_st().emsg_severe = true;
-                        semsg!(gettext(E_INVARG2), name);
-                    }
-                    return ptr::null_mut();
-                }
-                lp.ll_name_len = 0;
-            }
-        } else {
-            lp.ll_name = name.cast();
-            lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
-        }
-
-        if (crate::memory::cstr_first_byte(p.cast()) != b'['
-            && crate::memory::cstr_first_byte(p.cast()) != b'.')
-            || lp.ll_name.is_null()
-        {
-            return p.cast();
-        }
-
-        let mut ht: *mut Hashtab = ptr::null_mut();
-
-        let v = find_var(
-            lp.ll_name.cast(),
-            lp.ll_name_len,
-            if (flags & GLV_READ_ONLY) != 0 {
-                ptr::null_mut()
-            } else {
-                &raw mut ht
-            },
-            flags & GLV_NO_AUTOLOAD,
-        );
-        if v.is_null() && !quiet {
-            semsg!(
-                gettext(c"E121: Undefined variable: %.*s"),
-                lp.ll_name_len as i32,
-                lp.ll_name,
-            );
-        }
-        if v.is_null() {
-            return ptr::null_mut();
-        }
-
-        lp.ll_tv = &raw mut crate::globals::gptr(v).di_tv;
-
-        if tv_is_luafunc(crate::globals::gmut(lp.ll_tv)) {
-            return p.cast();
-        }
-
-        p = get_lval_subscript(
-            &mut *lp,
-            p,
-            name.cast(),
-            (rettv.is_some()).then(|| rettv.unwrap()),
-            unlet,
-            flags,
-        );
-        if p.is_null() {
-            return ptr::null_mut();
-        }
-
-        if lp.ll_exp_name.is_none() {
-            lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
-        }
-        p.cast()
+    if skip {
+        lp.ll_name = name.cast();
+        return Some(find_name_end(name_in, None, FNE_INCL_BR | fne_flags));
     }
+
+    let mut expr_range: Option<(usize, usize)> = None;
+    let mut p_cstr = find_name_end(name_in, Some(&mut expr_range), fne_flags);
+    let p = p_cstr.as_ptr();
+    if let Some((expr_start_off, expr_end_off)) = expr_range {
+        if unlet
+            && !ascii_iswhite(crate::memory::cstr_first_byte(p))
+            && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) == 0
+            && crate::memory::cstr_first_byte(p) != b'['
+            && crate::memory::cstr_first_byte(p) != b'.'
+        {
+            semsg!(gettext(E_TRAILING_ARG), p);
+            return None;
+        }
+
+        let in_len = (p as usize).wrapping_sub(name as usize);
+        if let Some(cstr) = make_expanded_name(
+            crate::memory::cstr_slice(name.cast(), in_len),
+            expr_start_off,
+            expr_end_off,
+        ) {
+            lp.ll_name_len = cstr.as_bytes().len();
+            lp.ll_exp_name = Some(cstr);
+            lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr().cast();
+        } else {
+            lp.ll_exp_name = None;
+            lp.ll_name = ptr::null();
+            if !aborting() && !quiet {
+                g_st().emsg_severe = true;
+                semsg!(gettext(E_INVARG2), name_in.as_ptr());
+                return None;
+            }
+            lp.ll_name_len = 0;
+        }
+    } else {
+        lp.ll_name = name.cast();
+        lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
+    }
+
+    if (crate::memory::cstr_first_byte(p) != b'[' && crate::memory::cstr_first_byte(p) != b'.')
+        || lp.ll_name.is_null()
+    {
+        return Some(p_cstr);
+    }
+
+    let mut ht: Option<&'static mut Hashtab> = None;
+
+    let v = find_var(
+        crate::memory::cstr_from_ptr(lp.ll_name.cast()),
+        lp.ll_name_len,
+        if (flags & GLV_READ_ONLY) != 0 {
+            None
+        } else {
+            Some(&mut ht)
+        },
+        flags & GLV_NO_AUTOLOAD,
+    );
+    if v.is_none() && !quiet {
+        semsg!(
+            gettext(c"E121: Undefined variable: %.*s"),
+            lp.ll_name_len as i32,
+            lp.ll_name,
+        );
+    }
+    let v = v?;
+
+    lp.ll_tv = &raw mut v.di_tv;
+
+    if tv_is_luafunc(unsafe { &mut *lp.ll_tv }) {
+        return Some(p_cstr);
+    }
+
+    p_cstr = get_lval_subscript(
+        &mut *lp,
+        p_cstr,
+        name_in,
+        (rettv.is_some()).then(|| rettv.unwrap()),
+        unlet,
+        flags,
+    )?;
+
+    if lp.ll_exp_name.is_none() {
+        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(lp.ll_name as usize);
+    }
+    Some(p_cstr)
 }
 
 /// Set a variable that was parsed by get_lval() to "rettv".
-pub fn set_var_lval<T>(
+pub fn set_var_lval(
     lp: &mut Lval,
-    endp: *mut T,
+    endp_cstr: &CStr,
     rettv: &mut TypVal,
     copy: bool,
     is_const: bool,
-    op: impl crate::strings::IntoCCharPtr,
+    op_opt: Option<&CStr>,
 ) {
-    let endp: *const u8 = endp.cast();
-    let op = op.into_c_char_ptr();
+    let endp: *const u8 = endp_cstr.as_ptr().cast();
+    let op = op_opt.map_or(ptr::null(), CStr::as_ptr);
 
     if lp.ll_tv.is_null() {
         let name_cstr = if lp.ll_exp_name.is_some() {
@@ -1570,26 +1544,22 @@ pub fn set_var_lval<T>(
             let full_len = crate::memory::ptr_offset_from(endp, lp.ll_name) as usize;
             cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), full_len))
         };
-        if !lp.ll_blob.is_null() {
+        if let Some(blob) = unsafe { lp.ll_blob.as_mut() } {
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 semsg!(gettext(E_LETWRONG), op);
                 return;
             }
-            if value_check_lock(
-                crate::globals::gptr(lp.ll_blob).bv_lock,
-                name_cstr.as_ptr(),
-                TV_CSTRING,
-            ) {
+            if value_check_lock(blob.bv_lock, Some(&name_cstr), TV_CSTRING) {
                 return;
             }
 
             if lp.ll_range && rettv.v_type == VarType::VarBlob {
                 if lp.ll_empty2 {
-                    lp.ll_n2 = tv_blob_len(crate::globals::gopt(lp.ll_blob)) - 1;
+                    lp.ll_n2 = tv_blob_len(Some(&*blob)) - 1;
                 }
 
                 let _ = tv_blob_set_range(
-                    crate::globals::gmut(lp.ll_blob),
+                    blob,
                     Varnumber::from(lp.ll_n1),
                     Varnumber::from(lp.ll_n2),
                     rettv,
@@ -1601,7 +1571,7 @@ pub fn set_var_lval<T>(
                     if !(0..=255).contains(&val) {
                         semsg!(gettext(E_INVALID_VALUE_FOR_BLOB_NR), val,);
                     } else {
-                        tv_blob_set_append(crate::globals::gmut(lp.ll_blob), lp.ll_n1, val as u8);
+                        tv_blob_set_append(blob, lp.ll_n1, val as u8);
                     }
                 }
             }
@@ -1613,26 +1583,19 @@ pub fn set_var_lval<T>(
                 return;
             }
 
-            let mut di: *mut Dictitem = ptr::null_mut();
+            let mut di: Option<&'static mut Dictitem> = None;
             if eval_variable(
-                name_cstr.as_ptr(),
+                &name_cstr,
                 lp.ll_name_len as i32,
                 Some(&mut tv),
-                &raw mut di,
+                Some(&mut di),
                 true,
                 false,
             ) {
-                if (di.is_null()
-                    || (!var_check_ro(
-                        i32::from(crate::globals::gptr(di).di_flags),
-                        name_cstr.as_ptr(),
-                        TV_CSTRING,
-                    ) && !tv_check_lock(
-                        &crate::globals::gptr(di).di_tv,
-                        name_cstr.as_ptr(),
-                        TV_CSTRING,
-                    )))
-                    && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
+                if di.is_none_or(|di| {
+                    !var_check_ro(i32::from(di.di_flags), &name_cstr, TV_CSTRING)
+                        && !tv_check_lock(&di.di_tv, Some(&name_cstr), TV_CSTRING)
+                }) && eexe_mod_op(&mut tv, &*rettv, crate::memory::cstr_from_ptr(op))
                 {
                     set_var(name_cstr.as_bytes(), &mut tv, false);
                 }
@@ -1645,9 +1608,9 @@ pub fn set_var_lval<T>(
         if lp.ll_newkey.is_none() {
             lp.tv_mut().v_lock
         } else {
-            crate::globals::gptr(lp.tv_mut().vval.v_dict()).dv_lock
+            unsafe { (*lp.tv_mut().vval.v_dict()).dv_lock }
         },
-        lp.ll_name.cast(),
+        crate::memory::cstr_as_opt_cstr(lp.ll_name.cast()),
         TV_CSTRING,
     ) {
         // Skip
@@ -1658,18 +1621,18 @@ pub fn set_var_lval<T>(
         }
 
         tv_list_assign_range(
-            crate::globals::gmut(lp.ll_list),
-            crate::globals::gopt(rettv.vval.v_list()),
+            unsafe { &mut *lp.ll_list },
+            unsafe { rettv.vval.v_list().as_ref() },
             lp.ll_n1,
             lp.ll_n2,
             lp.ll_empty2,
-            op,
-            lp.ll_name.cast(),
+            crate::memory::cstr_as_opt_cstr(op),
+            unsafe { CStr::from_ptr(lp.ll_name.cast()) },
         );
     } else {
         let mut oldtv = tv_initial_value();
         let dict = lp.ll_dict;
-        let watched = tv_dict_is_watched(crate::globals::gopt(dict));
+        let watched = tv_dict_is_watched(unsafe { dict.as_ref() });
 
         if is_const {
             emsg(gettext(c"E996: Cannot lock a list or dict"));
@@ -1678,48 +1641,50 @@ pub fn set_var_lval<T>(
 
         let mut skip_assign = false;
         if let Some(ref newkey) = lp.ll_newkey {
-            let newkey_ptr = newkey.as_ptr();
+            let newkey_cstr = newkey.as_c_str();
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
-                semsg!(gettext(E_DICTKEY), newkey_ptr);
+                semsg!(gettext(E_DICTKEY), newkey_cstr.as_ptr());
                 return;
             }
             if tv_dict_wrong_func_name(
-                crate::globals::gmut(lp.tv_mut().vval.v_dict()),
+                unsafe { &mut *lp.tv_mut().vval.v_dict() },
                 rettv,
-                newkey_ptr,
+                newkey_cstr,
             ) != 0
             {
                 return;
             }
 
-            let di = tv_dict_item_alloc(newkey_ptr);
-            if !tv_dict_add(crate::globals::gmut(lp.tv_mut().vval.v_dict()), di) {
+            let di = tv_dict_item_alloc(newkey_cstr);
+            if !tv_dict_add(unsafe { &mut *lp.tv_mut().vval.v_dict() }, di) {
                 tv_dict_item_free(di);
                 return;
             }
             lp.ll_tv = &raw mut di.di_tv;
         } else {
             if watched {
-                tv_copy(crate::globals::gref(lp.ll_tv), &mut oldtv);
+                tv_copy(unsafe { &*lp.ll_tv }, &mut oldtv);
             }
 
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
                 eexe_mod_op(
-                    crate::globals::gmut(lp.ll_tv),
+                    unsafe { &mut *lp.ll_tv },
                     &*rettv,
                     crate::memory::cstr_from_ptr(op),
                 );
                 skip_assign = true;
             } else {
-                tv_clear(crate::globals::gmut(lp.ll_tv));
+                tv_clear(unsafe { &mut *lp.ll_tv });
             }
         }
 
         if !skip_assign {
             if copy {
-                tv_copy(&*rettv, crate::globals::gmut(lp.ll_tv));
+                tv_copy(&*rettv, unsafe { &mut *lp.ll_tv });
             } else {
-                *crate::globals::gptr(lp.ll_tv) = *rettv;
+                unsafe {
+                    *lp.ll_tv = *rettv;
+                }
                 lp.tv_mut().v_lock = VAR_UNLOCKED;
                 tv_init(Some(rettv));
             }
@@ -1727,19 +1692,20 @@ pub fn set_var_lval<T>(
 
         if watched {
             if oldtv.v_type == VarType::VarUnknown {
-                let newkey_ptr = lp.ll_newkey.as_ref().unwrap().as_ptr();
+                let newkey_cstr = lp.ll_newkey.as_ref().unwrap().as_c_str();
                 tv_dict_watcher_notify(
-                    crate::globals::gmut(dict),
-                    newkey_ptr,
-                    crate::globals::gopt(lp.ll_tv),
+                    unsafe { &mut *dict },
+                    newkey_cstr,
+                    unsafe { lp.ll_tv.as_ref() },
                     None,
                 );
             } else {
                 let di_ = lp.ll_di;
+                let di_key_cstr = unsafe { CStr::from_ptr((*di_).di_key.as_ptr().cast()) };
                 tv_dict_watcher_notify(
-                    crate::globals::gmut(dict),
-                    crate::globals::gptr(di_).key_cstr(),
-                    crate::globals::gopt(lp.ll_tv),
+                    unsafe { &mut *dict },
+                    di_key_cstr,
+                    unsafe { lp.ll_tv.as_ref() },
                     Some(&oldtv),
                 );
                 tv_clear(&mut oldtv);
@@ -1750,90 +1716,94 @@ pub fn set_var_lval<T>(
 
 /// Evaluate the expression used in a ":for var in expr" command.
 pub fn eval_for_line(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     errp: &mut bool,
     eap: &mut Exarg,
     evalarg: &mut Evalarg,
 ) -> Box<Forinfo> {
-    let arg = arg.into_c_char_ptr();
+    let mut fi = Box::new(Forinfo {
+        fi_semicolon: 0,
+        fi_varcount: 0,
+        fi_source: ForSource::None,
+    });
+    let mut tv = tv_initial_value();
+    let skip = (evalarg.eval_flags & EVAL_EVALUATE) == 0;
+
+    *errp = true;
+
+    let Some(expr_cstr) = skip_var_list(arg, &mut fi.fi_varcount, &mut fi.fi_semicolon, false)
+    else {
+        return fi;
+    };
+
+    let mut expr = skipwhite(expr_cstr.as_ptr());
+    let expr_bytes = crate::memory::cstr_as_bytes(expr);
+    if !expr_bytes.starts_with(b"in")
+        || expr_bytes
+            .get(2)
+            .is_some_and(|&b| !ascii_iswhite(i32::from(b)))
     {
-        let mut fi = Box::new(Forinfo {
-            fi_semicolon: 0,
-            fi_varcount: 0,
-            fi_source: ForSource::None,
-        });
-        let mut tv = tv_initial_value();
-        let skip = (evalarg.eval_flags & EVAL_EVALUATE) == 0;
+        emsg(gettext(c"E690: Missing \"in\" after :for"));
+        return fi;
+    }
 
-        *errp = true;
-
-        let mut expr = skip_var_list(arg, &mut fi.fi_varcount, &mut fi.fi_semicolon, false);
-        if expr.is_null() {
-            return fi;
-        }
-
-        expr = skipwhite(expr);
-        let expr_bytes = crate::memory::cstr_as_bytes(expr);
-        if !expr_bytes.starts_with(b"in")
-            || expr_bytes
-                .get(2)
-                .is_some_and(|&b| !ascii_iswhite(i32::from(b)))
-        {
-            emsg(gettext(c"E690: Missing \"in\" after :for"));
-            return fi;
-        }
-
-        if skip {
-            g_st().emsg_skip += 1;
-        }
-        expr = skipwhite(expr.wrapping_add(2));
-        if eval0(expr.cast_mut(), &mut tv, Some(&mut *eap), &mut *evalarg) {
-            *errp = false;
-            if !skip {
-                if tv.v_type == VarType::VarList {
-                    let l = tv.vval.v_list();
-                    if l.is_null() {
-                        tv_clear(&mut tv);
-                    } else {
-                        let lw = std::rc::Rc::new(Listwatch {
-                            lw_item: std::cell::Cell::new(tv_list_first(crate::globals::gopt(l))),
-                        });
-                        tv_list_watch_add(crate::globals::gmut(l), lw.clone());
-                        fi.fi_source = ForSource::List { list: l, lw };
-                    }
-                } else if tv.v_type == VarType::VarBlob {
-                    let bytes = if tv.vval.v_blob().is_null() {
-                        Vec::new()
-                    } else {
-                        crate::globals::gptr(tv.vval.v_blob()).bv_ga.clone()
-                    };
-                    fi.fi_source = ForSource::Blob { bytes, idx: 0 };
-                    tv_clear(&mut tv);
-                } else if tv.v_type == VarType::VarString {
-                    let text = if tv.vval.v_string().is_null() {
-                        std::ffi::CString::default()
-                    } else {
-                        crate::memory::cstr_to_cstring(tv.vval.v_string())
-                    };
-                    fi.fi_source = ForSource::Str { text, byte_idx: 0 };
+    if skip {
+        g_st().emsg_skip += 1;
+    }
+    expr = skipwhite(expr.wrapping_add(2));
+    if eval0(
+        unsafe { CStr::from_ptr(expr) },
+        &mut tv,
+        Some(&mut *eap),
+        &mut *evalarg,
+    ) {
+        *errp = false;
+        if !skip {
+            if tv.v_type == VarType::VarList {
+                let l = tv.vval.v_list();
+                if l.is_null() {
                     tv_clear(&mut tv);
                 } else {
-                    emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED));
-                    tv_clear(&mut tv);
+                    let lw = std::rc::Rc::new(Listwatch {
+                        lw_item: std::cell::Cell::new(
+                            tv_list_first(unsafe { l.as_ref() })
+                                .map_or(ptr::null_mut(), ptr::from_mut),
+                        ),
+                    });
+                    tv_list_watch_add(unsafe { &mut *l }, lw.clone());
+                    fi.fi_source = ForSource::List { list: l, lw };
                 }
+            } else if tv.v_type == VarType::VarBlob {
+                let bytes = if tv.vval.v_blob().is_null() {
+                    Vec::new()
+                } else {
+                    unsafe { (*tv.vval.v_blob()).bv_ga.clone() }
+                };
+                fi.fi_source = ForSource::Blob { bytes, idx: 0 };
+                tv_clear(&mut tv);
+            } else if tv.v_type == VarType::VarString {
+                let text = if tv.vval.v_string().is_null() {
+                    std::ffi::CString::default()
+                } else {
+                    crate::memory::cstr_to_cstring(tv.vval.v_string())
+                };
+                fi.fi_source = ForSource::Str { text, byte_idx: 0 };
+                tv_clear(&mut tv);
+            } else {
+                emsg(gettext(E_STRING_LIST_OR_BLOB_REQUIRED));
+                tv_clear(&mut tv);
             }
         }
-        if skip {
-            g_st().emsg_skip -= 1;
-        }
-
-        fi
     }
+    if skip {
+        g_st().emsg_skip -= 1;
+    }
+
+    fi
 }
 
 /// Use the first item in a ":for" list. Advance to the next.
-pub fn next_for_item(fi: &mut Forinfo, arg: impl crate::strings::IntoCCharPtr) -> bool {
-    let arg = arg.into_c_char_ptr();
+pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
     match &mut fi.fi_source {
         ForSource::None => false,
         ForSource::Blob { bytes, idx } => {
@@ -1846,15 +1816,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: impl crate::strings::IntoCCharPtr) -
                 vval: TypvalVval::Number(Varnumber::from(bytes[*idx])),
             };
             *idx += 1;
-            ex_let_vars(
-                arg,
-                &mut tv,
-                1,
-                fi.fi_semicolon,
-                fi.fi_varcount,
-                0,
-                ptr::null_mut(),
-            )
+            ex_let_vars(arg, &mut tv, 1, fi.fi_semicolon, fi.fi_varcount, 0, None)
         }
         ForSource::Str { text, byte_idx } => {
             let str_ptr = text.as_ptr();
@@ -1865,28 +1827,20 @@ pub fn next_for_item(fi: &mut Forinfo, arg: impl crate::strings::IntoCCharPtr) -
             let mut tv = TypVal::new();
             crate::eval::typval::tv_set_string_len(
                 &mut tv,
-                str_ptr.wrapping_add(*byte_idx),
-                len as usize,
+                Some(&text.as_bytes()[*byte_idx..*byte_idx + len as usize]),
             );
             tv.v_lock = VAR_FIXED;
             *byte_idx += len as usize;
-            let result = ex_let_vars(
-                arg,
-                &mut tv,
-                1,
-                fi.fi_semicolon,
-                fi.fi_varcount,
-                0,
-                ptr::null_mut(),
-            );
+            let result = ex_let_vars(arg, &mut tv, 1, fi.fi_semicolon, fi.fi_varcount, 0, None);
             tv_clear(&mut tv);
             result
         }
         ForSource::List { list: _, lw } => {
-            let Some(item) = crate::globals::gopt_mut(lw.lw_item.get()) else {
+            let Some(item) = (unsafe { lw.lw_item.get().as_mut() }) else {
                 return false;
             };
-            lw.lw_item.set(tv_list_item_next(item));
+            lw.lw_item
+                .set(tv_list_item_next(item).map_or(ptr::null_mut(), ptr::from_mut));
             ex_let_vars(
                 arg,
                 &mut *tv_list_item_tv(item),
@@ -1894,7 +1848,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: impl crate::strings::IntoCCharPtr) -
                 fi.fi_semicolon,
                 fi.fi_varcount,
                 0,
-                ptr::null_mut(),
+                None,
             )
         }
     }
@@ -1903,20 +1857,16 @@ pub fn next_for_item(fi: &mut Forinfo, arg: impl crate::strings::IntoCCharPtr) -
 impl Drop for Forinfo {
     fn drop(&mut self) {
         if let ForSource::List { list, ref lw } = self.fi_source
-            && let Some(list_ref) = crate::globals::gopt_mut(list)
+            && let Some(list_ref) = unsafe { list.as_mut() }
         {
             tv_list_watch_remove(list_ref, lw);
-            tv_list_unref(list);
+            tv_list_unref(Some(list_ref));
         }
     }
 }
 
-pub fn set_context_for_expression(
-    xp: &mut ExpandCtx,
-    arg: impl crate::strings::IntoCCharPtr,
-    cmdidx: Cmdidx,
-) {
-    let mut arg: *mut u8 = arg.into_c_char_ptr().cast_mut().cast();
+pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmdidx) {
+    let mut arg: *mut u8 = arg_in.as_ptr().cast_mut().cast();
     let mut got_eq = false;
 
     if cmdidx == Cmdidx::CmdLet || cmdidx == Cmdidx::CmdConst {
@@ -2047,29 +1997,16 @@ pub fn set_context_for_expression(
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
-pub fn pattern_match(
-    pat: impl crate::strings::IntoCCharPtr,
-    text: impl crate::strings::IntoCCharPtr,
-    ic: bool,
-) -> i32 {
-    let pat = pat.into_c_char_ptr();
-    let text = text.into_c_char_ptr();
+pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> i32 {
     let mut matches: i32 = 0;
     let mut regmatch: Regmatch = Regmatch::new();
 
     let save_cpo = opt_vars().p_cpo;
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
-    regmatch.set_prog(vim_regcomp(
-        crate::memory::cstr_from_ptr(pat),
-        RE_MAGIC + RE_STRING,
-    ));
+    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = ic;
-        matches = i32::from(vim_regexec_nl(
-            &mut regmatch,
-            crate::memory::cstr_as_opt_cstr(text),
-            0,
-        ));
+        matches = i32::from(vim_regexec_nl(&mut regmatch, text, 0));
         regmatch.free_prog();
     }
     opt_vars().p_cpo = save_cpo;
@@ -2078,175 +2015,156 @@ pub fn pattern_match(
 
 /// Handle a name followed by "(". Both for just "name(arg)" and for
 /// "expr->name(arg)".
-fn eval_func<T>(
-    arg: *mut *mut T,
+fn eval_func(
+    arg: &mut &CStr,
     evalarg: Option<&mut Evalarg>,
-    name: impl crate::strings::IntoCCharPtr,
+    name: &CStr,
     name_len: i32,
     rettv: &mut TypVal,
     flags: i32,
     basetv: Option<&mut TypVal>,
 ) -> bool {
-    let name = name.into_c_char_ptr();
-    {
-        let evaluate = (flags & EVAL_EVALUATE) != 0;
-        let mut s = name;
-        let mut len = name_len;
-        let mut found_var = false;
+    let evaluate = (flags & EVAL_EVALUATE) != 0;
+    let mut len = name_len;
+    let mut found_var = false;
 
-        if !evaluate {
-            check_vars(crate::memory::cstr_slice(s, len as usize));
-        }
-
-        let mut partial: *mut TvPartial = ptr::null_mut();
-        s = deref_func_name(
-            s,
-            &mut len,
-            &raw mut partial,
-            !evaluate,
-            Some(&mut found_var),
-        );
-
-        let s_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len as usize));
-        let mut s_vec: Vec<u8> = s_cstr.into_bytes_with_nul();
-        s = s_vec.as_mut_ptr().cast();
-
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = Funcexe {
-            fe_fill_submatch: false,
-            fe_firstline: lnum,
-            fe_lastline: lnum,
-            fe_doesrange: false,
-            fe_evaluate: evaluate,
-            fe_partial: partial.cast(),
-            fe_selfdict: ptr::null_mut(),
-            fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
-            fe_found_var: found_var,
-        };
-        let mut ret = get_func_tv(s, len, &mut *rettv, arg, evalarg, &mut funcexe);
-
-        drop(s_vec);
-
-        if rettv.v_type == VarType::VarUnknown
-            && !evaluate
-            && *crate::globals::gptr(crate::globals::gptr(arg).cast::<u8>()) == b'('
-        {
-            rettv.vval = crate::eval::typval::TypvalVval::String(TV_EMPTY_STRING.cast_mut());
-            rettv.v_type = VarType::VarFunc;
-        }
-
-        if evaluate && aborting() {
-            if ret {
-                tv_clear(rettv);
-            }
-            ret = false;
-        }
-        ret
+    if !evaluate {
+        check_vars(crate::memory::cstr_slice(name.as_ptr(), len as usize));
     }
+
+    let mut partial_opt: Option<&'static mut TvPartial> = None;
+    let deref = deref_func_name(
+        name,
+        &mut len,
+        Some(&mut partial_opt),
+        !evaluate,
+        Some(&mut found_var),
+    );
+    let partial: *mut TvPartial = partial_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let s = deref.as_ptr();
+
+    let s_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len as usize));
+
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mut funcexe = Funcexe {
+        fe_fill_submatch: false,
+        fe_firstline: lnum,
+        fe_lastline: lnum,
+        fe_doesrange: false,
+        fe_evaluate: evaluate,
+        fe_partial: partial.cast(),
+        fe_selfdict: ptr::null_mut(),
+        fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
+        fe_found_var: found_var,
+    };
+    let mut ret = get_func_tv(&s_cstr, len, &mut *rettv, arg, evalarg, &mut funcexe);
+
+    if rettv.v_type == VarType::VarUnknown && !evaluate && arg.to_bytes().first() == Some(&b'(') {
+        rettv.vval = crate::eval::typval::TypvalVval::String(TV_EMPTY_STRING.cast_mut());
+        rettv.v_type = VarType::VarFunc;
+    }
+
+    if evaluate && aborting() {
+        if ret {
+            tv_clear(rettv);
+        }
+        ret = false;
+    }
+    ret
 }
 
 /// After using "evalarg" filled from "eap": free the memory.
 /// Handle zero level expression.
 pub fn eval0(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     rettv: &mut TypVal,
     mut eap: Option<&mut Exarg>,
     evalarg: &mut Evalarg,
 ) -> bool {
-    let arg = arg.into_c_char_ptr();
-    {
-        let did_emsg_before = g_st().did_emsg;
-        let called_emsg_before = g_st().called_emsg;
-        let mut end_error = false;
+    let did_emsg_before = g_st().did_emsg;
+    let called_emsg_before = g_st().called_emsg;
+    let mut end_error = false;
 
-        let mut p = skipwhite(arg);
-        let ret = eval1(&raw mut p, rettv, Some(evalarg));
+    let mut p = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
+    let ret = eval1(&mut p, rettv, Some(evalarg));
 
-        if ret {
-            end_error = ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) == 0;
-        }
-        if !ret || end_error {
-            if ret {
-                tv_clear(rettv);
-            }
-            if !aborting()
-                && g_st().did_emsg == did_emsg_before
-                && g_st().called_emsg == called_emsg_before
-            {
-                if end_error {
-                    semsg!(gettext(E_TRAILING_ARG), p);
-                } else {
-                    semsg!(gettext(E_INVEXPR2), arg);
-                }
-            }
-
-            if eap.is_some()
-                && !p.is_null()
-                && let Some(nextcmd) = check_nextcmd(crate::memory::cstr_from_ptr(p))
-                && nextcmd.to_bytes().first() != Some(&b'|')
-            {
-                eap.as_deref_mut().unwrap().nextcmd = nextcmd.as_ptr().cast_mut();
-            }
-            return false;
-        }
-
-        if let Some(eap) = eap {
-            eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(p))
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        }
-
-        ret
+    if ret {
+        end_error = ends_excmd(i32::from(crate::memory::cstr_first_byte(p.as_ptr()))) == 0;
     }
+    if !ret || end_error {
+        if ret {
+            tv_clear(rettv);
+        }
+        if !aborting()
+            && g_st().did_emsg == did_emsg_before
+            && g_st().called_emsg == called_emsg_before
+        {
+            if end_error {
+                semsg!(gettext(E_TRAILING_ARG), p.as_ptr());
+            } else {
+                semsg!(gettext(E_INVEXPR2), arg.as_ptr());
+            }
+        }
+
+        if eap.is_some()
+            && let Some(nextcmd) = check_nextcmd(p)
+            && nextcmd.to_bytes().first() != Some(&b'|')
+        {
+            eap.as_deref_mut().unwrap().nextcmd = nextcmd.as_ptr().cast_mut();
+        }
+        return false;
+    }
+
+    if let Some(eap) = eap {
+        eap.nextcmd = check_nextcmd(p).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    }
+
+    ret
 }
 
 /// If "arg" is a simple function call without arguments then call it and return
 /// the result. Otherwise return NOTDONE.
-pub fn may_call_simple_func(arg: impl crate::strings::IntoCCharPtr, rettv: &mut TypVal) -> i32 {
-    let arg = arg.into_c_char_ptr();
-    {
-        let parens = crate::memory::cstr_as_bytes(arg)
-            .windows(2)
-            .position(|w| w == b"()")
-            .map_or(ptr::null(), |i| arg.wrapping_add(i));
-        let mut r = NOTDONE;
+pub fn may_call_simple_func(arg_cstr: &CStr, rettv: &mut TypVal) -> i32 {
+    let arg = arg_cstr.as_ptr();
+    let parens = arg_cstr
+        .to_bytes()
+        .windows(2)
+        .position(|w| w == b"()")
+        .map_or(ptr::null(), |i| arg.wrapping_add(i));
+    let mut r = NOTDONE;
 
-        if !parens.is_null() && crate::memory::cstr_is_empty(skipwhite(parens.wrapping_add(2))) {
-            if crate::memory::cstr_as_bytes(arg).starts_with(b"v:lua.") {
-                let p = arg.wrapping_add(6);
-                if p != parens && skip_luafunc_name(p) == parens.cast() {
-                    r = call_simple_luafunc(
-                        crate::memory::cstr_slice(p, (parens as usize).wrapping_sub(p as usize)),
-                        rettv,
-                    );
-                }
+    if !parens.is_null() && crate::memory::cstr_is_empty(skipwhite(parens.wrapping_add(2))) {
+        if arg_cstr.to_bytes().starts_with(b"v:lua.") {
+            let p = arg.wrapping_add(6);
+            if p != parens && skip_luafunc_name(unsafe { CStr::from_ptr(p) }).as_ptr() == parens {
+                r = call_simple_luafunc(
+                    crate::memory::cstr_slice(p, (parens as usize).wrapping_sub(p as usize)),
+                    rettv,
+                );
+            }
+        } else {
+            let p = if arg_cstr.to_bytes().starts_with(b"<SNR>") {
+                skipdigits(arg.wrapping_add(5))
             } else {
-                let p = if crate::memory::cstr_as_bytes(arg).starts_with(b"<SNR>") {
-                    skipdigits(arg.wrapping_add(5))
-                } else {
-                    arg
-                };
-                if to_name_end(p, true) == parens {
-                    r = call_simple_func(
-                        crate::memory::cstr_slice(
-                            arg,
-                            (parens as usize).wrapping_sub(arg as usize),
-                        ),
-                        rettv,
-                    );
-                }
+                arg
+            };
+            if to_name_end(unsafe { CStr::from_ptr(p) }, true).as_ptr() == parens {
+                r = call_simple_func(
+                    crate::memory::cstr_slice(arg, (parens as usize).wrapping_sub(arg as usize)),
+                    rettv,
+                );
             }
         }
-        r
     }
+    r
 }
 
 fn eval0_simple_funccal(
-    arg: impl crate::strings::IntoCCharPtr,
+    arg: &CStr,
     rettv: &mut TypVal,
     eap: Option<&mut Exarg>,
     evalarg: &mut Evalarg,
 ) -> bool {
-    let arg = arg.into_c_char_ptr();
     let r = may_call_simple_func(arg, rettv);
 
     if r == NOTDONE {
@@ -2259,228 +2177,216 @@ fn eval0_simple_funccal(
 /// Handle top level expression:
 ///      expr2 ? expr1 : expr1
 ///      expr2 ?? expr1
-pub fn eval1<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg = arg.cast();
-    {
-        *rettv = TypVal::new();
+pub fn eval1(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
+    *rettv = TypVal::new();
 
-        if !eval2(arg, rettv, evalarg.as_deref_mut()) {
-            return false;
-        }
+    if !eval2(arg, rettv, evalarg.as_deref_mut()) {
+        return false;
+    }
 
-        let mut p = *crate::globals::gptr(arg);
-        let p_bytes = crate::memory::cstr_as_bytes(p);
-        if p_bytes.first() == Some(&b'?') {
-            let op_falsy = p_bytes.get(1) == Some(&b'?');
-            let mut local_evalarg = Evalarg::new();
-            let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
-            let orig_flags = evalarg_used.eval_flags;
-            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
+    let mut p = *arg;
+    let p_bytes = p.to_bytes();
+    if p_bytes.first() == Some(&b'?') {
+        let op_falsy = p_bytes.get(1) == Some(&b'?');
+        let mut local_evalarg = Evalarg::new();
+        let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
+        let orig_flags = evalarg_used.eval_flags;
+        let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
 
-            let mut result = false;
-            if evaluate {
-                let mut error = false;
-
-                if op_falsy {
-                    result = tv2bool(&*rettv);
-                } else if tv_get_number_chk(&*rettv, Some(&mut error)) != 0 {
-                    result = true;
-                }
-                if error || !op_falsy || !result {
-                    tv_clear(rettv);
-                }
-                if error {
-                    return false;
-                }
-            }
+        let mut result = false;
+        if evaluate {
+            let mut error = false;
 
             if op_falsy {
-                *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
+                result = tv2bool(&*rettv);
+            } else if tv_get_number_chk(&*rettv, Some(&mut error)) != 0 {
+                result = true;
             }
-            *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).wrapping_add(1));
-            evalarg_used.eval_flags = if if op_falsy { !result } else { result } {
+            if error || !op_falsy || !result {
+                tv_clear(rettv);
+            }
+            if error {
+                return false;
+            }
+        }
+
+        let adv = if op_falsy { 2 } else { 1 };
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(adv).cast_mut())) };
+        evalarg_used.eval_flags = if if op_falsy { !result } else { result } {
+            orig_flags
+        } else {
+            orig_flags & !EVAL_EVALUATE
+        };
+        let mut var2 = tv_initial_value();
+        if !eval1(arg, &mut var2, Some(evalarg_used)) {
+            evalarg_used.eval_flags = orig_flags;
+            return false;
+        }
+        if !op_falsy || !result {
+            *rettv = var2;
+        }
+
+        if !op_falsy {
+            p = *arg;
+            if crate::memory::cstr_first_byte(p.as_ptr()) != b':' {
+                emsg(gettext(c"E109: Missing ':' after '?'"));
+                if evaluate && result {
+                    tv_clear(rettv);
+                }
+                evalarg_used.eval_flags = orig_flags;
+                return false;
+            }
+
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+            evalarg_used.eval_flags = if !result {
+                orig_flags
+            } else {
+                orig_flags & !EVAL_EVALUATE
+            };
+            if !eval1(arg, &mut var2, Some(evalarg_used)) {
+                if evaluate && result {
+                    tv_clear(rettv);
+                }
+                evalarg_used.eval_flags = orig_flags;
+                return false;
+            }
+            if evaluate && !result {
+                *rettv = var2;
+            }
+        }
+
+        evalarg_used.eval_flags = orig_flags;
+    }
+
+    true
+}
+
+/// Handle first level expression: `expr2 || expr2 || expr2`
+fn eval2(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
+    if !eval3(arg, rettv, evalarg.as_deref_mut()) {
+        return false;
+    }
+
+    let mut p = *arg;
+    if p.to_bytes().starts_with(b"||") {
+        let mut local_evalarg = Evalarg::new();
+        let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
+        let orig_flags = evalarg_used.eval_flags;
+        let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
+
+        let mut result = false;
+
+        if evaluate {
+            let mut error = false;
+            if tv_get_number_chk(&*rettv, Some(&mut error)) != 0 {
+                result = true;
+            }
+            tv_clear(rettv);
+            if error {
+                return false;
+            }
+        }
+
+        while p.to_bytes().starts_with(b"||") {
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(2).cast_mut())) };
+            evalarg_used.eval_flags = if !result {
                 orig_flags
             } else {
                 orig_flags & !EVAL_EVALUATE
             };
             let mut var2 = tv_initial_value();
-            if !eval1(arg, &mut var2, Some(evalarg_used)) {
-                evalarg_used.eval_flags = orig_flags;
+            if !eval3(arg, &mut var2, Some(evalarg_used)) {
                 return false;
             }
-            if !op_falsy || !result {
-                *rettv = var2;
-            }
 
-            if !op_falsy {
-                p = *crate::globals::gptr(arg);
-                if crate::memory::cstr_first_byte(p) != b':' {
-                    emsg(gettext(c"E109: Missing ':' after '?'"));
-                    if evaluate && result {
-                        tv_clear(rettv);
-                    }
-                    evalarg_used.eval_flags = orig_flags;
-                    return false;
-                }
-
-                *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).wrapping_add(1));
-                evalarg_used.eval_flags = if !result {
-                    orig_flags
-                } else {
-                    orig_flags & !EVAL_EVALUATE
-                };
-                if !eval1(arg, &mut var2, Some(evalarg_used)) {
-                    if evaluate && result {
-                        tv_clear(rettv);
-                    }
-                    evalarg_used.eval_flags = orig_flags;
-                    return false;
-                }
-                if evaluate && !result {
-                    *rettv = var2;
-                }
-            }
-
-            evalarg_used.eval_flags = orig_flags;
-        }
-
-        true
-    }
-}
-
-/// Handle first level expression: `expr2 || expr2 || expr2`
-fn eval2<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg = arg.cast();
-    {
-        if !eval3(arg, rettv, evalarg.as_deref_mut()) {
-            return false;
-        }
-
-        let mut p = *crate::globals::gptr(arg);
-        if crate::memory::cstr_as_bytes(p).starts_with(b"||") {
-            let mut local_evalarg = Evalarg::new();
-            let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
-            let orig_flags = evalarg_used.eval_flags;
-            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
-
-            let mut result = false;
-
-            if evaluate {
+            if evaluate && !result {
                 let mut error = false;
-                if tv_get_number_chk(&*rettv, Some(&mut error)) != 0 {
+                if tv_get_number_chk(&var2, Some(&mut error)) != 0 {
                     result = true;
                 }
-                tv_clear(rettv);
+                tv_clear(&mut var2);
                 if error {
                     return false;
                 }
             }
-
-            while crate::memory::cstr_as_bytes(p).starts_with(b"||") {
-                *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).wrapping_add(2));
-                evalarg_used.eval_flags = if !result {
-                    orig_flags
-                } else {
-                    orig_flags & !EVAL_EVALUATE
-                };
-                let mut var2 = tv_initial_value();
-                if !eval3(arg, &mut var2, Some(evalarg_used)) {
-                    return false;
-                }
-
-                if evaluate && !result {
-                    let mut error = false;
-                    if tv_get_number_chk(&var2, Some(&mut error)) != 0 {
-                        result = true;
-                    }
-                    tv_clear(&mut var2);
-                    if error {
-                        return false;
-                    }
-                }
-                if evaluate {
-                    rettv.v_type = VarType::VarNumber;
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
-                }
-
-                p = *crate::globals::gptr(arg);
+            if evaluate {
+                rettv.v_type = VarType::VarNumber;
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
             }
 
-            evalarg_used.eval_flags = orig_flags;
+            p = *arg;
         }
 
-        true
+        evalarg_used.eval_flags = orig_flags;
     }
+
+    true
 }
 
 /// Handle second level expression: `expr3 && expr3 && expr3`
-fn eval3<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg = arg.cast();
-    {
-        if !eval4(arg, rettv, evalarg.as_deref_mut()) {
-            return false;
+fn eval3(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
+    if !eval4(arg, rettv, evalarg.as_deref_mut()) {
+        return false;
+    }
+
+    let mut p = *arg;
+    if p.to_bytes().starts_with(b"&&") {
+        let mut local_evalarg = Evalarg::new();
+        let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
+        let orig_flags = evalarg_used.eval_flags;
+        let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
+
+        let mut result = true;
+
+        if evaluate {
+            let mut error = false;
+            if tv_get_number_chk(&*rettv, Some(&mut error)) == 0 {
+                result = false;
+            }
+            tv_clear(rettv);
+            if error {
+                return false;
+            }
         }
 
-        let mut p = *crate::globals::gptr(arg);
-        if crate::memory::cstr_as_bytes(p).starts_with(b"&&") {
-            let mut local_evalarg = Evalarg::new();
-            let evalarg_used: &mut Evalarg = evalarg.unwrap_or(&mut local_evalarg);
-            let orig_flags = evalarg_used.eval_flags;
-            let evaluate = (evalarg_used.eval_flags & EVAL_EVALUATE) != 0;
+        while p.to_bytes().starts_with(b"&&") {
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(2).cast_mut())) };
+            evalarg_used.eval_flags = if result {
+                orig_flags
+            } else {
+                orig_flags & !EVAL_EVALUATE
+            };
+            let mut var2 = tv_initial_value();
+            if !eval4(arg, &mut var2, Some(evalarg_used)) {
+                return false;
+            }
 
-            let mut result = true;
-
-            if evaluate {
+            if evaluate && result {
                 let mut error = false;
-                if tv_get_number_chk(&*rettv, Some(&mut error)) == 0 {
+                if tv_get_number_chk(&var2, Some(&mut error)) == 0 {
                     result = false;
                 }
-                tv_clear(rettv);
+                tv_clear(&mut var2);
                 if error {
                     return false;
                 }
             }
-
-            while crate::memory::cstr_as_bytes(p).starts_with(b"&&") {
-                *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).wrapping_add(2));
-                evalarg_used.eval_flags = if result {
-                    orig_flags
-                } else {
-                    orig_flags & !EVAL_EVALUATE
-                };
-                let mut var2 = tv_initial_value();
-                if !eval4(arg, &mut var2, Some(evalarg_used)) {
-                    return false;
-                }
-
-                if evaluate && result {
-                    let mut error = false;
-                    if tv_get_number_chk(&var2, Some(&mut error)) == 0 {
-                        result = false;
-                    }
-                    tv_clear(&mut var2);
-                    if error {
-                        return false;
-                    }
-                }
-                if evaluate {
-                    rettv.v_type = VarType::VarNumber;
-                    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
-                }
-
-                p = *crate::globals::gptr(arg);
+            if evaluate {
+                rettv.v_type = VarType::VarNumber;
+                rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(result));
             }
 
-            evalarg_used.eval_flags = orig_flags;
+            p = *arg;
         }
 
-        true
+        evalarg_used.eval_flags = orig_flags;
     }
+
+    true
 }
 
 /// Handle third level expression (comparisons).
-fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg = arg.cast();
+fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
     let mut var2 = tv_initial_value();
     let mut expr_type: Exprtype = EXPR_UNKNOWN;
     let mut len: usize = 2;
@@ -2489,8 +2395,8 @@ fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
         return false;
     }
 
-    let p = *crate::globals::gptr(arg);
-    let p_bytes = crate::memory::cstr_as_bytes(p);
+    let p = *arg;
+    let p_bytes = p.to_bytes();
     match p_bytes.first().copied().unwrap_or(0) {
         b'=' => {
             if p_bytes.get(1) == Some(&b'=') {
@@ -2548,7 +2454,7 @@ fn eval4<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
             ic = opt_vars().p_ic != 0;
         }
 
-        *crate::globals::gptr(arg) = skipwhite(p.wrapping_add(len));
+        *arg = unsafe { CStr::from_ptr(skipwhite(p.as_ptr().wrapping_add(len).cast_mut())) };
 
         if !eval5(arg, &mut var2, evalarg.as_deref_mut()) {
             tv_clear(rettv);
@@ -2589,7 +2495,7 @@ fn eval_addblob(tv1: &mut TypVal, tv2: &mut TypVal) {
     }
 
     tv_clear(tv1);
-    tv_blob_set_ret(tv1, b);
+    tv_blob_set_ret(tv1, Some(b));
 }
 
 /// Make a copy of list "tv1" and append list "tv2".
@@ -2606,43 +2512,33 @@ fn eval_addlist(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
 }
 
 /// Append string "s2" to the string in "tv1".
-pub fn grow_string_tv(tv1: &mut TypVal, s2: impl crate::strings::IntoCCharPtr) -> bool {
-    let s2 = s2.into_c_char_ptr();
-    {
-        if tv1.v_type != VarType::VarString || tv1.vval.v_string().is_null() {
-            return false;
-        }
-
-        let joined = concat_str(
-            crate::memory::cstr_as_bytes(tv1.vval.v_string()),
-            crate::memory::cstr_as_bytes(s2),
-        );
-        crate::eval::typval::tv_set_string(tv1, joined.as_ptr());
-        true
+pub fn grow_string_tv(tv1: &mut TypVal, s2: &[u8]) -> bool {
+    if tv1.v_type != VarType::VarString || tv1.vval.v_string().is_null() {
+        return false;
     }
+
+    let joined = concat_str(crate::memory::cstr_as_bytes(tv1.vval.v_string()), s2);
+    crate::eval::typval::tv_set_string(tv1, Some(joined.as_c_str()));
+    true
 }
 
 /// Concatenate strings "tv1" and "tv2" and store the result in "tv1".
 fn eval_concat_str(tv1: &mut TypVal, tv2: &mut TypVal) -> bool {
-    let mut buf1 = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let s1 = tv_get_string_buf(&*tv1, &mut buf1).as_ptr();
     let Some(s2_cstr) = tv_get_string_buf_chk(&*tv2, &mut buf2) else {
         tv_clear(tv1);
         tv_clear(tv2);
         return false;
     };
-    let s2 = s2_cstr.as_ptr();
 
-    if grow_string_tv(tv1, s2) {
+    if grow_string_tv(tv1, s2_cstr.to_bytes()) {
         return true;
     }
 
-    let p = concat_str(
-        crate::memory::cstr_as_bytes(s1),
-        crate::memory::cstr_as_bytes(s2),
-    );
-    crate::eval::typval::tv_set_string(tv1, p.as_ptr());
+    let mut buf1 = [0u8; NUMBUFLEN];
+    let s1 = tv_get_string_buf(&*tv1, &mut buf1);
+    let p = concat_str(s1.to_bytes(), s2_cstr.to_bytes());
+    crate::eval::typval::tv_set_string(tv1, Some(p.as_c_str()));
 
     true
 }
@@ -2707,15 +2603,13 @@ fn eval_addsub_number(tv1: &mut TypVal, tv2: &mut TypVal, op: i32) -> bool {
 }
 
 /// Handle fourth level expression: `+`, `-`, `.`, `..`
-fn eval5<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg = arg.cast();
-
+fn eval5(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
     if !eval6(arg, rettv, evalarg.as_deref_mut(), false) {
         return false;
     }
 
     loop {
-        let op = i32::from((*crate::globals::gptr(*crate::globals::gptr(arg))) as u8);
+        let op = i32::from(arg.to_bytes_with_nul()[0]);
         let concat = op == b'.' as i32;
         if op != b'+' as i32 && op != b'-' as i32 && !concat {
             break;
@@ -2735,12 +2629,12 @@ fn eval5<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evala
             return false;
         }
 
-        if op == b'.' as i32
-            && crate::memory::cstr_as_bytes(*crate::globals::gptr(arg)).get(1) == Some(&b'.')
-        {
-            *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-        }
-        *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).wrapping_add(1));
+        let adv = if op == b'.' as i32 && arg.to_bytes().get(1) == Some(&b'.') {
+            2
+        } else {
+            1
+        };
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(adv).cast_mut())) };
         let mut var2 = tv_initial_value();
         if !eval6(arg, &mut var2, evalarg.as_deref_mut(), op == b'.' as i32) {
             tv_clear(rettv);
@@ -2850,20 +2744,18 @@ fn eval_multdiv_number(tv1: &mut TypVal, tv2: &mut TypVal, op: i32) -> bool {
 }
 
 /// Handle fifth level expression: `*`, `/`, `%`
-fn eval6<T>(
-    arg: *mut *mut T,
+fn eval6(
+    arg: &mut &CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     want_string: bool,
 ) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-
     if !eval7(arg, rettv, evalarg.as_deref_mut(), want_string) {
         return false;
     }
 
     loop {
-        let op = i32::from(*crate::globals::gptr(*crate::globals::gptr(arg)));
+        let op = i32::from(arg.to_bytes_with_nul()[0]);
         if op != b'*' as i32 && op != b'/' as i32 && op != b'%' as i32 {
             break;
         }
@@ -2872,8 +2764,7 @@ fn eval6<T>(
             .as_ref()
             .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-        *crate::globals::gptr(arg) =
-            skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
         let mut var2 = tv_initial_value();
         if !eval7(arg, &mut var2, evalarg.as_deref_mut(), false) {
             return false;
@@ -2888,204 +2779,176 @@ fn eval6<T>(
 }
 
 /// Handle sixth level expression.
-fn eval7<T>(
-    arg: *mut *mut T,
+fn eval7(
+    arg: &mut &CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     want_string: bool,
 ) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        let mut ret: i32;
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-        rettv.v_type = VarType::VarUnknown;
+    rettv.v_type = VarType::VarUnknown;
 
-        let start_leader: *const u8 = *crate::globals::gptr(arg);
-        while matches!(
-            *crate::globals::gptr(*crate::globals::gptr(arg)),
-            b'!' | b'-' | b'+'
-        ) {
-            *crate::globals::gptr(arg) =
-                skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-        }
-        let mut leader_len =
-            ((*crate::globals::gptr(arg)) as usize).wrapping_sub(start_leader as usize);
-        let leader_slice = crate::memory::cstr_slice(start_leader.cast(), leader_len);
-
-        if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
-            semsg!(
-                gettext(E_EXPRESSION_TOO_RECURSIVE_STR),
-                *crate::globals::gptr(arg)
-            );
-            return false;
-        }
-        eval_st().eval7_recurse += 1;
-
-        match *crate::globals::gptr(*crate::globals::gptr(arg)) {
-            b'0'..=b'9' => {
-                let mut ok = eval_number(arg, &mut *rettv, evaluate, want_string);
-
-                if ok && evaluate && leader_len > 0 {
-                    ok = eval7_leader(&mut *rettv, true, leader_slice, &mut leader_len);
-                }
-                ret = if ok { OK } else { FAIL };
-            }
-            b'"' => {
-                ret = if eval_string(arg, &mut *rettv, evaluate, false) {
-                    OK
-                } else {
-                    FAIL
-                };
-            }
-            b'\'' => {
-                ret = if eval_lit_string(arg, &mut *rettv, evaluate, false) {
-                    OK
-                } else {
-                    FAIL
-                };
-            }
-            b'[' => {
-                ret = if eval_list(arg, &mut *rettv, evalarg.as_deref_mut()) {
-                    OK
-                } else {
-                    FAIL
-                };
-            }
-            b'#' => {
-                ret = eval_lit_dict(arg, &mut *rettv, evalarg.as_deref_mut());
-            }
-            b'{' => {
-                ret = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
-                if ret == NOTDONE {
-                    ret = eval_dict(arg, &mut *rettv, evalarg.as_deref_mut(), false);
-                }
-            }
-            b'&' => {
-                ret = if eval_option(arg.cast::<*const u8>(), Some(&mut *rettv), evaluate) {
-                    OK
-                } else {
-                    FAIL
-                };
-            }
-            b'$' => {
-                let next_c = *crate::globals::gptr(crate::globals::gptr(arg).wrapping_add(1));
-                let ok = if next_c == b'"' || next_c == b'\'' {
-                    eval_interp_string(arg, &mut *rettv, evaluate)
-                } else {
-                    eval_env_var(arg, &mut *rettv, i32::from(evaluate))
-                };
-                ret = if ok { OK } else { FAIL };
-            }
-            b'@' => {
-                *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-                if evaluate {
-                    let reg_str = get_reg_contents_str(
-                        i32::from(*crate::globals::gptr(*crate::globals::gptr(arg))),
-                        K_GREG_EXPR_SRC,
-                    );
-                    crate::eval::typval::tv_set_string(
-                        rettv,
-                        reg_str.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                    );
-                }
-                if *crate::globals::gptr(*crate::globals::gptr(arg)) != 0 {
-                    *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-                }
-                ret = OK;
-            }
-            b'(' => {
-                *crate::globals::gptr(arg) =
-                    skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-
-                let mut ok = eval1(arg, &mut *rettv, evalarg.as_deref_mut());
-                if *crate::globals::gptr(*crate::globals::gptr(arg)) == b')' {
-                    *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-                } else if ok {
-                    emsg(gettext(c"E110: Missing ')'"));
-                    tv_clear(rettv);
-                    ok = false;
-                }
-                ret = if ok { OK } else { FAIL };
-            }
-            _ => {
-                ret = NOTDONE;
-            }
-        }
-
-        let mut ok = if ret == NOTDONE {
-            let mut s = *crate::globals::gptr(arg);
-            let mut alias: Option<std::ffi::CString> = None;
-            let len = get_name_len(arg.cast::<*const u8>(), &mut alias, evaluate, true);
-            if let Some(ref a) = alias {
-                s = a.as_ptr().cast_mut().cast();
-            }
-
-            let res = if len <= 0 {
-                false
-            } else {
-                let flags = if evalarg.is_none() {
-                    0
-                } else {
-                    evalarg.as_deref_mut().unwrap().eval_flags
-                };
-                if crate::memory::cstr_first_byte(skipwhite(crate::globals::gptr(arg).cast()))
-                    == b'('
-                {
-                    *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).cast()).cast();
-                    eval_func(
-                        arg,
-                        evalarg.as_deref_mut(),
-                        s.cast(),
-                        len,
-                        &mut *rettv,
-                        flags,
-                        None,
-                    )
-                } else if evaluate {
-                    eval_variable(
-                        s.cast(),
-                        len,
-                        Some(&mut *rettv),
-                        ptr::null_mut(),
-                        true,
-                        false,
-                    )
-                } else {
-                    check_vars(crate::memory::cstr_slice(s.cast(), len as usize));
-                    if rettv.v_type == VarType::VarUnknown
-                        && !evaluate
-                        && crate::memory::cstr_as_bytes(s.cast()).starts_with(b"v:lua.")
-                    {
-                        rettv.v_type = VarType::VarPartial;
-                        let lua_pt = get_vim_var_partial(VV_LUA);
-                        tv_set_partial(rettv, lua_pt);
-                        crate::globals::gptr(lua_pt).pt_refcount += 1;
-                    }
-                    true
-                }
-            };
-            drop(alias);
-            res
-        } else {
-            ret == OK
-        };
-
-        *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).cast()).cast();
-
-        if ok {
-            ok = handle_subscript(arg.cast::<*const u8>(), &mut *rettv, evalarg, true);
-        }
-
-        if ok && evaluate && leader_len > 0 {
-            ok = eval7_leader(&mut *rettv, false, leader_slice, &mut leader_len);
-        }
-
-        eval_st().eval7_recurse -= 1;
-        ok
+    let start_leader: *const u8 = arg.as_ptr().cast();
+    while matches!(arg.to_bytes_with_nul()[0], b'!' | b'-' | b'+') {
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
     }
+    let mut leader_len = (arg.as_ptr() as usize).wrapping_sub(start_leader as usize);
+    let leader_slice = crate::memory::cstr_slice(start_leader.cast(), leader_len);
+
+    if eval_st().eval7_recurse == MAX_EVAL7_RECURSE {
+        semsg!(gettext(E_EXPRESSION_TOO_RECURSIVE_STR), arg.as_ptr());
+        return false;
+    }
+    eval_st().eval7_recurse += 1;
+
+    let ret: i32 = match arg.to_bytes_with_nul()[0] {
+        b'0'..=b'9' => {
+            let mut ok = eval_number(arg, &mut *rettv, evaluate, want_string);
+
+            if ok && evaluate && leader_len > 0 {
+                ok = eval7_leader(&mut *rettv, true, leader_slice, &mut leader_len);
+            }
+            if ok { OK } else { FAIL }
+        }
+        b'"' => {
+            if eval_string(arg, &mut *rettv, evaluate, false) {
+                OK
+            } else {
+                FAIL
+            }
+        }
+        b'\'' => {
+            if eval_lit_string(arg, &mut *rettv, evaluate, false) {
+                OK
+            } else {
+                FAIL
+            }
+        }
+        b'[' => {
+            if eval_list(arg, &mut *rettv, evalarg.as_deref_mut()) {
+                OK
+            } else {
+                FAIL
+            }
+        }
+        b'#' => eval_lit_dict(arg, &mut *rettv, evalarg.as_deref_mut()),
+        b'{' => {
+            let r = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
+            if r == NOTDONE {
+                eval_dict(arg, &mut *rettv, evalarg.as_deref_mut(), false)
+            } else {
+                r
+            }
+        }
+        b'&' => {
+            if eval_option(arg, Some(&mut *rettv), evaluate) {
+                OK
+            } else {
+                FAIL
+            }
+        }
+        b'$' => {
+            let next_c = arg.to_bytes().get(1).copied().unwrap_or(0);
+            let ok = if next_c == b'"' || next_c == b'\'' {
+                eval_interp_string(arg, &mut *rettv, evaluate)
+            } else {
+                eval_env_var(arg, &mut *rettv, i32::from(evaluate))
+            };
+            if ok { OK } else { FAIL }
+        }
+        b'@' => {
+            *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+            if evaluate {
+                let reg_str =
+                    get_reg_contents_str(i32::from(arg.to_bytes_with_nul()[0]), K_GREG_EXPR_SRC);
+                crate::eval::typval::tv_set_string(rettv, reg_str.as_deref());
+            }
+            if !arg.to_bytes().is_empty() {
+                *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+            }
+            OK
+        }
+        b'(' => {
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+
+            let mut ok = eval1(arg, &mut *rettv, evalarg.as_deref_mut());
+            if arg.to_bytes_with_nul()[0] == b')' {
+                *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+            } else if ok {
+                emsg(gettext(c"E110: Missing ')'"));
+                tv_clear(rettv);
+                ok = false;
+            }
+            if ok { OK } else { FAIL }
+        }
+        _ => NOTDONE,
+    };
+
+    let mut ok = if ret == NOTDONE {
+        let mut s = *arg;
+        let mut alias: Option<std::ffi::CString> = None;
+        let len = get_name_len(arg, &mut alias, evaluate, true);
+        if let Some(ref a) = alias {
+            s = a.as_c_str();
+        }
+
+        let res = if len <= 0 {
+            false
+        } else {
+            let flags = if evalarg.is_none() {
+                0
+            } else {
+                evalarg.as_deref_mut().unwrap().eval_flags
+            };
+            let next_nonwhite = skipwhite(arg.as_ptr().cast_mut());
+            if crate::memory::cstr_first_byte(next_nonwhite) == b'(' {
+                *arg = unsafe { CStr::from_ptr(next_nonwhite) };
+                eval_func(
+                    arg,
+                    evalarg.as_deref_mut(),
+                    s,
+                    len,
+                    &mut *rettv,
+                    flags,
+                    None,
+                )
+            } else if evaluate {
+                eval_variable(s, len, Some(&mut *rettv), None, true, false)
+            } else {
+                check_vars(crate::memory::cstr_slice(s.as_ptr(), len as usize));
+                if rettv.v_type == VarType::VarUnknown
+                    && !evaluate
+                    && s.to_bytes().starts_with(b"v:lua.")
+                {
+                    rettv.v_type = VarType::VarPartial;
+                    let lua_pt = get_vim_var_partial(VV_LUA).unwrap();
+                    lua_pt.pt_refcount += 1;
+                    tv_set_partial(rettv, Some(lua_pt));
+                }
+                true
+            }
+        };
+        drop(alias);
+        res
+    } else {
+        ret == OK
+    };
+
+    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
+
+    if ok {
+        ok = handle_subscript(arg, &mut *rettv, evalarg, true);
+    }
+
+    if ok && evaluate && leader_len > 0 {
+        ok = eval7_leader(&mut *rettv, false, leader_slice, &mut leader_len);
+    }
+
+    eval_st().eval7_recurse -= 1;
+    ok
 }
 
 /// Apply the leading "!" and "-" before an eval7 expression to "rettv".
@@ -3150,405 +3013,373 @@ fn eval7_leader(
 }
 
 /// Call the function referred to in "rettv".
-fn call_func_rettv<T>(
-    arg: *mut *mut T,
+fn call_func_rettv(
+    arg: &mut &CStr,
     evalarg: Option<&mut Evalarg>,
     rettv: &mut TypVal,
     evaluate: bool,
-    selfdict: *mut TvDict,
+    selfdict: Option<&mut TvDict>,
     basetv: Option<&mut TypVal>,
-    lua_funcname: impl crate::strings::IntoCCharPtr,
+    lua_funcname: Option<&CStr>,
 ) -> bool {
-    let lua_funcname = lua_funcname.into_c_char_ptr();
-    {
-        let mut pt: *mut TvPartial = ptr::null_mut();
-        let mut functv = tv_initial_value();
-        let funcname;
-        let mut is_lua = false;
+    let mut pt: *mut TvPartial = ptr::null_mut();
+    let mut functv = tv_initial_value();
+    let funcname: &CStr;
+    let mut is_lua = false;
 
-        if evaluate {
-            functv = *rettv;
-            rettv.v_type = VarType::VarUnknown;
+    if evaluate {
+        functv = *rettv;
+        rettv.v_type = VarType::VarUnknown;
 
-            if functv.v_type == VarType::VarPartial {
-                pt = tv_partial(&functv);
-                is_lua = is_luafunc(pt);
-                funcname = if is_lua {
-                    lua_funcname
-                } else {
-                    partial_name(crate::globals::gopt(pt)).as_ptr()
-                };
+        if functv.v_type == VarType::VarPartial {
+            pt = tv_partial(&functv).map_or(ptr::null_mut(), ptr::from_mut);
+            is_lua = is_luafunc(unsafe { pt.as_ref() });
+            funcname = if is_lua {
+                lua_funcname.unwrap_or(c"")
             } else {
-                funcname = functv.vval.v_string();
-                if crate::memory::cstr_is_empty(funcname) {
-                    emsg(gettext(E_EMPTY_FUNCTION_NAME));
-                    tv_clear(&mut functv);
-                    return false;
-                }
-            }
+                partial_name(unsafe { pt.as_ref() })
+            };
         } else {
-            funcname = c"".as_ptr();
+            let s = functv.vval.v_string();
+            if crate::memory::cstr_is_empty(s) {
+                emsg(gettext(E_EMPTY_FUNCTION_NAME));
+                tv_clear(&mut functv);
+                return false;
+            }
+            funcname = unsafe { CStr::from_ptr(s) };
         }
-
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = Funcexe {
-            fe_fill_submatch: false,
-            fe_firstline: lnum,
-            fe_lastline: lnum,
-            fe_doesrange: false,
-            fe_evaluate: evaluate,
-            fe_partial: pt.cast(),
-            fe_selfdict: selfdict,
-            fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
-            fe_found_var: false,
-        };
-        let ret = get_func_tv(
-            funcname,
-            if is_lua {
-                (((*crate::globals::gptr(arg)) as usize).wrapping_sub(funcname as usize)) as i32
-            } else {
-                -1
-            },
-            rettv,
-            arg,
-            evalarg,
-            &mut funcexe,
-        );
-
-        if evaluate {
-            tv_clear(&mut functv);
-        }
-
-        ret
+    } else {
+        funcname = c"";
     }
+
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mut funcexe = Funcexe {
+        fe_fill_submatch: false,
+        fe_firstline: lnum,
+        fe_lastline: lnum,
+        fe_doesrange: false,
+        fe_evaluate: evaluate,
+        fe_partial: pt.cast(),
+        fe_selfdict: selfdict.map_or(ptr::null_mut(), ptr::from_mut),
+        fe_basetv: basetv.map_or(ptr::null_mut(), |p| &raw mut *p),
+        fe_found_var: false,
+    };
+    let ret = get_func_tv(
+        funcname,
+        if is_lua {
+            ((arg.as_ptr() as usize).wrapping_sub(funcname.as_ptr() as usize)) as i32
+        } else {
+            -1
+        },
+        rettv,
+        arg,
+        evalarg,
+        &mut funcexe,
+    );
+
+    if evaluate {
+        tv_clear(&mut functv);
+    }
+
+    ret
 }
 
 /// Evaluate "->method()".
-fn eval_lambda<T>(
-    arg: *mut *mut T,
+fn eval_lambda(
+    arg: &mut &CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     verbose: bool,
 ) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(2);
-        let mut base = *rettv;
-        rettv.v_type = VarType::VarUnknown;
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(2)) };
+    let mut base = *rettv;
+    rettv.v_type = VarType::VarUnknown;
 
-        let ret = if get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut()) != OK {
-            return false;
-        } else if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'(' {
-            if verbose {
-                if crate::memory::cstr_first_byte(skipwhite(crate::globals::gptr(arg).cast()))
-                    == b'('
-                {
-                    emsg(gettext(E_NOWHITESPACE));
-                } else {
-                    semsg!(gettext(E_MISSINGPAREN), c"lambda",);
-                }
+    let lambda_rc = get_lambda_tv(arg, &mut *rettv, evalarg.as_deref_mut());
+    let ret = if lambda_rc != OK {
+        return false;
+    } else if arg.to_bytes_with_nul()[0] != b'(' {
+        if verbose {
+            if crate::memory::cstr_first_byte(skipwhite(arg.as_ptr().cast_mut())) == b'(' {
+                emsg(gettext(E_NOWHITESPACE));
+            } else {
+                semsg!(gettext(E_MISSINGPAREN), c"lambda",);
             }
-            tv_clear(rettv);
-            false
-        } else {
-            call_func_rettv(
-                arg,
-                evalarg,
-                &mut *rettv,
-                evaluate,
-                ptr::null_mut(),
-                Some(&mut base),
-                ptr::null(),
-            )
-        };
-
-        if evaluate {
-            tv_clear(&mut base);
         }
+        tv_clear(rettv);
+        false
+    } else {
+        call_func_rettv(
+            arg,
+            evalarg,
+            &mut *rettv,
+            evaluate,
+            None,
+            Some(&mut base),
+            None,
+        )
+    };
 
-        ret
+    if evaluate {
+        tv_clear(&mut base);
     }
+
+    ret
 }
 
 /// Evaluate "->method()" or "->v:lua.method()".
-fn eval_method<T>(
-    arg: *mut *mut T,
+fn eval_method<'a>(
+    arg: &mut &'a CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     verbose: bool,
 ) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
 
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(2);
-        let mut base = *rettv;
-        rettv.v_type = VarType::VarUnknown;
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(2)) };
+    let mut base = *rettv;
+    rettv.v_type = VarType::VarUnknown;
 
-        let mut len: i32;
-        let mut name = *crate::globals::gptr(arg);
-        let mut lua_funcname: *mut u8 = ptr::null_mut();
-        let mut alias: Option<std::ffi::CString> = None;
+    let mut len: i32;
+    let mut name = *arg;
+    let mut lua_funcname: Option<&'a CStr> = None;
+    let mut alias: Option<std::ffi::CString> = None;
 
-        if crate::memory::cstr_as_bytes(name.cast()).starts_with(b"v:lua.") {
-            lua_funcname = name.wrapping_add(6);
-            *crate::globals::gptr(arg) = skip_luafunc_name(lua_funcname.cast()).cast_mut();
-            *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).cast()).cast();
-            len = (((*crate::globals::gptr(arg)) as usize).wrapping_sub(lua_funcname as usize))
-                as i32;
-        } else {
-            len = get_name_len(arg.cast::<*const u8>(), &mut alias, evaluate, true);
-            if let Some(ref a) = alias {
-                name = a.as_ptr().cast_mut().cast();
-            }
+    if name.to_bytes().starts_with(b"v:lua.") {
+        let lf = unsafe { CStr::from_ptr(name.as_ptr().wrapping_add(6)) };
+        lua_funcname = Some(lf);
+        let after_lf = skip_luafunc_name(lf);
+        *arg = unsafe { CStr::from_ptr(skipwhite(after_lf.as_ptr().cast_mut())) };
+        len = ((arg.as_ptr() as usize).wrapping_sub(lf.as_ptr() as usize)) as i32;
+    } else {
+        len = get_name_len(arg, &mut alias, evaluate, true);
+        if let Some(ref a) = alias {
+            name = a.as_c_str();
         }
-
-        let mut tofree: Option<std::ffi::CString> = None;
-        let mut ret = true;
-
-        if len <= 0 {
-            if verbose {
-                if lua_funcname.is_null() {
-                    emsg(gettext(c"E260: Missing name after ->"));
-                } else {
-                    semsg!(gettext(E_INVEXPR2), name);
-                }
-            }
-            ret = false;
-        } else {
-            *crate::globals::gptr(arg) = skipwhite(crate::globals::gptr(arg).cast()).cast();
-
-            let paren: *mut u8;
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'('
-                && lua_funcname.is_null()
-                && alias.is_none()
-                && {
-                    paren = vim_strchr(crate::globals::gptr(arg).cast(), b'(' as i32).cast();
-                    !paren.is_null()
-                }
-            {
-                let expr_len = (paren as usize).wrapping_sub(name as usize);
-                let expr_cstr = cstr_from_bytes(crate::memory::cstr_slice(name.cast(), expr_len));
-                let expr_base = expr_cstr.as_ptr().cast_mut().cast::<u8>();
-                let mut expr_cursor = expr_base;
-                let mut ref_tv = tv_initial_value();
-                if !eval7(
-                    &raw mut expr_cursor,
-                    &mut ref_tv,
-                    evalarg.as_deref_mut(),
-                    false,
-                ) {
-                    *crate::globals::gptr(arg) = name.wrapping_add(len as usize);
-                    ret = false;
-                } else {
-                    let consumed = (expr_cursor as usize).wrapping_sub(expr_base as usize);
-                    *crate::globals::gptr(arg) = name.wrapping_add(consumed);
-                    if !crate::memory::cstr_is_empty(skipwhite(expr_cursor.cast())) {
-                        if verbose {
-                            semsg!(gettext(E_TRAILING_ARG), *crate::globals::gptr(arg));
-                        }
-                        ret = false;
-                    } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null()
-                    {
-                        let tf = crate::eval::typval::tv_take_string(ref_tv.vval.v_string())
-                            .unwrap_or_default();
-                        ref_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-                        len = tf.as_bytes().len() as i32;
-                        name = tf.as_ptr().cast_mut().cast();
-                        tofree = Some(tf);
-                    } else if ref_tv.v_type == VarType::VarPartial && !tv_partial(&ref_tv).is_null()
-                    {
-                        let ref_pt = tv_partial(&ref_tv);
-                        if !crate::globals::gptr(ref_pt).pt_argv.is_empty()
-                            || !crate::globals::gptr(ref_pt).pt_dict.is_null()
-                        {
-                            if verbose {
-                                emsg(gettext(E_CANNOT_USE_PARTIAL_HERE));
-                            }
-                            ret = false;
-                        } else {
-                            let tf = partial_name(crate::globals::gopt(ref_pt)).to_owned();
-                            len = tf.as_bytes().len() as i32;
-                            name = tf.as_ptr().cast_mut().cast();
-                            tofree = Some(tf);
-                        }
-                    } else {
-                        if verbose {
-                            semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), expr_cstr.as_ptr());
-                        }
-                        ret = false;
-                    }
-                }
-                tv_clear(&mut ref_tv);
-            }
-
-            if ret {
-                if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'(' {
-                    if verbose {
-                        semsg!(gettext(E_MISSINGPAREN), name);
-                    }
-                    ret = false;
-                } else if ascii_iswhite(i32::from(*crate::globals::gptr(
-                    crate::globals::gptr(arg).wrapping_sub(1),
-                ))) {
-                    if verbose {
-                        emsg(gettext(E_NOWHITESPACE));
-                    }
-                    ret = false;
-                } else if !lua_funcname.is_null() {
-                    if evaluate {
-                        rettv.v_type = VarType::VarPartial;
-                        let lua_pt = get_vim_var_partial(VV_LUA);
-                        tv_set_partial(rettv, lua_pt);
-                        crate::globals::gptr(lua_pt).pt_refcount += 1;
-                    }
-                    ret = call_func_rettv(
-                        arg,
-                        evalarg.as_deref_mut(),
-                        &mut *rettv,
-                        evaluate,
-                        ptr::null_mut(),
-                        Some(&mut base),
-                        lua_funcname.cast(),
-                    );
-                } else {
-                    ret = eval_func(
-                        arg,
-                        evalarg,
-                        name.cast(),
-                        len,
-                        &mut *rettv,
-                        if evaluate { EVAL_EVALUATE } else { 0 },
-                        Some(&mut base),
-                    );
-                }
-            }
-        }
-
-        if evaluate {
-            tv_clear(&mut base);
-        }
-        drop(tofree);
-        drop(alias);
-
-        ret
     }
+
+    let mut tofree: Option<std::ffi::CString> = None;
+    let mut ret = true;
+
+    if len <= 0 {
+        if verbose {
+            if lua_funcname.is_none() {
+                emsg(gettext(c"E260: Missing name after ->"));
+            } else {
+                semsg!(gettext(E_INVEXPR2), name.as_ptr());
+            }
+        }
+        ret = false;
+    } else {
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
+
+        let paren = vim_strchr(arg.as_ptr().cast_mut(), b'(' as i32);
+        if arg.to_bytes_with_nul()[0] != b'('
+            && lua_funcname.is_none()
+            && alias.is_none()
+            && !paren.is_null()
+        {
+            let expr_len = (paren as usize).wrapping_sub(name.as_ptr() as usize);
+            let expr_cstr = cstr_from_bytes(crate::memory::cstr_slice(name.as_ptr(), expr_len));
+            let expr_base = expr_cstr.as_ptr();
+            let mut expr_cursor: &CStr = &expr_cstr;
+            let mut ref_tv = tv_initial_value();
+            if !eval7(&mut expr_cursor, &mut ref_tv, evalarg.as_deref_mut(), false) {
+                *arg = unsafe { CStr::from_ptr(name.as_ptr().wrapping_add(len as usize)) };
+                ret = false;
+            } else {
+                let consumed = (expr_cursor.as_ptr() as usize).wrapping_sub(expr_base as usize);
+                *arg = unsafe { CStr::from_ptr(name.as_ptr().wrapping_add(consumed)) };
+                if !crate::memory::cstr_is_empty(skipwhite(expr_cursor.as_ptr().cast_mut())) {
+                    if verbose {
+                        semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
+                    }
+                    ret = false;
+                } else if ref_tv.v_type == VarType::VarFunc && !ref_tv.vval.v_string().is_null() {
+                    let tf = crate::eval::typval::tv_take_string(&mut ref_tv).unwrap_or_default();
+                    len = tf.as_bytes().len() as i32;
+                    tofree = Some(tf);
+                    name = tofree.as_deref().unwrap();
+                } else if ref_tv.v_type == VarType::VarPartial
+                    && let Some(ref_pt) = tv_partial(&ref_tv)
+                {
+                    if !ref_pt.pt_argv.is_empty() || !ref_pt.pt_dict.is_null() {
+                        if verbose {
+                            emsg(gettext(E_CANNOT_USE_PARTIAL_HERE));
+                        }
+                        ret = false;
+                    } else {
+                        let tf = partial_name(Some(ref_pt)).to_owned();
+                        len = tf.as_bytes().len() as i32;
+                        tofree = Some(tf);
+                        name = tofree.as_deref().unwrap();
+                    }
+                } else {
+                    if verbose {
+                        semsg!(gettext(E_NOT_CALLABLE_TYPE_STR), expr_cstr.as_ptr());
+                    }
+                    ret = false;
+                }
+            }
+            tv_clear(&mut ref_tv);
+        }
+
+        if ret {
+            if arg.to_bytes_with_nul()[0] != b'(' {
+                if verbose {
+                    semsg!(gettext(E_MISSINGPAREN), name.as_ptr());
+                }
+                ret = false;
+            } else if ascii_iswhite(i32::from(unsafe { *arg.as_ptr().wrapping_sub(1) } as u8)) {
+                if verbose {
+                    emsg(gettext(E_NOWHITESPACE));
+                }
+                ret = false;
+            } else if lua_funcname.is_some() {
+                if evaluate {
+                    rettv.v_type = VarType::VarPartial;
+                    let lua_pt = get_vim_var_partial(VV_LUA).unwrap();
+                    lua_pt.pt_refcount += 1;
+                    tv_set_partial(rettv, Some(lua_pt));
+                }
+                ret = call_func_rettv(
+                    arg,
+                    evalarg.as_deref_mut(),
+                    &mut *rettv,
+                    evaluate,
+                    None,
+                    Some(&mut base),
+                    lua_funcname,
+                );
+            } else {
+                ret = eval_func(
+                    arg,
+                    evalarg,
+                    name,
+                    len,
+                    &mut *rettv,
+                    if evaluate { EVAL_EVALUATE } else { 0 },
+                    Some(&mut base),
+                );
+            }
+        }
+    }
+
+    if evaluate {
+        tv_clear(&mut base);
+    }
+    drop(tofree);
+    drop(alias);
+
+    ret
 }
 
 /// Evaluate an "[expr]" or "[expr:expr]" index. Also "dict.key".
-fn eval_index<T>(
-    arg: *mut *mut T,
+fn eval_index<'a>(
+    arg: &mut &'a CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     verbose: bool,
 ) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        let mut empty1 = false;
-        let mut empty2 = false;
-        let mut range = false;
-        let mut key: *const u8 = ptr::null();
-        let mut keylen: isize = -1;
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    let mut empty1 = false;
+    let mut empty2 = false;
+    let mut range = false;
+    let mut key: Option<&'a CStr> = None;
+    let mut keylen: isize = -1;
 
-        if !check_can_index(rettv, evaluate, verbose) {
+    if !check_can_index(rettv, evaluate, verbose) {
+        return false;
+    }
+
+    let mut var1 = tv_initial_value();
+    let mut var2 = tv_initial_value();
+    if arg.to_bytes_with_nul()[0] == b'.' {
+        let key_cstr = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+        key = Some(key_cstr);
+        keylen = key_cstr
+            .to_bytes()
+            .iter()
+            .take_while(|&&b| eval_isdictc(i32::from(b)))
+            .count() as isize;
+        if keylen == 0 {
+            return false;
+        }
+        *arg = unsafe {
+            CStr::from_ptr(skipwhite(
+                key_cstr.as_ptr().wrapping_add(keylen as usize).cast_mut(),
+            ))
+        };
+    } else {
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+        if arg.to_bytes_with_nul()[0] == b':' {
+            empty1 = true;
+        } else if !eval1(arg, &mut var1, evalarg.as_deref_mut()) {
+            return false;
+        } else if evaluate && !tv_check_str(&var1) {
+            tv_clear(&mut var1);
             return false;
         }
 
-        let mut var1 = tv_initial_value();
-        let mut var2 = tv_initial_value();
-        if *crate::globals::gptr(*crate::globals::gptr(arg)) == b'.' {
-            key = crate::globals::gptr(arg).wrapping_add(1);
-            keylen = crate::memory::cstr_as_bytes(key.cast())
-                .iter()
-                .take_while(|&&b| eval_isdictc(i32::from(b)))
-                .count() as isize;
-            if keylen == 0 {
-                return false;
-            }
-            *crate::globals::gptr(arg) = skipwhite(key.wrapping_add(keylen as usize).cast()).cast();
-        } else {
-            *crate::globals::gptr(arg) =
-                skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) == b':' {
-                empty1 = true;
-            } else if !eval1(arg, &mut var1, evalarg.as_deref_mut()) {
-                return false;
-            } else if evaluate && !tv_check_str(&var1) {
-                tv_clear(&mut var1);
-                return false;
-            }
-
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) == b':' {
-                range = true;
-                *crate::globals::gptr(arg) =
-                    skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-                if *crate::globals::gptr(*crate::globals::gptr(arg)) == b']' {
-                    empty2 = true;
-                } else if !eval1(arg, &mut var2, evalarg) {
-                    if !empty1 {
-                        tv_clear(&mut var1);
-                    }
-                    return false;
-                } else if evaluate && !tv_check_str(&var2) {
-                    if !empty1 {
-                        tv_clear(&mut var1);
-                    }
-                    tv_clear(&mut var2);
-                    return false;
-                }
-            }
-
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) != b']' {
-                if verbose {
-                    emsg(gettext(E_MISSBRAC));
-                }
-                tv_clear(&mut var1);
-                if range {
-                    tv_clear(&mut var2);
+        if arg.to_bytes_with_nul()[0] == b':' {
+            range = true;
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+            if arg.to_bytes_with_nul()[0] == b']' {
+                empty2 = true;
+            } else if !eval1(arg, &mut var2, evalarg) {
+                if !empty1 {
+                    tv_clear(&mut var1);
                 }
                 return false;
+            } else if evaluate && !tv_check_str(&var2) {
+                if !empty1 {
+                    tv_clear(&mut var1);
+                }
+                tv_clear(&mut var2);
+                return false;
             }
-            *crate::globals::gptr(arg) =
-                skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
         }
 
-        if evaluate {
-            let res = eval_index_inner(
-                rettv,
-                range,
-                crate::globals::gopt(if empty1 {
-                    ptr::null_mut()
-                } else {
-                    &raw mut var1
-                }),
-                crate::globals::gopt(if empty2 {
-                    ptr::null_mut()
-                } else {
-                    &raw mut var2
-                }),
-                false,
-                key.cast(),
-                keylen,
-                verbose,
-            );
-            if !empty1 {
-                tv_clear(&mut var1);
+        if arg.to_bytes_with_nul()[0] != b']' {
+            if verbose {
+                emsg(gettext(E_MISSBRAC));
             }
+            tv_clear(&mut var1);
             if range {
                 tv_clear(&mut var2);
             }
-            return res;
+            return false;
         }
-        true
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
     }
+
+    if evaluate {
+        let res = eval_index_inner(
+            rettv,
+            range,
+            (!empty1).then_some(&var1),
+            (!empty2).then_some(&var2),
+            false,
+            key,
+            keylen,
+            verbose,
+        );
+        if !empty1 {
+            tv_clear(&mut var1);
+        }
+        if range {
+            tv_clear(&mut var2);
+        }
+        return res;
+    }
+    true
 }
 
 /// Check if "rettv" can have an [index] or [sli:ce]
@@ -3607,7 +3438,7 @@ pub fn f_slice(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             Some(&*arg2)
         },
         true,
-        ptr::null(),
+        None,
         0,
         false,
     );
@@ -3620,155 +3451,156 @@ fn eval_index_inner(
     var1: Option<&TypVal>,
     var2: Option<&TypVal>,
     exclusive: bool,
-    key: impl crate::strings::IntoCCharPtr,
+    key_opt: Option<&CStr>,
     keylen: isize,
     verbose: bool,
 ) -> bool {
-    let mut key = key.into_c_char_ptr();
+    let mut key = key_opt.map_or(ptr::null(), CStr::as_ptr);
+    let mut n1: Varnumber = 0;
+    let mut n2: Varnumber = 0;
+    if let Some(var1) = var1
+        && rettv.v_type != VarType::VarDict
     {
-        let mut n1: Varnumber = 0;
-        let mut n2: Varnumber = 0;
-        if let Some(var1) = var1
-            && rettv.v_type != VarType::VarDict
-        {
-            n1 = tv_get_number(var1);
-        }
+        n1 = tv_get_number(var1);
+    }
 
-        if is_range {
-            if rettv.v_type == VarType::VarDict {
-                if verbose {
-                    emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
+    if is_range {
+        if rettv.v_type == VarType::VarDict {
+            if verbose {
+                emsg(gettext(E_CANNOT_SLICE_DICTIONARY));
+            }
+            return false;
+        }
+        if let Some(var2) = var2 {
+            n2 = tv_get_number(var2);
+        } else {
+            n2 = VARNUMBER_MAX;
+        }
+    }
+
+    match rettv.v_type {
+        VarType::VarBool
+        | VarType::VarSpecial
+        | VarType::VarFunc
+        | VarType::VarFloat
+        | VarType::VarPartial
+        | VarType::VarUnknown => {}
+        VarType::VarNumber | VarType::VarString => {
+            let s = tv_get_string(&*rettv);
+            let s_bytes = s.to_bytes();
+            let len = s_bytes.len() as Varnumber;
+            let v: Option<std::ffi::CString> = if exclusive {
+                if is_range {
+                    string_slice(s_bytes, n1, n2, exclusive)
+                } else {
+                    char_from_string(s_bytes, n1)
                 }
-                return false;
-            }
-            if let Some(var2) = var2 {
-                n2 = tv_get_number(var2);
-            } else {
-                n2 = VARNUMBER_MAX;
-            }
-        }
-
-        match rettv.v_type {
-            VarType::VarBool
-            | VarType::VarSpecial
-            | VarType::VarFunc
-            | VarType::VarFloat
-            | VarType::VarPartial
-            | VarType::VarUnknown => {}
-            VarType::VarNumber | VarType::VarString => {
-                let s = tv_get_string(&*rettv);
-                let s_bytes = s.to_bytes();
-                let len = s_bytes.len() as Varnumber;
-                let v: Option<std::ffi::CString> = if exclusive {
-                    if is_range {
-                        string_slice(s_bytes, n1, n2, exclusive)
-                    } else {
-                        char_from_string(s_bytes, n1)
-                    }
-                } else if is_range {
+            } else if is_range {
+                if n1 < 0 {
+                    n1 += len;
                     if n1 < 0 {
-                        n1 += len;
-                        if n1 < 0 {
-                            n1 = 0;
-                        }
+                        n1 = 0;
                     }
-                    if n2 < 0 {
-                        n2 += len;
-                    } else if n2 >= len {
-                        n2 = len - 1;
-                    }
-                    if n1 >= len || n2 < 0 || n1 > n2 {
-                        None
-                    } else {
-                        Some(cstr_from_bytes(&s_bytes[n1 as usize..=n2 as usize]))
-                    }
-                } else if n1 >= len || n1 < 0 {
+                }
+                if n2 < 0 {
+                    n2 += len;
+                } else if n2 >= len {
+                    n2 = len - 1;
+                }
+                if n1 >= len || n2 < 0 || n1 > n2 {
                     None
                 } else {
-                    Some(cstr_from_bytes(&s_bytes[n1 as usize..=n1 as usize]))
-                };
-                tv_clear(rettv);
-                if let Some(ref c) = v {
-                    crate::eval::typval::tv_set_string(rettv, c.as_ptr());
-                } else {
-                    rettv.v_type = VarType::VarString;
-                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                    Some(cstr_from_bytes(&s_bytes[n1 as usize..=n2 as usize]))
                 }
-            }
-            VarType::VarBlob => {
-                tv_blob_slice_or_index(is_range, n1, n2, exclusive, rettv);
-            }
-            VarType::VarList => {
-                if var1.is_none() {
-                    n1 = 0;
-                }
-                if var2.is_none() {
-                    n2 = VARNUMBER_MAX;
-                }
-                if !tv_list_slice_or_index(is_range, n1, n2, exclusive, rettv, verbose) {
-                    return false;
-                }
-            }
-            VarType::VarDict => {
-                if key.is_null() {
-                    let Some(k) = tv_get_string_chk(var1.unwrap()) else {
-                        return false;
-                    };
-                    key = k.as_ptr();
-                }
-
-                let item = tv_dict_find_opt(rettv.vval.v_dict_opt().as_deref(), key, keylen);
-
-                if item.is_none() && verbose {
-                    if keylen > 0 {
-                        semsg!(gettext(E_DICTKEY_LEN), keylen, key);
-                    } else {
-                        semsg!(gettext(E_DICTKEY), key);
-                    }
-                }
-                let Some(item) = item else {
-                    return false;
-                };
-                if tv_is_luafunc(&mut item.di_tv) {
-                    return false;
-                }
-
-                let mut tmp = tv_initial_value();
-                tv_copy(&item.di_tv, &mut tmp);
-                tv_clear(rettv);
-                *rettv = tmp;
+            } else if n1 >= len || n1 < 0 {
+                None
+            } else {
+                Some(cstr_from_bytes(&s_bytes[n1 as usize..=n1 as usize]))
+            };
+            tv_clear(rettv);
+            if let Some(ref c) = v {
+                crate::eval::typval::tv_set_string(rettv, Some(c.as_c_str()));
+            } else {
+                rettv.v_type = VarType::VarString;
+                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
             }
         }
-        true
+        VarType::VarBlob => {
+            tv_blob_slice_or_index(is_range, n1, n2, exclusive, rettv);
+        }
+        VarType::VarList => {
+            if var1.is_none() {
+                n1 = 0;
+            }
+            if var2.is_none() {
+                n2 = VARNUMBER_MAX;
+            }
+            if !tv_list_slice_or_index(is_range, n1, n2, exclusive, rettv, verbose) {
+                return false;
+            }
+        }
+        VarType::VarDict => {
+            if key.is_null() {
+                let Some(k) = tv_get_string_chk(var1.unwrap()) else {
+                    return false;
+                };
+                key = k.as_ptr();
+            }
+
+            let item = tv_dict_find_opt(
+                rettv.vval.v_dict_opt().as_deref(),
+                unsafe { CStr::from_ptr(key) },
+                keylen,
+            );
+
+            if item.is_none() && verbose {
+                if keylen > 0 {
+                    semsg!(gettext(E_DICTKEY_LEN), keylen, key);
+                } else {
+                    semsg!(gettext(E_DICTKEY), key);
+                }
+            }
+            let Some(item) = item else {
+                return false;
+            };
+            if tv_is_luafunc(&mut item.di_tv) {
+                return false;
+            }
+
+            let mut tmp = tv_initial_value();
+            tv_copy(&item.di_tv, &mut tmp);
+            tv_clear(rettv);
+            *rettv = tmp;
+        }
     }
+    true
 }
 
 /// Get an option value
-pub fn eval_option<T>(arg: *mut *const T, rettv: Option<&mut TypVal>, evaluate: bool) -> bool {
-    let arg: *mut *const u8 = arg.cast();
-    let start_arg = *crate::globals::gptr(arg);
-    let working = crate::memory::cstr_first_byte(start_arg.cast()) == b'+';
+pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) -> bool {
+    let start_arg = *arg;
+    let working = start_arg.to_bytes().first() == Some(&b'+');
     let mut opt_idx: OptIndex = 0;
     let mut opt_flags: i32 = 0;
 
-    let option_end = find_option_var_end(arg, &mut opt_idx, &mut opt_flags).cast_mut();
-    let cur_arg = *crate::globals::gptr(arg);
+    let option_end_opt = find_option_var_end(arg, &mut opt_idx, &mut opt_flags);
+    let cur_arg = *arg;
 
-    if option_end.is_null() {
+    let Some(option_end) = option_end_opt else {
         if rettv.is_some() {
-            semsg!(gettext(c"E112: Option name missing: %s"), cur_arg);
+            semsg!(gettext(c"E112: Option name missing: %s"), cur_arg.as_ptr());
         }
         return false;
-    }
+    };
 
     if !evaluate {
-        *crate::globals::gptr(arg) = option_end;
+        *arg = option_end;
 
         return true;
     }
 
-    let opt_len = (option_end as usize).wrapping_sub(cur_arg as usize);
-    let opt_bytes = crate::memory::cstr_slice(cur_arg.cast(), opt_len);
+    let opt_len = (option_end.as_ptr() as usize).wrapping_sub(cur_arg.as_ptr() as usize);
+    let opt_bytes = crate::memory::cstr_slice(cur_arg.as_ptr(), opt_len);
     let is_tty_opt = is_tty_option(opt_bytes);
 
     let mut ret = true;
@@ -3793,355 +3625,253 @@ pub fn eval_option<T>(arg: *mut *const T, rettv: Option<&mut TypVal>, evaluate: 
         ret = false;
     }
 
-    *crate::globals::gptr(arg) = option_end;
+    *arg = option_end;
 
     ret
 }
 
 /// Allocate a variable for a number constant. Also deals with "0z" for blob.
-fn eval_number<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let arg_ptr = *crate::globals::gptr(arg);
-        let arg_bytes = crate::memory::cstr_as_bytes(arg_ptr.cast());
-        let mut get_float = false;
+fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
+    let arg_cstr = *arg;
+    let arg_ptr = arg_cstr.as_ptr();
+    let arg_bytes = arg_cstr.to_bytes();
+    let mut get_float = false;
 
-        if !want_string && !arg_bytes.is_empty() {
-            let mut rem = crate::charset::skipdigits_slice(&arg_bytes[1..]);
-            if rem.first() == Some(&b'.') && rem.get(1).is_some_and(u8::is_ascii_digit) {
-                get_float = true;
-                rem = crate::charset::skipdigits_slice(&rem[2..]);
-                if matches!(rem.first(), Some(&b'e' | &b'E')) {
+    if !want_string && !arg_bytes.is_empty() {
+        let mut rem = crate::charset::skipdigits_slice(&arg_bytes[1..]);
+        if rem.first() == Some(&b'.') && rem.get(1).is_some_and(u8::is_ascii_digit) {
+            get_float = true;
+            rem = crate::charset::skipdigits_slice(&rem[2..]);
+            if matches!(rem.first(), Some(&b'e' | &b'E')) {
+                rem = &rem[1..];
+                if matches!(rem.first(), Some(&b'-' | &b'+')) {
                     rem = &rem[1..];
-                    if matches!(rem.first(), Some(&b'-' | &b'+')) {
-                        rem = &rem[1..];
-                    }
-                    if !rem.first().is_some_and(u8::is_ascii_digit) {
-                        get_float = false;
-                    } else {
-                        rem = crate::charset::skipdigits_slice(&rem[1..]);
-                    }
                 }
-                if rem
-                    .first()
-                    .is_some_and(|&b| b.is_ascii_alphabetic() || b == b'.')
-                {
+                if !rem.first().is_some_and(u8::is_ascii_digit) {
                     get_float = false;
+                } else {
+                    rem = crate::charset::skipdigits_slice(&rem[1..]);
                 }
+            }
+            if rem
+                .first()
+                .is_some_and(|&b| b.is_ascii_alphabetic() || b == b'.')
+            {
+                get_float = false;
             }
         }
-        if get_float {
-            let mut f: TvFloat = 0.0;
-            *crate::globals::gptr(arg) = arg_ptr.wrapping_add(string2float(arg_ptr.cast(), &mut f));
-            if evaluate {
-                rettv.v_type = VarType::VarFloat;
-                rettv.vval = crate::eval::typval::TypvalVval::Float(f);
-            }
-        } else if arg_bytes.starts_with(b"0z") || arg_bytes.starts_with(b"0Z") {
-            let mut bytes: Vec<u8> = Vec::new();
-            let mut rem = &arg_bytes[2..];
-            while rem.first().is_some_and(u8::is_ascii_hexdigit) {
-                if !rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
-                    if evaluate {
-                        emsg(gettext(
-                            c"E973: Blob literal should have an even number of hex characters",
-                        ));
-                    }
-                    return false;
-                }
+    }
+    if get_float {
+        let mut f: TvFloat = 0.0;
+        let consumed = string2float(arg_cstr, &mut f);
+        *arg = unsafe { CStr::from_ptr(arg_ptr.wrapping_add(consumed)) };
+        if evaluate {
+            rettv.v_type = VarType::VarFloat;
+            rettv.vval = crate::eval::typval::TypvalVval::Float(f);
+        }
+    } else if arg_bytes.starts_with(b"0z") || arg_bytes.starts_with(b"0Z") {
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut rem = &arg_bytes[2..];
+        while rem.first().is_some_and(u8::is_ascii_hexdigit) {
+            if !rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
                 if evaluate {
-                    let byte = ((hex2nr(i32::from(rem[0])) << 4) + hex2nr(i32::from(rem[1]))) as u8;
-                    bytes.push(byte);
-                }
-                let step =
-                    if rem.get(2) == Some(&b'.') && rem.get(3).is_some_and(u8::is_ascii_hexdigit) {
-                        3
-                    } else {
-                        2
-                    };
-                rem = &rem[step..];
-            }
-            if evaluate {
-                let blob = tv_blob_alloc();
-                blob.bv_ga = bytes;
-                tv_blob_set_ret(rettv, blob);
-            }
-            *crate::globals::gptr(arg) = arg_ptr.wrapping_add(arg_bytes.len() - rem.len());
-        } else {
-            let mut len: i32 = 0;
-            let mut n: Varnumber = 0;
-            crate::charset::vim_slice2nr(
-                arg_bytes,
-                None,
-                Some(&mut len),
-                STR2NR_ALL,
-                Some(&mut n),
-                None,
-                true,
-                None,
-            );
-            if len == 0 {
-                if evaluate {
-                    semsg!(gettext(E_INVEXPR2), *crate::globals::gptr(arg));
+                    emsg(gettext(
+                        c"E973: Blob literal should have an even number of hex characters",
+                    ));
                 }
                 return false;
             }
-            *crate::globals::gptr(arg) = arg_ptr.wrapping_add(len as usize);
             if evaluate {
-                rettv.v_type = VarType::VarNumber;
-                rettv.vval = crate::eval::typval::TypvalVval::Number(n);
+                let byte = ((hex2nr(i32::from(rem[0])) << 4) + hex2nr(i32::from(rem[1]))) as u8;
+                bytes.push(byte);
             }
+            let step = if rem.get(2) == Some(&b'.') && rem.get(3).is_some_and(u8::is_ascii_hexdigit)
+            {
+                3
+            } else {
+                2
+            };
+            rem = &rem[step..];
         }
-        true
+        if evaluate {
+            let blob = tv_blob_alloc();
+            blob.bv_ga = bytes;
+            tv_blob_set_ret(rettv, Some(blob));
+        }
+        *arg = unsafe { CStr::from_ptr(arg_ptr.wrapping_add(arg_bytes.len() - rem.len())) };
+    } else {
+        let mut len: i32 = 0;
+        let mut n: Varnumber = 0;
+        crate::charset::vim_slice2nr(
+            arg_bytes,
+            None,
+            Some(&mut len),
+            STR2NR_ALL,
+            Some(&mut n),
+            None,
+            true,
+            None,
+        );
+        if len == 0 {
+            if evaluate {
+                semsg!(gettext(E_INVEXPR2), arg_ptr);
+            }
+            return false;
+        }
+        *arg = unsafe { CStr::from_ptr(arg_ptr.wrapping_add(len as usize)) };
+        if evaluate {
+            rettv.v_type = VarType::VarNumber;
+            rettv.vval = crate::eval::typval::TypvalVval::Number(n);
+        }
     }
+    true
 }
 
 /// Evaluate a string constant and put the result in "rettv".
-fn eval_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let arg_end = crate::globals::gptr(arg)
-            .wrapping_add(crate::memory::cstr_len(crate::globals::gptr(arg).cast()));
-        let mut extra: isize = if interpolate { 1 } else { 0 };
-        let off: usize = if interpolate { 0 } else { 1 };
+fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
+    let arg_start: *const u8 = arg.as_ptr().cast();
+    let arg_end = arg_start.wrapping_add(arg.to_bytes().len());
+    let mut extra: isize = if interpolate { 1 } else { 0 };
+    let off: usize = if interpolate { 0 } else { 1 };
 
-        let mut p = crate::globals::gptr(arg).wrapping_add(off);
-        while *crate::globals::gptr(p) != 0 && *crate::globals::gptr(p) != b'"' {
-            if *crate::globals::gptr(p) == b'\\' && *crate::globals::gptr(p.wrapping_add(1)) != 0 {
-                p = p.wrapping_add(1);
-                if *crate::globals::gptr(p) == b'<' {
-                    let mut modifiers: i32 = 0;
+    let mut p = arg_start.wrapping_add(off);
+    while unsafe { *p } != 0 && unsafe { *p } != b'"' {
+        if unsafe { *p } == b'\\' && unsafe { *p.wrapping_add(1) } != 0 {
+            p = p.wrapping_add(1);
+            if unsafe { *p } == b'<' {
+                let mut modifiers: i32 = 0;
+                let mut flags = FSK_KEYCODE | FSK_IN_STRING;
+
+                extra += 5;
+
+                if unsafe { *p.wrapping_add(1) } != b'*' {
+                    flags |= FSK_SIMPLIFY;
+                }
+                let rem_len = (arg_end as usize).wrapping_sub(p as usize);
+                let mut p_slice = unsafe { std::slice::from_raw_parts(p, rem_len) };
+                if find_special_key(&mut p_slice, &mut modifiers, flags, None) != 0 {
+                    p = p.wrapping_add(rem_len - p_slice.len()).wrapping_sub(1);
+                }
+            }
+        } else if interpolate && (unsafe { *p } == b'{' || unsafe { *p } == b'}') {
+            if unsafe { *p } == b'{' && unsafe { *p.wrapping_add(1) } != b'{' {
+                break;
+            }
+            p = p.wrapping_add(1);
+            if unsafe { *p.wrapping_sub(1) } == b'}' && unsafe { *p } != b'}' {
+                semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), arg.as_ptr());
+                return false;
+            }
+            extra -= 1;
+        }
+        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+    }
+
+    if unsafe { *p } != b'"' && !(interpolate && unsafe { *p } == b'{') {
+        semsg!(gettext(c"E114: Missing quote: %s"), arg.as_ptr());
+        return false;
+    }
+
+    if !evaluate {
+        *arg = unsafe { CStr::from_ptr(p.wrapping_add(off).cast()) };
+        return true;
+    }
+
+    let len = ((p as isize) - (arg_start as isize) + extra) as usize;
+    let mut buf_vec = Vec::with_capacity(len);
+    let start_ptr = arg_start.wrapping_add(off);
+    let mut rem =
+        unsafe { std::slice::from_raw_parts(start_ptr, (arg_end as usize) - (start_ptr as usize)) };
+
+    while !rem.is_empty() && rem[0] != b'"' {
+        if rem[0] == b'\\' {
+            rem = &rem[1..];
+            match rem.first().copied().unwrap_or(0) {
+                b'b' => {
+                    buf_vec.push(BS);
+                    rem = &rem[1..];
+                }
+                b'e' => {
+                    buf_vec.push(ESC);
+                    rem = &rem[1..];
+                }
+                b'f' => {
+                    buf_vec.push(FF);
+                    rem = &rem[1..];
+                }
+                b'n' => {
+                    buf_vec.push(b'\n');
+                    rem = &rem[1..];
+                }
+                b'r' => {
+                    buf_vec.push(b'\r');
+                    rem = &rem[1..];
+                }
+                b't' => {
+                    buf_vec.push(TAB);
+                    rem = &rem[1..];
+                }
+                b'X' | b'x' | b'u' | b'U' => {
+                    if rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
+                        let c = rem[0].to_ascii_uppercase();
+                        let mut n = if c == b'X' {
+                            2
+                        } else if rem[0] == b'u' {
+                            4
+                        } else {
+                            8
+                        };
+                        let mut nr: i32 = 0;
+                        while n > 0 && rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
+                            n -= 1;
+                            rem = &rem[1..];
+                            nr = (nr << 4) + hex2nr(i32::from(rem[0]));
+                        }
+                        rem = &rem[1..];
+                        if c != b'X' {
+                            let mut utf_buf = [0u8; crate::cmdexpand::MB_MAXBYTES];
+                            let ulen = utf_char2bytes(nr, utf_buf.as_mut_ptr().cast()) as usize;
+                            buf_vec.extend_from_slice(&utf_buf[..ulen]);
+                        } else {
+                            buf_vec.push(nr as u8);
+                        }
+                    }
+                }
+                b'0'..=b'7' => {
+                    let mut val = rem[0] - b'0';
+                    rem = &rem[1..];
+                    if let Some(&b1 @ b'0'..=b'7') = rem.first() {
+                        val = (val << 3).wrapping_add(b1 - b'0');
+                        rem = &rem[1..];
+                        if let Some(&b2 @ b'0'..=b'7') = rem.first() {
+                            val = (val << 3).wrapping_add(b2 - b'0');
+                            rem = &rem[1..];
+                        }
+                    }
+                    buf_vec.push(val);
+                }
+                b'<' => {
                     let mut flags = FSK_KEYCODE | FSK_IN_STRING;
-
-                    extra += 5;
-
-                    if *crate::globals::gptr(p.wrapping_add(1)) != b'*' {
+                    if rem.get(1) != Some(&b'*') {
                         flags |= FSK_SIMPLIFY;
                     }
-                    let rem_len = (arg_end as usize).wrapping_sub(p as usize);
-                    let mut p_slice = unsafe { std::slice::from_raw_parts(p, rem_len) };
-                    if find_special_key(&mut p_slice, &mut modifiers, flags, None) != 0 {
-                        p = p.wrapping_add(rem_len - p_slice.len()).wrapping_sub(1);
-                    }
-                }
-            } else if interpolate
-                && (*crate::globals::gptr(p) == b'{' || *crate::globals::gptr(p) == b'}')
-            {
-                if *crate::globals::gptr(p) == b'{'
-                    && *crate::globals::gptr(p.wrapping_add(1)) != b'{'
-                {
-                    break;
-                }
-                p = p.wrapping_add(1);
-                if *crate::globals::gptr(p.wrapping_sub(1)) == b'}'
-                    && *crate::globals::gptr(p) != b'}'
-                {
-                    semsg!(
-                        gettext(E_STRAY_CLOSING_CURLY_STR),
-                        *crate::globals::gptr(arg)
-                    );
-                    return false;
-                }
-                extra -= 1;
-            }
-            p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
-        }
-
-        if *crate::globals::gptr(p) != b'"' && !(interpolate && *crate::globals::gptr(p) == b'{') {
-            semsg!(
-                gettext(c"E114: Missing quote: %s"),
-                *crate::globals::gptr(arg)
-            );
-            return false;
-        }
-
-        if !evaluate {
-            *crate::globals::gptr(arg) = p.wrapping_add(off);
-            return true;
-        }
-
-        let len = ((p as isize) - ((*crate::globals::gptr(arg)) as isize) + extra) as usize;
-        let mut buf_vec = Vec::with_capacity(len);
-        let start_ptr = crate::globals::gptr(arg).wrapping_add(off);
-        let mut rem = unsafe {
-            std::slice::from_raw_parts(start_ptr, (arg_end as usize) - (start_ptr as usize))
-        };
-
-        while !rem.is_empty() && rem[0] != b'"' {
-            if rem[0] == b'\\' {
-                rem = &rem[1..];
-                match rem.first().copied().unwrap_or(0) {
-                    b'b' => {
-                        buf_vec.push(BS);
-                        rem = &rem[1..];
-                    }
-                    b'e' => {
-                        buf_vec.push(ESC);
-                        rem = &rem[1..];
-                    }
-                    b'f' => {
-                        buf_vec.push(FF);
-                        rem = &rem[1..];
-                    }
-                    b'n' => {
-                        buf_vec.push(b'\n');
-                        rem = &rem[1..];
-                    }
-                    b'r' => {
-                        buf_vec.push(b'\r');
-                        rem = &rem[1..];
-                    }
-                    b't' => {
-                        buf_vec.push(TAB);
-                        rem = &rem[1..];
-                    }
-                    b'X' | b'x' | b'u' | b'U' => {
-                        if rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
-                            let c = rem[0].to_ascii_uppercase();
-                            let mut n = if c == b'X' {
-                                2
-                            } else if rem[0] == b'u' {
-                                4
-                            } else {
-                                8
-                            };
-                            let mut nr: i32 = 0;
-                            while n > 0 && rem.get(1).is_some_and(u8::is_ascii_hexdigit) {
-                                n -= 1;
-                                rem = &rem[1..];
-                                nr = (nr << 4) + hex2nr(i32::from(rem[0]));
-                            }
-                            rem = &rem[1..];
-                            if c != b'X' {
-                                let mut utf_buf = [0u8; crate::cmdexpand::MB_MAXBYTES];
-                                let ulen = utf_char2bytes(nr, utf_buf.as_mut_ptr().cast()) as usize;
-                                buf_vec.extend_from_slice(&utf_buf[..ulen]);
-                            } else {
-                                buf_vec.push(nr as u8);
-                            }
+                    let mut spec_buf = [0u8; 64];
+                    let spec_len = trans_special(&mut rem, &mut spec_buf, flags, false, None);
+                    if spec_len != 0 {
+                        buf_vec.extend_from_slice(&spec_buf[..spec_len as usize]);
+                        if buf_vec.len() >= len {
+                            iemsg(c"eval_string() used more space than allocated");
                         }
-                    }
-                    b'0'..=b'7' => {
-                        let mut val = rem[0] - b'0';
-                        rem = &rem[1..];
-                        if let Some(&b1 @ b'0'..=b'7') = rem.first() {
-                            val = (val << 3).wrapping_add(b1 - b'0');
-                            rem = &rem[1..];
-                            if let Some(&b2 @ b'0'..=b'7') = rem.first() {
-                                val = (val << 3).wrapping_add(b2 - b'0');
-                                rem = &rem[1..];
-                            }
-                        }
-                        buf_vec.push(val);
-                    }
-                    b'<' => {
-                        let mut flags = FSK_KEYCODE | FSK_IN_STRING;
-                        if rem.get(1) != Some(&b'*') {
-                            flags |= FSK_SIMPLIFY;
-                        }
-                        let mut spec_buf = [0u8; 64];
-                        let spec_len = trans_special(&mut rem, &mut spec_buf, flags, false, None);
-                        if spec_len != 0 {
-                            buf_vec.extend_from_slice(&spec_buf[..spec_len as usize]);
-                            if buf_vec.len() >= len {
-                                iemsg(c"eval_string() used more space than allocated");
-                            }
-                        } else {
-                            mb_copy_char(&mut rem, &mut buf_vec);
-                        }
-                    }
-                    _ => {
+                    } else {
                         mb_copy_char(&mut rem, &mut buf_vec);
                     }
                 }
-            } else {
-                if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
-                    if rem[0] == b'{' && rem.get(1) != Some(&b'{') {
-                        break;
-                    }
-                    rem = &rem[1..];
-                }
-                mb_copy_char(&mut rem, &mut buf_vec);
-            }
-        }
-        buf_vec.push(0);
-        crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());
-        if rem.first() == Some(&b'"') && !interpolate {
-            rem = &rem[1..];
-        }
-        *crate::globals::gptr(arg) = arg_end.wrapping_sub(rem.len());
-
-        true
-    }
-}
-
-/// Allocate a variable for a 'str''ing' constant.
-fn eval_lit_string<T>(
-    arg: *mut *mut T,
-    rettv: &mut TypVal,
-    evaluate: bool,
-    interpolate: bool,
-) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let mut reduce: isize = if interpolate { -1 } else { 0 };
-        let off: usize = if interpolate { 0 } else { 1 };
-
-        let mut p = crate::globals::gptr(arg).wrapping_add(off);
-        while *crate::globals::gptr(p) != 0 {
-            if *crate::globals::gptr(p) == b'\'' {
-                if *crate::globals::gptr(p.wrapping_add(1)) != b'\'' {
-                    break;
-                }
-                reduce += 1;
-                p = p.wrapping_add(1);
-            } else if interpolate {
-                if *crate::globals::gptr(p) == b'{' {
-                    if *crate::globals::gptr(p.wrapping_add(1)) != b'{' {
-                        break;
-                    }
-                    p = p.wrapping_add(1);
-                    reduce += 1;
-                } else if *crate::globals::gptr(p) == b'}' {
-                    p = p.wrapping_add(1);
-                    if *crate::globals::gptr(p) != b'}' {
-                        semsg!(
-                            gettext(E_STRAY_CLOSING_CURLY_STR),
-                            *crate::globals::gptr(arg)
-                        );
-                        return false;
-                    }
-                    reduce += 1;
+                _ => {
+                    mb_copy_char(&mut rem, &mut buf_vec);
                 }
             }
-            p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
-        }
-
-        if *crate::globals::gptr(p) != b'\'' && !(interpolate && *crate::globals::gptr(p) == b'{') {
-            semsg!(
-                gettext(c"E115: Missing quote: %s"),
-                *crate::globals::gptr(arg)
-            );
-            return false;
-        }
-
-        if !evaluate {
-            *crate::globals::gptr(arg) = p.wrapping_add(off);
-            return true;
-        }
-
-        let alloc_len = ((p as isize) - ((*crate::globals::gptr(arg)) as isize) - reduce) as usize;
-        let mut buf_vec = Vec::with_capacity(alloc_len);
-        let start_ptr = crate::globals::gptr(arg).wrapping_add(off);
-        let mut rem = crate::memory::cstr_as_bytes(start_ptr.cast());
-
-        while !rem.is_empty() {
-            if rem[0] == b'\'' {
-                if rem.get(1) != Some(&b'\'') {
-                    break;
-                }
-                rem = &rem[1..];
-            } else if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
+        } else {
+            if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
                 if rem[0] == b'{' && rem.get(1) != Some(&b'{') {
                     break;
                 }
@@ -4149,71 +3879,139 @@ fn eval_lit_string<T>(
             }
             mb_copy_char(&mut rem, &mut buf_vec);
         }
-        buf_vec.push(0);
-        crate::eval::typval::tv_set_string(rettv, buf_vec.as_ptr().cast());
-        *crate::globals::gptr(arg) = p.wrapping_add(off);
-
-        true
     }
+    buf_vec.push(0);
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&buf_vec)));
+    if rem.first() == Some(&b'"') && !interpolate {
+        rem = &rem[1..];
+    }
+    *arg = unsafe { CStr::from_ptr(arg_end.wrapping_sub(rem.len()).cast()) };
+
+    true
+}
+
+/// Allocate a variable for a 'str''ing' constant.
+fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate: bool) -> bool {
+    let arg_start: *const u8 = arg.as_ptr().cast();
+    let mut reduce: isize = if interpolate { -1 } else { 0 };
+    let off: usize = if interpolate { 0 } else { 1 };
+
+    let mut p = arg_start.wrapping_add(off);
+    while unsafe { *p } != 0 {
+        if unsafe { *p } == b'\'' {
+            if unsafe { *p.wrapping_add(1) } != b'\'' {
+                break;
+            }
+            reduce += 1;
+            p = p.wrapping_add(1);
+        } else if interpolate {
+            if unsafe { *p } == b'{' {
+                if unsafe { *p.wrapping_add(1) } != b'{' {
+                    break;
+                }
+                p = p.wrapping_add(1);
+                reduce += 1;
+            } else if unsafe { *p } == b'}' {
+                p = p.wrapping_add(1);
+                if unsafe { *p } != b'}' {
+                    semsg!(gettext(E_STRAY_CLOSING_CURLY_STR), arg.as_ptr());
+                    return false;
+                }
+                reduce += 1;
+            }
+        }
+        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+    }
+
+    if unsafe { *p } != b'\'' && !(interpolate && unsafe { *p } == b'{') {
+        semsg!(gettext(c"E115: Missing quote: %s"), arg.as_ptr());
+        return false;
+    }
+
+    if !evaluate {
+        *arg = unsafe { CStr::from_ptr(p.wrapping_add(off).cast()) };
+        return true;
+    }
+
+    let alloc_len = ((p as isize) - (arg_start as isize) - reduce) as usize;
+    let mut buf_vec = Vec::with_capacity(alloc_len);
+    let start_ptr = arg_start.wrapping_add(off);
+    let mut rem = crate::memory::cstr_as_bytes(start_ptr.cast());
+
+    while !rem.is_empty() {
+        if rem[0] == b'\'' {
+            if rem.get(1) != Some(&b'\'') {
+                break;
+            }
+            rem = &rem[1..];
+        } else if interpolate && (rem[0] == b'{' || rem[0] == b'}') {
+            if rem[0] == b'{' && rem.get(1) != Some(&b'{') {
+                break;
+            }
+            rem = &rem[1..];
+        }
+        mb_copy_char(&mut rem, &mut buf_vec);
+    }
+    buf_vec.push(0);
+    crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&buf_vec)));
+    *arg = unsafe { CStr::from_ptr(p.wrapping_add(off).cast()) };
+
+    true
 }
 
 /// Evaluate a single or double quoted string possibly containing expressions.
-pub fn eval_interp_string<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: bool) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let mut ret: bool;
-        let mut buf: Vec<u8> = if evaluate {
-            Vec::with_capacity(80)
+pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -> bool {
+    let mut ret: bool;
+    let mut buf: Vec<u8> = if evaluate {
+        Vec::with_capacity(80)
+    } else {
+        Vec::new()
+    };
+
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+    let quote = i32::from(arg.to_bytes_with_nul()[0]);
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+
+    loop {
+        let mut tv = tv_initial_value();
+        if quote == b'"' as i32 {
+            ret = eval_string(arg, &mut tv, evaluate, true);
         } else {
-            Vec::new()
-        };
-
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-        let quote = i32::from(*crate::globals::gptr(*crate::globals::gptr(arg)));
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-
-        loop {
-            let mut tv = tv_initial_value();
-            if quote == b'"' as i32 {
-                ret = eval_string(arg, &mut tv, evaluate, true);
-            } else {
-                ret = eval_lit_string(arg, &mut tv, evaluate, true);
-            }
-            if !ret {
-                break;
-            }
-            if evaluate {
-                if !tv.vval.v_string().is_null() {
-                    let len = crate::memory::cstr_len(tv.vval.v_string());
-                    if len > 0 {
-                        buf.extend_from_slice(unsafe {
-                            std::slice::from_raw_parts(tv.vval.v_string().cast::<u8>(), len)
-                        });
-                    }
+            ret = eval_lit_string(arg, &mut tv, evaluate, true);
+        }
+        if !ret {
+            break;
+        }
+        if evaluate {
+            if !tv.vval.v_string().is_null() {
+                let len = crate::memory::cstr_len(tv.vval.v_string());
+                if len > 0 {
+                    buf.extend_from_slice(unsafe {
+                        std::slice::from_raw_parts(tv.vval.v_string().cast::<u8>(), len)
+                    });
                 }
-                tv_clear(&mut tv);
             }
-
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'{' {
-                *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-                break;
-            }
-            let p = eval_one_expr_in_str(*crate::globals::gptr(arg), &mut buf, evaluate);
-            if p.is_null() {
-                ret = false;
-                break;
-            }
-            *crate::globals::gptr(arg) = p;
+            tv_clear(&mut tv);
         }
 
-        if ret && evaluate {
-            crate::eval::typval::tv_set_string_len(rettv, buf.as_ptr().cast(), buf.len());
-        } else {
-            rettv.v_type = VarType::VarString;
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        if arg.to_bytes_with_nul()[0] != b'{' {
+            *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+            break;
         }
-        true
+        let Some(p) = eval_one_expr_in_str(arg, &mut buf, evaluate) else {
+            ret = false;
+            break;
+        };
+        *arg = p;
     }
+
+    if ret && evaluate {
+        crate::eval::typval::tv_set_string_len(rettv, Some(&buf));
+    } else {
+        rettv.v_type = VarType::VarString;
+        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    }
+    true
 }
 
 /// @return  the function name of the partial.
@@ -4224,7 +4022,7 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
         }
         if !pt.pt_func.is_null() {
             let uf = pt.pt_func.cast::<UserFunc>();
-            return crate::globals::gref(uf).uf_name.as_c_str();
+            return unsafe { &*uf }.uf_name.as_c_str();
         }
     }
     c""
@@ -4232,93 +4030,84 @@ pub fn partial_name(pt: Option<&TvPartial>) -> &CStr {
 
 /// Unreference a closure: decrement the reference count and free it when it
 /// becomes zero.
-pub fn partial_unref(pt: *mut TvPartial) {
-    if pt.is_null() {
+pub fn partial_unref(pt: Option<&mut TvPartial>) {
+    let Some(pt_ref) = pt else {
         return;
-    }
+    };
+    let pt_ptr = std::hint::black_box(ptr::from_mut(pt_ref));
+    unsafe {
+        (*pt_ptr).pt_refcount -= 1;
 
-    crate::globals::gptr(pt).pt_refcount -= 1;
-
-    if crate::globals::gptr(pt).pt_refcount <= 0 {
-        drop(unsafe { Box::from_raw(pt) });
+        if (*pt_ptr).pt_refcount <= 0 {
+            drop(Box::from_raw(pt_ptr));
+        }
     }
 }
 
 /// Allocate a variable for a List and fill it from "*arg".
-fn eval_list<T>(arg: *mut *mut T, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        let mut l: *mut TvList = ptr::null_mut();
+fn eval_list(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    let mut l: *mut TvList = ptr::null_mut();
 
-        if evaluate {
-            l = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
-        }
+    if evaluate {
+        l = tv_list_alloc(K_LIST_LEN_SHOULD_KNOW);
+    }
 
-        *crate::globals::gptr(arg) =
-            skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-        while *crate::globals::gptr(*crate::globals::gptr(arg)) != b']'
-            && *crate::globals::gptr(*crate::globals::gptr(arg)) != 0
-        {
-            let mut tv = tv_initial_value();
-            if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
-                if evaluate {
-                    tv_list_free(l);
-                }
-                return false;
-            }
+    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    while arg.to_bytes_with_nul()[0] != b']' && arg.to_bytes_with_nul()[0] != 0 {
+        let mut tv = tv_initial_value();
+        if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
             if evaluate {
-                tv.v_lock = VAR_UNLOCKED;
-                tv_list_append_owned_tv(crate::globals::gmut(l), tv);
-            }
-
-            let had_comma = *crate::globals::gptr(*crate::globals::gptr(arg)) == b',';
-            if had_comma {
-                *crate::globals::gptr(arg) =
-                    skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-            }
-
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) == b']' {
-                break;
-            }
-
-            if !had_comma {
-                semsg!(
-                    gettext(c"E696: Missing comma in List: %s"),
-                    *crate::globals::gptr(arg)
-                );
-                if evaluate {
-                    tv_list_free(l);
-                }
-                return false;
-            }
-        }
-
-        if *crate::globals::gptr(*crate::globals::gptr(arg)) != b']' {
-            semsg!(gettext(E_LIST_END), *crate::globals::gptr(arg));
-            if evaluate {
-                tv_list_free(l);
+                tv_list_free(unsafe { l.as_mut() });
             }
             return false;
         }
-
-        *crate::globals::gptr(arg) =
-            skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
         if evaluate {
-            tv_list_set_ret(rettv, l);
+            tv.v_lock = VAR_UNLOCKED;
+            tv_list_append_owned_tv(unsafe { &mut *l }, tv);
         }
 
-        true
+        let had_comma = arg.to_bytes_with_nul()[0] == b',';
+        if had_comma {
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+        }
+
+        if arg.to_bytes_with_nul()[0] == b']' {
+            break;
+        }
+
+        if !had_comma {
+            semsg!(gettext(c"E696: Missing comma in List: %s"), arg.as_ptr());
+            if evaluate {
+                tv_list_free(unsafe { l.as_mut() });
+            }
+            return false;
+        }
     }
+
+    if arg.to_bytes_with_nul()[0] != b']' {
+        semsg!(gettext(E_LIST_END), arg.as_ptr());
+        if evaluate {
+            tv_list_free(unsafe { l.as_mut() });
+        }
+        return false;
+    }
+
+    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    if evaluate {
+        tv_list_set_ret(rettv, unsafe { l.as_mut() });
+    }
+
+    true
 }
 
 pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let mut s1 = if tv1.v_type == VarType::VarFunc {
         tv1.vval.v_string().cast_const()
     } else {
-        partial_name(crate::globals::gopt(tv_partial(tv1))).as_ptr()
+        partial_name(tv_partial(tv1).as_deref()).as_ptr()
     };
     if !s1.is_null() && crate::memory::cstr_is_empty(s1) {
         s1 = ptr::null();
@@ -4326,7 +4115,7 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let mut s2 = if tv2.v_type == VarType::VarFunc {
         tv2.vval.v_string().cast_const()
     } else {
-        partial_name(crate::globals::gopt(tv_partial(tv2))).as_ptr()
+        partial_name(tv_partial(tv2).as_deref()).as_ptr()
     };
     if !s2.is_null() && crate::memory::cstr_is_empty(s2) {
         s2 = ptr::null();
@@ -4342,38 +4131,38 @@ pub fn func_equal(tv1: &TypVal, tv2: &TypVal, ic: bool) -> bool {
     let d1 = if tv1.v_type == VarType::VarFunc {
         ptr::null_mut()
     } else {
-        crate::globals::gptr(tv_partial(tv1)).pt_dict
+        tv_partial(tv1).map_or(ptr::null_mut(), |pt| pt.pt_dict)
     };
     let d2 = if tv2.v_type == VarType::VarFunc {
         ptr::null_mut()
     } else {
-        crate::globals::gptr(tv_partial(tv2)).pt_dict
+        tv_partial(tv2).map_or(ptr::null_mut(), |pt| pt.pt_dict)
     };
     if d1.is_null() || d2.is_null() {
         if d1 != d2 {
             return false;
         }
-    } else if !tv_dict_equal(crate::globals::gopt(d1), crate::globals::gopt(d2), ic) {
+    } else if !tv_dict_equal(unsafe { d1.as_ref() }, unsafe { d2.as_ref() }, ic) {
         return false;
     }
 
     let a1 = if tv1.v_type == VarType::VarFunc {
         0
     } else {
-        crate::globals::gptr(tv_partial(tv1)).pt_argv.len() as i32
+        tv_partial(tv1).map_or(0, |pt| pt.pt_argv.len() as i32)
     };
     let a2 = if tv2.v_type == VarType::VarFunc {
         0
     } else {
-        crate::globals::gptr(tv_partial(tv2)).pt_argv.len() as i32
+        tv_partial(tv2).map_or(0, |pt| pt.pt_argv.len() as i32)
     };
     if a1 != a2 {
         return false;
     }
     for i in 0..(a1 as usize) {
         if !tv_equal(
-            &(&crate::globals::gptr(tv_partial(tv1)).pt_argv)[i],
-            &(&crate::globals::gptr(tv_partial(tv2)).pt_argv)[i],
+            &(&tv_partial(tv1).unwrap().pt_argv)[i],
+            &(&tv_partial(tv2).unwrap().pt_argv)[i],
             ic,
         ) {
             return false;
@@ -4410,42 +4199,14 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for buf in for_all_buffers_mut() {
-            abort = abort
-                || set_ref_in_item(
-                    &mut buf.b_bufvar.di_tv,
-                    copy_id,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-            abort = abort
-                || set_ref_in_callback(
-                    &mut buf.b_prompt_callback,
-                    copy_id,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-            abort = abort
-                || set_ref_in_callback(
-                    &mut buf.b_prompt_interrupt,
-                    copy_id,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-            abort = abort
-                || set_ref_in_callback(&mut buf.b_p_cfu, copy_id, ptr::null_mut(), ptr::null_mut());
-            abort = abort
-                || set_ref_in_callback(&mut buf.b_p_ofu, copy_id, ptr::null_mut(), ptr::null_mut());
-            abort = abort
-                || set_ref_in_callback(
-                    &mut buf.b_p_tsrfu,
-                    copy_id,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
-            abort = abort
-                || set_ref_in_callback(&mut buf.b_p_tfu, copy_id, ptr::null_mut(), ptr::null_mut());
-            abort = abort
-                || set_ref_in_callback(&mut buf.b_p_ffu, copy_id, ptr::null_mut(), ptr::null_mut());
+            abort = abort || set_ref_in_item(&mut buf.b_bufvar.di_tv, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_prompt_callback, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_prompt_interrupt, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_p_cfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_p_ofu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_p_tsrfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_p_tfu, copy_id, None, None);
+            abort = abort || set_ref_in_callback(&mut buf.b_p_ffu, copy_id, None, None);
             if !abort && !buf.b_p_cpt_cb.is_empty() {
                 abort = abort || set_ref_in_cpt_callbacks(&mut buf.b_p_cpt_cb, copy_id);
             }
@@ -4462,38 +4223,20 @@ pub fn garbage_collect(testing: bool) -> bool {
     {
         for tp in for_all_tabpages_ptr() {
             for wp in for_all_windows_in_tab_mut(&*tp) {
-                abort = abort
-                    || set_ref_in_item(
-                        &mut wp.w_winvar.di_tv,
-                        copy_id,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                    );
+                abort = abort || set_ref_in_item(&mut wp.w_winvar.di_tv, copy_id, None, None);
             }
         }
 
         for cw in &g_st().ctx_win_vec {
-            if let Some(cw_win) = crate::globals::gopt_mut(cw.cw_win) {
-                abort = abort
-                    || set_ref_in_item(
-                        &mut cw_win.w_winvar.di_tv,
-                        copy_id,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                    );
+            if let Some(cw_win) = unsafe { cw.cw_win.as_mut() } {
+                abort = abort || set_ref_in_item(&mut cw_win.w_winvar.di_tv, copy_id, None, None);
             }
         }
     }
 
     {
         for tp in for_all_tabpages_mut() {
-            abort = abort
-                || set_ref_in_item(
-                    &mut tp.tp_winvar.di_tv,
-                    copy_id,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                );
+            abort = abort || set_ref_in_item(&mut tp.tp_winvar.di_tv, copy_id, None, None);
         }
     }
 
@@ -4503,20 +4246,15 @@ pub fn garbage_collect(testing: bool) -> bool {
 
     {
         for &data in g_st().channels.values() {
-            let ct = crate::globals::gmut(data);
+            let ct = unsafe { &mut *data };
             set_ref_in_callback_reader(&mut ct.on_data, copy_id, None, None);
             set_ref_in_callback_reader(&mut ct.on_stderr, copy_id, None, None);
-            set_ref_in_callback(&mut ct.on_exit, copy_id, ptr::null_mut(), ptr::null_mut());
+            set_ref_in_callback(&mut ct.on_exit, copy_id, None, None);
         }
     }
 
     for &timer in eval_st().timers.values() {
-        set_ref_in_callback(
-            &mut crate::globals::gptr(timer).callback,
-            copy_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
+        set_ref_in_callback(unsafe { &mut (*timer).callback }, copy_id, None, None);
     }
 
     abort = abort || set_ref_in_func_args(copy_id);
@@ -4587,16 +4325,28 @@ fn free_unref_items(copy_id: i32) -> i32 {
 }
 
 /// Mark all lists and dicts referenced through hashtab "ht" with "copyID".
-pub fn set_ref_in_ht(ht: *mut Hashtab, copy_id: i32, list_stack: *mut ListStack) -> bool {
+pub fn set_ref_in_ht(
+    ht: Option<&mut Hashtab>,
+    copy_id: i32,
+    mut list_stack: Option<&mut ListStack>,
+) -> bool {
+    let Some(ht_ref) = ht else {
+        return false;
+    };
     let mut abort = false;
     let mut ht_stack: HtStack = Vec::new();
 
-    let mut cur_ht = ht;
+    let mut cur_ht: *mut Hashtab = ht_ref;
     loop {
         if !abort {
-            for (_, di) in (crate::globals::gref(cur_ht)).iter_items_mut() {
-                abort =
-                    abort || set_ref_in_item(&mut di.di_tv, copy_id, &raw mut ht_stack, list_stack);
+            for (_, di) in unsafe { &*cur_ht }.iter_items_mut() {
+                abort = abort
+                    || set_ref_in_item(
+                        &mut di.di_tv,
+                        copy_id,
+                        Some(&mut ht_stack),
+                        list_stack.as_deref_mut(),
+                    );
             }
         }
 
@@ -4610,22 +4360,26 @@ pub fn set_ref_in_ht(ht: *mut Hashtab, copy_id: i32, list_stack: *mut ListStack)
 }
 
 /// Mark all lists and dicts referenced through list "l" with "copyID".
-pub fn set_ref_in_list_items(l: *mut TvList, copy_id: i32, ht_stack: *mut HtStack) -> bool {
+pub fn set_ref_in_list_items(
+    l: Option<&mut TvList>,
+    copy_id: i32,
+    mut ht_stack: Option<&mut HtStack>,
+) -> bool {
     let mut abort = false;
     let mut list_stack: ListStack = Vec::new();
 
-    let mut cur_l = l;
+    let mut cur_l = l.map_or(ptr::null_mut(), ptr::from_mut);
     loop {
-        if let Some(cur_l_ref) = crate::globals::gopt(cur_l) {
-            for li in crate::eval::typval::list_iter_mut(cur_l_ref.lv_first) {
+        if let Some(cur_l_ref) = unsafe { cur_l.as_ref() } {
+            for li in crate::eval::typval::list_iter_mut(cur_l_ref.first_opt()) {
                 if abort {
                     break;
                 }
                 abort = set_ref_in_item(
                     &mut *tv_list_item_tv(li),
                     copy_id,
-                    ht_stack,
-                    &raw mut list_stack,
+                    ht_stack.as_deref_mut(),
+                    Some(&mut list_stack),
                 );
             }
         }
@@ -4642,38 +4396,39 @@ pub fn set_ref_in_list_items(l: *mut TvList, copy_id: i32, ht_stack: *mut HtStac
 fn set_ref_in_item_dict(
     mut dd: Option<&mut TvDict>,
     copy_id: i32,
-    ht_stack: *mut HtStack,
-    list_stack: *mut ListStack,
+    mut ht_stack: Option<&mut HtStack>,
+    mut list_stack: Option<&mut ListStack>,
 ) -> bool {
     if dd.is_none() || dd.as_deref_mut().unwrap().dv_copy_id == copy_id {
         return false;
     }
 
     dd.as_deref_mut().unwrap().dv_copy_id = copy_id;
-    if ht_stack.is_null() {
-        return set_ref_in_ht(
-            &raw mut dd.as_deref_mut().unwrap().dv_hashtab,
-            copy_id,
-            list_stack,
-        );
-    }
+    let Some(ref mut ht_stack_ref) = ht_stack else {
+        return set_ref_in_ht(Some(&mut dd.unwrap().dv_hashtab), copy_id, list_stack);
+    };
 
-    crate::globals::gptr(ht_stack).push(&raw mut dd.as_deref_mut().unwrap().dv_hashtab);
+    ht_stack_ref.push(&raw mut dd.as_deref_mut().unwrap().dv_hashtab);
 
     for watcher in &mut dd.unwrap().watchers {
-        set_ref_in_callback(&mut watcher.callback, copy_id, ht_stack, list_stack);
+        set_ref_in_callback(
+            &mut watcher.callback,
+            copy_id,
+            Some(&mut **ht_stack_ref),
+            list_stack.as_deref_mut(),
+        );
     }
 
     false
 }
 
 fn set_ref_in_item_list(
-    ll: *mut TvList,
+    ll: Option<&mut TvList>,
     copy_id: i32,
-    ht_stack: *mut HtStack,
+    ht_stack: Option<&mut HtStack>,
     list_stack: Option<&mut ListStack>,
 ) -> bool {
-    let Some(ll_ref) = crate::globals::gopt_mut(ll) else {
+    let Some(ll_ref) = ll else {
         return false;
     };
     if ll_ref.lv_copy_id == copy_id {
@@ -4682,20 +4437,20 @@ fn set_ref_in_item_list(
 
     ll_ref.lv_copy_id = copy_id;
     if let Some(list_stack) = list_stack {
-        list_stack.push(ll);
+        list_stack.push(ll_ref);
         false
     } else {
-        set_ref_in_list_items(ll, copy_id, ht_stack)
+        set_ref_in_list_items(Some(ll_ref), copy_id, ht_stack)
     }
 }
 
 fn set_ref_in_item_partial(
-    pt: *mut TvPartial,
+    pt: Option<&mut TvPartial>,
     copy_id: i32,
-    ht_stack: *mut HtStack,
-    list_stack: *mut ListStack,
+    mut ht_stack: Option<&mut HtStack>,
+    mut list_stack: Option<&mut ListStack>,
 ) -> bool {
-    let Some(pt) = crate::globals::gopt_mut(pt) else {
+    let Some(pt) = pt else {
         return false;
     };
     if pt.pt_copy_id == copy_id {
@@ -4705,10 +4460,8 @@ fn set_ref_in_item_partial(
     pt.pt_copy_id = copy_id;
 
     let mut abort = set_ref_in_func(
-        pt.pt_name
-            .as_ref()
-            .map_or(ptr::null_mut(), |n| n.as_ptr().cast_mut()),
-        pt.pt_func.cast(),
+        pt.pt_name.as_deref(),
+        unsafe { pt.pt_func.as_mut() },
         copy_id,
     );
 
@@ -4718,11 +4471,23 @@ fn set_ref_in_item_partial(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(pt.pt_dict),
         };
-        abort = abort || set_ref_in_item(&mut dtv, copy_id, ht_stack, list_stack);
+        abort = abort
+            || set_ref_in_item(
+                &mut dtv,
+                copy_id,
+                ht_stack.as_deref_mut(),
+                list_stack.as_deref_mut(),
+            );
     }
 
     for arg in &mut pt.pt_argv {
-        abort = abort || set_ref_in_item(arg, copy_id, ht_stack, list_stack);
+        abort = abort
+            || set_ref_in_item(
+                arg,
+                copy_id,
+                ht_stack.as_deref_mut(),
+                list_stack.as_deref_mut(),
+            );
     }
 
     abort
@@ -4732,20 +4497,24 @@ fn set_ref_in_item_partial(
 pub fn set_ref_in_item(
     tv: &mut TypVal,
     copy_id: i32,
-    ht_stack: *mut HtStack,
-    list_stack: *mut ListStack,
+    ht_stack: Option<&mut HtStack>,
+    list_stack: Option<&mut ListStack>,
 ) -> bool {
     match tv.v_type {
         VarType::VarDict => {
             set_ref_in_item_dict(tv.vval.v_dict_opt(), copy_id, ht_stack, list_stack)
         }
-        VarType::VarList => set_ref_in_item_list(
-            tv.vval.v_list(),
-            copy_id,
-            ht_stack,
-            crate::globals::gopt_mut(list_stack),
-        ),
-        VarType::VarFunc => set_ref_in_func(tv.vval.v_string(), ptr::null_mut(), copy_id),
+        VarType::VarList => {
+            set_ref_in_item_list(tv.vval.v_list_opt(), copy_id, ht_stack, list_stack)
+        }
+        VarType::VarFunc => {
+            let s = tv.vval.v_string();
+            set_ref_in_func(
+                (!s.is_null()).then(|| unsafe { CStr::from_ptr(s) }),
+                None,
+                copy_id,
+            )
+        }
         VarType::VarPartial => {
             set_ref_in_item_partial(tv_partial(&*tv), copy_id, ht_stack, list_stack)
         }
@@ -4760,179 +4529,167 @@ pub fn set_ref_in_item(
 }
 
 /// Get the key for #{key: val} into "tv" and advance "arg".
-fn get_literal_key<T>(arg: *mut *mut T, tv: &mut TypVal) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        if !ascii_isalnum(i32::from(*crate::globals::gptr(*crate::globals::gptr(arg))))
-            && *crate::globals::gptr(*crate::globals::gptr(arg)) != b'_'
-            && *crate::globals::gptr(*crate::globals::gptr(arg)) != b'-'
-        {
-            return false;
-        }
-        let mut p = *crate::globals::gptr(arg);
-        while ascii_isalnum(crate::memory::cstr_first_byte(p.cast()))
-            || crate::memory::cstr_first_byte(p.cast()) == b'_'
-            || crate::memory::cstr_first_byte(p.cast()) == b'-'
-        {
-            p = p.wrapping_add(1);
-        }
-        crate::eval::typval::tv_set_string_len(
-            &mut *tv,
-            crate::globals::gptr(arg).cast(),
-            (p as usize).wrapping_sub((*crate::globals::gptr(arg)) as usize),
-        );
-
-        *crate::globals::gptr(arg) = skipwhite(p.cast()).cast();
-        true
+fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
+    let b0 = arg.to_bytes_with_nul()[0];
+    if !ascii_isalnum(i32::from(b0)) && b0 != b'_' && b0 != b'-' {
+        return false;
     }
+    let start = arg.as_ptr();
+    let mut p = start;
+    while ascii_isalnum(crate::memory::cstr_first_byte(p))
+        || crate::memory::cstr_first_byte(p) == b'_'
+        || crate::memory::cstr_first_byte(p) == b'-'
+    {
+        p = p.wrapping_add(1);
+    }
+    crate::eval::typval::tv_set_string_len(
+        &mut *tv,
+        Some(crate::memory::cstr_slice(
+            start,
+            (p as usize).wrapping_sub(start as usize),
+        )),
+    );
+
+    *arg = unsafe { CStr::from_ptr(skipwhite(p.cast_mut())) };
+    true
 }
 
 /// Allocate a variable for a Dictionary and fill it from "*arg".
-fn eval_dict<T>(
-    arg: *mut *mut T,
+fn eval_dict(
+    arg: &mut &CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     literal: bool,
 ) -> i32 {
-    let arg: *mut *mut u8 = arg.cast();
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    let mut tv = tv_initial_value();
+    let mut key = ptr::null_mut();
+    let mut curly_expr =
+        unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    let mut buf = [0u8; NUMBUFLEN];
+
+    if curly_expr.to_bytes_with_nul()[0] != b'}'
+        && !literal
+        && eval1(&mut curly_expr, &mut tv, None)
+        && crate::memory::cstr_first_byte(skipwhite(curly_expr.as_ptr().cast_mut())) == b'}'
     {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        let mut tv = tv_initial_value();
-        let mut key = ptr::null_mut();
-        let mut curly_expr = skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast());
-        let mut buf = [0u8; NUMBUFLEN];
+        return NOTDONE;
+    }
 
-        if crate::memory::cstr_first_byte(curly_expr) != b'}'
-            && !literal
-            && eval1(&raw mut curly_expr, &mut tv, None)
-            && *crate::globals::gptr(skipwhite(curly_expr).cast::<u8>()) == b'}'
-        {
-            return NOTDONE;
-        }
+    let mut d: *mut TvDict = ptr::null_mut();
+    if evaluate {
+        d = tv_dict_alloc();
+    }
+    let mut tvkey = tv_initial_value();
+    tv.v_type = VarType::VarUnknown;
 
-        let mut d: *mut TvDict = ptr::null_mut();
-        if evaluate {
-            d = tv_dict_alloc();
-        }
-        let mut tvkey = tv_initial_value();
-        tv.v_type = VarType::VarUnknown;
-
-        *crate::globals::gptr(arg) =
-            skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-        while *crate::globals::gptr(*crate::globals::gptr(arg)) != b'}'
-            && *crate::globals::gptr(*crate::globals::gptr(arg)) != 0
-        {
-            let key_res = if literal {
-                get_literal_key(arg, &mut tvkey)
-            } else {
-                eval1(arg, &mut tvkey, evalarg.as_deref_mut())
-            };
-            if !key_res {
-                if !d.is_null() {
-                    tv_dict_free(d);
-                }
-                return FAIL;
-            }
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) != b':' {
-                semsg!(
-                    gettext(c"E720: Missing colon in Dictionary: %s"),
-                    *crate::globals::gptr(arg),
-                );
-                tv_clear(&mut tvkey);
-                if !d.is_null() {
-                    tv_dict_free(d);
-                }
-                return FAIL;
-            }
-            if evaluate {
-                let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
-                    tv_clear(&mut tvkey);
-                    if !d.is_null() {
-                        tv_dict_free(d);
-                    }
-                    return FAIL;
-                };
-                key = key_cstr.as_ptr().cast_mut();
-            }
-
-            *crate::globals::gptr(arg) =
-                skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-            if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
-                tv_clear(&mut tvkey);
-                if !d.is_null() {
-                    tv_dict_free(d);
-                }
-                return FAIL;
-            }
-            if evaluate {
-                let mut item = tv_dict_find(crate::globals::gopt(d), key, -1);
-                if !item.is_null() {
-                    semsg!(gettext(c"E721: Duplicate key in Dictionary: \"%s\""), key,);
-                    tv_clear(&mut tvkey);
-                    tv_clear(&mut tv);
-                    if !d.is_null() {
-                        tv_dict_free(d);
-                    }
-                    return FAIL;
-                }
-                item = tv_dict_item_alloc(key);
-                crate::globals::gptr(item).di_tv = tv;
-                crate::globals::gptr(item).di_tv.v_lock = VAR_UNLOCKED;
-                if !tv_dict_add(crate::globals::gmut(d), item) {
-                    tv_dict_item_free(item);
-                }
-            }
-            tv_clear(&mut tvkey);
-
-            let had_comma = *crate::globals::gptr(*crate::globals::gptr(arg)) == b',';
-            if had_comma {
-                *crate::globals::gptr(arg) =
-                    skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
-            }
-
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) == b'}' {
-                break;
-            }
-            if !had_comma {
-                semsg!(
-                    gettext(c"E722: Missing comma in Dictionary: %s"),
-                    *crate::globals::gptr(arg),
-                );
-                if !d.is_null() {
-                    tv_dict_free(d);
-                }
-                return FAIL;
-            }
-        }
-
-        if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'}' {
-            semsg!(gettext(E_723_END), *crate::globals::gptr(arg),);
-            if !d.is_null() {
-                tv_dict_free(d);
+    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    while arg.to_bytes_with_nul()[0] != b'}' && arg.to_bytes_with_nul()[0] != 0 {
+        let key_res = if literal {
+            get_literal_key(arg, &mut tvkey)
+        } else {
+            eval1(arg, &mut tvkey, evalarg.as_deref_mut())
+        };
+        if !key_res {
+            if let Some(d_ref) = unsafe { d.as_mut() } {
+                tv_dict_free(d_ref);
             }
             return FAIL;
         }
-
-        *crate::globals::gptr(arg) =
-            skipwhite(crate::globals::gptr(arg).wrapping_add(1).cast()).cast();
+        if arg.to_bytes_with_nul()[0] != b':' {
+            semsg!(
+                gettext(c"E720: Missing colon in Dictionary: %s"),
+                arg.as_ptr(),
+            );
+            tv_clear(&mut tvkey);
+            if let Some(d_ref) = unsafe { d.as_mut() } {
+                tv_dict_free(d_ref);
+            }
+            return FAIL;
+        }
         if evaluate {
-            tv_dict_set_ret(rettv, d);
+            let Some(key_cstr) = tv_get_string_buf_chk(&tvkey, &mut buf) else {
+                tv_clear(&mut tvkey);
+                if let Some(d_ref) = unsafe { d.as_mut() } {
+                    tv_dict_free(d_ref);
+                }
+                return FAIL;
+            };
+            key = key_cstr.as_ptr().cast_mut();
         }
 
-        OK
+        *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+        if !eval1(arg, &mut tv, evalarg.as_deref_mut()) {
+            tv_clear(&mut tvkey);
+            if let Some(d_ref) = unsafe { d.as_mut() } {
+                tv_dict_free(d_ref);
+            }
+            return FAIL;
+        }
+        if evaluate {
+            let key_cstr = unsafe { CStr::from_ptr(key) };
+            if tv_dict_find(unsafe { d.as_ref() }, key_cstr, -1).is_some() {
+                semsg!(gettext(c"E721: Duplicate key in Dictionary: \"%s\""), key,);
+                tv_clear(&mut tvkey);
+                tv_clear(&mut tv);
+                if let Some(d_ref) = unsafe { d.as_mut() } {
+                    tv_dict_free(d_ref);
+                }
+                return FAIL;
+            }
+            let item = tv_dict_item_alloc(key_cstr);
+            item.di_tv = tv;
+            item.di_tv.v_lock = VAR_UNLOCKED;
+            if !tv_dict_add(unsafe { &mut *d }, item) {
+                tv_dict_item_free(item);
+            }
+        }
+        tv_clear(&mut tvkey);
+
+        let had_comma = arg.to_bytes_with_nul()[0] == b',';
+        if had_comma {
+            *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+        }
+
+        if arg.to_bytes_with_nul()[0] == b'}' {
+            break;
+        }
+        if !had_comma {
+            semsg!(
+                gettext(c"E722: Missing comma in Dictionary: %s"),
+                arg.as_ptr(),
+            );
+            if let Some(d_ref) = unsafe { d.as_mut() } {
+                tv_dict_free(d_ref);
+            }
+            return FAIL;
+        }
     }
+
+    if arg.to_bytes_with_nul()[0] != b'}' {
+        semsg!(gettext(E_723_END), arg.as_ptr(),);
+        if let Some(d_ref) = unsafe { d.as_mut() } {
+            tv_dict_free(d_ref);
+        }
+        return FAIL;
+    }
+
+    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    if evaluate {
+        tv_dict_set_ret(rettv, unsafe { d.as_mut() });
+    }
+
+    OK
 }
 
 const E_723_END: &CStr = c"E723: Missing end of Dictionary '}': %s";
 
 /// Evaluate a literal dictionary: #{key: val, key: val}
-fn eval_lit_dict<T>(arg: *mut *mut T, rettv: &mut TypVal, evalarg: Option<&mut Evalarg>) -> i32 {
-    let arg: *mut *mut u8 = arg.cast();
-
-    if crate::memory::cstr_as_bytes(crate::globals::gptr(arg).cast()).get(1) == Some(&b'{') {
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
+fn eval_lit_dict(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut Evalarg>) -> i32 {
+    if arg.to_bytes().get(1) == Some(&b'{') {
+        *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
         eval_dict(arg, rettv, evalarg, true)
     } else {
         NOTDONE
@@ -4940,8 +4697,8 @@ fn eval_lit_dict<T>(arg: *mut *mut T, rettv: &mut TypVal, evalarg: Option<&mut E
 }
 
 /// Convert the string to a floating point number.
-pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: &mut TvFloat) -> usize {
-    let bytes = crate::memory::cstr_as_bytes(text);
+pub fn string2float(text: &CStr, ret_value: &mut TvFloat) -> usize {
+    let bytes = text.to_bytes();
     if bytes.len() >= 3 && bytes[..3].eq_ignore_ascii_case(b"inf") {
         *ret_value = f64::INFINITY;
         return 3;
@@ -4960,42 +4717,39 @@ pub fn string2float(text: impl crate::strings::IntoCCharPtr, ret_value: &mut TvF
 }
 
 /// Get the value of an environment variable.
-fn eval_env_var<T>(arg: *mut *mut T, rettv: &mut TypVal, evaluate: i32) -> bool {
-    let arg: *mut *mut u8 = arg.cast();
-    {
-        *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-        let name = *crate::globals::gptr(arg);
-        let len = get_env_len(arg.cast::<*const u8>());
+fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+    let name = arg.as_ptr();
+    let len = get_env_len(arg);
 
-        if evaluate != 0 {
-            if len == 0 {
-                return false;
-            }
-            let env_with_dollar = cstr_from_bytes(crate::memory::cstr_slice(
-                name.wrapping_sub(1).cast(),
-                len as usize + 1,
-            ));
-            let env_name = unsafe {
-                CStr::from_bytes_with_nul_unchecked(&env_with_dollar.to_bytes_with_nul()[1..])
-            };
-            let mut string = vim_getenv(env_name).filter(|s| !s.as_bytes().is_empty());
-            if string.is_none() {
-                let exp = expand_env_save(&env_with_dollar);
-                if crate::memory::cstr_first_byte(exp.as_ptr()) != b'$' {
-                    string = Some(exp);
-                }
-            }
-            rettv.v_lock = VAR_UNLOCKED;
-            if let Some(ref s) = string {
-                crate::eval::typval::tv_set_string(rettv, s.as_ptr());
-            } else {
-                rettv.v_type = VarType::VarString;
-                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    if evaluate != 0 {
+        if len == 0 {
+            return false;
+        }
+        let env_with_dollar = cstr_from_bytes(crate::memory::cstr_slice(
+            name.wrapping_sub(1),
+            len as usize + 1,
+        ));
+        let env_name = unsafe {
+            CStr::from_bytes_with_nul_unchecked(&env_with_dollar.to_bytes_with_nul()[1..])
+        };
+        let mut string = vim_getenv(env_name).filter(|s| !s.as_bytes().is_empty());
+        if string.is_none() {
+            let exp = expand_env_save(&env_with_dollar);
+            if crate::memory::cstr_first_byte(exp.as_ptr()) != b'$' {
+                string = Some(exp);
             }
         }
-
-        true
+        rettv.v_lock = VAR_UNLOCKED;
+        if let Some(ref s) = string {
+            crate::eval::typval::tv_set_string(rettv, Some(s.as_c_str()));
+        } else {
+            rettv.v_type = VarType::VarString;
+            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        }
     }
+
+    true
 }
 
 /// Builds a process argument vector from a Vimscript object (TypVal).
@@ -5047,7 +4801,7 @@ pub fn tv_to_argv(
     let exe_cstr = exe_resolved.unwrap();
 
     let mut argv = Vec::with_capacity(argc as usize);
-    for (i, arg) in crate::eval::typval::list_iter_mut(argl.lv_first).enumerate() {
+    for (i, arg) in crate::eval::typval::list_iter_mut(argl.first_opt()).enumerate() {
         let Some(a) = tv_get_string_chk(&*tv_list_item_tv(arg)) else {
             return Vec::new();
         };
@@ -5124,7 +4878,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         if retlist {
             tv_list_alloc_ret(rettv, 0);
         } else {
-            crate::eval::typval::tv_set_string(rettv, c"");
+            crate::eval::typval::tv_set_string(rettv, Some(c""));
         }
         return;
     }
@@ -5135,7 +4889,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
             keepempty = tv_get_number(&argvars[2]) as i32;
         }
         rettv.vval = crate::eval::typval::TypvalVval::List(string_to_list(&res, keepempty != 0));
-        tv_list_ref(crate::globals::gopt_mut(rettv.vval.v_list()));
+        tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
         rettv.v_type = VarType::VarList;
     } else {
         for b in &mut res {
@@ -5158,7 +4912,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
             }
             res.truncate(d);
         }
-        crate::eval::typval::tv_set_string_len(rettv, res.as_ptr().cast(), res.len());
+        crate::eval::typval::tv_set_string_len(rettv, Some(&res));
     }
 }
 
@@ -5177,11 +4931,11 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
 
     let is_lua_tbl = nlua_is_table_from_lua(arg);
 
-    if arg.v_type == VarType::VarPartial && !tv_partial(arg).is_null() {
-        let pt = tv_partial(arg);
+    if arg.v_type == VarType::VarPartial
+        && let Some(pt) = tv_partial(arg)
+    {
         callback.data = crate::eval::typval::CallbackData::partial(pt);
-
-        crate::globals::gptr(pt).pt_refcount += 1;
+        pt.pt_refcount += 1;
     } else if arg.v_type == VarType::VarString
         && !arg.vval.v_string().is_null()
         && ascii_isdigit(crate::memory::cstr_first_byte(arg.vval.v_string()))
@@ -5195,13 +4949,13 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
             *callback = Callback::NONE;
         } else {
             let funcref = if arg.v_type == VarType::VarString
-                && let Some(sl) = get_scriptlocal_funcname(name)
+                && let Some(sl) = get_scriptlocal_funcname(Some(unsafe { CStr::from_ptr(name) }))
             {
                 sl
             } else {
                 crate::memory::cstr_to_cstring(name)
             };
-            func_ref(funcref.as_ptr().cast_mut());
+            func_ref(Some(funcref.as_c_str()));
             callback.data = crate::eval::typval::CallbackData::funcref(funcref);
         }
     } else if is_lua_tbl {
@@ -5233,7 +4987,7 @@ pub fn get_callback_depth() -> i32 {
 pub fn callback_call(
     callback: &mut Callback,
     argcount_in: i32,
-    argvars_in: *mut TypVal,
+    argvars_in: &mut [TypVal],
     rettv: &mut TypVal,
 ) -> bool {
     if i64::from(eval_st().callback_depth) > opt_vars().p_mfd {
@@ -5249,17 +5003,17 @@ pub fn callback_call(
             name = funcref.as_ptr().cast_mut();
             if funcref.to_bytes().starts_with(b"v:lua.") {
                 name = name.wrapping_add(6);
-                if check_luafunc_name(name, false) == 0 {
+                if check_luafunc_name(unsafe { CStr::from_ptr(name) }, false) == 0 {
                     return false;
                 }
-                partial = get_vim_var_partial(VV_LUA);
+                partial = get_vim_var_partial(VV_LUA).map_or(ptr::null_mut(), ptr::from_mut);
             } else {
                 partial = ptr::null_mut();
             }
         }
         K_CALLBACK_PARTIAL => {
             partial = callback.data.as_partial();
-            name = partial_name(crate::globals::gopt(partial))
+            name = partial_name(unsafe { partial.as_ref() })
                 .as_ptr()
                 .cast_mut();
         }
@@ -5270,12 +5024,8 @@ pub fn callback_call(
                 size: 0,
             };
             let mut luaargs = arena_array(&mut arena, argcount_in as usize);
-            for i in 0..(argcount_in as usize) {
-                *luaargs.next_slot_mut() = vim_to_object(
-                    unsafe { &mut *argvars_in.wrapping_add(i) },
-                    Some(&mut arena),
-                    false,
-                );
+            for arg_tv in argvars_in.iter_mut().take(argcount_in as usize) {
+                *luaargs.next_slot_mut() = vim_to_object(arg_tv, Some(&mut arena), false);
                 luaargs.size += 1;
             }
             let mut err = Error::new();
@@ -5306,8 +5056,15 @@ pub fn callback_call(
         }
         K_CALLBACK_EXPR => {
             eval_st().callback_depth += 1;
+            let expr_ptr = skipwhite(
+                callback
+                    .data
+                    .as_funcref()
+                    .map_or(c"".as_ptr(), CStr::as_ptr)
+                    .cast_mut(),
+            );
             let r = eval0_simple_funccal(
-                skipwhite(callback.data.as_funcref()),
+                unsafe { CStr::from_ptr(expr_ptr) },
                 rettv,
                 None,
                 &mut g_st().evalarg_evaluate,
@@ -5334,7 +5091,14 @@ pub fn callback_call(
     };
 
     eval_st().callback_depth += 1;
-    let ret = call_func(name, -1, rettv, argcount_in, argvars_in, &mut funcexe);
+    let ret = call_func(
+        unsafe { CStr::from_ptr(name) },
+        -1,
+        rettv,
+        argcount_in,
+        argvars_in,
+        &mut funcexe,
+    );
     eval_st().callback_depth -= 1;
     ret
 }
@@ -5342,8 +5106,8 @@ pub fn callback_call(
 pub fn set_ref_in_callback(
     callback: &mut Callback,
     copy_id: i32,
-    ht_stack: *mut HtStack,
-    list_stack: *mut ListStack,
+    ht_stack: Option<&mut HtStack>,
+    list_stack: Option<&mut ListStack>,
 ) -> bool {
     if callback.cb_type() == K_CALLBACK_PARTIAL {
         let mut tv = TypVal {
@@ -5359,12 +5123,15 @@ pub fn set_ref_in_callback(
 fn set_ref_in_callback_reader(
     reader: &mut CallbackReader,
     copy_id: i32,
-    ht_stack: Option<&mut HtStack>,
-    list_stack: Option<&mut ListStack>,
+    mut ht_stack: Option<&mut HtStack>,
+    mut list_stack: Option<&mut ListStack>,
 ) -> bool {
-    let ht_ptr = ht_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
-    let list_ptr = list_stack.map_or(ptr::null_mut(), |p| &raw mut *p);
-    if set_ref_in_callback(&mut reader.cb, copy_id, ht_ptr, list_ptr) {
+    if set_ref_in_callback(
+        &mut reader.cb,
+        copy_id,
+        ht_stack.as_deref_mut(),
+        list_stack.as_deref_mut(),
+    ) {
         return true;
     }
 
@@ -5374,24 +5141,24 @@ fn set_ref_in_callback_reader(
             v_lock: VAR_UNLOCKED,
             vval: TypvalVval::Dict(reader.self_dict),
         };
-        return set_ref_in_item(&mut tv, copy_id, ht_ptr, list_ptr);
+        return set_ref_in_item(&mut tv, copy_id, ht_stack, list_stack);
     }
     false
 }
 
-pub fn find_timer_by_nr(xx: Varnumber) -> *mut VimTimer {
+pub fn find_timer_by_nr(xx: Varnumber) -> Option<&'static mut VimTimer> {
     eval_st()
         .timers
         .get(&(xx as u64))
         .copied()
-        .unwrap_or(ptr::null_mut())
+        .and_then(|p| unsafe { p.as_mut() })
 }
 
 pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
     let list = rettv.vval.v_list_ref();
     let dict = tv_dict_alloc();
 
-    tv_list_append_dict(list, dict);
+    tv_list_append_dict(list, Some(dict));
     tv_dict_add_nr(&mut *dict, c"id", Varnumber::from(timer.timer_id));
     tv_dict_add_nr(&mut *dict, c"time", timer.timeout);
     tv_dict_add_nr(&mut *dict, c"paused", Varnumber::from(timer.paused));
@@ -5416,7 +5183,7 @@ pub fn add_timer_info(rettv: &mut TypVal, timer: &mut VimTimer) {
 pub fn add_timer_info_all(rettv: &mut TypVal) {
     tv_list_alloc_ret(rettv, eval_st().timers.len() as isize);
     for &timer in eval_st().timers.values() {
-        let timer = crate::globals::gmut(timer);
+        let timer = unsafe { &mut *timer };
         if !timer.stopped || timer.refcount > 1 {
             add_timer_info(rettv, timer);
         }
@@ -5424,42 +5191,43 @@ pub fn add_timer_info_all(rettv: &mut TypVal) {
 }
 
 /// Invoked on the main loop.
-pub fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut VimTimer) {
+pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
+    let timer = std::hint::black_box(ptr::from_mut(timer_in));
     let save_did_emsg = g_st().did_emsg;
     let called_emsg_before = g_st().called_emsg;
 
-    if crate::globals::gptr(timer).stopped || crate::globals::gptr(timer).paused {
+    if unsafe { (*timer).stopped || (*timer).paused } {
         return;
     }
 
-    crate::globals::gptr(timer).refcount += 1;
+    unsafe {
+        (*timer).refcount += 1;
+    }
 
-    if crate::globals::gptr(timer).repeat_count >= 0 {
-        crate::globals::gptr(timer).repeat_count -= 1;
+    if unsafe { (*timer).repeat_count } >= 0 {
+        unsafe {
+            (*timer).repeat_count -= 1;
+        }
 
-        if crate::globals::gptr(timer).repeat_count == 0 {
-            timer_stop(crate::globals::gmut(timer));
+        if unsafe { (*timer).repeat_count } == 0 {
+            timer_stop(unsafe { &mut *timer });
         }
     }
 
     let mut argv = [tv_initial_value(), tv_initial_value()];
     argv[0].v_type = VarType::VarNumber;
 
-    argv[0].vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        crate::globals::gptr(timer).timer_id,
-    ));
+    argv[0].vval =
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(unsafe { (*timer).timer_id }));
 
     let mut rettv = tv_initial_value();
 
-    callback_call(
-        &mut crate::globals::gptr(timer).callback,
-        1,
-        argv.as_mut_ptr(),
-        &mut rettv,
-    );
+    callback_call(unsafe { &mut (*timer).callback }, 1, &mut argv, &mut rettv);
 
     if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
-        crate::globals::gptr(timer).emsg_count += 1;
+        unsafe {
+            (*timer).emsg_count += 1;
+        }
 
         if g_st().did_throw {
             discard_current_exception();
@@ -5467,16 +5235,16 @@ pub fn timer_due_cb(_tw: *mut TimeWatcher, timer: *mut VimTimer) {
     }
     g_st().did_emsg = save_did_emsg;
 
-    if crate::globals::gptr(timer).emsg_count >= 3 {
-        timer_stop(crate::globals::gmut(timer));
+    if unsafe { (*timer).emsg_count } >= 3 {
+        timer_stop(unsafe { &mut *timer });
     }
 
     tv_clear(&mut rettv);
 
-    if !crate::globals::gptr(timer).stopped && crate::globals::gptr(timer).timeout == 0 {
-        time_watcher_start(&mut crate::globals::gptr(timer).watcher, 0, 0);
+    if unsafe { !(*timer).stopped && (*timer).timeout == 0 } {
+        time_watcher_start(unsafe { &mut (*timer).watcher }, 0, 0);
     }
-    timer_decref(timer);
+    timer_decref(unsafe { &mut *timer });
 }
 
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
@@ -5522,25 +5290,26 @@ pub fn timer_stop(timer: &mut VimTimer) {
     }
 }
 
-pub(crate) fn timer_close_cb(_tw: *mut TimeWatcher, timer: *mut VimTimer) {
-    let _ = eval_st()
-        .timers
-        .remove(&(crate::globals::gptr(timer).timer_id as u64));
+pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
+    let _ = eval_st().timers.remove(&(timer.timer_id as u64));
     timer_decref(timer);
 }
 
-fn timer_decref(timer: *mut VimTimer) {
-    crate::globals::gptr(timer).refcount -= 1;
+fn timer_decref(timer_in: &mut VimTimer) {
+    let timer = std::hint::black_box(ptr::from_mut(timer_in));
+    unsafe {
+        (*timer).refcount -= 1;
 
-    if crate::globals::gptr(timer).refcount == 0 {
-        drop(unsafe { Box::from_raw(timer) });
+        if (*timer).refcount == 0 {
+            drop(Box::from_raw(timer));
+        }
     }
 }
 
 pub fn timer_stop_all() {
     let all_timers: Vec<*mut VimTimer> = eval_st().timers.values().copied().collect();
     for timer in all_timers {
-        timer_stop(crate::globals::gmut(timer));
+        timer_stop(unsafe { &mut *timer });
     }
 }
 
@@ -5560,7 +5329,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
 
     if tv.v_type == VarType::VarNumber {
         let buf = buflist_findnr(tv.vval.v_number() as i32);
-        let Some(buf) = crate::globals::gopt_mut(buf) else {
+        let Some(buf) = (unsafe { buf.as_mut() }) else {
             semsg!(gettext(E_NOBUFNR), tv.vval.v_number());
             return None;
         };
@@ -5589,7 +5358,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     };
     let sep_len = if crlf { 2usize } else { 1usize };
     let mut total_len: usize = 0;
-    for li in crate::eval::typval::list_iter_mut(list.lv_first) {
+    for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
         total_len += tv_get_string(&*tv_list_item_tv(li)).to_bytes().len() + sep_len;
     }
 
@@ -5598,12 +5367,12 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     }
 
     let mut ret = Vec::with_capacity(total_len);
-    for li in crate::eval::typval::list_iter_mut(list.lv_first) {
+    for li in crate::eval::typval::list_iter_mut(list.first_opt()) {
         let s = tv_get_string(&*tv_list_item_tv(li));
         for &s_byte in s.to_bytes() {
             ret.push(if s_byte == b'\n' { 0 } else { s_byte });
         }
-        if endnl || !tv_list_item_next(li).is_null() {
+        if endnl || tv_list_item_next(li).is_some() {
             if crlf {
                 ret.push(b'\r');
             }
@@ -5684,7 +5453,7 @@ pub fn var2fpos(
     ret_fnum: &mut i32,
     charcol: bool,
     wp: &mut WinInfoInfo,
-) -> *mut CursorPos {
+) -> Option<&'static mut CursorPos> {
     let bp = wp.w_buffer;
 
     if tv.v_type == VarType::VarList {
@@ -5692,66 +5461,58 @@ pub fn var2fpos(
 
         let l = tv.vval.v_list();
         if l.is_null() {
-            return ptr::null_mut();
+            return None;
         }
 
         eval_st().var2_fpos_pos.lnum =
-            tv_list_find_nr(crate::globals::gopt_mut(l), 0, Some(&mut error)) as Linenr;
+            tv_list_find_nr(unsafe { l.as_mut() }, 0, Some(&mut error)) as Linenr;
 
         if error
             || eval_st().var2_fpos_pos.lnum <= 0
-            || eval_st().var2_fpos_pos.lnum > crate::globals::gptr(bp).b_ml.ml_line_count
+            || eval_st().var2_fpos_pos.lnum > unsafe { (*bp).b_ml.ml_line_count }
         {
-            return ptr::null_mut();
+            return None;
         }
 
         eval_st().var2_fpos_pos.col =
-            tv_list_find_nr(crate::globals::gopt_mut(l), 1, Some(&mut error)) as Colnr;
+            tv_list_find_nr(unsafe { l.as_mut() }, 1, Some(&mut error)) as Colnr;
 
         if error {
-            return ptr::null_mut();
+            return None;
         }
         let len = if charcol {
             mb_charlen(crate::memline::ml_get_buf_slice(
-                crate::globals::gmut(bp),
+                unsafe { &mut *bp },
                 eval_st().var2_fpos_pos.lnum,
             ))
         } else {
-            ml_get_buf_len(crate::globals::gmut(bp), eval_st().var2_fpos_pos.lnum)
+            ml_get_buf_len(unsafe { &mut *bp }, eval_st().var2_fpos_pos.lnum)
         };
 
-        let li = tv_list_find(crate::globals::gopt_mut(l), 1);
-        if !li.is_null()
-            && tv_list_item_tv(crate::globals::gmut(li)).v_type == VarType::VarString
-            && !tv_list_item_tv(crate::globals::gmut(li))
-                .vval
-                .v_string()
-                .is_null()
-            && (crate::memory::cstr_as_bytes(
-                tv_list_item_tv(crate::globals::gmut(li)).vval.v_string(),
-            ) == b"$")
+        if let Some(li) = tv_list_find(unsafe { l.as_mut() }, 1)
+            && tv_list_item_tv(li).v_type == VarType::VarString
+            && !tv_list_item_tv(li).vval.v_string().is_null()
+            && crate::memory::cstr_as_bytes(tv_list_item_tv(li).vval.v_string()) == b"$"
         {
             eval_st().var2_fpos_pos.col = len + 1;
         }
 
         if eval_st().var2_fpos_pos.col == 0 || eval_st().var2_fpos_pos.col > len + 1 {
-            return ptr::null_mut();
+            return None;
         }
         eval_st().var2_fpos_pos.col -= 1;
 
         eval_st().var2_fpos_pos.coladd =
-            tv_list_find_nr(crate::globals::gopt_mut(l), 2, Some(&mut error)) as Colnr;
+            tv_list_find_nr(unsafe { l.as_mut() }, 2, Some(&mut error)) as Colnr;
 
         if error {
             eval_st().var2_fpos_pos.coladd = 0;
         }
 
-        return &raw mut eval_st().var2_fpos_pos;
+        return Some(&mut eval_st().var2_fpos_pos);
     }
 
-    let Some(name_cstr) = tv_get_string_chk(tv) else {
-        return ptr::null_mut();
-    };
+    let name_cstr = tv_get_string_chk(tv)?;
     let name_bytes = name_cstr.to_bytes();
 
     eval_st().var2_fpos_pos.lnum = 0;
@@ -5778,11 +5539,9 @@ pub fn var2fpos(
     } else if name_bytes.first() == Some(&b'\'') {
         let mname_b = name_bytes.get(1).copied().unwrap_or(0);
         let mname = i32::from(mname_b);
-        let Some(fm) = mark_get(crate::globals::gmut(bp), wp, None, K_MARK_ALL, mname) else {
-            return ptr::null_mut();
-        };
+        let fm = mark_get(unsafe { &mut *bp }, wp, None, K_MARK_ALL, mname)?;
         if fm.mark.lnum <= 0 {
-            return ptr::null_mut();
+            return None;
         }
 
         eval_st().var2_fpos_pos = fm.mark;
@@ -5794,12 +5553,12 @@ pub fn var2fpos(
     if eval_st().var2_fpos_pos.lnum != 0 {
         if charcol {
             eval_st().var2_fpos_pos.col = buf_byteidx_to_charidx(
-                crate::globals::gopt_mut(bp),
+                unsafe { bp.as_mut() },
                 eval_st().var2_fpos_pos.lnum,
                 eval_st().var2_fpos_pos.col,
             );
         }
-        return &raw mut eval_st().var2_fpos_pos;
+        return Some(&mut eval_st().var2_fpos_pos);
     }
 
     eval_st().var2_fpos_pos.coladd = 0;
@@ -5811,7 +5570,7 @@ pub fn var2fpos(
         if name_bytes.get(1) == Some(&b'0') {
             update_topline(wp);
             eval_st().var2_fpos_pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
-            return &raw mut eval_st().var2_fpos_pos;
+            return Some(&mut eval_st().var2_fpos_pos);
         } else if name_bytes.get(1) == Some(&b'$') {
             validate_botline_win(&mut *wp);
             eval_st().var2_fpos_pos.lnum = if wp.w_botline > 0 {
@@ -5819,27 +5578,27 @@ pub fn var2fpos(
             } else {
                 0
             };
-            return &raw mut eval_st().var2_fpos_pos;
+            return Some(&mut eval_st().var2_fpos_pos);
         }
     } else if name_bytes.first() == Some(&b'$') {
         if dollar_lnum {
-            eval_st().var2_fpos_pos.lnum = crate::globals::gptr(bp).b_ml.ml_line_count;
+            eval_st().var2_fpos_pos.lnum = unsafe { (*bp).b_ml.ml_line_count };
 
             eval_st().var2_fpos_pos.col = 0;
         } else {
             eval_st().var2_fpos_pos.lnum = wp.w_cursor.lnum;
             eval_st().var2_fpos_pos.col = if charcol {
                 mb_charlen(crate::memline::ml_get_buf_slice(
-                    crate::globals::gmut(bp),
+                    unsafe { &mut *bp },
                     wp.w_cursor.lnum,
                 ))
             } else {
-                ml_get_buf_len(crate::globals::gmut(bp), wp.w_cursor.lnum)
+                ml_get_buf_len(unsafe { &mut *bp }, wp.w_cursor.lnum)
             };
         }
-        return &raw mut eval_st().var2_fpos_pos;
+        return Some(&mut eval_st().var2_fpos_pos);
     }
-    ptr::null_mut()
+    None
 }
 
 /// Convert list in "arg" into position "posp" and optional file number "fnump".
@@ -5855,8 +5614,8 @@ pub fn list2fpos(
     }
     let l = arg.vval.v_list();
     if l.is_null()
-        || tv_list_len(crate::globals::gopt(l)) < if fnump.is_none() { 2 } else { 3 }
-        || tv_list_len(crate::globals::gopt(l)) > if fnump.is_none() { 4 } else { 5 }
+        || tv_list_len(unsafe { l.as_ref() }) < if fnump.is_none() { 2 } else { 3 }
+        || tv_list_len(unsafe { l.as_ref() }) > if fnump.is_none() { 4 } else { 5 }
     {
         return false;
     }
@@ -5864,7 +5623,7 @@ pub fn list2fpos(
     let mut i: i32 = 0;
     let mut n: i32;
     if fnump.is_some() {
-        n = tv_list_find_nr(crate::globals::gopt_mut(l), i, None) as i32;
+        n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
 
         i += 1;
         if n < 0 {
@@ -5876,7 +5635,7 @@ pub fn list2fpos(
         *fnump.as_deref_mut().unwrap() = n;
     }
 
-    n = tv_list_find_nr(crate::globals::gopt_mut(l), i, None) as i32;
+    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
 
     i += 1;
     if n < 0 {
@@ -5884,7 +5643,7 @@ pub fn list2fpos(
     }
     posp.lnum = n;
 
-    n = tv_list_find_nr(crate::globals::gopt_mut(l), i, None) as i32;
+    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
 
     i += 1;
     if n < 0 {
@@ -5896,20 +5655,20 @@ pub fn list2fpos(
         } else {
             curbuf_mut().b_fnum
         });
-        if buf.is_null() || crate::globals::gptr(buf).b_ml.ml_mfp.is_none() {
+        if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
             return false;
         }
         let cur_lnum = curwin_mut().w_cursor.lnum;
 
         n = buf_charidx_to_byteidx(
-            crate::globals::gopt_mut(buf),
+            unsafe { buf.as_mut() },
             if posp.lnum == 0 { cur_lnum } else { posp.lnum },
             n,
         ) + 1;
     }
     posp.col = n;
 
-    n = tv_list_find_nr(crate::globals::gopt_mut(l), i, None) as i32;
+    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
 
     if n < 0 {
         posp.coladd = 0;
@@ -5918,136 +5677,122 @@ pub fn list2fpos(
     }
 
     if let Some(ref mut p) = curswantp {
-        **p = tv_list_find_nr(crate::globals::gopt_mut(l), i + 1, None) as Colnr;
+        **p = tv_list_find_nr(unsafe { l.as_mut() }, i + 1, None) as Colnr;
     }
 
     true
 }
 
 /// Get the length of an environment variable name.
-pub fn get_env_len<T>(arg: *mut *const T) -> i32 {
-    let len = env_name_len(crate::memory::cstr_as_bytes(
-        crate::globals::gptr(arg).cast(),
-    ));
-
-    *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(len);
-
+pub fn get_env_len(arg: &mut &CStr) -> i32 {
+    let len = env_name_len(arg.to_bytes());
+    *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(len)) };
     len as i32
 }
 
 /// Get the length of the name of a function or internal variable.
-pub fn get_id_len<T>(arg: *mut *const T) -> i32 {
-    let arg: *mut *const u8 = arg.cast();
-    {
-        let mut p = *crate::globals::gptr(arg);
-        while eval_isnamec(i32::from(crate::memory::cstr_first_byte(p.cast()))) {
-            if crate::memory::cstr_first_byte(p.cast()) == b':' {
-                let len = ((p as usize).wrapping_sub((*crate::globals::gptr(arg)) as usize)) as i32;
-                if len > 1
-                    || (len == 1
-                        && vim_strchr(
-                            NAMESPACE_CHAR,
-                            i32::from(*crate::globals::gptr(*crate::globals::gptr(arg))),
-                        )
-                        .is_null())
-                {
-                    break;
-                }
+pub fn get_id_len(arg: &mut &CStr) -> i32 {
+    let start = arg.as_ptr();
+    let mut p = start;
+    while eval_isnamec(i32::from(crate::memory::cstr_first_byte(p))) {
+        if crate::memory::cstr_first_byte(p) == b':' {
+            let len = ((p as usize).wrapping_sub(start as usize)) as i32;
+            if len > 1
+                || (len == 1
+                    && vim_strchr(
+                        NAMESPACE_CHAR,
+                        i32::from(crate::memory::cstr_first_byte(start)),
+                    )
+                    .is_null())
+            {
+                break;
             }
-            p = p.wrapping_add(1);
         }
-        if p == *crate::globals::gptr(arg) {
-            return 0;
-        }
-
-        let len = ((p as usize).wrapping_sub((*crate::globals::gptr(arg)) as usize)) as i32;
-        *crate::globals::gptr(arg) = skipwhite(p.cast()).cast();
-
-        len
+        p = p.wrapping_add(1);
     }
+    if p == start {
+        return 0;
+    }
+
+    let len = ((p as usize).wrapping_sub(start as usize)) as i32;
+    *arg = unsafe { CStr::from_ptr(skipwhite(p.cast_mut())) };
+
+    len
 }
 
 /// Get the length of the name of a variable or function.
-pub fn get_name_len<T>(
-    arg: *mut *const T,
+pub fn get_name_len(
+    arg: &mut &CStr,
     alias: &mut Option<std::ffi::CString>,
     evaluate: bool,
     verbose: bool,
 ) -> i32 {
-    let arg: *mut *const u8 = arg.cast();
-    {
-        *alias = None;
+    *alias = None;
 
-        if *crate::globals::gptr(*crate::globals::gptr(arg)) == K_SPECIAL
-            && *crate::globals::gptr(crate::globals::gptr(arg).wrapping_add(1)) == KS_EXTRA
-            && *crate::globals::gptr(crate::globals::gptr(arg).wrapping_add(2)) == KE_SNR
-        {
-            *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(3);
-            return get_id_len(arg) + 3;
-        }
-        let mut len = eval_fname_script(crate::memory::cstr_as_bytes(
-            crate::globals::gptr(arg).cast(),
-        )) as i32;
-        if len > 0 {
-            *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(len as usize);
-        }
-
-        let mut expr_range: Option<(usize, usize)> = None;
-        let p = find_name_end(
-            *crate::globals::gptr(arg),
-            Some(&mut expr_range),
-            if len > 0 { 0 } else { FNE_CHECK_START },
-        );
-        if let Some((expr_start_off, expr_end_off)) = expr_range {
-            if !evaluate {
-                len += ((p as usize).wrapping_sub((*crate::globals::gptr(arg)) as usize)) as i32;
-                *crate::globals::gptr(arg) = skipwhite(p.cast()).cast();
-                return len;
-            }
-
-            let prefix_len = len as usize;
-            let full_start = crate::globals::gptr(arg).wrapping_sub(prefix_len);
-            let full_len = (p as usize).wrapping_sub(full_start as usize);
-            let Some(temp_string) = make_expanded_name(
-                crate::memory::cstr_slice(full_start.cast(), full_len),
-                prefix_len + expr_start_off,
-                prefix_len + expr_end_off,
-            ) else {
-                return -1;
-            };
-            let ret_len = temp_string.as_bytes().len() as i32;
-            *alias = Some(temp_string);
-            *crate::globals::gptr(arg) = skipwhite(p.cast()).cast();
-            return ret_len;
-        }
-
-        len += get_id_len(arg);
-        if len == 0 && verbose && *crate::globals::gptr(*crate::globals::gptr(arg)) != 0 {
-            semsg!(gettext(E_INVEXPR2), *crate::globals::gptr(arg));
-        }
-
-        len
+    if arg.to_bytes().starts_with(&[K_SPECIAL, KS_EXTRA, KE_SNR]) {
+        *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(3)) };
+        return get_id_len(arg) + 3;
     }
+    let mut len = eval_fname_script(arg.to_bytes()) as i32;
+    if len > 0 {
+        *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(len as usize)) };
+    }
+
+    let mut expr_range: Option<(usize, usize)> = None;
+    let p_cstr = find_name_end(
+        arg,
+        Some(&mut expr_range),
+        if len > 0 { 0 } else { FNE_CHECK_START },
+    );
+    let p = p_cstr.as_ptr();
+    if let Some((expr_start_off, expr_end_off)) = expr_range {
+        if !evaluate {
+            len += ((p as usize).wrapping_sub(arg.as_ptr() as usize)) as i32;
+            *arg = unsafe { CStr::from_ptr(skipwhite(p.cast_mut())) };
+            return len;
+        }
+
+        let prefix_len = len as usize;
+        let full_start = arg.as_ptr().wrapping_sub(prefix_len);
+        let full_len = (p as usize).wrapping_sub(full_start as usize);
+        let Some(temp_string) = make_expanded_name(
+            crate::memory::cstr_slice(full_start, full_len),
+            prefix_len + expr_start_off,
+            prefix_len + expr_end_off,
+        ) else {
+            return -1;
+        };
+        let ret_len = temp_string.as_bytes().len() as i32;
+        *alias = Some(temp_string);
+        *arg = unsafe { CStr::from_ptr(skipwhite(p.cast_mut())) };
+        return ret_len;
+    }
+
+    len += get_id_len(arg);
+    if len == 0 && verbose && !arg.to_bytes().is_empty() {
+        semsg!(gettext(E_INVEXPR2), arg.as_ptr());
+    }
+
+    len
 }
 
 /// Find the end of a variable or function name, taking care of magic braces.
-pub fn find_name_end<T>(
-    arg: *const T,
+pub fn find_name_end<'a>(
+    arg: &'a CStr,
     mut expr_range: Option<&mut Option<(usize, usize)>>,
     flags: i32,
-) -> *const T {
-    let arg: *const u8 = arg.cast();
+) -> &'a CStr {
     if let Some(ref mut er) = expr_range {
         **er = None;
     }
 
-    let bytes = crate::memory::cstr_as_bytes(arg.cast());
+    let bytes = arg.to_bytes();
     if (flags & FNE_CHECK_START) != 0
         && !bytes
             .first()
             .is_some_and(|&b0| eval_isnamec1(i32::from(b0)) || b0 == b'{')
     {
-        return arg.cast();
+        return arg;
     }
 
     let mut mb_nest: i32 = 0;
@@ -6130,7 +5875,7 @@ pub fn find_name_end<T>(
         *er = Some((s, expr_end_off.unwrap_or(usize::MAX)));
     }
 
-    arg.wrapping_add(idx.min(bytes.len())).cast()
+    unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(idx.min(bytes.len()))) }
 }
 
 /// Expands out the 'magic' {}'s in a variable/function name.
@@ -6156,10 +5901,9 @@ fn make_expanded_name(
 
     if let Some(ref rv) = retval {
         let mut next_range: Option<(usize, usize)> = None;
-        let rv_ptr = rv.as_ptr().cast::<u8>();
-        let end_ptr = find_name_end(rv_ptr, Some(&mut next_range), 0);
+        let end_cstr = find_name_end(rv, Some(&mut next_range), 0);
         if let Some((next_start, next_end)) = next_range {
-            let end_len = (end_ptr as usize).wrapping_sub(rv_ptr as usize);
+            let end_len = (end_cstr.as_ptr() as usize).wrapping_sub(rv.as_ptr() as usize);
             retval = make_expanded_name(&rv.as_bytes()[..end_len], next_start, next_end);
         }
     }
@@ -6188,19 +5932,22 @@ pub fn set_argv_var(argv: &[std::ffi::CString]) {
 
     tv_list_set_lock(Some(&mut *l), VAR_FIXED);
     for arg in argv {
-        tv_list_append_string(&mut *l, arg.as_ptr(), -1);
-        tv_list_item_tv(unsafe { &mut *tv_list_last(Some(&*l)) }).v_lock = VAR_FIXED;
+        tv_list_append_string(&mut *l, Some(arg.as_c_str()), -1);
+        tv_list_item_tv(tv_list_last(Some(&*l)).unwrap()).v_lock = VAR_FIXED;
     }
-    set_vim_var_list(VV_ARGV, l);
+    set_vim_var_list(VV_ARGV, Some(l));
 }
 
 /// Check if special v:lua value for calling lua functions.
-pub fn is_luafunc(partial: *mut TvPartial) -> bool {
-    partial == get_vim_var_partial(VV_LUA)
+pub fn is_luafunc(partial: Option<&TvPartial>) -> bool {
+    let Some(partial) = partial else {
+        return false;
+    };
+    get_vim_var_partial(VV_LUA).is_some_and(|p| ptr::eq(partial, p))
 }
 
 fn tv_is_luafunc(tv: &mut TypVal) -> bool {
-    tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv))
+    tv.v_type == VarType::VarPartial && is_luafunc(tv_partial(tv).as_deref())
 }
 
 #[inline]
@@ -6212,14 +5959,14 @@ fn luafunc_name_len(bytes: &[u8]) -> usize {
 }
 
 /// Skips one character past the end of the name of a v:lua function.
-pub fn skip_luafunc_name(p: impl crate::strings::IntoCCharPtr) -> *const u8 {
-    let p: *const u8 = p.into_c_char_ptr().cast();
-    p.wrapping_add(luafunc_name_len(crate::memory::cstr_as_bytes(p.cast())))
+pub fn skip_luafunc_name(p: &CStr) -> &CStr {
+    let len = luafunc_name_len(p.to_bytes());
+    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(len)) }
 }
 
 /// Check the function name after "v:lua."
-pub fn check_luafunc_name(str_: impl crate::strings::IntoCCharPtr, paren: bool) -> i32 {
-    let bytes = crate::memory::cstr_as_bytes(str_.into_c_char_ptr());
+pub fn check_luafunc_name(str_: &CStr, paren: bool) -> i32 {
+    let bytes = str_.to_bytes();
     let len = luafunc_name_len(bytes);
     if bytes.get(len).copied().unwrap_or(0) != if paren { b'(' } else { 0 } {
         return 0;
@@ -6316,126 +6063,106 @@ pub fn string_slice(
 }
 
 /// Handle subscripts, `.name`, funcref calls, and `->method()`.
-pub fn handle_subscript<T>(
-    arg: *mut *const T,
+pub fn handle_subscript<'a>(
+    arg: &mut &'a CStr,
     rettv: &mut TypVal,
     mut evalarg: Option<&mut Evalarg>,
     verbose: bool,
 ) -> bool {
-    let arg: *mut *const u8 = arg.cast();
-    {
-        let evaluate = evalarg
-            .as_ref()
-            .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
-        let mut ret = true;
-        let mut selfdict: *mut TvDict = ptr::null_mut();
-        let mut lua_funcname: *const u8 = ptr::null();
+    let evaluate = evalarg
+        .as_ref()
+        .is_some_and(|p| (p.eval_flags & EVAL_EVALUATE) != 0);
+    let mut ret = true;
+    let mut selfdict: *mut TvDict = ptr::null_mut();
+    let mut lua_funcname: Option<&'a CStr> = None;
 
-        if tv_is_luafunc(rettv) {
-            if !evaluate {
-                tv_clear(rettv);
-            }
+    if tv_is_luafunc(rettv) {
+        if !evaluate {
+            tv_clear(rettv);
+        }
 
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) != b'.' {
+        if arg.to_bytes_with_nul()[0] != b'.' {
+            tv_clear(rettv);
+            ret = false;
+        } else {
+            *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(1)) };
+
+            lua_funcname = Some(*arg);
+            let len = check_luafunc_name(arg, true);
+            if len == 0 {
                 tv_clear(rettv);
                 ret = false;
-            } else {
-                *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(1);
-
-                lua_funcname = *crate::globals::gptr(arg);
-                let len = check_luafunc_name(crate::globals::gptr(arg).cast(), true);
-                if len == 0 {
-                    tv_clear(rettv);
-                    ret = false;
-                }
-                *crate::globals::gptr(arg) = crate::globals::gptr(arg).wrapping_add(len as usize);
             }
+            *arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(len as usize)) };
         }
-
-        while ret
-            && (((*crate::globals::gptr(*crate::globals::gptr(arg)) == b'['
-                || (*crate::globals::gptr(*crate::globals::gptr(arg)) == b'.'
-                    && rettv.v_type == VarType::VarDict)
-                || (*crate::globals::gptr(*crate::globals::gptr(arg)) == b'('
-                    && (!evaluate || tv_is_func(rettv))))
-                && !ascii_iswhite(i32::from(*crate::globals::gptr(
-                    crate::globals::gptr(arg).wrapping_sub(1),
-                ))))
-                || crate::memory::cstr_as_bytes(crate::globals::gptr(arg).cast())
-                    .starts_with(b"->"))
-        {
-            if *crate::globals::gptr(*crate::globals::gptr(arg)) == b'(' {
-                ret = call_func_rettv(
-                    arg.cast::<*mut u8>(),
-                    evalarg.as_deref_mut(),
-                    rettv,
-                    evaluate,
-                    selfdict,
-                    None,
-                    lua_funcname.cast(),
-                );
-
-                if aborting() {
-                    if ret {
-                        tv_clear(rettv);
-                    }
-                    ret = false;
-                }
-                tv_dict_unref(selfdict);
-                selfdict = ptr::null_mut();
-            } else if *crate::globals::gptr(*crate::globals::gptr(arg)) == b'-' {
-                if crate::memory::cstr_as_bytes(crate::globals::gptr(arg).cast()).get(2)
-                    == Some(&b'{')
-                {
-                    ret = eval_lambda(
-                        arg.cast::<*mut u8>(),
-                        rettv,
-                        evalarg.as_deref_mut(),
-                        verbose,
-                    );
-                } else {
-                    ret = eval_method(
-                        arg.cast::<*mut u8>(),
-                        rettv,
-                        evalarg.as_deref_mut(),
-                        verbose,
-                    );
-                }
-            } else {
-                tv_dict_unref(selfdict);
-                if rettv.v_type == VarType::VarDict {
-                    selfdict = rettv.vval.v_dict();
-                    if !selfdict.is_null() {
-                        crate::globals::gptr(selfdict).dv_refcount += 1;
-                    }
-                } else {
-                    selfdict = ptr::null_mut();
-                }
-                if !eval_index(
-                    arg.cast::<*mut u8>(),
-                    rettv,
-                    evalarg.as_deref_mut(),
-                    verbose,
-                ) {
-                    tv_clear(rettv);
-                    ret = false;
-                }
-            }
-        }
-
-        if !selfdict.is_null() && tv_is_func(rettv) {
-            set_selfdict(rettv, crate::globals::gmut(selfdict));
-        }
-
-        tv_dict_unref(selfdict);
-        ret
     }
+
+    while ret
+        && (((arg.to_bytes_with_nul()[0] == b'['
+            || (arg.to_bytes_with_nul()[0] == b'.' && rettv.v_type == VarType::VarDict)
+            || (arg.to_bytes_with_nul()[0] == b'(' && (!evaluate || tv_is_func(rettv))))
+            && !ascii_iswhite(i32::from(unsafe { *arg.as_ptr().wrapping_sub(1) } as u8)))
+            || arg.to_bytes().starts_with(b"->"))
+    {
+        if arg.to_bytes_with_nul()[0] == b'(' {
+            ret = call_func_rettv(
+                arg,
+                evalarg.as_deref_mut(),
+                rettv,
+                evaluate,
+                unsafe { selfdict.as_mut() },
+                None,
+                lua_funcname,
+            );
+
+            if aborting() {
+                if ret {
+                    tv_clear(rettv);
+                }
+                ret = false;
+            }
+            tv_dict_unref(unsafe { selfdict.as_mut() });
+            selfdict = ptr::null_mut();
+        } else if arg.to_bytes_with_nul()[0] == b'-' {
+            if arg.to_bytes().get(2) == Some(&b'{') {
+                ret = eval_lambda(arg, rettv, evalarg.as_deref_mut(), verbose);
+            } else {
+                ret = eval_method(arg, rettv, evalarg.as_deref_mut(), verbose);
+            }
+        } else {
+            tv_dict_unref(unsafe { selfdict.as_mut() });
+            if rettv.v_type == VarType::VarDict {
+                selfdict = rettv.vval.v_dict();
+                if !selfdict.is_null() {
+                    unsafe {
+                        (*selfdict).dv_refcount += 1;
+                    }
+                }
+            } else {
+                selfdict = ptr::null_mut();
+            }
+            if !eval_index(arg, rettv, evalarg.as_deref_mut(), verbose) {
+                tv_clear(rettv);
+                ret = false;
+            }
+        }
+    }
+
+    if let Some(selfdict_ref) = unsafe { selfdict.as_mut() }
+        && tv_is_func(rettv)
+    {
+        set_selfdict(rettv, selfdict_ref);
+    }
+
+    tv_dict_unref(unsafe { selfdict.as_mut() });
+    ret
 }
 
 pub fn set_selfdict(rettv: &mut TypVal, selfdict: &mut TvDict) {
     if rettv.v_type == VarType::VarPartial
-        && !crate::globals::gptr(tv_partial(&*rettv)).pt_auto
-        && !crate::globals::gptr(tv_partial(&*rettv)).pt_dict.is_null()
+        && let Some(pt) = tv_partial(&*rettv)
+        && !pt.pt_auto
+        && !pt.pt_dict.is_null()
     {
         return;
     }
@@ -6477,9 +6204,15 @@ pub fn var_item_copy(
                 tv_copy(&*from, &mut *to);
             } else {
                 if let Some(conv_bytes) = string_convert(conv, from.vval.v_string(), None) {
-                    crate::eval::typval::tv_set_string(&mut *to, conv_bytes.as_ptr().cast());
+                    crate::eval::typval::tv_set_string(
+                        &mut *to,
+                        Some(crate::memory::cstr_until_nul(&conv_bytes)),
+                    );
                 } else {
-                    crate::eval::typval::tv_set_string(&mut *to, from.vval.v_string());
+                    crate::eval::typval::tv_set_string(
+                        &mut *to,
+                        crate::memory::cstr_as_opt_cstr(from.vval.v_string()),
+                    );
                 }
                 to.v_lock = VAR_UNLOCKED;
             }
@@ -6493,15 +6226,14 @@ pub fn var_item_copy(
                 return ret;
             };
             if copy_id != 0 && tv_list_copyid(from_list) == copy_id {
-                to.vval = crate::eval::typval::TypvalVval::List(tv_list_latest_copy(from_list));
+                let latest = tv_list_latest_copy(from_list).map_or(ptr::null_mut(), ptr::from_mut);
+                to.vval = crate::eval::typval::TypvalVval::List(latest);
                 tv_list_ref(to.vval.v_list_opt());
             } else {
-                to.vval = crate::eval::typval::TypvalVval::List(tv_list_copy(
-                    conv,
-                    Some(from_list),
-                    deep,
-                    copy_id,
-                ));
+                to.vval = crate::eval::typval::TypvalVval::List(
+                    tv_list_copy(conv, Some(from_list), deep, copy_id)
+                        .map_or(ptr::null_mut(), ptr::from_mut),
+                );
             }
             if to.vval.v_list().is_null() {
                 ret = false;
@@ -6522,12 +6254,10 @@ pub fn var_item_copy(
                 to.vval = crate::eval::typval::TypvalVval::Dict(from_dict.dv_copydict);
                 to.vval.v_dict_ref().dv_refcount += 1;
             } else {
-                to.vval = crate::eval::typval::TypvalVval::Dict(tv_dict_copy(
-                    conv,
-                    Some(from_dict),
-                    deep,
-                    copy_id,
-                ));
+                to.vval = crate::eval::typval::TypvalVval::Dict(
+                    tv_dict_copy(conv, Some(from_dict), deep, copy_id)
+                        .map_or(ptr::null_mut(), ptr::from_mut),
+                );
             }
             if to.vval.v_dict().is_null() {
                 ret = false;
@@ -6544,7 +6274,7 @@ pub fn var_item_copy(
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
 pub fn ex_echo(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
@@ -6557,21 +6287,21 @@ pub fn ex_echo(eap: &mut Exarg) {
     if eap.skip != 0 {
         g_st().emsg_skip += 1;
     }
-    while !crate::memory::cstr_is_empty(arg)
-        && crate::memory::cstr_first_byte(arg) != b'|'
-        && crate::memory::cstr_first_byte(arg) != b'\n'
+    while !arg.to_bytes().is_empty()
+        && arg.to_bytes_with_nul()[0] != b'|'
+        && arg.to_bytes_with_nul()[0] != b'\n'
         && !g_st().got_int
     {
         g_st().need_clr_eos = true;
 
         {
             let p = arg;
-            if !eval1(&raw mut arg, &mut rettv, Some(&mut evalarg)) {
+            if !eval1(&mut arg, &mut rettv, Some(&mut evalarg)) {
                 if !aborting()
                     && g_st().did_emsg == did_emsg_before
                     && g_st().called_emsg == called_emsg_before
                 {
-                    semsg!(gettext(E_INVEXPR2), p);
+                    semsg!(gettext(E_INVEXPR2), p.as_ptr());
                 }
                 g_st().need_clr_eos = false;
                 break;
@@ -6604,10 +6334,9 @@ pub fn ex_echo(eap: &mut Exarg) {
             );
         }
         tv_clear(&mut rettv);
-        arg = skipwhite(arg);
+        arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
     }
-    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd = check_nextcmd(arg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     msg_ext_set_append(false);
 
     if eap.skip != 0 {
@@ -6640,7 +6369,7 @@ pub fn get_echo_hl_id() -> i32 {
 
 /// ":execute", ":echomsg", ":echoerr"
 pub fn ex_execute(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = unsafe { CStr::from_ptr(eap.arg) };
     let mut rettv = tv_initial_value();
     let mut ret = true;
     let mut buf: Vec<u8> = Vec::with_capacity(80);
@@ -6649,11 +6378,11 @@ pub fn ex_execute(eap: &mut Exarg) {
     if eap.skip != 0 {
         g_st().emsg_skip += 1;
     }
-    while !crate::memory::cstr_is_empty(arg)
-        && crate::memory::cstr_first_byte(arg) != b'|'
-        && crate::memory::cstr_first_byte(arg) != b'\n'
+    while !arg.to_bytes().is_empty()
+        && arg.to_bytes_with_nul()[0] != b'|'
+        && arg.to_bytes_with_nul()[0] != b'\n'
     {
-        ret = eval1_emsg(&raw mut arg, &mut rettv, Some(eap));
+        ret = eval1_emsg(&mut arg, &mut rettv, Some(eap));
         if !ret {
             break;
         }
@@ -6682,7 +6411,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         }
 
         tv_clear(&mut rettv);
-        arg = skipwhite(arg);
+        arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
     }
 
     if ret && has_arg {
@@ -6711,36 +6440,32 @@ pub fn ex_execute(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     }
 
-    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
-        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    eap.nextcmd = check_nextcmd(arg).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".
-pub fn find_option_var_end<T>(
-    arg: *mut *const T,
+pub fn find_option_var_end<'a>(
+    arg: &mut &'a CStr,
     opt_idxp: &mut OptIndex,
     opt_flags: &mut i32,
-) -> *const T {
-    let arg: *mut *const u8 = arg.cast();
-    {
-        let mut p = crate::globals::gptr(arg).wrapping_add(1);
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-        if p_bytes.starts_with(b"g:") {
-            *opt_flags = OPT_GLOBAL;
-            p = p.wrapping_add(2);
-        } else if p_bytes.starts_with(b"l:") {
-            *opt_flags = OPT_LOCAL;
-            p = p.wrapping_add(2);
-        } else {
-            *opt_flags = 0;
-        }
+) -> Option<&'a CStr> {
+    let mut p = arg.as_ptr().wrapping_add(1);
+    let p_bytes = crate::memory::cstr_as_bytes(p);
+    if p_bytes.starts_with(b"g:") {
+        *opt_flags = OPT_GLOBAL;
+        p = p.wrapping_add(2);
+    } else if p_bytes.starts_with(b"l:") {
+        *opt_flags = OPT_LOCAL;
+        p = p.wrapping_add(2);
+    } else {
+        *opt_flags = 0;
+    }
 
-        if let Some(end_off) = find_option_end(crate::memory::cstr_as_bytes(p.cast()), opt_idxp) {
-            *crate::globals::gptr(arg) = p;
-            p.wrapping_add(end_off).cast()
-        } else {
-            ptr::null_mut()
-        }
+    if let Some(end_off) = find_option_end(crate::memory::cstr_as_bytes(p), opt_idxp) {
+        *arg = unsafe { CStr::from_ptr(p) };
+        Some(unsafe { CStr::from_ptr(p.wrapping_add(end_off)) })
+    } else {
+        None
     }
 }
 
@@ -6757,13 +6482,10 @@ pub fn var_flavour(varname: &[u8]) -> VarFlavour {
     VAR_FLAVOUR_DEFAULT
 }
 
-pub fn var_set_global(name: impl crate::strings::IntoCCharPtr, mut vartv: TypVal) {
-    let name = name.into_c_char_ptr();
-    {
-        save_funccal();
-        set_var(crate::memory::cstr_as_bytes(name), &mut vartv, false);
-        restore_funccal();
-    }
+pub fn var_set_global(name: &[u8], mut vartv: TypVal) {
+    save_funccal();
+    set_var(name, &mut vartv, false);
+    restore_funccal();
 }
 
 /// Display script name where an item was last set.
@@ -6789,118 +6511,107 @@ pub fn last_set_msg(script_ctx: Sctx) {
 
 /// Perform a substitution on "str" with pattern "pat" and substitute "sub".
 pub fn do_string_sub(
-    str_: impl crate::strings::IntoCCharPtr,
+    str_cstr: &CStr,
     len: usize,
-    pat: impl crate::strings::IntoCCharPtr,
-    sub: impl crate::strings::IntoCCharPtr,
+    pat: &CStr,
+    sub_cstr: &CStr,
     expr: Option<&TypVal>,
-    flags: impl crate::strings::IntoCCharPtr,
+    flags: &CStr,
 ) -> std::ffi::CString {
-    let str_ = str_.into_c_char_ptr().cast_mut();
-    let pat = pat.into_c_char_ptr().cast_mut();
-    let sub = sub.into_c_char_ptr().cast_mut();
-    let flags = flags.into_c_char_ptr();
-    {
-        let mut regmatch: Regmatch = Regmatch::new();
-        let mut out: Option<Vec<u8>> = None;
+    let str_ = str_cstr.as_ptr().cast_mut();
+    let mut regmatch: Regmatch = Regmatch::new();
+    let mut out: Option<Vec<u8>> = None;
 
-        let save_cpo = opt_vars().p_cpo;
-        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = opt_vars().p_cpo;
+    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
-        regmatch.rm_ic = opt_vars().p_ic != 0;
-        regmatch.set_prog(vim_regcomp(
-            crate::memory::cstr_from_ptr(pat),
-            RE_MAGIC + RE_STRING,
-        ));
-        if !regmatch.regprog.is_null() {
-            let mut tail = str_;
-            let end = str_.wrapping_add(len);
-            let do_all = crate::memory::cstr_first_byte(flags) == b'g';
-            let mut zero_width = ptr::null_mut();
-            let str_opt = crate::memory::cstr_as_opt_cstr(str_);
-            let sub_cstr = crate::memory::cstr_from_ptr(sub);
+    regmatch.rm_ic = opt_vars().p_ic != 0;
+    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
+    if !regmatch.regprog.is_null() {
+        let mut tail = str_;
+        let end = str_.wrapping_add(len);
+        let do_all = flags.to_bytes().first() == Some(&b'g');
+        let mut zero_width = ptr::null_mut();
+        let str_opt = Some(str_cstr);
 
-            while vim_regexec_nl(
-                &mut regmatch,
-                str_opt,
-                ((tail as usize).wrapping_sub(str_ as usize)) as Colnr,
-            ) {
-                if regmatch.startp[0] == regmatch.endp[0] {
-                    if zero_width == regmatch.startp[0] {
-                        let i = utfc_ptr2len(tail) as usize;
-                        if let Some(buf) = &mut out {
-                            buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
-                        }
-                        tail = tail.wrapping_add(i);
-                        continue;
+        while vim_regexec_nl(
+            &mut regmatch,
+            str_opt,
+            ((tail as usize).wrapping_sub(str_ as usize)) as Colnr,
+        ) {
+            if regmatch.startp[0] == regmatch.endp[0] {
+                if zero_width == regmatch.startp[0] {
+                    let i = utfc_ptr2len(tail) as usize;
+                    if let Some(buf) = &mut out {
+                        buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
                     }
-                    zero_width = regmatch.startp[0];
+                    tail = tail.wrapping_add(i);
+                    continue;
                 }
-
-                let sublen = vim_regsub(&mut regmatch, sub_cstr, expr, &mut [], REGSUB_MAGIC);
-                if sublen <= 0 {
-                    out = None;
-                    break;
-                }
-                let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
-
-                let i = (regmatch.startp[0] as usize).wrapping_sub(tail as usize);
-                if i > 0 {
-                    buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
-                }
-                let cur_len = buf.len();
-                buf.resize(cur_len + (sublen as usize), 0);
-                vim_regsub(
-                    &mut regmatch,
-                    sub_cstr,
-                    expr,
-                    &mut buf[cur_len..cur_len + (sublen as usize)],
-                    REGSUB_COPY | REGSUB_MAGIC,
-                );
-                buf.truncate(cur_len + (sublen as usize) - 1);
-                tail = regmatch.endp[0].cast();
-                if crate::memory::cstr_is_empty(tail) {
-                    break;
-                }
-                if !do_all {
-                    break;
-                }
+                zero_width = regmatch.startp[0];
             }
 
-            if let Some(buf) = &mut out {
-                let rem = (end as usize).wrapping_sub(tail as usize);
-                if rem > 0 {
-                    buf.extend_from_slice(crate::memory::cstr_slice(tail, rem));
-                }
+            let sublen = vim_regsub(&mut regmatch, sub_cstr, expr, &mut [], REGSUB_MAGIC);
+            if sublen <= 0 {
+                out = None;
+                break;
             }
+            let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
 
-            regmatch.free_prog();
+            let i = (regmatch.startp[0] as usize).wrapping_sub(tail as usize);
+            if i > 0 {
+                buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
+            }
+            let cur_len = buf.len();
+            buf.resize(cur_len + (sublen as usize), 0);
+            vim_regsub(
+                &mut regmatch,
+                sub_cstr,
+                expr,
+                &mut buf[cur_len..cur_len + (sublen as usize)],
+                REGSUB_COPY | REGSUB_MAGIC,
+            );
+            buf.truncate(cur_len + (sublen as usize) - 1);
+            tail = regmatch.endp[0].cast();
+            if crate::memory::cstr_is_empty(tail) {
+                break;
+            }
+            if !do_all {
+                break;
+            }
         }
 
-        let ret = if let Some(buf) = &out {
-            cstr_from_bytes(buf)
-        } else {
-            cstr_from_bytes(crate::memory::cstr_slice(str_, len))
-        };
-        drop(out);
-        let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
-        if opt_vars().p_cpo == empty_opt {
-            opt_vars().p_cpo = save_cpo;
-        } else {
-            if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
-                let obj = Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                        save_cpo,
-                    ))),
-                };
-                set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
+        if let Some(buf) = &mut out {
+            let rem = (end as usize).wrapping_sub(tail as usize);
+            if rem > 0 {
+                buf.extend_from_slice(crate::memory::cstr_slice(tail, rem));
             }
-            save_cpo.free_option_str();
         }
 
-        ret
+        regmatch.free_prog();
     }
+
+    let ret = if let Some(buf) = &out {
+        cstr_from_bytes(buf)
+    } else {
+        cstr_from_bytes(crate::memory::cstr_slice(str_, len))
+    };
+    drop(out);
+    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
+    if opt_vars().p_cpo == empty_opt {
+        opt_vars().p_cpo = save_cpo;
+    } else {
+        if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
+            let obj = Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(save_cpo))),
+            };
+            set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
+        }
+        save_cpo.free_option_str();
+    }
+
+    ret
 }
 
 /// Common code for getting job callbacks for `jobstart`.
@@ -6932,10 +6643,9 @@ pub fn common_job_callbacks(
     false
 }
 
-pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
-    let data = find_channel(id).map_or(ptr::null_mut(), ptr::from_mut);
-    let data_ref = crate::globals::gopt(data);
-    let is_stopped = if let Some(d) = data_ref
+pub fn find_job(id: u64, show_error: bool) -> Option<&'static mut Channel> {
+    let data = find_channel(id);
+    let is_stopped = if let Some(ref d) = data
         && d.streamtype == K_CHANNEL_STREAM_PROC
     {
         let hdr = &d.uv.proc_;
@@ -6943,15 +6653,22 @@ pub fn find_job(id: u64, show_error: bool) -> *mut Channel {
     } else {
         true
     };
-    if data_ref.is_none_or(|d| d.streamtype != K_CHANNEL_STREAM_PROC) || is_stopped {
+    if data
+        .as_ref()
+        .is_none_or(|d| d.streamtype != K_CHANNEL_STREAM_PROC)
+        || is_stopped
+    {
         if show_error {
-            if data_ref.is_some_and(|d| d.streamtype != K_CHANNEL_STREAM_PROC) {
+            if data
+                .as_ref()
+                .is_some_and(|d| d.streamtype != K_CHANNEL_STREAM_PROC)
+            {
                 emsg(gettext(E_INVCHANJOB));
             } else {
                 emsg(gettext(E_INVCHAN));
             }
         }
-        return ptr::null_mut();
+        return None;
     }
     data
 }
@@ -6967,111 +6684,110 @@ pub fn script_host_eval(name: &std::ffi::CStr, argvars: &mut [TypVal], rettv: &m
     }
 
     let args = tv_list_alloc(1);
-    tv_list_append_string(&mut *args, argvars[0].vval.v_string(), -1);
-    *rettv = eval_call_provider(name.as_ptr().cast_mut(), c"eval", &mut *args, false);
+    tv_list_append_string(
+        &mut *args,
+        crate::memory::cstr_as_opt_cstr(argvars[0].vval.v_string()),
+        -1,
+    );
+    *rettv = eval_call_provider(name, c"eval", &mut *args, false);
 }
 
 pub fn eval_call_provider(
-    provider: impl crate::strings::IntoCCharPtr,
+    provider: &CStr,
     method: &std::ffi::CStr,
     arguments: &mut TvList,
     discard: bool,
 ) -> TypVal {
-    let provider = provider.into_c_char_ptr().cast_mut();
-    {
-        if !eval_has_provider(provider, false) {
-            semsg!(
-                c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"",
-                provider,
-            );
-            return TypVal {
-                v_type: VarType::VarNumber,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::Number(0),
-            };
-        }
-
-        let mut func = [0u8; 256];
-        let name_len = vim_snprintf!(
-            func.as_mut_ptr().cast(),
-            func.len(),
-            c"provider#%s#Call",
-            provider,
+    if !eval_has_provider(provider.to_bytes(), false) {
+        semsg!(
+            c"E319: No \"%s\" provider found. Run \":checkhealth vim.provider\"",
+            provider.as_ptr(),
         );
-
-        let new_scope = CallerScope {
-            script_ctx: g_st().current_sctx,
-            es_entry: rt_st().exestack.last().unwrap().clone(),
-            autocmd_fname: g_st().autocmd_fname.clone(),
-            autocmd_match: g_st().autocmd_match.clone(),
-            autocmd_fname_full: g_st().autocmd_fname_full,
-            autocmd_bufnr: g_st().autocmd_bufnr,
-            funccalp: get_current_funccal().cast(),
+        return TypVal {
+            v_type: VarType::VarNumber,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::Number(0),
         };
-        let saved_provider_caller_scope =
-            std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
-        save_funccal();
-        {
-            g_st().provider_call_nesting += 1;
-        }
-
-        let mut argvars = [
-            TypVal {
-                v_type: VarType::VarString,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(method.as_ptr().cast_mut()),
-            },
-            TypVal {
-                v_type: VarType::VarList,
-                v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(arguments),
-            },
-            tv_initial_value(),
-        ];
-        let mut rettv = tv_initial_value();
-        tv_list_ref(Some(&mut *arguments));
-
-        let lnum = curwin_mut().w_cursor.lnum;
-        let mut funcexe = Funcexe {
-            fe_fill_submatch: false,
-            fe_firstline: lnum,
-            fe_lastline: lnum,
-            fe_doesrange: false,
-            fe_evaluate: true,
-            fe_partial: ptr::null_mut(),
-            fe_selfdict: ptr::null_mut(),
-            fe_basetv: ptr::null_mut(),
-            fe_found_var: false,
-        };
-        call_func(
-            func.as_ptr().cast(),
-            name_len,
-            &mut rettv,
-            2,
-            argvars.as_mut_ptr(),
-            &mut funcexe,
-        );
-
-        tv_list_unref(arguments);
-        restore_funccal();
-        {
-            g_st().provider_caller_scope = saved_provider_caller_scope;
-            g_st().provider_call_nesting -= 1;
-            debug_assert!(g_st().provider_call_nesting >= 0);
-        }
-
-        if discard {
-            tv_clear(&mut rettv);
-        }
-
-        rettv
     }
+
+    let mut func = [0u8; 256];
+    let name_len = vim_snprintf!(
+        func.as_mut_ptr().cast(),
+        func.len(),
+        c"provider#%s#Call",
+        provider.as_ptr(),
+    );
+
+    let new_scope = CallerScope {
+        script_ctx: g_st().current_sctx,
+        es_entry: rt_st().exestack.last().unwrap().clone(),
+        autocmd_fname: g_st().autocmd_fname.clone(),
+        autocmd_match: g_st().autocmd_match.clone(),
+        autocmd_fname_full: g_st().autocmd_fname_full,
+        autocmd_bufnr: g_st().autocmd_bufnr,
+        funccalp: get_current_funccal().map_or(ptr::null_mut(), ptr::from_mut),
+    };
+    let saved_provider_caller_scope =
+        std::mem::replace(&mut g_st().provider_caller_scope, new_scope);
+    save_funccal();
+    {
+        g_st().provider_call_nesting += 1;
+    }
+
+    let mut argvars = [
+        TypVal {
+            v_type: VarType::VarString,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::String(method.as_ptr().cast_mut()),
+        },
+        TypVal {
+            v_type: VarType::VarList,
+            v_lock: VAR_UNLOCKED,
+            vval: TypvalVval::List(arguments),
+        },
+        tv_initial_value(),
+    ];
+    let mut rettv = tv_initial_value();
+    tv_list_ref(Some(&mut *arguments));
+
+    let lnum = curwin_mut().w_cursor.lnum;
+    let mut funcexe = Funcexe {
+        fe_fill_submatch: false,
+        fe_firstline: lnum,
+        fe_lastline: lnum,
+        fe_doesrange: false,
+        fe_evaluate: true,
+        fe_partial: ptr::null_mut(),
+        fe_selfdict: ptr::null_mut(),
+        fe_basetv: ptr::null_mut(),
+        fe_found_var: false,
+    };
+    call_func(
+        crate::memory::cstr_until_nul(&func),
+        name_len,
+        &mut rettv,
+        2,
+        &mut argvars,
+        &mut funcexe,
+    );
+
+    tv_list_unref(Some(arguments));
+    restore_funccal();
+    {
+        g_st().provider_caller_scope = saved_provider_caller_scope;
+        g_st().provider_call_nesting -= 1;
+        debug_assert!(g_st().provider_call_nesting >= 0);
+    }
+
+    if discard {
+        tv_clear(&mut rettv);
+    }
+
+    rettv
 }
 
 /// Checks if provider for feature `feat` is enabled.
-pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast: bool) -> bool {
-    let feat = feat.into_c_char_ptr();
-    let feat_bytes = crate::memory::cstr_as_bytes(feat);
+pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
     if !matches!(
         feat_bytes,
         b"clipboard"
@@ -7108,10 +6824,10 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
         name.as_ptr(),
     );
     if !eval_variable(
-        buf.as_ptr().cast(),
+        crate::memory::cstr_until_nul(&buf),
         len,
         Some(&mut tv),
-        ptr::null_mut(),
+        None,
         false,
         true,
     ) {
@@ -7130,10 +6846,10 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
             name.as_ptr(),
         );
         if !eval_variable(
-            buf.as_ptr().cast(),
+            crate::memory::cstr_until_nul(&buf),
             len,
             Some(&mut tv),
-            ptr::null_mut(),
+            None,
             false,
             true,
         ) {
@@ -7143,7 +6859,9 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
                 c"provider#%s#Call",
                 name.as_ptr(),
             );
-            if !find_func(buf.as_ptr().cast()).is_null() && opt_vars().p_lpl != 0 {
+            if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_some()
+                && opt_vars().p_lpl != 0
+            {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
                     name.as_ptr(),
@@ -7163,7 +6881,7 @@ pub fn eval_has_provider(feat: impl crate::strings::IntoCCharPtr, throw_if_fast:
             c"provider#%s#Call",
             name.as_ptr(),
         );
-        if find_func(buf.as_ptr().cast()).is_null() {
+        if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_none() {
             semsg!(
                 c"provider: %s: g:loaded_%s_provider=2 but %s is not defined",
                 name.as_ptr(),
@@ -7301,15 +7019,17 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             tv_clear(typ1);
             return false;
         }
-        let mut eq = if (typ1.v_type == VarType::VarPartial && tv_partial(&*typ1).is_null())
-            || (typ2.v_type == VarType::VarPartial && tv_partial(&*typ2).is_null())
+        let pt1_ptr = tv_partial(&*typ1).map_or(ptr::null_mut(), ptr::from_mut);
+        let pt2_ptr = tv_partial(&*typ2).map_or(ptr::null_mut(), ptr::from_mut);
+        let mut eq = if (typ1.v_type == VarType::VarPartial && pt1_ptr.is_null())
+            || (typ2.v_type == VarType::VarPartial && pt2_ptr.is_null())
         {
-            tv_partial(&*typ1) == tv_partial(&*typ2)
+            pt1_ptr == pt2_ptr
         } else if type_is {
             if typ1.v_type == VarType::VarFunc && typ2.v_type == VarType::VarFunc {
                 tv_equal(&*typ1, &*typ2, ic)
             } else if typ1.v_type == VarType::VarPartial && typ2.v_type == VarType::VarPartial {
-                tv_partial(&*typ1) == tv_partial(&*typ2)
+                pt1_ptr == pt2_ptr
             } else {
                 false
             }
@@ -7369,8 +7089,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             EXPR_GEQUAL => i >= 0,
             EXPR_SMALLER => i < 0,
             EXPR_SEQUAL => i <= 0,
-            EXPR_MATCH => pattern_match(s2, s1, ic) != 0,
-            EXPR_NOMATCH => pattern_match(s2, s1, ic) == 0,
+            EXPR_MATCH => pattern_match(s2, Some(s1), ic) != 0,
+            EXPR_NOMATCH => pattern_match(s2, Some(s1), ic) == 0,
             _ => false,
         };
         n1 = Varnumber::from(cmp);
@@ -7395,27 +7115,27 @@ pub fn typval_tostring(arg: Option<&mut TypVal>, quotes: bool) -> std::ffi::CStr
 impl Lval {
     #[inline]
     pub fn tv_mut(&self) -> &'static mut TypVal {
-        crate::globals::gmut(self.ll_tv)
+        unsafe { &mut *self.ll_tv }
     }
 
     #[inline]
     pub fn list_opt(&self) -> Option<&'static mut TvList> {
-        crate::globals::gopt_mut(self.ll_list)
+        unsafe { self.ll_list.as_mut() }
     }
 
     #[inline]
     pub fn dict_opt(&self) -> Option<&'static mut TvDict> {
-        crate::globals::gopt_mut(self.ll_dict)
+        unsafe { self.ll_dict.as_mut() }
     }
 
     #[inline]
     pub fn li_mut(&self) -> &'static mut Listitem {
-        crate::globals::gmut(self.ll_li)
+        unsafe { &mut *self.ll_li }
     }
 
     #[inline]
     pub fn di_mut(&self) -> &'static mut Dictitem {
-        crate::globals::gmut(self.ll_di)
+        unsafe { &mut *self.ll_di }
     }
 }
 #[cfg(test)]
@@ -7485,13 +7205,12 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         crate::main_init::ensure_test_editor_init();
 
-        let mut expr1 = *b"$XXX_UNEXISTENT_VAR_XXX\0";
         let mut rettv = tv_initial_value();
         let mut evalarg = Evalarg {
             eval_flags: EVAL_EVALUATE,
         };
         assert!(eval0(
-            expr1.as_mut_ptr().cast(),
+            c"$XXX_UNEXISTENT_VAR_XXX",
             &mut rettv,
             None,
             &mut evalarg
@@ -7500,24 +7219,12 @@ mod tests {
         assert!(rettv.vval.v_string().is_null());
         tv_clear(&mut rettv);
 
-        let mut expr2 = *b"v:_null_list\0";
-        assert!(eval0(
-            expr2.as_mut_ptr().cast(),
-            &mut rettv,
-            None,
-            &mut evalarg
-        ));
+        assert!(eval0(c"v:_null_list", &mut rettv, None, &mut evalarg));
         assert_eq!(rettv.v_type, VarType::VarList);
         assert!(rettv.vval.v_list().is_null());
         tv_clear(&mut rettv);
 
-        let mut expr3 = *b"v:_null_dict\0";
-        assert!(eval0(
-            expr3.as_mut_ptr().cast(),
-            &mut rettv,
-            None,
-            &mut evalarg
-        ));
+        assert!(eval0(c"v:_null_dict", &mut rettv, None, &mut evalarg));
         assert_eq!(rettv.v_type, VarType::VarDict);
         assert!(rettv.vval.v_dict().is_null());
         tv_clear(&mut rettv);

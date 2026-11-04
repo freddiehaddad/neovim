@@ -949,11 +949,11 @@ pub fn ml_recover(checkext: bool) {
 
             return;
         }
-        let first_str =
-            crate::globals::gptr(tv_list_first(crate::globals::gopt(items_tv.vval.v_list())))
-                .li_tv
-                .vval
-                .v_string();
+        let first_str = tv_list_first(crate::globals::gopt(items_tv.vval.v_list()))
+            .unwrap()
+            .li_tv
+            .vval
+            .v_string();
         fname_used = (!first_str.is_null()).then(|| crate::memory::cstr_to_cstring(first_str));
         tv_clear(&mut items_tv);
     }
@@ -1714,13 +1714,13 @@ pub fn recover_names(
             && cur_mfp_fname
                 .is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), K_PATH_CMP_FULL))
         {
-            crate::eval::typval::tv_list_append_string(ret_list, swapname.as_ptr(), -1);
+            crate::eval::typval::tv_list_append_string(ret_list, Some(swapname.as_c_str()), -1);
         }
 
         for f in files {
             crate::eval::typval::tv_list_append_string(
                 ret_list,
-                f.as_ptr(),
+                Some(f.as_c_str()),
                 f.as_bytes().len() as isize,
             );
         }
@@ -1781,28 +1781,35 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
             };
             if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                 if !ml_check_b0_id(&b0) {
-                    tv_dict_add_str_len(d, c"error", c"Not a swap file", 15);
+                    tv_dict_add_str_len(d, c"error", Some(b"Not a swap file"));
                 } else if b0_magic_wrong(&b0) {
-                    tv_dict_add_str_len(d, c"error", c"Magic number mismatch", 21);
+                    tv_dict_add_str_len(d, c"error", Some(b"Magic number mismatch"));
                 } else {
-                    tv_dict_add_str_len(d, c"version", b0.b0_version.as_ptr().cast(), 10);
+                    tv_dict_add_str_len(
+                        d,
+                        c"version",
+                        Some(crate::memory::bytes_until_nul(&b0.b0_version[..10])),
+                    );
                     tv_dict_add_str_len(
                         d,
                         c"user",
-                        b0.b0_uname.as_ptr().cast(),
-                        B0_UNAME_SIZE as i32,
+                        Some(crate::memory::bytes_until_nul(
+                            &b0.b0_uname[..B0_UNAME_SIZE],
+                        )),
                     );
                     tv_dict_add_str_len(
                         d,
                         c"host",
-                        b0.b0_hname.as_ptr().cast(),
-                        B0_HNAME_SIZE as i32,
+                        Some(crate::memory::bytes_until_nul(
+                            &b0.b0_hname[..B0_HNAME_SIZE],
+                        )),
                     );
                     tv_dict_add_str_len(
                         d,
                         c"fname",
-                        b0.b0_fname.as_ptr().cast(),
-                        B0_FNAME_SIZE_ORG as i32,
+                        Some(crate::memory::bytes_until_nul(
+                            &b0.b0_fname[..B0_FNAME_SIZE_ORG],
+                        )),
                     );
 
                     tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
@@ -1811,11 +1818,11 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
                     tv_dict_add_nr(d, c"inode", char_to_long(&b0.b0_ino));
                 }
             } else {
-                tv_dict_add_str_len(d, c"error", c"Cannot read file", 16);
+                tv_dict_add_str_len(d, c"error", Some(b"Cannot read file"));
             }
             os_close(fd);
         } else {
-            tv_dict_add_str_len(d, c"error", c"Cannot open file", 16);
+            tv_dict_add_str_len(d, c"error", Some(b"Cannot open file"));
         }
     }
 }
@@ -3634,8 +3641,8 @@ fn attention_message(
 fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) -> SeaChoice {
     let fname = fname.into_c_char_ptr();
     {
-        set_vim_var_string(VV_SWAPNAME, fname, -1);
-        set_vim_var_string(VV_SWAPCHOICE, ptr::null(), -1);
+        set_vim_var_string(VV_SWAPNAME, crate::memory::cstr_as_opt_cstr(fname), -1);
+        set_vim_var_string(VV_SWAPCHOICE, None, -1);
 
         g_st().allbuf_lock += 1;
         apply_autocmds(
@@ -3647,7 +3654,7 @@ fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) ->
         );
         g_st().allbuf_lock -= 1;
 
-        set_vim_var_string(VV_SWAPNAME, ptr::null(), -1);
+        set_vim_var_string(VV_SWAPNAME, None, -1);
 
         match get_vim_var_str(VV_SWAPCHOICE)
             .to_bytes()

@@ -1294,7 +1294,7 @@ pub fn utf_slice2cells(s: &[u8]) -> i32 {
 #[inline]
 pub fn mb_slice2char_adv(s: &mut &[u8]) -> i32 {
     let c = utf_slice2char(s);
-    let len = utfc_slice2len(s).min(s.len());
+    let len = utfc_slice2len(s).max(1).min(s.len());
     *s = &s[len..];
     c
 }
@@ -1302,7 +1302,7 @@ pub fn mb_slice2char_adv(s: &mut &[u8]) -> i32 {
 #[inline]
 pub fn mb_cslice2char_adv(s: &mut &[u8]) -> i32 {
     let c = utf_slice2char(s);
-    let len = utf_slice2len(s).min(s.len());
+    let len = utf_slice2len(s).max(1).min(s.len());
     *s = &s[len..];
     c
 }
@@ -3214,9 +3214,9 @@ pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     );
 
     if vimconv.vc_type == CONV_NONE {
-        crate::eval::typval::tv_set_string(rettv, str_);
+        crate::eval::typval::tv_set_string(rettv, Some(str_));
     } else if let Some(conv_bytes) = string_convert(&vimconv, str_.as_ptr().cast_mut(), None) {
-        crate::eval::typval::tv_set_string(rettv, crate::memory::cstr_until_nul(&conv_bytes));
+        crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&conv_bytes)));
     }
 }
 
@@ -3469,7 +3469,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
     let table_size = tv_list_len(Some(&*l)) as usize;
     let mut table: Vec<CwInterval> = Vec::with_capacity(table_size);
     if table_size != 0 {
-        for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.lv_first)) {
+        for (item, li) in (0_i32..).zip(crate::eval::typval::list_iter_mut(l.first_opt())) {
             let li_tv = &li.li_tv;
             if li_tv.v_type != VarType::VarList || li_tv.vval.v_list().is_null() {
                 semsg!(E_LIST_ITEM_NR_IS_NOT_LIST, item);
@@ -3550,7 +3550,7 @@ pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         tv_list_append_number(&mut *entry, entry_data.first);
         tv_list_append_number(&mut *entry, entry_data.last);
         tv_list_append_number(&mut *entry, Varnumber::from(entry_data.width));
-        tv_list_append_list(rettv.vval.v_list_ref(), entry);
+        tv_list_append_list(rettv.vval.v_list_ref(), Some(entry));
     }
 }
 

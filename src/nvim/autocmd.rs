@@ -3299,9 +3299,9 @@ fn au_callback(mut callback: Callback, id: i64, group: i32, apc: &AutoPatCmd) ->
         let result = nlua_call_ref(luaref, None, args, K_RET_NIL_BOOL, None, None);
         result.obj_type == ObjectType::ObjectTypeBoolean && result.data.boolean()
     } else {
-        let mut argsin: TypVal = TypVal::new();
+        let mut argsin: [TypVal; 1] = [TypVal::new()];
         let mut rettv: TypVal = TypVal::new();
-        callback_call(&mut callback, 0, &raw mut argsin, &mut rettv);
+        callback_call(&mut callback, 0, &mut argsin, &mut rettv);
         false
     }
 }

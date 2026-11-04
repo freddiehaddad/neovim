@@ -129,7 +129,7 @@ pub struct Except {
 
 impl Drop for Except {
     fn drop(&mut self) {
-        tv_list_unref(self.stacktrace);
+        tv_list_unref(unsafe { self.stacktrace.as_mut() });
     }
 }
 
@@ -550,8 +550,8 @@ pub fn discard_current_exception() {
 
 fn catch_exception(excp: &std::rc::Rc<Except>) {
     g_st().caught_stack.push(excp.clone());
-    set_vim_var_string(VV_EXCEPTION, excp.value.as_ptr(), -1);
-    set_vim_var_list(VV_STACKTRACE, excp.stacktrace);
+    set_vim_var_string(VV_EXCEPTION, Some(&excp.value), -1);
+    set_vim_var_list(VV_STACKTRACE, unsafe { excp.stacktrace.as_mut() });
     if !excp.throw_name.as_bytes().is_empty() {
         let iobufflen = if excp.throw_lnum != 0 {
             vim_snprintf_safelen!(
@@ -571,11 +571,11 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
         };
         set_vim_var_string(
             VV_THROWPOINT,
-            ptr::addr_of!(g_st().iobuff).cast(),
+            Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
             iobufflen as isize,
         );
     } else {
-        set_vim_var_string(VV_THROWPOINT, ptr::null(), -1);
+        set_vim_var_string(VV_THROWPOINT, None, -1);
     }
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
@@ -614,8 +614,8 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
     }
     g_st().caught_stack.pop();
     if let Some(top) = g_st().caught_stack.last() {
-        set_vim_var_string(VV_EXCEPTION, top.value.as_ptr(), -1);
-        set_vim_var_list(VV_STACKTRACE, top.stacktrace);
+        set_vim_var_string(VV_EXCEPTION, Some(&top.value), -1);
+        set_vim_var_list(VV_STACKTRACE, unsafe { top.stacktrace.as_mut() });
         if !top.throw_name.as_bytes().is_empty() {
             let iobufflen = if top.throw_lnum != 0 {
                 vim_snprintf_safelen!(
@@ -635,16 +635,16 @@ fn finish_exception(excp: Option<std::rc::Rc<Except>>) {
             };
             set_vim_var_string(
                 VV_THROWPOINT,
-                ptr::addr_of!(g_st().iobuff).cast(),
+                Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
                 iobufflen as isize,
             );
         } else {
-            set_vim_var_string(VV_THROWPOINT, ptr::null(), -1);
+            set_vim_var_string(VV_THROWPOINT, None, -1);
         }
     } else {
-        set_vim_var_string(VV_EXCEPTION, ptr::null(), -1);
-        set_vim_var_string(VV_THROWPOINT, ptr::null(), -1);
-        set_vim_var_list(VV_STACKTRACE, ptr::null_mut());
+        set_vim_var_string(VV_EXCEPTION, None, -1);
+        set_vim_var_string(VV_THROWPOINT, None, -1);
+        set_vim_var_list(VV_STACKTRACE, None);
     }
 
     discard_exception(excp, true);
@@ -783,7 +783,12 @@ pub fn ex_eval(eap: &mut Exarg) {
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip != 0);
 
-    if eval0(eap.arg, &mut tv, Some(&mut *eap), &mut evalarg) {
+    if eval0(
+        unsafe { CStr::from_ptr(eap.arg) },
+        &mut tv,
+        Some(&mut *eap),
+        &mut evalarg,
+    ) {
         tv_clear(&mut tv);
     }
 }
@@ -800,7 +805,13 @@ pub fn ex_if(eap: &mut Exarg) {
 
         let skip = check_skip(&*cstack);
         let mut error = false;
-        let result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
+        let result = eval_to_bool(
+            unsafe { CStr::from_ptr(eap.arg) },
+            &mut error,
+            eap,
+            skip,
+            false,
+        );
 
         if !skip && !error {
             if result {
@@ -873,7 +884,13 @@ pub fn ex_else(eap: &mut Exarg) {
         {
             semsg!(gettext(E_INVEXPR2), eap.arg);
         } else {
-            result = eval_to_bool(eap.arg, &mut error, eap, skip, false);
+            result = eval_to_bool(
+                unsafe { CStr::from_ptr(eap.arg) },
+                &mut error,
+                eap,
+                skip,
+                false,
+            );
         }
 
         if !skip && !error {
@@ -911,20 +928,31 @@ pub fn ex_while(eap: &mut Exarg) {
 
         let skip = check_skip(&*cstack);
         let result = if eap.cmdidx == CMD_WHILE {
-            eval_to_bool(eap.arg, &mut error, eap, skip, false)
+            eval_to_bool(
+                unsafe { CStr::from_ptr(eap.arg) },
+                &mut error,
+                eap,
+                skip,
+                false,
+            )
         } else {
             let mut evalarg = Evalarg::new();
             fill_evalarg_from_eap(&mut evalarg, skip);
             if (cstack.cs_lflags & CSL_HAD_LOOP) != 0 {
                 error = false;
             } else {
-                let fi = eval_for_line(eap.arg, &mut error, eap, &mut evalarg);
+                let fi = eval_for_line(
+                    unsafe { CStr::from_ptr(eap.arg) },
+                    &mut error,
+                    eap,
+                    &mut evalarg,
+                );
                 (&mut cstack.cs_forinfo)[idx] = Some(fi);
             }
 
             let res = if !error && !skip {
                 if let Some(fi) = (&mut cstack.cs_forinfo)[idx].as_deref_mut() {
-                    next_for_item(fi, eap.arg)
+                    next_for_item(fi, unsafe { CStr::from_ptr(eap.arg) })
                 } else {
                     false
                 }
@@ -1042,7 +1070,7 @@ pub fn ex_throw(eap: &mut Exarg) {
         && crate::memory::cstr_first_byte(arg) != b'|'
         && crate::memory::cstr_first_byte(arg) != b'\n'
     {
-        eval_to_string_skip(arg, eap, eap.skip != 0)
+        eval_to_string_skip(unsafe { CStr::from_ptr(arg) }, eap, eap.skip != 0)
     } else {
         emsg(gettext(E_ARGREQ));
         None

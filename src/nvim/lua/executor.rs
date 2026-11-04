@@ -15,9 +15,7 @@ use crate::drawscreen::{UPD_NOT_VALID, redraw_curbuf_later};
 use crate::errors::*;
 use crate::eval::funcs::{find_internal_func, find_internal_func_lua};
 use crate::eval::typval::{TypVal, TypvalVval, VarType, tv_clear};
-use crate::eval::userfunc::{
-    EvalFuncDef, FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc,
-};
+use crate::eval::userfunc::{FCERR_NONE, FCERR_OTHER, Funcexe, call_func, register_luafunc};
 use crate::event::r#loop::{loop_poll_events, loop_queues, loop_schedule_deferred, uv_thread_t};
 use crate::event::multiqueue::{
     Event, MultiQueue, multiqueue_empty, multiqueue_process_events, multiqueue_put_event,
@@ -1526,10 +1524,7 @@ pub unsafe extern "C-unwind" fn nlua_in_fast_event(lstate: *mut lua_State) -> i3
 }
 
 fn viml_func_is_fast(name: &CStr) -> bool {
-    unsafe {
-        let fdef: *const EvalFuncDef = find_internal_func(name.as_ptr());
-        !fdef.is_null() && (*fdef).fast
-    }
+    find_internal_func(name).is_some_and(|fdef| fdef.fast)
 }
 
 pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
@@ -1553,7 +1548,7 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         return unsafe { luaL_error(lstate, c"Function called with too many arguments".as_ptr()) };
     }
 
-    if let Some(func_lua) = find_internal_func_lua(name) {
+    if let Some(func_lua) = find_internal_func_lua(name_cstr) {
         lua_getglobal(lstate, c"require");
         unsafe { lua_pushlstring(lstate, c"vim._core.vimfn".as_ptr(), 15) };
         if unsafe { lua_pcall(lstate, 1, 1, 0) } != 0 {
@@ -1605,11 +1600,11 @@ pub unsafe extern "C-unwind" fn nlua_call(lstate: *mut lua_State) -> i32 {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
         let _ = call_func(
-            name,
+            unsafe { CStr::from_ptr(name) },
             name_len as i32,
             &mut rettv,
             nargs,
-            vim_args.as_mut_ptr(),
+            &mut vim_args,
             &mut funcexe,
         );
         try_leave(&tstate, &mut err);

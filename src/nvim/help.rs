@@ -110,7 +110,7 @@ pub fn ex_help(eap: &mut Exarg) {
             && !rettv.vval.v_string().is_null()
             && !crate::memory::cstr_is_empty(rettv.vval.v_string())
         {
-            allocated_arg = crate::eval::typval::tv_take_string(rettv.vval.v_string());
+            allocated_arg = crate::eval::typval::tv_take_string(&mut rettv);
             arg_cstr = allocated_arg.as_deref().unwrap();
         } else {
             tv_clear(&mut rettv);

@@ -1126,8 +1126,9 @@ fn command_line_enter(
         if has_event(EVENT_CMDLINEENTER) {
             let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
+            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
 
-            tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr().cast());
+            tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
                 &mut *dict,
                 c"cmdlevel",
@@ -1136,7 +1137,6 @@ fn command_line_enter(
             tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
-            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
             apply_autocmds(
                 EVENT_CMDLINEENTER,
                 Some(firstc_cstr),
@@ -1210,8 +1210,9 @@ fn command_line_enter(
         if has_event(EVENT_CMDLINELEAVE) {
             let mut save_v_event: SaveVEvent = SaveVEvent::new();
             let dict = get_v_event(&mut save_v_event);
+            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
 
-            tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr().cast());
+            tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
             tv_dict_add_nr(
                 &mut *dict,
                 c"cmdlevel",
@@ -2605,7 +2606,7 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
 
                 K_MIDDLEMOUSE => {
                     cmdline_paste(
-                        if eval_has_provider(c"clipboard", false) {
+                        if eval_has_provider(b"clipboard", false) {
                             b'*' as i32
                         } else {
                             0
@@ -3206,8 +3207,9 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
         let dict = get_v_event(&mut save_v_event);
 
         let firstcbuf: [u8; 2] = [firstc as u8, 0];
+        let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
 
-        tv_dict_add_str(&mut *dict, c"cmdtype", firstcbuf.as_ptr().cast());
+        tv_dict_add_str(&mut *dict, c"cmdtype", Some(firstc_cstr));
         tv_dict_add_nr(
             &mut *dict,
             c"cmdlevel",
@@ -3216,7 +3218,6 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
         tv_dict_set_keys_readonly(&mut *dict);
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
         apply_autocmds(
             EVENT_CMDLINECHANGED,
             Some(firstc_cstr),
@@ -3726,7 +3727,8 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
             err_errmsg = c"E5407: Callback has thrown an exception: %s";
             let saved_msg_col = g_st().msg_col;
             g_st().msg_silent += 1;
-            let cbcall_ret = callback_call(&mut color_cb, 1, &raw mut arg, &mut tv);
+            let cbcall_ret =
+                callback_call(&mut color_cb, 1, std::slice::from_mut(&mut arg), &mut tv);
             g_st().msg_silent -= 1;
             g_st().msg_col = saved_msg_col;
             if g_st().got_int {
@@ -4739,28 +4741,18 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
 
 /// `"getcmdcomplpat()"` function.
 pub fn f_getcmdcomplpat(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(
-        rettv,
-        get_cmdline_completion_pattern()
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
-    );
+    crate::eval::typval::tv_set_string(rettv, get_cmdline_completion_pattern().as_deref());
 }
 
 /// `"getcmdcompltype()"` function.
 pub fn f_getcmdcompltype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(
-        rettv,
-        get_cmdline_completion()
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
-    );
+    crate::eval::typval::tv_set_string(rettv, get_cmdline_completion().as_deref());
 }
 
 /// `"getcmdline()"` function.
 pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     if let Some(s) = get_cmdline_str() {
-        crate::eval::typval::tv_set_string_len(rettv, s.as_ptr(), s.as_bytes().len());
+        crate::eval::typval::tv_set_string_len(rettv, Some(s.as_bytes()));
     } else {
         rettv.v_type = VarType::VarString;
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
@@ -4776,10 +4768,8 @@ pub fn f_getcmdpos(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// `"getcmdprompt()"` function.
 pub fn f_getcmdprompt(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let prompt_ptr = get_ccline_opt()
-        .and_then(|p| p.cmdprompt.as_deref())
-        .map_or(ptr::null(), CStr::as_ptr);
-    crate::eval::typval::tv_set_string(rettv, prompt_ptr);
+    let prompt_cstr = get_ccline_opt().and_then(|p| p.cmdprompt.as_deref());
+    crate::eval::typval::tv_set_string(rettv, prompt_cstr);
 }
 
 /// `"getcmdscreenpos()"` function.
@@ -4794,7 +4784,7 @@ pub fn f_getcmdtype(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let buf: [u8; 2] = [get_cmdline_type() as u8, 0];
     crate::eval::typval::tv_set_string(
         rettv,
-        CStr::from_bytes_until_nul(&buf).unwrap_or(c"").as_ptr(),
+        Some(CStr::from_bytes_until_nul(&buf).unwrap_or(c"")),
     );
 }
 
@@ -5070,10 +5060,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
     }
     cmd = cmd.wrapping_add(2);
 
-    let l = heredoc_get(eap, cmd, true);
-    if l.is_null() {
-        return None;
-    }
+    let l = heredoc_get(eap, crate::memory::cstr_from_ptr(cmd), true)?;
 
     let mut buf: Vec<u8> = if eap.skip == 0 {
         Vec::with_capacity(0x400)
@@ -5081,7 +5068,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
         Vec::new()
     };
 
-    for li in crate::eval::typval::tv_list_iter(unsafe { l.as_ref() }) {
+    for li in crate::eval::typval::tv_list_iter(Some(&*l)) {
         if eap.skip == 0 {
             let s = tv_get_string(&li.li_tv);
             buf.extend_from_slice(s.to_bytes());
@@ -5089,7 +5076,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
         }
     }
     *lenp = buf.len();
-    tv_list_free(l);
+    tv_list_free(Some(l));
     if eap.skip == 0 {
         Some(std::ffi::CString::new(buf).unwrap_or_default())
     } else {
@@ -5139,11 +5126,10 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             return;
         };
         defstr = defstr_cstr.as_ptr().cast();
-        let cancelreturn_di = tv_dict_find(dict_ref, c"cancelreturn", 12);
-        if !cancelreturn_di.is_null() {
-            cancelreturn = unsafe { &raw mut (*cancelreturn_di).di_tv };
+        if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
+            cancelreturn = &raw mut cancelreturn_di.di_tv;
         }
-        if tv_dict_find(dict_ref, c"completion", 10).is_null() {
+        if tv_dict_find(dict_ref, c"completion", 10).is_none() {
             xp_name = ptr::null();
         } else {
             let Some(xp_cstr) =
@@ -5244,11 +5230,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     callback_free(&mut input_callback);
 
     if let Some(res_cstr) = res {
-        crate::eval::typval::tv_set_string_len(
-            &mut *rettv,
-            res_cstr.as_ptr(),
-            res_cstr.as_bytes().len(),
-        );
+        crate::eval::typval::tv_set_string_len(&mut *rettv, Some(res_cstr.as_bytes()));
     } else if !cancelreturn.is_null() {
         tv_copy(unsafe { &*cancelreturn }, &mut *rettv);
     }

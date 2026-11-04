@@ -1070,8 +1070,9 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
 /// @return Variable value
 // DLLEXPORT Object nvim_get_var(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    let mut di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
-    if di.is_null() {
+    let name_cstr = crate::memory::cstr_as_opt_cstr(name.data).unwrap_or(c"");
+    let mut di = tv_dict_find(Some(&*get_globvar_dict()), name_cstr, name.size as isize);
+    if di.is_none() {
         let found = script_autoload(name.as_bytes(), false) && !aborting();
         if !found {
             api_set_error!(
@@ -1082,9 +1083,9 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
             );
             return nil_obj();
         }
-        di = tv_dict_find(Some(&*get_globvar_dict()), name.data, name.size as isize);
+        di = tv_dict_find(Some(&*get_globvar_dict()), name_cstr, name.size as isize);
     }
-    if di.is_null() {
+    let Some(di) = di else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeValidation,
@@ -1092,8 +1093,8 @@ pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Obj
             name.data,
         );
         return nil_obj();
-    }
-    vim_to_object(unsafe { &mut (*di).di_tv }, Some(arena), true)
+    };
+    vim_to_object(&mut di.di_tv, Some(arena), true)
 }
 
 /// Sets a global (g:) variable.

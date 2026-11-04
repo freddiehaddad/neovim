@@ -3851,7 +3851,7 @@ fn set_context_by_cmdname<'a>(
         | Cmdidx::CmdLexpr
         | Cmdidx::CmdLaddexpr
         | Cmdidx::CmdLgetexpr => {
-            set_context_for_expression(xp, arg.cast_mut().cast(), cmdidx);
+            set_context_for_expression(xp, arg_cstr, cmdidx);
         }
         Cmdidx::CmdUnlet => {
             set_context_in_unlet_cmd(xp, arg_cstr);
@@ -4284,7 +4284,11 @@ pub fn set_cmd_context(xp: &mut ExpandCtx, str_arg: &CStr, len: i32, col: i32, u
     cmdexp().breakpt_expand_what = BreakptExpandWhat::Add;
 
     if use_ccline && ccline.cmdfirstc == b'=' as i32 {
-        set_context_for_expression(xp, str_ptr.cast(), Cmdidx::CmdSize);
+        set_context_for_expression(
+            xp,
+            unsafe { CStr::from_ptr(str_ptr.cast()) },
+            Cmdidx::CmdSize,
+        );
     } else if use_ccline && ccline.input_fn != 0 {
         xp.xp_context = ccline.xp_context;
         xp.xp_pattern = ccline.cmdbuff;
@@ -5361,7 +5365,7 @@ fn expand_user_defined(
     matches.clear();
 
     let Some(retstr_cstr) = call_user_expand_func(
-        |name, argc, argv| call_func_retstr(name.as_ptr(), argc, argv.as_mut_ptr()),
+        |name, argc, argv| call_func_retstr(name, argc, argv),
         xp,
         None,
     ) else {
@@ -5428,7 +5432,7 @@ pub fn expand_process_user_list(
     let mut have_extra = false;
 
     if let Some(retlist) = retlist {
-        for li in crate::eval::typval::list_iter_ptr(retlist.lv_first) {
+        for li in crate::eval::typval::list_iter_ptr(retlist.first_opt()) {
             let tv = &li.li_tv;
             let p: CString;
             let mut abbr: Option<std::ffi::CString> = None;
@@ -5478,7 +5482,9 @@ pub fn expand_process_user_list(
 fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     matches.clear();
     let retlist = call_user_expand_func(
-        |name, argc, argv| call_func_retlist(name.as_ptr(), argc, argv.as_mut_ptr()),
+        |name, argc, argv| {
+            call_func_retlist(name, argc, argv).map_or(ptr::null_mut(), ptr::from_mut)
+        },
         xp,
         ptr::null_mut(),
     );
@@ -5487,7 +5493,7 @@ fn expand_user_list(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     }
 
     expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
-    tv_list_unref(retlist);
+    tv_list_unref(unsafe { retlist.as_mut() });
     true
 }
 
@@ -5501,7 +5507,7 @@ fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
 
     let retlist = rettv.vval.v_list();
     expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
-    tv_list_unref(retlist);
+    tv_list_unref(unsafe { retlist.as_mut() });
     true
 }
 
@@ -5942,7 +5948,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     for f in xpc.xp_files.iter().take(xpc.xp_numfiles.max(0) as usize) {
         tv_list_append_string(
             rettv.vval.v_list_ref(),
-            f.as_ptr(),
+            Some(f.as_c_str()),
             f.as_bytes().len() as isize,
         );
     }
@@ -5968,8 +5974,7 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
             xpc.xp_context,
             crate::memory::cstr_as_opt_bytes(xpc.xp_arg.cast()),
         )
-        .as_ref()
-        .map_or(ptr::null(), |s| s.as_ptr()),
+        .as_deref(),
     );
 }
 
@@ -5988,12 +5993,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let orig_ref = orig_ptr.as_ref();
 
     let retdict = unsafe { &mut *rettv.vval.v_dict() };
-    let mut ret = tv_dict_add_str_len(
-        retdict,
-        c"cmdline_orig",
-        orig_ref.map_or(ptr::null(), |v| v.as_ptr().cast()),
-        orig_ref.map_or(0, |v| v.len() as i32),
-    );
+    let mut ret = tv_dict_add_str_len(retdict, c"cmdline_orig", orig_ref.map(Vec::as_slice));
     if ret {
         ret = tv_dict_add_nr(retdict, c"pum_visible", i64::from(pum_visible()));
     }
@@ -6003,14 +6003,14 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     if ret {
         let li = tv_list_alloc(xpc.xp_numfiles as isize);
 
-        ret = tv_dict_add_list(retdict, c"matches", li);
+        ret = tv_dict_add_list(retdict, c"matches", Some(li));
 
         let files = xpc.xp_files.as_slice();
         let mut idx: usize = 0;
         while ret && (idx as i32) < xpc.xp_numfiles {
             tv_list_append_string(
                 &mut *li,
-                files[idx].as_ptr(),
+                Some(files[idx].as_c_str()),
                 files[idx].as_bytes().len() as isize,
             );
             idx += 1;

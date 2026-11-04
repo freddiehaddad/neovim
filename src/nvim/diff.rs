@@ -1120,7 +1120,11 @@ fn diff_file(dio: &mut Diffio) -> bool {
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_dex) != K_CALLBACK_NONE_CONST {
-        eval_diff(tmp_orig, tmp_new, tmp_diff);
+        eval_diff(
+            crate::memory::cstr_from_ptr(tmp_orig),
+            crate::memory::cstr_from_ptr(tmp_new),
+            crate::memory::cstr_from_ptr(tmp_diff),
+        );
         return true;
     }
     if dio.dio_internal != 0 {
@@ -1261,12 +1265,18 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if crate::eval::typval::Callback::raw_cb_type(&opt_vars().p_pex) != K_CALLBACK_NONE_CONST {
             #[cfg(unix)]
             eval_patch(
-                tmp_orig,
-                fullname.as_ref().map_or(eap.arg, |s| s.as_ptr().cast_mut()),
-                tmp_new,
+                crate::memory::cstr_from_ptr(tmp_orig),
+                fullname
+                    .as_deref()
+                    .unwrap_or_else(|| crate::memory::cstr_from_ptr(eap.arg)),
+                crate::memory::cstr_from_ptr(tmp_new),
             );
             #[cfg(not(unix))]
-            eval_patch(tmp_orig, eap.arg, tmp_new);
+            eval_patch(
+                crate::memory::cstr_from_ptr(tmp_orig),
+                crate::memory::cstr_from_ptr(eap.arg),
+                crate::memory::cstr_from_ptr(tmp_new),
+            );
         } else {
             vim_snprintf!(
                 buf,

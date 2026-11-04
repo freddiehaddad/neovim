@@ -328,7 +328,6 @@ pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
-use crate::charset::NUL;
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
 use crate::os::fs::MAXPATHL;
 use crate::version::default_lib_dir;
@@ -503,14 +502,10 @@ fn stacktrace_push_item(
         tv_dict_add_func(&mut *d, c"funcref", fp);
     }
     if let Some(ev) = event {
-        tv_dict_add_str(&mut *d, c"event", ev);
+        tv_dict_add_str(&mut *d, c"event", Some(ev));
     }
     tv_dict_add_nr(&mut *d, c"lnum", Varnumber::from(lnum));
-    tv_dict_add_str(
-        &mut *d,
-        c"filepath",
-        filepath.map_or(ptr::null(), CStr::as_ptr),
-    );
+    tv_dict_add_str(&mut *d, c"filepath", filepath);
 
     tv_list_append_tv(l, &mut tv);
 }
@@ -1322,13 +1317,9 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
     }
 
     p4 = p4.wrapping_add(1);
-    let c = unsafe { *p4 };
-
-    unsafe { *p4 = NUL as _ };
-
-    let ffname_cstr = fix_fname(fname);
-
-    unsafe { *p4 = c };
+    let prefix_len = (p4 as usize) - (fname as usize);
+    let prefix_cstr = cstr_from_bytes(&fname_cstr.to_bytes()[..prefix_len]);
+    let ffname_cstr = fix_fname(prefix_cstr.as_ptr());
 
     let Some(ref ffname_owned) = ffname_cstr else {
         return false;
@@ -1548,9 +1539,7 @@ fn load_pack_plugin(opt: bool, fname: &std::ffi::CStr) -> bool {
         &mut RuntimeCallback::SourceVimLua,
     );
 
-    let mut cmd = *b"g:did_load_filetypes\0";
-
-    if opt && eval_to_number(cmd.as_mut_ptr().cast(), false) > 0 {
+    if opt && eval_to_number(c"g:did_load_filetypes", false) > 0 {
         do_cmdline_cmd(c"augroup filetypedetect");
         vim_snprintf!(pat.cast(), len, c"%s/ftdetect/*", ffname);
         gen_expand_wildcards_and_cb(
@@ -3066,11 +3055,11 @@ fn get_script_local_funcs(sid: Scid) -> &'static mut TvList {
         let fp_ref = unsafe { &*fp };
         if fp_ref.uf_script_ctx.sc_sid == sid {
             let name = if let Some(ref exp) = fp_ref.uf_name_exp {
-                exp.as_ptr()
+                exp.as_c_str()
             } else {
-                fp_ref.uf_name.as_ptr()
+                fp_ref.uf_name.as_c_str()
             };
-            tv_list_append_string(&mut *l, name, -1);
+            tv_list_append_string(&mut *l, Some(name), -1);
         }
     }
 
@@ -3125,8 +3114,8 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             && (!filterpat || vim_regexec(&mut regmatch, sn, 0))
         {
             let d = tv_dict_alloc();
-            tv_list_append_dict(l, d);
-            tv_dict_add_str(&mut *d, c"name", sn.as_ptr());
+            tv_list_append_dict(l, Some(d));
+            tv_dict_add_str(&mut *d, c"name", Some(sn.as_c_str()));
             tv_dict_add_nr(&mut *d, c"sid", i);
             tv_dict_add_nr(&mut *d, c"version", 1);
             tv_dict_add_bool(&mut *d, c"autoload", K_FALSE);
@@ -3135,7 +3124,11 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                 let var_dict =
                     tv_dict_copy(None, Some(&mut si.sn_vars.sv_dict), true, get_copy_id());
                 tv_dict_add_dict(&mut *d, c"variables", var_dict);
-                tv_dict_add_list(&mut *d, c"functions", get_script_local_funcs(sid as Scid));
+                tv_dict_add_list(
+                    &mut *d,
+                    c"functions",
+                    Some(get_script_local_funcs(sid as Scid)),
+                );
             }
         }
 

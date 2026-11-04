@@ -458,8 +458,8 @@ pub fn channel_job_start(
     if pty {
         if detach {
             semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
-            if !env_ptr.is_null() {
-                tv_dict_free(env_ptr);
+            if let Some(env_ref) = unsafe { env_ptr.as_mut() } {
+                tv_dict_free(env_ref);
             }
             drop(argv);
             channel_destroy_early(&mut *chan);
@@ -539,8 +539,8 @@ pub fn channel_job_start(
         );
 
         let ph = unsafe { &mut *proc_ptr };
-        if !ph.env.is_null() {
-            tv_dict_free(ph.env);
+        if let Some(env_ref) = unsafe { ph.env.as_mut() } {
+            tv_dict_free(env_ref);
         }
         let proc_status = ph.status;
         channel_destroy_early(&mut *chan);
@@ -552,8 +552,8 @@ pub fn channel_job_start(
 
     drop(cmd);
     let ph = unsafe { &mut *proc_ptr };
-    if !ph.env.is_null() {
-        tv_dict_free(ph.env);
+    if let Some(env_ref) = unsafe { ph.env.as_mut() } {
+        tv_dict_free(env_ref);
     }
 
     if has_in {
@@ -777,7 +777,7 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
 #[inline]
 fn buffer_to_tv_list(buf: &[u8]) -> &'static mut TvList {
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-    tv_list_append_string(&mut *l, c"", 0);
+    tv_list_append_string(&mut *l, Some(c""), 0);
     if !buf.is_empty() {
         encode_list_write(Some(&mut *l), buf);
     }
@@ -868,16 +868,14 @@ pub fn channel_reader_callbacks(chan: &mut Channel, is_stderr: bool) {
         if reader.eof {
             if !reader.self_dict.is_null() {
                 let reader_type = reader.reader_type.unwrap();
-                if tv_dict_find(
-                    unsafe { reader.self_dict.as_ref() },
-                    reader_type.as_ptr(),
-                    -1,
-                )
-                .is_null()
-                {
+                if tv_dict_find(unsafe { reader.self_dict.as_ref() }, reader_type, -1).is_none() {
                     let data = buffer_to_tv_list(&reader.buffer);
                     let _type_len = reader_type.to_bytes().len();
-                    let _ = tv_dict_add_list(unsafe { &mut *reader.self_dict }, reader_type, data);
+                    let _ = tv_dict_add_list(
+                        unsafe { &mut *reader.self_dict },
+                        reader_type,
+                        Some(data),
+                    );
                 } else {
                     semsg!(gettext(E_STREAMKEY), reader_type.as_ptr(), chan.id,);
                 }
@@ -929,7 +927,11 @@ pub(crate) fn channel_proc_exit_cb(status: i32, chan: &mut Channel) {
 }
 
 #[cfg(unix)]
-pub(crate) fn channel_proc_state_cb(_proc: &mut Proc, suspended: bool, chan: &mut Channel) {
+pub(crate) fn channel_proc_state_cb(
+    _proc: &mut crate::event::proc::Proc,
+    suspended: bool,
+    chan: &mut Channel,
+) {
     if let Some(term) = unsafe { chan.term.as_mut() } {
         terminal_set_state(term, suspended);
     }
@@ -971,11 +973,11 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
     argv[2].v_lock = VAR_UNLOCKED;
 
     let mut rettv: TypVal = TypVal::new();
-    let _ = callback_call(unsafe { &mut *cb }, 3, argv.as_mut_ptr(), &mut rettv);
+    let _ = callback_call(unsafe { &mut *cb }, 3, &mut argv, &mut rettv);
     tv_clear(&mut rettv);
 
     if is_stderr.is_some() {
-        tv_list_unref(argv[1].vval.v_list());
+        tv_list_unref(argv[1].vval.v_list_opt());
     }
 }
 
@@ -1127,7 +1129,7 @@ pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
         &mut crate::api::private::validate::Error::new(),
     );
     assert_eq!(retval.v_type, VarType::VarDict);
-    let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict());
+    let _ = tv_dict_add_dict(&mut *dict, c"info", retval.vval.v_dict_opt());
     tv_dict_set_keys_readonly(&mut *dict);
 
     let _ = apply_autocmds(event, None, None, true, curbuf_opt_mut());

@@ -1232,7 +1232,11 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
             {
                 if opt_vars().p_verbose > 0 {
                     verbose_enter();
-                    smsg!(0, gettext(c"Not reading undo file, owner differs: %s"), f,);
+                    smsg!(
+                        0,
+                        gettext(c"Not reading undo file, owner differs: %s"),
+                        f_cstr.as_ptr(),
+                    );
                     verbose_leave();
                 }
                 return;
@@ -2854,10 +2858,10 @@ fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> &'static mut TvLi
         let alt_next = uhp_ref(&*buf, uh).uh_alt_next;
         let prev = uhp_ref(&*buf, uh).uh_prev;
         if alt_next.is_some() {
-            tv_dict_add_list(&mut *dict, c"alt", u_eval_tree(buf, alt_next));
+            tv_dict_add_list(&mut *dict, c"alt", Some(u_eval_tree(buf, alt_next)));
         }
 
-        tv_list_append_dict(&mut *list, dict);
+        tv_list_append_dict(&mut *list, Some(dict));
         uhp = prev;
     }
 
@@ -2866,14 +2870,14 @@ fn u_eval_tree(buf: &mut FileBuf, first_uhp: Option<usize>) -> &'static mut TvLi
 
 /// `"undofile(name)"` function.
 pub fn f_undofile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(rettv, ptr::null());
+    crate::eval::typval::tv_set_string(rettv, None);
     let fname = tv_get_string(&argvars[0]);
 
     if !crate::memory::cstr_is_empty(fname)
         && let Some(ffname) = FullName_save(fname, true)
         && let Some(ufile) = u_get_undo_file_name(Some(ffname.as_c_str()), false)
     {
-        crate::eval::typval::tv_set_string(rettv, ufile.as_ptr());
+        crate::eval::typval::tv_set_string(rettv, Some(ufile.as_c_str()));
     }
 }
 
@@ -2883,11 +2887,11 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     let tv = &mut argvars[0];
     let buf = if tv.v_type == VarType::VarUnknown {
-        g_st().curbuf
+        unsafe { g_st().curbuf.as_mut() }
     } else {
         get_buf_arg(tv)
     };
-    let Some(buf) = (unsafe { buf.as_mut() }) else {
+    let Some(buf) = buf else {
         return;
     };
 
@@ -2898,7 +2902,7 @@ pub fn f_undotree(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_dict_add_nr(dict, c"time_cur", buf.b_u_time_cur as Varnumber);
     tv_dict_add_nr(dict, c"save_cur", buf.b_u_save_nr_cur as Varnumber);
 
-    tv_dict_add_list(dict, c"entries", u_eval_tree(buf, buf.b_u_oldhead));
+    tv_dict_add_list(dict, c"entries", Some(u_eval_tree(buf, buf.b_u_oldhead)));
 }
 
 /// Drops named mark `idx` from the pending undo snapshot.

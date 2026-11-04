@@ -1645,7 +1645,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
             api_clear_error(&mut err);
         }
     } else {
-        p = eval_to_string(expr_bytes.as_mut_ptr().cast(), false, false);
+        p = eval_to_string(crate::memory::cstr_until_nul(&expr_bytes), false, false);
     }
     g_st().expr_map_lock -= 1;
     curwin_mut().w_cursor = save_cursor;
@@ -2212,18 +2212,16 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     if !get_dict {
         if let Some(rhs) = rhs {
             if rhs.is_empty() {
-                crate::eval::typval::tv_set_string(&mut *rettv, c"<Nop>");
+                crate::eval::typval::tv_set_string(&mut *rettv, Some(c"<Nop>"));
             } else {
-                crate::eval::typval::tv_set_string(
-                    &mut *rettv,
-                    str2special_save(rhs.to_bytes(), false, K_FALSE).as_ptr(),
-                );
+                let special = str2special_save(rhs.to_bytes(), false, K_FALSE);
+                crate::eval::typval::tv_set_string(&mut *rettv, Some(special.as_c_str()));
             }
         } else if rhs_lua != LUA_NOREF
             && let Some(mp) = mp_opt
         {
             let s = nlua_funcref_str(mp.m_luaref, true);
-            crate::eval::typval::tv_set_string_len(&mut *rettv, s.as_ptr(), s.as_bytes().len());
+            crate::eval::typval::tv_set_string_len(&mut *rettv, Some(s.as_bytes()));
         }
     } else if let Some(mp) = mp_opt
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
@@ -2340,11 +2338,16 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let lhsrawalt = crate::eval::typval::tv_dict_get_cstring(d_opt, c"lhsrawalt");
     let mut orig_rhs = crate::eval::typval::tv_dict_get_cstring(d_opt, c"rhs");
     let mut rhs_lua: LuaRef = LUA_NOREF;
-    let callback_di = tv_dict_find(d_opt, c"callback", 8);
-    if !callback_di.is_null() && unsafe { (*callback_di).di_tv.v_type } == VarType::VarFunc {
-        let fp = find_func(unsafe { (*callback_di).di_tv.vval.v_string() });
-        if !fp.is_null() && (unsafe { (*fp).uf_flags } & FC_LUAREF) != 0 {
-            rhs_lua = api_new_luaref(unsafe { (*fp).uf_luaref });
+    if let Some(callback_di) = tv_dict_find(d_opt, c"callback", 8)
+        && callback_di.di_tv.v_type == VarType::VarFunc
+    {
+        let cb_str = callback_di.di_tv.vval.v_string();
+        if let Some(fp) = (!cb_str.is_null())
+            .then(|| unsafe { CStr::from_ptr(cb_str) })
+            .and_then(|s| find_func(Some(s)))
+            && (fp.uf_flags & FC_LUAREF) != 0
+        {
+            rhs_lua = api_new_luaref(fp.uf_luaref);
 
             orig_rhs = Some(std::ffi::CString::default());
         }
@@ -2486,7 +2489,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     &mut crate::api::private::validate::Error::new(),
                 );
                 debug_assert!(d.v_type == VarType::VarDict);
-                tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict());
+                tv_list_append_dict(rettv.vval.v_list_ref(), d.vval.v_dict_opt());
                 arena_mem_free(arena_finish(&mut arena));
             }
         }

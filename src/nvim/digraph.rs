@@ -1828,7 +1828,7 @@ pub fn listdigraphs(use_headers: bool) {
 
 fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
     let l2 = tv_list_alloc(2);
-    tv_list_append_list(&mut *l, l2);
+    tv_list_append_list(&mut *l, Some(l2));
 
     crate::eval::typval::tv_list_append_bytes(&mut *l2, &[dp.char1, dp.char2]);
 

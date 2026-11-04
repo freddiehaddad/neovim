@@ -2567,24 +2567,36 @@ pub fn apply_optionset_autocmd_now(
     );
     set_vim_var_string(
         VV_OPTION_TYPE,
-        crate::memory::cstr_until_nul(&buf_type),
+        Some(crate::memory::cstr_until_nul(&buf_type)),
         typelen as isize,
     );
     if (opt_flags & OPT_LOCAL) != 0 {
-        set_vim_var_string(VV_OPTION_COMMAND, c"setlocal", "setlocal".len() as isize);
+        set_vim_var_string(
+            VV_OPTION_COMMAND,
+            Some(c"setlocal"),
+            "setlocal".len() as isize,
+        );
         set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
     }
     if (opt_flags & OPT_GLOBAL) != 0 {
-        set_vim_var_string(VV_OPTION_COMMAND, c"setglobal", "setglobal".len() as isize);
+        set_vim_var_string(
+            VV_OPTION_COMMAND,
+            Some(c"setglobal"),
+            "setglobal".len() as isize,
+        );
         set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_tv);
     }
     if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0 {
-        set_vim_var_string(VV_OPTION_COMMAND, c"set", "set".len() as isize);
+        set_vim_var_string(VV_OPTION_COMMAND, Some(c"set"), "set".len() as isize);
         set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_l_tv);
         set_vim_var_tv(VV_OPTION_OLDGLOBAL, &mut oldval_g_tv);
     }
     if (opt_flags & OPT_MODELINE) != 0 {
-        set_vim_var_string(VV_OPTION_COMMAND, c"modeline", "modeline".len() as isize);
+        set_vim_var_string(
+            VV_OPTION_COMMAND,
+            Some(c"modeline"),
+            "modeline".len() as isize,
+        );
         set_vim_var_tv(VV_OPTION_OLDLOCAL, &mut oldval_tv);
     }
     apply_autocmds(
@@ -2642,7 +2654,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
         if crate::memory::cstr_as_bytes(opt_vars().p_enc) != b"utf-8" {
             msg_source(HLF_W);
             msg(tr(W_ARABIC), HLF_W);
-            set_vim_var_string(VV_WARNINGMSG, tr(W_ARABIC), -1);
+            set_vim_var_string(VV_WARNINGMSG, Some(tr(W_ARABIC)), -1);
         }
 
         opt_vars().p_deco = 1;
@@ -5032,11 +5044,13 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
             if !is_expr {
                 option_set_callback_func(value.data.string().as_bytes(), &mut cb);
             } else if value.data.string().size > 0 {
-                let funcref = if let Some(name) = get_scriptlocal_funcname(value.data.string().data)
-                {
+                let s_ptr = value.data.string().data;
+                let funcref = if let Some(name) = get_scriptlocal_funcname(
+                    (!s_ptr.is_null()).then(|| unsafe { CStr::from_ptr(s_ptr) }),
+                ) {
                     name
                 } else {
-                    crate::memory::cstr_to_cstring(value.data.string().data)
+                    crate::memory::cstr_to_cstring(s_ptr)
                 };
                 cb.data = crate::eval::typval::CallbackData::expr(funcref);
             }
@@ -8090,13 +8104,13 @@ pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
     let optval_cstr = crate::memory::cstr_from_bytes(bytes);
     let mut tv: TypVal =
         if bytes[0] == b'{' || bytes.starts_with(b"function(") || bytes.starts_with(b"funcref(") {
-            let Some(evaluated) = eval_expr(optval_cstr.as_ptr(), None) else {
+            let Some(evaluated) = eval_expr(&optval_cstr, None) else {
                 return false;
             };
             evaluated
         } else {
             let mut allocated = TypVal::new();
-            crate::eval::typval::tv_set_string(&mut allocated, optval_cstr.as_ptr());
+            crate::eval::typval::tv_set_string(&mut allocated, Some(optval_cstr.as_c_str()));
             allocated
         };
 

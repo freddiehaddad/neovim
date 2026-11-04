@@ -63,7 +63,7 @@ pub fn adjust_clipboard_name(
         return None;
     }
 
-    if !eval_has_provider(c"clipboard", false) {
+    if !eval_has_provider(b"clipboard", false) {
         if clip_st().batch_change_count <= 1
             && !quiet
             && (!clip_st().clipboard_didwarn || (explicit_cb_reg && redirecting() == 0))
@@ -197,11 +197,7 @@ pub fn get_clipboard(
     reg.additional_data = None;
     reg.timestamp = 0;
 
-    for li in crate::eval::typval::list_iter_mut(
-        lines
-            .as_deref()
-            .map_or(std::ptr::null_mut(), |l| l.lv_first),
-    ) {
+    for li in crate::eval::typval::list_iter_mut(lines.as_deref().and_then(|l| l.first_opt())) {
         if li.li_tv.v_type != VarType::VarString {
             return fail_cleanup(reg, errmsg, target);
         }
@@ -246,19 +242,19 @@ pub fn set_clipboard(mut name: i32, reg: &Yankreg) {
 
     let regtype: u8 = match reg.y_type {
         MotionType::MtLineWise => {
-            tv_list_append_string(&mut *lines, std::ptr::null(), 0);
+            tv_list_append_string(&mut *lines, None, 0);
             b'V'
         }
         MotionType::MtCharWise => b'v',
         MotionType::MtBlockWise => {
-            tv_list_append_string(&mut *lines, std::ptr::null(), 0);
+            tv_list_append_string(&mut *lines, None, 0);
             b'b'
         }
         MotionType::MtUnknown => std::process::abort(),
     };
 
     let args = tv_list_alloc(3);
-    tv_list_append_list(&mut *args, lines);
+    tv_list_append_list(&mut *args, Some(lines));
     tv_list_append_bytes(&mut *args, &[regtype]);
     tv_list_append_bytes(&mut *args, &[name as u8]);
 

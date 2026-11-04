@@ -43,7 +43,6 @@ use crate::ui::ui_cursor_shape;
 use crate::undo::{u_save, u_save_cursor};
 use crate::window::win_fdccol_count;
 use std::ffi::CStr;
-use std::ptr;
 
 const INSCHAR_DO_COM: i32 = 2;
 const INSCHAR_COM_LIST: i32 = 16;
@@ -909,7 +908,7 @@ pub fn fex_format(lnum: Linenr, count: i64, c: i32) -> i32 {
 
     let r = eval_expr_option_number(&mut curbuf_mut().b_p_fex, use_sandbox);
 
-    set_vim_var_string(VV_CHAR, ptr::null(), -1);
+    set_vim_var_string(VV_CHAR, None, -1);
     g_st().current_sctx = save_sctx;
 
     r

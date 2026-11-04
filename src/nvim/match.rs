@@ -220,7 +220,7 @@ fn match_add(
                 let Some(subli1) = sub_iter.next() else {
                     semsg!(
                         gettext(c"E5030: Empty list at position %d"),
-                        tv_list_idx_of_item(pos_list, li),
+                        tv_list_idx_of_item(pos_list, Some(li)),
                     );
                     failed = true;
                     break;
@@ -266,7 +266,7 @@ fn match_add(
             } else {
                 semsg!(
                     gettext(c"E5031: List or number required at position %d"),
-                    tv_list_idx_of_item(pos_list, li),
+                    tv_list_idx_of_item(pos_list, Some(li)),
                 );
                 failed = true;
                 break;
@@ -900,7 +900,7 @@ fn matchadd_dict_arg(
 
 /// `clearmatches()` function (`f_clearmatches`).
 pub fn f_clearmatches(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData) {
-    if let Some(win) = unsafe { get_optional_window(argvars, 0).as_mut() } {
+    if let Some(win) = get_optional_window(argvars, 0) {
         clear_matches(win);
     }
 }
@@ -910,7 +910,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let win = get_optional_window(argvars, 0);
 
     tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);
-    let Some(win) = (unsafe { win.as_ref() }) else {
+    let Some(win) = win.as_deref() else {
         return;
     };
 
@@ -933,33 +933,24 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                 tv_dict_add_list(
                     &mut *dict,
                     std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                    l,
+                    Some(l),
                 );
             }
         } else {
-            tv_dict_add_str(
-                &mut *dict,
-                c"pattern",
-                cur.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
-            );
+            tv_dict_add_str(&mut *dict, c"pattern", cur.mit_pattern.as_deref());
         }
-        tv_dict_add_str(&mut *dict, c"group", syn_id2name(cur.mit_hlg_id));
+        tv_dict_add_str(&mut *dict, c"group", Some(syn_id2name(cur.mit_hlg_id)));
         tv_dict_add_nr(&mut *dict, c"priority", cur.mit_priority as Varnumber);
         tv_dict_add_nr(&mut *dict, c"id", cur.mit_id as Varnumber);
 
         if cur.mit_conceal_char != 0 {
             let mut buf = [0u8; MB_MAXCHAR + 1];
-            let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr().cast());
-            buf[buflen as usize] = 0;
-            tv_dict_add_str_len(
-                &mut *dict,
-                c"conceal",
-                std::ffi::CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-                buflen,
-            );
+            let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr().cast()) as usize;
+            buf[buflen] = 0;
+            tv_dict_add_str_len(&mut *dict, c"conceal", Some(&buf[..buflen]));
         }
 
-        tv_list_append_dict(rettv.vval.v_list_ref(), dict);
+        tv_list_append_dict(rettv.vval.v_list_ref(), Some(dict));
     }
 }
 
@@ -973,7 +964,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         emsg(gettext(E_LISTREQ));
         return;
     }
-    let Some(win) = (unsafe { win.as_mut() }) else {
+    let Some(win) = win else {
         return;
     };
 
@@ -1028,7 +1019,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     -1,
                 ) {
                     if pos_di.di_tv.v_type != VarType::VarList {
-                        tv_list_unref(s);
+                        tv_list_unref(unsafe { s.as_mut() });
                         return;
                     }
                     tv_list_append_tv(unsafe { &mut *s }, &mut pos_di.di_tv);
@@ -1066,7 +1057,7 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             {
                 match_add_failed = true;
             }
-            tv_list_unref(s);
+            tv_list_unref(unsafe { s.as_mut() });
             s = ptr::null_mut();
         }
     }
@@ -1187,15 +1178,11 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     if (1..=3).contains(&id) {
         if let Some(m) = get_match(curwin_mut(), id) {
-            tv_list_append_string(rettv.vval.v_list_ref(), syn_id2name(m.mit_hlg_id), -1);
-            tv_list_append_string(
-                rettv.vval.v_list_ref(),
-                m.mit_pattern.as_ref().map_or(ptr::null(), |p| p.as_ptr()),
-                -1,
-            );
+            tv_list_append_string(rettv.vval.v_list_ref(), Some(syn_id2name(m.mit_hlg_id)), -1);
+            tv_list_append_string(rettv.vval.v_list_ref(), m.mit_pattern.as_deref(), -1);
         } else {
-            tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
-            tv_list_append_string(rettv.vval.v_list_ref(), ptr::null(), 0);
+            tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
+            tv_list_append_string(rettv.vval.v_list_ref(), None, 0);
         }
     }
 }
@@ -1203,7 +1190,7 @@ pub fn f_matcharg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 /// `matchdelete()` function (`f_matchdelete`).
 pub fn f_matchdelete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.vval = crate::eval::typval::TypvalVval::Number(
-        if let Some(win) = unsafe { get_optional_window(argvars, 1).as_mut() } {
+        if let Some(win) = get_optional_window(argvars, 1) {
             match_delete(win, tv_get_number(&argvars[0]) as i32, true) as Varnumber
         } else {
             -1

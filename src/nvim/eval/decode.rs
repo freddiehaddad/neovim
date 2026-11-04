@@ -8,7 +8,7 @@ use crate::eval::typval::{
     tv_dict_alloc, tv_dict_find, tv_dict_item_alloc, tv_dict_item_alloc_len, tv_list_alloc,
     tv_list_append_list, tv_list_append_number, tv_list_append_owned_tv, tv_list_len, tv_list_ref,
 };
-use crate::eval::vars::eval_msgpack_type_lists_mut;
+use crate::eval::vars::eval_msgpack_type_list;
 use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::MpackData;
@@ -69,8 +69,9 @@ fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {
     let type_di = tv_dict_item_alloc_len(b"_TYPE");
     type_di.di_tv.v_type = VarType::VarList;
     type_di.di_tv.v_lock = VAR_UNLOCKED;
-    type_di.di_tv.vval =
-        crate::eval::typval::TypvalVval::List((*eval_msgpack_type_lists_mut())[mp_type].cast_mut());
+    type_di.di_tv.vval = crate::eval::typval::TypvalVval::List(
+        eval_msgpack_type_list(mp_type).map_or(std::ptr::null_mut(), std::ptr::from_mut),
+    );
     tv_list_ref(type_di.di_tv.vval.v_list_opt());
     tv_dict_add(&mut *dict, type_di);
 
@@ -180,12 +181,13 @@ fn json_decoder_pop(
         let mut key = stack.pop().unwrap();
         if let Some(special_val) = last_container.special_val_opt() {
             let kv_pair = tv_list_alloc(2);
-            tv_list_append_list(special_val, kv_pair);
+            tv_list_append_list(special_val, Some(kv_pair));
             tv_list_append_owned_tv(&mut *kv_pair, key.val);
             tv_list_append_owned_tv(&mut *kv_pair, obj.val);
         } else {
             assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
-            let obj_di = tv_dict_item_alloc(key.val.vval.v_string());
+            let obj_di =
+                tv_dict_item_alloc(unsafe { std::ffi::CStr::from_ptr(key.val.vval.v_string()) });
             tv_clear(&mut key.val);
             let dict = last_container.container.vval.v_dict_ref();
             if !tv_dict_add(dict, obj_di) {
@@ -215,7 +217,12 @@ fn json_decoder_pop(
         if last_container.special_val.is_null()
             && (obj.is_special_string
                 || obj.val.vval.v_string().is_null()
-                || !tv_dict_find(dict.as_deref(), obj.val.vval.v_string(), -1).is_null())
+                || tv_dict_find(
+                    dict.as_deref(),
+                    unsafe { std::ffi::CStr::from_ptr(obj.val.vval.v_string()) },
+                    -1,
+                )
+                .is_some())
         {
             let mut v = obj.val;
             tv_clear(&mut v);
@@ -509,7 +516,7 @@ fn parse_json_number(
     if fracs.is_some() || exps.is_some() {
         let mut flt: f64 = 0.0;
         let num_cstr = crate::memory::cstr_from_bytes(&buf[s..p]);
-        let num_len = string2float(num_cstr.as_ptr(), &mut flt);
+        let num_len = string2float(&num_cstr, &mut flt);
         if exp_num_len != num_len {
             semsg!(
                 c"E685: internal error: while converting number \"%s\" to float string2float consumed %zu bytes in place of %zu",
@@ -1097,7 +1104,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             tv_list_ref(Some(&mut *list));
             tv_list_append_number(&mut *list, i64::from(node.tok.data.ext_type()));
             let ext_val_list = tv_list_alloc(K_LIST_LEN_MAY_KNOW);
-            tv_list_append_list(&mut *list, ext_val_list);
+            tv_list_append_list(&mut *list, Some(ext_val_list));
             create_special_dict(
                 &mut *result,
                 K_MP_EXT,
@@ -1155,7 +1162,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
                 let list = decode_create_map_special_dict(&mut *result, len as isize);
                 for pair in &items[..len] {
                     let kv_pair = tv_list_alloc(2);
-                    tv_list_append_list(&mut *list, kv_pair);
+                    tv_list_append_list(&mut *list, Some(kv_pair));
                     tv_list_append_owned_tv(&mut *kv_pair, pair[0]);
                     tv_list_append_owned_tv(&mut *kv_pair, pair[1]);
                 }

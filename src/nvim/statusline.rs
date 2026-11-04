@@ -1517,7 +1517,11 @@ pub extern "C" fn build_stl_str_hl(
         };
         set_var(b"g:statusline_winid", &mut tv, false);
 
-        owned_usefmt = eval_to_string_safe(fmt.wrapping_add(2).cast(), use_sandbox, false);
+        owned_usefmt = eval_to_string_safe(
+            unsafe { std::ffi::CStr::from_ptr(fmt.wrapping_add(2).cast()) },
+            use_sandbox,
+            false,
+        );
         usefmt = owned_usefmt
             .as_ref()
             .map_or(fmt, |s| s.as_ptr().cast_mut().cast());
@@ -2012,14 +2016,20 @@ pub extern "C" fn build_stl_str_hl(
                         c"%d",
                         curbuf_mut().b_fnum,
                     );
-                    set_internal_string_var(c"g:actual_curbuf", buf_tmp.as_mut_ptr().cast());
+                    set_internal_string_var(
+                        c"g:actual_curbuf",
+                        crate::memory::cstr_until_nul(&buf_tmp),
+                    );
                     vim_snprintf!(
                         buf_tmp.as_mut_ptr().cast(),
                         buf_tmp.len(),
                         c"%d",
                         curwin_mut().handle,
                     );
-                    set_internal_string_var(c"g:actual_curwin", buf_tmp.as_mut_ptr().cast());
+                    set_internal_string_var(
+                        c"g:actual_curwin",
+                        crate::memory::cstr_until_nul(&buf_tmp),
+                    );
 
                     let save_curbuf = g_st().curbuf;
                     let save_curwin = curwin_ptr();
@@ -2031,7 +2041,11 @@ pub extern "C" fn build_stl_str_hl(
                         g_st().visual_global.active = false;
                     }
 
-                    owned_str = eval_to_string_safe(out_p.cast(), use_sandbox, false);
+                    owned_str = eval_to_string_safe(
+                        unsafe { std::ffi::CStr::from_ptr(out_p.cast()) },
+                        use_sandbox,
+                        false,
+                    );
                     str = owned_str
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());

@@ -739,7 +739,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
     }
 
     let dict = tv_dict_alloc();
-    tv_dict_add_str(&mut *dict, c"name", menu.dname.as_ptr());
+    tv_dict_add_str(&mut *dict, c"name", Some(menu.dname.as_c_str()));
     tv_dict_add_nr(&mut *dict, c"priority", i64::from(menu.priority));
     tv_dict_add_nr(
         &mut *dict,
@@ -749,33 +749,30 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
 
     if menu.mnemonic != 0 {
         let mut buf = [0u8; MB_MAXCHAR + 1];
-        let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast());
-        tv_dict_add_str_len(&mut *dict, c"shortcut", buf.as_ptr().cast(), buflen);
+        let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast()) as usize;
+        tv_dict_add_str_len(&mut *dict, c"shortcut", Some(&buf[..buflen]));
     }
 
     if let Some(ref actext) = menu.actext {
-        tv_dict_add_str(&mut *dict, c"actext", actext.as_ptr());
+        tv_dict_add_str(&mut *dict, c"actext", Some(actext.as_c_str()));
     }
 
     if (menu.modes & MENU_TIP_MODE) != 0
         && let Some(ref tip) = menu.strings[MENU_INDEX_TIP as usize]
     {
-        tv_dict_add_str(&mut *dict, c"tooltip", tip.as_ptr());
+        tv_dict_add_str(&mut *dict, c"tooltip", Some(tip.as_c_str()));
     }
 
     if menu.children.is_empty() {
         let commands = tv_dict_alloc();
-        tv_dict_add_dict(&mut *dict, c"mappings", commands);
+        tv_dict_add_dict(&mut *dict, c"mappings", Some(commands));
 
         for (bit, mode_cstr) in MENU_MODE_CHARS.iter().enumerate() {
             if (menu.modes & modes & (1 << bit)) != 0 {
                 let impl_dict = tv_dict_alloc();
                 let s_bytes = menu.strings[bit].as_ref().map_or(&[][..], |s| s.as_bytes());
-                tv_dict_add_str(
-                    &mut *impl_dict,
-                    c"rhs",
-                    str2special_save(s_bytes, false, K_FALSE).as_ptr(),
-                );
+                let rhs = str2special_save(s_bytes, false, K_FALSE);
+                tv_dict_add_str(&mut *impl_dict, c"rhs", Some(rhs.as_c_str()));
                 tv_dict_add_nr(&mut *impl_dict, c"silent", i64::from(menu.silent[bit]));
                 tv_dict_add_nr(
                     &mut *impl_dict,
@@ -804,7 +801,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
                         0
                     },
                 );
-                tv_dict_add_dict(&mut *commands, mode_cstr, impl_dict);
+                tv_dict_add_dict(&mut *commands, mode_cstr, Some(impl_dict));
             }
         }
     } else {
@@ -813,10 +810,10 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
             if let Some(d) = menu_get_recursive(Some(child), modes)
                 && tv_dict_len(Some(&*d)) > 0
             {
-                tv_list_append_dict(&mut *children_list, d);
+                tv_list_append_dict(&mut *children_list, Some(d));
             }
         }
-        tv_dict_add_list(&mut *dict, c"submenus", children_list);
+        tv_dict_add_list(&mut *dict, c"submenus", Some(children_list));
     }
     Some(dict)
 }
@@ -831,7 +828,7 @@ pub fn menu_get(path_name: &CStr, modes: i32, list: &mut TvList) -> bool {
         if let Some(d) = menu_get_recursive(Some(menu), modes)
             && tv_dict_len(Some(&*d)) > 0
         {
-            tv_list_append_dict(list, d);
+            tv_list_append_dict(list, Some(d));
         }
         return true;
     }
@@ -839,7 +836,7 @@ pub fn menu_get(path_name: &CStr, modes: i32, list: &mut TvList) -> bool {
         if let Some(d) = menu_get_recursive(Some(menu), modes)
             && tv_dict_len(Some(&*d)) > 0
         {
-            tv_list_append_dict(list, d);
+            tv_list_append_dict(list, Some(d));
         }
     }
     true
@@ -1842,18 +1839,18 @@ fn menu_translate_tab_and_shift(buf: &mut [u8]) -> usize {
 
 /// Get the information about a menu item in mode `modes` (`menuitem_getinfo`).
 fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
-    tv_dict_add_str(dict, c"name", menu.name.as_ptr());
-    tv_dict_add_str(dict, c"display", menu.dname.as_ptr());
+    tv_dict_add_str(dict, c"name", Some(menu.name.as_c_str()));
+    tv_dict_add_str(dict, c"display", Some(menu.dname.as_c_str()));
     if let Some(ref actext) = menu.actext {
-        tv_dict_add_str(dict, c"accel", actext.as_ptr());
+        tv_dict_add_str(dict, c"accel", Some(actext.as_c_str()));
     }
     tv_dict_add_nr(dict, c"priority", i64::from(menu.priority));
-    tv_dict_add_str(dict, c"modes", get_menu_mode_str(menu.modes));
+    tv_dict_add_str(dict, c"modes", Some(get_menu_mode_str(menu.modes)));
 
     let mut buf = [0u8; NUMBUFLEN];
-    let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast());
-    buf[buflen as usize] = 0;
-    tv_dict_add_str_len(dict, c"shortcut", buf.as_ptr().cast(), buflen);
+    let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast()) as usize;
+    buf[buflen] = 0;
+    tv_dict_add_str_len(dict, c"shortcut", Some(&buf[..buflen]));
 
     if menu.children.is_empty() {
         let mut bit = 0usize;
@@ -1864,13 +1861,10 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
         if bit < MENU_MODES {
             if let Some(ref s) = menu.strings[bit] {
                 if s.as_bytes().is_empty() {
-                    tv_dict_add_str(dict, c"rhs", c"<Nop>");
+                    tv_dict_add_str(dict, c"rhs", Some(c"<Nop>"));
                 } else {
-                    tv_dict_add_str(
-                        dict,
-                        c"rhs",
-                        str2special_save(s.as_bytes(), false, K_FALSE).as_ptr(),
-                    );
+                    let rhs = str2special_save(s.as_bytes(), false, K_FALSE);
+                    tv_dict_add_str(dict, c"rhs", Some(rhs.as_c_str()));
                 }
             }
             tv_dict_add_bool(
@@ -1912,9 +1906,9 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
         }
     } else {
         let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-        tv_dict_add_list(dict, c"submenus", l);
+        tv_dict_add_list(dict, c"submenus", Some(l));
         for child in &menu.children {
-            tv_list_append_string(&mut *l, child.dname.as_ptr(), -1);
+            tv_list_append_string(&mut *l, Some(child.dname.as_c_str()), -1);
         }
     }
 }
@@ -1942,10 +1936,10 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if menu_name.is_empty() {
         if !menus.is_empty() && (menus[0].modes & modes) != 0 {
             let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
-            tv_dict_add_list(retdict, c"submenus", l);
+            tv_dict_add_list(retdict, c"submenus", Some(l));
             for topmenu in menus {
                 if !menu_is_hidden(topmenu.dname.as_bytes()) {
-                    tv_list_append_string(&mut *l, topmenu.dname.as_ptr(), -1);
+                    tv_list_append_string(&mut *l, Some(topmenu.dname.as_c_str()), -1);
                 }
             }
         }

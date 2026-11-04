@@ -883,34 +883,29 @@ fn do_autocmd_completedone(c: i32, mode: i32, word: Option<&NvimString>) {
     if let Some(word) = word
         && !word.data.is_null()
     {
-        tv_dict_add_str_len(&mut *v_event, c"complete_word", word.data, word.size as i32);
+        tv_dict_add_str_len(&mut *v_event, c"complete_word", Some(word.as_bytes()));
     } else {
-        tv_dict_add_str_len(&mut *v_event, c"complete_word", c"", 0);
+        tv_dict_add_str_len(&mut *v_event, c"complete_word", Some(b""));
     }
 
     let idx = (mode & !CTRL_X_WANT_IDENT) as usize;
     match CTRL_X_MODE_NAMES.get(idx).copied().flatten() {
         Some(mode_cstr) => {
-            tv_dict_add_str_len(
-                &mut *v_event,
-                c"complete_type",
-                mode_cstr.as_ptr(),
-                mode_cstr.to_bytes().len() as i32,
-            );
+            tv_dict_add_str_len(&mut *v_event, c"complete_type", Some(mode_cstr.to_bytes()));
         }
         None => {
-            tv_dict_add_str_len(&mut *v_event, c"complete_type", c"", 0);
+            tv_dict_add_str_len(&mut *v_event, c"complete_type", Some(b""));
         }
     }
 
     let reason = if c == CTRL_Y || word.is_some_and(|w| !w.data.is_null()) {
-        c"accept".as_ptr()
+        c"accept"
     } else if c == CTRL_E {
-        c"cancel".as_ptr()
+        c"cancel"
     } else {
-        c"discard".as_ptr()
+        c"discard"
     };
-    tv_dict_add_str(&mut *v_event, c"reason", reason);
+    tv_dict_add_str(&mut *v_event, c"reason", Some(reason));
     tv_dict_set_keys_readonly(&mut *v_event);
 
     ins_apply_autocmds(EVENT_COMPLETEDONE);
@@ -1603,7 +1598,7 @@ fn trigger_complete_changed_event(cur: i32) {
         };
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
-        tv_dict_add_dict(&mut *v_event, c"completed_item", item);
+        tv_dict_add_dict(&mut *v_event, c"completed_item", Some(item));
         pum_set_event_info(&mut *v_event);
         tv_dict_set_keys_readonly(&mut *v_event);
 
@@ -2397,7 +2392,7 @@ pub fn ins_compl_clear() {
     insexp().compl_from_nonkeyword = false;
     insexp().compl_autostarted = false;
     insexp().compl_num_bests = 0;
-    set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(tv_dict_alloc_lock(VAR_FIXED)));
 }
 
 pub fn ins_compl_active() -> bool {
@@ -3195,32 +3190,15 @@ pub fn set_cpt_callbacks(args: &mut Optset) -> bool {
 pub fn set_ref_in_cpt_callbacks(callbacks: &mut [Callback], copy_id: i32) -> bool {
     let mut abort = false;
     for cb in callbacks {
-        abort = abort || set_ref_in_callback(cb, copy_id, ptr::null_mut(), ptr::null_mut());
+        abort = abort || set_ref_in_callback(cb, copy_id, None, None);
     }
     abort
 }
 
 pub fn set_ref_in_insexpand_funcs(copy_id: i32) -> bool {
-    let mut abort = set_ref_in_callback(
-        &mut opt_vars().p_cfu,
-        copy_id,
-        ptr::null_mut(),
-        ptr::null_mut(),
-    );
-    abort = abort
-        || set_ref_in_callback(
-            &mut opt_vars().p_ofu,
-            copy_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
-    abort = abort
-        || set_ref_in_callback(
-            &mut opt_vars().p_tsrfu,
-            copy_id,
-            ptr::null_mut(),
-            ptr::null_mut(),
-        );
+    let mut abort = set_ref_in_callback(&mut opt_vars().p_cfu, copy_id, None, None);
+    abort = abort || set_ref_in_callback(&mut opt_vars().p_ofu, copy_id, None, None);
+    abort = abort || set_ref_in_callback(&mut opt_vars().p_tsrfu, copy_id, None, None);
     let global_cb = &mut insexp().cpt_cb;
     abort = abort || set_ref_in_cpt_callbacks(global_cb, copy_id);
     abort
@@ -3279,7 +3257,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
         g_st().sandbox += 1;
     }
 
-    let called = callback_call(cb, 2, args.as_mut_ptr(), &mut rettv);
+    let called = callback_call(cb, 2, &mut args, &mut rettv);
     if use_sandbox {
         g_st().sandbox -= 1;
     }
@@ -3312,10 +3290,10 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     g_st().state_global = save_state;
 
     if !matchdict.is_null() {
-        tv_dict_unref(matchdict);
+        tv_dict_unref(unsafe { matchdict.as_mut() });
     }
     if !matchlist.is_null() {
-        tv_list_unref(matchlist);
+        tv_list_unref(unsafe { matchlist.as_mut() });
     }
 }
 
@@ -3403,7 +3381,7 @@ fn ins_compl_add_list(list: Option<&TvList>) {
     if list.is_none() {
         return;
     }
-    for li in crate::eval::typval::list_iter_mut(list.unwrap().lv_first) {
+    for li in crate::eval::typval::list_iter_mut(list.unwrap().first_opt()) {
         if ins_compl_add_tv(&mut li.li_tv, dir, true) != FAIL {
             dir = FORWARD;
         } else if g_st().did_emsg != 0 {
@@ -3640,38 +3618,31 @@ fn ins_compl_update_sequence_numbers() {
 }
 
 fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool) {
-    tv_dict_add_str_len(di, c"word", match_.cp_str.data, match_.cp_str.size as i32);
-    tv_dict_add_str(
+    tv_dict_add_str_len(
         di,
-        c"abbr",
-        match_.cp_text[CPT_ABBR]
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
+        c"word",
+        (!match_.cp_str.data.is_null()).then(|| match_.cp_str.as_bytes()),
     );
+    tv_dict_add_str(di, c"abbr", match_.cp_text[CPT_ABBR].as_deref());
     tv_dict_add_str(
         di,
         c"menu",
-        match_.cp_text[CPT_MENU].as_ref().map_or_else(
-            || match_.cp_fname.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-            |s| s.as_ptr(),
-        ),
+        match_.cp_text[CPT_MENU]
+            .as_deref()
+            .or(match_.cp_fname.as_deref()),
+    );
+    tv_dict_add_str(di, c"kind", match_.cp_text[CPT_KIND].as_deref());
+    tv_dict_add_str(di, c"info", match_.cp_text[CPT_INFO].as_deref());
+    tv_dict_add_str(
+        di,
+        c"abbr_hlgroup",
+        Some(syn_id2name(match_.cp_user_abbr_hl_id)),
     );
     tv_dict_add_str(
         di,
-        c"kind",
-        match_.cp_text[CPT_KIND]
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
+        c"kind_hlgroup",
+        Some(syn_id2name(match_.cp_user_kind_hl_id)),
     );
-    tv_dict_add_str(
-        di,
-        c"info",
-        match_.cp_text[CPT_INFO]
-            .as_ref()
-            .map_or(ptr::null(), |s| s.as_ptr()),
-    );
-    tv_dict_add_str(di, c"abbr_hlgroup", syn_id2name(match_.cp_user_abbr_hl_id));
-    tv_dict_add_str(di, c"kind_hlgroup", syn_id2name(match_.cp_user_kind_hl_id));
     if add_match {
         tv_dict_add_bool(di, c"match", if match_.cp_in_match_array { 1 } else { 0 });
     }
@@ -3682,10 +3653,10 @@ fn fill_complete_info_dict(di: &mut TvDict, match_: &mut Compl, add_match: bool)
         tv_dict_add_nr(di, c"preselect", 1);
     }
     if let Some(ref commit_chars) = match_.cp_commit_chars {
-        tv_dict_add_str(di, c"commit_chars", commit_chars.as_ptr());
+        tv_dict_add_str(di, c"commit_chars", Some(commit_chars.as_c_str()));
     }
     if match_.cp_user_data.v_type == VAR_UNKNOWN {
-        tv_dict_add_str_len(di, c"user_data", c"", 0);
+        tv_dict_add_str_len(di, c"user_data", Some(b""));
     } else {
         tv_dict_add_tv(di, b"user_data", &mut match_.cp_user_data);
     }
@@ -3696,7 +3667,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
 
     if let Some(what_list) = what_list {
         what_flag = 0;
-        for item in crate::eval::typval::list_iter_mut(what_list.lv_first) {
+        for item in crate::eval::typval::list_iter_mut(what_list.first_opt()) {
             let what = tv_get_string(&item.li_tv);
             if crate::memory::cstr_as_bytes(what) == b"mode" {
                 what_flag |= CI_WHAT_MODE;
@@ -3723,7 +3694,11 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     let mut ret = true;
     if (what_flag & CI_WHAT_MODE) != 0 {
         let mode = ins_compl_mode();
-        ret = tv_dict_add_str_len(retdict, c"mode", mode.data, mode.size as i32);
+        ret = tv_dict_add_str_len(
+            retdict,
+            c"mode",
+            (!mode.data.is_null()).then(|| mode.as_bytes()),
+        );
     }
 
     if ret && (what_flag & CI_WHAT_PUM_VISIBLE) != 0 {
@@ -3744,12 +3719,14 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         ret = tv_dict_add_str_len(
             retdict,
             c"preinserted_text",
-            if len > 0 {
-                line.wrapping_add(curwin_mut().w_cursor.col as usize)
+            Some(if len > 0 {
+                crate::memory::cstr_slice(
+                    line.wrapping_add(curwin_mut().w_cursor.col as usize),
+                    len as usize,
+                )
             } else {
-                c"".as_ptr()
-            },
-            len.max(0),
+                b""
+            }),
         );
     }
 
@@ -3769,7 +3746,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
             } else {
                 c"items"
             };
-            ret = tv_dict_add_list(retdict, key, li);
+            ret = tv_dict_add_list(retdict, key, unsafe { li.as_mut() });
         }
         if ret
             && (what_flag & CI_WHAT_SELECTED) != 0
@@ -3786,7 +3763,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
                 if !match_at_original_text(match_) {
                     if has_items || (has_matches && match_.cp_in_match_array) {
                         let di = tv_dict_alloc();
-                        tv_list_append_dict(unsafe { &mut *li }, di);
+                        tv_list_append_dict(unsafe { &mut *li }, Some(di));
                         fill_complete_info_dict(&mut *di, match_, has_matches && has_items);
                     }
                     if curr_num == Some(match_.cp_number) {
@@ -3816,7 +3793,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         {
             let di = tv_dict_alloc();
             fill_complete_info_dict(&mut *di, curr, false);
-            let _ = tv_dict_add_dict(retdict, c"completed", di);
+            let _ = tv_dict_add_dict(retdict, c"completed", Some(di));
         }
     }
 }
@@ -5215,7 +5192,7 @@ pub fn ins_compl_delete(new_leader: bool) {
     }
 
     changed_cline_bef_curs(curwin_mut());
-    set_vim_var_dict(VV_COMPLETED_ITEM, tv_dict_alloc_lock(VAR_FIXED));
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(tv_dict_alloc_lock(VAR_FIXED)));
 }
 
 fn ins_compl_expand_multiple(str_slice: &[u8]) {
@@ -5409,7 +5386,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         !(shown.as_deref().is_some_and(match_at_original_text) || (preinsert && !insert_prefix));
 
     let dict = ins_compl_dict_alloc(shown);
-    set_vim_var_dict(VV_COMPLETED_ITEM, dict);
+    set_vim_var_dict(VV_COMPLETED_ITEM, Some(dict));
     insexp().compl_hi_on_autocompl_longest = insert_prefix && move_cursor;
 }
 
@@ -6078,7 +6055,7 @@ fn get_userdefined_compl_info(
     if use_sandbox {
         g_st().sandbox += 1;
     }
-    let col = callback_call_retnr(cb, 2, args.as_mut_ptr()) as Colnr;
+    let col = callback_call_retnr(cb, 2, &mut args) as Colnr;
     if use_sandbox {
         g_st().sandbox -= 1;
     }

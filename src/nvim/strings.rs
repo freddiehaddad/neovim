@@ -2467,7 +2467,8 @@ pub fn f_stridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 }
 
 pub fn f_string(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(rettv, encode_tv2string(&mut argvars[0], None).as_ptr());
+    let encoded = encode_tv2string(&mut argvars[0], None);
+    crate::eval::typval::tv_set_string(rettv, Some(encoded.as_c_str()));
 }
 
 pub fn f_strlen(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2620,7 +2621,13 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         len = (slen as i32) - nbyte;
     }
 
-    crate::eval::typval::tv_set_string_len(rettv, p.wrapping_add(nbyte as usize), len as usize);
+    crate::eval::typval::tv_set_string_len(
+        rettv,
+        Some(crate::memory::cstr_slice(
+            p.wrapping_add(nbyte as usize),
+            len as usize,
+        )),
+    );
 }
 
 pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2659,7 +2666,13 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         len = off - n;
     }
 
-    crate::eval::typval::tv_set_string_len(rettv, p.wrapping_add(n as usize), len as usize);
+    crate::eval::typval::tv_set_string_len(
+        rettv,
+        Some(crate::memory::cstr_slice(
+            p.wrapping_add(n as usize),
+            len as usize,
+        )),
+    );
 }
 
 pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2720,7 +2733,8 @@ pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_strtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(rettv, transstr(tv_get_string(&argvars[0]), true).as_ptr());
+    let trans = transstr(tv_get_string(&argvars[0]), true);
+    crate::eval::typval::tv_set_string(rettv, Some(trans.as_c_str()));
 }
 
 pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2799,17 +2813,13 @@ pub fn f_utf16idx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 }
 
 pub fn f_tolower(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(
-        rettv,
-        strcase_save(tv_get_string(&argvars[0]).to_bytes(), false).as_ptr(),
-    );
+    let lower = strcase_save(tv_get_string(&argvars[0]).to_bytes(), false);
+    crate::eval::typval::tv_set_string(rettv, Some(lower.as_c_str()));
 }
 
 pub fn f_toupper(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    crate::eval::typval::tv_set_string(
-        rettv,
-        strcase_save(tv_get_string(&argvars[0]).to_bytes(), true).as_ptr(),
-    );
+    let upper = strcase_save(tv_get_string(&argvars[0]).to_bytes(), true);
+    crate::eval::typval::tv_set_string(rettv, Some(upper.as_c_str()));
 }
 
 pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2882,7 +2892,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         in_str = in_str.wrapping_add(inlen);
     }
 
-    crate::eval::typval::tv_set_string_len(rettv, out.as_ptr().cast(), out.len());
+    crate::eval::typval::tv_set_string_len(rettv, Some(&out));
 }
 
 pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
@@ -2963,7 +2973,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         }
     }
     let trimmed = &tail_slice[..end];
-    crate::eval::typval::tv_set_string_len(rettv, trimmed.as_ptr().cast(), trimmed.len());
+    crate::eval::typval::tv_set_string_len(rettv, Some(trimmed));
 }
 
 #[cfg(test)]

@@ -1449,7 +1449,11 @@ pub fn get_foldtext(
         let level = foldinfo.fi_level.min((dashes.len() - 1) as i32).max(0);
         dashes[..level as usize].fill(b'-');
         dashes[level as usize] = 0;
-        set_vim_var_string(VV_FOLDDASHES, dashes.as_ptr().cast(), level as isize);
+        set_vim_var_string(
+            VV_FOLDDASHES,
+            Some(crate::memory::cstr_until_nul(&dashes)),
+            level as isize,
+        );
         set_vim_var_nr(VV_FOLDLEVEL, Varnumber::from(level));
 
         if !fold_st().got_fdt_error {
@@ -1488,7 +1492,7 @@ pub fn get_foldtext(
         }
         fold_st().fdt_last_lnum = lnum;
         fold_st().last_wp = (&raw mut *wp);
-        set_vim_var_string(VV_FOLDDASHES, ptr::null(), -1);
+        set_vim_var_string(VV_FOLDDASHES, None, -1);
 
         if g_st().did_emsg == 0 && save_did_emsg != 0 {
             g_st().did_emsg = save_did_emsg;
@@ -2705,7 +2709,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         r_vec[r_len..r_len + s_bytes.len()].copy_from_slice(s_bytes);
         foldtext_cleanup(&mut r_vec[r_len..]);
         let final_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();
-        crate::eval::typval::tv_set_string_len(rettv, r_vec.as_ptr().cast(), final_len);
+        crate::eval::typval::tv_set_string_len(rettv, Some(&r_vec[..final_len]));
     }
 }
 

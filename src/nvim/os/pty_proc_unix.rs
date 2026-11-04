@@ -427,17 +427,13 @@ mod unix_impl {
                 }
 
                 if !s_in.closed {
-                    status = set_duplicating_descriptor(master, unsafe {
-                        &mut *(&raw mut s_in.uv).cast()
-                    });
+                    status = set_duplicating_descriptor(master, &mut *(&raw mut s_in.uv).cast());
                     if status != 0 {
                         break 'error;
                     }
                 }
                 if !r_out.s.closed {
-                    status = set_duplicating_descriptor(master, unsafe {
-                        &mut *(&raw mut r_out.s.uv).cast()
-                    });
+                    status = set_duplicating_descriptor(master, &mut *(&raw mut r_out.s.uv).cast());
                     if status != 0 {
                         break 'error;
                     }

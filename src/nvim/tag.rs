@@ -397,12 +397,7 @@ pub fn free_tagfunc_option() {
 /// Mark the global `'tagfunc'` callback with `copyID` so that it is not garbage
 /// collected.
 pub fn set_ref_in_tagfunc(copy_id: i32) -> bool {
-    set_ref_in_callback(
-        &mut opt_vars().p_tfu,
-        copy_id,
-        ptr::null_mut(),
-        ptr::null_mut(),
-    )
+    set_ref_in_callback(&mut opt_vars().p_tfu, copy_id, None, None)
 }
 
 /// Jump to tag; handling of tag commands and tag stack.
@@ -884,11 +879,15 @@ pub fn do_tag(
                     let name_cstr = crate::memory::cstr_as_opt_cstr(name.cast()).unwrap_or(c"");
                     let iobufflen =
                         vim_snprintf_safelen!(iobuf_ptr, IOSIZE, c":ta %s\r", name_cstr.as_ptr());
-                    set_vim_var_string(VV_SWAPCOMMAND, iobuf_ptr, iobufflen as isize);
+                    set_vim_var_string(
+                        VV_SWAPCOMMAND,
+                        Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
+                        iobufflen as isize,
+                    );
 
                     let i = jumpto_tag(cur_match_slice, forceit, true);
 
-                    set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
+                    set_vim_var_string(VV_SWAPCOMMAND, None, -1);
 
                     if i == NOTAGFILE {
                         if (type_ == DT_PREV && cur_match > 0)
@@ -967,21 +966,25 @@ fn select_tag_match(
             tv_dict_add_str_len(
                 &mut *d,
                 c"tag",
-                tagp.tagname.cast(),
-                crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as i32,
+                Some(crate::memory::cstr_slice(
+                    tagp.tagname.cast(),
+                    crate::memory::ptr_offset_from(tagp.tagname_end, tagp.tagname) as usize,
+                )),
             );
             let pri_idx = (m_vec[0] as usize) & MT_MASK;
-            tv_dict_add_str(&mut *d, c"pri", MT_NAMES[pri_idx].as_ptr());
+            tv_dict_add_str(&mut *d, c"pri", Some(MT_NAMES[pri_idx]));
             if !tagp.tagkind.is_null() {
                 tv_dict_add_str_len(
                     &mut *d,
                     c"kind",
-                    tagp.tagkind.cast(),
-                    crate::memory::ptr_offset_from(tagp.tagkind_end, tagp.tagkind) as i32,
+                    Some(crate::memory::cstr_slice(
+                        tagp.tagkind.cast(),
+                        crate::memory::ptr_offset_from(tagp.tagkind_end, tagp.tagkind) as usize,
+                    )),
                 );
             }
             let fname = tag_full_fname(&mut tagp);
-            tv_dict_add_str(&mut *d, c"file", fname.as_ptr());
+            tv_dict_add_str(&mut *d, c"file", Some(fname.as_c_str()));
             tv_dict_add_bool(
                 &mut *d,
                 c"cur",
@@ -1001,9 +1004,13 @@ fn select_tag_match(
         }
 
         let extra_d = tv_dict_alloc();
-        tv_dict_add_list(&mut *extra_d, c"items", items_tv.vval.v_list());
+        tv_dict_add_list(&mut *extra_d, c"items", items_tv.vval.v_list_opt());
         items_tv.vval.v_list_ref().lv_refcount += 1;
-        tv_dict_add_str(&mut *extra_d, c"tagname", name);
+        tv_dict_add_str(
+            &mut *extra_d,
+            c"tagname",
+            crate::memory::cstr_as_opt_cstr(name),
+        );
         let mut extra_tv = TypVal {
             v_type: VarType::VarDict,
             v_lock: VAR_UNLOCKED,
@@ -1097,24 +1104,24 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(&mut *list, dict);
+            tv_list_append_dict(&mut *list, Some(dict));
 
             tv_dict_add_str(
                 &mut *dict,
                 c"text",
-                CStr::from_bytes_until_nul(&tag_name).unwrap_or_default(),
+                Some(CStr::from_bytes_until_nul(&tag_name).unwrap_or_default()),
             );
             tv_dict_add_str(
                 &mut *dict,
                 c"filename",
-                CStr::from_bytes_until_nul(&fname_vec).unwrap_or_default(),
+                Some(CStr::from_bytes_until_nul(&fname_vec).unwrap_or_default()),
             );
             tv_dict_add_nr(&mut *dict, c"lnum", lnum as Varnumber);
             if lnum == 0 {
                 tv_dict_add_str(
                     &mut *dict,
                     c"pattern",
-                    CStr::from_bytes_until_nul(&cmd_vec).unwrap_or_default(),
+                    Some(CStr::from_bytes_until_nul(&cmd_vec).unwrap_or_default()),
                 );
             }
         }
@@ -1129,7 +1136,7 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
             None,
         );
 
-        tv_list_free(list);
+        tv_list_free(Some(list));
 
         true
     }
@@ -1318,10 +1325,14 @@ fn find_tagfunc_tags(
         && let Some(idx) = tag_idx
         && let Some(ref ud) = curwin_mut().w_tagstack[idx].user_data
     {
-        tv_dict_add_str(d, c"user_data", ud.as_ptr());
+        tv_dict_add_str(d, c"user_data", Some(ud.as_c_str()));
     }
     if !buf_ffname.is_null() {
-        tv_dict_add_str(d, c"buf_ffname", buf_ffname);
+        tv_dict_add_str(
+            d,
+            c"buf_ffname",
+            crate::memory::cstr_as_opt_cstr(buf_ffname),
+        );
     }
 
     d.dv_refcount += 1;
@@ -1351,7 +1362,7 @@ fn find_tagfunc_tags(
     );
 
     let save_pos = curwin_mut().w_cursor;
-    let mut result = if callback_call(&mut curbuf_mut().b_p_tfu, 3, args.as_mut_ptr(), &mut rettv) {
+    let mut result = if callback_call(&mut curbuf_mut().b_p_tfu, 3, &mut args, &mut rettv) {
         OK
     } else {
         FAIL
@@ -3216,7 +3227,7 @@ fn add_tag_field(
     field_name: &std::ffi::CStr,
     val: Option<&[u8]>,
 ) -> bool {
-    if !tv_dict_find(dict.as_deref(), field_name.as_ptr(), -1).is_null() {
+    if tv_dict_find(dict.as_deref(), field_name, -1).is_some() {
         if opt_vars().p_verbose > 0 {
             verbose_enter();
             smsg!(0, gettext(c"Duplicate field name: %s"), field_name.as_ptr());
@@ -3236,8 +3247,8 @@ fn add_tag_field(
     buf_vec[len] = 0;
     tv_dict_add_str(
         dict.unwrap(),
-        field_name.as_ptr(),
-        CStr::from_bytes_until_nul(&buf_vec).unwrap_or_default(),
+        field_name,
+        Some(CStr::from_bytes_until_nul(&buf_vec).unwrap_or_default()),
     )
 }
 
@@ -3269,7 +3280,7 @@ pub fn get_tags(
             }
 
             let dict = tv_dict_alloc();
-            tv_list_append_dict(&mut *list, dict);
+            tv_list_append_dict(&mut *list, Some(dict));
 
             let full_fname = tag_full_fname(&mut tp);
             let tag_slice = (!tp.tagname.is_null()).then(|| {
@@ -3355,19 +3366,15 @@ pub fn get_tags(
 }
 
 fn get_tag_details(tag: &mut Taggy, retdict: &mut TvDict) {
-    tv_dict_add_str(
-        retdict,
-        c"tagname",
-        tag.tagname.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-    );
+    tv_dict_add_str(retdict, c"tagname", tag.tagname.as_deref());
     tv_dict_add_nr(retdict, c"matchnr", (tag.cur_match + 1) as Varnumber);
     tv_dict_add_nr(retdict, c"bufnr", tag.cur_fnum as Varnumber);
     if let Some(ref ud) = tag.user_data {
-        tv_dict_add_str(retdict, c"user_data", ud.as_ptr());
+        tv_dict_add_str(retdict, c"user_data", Some(ud.as_c_str()));
     }
 
     let pos = tv_list_alloc(4);
-    tv_dict_add_list(retdict, c"from", pos);
+    tv_dict_add_list(retdict, c"from", Some(pos));
 
     let fmark = &mut tag.fmark;
     tv_list_append_number(
@@ -3395,11 +3402,11 @@ pub fn get_tagstack(wp: &mut WinInfoInfo, retdict: &mut TvDict) {
     tv_dict_add_nr(retdict, c"length", wp.w_tagstacklen as Varnumber);
     tv_dict_add_nr(retdict, c"curidx", (wp.w_tagstackidx + 1) as Varnumber);
     let l = tv_list_alloc(2);
-    tv_dict_add_list(retdict, c"items", l);
+    tv_dict_add_list(retdict, c"items", Some(l));
 
     for i in 0..wp.w_tagstacklen as usize {
         let d = tv_dict_alloc();
-        tv_list_append_dict(l, d);
+        tv_list_append_dict(l, Some(d));
         get_tag_details(&mut wp.w_tagstack[i], d);
     }
 }

@@ -13,7 +13,7 @@ use crate::eval::typval::{
     tv_blob_get, tv_blob_len, tv_dict_find, tv_list_append_string, tv_list_first,
     tv_list_idx_of_item, tv_list_last, tv_list_len,
 };
-use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_lists_mut};
+use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::{Hashitem, hashitem_empty};
 use crate::keycodes::{BS, CAR, NL, TAB};
@@ -96,7 +96,6 @@ pub(crate) enum MPConvPartialStage {
 pub(crate) enum MPConvStackData {
     Dict {
         dict: *mut TvDict,
-        dictp: *mut *mut TvDict,
         hi: *mut Hashitem,
         todo: usize,
     },
@@ -165,18 +164,18 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
             }
             crate::eval::typval::tv_list_append_bytes(list.as_deref_mut().unwrap(), &line_buf);
         } else {
-            tv_list_append_string(list.as_deref_mut().unwrap(), std::ptr::null(), 0);
+            tv_list_append_string(list.as_deref_mut().unwrap(), None, 0);
         }
         line_end_idx += 1;
     }
     if line_end_idx == len {
-        tv_list_append_string(list.unwrap(), std::ptr::null(), 0);
+        tv_list_append_string(list.unwrap(), None, 0);
     }
 }
 
 /// Initialize `ListReaderState` structure (`encode_init_lrstate`).
 pub fn encode_init_lrstate(list: Option<&TvList>) -> ListReaderState {
-    let first = tv_list_first(list);
+    let first = tv_list_first(list).map_or(std::ptr::null(), |li| li);
     let mut state = ListReaderState {
         li: first,
         offset: 0,
@@ -290,7 +289,8 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
         return false;
     };
     if type_di.di_tv.v_type != VarType::VarList
-        || type_di.di_tv.vval.v_list().cast_const() != (*eval_msgpack_type_lists_mut())[K_MP_STRING]
+        || eval_msgpack_type_list(K_MP_STRING)
+            .is_none_or(|tl| !std::ptr::eq(type_di.di_tv.vval.v_list(), tl))
     {
         return false;
     }
@@ -303,7 +303,7 @@ pub fn encode_check_json_key(tv: &TypVal) -> bool {
     let Some(val_list) = val_di.di_tv.vval.v_list_opt() else {
         return true;
     };
-    for li in crate::eval::typval::list_iter_mut(val_list.lv_first) {
+    for li in crate::eval::typval::list_iter_mut(val_list.first_opt()) {
         if li.li_tv.v_type != VarType::VarString {
             return false;
         }
@@ -341,16 +341,17 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
             }
             MPConvStackData::List { list, li } | MPConvStackData::Pairs { list, li } => {
                 let is_list = matches!(v.data, MPConvStackData::List { .. });
-                let first = tv_list_first(unsafe { list.as_ref() });
+                let first = tv_list_first(unsafe { list.as_ref() })
+                    .map_or(std::ptr::null_mut(), std::ptr::from_mut);
                 let idx = if li == first {
                     0
                 } else if li.is_null() {
                     tv_list_len(unsafe { list.as_ref() }) - 1
                 } else {
-                    tv_list_idx_of_item(unsafe { list.as_ref() }, unsafe { (*li).li_prev })
+                    tv_list_idx_of_item(unsafe { list.as_ref() }, unsafe { (*li).li_prev.as_ref() })
                 };
                 let prev_li: *const Listitem = if li.is_null() {
-                    tv_list_last(unsafe { list.as_ref() })
+                    tv_list_last(unsafe { list.as_ref() }).map_or(std::ptr::null(), |p| p)
                 } else {
                     unsafe { (*li).li_prev }
                 };
@@ -362,9 +363,8 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
                     let _ = write!(&mut msg_ga, "index {idx}");
                 } else {
                     let first_item =
-                        tv_list_first(unsafe { (*prev_li).li_tv.vval.v_list().as_ref() });
-                    assert!(!first_item.is_null());
-                    let mut key_tv = unsafe { (*first_item).li_tv };
+                        tv_list_first(unsafe { (*prev_li).li_tv.vval.v_list().as_ref() }).unwrap();
+                    let mut key_tv = first_item.li_tv;
                     let key = encode_tv2echo(&mut key_tv, None);
                     let mut item_buf: Vec<u8> = Vec::new();
                     item_buf.extend_from_slice(b"key ");
@@ -1120,7 +1120,8 @@ fn convert_one_value(
                     saved_copy_id,
                     data: MPConvStackData::List {
                         list,
-                        li: tv_list_first(unsafe { list.as_ref() }),
+                        li: tv_list_first(unsafe { list.as_ref() })
+                            .map_or(std::ptr::null_mut(), std::ptr::from_mut),
                     },
                 });
             }
@@ -1140,97 +1141,148 @@ fn convert_one_value(
                 return OK;
             }
             let mut handled_special = false;
-            if backend.allow_specials() && unsafe { (*dict).dv_hashtab.ht_used } == 2 {
-                let type_di = tv_dict_find(unsafe { dict.as_ref() }, c"_TYPE", 5);
-                if !type_di.is_null() && unsafe { (*type_di).di_tv.v_type } == VarType::VarList {
-                    let val_di = tv_dict_find(unsafe { dict.as_ref() }, c"_VAL", 4);
-                    if !val_di.is_null() {
-                        let val_di = unsafe { &mut *val_di };
-                        let mut mp_idx = NUM_MSGPACK_TYPES;
-                        for (i, tl) in { *eval_msgpack_type_lists_mut() }.into_iter().enumerate() {
-                            if unsafe { (*type_di).di_tv.vval.v_list() }.cast_const() == tl {
-                                mp_idx = i;
-                                break;
+            if backend.allow_specials()
+                && unsafe { (*dict).dv_hashtab.ht_used } == 2
+                && let Some(type_di) = tv_dict_find(unsafe { dict.as_ref() }, c"_TYPE", 5)
+                && type_di.di_tv.v_type == VarType::VarList
+                && let Some(val_di) = tv_dict_find(unsafe { dict.as_ref() }, c"_VAL", 4)
+            {
+                let mut mp_idx = NUM_MSGPACK_TYPES;
+                for i in 0..NUM_MSGPACK_TYPES {
+                    if eval_msgpack_type_list(i)
+                        .is_some_and(|tl| std::ptr::eq(type_di.di_tv.vval.v_list(), tl))
+                    {
+                        mp_idx = i;
+                        break;
+                    }
+                }
+                backend.check_before();
+                if mp_idx < NUM_MSGPACK_TYPES {
+                    match mp_idx {
+                        K_MP_NIL => {
+                            backend.conv_nil();
+                            handled_special = true;
+                        }
+                        K_MP_BOOLEAN => {
+                            if val_di.di_tv.v_type == VarType::VarNumber {
+                                backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
+                                handled_special = true;
                             }
                         }
-                        backend.check_before();
-                        if mp_idx < NUM_MSGPACK_TYPES {
-                            match mp_idx {
-                                K_MP_NIL => {
-                                    backend.conv_nil();
-                                    handled_special = true;
-                                }
-                                K_MP_BOOLEAN => {
-                                    if val_di.di_tv.v_type == VarType::VarNumber {
-                                        backend.conv_bool(val_di.di_tv.vval.v_number() != 0);
-                                        handled_special = true;
-                                    }
-                                }
-                                K_MP_INTEGER => {
-                                    if val_di.di_tv.v_type == VarType::VarList {
-                                        let val_list = val_di.di_tv.vval.v_list();
-                                        if tv_list_len(unsafe { val_list.as_ref() }) == 4 {
-                                            let sign_li =
-                                                tv_list_first(unsafe { val_list.as_ref() });
-                                            let sign_li = unsafe { &mut *sign_li };
-                                            let highest_li = sign_li.li_next;
-                                            let highest_li = unsafe { &mut *highest_li };
-                                            let high_li = highest_li.li_next;
-                                            let high_li = unsafe { &mut *high_li };
-                                            let low_li = tv_list_last(unsafe { val_list.as_ref() });
-                                            let low_li = unsafe { &mut *low_li };
-                                            if sign_li.li_tv.v_type == VarType::VarNumber
-                                                && sign_li.li_tv.vval.v_number() != 0
-                                                && highest_li.li_tv.v_type == VarType::VarNumber
-                                                && highest_li.li_tv.vval.v_number() >= 0
-                                                && high_li.li_tv.v_type == VarType::VarNumber
-                                                && high_li.li_tv.vval.v_number() >= 0
-                                                && low_li.li_tv.v_type == VarType::VarNumber
-                                                && low_li.li_tv.vval.v_number() >= 0
-                                            {
-                                                let sign = sign_li.li_tv.vval.v_number();
-                                                let highest =
-                                                    highest_li.li_tv.vval.v_number() as u64;
-                                                let high = high_li.li_tv.vval.v_number() as u64;
-                                                let low = low_li.li_tv.vval.v_number() as u64;
-                                                let number = (highest << 62) | (high << 31) | low;
-                                                if sign > 0 {
-                                                    backend.conv_unsigned_number(number);
-                                                } else {
-                                                    backend
-                                                        .conv_number(number.wrapping_neg() as i64);
-                                                }
-                                                handled_special = true;
-                                            }
-                                        }
-                                    }
-                                }
-                                K_MP_FLOAT => {
-                                    if val_di.di_tv.v_type == VarType::VarFloat {
-                                        if !backend.conv_float(val_di.di_tv.vval.v_float()) {
-                                            return FAIL;
-                                        }
-                                        handled_special = true;
-                                    }
-                                }
-                                K_MP_STRING => {
-                                    if val_di.di_tv.v_type == VarType::VarList
-                                        && let Some(buf) = encode_vim_list_to_buf(unsafe {
-                                            val_di.di_tv.vval.v_list().as_ref()
-                                        })
+                        K_MP_INTEGER => {
+                            if val_di.di_tv.v_type == VarType::VarList {
+                                let val_list = val_di.di_tv.vval.v_list();
+                                if tv_list_len(unsafe { val_list.as_ref() }) == 4 {
+                                    let sign_li =
+                                        tv_list_first(unsafe { val_list.as_ref() }).unwrap();
+                                    let highest_li = sign_li.li_next;
+                                    let highest_li = unsafe { &mut *highest_li };
+                                    let high_li = highest_li.li_next;
+                                    let high_li = unsafe { &mut *high_li };
+                                    let low_li =
+                                        tv_list_last(unsafe { val_list.as_ref() }).unwrap();
+                                    if sign_li.li_tv.v_type == VarType::VarNumber
+                                        && sign_li.li_tv.vval.v_number() != 0
+                                        && highest_li.li_tv.v_type == VarType::VarNumber
+                                        && highest_li.li_tv.vval.v_number() >= 0
+                                        && high_li.li_tv.v_type == VarType::VarNumber
+                                        && high_li.li_tv.vval.v_number() >= 0
+                                        && low_li.li_tv.v_type == VarType::VarNumber
+                                        && low_li.li_tv.vval.v_number() >= 0
                                     {
-                                        if !backend.conv_str_string(Some(&buf)) {
-                                            return FAIL;
+                                        let sign = sign_li.li_tv.vval.v_number();
+                                        let highest = highest_li.li_tv.vval.v_number() as u64;
+                                        let high = high_li.li_tv.vval.v_number() as u64;
+                                        let low = low_li.li_tv.vval.v_number() as u64;
+                                        let number = (highest << 62) | (high << 31) | low;
+                                        if sign > 0 {
+                                            backend.conv_unsigned_number(number);
+                                        } else {
+                                            backend.conv_number(number.wrapping_neg() as i64);
                                         }
                                         handled_special = true;
                                     }
                                 }
-                                K_MP_ARRAY => {
-                                    if val_di.di_tv.v_type == VarType::VarList {
-                                        let val_list = val_di.di_tv.vval.v_list();
+                            }
+                        }
+                        K_MP_FLOAT => {
+                            if val_di.di_tv.v_type == VarType::VarFloat {
+                                if !backend.conv_float(val_di.di_tv.vval.v_float()) {
+                                    return FAIL;
+                                }
+                                handled_special = true;
+                            }
+                        }
+                        K_MP_STRING => {
+                            if val_di.di_tv.v_type == VarType::VarList
+                                && let Some(buf) = encode_vim_list_to_buf(unsafe {
+                                    val_di.di_tv.vval.v_list().as_ref()
+                                })
+                            {
+                                if !backend.conv_str_string(Some(&buf)) {
+                                    return FAIL;
+                                }
+                                handled_special = true;
+                            }
+                        }
+                        K_MP_ARRAY => {
+                            if val_di.di_tv.v_type == VarType::VarList {
+                                let val_list = val_di.di_tv.vval.v_list();
+                                let saved_copy_id = unsafe { (*val_list).lv_copy_id };
+                                let csr = backend.check_self_reference(
+                                    MPContainerRef::List(val_list),
+                                    unsafe { &mut (*val_list).lv_copy_id },
+                                    mpstack,
+                                    copy_id,
+                                    objname,
+                                );
+                                if csr != NOTDONE {
+                                    return csr;
+                                }
+
+                                backend.conv_list_start(tv_list_len(unsafe { val_list.as_ref() }));
+
+                                mpstack.push(MPConvStackVal {
+                                    tv,
+                                    saved_copy_id,
+                                    data: MPConvStackData::List {
+                                        list: val_list,
+                                        li: tv_list_first(unsafe { val_list.as_ref() })
+                                            .map_or(std::ptr::null_mut(), std::ptr::from_mut),
+                                    },
+                                });
+
+                                handled_special = true;
+                            }
+                        }
+                        K_MP_MAP => {
+                            if val_di.di_tv.v_type == VarType::VarList {
+                                let val_list = val_di.di_tv.vval.v_list();
+                                if val_list.is_null()
+                                    || tv_list_len(unsafe { val_list.as_ref() }) == 0
+                                {
+                                    backend.conv_empty_dict();
+                                    handled_special = true;
+                                } else {
+                                    let mut all_pairs = true;
+                                    let mut li = tv_list_first(unsafe { val_list.as_ref() })
+                                        .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+                                    while !li.is_null() {
+                                        if unsafe { (*li).li_tv.v_type } != VarType::VarList
+                                            || tv_list_len(unsafe {
+                                                (*li).li_tv.vval.v_list().as_ref()
+                                            }) != 2
+                                        {
+                                            all_pairs = false;
+                                            break;
+                                        }
+
+                                        li = unsafe { (*li).li_next };
+                                    }
+                                    if all_pairs {
                                         let saved_copy_id = unsafe { (*val_list).lv_copy_id };
                                         let csr = backend.check_self_reference(
-                                            MPContainerRef::List(val_list),
+                                            MPContainerRef::Pairs(val_list),
                                             unsafe { &mut (*val_list).lv_copy_id },
                                             mpstack,
                                             copy_id,
@@ -1240,106 +1292,51 @@ fn convert_one_value(
                                             return csr;
                                         }
 
-                                        backend.conv_list_start(tv_list_len(unsafe {
+                                        backend.conv_dict_start(tv_list_len(unsafe {
                                             val_list.as_ref()
-                                        }));
+                                        })
+                                            as usize);
 
                                         mpstack.push(MPConvStackVal {
                                             tv,
                                             saved_copy_id,
-                                            data: MPConvStackData::List {
+                                            data: MPConvStackData::Pairs {
                                                 list: val_list,
-                                                li: tv_list_first(unsafe { val_list.as_ref() }),
+                                                li: tv_list_first(unsafe { val_list.as_ref() })
+                                                    .map_or(
+                                                        std::ptr::null_mut(),
+                                                        std::ptr::from_mut,
+                                                    ),
                                             },
                                         });
 
                                         handled_special = true;
                                     }
                                 }
-                                K_MP_MAP => {
-                                    if val_di.di_tv.v_type == VarType::VarList {
-                                        let val_list = val_di.di_tv.vval.v_list();
-                                        if val_list.is_null()
-                                            || tv_list_len(unsafe { val_list.as_ref() }) == 0
-                                        {
-                                            backend.conv_empty_dict();
-                                            handled_special = true;
-                                        } else {
-                                            let mut all_pairs = true;
-                                            let mut li =
-                                                tv_list_first(unsafe { val_list.as_ref() });
-                                            while !li.is_null() {
-                                                if unsafe { (*li).li_tv.v_type } != VarType::VarList
-                                                    || tv_list_len(unsafe {
-                                                        (*li).li_tv.vval.v_list().as_ref()
-                                                    }) != 2
-                                                {
-                                                    all_pairs = false;
-                                                    break;
-                                                }
-
-                                                li = unsafe { (*li).li_next };
-                                            }
-                                            if all_pairs {
-                                                let saved_copy_id =
-                                                    unsafe { (*val_list).lv_copy_id };
-                                                let csr = backend.check_self_reference(
-                                                    MPContainerRef::Pairs(val_list),
-                                                    unsafe { &mut (*val_list).lv_copy_id },
-                                                    mpstack,
-                                                    copy_id,
-                                                    objname,
-                                                );
-                                                if csr != NOTDONE {
-                                                    return csr;
-                                                }
-
-                                                backend.conv_dict_start(tv_list_len(unsafe {
-                                                    val_list.as_ref()
-                                                })
-                                                    as usize);
-
-                                                mpstack.push(MPConvStackVal {
-                                                    tv,
-                                                    saved_copy_id,
-                                                    data: MPConvStackData::Pairs {
-                                                        list: val_list,
-                                                        li: tv_list_first(unsafe {
-                                                            val_list.as_ref()
-                                                        }),
-                                                    },
-                                                });
-
-                                                handled_special = true;
-                                            }
-                                        }
-                                    }
-                                }
-                                K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
-                                    let val_list = val_di.di_tv.vval.v_list();
-                                    if tv_list_len(unsafe { val_list.as_ref() }) == 2 {
-                                        let first = tv_list_first(unsafe { val_list.as_ref() });
-                                        let first = unsafe { &mut *first };
-                                        let last = tv_list_last(unsafe { val_list.as_ref() });
-                                        if first.li_tv.v_type == VarType::VarNumber
-                                            && (i8::MIN as i64..=i8::MAX as i64)
-                                                .contains(&first.li_tv.vval.v_number())
-                                            && unsafe { (*last).li_tv.v_type } == VarType::VarList
-                                            && let Some(buf) = encode_vim_list_to_buf(unsafe {
-                                                (*last).li_tv.vval.v_list().as_ref()
-                                            })
-                                        {
-                                            let ext_type = first.li_tv.vval.v_number() as i8;
-                                            if !backend.conv_ext_string(&buf, ext_type) {
-                                                return FAIL;
-                                            }
-                                            handled_special = true;
-                                        }
-                                    }
-                                }
-                                _ => {}
                             }
                         }
+                        K_MP_EXT if val_di.di_tv.v_type == VarType::VarList => {
+                            let val_list = val_di.di_tv.vval.v_list();
+                            if tv_list_len(unsafe { val_list.as_ref() }) == 2 {
+                                let first = tv_list_first(unsafe { val_list.as_ref() }).unwrap();
+                                let last = tv_list_last(unsafe { val_list.as_ref() }).unwrap();
+                                if first.li_tv.v_type == VarType::VarNumber
+                                    && (i8::MIN as i64..=i8::MAX as i64)
+                                        .contains(&first.li_tv.vval.v_number())
+                                    && last.li_tv.v_type == VarType::VarList
+                                    && let Some(buf) = encode_vim_list_to_buf(unsafe {
+                                        last.li_tv.vval.v_list().as_ref()
+                                    })
+                                {
+                                    let ext_type = first.li_tv.vval.v_number() as i8;
+                                    if !backend.conv_ext_string(&buf, ext_type) {
+                                        return FAIL;
+                                    }
+                                    handled_special = true;
+                                }
+                            }
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -1363,7 +1360,6 @@ fn convert_one_value(
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,
-                        dictp: tv_ref.vval.v_dict_mut(),
                         hi: unsafe { (*dict).dv_hashtab.array_ptr() },
                         todo: unsafe { (*dict).dv_hashtab.ht_used },
                     },
@@ -1413,7 +1409,7 @@ fn encode_vim_with_backend(
                 while hashitem_empty(unsafe { &*hi }) {
                     hi = hi.wrapping_add(1);
                 }
-                let di = crate::eval::typval::tv_dict_hi2di(hi);
+                let di = crate::eval::typval::tv_dict_hi2di(unsafe { &*hi });
                 *todo -= 1;
                 if let MPConvStackData::Dict {
                     hi: ref mut hi_ref, ..
@@ -1437,7 +1433,10 @@ fn encode_vim_with_backend(
 
                     backend.conv_list_end();
                     continue;
-                } else if cur_li != tv_list_first(unsafe { list.as_ref() }) {
+                } else if cur_li
+                    != tv_list_first(unsafe { list.as_ref() })
+                        .map_or(std::ptr::null_mut(), std::ptr::from_mut)
+                {
                     backend.conv_list_between_items();
                 }
 
@@ -1453,18 +1452,21 @@ fn encode_vim_with_backend(
 
                     backend.conv_dict_end();
                     continue;
-                } else if li != tv_list_first(unsafe { list.as_ref() }) {
+                } else if li
+                    != tv_list_first(unsafe { list.as_ref() })
+                        .map_or(std::ptr::null_mut(), std::ptr::from_mut)
+                {
                     backend.conv_dict_between_items();
                 }
                 let kv_pair = unsafe { (*li).li_tv.vval.v_list() };
-                let first_item = tv_list_first(unsafe { kv_pair.as_ref() });
-                if !backend.special_dict_key_check(unsafe { &(*first_item).li_tv }) {
+                let first_item = tv_list_first(unsafe { kv_pair.as_ref() }).unwrap();
+                if !backend.special_dict_key_check(&first_item.li_tv) {
                     return false;
                 }
                 if convert_one_value(
                     backend,
                     &mut mpstack,
-                    unsafe { &mut (*first_item).li_tv },
+                    &mut first_item.li_tv,
                     copy_id,
                     objname,
                 ) == FAIL
@@ -1472,7 +1474,7 @@ fn encode_vim_with_backend(
                     return false;
                 }
                 backend.conv_dict_after_key();
-                let last_item = tv_list_last(unsafe { kv_pair.as_ref() });
+                let last_item = tv_list_last(unsafe { kv_pair.as_ref() }).unwrap();
                 let next_li = unsafe { (*li).li_next };
                 if let MPConvStackData::Pairs {
                     li: ref mut li_ref, ..
@@ -1480,7 +1482,7 @@ fn encode_vim_with_backend(
                 {
                     *li_ref = next_li;
                 }
-                unsafe { &raw mut (*last_item).li_tv }
+                &raw mut last_item.li_tv
             }
             MPConvStackData::Partial { stage, pt } => {
                 match stage {
@@ -1554,7 +1556,6 @@ fn encode_vim_with_backend(
                                 saved_copy_id,
                                 data: MPConvStackData::Dict {
                                     dict,
-                                    dictp: unsafe { std::ptr::addr_of_mut!((*pt).pt_dict) },
                                     hi: dict.dv_hashtab.array_ptr(),
                                     todo: dict.dv_hashtab.ht_used,
                                 },
@@ -1747,7 +1748,7 @@ mod tests {
                     }
                     li = li_ref.li_next;
                 }
-                tv_list_free(l);
+                tv_list_free(Some(l));
             };
 
             check(&[b""], &[]);

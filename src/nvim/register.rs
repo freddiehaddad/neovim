@@ -332,7 +332,7 @@ pub fn get_expr_line() -> Option<std::ffi::CString> {
     }
 
     reg_st().get_expr_line_nested += 1;
-    let rv = eval_to_string(expr_copy.as_ptr().cast_mut(), true, false);
+    let rv = eval_to_string(&expr_copy, true, false);
     reg_st().get_expr_line_nested -= 1;
     rv
 }
@@ -570,7 +570,7 @@ pub fn do_record(c: i32) -> bool {
         tv_dict_add_str(
             &mut *dict,
             c"regcontents",
-            CStr::from_bytes_until_nul(&p_vec).unwrap_or_default(),
+            Some(CStr::from_bytes_until_nul(&p_vec).unwrap_or_default()),
         );
 
         let mut buf = [0u8; NUMBUFLEN + 2];
@@ -579,7 +579,7 @@ pub fn do_record(c: i32) -> bool {
         tv_dict_add_str(
             &mut *dict,
             c"regname",
-            CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+            Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
         );
         tv_dict_set_keys_readonly(&mut *dict);
 
@@ -806,7 +806,7 @@ pub fn insert_reg(regname: i32, reg: Option<&Yankreg>, literally_arg: bool) -> b
         let Some(arg) = spec else {
             return false;
         };
-        stuffescaped(&arg, literally);
+        stuffescaped(crate::memory::cstr_until_nul(&arg).to_bytes(), literally);
     } else {
         let reg_ref: &Yankreg = if let Some(r) = reg {
             r
@@ -1259,12 +1259,7 @@ fn add_regtype_to_dict(reg: Option<&Yankreg>, dict: &mut TvDict, buf: &mut [u8])
         if let Some(reg) = reg { reg.y_width } else { 0 },
         buf,
     );
-    tv_dict_add_str_len(
-        dict,
-        c"regtype",
-        CStr::from_bytes_until_nul(buf).unwrap_or_default(),
-        len as i32,
-    );
+    tv_dict_add_str_len(dict, c"regtype", Some(&buf[..len]));
 }
 
 pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
@@ -1279,10 +1274,10 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
 
     let list = tv_list_alloc(reg.y_array.len() as isize);
     for &item in &reg.y_array {
-        tv_list_append_string(&mut *list, item.data, item.size as isize);
+        crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
     }
     list.lv_lock = VAR_FIXED;
-    tv_dict_add_list(&mut *dict, c"regcontents", list);
+    tv_dict_add_list(&mut *dict, c"regcontents", Some(list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     add_regtype_to_dict(Some(reg), &mut *dict, &mut buf);
@@ -1292,7 +1287,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
     tv_dict_add_str(
         &mut *dict,
         c"regname",
-        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+        Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
     );
 
     tv_dict_add_bool(
@@ -1310,7 +1305,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
     tv_dict_add_str(
         &mut *dict,
         c"operator",
-        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
+        Some(CStr::from_bytes_until_nul(&buf).unwrap_or_default()),
     );
 
     tv_dict_add_bool(
@@ -1354,42 +1349,28 @@ fn put_do_autocmd(
 
     if regname == i32::from(b'.') {
         if !g_st().last_insert_ga.is_empty() {
-            tv_list_append_string(
-                &mut *list,
-                g_st().last_insert_ga.as_ptr().cast(),
-                g_st().last_insert_ga.len() as isize,
-            );
+            crate::eval::typval::tv_list_append_bytes(&mut *list, &g_st().last_insert_ga);
         }
     } else if let Some(insert) = insert {
-        tv_list_append_string(&mut *list, insert.data, insert.size as isize);
+        crate::eval::typval::tv_list_append_bytes(&mut *list, insert.as_bytes());
     } else {
         for &item in &(reg.unwrap()).y_array {
-            tv_list_append_string(&mut *list, item.data, item.size as isize);
+            crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
         }
     }
 
     list.lv_lock = VAR_FIXED;
-    tv_dict_add_list(&mut *v_event, c"regcontents", list);
+    tv_dict_add_list(&mut *v_event, c"regcontents", Some(list));
 
     let mut buf = [0u8; NUMBUFLEN + 2];
     buf[0] = regname as u8;
     buf[1] = 0;
     let buflen = if buf[0] == 0 { 0 } else { 1 };
-    tv_dict_add_str_len(
-        &mut *v_event,
-        c"regname",
-        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-        buflen,
-    );
+    tv_dict_add_str_len(&mut *v_event, c"regname", Some(&buf[..buflen]));
 
     buf[0] = if dir == BACKWARD { b'P' } else { b'p' };
     buf[1] = 0;
-    tv_dict_add_str_len(
-        &mut *v_event,
-        c"operator",
-        CStr::from_bytes_until_nul(&buf).unwrap_or_default(),
-        1,
-    );
+    tv_dict_add_str_len(&mut *v_event, c"operator", Some(&buf[..1]));
 
     add_regtype_to_dict(reg, &mut *v_event, &mut buf);
 
@@ -2594,7 +2575,7 @@ pub fn get_reg_type(regname: i32, reg_width: Option<&mut Colnr>) -> MotionType {
 fn get_reg_wrap_one_line_list(s: Option<std::ffi::CString>) -> Option<&'static mut TvList> {
     let s = s?;
     let list = tv_list_alloc(1);
-    tv_list_append_string(&mut *list, s.as_ptr(), -1);
+    tv_list_append_string(&mut *list, Some(s.as_c_str()), -1);
     Some(list)
 }
 
@@ -2679,7 +2660,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mu
 
     let list = tv_list_alloc(reg.y_array.len() as isize);
     for &item in &reg.y_array {
-        tv_list_append_string(&mut *list, item.data, item.size as isize);
+        crate::eval::typval::tv_list_append_bytes(&mut *list, item.as_bytes());
     }
     Some(list)
 }

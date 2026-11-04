@@ -30,8 +30,8 @@ use crate::change::{
 use crate::channel::channel_job_running;
 use crate::charset::{
     EOL_MAC, NUL, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, ascii_isalnum, ascii_isalpha,
-    ascii_isdigit, ascii_iswhite, getdigits_int, skiptowhite, skipwhite, transchar,
-    transchar_nonprint, vim_is_idc, vim_isprintc,
+    ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite, transchar, transchar_nonprint,
+    vim_is_idc, vim_isprintc,
 };
 use crate::cmdexpand::{Cmdidx, RE_LAST};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -49,7 +49,7 @@ use crate::drawscreen::{
 };
 use crate::errors::*;
 use crate::eval::typval::{TvFloat, Varnumber};
-use crate::eval::vars::{VV_SWAPCOMMAND, get_vim_var_str, set_vim_var_string};
+use crate::eval::vars::{VV_SWAPCOMMAND, get_vim_var_str, set_vim_var_bytes, set_vim_var_string};
 use crate::ex_cmds2::{
     autowrite, autowrite_all, buf_write_all, check_changed, check_fname, dialog_changed,
 };
@@ -749,7 +749,8 @@ pub fn ex_sort(eap: &mut Exarg) {
                 ) else {
                     break 'sortend;
                 };
-                let s = s_cstr.as_ptr().cast_mut();
+                let s =
+                    p.wrapping_add(1 + ((s_cstr.as_ptr() as usize) - (p.wrapping_add(1) as usize)));
 
                 unsafe {
                     *s = NUL;
@@ -1024,7 +1025,8 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 else {
                     break 'uniqend;
                 };
-                let s = s_cstr.as_ptr().cast_mut();
+                let s =
+                    p.wrapping_add(1 + ((s_cstr.as_ptr() as usize) - (p.wrapping_add(1) as usize)));
 
                 unsafe {
                     *s = NUL;
@@ -2627,7 +2629,7 @@ pub fn set_swapcommand(command: Option<&CStr>, newlnum: Linenr) -> bool {
     } else {
         vim_snprintf_safelen!(data.cast(), valsize, c"%lldG", newlnum as i64)
     };
-    set_vim_var_string(VV_SWAPCOMMAND, data.cast(), size as isize);
+    set_vim_var_bytes(VV_SWAPCOMMAND, &data_vec[..size]);
     true
 }
 
@@ -3198,7 +3200,7 @@ pub fn do_ecmd(
         g_st().redrawing_disabled -= 1;
     }
     if did_set_swapcommand {
-        set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
+        set_vim_var_string(VV_SWAPCOMMAND, None, -1);
     }
     drop(new_name);
     drop(free_fname);
@@ -3751,24 +3753,21 @@ fn sub_parse_flags<'a>(
 
 /// Skip over the `"sub"` part in `:s/pat/sub/` where `"delimiter"` is the separating
 /// character.
-fn skip_substitute(start: &CStr, delimiter: i32) -> &CStr {
-    let mut p = start.as_ptr().cast_mut().cast::<u8>();
-    while !crate::memory::cstr_is_empty(p.cast()) {
-        if i32::from(crate::memory::cstr_first_byte(p.cast())) == delimiter {
-            unsafe {
-                *p = 0;
-            }
-            p = p.wrapping_add(1);
+fn skip_substitute(start: &mut [u8], delimiter: i32) -> usize {
+    let len = crate::memory::bytes_until_nul(start).len();
+    let mut idx = 0usize;
+    while idx < len {
+        if i32::from(start[idx]) == delimiter {
+            start[idx] = 0;
+            idx += 1;
             break;
         }
-        if crate::memory::cstr_first_byte(p.cast()) == b'\\'
-            && crate::memory::cstr_len(p.cast()) > 1
-        {
-            p = p.wrapping_add(1);
+        if start[idx] == b'\\' && idx + 1 < len {
+            idx += 1;
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        idx += crate::mbyte::utfc_slice2len(&start[idx..len]).max(1);
     }
-    unsafe { CStr::from_ptr(p.cast()) }
+    idx
 }
 
 fn check_regexp_delim(c: i32) -> bool {
@@ -3893,9 +3892,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         }
 
         let p = cmd;
-        cmd = skip_substitute(crate::memory::cstr_from_ptr(cmd), delimiter)
-            .as_ptr()
-            .cast_mut();
+        let sub_len = crate::memory::cstr_len(cmd);
+        let sub_slice = unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), sub_len + 1) };
+        let sub_off = skip_substitute(sub_slice, delimiter);
+        cmd = cmd.wrapping_add(sub_off);
         let sub_cstr = cstr_to_cstring(p);
         sub = sub_cstr.as_ptr().cast_mut();
         sub_owned = Some(sub_cstr);
@@ -5266,43 +5266,42 @@ pub fn ex_substitute_preview(
 /// Skip over the pattern argument of `":vimgrep /pat/[g][j]"`.
 pub fn skip_vimgrep_pat<'a>(
     p_cstr: &'a CStr,
-    mut s: Option<&mut Option<&'a CStr>>,
+    mut s: Option<&mut Option<std::ffi::CString>>,
     mut flags: Option<&mut i32>,
 ) -> Option<&'a CStr> {
-    let mut p = p_cstr.as_ptr().cast_mut().cast::<u8>();
-    let first_b = crate::memory::cstr_first_byte(p.cast());
+    let p_bytes = p_cstr.to_bytes();
+    let p_base = p_cstr.as_ptr();
+    let first_b = p_bytes.first().copied().unwrap_or(0);
+    let mut off: usize;
     if vim_is_idc(i32::from(first_b)) {
-        let start_p = p;
-        p = skiptowhite(p.cast()).cast();
-        if s.is_some() && !crate::memory::cstr_is_empty(p.cast()) {
-            unsafe {
-                *p = 0;
-            }
-            p = p.wrapping_add(1);
-        }
+        off = p_bytes
+            .iter()
+            .position(|&b| ascii_iswhite(i32::from(b)))
+            .unwrap_or(p_bytes.len());
         if let Some(ref mut s) = s {
-            **s = Some(unsafe { CStr::from_ptr(start_p.cast()) });
+            **s = Some(cstr_from_bytes(&p_bytes[..off]));
         }
+        if s.is_some() && off < p_bytes.len() {
+            off += 1;
+        }
+    } else if first_b == 0 {
+        return None;
     } else {
-        let start_p = p.wrapping_add(1);
         let c = i32::from(first_b);
-        p = skip_regexp(unsafe { CStr::from_ptr(start_p.cast()) }, c, 1)
-            .as_ptr()
-            .cast_mut()
-            .cast();
-        if i32::from(crate::memory::cstr_first_byte(p.cast())) != c {
+        let after_delim = unsafe { CStr::from_ptr(p_base.wrapping_add(1)) };
+        let end_cstr = skip_regexp(after_delim, c, 1);
+        let pat_len = (end_cstr.as_ptr() as usize) - (after_delim.as_ptr() as usize);
+        off = 1 + pat_len;
+        if p_bytes.get(off).copied().map_or(0, i32::from) != c {
             return None;
         }
 
         if let Some(ref mut s) = s {
-            unsafe {
-                *p = 0;
-            }
-            **s = Some(unsafe { CStr::from_ptr(start_p.cast()) });
+            **s = Some(cstr_from_bytes(&p_bytes[1..off]));
         }
-        p = p.wrapping_add(1);
+        off += 1;
 
-        let tail = crate::memory::cstr_as_bytes(p.cast());
+        let tail = &p_bytes[off..];
         let mut count = 0usize;
         for &b in tail {
             if !matches!(b, b'g' | b'j' | b'f') {
@@ -5317,9 +5316,9 @@ pub fn skip_vimgrep_pat<'a>(
             }
             count += 1;
         }
-        p = p.wrapping_add(count);
+        off += count;
     }
-    Some(unsafe { CStr::from_ptr(p.cast()) })
+    Some(unsafe { CStr::from_ptr(p_base.wrapping_add(off)) })
 }
 
 /// `:oldfiles` (sync) and `:browse oldfiles` (async).

@@ -49,7 +49,7 @@ fn tv_op_list(tv1: &mut TypVal, tv2: &TypVal, op: u8) -> bool {
     };
 
     if let Some(l1) = tv1.vval.v_list_opt() {
-        tv_list_extend(l1, Some(&*l2), std::ptr::null_mut());
+        tv_list_extend(l1, Some(&*l2), None);
     } else {
         tv1.vval = crate::eval::typval::TypvalVval::List(l2);
         l2.lv_refcount += 1;
@@ -108,13 +108,13 @@ fn tv_op_string(tv1: &mut TypVal, tv2: &TypVal) -> bool {
     {
         let mut numbuf = [0u8; NUMBUFLEN];
         let s2 = tv_get_string_buf(tv2, &mut numbuf);
-        if grow_string_tv(&mut *tv1, s2) {
+        if grow_string_tv(&mut *tv1, s2.to_bytes()) {
             return true;
         }
 
         let tvs = tv_get_string(&*tv1);
         let s = concat_str(tvs.to_bytes(), s2.to_bytes());
-        crate::eval::typval::tv_set_string(tv1, s.as_ptr());
+        crate::eval::typval::tv_set_string(tv1, Some(s.as_c_str()));
     }
 
     true

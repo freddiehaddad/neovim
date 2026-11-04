@@ -3,7 +3,7 @@
 use crate::api::private::helpers::api_typename;
 use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_err_exp};
 use crate::autocmd::do_termresponse_autocmd;
-use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_string};
+use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_bytes};
 use crate::log::{LOGLVL_ERR, logmsg};
 
 /// Emitted on the client channel if an async API request responds with an error.
@@ -57,11 +57,7 @@ pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object, err
         }
 
         let termresponse = value.data.string();
-        set_vim_var_string(
-            VV_TERMRESPONSE,
-            termresponse.data,
-            termresponse.size as isize,
-        );
+        set_vim_var_bytes(VV_TERMRESPONSE, termresponse.as_bytes());
         do_termresponse_autocmd(termresponse, channel_id);
     }
 }

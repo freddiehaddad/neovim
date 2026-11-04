@@ -259,7 +259,7 @@ fn assert_match_common(argvars: &mut [TypVal], atype: AssertType) -> i32 {
     let text = tv_get_string_buf_chk(&argvars[1], &mut buf2);
 
     if let (Some(pat), Some(text)) = (pat, text)
-        && (pattern_match(pat, text, false) != 0) != (atype == AssertType::Match)
+        && (pattern_match(pat, Some(text), false) != 0) != (atype == AssertType::Match)
     {
         let mut ga = Vec::new();
         prepare_assert_error(&mut ga);
@@ -580,7 +580,12 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let first_tv = &list_ref.first_opt().unwrap().li_tv;
                 let expected = tv_get_string_buf_chk(first_tv, &mut buf);
                 if let Some(expected) = expected {
-                    if pattern_match(expected, actual, false) == 0 {
+                    if pattern_match(
+                        expected,
+                        (!actual.is_null()).then(|| unsafe { CStr::from_ptr(actual) }),
+                        false,
+                    ) == 0
+                    {
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
@@ -590,7 +595,12 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         let last_tv = &list_ref.last_opt().unwrap().li_tv;
                         let expected2 = tv_get_string_buf_chk(last_tv, &mut buf2);
                         if let Some(expected2) = expected2 {
-                            if pattern_match(expected2, actual, false) == 0 {
+                            if pattern_match(
+                                expected2,
+                                (!actual.is_null()).then(|| unsafe { CStr::from_ptr(actual) }),
+                                false,
+                            ) == 0
+                            {
                                 error_found = true;
                                 expected_str = Some(expected2);
                             }
@@ -633,11 +643,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                     valid_args = false;
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
-                        arg4.vval.v_string(),
-                        g_st()
-                            .emsg_assert_fails_context
-                            .as_ref()
-                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                        unsafe { CStr::from_ptr(arg4.vval.v_string()) },
+                        g_st().emsg_assert_fails_context.as_deref(),
                         false,
                     ) == 0
                 {
@@ -718,7 +725,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().lines_left = g_st().rows_global;
     g_st().emsg_assert_fails_msg = None;
     drop(tofree);
-    set_vim_var_string(VV_ERRMSG, std::ptr::null(), 0);
+    set_vim_var_string(VV_ERRMSG, None, 0);
     if let Some(msg) = wrong_arg_msg {
         emsg(msg.as_ptr());
     }

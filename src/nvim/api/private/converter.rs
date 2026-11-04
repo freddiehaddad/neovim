@@ -7,7 +7,7 @@ use crate::api::private::validate::{
 use crate::eval::decode::decode_string;
 use crate::eval::typval::{
     Listitem, TvDict, TvList, TypVal, TypvalVval, VAR_UNLOCKED, VarType, tv_dict_add,
-    tv_dict_alloc, tv_dict_item_alloc, tv_list_alloc, tv_list_append_owned_tv,
+    tv_dict_alloc, tv_list_alloc, tv_list_append_owned_tv,
 };
 use crate::eval::userfunc::{FC_LUAREF, find_func, register_luafunc};
 use crate::eval::{get_copy_id, partial_name};
@@ -92,7 +92,7 @@ fn convert_one_value(
         VarType::VarFunc => {
             let fun = tv.vval.v_string();
             let obj = if !fun.is_null()
-                && let Some(fp) = unsafe { find_func(fun).as_ref() }
+                && let Some(fp) = find_func(Some(unsafe { std::ffi::CStr::from_ptr(fun) }))
                 && (fp.uf_flags & FC_LUAREF) != 0
             {
                 Object {
@@ -107,7 +107,7 @@ fn convert_one_value(
         VarType::VarPartial => {
             let obj = if let Some(pt) = tv.vval.v_partial_opt() {
                 let fun = partial_name(Some(pt));
-                if let Some(fp) = unsafe { find_func(fun).as_ref() }
+                if let Some(fp) = find_func(Some(fun))
                     && (fp.uf_flags & FC_LUAREF) != 0
                 {
                     Object {
@@ -323,7 +323,7 @@ pub fn vim_to_object(
                 *hi = (*hi).wrapping_add(1);
                 *todo -= 1;
 
-                let di = crate::eval::typval::tv_dict_hi2di(cur_hi);
+                let di = crate::eval::typval::tv_dict_hi2di(unsafe { &*cur_hi });
                 let key_bytes = di.key_bytes();
                 let key_obj = cbuf_to_string_obj(arena.as_deref_mut(), reuse_strdata, key_bytes);
 
@@ -414,7 +414,7 @@ pub fn object_to_vim_take_luaref(
             let mut d = obj.data.dict();
             let dict = tv_dict_alloc();
             for item in d.as_mut_slice() {
-                let di = tv_dict_item_alloc(item.key.data);
+                let di = crate::eval::typval::tv_dict_item_alloc_len(item.key.as_bytes());
                 object_to_vim_take_luaref(&mut item.value, &mut di.di_tv, take_luaref, _err);
                 tv_dict_add(&mut *dict, di);
             }
@@ -430,7 +430,7 @@ pub fn object_to_vim_take_luaref(
                 ref_id = api_new_luaref(ref_id);
             }
             let name = register_luafunc(ref_id);
-            crate::eval::typval::tv_set_string(tv_ref, name);
+            crate::eval::typval::tv_set_string(tv_ref, Some(name));
             tv_ref.v_type = VarType::VarFunc;
         }
     }
@@ -502,7 +502,7 @@ mod tests {
 
             unsafe { (*list.lv_first).li_tv.v_type = VarType::VarUnknown };
 
-            crate::eval::typval::tv_list_free(list);
+            crate::eval::typval::tv_list_free(Some(list));
         }
     }
 }

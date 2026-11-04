@@ -774,7 +774,7 @@ pub fn ex_compiler(eap: &mut Exarg) {
 
     if eap.forceit == 0 {
         if let Some(ref old_comp) = old_cur_comp {
-            set_internal_string_var(c"g:current_compiler", old_comp.as_ptr());
+            set_internal_string_var(c"g:current_compiler", old_comp);
         } else {
             do_unlet(b"g:current_compiler", true);
         }
@@ -798,11 +798,11 @@ fn script_host_execute(name: &std::ffi::CStr, eap: &mut Exarg) {
     let mut len: usize = 0;
     if let Some(script) = script_get(eap, &mut len) {
         let args = tv_list_alloc(3);
-        crate::eval::typval::tv_list_append_string(&mut *args, script.as_ptr(), -1);
+        crate::eval::typval::tv_list_append_string(&mut *args, Some(script.as_c_str()), -1);
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);
 
-        eval_call_provider(name.as_ptr().cast_mut(), c"execute", &mut *args, true);
+        eval_call_provider(name, c"execute", &mut *args, true);
     }
 }
 
@@ -814,12 +814,12 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
         let args = tv_list_alloc(3);
         tv_list_append_string(
             &mut *args,
-            CStr::from_bytes_until_nul(&buffer).unwrap_or(c""),
+            Some(CStr::from_bytes_until_nul(&buffer).unwrap_or(c"")),
             -1,
         );
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-        eval_call_provider(name.as_ptr().cast_mut(), c"execute_file", &mut *args, true);
+        eval_call_provider(name, c"execute_file", &mut *args, true);
     }
 }
 
@@ -828,8 +828,8 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
         let args = tv_list_alloc(3);
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-        tv_list_append_string(&mut *args, eap.arg, -1);
-        eval_call_provider(name.as_ptr().cast_mut(), c"do_range", &mut *args, true);
+        tv_list_append_string(&mut *args, crate::memory::cstr_as_opt_cstr(eap.arg), -1);
+        eval_call_provider(name, c"do_range", &mut *args, true);
     }
 }
 
@@ -876,7 +876,7 @@ pub fn ex_drop(eap: &mut Exarg) {
                         DOCMD_VERBOSE,
                     );
                     if did_set_swapcommand {
-                        set_vim_var_string(VV_SWAPCOMMAND, ptr::null(), -1);
+                        set_vim_var_string(VV_SWAPCOMMAND, None, -1);
                     }
                 }
                 return;

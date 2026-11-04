@@ -1075,7 +1075,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         } else if eap.cmdidx == CMD_MKSESSION {
             let mut tbuf: Vec<u8> = vec![0; MAXPATHL];
             if vim_full_name(fname.as_ptr(), tbuf.as_mut_ptr().cast(), MAXPATHL, false) {
-                set_vim_var_string(VV_THIS_SESSION, tbuf.as_ptr().cast(), -1);
+                set_vim_var_string(
+                    VV_THIS_SESSION,
+                    Some(crate::memory::cstr_until_nul(&tbuf)),
+                    -1,
+                );
             }
         }
     }

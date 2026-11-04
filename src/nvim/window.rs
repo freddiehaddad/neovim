@@ -6273,7 +6273,7 @@ fn make_win_info_dict(
             vval: TypvalVval::Number(i64::from(val)),
         };
         if !tv_dict_add_tv(&mut *d, key.to_bytes(), &mut tv) {
-            tv_dict_unref(d);
+            tv_dict_unref(Some(d));
             return None;
         }
     }
@@ -6353,11 +6353,18 @@ fn check_window_scroll_resize(
             let mut winid = [0u8; NUMBUFLEN];
             let key_len = vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", wp.handle,);
             let _ = key_len;
-            if !tv_dict_add_dict(ve, winid.as_ptr().cast(), d) {
-                tv_dict_unref(d);
+            let d_ptr: *mut TvDict = d;
+            if !tv_dict_add_dict(
+                ve,
+                crate::memory::cstr_until_nul(&winid),
+                Some(unsafe { &mut *d_ptr }),
+            ) {
+                tv_dict_unref(Some(unsafe { &mut *d_ptr }));
                 break;
             }
-            d.dv_refcount -= 1;
+            unsafe {
+                (*d_ptr).dv_refcount -= 1;
+            }
 
             tot_width += width.abs();
             tot_height += height.abs();
@@ -6378,10 +6385,13 @@ fn check_window_scroll_resize(
             tot_skipcol,
         )
     {
-        if !tv_dict_add_dict(v_event, c"all", alldict) {
-            tv_dict_unref(alldict);
+        let alldict_ptr: *mut TvDict = alldict;
+        if !tv_dict_add_dict(v_event, c"all", Some(unsafe { &mut *alldict_ptr })) {
+            tv_dict_unref(Some(unsafe { &mut *alldict_ptr }));
         } else {
-            alldict.dv_refcount -= 1;
+            unsafe {
+                (*alldict_ptr).dv_refcount -= 1;
+            }
         }
     }
 }
@@ -6478,7 +6488,7 @@ pub fn may_trigger_win_scrolled_resized() {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        if tv_dict_add_list(&mut *v_event, c"windows", windows_list) {
+        if tv_dict_add_list(&mut *v_event, c"windows", Some(windows_list)) {
             tv_dict_set_keys_readonly(&mut *v_event);
             let buf = if bufref_valid(Some(&resize_bufref)) {
                 resize_bufref.br_buf
@@ -6507,9 +6517,9 @@ pub fn may_trigger_win_scrolled_resized() {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
         let v_event = get_v_event(&mut save_v_event);
 
-        tv_dict_extend(&mut *v_event, &mut *scroll_dict, c"move");
+        tv_dict_extend(&mut *v_event, &mut *scroll_dict, b"move");
         tv_dict_set_keys_readonly(&mut *v_event);
-        tv_dict_unref(scroll_dict);
+        tv_dict_unref(Some(scroll_dict));
 
         let buf = if bufref_valid(Some(&scroll_bufref)) {
             scroll_bufref.br_buf

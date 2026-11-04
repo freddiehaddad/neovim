@@ -6718,14 +6718,14 @@ fn nv_operator(cap: &mut Cmdarg) {
 
 fn set_op_var(optype: i32) {
     if optype == OP_NOP {
-        set_vim_var_string(VV_OP, ptr::null(), 0);
+        set_vim_var_string(VV_OP, None, 0);
     } else {
         let opchar0 = get_op_char(optype);
         assert!((0..=u8::MAX as i32).contains(&opchar0));
         let opchar1 = get_extra_op_char(optype);
         assert!((0..=u8::MAX as i32).contains(&opchar1));
         let opchars: [u8; 3] = [opchar0 as u8, opchar1 as u8, 0];
-        set_vim_var_string(VV_OP, opchars.as_ptr().cast(), 2);
+        set_vim_var_string(VV_OP, Some(crate::memory::cstr_until_nul(&opchars)), 2);
     }
 }
 

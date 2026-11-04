@@ -131,14 +131,12 @@ unsafe extern "system" {
 
 #[cfg(unix)]
 fn save_patterns(pat: &[&CStr], file: &mut Vec<std::ffi::CString>) {
-    unsafe {
-        file.clear();
-        file.reserve(pat.len());
-        for &p in pat {
-            let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
-            backslash_halve(v.as_mut_ptr().cast());
-            file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
-        }
+    file.clear();
+    file.reserve(pat.len());
+    for &p in pat {
+        let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
+        backslash_halve(v.as_mut_ptr().cast());
+        file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
     }
 }
 
