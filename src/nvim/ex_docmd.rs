@@ -10576,6 +10576,30 @@ fn ex_detach(eap: &mut Exarg) {
 }
 
 fn ex_connect(eap: &mut Exarg) {
+    let mut addr = eap.arg;
+    let mut ssh_rettv = TypVal::new();
+
+    if crate::memory::cstr_as_bytes(addr).starts_with(b"ssh://") {
+        let mut argvars = [
+            TypVal {
+                v_type: VarType::VarString,
+                v_lock: 0,
+                vval: TypvalVval::String(addr),
+            },
+            TypVal::new(),
+        ];
+
+        nlua_call_typval(c"vim.net._ssh", c"start", &mut argvars, Some(&mut ssh_rettv));
+
+        if ssh_rettv.v_type != VarType::VarString || ssh_rettv.vval.v_string().is_null() {
+            let _ = emsg(c"E6101: SSH connection failed");
+            tv_clear(&mut ssh_rettv);
+            return;
+        }
+
+        addr = ssh_rettv.vval.v_string();
+    }
+
     let stop_server = if eap.forceit != 0 {
         ui_active() == 1
     } else {
@@ -10585,9 +10609,10 @@ fn ex_connect(eap: &mut Exarg) {
     let mut err = error_init();
     remote_ui_connect(
         g_st().current_ui,
-        crate::memory::cstr_as_bytes(eap.arg),
+        crate::memory::cstr_as_bytes(addr),
         &mut err,
     );
+    tv_clear(&mut ssh_rettv);
 
     if error_set(&err) {
         let _ = emsg(err.msg_cstr().unwrap_or(c""));
