@@ -1461,7 +1461,7 @@ pub fn call_user_func(
         g_st().ex_nesting_level -= 1;
     } else {
         do_cmdline(
-            ptr::null_mut(),
+            None,
             crate::cmdexpand::LineGetter::Func(fc),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
         );
@@ -2551,7 +2551,8 @@ fn list_one_function<T>(
             return ptr::null_mut();
         }
 
-        eap.nextcmd = check_nextcmd(p.cast());
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(p.cast()))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 
         if !eap.nextcmd.is_null() {
             *crate::globals::gptr(p) = 0;
@@ -2764,7 +2765,7 @@ fn get_function_body(
                             if let Some(ref ltf) = line_to_free {
                                 let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
                                 let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
-                                eap.set_cmdline_vec(eap.cmdlinep, new_buf);
+                                eap.set_cmdline_vec(new_buf);
                                 eap.nextcmd = crate::globals::gptr(eap.cmdlinep).wrapping_add(off);
                             } else {
                                 eap.nextcmd = nextcmd;
@@ -2801,7 +2802,9 @@ fn get_function_body(
                     }
                 }
 
-                p = skip_range(p, None);
+                p = skip_range(crate::memory::cstr_from_ptr(p), None)
+                    .as_ptr()
+                    .cast_mut();
                 let tp = p;
                 if (checkforcmd(&mut p, b"append", 1)
                     || checkforcmd(&mut p, b"change", 1)
@@ -2953,13 +2956,15 @@ pub fn ex_function(eap: &mut Exarg) {
         if eap.skip == 0 {
             list_functions(None);
         }
-        eap.nextcmd = check_nextcmd(eap.arg);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return;
     }
 
     if crate::memory::cstr_first_byte(eap.arg) == b'/' {
         let p = list_functions_matching_pat(eap);
-        eap.nextcmd = check_nextcmd(p.cast());
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(p.cast()))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return;
     }
 
@@ -3429,7 +3434,8 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
-    eap.nextcmd = check_nextcmd(p);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(p))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if !eap.nextcmd.is_null() {
         *crate::globals::gptr(p) = NUL;
     }
@@ -3595,7 +3601,8 @@ pub fn ex_return(eap: &mut Exarg) {
     if returning {
         eap.nextcmd = ptr::null_mut();
     } else if eap.nextcmd.is_null() {
-        eap.nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     }
 
     if eap.skip != 0 {
@@ -3938,7 +3945,8 @@ pub fn ex_call(eap: &mut Exarg) {
                 semsg!(gettext(E_TRAILING_ARG), arg);
             }
         } else {
-            eap.nextcmd = check_nextcmd(arg);
+            eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         }
     }
 

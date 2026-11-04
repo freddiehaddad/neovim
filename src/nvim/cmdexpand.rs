@@ -3420,8 +3420,7 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
             .cast();
         }
     }
-    let next = find_nextcmd(p.cast());
-    (!next.is_null()).then(|| unsafe { CStr::from_ptr(next) })
+    find_nextcmd(unsafe { CStr::from_ptr(p.cast()) })
 }
 
 /// Returns a slice to the next command after a :global or a :v command.
@@ -4099,7 +4098,12 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         return None;
     }
 
-    cmd = skip_range(cmd.cast(), Some(&mut xp.xp_context)).cast();
+    cmd = skip_range(
+        crate::memory::cstr_from_ptr(cmd.cast()),
+        Some(&mut xp.xp_context),
+    )
+    .as_ptr()
+    .cast();
     xp.xp_pattern = cmd.cast_mut();
     if crate::memory::cstr_is_empty(cmd.cast()) {
         return None;
@@ -4187,7 +4191,9 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         && crate::memory::cstr_first_byte(arg.cast()) == b'+'
     {
         p = arg.wrapping_add(1);
-        arg = skip_cmd_arg(arg.cast_mut(), false);
+        arg = skip_cmd_arg(crate::memory::cstr_from_ptr(arg.cast()), false)
+            .as_ptr()
+            .cast();
 
         if crate::memory::cstr_is_empty(arg.cast()) {
             return Some(unsafe { CStr::from_ptr(p.cast()) });
@@ -4400,7 +4406,7 @@ fn expand_files_and_dirs(
         }
 
         let ret = if xp.xp_context == EXPAND_FINDFUNC {
-            expand_findfunc(xp, pat.cast(), matches)
+            expand_findfunc(xp, crate::memory::cstr_from_ptr(pat.cast()), matches)
         } else {
             if xp.xp_context == EXPAND_FILES {
                 flags |= EW_FILE;
@@ -5044,7 +5050,7 @@ fn expand_from_context(
     } else if xp.xp_context == EXPAND_MAPPINGS {
         expand_mappings(pat_cstr, &mut regmatch, matches)
     } else if xp.xp_context == EXPAND_ARGOPT {
-        expand_argopt(pat_cstr.as_ptr(), xp, &mut regmatch, matches)
+        expand_argopt(pat_cstr, xp, &mut regmatch, matches)
     } else if xp.xp_context == EXPAND_USER_DEFINED {
         expand_user_defined(pat_cstr, xp, &mut regmatch, matches)
     } else {

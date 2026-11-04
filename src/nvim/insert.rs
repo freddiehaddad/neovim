@@ -1038,7 +1038,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                     g_st().ins_global.dont_sync_undo = K_NONE;
                 }
             } else if s.c == K_COMMAND {
-                do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
+                do_cmdline(None, crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
             } else {
                 map_execute_lua(false, false);
             }

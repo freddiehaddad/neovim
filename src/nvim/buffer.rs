@@ -984,20 +984,16 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
 
     let mut line_count = curbuf_mut().b_ml.ml_line_count;
     let mut retval = readfile(
-        if read_stdin {
-            ptr::null_mut()
-        } else {
-            curbuf_mut().b_ffname
-        },
-        if read_stdin {
-            ptr::null_mut()
-        } else {
-            curbuf_mut().b_fname
-        },
+        (!read_stdin)
+            .then(|| crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname))
+            .flatten(),
+        (!read_stdin)
+            .then(|| crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname))
+            .flatten(),
         line_count,
         0,
         MAXLNUM,
-        (eap.is_some()).then(|| eap.unwrap()),
+        eap,
         flags | READ_BUFFER,
         silent,
     );
@@ -1151,12 +1147,12 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         }
 
         retval = readfile(
-            curbuf_mut().b_ffname,
-            curbuf_mut().b_fname,
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             0,
             0,
             MAXLNUM,
-            (eap.is_some()).then(|| eap.unwrap()),
+            eap,
             flags | READ_NEW | if read_fifo { READ_FIFO } else { 0 },
             silent,
         );
@@ -1180,8 +1176,8 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
 
         curbuf_mut().b_p_bin = 1;
         retval = readfile(
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             0,
             0,
             MAXLNUM,
@@ -1988,7 +1984,7 @@ pub fn do_bufdel(
     } else {
         if addr_count == 2 {
             if !crate::memory::cstr_is_empty(arg) {
-                return Some(ex_errmsg(E_TRAILING_ARG, arg));
+                return Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(arg)));
             }
             bnr = start_bnr;
         } else {
@@ -4907,8 +4903,8 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
 
     if ml_open(curbuf_mut())
         && readfile(
-            buf.b_ffname,
-            buf.b_fname,
+            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
+            crate::memory::cstr_as_opt_cstr(buf.b_fname),
             0,
             0,
             MAXLNUM,

@@ -2840,9 +2840,7 @@ fn do_source_ext(
                 ));
             }
             do_cmdline(
-                firstline
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                firstline.as_deref(),
                 LineGetter::Source(&raw mut cookie),
                 DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_REPEAT,
             );
@@ -2974,7 +2972,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 eap.arg = namebuff;
                 to_slash(eap.arg.cast());
             }
-            do_exedit(eap, ptr::null_mut());
+            do_exedit(eap, None);
         }
         return;
     }

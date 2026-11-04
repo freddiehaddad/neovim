@@ -1016,7 +1016,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
     }
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_chdir(dir.data, K_CD_SCOPE_GLOBAL);
+    do_chdir(crate::memory::cstr_as_opt_cstr(dir.data), K_CD_SCOPE_GLOBAL);
     try_leave(&tstate, err);
 }
 

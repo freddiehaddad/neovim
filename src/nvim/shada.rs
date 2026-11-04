@@ -3107,8 +3107,8 @@ fn shada_open_tmp(
     sd_writer: &mut FileDescriptor,
     perm: i32,
 ) -> Option<Vec<u8>> {
-    let fname = fname_bytes.as_ptr().cast();
-    let tn = modname(fname, c".tmp.a", false)?;
+    let fname = crate::memory::cstr_until_nul(fname_bytes);
+    let tn = modname(Some(fname), c".tmp.a", false)?;
     let mut tempname_bytes = tn.into_bytes_with_nul();
     let flags = K_FILE_CREATE_ONLY | K_FILE_NO_SYMLINK;
     let last_idx = tempname_bytes.len() - 2;
@@ -3284,7 +3284,11 @@ pub fn shada_write_file(file: Option<&CStr>, nomerge: bool) -> bool {
             }
         }
         if can_rename && close_file(&mut sd_writer) == 0 {
-            if vim_rename(tempname, fname) == -1 {
+            if vim_rename(
+                crate::memory::cstr_from_ptr(tempname),
+                crate::memory::cstr_from_ptr(fname),
+            ) == -1
+            {
                 semsg!(
                     gettext(c"E136: Can't rename ShaDa file from %s to %s!"),
                     tempname,

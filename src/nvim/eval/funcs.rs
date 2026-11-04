@@ -2191,7 +2191,7 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         tv_list_ref(Some(list));
         let mut cookie = GetListLineCookie { li: first_li };
         do_cmdline(
-            ptr::null_mut(),
+            None,
             crate::cmdexpand::LineGetter::List(&raw mut cookie),
             DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT | DOCMD_KEYTYPED,
         );
@@ -2248,7 +2248,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             });
         }
         Some(&b':') => {
-            n = cmd_exists(p.wrapping_add(1));
+            n = cmd_exists(crate::memory::cstr_from_ptr(p.wrapping_add(1)));
         }
         Some(&b'#') => {
             if p_bytes.get(1) == Some(&b'#') {
@@ -2290,7 +2290,8 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         let mut len: usize = 0;
         let mut errormsg = None;
-        let result = eval_vars(s.cast_mut(), s, &mut len, None, &mut errormsg, None, false);
+        let s_cstr = crate::memory::cstr_from_ptr(s);
+        let result = eval_vars(s_cstr, s_cstr, &mut len, None, &mut errormsg, None, false);
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off -= 1;
         } else if let Some(msg) = errormsg {
@@ -2404,7 +2405,7 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if emsgoff {
         g_st().emsg_off += 1;
     }
-    if !expand_filename(&mut eap, &raw mut cmdstr, &mut errormsg)
+    if !expand_filename(&mut eap, &mut errormsg)
         && !emsgoff
         && let Some(msg) = errormsg
         && !msg.to_bytes().is_empty()

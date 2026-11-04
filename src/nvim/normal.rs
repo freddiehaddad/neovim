@@ -4055,7 +4055,7 @@ fn nv_colon(cap: &mut Cmdarg) {
         map_execute_lua(true, false)
     } else {
         do_cmdline(
-            ptr::null_mut(),
+            None,
             if is_cmdkey {
                 crate::cmdexpand::LineGetter::CmdKeyCmd
             } else {
@@ -4447,7 +4447,7 @@ fn nv_ident(cap: &mut Cmdarg) {
         );
     } else {
         g_st().g_tag_at_cursor = true;
-        do_cmdline_cmd(buf_vec.as_ptr().cast());
+        do_cmdline_cmd(crate::memory::cstr_until_nul(&buf_vec));
         g_st().g_tag_at_cursor = false;
 
         if cmdchar == b'K' as i32 && !kp_ex && !kp_help {

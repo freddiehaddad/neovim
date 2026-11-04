@@ -1131,7 +1131,8 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     let (pat, end) = if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
-        eap.nextcmd = find_nextcmd(eap.arg);
+        eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         (c".*".as_ptr().cast_mut(), ptr::null_mut())
     } else {
         let pat = eap.arg.wrapping_add(1);
@@ -1228,7 +1229,8 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     if !end.is_null() {
-        eap.nextcmd = find_nextcmd(end);
+        eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(end))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     }
 }
 

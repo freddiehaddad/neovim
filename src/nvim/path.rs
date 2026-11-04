@@ -1386,9 +1386,12 @@ pub fn expand_wildcards_vec(
 
     if !crate::memory::cstr_is_empty(opt_vars().p_wig) {
         files.retain(|fi_cstr| {
-            let fi = fi_cstr.as_ptr().cast_mut();
-            let ffname = FullName_save(fi, false).unwrap_or_default();
-            !match_file_list(opt_vars().p_wig, fi, ffname.as_ptr().cast_mut())
+            let ffname = FullName_save(fi_cstr.as_ptr(), false).unwrap_or_default();
+            !match_file_list(
+                crate::memory::cstr_from_ptr(opt_vars().p_wig),
+                Some(fi_cstr),
+                &ffname,
+            )
         });
     }
 
@@ -2136,9 +2139,10 @@ pub fn expand_wildcards_eval(
 
     if is_cur_alt_file || crate::memory::cstr_first_byte(exp_pat.cast()) == b'<' {
         g_st().emsg_off += 1;
+        let exp_cstr = crate::memory::cstr_from_ptr(exp_pat.cast());
         eval_pat = eval_vars(
-            exp_pat.cast(),
-            exp_pat.cast(),
+            exp_cstr,
+            exp_cstr,
             &mut usedlen,
             None,
             &mut ignored_msg,

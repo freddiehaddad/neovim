@@ -166,7 +166,7 @@ pub fn exec_impl(
 pub fn nvim_command(cmd: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_cmdline_cmd(cmd.data);
+    do_cmdline_cmd(crate::memory::cstr_from_ptr(cmd.data));
     try_leave(&tstate, err);
 }
 

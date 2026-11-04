@@ -1578,12 +1578,11 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
     if let Some(ref cmd_str) = menu.strings[u_idx]
         && (menu.modes & (1 << idx)) != 0
     {
-        let cmd_ptr = cmd_str.as_ptr().cast_mut();
         if g_st().current_sctx.sc_sid != 0 {
             let mut save_state = SaveState::new();
             g_st().ex_normal_busy += 1;
             save_current_state(&mut save_state);
-            exec_normal_cmd(cmd_ptr, menu.noremap[u_idx], menu.silent[u_idx]);
+            exec_normal_cmd(cmd_str, menu.noremap[u_idx], menu.silent[u_idx]);
             restore_current_state(&mut save_state);
             g_st().ex_normal_busy -= 1;
         } else {

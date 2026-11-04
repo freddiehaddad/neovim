@@ -1375,7 +1375,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 c"autocmd VimEnter * call v:lua.require'nvim.spellfile'.get('%s')|set spell",
                 lang,
             );
-            do_cmdline_cmd((&raw const autocmd_buf).cast());
+            do_cmdline_cmd(crate::memory::cstr_until_nul(&autocmd_buf));
         } else {
             smsg!(
                 0,

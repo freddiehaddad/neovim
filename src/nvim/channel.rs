@@ -179,22 +179,12 @@ use crate::fileio::freopen;
 fn redirect_stderr_to_null() {
     #[cfg(windows)]
     {
-        let _ = unsafe {
-            freopen(
-                c"NUL:".as_ptr(),
-                c"w".as_ptr(),
-                crate::log::log_get_stderr().as_ptr().cast(),
-            )
-        };
+        let _ = freopen(c"NUL:", c"w", &crate::log::log_get_stderr());
     }
     #[cfg(not(windows))]
-    let _ = unsafe {
-        freopen(
-            c"/dev/null".as_ptr(),
-            c"w".as_ptr(),
-            crate::log::log_get_stderr().as_ptr().cast(),
-        )
-    };
+    {
+        let _ = freopen(c"/dev/null", c"w", &crate::log::log_get_stderr());
+    }
 }
 
 #[inline]

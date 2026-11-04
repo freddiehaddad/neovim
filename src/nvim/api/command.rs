@@ -309,15 +309,10 @@ pub fn nvim_parse_cmd(
     let mut cmdline = arena_memdupz(arena, str_val.data, str_val.size);
     let mut cmdline_buf: Vec<u8> = Vec::new();
     let mut errormsg = None;
+    ea.cmdlinep = &raw mut cmdline;
+    ea.cmdline_buf = &raw mut cmdline_buf;
 
-    if !parse_cmdline(
-        &mut cmdline,
-        &mut cmdline_buf,
-        &mut ea,
-        &mut cmod,
-        &mut errormsg,
-        false,
-    ) {
+    if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false) {
         if let Some(msg) = errormsg {
             api_set_error!(
                 err,
@@ -663,20 +658,20 @@ pub fn nvim_cmd(
         let cmdname = arena_string(arena, cmd.cmd).data;
         ea.cmd = cmdname;
 
-        let mut p = find_ex_command(&mut ea, None);
+        let mut p_opt = find_ex_command(&mut ea, None);
 
-        if !p.is_null()
+        if p_opt.is_some()
             && ea.cmdidx == CMD_SIZE
             && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
             && has_event(EVENT_CMDUNDEFINED)
         {
-            p = arena_string(arena, cmd.cmd).data;
-            let p_opt = crate::memory::cstr_as_opt_cstr(p);
-            let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_opt, p_opt, true, None);
-            p = if ret && !aborting() {
+            let p_raw = arena_string(arena, cmd.cmd).data;
+            let p_ev = crate::memory::cstr_as_opt_cstr(p_raw);
+            let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_ev, p_ev, true, None);
+            p_opt = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
             } else {
-                ea.cmd
+                crate::memory::cstr_as_opt_cstr(ea.cmd)
             };
         }
 
@@ -693,7 +688,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        if !((!p.is_null() && ea.cmdidx != CMD_SIZE) || range_only) {
+        if !((p_opt.is_some() && ea.cmdidx != CMD_SIZE) || range_only) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeValidation,
@@ -702,6 +697,8 @@ pub fn nvim_cmd(
             );
             break 'end;
         }
+
+        let mut p: *mut crate::strings::RawCChar;
 
         if !(range_only || !is_cmd_ni(crate::cmdexpand::Cmdidx::from_raw(ea.cmdidx))) {
             api_set_error!(
@@ -859,14 +856,9 @@ pub fn nvim_cmd(
 
         build_cmdline_str(&mut cmdline_buf, &mut ea, args);
         cmdline = cmdline_buf.as_mut_ptr().cast();
-        if !parse_cmdline(
-            &mut cmdline,
-            &mut cmdline_buf,
-            &mut ea,
-            &mut cmod,
-            &mut errormsg,
-            true,
-        ) {
+        ea.cmdlinep = &raw mut cmdline;
+        ea.cmdline_buf = &raw mut cmdline_buf;
+        if !parse_cmdline(&mut ea, &mut cmod, &mut errormsg, true) {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -1135,8 +1127,8 @@ pub fn nvim_cmd(
             }
         }
 
-        let ea_arg = ea.arg;
-        p = replace_makeprg(&mut ea, ea_arg, &mut cmdline);
+        let ea_arg = crate::memory::cstr_from_ptr(ea.arg);
+        p = replace_makeprg(&mut ea, ea_arg).as_ptr().cast_mut();
         if p != ea.arg {
             ea.arg = p;
             ea.args.clear();
@@ -1161,7 +1153,7 @@ pub fn nvim_cmd(
         }
 
         if (ea.argt & EX_CMDARG) != 0 && ea.usefilter == 0 {
-            ea.do_ecmd_cmd = getargcmd(&mut ea.arg);
+            ea.do_ecmd_cmd = getargcmd(&mut ea).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         }
 
         let mut capture_local: Vec<u8> = Vec::new();

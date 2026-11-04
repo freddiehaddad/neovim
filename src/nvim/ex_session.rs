@@ -965,10 +965,10 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     }
 
     if using_vdir && !os_isdir(opt_vars().p_vdir) {
-        vim_mkdir_emsg(opt_vars().p_vdir, 0o755);
+        vim_mkdir_emsg(crate::memory::cstr_from_ptr(opt_vars().p_vdir), 0o755);
     }
 
-    if let Some(fd) = open_exfile(fname.as_ptr(), eap.forceit, c"wb") {
+    if let Some(fd) = open_exfile(fname, eap.forceit, c"wb") {
         let mut failed = false;
         let flagp = if eap.cmdidx == CMD_MKVIEW {
             &raw mut opt_vars().vop_flags

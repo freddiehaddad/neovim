@@ -3362,7 +3362,7 @@ fn op_colon(oap: &mut Oparg) {
         stuff_readbuff(c"\n']");
     }
 
-    do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::ExLine, 0);
+    do_cmdline(None, crate::cmdexpand::LineGetter::ExLine, 0);
     atom_suppress(true);
     exec_stuffed(None);
     atom_suppress(false);

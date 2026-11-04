@@ -38,7 +38,7 @@ use crate::utf8proc::{
     utf8proc_tolower, utf8proc_toupper,
 };
 use crate::window::WinInfoInfo;
-use std::ffi::{CStr, c_void};
+use std::ffi::CStr;
 use std::ptr;
 
 #[repr(C)]
@@ -154,7 +154,7 @@ impl Drop for Vimconv {
         if self.vc_type == CONV_ICONV
             && let Some(fd) = self.vc_fd.take()
         {
-            call_iconv_close(fd as *mut c_void);
+            call_iconv_close(fd as isize);
         }
         self.vc_type = CONV_NONE;
         self.vc_fd = None;
@@ -3120,27 +3120,17 @@ pub fn my_iconv_open(
     if mbyte_st().iconv_working == WorkingStatus::KBroken {
         return None;
     }
-    let mut fd = call_iconv_open(enc_skip(to), enc_skip(from));
-    if fd != usize::MAX as *mut c_void && mbyte_st().iconv_working == WorkingStatus::KUnknown {
+    let fd = call_iconv_open(
+        crate::memory::cstr_from_ptr(enc_skip(to)),
+        crate::memory::cstr_from_ptr(enc_skip(from)),
+    );
+    if fd != -1 && mbyte_st().iconv_working == WorkingStatus::KUnknown {
         let mut tobuf = [0u8; ICONV_TESTLEN];
-        let mut p = tobuf.as_mut_ptr();
-        let mut tolen = ICONV_TESTLEN;
-        call_iconv(
-            fd,
-            ptr::null_mut::<*const u8>(),
-            ptr::null_mut(),
-            &raw mut p,
-            &raw mut tolen,
-        );
-        if p.is_null() {
-            mbyte_st().iconv_working = WorkingStatus::KBroken;
-            call_iconv_close(fd);
-            fd = usize::MAX as *mut c_void;
-        } else {
-            mbyte_st().iconv_working = WorkingStatus::Working;
-        }
+        let mut to_rem: &mut [u8] = &mut tobuf;
+        call_iconv(fd, None, &mut to_rem);
+        mbyte_st().iconv_working = WorkingStatus::Working;
     }
-    (fd != usize::MAX as *mut c_void).then_some(fd as usize)
+    (fd != -1).then_some(fd as usize)
 }
 
 fn iconv_string(
@@ -3152,60 +3142,45 @@ fn iconv_string(
 ) -> Option<Vec<u8>> {
     let str_ = str_.into_c_char_ptr();
     {
-        let mut to: *mut u8;
         let mut len = 0usize;
         let mut done = 0usize;
         let mut result_vec: Vec<u8> = Vec::new();
-        let fd = vcp.vc_fd.unwrap_or(usize::MAX) as *mut c_void;
+        let fd = vcp.vc_fd.unwrap_or(usize::MAX) as isize;
 
-        let mut from = str_;
-        let mut fromlen = slen;
+        let mut from_rem = unsafe { std::slice::from_raw_parts(str_.cast::<u8>(), slen) };
         loop {
             if len == 0 || os_errno() == ICONV_E2BIG {
-                len = len + fromlen * 2 + 40;
+                len = len + from_rem.len() * 2 + 40;
                 result_vec.resize(len, 0);
             }
 
-            let result = result_vec.as_mut_ptr();
-            to = result.wrapping_add(done);
-            let mut tolen = len - done - 2;
-            if call_iconv(
-                fd,
-                (&raw mut from).cast(),
-                &raw mut fromlen,
-                &raw mut to,
-                &raw mut tolen,
-            ) != usize::MAX
-            {
-                *crate::globals::gptr(to) = 0;
-
-                done = crate::memory::ptr_offset_from(to, result) as usize;
+            let avail = len - done - 2;
+            let mut to_rem: &mut [u8] = &mut result_vec[done..done + avail];
+            let ok = call_iconv(fd, Some(&mut from_rem), &mut to_rem) != usize::MAX;
+            let written = avail - to_rem.len();
+            done += written;
+            if ok {
+                result_vec[done] = 0;
                 break;
             }
 
             let err = os_errno();
             if !vcp.vc_fail && unconvlenp.is_some() && err == ICONV_EINVAL {
-                *crate::globals::gptr(to) = 0;
-
-                *unconvlenp.as_deref_mut().unwrap() = fromlen;
-                done = crate::memory::ptr_offset_from(to, result) as usize;
+                result_vec[done] = 0;
+                *unconvlenp.as_deref_mut().unwrap() = from_rem.len();
                 break;
             } else if !vcp.vc_fail && (err == ICONV_EILSEQ || err == ICONV_EINVAL) {
-                *crate::globals::gptr(to) = b'?';
-
-                to = to.wrapping_add(1);
-                if utf_ptr2cells(from) > 1 {
-                    *crate::globals::gptr(to) = b'?';
-
-                    to = to.wrapping_add(1);
+                result_vec[done] = b'?';
+                done += 1;
+                if utf_ptr2cells(from_rem.as_ptr().cast()) > 1 {
+                    result_vec[done] = b'?';
+                    done += 1;
                 }
-                let l = utfc_ptr2len_len(from, fromlen as i32) as usize;
-                from = from.wrapping_add(l);
-                fromlen -= l;
+                let l = utfc_ptr2len_len(from_rem.as_ptr().cast(), from_rem.len() as i32) as usize;
+                from_rem = &from_rem[l.min(from_rem.len())..];
             } else if err != ICONV_E2BIG {
                 return None;
             }
-            done = crate::memory::ptr_offset_from(to, result) as usize;
         }
 
         result_vec.truncate(done);

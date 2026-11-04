@@ -2180,17 +2180,19 @@ pub fn eval0(
                 }
             }
 
-            if eap.is_some() && !p.is_null() {
-                let nextcmd = check_nextcmd(p);
-                if !nextcmd.is_null() && crate::memory::cstr_first_byte(nextcmd) != b'|' {
-                    eap.as_deref_mut().unwrap().nextcmd = nextcmd;
-                }
+            if eap.is_some()
+                && !p.is_null()
+                && let Some(nextcmd) = check_nextcmd(crate::memory::cstr_from_ptr(p))
+                && nextcmd.to_bytes().first() != Some(&b'|')
+            {
+                eap.as_deref_mut().unwrap().nextcmd = nextcmd.as_ptr().cast_mut();
             }
             return false;
         }
 
         if let Some(eap) = eap {
-            eap.nextcmd = check_nextcmd(p);
+            eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(p))
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         }
 
         ret
@@ -6604,7 +6606,8 @@ pub fn ex_echo(eap: &mut Exarg) {
         tv_clear(&mut rettv);
         arg = skipwhite(arg);
     }
-    eap.nextcmd = check_nextcmd(arg);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     msg_ext_set_append(false);
 
     if eap.skip != 0 {
@@ -6697,7 +6700,7 @@ pub fn ex_execute(eap: &mut Exarg) {
             }
         } else if eap.cmdidx == Cmdidx::CmdExecute as i32 {
             do_cmdline(
-                buf.as_mut_ptr().cast(),
+                Some(crate::memory::cstr_until_nul(&buf)),
                 eap.ea_getline,
                 DOCMD_NOWAIT | DOCMD_VERBOSE,
             );
@@ -6708,7 +6711,8 @@ pub fn ex_execute(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     }
 
-    eap.nextcmd = check_nextcmd(arg);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".

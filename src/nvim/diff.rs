@@ -1320,7 +1320,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             ) {
                 eap.cmdidx = CMD_SPLIT;
                 eap.arg = tmp_new;
-                do_exedit(eap, old_curwin);
+                do_exedit(eap, unsafe { old_curwin.as_mut() });
                 if curwin_ptr() != old_curwin && win_valid(old_curwin) {
                     diff_win_options(curwin_mut(), true);
                     diff_win_options(unsafe { &mut *old_curwin }, true);
@@ -1365,7 +1365,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     }
     eap.cmdidx = CMD_SPLIT;
     curwin_mut().w_onebuf_opt.wo_diff = 1;
-    do_exedit(eap, old_curwin);
+    do_exedit(eap, unsafe { old_curwin.as_mut() });
     if curwin_ptr() == old_curwin {
         return;
     }
@@ -2220,9 +2220,10 @@ fn parse_diffanchors(
         g_st().curbuf = buf;
         set_curwin(bufwin);
         let mut errormsg = None;
+        let mut dia_opt = crate::memory::cstr_as_opt_cstr(dia);
         let lnum = get_address(
-            ptr::null_mut(),
-            &raw mut dia,
+            None,
+            &mut dia_opt,
             ADDR_LINES,
             check_only,
             true,
@@ -2230,6 +2231,7 @@ fn parse_diffanchors(
             1,
             &mut errormsg,
         );
+        dia = dia_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         g_st().curbuf = orig_curbuf;
         set_curwin(orig_curwin);
         if let Some(msg) = errormsg {

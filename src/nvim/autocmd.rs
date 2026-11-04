@@ -2072,7 +2072,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
             }
 
             if !cmd.to_bytes().is_empty() {
-                cmd_owned = expand_sfile(cmd.as_ptr());
+                cmd_owned = expand_sfile(cmd);
                 match cmd_owned {
                     Some(ref co) => cmd = unsafe { CStr::from_ptr(co.as_ptr()) },
                     None => break 'run,
@@ -3003,7 +3003,7 @@ pub fn apply_autocmds_group(
                 let save_did_emsg = g_st().did_emsg;
 
                 do_cmdline(
-                    ptr::null_mut(),
+                    None,
                     crate::cmdexpand::LineGetter::AutoCmd(&raw mut patcmd),
                     DOCMD_NOWAIT | DOCMD_VERBOSE | DOCMD_REPEAT,
                 );
@@ -3167,25 +3167,16 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 continue;
             }
             let matches = if ap.buflocal_nr == 0 {
-                let fname_ptr = apc
+                let tail_cstr = apc
                     .fname
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                let sfname_ptr = apc
-                    .sfname
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-                let tail_ptr = if fname_ptr.is_null() {
-                    ptr::null_mut()
-                } else {
-                    path_tail(fname_ptr)
-                };
+                    .as_deref()
+                    .map_or(c"", |f| unsafe { CStr::from_ptr(path_tail(f.as_ptr())) });
                 match_file_pat(
-                    ptr::null_mut(),
+                    None,
                     ap.reg_prog.as_deref(),
-                    fname_ptr,
-                    sfname_ptr,
-                    tail_ptr,
+                    apc.fname.as_deref(),
+                    apc.sfname.as_deref(),
+                    tail_cstr,
                     i32::from(ap.allow_dirs),
                 )
             } else {
@@ -3406,11 +3397,11 @@ fn has_autocmd_ext(
         if let Some(ref ap) = ac.pat {
             let matched = if ap.buflocal_nr == 0 {
                 match_file_pat(
-                    ptr::null_mut(),
+                    None,
                     ap.reg_prog.as_deref(),
-                    fname.as_ptr().cast_mut(),
-                    sfname_ptr,
-                    tail,
+                    Some(&fname),
+                    sfname,
+                    unsafe { CStr::from_ptr(tail) },
                     i32::from(ap.allow_dirs),
                 )
             } else {

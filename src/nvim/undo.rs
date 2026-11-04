@@ -1038,7 +1038,7 @@ pub fn u_write_undo(
                     break 'theend;
                 } else {
                     let mut mbuf = [0u8; UF_START_MAGIC_LEN];
-                    let len = read_eintr(fd, mbuf.as_mut_ptr().cast(), UF_START_MAGIC_LEN);
+                    let len = read_eintr(fd, &mut mbuf);
                     os_close(fd);
                     if len < UF_START_MAGIC_LEN as isize
                         || mbuf != UF_START_MAGIC[..UF_START_MAGIC_LEN]

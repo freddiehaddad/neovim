@@ -364,9 +364,9 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
             i32::from(force),
             w,
             if tabpage == g_st().curtab {
-                ptr::null_mut()
+                None
             } else {
-                tabpage
+                unsafe { tabpage.as_mut() }
             },
         );
     });

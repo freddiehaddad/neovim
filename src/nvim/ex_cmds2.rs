@@ -633,7 +633,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
             i += 1;
             if execute {
-                do_cmdline(eap.arg, eap.ea_getline, DOCMD_VERBOSE + DOCMD_NOWAIT);
+                do_cmdline(
+                    crate::memory::cstr_as_opt_cstr(eap.arg),
+                    eap.ea_getline,
+                    DOCMD_VERBOSE + DOCMD_NOWAIT,
+                );
             }
 
             if eap.cmdidx == CMD_BUFDO {
@@ -867,7 +871,7 @@ pub fn ex_drop(eap: &mut Exarg) {
                     let did_set_swapcommand =
                         set_swapcommand(crate::memory::cstr_as_opt_cstr(eap.do_ecmd_cmd), 0);
                     do_cmdline(
-                        eap.do_ecmd_cmd,
+                        crate::memory::cstr_as_opt_cstr(eap.do_ecmd_cmd),
                         crate::cmdexpand::LineGetter::None,
                         DOCMD_VERBOSE,
                     );

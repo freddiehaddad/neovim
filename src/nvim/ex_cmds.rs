@@ -736,8 +736,8 @@ pub fn ex_sort(eap: &mut Exarg) {
                 unique = true;
             } else if crate::memory::cstr_first_byte(p) == b'"' {
                 break;
-            } else if !check_nextcmd(p).is_null() {
-                eap.nextcmd = check_nextcmd(p);
+            } else if let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p)) {
+                eap.nextcmd = nc.as_ptr().cast_mut();
                 break;
             } else if !ascii_isalpha(crate::memory::cstr_first_byte(p))
                 && regmatch.regprog.is_null()
@@ -1013,8 +1013,10 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 }
             } else if b0 == b'"' {
                 break;
-            } else if eap.nextcmd.is_null() && !check_nextcmd(p).is_null() {
-                eap.nextcmd = check_nextcmd(p);
+            } else if eap.nextcmd.is_null()
+                && let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p))
+            {
+                eap.nextcmd = nc.as_ptr().cast_mut();
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let Some(s_cstr) =
@@ -1648,8 +1650,8 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
             if do_out {
                 if let Some(otmp_s) = otmp_cstr {
                     if readfile(
-                        otmp_s.as_ptr().cast_mut(),
-                        ptr::null_mut(),
+                        Some(otmp_s),
+                        None,
                         line2,
                         0,
                         MAXLNUM,
@@ -3148,7 +3150,11 @@ pub fn do_ecmd(
         curbuf_mut().b_last_used = os_time() as time_t;
 
         if !command.is_null() {
-            do_cmdline(command, crate::cmdexpand::LineGetter::None, DOCMD_VERBOSE);
+            do_cmdline(
+                crate::memory::cstr_as_opt_cstr(command),
+                crate::cmdexpand::LineGetter::None,
+                DOCMD_VERBOSE,
+            );
         }
 
         if (curbuf_mut().b_kmap_state & KEYMAP_INIT) != 0 {
@@ -3965,7 +3971,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     cmd = skipwhite(cmd);
     if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
-        eap.nextcmd = check_nextcmd(cmd);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(cmd))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if eap.nextcmd.is_null() {
             semsg!(gettext(E_TRAILING_ARG), cmd);
             return 0;
@@ -4856,9 +4863,9 @@ fn global_exe_one(cmd: &CStr, lnum: Linenr) {
     curwin_mut().w_cursor.col = 0;
     let bytes = cmd.to_bytes();
     if bytes.is_empty() || bytes.first() == Some(&b'\n') {
-        do_cmdline(c"p", crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
+        do_cmdline(Some(c"p"), crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
     } else {
-        do_cmdline(cmd, crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
+        do_cmdline(Some(cmd), crate::cmdexpand::LineGetter::None, DOCMD_NOWAIT);
     }
 }
 

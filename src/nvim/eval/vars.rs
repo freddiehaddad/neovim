@@ -1249,7 +1249,8 @@ pub fn ex_let(eap: &mut Exarg) {
             list_func_vars(&mut first);
             list_vim_vars(&mut first);
         }
-        eap.nextcmd = check_nextcmd(arg);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return;
     }
 
@@ -2046,7 +2047,8 @@ fn ex_unletlock(
             }
         }
 
-        eap.nextcmd = check_nextcmd(arg.cast());
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg.cast()))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     }
 }
 

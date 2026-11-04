@@ -608,7 +608,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
             mfp.mf_fd = -1;
         }
 
-        if vim_rename(mf_fname_ptr, fname.as_ptr()) == 0 {
+        if vim_rename(crate::memory::cstr_from_ptr(mf_fname_ptr), &fname) == 0 {
             success = true;
             mf_free_fnames(mfp);
             mf_set_fnames(mfp, fname);
@@ -1213,8 +1213,8 @@ pub fn ml_recover(checkext: bool) {
 
     if !curbuf_mut().b_ffname.is_null() {
         orig_file_status = readfile(
-            curbuf_mut().b_ffname,
-            ptr::null_mut(),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            None,
             0,
             0,
             MAXLNUM,
@@ -1314,8 +1314,8 @@ pub fn ml_recover(checkext: bool) {
                             if line_count <= 0
                                 || pe_old_lnum < 1
                                 || readfile(
-                                    curbuf_mut().b_ffname,
-                                    ptr::null_mut(),
+                                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                                    None,
                                     lnum,
                                     pe_old_lnum - 1,
                                     line_count,
@@ -1708,7 +1708,8 @@ pub fn recover_names(
             && tv_list_len(Some(ret_list)) == 0
             && files.is_empty()
             && !fname.is_null()
-            && let Some(swapname) = modname(fname_res, c".swp", true)
+            && let Some(swapname) =
+                modname(crate::memory::cstr_as_opt_cstr(fname_res), c".swp", true)
             && os_path_exists(swapname.as_ptr())
             && cur_mfp_fname
                 .is_none_or(|cur_p| !path_equal(cur_p, swapname.as_ptr(), K_PATH_CMP_FULL))
@@ -1775,9 +1776,10 @@ pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
         let mut b0 = ZeroBlock::new();
         let fd = os_open(fname, O_RDONLY, 0);
         if fd >= 0 {
-            if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
-                == size_of::<ZeroBlock>() as isize
-            {
+            let b0_slice = unsafe {
+                std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
+            };
+            if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                 if !ml_check_b0_id(&b0) {
                     tv_dict_add_str_len(d, c"error", c"Not a swap file", 15);
                 } else if b0_magic_wrong(&b0) {
@@ -1850,9 +1852,10 @@ fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) ->
 
         let fd = os_open(fname, O_RDONLY, 0);
         if fd >= 0 {
-            if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
-                == size_of::<ZeroBlock>() as isize
-            {
+            let b0_slice = unsafe {
+                std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
+            };
+            if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                 if b0.b0_version[..7] == *b"VIM 3.0" {
                     sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
                 } else if !ml_check_b0_id(&b0) {
@@ -1929,9 +1932,10 @@ fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
             return false;
         }
         let mut b0 = ZeroBlock::new();
-        if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
-            != size_of::<ZeroBlock>() as isize
-        {
+        let b0_slice = unsafe {
+            std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
+        };
+        if read_eintr(fd, b0_slice) != size_of::<ZeroBlock>() as isize {
             os_close(fd);
             return false;
         }
@@ -1972,7 +1976,7 @@ fn recov_file_names(
 ) {
     let path = path.into_c_char_ptr();
     if prepend_dot {
-        let Some(m) = modname(path, c".sw?", true) else {
+        let Some(m) = modname(crate::memory::cstr_as_opt_cstr(path), c".sw?", true) else {
             return;
         };
         names.push(m);
@@ -3497,10 +3501,14 @@ pub fn makeswapname(
         let s = dir_name.wrapping_add(len);
         if after_pathsep(dir_name, s) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
             let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
-            return modname(sw.as_ptr(), c".swp", false);
+            return modname(Some(&sw), c".swp", false);
         }
 
-        let r = modname(fname_res, c".swp", dir_bytes == b".")?;
+        let r = modname(
+            crate::memory::cstr_as_opt_cstr(fname_res),
+            c".swp",
+            dir_bytes == b".",
+        )?;
 
         get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
     }
@@ -3708,9 +3716,13 @@ fn findswapname(
 
                 let fd = os_open(fname, O_RDONLY, 0);
                 if fd >= 0 {
-                    if read_eintr(fd, (&raw mut b0).cast(), size_of::<ZeroBlock>())
-                        == size_of::<ZeroBlock>() as isize
-                    {
+                    let b0_slice = unsafe {
+                        std::slice::from_raw_parts_mut(
+                            (&raw mut b0).cast::<u8>(),
+                            size_of::<ZeroBlock>(),
+                        )
+                    };
+                    if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
                         #[cfg(windows)]
                         path_to_slash(b0.b0_fname.as_mut_ptr());
                         ml_st().proc_running = swapfile_proc_running(&b0, fname);

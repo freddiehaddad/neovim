@@ -1266,7 +1266,7 @@ pub fn ex_match(eap: &mut Exarg) {
                         end.wrapping_add(1),
                     ))) == 0
                 {
-                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, end));
+                    eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(end)));
                     return;
                 }
                 if crate::memory::cstr_first_byte(end) != crate::memory::cstr_first_byte(p) {
@@ -1291,5 +1291,6 @@ pub fn ex_match(eap: &mut Exarg) {
             }
         }
     }
-    eap.nextcmd = find_nextcmd(end);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(end))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 }

@@ -1121,7 +1121,13 @@ fn add_llist_tags(tag: &std::ffi::CStr, matches: &[Vec<u8>]) -> bool {
 
         let iobuf_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuf_ptr, IOSIZE, c"ltag %s", tag);
-        set_errorlist(curwin_ptr(), Some(&*list), b' ' as i32, iobuf_ptr, None);
+        set_errorlist(
+            Some(curwin_mut()),
+            Some(&*list),
+            b' ' as i32,
+            Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
+            None,
+        );
 
         tv_list_free(list);
 
@@ -2977,7 +2983,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 curwin_mut().w_cursor.lnum = 1;
                 curwin_mut().w_cursor.col = 0;
                 curwin_mut().w_cursor.coladd = 0;
-                do_cmdline_cmd(pbuf.cast());
+                do_cmdline_cmd(crate::memory::cstr_from_ptr(pbuf.cast()));
                 retval = OK;
 
                 if g_st().secure == 2 {

@@ -539,7 +539,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     if wp.w_config.border && !wp.buf_mut().b_fname.is_null() {
         let mut dirname = [0u8; MAXPATHL];
         os_dirname(dirname.as_mut_ptr(), MAXPATHL);
-        shorten_buf_fname(wp.buf_mut(), dirname.as_mut_ptr().cast(), 0);
+        shorten_buf_fname(wp.buf_mut(), crate::memory::cstr_until_nul(&dirname), 0);
 
         wp.w_config.title_chunks.clear();
         let mut err = error_init();

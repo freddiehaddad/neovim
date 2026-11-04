@@ -522,7 +522,9 @@ pub fn parse_pattern_and_range(
     parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
-    let cmd = skip_range(ea.cmd, None);
+    let cmd = skip_range(crate::memory::cstr_from_ptr(ea.cmd), None)
+        .as_ptr()
+        .cast_mut();
     let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
     let Some(&first_b) = cmd_bytes.first() else {
         return false;
@@ -1691,11 +1693,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         if s.c == K_EVENT {
             state_handle_k_event();
         } else if s.c == K_COMMAND {
-            do_cmdline(
-                ptr::null_mut(),
-                crate::cmdexpand::LineGetter::CmdKeyCmd,
-                DOCMD_NOWAIT,
-            );
+            do_cmdline(None, crate::cmdexpand::LineGetter::CmdKeyCmd, DOCMD_NOWAIT);
         } else {
             map_execute_lua(false, false);
         }
@@ -3113,15 +3111,10 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         .to_vec();
     let mut cmdline = cmdline_vec.as_mut_ptr().cast();
     let mut errormsg = None;
+    ea.cmdlinep = &raw mut cmdline;
+    ea.cmdline_buf = &raw mut cmdline_vec;
     g_st().emsg_off += 1;
-    let parsed = parse_cmdline(
-        &raw mut cmdline,
-        &raw mut cmdline_vec,
-        &mut ea,
-        &mut cmod,
-        &mut errormsg,
-        false,
-    );
+    let parsed = parse_cmdline(&mut ea, &mut cmod, &mut errormsg, false);
     g_st().emsg_off -= 1;
     if !parsed {
         return false;

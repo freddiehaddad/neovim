@@ -1732,7 +1732,7 @@ pub fn do_ucmd(eap: &mut Exarg, preview: bool) -> i32 {
         g_st().current_sctx.sc_sid = cmd.uc_script_ctx.sc_sid;
     }
     do_cmdline(
-        buf_vec.as_mut_ptr().cast(),
+        Some(crate::memory::cstr_until_nul(&buf_vec)),
         eap.ea_getline,
         DOCMD_VERBOSE | DOCMD_NOWAIT | DOCMD_KEYTYPED,
     );

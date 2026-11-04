@@ -1365,7 +1365,7 @@ fn terminal_execute(s: &mut TerminalState, key: i32) -> i32 {
             }
         }
         K_COMMAND => {
-            do_cmdline(ptr::null_mut(), crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
+            do_cmdline(None, crate::cmdexpand::LineGetter::CmdKeyCmd, 0);
         }
         K_LUA => {
             map_execute_lua(false, false);

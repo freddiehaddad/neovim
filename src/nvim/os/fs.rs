@@ -389,7 +389,7 @@ use crate::channel::STDIN_FILENO;
 use crate::event::stream::{UV_FILE, UV_TTY};
 #[cfg(windows)]
 use crate::fileio::{_get_osfhandle, _read, _write, close};
-use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, dup, fdopen};
+use crate::fileio::{O_RDONLY, S_IFDIR, S_IFMT, S_IFREG, c_fdopen, dup};
 #[cfg(not(windows))]
 use crate::fileio::{fcntl, getuid, read, write};
 #[cfg(windows)]
@@ -846,12 +846,14 @@ impl CFile {
         path: impl crate::strings::IntoCCharPtr,
         mode: &std::ffi::CStr,
     ) -> Option<Self> {
-        Self::from_raw(unsafe { crate::fileio::fopen(path, mode) })
+        Self::from_raw(unsafe {
+            crate::fileio::c_fopen(path.into_c_char_ptr().cast(), mode.as_ptr().cast())
+        })
     }
 
     #[inline]
     pub fn from_fd(fd: i32, mode: &std::ffi::CStr) -> Option<Self> {
-        Self::from_raw(unsafe { crate::fileio::fdopen(fd, mode) })
+        Self::from_raw(unsafe { crate::fileio::c_fdopen(fd, mode.as_ptr().cast()) })
     }
 
     #[inline]
@@ -918,12 +920,12 @@ impl CFile {
 
     #[inline]
     pub fn puts(&self, s: impl crate::strings::IntoCCharPtr) -> i32 {
-        crate::fileio::fputs(s, self.ptr.as_ptr())
+        unsafe { crate::fileio::c_fputs(s.into_c_char_ptr().cast(), self.ptr.as_ptr()) }
     }
 
     #[inline]
     pub fn gets(&self, buf: &mut [u8]) -> bool {
-        !unsafe { crate::fileio::fgets(buf.as_mut_ptr(), buf.len() as i32, self.ptr.as_ptr()) }
+        !unsafe { crate::fileio::c_fgets(buf.as_mut_ptr(), buf.len() as i32, self.ptr.as_ptr()) }
             .is_null()
     }
 
@@ -1016,7 +1018,7 @@ fn os_fopen(
     if fd < 0 {
         return ptr::null_mut();
     }
-    unsafe { fdopen(fd, flags.as_ptr()) }
+    unsafe { c_fdopen(fd, flags.as_ptr().cast()) }
 }
 
 /// Sets file descriptor `fd` to close-on-exec (Unix) or non-inheritable (Windows).

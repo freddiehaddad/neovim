@@ -319,7 +319,7 @@ fn assert_beeps(argvars: &mut [TypVal], no_beep: bool) -> i32 {
     let beeps = g_st().did_beep;
     g_st().suppress_errthrow = true;
     g_st().emsg_silent = 0;
-    do_cmdline_cmd(cmd);
+    do_cmdline_cmd(crate::memory::cstr_from_ptr(cmd));
     let beeped = g_st().did_beep != beeps;
     if if no_beep { beeped } else { !beeped } {
         let mut ga = Vec::new();
@@ -529,7 +529,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     g_st().no_wait_return += 1;
 
     let cmd = tv_get_string_chk(&argvars[0]).map_or(std::ptr::null(), std::ffi::CStr::as_ptr);
-    do_cmdline_cmd(cmd);
+    do_cmdline_cmd(crate::memory::cstr_from_ptr(cmd));
 
     g_st().trylevel = save_trylevel;
     g_st().suppress_errthrow = false;

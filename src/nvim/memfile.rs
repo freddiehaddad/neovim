@@ -435,7 +435,7 @@ fn mf_read(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
     }
     assert!(hp.bh_page_count <= u32::MAX / page_size);
     let size = (page_size * hp.bh_page_count) as usize;
-    let nread = read_eintr(mfp.mf_fd, hp.data_slice_mut().as_mut_ptr().cast(), size);
+    let nread = read_eintr(mfp.mf_fd, &mut hp.data_slice_mut()[..size]);
     if (nread as usize) != size {
         perror_msg(c"E295: Read error in swap file");
         return false;
@@ -475,10 +475,10 @@ fn mf_write(mfp: &mut Memfile, hp: &mut Bhdr) -> bool {
                     return false;
                 }
                 let data = match hp2.as_deref() {
-                    Some(h) => h.bh_data.as_ptr(),
-                    None => hp.bh_data.as_ptr(),
+                    Some(h) => &h.bh_data[..size],
+                    None => &hp.bh_data[..size],
                 };
-                let nwritten = write_eintr(mfp.mf_fd, data.cast(), size);
+                let nwritten = write_eintr(mfp.mf_fd, data);
                 if (nwritten as usize) == size {
                     break;
                 }

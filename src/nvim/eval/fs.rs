@@ -548,7 +548,10 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         scope = K_CD_SCOPE_TABPAGE;
     }
 
-    if !do_chdir(argvars[0].vval.v_string(), scope) {
+    if !do_chdir(
+        crate::memory::cstr_as_opt_cstr(argvars[0].vval.v_string()),
+        scope,
+    ) {
         // Directory change failed
         tv_clear(rettv);
         rettv.v_type = VarType::VarString;
@@ -587,8 +590,9 @@ pub fn f_delete(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
             crate::eval::typval::TypvalVval::Number(if os_rmdir(name) == 0 { 0 } else { -1 });
     } else if flags_bytes == b"rf" {
         // delete a directory recursively
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(name)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(delete_recursive(
+            crate::memory::cstr_from_ptr(name),
+        )));
     } else {
         semsg!(gettext(E_INVEXPR2), flags);
     }
@@ -656,8 +660,8 @@ pub fn f_filecopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_copyfile(
-            tv_get_string(&argvars[0]),
-            tv_get_string(&argvars[1]),
+            crate::memory::cstr_from_ptr(tv_get_string(&argvars[0])),
+            crate::memory::cstr_from_ptr(tv_get_string(&argvars[1])),
         )));
     }
 }
@@ -1330,8 +1334,10 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         }
     }
     if rettv.vval.v_number() == Varnumber::from(FAIL) {
-        rettv.vval =
-            crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(dir, prot)));
+        rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_mkdir_emsg(
+            crate::memory::cstr_from_ptr(dir),
+            prot,
+        )));
     }
 
     // Handle "D" and "R": deferred deletion of the created directory.
@@ -1425,7 +1431,7 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let [arg0, arg1, ..] = argvars else {
         unreachable!()
     };
-    let path = tv_get_string(arg0);
+    let path = crate::memory::cstr_from_ptr(tv_get_string(arg0));
     let mut entries: Vec<std::ffi::CString> = Vec::new();
     let ret = readdir_core(&mut entries, path, Some(arg1));
     if ret {
@@ -1684,8 +1690,8 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else {
         let mut buf = [0u8; NUMBUFLEN];
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
-            tv_get_string(&argvars[0]),
-            tv_get_string_buf(&argvars[1], &mut buf),
+            crate::memory::cstr_from_ptr(tv_get_string(&argvars[0])),
+            crate::memory::cstr_from_ptr(tv_get_string_buf(&argvars[1], &mut buf)),
         )));
     }
 }

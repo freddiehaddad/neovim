@@ -382,7 +382,7 @@ pub fn do_debug(cmd: &CStr) {
                 let n2 = g_st().debug_break_level;
                 g_st().debug_break_level = -1;
                 do_cmdline(
-                    cmdline,
+                    crate::memory::cstr_as_opt_cstr(cmdline),
                     crate::cmdexpand::LineGetter::ExLine,
                     DOCMD_VERBOSE | DOCMD_EXCRESET,
                 );
@@ -413,7 +413,7 @@ pub fn do_debug(cmd: &CStr) {
 pub fn ex_debug(eap: &mut Exarg) {
     let save = g_st().debug_break_level;
     g_st().debug_break_level = 9999;
-    do_cmdline_cmd(eap.arg);
+    do_cmdline_cmd(crate::memory::cstr_from_ptr(eap.arg));
     g_st().debug_break_level = save;
 }
 

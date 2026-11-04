@@ -52,7 +52,7 @@ fn filter_map_one(
 
     newtv.v_type = VarType::VarUnknown;
     if filtermap == FilterMap::ForEach && expr.v_type == VarType::VarString {
-        do_cmdline_cmd(expr.vval.v_string());
+        do_cmdline_cmd(crate::memory::cstr_from_ptr(expr.vval.v_string()));
         if g_st().did_emsg == 0 {
             retval = true;
         }

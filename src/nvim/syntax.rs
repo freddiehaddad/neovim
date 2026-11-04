@@ -2601,7 +2601,8 @@ fn match_keyword<'a>(
 
 fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -2628,7 +2629,8 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -2655,7 +2657,8 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -2695,7 +2698,8 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_spell(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -2841,7 +2845,8 @@ fn syn_remove_pattern(block: &mut Synblock, idx: i32) {
 
 fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -2914,7 +2919,8 @@ fn syn_cmd_on(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_reset(eap: &mut Exarg, _syncing: i32) {
-    eap.nextcmd = check_nextcmd(eap.arg);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip == 0 {
         init_highlight(true, true);
     }
@@ -2929,7 +2935,8 @@ fn syn_cmd_off(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
-    eap.nextcmd = check_nextcmd(eap.arg);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(eap.arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip == 0 {
         syn_st().did_syntax_onoff = true;
         let mut buf = [0u8; 100];
@@ -2940,7 +2947,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
             SYNTAX_FNAME,
             name.as_ptr()
         );
-        do_cmdline_cmd(buf.as_ptr().cast());
+        do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
     }
 }
 
@@ -2955,7 +2962,8 @@ pub fn syn_maybe_enable() {
 
 fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -3040,7 +3048,8 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
             arg = skipwhite(arg_end);
         }
     }
-    eap.nextcmd = check_nextcmd(arg);
+    eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
 }
 
 fn syn_lines_msg() {
@@ -3659,7 +3668,8 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     let mut errormsg = None;
     let mut source = false;
 
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -3686,7 +3696,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         || path_is_absolute(eap.arg)
     {
         source = true;
-        if !expand_filename(eap, eap.cmdlinep, &mut errormsg) {
+        if !expand_filename(eap, &mut errormsg) {
             if let Some(msg) = errormsg {
                 emsg(msg);
             }
@@ -3840,7 +3850,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
     }
 
     if let Some(rest_cstr) = rest_opt {
-        eap.nextcmd = check_nextcmd(rest_cstr.as_ptr().cast_mut());
+        eap.nextcmd = check_nextcmd(rest_cstr).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     } else {
         semsg!(gettext(E_INVARG2), arg);
     }
@@ -3876,7 +3886,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
     rest = get_syn_options(rest, &mut syn_opt_arg, &mut conceal_char, eap.skip);
 
     if let Some(rest_cstr) = rest {
-        eap.nextcmd = check_nextcmd(rest_cstr.as_ptr().cast_mut());
+        eap.nextcmd = check_nextcmd(rest_cstr).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if ends_excmd(crate::memory::cstr_first_byte(rest_cstr.as_ptr())) == 0 || eap.skip != 0 {
             rest = None;
         } else {
@@ -4052,7 +4062,8 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
     }
 
     if !rest.is_null() {
-        eap.nextcmd = check_nextcmd(rest);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(rest))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if ends_excmd(crate::memory::cstr_first_byte(rest)) == 0 || eap.skip != 0 {
             rest = ptr::null_mut();
         } else {
@@ -4228,7 +4239,8 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     let mut group_name_len = 0usize;
     let mut got_clstr = false;
 
-    eap.nextcmd = find_nextcmd(arg);
+    eap.nextcmd = find_nextcmd(crate::memory::cstr_from_ptr(arg))
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if eap.skip != 0 {
         return;
     }
@@ -4545,7 +4557,8 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     if illegal {
         semsg!(gettext(c"E404: Illegal arguments: %s"), arg_start);
     } else if !finished {
-        eap.nextcmd = check_nextcmd(arg_start);
+        eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(arg_start))
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
         redraw_curbuf_later(UPD_SOME_VALID);
         syn_stack_free_all(win_s(curwin_mut()));
     }

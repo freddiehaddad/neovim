@@ -706,7 +706,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     setpcmark();
 
     if params.edit_type == EDIT_QF {
-        qf_jump(ptr::null_mut(), 0, 0, 0);
+        qf_jump(None, 0, 0, 0);
         time_msg_if_enabled(c"jump to first error");
     }
 
@@ -1031,11 +1031,7 @@ pub fn preserve_exit(errmsg: Option<&CStr>) -> ! {
         let has_eol = bytes.last() == Some(&b'\n');
         fprintf!(
             stderr,
-            if has_eol {
-                c"%s".as_ptr()
-            } else {
-                c"%s\n".as_ptr()
-            },
+            if has_eol { c"%s" } else { c"%s\n" },
             errmsg.as_ptr(),
         );
     }
@@ -1869,11 +1865,11 @@ fn handle_quickfix(paramp: &mut Mparm) {
         );
         if qf_init(
             None,
-            opt_vars().p_ef,
-            opt_vars().p_efm,
+            crate::memory::cstr_as_opt_cstr(opt_vars().p_ef),
+            crate::memory::cstr_from_ptr(opt_vars().p_efm),
             1,
-            g_st().iobuff.as_ptr(),
-            opt_vars().p_menc,
+            Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
+            crate::memory::cstr_as_opt_cstr(opt_vars().p_menc),
         ) < 0
         {
             msg_putchar(b'\n' as i32);
@@ -1892,7 +1888,7 @@ fn handle_tag(tagname: Option<&CStr>) {
             c"ta %s",
             tagname.as_ptr(),
         );
-        do_cmdline_cmd(g_st().iobuff.as_ptr());
+        do_cmdline_cmd(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
         time_msg_if_enabled(c"jumping to tag");
 
         if g_st().swap_exists_did_quit {
@@ -1916,16 +1912,7 @@ fn read_stdin() {
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
         set_curbuf(stdin_buf, 0, false);
-        readfile(
-            ptr::null_mut(),
-            ptr::null_mut(),
-            0,
-            0,
-            MAXLNUM,
-            None,
-            READ_NEW + READ_STDIN,
-            true,
-        );
+        readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
         let stdin_buf_handle: ObjHandle = unsafe { (*stdin_buf).b_fnum };
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
@@ -1937,7 +1924,7 @@ fn read_stdin() {
             c"silent! buffer %d",
             initial_buf_handle,
         );
-        do_cmdline_cmd(buf.as_ptr().cast());
+        do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
 
         if stdin_buf_empty {
             vim_snprintf!(
@@ -1946,7 +1933,7 @@ fn read_stdin() {
                 c"silent! bwipeout! %d",
                 stdin_buf_handle,
             );
-            do_cmdline_cmd(buf.as_ptr().cast());
+            do_cmdline_cmd(crate::memory::cstr_until_nul(&buf));
         }
     } else {
         set_buflisted(1);
@@ -2190,7 +2177,7 @@ fn exe_pre_commands(parmp: &mut Mparm) {
     estack_push(ETYPE_ARGS, Some(gettext(c"pre-vimrc command line")), 0);
     g_st().current_sctx.sc_sid = SID_CMDARG;
     for cmd in &parmp.pre_commands {
-        do_cmdline_cmd(cmd.as_ptr());
+        do_cmdline_cmd(cmd);
     }
     estack_pop();
     g_st().current_sctx.sc_sid = 0;
@@ -2207,7 +2194,7 @@ fn exe_commands(parmp: &mut Mparm) {
     g_st().current_sctx.sc_seq = 0;
     let cmds = std::mem::take(&mut parmp.commands);
     for cmd in &cmds {
-        do_cmdline_cmd(cmd.as_ptr());
+        do_cmdline_cmd(cmd);
     }
     estack_pop();
     g_st().current_sctx.sc_sid = 0;
@@ -2218,7 +2205,7 @@ fn exe_commands(parmp: &mut Mparm) {
     g_st().msg_scroll = 0;
 
     if parmp.edit_type == EDIT_QF {
-        qf_jump(ptr::null_mut(), 0, 0, 0);
+        qf_jump(None, 0, 0, 0);
     }
     time_msg_if_enabled(c"executing command arguments");
 }
@@ -2404,7 +2391,7 @@ fn execute_env(env: &std::ffi::CStr) -> bool {
     g_st().current_sctx.sc_sid = SID_ENV;
     g_st().current_sctx.sc_seq = 0;
     g_st().current_sctx.sc_lnum = 0;
-    do_cmdline_cmd(initstr.as_ptr());
+    do_cmdline_cmd(&initstr);
 
     estack_pop();
     g_st().current_sctx = save_current_sctx;
