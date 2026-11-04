@@ -5024,7 +5024,8 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             i += 1;
         }
 
-        buf = buflist_findname_exp(fnamebuf.cast());
+        buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fnamebuf.cast()))
+            .map_or(ptr::null_mut(), ptr::from_mut);
         if !buf.is_null() && unsafe { (*buf).b_ml.ml_mfp.is_none() } {
             buf = ptr::null_mut();
         }

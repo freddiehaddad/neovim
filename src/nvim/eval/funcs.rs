@@ -1433,7 +1433,7 @@ pub fn f_atan2(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 /// Get buffer by number or pattern.
 pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut FileBuf> {
     if tv.v_type == VarType::VarNumber {
-        return unsafe { buflist_findnr(tv.vval.v_number() as i32).as_mut() };
+        return buflist_findnr(tv.vval.v_number() as i32);
     }
     if tv.v_type != VarType::VarString {
         return None;
@@ -1462,11 +1462,11 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
     opt_vars().p_magic = save_magic;
     opt_vars().p_cpo = save_cpo;
 
-    if buf.is_null() {
+    if buf.is_none() {
         return find_buffer(tv);
     }
 
-    unsafe { buf.as_mut() }
+    buf
 }
 
 /// Like `tv_get_buf()` but give an error message if the type is wrong.
@@ -3185,9 +3185,9 @@ fn getregionpos(
     let findbuf = if fnum1 != 0 {
         buflist_findnr(fnum1)
     } else {
-        g_st().curbuf
+        unsafe { g_st().curbuf.as_mut() }
     };
-    let Some(findbuf_ref) = (unsafe { findbuf.as_mut() }) else {
+    let Some(findbuf_ref) = findbuf else {
         emsg(gettext(E_BUFFER_IS_NOT_LOADED));
         return false;
     };
@@ -3218,7 +3218,7 @@ fn getregionpos(
         return false;
     }
 
-    g_st().curbuf = findbuf;
+    g_st().curbuf = findbuf_ref;
     curwin_mut().w_buffer = g_st().curbuf;
     g_st().virtual_op = TriState::from(virtual_active(curwin_mut()));
 
@@ -4692,7 +4692,12 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 cmd.as_ptr(),
             );
 
-            setfname(&mut *buf, namebuff, ptr::null_mut(), true);
+            setfname(
+                &mut *buf,
+                crate::memory::cstr_as_opt_cstr(namebuff),
+                None,
+                true,
+            );
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
             if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { &*(*ct).term }) == 0 {

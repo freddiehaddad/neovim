@@ -256,8 +256,7 @@ fn do_ft_buf(
 ) -> Option<&'static mut FileBuf> {
     let filetype = filetype?;
 
-    let ftbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-    let Some(ftbuf_ref) = (unsafe { ftbuf.as_mut() }) else {
+    let Some(ftbuf_ref) = buflist_new(None, None, 1, BLN_DUMMY) else {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -275,12 +274,13 @@ fn do_ft_buf(
         return Some(ftbuf_ref);
     }
 
+    let ftbuf: *mut FileBuf = ftbuf_ref;
     let mut bufref = Bufref {
         br_buf: ptr::null_mut(),
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, ftbuf);
+    set_bufref(&mut bufref, unsafe { ftbuf.as_mut() });
 
     ctx_switch(&mut *aco, None, None, unsafe { ftbuf.as_mut() }, 0);
 
@@ -338,6 +338,7 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
+    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
     block_autocmds();
 
     let mut bufref = Bufref {
@@ -345,14 +346,19 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, &raw mut *buf);
+    set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
 
-    close_windows(&raw mut *buf, false);
-    if bufref_valid(Some(&bufref)) && !ptr::eq(buf, g_st().curbuf) && buf.b_nwindows == 0 {
-        wipe_buffer(&raw mut *buf, false);
+    close_windows(buf_ptr, false);
+    if bufref_valid(Some(&bufref))
+        && !ptr::eq(buf_ptr, g_st().curbuf)
+        && unsafe { (*buf_ptr).b_nwindows } == 0
+    {
+        wipe_buffer(unsafe { &mut *buf_ptr }, false);
     }
     if bufref_valid(Some(&bufref)) {
-        buf.b_flags &= !BF_DUMMY;
+        unsafe {
+            (*buf_ptr).b_flags &= !BF_DUMMY;
+        }
     }
 
     unblock_autocmds();

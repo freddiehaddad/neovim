@@ -1602,7 +1602,7 @@ fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     let bnr =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
-    if buflist_findnr(bnr).is_null() {
+    if buflist_findnr(bnr).is_none() {
         return QF_FAIL;
     }
     fields.bnr = bnr;
@@ -1998,7 +1998,7 @@ fn wipe_qf_buffer(qi: &mut QfInfo) {
             buf_was_null = true;
         }
 
-        close_buffer(ptr::null_mut(), qfbuf, DOBUF_WIPE, false, false, false);
+        close_buffer(None, Some(qfbuf), DOBUF_WIPE, false, false, false);
         qi.qf_bufnr = INVALID_QFBUFNR;
         if buf_was_null {
             curwin_mut().w_buffer = ptr::null_mut();
@@ -2390,10 +2390,16 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         drop(ptr_cstr);
         qf_st().qf_last_bufref.br_buf
     } else {
-        let b = buflist_new(bufname_ptr, ptr::null_mut(), 0, BLN_NOOPT);
+        let b = buflist_new(
+            crate::memory::cstr_as_opt_cstr(bufname_ptr),
+            None,
+            0,
+            BLN_NOOPT,
+        )
+        .map_or(ptr::null_mut(), ptr::from_mut);
         qf_st().qf_last_bufname =
             ptr_cstr.or_else(|| Some(crate::memory::cstr_to_cstring(bufname_ptr)));
-        set_bufref(&mut qf_st().qf_last_bufref, b);
+        set_bufref(&mut qf_st().qf_last_bufref, unsafe { b.as_mut() });
         b
     };
     let Some(buf) = (unsafe { buf.as_mut() }) else {
@@ -3916,7 +3922,7 @@ fn qf_win_pos_update(qi: &mut QfInfo, old_qf_index: i32) -> bool {
 }
 
 fn is_qf_win(win: &WinInfoInfo, qi: &QfInfo) -> bool {
-    if buf_valid(win.w_buffer)
+    if buf_valid(win.buf_opt())
         && bt_quickfix(win.buf_opt())
         && ((is_qf_stack(qi) && win.w_llist_ref.is_null())
             || (is_ll_stack(qi) && ptr::eq(win.w_llist_ref.cast_const(), qi)))
@@ -5389,7 +5395,8 @@ fn vgr_process_files(
             vgr_display_fname(fname_cstr);
         }
 
-        let mut buf = buflist_findname_exp(fname_exp);
+        let mut buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fname_exp))
+            .map_or(ptr::null_mut(), ptr::from_mut);
         let using_dummy: bool;
         if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
             duplicate_name = !buf.is_null();
@@ -5615,14 +5622,14 @@ fn load_dummy_buffer(
     dirname_start: &CStr,
     resulting_dir: &mut [u8],
 ) -> Option<&'static mut FileBuf> {
-    let mut newbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
+    let mut newbuf = buflist_new(None, None, 1, BLN_DUMMY).map_or(ptr::null_mut(), ptr::from_mut);
     if newbuf.is_null() {
         return None;
     }
 
     let mut failed = true;
     let mut newbufref: Bufref = Bufref::new();
-    set_bufref(&mut newbufref, newbuf);
+    set_bufref(&mut newbufref, unsafe { newbuf.as_mut() });
 
     buf_copy_options(unsafe { &mut *newbuf }, BCO_ENTER | BCO_NOHELP);
 
@@ -5632,12 +5639,7 @@ fn load_dummy_buffer(
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, unsafe { newbuf.as_mut() }, 0);
 
-        setfname(
-            curbuf_mut(),
-            fname.as_ptr().cast_mut(),
-            ptr::null_mut(),
-            false,
-        );
+        setfname(curbuf_mut(), Some(fname), None, false);
         check_need_swap(true);
         curbuf_mut().b_flags &= !BF_DUMMY;
 
@@ -5658,7 +5660,7 @@ fn load_dummy_buffer(
         if readfile_result == OK && !g_st().got_int && (curbuf_mut().b_flags & BF_NEW) == 0 {
             failed = false;
             if g_st().curbuf != newbuf {
-                set_bufref(&mut newbuf_to_wipe, newbuf);
+                set_bufref(&mut newbuf_to_wipe, unsafe { newbuf.as_mut() });
                 newbuf = g_st().curbuf;
             }
         }
@@ -5714,7 +5716,7 @@ fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
     if !give_up && g_st().curbuf != buf && buf.b_nwindows == 0 {
         let mut cs: ExCleanup = ExCleanup::new();
         enter_cleanup(&mut cs);
-        wipe_buffer(&raw mut *buf, true);
+        wipe_buffer(buf, true);
         leave_cleanup(&mut cs);
 
         if let Some(dirname_start) = dirname_start {
@@ -5732,13 +5734,13 @@ fn unload_dummy_buffer(buf: &mut FileBuf, dirname_start: &CStr) {
         return;
     }
 
-    close_buffer(ptr::null_mut(), buf_ptr, DOBUF_UNLOAD, false, true, false);
+    close_buffer(None, Some(buf), DOBUF_UNLOAD, false, true, false);
     restore_start_dir(dirname_start);
 }
 
 fn get_qfline_items(qfp: &mut Qfline, list: &mut TvList) -> bool {
     let mut bufnum = qfp.qf_fnum;
-    if bufnum != 0 && buflist_findnr(bufnum).is_null() {
+    if bufnum != 0 && buflist_findnr(bufnum).is_none() {
         bufnum = 0;
     }
 
@@ -5885,7 +5887,7 @@ fn qf_winid(qi: Option<&QfInfo>) -> i32 {
 fn qf_getprop_qfbufnr(qi: Option<&QfInfo>, retdict: &mut TvDict) -> bool {
     let mut bufnum: i32 = 0;
     if let Some(qi) = qi
-        && !buflist_findnr(qi.qf_bufnr).is_null()
+        && buflist_findnr(qi.qf_bufnr).is_some()
     {
         bufnum = qi.qf_bufnr;
     }
@@ -6205,7 +6207,7 @@ fn qf_add_entry_from_dict(
         valid = false;
     }
 
-    if bufnum != 0 && buflist_findnr(bufnum).is_null() {
+    if bufnum != 0 && buflist_findnr(bufnum).is_none() {
         if !qf_st().did_bufnr_emsg {
             qf_st().did_bufnr_emsg = true;
             semsg!(gettext(E_BUFFER_NR_NOT_FOUND), bufnum);
@@ -6800,7 +6802,8 @@ fn cbuffer_process_args(
     } else if crate::memory::cstr_is_empty(skipwhite(skipdigits(eap.arg))) {
         buf = buflist_findnr(
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32,
-        );
+        )
+        .map_or(ptr::null_mut(), ptr::from_mut);
     }
 
     let Some(buf_ref) = (unsafe { buf.as_mut() }) else {

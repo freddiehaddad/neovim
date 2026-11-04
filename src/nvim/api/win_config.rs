@@ -469,7 +469,7 @@ pub fn nvim_open_win(
             br_fnum: 0,
             br_buf_free_count: 0,
         };
-        set_bufref(&mut bufref, (&raw mut *b));
+        set_bufref(&mut bufref, Some(&mut *b));
         if !fconfig.noautocmd {
             let mut switchwin: CtxSwitch = CtxSwitch::new();
             let result = ctx_switch(

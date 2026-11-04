@@ -232,7 +232,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
 
     let ae_fnum = if set_fnum > 0 {
         buflist_add(
-            ae_fname.as_ptr().cast_mut(),
+            Some(ae_fname.as_c_str()),
             BLN_LISTED | if set_fnum == 2 { BLN_CURBUF } else { 0 },
         )
     } else {
@@ -341,12 +341,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         for f in files {
             let flags = BLN_LISTED | if will_edit { BLN_CURBUF } else { 0 };
             let ae_fname = (!f.as_bytes().is_empty()).then_some(f);
-            let ae_fnum = buflist_add(
-                ae_fname
-                    .as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                flags,
-            );
+            let ae_fnum = buflist_add(ae_fname.as_deref(), flags);
             new_entries.push(Aentry { ae_fname, ae_fnum });
         }
         let pos = after as usize;
@@ -640,10 +635,7 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
             let p = fix_fname(
                 alist_name(&arglist_slice()[argn as usize]).map_or(ptr::null(), CStr::as_ptr),
             );
-            other = otherfile(
-                p.as_ref()
-                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-            );
+            other = otherfile(p.as_deref());
         }
         if (!buf_hide(curbuf_mut()) || !other)
             && check_changed(
@@ -955,7 +947,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             {
                 if !buf_hide(&*buf) && buf.b_nwindows <= 1 && buf_is_changed_fn(&mut *buf) {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, buf);
+                    set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
                     if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
                         wp = if lastwin_mut().w_floating {

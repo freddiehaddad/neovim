@@ -643,7 +643,7 @@ pub fn diff_redraw(dofold: bool) {
     let mut used_max_fill_curwin = false;
     g_st().need_diff_redraw = false;
     for wp in for_all_windows_ptr() {
-        if wp.w_onebuf_opt.wo_diff == 0 || !buf_valid(wp.w_buffer) {
+        if wp.w_onebuf_opt.wo_diff == 0 || !buf_valid(wp.buf_opt()) {
             continue;
         }
         redraw_later(Some(&mut *wp), UPD_SOME_VALID);
@@ -822,7 +822,7 @@ fn diff_try_update(dio: &mut Diffio, idx_orig: usize, eap: &mut Exarg) {
         if eap.forceit != 0 {
             for idx_new in idx_orig..DB_COUNT {
                 if let Some(buf) = curtab_mut().diffbuf_opt(idx_new)
-                    && buf_valid(buf)
+                    && buf_valid(Some(&*buf))
                 {
                     let _ = buf_check_timestamp(buf);
                 }
@@ -1359,7 +1359,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut old_curbuf, g_st().curbuf);
+    set_bufref(&mut old_curbuf, unsafe { g_st().curbuf.as_mut() });
     validate_cursor(curwin_mut());
     set_fraction(curwin_mut());
     g_st().cmdmod.cmod_tab = 0;
@@ -3164,14 +3164,14 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
             nr
         };
-        let Some(buf) = (unsafe { buflist_findnr(bufnr).as_ref() }) else {
+        let Some(buf) = buflist_findnr(bufnr) else {
             semsg!(gettext(c"E102: Can't find buffer \"%s\""), eap.arg,);
             return;
         };
-        if ptr::eq(buf, g_st().curbuf) {
+        if ptr::eq(&*buf, g_st().curbuf) {
             return;
         }
-        let idx_o = diff_buf_idx(buf, curtab_mut());
+        let idx_o = diff_buf_idx(&*buf, curtab_mut());
         if idx_o == DB_COUNT as i32 {
             semsg!(gettext(c"E103: Buffer \"%s\" is not in diff mode"), eap.arg,);
             return;

@@ -128,7 +128,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
         return false;
     }
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, &raw mut *buf);
+    set_bufref(&mut bufref, Some(&mut *buf));
     let mut r = buf_write_all(buf, forceit) == OK;
 
     if bufref_valid(Some(&bufref)) && buf_is_changed_fn(buf) {
@@ -147,7 +147,7 @@ pub fn autowrite_all() {
     while let Some(buf_ref) = unsafe { buf.as_mut() } {
         if buf_is_changed_fn(buf_ref) && buf_ref.b_p_ro == 0 && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, buf);
+            set_bufref(&mut bufref, Some(&mut *buf_ref));
 
             buf_write_all(buf_ref, false);
 
@@ -165,7 +165,7 @@ pub fn autowrite_all() {
 pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
     let forceit = (flags & CCGD_FORCEIT) != 0;
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, &raw mut *buf);
+    set_bufref(&mut bufref, Some(&mut *buf));
 
     if !forceit
         && buf_is_changed_fn(buf)
@@ -254,7 +254,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
         while let Some(buf2_ref) = unsafe { buf2.as_mut() } {
             if buf_is_changed_fn(buf2_ref) && !buf2_ref.b_ffname.is_null() && buf2_ref.b_p_ro == 0 {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, buf2);
+                set_bufref(&mut bufref, Some(&mut *buf2_ref));
 
                 let b_fname = buf2_ref.b_fname;
                 let b_ffname = buf2_ref.b_ffname;
@@ -352,13 +352,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
     let mut buf: *mut FileBuf = ptr::null_mut();
     let mut i: usize = 0;
     while i < bufnrs.len() {
-        buf = buflist_findnr(bufnrs[i]);
+        buf = buflist_findnr(bufnrs[i]).map_or(ptr::null_mut(), ptr::from_mut);
         if let Some(buf_ref) = unsafe { buf.as_mut() }
             && (!hidden || buf_ref.b_nwindows == 0)
             && buf_is_changed_fn(buf_ref)
         {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, buf);
+            set_bufref(&mut bufref, Some(&mut *buf_ref));
 
             if check_changed(
                 buf_ref,
@@ -418,7 +418,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
                     if wp.w_buffer == buf {
                         let mut bufref: Bufref = Bufref::new();
-                        set_bufref(&mut bufref, buf);
+                        set_bufref(&mut bufref, unsafe { buf.as_mut() });
 
                         goto_tabpage_win(unsafe { &mut *tp }, wp);
 
@@ -435,7 +435,11 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         }
 
         if !wiped && buf != g_st().curbuf {
-            set_curbuf(buf, if unload { DOBUF_UNLOAD } else { DOBUF_GOTO }, true);
+            set_curbuf(
+                unsafe { &mut *buf },
+                if unload { DOBUF_UNLOAD } else { DOBUF_GOTO },
+                true,
+            );
         }
     }
 
@@ -850,7 +854,7 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    let buf = buflist_findnr(curwin_arglist().ae_fnum);
+    let buf = buflist_findnr(curwin_arglist().ae_fnum).map_or(ptr::null_mut(), ptr::from_mut);
 
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {

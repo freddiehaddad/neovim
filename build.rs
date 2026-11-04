@@ -180,7 +180,8 @@ fn main() {
     let deps_prefix = env::var("DEPS_PREFIX")
         .map(PathBuf::from)
         .unwrap_or_else(|_| manifest_dir.join(".deps").join("usr"));
-    let prefer_lua = env::var("CARGO_FEATURE_VENDOR_BIT").is_ok();
+    let prefer_lua = env::var("CARGO_FEATURE_VENDOR_BIT").is_ok()
+        && !deps_build::deps_are_present(&deps_prefix, false);
     deps_build::ensure_deps(&manifest_dir, &deps_prefix, prefer_lua, false);
     let deps_lib = deps_prefix.join("lib");
 

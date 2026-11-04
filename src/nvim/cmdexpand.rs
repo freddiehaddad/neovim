@@ -4977,10 +4977,10 @@ fn expand_from_context(
         return expand_old_setting(matches);
     }
     if xp.xp_context == EXPAND_BUFFERS {
-        return expand_bufnames(pat_cstr.as_ptr(), matches, options);
+        return expand_bufnames(pat_cstr.to_bytes(), matches, options);
     }
     if xp.xp_context == EXPAND_DIFF_BUFFERS {
-        return expand_bufnames(pat_cstr.as_ptr(), matches, options | BUF_DIFF_FILTER);
+        return expand_bufnames(pat_cstr.to_bytes(), matches, options | BUF_DIFF_FILTER);
     }
     if xp.xp_context == EXPAND_TAGS || xp.xp_context == EXPAND_TAGS_LISTFILES {
         return expand_tags(xp.xp_context == EXPAND_TAGS, pat_cstr, matches);

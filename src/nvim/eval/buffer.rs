@@ -73,9 +73,10 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
     let mut buf: *mut FileBuf = ptr::null_mut();
 
     if avar.v_type == VarType::VarNumber {
-        buf = buflist_findnr(avar.vval.v_number() as i32);
+        buf = buflist_findnr(avar.vval.v_number() as i32).map_or(ptr::null_mut(), ptr::from_mut);
     } else if avar.v_type == VarType::VarString && !avar.vval.v_string().is_null() {
-        buf = buflist_findname_exp(avar.vval.v_string());
+        buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(avar.vval.v_string()))
+            .map_or(ptr::null_mut(), ptr::from_mut);
         if buf.is_null() {
             let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
             for bp in for_all_buffers_mut() {
@@ -512,11 +513,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 pub fn f_bufadd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let name = tv_get_string(&argvars[0]);
     rettv.vval = crate::eval::typval::TypvalVval::Number(buflist_add(
-        if name.is_empty() {
-            ptr::null_mut()
-        } else {
-            name.as_ptr().cast_mut()
-        },
+        (!name.is_empty()).then_some(name),
         0,
     ) as Varnumber);
 }
@@ -593,7 +590,7 @@ pub fn f_bufnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         && !error
         && let Some(name) = tv_get_string_chk(&argvars[0])
     {
-        buf = buflist_new(name, ptr::null_mut(), 1, 0);
+        buf = buflist_new(Some(name), None, 1, 0).map_or(ptr::null(), |b| b);
     }
 
     if !buf.is_null() {
@@ -749,7 +746,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
     tv_dict_add_nr(
         &mut *dict,
         c"command",
-        Varnumber::from(bt_cmdwin(&raw mut *buf)),
+        Varnumber::from(bt_cmdwin(Some(&*buf))),
     );
 
     tv_dict_add_dict(&mut *dict, c"variables", Some(buf.b_vars()));

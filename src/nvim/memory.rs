@@ -737,14 +737,21 @@ pub fn free_all_mem() {
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
-            set_bufref(&mut bufref, buf);
+            set_bufref(&mut bufref, unsafe { buf.as_mut() });
             let nextbuf = unsafe { (*buf).b_next };
             unsafe {
                 (*buf).b_nwindows = 0;
             }
 
             buf_free_callbacks(unsafe { &mut *buf });
-            close_buffer(std::ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
+            close_buffer(
+                None,
+                unsafe { buf.as_mut() },
+                DOBUF_WIPE,
+                false,
+                false,
+                false,
+            );
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {

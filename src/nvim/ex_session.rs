@@ -380,7 +380,7 @@ fn put_view(
     }
 
     if wp.w_alt_fnum != 0
-        && let Some(alt) = unsafe { buflist_findnr(wp.w_alt_fnum).as_mut() }
+        && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
         && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
         && !crate::memory::cstr_is_empty(alt.b_fname)
         && alt.b_p_bl != 0

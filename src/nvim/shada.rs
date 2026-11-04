@@ -1580,9 +1580,12 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         .as_ref()
                         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     let sfname = path_try_shorten_fname(fname_ptr);
-                    if let Some(buf) =
-                        unsafe { buflist_new(fname_ptr, sfname, 0, BLN_LISTED).as_mut() }
-                    {
+                    if let Some(buf) = buflist_new(
+                        crate::memory::cstr_as_opt_cstr(fname_ptr),
+                        crate::memory::cstr_as_opt_cstr(sfname),
+                        0,
+                        BLN_LISTED,
+                    ) {
                         buf.b_last_cursor = Fmark {
                             mark: item.pos,
                             fnum: 0,
@@ -1590,13 +1593,9 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                             view: INIT_FMARKV,
                             additional_data: None,
                         };
-                        buflist_setfpos(
-                            buf,
-                            curwin_ptr(),
-                            buf.b_last_cursor.mark.lnum,
-                            buf.b_last_cursor.mark.col,
-                            false,
-                        );
+                        let lnum = buf.b_last_cursor.mark.lnum;
+                        let col = buf.b_last_cursor.mark.col;
+                        buflist_setfpos(buf, unsafe { curwin_ptr().as_mut() }, lnum, col, false);
                         buf.additional_data = item.additional_data.take();
                     }
                 }
@@ -2840,14 +2839,14 @@ fn shada_write(
                     }
                     f
                 } else {
-                    let Some(buf) = (unsafe { buflist_findnr(fm.fmark.fnum).as_ref() }) else {
+                    let Some(buf) = buflist_findnr(fm.fmark.fnum) else {
                         if global_mark_iter.is_none() {
                             break;
                         }
                         continue;
                     };
                     if buf.b_ffname.is_null()
-                        || removable_bufs.contains(&(ptr::from_ref(buf) as usize))
+                        || removable_bufs.contains(&(ptr::from_ref(&*buf) as usize))
                     {
                         if global_mark_iter.is_none() {
                             break;
@@ -4117,7 +4116,7 @@ fn shada_init_jumps(
         let buf = if fm.fmark.fnum == 0 {
             None
         } else {
-            unsafe { buflist_findnr(fm.fmark.fnum).as_ref() }
+            buflist_findnr(fm.fmark.fnum).map(|b| &*b)
         };
         let skip = if buf.is_some() {
             ignore_buf(buf, removable_bufs)

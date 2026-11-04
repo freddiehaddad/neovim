@@ -2172,7 +2172,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 /// Handle the CTRL-^ key in the command-line mode and toggle the use of the
 /// language `:lmap` mappings and/or Input Method.
 fn command_line_toggle_langmap(s: &mut CommandLineState) {
-    let use_insert_opt = if buf_valid(s.b_im_ptr_buf) {
+    let use_insert_opt = if buf_valid(unsafe { s.b_im_ptr_buf.as_ref() }) {
         s.b_im_use_insert
     } else {
         None
@@ -2913,7 +2913,7 @@ pub fn cmdpreview_get_ns() -> i32 {
 /// Sets up command preview buffer.
 fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
     let mut cmdpreview_buf = if getln_st().cmdpreview_bufnr != 0 {
-        buflist_findnr(getln_st().cmdpreview_bufnr)
+        buflist_findnr(getln_st().cmdpreview_bufnr).map_or(ptr::null_mut(), ptr::from_mut)
     } else {
         ptr::null_mut()
     };
@@ -2926,7 +2926,7 @@ fn cmdpreview_open_buf() -> Option<&'static mut FileBuf> {
             return None;
         }
 
-        cmdpreview_buf = buflist_findnr(bufnr);
+        cmdpreview_buf = buflist_findnr(bufnr).map_or(ptr::null_mut(), ptr::from_mut);
     }
 
     if cmdpreview_buf == g_st().curbuf {
@@ -2998,7 +2998,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
 /// Closes any open command preview windows.
 fn cmdpreview_close_win() {
     let buf = if getln_st().cmdpreview_bufnr != 0 {
-        buflist_findnr(getln_st().cmdpreview_bufnr)
+        buflist_findnr(getln_st().cmdpreview_bufnr).map_or(ptr::null_mut(), ptr::from_mut)
     } else {
         ptr::null_mut()
     };
@@ -5043,7 +5043,7 @@ fn open_cmdwin() -> i32 {
 
 /// @return true if `curbuf` is the cmdwin and we're not editing the command line.
 pub fn is_in_cmdwin() -> bool {
-    bt_cmdwin(g_st().curbuf) && get_cmdline_type() == NUL as i32
+    bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) && get_cmdline_type() == NUL as i32
 }
 
 /// Get script string.

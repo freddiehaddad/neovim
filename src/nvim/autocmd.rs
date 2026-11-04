@@ -2171,7 +2171,7 @@ pub fn do_autocmd_event(
         let is_buflocal = aupat_is_buflocal(pat_slice);
         if is_buflocal {
             let buflocal_nr = aupat_get_buflocal_nr(pat_slice);
-            if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
+            if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_none() {
                 semsg!(tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER), buflocal_nr,);
                 return false;
             }
@@ -2246,7 +2246,7 @@ pub fn autocmd_register(
 
     if is_buflocal {
         buflocal_nr = aupat_get_buflocal_nr(pat_slice);
-        if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_null() {
+        if buflocal_nr == 0 || buflist_findnr(buflocal_nr).is_none() {
             semsg!(tr(E_BUFFER_NR_INVALID_BUFFER_NUMBER), buflocal_nr,);
             return false;
         }
@@ -2436,8 +2436,8 @@ pub fn ex_doautoall(eap: &mut Exarg) {
             continue;
         }
 
-        ctx_switch(&mut aco, None, None, Some(buf), 0);
-        set_bufref(&mut bufref, buf);
+        ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
+        set_bufref(&mut bufref, Some(&mut *buf));
 
         let ok = do_doautocmd(arg, false, Some(&mut did_aucmd));
         retval = if ok { OK } else { FAIL };

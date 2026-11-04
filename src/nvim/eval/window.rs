@@ -770,7 +770,7 @@ pub fn f_win_gettype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         tv_set_string(rettv, Some(c"preview"));
     } else if wp.w_floating {
         tv_set_string(rettv, Some(c"popup"));
-    } else if bt_cmdwin(wp.w_buffer) {
+    } else if bt_cmdwin(wp.buf_opt()) {
         tv_set_string(rettv, Some(c"command"));
     } else if bt_quickfix(wp.buf_opt()) {
         tv_set_string(

@@ -1445,17 +1445,15 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
     try_enter(&mut tstate);
     'create: {
         block_autocmds();
-        let buf = buflist_new(
-            ptr::null_mut(),
-            ptr::null_mut(),
+        let Some(buf) = buflist_new(
+            None,
+            None,
             0,
             BLN_NOOPT | BLN_NEW | if listed { BLN_LISTED } else { 0 },
-        );
-        if buf.is_null() {
+        ) else {
             unblock_autocmds();
             break 'create;
-        }
-        let buf = unsafe { &mut *buf };
+        };
         if !ml_open(&mut *buf) {
             unblock_autocmds();
             break 'create;
@@ -1491,7 +1489,7 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         let buf_ptr = std::hint::black_box(std::ptr::from_mut(buf));
         let mut bufref = Bufref::new();
-        set_bufref(&mut bufref, buf_ptr);
+        set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
         if apply_autocmds(EVENT_BUFNEW, None, None, false, unsafe { buf_ptr.as_mut() })
             && !bufref_valid(Some(&bufref))
         {

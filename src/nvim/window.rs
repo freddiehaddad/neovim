@@ -1050,7 +1050,9 @@ fn do_window_gotofile(nchar: i32, prenum1: i32) {
         if (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && g_st().cmdmod.cmod_tab == 0
         {
-            wp = swbuf_goto_win_with_buf(buflist_findname_exp(ptr));
+            let found = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(ptr))
+                .map_or(ptr::null_mut(), ptr::from_mut);
+            wp = swbuf_goto_win_with_buf(found);
         }
 
         if wp.is_null() && win_split(0, 0) {
@@ -1115,7 +1117,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
             } else {
                 prenum
             })
-            .is_null()
+            .is_none()
             {
                 if prenum == 0 {
                     emsg(gettext(E_NOALT));
@@ -3413,13 +3415,13 @@ fn win_close_buffer(win: *mut WinInfoInfo, action: i32, abort_if_last: bool) -> 
     let mut retval = false;
     if !crate::globals::gptr(win).w_buffer.is_null() {
         let mut bufref: Bufref = Bufref::new();
-        set_bufref(&mut bufref, g_st().curbuf);
+        set_bufref(&mut bufref, unsafe { g_st().curbuf.as_mut() });
 
         crate::globals::gptr(win).w_locked += 1;
 
         retval = close_buffer(
-            crate::globals::gmut(win),
-            crate::globals::gptr(win).w_buffer,
+            unsafe { win.as_mut() },
+            unsafe { crate::globals::gptr(win).w_buffer.as_mut() },
             action,
             abort_if_last,
             true,
@@ -3579,7 +3581,9 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, crate::globals::gptr(win).w_buffer);
+    set_bufref(&mut bufref, unsafe {
+        crate::globals::gptr(win).w_buffer.as_mut()
+    });
 
     win_close_buffer(win, if free_buf { DOBUF_UNLOAD } else { 0 }, true);
 
@@ -3639,7 +3643,9 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
         }
     }
 
-    set_bufref(&mut bufref, crate::globals::gptr(win).w_buffer);
+    set_bufref(&mut bufref, unsafe {
+        crate::globals::gptr(win).w_buffer.as_mut()
+    });
 
     if !crate::globals::gptr(win).w_buffer.is_null() {
         crate::globals::gptr(win).buf_mut().b_nwindows -= 1;
@@ -3893,12 +3899,14 @@ pub fn win_close_othertab(
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, crate::globals::gptr(win).w_buffer);
+    set_bufref(&mut bufref, unsafe {
+        crate::globals::gptr(win).w_buffer.as_mut()
+    });
 
     if !crate::globals::gptr(win).w_buffer.is_null() {
         close_buffer(
-            crate::globals::gmut(win),
-            crate::globals::gptr(win).w_buffer,
+            unsafe { win.as_mut() },
+            unsafe { crate::globals::gptr(win).w_buffer.as_mut() },
             if free_buf != 0 { DOBUF_UNLOAD } else { 0 },
             false,
             true,
@@ -3961,7 +3969,9 @@ pub fn win_close_othertab(
         ui_comp_remove_grid(&mut crate::globals::gptr(win).w_grid_alloc);
     }
 
-    set_bufref(&mut bufref, crate::globals::gptr(win).w_buffer);
+    set_bufref(&mut bufref, unsafe {
+        crate::globals::gptr(win).w_buffer.as_mut()
+    });
 
     if !crate::globals::gptr(win).w_buffer.is_null() {
         crate::globals::gptr(win).buf_mut().b_nwindows -= 1;
@@ -4827,7 +4837,7 @@ pub fn close_others(message: i32, forceit: i32, ignore_pinned: bool) {
             continue;
         }
 
-        if !buf_valid(wp.borrow().w_buffer) && win_valid(wp.as_ptr()) {
+        if !buf_valid(wp.borrow().buf_opt()) && win_valid(wp.as_ptr()) {
             wp.borrow_mut().w_buffer = ptr::null_mut();
             win_close(wp.as_ptr(), false, false);
             wp = nextwp;
@@ -4922,7 +4932,8 @@ fn win_alloc_firstwin(oldwin: Option<&mut WinInfoInfo>) -> bool {
         win_init(curwin_mut(), oldwin, 0);
         reset_binding(curwin_mut());
     } else {
-        g_st().curbuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_LISTED);
+        g_st().curbuf =
+            buflist_new(None, None, 1, BLN_LISTED).map_or(ptr::null_mut(), ptr::from_mut);
         if g_st().curbuf.is_null() {
             return false;
         }
@@ -6467,7 +6478,7 @@ pub fn may_trigger_win_scrolled_resized() {
             c"%d",
             rw.handle,
         );
-        set_bufref(&mut resize_bufref, rw.w_buffer);
+        set_bufref(&mut resize_bufref, unsafe { rw.w_buffer.as_mut() });
     }
 
     let mut scroll_winid = [0u8; NUMBUFLEN];
@@ -6481,7 +6492,7 @@ pub fn may_trigger_win_scrolled_resized() {
             c"%d",
             sw.handle,
         );
-        set_bufref(&mut scroll_bufref, sw.w_buffer);
+        set_bufref(&mut scroll_bufref, unsafe { sw.w_buffer.as_mut() });
     }
 
     if let Some(windows_list) = windows_list {

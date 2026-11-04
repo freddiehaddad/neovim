@@ -880,7 +880,7 @@ pub fn ctx_switch(
     set_curwin(wp);
     g_st().curbuf = curwin_mut().w_buffer;
     cs.cs_new_curwin = curwin_mut().handle;
-    set_bufref(&mut cs.cs_new_curbuf, g_st().curbuf.cast());
+    set_bufref(&mut cs.cs_new_curbuf, unsafe { g_st().curbuf.as_mut() });
 
     if cs.cs_mode == K_CTX_SWITCH_BUF && cs.cs_new_curwin != cs.cs_curwin {
         if ctx_st().ctx_switch_depth == 0 {

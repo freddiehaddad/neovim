@@ -5328,8 +5328,7 @@ pub fn save_tv_as_string(tv: &mut TypVal, endnl: bool, crlf: bool) -> Option<Vec
     }
 
     if tv.v_type == VarType::VarNumber {
-        let buf = buflist_findnr(tv.vval.v_number() as i32);
-        let Some(buf) = (unsafe { buf.as_mut() }) else {
+        let Some(buf) = buflist_findnr(tv.vval.v_number() as i32) else {
             semsg!(gettext(E_NOBUFNR), tv.vval.v_number());
             return None;
         };
@@ -5650,18 +5649,20 @@ pub fn list2fpos(
         return false;
     }
     if charcol {
-        let buf = buflist_findnr(if let Some(fnump) = fnump {
+        let Some(buf) = buflist_findnr(if let Some(fnump) = fnump {
             *fnump
         } else {
             curbuf_mut().b_fnum
-        });
-        if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+        }) else {
+            return false;
+        };
+        if buf.b_ml.ml_mfp.is_none() {
             return false;
         }
         let cur_lnum = curwin_mut().w_cursor.lnum;
 
         n = buf_charidx_to_byteidx(
-            unsafe { buf.as_mut() },
+            Some(buf),
             if posp.lnum == 0 { cur_lnum } else { posp.lnum },
             n,
         ) + 1;

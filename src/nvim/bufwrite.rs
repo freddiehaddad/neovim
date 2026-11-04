@@ -377,7 +377,7 @@ fn buf_write_do_autocmds(
     let buf_fname_s = unsafe { names.fname == (*buf).b_sfname };
 
     let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
-    set_bufref(bufref, buf);
+    set_bufref(bufref, unsafe { buf.as_mut() });
 
     let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
     if append {

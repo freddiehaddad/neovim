@@ -4731,7 +4731,7 @@ fn nv_down(cap: &mut Cmdarg) {
     if (g_st().mod_mask & i32::from(MOD_MASK_SHIFT)) != 0 {
         cap.arg = FORWARD;
         nv_page(cap);
-    } else if bt_cmdwin(g_st().curbuf) && cap.cmdchar == CAR {
+    } else if bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) && cap.cmdchar == CAR {
         cmdwin_do_action(c"confirm");
     } else if bt_quickfix(Some(crate::globals::curbuf_mut())) && cap.cmdchar == CAR {
         qf_view_result(false);
@@ -6958,7 +6958,7 @@ fn nv_esc(cap: &mut Cmdarg) {
         && cap.opcount == 0
         && cap.count0 == 0
         && cap.oap_mut().regname == 0;
-    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(g_st().curbuf);
+    let cmdwin_cancel = cap.arg != 0 && bt_cmdwin(unsafe { g_st().curbuf.as_ref() });
 
     if cmdwin_cancel {
         g_st().got_int = false;

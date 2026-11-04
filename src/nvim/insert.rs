@@ -876,7 +876,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
             }
         }
         CTRL_C_CONST => {
-            if bt_cmdwin(g_st().curbuf) {
+            if bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) {
                 g_st().got_int = false;
                 cmdwin_do_action(c"cancel");
                 return 0;
@@ -1028,7 +1028,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 br_buf_free_count: 0,
             };
             let tick = buf_get_changedtick(curbuf_mut());
-            set_bufref(&mut save_curbuf, g_st().curbuf);
+            set_bufref(&mut save_curbuf, unsafe { g_st().curbuf.as_mut() });
 
             if s.c == K_PASTE_START {
                 paste_repeat(1);
@@ -1162,7 +1162,7 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 } else {
                     do_cmdline_cmd(c".ll");
                 }
-            } else if s.c == CAR && bt_cmdwin(g_st().curbuf) {
+            } else if s.c == CAR && bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) {
                 cmdwin_do_action(c"confirm");
                 return 0;
             } else if (g_st().mod_mask & MOD_MASK_SHIFT) == 0

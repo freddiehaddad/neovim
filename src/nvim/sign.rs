@@ -971,14 +971,14 @@ fn parse_sign_cmd_args<'a>(
         } else if arg_bytes.starts_with(b"file=") {
             arg = arg.wrapping_add(5);
             filename = arg;
-            *buf = unsafe { buflist_findname_exp(arg).as_mut() };
+            *buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(arg));
             break;
         } else if arg_bytes.starts_with(b"buffer=") {
             arg = arg.wrapping_add(7);
             filename = arg;
             let arg_bytes = crate::memory::cstr_as_bytes(arg);
             let mut rem = arg_bytes;
-            *buf = unsafe { buflist_findnr(getdigits_int(&mut rem, true, 0)).as_mut() };
+            *buf = buflist_findnr(getdigits_int(&mut rem, true, 0));
             arg = arg.wrapping_add(arg_bytes.len() - rem.len());
             if !crate::memory::cstr_is_empty(skipwhite(arg)) {
                 semsg!(gettext(E_TRAILING_ARG), arg);

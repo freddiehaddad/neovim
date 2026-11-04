@@ -3132,7 +3132,12 @@ pub fn set_rw_fname(fname: Option<&CStr>, sfname: Option<&CStr>) -> bool {
         return false;
     }
 
-    if setfname(curbuf_mut(), fname_ptr, sfname_ptr, false) {
+    if setfname(
+        curbuf_mut(),
+        crate::memory::cstr_as_opt_cstr(fname_ptr),
+        crate::memory::cstr_as_opt_cstr(sfname_ptr),
+        false,
+    ) {
         curbuf_mut().b_flags |= BF_NOTEDITED;
     }
 
@@ -3773,7 +3778,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
             let next_ptr = buf.b_next;
             if buf.b_nwindows > 0 {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, &raw mut *buf);
+                set_bufref(&mut bufref, Some(&mut *buf));
                 let n = buf_check_timestamp(buf);
                 didit = didit.max(n);
                 if n > 0 && !bufref_valid(Some(&bufref)) {
@@ -3841,7 +3846,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     let orig_mode = buf.b_orig_mode;
 
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, &raw mut *buf);
+    set_bufref(&mut bufref, Some(&mut *buf));
 
     if !buf.terminal.is_null()
         || buf.b_ffname.is_null()
@@ -4108,8 +4113,8 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     if buf_is_empty(curbuf_mut()) || saved == FAIL {
         savebuf = ptr::null_mut();
     } else {
-        savebuf = buflist_new(ptr::null_mut(), ptr::null_mut(), 1, BLN_DUMMY);
-        set_bufref(&mut bufref, savebuf);
+        savebuf = buflist_new(None, None, 1, BLN_DUMMY).map_or(ptr::null_mut(), ptr::from_mut);
+        set_bufref(&mut bufref, unsafe { savebuf.as_mut() });
         if !savebuf.is_null() && ptr::eq(buf, g_st().curbuf) {
             g_st().curbuf = savebuf;
             curwin_mut().w_buffer = savebuf;
@@ -4172,7 +4177,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
     drop(_ea_cmd);
 
     if !savebuf.is_null() && bufref_valid(Some(&bufref)) {
-        wipe_buffer(savebuf, false);
+        wipe_buffer(unsafe { &mut *savebuf }, false);
     }
 
     diff_invalidate(curbuf_mut());

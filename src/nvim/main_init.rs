@@ -904,14 +904,14 @@ pub fn getout(mut exitval: i32) -> ! {
                 tp.tp_firstwin
             };
             for wp in win_iter_mut(first_wp) {
-                if wp.w_buffer.is_null() || !buf_valid(wp.w_buffer) {
+                if !buf_valid(wp.buf_opt()) {
                     continue;
                 }
                 let buf = wp.buf_mut();
                 let buf_ptr: *mut crate::buffer::FileBuf = buf;
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, buf_ptr);
+                    set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
                     let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
                     apply_autocmds(EVENT_BUFWINLEAVE, b_fname, b_fname, false, unsafe {
                         buf_ptr.as_mut()
@@ -930,7 +930,7 @@ pub fn getout(mut exitval: i32) -> ! {
         for buf in for_all_buffers_ptr() {
             if buf.b_ml.ml_mfp.is_some() {
                 let mut bufref: Bufref = Bufref::new();
-                set_bufref(&mut bufref, buf);
+                set_bufref(&mut bufref, Some(&mut *buf));
                 let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
                 apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, Some(&mut *buf));
                 if !bufref_valid(Some(&bufref)) {
@@ -1914,14 +1914,14 @@ fn read_stdin() {
     let save_msg_didany = g_st().msg_didany;
 
     if !curbuf_mut().b_ffname.is_null() {
-        let stdin_buf = buflist_new(ptr::null_mut(), ptr::null_mut(), 0, BLN_LISTED);
-        if stdin_buf.is_null() {
+        let Some(stdin_buf_ref) = buflist_new(None, None, 0, BLN_LISTED) else {
             semsg!(c"Failed to create buffer for stdin");
             return;
-        }
+        };
+        let stdin_buf: *mut crate::buffer::FileBuf = stdin_buf_ref;
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
-        set_curbuf(stdin_buf, 0, false);
+        set_curbuf(unsafe { &mut *stdin_buf }, 0, false);
         readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
         let stdin_buf_handle: ObjHandle = unsafe { (*stdin_buf).b_fnum };
@@ -2033,7 +2033,7 @@ fn create_windows(parmp: &mut Mparm) {
                         ui_call_error_exit(1);
                         getout(1);
                     }
-                    setfname(curbuf_mut(), ptr::null_mut(), ptr::null_mut(), false);
+                    setfname(curbuf_mut(), None, None, false);
                     curwin_mut().w_arg_idx = -1;
                     g_st().swap_exists_action = SEA_NONE;
                 } else {

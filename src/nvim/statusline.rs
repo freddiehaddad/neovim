@@ -2770,15 +2770,10 @@ mod tests {
                          fill: Option<&str>,
                          exp_cells: Option<i32>| {
                 if let Some(fname) = file_name {
-                    let mut fn_c = CString::new(fname).unwrap().into_bytes_with_nul();
-                    setfname(
-                        curbuf_mut(),
-                        fn_c.as_mut_ptr().cast(),
-                        ptr::null_mut(),
-                        true,
-                    );
+                    let fn_c = CString::new(fname).unwrap();
+                    setfname(curbuf_mut(), Some(fn_c.as_c_str()), None, true);
                 } else {
-                    setfname(curbuf_mut(), ptr::null_mut(), ptr::null_mut(), true);
+                    setfname(curbuf_mut(), None, None, true);
                 }
                 curwin_mut().w_cursor.lnum = 0;
 

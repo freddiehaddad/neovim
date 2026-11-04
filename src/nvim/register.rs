@@ -2867,17 +2867,17 @@ pub fn write_reg_contents_ex(
         let buf = if str_slice.first().is_some_and(u8::is_ascii_digit) {
             let num = crate::charset::parse_i64_prefix(str_slice) as i32;
             let b = buflist_findnr(num);
-            if b.is_null() {
+            if b.is_none() {
                 semsg!(gettext(E_NOBUFNR), i64::from(num));
             }
             b
         } else {
             buflist_findnr(buflist_findpat(str_slice, true, false, false))
         };
-        if buf.is_null() {
+        let Some(buf_ref) = buf else {
             return;
-        }
-        curwin_mut().w_alt_fnum = unsafe { (*buf).b_fnum };
+        };
+        curwin_mut().w_alt_fnum = buf_ref.b_fnum;
         return;
     }
 

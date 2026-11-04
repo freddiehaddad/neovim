@@ -3056,15 +3056,14 @@ mod tests {
 
             let fpath = format!("{base}/Xtest-unit-undo");
             std::fs::write(&fpath, b"hello\n").unwrap();
-            let mut fpath_c = CString::new(fpath.clone()).unwrap().into_bytes_with_nul();
-            let buf = unsafe {
-                &mut *buflist_new(
-                    fpath_c.as_mut_ptr().cast(),
-                    fpath_c.as_mut_ptr().cast(),
-                    1,
-                    BLN_LISTED,
-                )
-            };
+            let fpath_c = CString::new(fpath.clone()).unwrap();
+            let buf = buflist_new(
+                Some(fpath_c.as_c_str()),
+                Some(fpath_c.as_c_str()),
+                1,
+                BLN_LISTED,
+            )
+            .unwrap();
             buf.b_u_numhead = 1;
 
             let mut hash = [0u8; UNDO_HASH_SIZE];
@@ -3097,7 +3096,7 @@ mod tests {
             u_write_undo(None, false, &mut *buf, &hash);
             assert!(!std::path::Path::new(&ufile).exists());
 
-            close_buffer(ptr::null_mut(), buf, DOBUF_WIPE, false, false, false);
+            close_buffer(None, Some(buf), DOBUF_WIPE, false, false, false);
             opt_vars().p_udir = save_udir;
             let _ = std::fs::remove_dir_all(&base);
             g_st().emsg_skip -= 1;

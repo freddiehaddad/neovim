@@ -1143,7 +1143,12 @@ pub fn ml_recover(checkext: bool) {
             MAXPATHL as i32,
         );
 
-        if !setfname(curbuf_mut(), namebuff_ptr, ptr::null_mut(), true) {
+        if !setfname(
+            curbuf_mut(),
+            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+            None,
+            true,
+        ) {
             ml_recover_theend(
                 Some(&mut *mfp),
                 hp,

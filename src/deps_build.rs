@@ -970,7 +970,7 @@ fn build_win32yank(
         .expect("failed to copy win32yank.exe");
 }
 
-fn deps_are_present(deps_prefix: &Path, prefer_lua: bool) -> bool {
+pub fn deps_are_present(deps_prefix: &Path, prefer_lua: bool) -> bool {
     let lib_dir = deps_prefix.join("lib");
     let parser_dir = lib_dir.join("nvim").join("parser");
     let ext = if cfg!(target_os = "windows") {

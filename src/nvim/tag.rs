@@ -652,7 +652,7 @@ pub fn do_tag(
             }
 
             if cur_fnum != curbuf_mut().b_fnum
-                && let Some(buf) = unsafe { buflist_findnr(cur_fnum).as_ref() }
+                && let Some(buf) = buflist_findnr(cur_fnum)
             {
                 buf_ffname = buf.b_ffname;
             }
@@ -2799,11 +2799,11 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
 
         if g_st().postponed_split != 0
             && (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
+            && let Some(existing_buf) =
+                buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fname.cast()))
+            && !swbuf_goto_win_with_buf(existing_buf).is_null()
         {
-            let existing_buf = buflist_findname_exp(fname.cast());
-            if !existing_buf.is_null() && !swbuf_goto_win_with_buf(existing_buf).is_null() {
-                getfile_result = GETFILE_SAME_FILE;
-            }
+            getfile_result = GETFILE_SAME_FILE;
         }
         if getfile_result == GETFILE_UNUSED
             && (g_st().postponed_split != 0 || g_st().cmdmod.cmod_tab != 0)

@@ -2887,7 +2887,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
     insexp().compl_num_bests = 0;
     insexp().compl_ins_end_col = 0;
 
-    if c == CTRL_C_CONST && bt_cmdwin(g_st().curbuf) {
+    if c == CTRL_C_CONST && bt_cmdwin(unsafe { g_st().curbuf.as_ref() }) {
         update_screen();
     }
 
@@ -4938,7 +4938,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         }
         st.first_match_pos = start_pos;
         st.last_match_pos = start_pos;
-    } else if !ptr::eq(st.ins_buf, g_st().curbuf) && !buf_valid(st.ins_buf) {
+    } else if !ptr::eq(st.ins_buf, g_st().curbuf) && !buf_valid(unsafe { st.ins_buf.as_ref() }) {
         st.ins_buf = g_st().curbuf;
     }
     debug_assert!(!st.ins_buf.is_null());
@@ -5033,7 +5033,9 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             }
             insexp().compl_started = !insexp().compl_time_slice_expired;
         } else {
-            if buf_valid(st.ins_buf) && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS) {
+            if buf_valid(unsafe { st.ins_buf.as_ref() })
+                && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS)
+            {
                 unsafe {
                     (*st.ins_buf).b_scanned = true;
                 }

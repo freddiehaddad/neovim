@@ -4937,7 +4937,7 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
         return !path_equal(ffname.as_ptr(), curbuf_mut().b_sfname, K_PATH_CMP_LITERAL);
     }
 
-    otherfile(ffname.as_ptr())
+    otherfile(Some(ffname))
 }
 
 /// Print the executed command for when 'verbose' is set.
@@ -8908,7 +8908,7 @@ fn ex_bunload(eap: &mut Exarg) {
     };
     eap.errmsg = do_bufdel(
         cmd,
-        eap.arg,
+        crate::memory::cstr_as_bytes(eap.arg),
         eap.addr_count,
         eap.line1,
         eap.line2,
@@ -9699,7 +9699,7 @@ pub fn ex_win_close(forceit: i32, win: &mut WinInfoInfo, tp_in: Option<&mut TabP
             && opt_vars().p_write != 0
         {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, buf);
+            set_bufref(&mut bufref, unsafe { buf.as_mut() });
             dialog_changed(win.buf_mut(), false);
             if bufref_valid(Some(&bufref)) && bufref.buf_opt().is_some_and(buf_is_changed_fn) {
                 return;
@@ -9992,7 +9992,12 @@ fn ex_recover(eap: &mut Exarg) {
             | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
             | CCGD_EXCMD,
     ) && (crate::memory::cstr_is_empty(eap.arg)
-        || setfname(curbuf_mut(), eap.arg, ptr::null_mut(), true))
+        || setfname(
+            curbuf_mut(),
+            crate::memory::cstr_as_opt_cstr(eap.arg),
+            None,
+            true,
+        ))
     {
         ml_recover(true);
     }
@@ -10736,7 +10741,8 @@ fn ex_read(eap: &mut Exarg) {
         )
     } else {
         if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTREAD) {
-            setaltfname(eap.arg, eap.arg, 1);
+            let arg_opt = crate::memory::cstr_as_opt_cstr(eap.arg);
+            setaltfname(arg_opt, arg_opt, 1);
         }
         readfile(
             crate::memory::cstr_as_opt_cstr(eap.arg),
@@ -12119,7 +12125,7 @@ pub fn eval_vars(
                         if i == 0 && is_lt && *usedlen > 1 {
                             *usedlen = 1;
                         }
-                        let Some(buf) = (unsafe { buflist_findnr(i).as_mut() }) else {
+                        let Some(buf) = buflist_findnr(i) else {
                             *errormsg = Some(gettext(
                                 c"E194: No alternate file name to substitute for '#'",
                             ));
