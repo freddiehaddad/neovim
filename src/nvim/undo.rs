@@ -1575,7 +1575,10 @@ pub fn u_undo(mut count: i32) {
         count = 1;
     }
 
-    if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
+    if !crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_UNDO,
+    ) {
         undo_st().undo_undoes = true;
     } else {
         undo_st().undo_undoes = !undo_st().undo_undoes;
@@ -1585,7 +1588,10 @@ pub fn u_undo(mut count: i32) {
 
 /// Redo `count` times.
 pub fn u_redo(count: i32) {
-    if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
+    if !crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_UNDO,
+    ) {
         undo_st().undo_undoes = false;
     }
 
@@ -2306,7 +2312,7 @@ fn u_undo_end(mut did_undo: bool, absolute: bool, quiet: bool) {
         } else {
             undo_st().u_oldcount as i64
         },
-        gettext(msgstr),
+        gettext(crate::memory::cstr_from_ptr((msgstr).cast())),
         if did_undo {
             gettext(c"before")
         } else {

@@ -1077,7 +1077,7 @@ fn suggest_try_special(su: &mut Suginfo) {
 }
 fn suggest_try_change(su: &mut Suginfo) {
     let mut fword: [u8; MAXWLEN] = su.su_fbadword;
-    let mut n = crate::memory::cstr_until_nul(&fword).to_bytes().len() as i32;
+    let mut n = crate::memory::bytes_until_nul(&fword).len() as i32;
     let p = su.su_badptr.wrapping_add(su.su_badlen as usize);
     spell_casefold(
         curwin_mut(),
@@ -1455,8 +1455,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             mb_cptr_back(&*fword_buf, &mut p_idx);
                             if !spell_iswordp(&fword_buf[p_idx..], curwin_mut()) && preword[0] != 0
                             {
-                                let mut pw_idx =
-                                    crate::memory::cstr_until_nul(&preword).to_bytes().len();
+                                let mut pw_idx = crate::memory::bytes_until_nul(&preword).len();
                                 mb_cptr_back(&preword, &mut pw_idx);
                                 if spell_iswordp(&preword[pw_idx..], curwin_mut()) {
                                     newscore += SCORE_NONWORD;
@@ -1607,7 +1606,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 depth += 1;
                                 udepth = depth as usize;
                                 let mut preword_len =
-                                    crate::memory::cstr_until_nul(&preword).to_bytes().len();
+                                    crate::memory::bytes_until_nul(&preword).len();
                                 if !try_compound && !fword_ends {
                                     preword[preword_len] = b' ';
                                     preword_len += 1;
@@ -2483,7 +2482,7 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
                 crate::memory::cstr_as_bytes(_sw_p.cast()),
             ))
         }) {
-            let mut fword_len = crate::memory::cstr_until_nul(&fword).to_bytes().len();
+            let mut fword_len = crate::memory::bytes_until_nul(&fword).len();
             let mut idx = 0;
             while idx < fword_len {
                 let rem = crate::charset::skiptowhite_slice(&fword[idx..fword_len]);

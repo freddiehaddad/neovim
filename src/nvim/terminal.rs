@@ -596,7 +596,7 @@ fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
 
 fn on_osc(command: i32, frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
     let term = term.unwrap();
-    if frag.str_.is_null() || frag.is_empty() {
+    if frag.str_.is_null() {
         return 0;
     }
 
@@ -670,7 +670,7 @@ fn on_dcs(command: &[u8], frag: VTermStringFragment, term: Option<&mut Terminal>
 
 fn on_apc(frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
     let term = term.unwrap();
-    if frag.str_.is_null() || frag.is_empty() {
+    if frag.str_.is_null() {
         return 0;
     }
 
@@ -682,7 +682,9 @@ fn on_apc(frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
         term.termrequest_buffer.clear();
         term.termrequest_buffer.extend_from_slice(b"\x1b_");
     }
-    term.termrequest_buffer.extend_from_slice(frag.as_bytes());
+    if !frag.is_empty() {
+        term.termrequest_buffer.extend_from_slice(frag.as_bytes());
+    }
     if frag.final_() {
         term.termrequest_terminator = frag.terminator;
         schedule_termrequest(term);

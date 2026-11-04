@@ -81,7 +81,7 @@ pub struct Memfile {
 #[inline]
 fn perror_msg(msg: &std::ffi::CStr) {
     let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-    let _ = semsg!(c"%s: %s", gettext(msg.as_ptr()), unsafe { strerror(err) });
+    let _ = semsg!(c"%s: %s", gettext(msg), unsafe { strerror(err) });
 }
 
 #[inline]

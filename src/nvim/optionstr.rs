@@ -1363,7 +1363,7 @@ fn check_option_listflag<'a>(
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
     for &s_byte in crate::memory::bytes_until_nul(val) {
-        if !crate::strings::vim_haschr(flags.as_ptr(), s_byte as i32) {
+        if !crate::strings::vim_haschr(flags, s_byte as i32) {
             return illegal_char(errbuf, s_byte as i32);
         }
     }
@@ -1978,7 +1978,7 @@ pub fn validate_completeitemalign(args: &mut Optset) -> Option<&CStr> {
     let mut buf = [0u8; 10];
     while !p.is_empty() {
         copy_option_part(&mut p, &mut buf, c",");
-        let item_bytes = crate::memory::cstr_until_nul(&buf).to_bytes();
+        let item_bytes = crate::memory::bytes_until_nul(&buf);
         let item = if item_bytes == b"abbr" {
             CPT_ABBR
         } else if item_bytes == b"kind" {
@@ -2162,7 +2162,10 @@ pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
             return Some(E_MODIFIABLE);
         }
 
-        if crate::strings::vim_haschr(args.os_newval.data.string().data, b',' as i32) {
+        if crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((args.os_newval.data.string().data).cast()),
+            b',' as i32,
+        ) {
             return Some(E_INVARG);
         }
     }
@@ -2303,7 +2306,8 @@ pub fn did_set_foldignore(args: &mut Optset) -> Option<&CStr> {
 /// Validate the 'foldmarker' option.
 pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
-    let p = vim_strchr(value, b',' as i32);
+    let p = vim_strchr(crate::memory::cstr_from_ptr((value).cast()), b',' as i32)
+        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
     }
@@ -2478,8 +2482,14 @@ pub fn did_set_keymap(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'keymodel' option is changed.
 pub fn did_set_keymodel(_args: &mut Optset) -> Option<&CStr> {
-    g_st().km_stopsel = crate::strings::vim_haschr(opt_vars().p_km, b'o' as i32);
-    g_st().km_startsel = crate::strings::vim_haschr(opt_vars().p_km, b'a' as i32);
+    g_st().km_stopsel = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_km).cast()),
+        b'o' as i32,
+    );
+    g_st().km_startsel = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_km).cast()),
+        b'a' as i32,
+    );
     None
 }
 
@@ -3007,7 +3017,7 @@ pub fn did_set_tagcase(args: &mut Optset) -> Option<&CStr> {
 fn did_set_titleiconstring<'a>(args: &mut Optset, flagval: i32) -> Option<&'a CStr> {
     let val = args.var_cstr();
 
-    if crate::strings::vim_haschr(val.as_ptr(), b'%' as i32)
+    if crate::strings::vim_haschr(val, b'%' as i32)
         && check_stl_option(val.to_bytes(), None).is_none()
     {
         g_st().stl_syntax |= flagval;
@@ -3198,7 +3208,7 @@ fn opt_values_err<'a>(
     let mut n = vim_snprintf!(
         errbuf.data.cast(),
         errbuf.size,
-        gettext(fmt.as_ptr()),
+        gettext(fmt),
         itembuf.as_ptr(),
     );
     for (j, &v) in values.iter().enumerate() {

@@ -514,13 +514,14 @@ pub fn grid_line_put_schar(col: i32, schar: Schar, attr: i32) {
 }
 
 pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i32) -> i32 {
-    let text = text.as_ptr();
+    let text_bytes = text.to_bytes();
+    let text_ptr = text.as_ptr();
     assert!(!grid_st().grid_line_grid.is_null());
     let mut len = if textlen >= 0 { textlen } else { i32::MAX };
 
     let start_col = col;
     let max_col = grid_st().grid_line_maxcol;
-    let mut ci = utf_ptr2_str_char_info_len(crate::memory::cstr_as_bytes((text).cast()), len);
+    let mut ci = utf_ptr2_str_char_info_len(text_bytes, len);
     while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info_len(ci, &mut len);
         let mut mbyte_cells = cli.cells;
@@ -536,7 +537,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
             mbyte_cells = 1;
         }
 
-        if ptr::eq(ci.ptr, text)
+        if ptr::eq(ci.ptr, text_ptr)
             && col > grid_st().grid_line_first
             && col < grid_st().grid_line_last
             && g_st().linebuf_char[col as usize] == 0

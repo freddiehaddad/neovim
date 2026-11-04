@@ -1084,8 +1084,7 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
             let mut name_off = 0usize;
             while path_name_vec.get(name_off).is_some_and(|&b| b != 0) {
                 let next_off = name_off + menu_name_skip(&mut path_name_vec[name_off..]);
-                let cur_bytes =
-                    crate::memory::cstr_until_nul(&path_name_vec[name_off..]).to_bytes();
+                let cur_bytes = crate::memory::bytes_until_nul(&path_name_vec[name_off..]);
                 let next_non_empty = path_name_vec.get(next_off).is_some_and(|&b| b != 0);
                 let mut found: *const Vimmenu = ptr::null();
                 for menu in unsafe { &*menu_list } {
@@ -1637,7 +1636,7 @@ fn menu_getbyname(name_arg: &CStr) -> Option<&'static mut Vimmenu> {
     let mut gave_emsg = false;
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
         let p_off = name_off + menu_name_skip(&mut saved_name_vec[name_off..]);
-        let cur_bytes = crate::memory::cstr_until_nul(&saved_name_vec[name_off..]).to_bytes();
+        let cur_bytes = crate::memory::bytes_until_nul(&saved_name_vec[name_off..]);
         let p_is_empty = saved_name_vec.get(p_off).is_none_or(|&b| b == 0);
         let mut found_idx: Option<usize> = None;
 
@@ -1714,7 +1713,7 @@ pub fn menu_find(path_name: &CStr) -> Option<&'static mut Vimmenu> {
     let mut name_off = 0usize;
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
         let p_off = name_off + menu_name_skip(&mut saved_name_vec[name_off..]);
-        let cur_bytes = crate::memory::cstr_until_nul(&saved_name_vec[name_off..]).to_bytes();
+        let cur_bytes = crate::memory::bytes_until_nul(&saved_name_vec[name_off..]);
         let p_is_empty = saved_name_vec.get(p_off).is_none_or(|&b| b == 0);
         let mut found_idx: Option<usize> = None;
 
@@ -1992,7 +1991,7 @@ pub fn f_menu_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut name_off = 0usize;
     while saved_name_vec.get(name_off).is_some_and(|&b| b != 0) {
         let p_off = name_off + menu_name_skip(&mut saved_name_vec[name_off..]);
-        let cur_bytes = crate::memory::cstr_until_nul(&saved_name_vec[name_off..]).to_bytes();
+        let cur_bytes = crate::memory::bytes_until_nul(&saved_name_vec[name_off..]);
         found = None;
         for menu in menus {
             if menu_name_equal(cur_bytes, menu) {

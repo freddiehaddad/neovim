@@ -2084,7 +2084,10 @@ pub extern "C" fn build_stl_str_hl(
 
                     if reevaluate
                         && !crate::memory::cstr_is_empty(str.cast())
-                        && crate::strings::vim_haschr(str.cast(), b'%' as i32)
+                        && crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr(str.cast()),
+                            b'%' as i32,
+                        )
                         && evaldepth < MAX_STL_EVAL_DEPTH
                     {
                         let parsed_usefmt =
@@ -2587,7 +2590,7 @@ pub extern "C" fn build_stl_str_hl(
                 out_p = out_p.wrapping_add(vim_snprintf_safelen!(
                     out_p.cast(),
                     remaining_buf_len,
-                    nstr.as_ptr().cast(),
+                    crate::memory::cstr_until_nul(&nstr),
                     0_i32,
                     num,
                     n,
@@ -2596,7 +2599,7 @@ pub extern "C" fn build_stl_str_hl(
                 out_p = out_p.wrapping_add(vim_snprintf_safelen!(
                     out_p.cast(),
                     remaining_buf_len,
-                    nstr.as_ptr().cast(),
+                    crate::memory::cstr_until_nul(&nstr),
                     minwid,
                     num,
                 ));

@@ -1394,7 +1394,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         &mut new_vts_array,
         Some(errbuf),
     ) {
-        emsg(gettext(errmsg.as_ptr()));
+        emsg(gettext(errmsg));
         return;
     }
     while ascii_isdigit(crate::memory::cstr_first_byte(ptr))
@@ -1606,7 +1606,10 @@ pub fn get_expr_indent() -> i32 {
     g_st().state_global = save_state;
 
     if g_st().did_throw
-        && (!crate::strings::vim_haschr(opt_vars().p_debug, b't' as i32) || g_st().trylevel == 0)
+        && (!crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
+            b't' as i32,
+        ) || g_st().trylevel == 0)
     {
         handle_did_throw();
         g_st().did_throw = false;
@@ -1744,7 +1747,7 @@ pub fn get_lisp_indent() -> i32 {
                     amount += win_charsize(
                         cstype,
                         amount,
-                        crate::memory::cstr_from_ptr(that),
+                        crate::memory::cstr_slice(that, 1),
                         i32::from(crate::memory::cstr_first_byte(that)),
                         &mut csarg,
                         1,
@@ -1789,7 +1792,7 @@ pub fn get_lisp_indent() -> i32 {
                                 amount += win_charsize(
                                     cstype,
                                     amount,
-                                    crate::memory::cstr_from_ptr(that),
+                                    crate::memory::cstr_slice(that, 1),
                                     ci.value,
                                     &mut csarg,
                                     cli.cells,
@@ -1803,7 +1806,7 @@ pub fn get_lisp_indent() -> i32 {
                             amount += win_charsize(
                                 cstype,
                                 amount,
-                                crate::memory::cstr_from_ptr(that),
+                                crate::memory::cstr_slice(that, 1),
                                 ci.value,
                                 &mut csarg,
                                 cli.cells,
@@ -1818,7 +1821,7 @@ pub fn get_lisp_indent() -> i32 {
                         amount += win_charsize(
                             cstype,
                             amount,
-                            crate::memory::cstr_from_ptr(that),
+                            crate::memory::cstr_slice(that, 1),
                             i32::from(crate::memory::cstr_first_byte(that)),
                             &mut csarg,
                             1,

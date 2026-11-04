@@ -2927,12 +2927,12 @@ fn flush_buf_raw(tui: &mut TUIData, finish: FlushBufFinish, buf_to_flush: Option
     }
 
     if let Some(ref screenshot) = tui.screenshot {
-        let mid_slice = buf_to_flush.unwrap_or(&tui.buf[..tui.bufpos]);
+        let mid_slice = buf_to_flush.unwrap_or_else(|| &tui.buf[..tui.bufpos]);
         let _ = screenshot.write_all(&pre[..pre_len]);
         let _ = screenshot.write_all(mid_slice);
         let _ = screenshot.write_all(&post[..post_len]);
     } else {
-        let mid_slice: &[u8] = buf_to_flush.unwrap_or(&tui.buf[..tui.bufpos]);
+        let mid_slice: &[u8] = buf_to_flush.unwrap_or_else(|| &tui.buf[..tui.bufpos]);
         let bufs = [
             uv_buf_t::from_slice(&pre[..pre_len]),
             uv_buf_t::from_slice(mid_slice),

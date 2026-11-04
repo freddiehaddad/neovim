@@ -1020,7 +1020,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
     };
 
     if cstack.cs_looplevel <= 0 || cstack.cs_idx < 0 {
-        eap.errmsg = Some(gettext(err));
+        eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr((err).cast())));
     } else {
         let mut fl = cstack.cs_flags[cstack.cs_idx as usize];
         if (fl & csf) == 0 {
@@ -1040,7 +1040,7 @@ pub fn ex_endwhile(eap: &mut Exarg) {
             while idx > 0 {
                 fl = cstack.cs_flags[idx as usize];
                 if (fl & CSF_TRY) != 0 && (fl & CSF_FINALLY) == 0 {
-                    eap.errmsg = Some(gettext(err));
+                    eap.errmsg = Some(gettext(crate::memory::cstr_from_ptr((err).cast())));
                     return;
                 }
                 if (fl & csf) != 0 {

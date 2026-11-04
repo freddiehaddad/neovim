@@ -57,8 +57,12 @@ pub struct StrCharInfo<P = crate::strings::RawCCharPtr> {
 
 impl StrCharInfo {
     #[inline]
-    pub fn cstr(&self) -> &'static CStr {
-        crate::memory::cstr_from_ptr(self.ptr)
+    pub fn cstr(&self) -> &'static [u8] {
+        if self.ptr.is_null() {
+            &[]
+        } else {
+            unsafe { std::slice::from_raw_parts(self.ptr.cast::<u8>(), 1) }
+        }
     }
 }
 
@@ -1077,8 +1081,13 @@ pub fn utf_slice2len(bytes: &[u8]) -> usize {
 
 #[inline]
 pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
+    let ptr = if bytes.is_empty() {
+        c"".as_ptr()
+    } else {
+        bytes.as_ptr().cast()
+    };
     StrCharInfo {
-        ptr: bytes.as_ptr().cast(),
+        ptr,
         chr: utf_ptr2_char_info_len(bytes, size),
     }
 }
@@ -2934,7 +2943,8 @@ pub fn enc_locale() -> Option<std::ffi::CString> {
     }
 
     let mut buf = [0u8; 50];
-    let p = vim_strchr(s, b'.' as i32);
+    let p = vim_strchr(crate::memory::cstr_from_ptr((s).cast()), b'.' as i32)
+        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if !p.is_null() {
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p.cast_const() > s.wrapping_add(2)

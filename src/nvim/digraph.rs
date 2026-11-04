@@ -1881,7 +1881,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
                 && dp.result >= HEADER_TABLE[i].dg_start
                 && dp.result < HEADER_TABLE[i + 1].dg_start
             {
-                digraph_header(gettext(header.as_ptr()));
+                digraph_header(gettext(header));
                 break;
             }
         }

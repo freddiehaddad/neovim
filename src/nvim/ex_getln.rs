@@ -940,7 +940,12 @@ fn may_add_char_to_search(firstc: i32, c: &mut i32, s: &mut IncsearchState) -> b
             } else {
                 c"\\^$".as_ptr()
             };
-            if *c == search_delim || crate::strings::vim_haschr(special_chars, *c) {
+            if *c == search_delim
+                || crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((special_chars).cast()),
+                    *c,
+                )
+            {
                 // put a backslash before special characters
                 stuffchar_readbuff(*c);
                 *c = b'\\' as i32;
@@ -1865,7 +1870,11 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         || s.c == b'\r' as i32
         || s.c == K_KENTER
         || (s.c == ESC
-            && (!g_st().key_typed || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ESC)))
+            && (!g_st().key_typed
+                || crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_ESC,
+                )))
     {
         s.gotesc = false;
         if ccheck_abbr(s.c + ABBR_OFF) != 0 {

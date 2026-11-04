@@ -806,7 +806,7 @@ pub fn emsg_funcname(errmsg: &CStr, name: &CStr) {
         p_owned = Some(joined);
     }
 
-    semsg!(gettext(errmsg.as_ptr()), p);
+    semsg!(gettext(errmsg), p);
     drop(p_owned);
 }
 
@@ -3075,7 +3075,7 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut name = name_owned
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let paren = !vim_strchr(p, b'(' as i32).is_null();
+    let paren = vim_strchr(crate::memory::cstr_from_ptr(p), b'(' as i32).is_some();
     if name.is_null() && (fudi.fd_dict.is_null() || !paren) && eap.skip == 0 {
         if !aborting() {
             if let Some(ref newkey) = fudi.fd_newkey {
@@ -3138,9 +3138,8 @@ pub fn ex_function(eap: &mut Exarg) {
             semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
             ret_free!();
         }
-        let open_paren = vim_strchr(p, b'(' as i32);
-        if !open_paren.is_null() {
-            p = open_paren;
+        if let Some(open_paren) = vim_strchr(crate::memory::cstr_from_ptr(p), b'(' as i32) {
+            p = open_paren.as_ptr().cast_mut();
         }
     }
     p = {
@@ -3165,11 +3164,12 @@ pub fn ex_function(eap: &mut Exarg) {
             let mut name_base = arg;
             if arg != fudi_newkey_ptr {
                 if crate::memory::cstr_first_byte(arg) == K_SPECIAL {
-                    name_base = vim_strchr(arg, b'_' as i32);
-                    if name_base.is_null() {
-                        name_base = arg.wrapping_add(3);
+                    if let Some(underscore) =
+                        vim_strchr(crate::memory::cstr_from_ptr(arg), b'_' as i32)
+                    {
+                        name_base = underscore.as_ptr().wrapping_add(1).cast_mut();
                     } else {
-                        name_base = name_base.wrapping_add(1);
+                        name_base = arg.wrapping_add(3);
                     }
                 }
                 let name_bytes = crate::memory::cstr_as_bytes(name_base);
@@ -3370,11 +3370,19 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     if fp.is_null() {
-        if fudi.fd_dict.is_null() && !vim_strchr(name, AUTOLOAD_CHAR as i32).is_null() {
+        if fudi.fd_dict.is_null()
+            && !vim_strchr(
+                crate::memory::cstr_from_ptr((name).cast()),
+                AUTOLOAD_CHAR as i32,
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .is_null()
+        {
             let mut j = FAIL;
             if let Some(sname) = sourcing_name() {
                 let sn = autoload_name(crate::memory::cstr_as_bytes(name));
-                p = vim_strchr(sn.as_ptr(), b'/' as i32);
+                p = vim_strchr(&(sn), b'/' as i32)
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 let plen = crate::memory::cstr_len(p) as i32;
                 let slen = sname.to_bytes().len() as i32;
                 if slen > plen

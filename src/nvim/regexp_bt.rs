@@ -872,7 +872,12 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             goto_collection = true;
         } else {
             // fallthrough to character classes
-            let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
+            let p = vim_strchr(
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                no_magic(c),
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                 g_st().rc_did_emsg = true;
@@ -921,7 +926,12 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 || x == magic_fn(b'u' as i32)
                 || x == magic_fn(b'U' as i32)
         ) {
-            let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
+            let p = vim_strchr(
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                no_magic(c),
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                 g_st().rc_did_emsg = true;
@@ -3163,12 +3173,8 @@ fn regmatch(
                         if c == NUL as i32 || (matched.is_none() == (op == ANYOF)) {
                             status = RA_NOMATCH;
                         } else {
-                            let q_match = match matched {
-                                Some(off) => &q_slice[off..],
-                                None => q_slice,
-                            };
-                            let q_utfc = crate::mbyte::utfc_slice2len(q_match);
-                            let q_utf = crate::mbyte::utf_slice2len(q_match);
+                            let q_utfc = crate::mbyte::utfc_slice2len(q_slice);
+                            let q_utf = crate::mbyte::utf_slice2len(q_slice);
                             let len = q_utfc - q_utf;
                             re_st().rex.input = re_st()
                                 .rex
@@ -3177,7 +3183,7 @@ fn regmatch(
                                     re_st().rex.input.cast(),
                                 )) as usize);
                             if len != 0 {
-                                let q_comp = &q_match[q_utf..q_utf + len];
+                                let q_comp = &q_slice[q_utf..q_utf + len];
                                 let inp_comp =
                                     crate::memory::cstr_slice(re_st().rex.input.cast(), len);
                                 if q_comp != inp_comp {
@@ -4058,7 +4064,9 @@ fn bt_regexec_both(
         let mut s = line.wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
-                s = vim_strchr(s.cast(), c).cast();
+                s = vim_strchr(crate::memory::cstr_from_ptr(s.cast()), c)
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                    .cast();
                 if s.is_null() {
                     break;
                 }

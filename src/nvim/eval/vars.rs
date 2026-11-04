@@ -3212,14 +3212,18 @@ pub fn var_check_ro(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
         return false;
     }
     if name_len == TV_TRANSLATE {
-        let tr_name = gettext(name);
+        let tr_name = gettext(crate::memory::cstr_from_ptr((name).cast()));
         name = tr_name.as_ptr();
         name_len = tr_name.to_bytes().len();
     } else if name_len == TV_CSTRING {
         name_len = name_in.to_bytes().len();
     }
 
-    semsg!(gettext(error_message), name_len as i32, name);
+    semsg!(
+        gettext(crate::memory::cstr_from_ptr((error_message).cast())),
+        name_len as i32,
+        name
+    );
     true
 }
 
@@ -3231,7 +3235,7 @@ pub fn var_check_lock(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
 
     let mut name = name_in.as_ptr();
     if name_len == TV_TRANSLATE {
-        let tr_name = gettext(name);
+        let tr_name = gettext(crate::memory::cstr_from_ptr((name).cast()));
         name = tr_name.as_ptr();
         name_len = tr_name.to_bytes().len();
     } else if name_len == TV_CSTRING {
@@ -3251,7 +3255,7 @@ pub fn var_check_fixed(flags: i32, name_in: &CStr, mut name_len: usize) -> bool 
     if (flags as u8 & DI_FLAGS_FIX) != 0 {
         let mut name = name_in.as_ptr();
         if name_len == TV_TRANSLATE {
-            let tr_name = gettext(name);
+            let tr_name = gettext(crate::memory::cstr_from_ptr((name).cast()));
             name = tr_name.as_ptr();
             name_len = tr_name.to_bytes().len();
         } else if name_len == TV_CSTRING {

@@ -723,7 +723,10 @@ pub fn searchit(
             return FAIL;
         }
 
-        let search_from_match_end = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SEARCH);
+        let search_from_match_end = crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_SEARCH,
+        );
 
         loop {
             if pos.col == MAXCOL {
@@ -1077,9 +1080,9 @@ pub fn searchit(
                 {
                     give_warning(
                         tr(if dir == BACKWARD {
-                            TOP_BOT_MSG.as_ptr()
+                            TOP_BOT_MSG
                         } else {
-                            BOT_TOP_MSG.as_ptr()
+                            BOT_TOP_MSG
                         }),
                         true,
                         false,
@@ -1190,7 +1193,7 @@ pub fn parse_search_pattern_offset(
         off
     };
 
-    let active_slice = crate::memory::cstr_until_nul(&pat_buf[*pat_off..]).to_bytes();
+    let active_slice = crate::memory::bytes_until_nul(&pat_buf[*pat_off..]);
     let searchstrlen = if active_slice.get(p_off) == Some(&(search_delim as u8)) {
         let len = p_off;
         p_off += 1;
@@ -1278,7 +1281,12 @@ pub fn do_search(
 
     g_st().search_global.cmdlen = 0;
 
-    if srch().spats[0].off.line && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LINEOFF) {
+    if srch().spats[0].off.line
+        && crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_LINEOFF,
+        )
+    {
         srch().spats[0].off.line = false;
         srch().spats[0].off.off = 0;
     }
@@ -1463,7 +1471,7 @@ pub fn do_search(
                 if curwin_mut().w_onebuf_opt.wo_rl != 0
                     && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
                 {
-                    let rev = reverse_text(crate::memory::cstr_until_nul(&msgbuf_vec).to_bytes());
+                    let rev = reverse_text(crate::memory::bytes_until_nul(&msgbuf_vec));
                     msgbuflen = rev.as_bytes().len();
                     msgbuf_vec = rev.into_bytes_with_nul();
                     let r_off = msgbuf_vec[..msgbuflen]
@@ -1765,7 +1773,12 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         t_cmd = srch().last_t_cmd;
         c = i32::from(srch().lastc[0]);
 
-        if !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_SCOLON) && count == 1 && t_cmd {
+        if !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_SCOLON,
+        ) && count == 1
+            && t_cmd
+        {
             stop = false;
         }
     }
@@ -1946,8 +1959,14 @@ pub fn findmatchlimit(
     };
     let mut line = crate::memline::ml_get_slice(pos.lnum);
 
-    let cpo_match = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCH);
-    let cpo_bsl = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCHBSL);
+    let cpo_match = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_MATCH,
+    );
+    let cpo_bsl = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_MATCHBSL,
+    );
 
     let dir = if (flags & FM_BACKWARD) != 0 {
         BACKWARD
@@ -2527,7 +2546,13 @@ pub fn showmatch(c: i32) {
     ui_flush();
     g_st().dollar_vcol = save_dollar_vcol;
 
-    if !vim_strchr(opt_vars().p_cpo, K_CPO_SHOWMATCH).is_null() {
+    if !vim_strchr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_SHOWMATCH,
+    )
+    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    .is_null()
+    {
         os_delay((opt_vars().p_mat as u64) * 100 + 8, true);
     } else if !char_avail() {
         os_delay((opt_vars().p_mat as u64) * 100 + 9, false);

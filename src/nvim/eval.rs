@@ -1988,7 +1988,11 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else if (c == b'#' as i32 && xp.xp_context == EXPAND_EXPRESSION)
             || ((c == b'<' as i32 || c == b'#' as i32)
                 && xp.xp_context == EXPAND_FUNCTIONS
-                && vim_strchr(xp.xp_pattern.cast(), b'(' as i32).is_null())
+                && vim_strchr(
+                    crate::memory::cstr_from_ptr(xp.xp_pattern.cast()),
+                    b'(' as i32,
+                )
+                .is_none())
         {
             break;
         } else if cmdidx != Cmdidx::CmdLet || got_eq {
@@ -3364,13 +3368,13 @@ fn eval_method<'a>(
             })
         };
 
-        let paren = vim_strchr(arg.as_ptr().cast_mut(), b'(' as i32);
+        let paren = vim_strchr(arg, b'(' as i32);
         if arg.to_bytes_with_nul()[0] != b'('
             && lua_funcname.is_none()
             && alias.is_none()
-            && !paren.is_null()
+            && let Some(paren_cstr) = paren
         {
-            let expr_len = (paren as usize).wrapping_sub(name.as_ptr() as usize);
+            let expr_len = (paren_cstr.as_ptr() as usize).wrapping_sub(name.as_ptr() as usize);
             let expr_cstr = cstr_from_bytes(crate::memory::cstr_slice(name.as_ptr(), expr_len));
             let expr_base = expr_cstr.as_ptr();
             let mut expr_cursor: &CStr = &expr_cstr;
@@ -5989,6 +5993,7 @@ pub fn get_id_len(arg: &mut &CStr) -> i32 {
                         NAMESPACE_CHAR,
                         i32::from(crate::memory::cstr_first_byte(start)),
                     )
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
                     .is_null())
             {
                 break;

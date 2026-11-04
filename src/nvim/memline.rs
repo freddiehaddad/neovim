@@ -767,7 +767,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         );
         if b0p.b0_fname[0] == b'~' {
             let retval = os_get_username(&mut uname);
-            let ulen = crate::memory::cstr_until_nul(&uname).to_bytes().len();
+            let ulen = crate::memory::bytes_until_nul(&uname).len();
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                 crate::memory::copy_bytes_to_c_buf(
                     &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
@@ -885,7 +885,9 @@ pub fn ml_recover(checkext: bool) {
         let mut items_tv = TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
 
-        recover_names(fname_opt, true, unsafe { &mut *items_tv.vval.v_list() });
+        recover_names(Some(fname_cstr), true, unsafe {
+            &mut *items_tv.vval.v_list()
+        });
 
         let n_swaps = tv_list_len(unsafe { items_tv.vval.v_list().as_ref() });
 
@@ -1869,7 +1871,7 @@ fn swapfile_unchanged(fname: &CStr) -> bool {
         b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
         if !crate::memory::cstr_until_nul(&b0.b0_hname)
             .to_bytes()
-            .eq_ignore_ascii_case(crate::memory::cstr_until_nul(&hostname).to_bytes())
+            .eq_ignore_ascii_case(crate::memory::bytes_until_nul(&hostname))
         {
             ret = false;
         }
@@ -2164,6 +2166,19 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'
     if will_change {
         buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
         ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(buf.b_ml.ml_line_ptr));
+    } else if (buf.b_ml.ml_flags & ML_LOCKED_DIRTY) == 0
+        && !buf.b_ml.ml_line_ptr.is_null()
+        && buf.b_ml.ml_line_textlen > 0
+    {
+        let len = buf.b_ml.ml_line_textlen as usize;
+        if unsafe { *buf.b_ml.ml_line_ptr.wrapping_add(len - 1) } == 0 {
+            return unsafe {
+                CStr::from_bytes_with_nul_unchecked(std::slice::from_raw_parts(
+                    buf.b_ml.ml_line_ptr.cast::<u8>(),
+                    len,
+                ))
+            };
+        }
     }
 
     crate::memory::cstr_from_ptr(buf.b_ml.ml_line_ptr)
@@ -3533,7 +3548,10 @@ fn findswapname(
 
             if !differ
                 && (curbuf_mut().b_flags & BF_RECOVERED) == 0
-                && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_ATTENTION)
+                && !crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()),
+                    K_SHM_ATTENTION,
+                )
             {
                 let mut choice: SeaChoice = SEA_CHOICE_NONE;
 

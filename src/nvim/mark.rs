@@ -201,14 +201,12 @@ const INIT_XFMARK: Xfmark = Xfmark {
 
 struct MarkModuleState {
     pos_to_mark_fms: Fmark,
-    mark_move_to_fm_copy: Fmark,
 }
 
 impl MarkModuleState {
     const fn new() -> Self {
         Self {
             pos_to_mark_fms: INIT_FMARK,
-            mark_move_to_fm_copy: INIT_FMARK,
         }
     }
 }
@@ -523,40 +521,47 @@ pub fn checkpcmark() {
 }
 
 /// Get mark in `count` position in the jumplist relative to the current index (`get_jumplist`).
-pub fn get_jumplist(win: &mut WinInfoInfo, mut count: i32) -> Option<&'static mut Fmark> {
+pub fn get_jumplist(win: crate::globals::WinPtr, mut count: i32) -> Option<&'static mut Fmark> {
+    let wp = win.as_ptr();
     cleanup_jumplist(win, true);
 
-    if win.w_jumplistlen == 0 {
+    if unsafe { (*wp).w_jumplistlen } == 0 {
         return None;
     }
 
     loop {
-        if win.w_jumplistidx + count < 0 || win.w_jumplistidx + count >= win.w_jumplistlen {
+        let jl_idx = unsafe { (*wp).w_jumplistidx };
+        let jl_len = unsafe { (*wp).w_jumplistlen };
+        if jl_idx + count < 0 || jl_idx + count >= jl_len {
             return None;
         }
 
-        if win.w_jumplistidx == win.w_jumplistlen {
+        if jl_idx == jl_len {
             setpcmark();
 
-            win.w_jumplistidx -= 1;
+            unsafe {
+                (*wp).w_jumplistidx -= 1;
+            }
 
-            if win.w_jumplistidx + count < 0 {
+            if unsafe { (*wp).w_jumplistidx } + count < 0 {
                 return None;
             }
         }
 
-        win.w_jumplistidx += count;
-
-        let jmp = &mut win.w_jumplist[win.w_jumplistidx as usize];
-        if jmp.fmark.fnum == 0 {
-            fname2fnum(jmp);
+        unsafe {
+            (*wp).w_jumplistidx += count;
         }
-        if jmp.fmark.fnum != curbuf_mut().b_fnum && buflist_findnr(jmp.fmark.fnum).is_none() {
+
+        let idx = unsafe { (*wp).w_jumplistidx } as usize;
+        if unsafe { (*wp).w_jumplist[idx].fmark.fnum } == 0 {
+            fname2fnum(unsafe { &(*wp).w_jumplist[idx] });
+        }
+        let fnum = unsafe { (*wp).w_jumplist[idx].fmark.fnum };
+        if fnum != curbuf_mut().b_fnum && buflist_findnr(fnum).is_none() {
             count += if count < 0 { -1 } else { 1 };
             continue;
         }
-        let fmp: *mut Fmark = &mut jmp.fmark;
-        return Some(unsafe { &mut *fmp });
+        return Some(unsafe { &mut (*wp).w_jumplist[idx].fmark });
     }
 }
 
@@ -641,7 +646,7 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> &'static mut Xfmark {
     }
     let idx = name as usize;
     if resolve && g_st().namedfm[idx].fmark.fnum == 0 {
-        fname2fnum(&mut g_st().namedfm[idx]);
+        fname2fnum(&g_st().namedfm[idx]);
     }
     &mut g_st().namedfm[idx]
 }
@@ -662,7 +667,7 @@ pub fn mark_get_local(
     } else if name == b'<' as i32 || name == b'>' as i32 {
         mark_get_visual(buf, name).map_or(ptr::null_mut(), ptr::from_mut)
     } else if name == b'\'' as i32 || name == b'`' as i32 {
-        pos_to_mark(curbuf_mut(), None, win.w_pcmark)
+        pos_to_mark(buf, None, win.w_pcmark)
     } else if name == b'"' as i32 {
         &raw mut buf.b_last_cursor
     } else if name == b'^' as i32 {
@@ -778,12 +783,9 @@ pub fn mark_move_to(mut fm: Option<&mut Fmark>, flags: MarkMove) -> MarkMoveRes 
         return K_MARK_MOVE_FAILED;
     }
 
-    let mut fm_ref = fm.unwrap();
+    let mut fm_copy = fm.unwrap().clone();
+    let fm_ref = &mut fm_copy;
     if fm_ref.fnum != curbuf_mut().b_fnum {
-        mark_st().mark_move_to_fm_copy = fm_ref.clone();
-
-        fm_ref = &mut mark_st().mark_move_to_fm_copy;
-
         res |= switch_to_mark_buf(fm_ref, (flags & K_MARK_JUMP_LIST) == 0);
 
         if (res & K_MARK_MOVE_FAILED) != 0 {
@@ -887,7 +889,7 @@ pub fn getnextmark(
 }
 
 /// For an extended filemark: set the `fnum` from the `fname` (`fname2fnum`).
-fn fname2fnum(fm: &mut Xfmark) {
+fn fname2fnum(fm: &Xfmark) {
     {
         let Some(ref fname_cstr) = fm.fname else {
             return;
@@ -1194,7 +1196,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
 
 /// Print the jumplist (`ex_jumps`).
 pub fn ex_jumps(_eap: &mut Exarg) {
-    cleanup_jumplist(curwin_mut(), true);
+    cleanup_jumplist(crate::globals::curwin_handle(), true);
     msg_ext_set_kind(c"list_cmd");
     msg_puts_title(gettext(c"\n jump line  col file/text"));
     let mut i: i32 = 0;
@@ -1834,15 +1836,20 @@ pub fn mark_col_adjust(
 }
 
 /// Remove duplicate marks in the jumplist (`cleanup_jumplist`).
-pub fn cleanup_jumplist(wp: &mut WinInfoInfo, loadfiles: bool) {
+pub fn cleanup_jumplist(wp: crate::globals::WinPtr, loadfiles: bool) {
+    let wp_ptr = wp.as_ptr();
     if loadfiles {
-        for i in 0..(wp.w_jumplistlen as usize) {
-            if wp.w_jumplist[i].fmark.fnum == 0 && wp.w_jumplist[i].fmark.mark.lnum != 0 {
-                fname2fnum(&mut wp.w_jumplist[i]);
+        let len = unsafe { (*wp_ptr).w_jumplistlen } as usize;
+        for i in 0..len {
+            if unsafe { (*wp_ptr).w_jumplist[i].fmark.fnum } == 0
+                && unsafe { (*wp_ptr).w_jumplist[i].fmark.mark.lnum } != 0
+            {
+                fname2fnum(unsafe { &(*wp_ptr).w_jumplist[i] });
             }
         }
     }
 
+    let wp = unsafe { &mut *wp_ptr };
     let mut to: i32 = 0;
     for from in 0..wp.w_jumplistlen {
         let from_u = from as usize;

@@ -1174,12 +1174,13 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
 
     let cur_slice = state.linebuf_slice();
     if state.vc.vc_type != CONV_NONE && !crate::memory::bytes_until_nul(cur_slice).is_ascii() {
-        let cur_ptr = cur_slice.as_ptr();
+        let mut linelen = state.linelen;
         if let Some(line) = string_convert(
             &state.vc,
-            crate::memory::cstr_as_bytes((cur_ptr).cast()),
-            Some(&mut state.linelen),
+            &cur_slice[..linelen.min(cur_slice.len())],
+            Some(&mut linelen),
         ) {
+            state.linelen = linelen;
             if state.linelen < IOSIZE {
                 state.use_growbuf = false;
                 let n = state.linelen + 1;

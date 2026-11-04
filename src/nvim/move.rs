@@ -857,7 +857,10 @@ pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
     if (wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
         || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
-        && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
+        && crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_NUMCOL,
+        )
     {
         return number_width(wp) + i32::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
     }

@@ -306,14 +306,6 @@ pub fn nvim_ui_attach(
         stdout_tty: false,
         channel_id,
         packer: crate::msgpack_rpc::packer::PackerBuffer::new(),
-        cur_event: None,
-        nevents_pos: None,
-        ncalls_pos: None,
-        nevents: 0,
-        ncalls: 0,
-        flushed_events: false,
-        incomplete_event: false,
-        ncells_pending: 0,
         hl_id: 0,
         cursor_row: 0,
         cursor_col: 0,
@@ -339,25 +331,13 @@ pub fn nvim_ui_attach(
         ui.ui_ext[K_UICMDLINE] = true;
     }
 
-    ui.cur_event = None;
     ui.hl_id = 0;
     ui.client_col = -1;
-    ui.nevents_pos = None;
-    ui.nevents = 0;
-    ui.flushed_events = false;
-    ui.incomplete_event = false;
-    ui.ncalls_pos = None;
-    ui.ncalls = 0;
-    ui.ncells_pending = 0;
     api_ui_st().connected_uis.insert(channel_id, ui_box);
     let ui: &mut RemoteUI = api_ui_st().connected_uis.get_mut(&channel_id).unwrap();
     ui.packer = PackerBuffer {
-        startptr: ptr::null_mut(),
-        ptr: ptr::null_mut(),
-        endptr: ptr::null_mut(),
-        anydata: crate::msgpack_rpc::packer::PackerData::Ui(&raw mut *ui),
-        anyint: 0,
-        owned_buf: Vec::new(),
+        anydata: crate::msgpack_rpc::packer::PackerData::Ui(channel_id),
+        ..PackerBuffer::new()
     };
     ui.wildmenu_active = false;
 
@@ -768,13 +748,14 @@ pub fn nvim_ui_pum_set_bounds(
 }
 
 fn flush_event(ui: &mut RemoteUI) {
-    if ui.cur_event.is_some() {
-        if let Some(off) = ui.ncalls_pos {
-            mpack_w2_at(&mut ui.packer, off, 1 + ui.ncalls);
+    if ui.packer.cur_event.is_some() {
+        if let Some(off) = ui.packer.ncalls_pos {
+            let ncalls = 1 + ui.packer.ncalls;
+            mpack_w2_at(&mut ui.packer, off, ncalls);
         }
-        ui.cur_event = None;
-        ui.ncalls_pos = None;
-        ui.ncalls = 0;
+        ui.packer.cur_event = None;
+        ui.packer.ncalls_pos = None;
+        ui.packer.ncalls = 0;
     }
 }
 
@@ -787,7 +768,7 @@ fn ui_alloc_buf(ui: &mut RemoteUI) {
 
 fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
     if !ui.packer.startptr.is_null()
-        && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.ncells_pending >= 500)
+        && (buf_pos(ui) > UI_BUF_SIZE - EVENT_BUF_SIZE || ui.packer.ncells_pending >= 500)
     {
         ui_flush_buf(ui, false);
     }
@@ -796,22 +777,22 @@ fn prepare_call(ui: &mut RemoteUI, name: &'static CStr) {
         ui_alloc_buf(ui);
     }
 
-    if ui.cur_event != Some(name) {
-        if ui.nevents_pos.is_none() {
+    if ui.packer.cur_event != Some(name) {
+        if ui.packer.nevents_pos.is_none() {
             mpack_array(&mut ui.packer, 3);
             mpack_uint(&mut ui.packer, 2);
             mpack_str_small(&mut ui.packer, b"redraw");
-            ui.nevents_pos = Some(mpack_array_dyn16(&mut ui.packer));
-            debug_assert!(ui.cur_event.is_none());
+            ui.packer.nevents_pos = Some(mpack_array_dyn16(&mut ui.packer));
+            debug_assert!(ui.packer.cur_event.is_none());
         }
         flush_event(ui);
-        ui.cur_event = Some(name);
-        ui.ncalls_pos = Some(mpack_array_dyn16(&mut ui.packer));
+        ui.packer.cur_event = Some(name);
+        ui.packer.ncalls_pos = Some(mpack_array_dyn16(&mut ui.packer));
         mpack_str_small(&mut ui.packer, name.to_bytes());
-        ui.nevents += 1;
-        ui.ncalls = 1;
+        ui.packer.nevents += 1;
+        ui.packer.ncalls = 1;
     } else {
-        ui.ncalls += 1;
+        ui.packer.ncalls += 1;
     }
 }
 
@@ -823,38 +804,38 @@ pub fn push_call(ui: &mut RemoteUI, name: &'static CStr, args: Array) {
 }
 
 pub(crate) fn ui_flush_callback(packer: &mut PackerBuffer) {
-    let crate::msgpack_rpc::packer::PackerData::Ui(ui) = packer.anydata else {
+    let crate::msgpack_rpc::packer::PackerData::Ui(channel_id) = packer.anydata else {
         unreachable!()
     };
-    unsafe {
-        if !packer.startptr.is_null() && packer.ptr != packer.startptr {
-            (*ui).incomplete_event = true;
-            if (*ui).cur_event.is_some() {
-                if let Some(off) = (*ui).ncalls_pos {
-                    mpack_w2_at(packer, off, 1 + (*ui).ncalls);
-                }
-                (*ui).cur_event = None;
-                (*ui).ncalls_pos = None;
-                (*ui).ncalls = 0;
+    if !packer.startptr.is_null() && packer.ptr != packer.startptr {
+        packer.incomplete_event = true;
+        if packer.cur_event.is_some() {
+            if let Some(off) = packer.ncalls_pos {
+                let ncalls = 1 + packer.ncalls;
+                mpack_w2_at(packer, off, ncalls);
             }
-            if let Some(off) = (*ui).nevents_pos {
-                mpack_w2_at(packer, off, (*ui).nevents);
-                (*ui).nevents = 0;
-                (*ui).nevents_pos = None;
-            }
-            let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
-            let mut vec = std::mem::take(&mut packer.owned_buf);
-            vec.truncate(len);
-            let buf = wstream_new_vec_buffer(vec);
-            rpc_write_raw((*ui).channel_id, buf);
-            (*ui).flushed_events = true;
-            (*ui).ncells_pending = 0;
+            packer.cur_event = None;
+            packer.ncalls_pos = None;
+            packer.ncalls = 0;
         }
-        packer.owned_buf = vec![0; UI_BUF_SIZE];
-        packer.startptr = packer.owned_buf.as_mut_ptr();
-        packer.ptr = packer.startptr;
-        packer.endptr = packer.startptr.wrapping_add(UI_BUF_SIZE);
+        if let Some(off) = packer.nevents_pos {
+            let nevents = packer.nevents;
+            mpack_w2_at(packer, off, nevents);
+            packer.nevents = 0;
+            packer.nevents_pos = None;
+        }
+        let len = crate::memory::ptr_offset_from(packer.ptr, packer.startptr) as usize;
+        let mut vec = std::mem::take(&mut packer.owned_buf);
+        vec.truncate(len);
+        let buf = wstream_new_vec_buffer(vec);
+        rpc_write_raw(channel_id, buf);
+        packer.flushed_events = true;
+        packer.ncells_pending = 0;
     }
+    packer.owned_buf = vec![0; UI_BUF_SIZE];
+    packer.startptr = packer.owned_buf.as_mut_ptr();
+    packer.ptr = packer.startptr;
+    packer.endptr = packer.startptr.wrapping_add(UI_BUF_SIZE);
 }
 
 // DLLEXPORT void remote_ui_grid_clear(RemoteUI *ui, Integer grid);
@@ -1207,11 +1188,11 @@ pub fn remote_ui_raw_line(
             repeat += 1;
             if i == ncells - 1 || attrs[i] != attrs[i + 1] || chunk[i] != chunk[i + 1] {
                 if UI_BUF_SIZE - buf_pos(ui) < 2 * (1 + 2 + MAX_SCHAR_SIZE + 5 + 5) + 1
-                    || ui.ncells_pending >= 500
+                    || ui.packer.ncells_pending >= 500
                 {
                     if was_space {
                         nelem += 1;
-                        ui.ncells_pending += 1;
+                        ui.packer.ncells_pending += 1;
                         mpack_array(&mut ui.packer, 3);
                         mpack_str_small(&mut ui.packer, b" ");
                         mpack_uint(&mut ui.packer, clearattr as u32);
@@ -1258,7 +1239,7 @@ pub fn remote_ui_raw_line(
                         mpack_uint(&mut ui.packer, repeat);
                     }
                 }
-                ui.ncells_pending += repeat.min(2) as usize;
+                ui.packer.ncells_pending += repeat.min(2) as usize;
 
                 last_hl = attrs[i];
 
@@ -1270,7 +1251,7 @@ pub fn remote_ui_raw_line(
 
         if endcol < clearcol || was_space {
             nelem += 1;
-            ui.ncells_pending += 1;
+            ui.packer.ncells_pending += 1;
             mpack_array(&mut ui.packer, 3);
             mpack_str_small(&mut ui.packer, b" ");
             mpack_uint(&mut ui.packer, clearattr as u32);
@@ -1312,13 +1293,14 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
     if ui.packer.startptr.is_null() || buf_pos(ui) == 0 {
         return;
     }
-    ui.incomplete_event = incomplete_event;
+    ui.packer.incomplete_event = incomplete_event;
 
     flush_event(ui);
-    if let Some(off) = ui.nevents_pos {
-        mpack_w2_at(&mut ui.packer, off, ui.nevents);
-        ui.nevents = 0;
-        ui.nevents_pos = None;
+    if let Some(off) = ui.packer.nevents_pos {
+        let nevents = ui.packer.nevents;
+        mpack_w2_at(&mut ui.packer, off, nevents);
+        ui.packer.nevents = 0;
+        ui.packer.nevents_pos = None;
     }
 
     let len = buf_pos(ui);
@@ -1331,13 +1313,13 @@ fn ui_flush_buf(ui: &mut RemoteUI, incomplete_event: bool) {
     ui.packer.ptr = ptr::null_mut();
     ui.packer.endptr = ptr::null_mut();
 
-    ui.flushed_events = true;
-    ui.ncells_pending = 0;
+    ui.packer.flushed_events = true;
+    ui.packer.ncells_pending = 0;
 }
 
 pub(crate) fn remote_ui_flush_if_incomplete(channel_id: u64) {
     if let Some(ui) = get_ui_or_err(channel_id, &mut Error::new())
-        && ui.incomplete_event
+        && ui.packer.incomplete_event
     {
         remote_ui_flush_pending_data(ui);
     }
@@ -1349,13 +1331,13 @@ pub(crate) fn remote_ui_flush_if_incomplete(channel_id: u64) {
 /// "redraw" batch.
 // DLLEXPORT void remote_ui_flush(RemoteUI *ui);
 pub fn remote_ui_flush(ui: &mut RemoteUI) {
-    if ui.nevents > 0 || ui.flushed_events {
+    if ui.packer.nevents > 0 || ui.packer.flushed_events {
         if !ui.ui_ext[K_UILINEGRID] {
             remote_ui_cursor_goto(ui, ui.cursor_row, ui.cursor_col);
         }
         push_call(ui, c"flush", ARRAY_INIT);
         ui_flush_buf(ui, false);
-        ui.flushed_events = false;
+        ui.packer.flushed_events = false;
     }
 }
 

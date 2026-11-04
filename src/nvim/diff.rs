@@ -1458,7 +1458,10 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     wp.w_onebuf_opt.wo_fdl = 0;
     fold_update_all(wp);
     changed_window_setting(wp);
-    if !crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32) {
+    if !crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
+        b'h' as i32,
+    ) {
         do_cmdline_cmd(c"set sbo+=hor");
     }
     wp.w_onebuf_opt.wo_diff_saved = 1;
@@ -1533,7 +1536,12 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         curtab_mut().tp_diff_update = 0;
         diff_clear(curtab_mut());
     }
-    if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo, b'h' as i32) {
+    if !diffwin
+        && crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
+            b'h' as i32,
+        )
+    {
         do_cmdline_cmd(c"set sbo-=hor");
     }
 }
@@ -2324,7 +2332,7 @@ pub fn diffopt_changed() -> bool {
     }
     if has_dip_key(v, KEYSET_OPTIDX_DIP_INLINE) {
         flags &= !ALL_INLINE;
-        match crate::memory::cstr_until_nul(&v.inline_).to_bytes() {
+        match crate::memory::bytes_until_nul(&v.inline_) {
             b"simple" => flags |= DIFF_INLINE_SIMPLE,
             b"char" => flags |= DIFF_INLINE_CHAR,
             b"word" => flags |= DIFF_INLINE_WORD,
@@ -2337,7 +2345,7 @@ pub fn diffopt_changed() -> bool {
         0
     };
     if has_dip_key(v, KEYSET_OPTIDX_DIP_ALGORITHM) {
-        match crate::memory::cstr_until_nul(&v.algorithm).to_bytes() {
+        match crate::memory::bytes_until_nul(&v.algorithm) {
             b"minimal" => algorithm |= XDF_NEED_MINIMAL,
             b"patience" => algorithm |= XDF_PATIENCE_DIFF,
             b"histogram" => algorithm |= XDF_HISTOGRAM_DIFF,

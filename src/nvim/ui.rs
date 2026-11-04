@@ -391,7 +391,10 @@ pub fn vim_beep(val: u32) {
         }
     }
 
-    if crate::strings::vim_haschr(opt_vars().p_debug, b'e' as i32) {
+    if crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
+        b'e' as i32,
+    ) {
         msg_source(HLF_W);
         msg(gettext(c"Beep!"), HLF_W);
     }

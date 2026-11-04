@@ -649,7 +649,7 @@ pub fn ins_ctrl_x() {
             insexp().compl_cont_status = 0;
         }
         insexp().ctrl_x_mode = CTRL_X_NOT_DEFINED_YET;
-        g_st().edit_submode = Some(gettext(ctrl_x_msg(insexp().ctrl_x_mode)));
+        g_st().edit_submode = Some(gettext((ctrl_x_msg(insexp().ctrl_x_mode)).unwrap_or(c"")));
         g_st().edit_submode_pre = None;
         g_st().redraw_mode = true;
     } else {
@@ -783,9 +783,9 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
         insexp().ctrl_x_mode = CTRL_X_NORMAL;
         g_st().edit_submode = None;
         emsg(gettext(if dict_opt {
-            c"'dictionary' option is empty".as_ptr()
+            c"'dictionary' option is empty"
         } else {
-            c"'thesaurus' option is empty".as_ptr()
+            c"'thesaurus' option is empty"
         }));
         if g_st().emsg_silent == 0 && !g_st().in_assert_fails {
             vim_beep(K_OPT_BO_FLAG_COMPLETE);
@@ -943,7 +943,7 @@ pub fn ins_compl_commit_char(c: i32) -> bool {
         && shown
             .cp_commit_chars
             .as_ref()
-            .is_some_and(|s| crate::strings::vim_haschr(s.as_ptr(), c))
+            .is_some_and(|s| crate::strings::vim_haschr(s, c))
 }
 
 /// Get the completed text by inferring the case of the originally typed text.
@@ -1421,8 +1421,12 @@ pub fn ins_compl_col_range_attr(lnum: Linenr, col: i32) -> i32 {
 
 #[inline]
 fn ins_compl_has_multiple() -> bool {
-    compl_opt(insexp().compl_shown_idx)
-        .is_some_and(|shown| crate::strings::vim_haschr(shown.cp_str.data, b'\n' as i32))
+    compl_opt(insexp().compl_shown_idx).is_some_and(|shown| {
+        crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((shown.cp_str.data).cast()),
+            b'\n' as i32,
+        )
+    })
 }
 
 /// Returns true if the given line number falls within the range of a multi-line completion.
@@ -2087,13 +2091,14 @@ fn ins_compl_dictionaries(
             dict = dict.wrapping_add(old_len - dict_bytes.len());
             if !thesaurus && crate::memory::cstr_as_bytes(buf.cast()) == b"spell" {
                 count = -1;
-            } else if crate::strings::vim_haschr(buf.cast(), b'`' as i32)
-                || !expand_wildcards_vec(
-                    &[crate::memory::cstr_until_nul(&buf_vec)],
-                    &mut files,
-                    EW_FILE | EW_SILENT,
-                )
-            {
+            } else if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr(buf.cast()),
+                b'`' as i32,
+            ) || !expand_wildcards_vec(
+                &[crate::memory::cstr_until_nul(&buf_vec)],
+                &mut files,
+                EW_FILE | EW_SILENT,
+            ) {
                 count = 0;
             } else {
                 count = files.len() as i32;
@@ -6032,7 +6037,7 @@ fn get_cmdline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     let pat_cstr = compl_pattern_cstr().unwrap_or(c"");
     set_cmd_context(
         &mut insexp().compl_xp,
-        pat_cstr,
+        crate::memory::cstr_as_mut_bytes(pat_cstr.as_ptr().cast_mut()),
         compl_pattern_len() as i32,
         curs_col,
         false,
@@ -6346,9 +6351,9 @@ fn ins_compl_start() -> bool {
 
     if !shortmess(K_SHM_COMPLETIONMENU) && !insexp().compl_autocomplete {
         if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
-            g_st().edit_submode = Some(gettext(ctrl_x_msg(CTRL_X_LOCAL_MSG)));
+            g_st().edit_submode = Some(gettext((ctrl_x_msg(CTRL_X_LOCAL_MSG)).unwrap_or(c"")));
         } else {
-            g_st().edit_submode = Some(gettext(ctrl_x_msg(insexp().ctrl_x_mode)));
+            g_st().edit_submode = Some(gettext((ctrl_x_msg(insexp().ctrl_x_mode)).unwrap_or(c"")));
         }
     }
 
@@ -6707,7 +6712,11 @@ fn setup_cpt_sources() {
             buf.fill(0);
             let slen = copy_option_part(&mut p, &mut buf, c",");
             if slen > 0 {
-                let caret = vim_strchr(buf.as_mut_ptr().cast(), b'^' as i32);
+                let caret = vim_strchr(
+                    crate::memory::cstr_from_ptr(buf.as_mut_ptr().cast()),
+                    b'^' as i32,
+                )
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if !caret.is_null() {
                     sources[idx].cs_max_matches = crate::charset::parse_i64_prefix(
                         crate::memory::cstr_as_bytes(caret.wrapping_add(1)),

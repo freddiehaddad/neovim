@@ -1069,7 +1069,10 @@ fn read_sal_section(fd: &CFile, slang: &mut Slang) -> i32 {
         let mut i: i32 = 0;
         while i < ccnt {
             c = spell_getc(fd);
-            if !vim_strchr(c"0123456789(-<^$", c).is_null() {
+            if !vim_strchr(c"0123456789(-<^$", c)
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .is_null()
+            {
                 break;
             }
             buf[pos] = c as u8;
@@ -1123,16 +1126,16 @@ fn read_sal_section(fd: &CFile, slang: &mut Slang) -> i32 {
             return ccnt;
         }
 
-        let buf_bytes = crate::memory::cstr_until_nul(&buf).to_bytes();
+        let buf_bytes = crate::memory::bytes_until_nul(&buf);
         let sm_lead_w = mb_str2wide(buf_bytes);
         let sm_leadlen = mb_charlen(buf_bytes);
         let sm_oneof_w = if let Some(off) = sm_oneof_off {
-            mb_str2wide(crate::memory::cstr_until_nul(&buf[off..]).to_bytes())
+            mb_str2wide(crate::memory::bytes_until_nul(&buf[off..]))
         } else {
             Vec::new()
         };
         let sm_to_w = match sm_to {
-            Some(ref s) => mb_str2wide(crate::memory::cstr_until_nul(s).to_bytes()),
+            Some(ref s) => mb_str2wide(crate::memory::bytes_until_nul(s)),
             None => Vec::new(),
         };
         let sm_rules = crate::memory::cstring_until_nul(&buf[sm_rules_off..]);
@@ -1288,7 +1291,11 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
             return SP_TRUNCERROR;
         }
 
-        if vim_strchr(c"?*+[]/", c).is_null() && !ap_vec.contains(&(c as u8)) {
+        if vim_strchr(c"?*+[]/", c)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .is_null()
+            && !ap_vec.contains(&(c as u8))
+        {
             ap_vec.push(c as u8);
         }
 
@@ -2021,7 +2028,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
 
                 let item2_bytes = items[2].to_bytes();
                 crate::memory::copy_bytes_to_c_buf(&mut key, items[1].to_bytes());
-                let key_bytes = crate::memory::cstr_until_nul(&key).to_bytes();
+                let key_bytes = crate::memory::bytes_until_nul(&key);
                 if let Some(existing_aff) = tp.get_mut(key_bytes) {
                     cur_aff = &raw mut *existing_aff;
                     if unsafe { (*cur_aff).ah_combine }
@@ -2375,11 +2382,20 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             false
                         } else {
                             si_map.push(0);
-                            let found = !vim_strchr(si_map.as_ptr().cast(), c).is_null();
+                            let found = !vim_strchr(
+                                crate::memory::cstr_from_ptr(si_map.as_ptr().cast()),
+                                c,
+                            )
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                            .is_null();
                             si_map.pop();
                             found
                         };
-                        if in_map || !vim_strchr(p_m, c).is_null() {
+                        if in_map
+                            || !vim_strchr(crate::memory::cstr_from_ptr((p_m).cast()), c)
+                                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                                .is_null()
+                        {
                             smsg!(
                                 0,
                                 gettext(c"Duplicate character in MAP in %s line %d"),
@@ -2656,7 +2672,10 @@ fn process_compflags(spin: &mut Spellinfo, aff: &mut Afffile, compflags: &[u8]) 
                         check_renumber(spin);
                         new_id = spin.si_newcomp_id;
                         spin.si_newcomp_id -= 1;
-                        if vim_strchr(c"/?*+[]\\-^", new_id).is_null() {
+                        if vim_strchr(c"/?*+[]\\-^", new_id)
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                            .is_null()
+                        {
                             break;
                         }
                     }
@@ -2852,7 +2871,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
             &mut line[..=l]
         };
 
-        let mut w_len = crate::memory::cstr_until_nul(w_slice).to_bytes().len();
+        let mut w_len = crate::memory::bytes_until_nul(w_slice).len();
         let mut afflist: *mut u8 = ptr::null_mut();
         let mut idx = 0;
         while idx < w_len {
@@ -3168,7 +3187,7 @@ fn store_aff_word(
                     } else {
                         crate::memory::copy_bytes_to_c_buf(&mut newword, word_cstr.to_bytes());
                         if let Some(ae_chop) = ae_chop {
-                            let nw_bytes = crate::memory::cstr_until_nul(&newword).to_bytes();
+                            let nw_bytes = crate::memory::bytes_until_nul(&newword);
                             let mut end_idx = nw_bytes.len();
                             let mut i = mb_charlen(ae_chop.to_bytes());
                             while i > 0 {
@@ -4865,6 +4884,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
         path_tail(crate::memory::cstr_from_ptr(wfname.cast())),
         b'_' as i32,
     )
+    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
     .is_null()
     {
         emsg(gettext(c"E751: Output file name must not have region name"));
@@ -5111,7 +5131,7 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
             if fpos_next < 0 {
                 break;
             }
-            let linelen = crate::memory::cstr_until_nul(&line).to_bytes().len();
+            let linelen = crate::memory::bytes_until_nul(&line).len();
             if linelen >= ulen
                 && word_bytes == &line[..ulen]
                 && (line[ulen] == b'/' || line[ulen] < b' ')
@@ -5232,7 +5252,9 @@ fn init_spellfile() {
 
     let mut lend = win_s(curwin_mut()).b_p_spl;
     while !crate::memory::cstr_is_empty(lend)
-        && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as i32).is_null()
+        && vim_strchr(c",._", crate::memory::cstr_first_byte(lend) as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .is_null()
     {
         if vim_ispathsep(crate::memory::cstr_first_byte(lend)) {
             aspath = true;

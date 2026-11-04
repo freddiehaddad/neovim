@@ -817,7 +817,10 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 }
 
 fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
-    let has_cpo_n = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL);
+    let has_cpo_n = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_NUMCOL,
+    );
 
     if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
         && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -960,7 +963,7 @@ fn draw_statuscol(
     let mut p = buf_ptr;
     let mut transbuf = [0u8; MAXPATHL];
     let mut fold_vcol: Option<&[Colnr]> = None;
-    let len = crate::memory::cstr_until_nul(&buf).to_bytes().len();
+    let len = crate::memory::bytes_until_nul(&buf).len();
     let hlf = if use_cursor_line_highlight(wp, wlv.lnum) {
         HLF_CLS
     } else {
@@ -1310,12 +1313,17 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
 fn win_line_skip_columns(
     wp: &mut WinInfoInfo,
     wlv: &mut Winlinevars,
+    draw_text: bool,
     start_vcol: i32,
     leadcol: Colnr,
     in_multispace: &mut bool,
     multispace_pos: &mut usize,
 ) -> usize {
-    let mut line = ml_get_buf(wp.buf_mut(), wlv.lnum).as_ptr().cast_mut();
+    let mut line = if draw_text {
+        ml_get_buf(wp.buf_mut(), wlv.lnum).as_ptr().cast_mut()
+    } else {
+        c"".as_ptr().cast_mut()
+    };
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && !crate::memory::cstr_is_empty(line) {
@@ -1935,12 +1943,15 @@ pub fn win_line(
         let skip_off = win_line_skip_columns(
             &mut *wp,
             &mut wlv,
+            draw_text,
             start_vcol,
             leadcol,
             &mut in_multispace,
             &mut multispace_pos,
         );
-        line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+        if draw_text {
+            line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
+        }
         ptr = line.wrapping_add(skip_off);
         if spv.spv_has_spell {
             let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
@@ -2812,7 +2823,7 @@ pub fn win_line(
                             let lbr_size = win_charsize(
                                 cstype,
                                 wlv.vcol + csarg.extconceal_off,
-                                crate::memory::cstr_from_ptr(p),
+                                lbr_ci.cstr(),
                                 lbr_ci.chr.value,
                                 &mut csarg,
                                 lbr_cli.cells,
@@ -3833,7 +3844,10 @@ pub fn win_line(
                 wlv.need_showbreak = true;
             }
             if statuscol.draw
-                && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
+                && crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_NUMCOL,
+                )
                 && wlv.row > startrow + wlv.filler_lines
             {
                 statuscol.draw = false;

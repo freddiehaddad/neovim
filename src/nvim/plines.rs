@@ -126,7 +126,7 @@ pub fn vim_isbreak(c: i32) -> bool {
 pub(crate) fn win_charsize(
     cstype: CSType,
     vcol: Colnr,
-    ptr_val: &std::ffi::CStr,
+    ptr_val: &[u8],
     chr: i32,
     csarg: &mut CharsizeArg,
     mb_width: i32,
@@ -418,12 +418,16 @@ fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
 
 pub fn charsize_regular(
     csarg: &mut CharsizeArg,
-    cur: &std::ffi::CStr,
+    cur: &[u8],
     vcol: Colnr,
     cur_char: i32,
     mb_width: i32,
 ) -> CharSize {
-    let cur = cur.as_ptr();
+    let cur: *const std::ffi::c_char = if cur.is_empty() {
+        c"".as_ptr()
+    } else {
+        cur.as_ptr().cast()
+    };
     {
         csarg.cur_text_width_left = 0;
         csarg.cur_text_width_right = 0;

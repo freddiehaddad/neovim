@@ -320,6 +320,16 @@ pub fn cstr_slice<'a>(s: *const std::ffi::c_char, len: usize) -> &'a [u8] {
     }
 }
 
+/// View `len` bytes starting at `s` as a mutable byte slice (`&mut [u8]`).
+#[inline]
+pub fn cstr_mut_slice<'a>(s: *mut std::ffi::c_char, len: usize) -> &'a mut [u8] {
+    if s.is_null() || len == 0 {
+        &mut []
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(s.cast::<u8>(), len) }
+    }
+}
+
 /// Compute the signed element offset `(p - origin)` between two pointers of the same type.
 #[inline]
 pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {

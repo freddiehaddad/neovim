@@ -1,6 +1,6 @@
 //! String buffer routines (`src/cjson/strbuf.c`).
 
-use crate::strings::RawCCharPtrMut;
+use std::ffi::CStr;
 
 pub const STRBUF_DEFAULT_SIZE: usize = 1023;
 
@@ -71,9 +71,9 @@ pub fn strbuf_ensure_null(s: &mut Strbuf) {
 }
 
 #[inline]
-pub fn strbuf_string(s: &mut Strbuf, len: &mut usize) -> RawCCharPtrMut {
+pub fn strbuf_string<'a>(s: &'a mut Strbuf, len: &mut usize) -> &'a mut [u8] {
     *len = s.buf.len();
-    s.buf.as_mut_ptr().cast()
+    &mut s.buf
 }
 
 pub fn strbuf_init(s: &mut Strbuf, len: usize) {
@@ -87,10 +87,6 @@ pub fn strbuf_init(s: &mut Strbuf, len: usize) {
     strbuf_ensure_null(s);
 }
 
-pub fn strbuf_append_string(s: &mut Strbuf, str_in: impl crate::strings::IntoCCharPtr) {
-    let str_in = str_in.into_c_char_ptr();
-    {
-        let bytes = crate::memory::cstr_as_bytes(str_in);
-        strbuf_append_mem(s, bytes);
-    }
+pub fn strbuf_append_string(s: &mut Strbuf, str_in: &CStr) {
+    strbuf_append_mem(s, str_in.to_bytes());
 }

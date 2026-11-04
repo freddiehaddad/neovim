@@ -200,7 +200,11 @@ pub fn vim_findfile_init(
                 .get(1)
                 .is_some_and(|&b| vim_ispathsep(i32::from(b)))
                 || path_bytes.len() == 1)
-            && (tagfile == 0 || !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOTTAG))
+            && (tagfile == 0
+                || !crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_DOTTAG,
+                ))
             && !rel_fname.is_null()
         {
             let len = crate::memory::ptr_offset_from(
@@ -253,7 +257,7 @@ pub fn vim_findfile_init(
             if !handled_drive && !os_dirname(&mut expand_buf) {
                 return None;
             }
-            let expand_len = crate::memory::cstr_until_nul(&expand_buf).to_bytes().len();
+            let expand_len = crate::memory::bytes_until_nul(&expand_buf).len();
 
             search_ctx.ffsc_start_dir = copy_string(
                 NvimString {
@@ -272,7 +276,8 @@ pub fn vim_findfile_init(
 
             loop {
                 let helper = walker;
-                walker = vim_strchr(walker, b';' as i32);
+                walker = vim_strchr(crate::memory::cstr_from_ptr((walker).cast()), b';' as i32)
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 let helper_bytes = crate::memory::cstr_as_bytes(helper);
                 let len = if !walker.is_null() {
                     crate::memory::ptr_offset_from(walker, helper) as usize
@@ -505,7 +510,7 @@ pub fn vim_findfile_init(
 
 /// Return the stopdir byte offset in `s`. Check that `;` is not escaped.
 pub fn vim_findfile_stopdir(s: &mut [u8]) -> Option<usize> {
-    let len = crate::memory::cstr_until_nul(s).to_bytes().len();
+    let len = crate::memory::bytes_until_nul(s).len();
     let max_idx = len.min(s.len().saturating_sub(1));
     let s = &mut s[..=max_idx];
     let mut i = 0;
@@ -1841,16 +1846,16 @@ mod tests {
         let mut buf = *b"/a/b;/c/d\0";
         let stop = vim_findfile_stopdir(&mut buf);
         assert!(stop.is_some());
-        let first = crate::memory::cstr_until_nul(&buf).to_bytes();
-        let rest = crate::memory::cstr_until_nul(&buf[stop.unwrap()..]).to_bytes();
+        let first = crate::memory::bytes_until_nul(&buf);
+        let rest = crate::memory::bytes_until_nul(&buf[stop.unwrap()..]);
         assert_eq!(first, b"/a/b");
         assert_eq!(rest, b"/c/d");
 
         let mut escaped = *b"/a\\;b;/c\0";
         let stop2 = vim_findfile_stopdir(&mut escaped);
         assert!(stop2.is_some());
-        let first2 = crate::memory::cstr_until_nul(&escaped).to_bytes();
-        let rest2 = crate::memory::cstr_until_nul(&escaped[stop2.unwrap()..]).to_bytes();
+        let first2 = crate::memory::bytes_until_nul(&escaped);
+        let rest2 = crate::memory::bytes_until_nul(&escaped[stop2.unwrap()..]);
         assert_eq!(first2, b"/a;b");
         assert_eq!(rest2, b"/c");
 

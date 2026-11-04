@@ -2561,8 +2561,7 @@ fn packer_buffer_for_file(file: &mut FileDescriptor) -> PackerBuffer {
         ptr: base.wrapping_add(file.write_pos),
         endptr: base.wrapping_add(ARENA_BLOCK_SIZE),
         anydata: crate::msgpack_rpc::packer::PackerData::File(file),
-        anyint: 0,
-        owned_buf: Vec::new(),
+        ..PackerBuffer::new()
     }
 }
 
@@ -4116,7 +4115,7 @@ fn shada_init_jumps(
     let mut jumps_size = 0usize;
     let mut jump_iter: Option<usize> = None;
     setpcmark();
-    cleanup_jumplist(curwin_mut(), false);
+    cleanup_jumplist(crate::globals::curwin_handle(), false);
     loop {
         let mut fm = Xfmark::new();
         jump_iter = mark_jumplist_iter(jump_iter, curwin_mut(), &mut fm);
@@ -4313,7 +4312,8 @@ pub fn find_shada_parameter(param_type: i32) -> Option<&'static CStr> {
         if crate::memory::cstr_first_byte(p) == b'n' {
             break;
         }
-        p = vim_strchr(p, b',' as i32);
+        p = vim_strchr(crate::memory::cstr_from_ptr((p).cast()), b',' as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p.is_null() {
             break;
         }

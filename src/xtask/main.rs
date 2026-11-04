@@ -655,7 +655,7 @@ fn run_lua_tests(
     extra_args: &[String],
 ) {
     let xdg_dir = build_dir.join("Xtest_xdg");
-    let tmp_dir = build_dir.join("Xtest_tmpdir");
+    let tmp_dir = root.join("Xtest_tmpdir");
     if xdg_dir.exists() {
         let _ = fs::remove_dir_all(&xdg_dir);
     }

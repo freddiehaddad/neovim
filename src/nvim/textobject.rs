@@ -93,7 +93,10 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
             let mut found_dot = false;
             while {
                 c = gchar_pos(&mut pos);
-                ascii_iswhite(c) || !vim_strchr(c".!?)]\"'", c).is_null()
+                ascii_iswhite(c)
+                    || !vim_strchr(c".!?)]\"'", c)
+                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .is_null()
             } {
                 let mut tpos = pos;
                 if decl(&mut tpos) == -1 || (lineempty(tpos.lnum) && dir == FORWARD) {
@@ -105,8 +108,12 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
                 if crate::strings::vim_haschr(c".!?", c) {
                     found_dot = true;
                 }
-                if !vim_strchr(c")]\"'", c).is_null()
-                    && vim_strchr(c".!?)]\"'", gchar_pos(&mut tpos)).is_null()
+                if !vim_strchr(c")]\"'", c)
+                    .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                    .is_null()
+                    && vim_strchr(c".!?)]\"'", gchar_pos(&mut tpos))
+                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .is_null()
                 {
                     break;
                 }
@@ -115,7 +122,10 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
 
             // remember the line where the search started
             let startlnum = pos.lnum;
-            let cpo_j = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ENDOFSENT);
+            let cpo_j = crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_ENDOFSENT,
+            );
 
             loop {
                 c = gchar_pos(&mut pos);
@@ -135,7 +145,10 @@ pub fn findsent(dir: Direction, mut count: i32) -> bool {
                             break;
                         }
                         c = gchar_pos(&mut tpos);
-                        if vim_strchr(c")]\"'", c).is_null() {
+                        if vim_strchr(c")]\"'", c)
+                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                            .is_null()
+                        {
                             break;
                         }
                     }
@@ -953,7 +966,10 @@ pub fn current_block(
     }
 
     let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_MATCHBSL) {
+    opt_vars().p_cpo = if crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_MATCHBSL,
+    ) {
         c"%M".as_ptr().cast_mut()
     } else {
         c"%".as_ptr().cast_mut()

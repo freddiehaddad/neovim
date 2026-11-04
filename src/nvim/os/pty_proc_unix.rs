@@ -108,6 +108,7 @@ mod unix_impl {
     #[cfg(not(target_os = "linux"))]
     const O_NONBLOCK: i32 = 0x0004;
 
+    #[cfg(target_os = "linux")]
     const POLLIN: i16 = 1;
 
     const WNOHANG: i32 = 1;
@@ -237,6 +238,7 @@ mod unix_impl {
         }
     }
 
+    #[cfg(target_os = "linux")]
     #[repr(C)]
     struct pollfd {
         fd: i32,

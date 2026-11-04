@@ -6802,9 +6802,9 @@ fn do_one_cmd(
             let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr();
             if !ptr::eq(msg.as_ptr(), iobuf_ptr) {
                 crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
-                msg = crate::memory::cstr_from_ptr(iobuf_ptr);
             }
             append_command(ea.cmdline_cstr());
+            msg = crate::memory::cstr_from_ptr(iobuf_ptr);
         }
         let _ = emsg(msg);
     }
@@ -6902,7 +6902,8 @@ pub fn parse_command_modifiers(
             return false;
         };
         if cmd0 == b'"' {
-            eap.nextcmd = vim_strchr(eap.cmd, b'\n' as i32);
+            eap.nextcmd = vim_strchr(crate::memory::cstr_from_ptr((eap.cmd).cast()), b'\n' as i32)
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
             if !eap.nextcmd.is_null() {
                 eap.nextcmd = eap.nextcmd.wrapping_add(1);
             }
@@ -8428,8 +8429,8 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             continue;
         };
 
-        if crate::strings::vim_haschr(repl_cstr.as_ptr(), b'$' as i32)
-            || crate::strings::vim_haschr(repl_cstr.as_ptr(), b'~' as i32)
+        if crate::strings::vim_haschr(&(repl_cstr), b'$' as i32)
+            || crate::strings::vim_haschr(&(repl_cstr), b'~' as i32)
         {
             repl_cstr = expand_env_save(&repl_cstr);
         }
@@ -8481,9 +8482,13 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
 
     if (eap.argt & EX_NOSPC) != 0 && eap.usefilter == 0 {
         if has_wildcards {
-            if crate::strings::vim_haschr(eap.arg, b'$' as i32)
-                || crate::strings::vim_haschr(eap.arg, b'~' as i32)
-            {
+            if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'$' as i32,
+            ) || crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'~' as i32,
+            ) {
                 #[cfg(windows)]
                 let esc_wildcards = c" \t*?[";
                 #[cfg(not(windows))]
@@ -8656,8 +8661,10 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 && eap.cmdidx != Cmdidx::CmdInsert as i32)
             || b0 == b'\n'
         {
-            if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BAR)
-                || (eap.argt & EX_CTRLV) == 0)
+            if (!crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_BAR,
+            ) || (eap.argt & EX_CTRLV) == 0)
                 && (unsafe { *p.wrapping_sub(1) } as u8) == b'\\'
             {
                 let tail_len = crate::memory::cstr_len(p);
@@ -10911,7 +10918,10 @@ fn ex_read(eap: &mut Exarg) {
             false,
         )
     } else {
-        if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTREAD) {
+        if crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_ALTREAD,
+        ) {
             let arg_opt = crate::memory::cstr_as_opt_cstr(eap.arg);
             setaltfname(arg_opt, arg_opt, 1);
         }
@@ -10994,7 +11004,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
     g_st().last_chdir_reason = None;
     shorten_fnames(i32::from(!crate::strings::vim_haschr(
-        opt_vars().p_cpo,
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
         K_CPO_NOSYMLINKS,
     )));
 
@@ -11434,7 +11444,10 @@ fn ex_at(eap: &mut Exarg) {
     if !do_execreg(
         c,
         i32::from(true),
-        i32::from(crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EXECBUF)),
+        i32::from(crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_EXECBUF,
+        )),
         i32::from(true),
     ) {
         beep_flush();
@@ -12668,7 +12681,7 @@ fn ex_filetype(eap: &mut Exarg) {
 
 pub fn ex_errmsg(msg: &std::ffi::CStr, arg: &std::ffi::CStr) -> &'static std::ffi::CStr {
     let buf: RawCCharPtrMut = (&raw mut docmd_st().ex_error_buf).cast();
-    let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg.as_ptr()), arg.as_ptr());
+    let _ = vim_snprintf!(buf, MSG_BUF_LEN, gettext(msg), arg.as_ptr());
     crate::memory::cstr_from_ptr(buf)
 }
 

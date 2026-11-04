@@ -585,7 +585,10 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
 
     let len = linetabsize_col(0, crate::memory::cstr_from_ptr(line));
     if let Some(ht) = has_tab {
-        *ht = i32::from(crate::strings::vim_haschr(first, TAB));
+        *ht = i32::from(crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((first).cast()),
+            TAB,
+        ));
     }
 
     unsafe {
@@ -1708,7 +1711,10 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
                 if do_in {
                     if (g_st().cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
-                        || !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_REMMARK)
+                        || !crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                            K_CPO_REMMARK,
+                        )
                     {
                         if read_linecount >= linecount {
                             mark_adjust(line1, line2, linecount, 0, K_EXTMARK_NOOP);
@@ -2190,8 +2196,10 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         }
 
         if other {
-            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_ALTWRITE)
-                || eap.cmdidx == Cmdidx::CmdSaveas as i32
+            if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_ALTWRITE,
+            ) || eap.cmdidx == Cmdidx::CmdSaveas as i32
             {
                 alt_buf = setaltfname(
                     crate::memory::cstr_as_opt_cstr(ffname),
@@ -2342,7 +2350,10 @@ pub fn check_overwrite(
         || (!bt_nofilename(Some(&*buf))
             && ((buf.b_flags & BF_NOTEDITED) != 0
                 || ((buf.b_flags & BF_NEW) != 0
-                    && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_OVERNEW))
+                    && !crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                        K_CPO_OVERNEW,
+                    ))
                 || (buf.b_flags & BF_READERR) != 0)))
         && opt_vars().p_wa == 0
         && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
@@ -3287,7 +3298,8 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         if eap.nextcmd.is_null() {
             return None;
         }
-        let mut p = vim_strchr(eap.nextcmd, NL);
+        let mut p = vim_strchr(crate::memory::cstr_from_ptr((eap.nextcmd).cast()), NL)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p.is_null() {
             p = eap
                 .nextcmd
@@ -4219,7 +4231,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             do_check_cursorbind();
                         }
 
-                        if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
+                        if crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                            K_CPO_UNDO,
+                        ) {
                             g_st().no_u_sync += 1;
                         }
 
@@ -4340,7 +4355,10 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         g_st().state_global = save_state;
                         setmouse();
-                        if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_UNDO) {
+                        if crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                            K_CPO_UNDO,
+                        ) {
                             g_st().no_u_sync -= 1;
                         }
 

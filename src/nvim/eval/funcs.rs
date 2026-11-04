@@ -2550,7 +2550,10 @@ fn common_function(argvars: &mut [TypVal], rettv: &mut TypVal, is_funcref: bool)
         tv_get_string(&argvars[0]).as_ptr().cast_mut()
     };
 
-    if (use_string && !crate::strings::vim_haschr(s, AUTOLOAD_CHAR)) || is_funcref {
+    if (use_string
+        && !crate::strings::vim_haschr(crate::memory::cstr_from_ptr((s).cast()), AUTOLOAD_CHAR))
+        || is_funcref
+    {
         let mut name_cstr = unsafe { CStr::from_ptr(s) };
         trans_name_owned = save_function_name(
             &mut name_cstr,
@@ -3033,8 +3036,10 @@ pub fn f_getjumplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let Some(wp) = find_tabwin(&argvars[0], &argvars[1]) else {
         return;
     };
+    let wp_handle = crate::globals::WinPtr::from(&mut *wp);
 
-    cleanup_jumplist(wp, true);
+    cleanup_jumplist(wp_handle, true);
+    let wp = wp_handle.borrow_mut();
 
     let l = tv_list_alloc(wp.w_jumplistlen as isize);
     tv_list_append_list(rettv.vval.v_list_ref(), Some(l));
@@ -3651,7 +3656,12 @@ pub fn f_gettext(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if !tv_check_for_nonempty_string_arg(argvars, 0) {
         return;
     }
-    crate::eval::typval::tv_set_string(rettv, Some(gettext(argvars[0].vval.v_string())));
+    crate::eval::typval::tv_set_string(
+        rettv,
+        Some(gettext(crate::memory::cstr_from_ptr(
+            (argvars[0].vval.v_string()).cast(),
+        ))),
+    );
 }
 
 /// "has()" function
@@ -4223,9 +4233,9 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         if !end_cstr.to_bytes().is_empty() {
             semsg!(
                 gettext(if lv.ll_name_len == 0 {
-                    E_INVARG2.as_ptr()
+                    E_INVARG2
                 } else {
-                    E_TRAILING_ARG.as_ptr()
+                    E_TRAILING_ARG
                 }),
                 end,
             );
@@ -4276,14 +4286,9 @@ pub fn f_isnan(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
 /// "id()" function
 pub fn f_id(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, c"%p", (&raw mut argvars[0]));
+    let len = vim_snprintf_typval_only(&mut [], Some(c"%p"), argvars);
     let mut buf = vec![0u8; (len as usize) + 1];
-    vim_snprintf_typval_only(
-        buf.as_mut_ptr().cast(),
-        (len as usize) + 1,
-        c"%p",
-        (&raw mut argvars[0]),
-    );
+    vim_snprintf_typval_only(&mut buf, Some(c"%p"), argvars);
     crate::eval::typval::tv_set_string_len(rettv, Some(&buf[..len as usize]));
 }
 
@@ -5991,15 +5996,10 @@ pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let (arg0, rest_args) = argvars.split_first_mut().unwrap();
     let mut buf = [0u8; NUMBUFLEN];
     let fmt = tv_get_string_buf(arg0, &mut buf);
-    let len = vim_snprintf_typval_only(ptr::null_mut(), 0, fmt, rest_args.as_mut_ptr());
+    let len = vim_snprintf_typval_only(&mut [], Some(fmt), rest_args);
     if g_st().did_emsg == 0 {
         let mut s = vec![0u8; (len as usize) + 1];
-        vim_snprintf_typval_only(
-            s.as_mut_ptr().cast(),
-            (len as usize) + 1,
-            fmt,
-            rest_args.as_mut_ptr(),
-        );
+        vim_snprintf_typval_only(&mut s, Some(fmt), rest_args);
         crate::eval::typval::tv_set_string_len(rettv, Some(&s[..len as usize]));
     }
     g_st().did_emsg |= saved_did_emsg;

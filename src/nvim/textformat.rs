@@ -186,7 +186,10 @@ pub fn has_format_option(x: i32) -> bool {
     if opt_vars().p_paste != 0 {
         return false;
     }
-    crate::strings::vim_haschr(curbuf_mut().b_p_fo, x)
+    crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_fo).cast()),
+        x,
+    )
 }
 
 /// Format text at the current insert position (`internal_format`).

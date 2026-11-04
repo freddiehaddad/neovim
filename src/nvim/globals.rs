@@ -1000,27 +1000,6 @@ impl<T> PartialEq for GraphPtr<T> {
 
 impl<T> Eq for GraphPtr<T> {}
 
-impl<T> PartialEq<*mut T> for GraphPtr<T> {
-    #[inline]
-    fn eq(&self, other: &*mut T) -> bool {
-        ptr::eq(self.0, *other)
-    }
-}
-
-impl<T> PartialEq<*const T> for GraphPtr<T> {
-    #[inline]
-    fn eq(&self, other: &*const T) -> bool {
-        ptr::eq(self.0.cast_const(), *other)
-    }
-}
-
-impl<T> From<*mut T> for GraphPtr<T> {
-    #[inline]
-    fn from(p: *mut T) -> Self {
-        Self(p)
-    }
-}
-
 impl<T> From<&mut T> for GraphPtr<T> {
     #[inline]
     fn from(r: &mut T) -> Self {
@@ -1087,162 +1066,6 @@ impl<T> GraphPtr<T> {
     }
 }
 
-#[repr(transparent)]
-pub struct DerefPtr<T: ?Sized>(pub *mut T);
-
-impl<T: ?Sized> std::ops::Deref for DerefPtr<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &*self.0 }
-    }
-}
-
-impl<T: ?Sized> std::ops::DerefMut for DerefPtr<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &mut *self.0 }
-    }
-}
-
-#[repr(transparent)]
-pub struct DerefRef<T: ?Sized>(pub *const T);
-
-impl<T: ?Sized> std::ops::Deref for DerefRef<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &T {
-        debug_assert!(!self.0.is_null());
-        unsafe { &*self.0 }
-    }
-}
-
-pub trait IntoGraphPtr {
-    type Handle;
-    fn into_gptr(self) -> Self::Handle;
-}
-
-impl<T: ?Sized> IntoGraphPtr for *mut T {
-    type Handle = DerefPtr<T>;
-
-    #[inline]
-    fn into_gptr(self) -> DerefPtr<T> {
-        DerefPtr(self)
-    }
-}
-
-impl<T: ?Sized> IntoGraphPtr for *const T {
-    type Handle = DerefRef<T>;
-
-    #[inline]
-    fn into_gptr(self) -> DerefRef<T> {
-        DerefRef(self)
-    }
-}
-
-impl<T: ?Sized> IntoGraphPtr for &*mut T {
-    type Handle = DerefPtr<T>;
-
-    #[inline]
-    fn into_gptr(self) -> DerefPtr<T> {
-        DerefPtr(*self)
-    }
-}
-
-impl<T: ?Sized> IntoGraphPtr for &*const T {
-    type Handle = DerefRef<T>;
-
-    #[inline]
-    fn into_gptr(self) -> DerefRef<T> {
-        DerefRef(*self)
-    }
-}
-
-#[inline]
-pub fn gptr<P: IntoGraphPtr>(p: P) -> P::Handle {
-    p.into_gptr()
-}
-
-#[inline]
-pub fn gmut<'a, T: ?Sized>(p: *mut T) -> &'a mut T {
-    debug_assert!(!p.is_null());
-    unsafe { &mut *p }
-}
-
-pub trait IntoConstPtr<T: ?Sized> {
-    fn into_const_ptr(self) -> *const T;
-}
-
-impl<T: ?Sized> IntoConstPtr<T> for *const T {
-    #[inline]
-    fn into_const_ptr(self) -> *const T {
-        self
-    }
-}
-
-impl<T: ?Sized> IntoConstPtr<T> for *mut T {
-    #[inline]
-    fn into_const_ptr(self) -> *const T {
-        self.cast_const()
-    }
-}
-
-impl<T: ?Sized> IntoConstPtr<T> for &*const T {
-    #[inline]
-    fn into_const_ptr(self) -> *const T {
-        *self
-    }
-}
-
-impl<T: ?Sized> IntoConstPtr<T> for &*mut T {
-    #[inline]
-    fn into_const_ptr(self) -> *const T {
-        (*self).cast_const()
-    }
-}
-
-#[allow(dead_code)]
-pub trait IntoMutPtr<T: ?Sized> {
-    fn into_mut_ptr(self) -> *mut T;
-}
-
-impl<T: ?Sized> IntoMutPtr<T> for *mut T {
-    #[inline]
-    fn into_mut_ptr(self) -> *mut T {
-        self
-    }
-}
-
-impl<T: ?Sized> IntoMutPtr<T> for &*mut T {
-    #[inline]
-    fn into_mut_ptr(self) -> *mut T {
-        *self
-    }
-}
-
-#[inline]
-pub fn gref<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> &'a T {
-    let ptr = p.into_const_ptr();
-    debug_assert!(!ptr.is_null());
-    unsafe { &*ptr }
-}
-
-#[allow(dead_code)]
-#[inline]
-pub fn gopt<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> Option<&'a T> {
-    unsafe { p.into_const_ptr().as_ref() }
-}
-
-#[allow(dead_code)]
-#[inline]
-pub fn gopt_mut<'a, T: ?Sized, P: IntoMutPtr<T>>(p: P) -> Option<&'a mut T> {
-    unsafe { p.into_mut_ptr().as_mut() }
-}
-
 pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
 pub type TabpagePtr = GraphPtr<TabPageInfo>;
@@ -1253,11 +1076,6 @@ pub type ListitemPtr = GraphPtr<crate::eval::typval::Listitem>;
 #[inline]
 pub fn curwin_handle() -> WinPtr {
     WinPtr::new(curwin_ptr())
-}
-
-#[inline]
-pub fn curbuf_handle() -> BufPtr {
-    BufPtr::new(g_st().curbuf)
 }
 
 #[inline]

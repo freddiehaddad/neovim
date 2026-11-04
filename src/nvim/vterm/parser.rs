@@ -42,7 +42,7 @@ impl VTermStringFragment {
     ) -> Self {
         Self {
             str_: if bytes.is_empty() {
-                std::ptr::null()
+                c"".as_ptr().cast()
             } else {
                 bytes.as_ptr()
             },

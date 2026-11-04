@@ -647,7 +647,10 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
         }
 
         let to_parse_bytes = crate::memory::cstr_as_bytes(to_parse);
-        let do_backslash = !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BSLASH_CONST);
+        let do_backslash = !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_BSLASH_CONST,
+        );
         let mut orig_lhs_len = 0usize;
         while orig_lhs_len < to_parse_bytes.len()
             && (is_unmap || !ascii_iswhite(to_parse_bytes[orig_lhs_len] as i32))
@@ -1289,7 +1292,7 @@ fn translate_mapping(bytes: &[u8], cpo_val: &CStr) -> CString {
     let mut idx = 0usize;
     let mut buf: Vec<u8> = Vec::with_capacity(40);
 
-    let cpo_bslash = crate::strings::vim_haschr(cpo_val.as_ptr(), K_CPO_BSLASH_CONST);
+    let cpo_bslash = crate::strings::vim_haschr(cpo_val, K_CPO_BSLASH_CONST);
 
     while idx < bytes.len() {
         let mut c = i32::from(bytes[idx]);

@@ -1584,7 +1584,7 @@ fn foldtext_cleanup(str_slice: &mut [u8]) {
     );
     let end_slice = fold_st().foldendmarker_slice();
 
-    let mut total_len = crate::memory::cstr_until_nul(str_slice).to_bytes().len();
+    let mut total_len = crate::memory::bytes_until_nul(str_slice).len();
     let mut idx = 0;
     while idx < total_len {
         let s_bytes = &str_slice[idx..total_len];
@@ -2384,7 +2384,10 @@ fn foldlevel_indent(flp: &mut Fline) {
     let s_rem = crate::charset::skipwhite_slice(crate::memline::ml_get_buf_slice(buf, lnum));
 
     if s_rem.is_empty()
-        || crate::strings::vim_haschr(flp.wp_mut().w_onebuf_opt.wo_fdi, i32::from(s_rem[0]))
+        || crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((flp.wp_mut().w_onebuf_opt.wo_fdi).cast()),
+            i32::from(s_rem[0]),
+        )
     {
         flp.lvl = if lnum == 1 || lnum == buf.b_ml.ml_line_count {
             0
@@ -2477,7 +2480,8 @@ fn foldlevel_expr(flp: &mut Fline) {
 
 fn parse_marker(wp: &mut WinInfoInfo) {
     let fmr = wp.w_onebuf_opt.wo_fmr;
-    let comma = vim_strchr(fmr, b',' as i32);
+    let comma = vim_strchr(crate::memory::cstr_from_ptr((fmr).cast()), b',' as i32)
+        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     fold_st().foldstartmarkerlen = (comma as usize) - (fmr as usize);
     let end_ptr = comma.wrapping_add(1);
     fold_st().foldendmarker = end_ptr.cast();
@@ -2743,10 +2747,10 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             + s_len;
         let mut r_vec = vec![0u8; len];
         vim_snprintf!(r_vec.as_mut_ptr().cast(), len, txt, dashes, count);
-        let r_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();
+        let r_len = crate::memory::bytes_until_nul(&r_vec).len();
         r_vec[r_len..r_len + s_bytes.len()].copy_from_slice(s_bytes);
         foldtext_cleanup(&mut r_vec[r_len..]);
-        let final_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();
+        let final_len = crate::memory::bytes_until_nul(&r_vec).len();
         crate::eval::typval::tv_set_string_len(rettv, Some(&r_vec[..final_len]));
     }
 }

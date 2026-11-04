@@ -853,7 +853,12 @@ fn nfa_regatom() -> bool {
         if c == b'[' as i32 {
             goto_collection = true;
         } else {
-            let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
+            let p = vim_strchr(
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                no_magic(c),
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast::<u8>();
             if p.is_null() {
                 if extra == NFA_ADD_NL {
                     semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
@@ -911,7 +916,12 @@ fn nfa_regatom() -> bool {
                 || x == magic_fn(b'u' as i32)
                 || x == magic_fn(b'U' as i32)
         ) {
-            let p = vim_strchr(CLASSCHARS.as_ptr().cast(), no_magic(c)).cast::<u8>();
+            let p = vim_strchr(
+                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr().cast()),
+                no_magic(c),
+            )
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast::<u8>();
             if p.is_null() {
                 if extra == NFA_ADD_NL {
                     semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));

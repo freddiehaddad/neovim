@@ -1064,7 +1064,10 @@ pub fn readfile(
             if curbuf_mut().b_ffname.is_null()
                 && !filtering
                 && !fname.is_null()
-                && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMER)
+                && crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_FNAMER,
+                )
                 && (flags & READ_DUMMY) == 0
                 && !set_rw_fname(
                     crate::memory::cstr_as_opt_cstr(fname.cast()),
@@ -1430,9 +1433,18 @@ pub fn readfile(
             curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
             curbuf_mut().b_op_start.col = 0;
 
-            let mut try_mac = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as i32));
-            let mut try_dos = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as i32));
-            let mut try_unix = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as i32));
+            let mut try_mac = i32::from(crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                b'm' as i32,
+            ));
+            let mut try_dos = i32::from(crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                b'd' as i32,
+            ));
+            let mut try_unix = i32::from(crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                b'x' as i32,
+            ));
 
             if !read_buffer {
                 let m = g_st().msg_scroll;
@@ -1482,9 +1494,18 @@ pub fn readfile(
                     );
                 }
 
-                try_mac = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'm' as i32));
-                try_dos = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'd' as i32));
-                try_unix = i32::from(crate::strings::vim_haschr(opt_vars().p_ffs, b'x' as i32));
+                try_mac = i32::from(crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    b'm' as i32,
+                ));
+                try_dos = i32::from(crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    b'd' as i32,
+                ));
+                try_unix = i32::from(crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    b'x' as i32,
+                ));
                 curbuf_mut().b_op_start = orig_start;
 
                 if g_st().msg_scrolled == n {
@@ -3468,7 +3489,7 @@ pub fn modname(
             retval_vec.as_mut_ptr().cast(),
             2,
         ));
-        fnamelen = crate::memory::cstr_until_nul(&retval_vec).to_bytes().len();
+        fnamelen = crate::memory::bytes_until_nul(&retval_vec).len();
         prepend_dot = false;
     } else {
         fnamelen = fname_bytes.len();
@@ -3510,7 +3531,7 @@ pub fn modname(
         retval_vec[e_idx] = b'.';
     }
 
-    if fname.is_some() && fname_bytes == crate::memory::cstr_until_nul(&retval_vec).to_bytes() {
+    if fname.is_some() && fname_bytes == crate::memory::bytes_until_nul(&retval_vec) {
         let mut replaced = false;
         while s_idx > ptr_idx {
             s_idx -= 1;
@@ -4605,7 +4626,7 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
         cfg!(windows),
     );
 
-    let mut buflen = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
+    let mut buflen = crate::memory::bytes_until_nul(&buf_vec).len();
     if after_pathsep(crate::memory::ptr_span_bytes(
         buf_vec.as_ptr().cast(),
         buf_vec[buflen..].as_ptr().cast(),
@@ -4915,12 +4936,7 @@ pub fn vim_fprintf_fmt(
         };
     }
     let mut stack_buf = [0u8; 1024];
-    let needed = crate::strings::vim_snprintf_fmt(
-        stack_buf.as_mut_ptr().cast(),
-        stack_buf.len(),
-        fmt.as_ptr(),
-        args,
-    );
+    let needed = crate::strings::vim_snprintf_fmt(&mut stack_buf, Some(fmt), args);
     if needed < 0 {
         return -1;
     }
@@ -4933,12 +4949,7 @@ pub fn vim_fprintf_fmt(
         }
     } else {
         let mut heap_buf = vec![0u8; len + 1];
-        let actual = crate::strings::vim_snprintf_fmt(
-            heap_buf.as_mut_ptr().cast(),
-            heap_buf.len(),
-            fmt.as_ptr(),
-            args,
-        );
+        let actual = crate::strings::vim_snprintf_fmt(&mut heap_buf, Some(fmt), args);
         if actual < 0 {
             return -1;
         }

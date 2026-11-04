@@ -1569,7 +1569,10 @@ pub(super) fn get_coll_element(rem: &mut &[u8]) -> i32 {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit = (crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LITERAL)) as i32;
+    re_st().reg_cpo_lit = (crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        K_CPO_LITERAL,
+    )) as i32;
 }
 
 /// Skip over a `[]` range in a byte slice.
@@ -2496,7 +2499,8 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
 pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     let s_ptr = s.as_ptr();
     if !re_st().rex.reg_ic {
-        let p = vim_strchr(s_ptr, c);
+        let p = vim_strchr(crate::memory::cstr_from_ptr((s_ptr).cast()), c)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
     }
 
@@ -2510,7 +2514,8 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         let u = (c as u8).to_ascii_uppercase() as i32;
         (u, c)
     } else {
-        let p = vim_strchr(s_ptr, c);
+        let p = vim_strchr(crate::memory::cstr_from_ptr((s_ptr).cast()), c)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
     };
 

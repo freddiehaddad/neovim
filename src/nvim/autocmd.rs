@@ -2054,8 +2054,8 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
                 cmd = c"";
             }
 
-            if crate::strings::vim_haschr(pat.as_ptr(), b'$' as i32)
-                || crate::strings::vim_haschr(pat.as_ptr(), b'~' as i32)
+            if crate::strings::vim_haschr(pat, b'$' as i32)
+                || crate::strings::vim_haschr(pat, b'~' as i32)
             {
                 let ep = expand_env_save(pat);
                 pat = unsafe { CStr::from_ptr(ep.as_ptr()) };

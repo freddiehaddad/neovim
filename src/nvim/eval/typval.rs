@@ -2100,8 +2100,8 @@ fn item_compare(si1: &ListSortItem, si2: &ListSortItem, keep_zero: bool, info: &
             res = crate::memory::cstr_as_bytes(p1).cmp(crate::memory::cstr_as_bytes(p2)) as i32;
         }
     } else {
-        let n1 = strtod(p1, &raw mut p1);
-        let n2 = strtod(p2, &raw mut p2);
+        let (n1, _) = strtod(crate::memory::cstr_from_ptr(p1));
+        let (n2, _) = strtod(crate::memory::cstr_from_ptr(p2));
         res = if n1 == n2 {
             0
         } else if n1 > n2 {
@@ -2200,7 +2200,7 @@ fn sort_compute_keys(ptrs: &mut [ListSortItem], info: &mut Sortinfo) {
                 si.key = ListSortKey::Float(0.0);
             } else {
                 let p = encode_tv2string(tv, None);
-                let f = strtod(p.as_ptr(), ptr::null_mut());
+                let (f, _) = strtod(&p);
                 si.key = ListSortKey::Float(f);
             }
         }
@@ -4313,7 +4313,7 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
                 emsg(tr(error_message));
             } else {
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(name);
+                    let tr_name = tr(crate::memory::cstr_from_ptr((name).cast()));
                     name = tr_name.as_ptr();
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
@@ -4332,7 +4332,7 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
                 emsg(tr(error_message));
             } else {
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(name);
+                    let tr_name = tr(crate::memory::cstr_from_ptr((name).cast()));
                     name = tr_name.as_ptr();
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {

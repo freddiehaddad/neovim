@@ -1212,9 +1212,17 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         parse_cino(curbuf_mut());
     }
 
-    if (g_st().got_int && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INTMOD))
+    if (g_st().got_int
+        && crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_INTMOD,
+        ))
         || curbuf_mut().b_modified_was_set
-        || (aborting() && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_INTMOD))
+        || (aborting()
+            && crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_INTMOD,
+            ))
     {
         changed(crate::globals::curbuf_mut());
     } else if retval != FAIL && !read_stdin && !read_fifo {
@@ -1612,7 +1620,7 @@ pub fn buf_clear() {
 
 /// Free all things allocated for a buffer that are related to the file.
 pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
-    let is_curbuf = crate::globals::curbuf_handle() == (&raw mut *buf);
+    let is_curbuf = ptr::eq(g_st().curbuf, buf);
     let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
     let the_curwin = curwin_ptr();
     let the_curtab = g_st().curtab;
@@ -3648,7 +3656,9 @@ pub fn buflist_list(eap: &mut Exarg) {
     let mut buflist: Vec<*mut FileBuf> = for_all_buffers_ptr().map(|b| &raw mut *b).collect();
 
     msg_ext_set_kind(c"list_cmd");
-    if crate::strings::vim_haschr(eap.arg, b't' as i32) && buflist.len() > 1 {
+    if crate::strings::vim_haschr(crate::memory::cstr_from_ptr((eap.arg).cast()), b't' as i32)
+        && buflist.len() > 1
+    {
         buflist.sort_unstable_by(|&a, &b| buf_time_compare(unsafe { &*a }, unsafe { &*b }));
     }
 
@@ -3662,23 +3672,54 @@ pub fn buflist_list(eap: &mut Exarg) {
 
         if (buf.b_p_bl == 0
             && eap.forceit == 0
-            && !crate::strings::vim_haschr(eap.arg, b'u' as i32))
-            || (crate::strings::vim_haschr(eap.arg, b'u' as i32) && buf.b_p_bl != 0)
-            || (crate::strings::vim_haschr(eap.arg, b'+' as i32)
-                && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
-            || (crate::strings::vim_haschr(eap.arg, b'a' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
-            || (crate::strings::vim_haschr(eap.arg, b'h' as i32)
-                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
-            || (crate::strings::vim_haschr(eap.arg, b'R' as i32) && (!is_terminal || !job_running))
-            || (crate::strings::vim_haschr(eap.arg, b'F' as i32) && (!is_terminal || job_running))
-            || (crate::strings::vim_haschr(eap.arg, b'-' as i32) && buf.b_p_ma != 0)
-            || (crate::strings::vim_haschr(eap.arg, b'=' as i32) && buf.b_p_ro == 0)
-            || (crate::strings::vim_haschr(eap.arg, b'x' as i32) && (buf.b_flags & BF_READERR) == 0)
-            || (crate::strings::vim_haschr(eap.arg, b'%' as i32)
-                && !std::ptr::eq(buf, g_st().curbuf))
-            || (crate::strings::vim_haschr(eap.arg, b'#' as i32)
-                && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
+            && !crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'u' as i32,
+            ))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'u' as i32,
+            ) && buf.b_p_bl != 0)
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'+' as i32,
+            ) && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'a' as i32,
+            ) && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'h' as i32,
+            ) && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'R' as i32,
+            ) && (!is_terminal || !job_running))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'F' as i32,
+            ) && (!is_terminal || job_running))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'-' as i32,
+            ) && buf.b_p_ma != 0)
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'=' as i32,
+            ) && buf.b_p_ro == 0)
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'x' as i32,
+            ) && (buf.b_flags & BF_READERR) == 0)
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'%' as i32,
+            ) && !std::ptr::eq(buf, g_st().curbuf))
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((eap.arg).cast()),
+                b'#' as i32,
+            ) && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
         {
             continue;
         }
@@ -3764,7 +3805,9 @@ pub fn buflist_list(eap: &mut Exarg) {
                 break;
             }
         }
-        if crate::strings::vim_haschr(eap.arg, b't' as i32) && buf.b_last_used != 0 {
+        if crate::strings::vim_haschr(crate::memory::cstr_from_ptr((eap.arg).cast()), b't' as i32)
+            && buf.b_last_used != 0
+        {
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[len..IOSIZE], buf.b_last_used);
         } else {
             vim_snprintf!(
@@ -4509,7 +4552,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             if (wp.borrow().buf_mut().b_nwindows > 1
                 || wp.borrow().w_floating
                 || size_mismatch
-                || (had_tab > 0 && wp != g_st().firstwin))
+                || (had_tab > 0 && wp.as_ptr() != g_st().firstwin))
                 && g_st().firstwin != g_st().lastwin
                 && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked > 0)
                 && !is_ctx_win(&wp)

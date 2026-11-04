@@ -14,7 +14,7 @@ pub type Integer = i64;
 pub enum PackerData {
     None,
     StringBuffer,
-    Ui(*mut crate::msgpack_rpc::channel::RemoteUI),
+    Ui(u64),
     File(*mut crate::os::fileio::FileDescriptor),
     Chans,
 }
@@ -38,6 +38,14 @@ pub struct PackerBuffer {
     pub anydata: PackerData,
     pub anyint: i64,
     pub owned_buf: Vec<u8>,
+    pub cur_event: Option<&'static std::ffi::CStr>,
+    pub nevents_pos: Option<usize>,
+    pub ncalls_pos: Option<usize>,
+    pub nevents: u32,
+    pub ncalls: u32,
+    pub flushed_events: bool,
+    pub incomplete_event: bool,
+    pub ncells_pending: usize,
 }
 
 impl PackerBuffer {
@@ -49,6 +57,14 @@ impl PackerBuffer {
             anydata: PackerData::None,
             anyint: 0,
             owned_buf: Vec::new(),
+            cur_event: None,
+            nevents_pos: None,
+            ncalls_pos: None,
+            nevents: 0,
+            ncalls: 0,
+            flushed_events: false,
+            incomplete_event: false,
+            ncells_pending: 0,
         }
     }
 }
@@ -308,9 +324,7 @@ pub fn mpack_handle(obj_type: ObjectType, handle: ObjHandle, packer: &mut Packer
             startptr: buf.as_mut_ptr(),
             ptr: buf.as_mut_ptr(),
             endptr: buf.as_mut_ptr().wrapping_add(MPACK_ITEM_SIZE),
-            anydata: PackerData::None,
-            anyint: 0,
-            owned_buf: Vec::new(),
+            ..PackerBuffer::new()
         };
         mpack_uint(&mut tmp, handle as u32);
         let packsize = (tmp.ptr as usize) - (buf.as_ptr() as usize);
@@ -470,8 +484,8 @@ pub fn packer_string_buffer() -> PackerBuffer {
         ptr: alloc,
         endptr: alloc.wrapping_add(INITIAL_SIZE),
         anydata: PackerData::StringBuffer,
-        anyint: 0,
         owned_buf,
+        ..PackerBuffer::new()
     }
 }
 

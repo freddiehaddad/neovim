@@ -1630,7 +1630,8 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
                 break;
             }
             st.help_pri += 1;
-            s = vim_strchr(s, b',' as i32);
+            s = vim_strchr(crate::memory::cstr_from_ptr((s).cast()), b',' as i32)
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
             if s.is_null() {
                 break;
             }
@@ -1774,7 +1775,7 @@ fn findtags_start_state_handler(
 ) -> bool {
     let noic = (st.flags & TAG_NOIC) != 0;
 
-    let lbuf_bytes = crate::memory::cstr_until_nul(&st.lbuf).to_bytes();
+    let lbuf_bytes = crate::memory::bytes_until_nul(&st.lbuf);
     if lbuf_bytes[..6.min(lbuf_bytes.len())] <= b"!_TAG_"[..]
         || (st.lbuf[0] == b'!' && ascii_islower(st.lbuf[1] as i32))
     {
@@ -1829,7 +1830,9 @@ fn findtags_parse_line(
     if st.orgpat.headlen != 0 {
         *tagpp = Tagptrs::default();
         tagpp.tagname = lbuf;
-        tagpp.tagname_end = vim_strchr(lbuf.cast(), TAB as i32).cast();
+        tagpp.tagname_end = vim_strchr(crate::memory::cstr_from_ptr(lbuf.cast()), TAB as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast();
         if tagpp.tagname_end.is_null() {
             return TagmatchStatus::TagMatchFail;
         }
@@ -1949,7 +1952,9 @@ fn findtags_parse_line(
         }
 
         tagpp.fname = tagpp.tagname_end.wrapping_add(1);
-        tagpp.fname_end = vim_strchr(tagpp.fname.cast(), TAB as i32).cast();
+        tagpp.fname_end = vim_strchr(crate::memory::cstr_from_ptr(tagpp.fname.cast()), TAB as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+            .cast();
         if tagpp.fname_end.is_null() {
             status = false;
         } else {
@@ -2622,7 +2627,8 @@ fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
     let lbuf: crate::strings::RawCCharPtrMut = lbuf_slice.as_ptr().cast_mut().cast();
     {
         tagp.tagname = lbuf.cast();
-        let mut p = vim_strchr(lbuf, TAB as i32);
+        let mut p = vim_strchr(crate::memory::cstr_from_ptr((lbuf).cast()), TAB as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p.is_null() {
             return false;
         }
@@ -2632,7 +2638,8 @@ fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
             p = p.wrapping_add(1);
         }
         tagp.fname = p.cast();
-        p = vim_strchr(p, TAB as i32);
+        p = vim_strchr(crate::memory::cstr_from_ptr((p).cast()), TAB as i32)
+            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p.is_null() {
             return false;
         }
@@ -2651,13 +2658,9 @@ fn parse_tag_line(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
 }
 
 fn test_for_static(tagp: &Tagptrs) -> bool {
-    let mut p = tagp.command.cast();
-    loop {
-        p = vim_strchr(p, b'\t' as i32);
-        if p.is_null() {
-            break;
-        }
-        p = p.wrapping_add(1);
+    let mut p: *const std::ffi::c_char = tagp.command.cast();
+    while let Some(found) = vim_strchr(crate::memory::cstr_from_ptr(p), b'\t' as i32) {
+        p = found.as_ptr().wrapping_add(1);
         if crate::memory::cstr_as_bytes(p).starts_with(b"file:") {
             return true;
         }
@@ -2923,7 +2926,10 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
 
             let save_no_hlsearch = g_st().search_global.no_hlsearch;
 
-            let search_options = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_TAGPAT) {
+            let search_options = if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_TAGPAT,
+            ) {
                 0
             } else {
                 SEARCH_KEEP
@@ -3130,7 +3136,7 @@ fn expand_tag_fname(
 
         if expand
             && path_has_wildcard(fname.as_bytes(), true)
-            && !crate::strings::vim_haschr(fname.as_ptr(), b'`' as i32)
+            && !crate::strings::vim_haschr(&(fname), b'`' as i32)
         {
             xpc.xp_context = EXPAND_FILES;
             if let Some(exp) = expand_one(

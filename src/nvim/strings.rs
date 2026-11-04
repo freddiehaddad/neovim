@@ -1,8 +1,8 @@
 //! String manipulation functions and Vimscript string builtins (`src/nvim/strings.c`).
 
 use crate::charset::{
-    STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, ascii_isdigit,
-    ascii_iswhite, rem_backslash, transstr, vim_str2nr,
+    STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, ascii_iswhite,
+    rem_backslash, transstr, vim_str2nr,
 };
 use crate::errors::*;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
@@ -25,7 +25,7 @@ use crate::option::{csh_like_shell, fish_like_shell};
 #[cfg(windows)]
 use crate::option_vars::*;
 use crate::plines::linetabsize_col;
-use std::ffi::{CStr, c_char, c_void};
+use std::ffi::{CStr, c_char};
 use std::ptr;
 
 const CTRL_V: u8 = 0x16;
@@ -67,73 +67,19 @@ pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 
-pub trait IntoCCharPtr {
-    fn into_c_char_ptr(self) -> RawCCharPtr;
-}
-
-impl IntoCCharPtr for RawCCharPtr {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self
-    }
-}
-
-impl IntoCCharPtr for RawCCharPtrMut {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self
-    }
-}
-
-impl IntoCCharPtr for &CStr {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for &&CStr {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for &std::ffi::CString {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.as_ptr().cast()
-    }
-}
-
-impl IntoCCharPtr for Option<&CStr> {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.map_or(ptr::null(), |s| s.as_ptr().cast())
-    }
-}
-
-impl IntoCCharPtr for Option<&std::ffi::CString> {
-    #[inline]
-    fn into_c_char_ptr(self) -> RawCCharPtr {
-        self.map_or(ptr::null(), |s| s.as_ptr().cast())
-    }
+#[inline]
+pub fn tr(s: &CStr) -> &'static CStr {
+    gettext(s)
 }
 
 #[inline]
-pub fn tr<S: IntoCCharPtr>(s: S) -> &'static CStr {
-    gettext(s.into_c_char_ptr())
-}
-
-#[inline]
-pub fn gettext<S: IntoCCharPtr>(msgid: S) -> &'static CStr {
-    let msgid = msgid.into_c_char_ptr();
+pub fn gettext(msgid: &CStr) -> &'static CStr {
     if crate::os::lang::HAVE_LIBINTL
-        && let Some(tr) = crate::os::lang::c_gettext(crate::memory::cstr_as_opt_cstr(msgid))
+        && let Some(tr) = crate::os::lang::c_gettext(Some(msgid))
     {
         return tr;
     }
-    crate::memory::cstr_from_ptr(msgid)
+    unsafe { CStr::from_ptr(msgid.as_ptr()) }
 }
 
 pub trait IntoNgettextCount {
@@ -183,24 +129,17 @@ impl IntoNgettextCount for isize {
 }
 
 #[inline]
-pub fn ngettext<S1: IntoCCharPtr, S2: IntoCCharPtr, N: IntoNgettextCount>(
-    msgid1: S1,
-    msgid2: S2,
-    n: N,
-) -> &'static CStr {
-    let msgid1 = msgid1.into_c_char_ptr();
-    let msgid2 = msgid2.into_c_char_ptr();
+pub fn ngettext<N: IntoNgettextCount>(msgid1: &CStr, msgid2: &CStr, n: N) -> &'static CStr {
     let count = n.into_ngettext_count();
     if crate::os::lang::HAVE_LIBINTL
-        && let Some(tr) =
-            crate::os::lang::c_ngettext(crate::memory::cstr_as_opt_cstr(msgid1), count)
+        && let Some(tr) = crate::os::lang::c_ngettext(Some(msgid1), count)
     {
         return tr;
     }
     if count == 1 {
-        crate::memory::cstr_from_ptr(msgid1)
+        unsafe { CStr::from_ptr(msgid1.as_ptr()) }
     } else {
-        crate::memory::cstr_from_ptr(msgid2)
+        unsafe { CStr::from_ptr(msgid2.as_ptr()) }
     }
 }
 
@@ -357,14 +296,9 @@ pub fn strtod_slice(bytes: &[u8]) -> (f64, usize) {
     (if neg { -val } else { val }, bytes.len() - s.len())
 }
 
-pub fn strtod(nptr: impl crate::strings::IntoCCharPtr, endptr: *mut RawCCharPtrMut) -> f64 {
-    let nptr = nptr.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(nptr);
-    let (val, consumed) = strtod_slice(bytes);
-    if !endptr.is_null() {
-        *crate::globals::gptr(endptr) = nptr.wrapping_add(consumed).cast_mut();
-    }
-    val
+pub fn strtod(nptr: &CStr) -> (f64, &CStr) {
+    let (val, consumed) = strtod_slice(nptr.to_bytes());
+    (val, &nptr[consumed..])
 }
 
 #[inline]
@@ -553,27 +487,26 @@ pub fn del_trailing_spaces(slice: &mut [u8]) {
 }
 
 #[inline]
-pub fn vim_haschr<S: IntoCCharPtr, C: crate::charset::AsciiInt>(string: S, c: C) -> bool {
-    !vim_strchr(string, c.into_ascii_int()).is_null()
+pub fn vim_haschr<C: crate::charset::AsciiInt>(string: &CStr, c: C) -> bool {
+    vim_strchr(string, c.into_ascii_int()).is_some()
 }
 
-pub fn vim_strchr<S: IntoCCharPtr>(string: S, c: i32) -> RawCCharPtrMut {
-    let string = string.into_c_char_ptr();
-    if string.is_null() || c <= 0 {
-        return ptr::null_mut();
+pub fn vim_strchr(string: &CStr, c: i32) -> Option<&CStr> {
+    if c <= 0 {
+        return None;
     }
-    let hay = crate::memory::cstr_as_bytes(string);
+    let hay = string.to_bytes();
     if c < 0x80 {
         hay.iter()
             .position(|&b| i32::from(b) == c)
-            .map_or(ptr::null_mut(), |pos| string.wrapping_add(pos).cast_mut())
+            .map(|pos| &string[pos..])
     } else {
         let mut u8char = [0u8; MB_MAXBYTES + 1];
         let len = utf_char2slice(c, &mut u8char);
         let needle = &u8char[..len];
         hay.windows(len)
             .position(|w| w == needle)
-            .map_or(ptr::null_mut(), |pos| string.wrapping_add(pos).cast_mut())
+            .map(|pos| &string[pos..])
     }
 }
 
@@ -592,10 +525,13 @@ pub fn concat_str(b1: &[u8], b2: &[u8]) -> std::ffi::CString {
     crate::memory::cstr_from_bytes(&dest)
 }
 
-pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
+pub fn tv_nr(tvs: &[TypVal], idxp: &mut i32) -> Varnumber {
     let idx = (*idxp - 1) as usize;
     let mut n: Varnumber = 0;
-    let tv = crate::globals::gref(tvs.wrapping_add(idx));
+    let Some(tv) = tvs.get(idx) else {
+        emsg(gettext(E_PRINTF));
+        return 0;
+    };
     if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
@@ -609,48 +545,53 @@ pub fn tv_nr(tvs: *mut TypVal, idxp: &mut i32) -> Varnumber {
     n
 }
 
-pub fn tv_str(
-    tvs: *mut TypVal,
+pub fn tv_str<'a>(
+    tvs: &'a mut [TypVal],
     idxp: &mut i32,
-    tofree: &mut Option<std::ffi::CString>,
-) -> RawCCharPtr {
+    tofree: &'a mut Option<std::ffi::CString>,
+) -> Option<&'a CStr> {
     let idx = (*idxp - 1) as usize;
-    let mut s: RawCCharPtr = ptr::null();
-    if crate::globals::gptr(tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
+    let Some(tv) = tvs.get_mut(idx) else {
         emsg(gettext(E_PRINTF));
+        return None;
+    };
+    if tv.v_type == VarType::VarUnknown {
+        emsg(gettext(E_PRINTF));
+        None
     } else {
         *idxp += 1;
-        let tv = tvs.wrapping_add(idx);
-        if crate::globals::gptr(tv).v_type == VarType::VarString
-            || crate::globals::gptr(tv).v_type == VarType::VarNumber
-        {
-            s = tv_get_string_chk(crate::globals::gref(tv))
-                .map_or(ptr::null(), std::ffi::CStr::as_ptr);
-
+        if tv.v_type == VarType::VarString || tv.v_type == VarType::VarNumber {
             *tofree = None;
+            tv_get_string_chk(tv)
         } else {
-            let encoded = encode_tv2echo(crate::globals::gmut(tv), None);
-            s = encoded.as_ptr();
+            let encoded = encode_tv2echo(tv, None);
             *tofree = Some(encoded);
+            tofree.as_deref()
         }
     }
-    s
 }
 
-pub fn tv_ptr(tvs: *const TypVal, idxp: &mut i32) -> *const c_void {
+pub fn tv_ptr(tvs: &[TypVal], idxp: &mut i32) -> usize {
     let idx = (*idxp - 1) as usize;
-    if crate::globals::gptr(tvs.wrapping_add(idx)).v_type == VarType::VarUnknown {
+    let Some(tv) = tvs.get(idx) else {
         emsg(gettext(E_PRINTF));
-        return ptr::null();
+        return 0;
+    };
+    if tv.v_type == VarType::VarUnknown {
+        emsg(gettext(E_PRINTF));
+        return 0;
     }
     *idxp += 1;
-    crate::globals::gptr(tvs.wrapping_add(idx)).vval.v_any_ptr()
+    tv.vval.v_any_ptr() as usize
 }
 
-pub fn tv_float(tvs: *mut TypVal, idxp: &mut i32) -> TvFloat {
+pub fn tv_float(tvs: &[TypVal], idxp: &mut i32) -> TvFloat {
     let idx = (*idxp - 1) as usize;
     let mut f: TvFloat = 0.0;
-    let tv = crate::globals::gref(tvs.wrapping_add(idx));
+    let Some(tv) = tvs.get(idx) else {
+        emsg(gettext(E_PRINTF));
+        return 0.0;
+    };
     if tv.v_type == VarType::VarUnknown {
         emsg(gettext(E_PRINTF));
     } else {
@@ -764,25 +705,19 @@ fn format_typename(type_: &[u8]) -> &'static CStr {
     }
 }
 
-fn adjust_types(
-    ap_types: &mut Vec<RawCCharPtr>,
-    arg: i32,
-    type_: impl crate::strings::IntoCCharPtr,
-) -> bool {
-    let type_ = type_.into_c_char_ptr();
+fn adjust_types<'a>(ap_types: &mut Vec<Option<&'a CStr>>, arg: i32, type_: &'a CStr) -> bool {
     if arg <= 0 {
         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), type_);
         return false;
     }
 
     if (arg as usize) > ap_types.len() {
-        ap_types.resize(arg as usize, ptr::null());
+        ap_types.resize(arg as usize, None);
     }
 
-    let prev = ap_types[(arg - 1) as usize];
-    if !prev.is_null() {
-        let prev_bytes = crate::memory::cstr_as_bytes(prev);
-        let type_bytes = crate::memory::cstr_as_bytes(type_);
+    if let Some(prev) = ap_types[(arg - 1) as usize] {
+        let prev_bytes = prev.to_bytes();
+        let type_bytes = type_.to_bytes();
         if prev_bytes.first() == Some(&b'*') || type_bytes.first() == Some(&b'*') {
             let pt_bytes = if type_bytes.first() == Some(&b'*') {
                 prev_bytes
@@ -809,25 +744,18 @@ fn adjust_types(
         }
     }
 
-    ap_types[(arg - 1) as usize] = type_;
+    ap_types[(arg - 1) as usize] = Some(type_);
     true
 }
 
-pub fn format_overflow_error(pstart: impl crate::strings::IntoCCharPtr) {
-    let pstart = pstart.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(pstart);
+pub fn format_overflow_error(pstart: &CStr) {
+    let bytes = pstart.to_bytes();
     let dig_len = bytes.iter().take_while(|&&b| b.is_ascii_digit()).count() as i32;
     semsg!(gettext(E_VAL_TOO_LARGE_LEN), dig_len, pstart);
 }
 
-pub fn get_unsigned_int(
-    pstart: impl crate::strings::IntoCCharPtr,
-    p: &mut RawCCharPtr,
-    uj: &mut u32,
-    overflow_err: bool,
-) -> bool {
-    let pstart = pstart.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(*p);
+pub fn get_unsigned_int(pstart: &CStr, p: &mut &CStr, uj: &mut u32, overflow_err: bool) -> bool {
+    let bytes = p.to_bytes();
     let Some(&b0) = bytes.first() else {
         *uj = 0;
         return true;
@@ -842,7 +770,7 @@ pub fn get_unsigned_int(
         *uj = 10 * (*uj) + u32::from(b - b'0');
         adv += 1;
     }
-    *p = (*p).wrapping_add(adv);
+    *p = &(*p)[adv..];
 
     if *uj > MAX_ALLOWED_STRING_WIDTH {
         if overflow_err {
@@ -854,16 +782,11 @@ pub fn get_unsigned_int(
     true
 }
 
-pub fn parse_fmt_types(
-    num_posarg: &mut i32,
-    fmt: impl crate::strings::IntoCCharPtr,
-    tvs: *mut TypVal,
-) -> bool {
-    let fmt = fmt.into_c_char_ptr();
-    if fmt.is_null() {
+pub fn parse_fmt_types(num_posarg: &mut i32, fmt: Option<&CStr>, tvs: Option<&[TypVal]>) -> bool {
+    let Some(fmt) = fmt else {
         return true;
-    }
-    let mut ap_types: Vec<RawCCharPtr> = Vec::new();
+    };
+    let mut ap_types: Vec<Option<&CStr>> = Vec::new();
     let mut any_pos = false;
     let mut any_arg = false;
 
@@ -884,7 +807,7 @@ pub fn parse_fmt_types(
         };
     }
 
-    let fmt_bytes = crate::memory::cstr_as_bytes(fmt);
+    let fmt_bytes = fmt.to_bytes();
     let mut idx = 0usize;
     while idx < fmt_bytes.len() {
         if fmt_bytes[idx] != b'%' {
@@ -895,14 +818,14 @@ pub fn parse_fmt_types(
         } else {
             let mut pos_arg: i32 = -1;
             idx += 1;
-            let mut p = fmt.wrapping_add(idx);
+            let mut p = &fmt[idx..];
             let pstart = p;
 
             let dig_len = fmt_bytes[idx..]
                 .iter()
                 .take_while(|b| b.is_ascii_digit())
                 .count();
-            let mut ptype = p.wrapping_add(dig_len);
+            let mut ptype = &fmt[(idx + dig_len).min(fmt_bytes.len())..];
 
             if fmt_bytes.get(idx + dig_len) == Some(&b'$') {
                 if fmt_bytes.get(idx) == Some(&b'0') {
@@ -910,14 +833,14 @@ pub fn parse_fmt_types(
                     fail!();
                 }
                 let mut uj: u32 = 0;
-                if !get_unsigned_int(pstart, &mut p, &mut uj, !tvs.is_null()) {
+                if !get_unsigned_int(pstart, &mut p, &mut uj, tvs.is_some()) {
                     fail!();
                 }
                 pos_arg = uj as i32;
                 any_pos = true;
                 check_pos_arg!();
-                p = p.wrapping_add(1);
-                idx = (p as usize) - (fmt as usize);
+                p = &p[1.min(p.to_bytes().len())..];
+                idx = fmt_bytes.len() - p.to_bytes().len();
             }
 
             while idx < fmt_bytes.len()
@@ -925,24 +848,23 @@ pub fn parse_fmt_types(
             {
                 idx += 1;
             }
-            p = fmt.wrapping_add(idx);
+            p = &fmt[idx..];
 
             let arg = p;
             if fmt_bytes.get(idx) == Some(&b'*') {
                 idx += 1;
-                p = fmt.wrapping_add(idx);
+                p = &fmt[idx..];
                 if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(&arg[1..], &mut p, &mut uj, tvs.is_some()) {
                         fail!();
                     }
-                    idx = (p as usize) - (fmt as usize);
+                    idx = fmt_bytes.len() - p.to_bytes().len();
                     if fmt_bytes.get(idx) != Some(&b'$') {
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
                     }
                     idx += 1;
-                    p = fmt.wrapping_add(idx);
                     any_pos = true;
                     check_pos_arg!();
                     if !adjust_types(&mut ap_types, uj as i32, arg) {
@@ -955,10 +877,10 @@ pub fn parse_fmt_types(
             } else if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                 let digstart = p;
                 let mut uj: u32 = 0;
-                if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
+                if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
                     fail!();
                 }
-                idx = (p as usize) - (fmt as usize);
+                idx = fmt_bytes.len() - p.to_bytes().len();
                 if fmt_bytes.get(idx) == Some(&b'$') {
                     semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                     fail!();
@@ -967,22 +889,21 @@ pub fn parse_fmt_types(
 
             if fmt_bytes.get(idx) == Some(&b'.') {
                 idx += 1;
-                p = fmt.wrapping_add(idx);
+                p = &fmt[idx..];
                 let arg = p;
                 if fmt_bytes.get(idx) == Some(&b'*') {
                     idx += 1;
-                    p = fmt.wrapping_add(idx);
+                    p = &fmt[idx..];
                     if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                         let mut uj: u32 = 0;
-                        if !get_unsigned_int(arg.wrapping_add(1), &mut p, &mut uj, !tvs.is_null()) {
+                        if !get_unsigned_int(&arg[1..], &mut p, &mut uj, tvs.is_some()) {
                             fail!();
                         }
-                        idx = (p as usize) - (fmt as usize);
+                        idx = fmt_bytes.len() - p.to_bytes().len();
                         if fmt_bytes.get(idx) == Some(&b'$') {
                             any_pos = true;
                             check_pos_arg!();
                             idx += 1;
-                            p = fmt.wrapping_add(idx);
                             if !adjust_types(&mut ap_types, uj as i32, arg) {
                                 fail!();
                             }
@@ -997,10 +918,10 @@ pub fn parse_fmt_types(
                 } else if fmt_bytes.get(idx).is_some_and(u8::is_ascii_digit) {
                     let digstart = p;
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
                         fail!();
                     }
-                    idx = (p as usize) - (fmt as usize);
+                    idx = fmt_bytes.len() - p.to_bytes().len();
                     if fmt_bytes.get(idx) == Some(&b'$') {
                         semsg!(gettext(E_INVALID_FORMAT_SPECIFIER), fmt);
                         fail!();
@@ -1011,7 +932,7 @@ pub fn parse_fmt_types(
             if pos_arg != -1 {
                 any_pos = true;
                 check_pos_arg!();
-                ptype = fmt.wrapping_add(idx);
+                ptype = &fmt[idx.min(fmt_bytes.len())..];
             }
 
             if let Some(&lm) = fmt_bytes.get(idx)
@@ -1050,13 +971,15 @@ pub fn parse_fmt_types(
     }
 
     *num_posarg = ap_types.len() as i32;
-    for (arg_idx, &ap_type) in ap_types.iter().enumerate() {
-        if ap_type.is_null() {
+    for (arg_idx, ap_type) in ap_types.iter().enumerate() {
+        if ap_type.is_none() {
             semsg!(gettext(E_FMT_ARG_NR_UNUSED), (arg_idx + 1) as i32, fmt,);
             fail!();
         }
-        if !tvs.is_null()
-            && crate::globals::gptr(tvs.wrapping_add(arg_idx)).v_type == VarType::VarUnknown
+        if let Some(tvs_slice) = tvs
+            && tvs_slice
+                .get(arg_idx)
+                .is_none_or(|tv| tv.v_type == VarType::VarUnknown)
         {
             semsg!(
                 gettext(E_POSITIONAL_OUT_OF_BOUNDS),
@@ -1074,21 +997,23 @@ const E_TOO_MANY_ARGS: &CStr = c"E767: Too many arguments to printf()";
 const TMP_LEN: usize = 350;
 
 #[derive(Clone, Copy)]
-pub enum FmtVal {
+pub enum FmtVal<'a> {
     Signed(i64),
     Unsigned(u64),
     Float(f64),
-    Ptr(*const c_void),
+    CStr(Option<&'a CStr>),
+    Addr(usize),
 }
 
-impl FmtVal {
+impl<'a> FmtVal<'a> {
     #[inline]
     fn as_i64(self) -> i64 {
         match self {
             Self::Signed(v) => v,
             Self::Unsigned(v) => v as i64,
             Self::Float(v) => v as i64,
-            Self::Ptr(p) => p as usize as i64,
+            Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as i64),
+            Self::Addr(p) => p as i64,
         }
     }
 
@@ -1098,7 +1023,8 @@ impl FmtVal {
             Self::Signed(v) => v as u64,
             Self::Unsigned(v) => v,
             Self::Float(v) => v as u64,
-            Self::Ptr(p) => p as usize as u64,
+            Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize as u64),
+            Self::Addr(p) => p as u64,
         }
     }
 
@@ -1108,284 +1034,370 @@ impl FmtVal {
             Self::Float(v) => v,
             Self::Signed(v) => v as f64,
             Self::Unsigned(v) => v as f64,
-            Self::Ptr(_) => 0.0,
+            Self::CStr(_) | Self::Addr(_) => 0.0,
         }
     }
 
     #[inline]
-    fn as_ptr(self) -> *const c_void {
+    fn as_addr(self) -> usize {
         match self {
-            Self::Ptr(p) => p,
-            Self::Signed(v) => v as usize as *const c_void,
-            Self::Unsigned(v) => v as usize as *const c_void,
-            Self::Float(_) => ptr::null(),
+            Self::Addr(p) => p,
+            Self::CStr(s) => s.map_or(0, |c| c.as_ptr() as usize),
+            Self::Signed(v) => v as usize,
+            Self::Unsigned(v) => v as usize,
+            Self::Float(_) => 0,
+        }
+    }
+
+    #[inline]
+    pub fn as_cstr(self) -> Option<&'a CStr> {
+        match self {
+            Self::CStr(s) => s,
+            Self::Addr(0) | Self::Signed(0) | Self::Unsigned(0) | Self::Float(_) => None,
+            Self::Addr(p) => Some(unsafe { CStr::from_ptr(p as *const c_char) }),
+            Self::Signed(v) => Some(unsafe { CStr::from_ptr(v as usize as *const c_char) }),
+            Self::Unsigned(v) => Some(unsafe { CStr::from_ptr(v as usize as *const c_char) }),
         }
     }
 }
 
-pub trait IntoFmtVal {
-    fn into_fmt_val(self) -> FmtVal;
+pub trait IntoFmtVal<'a> {
+    fn into_fmt_val(self) -> FmtVal<'a>;
 }
 
-impl IntoFmtVal for FmtVal {
+impl<'a> IntoFmtVal<'a> for FmtVal<'a> {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'a> {
         self
     }
 }
 
-impl IntoFmtVal for i8 {
+impl IntoFmtVal<'_> for i8 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
-impl IntoFmtVal for i16 {
+impl IntoFmtVal<'_> for i16 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
-impl IntoFmtVal for i32 {
+impl IntoFmtVal<'_> for i32 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(i64::from(self))
     }
 }
 
-impl IntoFmtVal for i64 {
+impl IntoFmtVal<'_> for i64 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(self)
     }
 }
 
-impl IntoFmtVal for isize {
+impl IntoFmtVal<'_> for isize {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Signed(self as i64)
     }
 }
 
-impl IntoFmtVal for u8 {
+impl IntoFmtVal<'_> for u8 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
-impl IntoFmtVal for u16 {
+impl IntoFmtVal<'_> for u16 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
-impl IntoFmtVal for u32 {
+impl IntoFmtVal<'_> for u32 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
-impl IntoFmtVal for u64 {
+impl IntoFmtVal<'_> for u64 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(self)
     }
 }
 
-impl IntoFmtVal for usize {
+impl IntoFmtVal<'_> for usize {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(self as u64)
     }
 }
 
-impl IntoFmtVal for bool {
+impl IntoFmtVal<'_> for bool {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Unsigned(u64::from(self))
     }
 }
 
-impl IntoFmtVal for f32 {
+impl IntoFmtVal<'_> for f32 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Float(f64::from(self))
     }
 }
 
-impl IntoFmtVal for f64 {
+impl IntoFmtVal<'_> for f64 {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
+    fn into_fmt_val(self) -> FmtVal<'static> {
         FmtVal::Float(self)
     }
 }
 
-impl<T> IntoFmtVal for *const T {
+impl<T> IntoFmtVal<'_> for *const T {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
-        FmtVal::Ptr(self.cast())
+    fn into_fmt_val(self) -> FmtVal<'static> {
+        FmtVal::Addr(self as usize)
     }
 }
 
-impl<T> IntoFmtVal for *mut T {
+impl<T> IntoFmtVal<'_> for *mut T {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
-        FmtVal::Ptr(self.cast())
+    fn into_fmt_val(self) -> FmtVal<'static> {
+        FmtVal::Addr(self as usize)
     }
 }
 
-impl IntoFmtVal for &CStr {
+impl<'a> IntoFmtVal<'a> for &'a CStr {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
-        FmtVal::Ptr(self.as_ptr().cast())
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self))
     }
 }
 
-impl IntoFmtVal for Option<&CStr> {
+impl<'a> IntoFmtVal<'a> for &&'a CStr {
     #[inline]
-    fn into_fmt_val(self) -> FmtVal {
-        FmtVal::Ptr(self.map_or(ptr::null(), |s| s.as_ptr().cast()))
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(*self))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for Option<&'a CStr> {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self)
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a std::ffi::CString {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_c_str()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for Option<&'a std::ffi::CString> {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.map(std::ffi::CString::as_c_str))
     }
 }
 
 #[inline]
-fn fmt_arg_val(args: &[FmtVal], arg_idx: &mut i32) -> FmtVal {
+fn fmt_arg_val<'a>(args: &[FmtVal<'a>], arg_idx: &mut i32) -> FmtVal<'a> {
     let idx = (*arg_idx - 1) as usize;
     *arg_idx += 1;
     args.get(idx).copied().unwrap_or(FmtVal::Signed(0))
 }
 
 fn vim_vsnprintf_typval_inner(
-    str_out: impl crate::strings::IntoCCharPtr,
-    str_m: usize,
-    fmt: impl crate::strings::IntoCCharPtr,
-    tvs: *mut TypVal,
-    fmt_args: &[FmtVal],
+    str_out: &mut [u8],
+    fmt: Option<&CStr>,
+    mut tvs: Option<&mut [TypVal]>,
+    fmt_args: &[FmtVal<'_>],
 ) -> i32 {
-    let str_out = str_out.into_c_char_ptr().cast_mut();
-    let fmt = fmt.into_c_char_ptr();
-    {
-        let mut str_l: usize = 0;
-        let mut str_avail = str_l < str_m;
-        let mut p = fmt;
-        let mut num_posarg: i32 = 0;
-        let mut arg_idx: i32 = 1;
+    let str_m = str_out.len();
+    let mut str_l: usize = 0;
+    let mut str_avail = str_l < str_m;
+    let mut p: &CStr = fmt.unwrap_or(c"");
+    let mut num_posarg: i32 = 0;
+    let mut arg_idx: i32 = 1;
 
-        if !parse_fmt_types(&mut num_posarg, fmt, tvs) {
-            return 0;
-        }
+    if !parse_fmt_types(&mut num_posarg, fmt, tvs.as_deref()) {
+        return 0;
+    }
 
-        if p.is_null() {
-            p = c"".as_ptr();
-        }
+    let mut had_error = false;
 
-        let mut had_error = false;
+    'fmt_loop: while !p.to_bytes().is_empty() {
+        let p_bytes = p.to_bytes();
+        if p_bytes[0] != b'%' {
+            let rem = &p_bytes[1..];
+            let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
+            if str_avail {
+                let avail = str_m - str_l;
+                let copy_len = n.min(avail);
+                str_out[str_l..str_l + copy_len].copy_from_slice(&p_bytes[..copy_len]);
+                str_avail = n < avail;
+            }
+            p = &p[n..];
+            str_l += n;
+        } else {
+            let mut min_field_width: usize = 0;
+            let mut precision: usize = 0;
+            let mut zero_padding = false;
+            let mut precision_specified = false;
+            let mut justify_left = false;
+            let mut alternate_form = false;
+            let mut force_sign = false;
+            let mut space_for_positive: i32 = 1;
+            let mut length_modifier: u8 = 0;
+            let mut tmp = [0u8; TMP_LEN];
+            let uchar_arg: [u8; 1];
+            let mut str_arg_slice: &[u8] = b"";
+            let mut str_arg_l: usize;
+            let mut number_of_zeros_to_pad: usize = 0;
+            let mut zero_padding_insertion_ind: usize = 0;
+            let mut tofree: Option<std::ffi::CString> = None;
+            let mut pos_arg: i32 = -1;
 
-        'fmt_loop: while !crate::memory::cstr_is_empty(p) {
-            if crate::memory::cstr_first_byte(p) != b'%' {
-                let rem = crate::memory::cstr_as_bytes(p.wrapping_add(1));
-                let n = 1 + rem.iter().position(|&b| b == b'%').unwrap_or(rem.len());
-                if str_avail {
-                    let avail = str_m - str_l;
-                    unsafe { ptr::copy(p, str_out.wrapping_add(str_l), n.min(avail)) };
-                    str_avail = n < avail;
+            p = &p[1..];
+
+            let dig_count = p
+                .to_bytes()
+                .iter()
+                .take_while(|b| b.is_ascii_digit())
+                .count();
+            if p.to_bytes().get(dig_count) == Some(&b'$') {
+                let digstart = p;
+                let mut uj: u32 = 0;
+                if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
+                    had_error = true;
+                    break 'fmt_loop;
                 }
-                p = p.wrapping_add(n);
-                str_l += n;
-            } else {
-                let mut min_field_width: usize = 0;
-                let mut precision: usize = 0;
-                let mut zero_padding = false;
-                let mut precision_specified = false;
-                let mut justify_left = false;
-                let mut alternate_form = false;
-                let mut force_sign = false;
-                let mut space_for_positive: i32 = 1;
-                let mut length_modifier: u8 = 0;
-                let mut tmp = [0u8; TMP_LEN];
-                let mut str_arg: RawCCharPtr = ptr::null();
-                let mut str_arg_l: usize;
-                let uchar_arg: u8;
-                let mut number_of_zeros_to_pad: usize = 0;
-                let mut zero_padding_insertion_ind: usize = 0;
-                let mut tofree: Option<std::ffi::CString> = None;
-                let mut pos_arg: i32 = -1;
+                pos_arg = uj as i32;
+                p = &p[1.min(p.to_bytes().len())..];
+            }
 
-                p = p.wrapping_add(1);
-
-                let mut ptype = p;
-                while ascii_isdigit(*crate::globals::gptr(ptype)) {
-                    ptype = ptype.wrapping_add(1);
+            loop {
+                match p.to_bytes().first().copied().unwrap_or(0) {
+                    b'0' => {
+                        zero_padding = true;
+                        p = &p[1..];
+                    }
+                    b'-' => {
+                        justify_left = true;
+                        p = &p[1..];
+                    }
+                    b'+' => {
+                        force_sign = true;
+                        space_for_positive = 0;
+                        p = &p[1..];
+                    }
+                    b' ' => {
+                        force_sign = true;
+                        p = &p[1..];
+                    }
+                    b'#' => {
+                        alternate_form = true;
+                        p = &p[1..];
+                    }
+                    b'\'' => {
+                        p = &p[1..];
+                    }
+                    _ => break,
                 }
+            }
 
-                if crate::memory::cstr_first_byte(ptype) == b'$' {
-                    let digstart = p;
+            if p.to_bytes().first() == Some(&b'*') {
+                let digstart = &p[1..];
+                p = digstart;
+
+                if p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
                     let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
                         had_error = true;
                         break 'fmt_loop;
                     }
-                    pos_arg = uj as i32;
-                    p = p.wrapping_add(1);
+                    arg_idx = uj as i32;
+                    p = &p[1.min(p.to_bytes().len())..];
                 }
 
-                loop {
-                    match (*crate::globals::gptr(p)) as u8 {
-                        b'0' => {
-                            zero_padding = true;
-                            p = p.wrapping_add(1);
-                        }
-                        b'-' => {
-                            justify_left = true;
-                            p = p.wrapping_add(1);
-                        }
-                        b'+' => {
-                            force_sign = true;
-                            space_for_positive = 0;
-                            p = p.wrapping_add(1);
-                        }
-                        b' ' => {
-                            force_sign = true;
-                            p = p.wrapping_add(1);
-                        }
-                        b'#' => {
-                            alternate_form = true;
-                            p = p.wrapping_add(1);
-                        }
-                        b'\'' => {
-                            p = p.wrapping_add(1);
-                        }
-                        _ => break,
+                let mut j = if let Some(ref tvs_slice) = tvs {
+                    tv_nr(tvs_slice, &mut arg_idx) as i32
+                } else {
+                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
+                };
+
+                if j > MAX_ALLOWED_STRING_WIDTH as i32 {
+                    if tvs.is_some() {
+                        format_overflow_error(digstart);
+                        had_error = true;
+                        break 'fmt_loop;
+                    } else {
+                        j = MAX_ALLOWED_STRING_WIDTH as i32;
                     }
                 }
 
-                if crate::memory::cstr_first_byte(p) == b'*' {
-                    let digstart = p.wrapping_add(1);
-                    p = p.wrapping_add(1);
+                if j >= 0 {
+                    min_field_width = j as usize;
+                } else {
+                    min_field_width = (-j) as usize;
+                    justify_left = true;
+                }
+            } else if p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
+                let digstart = p;
+                let mut uj: u32 = 0;
+                if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
+                    had_error = true;
+                    break 'fmt_loop;
+                }
+                min_field_width = uj as usize;
+            }
 
-                    if ascii_isdigit(*crate::globals::gptr(p)) {
+            if p.to_bytes().first() == Some(&b'.') {
+                p = &p[1..];
+                precision_specified = true;
+
+                if p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
+                    let digstart = p;
+                    let mut uj: u32 = 0;
+                    if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
+                        had_error = true;
+                        break 'fmt_loop;
+                    }
+                    precision = uj as usize;
+                } else if p.to_bytes().first() == Some(&b'*') {
+                    let digstart = p;
+                    p = &p[1..];
+
+                    if p.to_bytes().first().is_some_and(u8::is_ascii_digit) {
                         let mut uj: u32 = 0;
-                        if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
+                        if !get_unsigned_int(digstart, &mut p, &mut uj, tvs.is_some()) {
                             had_error = true;
                             break 'fmt_loop;
                         }
                         arg_idx = uj as i32;
-                        p = p.wrapping_add(1);
+                        p = &p[1.min(p.to_bytes().len())..];
                     }
 
-                    let mut j = if !tvs.is_null() {
-                        tv_nr(tvs, &mut arg_idx) as i32
+                    let mut j = if let Some(ref tvs_slice) = tvs {
+                        tv_nr(tvs_slice, &mut arg_idx) as i32
                     } else {
                         fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
                     };
 
                     if j > MAX_ALLOWED_STRING_WIDTH as i32 {
-                        if !tvs.is_null() {
+                        if tvs.is_some() {
                             format_overflow_error(digstart);
                             had_error = true;
                             break 'fmt_loop;
@@ -1395,722 +1407,634 @@ fn vim_vsnprintf_typval_inner(
                     }
 
                     if j >= 0 {
-                        min_field_width = j as usize;
+                        precision = j as usize;
                     } else {
-                        min_field_width = (-j) as usize;
-                        justify_left = true;
-                    }
-                } else if ascii_isdigit(*crate::globals::gptr(p)) {
-                    let digstart = p;
-                    let mut uj: u32 = 0;
-                    if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
-                        had_error = true;
-                        break 'fmt_loop;
-                    }
-                    min_field_width = uj as usize;
-                }
-
-                if crate::memory::cstr_first_byte(p) == b'.' {
-                    p = p.wrapping_add(1);
-                    precision_specified = true;
-
-                    if ascii_isdigit(*crate::globals::gptr(p)) {
-                        let digstart = p;
-                        let mut uj: u32 = 0;
-                        if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
-                            had_error = true;
-                            break 'fmt_loop;
-                        }
-                        precision = uj as usize;
-                    } else if crate::memory::cstr_first_byte(p) == b'*' {
-                        let digstart = p;
-                        p = p.wrapping_add(1);
-
-                        if ascii_isdigit(*crate::globals::gptr(p)) {
-                            let mut uj: u32 = 0;
-                            if !get_unsigned_int(digstart, &mut p, &mut uj, !tvs.is_null()) {
-                                had_error = true;
-                                break 'fmt_loop;
-                            }
-                            arg_idx = uj as i32;
-                            p = p.wrapping_add(1);
-                        }
-
-                        let mut j = if !tvs.is_null() {
-                            tv_nr(tvs, &mut arg_idx) as i32
-                        } else {
-                            fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
-                        };
-
-                        if j > MAX_ALLOWED_STRING_WIDTH as i32 {
-                            if !tvs.is_null() {
-                                format_overflow_error(digstart);
-                                had_error = true;
-                                break 'fmt_loop;
-                            } else {
-                                j = MAX_ALLOWED_STRING_WIDTH as i32;
-                            }
-                        }
-
-                        if j >= 0 {
-                            precision = j as usize;
-                        } else {
-                            precision_specified = false;
-                            precision = 0;
-                        }
+                        precision_specified = false;
+                        precision = 0;
                     }
                 }
+            }
 
-                if matches!((*crate::globals::gptr(p)) as u8, b'h' | b'l' | b'z') {
-                    length_modifier = (*crate::globals::gptr(p)) as u8;
-                    p = p.wrapping_add(1);
-                    if length_modifier == b'l' && ((*crate::globals::gptr(p)) as u8) == b'l' {
-                        length_modifier = b'L';
-                        p = p.wrapping_add(1);
-                    }
-                }
-
-                let mut fmt_spec: u8 = (*crate::globals::gptr(p)) as u8;
-                match fmt_spec {
-                    b'i' => fmt_spec = b'd',
-                    b'D' => {
-                        fmt_spec = b'd';
-                        length_modifier = b'l';
-                    }
-                    b'U' => {
-                        fmt_spec = b'u';
-                        length_modifier = b'l';
-                    }
-                    b'O' => {
-                        fmt_spec = b'o';
-                        length_modifier = b'l';
-                    }
-                    _ => {}
-                }
-
-                if matches!(fmt_spec, b'd' | b'u' | b'o' | b'x' | b'X')
-                    && !tvs.is_null()
-                    && length_modifier == 0
-                {
+            if let Some(&lm) = p.to_bytes().first()
+                && matches!(lm, b'h' | b'l' | b'z')
+            {
+                length_modifier = lm;
+                p = &p[1..];
+                if length_modifier == b'l' && p.to_bytes().first() == Some(&b'l') {
                     length_modifier = b'L';
+                    p = &p[1..];
                 }
+            }
 
-                if pos_arg != -1 {
-                    arg_idx = pos_arg;
+            let mut fmt_spec: u8 = p.to_bytes().first().copied().unwrap_or(0);
+            match fmt_spec {
+                b'i' => fmt_spec = b'd',
+                b'D' => {
+                    fmt_spec = b'd';
+                    length_modifier = b'l';
                 }
+                b'U' => {
+                    fmt_spec = b'u';
+                    length_modifier = b'l';
+                }
+                b'O' => {
+                    fmt_spec = b'o';
+                    length_modifier = b'l';
+                }
+                _ => {}
+            }
 
-                match fmt_spec {
-                    b'%' | b'c' | b's' | b'S' => {
-                        str_arg_l = 1;
-                        match fmt_spec {
-                            b'%' => {
-                                str_arg = p;
-                            }
-                            b'c' => {
-                                let j = if !tvs.is_null() {
-                                    tv_nr(tvs, &mut arg_idx) as i32
-                                } else {
-                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
-                                };
-                                uchar_arg = j as u8;
-                                str_arg = (&raw const uchar_arg).cast();
-                            }
-                            b's' | b'S' => {
-                                str_arg = if !tvs.is_null() {
-                                    tv_str(tvs, &mut arg_idx, &mut tofree)
-                                } else {
-                                    fmt_arg_val(fmt_args, &mut arg_idx).as_ptr().cast()
-                                };
+            if matches!(fmt_spec, b'd' | b'u' | b'o' | b'x' | b'X')
+                && tvs.is_some()
+                && length_modifier == 0
+            {
+                length_modifier = b'L';
+            }
 
-                                if str_arg.is_null() {
-                                    str_arg = c"[NULL]".as_ptr().cast();
-                                    str_arg_l = 6;
-                                } else if !precision_specified {
-                                    str_arg_l = crate::memory::cstr_len(str_arg);
+            if pos_arg != -1 {
+                arg_idx = pos_arg;
+            }
+
+            match fmt_spec {
+                b'%' | b'c' | b's' | b'S' => {
+                    str_arg_l = 1;
+                    match fmt_spec {
+                        b'%' => {
+                            str_arg_slice = p.to_bytes();
+                        }
+                        b'c' => {
+                            let j = if let Some(ref tvs_slice) = tvs {
+                                tv_nr(tvs_slice, &mut arg_idx) as i32
+                            } else {
+                                fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
+                            };
+                            uchar_arg = [j as u8];
+                            str_arg_slice = &uchar_arg;
+                        }
+                        b's' | b'S' => {
+                            let str_arg_opt: Option<&CStr> = if let Some(ref mut tvs_slice) = tvs {
+                                tv_str(tvs_slice, &mut arg_idx, &mut tofree)
+                            } else {
+                                fmt_arg_val(fmt_args, &mut arg_idx).as_cstr()
+                            };
+
+                            if let Some(s_cstr) = str_arg_opt {
+                                str_arg_slice = s_cstr.to_bytes();
+                                if !precision_specified {
+                                    str_arg_l = str_arg_slice.len();
                                 } else if precision == 0 {
                                     str_arg_l = 0;
                                 } else {
-                                    str_arg_l =
-                                        crate::memory::xstrnlen(str_arg, precision.min(0x7fffffff));
+                                    str_arg_l = str_arg_slice.len().min(precision.min(0x7fffffff));
                                 }
+                            } else {
+                                str_arg_slice = b"[NULL]";
+                                str_arg_l = 6;
+                            }
 
-                                if fmt_spec == b'S' {
-                                    let mut p1 = str_arg;
-                                    let mut i: usize = 0;
-                                    while !crate::memory::cstr_is_empty(p1) {
-                                        let cell = utf_ptr2cells(crate::memory::cstr_cluster_bytes(
-                                            (p1).cast(),
-                                        ))
-                                            as usize;
-                                        if precision_specified && i + cell > precision {
-                                            break;
-                                        }
-                                        i += cell;
-                                        p1 = p1.wrapping_add(utfc_ptr2len(
-                                            crate::memory::cstr_cluster_bytes((p1).cast()),
-                                        )
-                                            as usize);
+                            if fmt_spec == b'S' {
+                                let mut off: usize = 0;
+                                let mut i: usize = 0;
+                                while off < str_arg_slice.len() {
+                                    let cell = utf_ptr2cells(&str_arg_slice[off..]) as usize;
+                                    if precision_specified && i + cell > precision {
+                                        break;
                                     }
-                                    str_arg_l =
-                                        crate::memory::ptr_offset_from(p1, str_arg) as usize;
-                                    if min_field_width != 0 {
-                                        min_field_width =
-                                            min_field_width.wrapping_add(str_arg_l).wrapping_sub(i);
-                                    }
+                                    i += cell;
+                                    off += utfc_ptr2len(&str_arg_slice[off..]) as usize;
                                 }
+                                str_arg_l = off;
+                                if min_field_width != 0 {
+                                    min_field_width =
+                                        min_field_width.wrapping_add(str_arg_l).wrapping_sub(i);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                b'd' | b'u' | b'b' | b'B' | b'o' | b'x' | b'X' | b'p' => {
+                    let mut arg_sign: i32 = 0;
+                    let mut arg: i64 = 0;
+                    let mut uarg: u64 = 0;
+                    let mut ptr_arg: usize = 0;
+
+                    if fmt_spec == b'p' {
+                        ptr_arg = if let Some(ref tvs_slice) = tvs {
+                            tv_ptr(tvs_slice, &mut arg_idx)
+                        } else {
+                            fmt_arg_val(fmt_args, &mut arg_idx).as_addr()
+                        };
+                        if ptr_arg != 0 {
+                            arg_sign = 1;
+                        }
+                    } else if fmt_spec == b'b' || fmt_spec == b'B' {
+                        uarg = if let Some(ref tvs_slice) = tvs {
+                            tv_nr(tvs_slice, &mut arg_idx) as u64
+                        } else {
+                            fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
+                        };
+                        arg_sign = i32::from(uarg != 0);
+                    } else if fmt_spec == b'd' {
+                        match length_modifier {
+                            0 => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as i32
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
+                                };
+                                arg = i64::from(v);
+                            }
+                            b'h' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as i32
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
+                                };
+                                arg = i64::from(v as i16);
+                            }
+                            b'l' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as i64
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
+                                };
+                                arg = v;
+                            }
+                            b'L' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as i64
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
+                                };
+                                arg = v;
+                            }
+                            b'z' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as isize
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as isize
+                                };
+                                arg = v as i64;
                             }
                             _ => {}
                         }
+                        if arg > 0 {
+                            arg_sign = 1;
+                        } else if arg < 0 {
+                            arg_sign = -1;
+                        }
+                    } else {
+                        match length_modifier {
+                            0 => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as u32
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
+                                };
+                                uarg = u64::from(v);
+                            }
+                            b'h' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as u32
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
+                                };
+                                uarg = u64::from(v as u16);
+                            }
+                            b'l' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as u64
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
+                                };
+                                uarg = v;
+                            }
+                            b'L' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as u64
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
+                                };
+                                uarg = v;
+                            }
+                            b'z' => {
+                                let v = if let Some(ref tvs_slice) = tvs {
+                                    tv_nr(tvs_slice, &mut arg_idx) as usize
+                                } else {
+                                    fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as usize
+                                };
+                                uarg = v as u64;
+                            }
+                            _ => {}
+                        }
+                        arg_sign = i32::from(uarg != 0);
                     }
-                    b'd' | b'u' | b'b' | b'B' | b'o' | b'x' | b'X' | b'p' => {
-                        let mut arg_sign: i32 = 0;
-                        let mut arg: i64 = 0;
-                        let mut uarg: u64 = 0;
-                        let mut ptr_arg: *const c_void = ptr::null();
 
-                        if fmt_spec == b'p' {
-                            ptr_arg = if !tvs.is_null() {
-                                tv_ptr(tvs, &mut arg_idx)
-                            } else {
-                                fmt_arg_val(fmt_args, &mut arg_idx).as_ptr()
-                            };
-                            if !ptr_arg.is_null() {
-                                arg_sign = 1;
-                            }
-                        } else if fmt_spec == b'b' || fmt_spec == b'B' {
-                            uarg = if !tvs.is_null() {
-                                tv_nr(tvs, &mut arg_idx) as u64
-                            } else {
-                                fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
-                            };
-                            arg_sign = i32::from(uarg != 0);
-                        } else if fmt_spec == b'd' {
-                            match length_modifier {
-                                0 => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as i32
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
-                                    };
-                                    arg = i64::from(v);
-                                }
-                                b'h' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as i32
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as i32
-                                    };
-                                    arg = i64::from(v as i16);
-                                }
-                                b'l' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as i64
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
-                                    };
-                                    arg = v as i64;
-                                }
-                                b'L' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as i64
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64()
-                                    };
-                                    arg = v;
-                                }
-                                b'z' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as isize
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_i64() as isize
-                                    };
-                                    arg = v as i64;
-                                }
-                                _ => {}
-                            }
-                            if arg > 0 {
-                                arg_sign = 1;
-                            } else if arg < 0 {
-                                arg_sign = -1;
-                            }
-                        } else {
-                            match length_modifier {
-                                0 => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as u32
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
-                                    };
-                                    uarg = u64::from(v);
-                                }
-                                b'h' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as u32
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as u32
-                                    };
-                                    uarg = u64::from(v as u16);
-                                }
-                                b'l' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as u64
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
-                                    };
-                                    uarg = v as u64;
-                                }
-                                b'L' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as u64
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64()
-                                    };
-                                    uarg = v;
-                                }
-                                b'z' => {
-                                    let v = if !tvs.is_null() {
-                                        tv_nr(tvs, &mut arg_idx) as usize
-                                    } else {
-                                        fmt_arg_val(fmt_args, &mut arg_idx).as_u64() as usize
-                                    };
-                                    uarg = v as u64;
-                                }
-                                _ => {}
-                            }
-                            arg_sign = i32::from(uarg != 0);
-                        }
+                    str_arg_l = 0;
 
-                        str_arg = tmp.as_ptr().cast();
-                        str_arg_l = 0;
+                    if precision_specified {
+                        zero_padding = false;
+                    }
 
-                        if precision_specified {
-                            zero_padding = false;
-                        }
-
-                        if fmt_spec == b'd' {
-                            if force_sign && arg_sign >= 0 {
-                                tmp[str_arg_l] = if space_for_positive != 0 { b' ' } else { b'+' };
-                                str_arg_l += 1;
-                            }
-                        } else if alternate_form
-                            && arg_sign != 0
-                            && matches!(fmt_spec, b'x' | b'X' | b'b' | b'B')
-                        {
-                            tmp[str_arg_l] = b'0';
-                            str_arg_l += 1;
-                            tmp[str_arg_l] = fmt_spec;
+                    if fmt_spec == b'd' {
+                        if force_sign && arg_sign >= 0 {
+                            tmp[str_arg_l] = if space_for_positive != 0 { b' ' } else { b'+' };
                             str_arg_l += 1;
                         }
+                    } else if alternate_form
+                        && arg_sign != 0
+                        && matches!(fmt_spec, b'x' | b'X' | b'b' | b'B')
+                    {
+                        tmp[str_arg_l] = b'0';
+                        str_arg_l += 1;
+                        tmp[str_arg_l] = fmt_spec;
+                        str_arg_l += 1;
+                    }
 
-                        zero_padding_insertion_ind = str_arg_l;
-                        if !precision_specified {
-                            precision = 1;
-                        }
-                        if precision == 0 && arg_sign == 0 {
-                            // empty
-                        } else {
-                            match fmt_spec {
-                                b'p' => {
-                                    if ptr_arg.is_null() {
-                                        #[cfg(target_os = "linux")]
-                                        let nil_s = "(nil)";
-                                        #[cfg(not(target_os = "linux"))]
-                                        let nil_s = "0x0";
-                                        str_arg_l += write_fmt_to_c_buf(
-                                            &mut tmp[str_arg_l..],
-                                            format_args!("{nil_s}"),
-                                        );
+                    zero_padding_insertion_ind = str_arg_l;
+                    if !precision_specified {
+                        precision = 1;
+                    }
+                    if precision == 0 && arg_sign == 0 {
+                        // empty
+                    } else {
+                        match fmt_spec {
+                            b'p' => {
+                                if ptr_arg == 0 {
+                                    #[cfg(target_os = "linux")]
+                                    let nil_s = "(nil)";
+                                    #[cfg(not(target_os = "linux"))]
+                                    let nil_s = "0x0";
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{nil_s}"),
+                                    );
+                                } else {
+                                    str_arg_l += write_fmt_to_c_buf(
+                                        &mut tmp[str_arg_l..],
+                                        format_args!("{ptr_arg:#x}"),
+                                    );
+                                }
+                            }
+                            b'd' => {
+                                str_arg_l += write_fmt_to_c_buf(
+                                    &mut tmp[str_arg_l..],
+                                    format_args!("{arg}"),
+                                );
+                            }
+                            b'b' | b'B' => {
+                                let mut bits = 64usize;
+                                while bits > 0 {
+                                    if ((uarg >> (bits - 1)) & 1) != 0 {
+                                        break;
+                                    }
+                                    bits -= 1;
+                                }
+                                while bits > 0 {
+                                    bits -= 1;
+                                    tmp[str_arg_l] = if ((uarg >> bits) & 1) != 0 {
+                                        b'1'
                                     } else {
-                                        str_arg_l += write_fmt_to_c_buf(
-                                            &mut tmp[str_arg_l..],
-                                            format_args!("{:#x}", ptr_arg as usize),
-                                        );
-                                    }
-                                }
-                                b'd' => {
-                                    str_arg_l += write_fmt_to_c_buf(
-                                        &mut tmp[str_arg_l..],
-                                        format_args!("{arg}"),
-                                    );
-                                }
-                                b'b' | b'B' => {
-                                    let mut bits = 64usize;
-                                    while bits > 0 {
-                                        if ((uarg >> (bits - 1)) & 1) != 0 {
-                                            break;
-                                        }
-                                        bits -= 1;
-                                    }
-                                    while bits > 0 {
-                                        bits -= 1;
-                                        tmp[str_arg_l] = if ((uarg >> bits) & 1) != 0 {
-                                            b'1'
-                                        } else {
-                                            b'0'
-                                        };
-                                        str_arg_l += 1;
-                                    }
-                                }
-                                b'o' => {
-                                    str_arg_l += write_fmt_to_c_buf(
-                                        &mut tmp[str_arg_l..],
-                                        format_args!("{uarg:o}"),
-                                    );
-                                }
-                                b'x' => {
-                                    str_arg_l += write_fmt_to_c_buf(
-                                        &mut tmp[str_arg_l..],
-                                        format_args!("{uarg:x}"),
-                                    );
-                                }
-                                b'X' => {
-                                    str_arg_l += write_fmt_to_c_buf(
-                                        &mut tmp[str_arg_l..],
-                                        format_args!("{uarg:X}"),
-                                    );
-                                }
-                                _ => {
-                                    str_arg_l += write_fmt_to_c_buf(
-                                        &mut tmp[str_arg_l..],
-                                        format_args!("{uarg}"),
-                                    );
+                                        b'0'
+                                    };
+                                    str_arg_l += 1;
                                 }
                             }
-
-                            if zero_padding_insertion_ind < str_arg_l
-                                && tmp[zero_padding_insertion_ind] == b'-'
-                            {
-                                zero_padding_insertion_ind += 1;
+                            b'o' => {
+                                str_arg_l += write_fmt_to_c_buf(
+                                    &mut tmp[str_arg_l..],
+                                    format_args!("{uarg:o}"),
+                                );
                             }
-                            if zero_padding_insertion_ind + 1 < str_arg_l
-                                && tmp[zero_padding_insertion_ind] == b'0'
-                                && matches!(
-                                    tmp[zero_padding_insertion_ind + 1],
-                                    b'x' | b'X' | b'b' | b'B'
-                                )
-                            {
-                                zero_padding_insertion_ind += 2;
+                            b'x' => {
+                                str_arg_l += write_fmt_to_c_buf(
+                                    &mut tmp[str_arg_l..],
+                                    format_args!("{uarg:x}"),
+                                );
+                            }
+                            b'X' => {
+                                str_arg_l += write_fmt_to_c_buf(
+                                    &mut tmp[str_arg_l..],
+                                    format_args!("{uarg:X}"),
+                                );
+                            }
+                            _ => {
+                                str_arg_l += write_fmt_to_c_buf(
+                                    &mut tmp[str_arg_l..],
+                                    format_args!("{uarg}"),
+                                );
                             }
                         }
 
+                        if zero_padding_insertion_ind < str_arg_l
+                            && tmp[zero_padding_insertion_ind] == b'-'
                         {
-                            let num_of_digits = str_arg_l - zero_padding_insertion_ind;
-                            if alternate_form
-                                && fmt_spec == b'o'
-                                && !(zero_padding_insertion_ind < str_arg_l
-                                    && tmp[zero_padding_insertion_ind] == b'0')
-                                && (!precision_specified || precision < num_of_digits + 1)
-                            {
-                                precision = num_of_digits + 1;
-                            }
-                            if num_of_digits < precision {
-                                number_of_zeros_to_pad = precision - num_of_digits;
-                            }
+                            zero_padding_insertion_ind += 1;
                         }
-
-                        if !justify_left && zero_padding {
-                            let n = (min_field_width as isize)
-                                - ((str_arg_l + number_of_zeros_to_pad) as isize);
-                            if n > 0 {
-                                number_of_zeros_to_pad += n as usize;
-                            }
+                        if zero_padding_insertion_ind + 1 < str_arg_l
+                            && tmp[zero_padding_insertion_ind] == b'0'
+                            && matches!(
+                                tmp[zero_padding_insertion_ind + 1],
+                                b'x' | b'X' | b'b' | b'B'
+                            )
+                        {
+                            zero_padding_insertion_ind += 2;
                         }
                     }
-                    b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
-                        let mut remove_trailing_zeroes = false;
 
-                        let f = if !tvs.is_null() {
-                            tv_float(tvs, &mut arg_idx)
+                    {
+                        let num_of_digits = str_arg_l - zero_padding_insertion_ind;
+                        if alternate_form
+                            && fmt_spec == b'o'
+                            && !(zero_padding_insertion_ind < str_arg_l
+                                && tmp[zero_padding_insertion_ind] == b'0')
+                            && (!precision_specified || precision < num_of_digits + 1)
+                        {
+                            precision = num_of_digits + 1;
+                        }
+                        if num_of_digits < precision {
+                            number_of_zeros_to_pad = precision - num_of_digits;
+                        }
+                    }
+
+                    if !justify_left && zero_padding {
+                        let n = (min_field_width as isize)
+                            - ((str_arg_l + number_of_zeros_to_pad) as isize);
+                        if n > 0 {
+                            number_of_zeros_to_pad += n as usize;
+                        }
+                    }
+                    str_arg_slice = &tmp;
+                }
+                b'f' | b'F' | b'e' | b'E' | b'g' | b'G' => {
+                    let mut remove_trailing_zeroes = false;
+
+                    let f = if let Some(ref tvs_slice) = tvs {
+                        tv_float(tvs_slice, &mut arg_idx)
+                    } else {
+                        fmt_arg_val(fmt_args, &mut arg_idx).as_f64()
+                    };
+
+                    let abs_f = f.abs();
+
+                    if fmt_spec == b'g' || fmt_spec == b'G' {
+                        if (0.001..10_000_000.0).contains(&abs_f) || abs_f == 0.0 {
+                            fmt_spec = if fmt_spec.is_ascii_uppercase() {
+                                b'F'
+                            } else {
+                                b'f'
+                            };
                         } else {
-                            fmt_arg_val(fmt_args, &mut arg_idx).as_f64()
+                            fmt_spec = if fmt_spec == b'g' { b'e' } else { b'E' };
+                        }
+                        remove_trailing_zeroes = true;
+                    }
+
+                    if xisinf(f) != 0 || (matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0e307) {
+                        crate::memory::copy_bytes_to_c_buf(
+                            &mut tmp,
+                            infinity_str(
+                                f > 0.0,
+                                fmt_spec,
+                                i32::from(force_sign),
+                                space_for_positive,
+                            )
+                            .to_bytes(),
+                        );
+                        str_arg_l = crate::memory::bytes_until_nul(&tmp).len();
+                        zero_padding = false;
+                    } else if xisnan(f) != 0 {
+                        let nan_s = if fmt_spec.is_ascii_uppercase() {
+                            b"NAN\0"
+                        } else {
+                            b"nan\0"
+                        };
+                        tmp[..4].copy_from_slice(nan_s);
+                        str_arg_l = 3;
+                        zero_padding = false;
+                    } else {
+                        let sign_prefix = if f.is_sign_negative() {
+                            "-"
+                        } else if force_sign {
+                            if space_for_positive != 0 { " " } else { "+" }
+                        } else {
+                            ""
+                        };
+                        let eff_prec = if precision_specified {
+                            let mut max_prec = TMP_LEN - 10;
+                            if matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0 {
+                                max_prec -= abs_f.log10() as usize;
+                            }
+                            precision.min(max_prec)
+                        } else {
+                            6
                         };
 
-                        let abs_f = f.abs();
-
-                        if fmt_spec == b'g' || fmt_spec == b'G' {
-                            if (0.001..10_000_000.0).contains(&abs_f) || abs_f == 0.0 {
-                                fmt_spec = if fmt_spec.is_ascii_uppercase() {
-                                    b'F'
-                                } else {
-                                    b'f'
-                                };
-                            } else {
-                                fmt_spec = if fmt_spec == b'g' { b'e' } else { b'E' };
-                            }
-                            remove_trailing_zeroes = true;
+                        if matches!(fmt_spec, b'f' | b'F') {
+                            str_arg_l = write_fmt_to_c_buf(
+                                &mut tmp,
+                                format_args!("{sign_prefix}{abs_f:.eff_prec$}"),
+                            );
+                        } else {
+                            let sci = format!("{abs_f:.eff_prec$e}");
+                            let (mantissa, exp_str) = sci.split_once('e').unwrap_or((&sci, "0"));
+                            let exp: i32 = exp_str.parse().unwrap_or(0);
+                            let e_ch = if fmt_spec == b'E' { 'E' } else { 'e' };
+                            str_arg_l = write_fmt_to_c_buf(
+                                &mut tmp,
+                                format_args!("{sign_prefix}{mantissa}{e_ch}{exp:+03}"),
+                            );
                         }
 
-                        if xisinf(f) != 0 || (matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0e307) {
-                            crate::memory::copy_bytes_to_c_buf(
-                                &mut tmp,
-                                infinity_str(
-                                    f > 0.0,
-                                    fmt_spec,
-                                    i32::from(force_sign),
-                                    space_for_positive,
-                                )
-                                .to_bytes(),
-                            );
-                            str_arg_l = crate::memory::cstr_until_nul(&tmp).to_bytes().len();
-                            zero_padding = false;
-                        } else if xisnan(f) != 0 {
-                            let nan_s = if fmt_spec.is_ascii_uppercase() {
-                                c"NAN"
-                            } else {
-                                c"nan"
-                            };
-                            unsafe {
-                                ptr::copy_nonoverlapping(nan_s.as_ptr().cast(), tmp.as_mut_ptr(), 4)
-                            };
-                            str_arg_l = 3;
-                            zero_padding = false;
-                        } else {
-                            let sign_prefix = if f.is_sign_negative() {
-                                "-"
-                            } else if force_sign {
-                                if space_for_positive != 0 { " " } else { "+" }
-                            } else {
-                                ""
-                            };
-                            let eff_prec = if precision_specified {
-                                let mut max_prec = TMP_LEN - 10;
-                                if matches!(fmt_spec, b'f' | b'F') && abs_f > 1.0 {
-                                    max_prec -= abs_f.log10() as usize;
-                                }
-                                precision.min(max_prec)
-                            } else {
-                                6
-                            };
-
-                            if matches!(fmt_spec, b'f' | b'F') {
-                                str_arg_l = write_fmt_to_c_buf(
-                                    &mut tmp,
-                                    format_args!("{sign_prefix}{abs_f:.eff_prec$}"),
-                                );
-                            } else {
-                                let sci = format!("{abs_f:.eff_prec$e}");
-                                let (mantissa, exp_str) =
-                                    sci.split_once('e').unwrap_or((&sci, "0"));
-                                let exp: i32 = exp_str.parse().unwrap_or(0);
-                                let e_ch = if fmt_spec == b'E' { 'E' } else { 'e' };
-                                str_arg_l = write_fmt_to_c_buf(
-                                    &mut tmp,
-                                    format_args!("{sign_prefix}{mantissa}{e_ch}{exp:+03}"),
-                                );
-                            }
-
-                            if remove_trailing_zeroes {
-                                let tp_idx = if matches!(fmt_spec, b'f' | b'F') {
-                                    Some(str_arg_l - 1)
-                                } else {
-                                    let e_byte = if fmt_spec == b'e' { b'e' } else { b'E' };
-                                    if let Some(e_pos) =
-                                        tmp[..str_arg_l].iter().position(|&b| b == e_byte)
-                                    {
-                                        if tmp.get(e_pos + 1) == Some(&b'+') {
-                                            tmp.copy_within(e_pos + 2..=str_arg_l, e_pos + 1);
-                                            str_arg_l -= 1;
-                                        }
-                                        let i = if tmp.get(e_pos + 1) == Some(&b'-') {
-                                            e_pos + 2
-                                        } else {
-                                            e_pos + 1
-                                        };
-                                        while i < str_arg_l && tmp[i] == b'0' {
-                                            tmp.copy_within(i + 1..=str_arg_l, i);
-                                            str_arg_l -= 1;
-                                        }
-                                        e_pos.checked_sub(1)
-                                    } else {
-                                        None
-                                    }
-                                };
-
-                                if let Some(mut tp) = tp_idx
-                                    && !precision_specified
-                                {
-                                    while tp > 2 && tmp[tp] == b'0' && tmp[tp - 1] != b'.' {
-                                        tmp.copy_within(tp + 1..=str_arg_l, tp);
-                                        tp -= 1;
-                                        str_arg_l -= 1;
-                                    }
-                                }
+                        if remove_trailing_zeroes {
+                            let tp_idx = if matches!(fmt_spec, b'f' | b'F') {
+                                Some(str_arg_l - 1)
                             } else {
                                 let e_byte = if fmt_spec == b'e' { b'e' } else { b'E' };
-                                if let Some(tp) = tmp[..str_arg_l].iter().position(|&b| b == e_byte)
-                                    && matches!(tmp.get(tp + 1), Some(b'+' | b'-'))
-                                    && tmp.get(tp + 2) == Some(&b'0')
-                                    && tmp.get(tp + 3).is_some_and(u8::is_ascii_digit)
-                                    && tmp.get(tp + 4).is_some_and(u8::is_ascii_digit)
+                                if let Some(e_pos) =
+                                    tmp[..str_arg_l].iter().position(|&b| b == e_byte)
                                 {
-                                    tmp.copy_within(tp + 3..=str_arg_l, tp + 2);
+                                    if tmp.get(e_pos + 1) == Some(&b'+') {
+                                        tmp.copy_within(e_pos + 2..=str_arg_l, e_pos + 1);
+                                        str_arg_l -= 1;
+                                    }
+                                    let i = if tmp.get(e_pos + 1) == Some(&b'-') {
+                                        e_pos + 2
+                                    } else {
+                                        e_pos + 1
+                                    };
+                                    while i < str_arg_l && tmp[i] == b'0' {
+                                        tmp.copy_within(i + 1..=str_arg_l, i);
+                                        str_arg_l -= 1;
+                                    }
+                                    e_pos.checked_sub(1)
+                                } else {
+                                    None
+                                }
+                            };
+
+                            if let Some(mut tp) = tp_idx
+                                && !precision_specified
+                            {
+                                while tp > 2 && tmp[tp] == b'0' && tmp[tp - 1] != b'.' {
+                                    tmp.copy_within(tp + 1..=str_arg_l, tp);
+                                    tp -= 1;
                                     str_arg_l -= 1;
                                 }
                             }
+                        } else {
+                            let e_byte = if fmt_spec == b'e' { b'e' } else { b'E' };
+                            if let Some(tp) = tmp[..str_arg_l].iter().position(|&b| b == e_byte)
+                                && matches!(tmp.get(tp + 1), Some(b'+' | b'-'))
+                                && tmp.get(tp + 2) == Some(&b'0')
+                                && tmp.get(tp + 3).is_some_and(u8::is_ascii_digit)
+                                && tmp.get(tp + 4).is_some_and(u8::is_ascii_digit)
+                            {
+                                tmp.copy_within(tp + 3..=str_arg_l, tp + 2);
+                                str_arg_l -= 1;
+                            }
                         }
-
-                        if zero_padding
-                            && min_field_width > str_arg_l
-                            && (tmp[0] == b'-' || force_sign)
-                        {
-                            number_of_zeros_to_pad = min_field_width - str_arg_l;
-                            zero_padding_insertion_ind = 1;
-                        }
-                        str_arg = tmp.as_ptr().cast();
                     }
-                    _ => {
-                        zero_padding = false;
-                        justify_left = true;
-                        min_field_width = 0;
-                        str_arg = p;
-                        str_arg_l = usize::from(!crate::memory::cstr_is_empty(p));
+
+                    if zero_padding && min_field_width > str_arg_l && (tmp[0] == b'-' || force_sign)
+                    {
+                        number_of_zeros_to_pad = min_field_width - str_arg_l;
+                        zero_padding_insertion_ind = 1;
                     }
+                    str_arg_slice = &tmp;
                 }
-
-                if !crate::memory::cstr_is_empty(p) {
-                    p = p.wrapping_add(1);
+                _ => {
+                    zero_padding = false;
+                    justify_left = true;
+                    min_field_width = 0;
+                    str_arg_slice = p.to_bytes();
+                    str_arg_l = usize::from(!str_arg_slice.is_empty());
                 }
+            }
 
-                if !justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
-                    let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+            if !p.to_bytes().is_empty() {
+                p = &p[1..];
+            }
+
+            if !justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
+                let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+                if str_avail {
+                    let avail = str_m - str_l;
+                    let fill_len = pn.min(avail);
+                    str_out[str_l..str_l + fill_len].fill(if zero_padding { b'0' } else { b' ' });
+                    str_avail = pn < avail;
+                }
+                str_l += pn;
+            }
+
+            if number_of_zeros_to_pad == 0 {
+                zero_padding_insertion_ind = 0;
+            } else {
+                if zero_padding_insertion_ind > 0 {
+                    let zn = zero_padding_insertion_ind;
                     if str_avail {
                         let avail = str_m - str_l;
-                        unsafe {
-                            ptr::write_bytes(
-                                str_out.wrapping_add(str_l),
-                                if zero_padding { b'0' } else { b' ' },
-                                pn.min(avail),
-                            )
-                        };
-                        str_avail = pn < avail;
-                    }
-                    str_l += pn;
-                }
-
-                if number_of_zeros_to_pad == 0 {
-                    zero_padding_insertion_ind = 0;
-                } else {
-                    if zero_padding_insertion_ind > 0 {
-                        let zn = zero_padding_insertion_ind;
-                        if str_avail {
-                            let avail = str_m - str_l;
-                            unsafe {
-                                ptr::copy(str_arg, str_out.wrapping_add(str_l), zn.min(avail))
-                            };
-                            str_avail = zn < avail;
-                        }
-                        str_l += zn;
-                    }
-
-                    let zn = number_of_zeros_to_pad;
-                    if str_avail {
-                        let avail = str_m - str_l;
-                        unsafe {
-                            ptr::write_bytes(str_out.wrapping_add(str_l), b'0', zn.min(avail))
-                        };
+                        let copy_len = zn.min(avail);
+                        str_out[str_l..str_l + copy_len]
+                            .copy_from_slice(&str_arg_slice[..copy_len]);
                         str_avail = zn < avail;
                     }
                     str_l += zn;
                 }
 
-                if str_arg_l > zero_padding_insertion_ind {
-                    let sn = str_arg_l - zero_padding_insertion_ind;
-                    if str_avail {
-                        let avail = str_m - str_l;
-                        unsafe {
-                            ptr::copy(
-                                str_arg.wrapping_add(zero_padding_insertion_ind),
-                                str_out.wrapping_add(str_l),
-                                sn.min(avail),
-                            )
-                        };
-                        str_avail = sn < avail;
-                    }
-                    str_l += sn;
+                let zn = number_of_zeros_to_pad;
+                if str_avail {
+                    let avail = str_m - str_l;
+                    let fill_len = zn.min(avail);
+                    str_out[str_l..str_l + fill_len].fill(b'0');
+                    str_avail = zn < avail;
                 }
-
-                if justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
-                    let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
-                    if str_avail {
-                        let avail = str_m - str_l;
-                        unsafe {
-                            ptr::write_bytes(str_out.wrapping_add(str_l), b' ', pn.min(avail))
-                        };
-                        str_avail = pn < avail;
-                    }
-                    str_l += pn;
-                }
-
-                drop(tofree);
+                str_l += zn;
             }
+
+            if str_arg_l > zero_padding_insertion_ind {
+                let sn = str_arg_l - zero_padding_insertion_ind;
+                if str_avail {
+                    let avail = str_m - str_l;
+                    let copy_len = sn.min(avail);
+                    str_out[str_l..str_l + copy_len].copy_from_slice(
+                        &str_arg_slice
+                            [zero_padding_insertion_ind..zero_padding_insertion_ind + copy_len],
+                    );
+                    str_avail = sn < avail;
+                }
+                str_l += sn;
+            }
+
+            if justify_left && min_field_width > str_arg_l + number_of_zeros_to_pad {
+                let pn = min_field_width - (str_arg_l + number_of_zeros_to_pad);
+                if str_avail {
+                    let avail = str_m - str_l;
+                    let fill_len = pn.min(avail);
+                    str_out[str_l..str_l + fill_len].fill(b' ');
+                    str_avail = pn < avail;
+                }
+                str_l += pn;
+            }
+
+            drop(tofree);
+        }
+    }
+
+    if !had_error {
+        if str_m > 0 {
+            str_out[str_l.min(str_m - 1)] = 0;
         }
 
-        if !had_error {
-            if str_m > 0 {
-                *crate::globals::gptr(str_out.wrapping_add(str_l.min(str_m - 1))) = NUL;
-            }
-
-            if !tvs.is_null() {
-                let check_idx = if num_posarg != 0 {
-                    num_posarg as usize
-                } else {
-                    (arg_idx - 1) as usize
-                };
-                if crate::globals::gptr(tvs.wrapping_add(check_idx)).v_type != VarType::VarUnknown {
-                    emsg(gettext(E_TOO_MANY_ARGS));
-                }
+        if let Some(ref tvs_slice) = tvs {
+            let check_idx = if num_posarg != 0 {
+                num_posarg as usize
+            } else {
+                (arg_idx - 1) as usize
+            };
+            if tvs_slice
+                .get(check_idx)
+                .is_some_and(|tv| tv.v_type != VarType::VarUnknown)
+            {
+                emsg(gettext(E_TOO_MANY_ARGS));
             }
         }
-
-        str_l as i32
     }
+
+    str_l as i32
 }
 
-pub fn vim_snprintf_fmt(
-    str_out: impl crate::strings::IntoCCharPtr,
-    str_m: usize,
-    fmt: impl crate::strings::IntoCCharPtr,
-    args: &[FmtVal],
-) -> i32 {
-    let str_out = str_out.into_c_char_ptr().cast_mut();
-    let fmt = fmt.into_c_char_ptr();
-    vim_vsnprintf_typval_inner(str_out, str_m, fmt, ptr::null_mut(), args)
+pub fn vim_snprintf_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
+    vim_vsnprintf_typval_inner(str_out, fmt, None, args)
 }
 
-pub fn vim_snprintf_add_fmt(
-    str_out: impl crate::strings::IntoCCharPtr,
-    str_m: usize,
-    fmt: impl crate::strings::IntoCCharPtr,
-    args: &[FmtVal],
-) -> i32 {
-    let str_out = str_out.into_c_char_ptr().cast_mut();
-    let fmt = fmt.into_c_char_ptr();
-    {
-        let len = crate::memory::cstr_len(str_out);
-        let space = str_m.saturating_sub(len);
-        vim_snprintf_fmt(str_out.wrapping_add(len), space, fmt, args)
+pub fn vim_snprintf_add_fmt(str_out: &mut [u8], fmt: Option<&CStr>, args: &[FmtVal<'_>]) -> i32 {
+    let len = crate::memory::bytes_until_nul(str_out).len();
+    if len >= str_out.len() {
+        return 0;
     }
+    vim_snprintf_fmt(&mut str_out[len..], fmt, args)
 }
 
 pub fn vim_snprintf_safelen_fmt(
-    str_out: RawCCharPtrMut,
-    str_m: usize,
-    fmt: impl crate::strings::IntoCCharPtr,
-    args: &[FmtVal],
+    str_out: &mut [u8],
+    fmt: Option<&CStr>,
+    args: &[FmtVal<'_>],
 ) -> usize {
-    let fmt = fmt.into_c_char_ptr();
-    {
-        if str_m == 0 {
-            return 0;
-        }
-        let str_l = vim_snprintf_fmt(str_out, str_m, fmt, args);
-        if str_l < 0 {
-            *crate::globals::gptr(str_out) = NUL;
-
-            return 0;
-        }
-        let len = str_l as usize;
-        if len >= str_m { str_m - 1 } else { len }
+    if str_out.is_empty() {
+        return 0;
+    }
+    let str_l = vim_snprintf_fmt(str_out, fmt, args);
+    if str_l < 0 {
+        str_out[0] = 0;
+        return 0;
+    }
+    let len = str_l as usize;
+    if len >= str_out.len() {
+        str_out.len() - 1
+    } else {
+        len
     }
 }
 
@@ -2118,9 +2042,8 @@ pub fn vim_snprintf_safelen_fmt(
 macro_rules! vim_snprintf {
     ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::vim_snprintf_fmt(
-            $str_out,
-            $str_m,
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+            $crate::memory::cstr_mut_slice($str_out, $str_m),
+            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2131,9 +2054,8 @@ pub use vim_snprintf;
 macro_rules! vim_snprintf_add {
     ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::vim_snprintf_add_fmt(
-            $str_out,
-            $str_m,
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+            $crate::memory::cstr_mut_slice($str_out, $str_m),
+            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
@@ -2144,27 +2066,19 @@ pub use vim_snprintf_add;
 macro_rules! vim_snprintf_safelen {
     ($str_out:expr, $str_m:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {
         $crate::strings::vim_snprintf_safelen_fmt(
-            $str_out,
-            $str_m,
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+            $crate::memory::cstr_mut_slice($str_out, $str_m),
+            $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     };
 }
-use crate::charset::NUL;
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::eval::K_LIST_LEN_UNKNOWN_CONST;
 use crate::regexp::NUMBUFLEN;
 pub use vim_snprintf_safelen;
 
-pub fn vim_snprintf_typval_only(
-    str_out: RawCCharPtrMut,
-    str_m: usize,
-    fmt: impl crate::strings::IntoCCharPtr,
-    tvs: *mut TypVal,
-) -> i32 {
-    let fmt = fmt.into_c_char_ptr();
-    vim_vsnprintf_typval_inner(str_out, str_m, fmt, tvs, &[])
+pub fn vim_snprintf_typval_only(str_out: &mut [u8], fmt: Option<&CStr>, tvs: &mut [TypVal]) -> i32 {
+    vim_vsnprintf_typval_inner(str_out, fmt, Some(tvs), &[])
 }
 
 pub fn reverse_text(bytes: &[u8]) -> std::ffi::CString {
@@ -3033,12 +2947,12 @@ mod tests {
 
         assert_eq!(crate::charset::parse_i64_prefix(b"  -1234px"), -1234);
         assert_eq!(crate::charset::parse_i64_prefix(b" +56789"), 56789);
-        let mut end: RawCCharPtrMut = ptr::null_mut();
-        assert_eq!(strtod(c"  -12.5e2px", &raw mut end), -1250.0);
-        assert_eq!((*crate::globals::gptr(end)) as u8, b'p');
-        assert_eq!(strtod(c"0x1.8p+2", &raw mut end), 6.0);
-        assert!(strtod(c"-INF", &raw mut end).is_infinite());
-        assert!(strtod(c"NaN", &raw mut end).is_nan());
+        let (v, end) = strtod(c"  -12.5e2px");
+        assert_eq!(v, -1250.0);
+        assert_eq!(end.to_bytes()[0], b'p');
+        assert_eq!(strtod(c"0x1.8p+2").0, 6.0);
+        assert!(strtod(c"-INF").0.is_infinite());
+        assert!(strtod(c"NaN").0.is_nan());
     }
 
     #[test]
@@ -3125,25 +3039,19 @@ mod tests {
             }
 
             let s_abc = c"abc";
-            assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), 0));
-            assert!(!crate::strings::vim_haschr(s_abc.as_ptr(), -1));
-            assert_eq!(
-                crate::memory::ptr_offset_from(
-                    vim_strchr(s_abc.as_ptr(), b'b' as i32),
-                    s_abc.as_ptr()
-                ),
-                1
-            );
+            assert!(!crate::strings::vim_haschr(s_abc, 0));
+            assert!(!crate::strings::vim_haschr(s_abc, -1));
+            assert_eq!(vim_strchr(s_abc, b'b' as i32).unwrap().to_bytes(), b"bc");
             let s_utf = c"„«»“";
             assert_eq!(
-                crate::memory::ptr_offset_from(vim_strchr(s_utf.as_ptr(), 0xAB), s_utf.as_ptr()),
-                3
+                vim_strchr(s_utf, 0xAB).unwrap().to_bytes(),
+                "«»“".as_bytes()
             );
             assert_eq!(
-                crate::memory::ptr_offset_from(vim_strchr(s_utf.as_ptr(), 0x201C), s_utf.as_ptr()),
-                7
+                vim_strchr(s_utf, 0x201C).unwrap().to_bytes(),
+                "“".as_bytes()
             );
-            assert!(!crate::strings::vim_haschr(s_utf.as_ptr(), 0x201D));
+            assert!(!crate::strings::vim_haschr(s_utf, 0x201D));
 
             let overlong = b"\xc1\x81";
             let up = strcase_save(overlong, true);

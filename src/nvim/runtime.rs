@@ -750,7 +750,7 @@ pub fn do_in_path(
                 let name_len = crate::memory::cstr_len(name);
                 if buflen + 2 + prefix_len + name_len < MAXPATHL {
                     add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.cast(), 2));
-                    let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
+                    let cur_len = crate::memory::bytes_until_nul(&buf_vec).len();
                     buf_vec[cur_len..(cur_len + prefix_len + 1)]
                         .copy_from_slice(prefix.to_bytes_with_nul());
 
@@ -865,7 +865,7 @@ fn do_in_cached_path(
             ));
             let tail = buf
                 .as_mut_ptr()
-                .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
+                .wrapping_add(crate::memory::bytes_until_nul(&buf).len());
 
             let mut np = crate::memory::cstr_as_bytes(name);
             while !np.is_empty() && (do_all || !did_one) {
@@ -3268,7 +3268,10 @@ pub fn getsourceline(
 
     if let Some(ref mut buf) = line_vec
         && do_concat
-        && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_CONCAT)
+        && !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_CONCAT,
+        )
     {
         sp.sourcing_lnum -= 1;
 

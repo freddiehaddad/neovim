@@ -1055,7 +1055,7 @@ pub fn showmode() -> i32 {
                         5 => c" SELECT LINE",
                         _ => c" SELECT BLOCK",
                     };
-                    msg_puts_hl(gettext(p.as_ptr()), hl_id, false);
+                    msg_puts_hl(gettext(p), hl_id, false);
                 }
                 msg_puts_hl(c" --", hl_id, false);
             }
@@ -2502,7 +2502,10 @@ pub fn win_draw_end(
             }
 
             if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_NUMCOL)
+                && !crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_NUMCOL,
+                )
             {
                 let width = number_width(&mut *wp) + 1;
                 n = grid_line_fill(
@@ -2771,7 +2774,10 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
     } else {
         return false;
     };
-    crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, c)
+    crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((wp.w_onebuf_opt.wo_cocu).cast()),
+        c,
+    )
 }
 
 /// Redraws lines `line1` to `line2` of `wp` and invalidates their heights, after 'concealcursor'
@@ -2805,7 +2811,10 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
                 .start
                 .lnum
                 .max(curwin_mut().w_cursor.lnum)
-        && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu, i32::from(b'v'))
+        && !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((wp.w_onebuf_opt.wo_cocu).cast()),
+            i32::from(b'v'),
+        )
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {

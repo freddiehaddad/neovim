@@ -639,12 +639,7 @@ pub fn opt_error<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(
-        errbuf.data.cast(),
-        errbuf.size,
-        gettext(fmt.as_ptr()),
-        arg.as_ptr()
-    );
+    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg.as_ptr());
     Some(errbuf.as_cstr())
 }
 
@@ -656,7 +651,7 @@ pub fn opt_error_int<'a>(
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt.as_ptr()), arg);
+    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg);
     Some(errbuf.as_cstr())
 }
 
@@ -781,7 +776,10 @@ pub fn set_init_tablocal() {
 fn set_init_default_shell() {
     if let Some(shell) = os_getenv_cstr(c"SHELL") {
         let shell_ptr = shell.as_ptr();
-        if crate::strings::vim_haschr(shell_ptr, b' ' as i32) {
+        if crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((shell_ptr).cast()),
+            b' ' as i32,
+        ) {
             let len = shell.as_bytes().len() + 3;
             let mut cmd = vec![0u8; len];
             vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
@@ -1354,7 +1352,7 @@ fn stropt_concat_with_comma(
     flags: u32,
 ) {
     let orig = origval.map_or(&[][..], CStr::to_bytes);
-    let new_len = crate::memory::cstr_until_nul(newval).to_bytes().len();
+    let new_len = crate::memory::bytes_until_nul(newval).len();
     let comma = usize::from((flags & K_OPT_FLAG_COMMA) != 0 && !orig.is_empty() && new_len > 0);
     let mut len: usize;
     if op == OP_ADDING {
@@ -1410,7 +1408,7 @@ fn stropt_remove_val(
 
 /// Find a comma-separated item in "src" (starting at `start`) that matches `key_prefix`.
 fn find_key_item(src: &[u8], start: usize, key_prefix: &[u8]) -> Option<(usize, usize)> {
-    let bytes = crate::memory::cstr_until_nul(src).to_bytes();
+    let bytes = crate::memory::bytes_until_nul(src);
     let mut i = start;
     while i < bytes.len() {
         if (i == start || bytes[i - 1] == b',') && bytes[i..].starts_with(key_prefix) {
@@ -1427,7 +1425,7 @@ fn find_key_item(src: &[u8], start: usize, key_prefix: &[u8]) -> Option<(usize, 
 
 /// Remove one item of length `itemlen` at offset `item_off` from comma-separated buffer `str_arg` in-place.
 fn remove_comma_item(str_arg: &mut [u8], item_off: usize, itemlen: usize) {
-    let total_len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
+    let total_len = crate::memory::bytes_until_nul(str_arg).len();
     if str_arg.get(item_off + itemlen) == Some(&b',') {
         str_arg.copy_within(item_off + itemlen + 1..=total_len, item_off);
     } else if item_off > 0 && str_arg[item_off - 1] == b',' {
@@ -1459,7 +1457,7 @@ fn remove_key_item(str_arg: &mut [u8], key_prefix: &[u8], skip_off: Option<usize
 
 /// Append a comma-separated item to the end of "str" in-place.
 fn append_item(str_arg: &mut [u8], item_bytes: &[u8]) {
-    let mut len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
+    let mut len = crate::memory::bytes_until_nul(str_arg).len();
     if len > 0 {
         str_arg[len] = b',';
         len += 1;
@@ -1470,7 +1468,7 @@ fn append_item(str_arg: &mut [u8], item_bytes: &[u8]) {
 
 /// Prepend a comma-separated item to the beginning of "str" in-place.
 fn prepend_item(str_arg: &mut [u8], item_bytes: &[u8]) {
-    let len = crate::memory::cstr_until_nul(str_arg).to_bytes().len();
+    let len = crate::memory::bytes_until_nul(str_arg).len();
     let comma = usize::from(len > 0);
 
     str_arg.copy_within(0..=len, item_bytes.len() + comma);
@@ -1487,7 +1485,7 @@ fn stropt_handle_keymatch(
     op: SetOp,
     _flags: u32,
 ) -> bool {
-    let newval_bytes = crate::memory::cstr_until_nul(newval_slice).to_bytes();
+    let newval_bytes = crate::memory::bytes_until_nul(newval_slice);
     if !newval_bytes.contains(&b':') && !newval_bytes.contains(&b',') {
         return false;
     }
@@ -1558,7 +1556,7 @@ fn stropt_remove_dupflags(newval: &mut [u8], flags: u32) {
     let mut i = 0;
     while newval[i] != 0 {
         let ch = newval[i];
-        let rest_end = i + crate::memory::cstr_until_nul(&newval[i..]).to_bytes().len();
+        let rest_end = i + crate::memory::bytes_until_nul(&newval[i..]).len();
         if (flags & K_OPT_FLAG_ONE_COMMA) != 0 {
             if ch != b',' && newval[i + 1] == b',' && newval[i + 2..rest_end].contains(&ch) {
                 newval.copy_within(i + 2..=rest_end, i);
@@ -1611,7 +1609,7 @@ fn stropt_get_newval(
         let mut len: usize = 0;
         let mut dup_idx: Option<usize> = None;
         if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-            let newval_bytes = crate::memory::cstr_until_nul(&newval_vec).to_bytes();
+            let newval_bytes = crate::memory::bytes_until_nul(&newval_vec);
             len = newval_bytes.len();
             if let Some(orig) = origval {
                 dup_idx = find_dup_item(orig.to_bytes(), newval_bytes, flags);
@@ -6405,7 +6403,10 @@ fn put_set_value(
 
                     if size >= MAXPATHL
                         && (flags & K_OPT_FLAG_COMMA) != 0
-                        && crate::strings::vim_haschr(value_str, b',' as i32)
+                        && crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr((value_str).cast()),
+                            b',' as i32,
+                        )
                     {
                         let mut part_vec = vec![0u8; size];
                         if !put_eol(fd) {
@@ -7162,11 +7163,16 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
     let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
 
     if !opt_vars().p_cpo.is_null() {
-        if (!crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPTGLOB)
-            || (flags & BCO_ENTER) == 0)
+        if (!crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_BUFOPTGLOB,
+        ) || (flags & BCO_ENTER) == 0)
             && (buf.b_p_initialized
                 || ((flags & BCO_ENTER) == 0
-                    && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_BUFOPT)))
+                    && crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                        K_CPO_BUFOPT,
+                    )))
         {
             should_copy = false;
         }
@@ -7851,7 +7857,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
             return true;
         }
         optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
-        crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()).to_bytes()
+        crate::memory::bytes_until_nul(g_st().name_buff_bytes_mut())
     } else {
         b""
     };
@@ -7934,12 +7940,19 @@ pub fn expand_setting_subtract(
 
         loop {
             let item = next_val;
-            let mut comma = vim_strchr(next_val.cast(), b',' as i32).cast::<u8>();
+            let mut comma = vim_strchr(crate::memory::cstr_from_ptr(next_val.cast()), b',' as i32)
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             while !comma.is_null()
                 && comma != next_val
                 && crate::memory::cstr_first_byte(comma.wrapping_offset(-1).cast()) == b'\\'
             {
-                comma = vim_strchr(comma.wrapping_add(1).cast(), b',' as i32).cast::<u8>();
+                comma = vim_strchr(
+                    crate::memory::cstr_from_ptr(comma.wrapping_add(1).cast()),
+                    b',' as i32,
+                )
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             }
             if !comma.is_null() {
                 unsafe { *comma = 0 };
@@ -8040,9 +8053,11 @@ fn wc_use_keyname(varp: &u8, wcp: &mut OptInt) -> i32 {
 
 pub fn shortmess(x: i32) -> bool {
     !opt_vars().p_shm.is_null()
-        && (crate::strings::vim_haschr(opt_vars().p_shm, x)
-            || (crate::strings::vim_haschr(opt_vars().p_shm, b'a' as i32)
-                && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
+        && (crate::strings::vim_haschr(crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()), x)
+            || (crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()),
+                b'a' as i32,
+            ) && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
 }
 
 pub fn vimrc_found(fname: Option<&std::ffi::CStr>, envname: &std::ffi::CStr) {
@@ -8156,7 +8171,7 @@ pub fn can_bs(what: i32) -> bool {
         return what != BS_NOSTOP;
     }
 
-    crate::strings::vim_haschr(opt_vars().p_bs, what)
+    crate::strings::vim_haschr(crate::memory::cstr_from_ptr((opt_vars().p_bs).cast()), what)
 }
 
 /// Get the local or global value of 'backupcopy' flags.

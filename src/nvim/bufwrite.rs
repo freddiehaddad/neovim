@@ -515,7 +515,11 @@ fn buf_write_do_autocmds(
             if reset_changed
                 && b.b_changed != 0
                 && !append
-                && (overwriting || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_PLUS))
+                && (overwriting
+                    || crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                        K_CPO_PLUS,
+                    ))
             {
                 return FAIL;
             }
@@ -801,7 +805,10 @@ fn get_fileinfo(
         *readonly = os_file_is_writable(crate::memory::cstr_from_ptr((fname_ptr).cast())) == 0;
 
         if !forceit && *readonly {
-            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE) {
+            if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_FWRITE,
+            ) {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -993,7 +1000,7 @@ fn buf_write_make_backup(
                     if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                         keep_bk = false;
                     } else if opt_vars().p_bk == 0 {
-                        let blen = crate::memory::cstr_until_nul(&bk_vec).to_bytes().len();
+                        let blen = crate::memory::bytes_until_nul(&bk_vec).len();
                         let extlen = backup_ext_cstr.to_bytes().len();
                         let wp_idx = if blen > extlen + 1 {
                             blen - 1 - extlen
@@ -1070,7 +1077,12 @@ fn buf_write_make_backup(
         }
         *err = set_err(None);
     } else {
-        if file_readonly && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE) {
+        if file_readonly
+            && crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_FWRITE,
+            )
+        {
             *err = set_err_num(
                 c"E504",
                 gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1085,7 +1097,7 @@ fn buf_write_make_backup(
                 let mut bk_vec: Vec<u8> = bk_cstr.into_bytes_with_nul();
                 let mut keep_bk = true;
                 if opt_vars().p_bk == 0 && os_path_exists(crate::memory::cstr_until_nul(&bk_vec)) {
-                    let blen = crate::memory::cstr_until_nul(&bk_vec).to_bytes().len();
+                    let blen = crate::memory::bytes_until_nul(&bk_vec).len();
                     let extlen = backup_ext_cstr.to_bytes().len();
                     let p_idx = if blen > extlen + 1 {
                         blen - 1 - extlen
@@ -1181,8 +1193,15 @@ pub fn buf_write(
         && buf == g_st().curbuf
         && !bt_nofilename(unsafe { buf.as_ref() })
         && !filtering
-        && (!append || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEAPP))
-        && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FNAMEW)
+        && (!append
+            || crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_FNAMEAPP,
+            ))
+        && crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_FNAMEW,
+        )
     {
         if !set_rw_fname(
             crate::memory::cstr_as_opt_cstr(fname),
@@ -1384,14 +1403,22 @@ pub fn buf_write(
                 && perm >= 0
                 && (perm & 0o200) == 0
                 && file_info_old.stat.st_uid == u64::from(unsafe { getuid() })
-                && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FWRITE)
+                && !crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr(opt_vars().p_cpo),
+                    K_CPO_FWRITE,
+                )
             {
                 perm |= 0o200;
                 let _ = os_setperm(crate::memory::cstr_from_ptr(fname), perm);
                 made_writable = true;
             }
 
-            if forceit && overwriting && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_KEEPRO)
+            if forceit
+                && overwriting
+                && !crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_KEEPRO,
+                )
             {
                 buf.b_p_ro = 0;
                 g_st().need_maketitle = true;
@@ -1541,7 +1568,7 @@ pub fn buf_write(
                                         );
                                         if forceit
                                             && !crate::strings::vim_haschr(
-                                                opt_vars().p_cpo,
+                                                crate::memory::cstr_from_ptr(opt_vars().p_cpo),
                                                 K_CPO_FWRITE,
                                             )
                                             && perm >= 0
@@ -1573,7 +1600,7 @@ pub fn buf_write(
                                     );
                                     if forceit
                                         && !crate::strings::vim_haschr(
-                                            opt_vars().p_cpo,
+                                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
                                             K_CPO_FWRITE,
                                         )
                                         && perm >= 0
@@ -1999,7 +2026,11 @@ pub fn buf_write(
                     && whole
                     && !append
                     && write_info.bw_conv_error == 0
-                    && (overwriting || crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_PLUS))
+                    && (overwriting
+                        || crate::strings::vim_haschr(
+                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                            K_CPO_PLUS,
+                        ))
                     && buf_get_changedtick(&*buf) == write_tick
                 {
                     unchanged(&mut *buf, true, false);

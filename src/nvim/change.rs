@@ -443,7 +443,10 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
     if spell_check_window(curwin_mut())
         && lnum < curbuf_mut().b_ml.ml_line_count
-        && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOLLAR)
+        && !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_DOLLAR,
+        )
     {
         redraw_winline(crate::globals::curwin_mut(), lnum + 1);
     }
@@ -696,7 +699,12 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         if (g_st().state_global & REPLACE_FLAG) != 0 {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
-                if old_list != 0 && !crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_LISTWM) {
+                if old_list != 0
+                    && !crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                        K_CPO_LISTWM,
+                    )
+                {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
                 }
                 let mut vcol: Colnr = 0;
@@ -1586,9 +1594,12 @@ pub fn open_line(
                     if crate::strings::vim_haschr(
                         {
                             let _sw_p = leader.cast::<std::ffi::c_char>();
-                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                crate::memory::cstr_as_bytes(_sw_p.cast()),
-                            ))
+                            crate::memory::cstr_from_ptr(
+                                (_sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                    crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                )))
+                                .cast(),
+                            )
                         },
                         b'\t' as i32,
                     ) {

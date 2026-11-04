@@ -409,7 +409,7 @@ fn json_append_string_contents(
             let ch = *str_ptr.wrapping_add(i) as u8;
             let escstr = *escape_table.wrapping_add(ch as usize);
             if !escstr.is_null() {
-                strbuf_append_string(json, escstr);
+                strbuf_append_string(json, crate::memory::cstr_from_ptr(escstr));
             } else {
                 strbuf_append_char_unsafe(json, ch);
             }
@@ -477,7 +477,7 @@ fn json_check_encode_depth(l: *mut lua_State, ctx: &mut JsonEncode, current_dept
 fn json_append_newline_and_indent(json: &mut Strbuf, ctx: &JsonEncode, depth: i32) {
     strbuf_append_char(json, b'\n');
     for _ in 0..depth {
-        strbuf_append_string(json, ctx.opts_mut().indent);
+        strbuf_append_string(json, crate::memory::cstr_from_ptr(ctx.opts_mut().indent));
     }
 }
 
@@ -875,7 +875,7 @@ unsafe extern "C-unwind" fn json_encode(l: *mut lua_State) -> i32 {
         let mut len: usize = 0;
         let json = strbuf_string(&mut *encode_buf, &mut len);
 
-        lua_pushlstring(l, json, len);
+        lua_pushlstring(l, json.as_ptr().cast(), len);
 
         1
     }
@@ -1026,7 +1026,8 @@ fn json_next_string_token(json: &mut JsonParse, token: &mut JsonToken) {
         strbuf_ensure_null(&mut *json.tmp);
 
         token.r#type = TString;
-        token.value = JsonTokenValue::String(strbuf_string(&mut *json.tmp, &mut token.string_len));
+        let s = strbuf_string(&mut *json.tmp, &mut token.string_len);
+        token.value = JsonTokenValue::String(s.as_mut_ptr().cast());
     }
 }
 
@@ -1130,7 +1131,9 @@ fn json_next_number_token(json: &mut JsonParse, token: &mut JsonToken) {
             || end_ch == b'x'
         {
             token.r#type = TNumber;
-            token.value = JsonTokenValue::Number(fpconv_strtod(json.ptr, &mut endptr));
+            let (val, rest) = fpconv_strtod(crate::memory::cstr_from_ptr(json.ptr));
+            endptr = rest.as_ptr().cast_mut();
+            token.value = JsonTokenValue::Number(val);
             if json.ptr == endptr.cast_const() {
                 json_set_token_error(token, json, c"invalid number");
                 return;

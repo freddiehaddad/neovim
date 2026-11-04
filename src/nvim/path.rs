@@ -2276,28 +2276,22 @@ mod tests {
             let mut buf = [0u8; 100];
             crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1");
             assert!(append_path(&mut buf, c"path2"));
-            assert_eq!(
-                crate::memory::cstr_until_nul(&buf).to_bytes(),
-                b"path1/path2"
-            );
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"path1/path2");
 
             crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1/");
             assert!(append_path(&mut buf, c"path2"));
-            assert_eq!(
-                crate::memory::cstr_until_nul(&buf).to_bytes(),
-                b"path1/path2"
-            );
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"path1/path2");
             assert!(!append_path(&mut buf[..11], c"path2"));
 
             crate::memory::copy_bytes_to_c_buf(&mut buf, b"path1");
             assert!(append_path(&mut buf[..6], c""));
-            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"path1");
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"path1");
             assert!(append_path(&mut buf[..6], c"."));
-            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"path1");
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"path1");
 
             buf[0] = 0;
             assert!(append_path(&mut buf[..7], c"/path2"));
-            assert_eq!(crate::memory::cstr_until_nul(&buf).to_bytes(), b"/path2");
+            assert_eq!(crate::memory::bytes_until_nul(&buf), b"/path2");
         }
     }
 

@@ -791,7 +791,7 @@ pub fn stuffnum_readbuff(n: i32) {
 
 /// Stuff a string into the typeahead buffer.
 pub fn stuffescaped(rem: &[u8], literally: bool) {
-    let mut rem = crate::memory::cstr_until_nul(rem).to_bytes();
+    let mut rem = crate::memory::bytes_until_nul(rem);
     while !rem.is_empty() {
         let span_len = rem
             .iter()

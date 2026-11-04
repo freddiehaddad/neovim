@@ -623,7 +623,7 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
 
     let ret = string_convert(
         &vimconv,
-        crate::memory::cstr_as_bytes((str_.cast_mut()).cast()),
+        crate::memory::cstr_slice(str_, str_len),
         Some(&mut str_len),
     );
 

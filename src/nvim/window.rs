@@ -935,7 +935,7 @@ pub fn window_layout_locked(cmd: Cmdidx) -> bool {
     let mut err = ERROR_INIT;
     let locked = window_layout_locked_err(cmd, &mut err);
     if error_set(&err) {
-        emsg(gettext(err.msg_cstr()));
+        emsg(gettext((err.msg_cstr()).unwrap_or(c"")));
         api_clear_error(&mut err);
     }
     locked
@@ -1792,7 +1792,7 @@ pub fn check_split_disallowed(wp: Option<&WinInfoInfo>) -> bool {
     let mut err = ERROR_INIT;
     let ok = check_split_disallowed_err(wp, &mut err);
     if error_set(&err) {
-        emsg(gettext(err.msg_cstr()));
+        emsg(gettext((err.msg_cstr()).unwrap_or(c"")));
         api_clear_error(&mut err);
     }
     ok
@@ -3293,7 +3293,7 @@ pub fn close_windows(buf_in: Option<&mut FileBuf>, keep_curwin: bool) {
     let mut tp = crate::globals::TabpagePtr::new(g_st().first_tabpage);
     while !tp.is_null() {
         let mut nexttp = crate::globals::TabpagePtr::new(tp.borrow().tp_next);
-        if tp != g_st().curtab {
+        if tp.as_ptr() != g_st().curtab {
             let mut wp2 = crate::globals::WinPtr::new(tp.borrow().tp_lastwin);
             while !wp2.is_null() {
                 if ptr::eq(wp2.borrow().w_buffer, buf)

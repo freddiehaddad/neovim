@@ -6,13 +6,10 @@ pub mod strbuf;
 
 #[cfg(test)]
 mod tests {
-    use std::ptr;
-
     use crate::cjson::fpconv::{FPCONV_G_FMT_BUFSIZE, fpconv_g_fmt, fpconv_strtod};
     use crate::cjson::strbuf::{
         Strbuf, strbuf_append_char, strbuf_append_string, strbuf_init, strbuf_length, strbuf_string,
     };
-    use crate::strings::RawCCharPtrMut;
 
     #[test]
     fn test_strbuf_and_fpconv_strtod() {
@@ -20,20 +17,17 @@ mod tests {
         let fmt_len = fpconv_g_fmt(&mut fmt_buf, -12.5, 16);
         assert_eq!(&fmt_buf[..fmt_len], b"-12.5");
 
-        unsafe {
-            let mut sb = Strbuf::new();
-            strbuf_init(&mut sb, 0);
-            strbuf_append_string(&mut sb, c"hello");
-            strbuf_append_char(&mut sb, b'!');
-            assert_eq!(strbuf_length(&sb), 6);
-            let mut len = 0usize;
-            let ptr = strbuf_string(&mut sb, &mut len);
-            let bytes = std::slice::from_raw_parts(ptr.cast::<u8>(), len);
-            assert_eq!(bytes, b"hello!");
+        let mut sb = Strbuf::new();
+        strbuf_init(&mut sb, 0);
+        strbuf_append_string(&mut sb, c"hello");
+        strbuf_append_char(&mut sb, b'!');
+        assert_eq!(strbuf_length(&sb), 6);
+        let mut len = 0usize;
+        let bytes = strbuf_string(&mut sb, &mut len);
+        assert_eq!(&bytes[..len], b"hello!");
 
-            let mut endptr: RawCCharPtrMut = ptr::null_mut();
-            let v = fpconv_strtod(c"3.25", &mut endptr);
-            assert!((v - 3.25).abs() < f64::EPSILON);
-        }
+        let (v, rest) = fpconv_strtod(c"3.25");
+        assert!((v - 3.25).abs() < f64::EPSILON);
+        assert_eq!(rest.to_bytes(), b"");
     }
 }

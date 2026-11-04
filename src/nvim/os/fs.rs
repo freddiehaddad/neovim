@@ -2017,7 +2017,7 @@ pub fn os_realpath<'a>(name: &CStr, buf: &'a mut [u8]) -> Option<&'a CStr> {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(windows)]
 pub fn os_realpath_cstr(name: &CStr, len: usize) -> Option<std::ffi::CString> {
     let mut buf = vec![0u8; len];
     os_realpath(name, &mut buf).map(CStr::to_owned)

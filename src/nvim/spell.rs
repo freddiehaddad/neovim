@@ -818,7 +818,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if mode == FIND_KEEPWORD {
                     let mut p = (&raw mut mip.mi_fword).cast::<u8>();
                     let ptr_b = crate::memory::cstr_as_bytes(ptr.cast());
-                    let p_b = crate::memory::cstr_until_nul(&mip.mi_fword).to_bytes();
+                    let p_b = crate::memory::bytes_until_nul(&mip.mi_fword);
                     if ptr_b[..(wlen as usize).min(ptr_b.len())]
                         != p_b[..(wlen as usize).min(p_b.len())]
                     {
@@ -1470,7 +1470,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
             );
         }
     } else if sl.sl_loaded {
-        let fn_len = crate::memory::cstr_until_nul(&fname_enc).to_bytes().len();
+        let fn_len = crate::memory::bytes_until_nul(&fname_enc).len();
         fname_enc[fn_len - 3..fn_len + 5].copy_from_slice(b"add.spl\0");
         do_in_runtimepath(
             crate::memory::cstr_until_nul(&fname_enc),
@@ -1681,7 +1681,7 @@ fn count_syllables(slang: &mut Slang, word: &[u8]) -> i32 {
         } else {
             let c = crate::mbyte::utf_slice2char(p_bytes);
             len = utfc_slice2len(p_bytes).max(1);
-            if !crate::strings::vim_haschr(sl_syllable.as_ptr(), c) {
+            if !crate::strings::vim_haschr(sl_syllable, c) {
                 skip = false;
             } else if !skip {
                 cnt += 1;
@@ -1737,7 +1737,8 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 let p = vim_strchr(
                     path_tail(crate::memory::cstr_from_ptr(lang_ptr.cast())),
                     b'_' as i32,
-                );
+                )
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if p_bytes.get(1).is_some_and(u8::is_ascii_alphabetic)
                     && p_bytes.get(2).is_some_and(u8::is_ascii_alphabetic)
@@ -2206,7 +2207,7 @@ pub fn spell_iswordp_slice(bytes: &[u8], wp: &WinInfoInfo) -> bool {
         } else {
             w_s.b_spell_ismw_mb
                 .as_ref()
-                .is_some_and(|mb| crate::strings::vim_haschr(mb.as_ptr(), c))
+                .is_some_and(|mb| crate::strings::vim_haschr(mb, c))
         } {
             s_bytes = &bytes[l.min(bytes.len())..];
         }
@@ -2249,7 +2250,7 @@ fn spell_iswordp_w(p: &[i32], wp: &WinInfoInfo) -> bool {
     } else {
         w_s.b_spell_ismw_mb
             .as_ref()
-            .is_some_and(|mb| crate::strings::vim_haschr(mb.as_ptr(), c0))
+            .is_some_and(|mb| crate::strings::vim_haschr(mb, c0))
     });
     let cs = p.get(idx).copied().unwrap_or(0);
     if cs > 255 {

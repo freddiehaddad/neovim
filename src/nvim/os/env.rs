@@ -898,7 +898,10 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             if vim_path_cstr.is_none() {
                 let mut vim_path: *mut u8 = ptr::null_mut();
                 if !opt_vars().p_hf.is_null()
-                    && !crate::strings::vim_haschr(opt_vars().p_hf, b'$' as i32)
+                    && !crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_hf).cast()),
+                        b'$' as i32,
+                    )
                 {
                     vim_path = opt_vars().p_hf.cast();
                 }

@@ -592,7 +592,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             let incr = win_charsize(
                 cstype,
                 non_white_col,
-                crate::memory::cstr_from_ptr(non_white.cast()),
+                crate::memory::cstr_slice(non_white.cast(), 1),
                 i32::from(crate::memory::cstr_first_byte(non_white.cast())),
                 &mut csarg,
                 1,
@@ -879,7 +879,10 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         if g_st().virtual_op != 0 {
             only_setmarks = true;
         } else {
-            if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION) {
+            if crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_EMPTYREGION,
+            ) {
                 beep_flush();
             }
             return true;
@@ -1040,8 +1043,10 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     return false;
                 }
 
-                if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_DOLLAR)
-                    && oap.op_type == OP_CHANGE
+                if crate::strings::vim_haschr(
+                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                    K_CPO_DOLLAR,
+                ) && oap.op_type == OP_CHANGE
                     && oap.end.lnum == curwin_mut().w_cursor.lnum
                     && !oap.is_visual
                 {
@@ -2148,7 +2153,10 @@ pub fn do_join(
         g_st().curbuf_splice_pending -= 1;
         curbuf_mut().deleted_bytes2 = 0;
 
-        curwin_mut().w_cursor.col = if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_JOINCOL) {
+        curwin_mut().w_cursor.col = if crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_JOINCOL,
+        ) {
             currsize
         } else {
             col
@@ -2661,12 +2669,30 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     let endpos: CursorPos;
     let mut save_coladd: Colnr = 0;
 
-    let do_hex = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'x' as i32);
-    let do_oct = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'o' as i32);
-    let do_bin = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'b' as i32);
-    let do_alpha = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'p' as i32);
-    let do_unsigned = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'u' as i32);
-    let do_blank = crate::strings::vim_haschr(curbuf_mut().b_p_nf, b'k' as i32);
+    let do_hex = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'x' as i32,
+    );
+    let do_oct = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'o' as i32,
+    );
+    let do_bin = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'b' as i32,
+    );
+    let do_alpha = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'p' as i32,
+    );
+    let do_unsigned = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'u' as i32,
+    );
+    let do_blank = crate::strings::vim_haschr(
+        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
+        b'k' as i32,
+    );
 
     if virtual_active(curwin_mut()) {
         save_coladd = pos.coladd;
@@ -3666,7 +3692,10 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
     if (g_st().finish_op || g_st().visual_global.active) && oap.op_type != OP_NOP {
         let mut include_line_break = false;
-        let redo_yank = crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_YANK) && !gui_yank;
+        let redo_yank = crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            K_CPO_YANK,
+        ) && !gui_yank;
 
         reset_lbr();
         oap.is_visual = g_st().visual_global.active;
@@ -3862,8 +3891,11 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == i32::from(NUL)))
             && equalpos(oap.start, oap.end)
             && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
-        let empty_region_error =
-            oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_EMPTYREGION);
+        let empty_region_error = oap.empty
+            && crate::strings::vim_haschr(
+                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                K_CPO_EMPTYREGION,
+            );
 
         if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
             restore_lbr(lbr_saved);
@@ -3980,7 +4012,10 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
             OP_FILTER | OP_INDENT | OP_COLON => {
                 if oap.op_type == OP_FILTER {
-                    if crate::strings::vim_haschr(opt_vars().p_cpo, K_CPO_FILTER) {
+                    if crate::strings::vim_haschr(
+                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                        K_CPO_FILTER,
+                    ) {
                         redo_append_str(b"!\r");
                     } else {
                         g_st().bangredo = true;

@@ -3851,7 +3851,9 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                 let mut kwlen: usize;
                 'kw_loop: while cnt > 0 {
                     cnt -= 1;
-                    p = vim_strchr(kw.cast(), b'[' as i32).cast();
+                    p = vim_strchr(crate::memory::cstr_from_ptr(kw.cast()), b'[' as i32)
+                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .cast();
                     loop {
                         if p.is_null() {
                             kwlen = crate::memory::cstr_len(kw.cast());

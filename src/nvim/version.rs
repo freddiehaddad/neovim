@@ -4170,7 +4170,10 @@ pub fn may_show_intro() -> bool {
         && curbuf_mut().b_fnum == 1
         && curwin_mut().handle == LOWEST_WIN_ID
         && one_window(curwin_mut(), None)
-        && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_INTRO)
+        && !crate::strings::vim_haschr(
+            crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()),
+            K_SHM_INTRO,
+        )
 }
 
 /// Give an introductory message about Vim (`intro_message`).
@@ -4211,7 +4214,7 @@ pub fn intro_message(colon: bool) {
             let formatted_cstr: Option<CString>;
 
             let mesg: &CStr = if p.to_bytes().windows(4).any(|w| w == b"news") {
-                let fmt_str = gettext(p.as_ptr()).to_string_lossy();
+                let fmt_str = gettext(p).to_string_lossy();
                 let major_s = NVIM_VERSION_MAJOR_CONST.to_string();
                 let minor_s = NVIM_VERSION_MINOR_CONST.to_string();
                 let formatted = if let Some((a, rest)) = fmt_str.split_once("%s") {
@@ -4226,7 +4229,7 @@ pub fn intro_message(colon: bool) {
                 formatted_cstr = CString::new(formatted).ok();
                 formatted_cstr.as_deref().unwrap_or(c"")
             } else if !p.to_bytes().is_empty() {
-                crate::memory::cstr_from_ptr((gettext(p.as_ptr())).as_ptr())
+                crate::memory::cstr_from_ptr((gettext(p)).as_ptr())
             } else {
                 c""
             };
