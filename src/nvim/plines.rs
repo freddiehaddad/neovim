@@ -58,7 +58,7 @@ pub type ConcealSpans = Vec<ConcealSpan>;
 #[repr(C)]
 pub struct CharsizeArg {
     pub win: *mut WinInfoInfo,
-    pub line: *mut u8,
+    pub line: &'static std::ffi::CStr,
     pub use_tabstop: bool,
     pub indent_width: i32,
     pub virt_row: i32,
@@ -75,7 +75,7 @@ impl CharsizeArg {
     pub const fn new() -> Self {
         Self {
             win: ptr::null_mut(),
-            line: ptr::null_mut(),
+            line: c"",
             use_tabstop: false,
             indent_width: 0,
             virt_row: 0,
@@ -214,7 +214,7 @@ pub fn init_charsize_arg(
     line: &std::ffi::CStr,
 ) -> CSType {
     csarg.win = (&raw mut *wp);
-    csarg.line = line.as_ptr().cast_mut().cast();
+    csarg.line = unsafe { &*(line as *const std::ffi::CStr) };
     csarg.max_head_vcol = 0;
     csarg.extconceal_off = 0;
     csarg.cur_text_width_left = 0;
@@ -388,9 +388,14 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
         .extconceal_opt()
         .and_then(|spans| conceal_span_at(spans, col));
     let Some(span) = span else {
-        return i32::from(crate::memory::cstr_first_byte(
-            csarg.line.wrapping_add(col as usize).cast(),
-        ));
+        return i32::from(
+            csarg
+                .line
+                .to_bytes()
+                .get(col as usize)
+                .copied()
+                .unwrap_or(0),
+        );
     };
     let replacement = conceal_span_char(span, col);
     if replacement == 0 {
@@ -402,11 +407,11 @@ pub fn conceal_disp_byte(csarg: &CharsizeArg, col: i32) -> i32 {
 }
 
 fn conceal_next_byte(csarg: &CharsizeArg, col: i32) -> i32 {
-    let mut p = csarg.line.wrapping_add(col as usize).cast_const().cast();
+    let mut p = csarg.line.as_ptr().wrapping_add(col as usize);
     while !crate::memory::cstr_is_empty(p) {
         let c = conceal_disp_byte(
             csarg,
-            crate::memory::ptr_offset_from(p, csarg.line.cast_const().cast()) as i32,
+            crate::memory::ptr_offset_from(p, csarg.line.as_ptr()) as i32,
         );
         if c != i32::from(NUL) {
             return c;
@@ -434,7 +439,7 @@ pub fn charsize_regular(
 
         let wp = csarg.win_mut();
         let buf = wp.buf_mut();
-        let line = csarg.line.cast();
+        let line = csarg.line.as_ptr();
         let use_tabstop = cur_char == TAB && csarg.use_tabstop;
         let mut mb_added = 0;
 
@@ -627,7 +632,7 @@ pub fn charsize_regular(
                 + utfc_ptr2len(crate::memory::cstr_cluster_bytes((cur).cast()));
             let next_c = conceal_next_byte(csarg, next_col);
             if !vim_isbreak(i32::from(next_c as u8)) {
-                let mut t = csarg.line.cast();
+                let mut t = csarg.line.as_ptr();
                 while vim_isbreak(i32::from(crate::memory::cstr_first_byte(t))) {
                     t = t.wrapping_add(1);
                 }
@@ -901,15 +906,15 @@ fn extconceal_vcol_map(
     if spans.is_empty() {
         return target;
     }
-    let line = csarg.line.cast_const().cast();
+    let line = csarg.line.as_ptr();
 
     let mut rawarg = CharsizeArg::new();
-    init_charsize_arg(&mut rawarg, wp, lnum, crate::memory::cstr_from_ptr(line));
+    init_charsize_arg(&mut rawarg, wp, lnum, csarg.line);
     let mut raw_vcol: i64 = 0;
     let mut vcol: i64 = 0;
     let mut from: i64 = 0;
     let mut to: i64 = 0;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     while (from < target || !to_disp) && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
         let raw = charsize_regular(
@@ -991,9 +996,9 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
     let mut vcol = i64::from(vcol_arg);
     let mut raw_vcol = i64::from(vcol_arg);
 
-    let line = csarg.line.cast_const();
+    let line = csarg.line.as_ptr().cast::<u8>();
 
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len
         && !crate::memory::cstr_is_empty(ci.ptr)
     {
@@ -1032,10 +1037,10 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
 
 pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
     let use_tabstop = csarg.use_tabstop;
-    let line = csarg.line.cast_const();
+    let line = csarg.line.as_ptr().cast::<u8>();
     let mut vcol = i64::from(vcol_arg);
 
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len
         && !crate::memory::cstr_is_empty(ci.ptr)
     {
@@ -1089,16 +1094,16 @@ pub fn getvcol(
     let cstype = if (flags & GETVCOL_DISP) != 0 {
         init_charsize_arg_extconceal(&mut csarg, &mut *wp, pos.lnum, &mut spans)
     } else {
-        let line_ptr = crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), pos.lnum)).as_ptr());
+        let line_ptr = ml_get_buf(wp.buf_mut(), pos.lnum);
         init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;
-    let line: *const std::ffi::c_char = csarg.line.cast_const().cast();
+    let line: *const std::ffi::c_char = csarg.line.as_ptr();
 
     let mut vcol: Colnr = 0;
     let mut off: i32 = 0;
     let mut char_size: CharSize;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     if cstype == K_CHARSIZE_FAST {
         let use_tabstop = csarg.use_tabstop;
         loop {
@@ -1318,7 +1323,7 @@ pub fn plines_win_nofold(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
-    if crate::memory::cstr_is_empty(csarg.line.cast()) && csarg.virt_row < 0 {
+    if csarg.line.to_bytes().is_empty() && csarg.virt_row < 0 {
         return 1;
     }
 
@@ -1358,11 +1363,11 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
-    let line: *const std::ffi::c_char = csarg.line.cast_const().cast();
+    let line: *const std::ffi::c_char = csarg.line.as_ptr();
 
     let mut vcol: Colnr = 0;
     let mut raw_vcol: Colnr = 0;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     let limit_ptr = line.wrapping_add(column as usize);
     if cstype == K_CHARSIZE_FAST {
         let use_tabstop = csarg.use_tabstop;

@@ -3117,13 +3117,8 @@ fn block_def2str(bd: &BlockDef) -> Vec<u8> {
     let size = startspaces + endspaces + textlen;
     let mut data = vec![b' '; size];
 
-    unsafe {
-        ptr::copy(
-            bd.textstart,
-            data.as_mut_ptr().wrapping_add(startspaces),
-            textlen,
-        )
-    };
+    data[startspaces..startspaces + textlen]
+        .copy_from_slice(crate::memory::cstr_slice(bd.textstart.as_ptr(), textlen));
     data
 }
 

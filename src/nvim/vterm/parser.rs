@@ -25,8 +25,7 @@ const SOS: i32 = 10;
 
 #[derive(Clone, Copy)]
 pub struct VTermStringFragment {
-    pub str_: *const u8,
-    len: usize,
+    bytes: &'static [u8],
     initial: bool,
     final_: bool,
     pub terminator: VTermTerminator,
@@ -41,12 +40,11 @@ impl VTermStringFragment {
         terminator: VTermTerminator,
     ) -> Self {
         Self {
-            str_: if bytes.is_empty() {
-                c"".as_ptr().cast()
+            bytes: if bytes.is_empty() {
+                &[]
             } else {
-                bytes.as_ptr()
+                unsafe { std::slice::from_raw_parts(bytes.as_ptr(), bytes.len()) }
             },
-            len: bytes.len(),
             initial,
             final_,
             terminator,
@@ -55,21 +53,17 @@ impl VTermStringFragment {
 
     #[inline]
     pub const fn len(&self) -> usize {
-        self.len
+        self.bytes.len()
     }
 
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.len == 0
+        self.bytes.is_empty()
     }
 
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        if self.len == 0 || self.str_.is_null() {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(self.str_, self.len) }
-        }
+    pub const fn as_bytes(&self) -> &[u8] {
+        self.bytes
     }
 
     #[inline]

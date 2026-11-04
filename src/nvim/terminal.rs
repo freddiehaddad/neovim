@@ -596,9 +596,6 @@ fn parse_osc8(str_: &[u8], attr: &mut i32) -> i32 {
 
 fn on_osc(command: i32, frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
     let term = term.unwrap();
-    if frag.str_.is_null() {
-        return 0;
-    }
 
     if command != 8 && !has_event(EVENT_TERMREQUEST) {
         return 1;
@@ -644,9 +641,6 @@ fn on_osc(command: i32, frag: VTermStringFragment, term: Option<&mut Terminal>) 
 
 fn on_dcs(command: &[u8], frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
     let term = term.unwrap();
-    if frag.str_.is_null() {
-        return 0;
-    }
     if !has_event(EVENT_TERMREQUEST) {
         return 1;
     }
@@ -670,9 +664,6 @@ fn on_dcs(command: &[u8], frag: VTermStringFragment, term: Option<&mut Terminal>
 
 fn on_apc(frag: VTermStringFragment, term: Option<&mut Terminal>) -> i32 {
     let term = term.unwrap();
-    if frag.str_.is_null() {
-        return 0;
-    }
 
     if !has_event(EVENT_TERMREQUEST) {
         return 1;

@@ -6290,7 +6290,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         );
         loop {
             i = gchar_cursor();
-            csarg.line = get_cursor_line_ptr().as_ptr().cast_mut().cast();
+            csarg.line = get_cursor_line_ptr();
             if !(i != i32::from(NUL)
                 && ascii_iswhite_or_nul(conceal_disp_byte(&csarg, curwin_mut().w_cursor.col))
                 && oneright())

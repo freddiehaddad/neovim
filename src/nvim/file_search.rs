@@ -1219,17 +1219,18 @@ pub fn find_file_in_path_option(
 ) -> Option<std::ffi::CString> {
     let ptr_slice = crate::memory::bytes_until_nul(ptr_slice);
     let len = ptr_slice.len();
-    let path_option = path_option_cstr.as_ptr().cast_mut();
     let suffixes = suffixes_cstr.as_ptr().cast_mut();
     {
         struct FindFilePathOptState {
-            dir: *mut u8,
+            dir: Vec<u8>,
+            dir_off: usize,
             did_findfile_init: bool,
             file_to_findlen: usize,
         }
         static FF_OPT_STATE: GlobalState<FindFilePathOptState> =
             GlobalState::new(FindFilePathOptState {
-                dir: ptr::null_mut(),
+                dir: Vec::new(),
+                dir_off: 0,
                 did_findfile_init: false,
                 file_to_findlen: 0,
             });
@@ -1371,7 +1372,8 @@ pub fn find_file_in_path_option(
         } else {
             if first == i32::from(true) {
                 vim_findfile_free_visited(search_ctx.as_mut());
-                ff_opt.dir = path_option.cast();
+                ff_opt.dir = path_option_cstr.to_bytes().to_vec();
+                ff_opt.dir_off = 0;
                 ff_opt.did_findfile_init = false;
             }
 
@@ -1383,7 +1385,7 @@ pub fn find_file_in_path_option(
                     }
                     ff_opt.did_findfile_init = false;
                 } else {
-                    let mut dir_bytes = crate::memory::cstr_as_bytes(ff_opt.dir.cast());
+                    let mut dir_bytes = &ff_opt.dir[ff_opt.dir_off..];
                     if dir_bytes.is_empty() {
                         *search_ctx = None;
                         break;
@@ -1392,7 +1394,7 @@ pub fn find_file_in_path_option(
                     let mut buf = [0u8; MAXPATHL];
                     let old_len = dir_bytes.len();
                     copy_option_part(&mut dir_bytes, &mut buf, c" ,");
-                    ff_opt.dir = ff_opt.dir.wrapping_add(old_len - dir_bytes.len());
+                    ff_opt.dir_off += old_len - dir_bytes.len();
 
                     let stop_off = vim_findfile_stopdir(&mut buf);
                     let stopdirs = stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]));

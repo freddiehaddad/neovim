@@ -145,8 +145,8 @@ struct MessageState {
     verbose_fd: Option<crate::os::fs::CFile>,
     verbose_did_open: bool,
     keep_msg_more: bool,
-    msg_ext_kind: *const u8,
-    msg_ext_trigger: *const u8,
+    msg_ext_kind: Option<&'static std::ffi::CStr>,
+    msg_ext_trigger: Option<&'static std::ffi::CStr>,
     msg_ext_id: MsgID,
     msg_ext_chunks: Array,
     msg_ext_last_chunk: Vec<u8>,
@@ -169,7 +169,7 @@ struct MessageState {
     do_clear_sb_text: SbClear,
     do_more_prompt_entered: bool,
     showmode_clear: bool,
-    pre_verbose_kind: *const u8,
+    pre_verbose_kind: Option<&'static std::ffi::CStr>,
 }
 
 impl MessageState {
@@ -186,8 +186,8 @@ impl MessageState {
             verbose_fd: None,
             verbose_did_open: false,
             keep_msg_more: false,
-            msg_ext_kind: ptr::null(),
-            msg_ext_trigger: ptr::null(),
+            msg_ext_kind: None,
+            msg_ext_trigger: None,
             msg_ext_id: Object {
                 obj_type: ObjectType::ObjectTypeInteger,
                 data: ObjectData::Integer(1),
@@ -213,7 +213,7 @@ impl MessageState {
             do_clear_sb_text: SbClear::SbClearNone,
             do_more_prompt_entered: false,
             showmode_clear: false,
-            pre_verbose_kind: ptr::null(),
+            pre_verbose_kind: None,
         }
     }
 }
@@ -721,7 +721,7 @@ pub fn msg_multihl(
         }
         assert!(
             !ui_has(K_UIMESSAGES)
-                || kind.is_none_or(|k| msg_st().msg_ext_kind == k.as_ptr().cast())
+                || kind.is_none_or(|k| msg_st().msg_ext_kind.map(CStr::as_ptr) == Some(k.as_ptr()))
         );
     }
 
@@ -1589,8 +1589,7 @@ fn msg_hist_add_multihl(msg: HlMessage, temp: bool) {
     }
     msg_st().msg_hist.push_back(MessageHistoryEntry {
         msg,
-        kind: (!msg_st().msg_ext_kind.is_null())
-            .then(|| crate::memory::cstr_to_cstring(msg_st().msg_ext_kind.cast())),
+        kind: msg_st().msg_ext_kind.map(CStr::to_owned),
         temp,
         append: msg_st().msg_ext_append,
     });
@@ -2064,7 +2063,7 @@ pub fn msgmore(n: i32) {
 
 pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_kind = msg_kind.as_ptr().cast();
+    msg_st().msg_ext_kind = Some(unsafe { &*(msg_kind as *const std::ffi::CStr) });
     msg_st().redir_col = if msg_st().msg_ext_append {
         msg_st().redir_col
     } else {
@@ -2083,7 +2082,7 @@ pub fn msg_ext_set_append(append: bool) {
 
 pub fn msg_ext_set_trigger(trigger: &std::ffi::CStr) {
     msg_ext_ui_flush();
-    msg_st().msg_ext_trigger = trigger.as_ptr().cast();
+    msg_st().msg_ext_trigger = Some(unsafe { &*(trigger as *const std::ffi::CStr) });
 }
 
 // Should be executed at all callsites emitting non-internal messages.
@@ -3833,7 +3832,7 @@ fn msg_ext_init_chunks() -> Array {
 
 pub fn msg_ext_ui_flush() {
     if !ui_has(K_UIMESSAGES) {
-        msg_st().msg_ext_kind = ptr::null();
+        msg_st().msg_ext_kind = None;
         return;
     } else if g_st().msg_ext_skip_flush {
         return;
@@ -3844,17 +3843,13 @@ pub fn msg_ext_ui_flush() {
         let tofree = msg_ext_init_chunks();
 
         ui_call_msg_show(
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                msg_st().msg_ext_kind.cast(),
-            )),
+            cstr_as_string(msg_st().msg_ext_kind),
             tofree,
             g_st().msg_ext_overwrite,
             msg_st().msg_ext_history,
             msg_st().msg_ext_append,
             msg_st().msg_ext_id,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                msg_st().msg_ext_trigger.cast(),
-            )),
+            cstr_as_string(msg_st().msg_ext_trigger),
         );
         if msg_st().msg_ext_history {
             api_free_array(tofree);
@@ -3884,7 +3879,7 @@ pub fn msg_ext_ui_flush() {
         msg_st().msg_ext_history = false;
         msg_st().msg_ext_append = false;
         g_st().msg_ext_fast = true;
-        msg_st().msg_ext_kind = ptr::null();
+        msg_st().msg_ext_kind = None;
         if msg_st().msg_ext_id.obj_type == ObjectType::ObjectTypeInteger
             && msg_st().msg_ext_id.data.integer() == msg_st().msg_id_next
         {
@@ -4015,7 +4010,7 @@ pub fn verbose_enter() {
         g_st().msg_silent += 1;
     }
     if !g_st().msg_ext_skip_verbose {
-        if msg_st().msg_ext_kind != VERBOSE_KIND.as_ptr().cast() {
+        if msg_st().msg_ext_kind != Some(VERBOSE_KIND) {
             msg_st().pre_verbose_kind = msg_st().msg_ext_kind;
         }
         msg_ext_set_kind(VERBOSE_KIND);
@@ -4032,11 +4027,8 @@ pub fn verbose_leave() {
             g_st().msg_silent = 0;
         }
     }
-    if !msg_st().pre_verbose_kind.is_null() {
-        msg_ext_set_kind(crate::memory::cstr_from_ptr(
-            msg_st().pre_verbose_kind.cast(),
-        ));
-        msg_st().pre_verbose_kind = ptr::null();
+    if let Some(prev_kind) = msg_st().pre_verbose_kind.take() {
+        msg_ext_set_kind(prev_kind);
     }
 }
 
@@ -4101,7 +4093,7 @@ pub fn give_warning(message: &std::ffi::CStr, hl: bool, hist: bool) {
         g_st().keep_msg_hl_id = 0;
     }
 
-    if msg_st().msg_ext_kind.is_null() {
+    if msg_st().msg_ext_kind.is_none() {
         msg_ext_set_kind(c"wmsg");
     }
 

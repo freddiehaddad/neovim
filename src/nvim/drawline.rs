@@ -159,7 +159,7 @@ struct Winlinevars<'a> {
     char_attr: i32,
     n_extra: i32,
     n_attr: i32,
-    p_extra: *mut u8,
+    p_extra: Option<&'static std::ffi::CStr>,
     extra_attr: i32,
     sc_extra: Schar,
     sc_final: Schar,
@@ -1206,7 +1206,7 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             else {
                 continue;
             };
-            wlv.p_extra = text.as_ptr().cast_mut().cast();
+            wlv.p_extra = Some(unsafe { &*(text as *const std::ffi::CStr) });
             wlv.n_extra = text.to_bytes().len() as i32;
             if wlv.n_extra == 0 {
                 continue;
@@ -1214,22 +1214,21 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             wlv.sc_extra = 0;
             wlv.sc_final = 0;
             wlv.extra_attr = attr;
-            wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes((text).as_ptr()));
+            wlv.n_attr = mb_charlen(text.to_bytes());
             if wlv.skip_cells > 0 {
                 let virt_text_width =
-                    mb_string2cells(crate::memory::cstr_as_bytes(wlv.p_extra.cast())) as i32;
+                    mb_string2cells(wlv.p_extra.map_or(&[][..], std::ffi::CStr::to_bytes)) as i32;
                 if virt_text_width > wlv.skip_cells {
                     let mut skip_cells_remaining = wlv.skip_cells;
                     while skip_cells_remaining > 0 {
-                        let cells =
-                            utf_ptr2cells(crate::memory::cstr_cluster_bytes(wlv.p_extra.cast()));
+                        let p_bytes = wlv.p_extra.map_or(&[][..], std::ffi::CStr::to_bytes);
+                        let cells = utf_ptr2cells(p_bytes);
                         if cells > skip_cells_remaining {
                             break;
                         }
-                        let c_len =
-                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(wlv.p_extra.cast()));
+                        let c_len = utfc_ptr2len(p_bytes);
                         skip_cells_remaining -= cells;
-                        wlv.p_extra = wlv.p_extra.wrapping_add(c_len as usize);
+                        wlv.p_extra = wlv.p_extra.map(|s| &s[c_len as usize..]);
                         wlv.n_extra -= c_len;
                         wlv.n_attr -= 1;
                     }
@@ -1332,13 +1331,13 @@ fn win_line_skip_columns(
         init_charsize_arg(&mut csarg, wp, wlv.lnum, crate::memory::cstr_from_ptr(line))
     };
     csarg.max_head_vcol = start_vcol;
-    line = csarg.line.cast();
+    line = csarg.line.as_ptr().cast_mut();
     let mut ptr = line.cast_const();
     let mut prev_ptr = ptr;
     let mut cs = CharSize::default();
 
     let mut vcol = wlv.vcol;
-    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((ptr).cast()));
+    let mut ci = utf_ptr2_str_char_info(csarg.line);
     while vcol - csarg.extconceal_off < start_vcol {
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
@@ -1531,7 +1530,7 @@ pub fn win_line(
         char_attr: 0,
         n_extra: 0,
         n_attr: 0,
-        p_extra: ptr::null_mut(),
+        p_extra: None,
         extra_attr: 0,
         sc_extra: 0,
         sc_final: 0,
@@ -2302,10 +2301,7 @@ pub fn win_line(
                         && ((wlv.n_extra == 0
                             && utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) > 1)
                             || (wlv.n_extra > 0
-                                && !wlv.p_extra.is_null()
-                                && utf_ptr2cells(crate::memory::cstr_cluster_bytes(
-                                    wlv.p_extra.cast(),
-                                )) > 1)))
+                                && wlv.p_extra.is_some_and(|s| utf_ptr2cells(s.to_bytes()) > 1))))
                 {
                     *area_attr_p = vi_attr;
 
@@ -2412,7 +2408,9 @@ pub fn win_line(
                 let fdt = get_foldtext(wp, lnum, lnume, foldinfo, &mut fold_vt);
                 wlv.n_extra = fdt.to_bytes().len() as i32;
                 foldtext_free = Some(fdt);
-                wlv.p_extra = foldtext_free.as_ref().unwrap().as_ptr().cast_mut().cast();
+                wlv.p_extra = foldtext_free
+                    .as_ref()
+                    .map(|s| unsafe { &*(s.as_c_str() as *const std::ffi::CStr) });
                 wlv.sc_extra = 0;
                 wlv.sc_final = 0;
 
@@ -2447,9 +2445,8 @@ pub fn win_line(
                     mb_schar_width = schar_get_single_width(mb_schar);
                     wlv.n_extra -= 1;
                 } else {
-                    debug_assert!(!wlv.p_extra.is_null());
-                    let ci =
-                        utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((wlv.p_extra).cast()));
+                    debug_assert!(wlv.p_extra.is_some());
+                    let ci = utf_ptr2_str_char_info(wlv.p_extra.unwrap_or(c""));
                     let cli = utf_cluster_info(ci);
                     let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                     mb_schar = schar_from_cluster(ci, cli);
@@ -2473,7 +2470,9 @@ pub fn win_line(
                         }
                     } else {
                         wlv.n_extra -= mb_l;
-                        wlv.p_extra = wlv.p_extra.wrapping_add(mb_l as usize);
+                        wlv.p_extra = wlv
+                            .p_extra
+                            .map(|s| &s[(mb_l as usize).min(s.to_bytes().len())..]);
                     }
 
                     if wlv.filler_todo <= 0 && wlv.skip_cells > 0 && mb_l > 1 {
@@ -2512,7 +2511,7 @@ pub fn win_line(
                         wlv.extra_for_extmark = false;
                     } else {
                         debug_assert!(wlv.sc_extra != 0 || wlv.sc_final != 0);
-                        debug_assert!(!wlv.p_extra.is_null());
+                        debug_assert!(wlv.p_extra.is_some());
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
                         wlv.n_extra = n_extra_next;
@@ -2551,12 +2550,14 @@ pub fn win_line(
                     if wp.w_onebuf_opt.wo_rl != 0 {
                         rl_mirror_ascii(&mut wlv.extra);
                     }
-                    let extra_ptr = wlv.extra.as_mut_ptr();
+                    let extra_ptr = wlv.extra.as_ptr();
 
-                    wlv.p_extra = extra_ptr.wrapping_add(1);
+                    let p_extra_cstr =
+                        crate::memory::cstr_from_ptr(extra_ptr.wrapping_add(1).cast());
+                    wlv.p_extra = Some(p_extra_cstr);
                     mb_schar = schar_from_ascii(wlv.extra[0]);
                     mb_schar_width = 1;
-                    wlv.n_extra = crate::memory::cstr_len(wlv.p_extra.cast()) as i32;
+                    wlv.n_extra = p_extra_cstr.to_bytes().len() as i32;
                     wlv.sc_extra = 0;
                     wlv.sc_final = 0;
                     if area_attr == 0 && search_attr == 0 {
@@ -3015,9 +3016,9 @@ pub fn win_line(
                                 let extra_slice = get_extra_buf(len + 1);
                                 extra_slice[..len].fill(b' ');
                                 extra_slice[len] = 0;
+                                let extra_base = extra_slice.as_ptr();
                                 let mut p = extra_slice.as_mut_ptr();
 
-                                wlv.p_extra = p;
                                 for i in 0..tab_len {
                                     if unsafe { *p } == 0 {
                                         tab_len = i;
@@ -3040,6 +3041,7 @@ pub fn win_line(
                                     wlv.n_extra +=
                                         slen as i32 - if saved_nextra > 0 { 1 } else { 0 };
                                 }
+                                wlv.p_extra = Some(crate::memory::cstr_from_ptr(extra_base.cast()));
 
                                 if wlv.vcol_off_co + wlv.extconceal_off > 0 {
                                     wlv.n_extra -= wlv.vcol_off_co + wlv.extconceal_off;
@@ -3068,7 +3070,7 @@ pub fn win_line(
                                 lcs_tab1
                             };
                             if wp.w_onebuf_opt.wo_lbr != 0
-                                && !crate::memory::cstr_is_empty(wlv.p_extra.cast())
+                                && wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())
                             {
                                 wlv.sc_extra = 0;
                             } else {
@@ -3099,7 +3101,7 @@ pub fn win_line(
                                 && wlv.tocol != MAXCOL
                                 && wlv.vcol < wlv.tocol)
                             {
-                                wlv.p_extra = c"".as_ptr().cast_mut().cast();
+                                wlv.p_extra = Some(c"");
                             }
                             wlv.n_extra = 0;
                         }
@@ -3129,11 +3131,10 @@ pub fn win_line(
                         {
                             rl_mirror_ascii(&mut wlv.extra);
                         }
-                        wlv.p_extra = wlv.extra.as_mut_ptr();
                         wlv.sc_extra = 0;
                         wlv.sc_final = 0;
 
-                        mb_schar = schar_from_ascii(unsafe { *wlv.p_extra });
+                        mb_schar = schar_from_ascii(wlv.extra[0]);
 
                         mb_schar_width = 1;
                         if wp.w_onebuf_opt.wo_lbr != 0 {
@@ -3141,19 +3142,26 @@ pub fn win_line(
                             extra_slice[..wlv.n_extra as usize].fill(b' ');
                             let p = extra_slice.as_mut_ptr();
 
-                            let rem_len =
-                                crate::memory::cstr_len(wlv.p_extra.cast()).saturating_sub(1);
+                            let rem_len = crate::memory::bytes_until_nul(&wlv.extra)
+                                .len()
+                                .saturating_sub(1);
 
                             unsafe {
-                                ptr::copy_nonoverlapping(wlv.p_extra.wrapping_add(1), p, rem_len)
+                                ptr::copy_nonoverlapping(
+                                    wlv.extra.as_ptr().wrapping_add(1),
+                                    p,
+                                    rem_len,
+                                )
                             };
 
                             extra_slice[wlv.n_extra as usize] = 0;
 
-                            wlv.p_extra = p;
+                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(p.cast_const().cast()));
                         } else {
                             wlv.n_extra = opt_vars().dy_escape_width - 1;
-                            wlv.p_extra = wlv.p_extra.wrapping_add(1);
+                            wlv.p_extra = Some(crate::memory::cstr_from_ptr(
+                                wlv.extra.as_ptr().wrapping_add(1).cast(),
+                            ));
                         }
                         wlv.n_attr = wlv.n_extra + 1;
                         wlv.extra_attr = win_hl_attr(&mut *wp, HLF_8);
@@ -3305,7 +3313,7 @@ pub fn win_line(
                     wlv.sc_extra = schar_from_ascii(MB_FILLER_CHAR);
                     wlv.sc_final = 0;
                     if wlv.n_extra > 0 {
-                        debug_assert!(!wlv.p_extra.is_null());
+                        debug_assert!(wlv.p_extra.is_some());
                         n_extra_next = wlv.n_extra;
                         extra_attr_next = wlv.extra_attr;
                         wlv.n_attr = (wlv.n_attr + 1).max(2);
@@ -3520,7 +3528,8 @@ pub fn win_line(
                 if !crate::memory::cstr_is_empty(ptr)
                     || (lcs_eol > 0 && lcs_eol_todo)
                     || (wlv.n_extra > 0
-                        && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
+                        && (wlv.sc_extra != 0
+                            || wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())))
                     || (may_have_inline_virt
                         && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line)))
                 {
@@ -3732,7 +3741,8 @@ pub fn win_line(
                 || wlv.filler_todo > 0
                 || (wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.eol != 0 && lcs_eol_todo)
                 || (wlv.n_extra != 0
-                    && (wlv.sc_extra != 0 || !crate::memory::cstr_is_empty(wlv.p_extra.cast())))
+                    && (wlv.sc_extra != 0
+                        || wlv.p_extra.is_some_and(|s| !s.to_bytes().is_empty())))
                 || (may_have_inline_virt
                     && has_more_inline_virt(&wlv, crate::memory::ptr_offset_from(ptr, line))))
         {

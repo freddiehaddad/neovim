@@ -237,7 +237,7 @@ struct Suginfo {
     su_maxscore: i32,
     su_sfmaxscore: i32,
     su_sga: Vec<Suggest>,
-    su_badptr: *mut u8,
+    su_badptr: &'static std::ffi::CStr,
     su_badlen: i32,
     su_badflags: i32,
     su_badword: [u8; MAXWLEN],
@@ -255,7 +255,7 @@ impl Default for Suginfo {
             su_maxscore: 0,
             su_sfmaxscore: 0,
             su_sga: Vec::new(),
-            su_badptr: ptr::null_mut(),
+            su_badptr: c"",
             su_badlen: 0,
             su_badflags: 0,
             su_badword: [0; MAXWLEN],
@@ -570,7 +570,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
             let mut word_vec: Vec<u8> = Vec::with_capacity((stp.st_wordlen + el + 1) as usize);
             word_vec.extend_from_slice(&stp.st_word.as_bytes()[..stp.st_wordlen as usize]);
             word_vec.extend_from_slice(crate::memory::cstr_slice(
-                sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+                sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
                 el as usize,
             ));
             word_vec.push(0);
@@ -587,7 +587,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
                 &mut *d,
                 c"extra",
                 Some(crate::memory::cstr_slice(
-                    sug.su_badptr.cast(),
+                    sug.su_badptr.as_ptr(),
                     stp.st_orglen as usize,
                 )),
             );
@@ -613,7 +613,7 @@ fn select_spell_suggestion(sug: &mut Suginfo) {
         tv_list_append_tv(items_tv.vval.v_list_ref(), &mut item);
     }
     let bad_cstr = crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-        sug.su_badptr.cast(),
+        sug.su_badptr.as_ptr(),
         sug.su_badlen as usize,
     ));
     let mut bad_tv = TypVal {
@@ -736,10 +736,10 @@ pub fn spell_suggest(count: i32) {
             let stp = &sug.su_ga[(selected - 1) as usize];
             if sug.su_badlen > stp.st_orglen {
                 spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(
-                    crate::memory::cstr_slice(sug.su_badptr.cast(), sug.su_badlen as usize),
+                    crate::memory::cstr_slice(sug.su_badptr.as_ptr(), sug.su_badlen as usize),
                 ));
                 let tail_cstr = crate::memory::cstr_as_opt_cstr(
-                    sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+                    sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
                 )
                 .unwrap_or(c"");
                 vim_snprintf!(
@@ -754,12 +754,12 @@ pub fn spell_suggest(count: i32) {
                     Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
             } else {
                 spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(
-                    crate::memory::cstr_slice(sug.su_badptr.cast(), stp.st_orglen as usize),
+                    crate::memory::cstr_slice(sug.su_badptr.as_ptr(), stp.st_orglen as usize),
                 ));
                 spell_priv_st().repl_to =
                     Some(crate::memory::cstr_to_cstring(stp.st_word.as_ptr()));
             }
-            let c = crate::memory::ptr_offset_from(sug.su_badptr, line) as i32;
+            let c = crate::memory::ptr_offset_from(sug.su_badptr.as_ptr().cast(), line) as i32;
             let mut p_vec: Vec<u8> = Vec::with_capacity(
                 crate::memory::cstr_len(line.cast()) - stp.st_orglen as usize
                     + stp.st_wordlen as usize
@@ -769,7 +769,7 @@ pub fn spell_suggest(count: i32) {
             p_vec.extend_from_slice(stp.st_word.to_bytes());
             p_vec.extend_from_slice(
                 crate::memory::cstr_from_ptr(
-                    sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast(),
+                    sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
                 )
                 .to_bytes_with_nul(),
             );
@@ -812,8 +812,9 @@ pub fn spell_suggest_list(
     let mut res = Vec::with_capacity(sug.su_ga.len());
     for stp in &sug.su_ga {
         let word_bytes = &stp.st_word.as_bytes()[..stp.st_wordlen as usize];
-        let tail_bytes =
-            crate::memory::cstr_as_bytes(sug.su_badptr.wrapping_add(stp.st_orglen as usize).cast());
+        let tail_bytes = crate::memory::cstr_as_bytes(
+            sug.su_badptr.as_ptr().wrapping_add(stp.st_orglen as usize),
+        );
         let mut bytes = Vec::with_capacity(word_bytes.len() + tail_bytes.len());
         bytes.extend_from_slice(word_bytes);
         bytes.extend_from_slice(tail_bytes);
@@ -830,7 +831,6 @@ fn spell_find_suggest(
     need_cap: bool,
     interactive: bool,
 ) {
-    let badptr = bad_cstr.as_ptr().cast_mut();
     let mut attr: Hlf = HLF_COUNT;
     let mut buf: [u8; MAXPATHL] = [0; MAXPATHL];
     let mut do_combine = false;
@@ -839,24 +839,18 @@ fn spell_find_suggest(
     if bad_cstr.to_bytes().is_empty() {
         return;
     }
-    su.su_badptr = badptr.cast();
+    su.su_badptr = unsafe { &*(bad_cstr as *const std::ffi::CStr) };
     if badlen != 0 {
         su.su_badlen = badlen;
     } else {
-        let tmplen = spell_check(
-            curwin_mut(),
-            crate::memory::cstr_from_ptr(su.su_badptr.cast()),
-            &mut attr,
-            None,
-            false,
-        );
+        let tmplen = spell_check(curwin_mut(), su.su_badptr, &mut attr, None, false);
         su.su_badlen = tmplen as i32;
     }
     su.su_maxcount = maxcount;
     su.su_maxscore = SCORE_MAXINIT;
     su.su_badlen = su.su_badlen.min(MAXWLEN as i32 - 1);
     let bad_len = su.su_badlen as usize;
-    let bad_slice = crate::memory::cstr_slice(su.su_badptr.cast(), bad_len);
+    let bad_slice = crate::memory::cstr_slice(su.su_badptr.as_ptr(), bad_len);
     su.su_badword[..bad_len].copy_from_slice(bad_slice);
     su.su_badword[bad_len] = 0;
     spell_casefold(curwin_mut(), bad_slice, &mut su.su_fbadword);
@@ -879,7 +873,7 @@ fn spell_find_suggest(
             &mut su.su_sal_badword,
         );
     }
-    let c = utf_ptr2char(crate::memory::cstr_char_bytes(su.su_badptr.cast()));
+    let c = crate::mbyte::utf_slice2char(su.su_badptr.to_bytes());
     if !spell_isupper(c) && attr == HLF_COUNT {
         make_case_word(&su.su_badword, &mut buf, WF_ONECAP);
         add_suggestion(
@@ -1078,13 +1072,13 @@ fn suggest_try_special(su: &mut Suginfo) {
 fn suggest_try_change(su: &mut Suginfo) {
     let mut fword: [u8; MAXWLEN] = su.su_fbadword;
     let mut n = crate::memory::bytes_until_nul(&fword).len() as i32;
-    let p = su.su_badptr.wrapping_add(su.su_badlen as usize);
+    let p = su.su_badptr.as_ptr().wrapping_add(su.su_badlen as usize);
     spell_casefold(
         curwin_mut(),
-        crate::memory::cstr_as_bytes(p.cast()),
+        crate::memory::cstr_as_bytes(p),
         &mut fword[n as usize..],
     );
-    n = crate::memory::cstr_len(su.su_badptr.cast()) as i32;
+    n = su.su_badptr.to_bytes().len() as i32;
     if (n as usize) < MAXWLEN {
         fword[n as usize] = 0;
     }
@@ -1182,10 +1176,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             n = nofold_len(
                                 &*fword_buf,
                                 stack[udepth].ts_fidx as i32,
-                                crate::memory::cstr_as_bytes(su.su_badptr.cast()),
+                                su.su_badptr.to_bytes(),
                             );
                             let bad_slice = crate::memory::cstr_slice(
-                                su.su_badptr.cast(),
+                                su.su_badptr.as_ptr(),
                                 su.su_badlen.max(0) as usize,
                             );
                             let n_usize = (n.max(0) as usize).min(bad_slice.len());
@@ -1390,9 +1384,7 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                         c = su.su_badflags;
                         if (c & WF_ALLCAP) != 0
                             && su.su_badlen
-                                == utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                                    su.su_badptr.cast(),
-                                ))
+                                == crate::mbyte::utfc_slice2len(su.su_badptr.to_bytes()) as i32
                         {
                             c = WF_ONECAP;
                         }
@@ -1653,10 +1645,10 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                 n = nofold_len(
                                     &*fword_buf,
                                     stack[udepth].ts_fidx as i32,
-                                    crate::memory::cstr_as_bytes(su.su_badptr.cast()),
+                                    su.su_badptr.to_bytes(),
                                 );
                                 let bad_slice = crate::memory::cstr_slice(
-                                    su.su_badptr.cast(),
+                                    su.su_badptr.as_ptr(),
                                     su.su_badlen.max(0) as usize,
                                 );
                                 let n_usize = (n.max(0) as usize).min(bad_slice.len());
@@ -2471,11 +2463,11 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
     } else {
         spell_casefold(
             curwin_mut(),
-            crate::memory::cstr_slice(su.su_badptr.cast(), stp.st_orglen.max(0) as usize),
+            crate::memory::cstr_slice(su.su_badptr.as_ptr(), stp.st_orglen.max(0) as usize),
             &mut fword,
         );
         if ascii_iswhite(crate::memory::cstr_first_byte(
-            su.su_badptr.wrapping_add(su.su_badlen as usize).cast(),
+            su.su_badptr.as_ptr().wrapping_add(su.su_badlen as usize),
         )) && crate::memory::cstr_is_empty({
             let _sw_p = stp.st_word.as_ptr();
             _sw_p.wrapping_add(crate::charset::skiptowhite_len(
@@ -2503,8 +2495,8 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
         goodword[..wlen].copy_from_slice(stp.st_word.to_bytes());
         goodword[wlen..wlen + ldiff].copy_from_slice(crate::memory::cstr_slice(
             su.su_badptr
-                .wrapping_add((su.su_badlen - lendiff) as usize)
-                .cast(),
+                .as_ptr()
+                .wrapping_add((su.su_badlen - lendiff) as usize),
             ldiff,
         ));
         goodword[wlen + ldiff] = 0;
@@ -2772,7 +2764,7 @@ fn add_suggestion(
 ) {
     let slang_ptr: *mut Slang = slang.map_or(ptr::null_mut(), |s| &raw mut *s);
     let goodword_bytes = crate::memory::bytes_until_nul(goodword);
-    let bad_slice = unsafe { std::slice::from_raw_parts(su.su_badptr, badlenarg.max(0) as usize) };
+    let bad_slice = crate::memory::cstr_slice(su.su_badptr.as_ptr(), badlenarg.max(0) as usize);
     let mut pgood_idx = goodword_bytes.len();
     let mut pbad_idx = bad_slice.len();
     let mut goodlen: i32;
@@ -2869,7 +2861,7 @@ fn add_suggestion(
     }
 }
 fn check_suggestions(su: &mut Suginfo, use_sga: bool) {
-    let badptr = su.su_badptr;
+    let badptr: *const u8 = su.su_badptr.as_ptr().cast();
     let gap = if use_sga {
         &mut su.su_sga
     } else {

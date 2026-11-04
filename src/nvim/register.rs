@@ -138,12 +138,12 @@ const E_REGISTER_CHAR_CANNOT_CONTAIN_MULTIPLE_LINES: &CStr =
     c"E883: Register '%c' cannot contain multiple lines";
 
 #[repr(C)]
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct BlockDef {
     pub startspaces: i32,
     pub endspaces: i32,
     pub textlen: i32,
-    pub textstart: *mut u8,
+    pub textstart: &'static std::ffi::CStr,
     pub textcol: Colnr,
     pub start_vcol: Colnr,
     pub end_vcol: Colnr,
@@ -156,13 +156,19 @@ pub struct BlockDef {
     pub start_char_vcols: Colnr,
 }
 
+impl Default for BlockDef {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BlockDef {
     pub const fn new() -> Self {
         Self {
             startspaces: 0,
             endspaces: 0,
             textlen: 0,
-            textstart: ptr::null_mut(),
+            textstart: c"",
             textcol: 0,
             start_vcol: 0,
             end_vcol: 0,
@@ -996,23 +1002,24 @@ fn yank_copy_line(
     let text_usize = bd.textlen as usize;
     let end_usize = bd.endspaces as usize;
     let mut buf_vec = vec![0u8; (size as usize) + 1];
+    let text_ptr = bd.textstart.as_ptr();
     buf_vec[..start_usize].fill(b' ');
     buf_vec[start_usize..start_usize + text_usize]
-        .copy_from_slice(crate::memory::cstr_slice(bd.textstart.cast(), text_usize));
+        .copy_from_slice(crate::memory::cstr_slice(text_ptr, text_usize));
     buf_vec[start_usize + text_usize..start_usize + text_usize + end_usize].fill(b' ');
     let mut out_size = start_usize + text_usize + end_usize;
     if exclude_trailing_space {
         let mut s = bd.textlen + bd.endspaces;
         while s > 0
             && ascii_iswhite(crate::memory::cstr_first_byte(
-                bd.textstart.wrapping_add((s - 1) as usize).cast(),
+                text_ptr.wrapping_add((s - 1) as usize),
             ))
         {
             s =
                 s - {
                     let (_b, _i) = crate::memory::cstr_span_to_char(
-                        bd.textstart.cast(),
-                        bd.textstart.wrapping_add((s - 1) as usize).cast(),
+                        text_ptr,
+                        text_ptr.wrapping_add((s - 1) as usize),
                     );
                     crate::mbyte::utf_head_off(_b, _i)
                 } - 1;
@@ -1100,7 +1107,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
             }
             MotionType::MtCharWise => {
                 charwise_block_prep(oap.start, oap.end, &mut bd, lnum, oap.inclusive);
-                let tmp = crate::memory::cstr_len(bd.textstart.cast()) as i32;
+                let tmp = bd.textstart.to_bytes().len() as i32;
                 if tmp < bd.textlen {
                     bd.textlen = tmp;
                 }

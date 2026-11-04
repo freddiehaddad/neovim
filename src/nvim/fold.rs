@@ -106,7 +106,7 @@ struct FoldModuleState {
     prev_lnum: Linenr,
     prev_lnum_lvl: i32,
     foldstartmarkerlen: usize,
-    foldendmarker: *const u8,
+    foldendmarker: Vec<u8>,
     foldendmarkerlen: usize,
     got_fdt_error: bool,
     last_wp: *mut WinInfoInfo,
@@ -123,7 +123,7 @@ impl FoldModuleState {
             prev_lnum: 0,
             prev_lnum_lvl: -1,
             foldstartmarkerlen: 0,
-            foldendmarker: ptr::null(),
+            foldendmarker: Vec::new(),
             foldendmarkerlen: 0,
             got_fdt_error: false,
             last_wp: ptr::null_mut(),
@@ -134,7 +134,7 @@ impl FoldModuleState {
 
     #[inline]
     fn foldendmarker_slice(&self) -> &'static [u8] {
-        crate::memory::cstr_slice(self.foldendmarker.cast(), self.foldendmarkerlen)
+        unsafe { std::slice::from_raw_parts(self.foldendmarker.as_ptr(), self.foldendmarker.len()) }
     }
 }
 
@@ -2484,8 +2484,8 @@ fn parse_marker(wp: &mut WinInfoInfo) {
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     fold_st().foldstartmarkerlen = (comma as usize) - (fmr as usize);
     let end_ptr = comma.wrapping_add(1);
-    fold_st().foldendmarker = end_ptr.cast();
-    fold_st().foldendmarkerlen = crate::memory::cstr_len(end_ptr);
+    fold_st().foldendmarker = crate::memory::cstr_as_bytes(end_ptr).to_vec();
+    fold_st().foldendmarkerlen = fold_st().foldendmarker.len();
 }
 
 fn foldlevel_marker(flp: &mut Fline) {
