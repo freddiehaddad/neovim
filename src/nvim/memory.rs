@@ -773,7 +773,7 @@ pub fn free_all_mem() {
         mem_st().entered_free_all_mem = true;
         block_autocmds();
 
-        opt_vars().p_ea = 0;
+        opt_vars().p_ea = false;
         if !g_st().first_tabpage.is_null() && !crate::globals::first_tabpage_mut().tp_next.is_null()
         {
             do_cmdline_cmd(c"tabonly!");
@@ -833,7 +833,7 @@ pub fn free_all_mem() {
 
         free_all_options();
 
-        opt_vars().p_acd = 0;
+        opt_vars().p_acd = false;
         let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mut bufref = Bufref {

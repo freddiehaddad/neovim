@@ -392,13 +392,13 @@ pub fn nvim_open_win(
                 && !has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_SPLIT)
             {
                 if config.vertical {
-                    fconfig.split = if opt_vars().p_spr != 0 {
+                    fconfig.split = if opt_vars().p_spr {
                         K_WIN_SPLIT_RIGHT
                     } else {
                         K_WIN_SPLIT_LEFT
                     };
                 } else {
-                    fconfig.split = if opt_vars().p_sb != 0 {
+                    fconfig.split = if opt_vars().p_sb {
                         K_WIN_SPLIT_BELOW
                     } else {
                         K_WIN_SPLIT_ABOVE
@@ -644,13 +644,13 @@ fn win_config_split(
     let old_split = win_split_dir(win);
     if has_vertical && !has_split {
         if config.vertical {
-            fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr != 0 {
+            fconfig.split = if old_split == K_WIN_SPLIT_RIGHT || opt_vars().p_spr {
                 K_WIN_SPLIT_RIGHT
             } else {
                 K_WIN_SPLIT_LEFT
             };
         } else {
-            fconfig.split = if old_split == K_WIN_SPLIT_BELOW || opt_vars().p_sb != 0 {
+            fconfig.split = if old_split == K_WIN_SPLIT_BELOW || opt_vars().p_sb {
                 K_WIN_SPLIT_BELOW
             } else {
                 K_WIN_SPLIT_ABOVE

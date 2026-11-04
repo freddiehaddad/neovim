@@ -1448,7 +1448,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
     }
 
     let save_magic = opt_vars().p_magic;
-    opt_vars().p_magic = 1;
+    opt_vars().p_magic = true;
     let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let buf = buflist_findnr(buflist_findpat(
@@ -2310,7 +2310,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         if !error {
             let mut xpc: ExpandCtx = ExpandCtx::new();
             xpc.xp_context = EXPAND_FILES;
-            if opt_vars().p_wic != 0 {
+            if opt_vars().p_wic {
                 options += WILD_ICASE;
             }
             if rettv.v_type == VarType::VarString {
@@ -4379,7 +4379,7 @@ pub fn create_environment(
                     tv_dict_item_remove(&mut *env, dv);
                 }
             }
-            if opt_vars().p_tgc != 0 {
+            if opt_vars().p_tgc {
                 tv_dict_add_str(&mut *env, c"COLORTERM", Some(c"truecolor"));
             }
         }
@@ -4654,7 +4654,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         let buf = g_st().curbuf;
         let buf = unsafe { &mut *buf };
 
-        buf.b_p_swf = 0;
+        buf.b_p_swf = false;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
             proc_stop(unsafe { &mut (*chan).uv.proc_ });
 
@@ -5057,7 +5057,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             && tp.is_some()
         {
             if opt_vars().p_spk.first_byte() != b'c'
-                || (wp_ref.w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0)
+                || (wp_ref.w_onebuf_opt.wo_diff && curwin_mut().w_onebuf_opt.wo_diff)
             {
                 g_st().skip_update_topline = true;
             }
@@ -5211,7 +5211,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             RE_MAGIC + RE_STRING,
         ));
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = opt_vars().p_ic != 0;
+            regmatch.rm_ic = opt_vars().p_ic;
 
             loop {
                 if !l.is_null() {
@@ -5513,7 +5513,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        regmatch.rm_ic = opt_vars().p_ic != 0;
+        regmatch.rm_ic = opt_vars().p_ic;
 
         while slnum <= elnum {
             let str_ = ml_get_buf(unsafe { &mut *buf }, slnum).as_ptr().cast_mut();
@@ -5584,7 +5584,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        regmatch.rm_ic = opt_vars().p_ic != 0;
+        regmatch.rm_ic = opt_vars().p_ic;
 
         'cleanup: {
             let mut submatches = false;
@@ -6595,8 +6595,8 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
     while !crate::memory::cstr_is_empty(flags) {
         match crate::memory::cstr_first_byte(flags) {
             b'b' => dir = BACKWARD,
-            b'w' => opt_vars().p_ws = 1,
-            b'W' => opt_vars().p_ws = 0,
+            b'w' => opt_vars().p_ws = true,
+            b'W' => opt_vars().p_ws = false,
             b => {
                 let mut mask: i32 = 0;
                 if flagsp.is_some() {
@@ -6710,7 +6710,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
                 1,
                 options,
                 RE_SEARCH,
-                opt_vars().p_magic != 0,
+                opt_vars().p_magic,
                 Some(&mut sia),
             );
             if firstpos.lnum != 0 && equalpos(pos, firstpos) {
@@ -7109,7 +7109,7 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         }
 
         if (flags & SP_REPEAT) != 0 {
-            opt_vars().p_ws = 0;
+            opt_vars().p_ws = false;
         }
 
         let skip: *const TypVal = if argvars[3].v_type == VarType::VarUnknown
@@ -7985,9 +7985,9 @@ pub fn f_soundfold(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
-    if curwin_mut().w_onebuf_opt.wo_spell == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_spell {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = 1;
+        curwin_mut().w_onebuf_opt.wo_spell = true;
     }
 
     let ws = curwin_mut().w_s_ptr();
@@ -8051,9 +8051,9 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     let mut ga: Vec<std::ffi::CString> = Vec::new();
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
-    if curwin_mut().w_onebuf_opt.wo_spell == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_spell {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = 1;
+        curwin_mut().w_onebuf_opt.wo_spell = true;
     }
 
     let ws = curwin_mut().w_s_ptr();

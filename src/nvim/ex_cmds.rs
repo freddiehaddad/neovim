@@ -487,7 +487,7 @@ pub fn ex_align(eap: &mut Exarg) {
     let mut indent: i32 = 0;
     let mut new_indent: i32;
 
-    if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+    if curwin_mut().w_onebuf_opt.wo_rl {
         if eap.cmdidx == Cmdidx::CmdRight as i32 {
             eap.cmdidx = Cmdidx::CmdLeft as i32;
         } else if eap.cmdidx == Cmdidx::CmdLeft as i32 {
@@ -783,7 +783,7 @@ pub fn ex_sort(eap: &mut Exarg) {
                     break 'sortend;
                 }
                 p = s;
-                regmatch.rm_ic = opt_vars().p_ic != 0;
+                regmatch.rm_ic = opt_vars().p_ic;
             } else {
                 semsg!(gettext(E_INVARG2), p);
                 break 'sortend;
@@ -1064,7 +1064,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
                     break 'uniqend;
                 }
                 p = s;
-                regmatch.rm_ic = opt_vars().p_ic != 0;
+                regmatch.rm_ic = opt_vars().p_ic;
             } else {
                 semsg!(gettext(E_INVARG2), p);
                 break 'uniqend;
@@ -1588,14 +1588,14 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
     }
 
     'filterend: {
-        if !do_in && do_out && stmp == 0 {
+        if !do_in && do_out && !stmp {
             shell_flags |= K_SHELL_OPT_READ;
             curwin_mut().w_cursor.lnum = line2;
-        } else if do_in && !do_out && stmp == 0 {
+        } else if do_in && !do_out && !stmp {
             shell_flags |= K_SHELL_OPT_WRITE;
             curbuf_mut().b_op_start.lnum = line1;
             curbuf_mut().b_op_end.lnum = line2;
-        } else if do_in && do_out && stmp == 0 {
+        } else if do_in && do_out && !stmp {
             shell_flags |= K_SHELL_OPT_READ | K_SHELL_OPT_WRITE;
             curbuf_mut().b_op_start.lnum = line1;
             curbuf_mut().b_op_end.lnum = line2;
@@ -1812,7 +1812,7 @@ pub fn do_shell(cmd: Option<&CStr>, flags: i32) {
     msg_putchar(b'\r' as i32);
     msg_putchar(b'\n' as i32);
 
-    if opt_vars().p_warn != 0 && !g_st().autocmd_busy && g_st().msg_silent == 0 {
+    if opt_vars().p_warn && !g_st().autocmd_busy && g_st().msg_silent == 0 {
         for buf in for_all_buffers_mut() {
             if buf_is_changed_fn(buf) {
                 msg_puts(gettext(c"[No write since last change]\n"));
@@ -2008,7 +2008,7 @@ pub fn append_redir(buf: &mut [u8], opt: &CStr, fname: &CStr) {
 pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
     let mut numbuf: [u8; 30] = [0; 30];
 
-    if curwin_mut().w_onebuf_opt.wo_nu != 0 || use_number {
+    if curwin_mut().w_onebuf_opt.wo_nu || use_number {
         vim_snprintf!(
             numbuf.as_mut_ptr().cast(),
             30,
@@ -2232,9 +2232,9 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
                 && eap.forceit == 0
                 && eap.append == 0
-                && opt_vars().p_wa == 0
+                && !opt_vars().p_wa
             {
-                if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     if vim_dialog_yesno(VIM_QUESTION, None, gettext(c"Write partial file?"), 2)
                         != VIM_YES
                     {
@@ -2274,9 +2274,9 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 apply_autocmds(EVENT_BUFFILEPOST, None, None, false, unsafe {
                     alt_buf.as_mut()
                 });
-                if unsafe { (*alt_buf).b_p_bl == 0 } {
+                if !unsafe { (*alt_buf).b_p_bl } {
                     unsafe {
-                        (*alt_buf).b_p_bl = 1;
+                        (*alt_buf).b_p_bl = true;
                     }
 
                     apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { alt_buf.as_mut() });
@@ -2318,7 +2318,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             ) == OK;
 
             if eap.cmdidx == Cmdidx::CmdSaveas as i32 && retval {
-                curbuf_mut().b_p_ro = 0;
+                curbuf_mut().b_p_ro = false;
                 g_st().redraw_tabline = true;
             }
 
@@ -2348,7 +2348,7 @@ pub fn check_overwrite(
                 || ((buf.b_flags & BF_NEW) != 0
                     && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
                 || (buf.b_flags & BF_READERR) != 0)))
-        && opt_vars().p_wa == 0
+        && !opt_vars().p_wa
         && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
     {
         if eap.forceit == 0 && eap.append == 0 {
@@ -2356,7 +2356,7 @@ pub fn check_overwrite(
                 semsg!(gettext(E_ISADIR2), ffname);
                 return false;
             }
-            if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+            if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                 vim_snprintf!(
                     buff.as_mut_ptr().cast(),
@@ -2390,7 +2390,7 @@ pub fn check_overwrite(
                 crate::memory::cstr_until_nul(&dir),
             ) && os_path_exists(&swapname)
             {
-                if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+                if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                     let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
                     vim_snprintf!(
                         buff.as_mut_ptr().cast(),
@@ -2504,7 +2504,7 @@ pub fn do_wqall(eap: &mut Exarg) {
 
 /// Check the `'write'` option.
 fn not_writing() -> bool {
-    if opt_vars().p_write != 0 {
+    if opt_vars().p_write {
         return false;
     }
     emsg(gettext(
@@ -2516,15 +2516,15 @@ fn not_writing() -> bool {
 /// Check if a buffer is read-only.
 fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
     if *forceit == 0
-        && (buf.b_p_ro != 0
+        && (buf.b_p_ro
             || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
     {
-        if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+        if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
             && buf.fname_opt().is_some()
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
             let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
-            if buf.b_p_ro != 0 {
+            if buf.b_p_ro {
                 vim_snprintf!(
                     buff.as_mut_ptr().cast(),
                     DIALOG_MSG_SIZE,
@@ -2549,7 +2549,7 @@ fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
                 return false;
             }
             return true;
-        } else if buf.b_p_ro != 0 {
+        } else if buf.b_p_ro {
             emsg(gettext(E_READONLY));
         } else {
             semsg!(
@@ -2606,7 +2606,7 @@ pub fn getfile(
             && curbuf_is_changed_fn()
             && !autowrite(curbuf_mut(), forceit)
         {
-            if opt_vars().p_confirm != 0 && opt_vars().p_write != 0 {
+            if opt_vars().p_confirm && opt_vars().p_write {
                 dialog_changed(curbuf_mut(), false);
             }
             if curbuf_is_changed_fn() {
@@ -2763,7 +2763,7 @@ pub fn do_ecmd(
                 && (flags & (ECMD_HIDE | ECMD_ADDBUF | ECMD_ALTBUF)) == 0))
             && check_changed(
                 curbuf_mut(),
-                (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
+                (if opt_vars().p_awa { CCGD_AW } else { 0 })
                     | (if other_file { 0 } else { CCGD_MULTWIN })
                     | (if (flags & ECMD_FORCEIT) != 0 {
                         CCGD_FORCEIT
@@ -3133,13 +3133,13 @@ pub fn do_ecmd(
             }
         }
 
-        if curwin_mut().w_onebuf_opt.wo_diff != 0 {
+        if curwin_mut().w_onebuf_opt.wo_diff {
             diff_buf_add(curbuf_mut());
             diff_invalidate(curbuf_mut());
         }
 
         if did_get_winopts
-            && curwin_mut().w_onebuf_opt.wo_spell != 0
+            && curwin_mut().w_onebuf_opt.wo_spell
             && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
         {
             parse_spelllang(curwin_mut());
@@ -3153,7 +3153,7 @@ pub fn do_ecmd(
             } else if newlnum > 0 {
                 curwin_mut().w_cursor.lnum = newlnum;
                 check_cursor_lnum(curwin_mut());
-                if solcol >= 0 && opt_vars().p_sol == 0 {
+                if solcol >= 0 && !opt_vars().p_sol {
                     curwin_mut().w_cursor.col = solcol;
                     check_cursor_col(curwin_mut());
                     curwin_mut().w_cursor.coladd = 0;
@@ -3325,10 +3325,10 @@ pub fn ex_append(eap: &mut Exarg) {
     }
 
     if eap.forceit != 0 {
-        curbuf_mut().b_p_ai = if curbuf_mut().b_p_ai != 0 { 0 } else { 1 };
+        curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
     }
 
-    if eap.cmdidx != Cmdidx::CmdChange as i32 && curbuf_mut().b_p_ai != 0 && lnum > 0 {
+    if eap.cmdidx != Cmdidx::CmdChange as i32 && curbuf_mut().b_p_ai && lnum > 0 {
         excmds_st().append_indent = get_indent_lnum(lnum);
     }
 
@@ -3349,7 +3349,7 @@ pub fn ex_append(eap: &mut Exarg) {
     loop {
         g_st().msg_scroll = 1;
         g_st().need_wait_return = false;
-        if curbuf_mut().b_p_ai != 0 {
+        if curbuf_mut().b_p_ai {
             if excmds_st().append_indent >= 0 {
                 indent = excmds_st().append_indent;
                 excmds_st().append_indent = -1;
@@ -3410,7 +3410,7 @@ pub fn ex_append(eap: &mut Exarg) {
     ui_cursor_shape();
 
     if eap.forceit != 0 {
-        curbuf_mut().b_p_ai = if curbuf_mut().b_p_ai != 0 { 0 } else { 1 };
+        curbuf_mut().b_p_ai = !curbuf_mut().b_p_ai;
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -3449,9 +3449,9 @@ pub fn ex_change(eap: &mut Exarg) {
     }
 
     if if eap.forceit != 0 {
-        curbuf_mut().b_p_ai == 0
+        !curbuf_mut().b_p_ai
     } else {
-        curbuf_mut().b_p_ai != 0
+        curbuf_mut().b_p_ai
     } {
         excmds_st().append_indent = get_indent_lnum(eap.line1);
     }
@@ -3662,7 +3662,7 @@ fn sub_joining_lines(
                     RE_SUBST,
                     crate::memory::cstr_from_ptr(pat.data),
                     pat.size,
-                    opt_vars().p_magic,
+                    i32::from(opt_vars().p_magic),
                 );
             }
             add_to_history(
@@ -3761,7 +3761,7 @@ fn sub_parse_flags<'a>(
     if let Some(after_amp) = rem.strip_prefix(b"&") {
         rem = after_amp;
     } else {
-        subflags_arg.do_all = opt_vars().p_gd != 0;
+        subflags_arg.do_all = opt_vars().p_gd;
         subflags_arg.do_ask = false;
         subflags_arg.do_error = true;
         subflags_arg.do_print = false;
@@ -3927,7 +3927,14 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             let cmd_len = crate::memory::cstr_len(cmd);
             let cmd_slice =
                 unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), cmd_len + 1) };
-            let off = skip_regexp_ex(cmd_slice, delimiter, opt_vars().p_magic, None, None, None);
+            let off = skip_regexp_ex(
+                cmd_slice,
+                delimiter,
+                i32::from(opt_vars().p_magic),
+                None,
+                None,
+                None,
+            );
             cmd = cmd.wrapping_add(off);
             pat.size = off;
             if i32::from(crate::memory::cstr_first_byte(cmd)) == delimiter {
@@ -4046,7 +4053,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     } else if eap.cmdidx == Cmdidx::CmdSnomagic as i32 {
         false
     } else {
-        opt_vars().p_magic != 0
+        opt_vars().p_magic
     };
     if !search_regcomp(
         crate::memory::cstr_from_ptr(pat.data),
@@ -4077,7 +4084,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=") {
         let sub_len = crate::memory::cstr_len(sub);
         let sub_slice = unsafe { std::slice::from_raw_parts_mut(sub.cast::<u8>(), sub_len + 1) };
-        if let Some(new_sub) = regtilde(sub_slice, opt_vars().p_magic, cmdpreview_ns > 0) {
+        if let Some(new_sub) = regtilde(sub_slice, i32::from(opt_vars().p_magic), cmdpreview_ns > 0)
+        {
             sub = new_sub.as_ptr().cast_mut();
             sub_owned = Some(new_sub);
         }
@@ -4202,7 +4210,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let save_state = g_st().state_global;
                         curwin_mut().w_cursor.col = regmatch.startpos[0].col;
 
-                        if curwin_mut().w_onebuf_opt.wo_crb != 0 {
+                        if curwin_mut().w_onebuf_opt.wo_crb {
                             do_check_cursorbind();
                         }
 
@@ -4216,11 +4224,11 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             let save_p_lz = opt_vars().p_lz;
                             let save_p_fen = curwin_mut().w_onebuf_opt.wo_fen;
 
-                            curwin_mut().w_onebuf_opt.wo_fen = 0;
+                            curwin_mut().w_onebuf_opt.wo_fen = false;
                             let temp = g_st().redrawing_disabled;
                             g_st().redrawing_disabled = 0;
 
-                            opt_vars().p_lz = 0;
+                            opt_vars().p_lz = false;
 
                             if !new_start.is_null() {
                                 let lnum_slice = crate::memline::ml_get_slice(lnum);
@@ -4385,7 +4393,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         let save_ma = curbuf_mut().b_p_ma;
                         let save_sandbox = g_st().sandbox;
                         if excmds_st().subflags.do_count {
-                            curbuf_mut().b_p_ma = 0;
+                            curbuf_mut().b_p_ma = false;
                             g_st().sandbox += 1;
                         }
                         let subflags_save = excmds_st().subflags;
@@ -4398,12 +4406,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             rel_lnum,
                             sub_cstr,
                             &mut [],
-                            REGSUB_BACKSLASH
-                                | if opt_vars().p_magic != 0 {
-                                    REGSUB_MAGIC
-                                } else {
-                                    0
-                                },
+                            REGSUB_BACKSLASH | if opt_vars().p_magic { REGSUB_MAGIC } else { 0 },
                         );
                         let mut sublen = sublen_i as usize;
                         g_st().textlock -= 1;
@@ -4472,11 +4475,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             new_end_slice,
                             REGSUB_COPY
                                 | REGSUB_BACKSLASH
-                                | if opt_vars().p_magic != 0 {
-                                    REGSUB_MAGIC
-                                } else {
-                                    0
-                                },
+                                | if opt_vars().p_magic { REGSUB_MAGIC } else { 0 },
                         ) as usize;
                         if n > 0 {
                             new_start.size += n - 1;
@@ -4991,7 +4990,7 @@ pub fn ex_global(eap: &mut Exarg) {
         let off = skip_regexp_ex(
             cmd_slice,
             delim as i32,
-            opt_vars().p_magic,
+            i32::from(opt_vars().p_magic),
             None,
             None,
             None,
@@ -5014,7 +5013,7 @@ pub fn ex_global(eap: &mut Exarg) {
         RE_BOTH,
         which_pat,
         SEARCH_HIS,
-        opt_vars().p_magic != 0,
+        opt_vars().p_magic,
         &mut regmatch,
     ) {
         emsg(gettext(E_INVCMD));
@@ -5135,12 +5134,12 @@ pub fn free_old_sub() {
 
 /// Set up for a tagpreview.
 pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
-    if curwin_mut().w_onebuf_opt.wo_pvw != 0 {
+    if curwin_mut().w_onebuf_opt.wo_pvw {
         return false;
     }
 
     for wp in for_all_windows_ptr() {
-        if wp.w_onebuf_opt.wo_pvw != 0 {
+        if wp.w_onebuf_opt.wo_pvw {
             if use_previewpopup {
                 if wp.w_kind != K_WIN_PREVIEW {
                     continue;
@@ -5174,11 +5173,11 @@ pub fn prepare_tagpreview(undo_sync: bool, use_previewpopup: bool) -> bool {
         return false;
     }
 
-    curwin_mut().w_onebuf_opt.wo_pvw = 1;
-    curwin_mut().w_onebuf_opt.wo_wfh = 1;
-    curwin_mut().w_onebuf_opt.wo_scb = 0;
-    curwin_mut().w_onebuf_opt.wo_crb = 0;
-    curwin_mut().w_onebuf_opt.wo_diff = 0;
+    curwin_mut().w_onebuf_opt.wo_pvw = true;
+    curwin_mut().w_onebuf_opt.wo_wfh = true;
+    curwin_mut().w_onebuf_opt.wo_scb = false;
+    curwin_mut().w_onebuf_opt.wo_crb = false;
+    curwin_mut().w_onebuf_opt.wo_diff = false;
 
     set_option_direct(K_OPT_FOLDCOLUMN, cstr_as_obj(Some(c"0")), 0, SID_NONE);
     true

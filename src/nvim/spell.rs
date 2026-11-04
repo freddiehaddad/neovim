@@ -1054,14 +1054,14 @@ pub fn spell_valid_case(wordflags: i32, treeflags: i32) -> bool {
 }
 pub fn spell_check_window(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
-    wp.w_onebuf_opt.wo_spell != 0
+    wp.w_onebuf_opt.wo_spell
         && !w_s.b_p_spl.is_empty()
         && !w_s.b_langp.is_empty()
         && !(&w_s.b_langp)[0].lp_slang.is_null()
 }
 pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
-    if wp.w_onebuf_opt.wo_spell == 0 || w_s.b_p_spl.is_empty() || w_s.b_langp.is_empty() {
+    if !wp.w_onebuf_opt.wo_spell || w_s.b_p_spl.is_empty() || w_s.b_langp.is_empty() {
         emsg(gettext(E_NO_SPELL));
         return true;
     }
@@ -1238,7 +1238,7 @@ pub fn spell_move_to(
             if dir == BACKWARD {
                 if lnum > 1 {
                     lnum -= 1;
-                } else if opt_vars().p_ws == 0 {
+                } else if !opt_vars().p_ws {
                     break;
                 } else {
                     lnum = wp.buf_mut().b_ml.ml_line_count;
@@ -1251,7 +1251,7 @@ pub fn spell_move_to(
             } else {
                 if lnum < wp.buf_mut().b_ml.ml_line_count {
                     lnum += 1;
-                } else if opt_vars().p_ws == 0 {
+                } else if !opt_vars().p_ws {
                     break;
                 } else {
                     lnum = 1;
@@ -2021,7 +2021,7 @@ pub fn spell_reload() {
     spell_free_all();
     for wp in for_all_windows_ptr() {
         let w_s = (*wp).w_s_ptr();
-        if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell != 0 {
+        if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell {
             let _ = parse_spelllang(&mut *wp);
             break;
         }
@@ -2030,7 +2030,7 @@ pub fn spell_reload() {
 pub fn open_spellbuf() -> Box<FileBuf> {
     let mut buf = Box::new(FileBuf::new());
     buf.b_spell = true;
-    buf.b_p_swf = 1;
+    buf.b_p_swf = true;
     if !ml_open(&mut buf) {
         let _ = logmsg!(
             3,
@@ -2276,7 +2276,7 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     let frompat = frompat_vec.as_mut_ptr();
     let frompatlen =
         vim_snprintf!(frompat.cast(), frompatsize, c"\\V\\<%s\\>", repl_from_ptr,) as usize;
-    opt_vars().p_ws = 0;
+    opt_vars().p_ws = false;
     g_st().sub_nsubs = 0;
     g_st().sub_nlines = 0;
     curwin_mut().w_cursor.lnum = 0;
@@ -2402,7 +2402,7 @@ pub fn make_case_word(fword: &[u8], cword: &mut [u8], flags: i32) {
 }
 pub fn eval_soundfold(word: &std::ffi::CStr) -> std::ffi::CString {
     let w_s = curwin_mut().w_s_ptr();
-    if curwin_mut().w_onebuf_opt.wo_spell != 0 && !w_s.b_p_spl.is_empty() {
+    if curwin_mut().w_onebuf_opt.wo_spell && !w_s.b_p_spl.is_empty() {
         for lp in &w_s.b_langp {
             let slang = lp.slang_mut();
             if slang.has_sal() {
@@ -2970,7 +2970,7 @@ fn dump_word(
         }) && ins_compl_add_infercase(
             p_bytes,
             p_bytes.len() as i32,
-            opt_vars().p_ic != 0,
+            opt_vars().p_ic,
             None,
             *dir.as_deref_mut().unwrap(),
             false,
@@ -3205,7 +3205,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
 pub fn did_set_spell_option() -> Option<&'static std::ffi::CStr> {
     let mut errmsg = None;
     for wp in for_all_windows_ptr() {
-        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell != 0 {
+        if wp.w_buffer == g_st().curbuf && wp.w_onebuf_opt.wo_spell {
             errmsg = parse_spelllang(&mut *wp);
             break;
         }

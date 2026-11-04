@@ -1772,7 +1772,7 @@ fn normal_need_additional_char(s: &mut NormalState) -> bool {
 }
 
 fn normal_need_redraw_mode_message(s: &mut NormalState) -> bool {
-    ((opt_vars().p_smd != 0
+    ((opt_vars().p_smd
         && g_st().msg_silent == 0
         && (g_st().restart_edit != 0
             || (g_st().visual_global.active
@@ -2115,12 +2115,12 @@ fn normal_finish_command(s: &mut NormalState) {
     checkpcmark();
     mb_check_adjust_col(curwin_mut());
 
-    if curwin_mut().w_onebuf_opt.wo_scb != 0 && s.toplevel {
+    if curwin_mut().w_onebuf_opt.wo_scb && s.toplevel {
         validate_cursor(curwin_mut());
         do_check_scrollbind(true);
     }
 
-    if curwin_mut().w_onebuf_opt.wo_crb != 0 && s.toplevel {
+    if curwin_mut().w_onebuf_opt.wo_crb && s.toplevel {
         validate_cursor(curwin_mut());
         do_check_cursorbind();
     }
@@ -2251,7 +2251,7 @@ fn normal_execute(s: &mut NormalState, key: i32) -> i32 {
             break 'finish;
         }
 
-        if curwin_mut().w_onebuf_opt.wo_rl != 0
+        if curwin_mut().w_onebuf_opt.wo_rl
             && g_st().key_typed
             && g_st().key_stuffed == 0
             && (NV_CMDS[s.idx as usize].cmd_flags & NV_RL) != 0
@@ -2750,7 +2750,7 @@ pub fn may_clear_cmdline() {
 }
 
 pub fn clear_showcmd() {
-    if opt_vars().p_sc == 0 {
+    if !opt_vars().p_sc {
         return;
     }
 
@@ -2882,7 +2882,7 @@ pub fn add_to_showcmd(c: i32) -> bool {
         K_LUA,
     ];
 
-    if opt_vars().p_sc == 0
+    if !opt_vars().p_sc
         || g_st().msg_silent != 0
         || g_st().ex_normal_busy != 0
         || g_st().key_stuffed != 0
@@ -2946,7 +2946,7 @@ pub fn add_to_showcmd_c(c: i32) {
 }
 
 fn del_from_showcmd(mut len: i32) {
-    if opt_vars().p_sc == 0 {
+    if !opt_vars().p_sc {
         return;
     }
     let sc_buf = (&raw mut g_st().showcmd_buf).cast();
@@ -2960,13 +2960,13 @@ fn del_from_showcmd(mut len: i32) {
 }
 
 pub fn push_showcmd() {
-    if opt_vars().p_sc != 0 {
+    if opt_vars().p_sc {
         norm_st().old_showcmd_buf = g_st().showcmd_buf;
     }
 }
 
 pub fn pop_showcmd() {
-    if opt_vars().p_sc == 0 {
+    if !opt_vars().p_sc {
         return;
     }
     g_st().showcmd_buf = norm_st().old_showcmd_buf;
@@ -3086,12 +3086,12 @@ pub fn get_vtopline(wp: &mut WinInfoInfo) -> i32 {
 pub fn do_check_scrollbind(check: bool) {
     let vtopline = get_vtopline(curwin_mut());
 
-    if check && curwin_mut().w_onebuf_opt.wo_scb != 0 {
+    if check && curwin_mut().w_onebuf_opt.wo_scb {
         if g_st().did_syncbind {
             g_st().did_syncbind = false;
         } else if ptr::eq(curwin_ptr(), norm_st().do_check_scrollbind_old_curwin) {
             if (ptr::eq(curwin_mut().w_buffer, norm_st().do_check_scrollbind_old_buf)
-                || curwin_mut().w_onebuf_opt.wo_diff != 0)
+                || curwin_mut().w_onebuf_opt.wo_diff)
                 && (vtopline != norm_st().do_check_scrollbind_old_vtopline
                     || curwin_mut().w_leftcol != norm_st().do_check_scrollbind_old_leftcol)
             {
@@ -3119,7 +3119,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let old_visual_active = g_st().visual_global.active;
     let tgt_leftcol = old_curwin.w_leftcol;
 
-    let want_ver = old_curwin.w_onebuf_opt.wo_diff != 0
+    let want_ver = old_curwin.w_onebuf_opt.wo_diff
         || (crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'v' as i32)
             && vtopline_diff != 0);
     let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32)
@@ -3130,9 +3130,9 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf = curwin_mut().w_buffer;
-        if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
+        if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb {
             if want_ver {
-                if old_curwin.w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0 {
+                if old_curwin.w_onebuf_opt.wo_diff && curwin_mut().w_onebuf_opt.wo_diff {
                     diff_set_topline(old_curwin, curwin_mut());
                 } else {
                     curwin_mut().w_scbind_pos += vtopline_diff;
@@ -3305,8 +3305,8 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
         let old_pos = curwin_mut().w_cursor;
         let save_p_ws = opt_vars().p_ws;
         let save_p_scs = opt_vars().p_scs;
-        opt_vars().p_ws = 0;
-        opt_vars().p_scs = 0;
+        opt_vars().p_ws = false;
+        opt_vars().p_scs = false;
 
         if !locally || !findpar(&mut incll, BACKWARD, 1, b'{' as i32, false) {
             setpcmark();
@@ -3509,7 +3509,7 @@ pub fn nv_screengo(oap: &mut Oparg, dir: i32, mut dist: i32, skip_conceal: bool)
     };
     coladvance(curwin_mut(), want_vcol);
 
-    if curwin_mut().w_cursor.col > 0 && curwin_mut().w_onebuf_opt.wo_wrap != 0 {
+    if curwin_mut().w_cursor.col > 0 && curwin_mut().w_onebuf_opt.wo_wrap {
         validate_virtcol(curwin_mut());
         let mut virtcol = cursor_disp_vcol(curwin_mut());
         if virtcol > width1 && !get_showbreak_value(curwin_mut()).is_empty() {
@@ -3740,7 +3740,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             if nchar == b'H' as i32 {
                 cap.count1 *= curwin_mut().w_view_width / 2;
             }
-            if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_wrap {
                 set_leftcol(if cap.count1 > curwin_mut().w_leftcol {
                     0
                 } else {
@@ -3752,12 +3752,12 @@ fn nv_zet(cap: &mut Cmdarg) {
             if nchar == b'L' as i32 {
                 cap.count1 *= curwin_mut().w_view_width / 2;
             }
-            if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_wrap {
                 set_leftcol(curwin_mut().w_leftcol + cap.count1);
             }
         }
         c if c == b's' as i32 => {
-            if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_wrap {
                 let cursor_lnum = curwin_mut().w_cursor.lnum;
                 if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
@@ -3783,7 +3783,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             }
         }
         c if c == b'e' as i32 => {
-            if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_wrap {
                 let cursor_lnum = curwin_mut().w_cursor.lnum;
                 if has_folding(curwin_mut(), cursor_lnum, None, None) {
                     col = 0;
@@ -3866,7 +3866,7 @@ fn nv_zet(cap: &mut Cmdarg) {
             foldenable = 1;
         }
         c if c == b'i' as i32 => {
-            foldenable = i32::from(curwin_mut().w_onebuf_opt.wo_fen == 0);
+            foldenable = i32::from(!curwin_mut().w_onebuf_opt.wo_fen);
         }
         c if c == b'a' as i32 => {
             let cursor_lnum = curwin_mut().w_cursor.lnum;
@@ -3977,7 +3977,7 @@ fn nv_zet(cap: &mut Cmdarg) {
 
     let win_handle = curwin_mut().handle;
     let buf_handle = curbuf_mut().b_fnum;
-    if foldenable != K_NONE && foldenable != curwin_mut().w_onebuf_opt.wo_fen {
+    if foldenable != K_NONE && (foldenable != 0) != curwin_mut().w_onebuf_opt.wo_fen {
         set_option_value(
             K_OPT_FOLDENABLE,
             boolean_obj(foldenable != 0),
@@ -4386,13 +4386,13 @@ fn nv_ident(cap: &mut Cmdarg) {
         buflen += plen;
     } else {
         let aux_ptr = if cmdchar == b'*' as i32 {
-            if opt_vars().p_magic != 0 {
+            if opt_vars().p_magic {
                 c"/.*~[^$\\".as_ptr()
             } else {
                 c"/^$\\".as_ptr()
             }
         } else if cmdchar == b'#' as i32 {
-            if opt_vars().p_magic != 0 {
+            if opt_vars().p_magic {
                 c"/?.*~[^$\\".as_ptr()
             } else {
                 c"/?^$\\".as_ptr()
@@ -4889,7 +4889,7 @@ fn nv_next(cap: &mut Cmdarg) {
     }
 
     if i > 0
-        && opt_vars().p_hls != 0
+        && opt_vars().p_hls
         && !g_st().search_global.no_hlsearch
         && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
     {
@@ -4924,7 +4924,7 @@ fn normal_search(
             patlen,
             cap.count1,
             opt | SEARCH_OPT | SEARCH_ECHO | SEARCH_MSG,
-            opt_vars().p_magic != 0,
+            opt_vars().p_magic,
             Some(&mut sia),
         );
         if let Some(wrapped) = wrapped {
@@ -4945,7 +4945,7 @@ fn normal_search(
             }
         }
         if !equalpos(curwin_mut().w_cursor, prev_cursor)
-            && opt_vars().p_hls != 0
+            && opt_vars().p_hls
             && !g_st().search_global.no_hlsearch
             && win_hl_attr(curwin_mut(), HLF_LC as i32) != win_hl_attr(curwin_mut(), HLF_L as i32)
         {
@@ -5576,7 +5576,7 @@ fn nv_replace(cap: &mut Cmdarg) {
 
     if had_ctrl_v != CTRL_V_CONST
         && cap.nchar == b'\t' as i32
-        && (curbuf_mut().b_p_et != 0 || opt_vars().p_sta != 0)
+        && (curbuf_mut().b_p_et || opt_vars().p_sta)
     {
         stuffnum_readbuff(cap.count1);
         stuffchar_readbuff(b'R' as i32);
@@ -6038,7 +6038,7 @@ fn nv_visual(cap: &mut Cmdarg) {
             may_start_select(b'c' as i32);
         }
         setmouse();
-        if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
+        if opt_vars().p_smd && g_st().msg_silent == 0 {
             g_st().redraw_cmdline = true;
         }
         if g_st().visual_global.resel.mode != b'v' as i32
@@ -6131,7 +6131,7 @@ fn n_start_visual_mode(c: i32) {
     setmouse();
     conceal_check_cursor_line();
 
-    if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
+    if opt_vars().p_smd && g_st().msg_silent == 0 {
         g_st().redraw_cmdline = true;
     }
     if curwin_mut().w_redr_type < UPD_INVERTED {
@@ -6204,7 +6204,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
 
     cap.oap_mut().motion_type = MT_CHAR_WISE;
     cap.oap_mut().inclusive = false;
-    if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
+    if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_view_width != 0 {
         let width1 = curwin_mut().w_view_width - win_col_off(curwin_mut());
         let width2 = width1 + win_col_off2(curwin_mut());
 
@@ -6227,7 +6227,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
     }
     if cap.nchar == b'm' as i32 {
         i += (curwin_mut().w_view_width - win_col_off(curwin_mut())
-            + if curwin_mut().w_onebuf_opt.wo_wrap != 0 && i > 0 {
+            + if curwin_mut().w_onebuf_opt.wo_wrap && i > 0 {
                 win_col_off2(curwin_mut())
             } else {
                 0
@@ -6301,7 +6301,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
 
     cap.oap_mut().motion_type = MT_CHAR_WISE;
     cap.oap_mut().inclusive = true;
-    if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
+    if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_view_width != 0 {
         curwin_mut().w_curswant = MAXCOL;
         if cap.count1 == 1 {
             let width1 = curwin_mut().w_view_width - col_off;
@@ -6320,7 +6320,7 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
 
             update_curswant_force();
             if curwin_mut().w_cursor.col > 0
-                && curwin_mut().w_onebuf_opt.wo_wrap != 0
+                && curwin_mut().w_onebuf_opt.wo_wrap
                 && cursor_disp_vcol(curwin_mut()) > i
             {
                 curwin_mut().w_cursor.col -= 1;
@@ -6447,7 +6447,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
         }
         c if c == b'j' as i32 || c == K_DOWN => {
-            let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            let ok = if !curwin_mut().w_onebuf_opt.wo_wrap {
                 oap.motion_type = MT_LINE_WISE;
                 cursor_down(cap.count1, oap.op_type == OP_NOP)
             } else {
@@ -6458,7 +6458,7 @@ fn nv_g_cmd(cap: &mut Cmdarg) {
             }
         }
         c if c == b'k' as i32 || c == K_UP => {
-            let ok = if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+            let ok = if !curwin_mut().w_onebuf_opt.wo_wrap {
                 oap.motion_type = MT_LINE_WISE;
                 cursor_up(cap.count1, oap.op_type == OP_NOP)
             } else {
@@ -6723,7 +6723,7 @@ fn nv_undo_fn(cap: &mut Cmdarg) {
 }
 
 fn nv_tilde(cap: &mut Cmdarg) {
-    if opt_vars().p_to == 0 && !g_st().visual_global.active && cap.oap_mut().op_type != OP_TILDE {
+    if !opt_vars().p_to && !g_st().visual_global.active && cap.oap_mut().op_type != OP_TILDE {
         if bt_prompt(Some(crate::globals::curbuf_mut())) && !prompt_curpos_editable() {
             clearopbeep(cap.oap_mut());
             return;
@@ -7053,7 +7053,7 @@ fn nv_edit(cap: &mut Cmdarg) {
         && (cap.oap_mut().op_type != OP_NOP || g_st().visual_global.active)
     {
         nv_object(cap);
-    } else if curbuf_mut().b_p_ma == 0 && curbuf_mut().terminal.is_null() {
+    } else if !curbuf_mut().b_p_ma && curbuf_mut().terminal.is_null() {
         emsg(tr(E_MODIFIABLE));
         clearop(cap.oap_mut());
     } else if !checkclearopq(cap.oap_mut()) {
@@ -7374,7 +7374,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
             savereg = Some(copy_register(regname));
         }
 
-        curwin_mut().w_onebuf_opt.wo_fen = 0;
+        curwin_mut().w_onebuf_opt.wo_fen = false;
 
         if !g_st().visual_global.active
             || g_st().visual_global.mode == b'V' as i32
@@ -7426,8 +7426,8 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
     drop(savereg);
 
     if was_visual {
-        if save_fen != 0 {
-            curwin_mut().w_onebuf_opt.wo_fen = 1;
+        if save_fen {
+            curwin_mut().w_onebuf_opt.wo_fen = true;
         }
         curbuf_mut().b_visual.vi_start = curbuf_mut().b_op_start;
         curbuf_mut().b_visual.vi_end = curbuf_mut().b_op_end;

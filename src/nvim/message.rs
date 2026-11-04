@@ -1228,7 +1228,7 @@ pub fn emsg_multiline(
                 g_st().global_busy += 1;
             }
 
-            if opt_vars().p_eb != 0 {
+            if opt_vars().p_eb {
                 beep_flush(); // also includes flush_buffers()
             } else {
                 flush_buffers(FLUSH_MINIMAL); // flush internal buffers
@@ -1851,7 +1851,7 @@ pub fn wait_return(redraw: i32) {
                 g_st().reg_recording = save_reg_recording;
                 g_st().scriptout = save_scriptout;
 
-                if g_st().key_typed && opt_vars().p_more != 0 {
+                if g_st().key_typed && opt_vars().p_more {
                     if c == b'b' as i32
                         || c == CTRL_B_CONST
                         || c == b'k' as i32
@@ -1963,12 +1963,12 @@ fn hit_return_msg(newline_sb: bool) {
     let save_p_more = opt_vars().p_more;
 
     if !newline_sb {
-        opt_vars().p_more = 0;
+        opt_vars().p_more = false;
     }
     if g_st().msg_didout {
         msg_putchar(NL);
     }
-    opt_vars().p_more = 0;
+    opt_vars().p_more = false;
     if g_st().got_int {
         msg_puts(gettext(c"Interrupt: "));
     }
@@ -2003,7 +2003,7 @@ pub fn set_keep_msg(s: Option<&std::ffi::CStr>, hl_id: i32) {
 
 /// Return true if printing messages should currently be done.
 pub fn messaging() -> bool {
-    !(opt_vars().p_lz != 0 && char_avail() && !g_st().key_typed)
+    !(opt_vars().p_lz && char_avail() && !g_st().key_typed)
         && (opt_vars().p_ch > 0 || ui_has(K_UIMESSAGES))
 }
 
@@ -2504,7 +2504,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
     let mut multispace_pos = 0usize;
     let mut trail_idx: Option<usize> = None;
 
-    if curwin_mut().w_onebuf_opt.wo_list != 0 {
+    if curwin_mut().w_onebuf_opt.wo_list {
         list = true;
     }
 
@@ -2870,7 +2870,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
 
         loop {
             if g_st().msg_col >= g_st().columns_global {
-                if opt_vars().p_more != 0 && recurse == 0 {
+                if opt_vars().p_more && recurse == 0 {
                     store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                 }
                 if g_st().msg_no_more && g_st().lines_left == 0 {
@@ -2908,7 +2908,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                         g_st().lines_left -= 1;
                     }
 
-                    if opt_vars().p_more != 0
+                    if opt_vars().p_more
                         && g_st().lines_left == 0
                         && g_st().state_global != MODE_HITRETURN
                         && !g_st().msg_no_more
@@ -2967,7 +2967,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                     g_st().msg_didout = false;
                     g_st().msg_col = 0;
                     g_st().msg_row += 1;
-                    if opt_vars().p_more != 0 && recurse == 0 {
+                    if opt_vars().p_more && recurse == 0 {
                         store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                     }
                 } else if c == b'\r' {
@@ -2996,7 +2996,7 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
         }
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
-        if opt_vars().p_more != 0 && recurse == 0 {
+        if opt_vars().p_more && recurse == 0 {
             store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 0);
         }
 

@@ -640,9 +640,9 @@ pub fn spell_suggest(count: i32) {
     let mut badlen: i32 = 0;
     let msg_scroll_save = g_st().msg_scroll;
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
-    if curwin_mut().w_onebuf_opt.wo_spell == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_spell {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = 1;
+        curwin_mut().w_onebuf_opt.wo_spell = true;
     }
     check_cursor(curwin_mut());
     let prev_cursor = curwin_mut().w_cursor;

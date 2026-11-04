@@ -320,7 +320,7 @@ pub fn mb_byte2len_check(b: i32) -> i32 {
 pub(crate) fn langmap_adjust(c: &mut i32, condition: bool) {
     if !opt_vars().p_langmap.is_empty()
         && condition
-        && (opt_vars().p_lrm != 0
+        && (opt_vars().p_lrm
             || if g_st().vgetc_busy != 0 {
                 typebuf_maplen() == 0
             } else {
@@ -1428,7 +1428,7 @@ fn updatescript(c: i32) {
             (inp_st().updatescript_count as OptInt) >= opt_vars().p_uc
         })
     {
-        ml_sync_all(i32::from(idle), 1, opt_vars().p_fs != 0 || idle);
+        ml_sync_all(i32::from(idle), 1, opt_vars().p_fs || idle);
         inp_st().updatescript_count = 0;
     }
 }
@@ -1454,7 +1454,7 @@ pub fn merge_modifiers(c_arg: i32, modifiers: &mut i32) -> i32 {
 }
 
 fn add_byte_to_showcmd(byte: u8) {
-    if opt_vars().p_sc == 0 || g_st().msg_silent != 0 {
+    if !opt_vars().p_sc || g_st().msg_silent != 0 {
         return;
     }
 
@@ -2054,7 +2054,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
         && (g_st().typebuf.tb_maplen == 0
             || is_plug_map
             || (g_st().typebuf.tb_noremap[tb_off] & (RM_NONE | RM_ABBR)) == 0)
-        && !(opt_vars().p_paste != 0 && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
+        && !(opt_vars().p_paste && (g_st().state_global & (MODE_INSERT | MODE_CMDLINE)) != 0)
         && !(g_st().state_global == MODE_HITRETURN && (tb_b1 == CAR || tb_b1 == b' ' as i32))
         && g_st().state_global != MODE_ASKMORE
         && !at_ins_compl_key()
@@ -2484,8 +2484,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                     && g_st().ex_normal_busy == 0
                     && g_st().typebuf.tb_maplen == 0
                     && (g_st().state_global & MODE_INSERT) != 0
-                    && (opt_vars().p_timeout != 0
-                        || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout != 0))
+                    && (opt_vars().p_timeout
+                        || (keylen == KEYLEN_PART_KEY && opt_vars().p_ttimeout))
                     && {
                         c = inchar(
                             (g_st().typebuf.tb_off + g_st().typebuf.tb_len) as usize,
@@ -2558,8 +2558,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                                 curwin_mut().w_wcol -= 1;
                                 col = curwin_mut().w_cursor.col - 1;
                             }
-                        } else if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_wrow != 0
-                        {
+                        } else if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_wrow != 0 {
                             curwin_mut().w_wrow -= 1;
                             curwin_mut().w_wcol = curwin_mut().w_view_width - 1;
                             col = curwin_mut().w_cursor.col - 1;
@@ -2624,7 +2623,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     break;
                 }
 
-                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz != 0)
+                if ((g_st().state_global & MODE_INSERT) != 0 || opt_vars().p_lz)
                     && (g_st().state_global & MODE_CMDLINE) == 0
                     && advance
                     && g_st().must_redraw != 0
@@ -2691,8 +2690,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                 let mut wait_time: i64 = 0;
                 if advance {
                     if g_st().typebuf.tb_len == 0
-                        || !(opt_vars().p_timeout != 0
-                            || (opt_vars().p_ttimeout != 0 && keylen == KEYLEN_PART_KEY))
+                        || !(opt_vars().p_timeout
+                            || (opt_vars().p_ttimeout && keylen == KEYLEN_PART_KEY))
                     {
                         wait_time = -1;
                     } else if keylen == KEYLEN_PART_KEY && opt_vars().p_ttm >= 0 {
@@ -2755,7 +2754,7 @@ fn vgetorpeek(advance: bool) -> i32 {
     }
 
     if advance
-        && opt_vars().p_smd != 0
+        && opt_vars().p_smd
         && g_st().msg_silent == 0
         && (g_st().state_global & MODE_INSERT) != 0
     {

@@ -479,7 +479,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             ui_comp_set_screen_valid(true);
             repeat_message();
         } else {
-            if curwin_mut().w_onebuf_opt.wo_scb != 0 {
+            if curwin_mut().w_onebuf_opt.wo_scb {
                 do_check_scrollbind(true);
             }
             if (g_st().state_global & MODE_CMDLINE) != 0 {
@@ -518,7 +518,7 @@ pub fn check_screensize() {
 
 pub fn redrawing() -> bool {
     g_st().redrawing_disabled == 0
-        && !(opt_vars().p_lz != 0 && char_avail() && !g_st().key_typed && !g_st().do_redraw)
+        && !(opt_vars().p_lz && char_avail() && !g_st().key_typed && !g_st().do_redraw)
 }
 
 pub fn update_screen() -> bool {
@@ -672,8 +672,8 @@ pub fn update_screen() -> bool {
     }
 
     if curwin_mut().w_redr_type < UPD_NOT_VALID {
-        let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu != 0
-            || curwin_mut().w_onebuf_opt.wo_rnu != 0
+        let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu
+            || curwin_mut().w_onebuf_opt.wo_rnu
             || !curwin_mut().w_onebuf_opt.wo_stc.is_empty()
         {
             number_width(curwin_mut())
@@ -813,7 +813,7 @@ pub fn update_screen() -> bool {
 }
 
 pub fn start_search_hl() {
-    if opt_vars().p_hls == 0 || g_st().search_global.no_hlsearch {
+    if !opt_vars().p_hls || g_st().search_global.no_hlsearch {
         return;
     }
 
@@ -836,7 +836,7 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 
         let mut row = wp.w_wrow;
         let mut col = wp.w_wcol;
-        if wp.w_onebuf_opt.wo_rl != 0 {
+        if wp.w_onebuf_opt.wo_rl {
             let cur_slice = &crate::memline::ml_get_buf_slice(wp.buf_mut(), wp.w_cursor.lnum)
                 [wp.w_cursor.col as usize..];
             let wide = crate::mbyte::utf_slice2cells(cur_slice) == 2
@@ -851,8 +851,8 @@ pub fn setcursor_mayforce(wp: &mut WinInfoInfo, force: bool) {
 }
 
 pub fn redraw_custom_title_later() -> bool {
-    if (opt_vars().p_icon != 0 && (g_st().stl_syntax & STL_IN_ICON) != 0)
-        || (opt_vars().p_title != 0 && (g_st().stl_syntax & STL_IN_TITLE) != 0)
+    if (opt_vars().p_icon && (g_st().stl_syntax & STL_IN_ICON) != 0)
+        || (opt_vars().p_title && (g_st().stl_syntax & STL_IN_TITLE) != 0)
     {
         g_st().need_maketitle = true;
         return true;
@@ -929,7 +929,7 @@ pub fn showmode() -> i32 {
     msg_ext_ui_flush();
     msg_grid_validate();
 
-    let do_mode = (opt_vars().p_smd != 0 && g_st().msg_silent == 0)
+    let do_mode = (opt_vars().p_smd && g_st().msg_silent == 0)
         && ((g_st().state_global & MODE_TERMINAL) != 0
             || (g_st().state_global & MODE_INSERT) != 0
             || g_st().restart_edit != 0
@@ -997,7 +997,7 @@ pub fn showmode() -> i32 {
                 } else if (g_st().state_global & REPLACE_FLAG) != 0 {
                     msg_puts_hl(gettext(c" REPLACE"), hl_id, false);
                 } else if (g_st().state_global & MODE_INSERT) != 0 {
-                    if opt_vars().p_ri != 0 {
+                    if opt_vars().p_ri {
                         msg_puts_hl(gettext(c" REVERSE"), hl_id, false);
                     }
                     msg_puts_hl(gettext(c" INSERT"), hl_id, false);
@@ -1017,7 +1017,7 @@ pub fn showmode() -> i32 {
                     msg_puts_hl(gettext(c" (vreplace)"), hl_id, false);
                 }
                 if (g_st().state_global & MODE_LANGMAP) != 0 {
-                    if curwin_mut().w_onebuf_opt.wo_arab != 0 {
+                    if curwin_mut().w_onebuf_opt.wo_arab {
                         msg_puts_hl(gettext(c" Arabic"), hl_id, false);
                     } else if get_keymap_str(curwin_mut(), c" (%s)", g_st().name_buff_bytes_mut())
                         > 0
@@ -1029,7 +1029,7 @@ pub fn showmode() -> i32 {
                         );
                     }
                 }
-                if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {
+                if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste {
                     msg_puts_hl(gettext(c" (paste)"), hl_id, false);
                 }
 
@@ -1140,7 +1140,7 @@ pub fn comp_col() {
 
     g_st().sc_col = 0;
     g_st().ru_col = 0;
-    if opt_vars().p_ru != 0 {
+    if opt_vars().p_ru {
         g_st().ru_col = if g_st().ru_wid != 0 {
             g_st().ru_wid
         } else {
@@ -1150,9 +1150,9 @@ pub fn comp_col() {
             g_st().sc_col = g_st().ru_col;
         }
     }
-    if opt_vars().p_sc != 0 && opt_vars().p_sloc.first_byte() == b'l' {
+    if opt_vars().p_sc && opt_vars().p_sloc.first_byte() == b'l' {
         g_st().sc_col += SHOWCMD_COLS;
-        if opt_vars().p_ru == 0 || last_has_status {
+        if !opt_vars().p_ru || last_has_status {
             g_st().sc_col += 1;
         }
     }
@@ -1506,14 +1506,12 @@ fn win_update(wp: &mut WinInfoInfo) {
     }
 
     let nrwidth_before = wp.w_nrwidth;
-    let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
-        || wp.w_onebuf_opt.wo_rnu != 0
-        || !wp.w_onebuf_opt.wo_stc.is_empty()
-    {
-        number_width(&mut *wp)
-    } else {
-        0
-    };
+    let nrwidth_new =
+        if wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu || !wp.w_onebuf_opt.wo_stc.is_empty() {
+            number_width(&mut *wp)
+        } else {
+            0
+        };
 
     if wp.w_nrwidth != nrwidth_new {
         type_ = UPD_NOT_VALID;
@@ -1967,7 +1965,7 @@ fn win_update(wp: &mut WinInfoInfo) {
                     top_to_mod = false;
                 }
 
-                let foldinfo = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
+                let foldinfo = if wp.w_onebuf_opt.wo_cul && lnum == wp.w_cursor.lnum {
                     cursorline_fi
                 } else {
                     fold_info(wp, lnum)
@@ -2205,15 +2203,14 @@ fn win_update(wp: &mut WinInfoInfo) {
                 lnum = w_lines_at(&mut *wp, idx as usize).wl_lastlnum + 1;
                 idx += 1;
             } else {
-                if (wp.w_onebuf_opt.wo_nu != 0
+                if (wp.w_onebuf_opt.wo_nu
                     && mod_top != 0
                     && lnum >= mod_bot
                     && buf.b_mod_set
                     && buf.b_mod_xlines != 0)
-                    || (wp.w_onebuf_opt.wo_rnu != 0
-                        && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
+                    || (wp.w_onebuf_opt.wo_rnu && wp.w_last_cursor_lnum_rnu != wp.w_cursor.lnum)
                 {
-                    let info = if wp.w_onebuf_opt.wo_cul != 0 && lnum == wp.w_cursor.lnum {
+                    let info = if wp.w_onebuf_opt.wo_cul && lnum == wp.w_cursor.lnum {
                         cursorline_fi
                     } else {
                         fold_info(wp, lnum)
@@ -2252,7 +2249,7 @@ fn win_update(wp: &mut WinInfoInfo) {
         }
 
         wp.w_last_cursorline = wp.w_cursorline;
-        wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu != 0 {
+        wp.w_last_cursor_lnum_rnu = if wp.w_onebuf_opt.wo_rnu {
             wp.w_cursor.lnum
         } else {
             0
@@ -2499,7 +2496,7 @@ pub fn win_draw_end(
                 );
             }
 
-            if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+            if (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
             {
                 let width = number_width(&mut *wp) + 1;
@@ -2521,7 +2518,7 @@ pub fn win_draw_end(
 
         grid_line_clear_end(n, view_width, win_bg_attr(wp), attr);
 
-        if wp.w_onebuf_opt.wo_rl != 0 {
+        if wp.w_onebuf_opt.wo_rl {
             grid_line_mirror(view_width);
         }
         grid_line_flush();
@@ -2540,7 +2537,7 @@ pub fn compute_foldcolumn(wp: &mut WinInfoInfo, col: i32) -> i32 {
 }
 
 pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
-    let mut lnum = if wp.w_onebuf_opt.wo_rnu != 0 && wp.w_onebuf_opt.wo_nu == 0 {
+    let mut lnum = if wp.w_onebuf_opt.wo_rnu && !wp.w_onebuf_opt.wo_nu {
         wp.w_view_height
     } else {
         wp.buf_mut().b_ml.ml_line_count
@@ -2553,7 +2550,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
 
     if !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_statuscol_line_count = 0;
-        wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+        wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
             * (wp.w_onebuf_opt.wo_nuw as i32);
         return wp.w_nrwidth_width;
     }
@@ -2670,7 +2667,7 @@ pub fn redraw_buf_status_later(buf: &FileBuf) {
             set_must_redraw(UPD_VALID);
         }
     }
-    if opt_vars().p_ru != 0
+    if opt_vars().p_ru
         && ptr::eq(curwin_mut().w_buffer, buf)
         && curwin_mut().w_status_height == 0
         && !curwin_mut().w_redr_status
@@ -2710,7 +2707,7 @@ pub fn status_redraw_buf(buf: &FileBuf) {
             redraw_later(Some(&mut *wp), UPD_VALID);
         }
     }
-    if opt_vars().p_ru != 0 && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
+    if opt_vars().p_ru && curwin_mut().w_status_height == 0 && !curwin_mut().w_redr_status {
         g_st().redraw_cmdline = true;
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
     }
@@ -2807,7 +2804,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {
-    wp.w_onebuf_opt.wo_cul != 0
+    wp.w_onebuf_opt.wo_cul
         || (ptr::eq(wp, curwin_ptr()) && wp.w_onebuf_opt.wo_cole > 0 && !conceal_cursor_line(wp))
 }
 
@@ -2817,7 +2814,7 @@ pub fn win_update_cursorline(wp: &mut WinInfoInfo, foldinfo: &mut Foldinfo) {
     } else {
         0
     };
-    if wp.w_onebuf_opt.wo_cul != 0 {
+    if wp.w_onebuf_opt.wo_cul {
         *foldinfo = fold_info(wp, wp.w_cursor.lnum);
         if foldinfo.fi_level != 0 && foldinfo.fi_lines > 0 {
             wp.w_cursorline = foldinfo.fi_lnum;

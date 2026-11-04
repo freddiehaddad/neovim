@@ -789,7 +789,7 @@ pub fn grid_put_linebuf(
         clear_width = col;
     }
 
-    if opt_vars().p_arshape != 0 && opt_vars().p_tbidi == 0 && endcol > col {
+    if opt_vars().p_arshape && !opt_vars().p_tbidi && endcol > col {
         line_do_arabic_shape(&mut g_st().linebuf_char[col as usize..endcol as usize]);
     }
 

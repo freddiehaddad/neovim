@@ -206,7 +206,7 @@ struct TerminalState {
     save_w_p_cul: bool,
     save_w_p_culopt: Option<std::ffi::CString>,
     save_w_p_culopt_flags: u8,
-    save_w_p_cuc: i32,
+    save_w_p_cuc: bool,
     save_w_p_so: OptInt,
     save_w_p_siso: OptInt,
 }
@@ -231,7 +231,7 @@ impl TerminalState {
             save_w_p_cul: false,
             save_w_p_culopt: None,
             save_w_p_culopt_flags: 0,
-            save_w_p_cuc: 0,
+            save_w_p_cuc: false,
             save_w_p_so: 0,
             save_w_p_siso: 0,
         }
@@ -847,8 +847,8 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
         let ffname_bytes = buf.ffname_bytes().to_vec();
         buf_set_term_title(Some(&mut *buf), &ffname_bytes);
     }
-    curwin_mut().w_onebuf_opt.wo_scb = 0;
-    curwin_mut().w_onebuf_opt.wo_crb = 0;
+    curwin_mut().w_onebuf_opt.wo_scb = false;
+    curwin_mut().w_onebuf_opt.wo_crb = false;
     curwin_mut().w_cursor = CursorPos {
         lnum: 1,
         col: 0,
@@ -1055,14 +1055,14 @@ fn set_terminal_winopts(s: &mut TerminalState) {
     debug_assert!(s.save_curwin_handle == 0);
 
     s.save_curwin_handle = curwin_mut().handle;
-    s.save_w_p_cul = curwin_mut().w_onebuf_opt.wo_cul != 0;
+    s.save_w_p_cul = curwin_mut().w_onebuf_opt.wo_cul;
     s.save_w_p_culopt = None;
     s.save_w_p_culopt_flags = curwin_mut().w_p_culopt_flags;
     s.save_w_p_cuc = curwin_mut().w_onebuf_opt.wo_cuc;
     s.save_w_p_so = curwin_mut().w_onebuf_opt.wo_so;
     s.save_w_p_siso = curwin_mut().w_onebuf_opt.wo_siso;
 
-    if curwin_mut().w_onebuf_opt.wo_cul != 0
+    if curwin_mut().w_onebuf_opt.wo_cul
         && (curwin_mut().w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
     {
         if curwin_mut().w_onebuf_opt.wo_culopt.as_bytes() != b"number" {
@@ -1074,16 +1074,16 @@ fn set_terminal_winopts(s: &mut TerminalState) {
         }
         curwin_mut().w_p_culopt_flags = K_OPT_CULOPT_FLAG_NUMBER;
     } else {
-        curwin_mut().w_onebuf_opt.wo_cul = 0;
+        curwin_mut().w_onebuf_opt.wo_cul = false;
     }
-    curwin_mut().w_onebuf_opt.wo_cuc = 0;
+    curwin_mut().w_onebuf_opt.wo_cuc = false;
     curwin_mut().w_onebuf_opt.wo_so = 0;
     curwin_mut().w_onebuf_opt.wo_siso = 0;
 
     if curwin_mut().w_onebuf_opt.wo_cuc != s.save_w_p_cuc {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
-    } else if (curwin_mut().w_onebuf_opt.wo_cul != 0) != s.save_w_p_cul
-        || (curwin_mut().w_onebuf_opt.wo_cul != 0
+    } else if (curwin_mut().w_onebuf_opt.wo_cul) != s.save_w_p_cul
+        || (curwin_mut().w_onebuf_opt.wo_cul
             && curwin_mut().w_p_culopt_flags != s.save_w_p_culopt_flags)
     {
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
@@ -1109,7 +1109,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             if win_valid(unsafe { wp_ptr.as_ref() }) {
                 if s.save_w_p_cuc != wp.w_onebuf_opt.wo_cuc {
                     redraw_later(Some(&mut *wp), UPD_SOME_VALID);
-                } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul != 0)
+                } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul)
                     || (s.save_w_p_cul && s.save_w_p_culopt_flags != wp.w_p_culopt_flags)
                 {
                     redraw_later(Some(&mut *wp), UPD_VALID);
@@ -1123,7 +1123,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
             if let Some(saved) = s.save_w_p_culopt.take() {
                 winopts.wo_culopt.set_option_cstr(saved.as_c_str());
             }
-            winopts.wo_cul = i32::from(s.save_w_p_cul);
+            winopts.wo_cul = s.save_w_p_cul;
             winopts.wo_cuc = s.save_w_p_cuc;
             winopts.wo_so = s.save_w_p_so;
             winopts.wo_siso = s.save_w_p_siso;
@@ -1241,7 +1241,7 @@ fn terminal_check_cursor() {
     } else {
         let off = if (g_st().state_global & MODE_TERMINAL) != 0 {
             0
-        } else if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+        } else if curwin_mut().w_onebuf_opt.wo_rl {
             1
         } else {
             -1

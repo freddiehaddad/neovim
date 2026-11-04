@@ -1012,7 +1012,7 @@ fn ff_wc_equal(s1: Option<&[u8]>, s2: Option<&[u8]>) -> bool {
         let c1 = utf_slice2char(b1);
         let c2 = utf_slice2char(b2);
 
-        let neq = if opt_vars().p_fic != 0 {
+        let neq = if opt_vars().p_fic {
             mb_tolower(c1) != mb_tolower(c2)
         } else {
             c1 != c2
@@ -1144,7 +1144,7 @@ fn ff_path_in_stoplist(path: &[u8], stopdirs_v: &[std::ffi::CString]) -> bool {
     let path_cstr = crate::memory::cstr_from_bytes(&path_slice[..path_len]);
     for stopdir in stopdirs_v {
         let bytes = stopdir.to_bytes();
-        if path_cmp(opt_vars().p_fic != 0, stopdir, &path_cstr, path_len) == 0
+        if path_cmp(opt_vars().p_fic, stopdir, &path_cstr, path_len) == 0
             && (bytes.len() <= path_len || vim_ispathsep(i32::from(bytes[path_len])))
         {
             return true;

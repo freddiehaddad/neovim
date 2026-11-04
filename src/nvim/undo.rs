@@ -312,7 +312,7 @@ pub fn u_savedel(lnum: Linenr, nlines: Linenr) -> bool {
 
 /// Return true when undo is allowed. Otherwise print an error message and return false.
 pub fn undo_allowed(buf: &mut FileBuf) -> bool {
-    if buf.b_p_ma == 0 {
+    if !buf.b_p_ma {
         emsg(gettext(E_MODIFIABLE));
         return false;
     }
@@ -1177,11 +1177,7 @@ pub fn u_write_undo(
                 write_ok = true;
             }
 
-            let do_fsync = if buf.b_p_fs >= 0 {
-                buf.b_p_fs != 0
-            } else {
-                opt_vars().p_fs != 0
-            };
+            let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs);
             if do_fsync && bi.bi_fp.flush() == 0 && os_fsync(fd) != 0 {
                 write_ok = false;
             }

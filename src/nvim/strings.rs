@@ -379,7 +379,7 @@ pub fn vim_strsave_shellescape(
     let csh_like = csh_like_shell() != 0;
     let fish_like = fish_like_shell();
     #[cfg(windows)]
-    let use_double_quote = opt_vars().p_ssl == 0;
+    let use_double_quote = !opt_vars().p_ssl;
     #[cfg(not(windows))]
     let use_double_quote = false;
 

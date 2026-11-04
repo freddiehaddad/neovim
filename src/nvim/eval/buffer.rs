@@ -542,9 +542,8 @@ pub fn f_bufexists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// `buflisted(expr)` function (`f_buflisted`).
 pub fn f_buflisted(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let buf = find_buffer(&mut argvars[0]);
-    rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
-        buf.is_some_and(|b| b.b_p_bl != 0),
-    ));
+    rettv.vval =
+        crate::eval::typval::TypvalVval::Number(Varnumber::from(buf.is_some_and(|b| b.b_p_bl)));
 }
 
 /// `bufload(expr)` function (`f_bufload`).
@@ -806,7 +805,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
         if filtered
             && ((sel_bufloaded && buf.b_ml.ml_mfp.is_none())
-                || (sel_buflisted && buf.b_p_bl == 0)
+                || (sel_buflisted && !buf.b_p_bl)
                 || (sel_bufmodified && buf.b_changed == 0))
         {
             continue;

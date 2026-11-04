@@ -130,7 +130,7 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
     if !unsafe { (*buf_ptr).b_did_warn }
         && !curbuf_is_changed_fn()
         && !g_st().autocmd_busy
-        && unsafe { (*buf_ptr).b_p_ro != 0 }
+        && unsafe { (*buf_ptr).b_p_ro }
     {
         unsafe {
             (*buf_ptr).b_ro_locked += 1;
@@ -140,7 +140,7 @@ pub fn change_warning(buf: &mut FileBuf, col: i32) {
         });
         unsafe {
             (*buf_ptr).b_ro_locked -= 1;
-            if (*buf_ptr).b_p_ro == 0 {
+            if !(*buf_ptr).b_p_ro {
                 return;
             }
         }
@@ -240,9 +240,7 @@ pub fn changed_lines_invalidate_win(
         }
     }
 
-    if (xtra < 0
-        && wp.w_onebuf_opt.wo_wrap != 0
-        && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
+    if (xtra < 0 && wp.w_onebuf_opt.wo_wrap && buf_meta_total(wp.buf_mut(), K_MTMETA_INLINE) != 0)
         || (xtra != 0 && buf_meta_total(wp.buf_mut(), K_MTMETA_LINES) != 0)
     {
         lnume += 1;
@@ -297,7 +295,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
 
     for win in for_all_windows_mut() {
         if win.w_buffer == (&raw mut *buf) {
-            if win.w_onebuf_opt.wo_diff != 0 && diff_internal() != 0 {
+            if win.w_onebuf_opt.wo_diff && diff_internal() != 0 {
                 curtab_mut().tp_diff_update = 1;
                 diff_update_line(lnum);
             }
@@ -408,11 +406,11 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
                 set_topline(wp, wp.w_topline);
             }
 
-            if wp.w_onebuf_opt.wo_rnu != 0 && xtra != 0 {
+            if wp.w_onebuf_opt.wo_rnu && xtra != 0 {
                 wp.w_last_cursor_lnum_rnu = 0;
             }
 
-            if wp.w_onebuf_opt.wo_cul != 0 && wp.w_last_cursorline >= lnum {
+            if wp.w_onebuf_opt.wo_cul && wp.w_last_cursorline >= lnum {
                 if wp.w_last_cursorline < lnume {
                     wp.w_last_cursorline = 0;
                 } else {
@@ -449,9 +447,9 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     }
     buf_updates_send_changes(curbuf_mut(), lnum, 1, 1);
 
-    if curwin_mut().w_onebuf_opt.wo_diff != 0 {
+    if curwin_mut().w_onebuf_opt.wo_diff {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff != 0 && !std::ptr::eq(wp, curwin_ptr()) {
+            if wp.w_onebuf_opt.wo_diff && !std::ptr::eq(wp, curwin_ptr()) {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {
@@ -554,12 +552,12 @@ pub fn changed_lines(
     changed_lines_redraw_buf(buf, lnum, lnume, xtra);
 
     if xtra == 0
-        && curwin_mut().w_onebuf_opt.wo_diff != 0
+        && curwin_mut().w_onebuf_opt.wo_diff
         && curwin_mut().w_buffer == (&raw mut *buf)
         && diff_internal() == 0
     {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff != 0 && !std::ptr::eq(wp, curwin_ptr()) {
+            if wp.w_onebuf_opt.wo_diff && !std::ptr::eq(wp, curwin_ptr()) {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {
@@ -602,9 +600,9 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
     buf.b_start_ffc = i32::from(buf.b_p_ff.first_byte());
-    buf.b_start_eof = buf.b_p_eof;
-    buf.b_start_eol = buf.b_p_eol;
-    buf.b_start_bomb = buf.b_p_bomb;
+    buf.b_start_eof = i32::from(buf.b_p_eof);
+    buf.b_start_eol = i32::from(buf.b_p_eol);
+    buf.b_start_bomb = i32::from(buf.b_p_bomb);
 
     let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
@@ -632,12 +630,12 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     if buf.b_start_ffc != i32::from(buf.b_p_ff.first_byte()) {
         return true;
     }
-    if (buf.b_p_bin != 0 || buf.b_p_fixeol == 0)
-        && (buf.b_start_eof != buf.b_p_eof || buf.b_start_eol != buf.b_p_eol)
+    if (buf.b_p_bin || !buf.b_p_fixeol)
+        && ((buf.b_start_eof != 0) != buf.b_p_eof || (buf.b_start_eol != 0) != buf.b_p_eol)
     {
         return true;
     }
-    if buf.b_p_bin == 0 && buf.b_start_bomb != buf.b_p_bomb {
+    if !buf.b_p_bin && (buf.b_start_bomb != 0) != buf.b_p_bomb {
         return true;
     }
     let Some(ref start_fenc) = buf.b_start_fenc else {
@@ -696,10 +694,9 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         if (g_st().state_global & REPLACE_FLAG) != 0 {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
-                if old_list != 0
-                    && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
+                if old_list && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
                 {
-                    curwin_mut().w_onebuf_opt.wo_list = 0;
+                    curwin_mut().w_onebuf_opt.wo_list = false;
                 }
                 let mut vcol: Colnr = 0;
                 getvcol(
@@ -760,7 +757,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
         drop(newp_vec);
         inserted_bytes(lnum, col as Colnr, oldlen as i32, newlen as i32);
 
-        if opt_vars().p_sm != 0
+        if opt_vars().p_sm
             && (g_st().state_global & MODE_INSERT) != 0
             && g_st().msg_silent == 0
             && !ins_compl_active()
@@ -768,7 +765,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
             showmatch(crate::mbyte::utf_slice2char(buf_slice));
         }
 
-        if opt_vars().p_ri == 0 || (g_st().state_global & REPLACE_FLAG) != 0 {
+        if !opt_vars().p_ri || (g_st().state_global & REPLACE_FLAG) != 0 {
             curwin_mut().w_cursor.col += charlen as Colnr;
         }
     }
@@ -848,7 +845,7 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         return false;
     }
 
-    if opt_vars().p_deco != 0
+    if opt_vars().p_deco
         && use_delcombine
         && utfc_ptr2len(crate::memory::cstr_cluster_bytes(
             (oldp.wrapping_add(col as usize)).cast(),
@@ -1014,7 +1011,7 @@ pub fn open_line(
 
     if (flags & OPENLINE_FORCE_INDENT) != 0 {
         newindent = second_line_indent;
-    } else if curbuf_mut().b_p_ai != 0 || do_si {
+    } else if curbuf_mut().b_p_ai || do_si {
         newindent = indent_size_ts(
             crate::memory::cstr_as_bytes(saved_line.cast()),
             curbuf_mut().b_p_ts,
@@ -1133,8 +1130,8 @@ pub fn open_line(
         g_st().ins_global.did_ai = true;
     }
 
-    let do_cindent = opt_vars().p_paste == 0
-        && (curbuf_mut().b_p_cin != 0 || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
+    let do_cindent = !opt_vars().p_paste
+        && (curbuf_mut().b_p_cin || curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST)
         && in_cinkeys(
             if dir == FORWARD {
                 KEY_OPEN_FORW
@@ -1156,7 +1153,7 @@ pub fn open_line(
             true,
         );
         if lead_len == 0
-            && curbuf_mut().b_p_cin != 0
+            && curbuf_mut().b_p_cin
             && do_cindent
             && dir == FORWARD
             && (!has_format_option(K_FO_NO_OPEN_COMS) || (flags & OPENLINE_FORMAT) != 0)
@@ -1569,7 +1566,7 @@ pub fn open_line(
                     unsafe { *p = 0 };
                 }
 
-                if curbuf_mut().b_p_ai != 0 || do_si {
+                if curbuf_mut().b_p_ai || do_si {
                     newindent = indent_size_ts(
                         crate::memory::cstr_as_bytes(leader.cast()),
                         curbuf_mut().b_p_ts,
@@ -1632,7 +1629,7 @@ pub fn open_line(
             g_st().ins_global.can_si = false;
         } else if !comment_end.is_null()
             && crate::memory::cstr_as_bytes(comment_end.cast()).starts_with(b"*/")
-            && (curbuf_mut().b_p_ai != 0 || do_si)
+            && (curbuf_mut().b_p_ai || do_si)
         {
             let old_cursor = curwin_mut().w_cursor;
             curwin_mut().w_cursor.col =
@@ -1652,7 +1649,7 @@ pub fn open_line(
         if replace_normal(g_st().state_global) {
             replace_push_nul();
         }
-        if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
+        if curbuf_mut().b_p_ai || (flags & OPENLINE_DELSPACES) != 0 {
             while (crate::memory::cstr_first_byte(p_extra.cast()) == b' '
                 || crate::memory::cstr_first_byte(p_extra.cast()) == b'\t')
                 && !utf_iscomposing_first(utf_ptr2char(crate::memory::cstr_char_bytes(
@@ -1782,14 +1779,14 @@ pub fn open_line(
             curwin_mut().w_cursor.lnum += 1;
             if g_st().ins_global.did_si {
                 let sw = get_sw_value(curbuf_mut());
-                if opt_vars().p_sr != 0 {
+                if opt_vars().p_sr {
                     newindent -= newindent % sw;
                 }
                 newindent += sw;
             }
-            if curbuf_mut().b_p_ci != 0 {
+            if curbuf_mut().b_p_ci {
                 copy_indent(newindent, crate::memory::cstr_as_bytes(saved_line.cast()));
-                curbuf_mut().b_p_pi = 1;
+                curbuf_mut().b_p_pi = true;
             } else {
                 set_indent(newindent, SIN_INSERT | SIN_NOMARK);
             }
@@ -1924,15 +1921,15 @@ pub fn open_line(
             0
         };
 
-        if opt_vars().p_paste == 0 {
+        if !opt_vars().p_paste {
             if leader.is_null()
                 && !use_indentexpr_for_lisp()
-                && curbuf_mut().b_p_lisp != 0
-                && curbuf_mut().b_p_ai != 0
+                && curbuf_mut().b_p_lisp
+                && curbuf_mut().b_p_ai
             {
                 fixthisline(get_lisp_indent);
                 g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
-            } else if do_cindent || (curbuf_mut().b_p_ai != 0 && use_indentexpr_for_lisp()) {
+            } else if do_cindent || (curbuf_mut().b_p_ai && use_indentexpr_for_lisp()) {
                 do_c_expr_indent();
                 g_st().ins_global.ai_col = getwhitecols_curline() as Colnr;
             }

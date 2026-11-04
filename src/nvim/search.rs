@@ -378,7 +378,7 @@ pub fn search_regcomp(
             *used_pat = crate::memory::cstr_to_cstring(pat);
         }
 
-        srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl != 0
+        srch().mr_pattern = if curwin_mut().w_onebuf_opt.wo_rl
             && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
         {
             Some(reverse_text(crate::memory::cstr_as_bytes(pat)))
@@ -429,7 +429,7 @@ pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
     srch().spats[i].timestamp = os_time();
     srch().spats[i].additional_data = None;
     srch().last_idx = idx;
-    if opt_vars().p_hls != 0 {
+    if opt_vars().p_hls {
         redraw_all_later(UPD_SOME_VALID);
     }
     set_no_hlsearch(false);
@@ -518,7 +518,7 @@ fn restore_incsearch_state() {
 }
 
 pub fn ignorecase(pat: &CStr) -> i32 {
-    ignorecase_opt(pat, opt_vars().p_ic, opt_vars().p_scs)
+    ignorecase_opt(pat, i32::from(opt_vars().p_ic), i32::from(opt_vars().p_scs))
 }
 
 pub fn ignorecase_opt(pat: &CStr, ic_in: i32, scs: i32) -> i32 {
@@ -526,7 +526,7 @@ pub fn ignorecase_opt(pat: &CStr, ic_in: i32, scs: i32) -> i32 {
     if ic != 0
         && !g_st().search_global.no_smartcase
         && scs != 0
-        && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf != 0)
+        && !(ctrl_x_mode_not_default() && curbuf_mut().b_p_inf)
     {
         ic = i32::from(!pat_has_uppercase(pat));
     }
@@ -540,7 +540,7 @@ pub fn pat_has_uppercase(pat: &CStr) -> bool {
     skip_regexp_magic(
         pat.to_bytes(),
         i32::from(NUL),
-        opt_vars().p_magic,
+        i32::from(opt_vars().p_magic),
         Some(&mut magic_val),
     );
 
@@ -643,7 +643,7 @@ pub fn set_last_search_pat(s: Option<&CStr>, idx: i32, magic: i32, setlast: bool
             srch().saved_spats[i].pat = srch().spats[i].pat.clone();
             srch().saved_spats_last_idx = srch().last_idx;
         }
-        if opt_vars().p_hls != 0 && idx == srch().last_idx && !g_st().search_global.no_hlsearch {
+        if opt_vars().p_hls && idx == srch().last_idx && !g_st().search_global.no_hlsearch {
             redraw_all_later(UPD_SOME_VALID);
         }
     }
@@ -662,7 +662,7 @@ pub fn last_pat_prog(regmatch: &mut Regmmatch) {
         0,
         srch().last_idx,
         SEARCH_KEEP,
-        opt_vars().p_magic != 0,
+        opt_vars().p_magic,
         regmatch,
     );
     g_st().emsg_off -= 1;
@@ -1055,7 +1055,7 @@ pub fn searchit(
                     break;
                 }
 
-                if opt_vars().p_ws == 0
+                if !opt_vars().p_ws
                     || stop_lnum != 0
                     || g_st().got_int
                     || g_st().called_emsg > called_emsg_before
@@ -1109,7 +1109,7 @@ pub fn searchit(
             if g_st().got_int {
                 emsg(tr(E_INTERR));
             } else if (options & SEARCH_MSG) == SEARCH_MSG {
-                if opt_vars().p_ws != 0 {
+                if opt_vars().p_ws {
                     semsg!(tr(E_PATNOTF2), get_search_pat());
                 } else if lnum == 0 {
                     semsg!(tr(E_SEARCH_HIT_TOP_WITHOUT_MATCH_FOR_STR), get_search_pat(),);
@@ -1174,7 +1174,7 @@ pub fn parse_search_pattern_offset(
     let off = skip_regexp_ex(
         &mut pat_buf[*pat_off..],
         search_delim,
-        opt_vars().p_magic,
+        i32::from(opt_vars().p_magic),
         (!*had_copy).then_some(&mut strcopy),
         None,
         None,
@@ -1463,7 +1463,7 @@ pub fn do_search(
                     msgbuf_vec = trunc.into_bytes_with_nul();
                 }
 
-                if curwin_mut().w_onebuf_opt.wo_rl != 0
+                if curwin_mut().w_onebuf_opt.wo_rl
                     && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
                 {
                     let rev = reverse_text(crate::memory::bytes_until_nul(&msgbuf_vec));
@@ -1674,7 +1674,7 @@ pub fn search_for_exact_line(
         loop {
             pos.lnum += dir;
             if pos.lnum < 1 {
-                if opt_vars().p_ws != 0 {
+                if opt_vars().p_ws {
                     pos.lnum = buf.b_ml.ml_line_count;
                     if !shortmess(K_SHM_SEARCH) {
                         give_warning(tr(TOP_BOT_MSG), true, false);
@@ -1684,7 +1684,7 @@ pub fn search_for_exact_line(
                     break;
                 }
             } else if pos.lnum > buf.b_ml.ml_line_count {
-                if opt_vars().p_ws != 0 {
+                if opt_vars().p_ws {
                     pos.lnum = 1;
                     if !shortmess(K_SHM_SEARCH) {
                         give_warning(tr(BOT_TOP_MSG), true, false);
@@ -1706,7 +1706,7 @@ pub fn search_for_exact_line(
 
             if compl_status_adding() && !compl_status_sol() {
                 if mb_strcmp_ic(
-                    opt_vars().p_ic != 0,
+                    opt_vars().p_ic,
                     crate::memory::cstr_from_ptr(p_slice.as_ptr().cast()),
                     crate::memory::cstr_from_ptr((pat).cast()),
                 ) == 0
@@ -1715,7 +1715,7 @@ pub fn search_for_exact_line(
                 }
             } else if !p_slice.is_empty() {
                 debug_assert!(compl_len >= 0);
-                let eq = if opt_vars().p_ic != 0 {
+                let eq = if opt_vars().p_ic {
                     mb_strnicmp(
                         crate::memory::cstr_as_bytes(p_slice.as_ptr().cast()),
                         crate::memory::cstr_as_bytes((pat).cast()),
@@ -1942,7 +1942,7 @@ pub fn findmatchlimit(
     let mut match_escaped: i32 = 0;
     let mut comment_col: i32 = MAXCOL;
     let mut lispcomm = false;
-    let lisp = curbuf_mut().b_p_lisp != 0;
+    let lisp = curbuf_mut().b_p_lisp;
     let skip_comments = (flags & FM_SKIPCOMM) != 0;
     let mut in_block_comment = false;
 
@@ -2111,7 +2111,7 @@ pub fn findmatchlimit(
         }
     }
 
-    if curwin_mut().w_onebuf_opt.wo_rl != 0 && crate::strings::vim_haschr(c"()[]{}<>", initc) {
+    if curwin_mut().w_onebuf_opt.wo_rl && crate::strings::vim_haschr(c"()[]{}<>", initc) {
         backwards = !backwards;
     }
 
@@ -2401,7 +2401,7 @@ pub fn findmatchlimit(
             }
 
             if !skipped_single_quote {
-                if curbuf_mut().b_p_lisp != 0
+                if curbuf_mut().b_p_lisp
                     && matches!(c as u8, b'(' | b')' | b'{' | b'}' | b'[' | b']')
                     && pos.col > 1
                     && check_prevcol(line, pos.col, b'\\' as i32, None)
@@ -2453,14 +2453,11 @@ pub fn showmatch(c: i32) {
 
     let mut p = curbuf_mut().b_p_mps.as_bytes();
     while !p.is_empty() {
-        if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
-        {
+        if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl) ^ (opt_vars().p_ri)) {
             break;
         }
         p = p.get(utfc_ptr2len(p) as usize + 1..).unwrap_or(&[]);
-        if utf_ptr2char(p) == c
-            && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
-        {
+        if utf_ptr2char(p) == c && !((curwin_mut().w_onebuf_opt.wo_rl) ^ (opt_vars().p_ri)) {
             break;
         }
         p = p.get(utfc_ptr2len(p) as usize..).unwrap_or(&[]);
@@ -2482,11 +2479,11 @@ pub fn showmatch(c: i32) {
         return;
     }
 
-    if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_wrap {
         getvcol(curwin_mut(), &mut lpos, None, Some(&mut vcol), None, 0);
     }
 
-    let col_visible = curwin_mut().w_onebuf_opt.wo_wrap != 0
+    let col_visible = curwin_mut().w_onebuf_opt.wo_wrap
         || (vcol >= curwin_mut().w_leftcol
             && vcol < curwin_mut().w_leftcol + curwin_mut().w_view_width);
     if !col_visible {
@@ -2610,7 +2607,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
         end_pos = pos;
 
         if i == 0 {
-            opt_vars().p_ws = 0;
+            opt_vars().p_ws = false;
         }
 
         result = searchit(
@@ -2626,7 +2623,7 @@ pub fn current_search(count: i32, forward: bool) -> bool {
             if i != 0 { count } else { 1 },
             SEARCH_KEEP | flags,
             RE_SEARCH,
-            opt_vars().p_magic != 0,
+            opt_vars().p_magic,
             None,
         );
 
@@ -2726,7 +2723,7 @@ fn is_zero_width(
             RE_SEARCH,
             RE_SEARCH,
             SEARCH_KEEP,
-            opt_vars().p_magic != 0,
+            opt_vars().p_magic,
             &mut regmatch,
         ) {
             return -1;
@@ -2750,7 +2747,7 @@ fn is_zero_width(
             1,
             SEARCH_KEEP + flag,
             RE_SEARCH,
-            opt_vars().p_magic != 0,
+            opt_vars().p_magic,
             None,
         ) != FAIL
         {
@@ -2823,8 +2820,7 @@ fn cmdline_search_stat(
     let t_ptr: *mut _ = t.as_mut_ptr().cast();
     let mut len: usize;
 
-    if curwin_mut().w_onebuf_opt.wo_rl != 0 && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
-    {
+    if curwin_mut().w_onebuf_opt.wo_rl && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's' {
         if stat.incomplete == 1 {
             len = vim_snprintf!(t_ptr, SEARCH_STAT_BUF_LEN, c"[?/??]") as usize;
         } else if stat.cnt > maxcount && stat.cur > maxcount {
@@ -2935,7 +2931,7 @@ fn update_search_stat(
             col: 0,
             coladd: 0,
         };
-        opt_vars().p_ws = 0;
+        opt_vars().p_ws = false;
         if timeout > 0 {
             start = profile_setlimit(i64::from(timeout));
         }
@@ -2951,7 +2947,7 @@ fn update_search_stat(
                 1,
                 SEARCH_KEEP,
                 RE_LAST,
-                opt_vars().p_magic != 0,
+                opt_vars().p_magic,
                 None,
             ) != FAIL
         {
@@ -3181,7 +3177,7 @@ pub fn find_pattern_in_path(
             regmatch.rm_ic = ignorecase(pat_cstr) != 0;
             regmatch.set_prog(vim_regcomp(
                 pat_cstr,
-                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                if opt_vars().p_magic { RE_MAGIC } else { 0 },
             ));
             if regmatch.regprog.is_null() {
                 return;
@@ -3195,7 +3191,7 @@ pub fn find_pattern_in_path(
         if !inc_opt_cstr.to_bytes().is_empty() {
             incl_regmatch.set_prog(vim_regcomp(
                 inc_opt_cstr,
-                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                if opt_vars().p_magic { RE_MAGIC } else { 0 },
             ));
             if incl_regmatch.regprog.is_null() {
                 regmatch.free_prog();
@@ -3212,7 +3208,7 @@ pub fn find_pattern_in_path(
                 } else {
                     curbuf_mut().b_p_def.as_cstr()
                 },
-                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                if opt_vars().p_magic { RE_MAGIC } else { 0 },
             ));
             if def_regmatch.regprog.is_null() {
                 regmatch.free_prog();
@@ -3464,7 +3460,7 @@ pub fn find_pattern_in_path(
                                 crate::memory::cstr_as_bytes(p.cast()),
                             ));
                             let start_bytes = crate::memory::cstr_as_bytes(startp);
-                            if opt_vars().p_ic != 0 {
+                            if opt_vars().p_ic {
                                 matched = mb_strnicmp(
                                     crate::memory::cstr_as_bytes((startp).cast()),
                                     crate::memory::cstr_as_bytes((ptr_pat).cast()),
@@ -3618,7 +3614,7 @@ pub fn find_pattern_in_path(
                                                     g_st().iobuff[i as usize] = b' ' as _;
                                                     i += 1;
                                                 }
-                                                if opt_vars().p_js != 0
+                                                if opt_vars().p_js
                                                     && matches!(
                                                         g_st().iobuff[(i - 2) as usize] as u8,
                                                         b'.' | b'?' | b'!'
@@ -3656,7 +3652,7 @@ pub fn find_pattern_in_path(
                                     let add_r = ins_compl_add_infercase(
                                         crate::memory::cstr_slice(aux, i.max(0) as usize),
                                         i,
-                                        opt_vars().p_ic != 0,
+                                        opt_vars().p_ic,
                                         if curr_fname == curbuf_mut().fname_opt() {
                                             None
                                         } else {
@@ -4086,7 +4082,7 @@ mod tests {
             .unwrap_or_else(|e| e.into_inner());
         let save_magic = opt_vars().p_magic;
         let save_cmp = opt_vars().cmp_flags;
-        opt_vars().p_magic = 1;
+        opt_vars().p_magic = true;
         opt_vars().cmp_flags =
             crate::mbyte::K_OPT_CMP_FLAG_INTERNAL | crate::mbyte::K_OPT_CMP_FLAG_KEEPASCII;
         for (pat, expected) in [

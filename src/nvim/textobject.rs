@@ -1143,7 +1143,7 @@ pub fn current_tagblock(oap: &mut Oparg, count_arg: i32, include: bool) -> bool 
     let mut retval = false;
     let mut is_inclusive = true;
 
-    opt_vars().p_ws = 0;
+    opt_vars().p_ws = false;
 
     let old_pos = curwin_mut().w_cursor;
     let mut old_end = curwin_mut().w_cursor;

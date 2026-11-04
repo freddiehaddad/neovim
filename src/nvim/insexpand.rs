@@ -771,7 +771,7 @@ pub fn check_compl_option(dict_opt: bool) -> bool {
     let empty = if dict_opt {
         curbuf_mut().b_p_dict.is_empty()
             && opt_vars().p_dict.is_empty()
-            && curwin_mut().w_onebuf_opt.wo_spell == 0
+            && !curwin_mut().w_onebuf_opt.wo_spell
     } else {
         curbuf_mut().b_p_tsr.is_empty()
             && opt_vars().p_tsr.is_empty()
@@ -1062,7 +1062,7 @@ pub fn ins_compl_add_infercase(
     let mut flags: i32 = 0;
     let mut tofree: Vec<u8> = Vec::new();
 
-    let final_slice = if opt_vars().p_ic != 0 && curbuf_mut().b_p_inf != 0 && len > 0 {
+    let final_slice = if opt_vars().p_ic && curbuf_mut().b_p_inf && len > 0 {
         let mut char_len: i32 = 0;
         {
             let mut rem = str_slice;
@@ -1853,7 +1853,7 @@ fn ins_compl_build_pum() -> i32 {
         let leader = get_leader_for_startcol(Some(&*comp), true);
 
         if ctrl_x_mode_normal()
-            && opt_vars().p_inf == 0
+            && !opt_vars().p_inf
             && !insexp().compl_orig_text.data.is_null()
             && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
             && !cot_fuzzy()
@@ -2045,7 +2045,7 @@ fn ins_compl_dictionaries(
     let mut dir = insexp().compl_direction;
 
     if crate::memory::cstr_is_empty(dict) {
-        if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell != 0 {
+        if !thesaurus && curwin_mut().w_onebuf_opt.wo_spell {
             dict = c"spell".as_ptr().cast_mut();
         } else {
             return;
@@ -2057,8 +2057,8 @@ fn ins_compl_dictionaries(
     regmatch.regprog = ptr::null_mut();
 
     let save_p_scs = opt_vars().p_scs;
-    if curbuf_mut().b_p_inf != 0 {
-        opt_vars().p_scs = 0;
+    if curbuf_mut().b_p_inf {
+        opt_vars().p_scs = false;
     }
 
     if ctrl_x_mode_line_or_eval() {
@@ -2071,7 +2071,7 @@ fn ins_compl_dictionaries(
     } else {
         regmatch.set_prog(vim_regcomp(
             crate::memory::cstr_from_ptr(pat),
-            if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
         if regmatch.regprog.is_null() {
             opt_vars().p_scs = save_p_scs;
@@ -2177,7 +2177,7 @@ fn thesaurus_add_words_in_line(
             status = ins_compl_add_infercase(
                 &wstart[..wlen],
                 wlen as i32,
-                opt_vars().p_ic != 0,
+                opt_vars().p_ic,
                 fname,
                 dir,
                 false,
@@ -2263,7 +2263,7 @@ fn ins_compl_files(
                         let add_r = ins_compl_add_infercase(
                             &rem_slice[..match_len as usize],
                             match_len,
-                            opt_vars().p_ic != 0,
+                            opt_vars().p_ic,
                             Some(file_cstr.as_c_str()),
                             *dir,
                             false,
@@ -2298,7 +2298,7 @@ fn ins_compl_files(
                     let mut add_r = ins_compl_add_infercase(
                         &from_start[..match_len],
                         match_len as i32,
-                        opt_vars().p_ic != 0,
+                        opt_vars().p_ic,
                         Some(file_cstr.as_c_str()),
                         *dir,
                         false,
@@ -2451,7 +2451,7 @@ pub fn ins_compl_len() -> i32 {
 
 pub fn ins_compl_has_preinsert() -> bool {
     let cur_cot_flags = get_cot_flags();
-    if insexp().compl_autocomplete && opt_vars().p_ic != 0 && opt_vars().p_inf == 0 {
+    if insexp().compl_autocomplete && opt_vars().p_ic && !opt_vars().p_inf {
         return false;
     }
     if !insexp().compl_autocomplete {
@@ -2525,11 +2525,7 @@ fn ins_compl_need_restart() -> bool {
 }
 
 pub fn ins_compl_has_autocomplete() -> bool {
-    if curbuf_mut().b_p_ac >= 0 {
-        curbuf_mut().b_p_ac != 0
-    } else {
-        opt_vars().p_ac != 0
-    }
+    curbuf_mut().b_p_ac.unwrap_or(opt_vars().p_ac)
 }
 
 fn ins_compl_fuzzy_sort() {
@@ -3087,11 +3083,9 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
 
             let skip_buffer = if flag == b'U' as i32 {
-                unsafe { (*buf).b_p_bl != 0 }
+                unsafe { (*buf).b_p_bl }
             } else {
-                unsafe {
-                    (*buf).b_p_bl == 0 || (*buf).b_ml.ml_mfp.is_none() != (flag == b'u' as i32)
-                }
+                !unsafe { (*buf).b_p_bl || (*buf).b_ml.ml_mfp.is_none() != (flag == b'u' as i32) }
             };
 
             if !skip_buffer && unsafe { !(*buf).b_scanned } {
@@ -3478,7 +3472,7 @@ fn set_completion(mut startcol: Colnr, list: Option<&TvList>) {
         insexp().compl_length as usize,
     ));
     save_orig_extmarks();
-    if opt_vars().p_ic != 0 {
+    if opt_vars().p_ic {
         flags |= CP_ICASE;
     }
     if ins_compl_add(
@@ -4056,7 +4050,7 @@ fn get_next_dict_tsr_completion(compl_type: i32, dict: Option<&CStr>, dict_f: i3
 fn get_next_tag_completion() {
     let save_p_ic = opt_vars().p_ic;
     let pat_cstr = compl_pattern_cstr().unwrap_or(c"");
-    opt_vars().p_ic = ignorecase(pat_cstr);
+    opt_vars().p_ic = ignorecase(pat_cstr) != 0;
 
     g_st().g_tag_at_cursor = true;
     let mut matches: Vec<Vec<u8>> = Vec::new();
@@ -4090,7 +4084,7 @@ fn get_next_tag_completion() {
                 [const { None }; CPT_COUNT],
                 None,
                 dir,
-                CP_FAST | if opt_vars().p_ic != 0 { CP_ICASE } else { 0 },
+                CP_FAST | if opt_vars().p_ic { CP_ICASE } else { 0 },
                 false,
                 None,
                 FUZZY_SCORE_NONE,
@@ -4251,7 +4245,7 @@ fn get_next_filename_completion() {
     );
     #[cfg(windows)]
     {
-        if (curbuf_mut().b_p_csl.is_empty() && opt_vars().p_ssl == 0)
+        if (curbuf_mut().b_p_csl.is_empty() && !opt_vars().p_ssl)
             || curbuf_mut().b_p_csl.first_byte() == b'b'
         {
             for slot in &mut matches {
@@ -4298,7 +4292,7 @@ fn get_next_filename_completion() {
                     None,
                     dir,
                     CP_FAST
-                        | if opt_vars().p_fic != 0 || opt_vars().p_wic != 0 {
+                        | if opt_vars().p_fic || opt_vars().p_wic {
                             CP_ICASE
                         } else {
                             0
@@ -4329,7 +4323,7 @@ fn get_next_filename_completion() {
     if !matches.is_empty() {
         ins_compl_add_matches(
             &mut matches,
-            i32::from(opt_vars().p_fic != 0 || opt_vars().p_wic != 0),
+            i32::from(opt_vars().p_fic || opt_vars().p_wic),
         );
     }
 }
@@ -4392,7 +4386,7 @@ fn get_next_spell_completion(lnum: Linenr) {
     let mut matches: Vec<std::ffi::CString> = Vec::new();
     expand_spelling(lnum, compl_pattern_cstr().unwrap_or(c""), &mut matches);
     if !matches.is_empty() {
-        ins_compl_add_matches(&mut matches, opt_vars().p_ic);
+        ins_compl_add_matches(&mut matches, i32::from(opt_vars().p_ic));
     }
 }
 
@@ -4413,7 +4407,7 @@ fn ins_compl_get_next_word_or_line(
                 return None;
             }
             res_slice = crate::memline::ml_get_buf_slice(ins_buf, cur_match_pos.lnum + 1);
-            if opt_vars().p_paste == 0 {
+            if !opt_vars().p_paste {
                 res_slice = crate::charset::skipwhite_slice(res_slice);
             }
             len = res_slice.len() as i32;
@@ -4451,7 +4445,7 @@ fn ins_compl_get_next_word_or_line(
                             iobuff[len as usize] = b' ';
                             len += 1;
                         }
-                        if opt_vars().p_js != 0 {
+                        if opt_vars().p_js {
                             let prev = iobuff[(len - 2) as usize];
                             if prev == b'.' || prev == b'?' || prev == b'!' {
                                 iobuff[len as usize] = b' ';
@@ -4490,15 +4484,15 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 
     let save_p_scs = opt_vars().p_scs;
     debug_assert!(!st.ins_buf.is_null());
-    if unsafe { (*st.ins_buf).b_p_inf != 0 } {
-        opt_vars().p_scs = 0;
+    if unsafe { (*st.ins_buf).b_p_inf } {
+        opt_vars().p_scs = false;
     }
 
     let save_p_ws = opt_vars().p_ws;
     if !in_curbuf {
-        opt_vars().p_ws = 0;
+        opt_vars().p_ws = false;
     } else if st.e_cpt_char() == b'.' {
-        opt_vars().p_ws = 1;
+        opt_vars().p_ws = true;
     }
     let mut looped_around = false;
     let mut found_new_match: i32;
@@ -4547,7 +4541,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
                 1,
                 SEARCH_KEEP + SEARCH_NFMSG,
                 RE_LAST,
-                opt_vars().p_magic != 0,
+                opt_vars().p_magic,
                 None,
             );
         }
@@ -4614,7 +4608,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
         if ins_compl_add_infercase(
             m_slice,
             len,
-            opt_vars().p_ic != 0,
+            opt_vars().p_ic,
             if in_curbuf {
                 None
             } else {
@@ -4673,7 +4667,7 @@ fn get_register_completion() {
                 let orig_bytes = insexp().compl_orig_text.as_bytes();
                 let str_prefix = &str_b[..orig_bytes.len().min(str_b.len())];
                 let matches = insexp().compl_orig_text.data.is_null()
-                    || if opt_vars().p_ic != 0 {
+                    || if opt_vars().p_ic {
                         str_prefix.eq_ignore_ascii_case(orig_bytes)
                     } else {
                         str_prefix == orig_bytes
@@ -4682,7 +4676,7 @@ fn get_register_completion() {
                     && ins_compl_add_infercase(
                         str_b,
                         str_len,
-                        opt_vars().p_ic != 0,
+                        opt_vars().p_ic,
                         None,
                         dir,
                         false,
@@ -4710,7 +4704,7 @@ fn get_register_completion() {
                     let orig_bytes = insexp().compl_orig_text.as_bytes();
                     let p_prefix = &rem[..orig_bytes.len().min(rem.len())];
                     let matches = insexp().compl_orig_text.data.is_null()
-                        || if opt_vars().p_ic != 0 {
+                        || if opt_vars().p_ic {
                             p_prefix.eq_ignore_ascii_case(orig_bytes)
                         } else {
                             p_prefix == orig_bytes
@@ -4720,7 +4714,7 @@ fn get_register_completion() {
                         && ins_compl_add_infercase(
                             &rem[..len],
                             len as i32,
-                            opt_vars().p_ic != 0,
+                            opt_vars().p_ic,
                             None,
                             dir,
                             false,
@@ -4826,7 +4820,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
-        if b.b_p_bl != 0 && b.b_sfname.is_some() {
+        if b.b_p_bl && b.b_sfname.is_some() {
             let tail = path_tail(b.sfname_cstr());
             let orig_bytes = insexp().compl_orig_text.as_bytes();
             let tail_b = crate::memory::cstr_as_bytes((tail).as_ptr());
@@ -4838,7 +4832,7 @@ fn get_next_bufname_token() {
                     [const { None }; CPT_COUNT],
                     None,
                     0,
-                    if opt_vars().p_ic != 0 { CP_ICASE } else { 0 },
+                    if opt_vars().p_ic { CP_ICASE } else { 0 },
                     false,
                     None,
                     FUZZY_SCORE_NONE,
@@ -5285,7 +5279,7 @@ fn find_common_prefix(prefix_len: &mut usize, curbuf_only: bool) -> Option<&'sta
         let leader = get_leader_for_startcol(Some(&*compl), true);
 
         if ctrl_x_mode_normal()
-            && opt_vars().p_inf == 0
+            && !opt_vars().p_inf
             && !insexp().compl_orig_text.data.is_null()
             && ignorecase(crate::memory::cstr_from_ptr(insexp().compl_orig_text.data)) == 0
         {
@@ -5852,7 +5846,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
             line.wrapping_add(insexp().compl_col as usize),
             insexp().compl_length.max(0) as usize,
         );
-        if opt_vars().p_ic != 0 {
+        if opt_vars().p_ic {
             insexp().compl_pattern = str_foldcase(pat_bytes, None);
         } else {
             set_compl_pattern_bytes(pat_bytes);
@@ -5983,7 +5977,7 @@ fn get_wholeline_compl_info(line: &CStr, curs_col: Colnr) -> bool {
     let start = (insexp().compl_col as usize).min(line_bytes.len());
     let end = (start + insexp().compl_length as usize).min(line_bytes.len());
     let pat_bytes = &line_bytes[start..end];
-    if opt_vars().p_ic != 0 {
+    if opt_vars().p_ic {
         insexp().compl_pattern = str_foldcase(pat_bytes, None);
     } else {
         set_compl_pattern_bytes(pat_bytes);
@@ -6367,7 +6361,7 @@ fn ins_compl_start() -> bool {
     ));
     save_orig_extmarks();
     let mut flags = CP_ORIGINAL_TEXT;
-    if opt_vars().p_ic != 0 {
+    if opt_vars().p_ic {
         flags |= CP_ICASE;
     }
     if ins_compl_add(
@@ -6460,7 +6454,7 @@ fn ins_compl_show_statusmsg() {
     g_st().redraw_mode = true;
     if !shortmess(K_SHM_COMPLETIONMENU) {
         if let Some(extra) = g_st().edit_submode_extra {
-            if opt_vars().p_smd == 0 {
+            if !opt_vars().p_smd {
                 g_st().msg_hist_off = true;
                 msg_ext_set_kind(c"completion");
                 msg(
@@ -6626,10 +6620,10 @@ fn quote_meta(mut dest: Option<&mut [u8]>, src: &[u8]) -> usize {
                 if ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus() {
                     false
                 } else {
-                    opt_vars().p_magic != 0
+                    opt_vars().p_magic
                 }
             }
-            b'~' => opt_vars().p_magic != 0,
+            b'~' => opt_vars().p_magic,
             b'\\' => !(ctrl_x_mode_dictionary() || ctrl_x_mode_thesaurus()),
             b'^' | b'$' => true,
             _ => false,

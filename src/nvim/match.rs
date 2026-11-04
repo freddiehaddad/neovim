@@ -807,7 +807,7 @@ pub fn update_search_hl(
         }
     }
     if crate::memory::cstr_is_empty(line.wrapping_add(col as usize))
-        && (wp.w_onebuf_opt.wo_list != 0 && !lcs_eol_todo)
+        && (wp.w_onebuf_opt.wo_list && !lcs_eol_todo)
     {
         search_attr = 0;
     }
@@ -816,7 +816,7 @@ pub fn update_search_hl(
 
 pub fn get_prevcol_hl_flag(wp: &mut WinInfoInfo, search_hl: &mut SynMatch, curcol: Colnr) -> bool {
     let mut prevcol = curcol;
-    let skip_or_left = if wp.w_onebuf_opt.wo_wrap != 0 {
+    let skip_or_left = if wp.w_onebuf_opt.wo_wrap {
         wp.w_skipcol
     } else {
         wp.w_leftcol

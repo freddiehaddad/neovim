@@ -180,7 +180,7 @@ fn redraw_for_cursorline(wp: &mut WinInfoInfo) {
         return;
     }
 
-    if wp.w_onebuf_opt.wo_rnu != 0 || win_cursorline_standout(&*wp) {
+    if wp.w_onebuf_opt.wo_rnu || win_cursorline_standout(&*wp) {
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 }
@@ -195,11 +195,9 @@ fn redraw_for_cursorcolumn(wp: &mut WinInfoInfo) {
         return;
     }
 
-    if wp.w_onebuf_opt.wo_cuc != 0 {
+    if wp.w_onebuf_opt.wo_cuc {
         redraw_later(Some(&mut *wp), UPD_SOME_VALID);
-    } else if wp.w_onebuf_opt.wo_cul != 0
-        && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0
-    {
+    } else if wp.w_onebuf_opt.wo_cul && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0 {
         redraw_later(Some(&mut *wp), UPD_VALID);
     }
 
@@ -225,7 +223,7 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
         return 0;
     }
 
-    if wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.prec != 0 {
+    if wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.prec != 0 {
         return 1;
     }
 
@@ -460,7 +458,7 @@ pub fn update_topline(wp: &mut WinInfoInfo) {
         g_st().dollar_vcol = -1;
         redraw_later(Some(&mut *wp), UPD_VALID);
 
-        if wp.w_onebuf_opt.wo_sms == 0 {
+        if !wp.w_onebuf_opt.wo_sms {
             reset_skipcol(wp);
         } else if wp.w_skipcol != 0 {
             redraw_later(Some(&mut *wp), UPD_SOME_VALID);
@@ -822,7 +820,7 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
     col += off;
     let width = wp.w_view_width - off + win_col_off2(wp);
 
-    if wp.w_onebuf_opt.wo_wrap != 0 && col >= wp.w_view_width && width > 0 {
+    if wp.w_onebuf_opt.wo_wrap && col >= wp.w_view_width && width > 0 {
         col -= ((col - wp.w_view_width) / width + 1) * width;
     }
     if col > wp.w_leftcol {
@@ -840,23 +838,19 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 #[unsafe(no_mangle)]
 #[allow(improper_ctypes_definitions)]
 pub extern "C" fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
-    let num_off = if wp.w_onebuf_opt.wo_nu != 0
-        || wp.w_onebuf_opt.wo_rnu != 0
-        || !wp.w_onebuf_opt.wo_stc.is_empty()
-    {
-        number_width(&mut *wp) + i32::from(wp.w_onebuf_opt.wo_stc.is_empty())
-    } else {
-        0
-    };
+    let num_off =
+        if wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu || !wp.w_onebuf_opt.wo_stc.is_empty() {
+            number_width(&mut *wp) + i32::from(wp.w_onebuf_opt.wo_stc.is_empty())
+        } else {
+            0
+        };
     num_off + win_fdccol_count(&mut *wp) + (wp.w_scwidth * SIGN_WIDTH)
 }
 
 /// Return the difference in column offset for the second screen line of a
 /// wrapped line.
 pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
-    if (wp.w_onebuf_opt.wo_nu != 0
-        || wp.w_onebuf_opt.wo_rnu != 0
-        || !wp.w_onebuf_opt.wo_stc.is_empty())
+    if (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu || !wp.w_onebuf_opt.wo_stc.is_empty())
         && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
     {
         return number_width(wp) + i32::from(wp.w_onebuf_opt.wo_stc.is_empty());
@@ -913,12 +907,12 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
     let mut did_sub_skipcol = false;
     if width1 <= 0 {
         wp.w_wcol = wp.w_view_width - 1;
-        if wp.w_onebuf_opt.wo_wrap != 0 {
+        if wp.w_onebuf_opt.wo_wrap {
             wp.w_wrow = wp.w_view_height - 1;
         } else {
             wp.w_wrow = wp.w_view_height - 1 - wp.w_empty_rows;
         }
-    } else if wp.w_onebuf_opt.wo_wrap != 0 && wp.w_view_width != 0 {
+    } else if wp.w_onebuf_opt.wo_wrap && wp.w_view_width != 0 {
         width2 = width1 + win_col_off2(wp);
 
         if wp.w_cursor.lnum == wp.w_topline && wp.w_skipcol > 0 && wp.w_wcol >= wp.w_skipcol {
@@ -1054,7 +1048,7 @@ pub fn curs_columns(wp: &mut WinInfoInfo, may_scroll: i32) {
         if !wp.w_grid.target.is_null() && wp.w_redr_type < UPD_NOT_VALID {
             win_scroll_lines(wp, 0, extra);
         }
-    } else if wp.w_onebuf_opt.wo_sms == 0 {
+    } else if !wp.w_onebuf_opt.wo_sms {
         wp.w_skipcol = 0;
     }
     if prev_skipcol != wp.w_skipcol {
@@ -1135,7 +1129,7 @@ pub fn textpos2screenpos(
             let width = wp.w_view_width - off + win_col_off2(wp);
             let mut row_vcol = wp.w_leftcol;
 
-            if wp.w_onebuf_opt.wo_wrap != 0 && col >= wp.w_view_width && width > 0 {
+            if wp.w_onebuf_opt.wo_wrap && col >= wp.w_view_width && width > 0 {
                 let rowoff = if visible_row {
                     (col - wp.w_view_width) / width + 1
                 } else {
@@ -1266,10 +1260,7 @@ pub fn f_virtcol2col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// Make sure the cursor is in the visible part of the topline after scrolling
 /// the screen with `'smoothscroll'`.
 fn cursor_correct_sms(wp: &mut WinInfoInfo) {
-    if wp.w_onebuf_opt.wo_sms == 0
-        || wp.w_onebuf_opt.wo_wrap == 0
-        || wp.w_cursor.lnum != wp.w_topline
-    {
+    if !wp.w_onebuf_opt.wo_sms || !wp.w_onebuf_opt.wo_wrap || wp.w_cursor.lnum != wp.w_topline {
         return;
     }
 
@@ -1406,7 +1397,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
     let mut done: i32 = 0;
     let mut width1: i32 = 0;
     let mut width2: i32 = 0;
-    let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
+    let do_sms = wp.w_onebuf_opt.wo_wrap && wp.w_onebuf_opt.wo_sms;
 
     if do_sms {
         width1 = wp.w_view_width - win_col_off(wp);
@@ -1491,7 +1482,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
     check_topfill(wp, true);
 
     let mut wrow = wp.w_wrow;
-    if wp.w_onebuf_opt.wo_wrap != 0 && wp.w_view_width != 0 {
+    if wp.w_onebuf_opt.wo_wrap && wp.w_view_width != 0 {
         validate_virtcol(wp);
         validate_cheight(wp);
         wrow += wp.w_cline_height - 1 - cursor_disp_vcol(wp) / wp.w_view_width;
@@ -1524,7 +1515,7 @@ pub fn scrolldown(wp: &mut WinInfoInfo, line_count: Linenr, byfold: i32) -> bool
 pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool {
     let topline = wp.w_topline;
     let botline = wp.w_botline;
-    let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
+    let do_sms = wp.w_onebuf_opt.wo_wrap && wp.w_onebuf_opt.wo_sms;
 
     if do_sms || (byfold && win_lines_concealed(wp)) || win_may_fill(wp) {
         let width1 = wp.w_view_width - win_col_off(wp);
@@ -1607,8 +1598,8 @@ pub fn scrollup(wp: &mut WinInfoInfo, line_count: Linenr, byfold: bool) -> bool 
 
 /// Make sure that `curwin->w_skipcol` is valid for `'smoothscroll'`.
 pub fn adjust_skipcol() {
-    if curwin_mut().w_onebuf_opt.wo_wrap == 0
-        || curwin_mut().w_onebuf_opt.wo_sms == 0
+    if !curwin_mut().w_onebuf_opt.wo_wrap
+        || !curwin_mut().w_onebuf_opt.wo_sms
         || curwin_mut().w_cursor.lnum != curwin_mut().w_topline
     {
         return;
@@ -1717,7 +1708,7 @@ pub fn scrolldown_clamp() {
     } else {
         end_row += plines_win_nofill(curwin_mut(), curwin_mut().w_topline - 1, true);
     }
-    if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
+    if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_view_width != 0 {
         validate_cheight(curwin_mut());
         validate_virtcol(curwin_mut());
         end_row += curwin_mut().w_cline_height
@@ -1753,7 +1744,7 @@ pub fn scrollup_clamp() {
     let mut start_row = curwin_mut().w_wrow
         - plines_win_nofill(curwin_mut(), curwin_mut().w_topline, true)
         - curwin_mut().w_topfill;
-    if curwin_mut().w_onebuf_opt.wo_wrap != 0 && curwin_mut().w_view_width != 0 {
+    if curwin_mut().w_onebuf_opt.wo_wrap && curwin_mut().w_view_width != 0 {
         validate_virtcol(curwin_mut());
         start_row -= cursor_disp_vcol(curwin_mut()) / curwin_mut().w_view_width;
     }
@@ -1937,7 +1928,7 @@ pub fn scroll_cursor_bot(wp: &mut WinInfoInfo, min_scroll: i32, set_topbot: bool
     let old_valid = wp.w_valid;
     let old_empty_rows = wp.w_empty_rows;
     let cln = wp.w_cursor.lnum;
-    let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
+    let do_sms = wp.w_onebuf_opt.wo_wrap && wp.w_onebuf_opt.wo_sms;
 
     if set_topbot {
         let mut used: i32 = 0;
@@ -2146,7 +2137,7 @@ pub fn scroll_cursor_halfway(wp: &mut WinInfoInfo, atend: bool, prefer_above: bo
     let mut skipcol: Colnr = 0;
 
     let mut want_height: i32 = 0;
-    let do_sms = wp.w_onebuf_opt.wo_wrap != 0 && wp.w_onebuf_opt.wo_sms != 0;
+    let do_sms = wp.w_onebuf_opt.wo_wrap && wp.w_onebuf_opt.wo_sms;
     if do_sms {
         if atend {
             want_height = (wp.w_view_height - used) / 2;
@@ -2399,10 +2390,10 @@ fn scroll_with_sms(dir: Direction, mut count: i32, curscount: &mut i32) -> bool 
     let prev_topline = curwin_mut().w_topline;
     let prev_topfill = curwin_mut().w_topfill;
 
-    curwin_mut().w_onebuf_opt.wo_sms = 1;
+    curwin_mut().w_onebuf_opt.wo_sms = true;
     scroll_redraw(i32::from(dir == FORWARD), count);
 
-    if prev_sms == 0 && curwin_mut().w_skipcol > 0 {
+    if !prev_sms && curwin_mut().w_skipcol > 0 {
         let mut fixdir = dir;
         if (curwin_mut().w_topline - prev_topline).abs() > i32::from(dir == BACKWARD) {
             fixdir = -dir;
@@ -2476,7 +2467,7 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
             curwin_mut().w_curswant = prev_curswant;
         }
 
-        if curwin_mut().w_onebuf_opt.wo_wrap != 0 {
+        if curwin_mut().w_onebuf_opt.wo_wrap {
             nv_screengo(&mut oa, dir, curscount, true);
         } else if dir == FORWARD {
             cursor_down_inner(curwin_mut(), curscount, true);
@@ -2517,9 +2508,9 @@ pub fn pagescroll(dir: Direction, mut count: i32, half: bool) -> bool {
 
     if !did_move {
         beep_flush();
-    } else if curwin_mut().w_onebuf_opt.wo_sms == 0 {
+    } else if !curwin_mut().w_onebuf_opt.wo_sms {
         beginline(BL_SOL | BL_FIX);
-    } else if opt_vars().p_sol != 0 {
+    } else if opt_vars().p_sol {
         nv_g_home_m_cmd(&mut ca);
     }
 
@@ -2585,8 +2576,8 @@ pub fn do_check_cursorbind() {
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf = curwin_mut().w_buffer;
-        if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb != 0 {
-            if curwin_mut().w_onebuf_opt.wo_diff != 0 {
+        if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_crb {
+            if curwin_mut().w_onebuf_opt.wo_diff {
                 curwin_mut().w_cursor.lnum =
                     diff_get_corresponding_line(unsafe { &*old_curbuf }, line);
             } else {
@@ -2602,7 +2593,7 @@ pub fn do_check_cursorbind() {
                 g_st().restart_edit = i32::from(true);
                 check_cursor(curwin_mut());
 
-                if curwin_mut().w_onebuf_opt.wo_scb == 0 {
+                if !curwin_mut().w_onebuf_opt.wo_scb {
                     validate_cursor(curwin_mut());
                 }
 
@@ -2611,7 +2602,7 @@ pub fn do_check_cursorbind() {
             mb_adjust_cursor();
             redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
 
-            if curwin_mut().w_onebuf_opt.wo_scb == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_scb {
                 update_topline(curwin_mut());
             }
             curwin_mut().w_redr_status = true;

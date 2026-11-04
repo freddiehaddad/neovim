@@ -1084,8 +1084,7 @@ pub fn check_signcolumn(scl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) ->
         if val_bytes.starts_with(b"no") {
             wp.w_minscwidth = SCL_NO;
             wp.w_maxscwidth = SCL_NO;
-        } else if val_bytes.starts_with(b"nu")
-            && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+        } else if val_bytes.starts_with(b"nu") && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
         {
             wp.w_minscwidth = SCL_NUM;
             wp.w_maxscwidth = SCL_NUM;

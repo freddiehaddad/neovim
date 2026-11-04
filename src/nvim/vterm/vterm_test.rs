@@ -986,7 +986,7 @@ mod tests {
     }
 
     fn init() -> &'static mut VTerm {
-        crate::option_vars::opt_vars().p_emoji = 1;
+        crate::option_vars::opt_vars().p_emoji = true;
         vtt_st().state_pos = VTermPos { row: 0, col: 0 };
         vtt_st().want_state_putglyph = false;
         vtt_st().want_state_movecursor = false;

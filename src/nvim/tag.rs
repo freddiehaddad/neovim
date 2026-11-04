@@ -445,7 +445,7 @@ pub fn do_tag(
 
         assert!(!tag.is_null());
         'end_do_tag: {
-            if opt_vars().p_tgst == 0 && !crate::memory::cstr_is_empty(tag) {
+            if !opt_vars().p_tgst && !crate::memory::cstr_is_empty(tag) {
                 use_tagstack = false;
                 new_tag = true;
                 if g_st().g_do_tagpreview != 0 {
@@ -1182,7 +1182,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
             pats.headlen = 0;
         } else {
             let head_bytes = pats.head.to_bytes();
-            let magic_chars: &[u8] = if opt_vars().p_magic != 0 {
+            let magic_chars: &[u8] = if opt_vars().p_magic {
                 b".[~*\\$"
             } else {
                 b"\\$"
@@ -1200,7 +1200,7 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
     if has_re {
         pats.regmatch.set_prog(vim_regcomp(
             pats.pat,
-            if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
     } else {
         pats.regmatch.regprog = ptr::null_mut();
@@ -1740,7 +1740,7 @@ fn findtags_start_state_handler(
     } else if st.tag_file_sorted == b'2' as i32 {
         st.state = TagsearchState::TsBinary;
         *sortic = true;
-        st.orgpat.regmatch.rm_ic = opt_vars().p_ic != 0 || !noic;
+        st.orgpat.regmatch.rm_ic = opt_vars().p_ic || !noic;
     } else {
         st.state = TagsearchState::TsLinear;
     }
@@ -2054,7 +2054,7 @@ fn findtags_add_match(
                 mfp_vec = Some(v);
 
                 if (g_st().state_global & MODE_INSERT) != 0 {
-                    st.get_searchpat = opt_vars().p_sft != 0;
+                    st.get_searchpat = opt_vars().p_sft;
                 }
             }
         } else {
@@ -2279,10 +2279,10 @@ pub fn find_tags(
             opt_vars().tc_flags
         } {
             K_OPT_TC_FLAG_FOLLOWIC => {}
-            K_OPT_TC_FLAG_IGNORE => opt_vars().p_ic = 1,
-            K_OPT_TC_FLAG_MATCH => opt_vars().p_ic = 0,
-            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic = ignorecase(pat_cstr),
-            K_OPT_TC_FLAG_SMART => opt_vars().p_ic = ignorecase_opt(pat_cstr, 1, 1),
+            K_OPT_TC_FLAG_IGNORE => opt_vars().p_ic = true,
+            K_OPT_TC_FLAG_MATCH => opt_vars().p_ic = false,
+            K_OPT_TC_FLAG_FOLLOWSCS => opt_vars().p_ic = ignorecase(pat_cstr) != 0,
+            K_OPT_TC_FLAG_SMART => opt_vars().p_ic = ignorecase_opt(pat_cstr, 1, 1) != 0,
             _ => std::process::abort(),
         }
 
@@ -2346,10 +2346,10 @@ pub fn find_tags(
                     }
                 }
 
-                st.orgpat.regmatch.rm_ic = (opt_vars().p_ic != 0 || !noic)
-                    && (findall || st.orgpat.headlen == 0 || opt_vars().p_tbs == 0);
+                st.orgpat.regmatch.rm_ic = (opt_vars().p_ic || !noic)
+                    && (findall || st.orgpat.headlen == 0 || !opt_vars().p_tbs);
                 for round in 1..=2 {
-                    st.linear = st.orgpat.headlen == 0 || opt_vars().p_tbs == 0 || round == 2;
+                    st.linear = st.orgpat.headlen == 0 || !opt_vars().p_tbs || round == 2;
 
                     let mut tn = Tagname::new();
                     let mut first_file: i32 = 1;
@@ -2364,7 +2364,7 @@ pub fn find_tags(
 
                     if st.stop_searching
                         || st.linear
-                        || (opt_vars().p_ic == 0 && noic)
+                        || (!opt_vars().p_ic && noic)
                         || st.orgpat.regmatch.rm_ic
                     {
                         break;
@@ -2742,7 +2742,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
             g_st().postponed_split = 0;
             curwin_save = curwin_ptr();
 
-            if curwin_mut().w_onebuf_opt.wo_pvw == 0 {
+            if !curwin_mut().w_onebuf_opt.wo_pvw {
                 full_fname = FullName_save(crate::memory::cstr_as_opt_cstr(fname.cast()), false);
                 fname = full_fname
                     .as_ref()
@@ -2780,8 +2780,8 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 g_st().redrawing_disabled -= 1;
                 break 'erret;
             }
-            curwin_mut().w_onebuf_opt.wo_scb = 0;
-            curwin_mut().w_onebuf_opt.wo_crb = 0;
+            curwin_mut().w_onebuf_opt.wo_scb = false;
+            curwin_mut().w_onebuf_opt.wo_crb = false;
         }
 
         if keep_help {
@@ -2835,9 +2835,9 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 let save_p_ws = opt_vars().p_ws;
                 let save_p_ic = opt_vars().p_ic;
                 let save_p_scs = opt_vars().p_scs;
-                opt_vars().p_ws = 1;
-                opt_vars().p_ic = 0;
-                opt_vars().p_scs = 0;
+                opt_vars().p_ws = true;
+                opt_vars().p_ic = false;
+                opt_vars().p_scs = false;
                 let save_lnum = curwin_mut().w_cursor.lnum;
 
                 curwin_mut().w_cursor.lnum = if tagp.tagline > 0 {
@@ -2862,7 +2862,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                     retval = OK;
                 } else {
                     let mut found = 1;
-                    opt_vars().p_ic = 1;
+                    opt_vars().p_ic = true;
                     if do_search(
                         None,
                         search_dirc,
@@ -2922,7 +2922,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                         emsg(gettext(c"E434: Can't find tag pattern"));
                         curwin_mut().w_cursor.lnum = save_lnum;
                     } else {
-                        if found == 2 || save_p_ic == 0 {
+                        if found == 2 || !save_p_ic {
                             msg(gettext(c"E435: Couldn't find tag, just guessing!"), 0);
                             if g_st().msg_scrolled == 0 && g_st().msg_silent == 0 {
                                 msg_delay(1010, true);
@@ -3026,7 +3026,7 @@ fn expand_tag_fname(
             }
         }
 
-        if (opt_vars().p_tr != 0 || curbuf_mut().b_help) && !vim_isAbsName(fname.to_bytes()) {
+        if (opt_vars().p_tr || curbuf_mut().b_help) && !vim_isAbsName(fname.to_bytes()) {
             let p = path_tail(crate::memory::cstr_from_ptr((tag_fname).cast())).as_ptr();
             if p != tag_fname.cast_const() {
                 let mut retval = [0u8; MAXPATHL];

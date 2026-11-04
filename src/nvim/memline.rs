@@ -455,10 +455,10 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_usedchunks = 0;
 
     if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
-        buf.b_p_swf = 0;
+        buf.b_p_swf = false;
     }
 
-    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc != 0 && buf.b_p_swf != 0;
+    buf.b_may_swap = buf.terminal.is_null() && opt_vars().p_uc != 0 && buf.b_p_swf;
 
     buf.b_ml.ml_mfp = mf_open(None, 0);
     let Some(mfp) = buf.b_ml.mfp_opt() else {
@@ -605,7 +605,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
 /// Open a file for the memfile for all buffers that are not readonly or have been modified.
 pub fn ml_open_files() {
     for buf in for_all_buffers_mut() {
-        if buf.b_p_ro == 0 || buf.b_changed != 0 {
+        if !buf.b_p_ro || buf.b_changed != 0 {
             ml_open_file(buf);
         }
     }
@@ -618,7 +618,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         return;
     };
     if mfp.mf_fd >= 0
-        || buf.b_p_swf == 0
+        || !buf.b_p_swf
         || (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0
         || !buf.terminal.is_null()
     {
@@ -675,7 +675,7 @@ pub fn check_need_swap(newfile: bool) {
     let old_msg_silent = g_st().msg_silent;
     g_st().msg_silent = 0;
 
-    if curbuf_mut().b_may_swap && (curbuf_mut().b_p_ro == 0 || !newfile) {
+    if curbuf_mut().b_may_swap && (!curbuf_mut().b_p_ro || !newfile) {
         ml_open_file(curbuf_mut());
     }
 
@@ -3610,7 +3610,7 @@ fn findswapname(
 
                 match choice {
                     SEA_CHOICE_READONLY => {
-                        buf.b_p_ro = 1;
+                        buf.b_p_ro = true;
                     }
                     SEA_CHOICE_EDIT => {}
                     SEA_CHOICE_RECOVER => {
@@ -4015,10 +4015,7 @@ pub fn ml_find_line_or_offset(
         if ffdos != 0 {
             size += lnum - 1;
         }
-        if (buf.b_p_fixeol == 0 || buf.b_p_bin != 0)
-            && buf.b_p_eol == 0
-            && lnum > buf.b_ml.ml_line_count
-        {
+        if (!buf.b_p_fixeol || buf.b_p_bin) && !buf.b_p_eol && lnum > buf.b_ml.ml_line_count {
             size -= ffdos + 1;
         }
     }

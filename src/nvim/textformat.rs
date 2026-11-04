@@ -183,7 +183,7 @@ fn whitechar<C: crate::charset::AsciiInt>(cc: C) -> bool {
 
 /// Return true if format option `x` is in effect (`has_format_option`).
 pub fn has_format_option(x: i32) -> bool {
-    if opt_vars().p_paste != 0 {
+    if opt_vars().p_paste {
         return false;
     }
     crate::strings::vim_haschr(curbuf_mut().b_p_fo.as_cstr(), x)
@@ -210,9 +210,9 @@ pub fn internal_format(
     let mut do_comments = (flags & INSCHAR_DO_COM) != 0;
     let has_lbr = curwin_mut().w_onebuf_opt.wo_lbr;
 
-    curwin_mut().w_onebuf_opt.wo_lbr = 0;
+    curwin_mut().w_onebuf_opt.wo_lbr = false;
 
-    if curbuf_mut().b_p_ai == 0 && (g_st().state_global & VREPLACE_FLAG) == 0 {
+    if !curbuf_mut().b_p_ai && (g_st().state_global & VREPLACE_FLAG) == 0 {
         cc = gchar_cursor();
         if ascii_iswhite(cc) {
             save_char = cc as u8;
@@ -243,7 +243,7 @@ pub fn internal_format(
         if do_comments {
             let line = crate::cursor::get_cursor_line_slice();
             leader_len = get_leader_len(line, None, false, true);
-            if leader_len == 0 && curbuf_mut().b_p_cin != 0 {
+            if leader_len == 0 && curbuf_mut().b_p_cin {
                 let comment_start = check_linecomment(line);
                 if comment_start != MAXCOL {
                     leader_len = get_leader_len(
@@ -822,7 +822,7 @@ pub fn comp_textwidth(ff: bool) -> i32 {
         textwidth -= win_fdccol_count(curwin_mut());
         textwidth -= curwin_mut().w_scwidth;
 
-        if curwin_mut().w_onebuf_opt.wo_nu != 0 || curwin_mut().w_onebuf_opt.wo_rnu != 0 {
+        if curwin_mut().w_onebuf_opt.wo_nu || curwin_mut().w_onebuf_opt.wo_rnu {
             textwidth -= 8;
         }
     }
@@ -1051,7 +1051,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
                 if need_set_indent {
                     let indent = if curwin_mut().w_cursor.lnum == first_line {
                         get_indent()
-                    } else if curbuf_mut().b_p_lisp != 0 {
+                    } else if curbuf_mut().b_p_lisp {
                         get_lisp_indent()
                     } else if cindent_on() {
                         if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
@@ -1073,7 +1073,7 @@ pub fn format_lines(line_count: Linenr, avoid_fex: bool) {
 
                 g_st().state_global = MODE_INSERT;
                 let smd_save = opt_vars().p_smd;
-                opt_vars().p_smd = 0;
+                opt_vars().p_smd = false;
 
                 insertchar(
                     0,

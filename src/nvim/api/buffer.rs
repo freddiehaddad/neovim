@@ -461,7 +461,7 @@ pub fn nvim_buf_set_lines(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if b.b_p_ma == 0 {
+        if !b.b_p_ma {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -805,7 +805,7 @@ pub fn nvim_buf_set_text(
     }
 
     try_wrap_err(err, |err| 'end: {
-        if b.b_p_ma == 0 {
+        if !b.b_p_ma {
             api_set_error!(
                 err,
                 ErrorType::ErrorTypeException,
@@ -1333,7 +1333,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
         let save_acd = opt_vars().p_acd;
         if !is_curbuf {
             g_st().redrawing_disabled += 1;
-            opt_vars().p_acd = 0;
+            opt_vars().p_acd = false;
         }
 
         let mut aco: CtxSwitch = CtxSwitch::new();

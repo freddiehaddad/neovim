@@ -351,7 +351,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
 /// Delete the file names in `alist_ga` from the argument list (`arglist_del_files`).
 fn arglist_del_files(alist_ga: &[CString]) {
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.rm_ic = opt_vars().p_fic != 0;
+    regmatch.rm_ic = opt_vars().p_fic;
 
     for orig_p in alist_ga {
         if g_st().got_int {
@@ -362,7 +362,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
         };
         regmatch.set_prog(vim_regcomp(
             &p,
-            if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+            if opt_vars().p_magic { RE_MAGIC } else { 0 },
         ));
         if regmatch.regprog.is_null() {
             break;
@@ -613,8 +613,8 @@ pub fn do_argfile(eap: &mut Exarg, argn: i32) {
         if !win_split(0, 0) {
             return;
         }
-        curwin_mut().w_onebuf_opt.wo_scb = 0;
-        curwin_mut().w_onebuf_opt.wo_crb = 0;
+        curwin_mut().w_onebuf_opt.wo_scb = false;
+        curwin_mut().w_onebuf_opt.wo_crb = false;
     } else {
         let mut other = true;
         if buf_hide(curbuf_mut()) {
@@ -1013,7 +1013,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
             }
             if !aall.use_firstwin {
                 let p_ea_save = opt_vars().p_ea;
-                opt_vars().p_ea = 1;
+                opt_vars().p_ea = true;
                 let ok = win_split(0, WSP_ROOM | WSP_BELOW);
                 split_ret = if ok { OK } else { FAIL };
                 opt_vars().p_ea = p_ea_save;

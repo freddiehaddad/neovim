@@ -180,11 +180,7 @@ pub fn ex_help(eap: &mut Exarg) {
                 && curwin_mut().w_width != g_st().columns_global
                 && curwin_mut().w_width < 80
             {
-                n |= if opt_vars().p_sb != 0 {
-                    WSP_BOT
-                } else {
-                    WSP_TOP
-                };
+                n |= if opt_vars().p_sb { WSP_BOT } else { WSP_TOP };
             }
             if !win_split(0, n) {
                 early_ret = true;
@@ -434,19 +430,19 @@ pub fn prepare_help_buffer() {
     set_option_direct(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL, 0);
 
     curbuf_mut().b_p_ts = 8;
-    curwin_mut().w_onebuf_opt.wo_list = 0;
+    curwin_mut().w_onebuf_opt.wo_list = false;
 
-    curbuf_mut().b_p_ma = 0;
-    curbuf_mut().b_p_bin = 0;
-    curwin_mut().w_onebuf_opt.wo_nu = 0;
-    curwin_mut().w_onebuf_opt.wo_rnu = 0;
-    curwin_mut().w_onebuf_opt.wo_scb = 0;
-    curwin_mut().w_onebuf_opt.wo_crb = 0;
-    curwin_mut().w_onebuf_opt.wo_arab = 0;
-    curwin_mut().w_onebuf_opt.wo_rl = 0;
-    curwin_mut().w_onebuf_opt.wo_fen = 0;
-    curwin_mut().w_onebuf_opt.wo_diff = 0;
-    curwin_mut().w_onebuf_opt.wo_spell = 0;
+    curbuf_mut().b_p_ma = false;
+    curbuf_mut().b_p_bin = false;
+    curwin_mut().w_onebuf_opt.wo_nu = false;
+    curwin_mut().w_onebuf_opt.wo_rnu = false;
+    curwin_mut().w_onebuf_opt.wo_scb = false;
+    curwin_mut().w_onebuf_opt.wo_crb = false;
+    curwin_mut().w_onebuf_opt.wo_arab = false;
+    curwin_mut().w_onebuf_opt.wo_rl = false;
+    curwin_mut().w_onebuf_opt.wo_fen = false;
+    curwin_mut().w_onebuf_opt.wo_diff = false;
+    curwin_mut().w_onebuf_opt.wo_spell = false;
 
     set_buflisted(0);
 }

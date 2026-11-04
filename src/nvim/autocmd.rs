@@ -2589,7 +2589,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     if !has_event(EVENT_OPTIONSET)
-        || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
+        || (bt_nofile(Some(buf)) && !buf.b_p_bl)
         || !crate::memory::cstr_is_empty((get_vim_var_str(VV_OPTION_TYPE)).as_ptr())
     {
         return;
@@ -3656,7 +3656,7 @@ pub fn au_exists(arg: &CStr) -> bool {
                             ap.buflocal_nr == fnum
                         } else {
                             mb_strcmp_ic(
-                                opt_vars().p_fic != 0,
+                                opt_vars().p_fic,
                                 crate::memory::cstr_from_ptr((ap.pat.as_ptr()).cast()),
                                 crate::memory::cstr_from_ptr((pattern.as_ptr()).cast()),
                             ) == 0

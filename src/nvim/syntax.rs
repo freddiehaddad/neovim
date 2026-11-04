@@ -5101,7 +5101,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
         new_s.b_p_spo.clear_option_str();
         new_s.b_syn_isk = None;
         curwin_mut().w_s_owned = Some(new_s);
-        curwin_mut().w_onebuf_opt.wo_spell = 0;
+        curwin_mut().w_onebuf_opt.wo_spell = false;
     }
 
     let old_value = get_var_value(c"b:current_syntax").map(ToOwned::to_owned);

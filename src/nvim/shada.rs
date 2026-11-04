@@ -979,7 +979,7 @@ fn sd_reader_skip(sd_reader: &mut FileDescriptor, offset: usize) -> ShaDaReadRes
 }
 
 fn close_file(cookie: &mut FileDescriptor) -> i32 {
-    let error = file_close(cookie, opt_vars().p_fs != 0);
+    let error = file_close(cookie, opt_vars().p_fs);
     if error != 0 {
         semsg!(
             gettext(c"E886: System error while closing ShaDa file: %s"),
@@ -1447,7 +1447,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                     .take()
                     .unwrap_or_default()
                     .into_bytes_with_nul();
-                let final_sub = regtilde(&mut sub_bytes, opt_vars().p_magic, false)
+                let final_sub = regtilde(&mut sub_bytes, i32::from(opt_vars().p_magic), false)
                     .or_else(|| Some(crate::memory::cstr_to_cstring(sub_bytes.as_ptr().cast())));
                 sub_set_replacement(SubReplacementString {
                     sub: final_sub,
@@ -2370,7 +2370,7 @@ fn ignore_buf(buf: Option<&FileBuf>, removable_bufs: &std::collections::HashSet<
         return true;
     };
     buf.b_ffname.is_none()
-        || (buf.b_p_bl == 0 && buf.b_p_initialized)
+        || (!buf.b_p_bl && buf.b_p_initialized)
         || bt_quickfix(Some(buf))
         || bt_terminal(Some(buf))
         || removable_bufs.contains(&(ptr::from_ref(buf) as usize))
@@ -2381,7 +2381,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<usize>) -> Shada
     let max_bufs = get_shada_parameter(b'%' as i32);
     let mut buffers = Vec::new();
     for buf in for_all_buffers_ptr() {
-        if !ignore_buf(Some(&*buf), removable_bufs) && buf.b_p_bl != 0 {
+        if !ignore_buf(Some(&*buf), removable_bufs) && buf.b_p_bl {
             if max_bufs >= 0 && buffers.len() >= (max_bufs as usize) {
                 break;
             }

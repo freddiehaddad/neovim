@@ -496,9 +496,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     let mut p;
     let mut line_len = get_cursor_line_len() + 1;
 
-    if curbuf_mut().b_p_et == 0 || ((flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0) {
+    if !curbuf_mut().b_p_et || ((flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi) {
         let mut ind_col: i32 = 0;
-        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0 {
+        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi {
             ind_done = 0;
 
             while todo > 0
@@ -524,7 +524,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
             }
 
             ind_col = ind_done;
-            if curbuf_mut().b_p_et != 0 {
+            if curbuf_mut().b_p_et {
                 orig_char_len = ind_len;
             }
             tab_pad = tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
@@ -614,8 +614,8 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
         newline_vec = vec![0u8; newline_size];
     }
 
-    if curbuf_mut().b_p_et == 0 {
-        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi != 0 {
+    if !curbuf_mut().b_p_et {
+        if (flags & SIN_INSERT) == 0 && curbuf_mut().b_p_pi {
             p = oldline;
             ind_done = 0;
 
@@ -802,7 +802,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
 /// Return appropriate space number for breakindent (`get_breakindent_win`).
 pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
     let eff_wwidth = wp.w_view_width - win_col_off(wp) + win_col_off2(wp);
-    let no_ts = wp.w_onebuf_opt.wo_list != 0 && wp.w_p_lcs_chars.tab1 == 0;
+    let no_ts = wp.w_onebuf_opt.wo_list && wp.w_p_lcs_chars.tab1 == 0;
 
     let buf_fnum = wp.buf_mut().b_fnum;
     let buf_p_ts = wp.buf_mut().b_p_ts;
@@ -1032,18 +1032,18 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
 
 /// Return true if lines starting with `#` should be left aligned (`preprocs_left`).
 pub fn preprocs_left() -> bool {
-    (curbuf_mut().b_p_si != 0 && curbuf_mut().b_p_cin == 0)
-        || (curbuf_mut().b_p_cin != 0
+    (curbuf_mut().b_p_si && !curbuf_mut().b_p_cin)
+        || (curbuf_mut().b_p_cin
             && in_cinkeys(b'#' as i32, b' ' as i32, true)
             && curbuf_mut().b_ind_hash_comment == 0)
 }
 
 /// Return true if the conditions are OK for smart indenting (`may_do_si`).
 pub fn may_do_si() -> bool {
-    curbuf_mut().b_p_si != 0
-        && curbuf_mut().b_p_cin == 0
+    curbuf_mut().b_p_si
+        && !curbuf_mut().b_p_cin
         && curbuf_mut().b_p_inde.cb_type() == K_CALLBACK_NONE_CONST
-        && opt_vars().p_paste == 0
+        && !opt_vars().p_paste
 }
 
 /// Try to do some very smart auto-indenting (`ins_try_si`).
@@ -1126,7 +1126,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
     }
 
     let save_p_list = curwin_mut().w_onebuf_opt.wo_list;
-    curwin_mut().w_onebuf_opt.wo_list = 0;
+    curwin_mut().w_onebuf_opt.wo_list = false;
     let vc = getvcol_nolist(&mut curwin_mut().w_cursor);
     let mut vcol: i32 = vc;
 
@@ -1310,13 +1310,13 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
     }
 
     tab_pad = tabstop_padding(ind_done, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
-    if todo >= tab_pad && curbuf_mut().b_p_et == 0 {
+    if todo >= tab_pad && !curbuf_mut().b_p_et {
         todo -= tab_pad;
         ind_col += tab_pad;
         line_vec.push(TAB);
     }
 
-    if curbuf_mut().b_p_et == 0 {
+    if !curbuf_mut().b_p_et {
         loop {
             tab_pad = tabstop_padding(ind_col, curbuf_mut().b_p_ts, &curbuf_mut().b_p_vts_array);
             if todo < tab_pad {
@@ -1414,7 +1414,7 @@ pub fn ex_retab(eap: &mut Exarg) {
     };
 
     let save_list = curwin_mut().w_onebuf_opt.wo_list;
-    curwin_mut().w_onebuf_opt.wo_list = 0;
+    curwin_mut().w_onebuf_opt.wo_list = false;
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
@@ -1440,7 +1440,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                     num_spaces = (vcol - start_vcol) as i32;
                     let mut len = num_spaces;
                     let mut num_tabs: i32 = 0;
-                    if curbuf_mut().b_p_et == 0 {
+                    if !curbuf_mut().b_p_et {
                         let mut t: i32 = 0;
                         let mut s: i32 = 0;
                         tabstop_fromto(
@@ -1454,7 +1454,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         num_tabs = t;
                         num_spaces = s;
                     }
-                    if curbuf_mut().b_p_et != 0 || got_tab || (num_spaces + num_tabs < len) {
+                    if curbuf_mut().b_p_et || got_tab || (num_spaces + num_tabs < len) {
                         if !did_undo {
                             did_undo = true;
                             if !u_save(lnum - 1, lnum + 1) {
@@ -1875,17 +1875,17 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
 
 /// Return true if `'indentexpr'` should be used for Lisp indenting (`use_indentexpr_for_lisp`).
 pub fn use_indentexpr_for_lisp() -> bool {
-    curbuf_mut().b_p_lisp != 0
+    curbuf_mut().b_p_lisp
         && curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST
         && (curbuf_mut().b_p_lop.as_bytes() == b"expr:1")
 }
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).
 pub fn fix_indent() {
-    if opt_vars().p_paste != 0 {
+    if opt_vars().p_paste {
         return;
     }
-    if curbuf_mut().b_p_lisp != 0 && curbuf_mut().b_p_ai != 0 {
+    if curbuf_mut().b_p_lisp && curbuf_mut().b_p_ai {
         if use_indentexpr_for_lisp() {
             do_c_expr_indent();
         } else {

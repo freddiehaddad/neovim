@@ -281,21 +281,21 @@ pub struct FileBuf {
     pub b_kmap_ga: Vec<crate::digraph::Kmap>,
     pub b_p_initialized: bool,
     pub b_p_script_ctx: [crate::runtime::Sctx; 93],
-    pub b_p_ac: i32,
-    pub b_p_ai: i32,
-    pub b_p_ai_nopaste: i32,
+    pub b_p_ac: Option<bool>,
+    pub b_p_ai: bool,
+    pub b_p_ai_nopaste: bool,
     pub b_p_bkc: crate::option_vars::OptString,
     pub b_bkc_flags: u32,
-    pub b_p_ci: i32,
-    pub b_p_bin: i32,
-    pub b_p_bomb: i32,
+    pub b_p_ci: bool,
+    pub b_p_bin: bool,
+    pub b_p_bomb: bool,
     pub b_p_bh: crate::option_vars::OptString,
     pub b_p_bt: crate::option_vars::OptString,
     pub b_p_busy: i64,
     pub b_has_qf_entry: i32,
-    pub b_p_bl: i32,
+    pub b_p_bl: bool,
     pub b_p_channel: i64,
-    pub b_p_cin: i32,
+    pub b_p_cin: bool,
     pub b_p_cino: crate::option_vars::OptString,
     pub b_p_cink: crate::option_vars::OptString,
     pub b_p_cinw: crate::option_vars::OptString,
@@ -313,19 +313,19 @@ pub struct FileBuf {
     pub b_p_ofu: crate::eval::typval::Callback,
     pub b_p_tfu: crate::eval::typval::Callback,
     pub b_p_ffu: crate::eval::typval::Callback,
-    pub b_p_eof: i32,
-    pub b_p_eol: i32,
-    pub b_p_fixeol: i32,
-    pub b_p_et: i32,
-    pub b_p_et_nobin: i32,
-    pub b_p_et_nopaste: i32,
+    pub b_p_eof: bool,
+    pub b_p_eol: bool,
+    pub b_p_fixeol: bool,
+    pub b_p_et: bool,
+    pub b_p_et_nobin: bool,
+    pub b_p_et_nopaste: bool,
     pub b_p_fenc: crate::option_vars::OptString,
     pub b_p_ff: crate::option_vars::OptString,
     pub b_p_ft: crate::option_vars::OptString,
-    pub b_p_follow: i32,
+    pub b_p_follow: bool,
     pub b_p_fo: crate::option_vars::OptString,
     pub b_p_flp: crate::option_vars::OptString,
-    pub b_p_inf: i32,
+    pub b_p_inf: bool,
     pub b_p_isk: crate::option_vars::OptString,
     pub b_p_def: crate::option_vars::OptString,
     pub b_p_inc: crate::option_vars::OptString,
@@ -337,26 +337,26 @@ pub struct FileBuf {
     pub b_p_fp: crate::option_vars::OptString,
     pub b_p_fex: crate::eval::typval::Callback,
     pub b_p_fex_flags: u32,
-    pub b_p_fs: i32,
+    pub b_p_fs: Option<bool>,
     pub b_p_kp: crate::option_vars::OptString,
-    pub b_p_lisp: i32,
+    pub b_p_lisp: bool,
     pub b_p_lop: crate::option_vars::OptString,
     pub b_p_menc: crate::option_vars::OptString,
     pub b_p_mps: crate::option_vars::OptString,
-    pub b_p_ml: i32,
-    pub b_p_ml_nobin: i32,
-    pub b_p_ma: i32,
+    pub b_p_ml: bool,
+    pub b_p_ml_nobin: bool,
+    pub b_p_ma: bool,
     pub b_p_nf: crate::option_vars::OptString,
-    pub b_p_pi: i32,
+    pub b_p_pi: bool,
     pub b_p_qe: crate::option_vars::OptString,
-    pub b_p_ro: i32,
+    pub b_p_ro: bool,
     pub b_p_sw: i64,
     pub b_p_scbk: i64,
-    pub b_p_si: i32,
+    pub b_p_si: bool,
     pub b_p_sts: i64,
     pub b_p_sts_nopaste: i64,
     pub b_p_sua: crate::option_vars::OptString,
-    pub b_p_swf: i32,
+    pub b_p_swf: bool,
     pub b_p_smc: i64,
     pub b_p_syn: crate::option_vars::OptString,
     pub b_p_ts: i64,
@@ -378,7 +378,7 @@ pub struct FileBuf {
     pub b_p_efm: crate::option_vars::OptString,
     pub b_p_ep: crate::option_vars::OptString,
     pub b_p_path: crate::option_vars::OptString,
-    pub b_p_ar: i32,
+    pub b_p_ar: Option<bool>,
     pub b_p_tags: crate::option_vars::OptString,
     pub b_p_tc: crate::option_vars::OptString,
     pub b_tc_flags: u32,
@@ -387,7 +387,7 @@ pub struct FileBuf {
     pub b_p_tsr: crate::option_vars::OptString,
     pub b_p_tsrfu: crate::eval::typval::Callback,
     pub b_p_ul: i64,
-    pub b_p_udf: i32,
+    pub b_p_udf: bool,
     pub b_p_lw: crate::option_vars::OptString,
     pub b_ind_level: i32,
     pub b_ind_open_imag: i32,
@@ -574,21 +574,21 @@ impl FileBuf {
             b_kmap_ga: Vec::new(),
             b_p_initialized: false,
             b_p_script_ctx: [ZERO_SCTX; 93],
-            b_p_ac: 0,
-            b_p_ai: 0,
-            b_p_ai_nopaste: 0,
+            b_p_ac: Some(false),
+            b_p_ai: false,
+            b_p_ai_nopaste: false,
             b_p_bkc: crate::option_vars::OptString::new(),
             b_bkc_flags: 0,
-            b_p_ci: 0,
-            b_p_bin: 0,
-            b_p_bomb: 0,
+            b_p_ci: false,
+            b_p_bin: false,
+            b_p_bomb: false,
             b_p_bh: crate::option_vars::OptString::new(),
             b_p_bt: crate::option_vars::OptString::new(),
             b_p_busy: 0,
             b_has_qf_entry: 0,
-            b_p_bl: 0,
+            b_p_bl: false,
             b_p_channel: 0,
-            b_p_cin: 0,
+            b_p_cin: false,
             b_p_cino: crate::option_vars::OptString::new(),
             b_p_cink: crate::option_vars::OptString::new(),
             b_p_cinw: crate::option_vars::OptString::new(),
@@ -606,19 +606,19 @@ impl FileBuf {
             b_p_ofu: crate::eval::typval::Callback::NONE,
             b_p_tfu: crate::eval::typval::Callback::NONE,
             b_p_ffu: crate::eval::typval::Callback::NONE,
-            b_p_eof: 0,
-            b_p_eol: 0,
-            b_p_fixeol: 0,
-            b_p_et: 0,
-            b_p_et_nobin: 0,
-            b_p_et_nopaste: 0,
+            b_p_eof: false,
+            b_p_eol: false,
+            b_p_fixeol: false,
+            b_p_et: false,
+            b_p_et_nobin: false,
+            b_p_et_nopaste: false,
             b_p_fenc: crate::option_vars::OptString::new(),
             b_p_ff: crate::option_vars::OptString::new(),
             b_p_ft: crate::option_vars::OptString::new(),
-            b_p_follow: 0,
+            b_p_follow: false,
             b_p_fo: crate::option_vars::OptString::new(),
             b_p_flp: crate::option_vars::OptString::new(),
-            b_p_inf: 0,
+            b_p_inf: false,
             b_p_isk: crate::option_vars::OptString::new(),
             b_p_def: crate::option_vars::OptString::new(),
             b_p_inc: crate::option_vars::OptString::new(),
@@ -630,26 +630,26 @@ impl FileBuf {
             b_p_fp: crate::option_vars::OptString::new(),
             b_p_fex: crate::eval::typval::Callback::NONE,
             b_p_fex_flags: 0,
-            b_p_fs: 0,
+            b_p_fs: Some(false),
             b_p_kp: crate::option_vars::OptString::new(),
-            b_p_lisp: 0,
+            b_p_lisp: false,
             b_p_lop: crate::option_vars::OptString::new(),
             b_p_menc: crate::option_vars::OptString::new(),
             b_p_mps: crate::option_vars::OptString::new(),
-            b_p_ml: 0,
-            b_p_ml_nobin: 0,
-            b_p_ma: 0,
+            b_p_ml: false,
+            b_p_ml_nobin: false,
+            b_p_ma: false,
             b_p_nf: crate::option_vars::OptString::new(),
-            b_p_pi: 0,
+            b_p_pi: false,
             b_p_qe: crate::option_vars::OptString::new(),
-            b_p_ro: 0,
+            b_p_ro: false,
             b_p_sw: 0,
             b_p_scbk: 0,
-            b_p_si: 0,
+            b_p_si: false,
             b_p_sts: 0,
             b_p_sts_nopaste: 0,
             b_p_sua: crate::option_vars::OptString::new(),
-            b_p_swf: 0,
+            b_p_swf: false,
             b_p_smc: 0,
             b_p_syn: crate::option_vars::OptString::new(),
             b_p_ts: 0,
@@ -671,7 +671,7 @@ impl FileBuf {
             b_p_efm: crate::option_vars::OptString::new(),
             b_p_ep: crate::option_vars::OptString::new(),
             b_p_path: crate::option_vars::OptString::new(),
-            b_p_ar: 0,
+            b_p_ar: Some(false),
             b_p_tags: crate::option_vars::OptString::new(),
             b_p_tc: crate::option_vars::OptString::new(),
             b_tc_flags: 0,
@@ -680,7 +680,7 @@ impl FileBuf {
             b_p_tsr: crate::option_vars::OptString::new(),
             b_p_tsrfu: crate::eval::typval::Callback::NONE,
             b_p_ul: 0,
-            b_p_udf: 0,
+            b_p_udf: false,
             b_p_lw: crate::option_vars::OptString::new(),
             b_ind_level: 0,
             b_ind_open_imag: 0,
@@ -954,7 +954,7 @@ pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
 
 #[inline]
 pub fn modifiable(buf: &FileBuf) -> bool {
-    buf.b_p_ma != 0 && buf.b_ro_locked == 0
+    buf.b_p_ma && buf.b_ro_locked == 0
 }
 
 fn trigger_undo_ftplugin(buf: &mut FileBuf, win: &mut WinInfoInfo) {
@@ -1066,7 +1066,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         && curbuf_mut().b_ffname.is_some()
         && (curbuf_mut().b_flags & BF_NEVERLOADED) != 0
     {
-        curbuf_mut().b_p_ro = 1;
+        curbuf_mut().b_p_ro = true;
     }
 
     if !ml_open(curbuf_mut()) {
@@ -1147,7 +1147,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
                 }
             }
             if read_fifo {
-                curbuf_mut().b_p_bin = 1;
+                curbuf_mut().b_p_bin = true;
             }
         }
 
@@ -1179,7 +1179,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
     } else if read_stdin {
         let save_bin = curbuf_mut().b_p_bin;
 
-        curbuf_mut().b_p_bin = 1;
+        curbuf_mut().b_p_bin = true;
         retval = readfile(
             None,
             None,
@@ -1483,7 +1483,7 @@ pub fn close_buffer(
     }
 
     if bt_quickfix(Some(buf.borrow())) && win_valid && win.borrow().w_buffer == buf.as_ptr() {
-        win.borrow_mut().w_onebuf_opt.wo_wfh = 0;
+        win.borrow_mut().w_onebuf_opt.wo_wfh = false;
     }
 
     let hiding_buf = buf.borrow().b_nwindows <= 0
@@ -1562,7 +1562,7 @@ pub fn close_buffer(
             win.borrow_mut().w_buffer = ptr::null_mut();
         }
         if del_buf {
-            buf.borrow_mut().b_p_bl = 0;
+            buf.borrow_mut().b_p_bl = false;
         }
     }
 
@@ -1574,11 +1574,11 @@ pub fn close_buffer(
 pub fn buf_clear_file(buf: &mut FileBuf) {
     buf.b_ml.ml_line_count = 1;
     unchanged(&mut *buf, true, true);
-    buf.b_p_eof = 0;
+    buf.b_p_eof = false;
     buf.b_start_eof = 0;
-    buf.b_p_eol = 1;
+    buf.b_p_eol = true;
     buf.b_start_eol = 1;
-    buf.b_p_bomb = 0;
+    buf.b_p_bomb = false;
     buf.b_start_bomb = 0;
     buf.b_ml.ml_mfp = None;
     buf.b_ml.ml_flags = ML_EMPTY;
@@ -1624,7 +1624,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
             return false;
         }
     }
-    if (flags & BFA_DEL) != 0 && unsafe { (*buf_ptr).b_p_bl != 0 } {
+    if (flags & BFA_DEL) != 0 && unsafe { (*buf_ptr).b_p_bl } {
         let b_fname = unsafe { (*buf_ptr).fname_opt() };
         if apply_autocmds(EVENT_BUFDELETE, b_fname, b_fname, false, unsafe {
             buf_ptr.as_mut()
@@ -2232,7 +2232,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 && !(if help_only {
                     unsafe { (*buf).b_help }
                 } else {
-                    unsafe { (*buf).b_p_bl != 0 }
+                    unsafe { (*buf).b_p_bl }
                 }))
         {
             if bp.is_null() {
@@ -2253,9 +2253,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 || (if help_only {
                     unsafe { (*buf).b_help }
                 } else {
-                    unsafe {
-                        (*buf).b_p_bl != 0 && ((flags & DOBUF_SKIPHELP) == 0 || !(*buf).b_help)
-                    }
+                    unsafe { (*buf).b_p_bl && ((flags & DOBUF_SKIPHELP) == 0 || !(*buf).b_help) }
                 })
             {
                 count -= 1;
@@ -2304,14 +2302,14 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         if action != DOBUF_WIPE
             && unsafe { (*buf).b_ml.ml_mfp.is_none() }
-            && unsafe { (*buf).b_p_bl == 0 }
+            && !unsafe { (*buf).b_p_bl }
         {
             return false;
         }
 
         if (flags & DOBUF_FORCEIT) == 0 && buf_is_changed(unsafe { &mut *buf }) {
-            if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                && opt_vars().p_write != 0
+            if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+                && opt_vars().p_write
             {
                 dialog_changed(unsafe { &mut *buf }, false);
 
@@ -2335,7 +2333,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             && !unsafe { (*buf).terminal }.is_null()
             && terminal_running(unsafe { &*(*buf).terminal })
         {
-            if opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
+            if opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0 {
                 if !dialog_close_terminal(unsafe { &mut *buf }) {
                     return false;
                 }
@@ -2357,7 +2355,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
         bp = ptr::null_mut();
         for bp2 in for_all_buffers_ptr() {
-            if bp2.b_p_bl != 0 && !std::ptr::eq(bp2, buf) {
+            if bp2.b_p_bl && !std::ptr::eq(bp2, buf) {
                 bp = bp2;
                 break;
             }
@@ -2445,7 +2443,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
 
                     if !buf.is_null() {
                         if buf == g_st().curbuf
-                            || unsafe { (*buf).b_p_bl == 0 }
+                            || !unsafe { (*buf).b_p_bl }
                             || bt_quickfix(unsafe { buf.as_ref() })
                             || unsafe { (*buf).b_locked_split != 0 }
                         {
@@ -2491,7 +2489,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                     continue;
                 }
                 if unsafe { (*buf).b_help } == curbuf_mut().b_help
-                    && unsafe { (*buf).b_p_bl != 0 }
+                    && unsafe { (*buf).b_p_bl }
                     && !bt_quickfix(unsafe { buf.as_ref() })
                     && unsafe { (*buf).b_locked_split == 0 }
                 {
@@ -2514,7 +2512,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         }
         if buf.is_null() {
             for buf2 in for_all_buffers_ptr() {
-                if buf2.b_p_bl != 0
+                if buf2.b_p_bl
                     && !std::ptr::eq(buf2, g_st().curbuf)
                     && !bt_quickfix(Some(&*buf2))
                     && buf2.b_locked_split == 0
@@ -2558,8 +2556,8 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
     }
 
     if action == DOBUF_GOTO && !can_abandon(curbuf_mut(), (flags & DOBUF_FORCEIT) != 0) {
-        if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-            && opt_vars().p_write != 0
+        if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            && opt_vars().p_write
         {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
@@ -2697,7 +2695,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
     }
     fold_update_all(curwin_mut());
 
-    if curwin_mut().w_onebuf_opt.wo_diff != 0 {
+    if curwin_mut().w_onebuf_opt.wo_diff {
         diff_buf_add(curbuf_mut());
     }
 
@@ -2745,7 +2743,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         keymap_init();
     }
     if !curbuf_mut().b_help
-        && curwin_mut().w_onebuf_opt.wo_spell != 0
+        && curwin_mut().w_onebuf_opt.wo_spell
         && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
     {
         parse_spelllang(curwin_mut());
@@ -2761,7 +2759,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
 
 /// Change to the directory of the current buffer.
 pub fn do_autochdir() {
-    if opt_vars().p_acd != 0
+    if opt_vars().p_acd
         && starting_val() == 0
         && curbuf_mut().b_ffname.is_some()
         && vim_chdirfile(curbuf_mut().ffname_cstr(), K_CD_CAUSE_AUTO)
@@ -2848,9 +2846,9 @@ pub fn buflist_new(
         if (flags & BLN_NOOPT) == 0 {
             buf_copy_options(unsafe { &mut *buf_ptr }, 0);
         }
-        if (flags & BLN_LISTED) != 0 && unsafe { (*buf_ptr).b_p_bl == 0 } {
+        if (flags & BLN_LISTED) != 0 && !unsafe { (*buf_ptr).b_p_bl } {
             unsafe {
-                (*buf_ptr).b_p_bl = 1;
+                (*buf_ptr).b_p_bl = true;
             }
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
@@ -2954,7 +2952,7 @@ pub fn buflist_new(
     buf_clear_file(buf_ref);
     clrallmarks(buf_ref, 0);
     fmarks_check_names(buf_ref);
-    buf_ref.b_p_bl = i32::from((flags & BLN_LISTED) != 0);
+    buf_ref.b_p_bl = (flags & BLN_LISTED) != 0;
     buf_ref.update_channels.clear();
     buf_ref.update_callbacks.clear();
     if (flags & BLN_DUMMY) == 0 {
@@ -3065,9 +3063,9 @@ pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     buf.b_p_dia.clear_option_str();
     buf.b_p_tsr.clear_option_str();
     buf.b_p_qe.clear_option_str();
-    buf.b_p_ac = -1;
-    buf.b_p_ar = -1;
-    buf.b_p_fs = -1;
+    buf.b_p_ac = None;
+    buf.b_p_ar = None;
+    buf.b_p_fs = None;
     buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
     buf.b_p_lw.clear_option_str();
     buf.b_p_bkc.clear_option_str();
@@ -3145,7 +3143,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     {
         g_st().redrawing_disabled -= 1;
 
-        if opt_vars().p_sol == 0 && col != 0 {
+        if !opt_vars().p_sol && col != 0 {
             curwin_mut().w_cursor.col = col;
             check_cursor_col(curwin_mut());
             curwin_mut().w_cursor.coladd = 0;
@@ -3166,7 +3164,7 @@ fn buflist_getfpos() {
     curwin_mut().w_cursor.lnum = fpos.lnum;
     check_cursor_lnum(curwin_mut());
 
-    if opt_vars().p_sol != 0 {
+    if opt_vars().p_sol {
         curwin_mut().w_cursor.col = 0;
     } else {
         curwin_mut().w_cursor.col = fpos.col;
@@ -3246,14 +3244,14 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(
                     p,
-                    if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                    if opt_vars().p_magic { RE_MAGIC } else { 0 },
                 ));
 
                 for buf in for_all_buffers_rev_ptr() {
                     if regmatch.regprog.is_null() {
                         return -1;
                     }
-                    if buf.b_p_bl == find_listed
+                    if i32::from(buf.b_p_bl) == find_listed
                         && (!diffmode || diff_mode_buf(buf))
                         && buflist_match(&mut regmatch, &mut *buf, false).is_some()
                     {
@@ -3321,7 +3319,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
         file.clear();
 
-        if (options & BUF_DIFF_FILTER) != 0 && curwin_mut().w_onebuf_opt.wo_diff == 0 {
+        if (options & BUF_DIFF_FILTER) != 0 && !curwin_mut().w_onebuf_opt.wo_diff {
             return false;
         }
 
@@ -3351,7 +3349,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
         let mut score = 0;
         for buf in for_all_buffers_ptr() {
-            if buf.b_p_bl == 0 {
+            if !buf.b_p_bl {
                 continue;
             }
             if (options & BUF_DIFF_FILTER) != 0
@@ -3362,7 +3360,7 @@ pub fn expand_bufnames(pat_in: &[u8], file: &mut Vec<std::ffi::CString>, options
 
             let mut p = None;
             if !fuzzy {
-                p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic != 0);
+                p = buflist_match(&mut regmatch, &mut *buf, opt_vars().p_wic);
             } else {
                 let pat_opt = Some(pat_bytes);
                 score = fuzzy_match_str(buf.sfname_opt().map(CStr::to_bytes), pat_opt);
@@ -3465,7 +3463,7 @@ fn fname_match(
         return None;
     }
 
-    rmp.rm_ic = opt_vars().p_fic != 0 || ignore_case;
+    rmp.rm_ic = opt_vars().p_fic || ignore_case;
     if vim_regexec(rmp, name_cstr, 0) {
         match_ = Some(name_cstr);
     } else if !rmp.regprog.is_null() {
@@ -3556,7 +3554,7 @@ pub fn buflist_setfpos(
 }
 
 fn wininfo_other_tab_diff(wip: &WinInfo) -> bool {
-    if wip.wi_opt.wo_diff == 0 {
+    if !wip.wi_opt.wo_diff {
         return false;
     }
 
@@ -3681,7 +3679,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         let is_terminal = !buf.terminal.is_null();
         let job_running = buf.terminal_opt().is_some_and(|t| terminal_running(t));
 
-        if (buf.b_p_bl == 0
+        if (!buf.b_p_bl
             && eap.forceit == 0
             && !crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
@@ -3690,7 +3688,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             || (crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'u' as i32,
-            ) && buf.b_p_bl != 0)
+            ) && buf.b_p_bl)
             || (crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'+' as i32,
@@ -3714,11 +3712,11 @@ pub fn buflist_list(eap: &mut Exarg) {
             || (crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'-' as i32,
-            ) && buf.b_p_ma != 0)
+            ) && buf.b_p_ma)
             || (crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'=' as i32,
-            ) && buf.b_p_ro == 0)
+            ) && !buf.b_p_ro)
             || (crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((eap.arg).cast()),
                 b'x' as i32,
@@ -3758,9 +3756,9 @@ pub fn buflist_list(eap: &mut Exarg) {
         } else {
             b' ' as i32
         };
-        let mut ro_char = if buf.b_p_ma == 0 {
+        let mut ro_char = if !buf.b_p_ma {
             b'-' as i32
-        } else if buf.b_p_ro != 0 {
+        } else if buf.b_p_ro {
             b'=' as i32
         } else {
             b' ' as i32
@@ -3782,11 +3780,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             IOSIZE - 20,
             c"%3d%c%c%c%c%c \"%s\"",
             buf.b_fnum,
-            if buf.b_p_bl != 0 {
-                b' ' as i32
-            } else {
-                b'u' as i32
-            },
+            if buf.b_p_bl { b' ' as i32 } else { b'u' as i32 },
             if std::ptr::eq(buf, g_st().curbuf) {
                 b'%' as i32
             } else if curwin_mut().w_alt_fnum == buf.b_fnum {
@@ -4127,7 +4121,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
     } else {
         c""
     };
-    let ro_str = if curbuf_mut().b_p_ro != 0 {
+    let ro_str = if curbuf_mut().b_p_ro {
         if shortmess(K_SHM_RO) {
             gettext(c"[RO]")
         } else {
@@ -4137,7 +4131,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         c""
     };
     let sep_str =
-        if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro != 0 {
+        if is_changed || (curbuf_mut().b_flags & BF_WRITE_MASK) != 0 || curbuf_mut().b_p_ro {
             c" ".as_ptr()
         } else {
             c"".as_ptr()
@@ -4164,7 +4158,7 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
             c"%s",
             gettext(NO_LINES_MSG),
         );
-    } else if opt_vars().p_ru != 0 {
+    } else if opt_vars().p_ru {
         bufferlen += vim_snprintf_safelen!(
             buffer.wrapping_add(bufferlen),
             IOSIZE - bufferlen,
@@ -4233,15 +4227,15 @@ pub fn maketitle() {
     }
 
     g_st().need_maketitle = false;
-    if opt_vars().p_title == 0
-        && opt_vars().p_icon == 0
+    if !opt_vars().p_title
+        && !opt_vars().p_icon
         && buf_st().lasttitle.is_none()
         && buf_st().lasticon.is_none()
     {
         return;
     }
 
-    if opt_vars().p_title != 0 {
+    if opt_vars().p_title {
         let mut maxlen = 0;
 
         if opt_vars().p_titlelen > 0 {
@@ -4273,7 +4267,7 @@ pub fn maketitle() {
             let p_ssl_save = opt_vars().p_ssl;
             #[cfg(windows)]
             {
-                opt_vars().p_ssl = 1;
+                opt_vars().p_ssl = true;
             }
             let default_titlestring = c"%t%( %M%)%( (%{expand('%:p:~:h')})%)%a - Nvim"
                 .as_ptr()
@@ -4304,7 +4298,7 @@ pub fn maketitle() {
         &mut buf_st().lasttitle,
     );
 
-    if opt_vars().p_icon != 0 {
+    if opt_vars().p_icon {
         icon_str = buf.as_mut_ptr().cast();
         if !opt_vars().p_iconstring.is_empty() {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
@@ -4487,7 +4481,7 @@ pub fn fname_expand(
     }
 
     #[cfg(windows)]
-    if buf.is_some_and(|b| b.b_p_bin == 0)
+    if buf.is_some_and(|b| !b.b_p_bin)
         && let Some(rfname_cstr) = os_resolve_shortcut(Some(&full_cstr))
     {
         sf_cstr.clone_from(&rfname_cstr);
@@ -4588,7 +4582,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     g_st().autocmd_no_leave += 1;
     let mut buf = crate::globals::BufPtr::new(g_st().firstbuf);
     while !buf.is_null() && open_wins < count {
-        if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || buf.borrow().b_p_bl == 0 {
+        if (!all && buf.borrow().b_ml.ml_mfp.is_none()) || !buf.borrow().b_p_bl {
             buf = crate::globals::BufPtr::new(buf.borrow().b_next);
             continue;
         }
@@ -4617,7 +4611,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, buf.opt_mut());
             let p_ea_save = opt_vars().p_ea;
-            opt_vars().p_ea = 1;
+            opt_vars().p_ea = true;
             let ok = win_split(0, WSP_ROOM | WSP_BELOW);
             split_ret = if ok { OK } else { FAIL };
             open_wins += 1;
@@ -4692,7 +4686,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
 /// Process mode lines for the current file.
 pub fn do_modelines(flags: i32) {
     let mut nmlines = opt_vars().p_mls as i32;
-    if curbuf_mut().b_p_ml == 0 || nmlines == 0 {
+    if !curbuf_mut().b_p_ml || nmlines == 0 {
         return;
     }
 
@@ -4702,7 +4696,7 @@ pub fn do_modelines(flags: i32) {
 
     buf_st().modelines_entered += 1;
     let mut lnum = 1;
-    while curbuf_mut().b_p_ml != 0 && lnum <= curbuf_mut().b_ml.ml_line_count && lnum <= nmlines {
+    while curbuf_mut().b_p_ml && lnum <= curbuf_mut().b_ml.ml_line_count && lnum <= nmlines {
         if !chk_modeline(lnum, flags) {
             nmlines = 0;
         }
@@ -4710,7 +4704,7 @@ pub fn do_modelines(flags: i32) {
     }
 
     lnum = curbuf_mut().b_ml.ml_line_count;
-    while curbuf_mut().b_p_ml != 0
+    while curbuf_mut().b_p_ml
         && lnum > 0
         && lnum > nmlines
         && lnum > curbuf_mut().b_ml.ml_line_count - nmlines
@@ -4921,7 +4915,7 @@ pub fn buf_hide(buf: &FileBuf) -> bool {
     match buf.b_p_bh.first_byte() {
         b'u' | b'w' | b'd' => false,
         b'h' => true,
-        _ => opt_vars().p_hid != 0 || (g_st().cmdmod.cmod_flags & CMOD_HIDE) != 0,
+        _ => opt_vars().p_hid || (g_st().cmdmod.cmod_flags & CMOD_HIDE) != 0,
     }
 }
 
@@ -4958,12 +4952,13 @@ pub fn buf_get_fname(buf: &FileBuf) -> &std::ffi::CStr {
 
 /// Set `'buflisted'` for `curbuf` to `on` and trigger autocommands if it changed.
 pub fn set_buflisted(on: i32) {
+    let on = on != 0;
     if on == curbuf_mut().b_p_bl {
         return;
     }
 
     curbuf_mut().b_p_bl = on;
-    if on != 0 {
+    if on {
         apply_autocmds(EVENT_BUFADD, None, None, false, curbuf_opt_mut());
     } else {
         apply_autocmds(EVENT_BUFDELETE, None, None, false, curbuf_opt_mut());
@@ -5112,8 +5107,8 @@ pub fn read_buffer_into(
         if len == rem.len() {
             let b = buf.as_deref_mut().unwrap();
             if lnum != end
-                || (b.b_p_bin == 0 && b.b_p_fixeol != 0)
-                || (lnum != b.b_no_eol_lnum && (lnum != b.b_ml.ml_line_count || b.b_p_eol != 0))
+                || (!b.b_p_bin && b.b_p_fixeol)
+                || (lnum != b.b_no_eol_lnum && (lnum != b.b_ml.ml_line_count || b.b_p_eol))
             {
                 sb.push(b'\n');
             }

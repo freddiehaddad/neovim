@@ -1480,8 +1480,8 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
                 OptTarget::Buf(buf),
             );
             assert!(buf.b_ml.ml_mfp.as_ref().unwrap().mf_fd < 0);
-            buf.b_p_swf = 0;
-            buf.b_p_ml = 0;
+            buf.b_p_swf = false;
+            buf.b_p_ml = false;
         }
 
         unblock_autocmds();
@@ -2874,7 +2874,7 @@ pub fn nvim_eval_statusline(
             stc_hl_id = num_id;
         } else if use_cul {
             stc_hl_id = HLF_CLN;
-        } else if wp.w_onebuf_opt.wo_rnu != 0 {
+        } else if wp.w_onebuf_opt.wo_rnu {
             stc_hl_id = if lnum < wp.w_cursor.lnum {
                 HLF_LNA
             } else {
@@ -2918,7 +2918,7 @@ pub fn nvim_eval_statusline(
     let mut hltab_len: usize = 0;
 
     let p_crb_save = wp.w_onebuf_opt.wo_crb;
-    wp.w_onebuf_opt.wo_crb = 0;
+    wp.w_onebuf_opt.wo_crb = false;
 
     let width = build_stl_str_hl(
         wp,
@@ -3219,7 +3219,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     let save_lz = opt_vars().p_lz;
     let save_rd = g_st().redrawing_disabled;
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = 0;
+    opt_vars().p_lz = false;
     if opts.statuscolumn || opts.statusline || opts.winbar {
         if win.is_null() {
             for wp in for_all_windows_mut() {

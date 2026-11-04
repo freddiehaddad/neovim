@@ -262,7 +262,7 @@ fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
     if buf.b_sfname.is_some()
         && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
         && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
-        && opt_vars().p_acd == 0
+        && !opt_vars().p_acd
         && !exses_st().did_lcd
     {
         return buf.sfname_opt();
@@ -386,7 +386,7 @@ fn put_view(
         && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
         && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
         && !alt.fname_bytes().is_empty()
-        && alt.b_p_bl != 0
+        && alt.b_p_bl
         && !(bt_terminal(Some(alt)) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
         && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, &mut *flagp, true))
     {
@@ -460,7 +460,7 @@ fn put_view(
             if !put_line(fd, c"normal! 0") {
                 return false;
             }
-        } else if wp.w_onebuf_opt.wo_wrap == 0 && wp.w_leftcol > 0 && wp.w_width > 0 {
+        } else if !wp.w_onebuf_opt.wo_wrap && wp.w_leftcol > 0 && wp.w_width > 0 {
             let vcol1 = i64::from(wp.w_virtcol) + 1;
             if !write_fmt(
                 fd,
@@ -625,7 +625,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 && !(bt_terminal(Some(&*buf))
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
                 && buf.fname_opt().is_some()
-                && buf.b_p_bl != 0
+                && buf.b_p_bl
             {
                 let lnum = buf
                     .b_wininfo
@@ -655,7 +655,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     continue;
                 };
                 if b.fname_opt().is_none()
-                    || b.b_p_bl == 0
+                    || !b.b_p_bl
                     || (only_save_windows && b.b_nwindows == 0)
                     || (b.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
                     || (bt_terminal(Some(&*b))
@@ -1066,7 +1066,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
             if !write_bytes(&fd, b"let &g:so = s:so_save | let &g:siso = s:siso_save\n") {
                 failed = true;
             }
-            if opt_vars().p_hls != 0 && !write_bytes(&fd, b"set hlsearch\n") {
+            if opt_vars().p_hls && !write_bytes(&fd, b"set hlsearch\n") {
                 failed = true;
             }
             if g_st().search_global.no_hlsearch && !write_bytes(&fd, b"nohlsearch\n") {

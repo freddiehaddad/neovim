@@ -1107,7 +1107,7 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
         if output[base + off] == CAR
             && off + 1 < remaining
             && output[base + off + 1] == NL as u8
-            && curbuf_mut().b_p_bin == 0
+            && !curbuf_mut().b_p_bin
         {
             output[base + off] = 0;
             let lnum = curwin_mut().w_cursor.lnum;
@@ -1118,7 +1118,7 @@ fn write_output(output: &mut Vec<u8>, eof: bool) -> usize {
             remaining -= skip;
             off = 0;
             continue;
-        } else if (output[base + off] == CAR && curbuf_mut().b_p_bin == 0)
+        } else if (output[base + off] == CAR && !curbuf_mut().b_p_bin)
             || output[base + off] == NL as u8
         {
             output[base + off] = 0;

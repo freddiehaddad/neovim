@@ -293,7 +293,7 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
         } else if oap.motion_type == MT_BLOCK_WISE {
             shift_block(oap, amount);
         } else if first_char != b'#' as i32 || !preprocs_left() {
-            shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr != 0, amount, 0);
+            shift_line(oap.op_type == OP_LSHIFT, opt_vars().p_sr, amount, 0);
         }
         curwin_mut().w_cursor.lnum += 1;
         i -= 1;
@@ -480,7 +480,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     let mut bd = BlockDef::new();
     let old_p_ri = opt_vars().p_ri;
 
-    opt_vars().p_ri = 0;
+    opt_vars().p_ri = false;
 
     g_st().state_global = MODE_INSERT;
     block_prep(oap, &mut bd, curwin_mut().w_cursor.lnum, true);
@@ -536,7 +536,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
 
         let mut tabs: i32 = 0;
         let mut spaces: i32 = 0;
-        if curbuf_mut().b_p_et == 0 {
+        if !curbuf_mut().b_p_et {
             tabstop_fromto(
                 ws_vcol,
                 ws_vcol + total,
@@ -984,7 +984,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 if !u_save_cursor() {
                     return false;
                 }
-                if curbuf_mut().b_p_ai != 0 {
+                if curbuf_mut().b_p_ai {
                     beginline(BL_WHITE);
                     g_st().ins_global.did_ai = true;
                     g_st().ins_global.ai_col = curwin_mut().w_cursor.col;
@@ -2020,7 +2020,7 @@ pub fn do_join(
                 } else {
                     spaces_vec[t as usize] += 1;
                 }
-                if opt_vars().p_js != 0
+                if opt_vars().p_js
                     && (endcurr1 == b'.' as i32
                         || endcurr1 == b'?' as i32
                         || endcurr1 == b'!' as i32)
@@ -2159,21 +2159,21 @@ pub fn do_join(
 
 /// Reset 'linebreak' and take care of side effects.
 pub fn reset_lbr() -> bool {
-    if curwin_mut().w_onebuf_opt.wo_lbr == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_lbr {
         return false;
     }
-    curwin_mut().w_onebuf_opt.wo_lbr = 0;
+    curwin_mut().w_onebuf_opt.wo_lbr = false;
     curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
     true
 }
 
 /// Restore 'linebreak' and take care of side effects.
 pub fn restore_lbr(lbr_saved: bool) {
-    if curwin_mut().w_onebuf_opt.wo_lbr != 0 || !lbr_saved {
+    if curwin_mut().w_onebuf_opt.wo_lbr || !lbr_saved {
         return;
     }
 
-    curwin_mut().w_onebuf_opt.wo_lbr = 1;
+    curwin_mut().w_onebuf_opt.wo_lbr = true;
     curwin_mut().w_valid &= !(VALID_WROW | VALID_WCOL | VALID_VIRTCOL);
 }
 
@@ -3229,8 +3229,8 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         eol_size,
                     );
                     if lnum == curbuf_mut().b_ml.ml_line_count
-                        && curbuf_mut().b_p_eol == 0
-                        && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
+                        && !curbuf_mut().b_p_eol
+                        && (curbuf_mut().b_p_bin || !curbuf_mut().b_p_fixeol)
                         && (s_bytes.len() as i32) < len
                     {
                         byte_count_cursor -= Varnumber::from(eol_size);
@@ -3257,8 +3257,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             );
         }
 
-        if curbuf_mut().b_p_eol == 0 && (curbuf_mut().b_p_bin != 0 || curbuf_mut().b_p_fixeol == 0)
-        {
+        if !curbuf_mut().b_p_eol && (curbuf_mut().b_p_bin || !curbuf_mut().b_p_fixeol) {
             byte_count -= Varnumber::from(eol_size);
         }
 
@@ -3647,7 +3646,7 @@ fn op_ins_visual(oap: &mut Oparg, cap: &mut Cmdarg) -> VisualIns {
 
 pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
     let oap = cap.oap_mut();
-    let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr != 0;
+    let lbr_saved = curwin_mut().w_onebuf_opt.wo_lbr;
 
     let old_cursor = curwin_mut().w_cursor;
     let op_origin = oap.start;
@@ -3979,7 +3978,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 if oap.op_type == OP_INDENT
                     && crate::memory::cstr_is_empty((get_equalprg()).as_ptr())
                 {
-                    if curbuf_mut().b_p_lisp != 0 {
+                    if curbuf_mut().b_p_lisp {
                         if use_indentexpr_for_lisp() {
                             op_reindent(oap, get_expr_indent);
                         } else {
@@ -4112,7 +4111,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
         }
         g_st().virtual_op = K_NONE;
         if !gui_yank {
-            if opt_vars().p_sol == 0
+            if !opt_vars().p_sol
                 && oap.motion_type == MT_LINE_WISE
                 && !oap.end_adjusted
                 && (oap.op_type == OP_LSHIFT

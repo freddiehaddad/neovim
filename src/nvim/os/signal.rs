@@ -237,7 +237,7 @@ fn deadly_signal(signum: i32) -> ! {
         signal_name(signum).as_ptr(),
     );
 
-    if opt_vars().p_awa != 0 && signum != SIGTERM && signum != SIGINT {
+    if opt_vars().p_awa && signum != SIGTERM && signum != SIGINT {
         autowrite_all();
     }
 
@@ -259,7 +259,7 @@ pub(crate) fn on_signal(signum: i32) {
         }
         #[cfg(unix)]
         if signum == SIGTSTP {
-            if opt_vars().p_awa != 0 {
+            if opt_vars().p_awa {
                 autowrite_all();
             }
             return;

@@ -404,7 +404,7 @@ fn get_fpos_of_mouse(
 
     if !below_buffer
         && !wp.w_onebuf_opt.wo_stc.is_empty()
-        && (if wp.w_onebuf_opt.wo_rl != 0 {
+        && (if wp.w_onebuf_opt.wo_rl {
             wincol >= wp.w_view_width - win_col_off(wp)
         } else {
             wincol < win_col_off(wp)
@@ -855,7 +855,7 @@ pub fn do_mouse(
         } else {
             None
         };
-        if in_statuscol && wp.w_onebuf_opt.wo_rl != 0 {
+        if in_statuscol && wp.w_onebuf_opt.wo_rl {
             click_col = wp.w_view_width - click_col - 1;
         }
 
@@ -1158,7 +1158,7 @@ pub fn do_mouse(
 
     if (!g_st().visual_global.active && old_active && g_st().mode_displayed)
         || (g_st().visual_global.active
-            && opt_vars().p_smd != 0
+            && opt_vars().p_smd
             && g_st().msg_silent == 0
             && (!old_active || g_st().visual_global.mode != old_mode))
     {
@@ -1457,7 +1457,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         && !mouse_st().on_sep_line
         && !mouse_st().on_winbar
         && !wp.w_onebuf_opt.wo_stc.is_empty()
-        && (if wp.w_onebuf_opt.wo_rl != 0 {
+        && (if wp.w_onebuf_opt.wo_rl {
             col >= wp.w_view_width - win_col_off(wp)
         } else {
             col < win_col_off(wp)
@@ -1518,7 +1518,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
                 && (wp.w_buffer != curwin_mut().w_buffer
                     || (mouse_st().status_line_offset == 0
                         && mouse_st().sep_line_offset == 0
-                        && (if wp.w_onebuf_opt.wo_rl != 0 {
+                        && (if wp.w_onebuf_opt.wo_rl {
                             col < wp.w_view_width - fdc
                         } else {
                             col >= fdc
@@ -1689,7 +1689,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         may_start_select(b'o' as i32);
         setmouse();
 
-        if opt_vars().p_smd != 0 && g_st().msg_silent == 0 {
+        if opt_vars().p_smd && g_st().msg_silent == 0 {
             g_st().redraw_cmdline = true;
         }
     }
@@ -1725,7 +1725,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
 /// Make a horizontal scroll to "leftcol".
 /// Return true if the cursor moved, false otherwise.
 fn do_mousescroll_horiz(leftcol: Colnr) -> bool {
-    if curwin_mut().w_onebuf_opt.wo_wrap != 0 {
+    if curwin_mut().w_onebuf_opt.wo_wrap {
         return false;
     }
     if curwin_mut().w_leftcol == leftcol {
@@ -1787,7 +1787,7 @@ pub fn mouse_comp_pos(
     let mut row = *rowp;
     let mut retval = false;
 
-    if win.w_onebuf_opt.wo_rl != 0 {
+    if win.w_onebuf_opt.wo_rl {
         col = win.w_view_width - 1 - col;
     }
 
@@ -1878,7 +1878,7 @@ pub fn mouse_comp_pos(
         }
     }
 
-    if win.w_onebuf_opt.wo_wrap == 0 {
+    if !win.w_onebuf_opt.wo_wrap {
         col += win.w_leftcol;
     }
 

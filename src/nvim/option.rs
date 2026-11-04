@@ -491,21 +491,21 @@ const W_ARABIC: &CStr = c"W17: Arabic requires UTF-8, do ':set encoding=utf-8'";
 struct OptionModuleState {
     p_term: Option<std::ffi::CString>,
     p_ttytype: Option<std::ffi::CString>,
-    p_et_nobin: i32,
-    p_ml_nobin: i32,
+    p_et_nobin: bool,
+    p_ml_nobin: bool,
     p_tw_nobin: OptInt,
     p_wm_nobin: OptInt,
-    p_ai_nopaste: i32,
-    p_et_nopaste: i32,
+    p_ai_nopaste: bool,
+    p_et_nopaste: bool,
     p_sts_nopaste: OptInt,
     p_tw_nopaste: OptInt,
     p_wm_nopaste: OptInt,
     p_vsts_nopaste: Option<std::ffi::CString>,
-    old_p_paste: i32,
-    save_sm: i32,
-    save_sta: i32,
-    save_ru: i32,
-    save_ri: i32,
+    old_p_paste: bool,
+    save_sm: bool,
+    save_sta: bool,
+    save_ru: bool,
+    save_ri: bool,
     syn_recursive: i32,
     expand_option_idx: OptIndex,
     expand_option_start_col: i32,
@@ -519,21 +519,21 @@ impl OptionModuleState {
         Self {
             p_term: None,
             p_ttytype: None,
-            p_et_nobin: 0,
-            p_ml_nobin: 0,
+            p_et_nobin: false,
+            p_ml_nobin: false,
             p_tw_nobin: 0,
             p_wm_nobin: 0,
-            p_ai_nopaste: 0,
-            p_et_nopaste: 0,
+            p_ai_nopaste: false,
+            p_et_nopaste: false,
             p_sts_nopaste: 0,
             p_tw_nopaste: 0,
             p_wm_nopaste: 0,
             p_vsts_nopaste: None,
-            old_p_paste: 0,
-            save_sm: 0,
-            save_sta: 0,
-            save_ru: 0,
-            save_ri: 0,
+            old_p_paste: false,
+            save_sm: false,
+            save_sta: false,
+            save_ru: false,
+            save_ri: false,
             syn_recursive: 0,
             expand_option_idx: K_OPT_INVALID,
             expand_option_start_col: 0,
@@ -700,13 +700,26 @@ fn varp_eq<T>(varp: &u8, r: &T) -> bool {
 }
 
 #[inline]
-fn varp_bool(varp: &u8) -> i32 {
-    unsafe { *ptr::from_ref(varp).cast::<i32>() }
+fn varp_bool(opt_idx: OptIndex, varp: &u8) -> i32 {
+    let opt = get_option(opt_idx);
+    if option_is_global_local(opt_idx) && !ptr::eq(ptr::from_ref(varp), opt.var.cast()) {
+        match unsafe { *ptr::from_ref(varp).cast::<Option<bool>>() } {
+            Some(b) => i32::from(b),
+            None => K_NONE,
+        }
+    } else {
+        i32::from(unsafe { *ptr::from_ref(varp).cast::<bool>() })
+    }
 }
 
 #[inline]
-fn varp_set_bool(varp: &mut u8, val: i32) {
-    unsafe { *ptr::from_mut(varp).cast::<i32>() = val };
+fn varp_set_bool(opt_idx: OptIndex, varp: &mut u8, val: Option<bool>) {
+    let opt = get_option(opt_idx);
+    if option_is_global_local(opt_idx) && !ptr::eq(ptr::from_ref(varp), opt.var.cast()) {
+        unsafe { *ptr::from_mut(varp).cast::<Option<bool>>() = val };
+    } else {
+        unsafe { *ptr::from_mut(varp).cast::<bool>() = val.unwrap() };
+    }
 }
 
 #[inline]
@@ -982,9 +995,9 @@ pub fn set_init_1(clean_arg: bool) {
     set_options_default(0);
 
     curbuf_mut().b_p_initialized = true;
-    curbuf_mut().b_p_ac = -1;
-    curbuf_mut().b_p_ar = -1;
-    curbuf_mut().b_p_fs = -1;
+    curbuf_mut().b_p_ac = None;
+    curbuf_mut().b_p_ar = None;
+    curbuf_mut().b_p_fs = None;
     curbuf_mut().b_p_ul = NO_LOCAL_UNDOLEVEL;
     check_buf_options(curbuf_mut());
     check_win_options(curwin_mut());
@@ -1250,11 +1263,11 @@ pub fn set_helplang_default(lang: Option<&std::ffi::CStr>) {
 pub fn set_title_defaults() {
     if (get_option(K_OPT_TITLE).flags & K_OPT_FLAG_WAS_SET) == 0 {
         change_option_default(K_OPT_TITLE, boolean_obj(false));
-        opt_vars().p_title = 0;
+        opt_vars().p_title = false;
     }
     if (get_option(K_OPT_ICON).flags & K_OPT_FLAG_WAS_SET) == 0 {
         change_option_default(K_OPT_ICON, boolean_obj(false));
-        opt_vars().p_icon = 0;
+        opt_vars().p_icon = false;
     }
 }
 
@@ -1691,11 +1704,11 @@ fn validate_opt_idx(
             *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE);
             return false;
         }
-        if (flags & K_OPT_FLAG_MLE) != 0 && opt_vars().p_mle == 0 {
+        if (flags & K_OPT_FLAG_MLE) != 0 && !opt_vars().p_mle {
             *errmsg = Some(E_NOT_ALLOWED_IN_MODELINE_WHEN_MODELINEEXPR_IS_OFF);
             return false;
         }
-        if win.w_onebuf_opt.wo_diff != 0 && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP) {
+        if win.w_onebuf_opt.wo_diff && (opt_idx == K_OPT_FOLDMETHOD || opt_idx == K_OPT_WRAP) {
             return false;
         }
     }
@@ -1811,7 +1824,7 @@ pub fn get_option_newval(
                     K_TRUE
                 }
             } else if prefix == PREFIX_INV {
-                varp_bool(varp) ^ 1
+                varp_bool(opt_idx, varp) ^ 1
             } else if prefix == PREFIX_NO {
                 0
             } else {
@@ -2206,15 +2219,15 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
         if (opt_flags & OPT_GLOBAL) == 0 {
             curbuf_mut().b_p_tw = 0;
             curbuf_mut().b_p_wm = 0;
-            curbuf_mut().b_p_ml = 0;
-            curbuf_mut().b_p_et = 0;
+            curbuf_mut().b_p_ml = false;
+            curbuf_mut().b_p_et = false;
         }
         if (opt_flags & OPT_LOCAL) == 0 {
             opt_vars().p_tw = 0;
             opt_vars().p_wm = 0;
-            opt_vars().p_ml = 0;
-            opt_vars().p_et = 0;
-            opt_vars().p_bin = 1;
+            opt_vars().p_ml = false;
+            opt_vars().p_et = false;
+            opt_vars().p_bin = true;
         }
     } else if oldval != 0 {
         if (opt_flags & OPT_GLOBAL) == 0 {
@@ -2624,15 +2637,15 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
     let mut errmsg: Option<&CStr> = None;
 
-    if win.w_onebuf_opt.wo_arab != 0 {
-        if opt_vars().p_tbidi == 0 {
-            if win.w_onebuf_opt.wo_rl == 0 {
-                win.w_onebuf_opt.wo_rl = 1;
+    if win.w_onebuf_opt.wo_arab {
+        if !opt_vars().p_tbidi {
+            if !win.w_onebuf_opt.wo_rl {
+                win.w_onebuf_opt.wo_rl = true;
                 changed_window_setting(&mut *win);
             }
 
-            if opt_vars().p_arshape == 0 {
-                opt_vars().p_arshape = 1;
+            if !opt_vars().p_arshape {
+                opt_vars().p_arshape = true;
                 redraw_all_later(UPD_NOT_VALID);
             }
         }
@@ -2643,7 +2656,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
             set_vim_var_string(VV_WARNINGMSG, Some(tr(W_ARABIC)), -1);
         }
 
-        opt_vars().p_deco = 1;
+        opt_vars().p_deco = true;
 
         errmsg = set_option_value(
             K_OPT_KEYMAP,
@@ -2656,8 +2669,8 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
             args.os_errbuf,
         );
     } else {
-        if opt_vars().p_tbidi == 0 && win.w_onebuf_opt.wo_rl != 0 {
-            win.w_onebuf_opt.wo_rl = 0;
+        if !opt_vars().p_tbidi && win.w_onebuf_opt.wo_rl {
+            win.w_onebuf_opt.wo_rl = false;
             changed_window_setting(&mut *win);
         }
 
@@ -2678,7 +2691,7 @@ pub fn did_set_autochdir(_args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_binary(args: &mut Optset) -> Option<&CStr> {
     set_options_bin(
         i32::from(args.os_oldval.data.boolean()),
-        args.buf_mut().b_p_bin,
+        i32::from(args.buf_mut().b_p_bin),
         args.os_flags,
     );
     redraw_titles();
@@ -2689,9 +2702,9 @@ pub fn did_set_binary(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_buflisted(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
 
-    if i32::from(args.os_oldval.data.boolean()) != buf.b_p_bl {
+    if args.os_oldval.data.boolean() != buf.b_p_bl {
         apply_autocmds(
-            if buf.b_p_bl != 0 {
+            if buf.b_p_bl {
                 EVENT_BUFADD
             } else {
                 EVENT_BUFDELETE
@@ -2743,7 +2756,7 @@ pub fn did_set_eof_eol_fixeol_bomb(_args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
-    if opt_vars().p_ea != 0 && !args.os_oldval.data.boolean() {
+    if opt_vars().p_ea && !args.os_oldval.data.boolean() {
         win_equal(unsafe { args.os_win.as_ref() }, false, 0);
     }
     None
@@ -2753,13 +2766,12 @@ pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_foldenable(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
     if args.os_varp == (&raw mut win.w_onebuf_opt.wo_fen).cast::<c_void>()
-        && i32::from(args.os_oldval.data.boolean()) != win.w_onebuf_opt.wo_fen
+        && args.os_oldval.data.boolean() != win.w_onebuf_opt.wo_fen
         && foldmethod_is_diff(&mut *win)
-        && win.w_onebuf_opt.wo_scb != 0
+        && win.w_onebuf_opt.wo_scb
     {
         for wp in for_all_windows_ptr() {
-            if !std::ptr::eq(wp, win) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb != 0
-            {
+            if !std::ptr::eq(wp, win) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
                 wp.w_onebuf_opt.wo_fen = win.w_onebuf_opt.wo_fen;
                 changed_window_setting(&mut *wp);
             }
@@ -2816,7 +2828,7 @@ pub fn did_set_hlsearch(_args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'ignorecase' option value.
 pub fn did_set_ignorecase(_args: &mut Optset) -> Option<&CStr> {
-    if opt_vars().p_hls != 0 {
+    if opt_vars().p_hls {
         redraw_all_later(UPD_SOME_VALID);
     }
     None
@@ -2831,13 +2843,13 @@ pub fn did_set_iminsert(_args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'langnoremap' option value.
 pub fn did_set_langnoremap(_args: &mut Optset) -> Option<&CStr> {
-    opt_vars().p_lrm = i32::from(opt_vars().p_lnr == 0);
+    opt_vars().p_lrm = !opt_vars().p_lnr;
     None
 }
 
 /// Process the updated 'langremap' option value.
 pub fn did_set_langremap(_args: &mut Optset) -> Option<&CStr> {
-    opt_vars().p_lnr = i32::from(opt_vars().p_lrm == 0);
+    opt_vars().p_lnr = !opt_vars().p_lrm;
     None
 }
 
@@ -2942,8 +2954,8 @@ pub fn did_set_numberwidth(args: &mut Optset) -> Option<&CStr> {
 
 /// Process the updated 'paste' option value.
 pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
-    if opt_vars().p_paste != 0 {
-        if opt_st().old_p_paste == 0 {
+    if opt_vars().p_paste {
+        if !opt_st().old_p_paste {
             for buf in for_all_buffers_mut() {
                 buf.b_p_tw_nopaste = buf.b_p_tw;
                 buf.b_p_wm_nopaste = buf.b_p_wm;
@@ -2970,26 +2982,26 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
             buf.b_p_tw = 0;
             buf.b_p_wm = 0;
             buf.b_p_sts = 0;
-            buf.b_p_ai = 0;
-            buf.b_p_et = 0;
+            buf.b_p_ai = false;
+            buf.b_p_et = false;
             buf.b_p_vsts.clear_option_str();
             buf.b_p_vsts_array.clear();
         }
 
-        opt_vars().p_sm = 0;
-        opt_vars().p_sta = 0;
-        if opt_vars().p_ru != 0 {
+        opt_vars().p_sm = false;
+        opt_vars().p_sta = false;
+        if opt_vars().p_ru {
             status_redraw_all();
         }
-        opt_vars().p_ru = 0;
-        opt_vars().p_ri = 0;
+        opt_vars().p_ru = false;
+        opt_vars().p_ri = false;
         opt_vars().p_tw = 0;
         opt_vars().p_wm = 0;
         opt_vars().p_sts = 0;
-        opt_vars().p_ai = 0;
-        opt_vars().p_et = 0;
+        opt_vars().p_ai = false;
+        opt_vars().p_et = false;
         opt_vars().p_vsts.clear_option_str();
-    } else if opt_st().old_p_paste != 0 {
+    } else if opt_st().old_p_paste {
         for buf in for_all_buffers_mut() {
             buf.b_p_tw = buf.b_p_tw_nopaste;
             buf.b_p_wm = buf.b_p_wm_nopaste;
@@ -3044,7 +3056,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
         win_find_tabpage(unsafe { &*win }).map_or(ptr::null_mut(), ptr::from_mut)
     };
     for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
-        if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
+        if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
     }
@@ -3064,11 +3076,11 @@ pub fn did_set_pumblend(_args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_readonly(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
 
-    if buf.b_p_ro == 0 && (args.os_flags & OPT_LOCAL) == 0 {
+    if !buf.b_p_ro && (args.os_flags & OPT_LOCAL) == 0 {
         g_st().readonlymode = false;
     }
 
-    if buf.b_p_ro != 0 {
+    if buf.b_p_ro {
         buf.b_did_warn = false;
     }
 
@@ -3094,7 +3106,7 @@ pub fn did_set_scrollback(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_scrollbind(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
 
-    if win.w_onebuf_opt.wo_scb == 0 {
+    if !win.w_onebuf_opt.wo_scb {
         return None;
     }
     do_check_scrollbind(false);
@@ -3126,7 +3138,7 @@ pub fn did_set_showtabline(_args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'smoothscroll' option value.
 pub fn did_set_smoothscroll(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    if win.w_onebuf_opt.wo_sms == 0 {
+    if !win.w_onebuf_opt.wo_sms {
         win.w_skipcol = 0;
     }
     None
@@ -3135,7 +3147,7 @@ pub fn did_set_smoothscroll(args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'spell' option value.
 pub fn did_set_spell(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    if win.w_onebuf_opt.wo_spell != 0 {
+    if win.w_onebuf_opt.wo_spell {
         return parse_spelllang(win);
     }
     None
@@ -3144,7 +3156,7 @@ pub fn did_set_spell(args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'swapfile' option value.
 pub fn did_set_swapfile(args: &mut Optset) -> Option<&CStr> {
     let buf = args.buf_mut();
-    if buf.b_p_swf != 0 && opt_vars().p_uc != 0 {
+    if buf.b_p_swf && opt_vars().p_uc != 0 {
         ml_open_file(buf);
     } else {
         mf_close_file(buf, true);
@@ -3181,7 +3193,7 @@ pub fn did_set_titlelen(args: &mut Optset) -> Option<&CStr> {
 pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
     let buf = args.os_buf;
 
-    if args.buf_mut().b_p_udf == 0 && opt_vars().p_udf == 0 {
+    if !args.buf_mut().b_p_udf && !opt_vars().p_udf {
         return None;
     }
 
@@ -3301,7 +3313,7 @@ pub fn did_set_winwidth(_args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'wrap' option value.
 pub fn did_set_wrap(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
-    if win.w_onebuf_opt.wo_wrap != 0 {
+    if win.w_onebuf_opt.wo_wrap {
         win.w_leftcol = 0;
     } else {
         win.w_skipcol = 0;
@@ -5051,7 +5063,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
 
     match opt.opt_type {
         ObjectType::ObjectTypeBoolean => {
-            opt_from_tristate(tristate_from_int(OptInt::from(varp_bool(varp))))
+            opt_from_tristate(tristate_from_int(OptInt::from(varp_bool(opt_idx, varp))))
         }
         ObjectType::ObjectTypeInteger => integer_obj(varp_int(varp)),
         ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp_opt_cstr(varp))),
@@ -5077,7 +5089,7 @@ fn set_option_varp(opt_idx: OptIndex, varp: &mut u8, value: Object) {
         ObjectType::ObjectTypeUnset => {
             assert!(option_is_global_local(opt_idx));
             if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                varp_set_bool(varp, K_NONE);
+                varp_set_bool(opt_idx, varp, None);
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
                 varp_clear_str(varp);
             } else if opt_idx == K_OPT_UNDOLEVELS {
@@ -5093,7 +5105,7 @@ fn set_option_varp(opt_idx: OptIndex, varp: &mut u8, value: Object) {
         }
         ObjectType::ObjectTypeBoolean => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-            varp_set_bool(varp, i32::from(value.data.boolean()));
+            varp_set_bool(opt_idx, varp, Some(value.data.boolean()));
         }
         ObjectType::ObjectTypeInteger => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
@@ -6138,7 +6150,7 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
             if varp_eq(vp, &curbuf_mut().b_changed) {
                 i32::from(curbuf_is_changed_fn())
             } else {
-                varp_bool(vp)
+                varp_bool(opt_idx, vp)
             }
         };
         if val_int == 0 {
@@ -6540,14 +6552,14 @@ pub fn get_varp_from(
             }
         }
         K_OPT_AUTOCOMPLETE => {
-            if buf.b_p_ac >= 0 {
+            if buf.b_p_ac.is_some() {
                 (&raw mut buf.b_p_ac).cast()
             } else {
                 p.var
             }
         }
         K_OPT_AUTOREAD => {
-            if buf.b_p_ar >= 0 {
+            if buf.b_p_ar.is_some() {
                 (&raw mut buf.b_p_ar).cast()
             } else {
                 p.var
@@ -6655,7 +6667,7 @@ pub fn get_varp_from(
             }
         }
         K_OPT_FSYNC => {
-            if buf.b_p_fs >= 0 {
+            if buf.b_p_fs.is_some() {
                 (&raw mut buf.b_p_fs).cast()
             } else {
                 p.var
@@ -6983,7 +6995,7 @@ pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
     to.wo_cocu = from.wo_cocu.clone();
     to.wo_cole = from.wo_cole;
     to.wo_fdc = from.wo_fdc.clone();
-    to.wo_fdc_save = if from.wo_diff_saved != 0 {
+    to.wo_fdc_save = if from.wo_diff_saved {
         from.wo_fdc_save.clone()
     } else {
         OptString::new()
@@ -6995,7 +7007,7 @@ pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
     to.wo_fdl = from.wo_fdl;
     to.wo_fdl_save = from.wo_fdl_save;
     to.wo_fdm = from.wo_fdm.clone();
-    to.wo_fdm_save = if from.wo_diff_saved != 0 {
+    to.wo_fdm_save = if from.wo_diff_saved {
         from.wo_fdm_save.clone()
     } else {
         OptString::new()
@@ -7077,7 +7089,7 @@ pub fn clear_winopt(wop: &mut Winopt) {
 }
 
 pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
-    if wp.w_onebuf_opt.wo_wrap != 0 {
+    if wp.w_onebuf_opt.wo_wrap {
         wp.w_leftcol = 0;
     } else {
         wp.w_skipcol = 0;
@@ -7149,7 +7161,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             }
             if !buf.b_p_initialized {
                 free_buf_options(buf, true);
-                buf.b_p_ro = 0;
+                buf.b_p_ro = false;
                 buf.b_p_fenc = opt_vars().p_fenc.clone();
                 buf.b_p_ff = match opt_vars().p_ffs.first_byte() {
                     b'm' => CStrOptionSlot::from_option_cstr(c"mac"),
@@ -7196,7 +7208,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_inf = opt_vars().p_inf;
             copy_opt_sctx(buf, K_BUF_OPT_INFERCASE);
             if (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) != 0 {
-                buf.b_p_swf = 0;
+                buf.b_p_swf = false;
             } else {
                 buf.b_p_swf = opt_vars().p_swf;
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
@@ -7295,9 +7307,9 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_imsearch = opt_vars().p_imsearch;
             copy_opt_sctx(buf, K_BUF_OPT_IMSEARCH);
 
-            buf.b_p_ac = -1;
-            buf.b_p_ar = -1;
-            buf.b_p_fs = -1;
+            buf.b_p_ac = None;
+            buf.b_p_ar = None;
+            buf.b_p_fs = None;
             buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
             buf.b_p_bkc = empty_opt.clone();
             buf.b_bkc_flags = 0;
@@ -7378,8 +7390,8 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
 
 /// Reset the 'modifiable' option and its default value.
 pub fn reset_modifiable() {
-    curbuf_mut().b_p_ma = 0;
-    opt_vars().p_ma = 0;
+    curbuf_mut().b_p_ma = false;
+    opt_vars().p_ma = false;
     change_option_default(K_OPT_MODIFIABLE, boolean_obj(false));
 }
 
@@ -8124,7 +8136,7 @@ pub fn get_showbreak_value<'a>(win: &WinInfoInfo) -> &'a CStr {
 /// Return the current end-of-line type: EOL_DOS, EOL_UNIX or EOL_MAC.
 pub fn get_fileformat(buf: &FileBuf) -> i32 {
     let c = buf.b_p_ff.first_byte();
-    if buf.b_p_bin != 0 || c == b'u' {
+    if buf.b_p_bin || c == b'u' {
         return EOL_UNIX;
     }
     if c == b'm' {
@@ -8145,7 +8157,7 @@ pub fn get_fileformat_force(buf: &FileBuf, eap: Option<&Exarg>) -> i32 {
         {
             eap.force_bin == FORCE_BIN
         } else {
-            buf.b_p_bin != 0
+            buf.b_p_bin
         };
         if is_bin {
             return EOL_UNIX;

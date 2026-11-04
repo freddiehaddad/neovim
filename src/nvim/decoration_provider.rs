@@ -219,7 +219,7 @@ pub fn decor_providers_invoke_conceal(wp: &mut WinInfoInfo, row: i32, lines: boo
         && (row < 0
             || wp.w_onebuf_opt.wo_cole < 1
             || wp.buf_mut().b_conceal_providers == 0
-            || (wp.w_onebuf_opt.wo_wrap == 0 && !crate::decoration::decor_row_has_conceal(wp, row)))
+            || (!wp.w_onebuf_opt.wo_wrap && !crate::decoration::decor_row_has_conceal(wp, row)))
     {
         return;
     }

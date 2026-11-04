@@ -235,7 +235,7 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
     input.paste = 0;
     input.in_fd = STDIN_FILENO;
     {
-        input.ttimeout = opt_vars().p_ttimeout != 0;
+        input.ttimeout = opt_vars().p_ttimeout;
         input.ttimeoutlen = opt_vars().p_ttm;
     }
 

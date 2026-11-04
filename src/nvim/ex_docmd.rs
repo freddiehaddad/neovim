@@ -6216,7 +6216,7 @@ pub fn execute_cmd(eap: &mut Exarg, cmod: &mut Cmdmod, preview: bool) -> i32 {
     apply_cmdmod(&mut g_st().cmdmod);
 
     'end: {
-        if curbuf_mut().b_p_ma == 0
+        if !curbuf_mut().b_p_ma
             && (eap.argt & EX_MODIFY) != 0
             && !(!curbuf_mut().terminal.is_null()
                 && (eap.cmdidx == Cmdidx::CmdPut as i32 || eap.cmdidx == Cmdidx::CmdIput as i32))
@@ -6567,7 +6567,7 @@ fn do_one_cmd(
                 errormsg = Some(gettext(E_SANDBOX));
                 break 'doend;
             }
-            if curbuf_mut().b_p_ma == 0
+            if !curbuf_mut().b_p_ma
                 && (ea.argt & EX_MODIFY) != 0
                 && !(!curbuf_mut().terminal.is_null()
                     && (ea.cmdidx == Cmdidx::CmdPut as i32 || ea.cmdidx == Cmdidx::CmdIput as i32))
@@ -7821,7 +7821,7 @@ pub fn skip_range<'a>(cmd_in: &'a CStr, mut ctx: Option<&mut i32>) -> &'a CStr {
             cmd = skip_regexp(
                 unsafe { CStr::from_ptr(cmd.wrapping_add(1)) },
                 i32::from(b0),
-                opt_vars().p_magic,
+                i32::from(opt_vars().p_magic),
             )
             .as_ptr();
             if crate::memory::cstr_is_empty(cmd)
@@ -7990,9 +7990,13 @@ pub fn get_address(
                         break 'error;
                     }
                     if skip {
-                        cmd = skip_regexp(unsafe { CStr::from_ptr(cmd) }, c, opt_vars().p_magic)
-                            .as_ptr()
-                            .cast_mut();
+                        cmd = skip_regexp(
+                            unsafe { CStr::from_ptr(cmd) },
+                            c,
+                            i32::from(opt_vars().p_magic),
+                        )
+                        .as_ptr()
+                        .cast_mut();
                         if i32::from(crate::memory::cstr_first_byte(cmd)) == c {
                             cmd = cmd.wrapping_add(1);
                         }
@@ -8021,7 +8025,7 @@ pub fn get_address(
                             crate::memory::cstr_len(cmd),
                             1,
                             search_flags,
-                            opt_vars().p_magic != 0,
+                            opt_vars().p_magic,
                             None,
                         ) == 0
                         {
@@ -8081,7 +8085,7 @@ pub fn get_address(
                             1,
                             SEARCH_MSG,
                             pat_use,
-                            opt_vars().p_magic != 0,
+                            opt_vars().p_magic,
                             None,
                         ) != FAIL
                         {
@@ -8535,7 +8539,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             let mut options = WILD_LIST_NOTFOUND | WILD_NOERROR | WILD_ADD_SLASH;
 
             xpc.xp_context = EXPAND_FILES;
-            if opt_vars().p_wic != 0 {
+            if opt_vars().p_wic {
                 options += WILD_ICASE;
             }
             let Some(expanded) = expand_one(
@@ -9173,7 +9177,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
         && docmd_st().quitmore == 0
     {
         if message {
-            if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
                 && curbuf_mut().fname_opt().is_some()
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
@@ -9324,7 +9328,7 @@ fn ex_quit(eap: &mut Exarg) {
     if (!buf_hide(wp.borrow().buf_mut())
         && check_changed(
             wp.borrow().buf_mut(),
-            (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
+            (if opt_vars().p_awa { CCGD_AW } else { 0 })
                 | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
                 | CCGD_EXCMD,
         ))
@@ -9832,7 +9836,7 @@ fn ex_close(eap: &mut Exarg) {
 
 fn ex_pclose(eap: &mut Exarg) {
     for win in for_all_windows_mut() {
-        if win.w_onebuf_opt.wo_pvw != 0 {
+        if win.w_onebuf_opt.wo_pvw {
             ex_win_close(eap.forceit, win, None);
             break;
         }
@@ -9856,8 +9860,8 @@ pub fn ex_win_close(forceit: i32, win: &mut WinInfoInfo, tp_in: Option<&mut TabP
 
     let mut need_hide = buf_is_changed_fn(win.buf_mut()) && win.buf_mut().b_nwindows <= 1;
     if need_hide && !buf_hide(win.buf_mut()) && forceit == 0 {
-        if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-            && opt_vars().p_write != 0
+        if (opt_vars().p_confirm || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
+            && opt_vars().p_write
         {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
@@ -10138,7 +10142,7 @@ fn ex_recover(eap: &mut Exarg) {
     g_st().recoverymode = true;
     if !check_changed(
         curbuf_mut(),
-        (if opt_vars().p_awa != 0 { CCGD_AW } else { 0 })
+        (if opt_vars().p_awa { CCGD_AW } else { 0 })
             | CCGD_MULTWIN
             | (if eap.forceit != 0 { CCGD_FORCEIT } else { 0 })
             | CCGD_EXCMD,
@@ -10358,8 +10362,8 @@ pub fn ex_splitview(eap: &mut Exarg) {
             },
         ) {
             if !crate::memory::cstr_is_empty(eap.arg) {
-                curwin_mut().w_onebuf_opt.wo_scb = 0;
-                curwin_mut().w_onebuf_opt.wo_crb = 0;
+                curwin_mut().w_onebuf_opt.wo_scb = false;
+                curwin_mut().w_onebuf_opt.wo_crb = false;
             } else {
                 do_check_scrollbind(false);
             }
@@ -10851,7 +10855,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
                 }
             }
         } else if g_st().readonlymode && curbuf_mut().b_nwindows == 1 {
-            curbuf_mut().b_p_ro = i32::from(true);
+            curbuf_mut().b_p_ro = true;
         }
         g_st().readonlymode = n;
     } else {
@@ -10902,10 +10906,10 @@ fn ex_syncbind(_eap: &mut Exarg) {
     let old_linenr = curwin_mut().w_cursor.lnum;
     setpcmark();
 
-    let vtopline = if curwin_mut().w_onebuf_opt.wo_scb != 0 {
+    let vtopline = if curwin_mut().w_onebuf_opt.wo_scb {
         let mut vt = get_vtopline(curwin_mut());
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_scb != 0 && !wp.w_buffer.is_null() {
+            if wp.w_onebuf_opt.wo_scb && !wp.w_buffer.is_null() {
                 let y = plines_m_win_fill(wp, 1, wp.buf_mut().b_ml.ml_line_count)
                     - (get_scrolloff_value(curwin_mut()) as i32);
                 vt = vt.min(y);
@@ -10917,7 +10921,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
     };
 
     for wp in for_all_windows_ptr() {
-        if wp.w_onebuf_opt.wo_scb != 0 {
+        if wp.w_onebuf_opt.wo_scb {
             let y = vtopline - get_vtopline(&mut *wp);
             if y > 0 {
                 scrollup(&mut *wp, y, true);
@@ -10931,7 +10935,7 @@ fn ex_syncbind(_eap: &mut Exarg) {
         }
     }
 
-    if curwin_mut().w_onebuf_opt.wo_scb != 0 {
+    if curwin_mut().w_onebuf_opt.wo_scb {
         g_st().did_syncbind = true;
         checkpcmark();
         if old_linenr != curwin_mut().w_cursor.lnum {
@@ -11094,7 +11098,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
         None
     };
 
-    if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh != 0 {
+    if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh {
         expand_env(c"$HOME", g_st().name_buff_bytes_mut());
         new_dir = g_st().name_buff.as_mut_ptr();
     }
@@ -11173,7 +11177,7 @@ pub fn ex_cd(eap: &mut Exarg) {
         return;
     }
 
-    if crate::memory::cstr_is_empty(new_dir) && opt_vars().p_cdh == 0 {
+    if crate::memory::cstr_is_empty(new_dir) && !opt_vars().p_cdh {
         ex_pwd(&mut crate::ex_docmd::Exarg::new());
         return;
     }
@@ -11363,7 +11367,7 @@ fn ex_operators(eap: &mut Exarg) {
         oa.op_type = OP_YANK;
         op_yank(&mut oa, true);
     } else {
-        if (eap.cmdidx == Cmdidx::CmdRshift as i32) ^ (curwin_mut().w_onebuf_opt.wo_rl != 0) {
+        if (eap.cmdidx == Cmdidx::CmdRshift as i32) ^ (curwin_mut().w_onebuf_opt.wo_rl) {
             oa.op_type = OP_RSHIFT;
         } else {
             oa.op_type = OP_LSHIFT;
@@ -11704,7 +11708,7 @@ fn ex_redraw(eap: &mut Exarg) {
     let p = opt_vars().p_lz;
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = 0;
+    opt_vars().p_lz = false;
     validate_cursor(curwin_mut());
     update_topline(curwin_mut());
     if eap.forceit != 0 {
@@ -11741,7 +11745,7 @@ fn ex_redrawstatus(eap: &mut Exarg) {
     }
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = 0;
+    opt_vars().p_lz = false;
     if (g_st().state_global & MODE_CMDLINE) != 0 {
         redraw_statuslines();
     } else {
@@ -11760,7 +11764,7 @@ fn ex_redrawtabline(_eap: &mut Exarg) {
     let p = opt_vars().p_lz;
 
     g_st().redrawing_disabled = 0;
-    opt_vars().p_lz = 0;
+    opt_vars().p_lz = false;
 
     draw_tabline();
 
@@ -11837,7 +11841,7 @@ fn ex_mark(eap: &mut Exarg) {
 pub fn update_topline_cursor() {
     check_cursor(curwin_mut());
     update_topline(curwin_mut());
-    if curwin_mut().w_onebuf_opt.wo_wrap == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_wrap {
         validate_cursor(curwin_mut());
     }
     update_curswant();
@@ -11975,7 +11979,7 @@ fn ex_normal(eap: &mut Exarg) {
 }
 
 fn ex_startinsert(eap: &mut Exarg) {
-    if curbuf_mut().b_p_ma == 0 && curbuf_mut().terminal.is_null() {
+    if !curbuf_mut().b_p_ma && curbuf_mut().terminal.is_null() {
         let _ = emsg(gettext(E_MODIFIABLE));
         return;
     }
@@ -12093,7 +12097,7 @@ fn ex_findpat(eap: &mut Exarg) {
         let p_cstr = skip_regexp(
             unsafe { CStr::from_ptr(eap.arg) },
             b'/' as i32,
-            opt_vars().p_magic,
+            i32::from(opt_vars().p_magic),
         );
         let mut p = eap
             .arg
@@ -12786,7 +12790,7 @@ pub fn set_no_hlsearch(flag: bool) {
     g_st().search_global.no_hlsearch = flag;
     set_vim_var_nr(
         VV_HLSEARCH,
-        Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls != 0),
+        Varnumber::from(!g_st().search_global.no_hlsearch && opt_vars().p_hls),
     );
 }
 

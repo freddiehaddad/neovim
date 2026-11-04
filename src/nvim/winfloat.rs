@@ -142,12 +142,12 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
-    wp.w_onebuf_opt.wo_nu = 0;
-    wp.w_onebuf_opt.wo_rnu = 0;
-    wp.w_onebuf_opt.wo_cul = 0;
-    wp.w_onebuf_opt.wo_cuc = 0;
-    wp.w_onebuf_opt.wo_spell = 0;
-    wp.w_onebuf_opt.wo_list = 0;
+    wp.w_onebuf_opt.wo_nu = false;
+    wp.w_onebuf_opt.wo_rnu = false;
+    wp.w_onebuf_opt.wo_cul = false;
+    wp.w_onebuf_opt.wo_cuc = false;
+    wp.w_onebuf_opt.wo_spell = false;
+    wp.w_onebuf_opt.wo_list = false;
 
     // Hide EOB region: use " " fillchar and cleared highlighting
     if wp.w_p_fcs_chars.eob != b' ' as u32 {
@@ -326,7 +326,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
 pub fn win_float_remove(bang: bool, mut count: i32) {
     let mut float_win_arr: Vec<*mut WinInfoInfo> = Vec::new();
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
-        if !wp.w_config.hide && wp.w_onebuf_opt.wo_wp == 0 {
+        if !wp.w_config.hide && !wp.w_onebuf_opt.wo_wp {
             float_win_arr.push(wp);
         }
     }
@@ -484,7 +484,7 @@ pub fn win_float_special(
         let Some(buf) = crate::api::private::helpers::find_buffer_by_handle_mut(b, &mut err) else {
             return win_float_special_fail(Some(wp), &mut err);
         };
-        buf.b_p_bl = 0; // unlist
+        buf.b_p_bl = false; // unlist
         set_option_direct_for(
             K_OPT_BUFHIDDEN,
             cstr_as_obj(Some(c"wipe")),
@@ -498,14 +498,14 @@ pub fn win_float_special(
         }
     }
     unblock_autocmds();
-    wp.w_onebuf_opt.wo_diff = 0;
-    wp.w_onebuf_opt.wo_wrap = 1; // 'wrap' is default on
+    wp.w_onebuf_opt.wo_diff = false;
+    wp.w_onebuf_opt.wo_wrap = true; // 'wrap' is default on
     wp.w_onebuf_opt.wo_so = 0; // 'scrolloff' zero
 
     if preview {
-        wp.w_onebuf_opt.wo_pvw = 1;
-        wp.w_onebuf_opt.wo_scb = 0;
-        wp.w_onebuf_opt.wo_crb = 0;
+        wp.w_onebuf_opt.wo_pvw = true;
+        wp.w_onebuf_opt.wo_scb = false;
+        wp.w_onebuf_opt.wo_crb = false;
         win_float_anchor_preview(&mut *wp);
     }
     wp.w_kind = kind;

@@ -30,9 +30,9 @@ pub unsafe extern "C-unwind" fn nlua_spell_check(lstate: *mut lua_State) -> i32 
 
     let wo_spell_save = curwin_mut().w_onebuf_opt.wo_spell;
 
-    if curwin_mut().w_onebuf_opt.wo_spell == 0 {
+    if !curwin_mut().w_onebuf_opt.wo_spell {
         parse_spelllang(curwin_mut());
-        curwin_mut().w_onebuf_opt.wo_spell = 1;
+        curwin_mut().w_onebuf_opt.wo_spell = true;
     }
 
     let w_s = curwin_mut().w_s_ptr();

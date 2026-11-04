@@ -1289,7 +1289,7 @@ pub fn mc_buf_has_cursors(buf: &mut FileBuf) -> bool {
 }
 
 pub fn mc_following() -> bool {
-    curbuf_mut().b_p_follow != 0
+    curbuf_mut().b_p_follow
 }
 
 fn mc_lua_enable(enable: bool) {
@@ -1649,11 +1649,11 @@ pub fn mc_follow_set(on: TriState) {
         return;
     }
     let follow = if on == K_NONE {
-        curbuf_mut().b_p_follow == 0
+        !curbuf_mut().b_p_follow
     } else {
         on == K_TRUE
     };
-    if (curbuf_mut().b_p_follow != 0) != follow {
+    if (curbuf_mut().b_p_follow) != follow {
         set_option_value_give_err(K_OPT_FOLLOW, boolean_obj(follow), OPT_LOCAL);
     }
 }

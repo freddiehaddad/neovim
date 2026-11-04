@@ -2542,7 +2542,7 @@ fn list_functions_matching_pat(eap: &mut Exarg) -> &'static CStr {
         let pat_cstr = cstr_from_bytes(crate::memory::cstr_slice(pat_start, pat_len));
         regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
-            regmatch.rm_ic = opt_vars().p_ic != 0;
+            regmatch.rm_ic = opt_vars().p_ic;
             list_functions(Some(&mut regmatch));
             regmatch.free_prog();
         }

@@ -1097,8 +1097,8 @@ unsafe extern "C" fn input_cb(
     }
     if tocopy < BUFSIZE
         && (lnum != bp.b_ml.ml_line_count
-            || (bp.b_p_bin == 0 && bp.b_p_fixeol != 0)
-            || (lnum != bp.b_no_eol_lnum && bp.b_p_eol != 0))
+            || (!bp.b_p_bin && bp.b_p_fixeol)
+            || (lnum != bp.b_no_eol_lnum && bp.b_p_eol))
     {
         buf[tocopy] = b'\n';
         unsafe {

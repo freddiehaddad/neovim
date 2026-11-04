@@ -991,7 +991,7 @@ fn buf_write_make_backup(
                 if os_fileinfo(crate::memory::cstr_until_nul(&bk_vec), &mut file_info_new) {
                     if os_fileinfo_id_equal(&file_info_new, file_info_old) {
                         keep_bk = false;
-                    } else if opt_vars().p_bk == 0 {
+                    } else if !opt_vars().p_bk {
                         let blen = crate::memory::bytes_until_nul(&bk_vec).len();
                         let extlen = backup_ext_cstr.to_bytes().len();
                         let wp_idx = if blen > extlen + 1 {
@@ -1083,7 +1083,7 @@ fn buf_write_make_backup(
             if let Some(bk_cstr) = backupp.take() {
                 let mut bk_vec: Vec<u8> = bk_cstr.into_bytes_with_nul();
                 let mut keep_bk = true;
-                if opt_vars().p_bk == 0 && os_path_exists(crate::memory::cstr_until_nul(&bk_vec)) {
+                if !opt_vars().p_bk && os_path_exists(crate::memory::cstr_until_nul(&bk_vec)) {
                     let blen = crate::memory::bytes_until_nul(&bk_vec).len();
                     let extlen = backup_ext_cstr.to_bytes().len();
                     let p_idx = if blen > extlen + 1 {
@@ -1347,8 +1347,7 @@ pub fn buf_write(
                 acl = os_get_acl(crate::memory::cstr_from_ptr((fname).cast()));
             }
 
-            let mut dobackup =
-                opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || !opt_vars().p_pm.is_empty();
+            let mut dobackup = opt_vars().p_wb || opt_vars().p_bk || !opt_vars().p_pm.is_empty();
             if dobackup
                 && !opt_vars().p_bsk.is_empty()
                 && match_file_list(
@@ -1405,7 +1404,7 @@ pub fn buf_write(
                 && overwriting
                 && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
             {
-                buf.b_p_ro = 0;
+                buf.b_p_ro = false;
                 g_st().need_maketitle = true;
                 status_redraw_all();
             }
@@ -1421,11 +1420,7 @@ pub fn buf_write(
             'restore_backup: {
                 if reset_changed && !newfile && overwriting && !(g_st().exiting && backup.is_some())
                 {
-                    let fsync_opt = if buf.b_p_fs >= 0 {
-                        buf.b_p_fs != 0
-                    } else {
-                        opt_vars().p_fs != 0
-                    };
+                    let fsync_opt = buf.b_p_fs.unwrap_or(opt_vars().p_fs);
                     ml_preserve(&mut *buf, false, fsync_opt);
                     if g_st().got_int {
                         err = set_err(Some(gettext(E_INTERR)));
@@ -1613,10 +1608,10 @@ pub fn buf_write(
                     {
                         eap.force_bin == FORCE_BIN
                     } else {
-                        buf.b_p_bin != 0
+                        buf.b_p_bin
                     };
 
-                    if buf.b_p_bomb != 0 && !write_bin && (!append || perm < 0) {
+                    if buf.b_p_bomb && !write_bin && (!append || perm < 0) {
                         write_info.bw_len =
                             make_bom(&mut write_info.bw_buf, crate::memory::cstr_from_ptr(fenc));
                         if write_info.bw_len > 0 {
@@ -1630,7 +1625,7 @@ pub fn buf_write(
                     }
                     write_info.bw_start_lnum = start;
 
-                    write_undo_file = buf.b_p_udf != 0
+                    write_undo_file = buf.b_p_udf
                         && overwriting
                         && !append
                         && !filtering
@@ -1685,9 +1680,9 @@ pub fn buf_write(
                         }
                         if end == 0
                             || (lnum == end
-                                && (write_bin || buf.b_p_fixeol == 0)
+                                && (write_bin || !buf.b_p_fixeol)
                                 && ((write_bin && lnum == buf.b_no_eol_lnum)
-                                    || (lnum == buf.b_ml.ml_line_count && buf.b_p_eol == 0)))
+                                    || (lnum == buf.b_ml.ml_line_count && !buf.b_p_eol)))
                         {
                             lnum += 1;
                             no_eol = true;
@@ -1776,7 +1771,7 @@ pub fn buf_write(
                         end = 0;
                     }
 
-                    if buf.b_p_fixeol == 0 && buf.b_p_eof != 0 {
+                    if !buf.b_p_fixeol && buf.b_p_eof {
                         let _ = write_eintr(write_info.bw_fd, b"\x1a");
                     }
 
@@ -1787,11 +1782,7 @@ pub fn buf_write(
                 }
 
                 if !checking_conversion {
-                    let do_fsync = if buf.b_p_fs >= 0 {
-                        buf.b_p_fs != 0
-                    } else {
-                        opt_vars().p_fs != 0
-                    };
+                    let do_fsync = buf.b_p_fs.unwrap_or(opt_vars().p_fs);
                     if do_fsync {
                         let error = os_fsync(fd);
                         if error != 0 && error != UV_ENOTSUP && !device {
@@ -2081,7 +2072,7 @@ pub fn buf_write(
                     }
                 }
 
-                if opt_vars().p_bk == 0
+                if !opt_vars().p_bk
                     && let Some(ref bk) = backup
                     && write_info.bw_conv_error == 0
                     && os_remove(bk) != 0

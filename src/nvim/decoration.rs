@@ -651,7 +651,7 @@ fn may_force_numberwidth_recompute(buf: &mut FileBuf, unplace: bool) {
         }) {
             if wp.w_buffer == buf
                 && wp.w_minscwidth == SCL_NUM
-                && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+                && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
                 && (unplace || wp.w_nrwidth_width < 2)
             {
                 wp.w_nrwidth_line_count = 0;
@@ -1681,7 +1681,7 @@ pub fn decor_redraw_eol(
 
 #[inline]
 fn decor_virt_line_wrap(wp: &mut WinInfoInfo, overflow: VirtLineOverflow) -> bool {
-    overflow == K_VLOVERFLOW_WRAP || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap != 0)
+    overflow == K_VLOVERFLOW_WRAP || (overflow == K_VLOVERFLOW_AUTO && wp.w_onebuf_opt.wo_wrap)
 }
 
 pub fn decor_virt_line_rows(

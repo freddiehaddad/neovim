@@ -441,7 +441,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
             || ((g_st().state_global & MODE_CMDLINE) != 0 && ui_has(K_UIWILDMENU_CONST));
     }
 
-    pum().rl = (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl != 0;
+    pum().rl = (g_st().state_global & MODE_CMDLINE) == 0 && curwin_mut().w_onebuf_opt.wo_rl;
 
     let border_width = pum_border_width();
     loop {
@@ -572,7 +572,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
 
         let mut pvwin: Option<&mut WinInfoInfo> = None;
         for wp in win_iter_ptr(first_win_in_tab(curtab_mut())) {
-            if wp.w_onebuf_opt.wo_pvw != 0 {
+            if wp.w_onebuf_opt.wo_pvw {
                 pvwin = Some(wp);
                 break;
             }
@@ -1228,7 +1228,7 @@ fn pum_preview_set_text(
         capacity: 0,
     };
     let buf = win.w_buffer;
-    unsafe { (*buf).b_p_ma = 1 };
+    unsafe { (*buf).b_p_ma = true };
 
     if let Some(info_bytes) = info.map(crate::memory::bytes_until_nul) {
         let mut rem_opt: Option<&[u8]> = Some(info_bytes);
@@ -1244,7 +1244,7 @@ fn pum_preview_set_text(
             }
             let curr_cstr = std::ffi::CString::new(curr_slice).unwrap_or_default();
             let save_wrap = win.w_onebuf_opt.wo_wrap;
-            win.w_onebuf_opt.wo_wrap = 0;
+            win.w_onebuf_opt.wo_wrap = false;
             let line_width = win_linetabsize(win, 0, &curr_cstr, MAXCOL);
             win.w_onebuf_opt.wo_wrap = save_wrap;
             *max_width = (*max_width).max(line_width);
@@ -1275,7 +1275,7 @@ fn pum_preview_set_text(
     }
     arena_mem_free(arena_finish(&mut arena));
     api_free_array(replacement);
-    unsafe { (*buf).b_p_ma = 0 };
+    unsafe { (*buf).b_p_ma = false };
 }
 
 /// Adjust floating info preview window position (`pum_adjust_info_position`).
@@ -1330,7 +1330,7 @@ pub fn pum_set_info(selected: i32, info: Option<&[u8]>) -> Option<&'static mut W
     } else {
         let wp_ref = win_float_special(false, true, K_WIN_INFO)?;
         wp_ref.w_topline = 1;
-        wp_ref.w_onebuf_opt.wo_wfb = 1;
+        wp_ref.w_onebuf_opt.wo_wfb = true;
         wp_ref
     };
     let wp_ptr: *mut WinInfoInfo = wp_ref;
@@ -1429,7 +1429,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             g_st().redrawing_disabled -= 1;
             g_st().g_do_tagpreview = 0;
 
-            if curwin_mut().w_onebuf_opt.wo_pvw != 0 || curwin_mut().w_kind == K_WIN_INFO {
+            if curwin_mut().w_onebuf_opt.wo_pvw || curwin_mut().w_kind == K_WIN_INFO {
                 let mut res = OK;
                 if !resized
                     && curbuf_mut().b_nwindows == 1
@@ -1481,7 +1481,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     }
 
                     curbuf_mut().b_changed = 0;
-                    curbuf_mut().b_p_ma = 0;
+                    curbuf_mut().b_p_ma = false;
                     if pum().selected != prev_selected {
                         curwin_mut().w_topline = 1;
                     } else if curwin_mut().w_topline > curbuf_mut().b_ml.ml_line_count {
@@ -1826,12 +1826,12 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     pum_compute_size();
     pum().scrollbar = 0;
     pum().height = pum().size;
-    pum().rl = curwin_mut().w_onebuf_opt.wo_rl != 0;
+    pum().rl = curwin_mut().w_onebuf_opt.wo_rl;
     pum_position_at_mouse(20);
 
     pum().selected = -1;
     pum().first = 0;
-    if opt_vars().p_mousemev == 0 {
+    if !opt_vars().p_mousemev {
         ui_call_option_set(
             NvimString {
                 data: c"mousemoveevent".as_ptr().cast_mut(),
@@ -1895,7 +1895,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     }
 
     pum_undisplay(true);
-    if opt_vars().p_mousemev == 0 {
+    if !opt_vars().p_mousemev {
         ui_call_option_set(
             NvimString {
                 data: c"mousemoveevent".as_ptr().cast_mut(),
@@ -1912,7 +1912,7 @@ pub fn pum_make_popup(path_name: &std::ffi::CStr, use_mouse_pos: i32) {
         if use_mouse_pos == 0 {
             g_st().mouse_row = curwin_mut().w_grid.row_offset + curwin_mut().w_wrow;
             g_st().mouse_col = curwin_mut().w_grid.col_offset
-                + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+                + if curwin_mut().w_onebuf_opt.wo_rl {
                     curwin_mut().w_view_width - curwin_mut().w_wcol - 1
                 } else {
                     curwin_mut().w_wcol

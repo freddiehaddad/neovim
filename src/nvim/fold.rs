@@ -161,7 +161,7 @@ pub fn copy_folding_state(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
 pub fn has_any_folding(win: &mut WinInfoInfo) -> i32 {
     i32::from(
         win.buf_mut().terminal.is_null()
-            && win.w_onebuf_opt.wo_fen != 0
+            && win.w_onebuf_opt.wo_fen
             && !mc_replaying()
             && (!foldmethod_is_manual(win) || !win.w_folds.is_empty()),
     )
@@ -414,11 +414,9 @@ pub fn fold_open_cursor() {
 pub fn new_fold_level() {
     new_fold_level_win(curwin_mut());
 
-    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
+    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
         for wp in for_all_windows_ptr() {
-            if !ptr::eq(wp, curwin_ptr())
-                && foldmethod_is_diff(&mut *wp)
-                && wp.w_onebuf_opt.wo_scb != 0
+            if !ptr::eq(wp, curwin_ptr()) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb
             {
                 wp.w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
                 new_fold_level_win(&mut *wp);
@@ -965,11 +963,9 @@ fn set_manual_fold(
     recurse: bool,
     donep: Option<&mut i32>,
 ) -> Linenr {
-    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb != 0 {
+    if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
         for wp in for_all_windows_ptr() {
-            if !ptr::eq(wp, curwin_ptr())
-                && foldmethod_is_diff(&mut *wp)
-                && wp.w_onebuf_opt.wo_scb != 0
+            if !ptr::eq(wp, curwin_ptr()) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb
             {
                 let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
                 if dlnum != 0 {
@@ -1285,7 +1281,7 @@ fn set_small_maybe(gap: &mut [FoldEntry]) {
 
 fn fold_create_markers(wp: &mut WinInfoInfo, start: CursorPos, end: CursorPos) {
     let buf = wp.buf_mut();
-    if buf.b_p_ma == 0 {
+    if !buf.b_p_ma {
         emsg(gettext(E_MODIFIABLE));
         return;
     }
@@ -1820,7 +1816,7 @@ fn fold_update_iems(wp: &mut WinInfoInfo, mut top: Linenr, mut bot: Linenr) {
 
     fold_remove(&mut wp.w_folds, start, end);
 
-    if fold_st().fold_changed && wp.w_onebuf_opt.wo_fen != 0 {
+    if fold_st().fold_changed && wp.w_onebuf_opt.wo_fen {
         changed_window_setting(wp);
     }
 

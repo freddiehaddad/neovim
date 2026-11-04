@@ -650,7 +650,7 @@ fn win_redr_stl_expr(
         let ewp = if wp.is_null() { curwin_ptr() } else { wp };
         let ewp = unsafe { &mut *ewp };
         let p_crb_save = ewp.w_onebuf_opt.wo_crb;
-        ewp.w_onebuf_opt.wo_crb = 0;
+        ewp.w_onebuf_opt.wo_crb = false;
 
         let stl_cstr = crate::memory::cstr_to_cstring(stl.cast());
 
@@ -776,7 +776,7 @@ fn win_redr_stl_expr(
             sp = sp.wrapping_add(1);
         }
 
-        if opt_vars().p_sc != 0 && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
+        if opt_vars().p_sc && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
             showcmd_update_clear_state();
         }
 
@@ -822,7 +822,7 @@ pub fn redraw_ruler() {
     let is_stl_global = global_stl_height() > 0;
 
     let part_of_status = wp.w_status_height != 0 || is_stl_global;
-    if opt_vars().p_ru == 0 || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES)) {
+    if !opt_vars().p_ru || part_of_status || (opt_vars().p_ch == 0 && !ui_has(K_UIMESSAGES)) {
         if stl_st().did_show_ext_ruler && ui_has(K_UIMESSAGES) {
             ui_call_msg_ruler(Array::new());
             stl_st().did_show_ext_ruler = false;
@@ -920,7 +920,7 @@ fn ui_ext_tabline_update() {
     let mut n_buffers: usize = 0;
     let mut buf = g_st().firstbuf;
     while !buf.is_null() {
-        if unsafe { (*buf).b_p_bl != 0 } {
+        if unsafe { (*buf).b_p_bl } {
             n_buffers += 1;
         }
         buf = unsafe { (*buf).b_next };
@@ -930,7 +930,7 @@ fn ui_ext_tabline_update() {
     buf = g_st().firstbuf;
     while !buf.is_null() {
         let b = unsafe { &mut *buf };
-        if b.b_p_bl != 0 {
+        if b.b_p_bl {
             let mut buffer_info = arena_dict(&mut arena, 2);
 
             put_c(
@@ -1131,7 +1131,7 @@ pub fn draw_tabline() {
         let c = if use_sep_chars { b'_' } else { b' ' };
         grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
 
-        if opt_vars().p_sc != 0 && opt_vars().p_sloc.first_byte() == b't' {
+        if opt_vars().p_sc && opt_vars().p_sloc.first_byte() == b't' {
             let n = g_st().columns_global - col - i32::from(tabcount > 1) * 3;
             let sc_width = 10.min(n);
 
@@ -2115,23 +2115,20 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_LINE => {
                 if !stcp.is_null()
-                    && (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
+                    && (wp.w_onebuf_opt.wo_nu || wp.w_onebuf_opt.wo_rnu)
                     && get_vim_var_nr(VV_VIRTNUM) == 0
                 {
                     if wp.w_maxscwidth == SCL_NUM && unsafe { (*stcp).sattrs[0].text[0] != 0 } {
                         handle_stcsign = true;
                     } else {
                         let relnum = get_vim_var_nr(VV_RELNUM) as i32;
-                        num = if wp.w_onebuf_opt.wo_rnu == 0
-                            || (wp.w_onebuf_opt.wo_nu != 0 && relnum == 0)
-                        {
+                        num = if !wp.w_onebuf_opt.wo_rnu || (wp.w_onebuf_opt.wo_nu && relnum == 0) {
                             get_vim_var_nr(VV_LNUM) as i32
                         } else {
                             relnum
                         };
-                        left_align_num = wp.w_onebuf_opt.wo_rnu != 0
-                            && wp.w_onebuf_opt.wo_nu != 0
-                            && relnum == 0;
+                        left_align_num =
+                            wp.w_onebuf_opt.wo_rnu && wp.w_onebuf_opt.wo_nu && relnum == 0;
                         if !left_align_num {
                             stl_items!()[stl_st().curitem as usize].type_ = StlItemType::Separate;
                             stl_items!()[stl_st().curitem as usize].start = out_p;
@@ -2179,7 +2176,7 @@ pub extern "C" fn build_stl_str_hl(
                 str = buf_tmp.as_mut_ptr();
             }
             STL_SHOWCMD => {
-                if opt_vars().p_sc != 0
+                if opt_vars().p_sc
                     && (opt_idx == K_OPT_INVALID
                         || find_option(opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {
@@ -2234,7 +2231,7 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_ROFLAG | STL_ROFLAG_ALT => {
                 itemisflag = true;
-                if (*wp).buf_mut().b_p_ro != 0 {
+                if (*wp).buf_mut().b_p_ro {
                     str = if opt == STL_ROFLAG_ALT {
                         c",RO".as_ptr().cast_mut().cast()
                     } else {
@@ -2278,7 +2275,7 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_PREVIEWFLAG | STL_PREVIEWFLAG_ALT => {
                 itemisflag = true;
-                if wp.w_onebuf_opt.wo_pvw != 0 {
+                if wp.w_onebuf_opt.wo_pvw {
                     str = if opt == STL_PREVIEWFLAG_ALT {
                         c",PRV".as_ptr().cast_mut().cast()
                     } else {
@@ -2299,7 +2296,7 @@ pub extern "C" fn build_stl_str_hl(
                 itemisflag = true;
                 let code = i32::from(opt == STL_MODIFIED_ALT)
                     + i32::from(buf_is_changed_fn((*wp).buf_mut())) * 2
-                    + i32::from((*wp).buf_mut().b_p_ma == 0) * 4;
+                    + i32::from(!(*wp).buf_mut().b_p_ma) * 4;
                 str = match code {
                     2 => c"[+]".as_ptr().cast_mut().cast(),
                     3 => c",+".as_ptr().cast_mut().cast(),

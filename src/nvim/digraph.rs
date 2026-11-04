@@ -1613,7 +1613,7 @@ const HEADER_TABLE: [DgHeaderEntry; 27] = [
 pub fn do_digraph(mut c: i32) -> i32 {
     if c == -1 {
         digr_st().backspaced = -1;
-    } else if opt_vars().p_dg != 0 {
+    } else if opt_vars().p_dg {
         if digr_st().backspaced >= 0 {
             c = digraph_get(digr_st().backspaced, c, false);
         }

@@ -1170,7 +1170,7 @@ pub fn enc_canon_props(bytes: &[u8]) -> i32 {
 
 pub fn bomb_size() -> i32 {
     let mut n = 0;
-    if curbuf_mut().b_p_bomb != 0 && curbuf_mut().b_p_bin == 0 {
+    if curbuf_mut().b_p_bomb && !curbuf_mut().b_p_bin {
         let fenc = curbuf_mut().b_p_fenc.as_bytes();
         if fenc.is_empty() || fenc == b"utf-8" {
             n = 3;
@@ -1247,8 +1247,7 @@ pub fn utf_char2cells(c: i32) -> i32 {
         return 2;
     }
 
-    if opt_vars().p_emoji != 0 && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop)
-    {
+    if opt_vars().p_emoji && c >= 0x1f000 && !prop.ambiguous_width() && prop_is_emojilike(prop) {
         return 2;
     }
 
@@ -2446,7 +2445,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
     let mut cluster_len = base.chr.len;
 
     let mut check_emoji = cells == 1
-        && opt_vars().p_emoji != 0
+        && opt_vars().p_emoji
         && prop_is_emojilike(utf8proc_get_property(base.chr.value));
 
     loop {

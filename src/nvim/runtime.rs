@@ -1416,7 +1416,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
                     break 'block;
                 };
                 if path_cmp(
-                    opt_vars().p_fic != 0,
+                    opt_vars().p_fic,
                     &rtp_ffname,
                     crate::memory::cstr_from_ptr((ffname).cast()),
                     fname_len,
@@ -1715,7 +1715,7 @@ pub fn ex_packloadall(eap: &mut Exarg) {
 
 /// Read all the plugin files at startup.
 pub fn load_plugins() {
-    if opt_vars().p_lpl != 0 {
+    if opt_vars().p_lpl {
         let mut rtp_copy_owned: Option<std::ffi::CString> = None;
         let plugin_pattern = c"plugin/**/*";
 
@@ -3168,7 +3168,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     let l = rettv.vval.v_list_opt().unwrap();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.rm_ic = opt_vars().p_ic != 0;
+    regmatch.rm_ic = opt_vars().p_ic;
     let mut filterpat = false;
     let mut sid: Varnumber = -1;
 

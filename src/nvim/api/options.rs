@@ -300,8 +300,8 @@ fn do_ft_buf(
     assert!(unsafe { (*ftbuf).b_ml.ml_mfp.as_ref().unwrap().mf_fd } < 0);
 
     unsafe {
-        (*ftbuf).b_p_swf = 0;
-        (*ftbuf).b_p_ml = 0;
+        (*ftbuf).b_p_swf = false;
+        (*ftbuf).b_p_ml = false;
         (*ftbuf).b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(
             crate::memory::cstr_from_ptr(filetype.as_ptr()),
         );

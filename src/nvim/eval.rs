@@ -2579,7 +2579,7 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
             ic = false;
             len += 1;
         } else {
-            ic = opt_vars().p_ic != 0;
+            ic = opt_vars().p_ic;
         }
 
         *arg = unsafe {
@@ -6859,7 +6859,7 @@ pub fn do_string_sub(
 
     let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
-    regmatch.rm_ic = opt_vars().p_ic != 0;
+    regmatch.rm_ic = opt_vars().p_ic;
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         let mut tail = str_;
@@ -7189,9 +7189,7 @@ pub fn eval_has_provider(feat_bytes: &[u8], throw_if_fast: bool) -> bool {
                 c"provider#%s#Call",
                 name.as_ptr(),
             );
-            if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_some()
-                && opt_vars().p_lpl != 0
-            {
+            if find_func(Some(crate::memory::cstr_until_nul(&buf))).is_some() && opt_vars().p_lpl {
                 semsg!(
                     c"provider: %s: missing required variable g:loaded_%s_provider",
                     name.as_ptr(),

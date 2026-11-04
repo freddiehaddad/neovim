@@ -2786,7 +2786,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         if is_qf_window(unsafe { &*win }) {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
                 && win_valid(unsafe { g_st().prevwin.as_ref() })
-                && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
+                && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
             {
                 win = g_st().prevwin;
             } else if !altwin.is_null() {
@@ -2800,8 +2800,8 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         }
 
         if altwin.is_null()
-            && unsafe { (*win).w_onebuf_opt.wo_pvw == 0 }
-            && unsafe { (*win).w_onebuf_opt.wo_wfb == 0 }
+            && !unsafe { (*win).w_onebuf_opt.wo_pvw }
+            && !unsafe { (*win).w_onebuf_opt.wo_wfb }
             && bt_normal(unsafe { (*win).w_buffer.as_ref() })
         {
             altwin = win;
@@ -2890,23 +2890,23 @@ fn qf_jump_edit_buffer(
             FAIL
         };
     } else {
-        if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb != 0 && curbuf_mut().b_fnum != fnum {
+        if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb && curbuf_mut().b_fnum != fnum {
             if unsafe { (*qi).qfl_type } == QFLT_LOCATION {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                 return FAIL;
             }
 
             if win_valid(unsafe { g_st().prevwin.as_ref() })
-                && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
+                && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
                 && !bt_quickfix(crate::globals::prevwin_mut().buf_opt())
             {
                 win_goto(crate::globals::prevwin_mut());
             }
-            if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
+            if curwin_mut().w_onebuf_opt.wo_wfb {
                 if win_split(0, 0) {
                     *opened_window = true;
                 }
-                if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
+                if curwin_mut().w_onebuf_opt.wo_wfb {
                     emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                     retval = FAIL;
                 }
@@ -2982,7 +2982,7 @@ fn qf_jump_goto_line(qf_lnum: Linenr, qf_col: i32, qf_viscol: u8, qf_pattern: Op
             qf_pattern.to_bytes().len(),
             1,
             SEARCH_KEEP,
-            opt_vars().p_magic != 0,
+            opt_vars().p_magic,
             None,
         ) == 0
         {
@@ -3752,7 +3752,7 @@ fn qf_set_cwindow_options() {
     set_option_value_give_err(K_OPT_BUFTYPE, cstr_as_obj(Some(c"quickfix")), OPT_LOCAL);
     set_option_value_give_err(K_OPT_BUFHIDDEN, cstr_as_obj(Some(c"hide")), OPT_LOCAL);
     reset_binding(curwin_mut());
-    curwin_mut().w_onebuf_opt.wo_diff = 0;
+    curwin_mut().w_onebuf_opt.wo_diff = false;
     set_option_value_give_err(K_OPT_FOLDMETHOD, cstr_as_obj(Some(c"manual")), OPT_LOCAL);
 }
 
@@ -3824,7 +3824,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     if g_st().curtab == prevtab && curwin_mut().w_width == g_st().columns_global {
         win_setheight(height);
     }
-    curwin_mut().w_onebuf_opt.wo_wfh = 1;
+    curwin_mut().w_onebuf_opt.wo_wfh = true;
     if win_valid(unsafe { win.as_ref() }) {
         g_st().prevwin = win;
     }
@@ -4313,7 +4313,7 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
     if old_count == 0 {
         curbuf_mut().b_ro_locked += 1;
         set_option_value_give_err(K_OPT_FILETYPE, cstr_as_obj(Some(c"qf")), OPT_LOCAL);
-        curbuf_mut().b_p_ma = 0;
+        curbuf_mut().b_p_ma = false;
 
         curbuf_mut().b_keep_filetype = true;
         apply_autocmds(
@@ -5118,7 +5118,7 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
         regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
     }
 
-    regmatch.rmm_ic = opt_vars().p_ic;
+    regmatch.rmm_ic = i32::from(opt_vars().p_ic);
     regmatch.rmm_maxcol = 0;
 }
 

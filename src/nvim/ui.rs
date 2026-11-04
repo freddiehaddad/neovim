@@ -184,7 +184,7 @@ pub fn ui_free_all_mem() {
 }
 
 pub fn ui_rgb_attached() -> bool {
-    if opt_vars().p_tgc != 0 {
+    if opt_vars().p_tgc {
         return true;
     }
     for ui in ui_iter_mut() {
@@ -284,7 +284,7 @@ pub fn ui_refresh() {
     ui_default_colors_set();
 
     let save_p_lz = opt_vars().p_lz;
-    opt_vars().p_lz = 0;
+    opt_vars().p_lz = false;
     screen_resize(width, height);
     opt_vars().p_lz = save_p_lz;
 
@@ -383,7 +383,7 @@ pub fn vim_beep(val: u32) {
         }
         ui_state().beep_count += 1;
         if ui_state().beep_count <= 3 {
-            if opt_vars().p_vb != 0 {
+            if opt_vars().p_vb {
                 ui_call_visual_bell();
             } else {
                 ui_call_bell();
@@ -713,7 +713,7 @@ fn ui_cursor_is_behind_floatwin() -> bool {
     let crow = curwin_mut().w_winrow + curwin_mut().w_winrow_off + curwin_mut().w_wrow;
     let ccol = curwin_mut().w_wincol
         + curwin_mut().w_wincol_off
-        + if curwin_mut().w_onebuf_opt.wo_rl != 0 {
+        + if curwin_mut().w_onebuf_opt.wo_rl {
             curwin_mut().w_view_width - curwin_mut().w_wcol - 1
         } else {
             curwin_mut().w_wcol
