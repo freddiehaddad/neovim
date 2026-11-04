@@ -10617,7 +10617,12 @@ fn ex_connect(eap: &mut Exarg) {
             TypVal::new(),
         ];
 
-        nlua_call_typval(c"vim.net._ssh", c"start", &mut argvars, Some(&mut ssh_rettv));
+        nlua_call_typval(
+            c"vim.net._ssh",
+            c"start",
+            &mut argvars,
+            Some(&mut ssh_rettv),
+        );
 
         if ssh_rettv.v_type == VarType::VarSpecial {
             return;

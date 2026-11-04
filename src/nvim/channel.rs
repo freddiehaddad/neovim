@@ -593,6 +593,7 @@ pub fn channel_connect(
     tcp: bool,
     address: &CStr,
     rpc: bool,
+    trust: bool,
     on_output: CallbackReader,
     timeout: i32,
     error: &mut Option<&'static CStr>,
@@ -601,6 +602,7 @@ pub fn channel_connect(
         let channel = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
         channel.internal.cb = LUA_NOREF;
         rpc_start(&mut *channel);
+        channel.rpc.trust = trust;
         channel_create_event(&mut *channel);
         return channel.id;
     }
@@ -633,6 +635,7 @@ pub fn channel_connect(
         rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
     }
 
+    channel.rpc.trust = trust;
     channel_create_event(&mut *channel);
     channel.id
 }
@@ -1260,6 +1263,15 @@ pub fn channel_info(id: u64, arena: &mut Arena) -> Dict {
             Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
                 data: ObjectData::Boolean(chan.detach),
+            },
+        );
+
+        put_c(
+            &mut info,
+            c"trust",
+            Object {
+                obj_type: ObjectType::ObjectTypeBoolean,
+                data: ObjectData::Boolean(chan.rpc.trust),
             },
         );
 

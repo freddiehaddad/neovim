@@ -7912,11 +7912,13 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         };
 
         let mut rpc = false;
+        let mut trust = true;
         let mut on_data = CallbackReader::none();
         if argvars[2].v_type == VarType::VarDict {
             let opts = argvars[2].vval.v_dict();
             let mut opts_opt = argvars[2].vval.v_dict_opt();
             rpc = tv_dict_get_number(opts_opt.as_deref(), c"rpc") != 0;
+            trust = tv_dict_get_bool(opts_opt.as_deref(), c"trust", 1) != 0;
 
             if !tv_dict_get_callback(opts_opt.as_deref_mut(), c"on_data", 7, &mut on_data.cb) {
                 break 'cleanup;
@@ -7928,7 +7930,7 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         }
 
         let mut error = None;
-        let id = channel_connect(tcp, &address, rpc, on_data, 50, &mut error);
+        let id = channel_connect(tcp, &address, rpc, trust, on_data, 50, &mut error);
         if let Some(err) = error {
             semsg!(gettext(c"connection failed: %s"), err.as_ptr());
         }

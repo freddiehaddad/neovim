@@ -670,12 +670,19 @@ pub fn key_dict_buf_delete_get_field(key: &[u8]) -> Option<&'static KeySetLink> 
     (hash >= 0).then(|| &BUF_DELETE_TABLE[hash as usize])
 }
 
-pub static CHAN_SET_TABLE: [KeySetLink; 2] = [
+pub static CHAN_SET_TABLE: [KeySetLink; 3] = [
     KeySetLink {
         str: Some(c"detach"),
         ptr_off: offset_of!(KeyDict_chan_set, detach),
         key_type: ObjectType::ObjectTypeBoolean as i32,
         opt_index: 1,
+        is_hlgroup: false,
+    },
+    KeySetLink {
+        str: Some(c"trust"),
+        ptr_off: offset_of!(KeyDict_chan_set, trust),
+        key_type: ObjectType::ObjectTypeBoolean as i32,
+        opt_index: 2,
         is_hlgroup: false,
     },
     KeySetLink {
@@ -690,6 +697,7 @@ pub static CHAN_SET_TABLE: [KeySetLink; 2] = [
 pub fn chan_set_hash(key: &[u8]) -> i32 {
     match key {
         b"detach" => 0,
+        b"trust" => 1,
         _ => -1,
     }
 }

@@ -1092,7 +1092,15 @@ fn server_connect(server_addr: Option<&CStr>, errmsg: &mut Option<&'static CStr>
     let on_data = CallbackReader::none();
     let mut error = None;
     let is_tcp = socket_address_tcp_host_end(server_addr_cstr.to_bytes()).is_some();
-    let chan = channel_connect(is_tcp, server_addr_cstr, true, on_data, 500, &mut error);
+    let chan = channel_connect(
+        is_tcp,
+        server_addr_cstr,
+        true,
+        false,
+        on_data,
+        500,
+        &mut error,
+    );
     if let Some(err) = error {
         *errmsg = Some(err);
         return 0;

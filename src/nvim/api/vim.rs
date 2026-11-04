@@ -158,6 +158,7 @@ const KEYSET_OPTIDX_OPEN_TERM_ON_INPUT: u32 = 1;
 const KEYSET_OPTIDX_OPEN_TERM_FORCE_CRLF: u32 = 2;
 const KEYSET_OPTIDX_CONTEXT_TYPES: u32 = 1;
 const KEYSET_OPTIDX_CHAN_SET_DETACH: u32 = 1;
+const KEYSET_OPTIDX_CHAN_SET_TRUST: u32 = 2;
 const KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR: u32 = 2;
 const KEYSET_OPTIDX_EVAL_STATUSLINE_MAXWIDTH: u32 = 3;
 const KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM: u32 = 7;
@@ -218,6 +219,7 @@ pub struct KeyDict_context {
 pub struct KeyDict_chan_set {
     pub is_set_chan_set: OptionalKeys,
     pub detach: Boolean,
+    pub trust: Boolean,
 }
 
 #[repr(C)]
@@ -2212,6 +2214,8 @@ pub fn nvim_set_client_info(
 /// @param config Properties:
 ///     - detach: (boolean, default: true) Closing the channel does not self-exit Nvim. Nvim
 ///       self-exits when the last `detach=false` |RPC| channel closes. See also |:detach!|.
+///     - trust: (boolean, default: true) Trust the peer: allow its incoming |RPC| |API| calls. Set
+///       to false for untrusted (remote) peers.
 /// @param[out] err Error details, if any
 // DLLEXPORT void nvim_chan_set(uint64_t channel_id, Integer chan, Dict(chan_set) *config,
 //                              Error *err) FUNC_API_SINCE(15) FUNC_API_FAST;
@@ -2231,7 +2235,14 @@ pub fn nvim_chan_set(
     let channel = channel.unwrap();
     if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH)) != 0 {
         channel.detach = config.detach;
-
+    }
+    if (config.is_set_chan_set & (1u64 << KEYSET_OPTIDX_CHAN_SET_TRUST)) != 0 {
+        channel.rpc.trust = config.trust;
+    }
+    if (config.is_set_chan_set
+        & ((1u64 << KEYSET_OPTIDX_CHAN_SET_DETACH) | (1u64 << KEYSET_OPTIDX_CHAN_SET_TRUST)))
+        != 0
+    {
         channel_event(channel, EVENT_CHANINFO);
     }
 }
@@ -2282,6 +2293,7 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
 ///         - "stderr"     stderr of this Nvim instance
 ///         - "socket"     TCP/IP socket or named pipe
 ///         - "job"        Job with communication over its stdio.
+///    - "trust"    (optional) Trust the peer: allow its incoming |RPC| |API| calls. |nvim_chan_set()|
 // DLLEXPORT Dict nvim_get_chan_info(uint64_t channel_id, Integer chan, Arena *arena,
 //                                   Error *err) FUNC_API_SINCE(4);
 pub fn nvim_get_chan_info(

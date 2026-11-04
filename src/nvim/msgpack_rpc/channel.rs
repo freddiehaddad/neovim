@@ -115,6 +115,7 @@ impl Drop for RequestEvent {
 #[repr(C)]
 pub struct RpcState {
     pub closed: bool,
+    pub trust: bool,
     pub unpacker: Option<Box<Unpacker>>,
     pub has_ui: bool,
     pub next_request_id: u32,
@@ -127,6 +128,7 @@ impl RpcState {
     pub const fn new() -> Self {
         Self {
             closed: false,
+            trust: true,
             unpacker: None,
             has_ui: false,
             next_request_id: 0,
@@ -522,18 +524,17 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
             || p.msg_type == MessageType::MessageTypeNotification
     );
 
-    // SECURITY: only allow UI events, disallow server-to-client API calls. Else a malicious
-    // (remote) server could run arbitrary code in the local UI process.
-    if p.handler
-        .r#fn
-        .is_some_and(|f| f as *const () != handle_nvim_error_event as *const ())
-        && g_st().ui_client_channel_id != 0
-        && channel.id == g_st().ui_client_channel_id
+    // SECURITY: reject API calls from an untrusted peer. Else a malicious (remote) server could run
+    // arbitrary code in the local process.
+    if !channel.rpc.trust
+        && p.handler
+            .r#fn
+            .is_some_and(|f| f as *const () != handle_nvim_error_event as *const ())
     {
         api_set_error!(
             &mut p.unpack_error,
             ErrorType::ErrorTypeException,
-            c"UI client does not accept API calls: %s",
+            c"Rejected API call from untrusted peer: %s",
             p.handler.name,
         );
         p.handler.r#fn = None;
@@ -1017,6 +1018,7 @@ mod tests {
     fn find_call_frame_searches_stack_from_top() {
         let mut rpc = RpcState {
             closed: false,
+            trust: true,
             unpacker: None,
             has_ui: false,
             next_request_id: 1,
