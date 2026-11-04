@@ -200,7 +200,7 @@ impl Drop for Channel {
 }
 
 use crate::api::private::dispatch::{
-    handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
+    handle_nvim_error_event, handle_nvim_get_mode, handle_nvim_paste, handle_nvim_ui_try_resize,
 };
 use crate::api::ui::K_UIEXT_COUNT;
 use crate::api::vim::K_CHANNEL_STREAM_INTERNAL;
@@ -521,6 +521,23 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
         p.msg_type == MessageType::MessageTypeRequest
             || p.msg_type == MessageType::MessageTypeNotification
     );
+
+    // SECURITY: only allow UI events, disallow server-to-client API calls. Else a malicious
+    // (remote) server could run arbitrary code in the local UI process.
+    if p.handler
+        .r#fn
+        .is_some_and(|f| f as *const () != handle_nvim_error_event as *const ())
+        && g_st().ui_client_channel_id != 0
+        && channel.id == g_st().ui_client_channel_id
+    {
+        api_set_error!(
+            &mut p.unpack_error,
+            ErrorType::ErrorTypeException,
+            c"UI client does not accept API calls: %s",
+            p.handler.name,
+        );
+        p.handler.r#fn = None;
+    }
 
     if p.handler.r#fn.is_none() {
         let handler = p.handler;
