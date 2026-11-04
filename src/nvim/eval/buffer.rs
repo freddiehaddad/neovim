@@ -208,7 +208,13 @@ fn set_buffer_lines(
 
         if !append && lnum <= curbuf_mut().b_ml.ml_line_count {
             let old_len = crate::memline::ml_get_len(lnum);
-            if u_savesub(lnum) && ml_replace(lnum, line_cstr.as_ptr().cast_mut(), true) {
+            if u_savesub(lnum)
+                && ml_replace(
+                    lnum,
+                    crate::memory::cstr_as_bytes((line_cstr.as_ptr().cast_mut()).cast()),
+                    true,
+                )
+            {
                 let new_len = line_cstr.to_bytes().len() as i32;
                 inserted_bytes(lnum, 0, old_len, new_len);
                 if is_curbuf && lnum == curwin_mut().w_cursor.lnum {
@@ -218,7 +224,12 @@ fn set_buffer_lines(
             }
         } else if added > 0 || u_save(lnum - 1, lnum) {
             added += 1;
-            if ml_append(lnum - 1, line_cstr.as_ptr().cast_mut(), 0, false) {
+            if ml_append(
+                lnum - 1,
+                crate::memory::cstr_as_bytes((line_cstr.as_ptr().cast_mut()).cast()),
+                0,
+                false,
+            ) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(0); // OK
             }
         }
@@ -337,7 +348,7 @@ pub fn prompt_invoke_callback() {
         return;
     };
 
-    ml_append(lnum, c"", 0, false);
+    ml_append(lnum, (c"").to_bytes(), 0, false);
     appended_lines_mark(lnum, 1);
     curwin_mut().w_cursor.lnum = lnum + 1;
     curwin_mut().w_cursor.col = 0;
@@ -429,7 +440,10 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
     if !unsafe { (*buf).b_prompt_append_new_line } {
         let text = if lnum > 0 {
-            ml_get_buf(unsafe { &mut *buf }, lnum).cast_const()
+            ml_get_buf(unsafe { &mut *buf }, lnum)
+                .as_ptr()
+                .cast_mut()
+                .cast_const()
         } else {
             c"".as_ptr()
         };
@@ -1046,7 +1060,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             ml_replace_buf(
                 &mut *buf,
                 prompt_lno,
-                new_prompt.as_ptr().cast_mut(),
+                crate::memory::cstr_as_bytes((new_prompt.as_ptr().cast_mut()).cast()),
                 true,
                 false,
             );
@@ -1068,7 +1082,7 @@ pub fn f_prompt_setprompt(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Ev
             let _ = ml_replace_buf(
                 &mut *buf,
                 prompt_lno,
-                new_line.as_ptr().cast_mut(),
+                crate::memory::cstr_as_bytes((new_line.as_ptr().cast_mut()).cast()),
                 true,
                 false,
             );

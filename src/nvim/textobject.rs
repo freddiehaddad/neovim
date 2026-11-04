@@ -247,7 +247,7 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
     }
     curwin_mut().w_cursor.lnum = curr;
     if curr == curbuf_mut().b_ml.ml_line_count && what != b'}' as i32 && dir == FORWARD {
-        let line = ml_get(curr);
+        let line = ml_get(curr).as_ptr().cast_mut();
 
         // Put the cursor on the last character in the last line and make the
         // motion inclusive.
@@ -709,7 +709,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
         return true;
     }
 
-    let line = ml_get(curwin_mut().w_cursor.lnum);
+    let line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
     let start = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
         line.cast(),
     )));

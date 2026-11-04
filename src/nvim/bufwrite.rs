@@ -853,8 +853,10 @@ pub fn buf_get_backup_name(
     if dir_len > 1
         && after_pathsep(crate::memory::ptr_span_bytes((iobuf).cast(), (p).cast())) != 0
         && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
-        && let Some(swname) =
-            make_percent_swname(&g_st().iobuff_bytes_mut()[..dir_len - 1], fname_ptr)
+        && let Some(swname) = make_percent_swname(
+            &g_st().iobuff_bytes_mut()[..dir_len - 1],
+            crate::memory::cstr_as_opt_cstr((fname_ptr).cast()),
+        )
     {
         backup = modname(
             Some(&swname),
@@ -863,7 +865,10 @@ pub fn buf_get_backup_name(
         );
     }
     if backup.is_none()
-        && let Some(rootname) = get_file_in_dir(fname_ptr, iobuf)
+        && let Some(rootname) = get_file_in_dir(
+            crate::memory::cstr_as_opt_cstr((fname_ptr).cast()),
+            crate::memory::cstr_from_ptr((iobuf).cast()),
+        )
     {
         backup = modname(
             Some(&rootname),
@@ -1629,7 +1634,10 @@ pub fn buf_write(
                     let mut s_idx = 0usize;
                     lnum = start;
                     while lnum <= end {
-                        let mut ptr = ml_get_buf(&mut *buf, lnum).wrapping_sub(1);
+                        let mut ptr = ml_get_buf(&mut *buf, lnum)
+                            .as_ptr()
+                            .cast_mut()
+                            .wrapping_sub(1);
                         if write_undo_file {
                             let line_ptr = ptr.wrapping_add(1);
                             sha_ctx.update(crate::memory::cstr_slice(

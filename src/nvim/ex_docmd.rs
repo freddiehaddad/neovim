@@ -8410,9 +8410,10 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
 
         let mut srclen: usize = 0;
         let mut escaped: i32 = 0;
+        let arg_off = (p as usize) - (eap.arg as usize);
         let repl_owned = eval_vars(
-            crate::memory::cstr_from_ptr(p),
-            crate::memory::cstr_from_ptr(eap.arg),
+            crate::memory::cstr_buf_as_mut_bytes(eap.arg, 0),
+            arg_off,
             &mut srclen,
             Some(&mut eap.do_ecmd_lnum),
             errormsgp,
@@ -8474,9 +8475,8 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             repl_cstr = vim_strsave_escaped(repl_cstr.as_bytes(), b"!");
         }
 
-        p = repl_cmdline(eap, crate::memory::cstr_from_ptr(p), srclen, &repl_cstr)
-            .as_ptr()
-            .cast_mut();
+        let new_arg_off = repl_cmdline(eap, arg_off, srclen, &repl_cstr);
+        p = eap.arg.wrapping_add(new_arg_off);
     }
 
     if (eap.argt & EX_NOSPC) != 0 && eap.usefilter == 0 {
@@ -8506,7 +8506,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             if !p.is_null() {
                 repl_cmdline(
                     eap,
-                    crate::memory::cstr_from_ptr(eap.arg),
+                    0,
                     crate::memory::cstr_len(eap.arg),
                     crate::memory::cstr_from_ptr(p),
                 );
@@ -8545,12 +8545,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             ) else {
                 return false;
             };
-            repl_cmdline(
-                eap,
-                crate::memory::cstr_from_ptr(eap.arg),
-                crate::memory::cstr_len(eap.arg),
-                &expanded,
-            );
+            repl_cmdline(eap, 0, crate::memory::cstr_len(eap.arg), &expanded);
         } else {
             to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
         }
@@ -8558,8 +8553,8 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
     true
 }
 
-fn repl_cmdline(eap: &mut Exarg, src_in: &CStr, srclen: usize, repl: &CStr) -> &'static CStr {
-    let mut src = src_in.as_ptr().cast_mut();
+fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> usize {
+    let src = eap.arg.wrapping_add(arg_off);
     let old_cmdline = unsafe { *eap.cmdlinep };
     let len = repl.to_bytes().len();
     let offset = (src as usize) - (old_cmdline as usize);
@@ -8590,7 +8585,6 @@ fn repl_cmdline(eap: &mut Exarg, src_in: &CStr, srclen: usize, repl: &CStr) -> &
         None
     };
     let new_cmdline: RawCCharPtrMut = new_buf.as_mut_ptr().cast();
-    src = new_cmdline.wrapping_add(i);
     if let Some(nc_off) = nextcmd_off {
         eap.nextcmd = new_cmdline.wrapping_add(nc_off);
     }
@@ -8598,11 +8592,11 @@ fn repl_cmdline(eap: &mut Exarg, src_in: &CStr, srclen: usize, repl: &CStr) -> &
     eap.arg = new_cmdline.wrapping_add((eap.arg as usize).wrapping_sub(old_cmdline as usize));
 
     for arg_j in &mut eap.args {
-        let arg_off = (*arg_j as usize).wrapping_sub(old_cmdline as usize);
-        if offset >= arg_off {
-            *arg_j = new_cmdline.wrapping_add(arg_off);
+        let arg_off_j = (*arg_j as usize).wrapping_sub(old_cmdline as usize);
+        if offset >= arg_off_j {
+            *arg_j = new_cmdline.wrapping_add(arg_off_j);
         } else {
-            *arg_j = new_cmdline.wrapping_add(arg_off.wrapping_add(len).wrapping_sub(srclen));
+            *arg_j = new_cmdline.wrapping_add(arg_off_j.wrapping_add(len).wrapping_sub(srclen));
         }
     }
 
@@ -8617,7 +8611,7 @@ fn repl_cmdline(eap: &mut Exarg, src_in: &CStr, srclen: usize, repl: &CStr) -> &
     }
     eap.set_cmdline_vec(new_buf);
 
-    crate::memory::cstr_from_ptr(src)
+    arg_off + len
 }
 
 pub fn separate_nextcmd(eap: &mut Exarg) {
@@ -12215,16 +12209,14 @@ pub fn find_cmdline_var(src_bytes: &[u8], usedlen: &mut usize) -> isize {
 }
 
 pub fn eval_vars(
-    src_in: &CStr,
-    srcstart_in: &CStr,
+    src_buf: &mut [u8],
+    src_off: usize,
     usedlen: &mut usize,
     lnump: Option<&mut Linenr>,
     errormsg: &mut Option<&'static std::ffi::CStr>,
     mut escaped: Option<&mut i32>,
     empty_is_error: bool,
 ) -> Option<std::ffi::CString> {
-    let src = src_in.as_ptr().cast_mut();
-    let srcstart = srcstart_in.as_ptr();
     let mut result: RawCCharPtrMut = c"".as_ptr().cast_mut();
     let mut resultbuf: Option<Vec<u8>> = None;
     let mut resultlen: usize;
@@ -12240,23 +12232,23 @@ pub fn eval_vars(
         *escaped = i32::from(false);
     }
 
-    let spec_idx = find_cmdline_var(crate::memory::cstr_as_bytes(src), &mut *usedlen);
+    let spec_idx = find_cmdline_var(
+        crate::memory::bytes_until_nul(&src_buf[src_off..]),
+        &mut *usedlen,
+    );
     if spec_idx < 0 {
         *usedlen = 1;
         return None;
     }
 
-    if (src as usize) > (srcstart as usize)
-        && crate::memory::cstr_first_byte(src.wrapping_sub(1)) == b'\\'
-    {
+    if src_off > 0 && src_buf[src_off - 1] == b'\\' {
         *usedlen = 0;
-        let tail_len = crate::memory::cstr_len(src);
-        let buf = unsafe {
-            std::slice::from_raw_parts_mut(src.wrapping_sub(1).cast::<u8>(), tail_len + 2)
-        };
-        buf.copy_within(1..=tail_len + 1, 0);
+        let tail_len = crate::memory::bytes_until_nul(&src_buf[src_off..]).len();
+        src_buf.copy_within(src_off..=src_off + tail_len, src_off - 1);
         return None;
     }
+
+    let src: RawCCharPtrMut = src_buf[src_off..].as_mut_ptr().cast();
 
     if spec_idx == SPEC_CWORD || spec_idx == SPEC_CCWORD || spec_idx == SPEC_CEXPR {
         let find_type = if spec_idx == SPEC_CWORD {
@@ -12521,15 +12513,14 @@ pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {
     let mut idx: usize = 0;
 
     while result_vec[idx] != 0 {
-        let p: RawCCharPtrMut = result_vec.as_mut_ptr().wrapping_add(idx).cast();
         if !result_vec[idx..].starts_with(b"<sfile>") {
             idx += 1;
         } else {
             let mut srclen: usize = 0;
             let mut errormsg: Option<&'static std::ffi::CStr> = None;
             let repl = eval_vars(
-                crate::memory::cstr_from_ptr(p),
-                crate::memory::cstr_from_ptr(result_vec.as_ptr().cast()),
+                &mut result_vec,
+                idx,
                 &mut srclen,
                 None,
                 &mut errormsg,

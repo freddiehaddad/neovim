@@ -1219,7 +1219,7 @@ pub fn spell_move_to(
     let mut decor_lnum: Linenr = -1;
     'theend: {
         while !g_st().got_int {
-            let mut line = ml_get_buf(wp.buf_mut(), lnum);
+            let mut line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             let mut len = ml_get_buf_len(wp.buf_mut(), lnum) as usize;
             if buflen < len + MAXWLEN + 2 {
                 buflen = len + MAXWLEN + 2;
@@ -1235,7 +1235,7 @@ pub fn spell_move_to(
                 if check_need_cap(curwin_mut(), lnum, col) {
                     capcol = col;
                 }
-                line = ml_get_buf(wp.buf_mut(), lnum);
+                line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             }
             let empty_line = crate::memory::cstr_is_empty(line.wrapping_add(
                 crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(line.cast())),
@@ -2297,7 +2297,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     }
     let mut need_cap = false;
     let mut line: *mut u8 = if col != 0 {
-        ml_get_buf(wp.buf_mut(), lnum).cast()
+        ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut().cast()
     } else {
         ptr::null_mut()
     };
@@ -2307,7 +2307,10 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         if lnum == 1 {
             need_cap = true;
         } else {
-            line = ml_get_buf(wp.buf_mut(), lnum - 1).cast();
+            line = ml_get_buf(wp.buf_mut(), lnum - 1)
+                .as_ptr()
+                .cast_mut()
+                .cast();
             if crate::memory::cstr_is_empty({
                 let _sw_p = line.cast::<std::ffi::c_char>();
                 _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
@@ -2407,7 +2410,11 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
             p_vec.extend_from_slice(repl_to_slice);
             p_vec.extend_from_slice(&line_slice[col + repl_from_len..]);
             p_vec.push(0);
-            let _ = ml_replace(curwin_mut().w_cursor.lnum, p_vec.as_mut_ptr().cast(), true);
+            let _ = ml_replace(
+                curwin_mut().w_cursor.lnum,
+                crate::memory::cstr_as_bytes(p_vec.as_mut_ptr().cast()),
+                true,
+            );
             inserted_bytes(
                 curwin_mut().w_cursor.lnum,
                 curwin_mut().w_cursor.col,
@@ -2894,7 +2901,12 @@ pub fn spell_dump_compl(
             c"/regions=%s",
             region_names.cast::<std::ffi::c_void>(),
         );
-        let _ = ml_append(lnum, g_st().iobuff.as_mut_ptr(), 0, false);
+        let _ = ml_append(
+            lnum,
+            crate::memory::cstr_as_bytes((g_st().iobuff.as_mut_ptr()).cast()),
+            0,
+            false,
+        );
         lnum += 1;
     } else {
         do_region = false;
@@ -2911,7 +2923,12 @@ pub fn spell_dump_compl(
                 c"# file: %s",
                 slang.sl_fname.as_deref().unwrap_or(c""),
             );
-            let _ = ml_append(lnum, g_st().iobuff.as_mut_ptr(), 0, false);
+            let _ = ml_append(
+                lnum,
+                crate::memory::cstr_as_bytes((g_st().iobuff.as_mut_ptr()).cast()),
+                0,
+                false,
+            );
             lnum += 1;
         }
         let patlen: isize = if let Some(pat_cstr) = pat
@@ -3112,7 +3129,7 @@ fn dump_word(
                 p = g_st().iobuff.as_mut_ptr().cast();
             }
         }
-        let _ = ml_append(lnum, p.cast(), 0, false);
+        let _ = ml_append(lnum, crate::memory::cstr_as_bytes(p.cast()), 0, false);
     }
 }
 fn dump_prefixes(

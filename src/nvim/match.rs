@@ -634,7 +634,7 @@ pub fn prepare_search_hl_line(
             if is_search_hl { None } else { cur.as_mut() }
         });
 
-        let line = ml_get_buf(wp.buf_mut(), lnum);
+        let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
 
         if shl.lnum != 0 && shl.lnum <= lnum {
             shl.startcol = if shl.lnum == lnum {
@@ -686,7 +686,7 @@ pub fn update_search_hl(
     on_last_col: &mut bool,
     search_attr_from_match: &mut bool,
 ) -> i32 {
-    let mut line = ml_get_buf(wp.buf_mut(), lnum);
+    let mut line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
     let mut idx = 0usize;
     let len = wp.w_match_head.len();
     let mut shl: *mut SynMatch;
@@ -746,7 +746,7 @@ pub fn update_search_hl(
 
                 pos_inprogress = !cur.is_null() && unsafe { (*cur).mit_pos_cur } != 0;
 
-                line = ml_get_buf(wp.buf_mut(), lnum);
+                line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
 
                 if shl.lnum == lnum {
                     shl.startcol = shl.rm.startpos[0].col;

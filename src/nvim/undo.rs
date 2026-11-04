@@ -588,7 +588,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
     let mut fname_buf = [0u8; MAXPATHL];
     #[cfg(unix)]
     {
-        if resolve_symlink(ffname, fname_buf.as_mut_ptr().cast()) {
+        if resolve_symlink(Some(ffname_cstr), &mut fname_buf) {
             ffname = fname_buf.as_ptr().cast();
         }
     }
@@ -2073,9 +2073,9 @@ fn u_undoredo(undo: bool, do_buf_event: bool) {
                 let lnum = top + i as Linenr;
                 let line_ptr = line.as_ptr().cast_mut();
                 if empty_buffer && lnum == 0 {
-                    ml_replace(1, line_ptr, true);
+                    ml_replace(1, crate::memory::cstr_as_bytes((line_ptr).cast()), true);
                 } else {
-                    ml_append_flags(lnum, line_ptr, 0, 0);
+                    ml_append_flags(lnum, crate::memory::cstr_as_bytes((line_ptr).cast()), 0, 0);
                 }
             }
         }
@@ -2796,7 +2796,7 @@ pub fn u_undoline() {
     let new_line_len = new_line.as_bytes().len() as Colnr;
     ml_replace(
         curbuf_mut().b_u_line_lnum,
-        new_line.as_ptr().cast_mut(),
+        crate::memory::cstr_as_bytes((new_line.as_ptr().cast_mut()).cast()),
         true,
     );
     extmark_splice_cols(

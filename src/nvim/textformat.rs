@@ -550,7 +550,7 @@ fn fmt_check_par(
     leader_flags: &mut Option<&'static CStr>,
     do_comments: bool,
 ) -> bool {
-    let ptr = ml_get(lnum);
+    let ptr = ml_get(lnum).as_ptr().cast_mut();
     if do_comments {
         *leader_flags = None;
         *leader_len = get_leader_len(
@@ -777,7 +777,11 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
             pline.extend_from_slice(get_cursor_line_slice());
             pline.push(b' ');
             pline.push(0);
-            ml_replace(curwin_mut().w_cursor.lnum, pline.as_mut_ptr().cast(), true);
+            ml_replace(
+                curwin_mut().w_cursor.lnum,
+                crate::memory::cstr_as_bytes(pline.as_mut_ptr().cast()),
+                true,
+            );
             tf_st().did_add_space = true;
         } else {
             check_auto_format(false);

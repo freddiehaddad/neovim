@@ -1074,7 +1074,7 @@ unsafe extern "C" fn input_cb(
         return c"".as_ptr().cast();
     }
     let lnum = (position.row as Linenr) + 1;
-    let line = ml_get_buf(&mut *bp, lnum);
+    let line = ml_get_buf(&mut *bp, lnum).as_ptr().cast_mut();
     let len = ml_get_buf_len(&mut *bp, lnum) as usize;
     let col = position.column as usize;
     if col > len {

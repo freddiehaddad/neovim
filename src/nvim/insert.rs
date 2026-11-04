@@ -1566,11 +1566,15 @@ fn init_prompt(cmdchar_todo: i32) {
             || &text_bytes[(mark_col - prompt_len) as usize..mark_col as usize] != prompt_bytes)
     {
         if text_bytes.is_empty() {
-            ml_replace(curbuf_mut().b_prompt_start.mark.lnum, prompt.as_ptr(), true);
+            ml_replace(
+                curbuf_mut().b_prompt_start.mark.lnum,
+                prompt.to_bytes(),
+                true,
+            );
             inserted_bytes(curbuf_mut().b_prompt_start.mark.lnum, 0, 0, prompt_len);
         } else {
             let lnum = curbuf_mut().b_ml.ml_line_count;
-            ml_append(lnum, prompt.as_ptr(), 0, false);
+            ml_append(lnum, prompt.to_bytes(), 0, false);
             appended_lines_mark(lnum, 1);
             curbuf_mut().b_prompt_start.mark.lnum = curbuf_mut().b_ml.ml_line_count;
             curbuf_mut().b_prompt_append_new_line = true;
@@ -3878,7 +3882,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
 
     validate_virtcol(curwin_mut());
     let end_vcol = curwin_mut().w_virtcol;
-    let line = ml_get(lnum);
+    let line = ml_get(lnum).as_ptr().cast_mut();
 
     let mut csarg = CharsizeArg::new();
     let cstype = init_charsize_arg(

@@ -178,7 +178,7 @@ pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
     win_linetabsize(
         wp,
         lnum,
-        crate::memory::cstr_from_ptr(ml_get_buf(wp.buf_mut(), lnum)),
+        crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), lnum)).as_ptr()),
         MAXCOL,
     )
 }
@@ -266,7 +266,7 @@ pub fn init_charsize_arg_extconceal(
         let len = ml_get_buf_len(wp.buf_mut(), lnum);
         conceal_spans_collect(wp, lnum - 1, len, spans);
     }
-    let line = crate::memory::cstr_from_ptr(ml_get_buf(wp.buf_mut(), lnum));
+    let line = crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), lnum)).as_ptr());
     let cstype = init_charsize_arg(csarg, wp, lnum, line);
     if spans.is_empty() {
         return cstype;
@@ -1085,7 +1085,7 @@ pub fn getvcol(
     let cstype = if (flags & GETVCOL_DISP) != 0 {
         init_charsize_arg_extconceal(&mut csarg, &mut *wp, pos.lnum, &mut spans)
     } else {
-        let line_ptr = crate::memory::cstr_from_ptr(ml_get_buf(wp.buf_mut(), pos.lnum));
+        let line_ptr = crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), pos.lnum)).as_ptr());
         init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;

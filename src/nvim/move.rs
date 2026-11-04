@@ -1214,7 +1214,7 @@ pub fn f_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// Convert a virtual (screen) column to a character column (1-based).
 fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
     let offset = vcol2col(wp, lnum, vcol - 1, None);
-    let line = ml_get_buf(wp.buf_mut(), lnum);
+    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
     let mut p = line.wrapping_add(offset as usize);
 
     if crate::memory::cstr_is_empty(p) {

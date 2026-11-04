@@ -647,9 +647,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if g_st().recoverymode && fname.is_none() {
         let mut items_tv = crate::eval::typval::TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
-        recover_names(ptr::null_mut(), false, unsafe {
-            &mut *items_tv.vval.v_list()
-        });
+        recover_names(None, false, unsafe { &mut *items_tv.vval.v_list() });
         let mut lua_args = [items_tv, crate::eval::typval::TypVal::new()];
         nlua_call_typval(c"vim._core.swapfile", c"list_swaps", &mut lua_args, None);
         tv_clear(&mut items_tv);

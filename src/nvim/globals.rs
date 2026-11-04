@@ -1205,6 +1205,7 @@ impl<T: ?Sized> IntoConstPtr<T> for &*mut T {
     }
 }
 
+#[allow(dead_code)]
 pub trait IntoMutPtr<T: ?Sized> {
     fn into_mut_ptr(self) -> *mut T;
 }
@@ -1230,11 +1231,13 @@ pub fn gref<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> &'a T {
     unsafe { &*ptr }
 }
 
+#[allow(dead_code)]
 #[inline]
 pub fn gopt<'a, T: ?Sized, P: IntoConstPtr<T>>(p: P) -> Option<&'a T> {
     unsafe { p.into_const_ptr().as_ref() }
 }
 
+#[allow(dead_code)]
 #[inline]
 pub fn gopt_mut<'a, T: ?Sized, P: IntoMutPtr<T>>(p: P) -> Option<&'a mut T> {
     unsafe { p.into_mut_ptr().as_mut() }

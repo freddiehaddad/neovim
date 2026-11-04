@@ -201,7 +201,7 @@ fn coladvance2(
             }
         }
 
-        let line = ml_get_buf(wp.buf_mut(), pos.lnum);
+        let line = ml_get_buf(wp.buf_mut(), pos.lnum).as_ptr().cast_mut();
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
         let cstype: CSType = init_charsize_arg(
@@ -245,7 +245,11 @@ fn coladvance2(
                 newline[..idx_usize].copy_from_slice(crate::memory::cstr_slice(line, idx_usize));
                 newline[idx_usize..idx_usize + correct_usize].fill(b' ');
 
-                ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
+                ml_replace(
+                    pos.lnum,
+                    crate::memory::cstr_as_bytes(newline.as_mut_ptr().cast()),
+                    true,
+                );
                 inserted_bytes(pos.lnum, idx, 0, correct);
                 idx += correct;
                 col = wcol;
@@ -271,7 +275,11 @@ fn coladvance2(
                 newline[idx_usize + csize_usize..idx_usize + csize_usize + rest_n]
                     .copy_from_slice(&line_slice[idx_usize + 1..idx_usize + 1 + rest_n]);
 
-                ml_replace(pos.lnum, newline.as_mut_ptr().cast(), true);
+                ml_replace(
+                    pos.lnum,
+                    crate::memory::cstr_as_bytes(newline.as_mut_ptr().cast()),
+                    true,
+                );
                 inserted_bytes(pos.lnum, idx, 1, csize);
                 idx += csize - 1 + correct;
                 col += correct;
@@ -523,14 +531,17 @@ pub fn pchar_cursor(c: u8) {
 /// Return the cursor line as a CStr (`get_cursor_line_ptr`).
 pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
     let lnum = curwin_mut().w_cursor.lnum;
-    crate::memory::cstr_from_ptr(ml_get_buf(crate::globals::curbuf_mut(), lnum))
+    crate::memory::cstr_from_ptr((ml_get_buf(crate::globals::curbuf_mut(), lnum)).as_ptr())
 }
 
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
 pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
     let cursor = curwin_mut().w_cursor;
     crate::memory::cstr_from_ptr(
-        ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum).wrapping_add(cursor.col as usize),
+        ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum)
+            .as_ptr()
+            .cast_mut()
+            .wrapping_add(cursor.col as usize),
     )
 }
 

@@ -171,7 +171,7 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
             return luaL_error(lstate, c"invalid row".as_ptr());
         }
 
-        let line = ml_get_buf(&mut *buf, rownr + 1);
+        let line = ml_get_buf(&mut *buf, rownr + 1).as_ptr().cast_mut();
         let len = ml_get_buf_len(&mut *buf, rownr + 1);
 
         if start < 0 || start > len {

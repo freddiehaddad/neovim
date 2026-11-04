@@ -928,10 +928,9 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
             if !errmsg {
                 return None;
             }
-            Some(ptr_to_vec(ml_get_buf(
-                curwin_mut().buf_mut(),
-                curwin_mut().w_cursor.lnum,
-            )))
+            Some(ptr_to_vec(
+                (ml_get_buf(curwin_mut().buf_mut(), curwin_mut().w_cursor.lnum)).as_ptr(),
+            ))
         }
         x if x == i32::from(b'_') => Some(Some(vec![0])),
         _ => None,
@@ -1664,14 +1663,17 @@ pub fn do_put(
                 tail_vec.push(0);
                 ml_append(
                     curwin_mut().w_cursor.lnum,
-                    tail_vec.as_mut_ptr().cast(),
+                    crate::memory::cstr_as_bytes(tail_vec.as_mut_ptr().cast()),
                     0,
                     false,
                 );
 
                 crate::memline::ml_replace_len(
                     curwin_mut().w_cursor.lnum,
-                    get_cursor_line_ptr().as_ptr().cast_mut(),
+                    crate::memory::cstr_slice(
+                        (get_cursor_line_ptr().as_ptr().cast_mut()).cast(),
+                        split_pos as usize,
+                    ),
                     split_pos as usize,
                     true,
                 );
@@ -1831,7 +1833,7 @@ pub fn do_put(
                 let mut delcount: i32 = 0;
 
                 if curwin_mut().w_cursor.lnum > curbuf_mut().b_ml.ml_line_count {
-                    if !ml_append(curbuf_mut().b_ml.ml_line_count, c"", 1, false) {
+                    if !ml_append(curbuf_mut().b_ml.ml_line_count, b"", 1, false) {
                         break;
                     }
                     nr_lines += 1;
@@ -1958,7 +1960,11 @@ pub fn do_put(
                     )
                 };
 
-                ml_replace(curwin_mut().w_cursor.lnum, newp.cast(), true);
+                ml_replace(
+                    curwin_mut().w_cursor.lnum,
+                    crate::memory::cstr_as_bytes(newp.cast()),
+                    true,
+                );
                 drop(newp_vec);
                 extmark_splice_cols(
                     curbuf_mut(),
@@ -2045,7 +2051,7 @@ pub fn do_put(
                 } else {
                     totlen = (count as usize) * (yanklen as usize);
                     loop {
-                        let oldp = ml_get(lnum);
+                        let oldp = ml_get(lnum).as_ptr().cast_mut();
                         let oldlen = ml_get_len(lnum);
                         if lnum > start_lnum {
                             let mut pos = CursorPos {
@@ -2088,7 +2094,7 @@ pub fn do_put(
                             )
                         };
 
-                        ml_replace(lnum, newp.cast(), true);
+                        ml_replace(lnum, crate::memory::cstr_as_bytes(newp.cast()), true);
 
                         first_byte_off = {
                             let (_b, _i) = crate::memory::cstr_span_to_char(
@@ -2154,7 +2160,12 @@ pub fn do_put(
                             append_vec.extend_from_slice(last_y);
                             append_vec.extend_from_slice(&line_slice[col as usize..]);
                             append_vec.push(0);
-                            ml_append(lnum, append_vec.as_mut_ptr().cast(), 0, false);
+                            ml_append(
+                                lnum,
+                                crate::memory::cstr_as_bytes(append_vec.as_mut_ptr().cast()),
+                                0,
+                                false,
+                            );
                             new_lnum += 1;
                             drop(append_vec);
 
@@ -2165,7 +2176,11 @@ pub fn do_put(
                             newp_vec.extend_from_slice(&old_slice[..col as usize]);
                             newp_vec.extend_from_slice(&first_y[..yanklen as usize]);
                             newp_vec.push(0);
-                            ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
+                            ml_replace(
+                                lnum,
+                                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                                true,
+                            );
                             drop(newp_vec);
 
                             curwin_mut().w_cursor.lnum = lnum;
@@ -2174,7 +2189,16 @@ pub fn do_put(
 
                         while i < y_size {
                             if y_type != MotionType::MtCharWise || i < y_size - 1 {
-                                if !ml_append(lnum, unsafe { (*y_array.add(i)).data }, 0, false) {
+                                if !ml_append(
+                                    lnum,
+                                    unsafe {
+                                        crate::memory::cstr_as_bytes(
+                                            ((*y_array.add(i)).data).cast(),
+                                        )
+                                    },
+                                    0,
+                                    false,
+                                ) {
                                     break 'error;
                                 }
                                 new_lnum += 1;
@@ -2184,7 +2208,7 @@ pub fn do_put(
                             if (flags & PUT_FIXINDENT) != 0 {
                                 let old_pos = curwin_mut().w_cursor;
                                 curwin_mut().w_cursor.lnum = lnum;
-                                let ptr_ = ml_get(lnum);
+                                let ptr_ = ml_get(lnum).as_ptr().cast_mut();
                                 if cnt == count && i == y_size - 1 {
                                     lendiff = ml_get_len(lnum);
                                 }

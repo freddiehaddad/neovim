@@ -54,6 +54,8 @@ pub use crate::option_vars::Synblock;
 macro_rules! syn_getcurline {
     () => {
         ml_get_buf(syn_st().syn_buf_mut(), syn_st().current_lnum)
+            .as_ptr()
+            .cast_mut()
     };
 }
 

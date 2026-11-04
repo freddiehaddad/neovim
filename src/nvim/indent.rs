@@ -677,7 +677,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            newline_vec.as_mut_ptr().cast(),
+            crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
             true,
         );
         if (flags & SIN_NOMARK) == 0 {
@@ -742,12 +742,21 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         regmatch.rm_ic = false;
         if vim_regexec(
             &mut regmatch,
-            unsafe { CStr::from_ptr(ml_get(lnum).wrapping_add(lead_len as usize)) },
+            unsafe {
+                CStr::from_ptr(
+                    ml_get(lnum)
+                        .as_ptr()
+                        .cast_mut()
+                        .wrapping_add(lead_len as usize),
+                )
+            },
             0,
         ) {
             pos.lnum = lnum;
-            pos.col =
-                crate::memory::ptr_offset_from(regmatch.endp[0], ml_get(lnum).cast()) as Colnr;
+            pos.col = crate::memory::ptr_offset_from(
+                regmatch.endp[0],
+                ml_get(lnum).as_ptr().cast_mut().cast(),
+            ) as Colnr;
             pos.coladd = 0;
         }
         regmatch.free_prog();
@@ -1251,7 +1260,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
 
         ml_replace(
             curwin_mut().w_cursor.lnum,
-            orig_line.as_mut_ptr().cast(),
+            crate::memory::cstr_as_bytes(orig_line.as_mut_ptr().cast()),
             true,
         );
         curwin_mut().w_cursor.col = orig_col;
@@ -1332,7 +1341,7 @@ pub fn copy_indent(size: i32, src: &[u8]) -> bool {
 
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        line_vec.as_mut_ptr().cast(),
+        crate::memory::cstr_as_bytes(line_vec.as_mut_ptr().cast()),
         true,
     );
     drop(line_vec);
@@ -1353,7 +1362,7 @@ pub fn ex_retab(eap: &mut Exarg) {
     let mut num_spaces: i32 = 0;
     let mut start_col: i32 = 0;
     let mut start_vcol: i64 = 0;
-    let mut new_line = ptr::dangling_mut();
+    let mut new_line: *mut std::ffi::c_char = ptr::dangling_mut();
     let mut new_vts_array: Vec<Colnr> = Vec::new();
 
     let mut first_line: Linenr = 0;
@@ -1412,7 +1421,7 @@ pub fn ex_retab(eap: &mut Exarg) {
 
     let mut lnum = eap.line1;
     while !g_st().got_int && lnum <= eap.line2 {
-        ptr = ml_get(lnum);
+        ptr = ml_get(lnum).as_ptr().cast_mut();
         let mut old_len = ml_get_len(lnum);
         let mut col: i32 = 0;
         let mut vcol: i64 = 0;
@@ -1477,7 +1486,7 @@ pub fn ex_retab(eap: &mut Exarg) {
                         new_line_vec[start_usize + tabs_usize..start_usize + len_usize].fill(b' ');
                         new_line = new_line_vec.as_mut_ptr().cast();
 
-                        if ml_replace(lnum, new_line, true) {
+                        if ml_replace(lnum, crate::memory::cstr_as_bytes((new_line).cast()), true) {
                             new_line = curbuf_mut().b_ml.ml_line_ptr;
                             extmark_splice_cols(
                                 curbuf_mut(),

@@ -2592,7 +2592,7 @@ pub fn find_ident_at_pos(
     let mut prevcol: i32;
     let mut bn: i32;
 
-    let mut ptr = ml_get_buf(wp.buf_mut(), lnum);
+    let mut ptr = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
     let line_bytes = crate::memory::cstr_from_ptr(ptr).to_bytes_with_nul();
     let mut i = if (find_type & FIND_IDENT) != 0 { 0 } else { 1 };
     while i < 2 {
@@ -2804,13 +2804,13 @@ pub fn clear_showcmd() {
         } else {
             let (mut s, e) = if cursor_bot {
                 (
-                    ml_get_pos(&g_st().visual_global.start),
+                    ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
                     get_cursor_pos_ptr().as_ptr().cast_mut(),
                 )
             } else {
                 (
                     get_cursor_pos_ptr().as_ptr().cast_mut(),
-                    ml_get_pos(&g_st().visual_global.start),
+                    ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
                 )
             };
             let mut bytes: i32 = 0;
@@ -3627,7 +3627,10 @@ fn nv_zg_zw(cap: &mut Cmdarg, mut nchar: i32) -> bool {
         len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, None);
         g_st().emsg_off -= 1;
         if len != 0 && curwin_mut().w_cursor.col <= pos.col {
-            ptr = ml_get_pos(&curwin_mut().w_cursor).cast_const();
+            ptr = ml_get_pos(&curwin_mut().w_cursor)
+                .as_ptr()
+                .cast_mut()
+                .cast_const();
         }
         curwin_mut().w_cursor = pos;
     }
@@ -4493,12 +4496,12 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
     } else {
         let (p, mut len) = if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
             (
-                ml_get_pos(&curwin_mut().w_cursor),
+                ml_get_pos(&curwin_mut().w_cursor).as_ptr().cast_mut(),
                 (g_st().visual_global.start.col - curwin_mut().w_cursor.col + 1) as usize,
             )
         } else {
             (
-                ml_get_pos(&g_st().visual_global.start),
+                ml_get_pos(&g_st().visual_global.start).as_ptr().cast_mut(),
                 (curwin_mut().w_cursor.col - g_st().visual_global.start.col + 1) as usize,
             )
         };

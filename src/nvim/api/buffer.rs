@@ -507,8 +507,14 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = line.cast();
-            if !ml_replace_buf(b, lnum as Linenr, line_ptr, false, true) {
+            let line_ptr: *const std::ffi::c_char = line.cast();
+            if !ml_replace_buf(
+                b,
+                lnum as Linenr,
+                crate::memory::cstr_as_bytes(line_ptr),
+                false,
+                true,
+            ) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -532,8 +538,14 @@ pub fn nvim_buf_set_lines(
                 break 'end;
             }
 
-            let line_ptr = line.cast();
-            if !ml_append_buf(b, lnum as Linenr, line_ptr, 0, false) {
+            let line_ptr: *const std::ffi::c_char = line.cast();
+            if !ml_append_buf(
+                b,
+                lnum as Linenr,
+                crate::memory::cstr_as_bytes(line_ptr),
+                0,
+                false,
+            ) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }
@@ -659,7 +671,7 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_start_raw = ml_get_buf(b, start_row as Linenr);
+    let str_at_start_raw = ml_get_buf(b, start_row as Linenr).as_ptr().cast_mut();
     let len_at_start = ml_get_buf_len(b, start_row as Linenr);
     let str_at_start = arena_memdupz(arena, str_at_start_raw, len_at_start as usize);
     if start_col < 0 {
@@ -670,7 +682,7 @@ pub fn nvim_buf_set_text(
         return;
     }
 
-    let str_at_end_raw = ml_get_buf(b, end_row as Linenr);
+    let str_at_end_raw = ml_get_buf(b, end_row as Linenr).as_ptr().cast_mut();
     let len_at_end = ml_get_buf_len(b, end_row as Linenr);
     let str_at_end = arena_memdupz(arena, str_at_end_raw, len_at_end as usize);
     if end_col < 0 {
@@ -839,7 +851,13 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_replace_buf(b, lnum as Linenr, line.cast(), false, true) {
+            if !ml_replace_buf(
+                b,
+                lnum as Linenr,
+                crate::memory::cstr_as_bytes(line.cast()),
+                false,
+                true,
+            ) {
                 api_set_error!(
                     err,
                     ErrorType::ErrorTypeException,
@@ -861,7 +879,13 @@ pub fn nvim_buf_set_text(
                 break 'end;
             }
 
-            if !ml_append_buf(b, lnum as Linenr, line.cast(), 0, false) {
+            if !ml_append_buf(
+                b,
+                lnum as Linenr,
+                crate::memory::cstr_as_bytes(line.cast()),
+                0,
+                false,
+            ) {
                 api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to insert line",);
                 break 'end;
             }

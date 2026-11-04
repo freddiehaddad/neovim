@@ -1716,6 +1716,8 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
             {
                 let wp_ref = unsafe { &mut *wp };
                 let p = ml_get_buf(&mut *bp, wp_ref.w_cursor.lnum)
+                    .as_ptr()
+                    .cast_mut()
                     .wrapping_add(wp_ref.w_cursor.col as usize);
                 if wp_ref.w_cursor.coladd
                     >= win_chartabsize(
@@ -2282,8 +2284,9 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         let mut len: usize = 0;
         let mut errormsg = None;
-        let s_cstr = crate::memory::cstr_from_ptr(s);
-        let result = eval_vars(s_cstr, s_cstr, &mut len, None, &mut errormsg, None, false);
+        let mut s_buf = crate::memory::cstr_as_bytes(s).to_vec();
+        s_buf.push(0);
+        let result = eval_vars(&mut s_buf, 0, &mut len, None, &mut errormsg, None, false);
         if opt_vars().p_verbose == 0 {
             g_st().emsg_off -= 1;
         } else if let Some(msg) = errormsg {
@@ -5521,7 +5524,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         regmatch.rm_ic = opt_vars().p_ic != 0;
 
         while slnum <= elnum {
-            let str_ = ml_get_buf(unsafe { &mut *buf }, slnum);
+            let str_ = ml_get_buf(unsafe { &mut *buf }, slnum).as_ptr().cast_mut();
 
             get_matches_in_str(
                 unsafe { CStr::from_ptr(str_) },
@@ -8479,7 +8482,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 /// "swapfilelist()" function
 pub fn f_swapfilelist(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
-    recover_names(ptr::null_mut(), false, rettv.vval.v_list_ref());
+    recover_names(None, false, rettv.vval.v_list_ref());
 }
 
 /// "swapinfo(swap_filename)" function
@@ -8494,9 +8497,7 @@ pub fn f_swapname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
         return;
     };
-    if buf.b_ml.ml_mfp.is_none() {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-    } else if let Some(ref mf_fname) = *unsafe { &(*buf.b_ml.mfp_ptr()).mf_fname } {
+    if let Some(mf_fname) = buf.b_ml.mfp_opt().and_then(|mfp| mfp.mf_fname.as_ref()) {
         crate::eval::typval::tv_set_string(rettv, Some(mf_fname.as_c_str()));
     } else {
         rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());

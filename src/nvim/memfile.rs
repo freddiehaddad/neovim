@@ -174,8 +174,7 @@ pub fn mf_close(mfp: Option<Box<Memfile>>, del_file: bool) {
 
 /// Close the swap file for a memfile. Used when 'swapfile' is reset.
 pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
-    let mfp = buf.b_ml.mfp_ptr();
-    let Some(mfp_ref) = (unsafe { mfp.as_mut() }) else {
+    let Some(mfp_ref) = buf.b_ml.mfp_opt() else {
         return;
     };
     if mfp_ref.mf_fd < 0 {
@@ -184,18 +183,21 @@ pub fn mf_close_file(buf: &mut FileBuf, getlines: bool) {
 
     if getlines {
         for lnum in 1..=buf.b_ml.ml_line_count {
-            ml_get_buf(buf, lnum);
+            let _ = ml_get_buf(buf, lnum);
         }
     }
 
+    let Some(mfp_ref) = buf.b_ml.mfp_opt() else {
+        return;
+    };
     if unsafe { close(mfp_ref.mf_fd) } < 0 {
         emsg(gettext(E_SWAPCLOSE));
     }
 
     mfp_ref.mf_fd = -1;
 
-    if let Some(ref fname) = mfp_ref.mf_fname {
-        os_remove(fname);
+    if let Some(fname) = mfp_ref.mf_fname.clone() {
+        os_remove(fname.as_c_str());
 
         mf_free_fnames(mfp_ref);
     }
@@ -383,27 +385,25 @@ pub fn mf_release_all() -> bool {
     let mut retval = false;
 
     for buf in for_all_buffers_mut() {
-        let mfp = buf.b_ml.mfp_ptr();
-        if let Some(mfp_ref) = unsafe { mfp.as_mut() } {
-            if mfp_ref.mf_fd < 0 && buf.b_may_swap {
-                ml_open_file(buf);
-            }
-
-            if mfp_ref.mf_fd >= 0 {
-                let blocks: Vec<*mut Bhdr> = mfp_ref
-                    .mf_hash
-                    .values()
-                    .map(|b| (&raw const **b).cast_mut())
-                    .collect();
-                for hp in blocks {
-                    let hp_ref = unsafe { &mut *hp };
-                    if (hp_ref.bh_flags & BH_LOCKED) == 0
-                        && ((hp_ref.bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_ref))
-                    {
-                        let bnum = hp_ref.bh_bnum;
-                        let _ = mfp_ref.mf_hash.remove(&bnum);
-                        retval = true;
-                    }
+        if buf.b_ml.mfp_opt().is_some_and(|mfp| mfp.mf_fd < 0) && buf.b_may_swap {
+            ml_open_file(buf);
+        }
+        if let Some(mfp_ref) = buf.b_ml.mfp_opt()
+            && mfp_ref.mf_fd >= 0
+        {
+            let blocks: Vec<*mut Bhdr> = mfp_ref
+                .mf_hash
+                .values()
+                .map(|b| (&raw const **b).cast_mut())
+                .collect();
+            for hp in blocks {
+                let hp_ref = unsafe { &mut *hp };
+                if (hp_ref.bh_flags & BH_LOCKED) == 0
+                    && ((hp_ref.bh_flags & BH_DIRTY) == 0 || mf_write(mfp_ref, hp_ref))
+                {
+                    let bnum = hp_ref.bh_bnum;
+                    let _ = mfp_ref.mf_hash.remove(&bnum);
+                    retval = true;
                 }
             }
         }

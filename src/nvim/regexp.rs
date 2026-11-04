@@ -2134,7 +2134,9 @@ pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
     if lnum > maxline {
         return Some(c"");
     }
-    Some(unsafe { std::ffi::CStr::from_ptr(ml_get_buf(re_st().rex.buf_mut(), firstlnum)) })
+    Some(unsafe {
+        std::ffi::CStr::from_ptr((ml_get_buf(re_st().rex.buf_mut(), firstlnum)).as_ptr())
+    })
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
@@ -3106,7 +3108,9 @@ fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
     if lnum > maxline {
         return Some(b"");
     }
-    let line = ml_get_buf(re_st().rex.buf_mut(), firstlnum);
+    let line = ml_get_buf(re_st().rex.buf_mut(), firstlnum)
+        .as_ptr()
+        .cast_mut();
     let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
     Some(crate::memory::cstr_slice(line, len))
 }

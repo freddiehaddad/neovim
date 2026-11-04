@@ -787,7 +787,11 @@ pub fn spell_suggest(count: i32) {
             let rep_len = (stp.st_wordlen + sug.su_badlen - stp.st_orglen).max(0) as usize;
             redo_append_lit(&p_vec[c as usize..c as usize + rep_len]);
             redo_append_char(ESC);
-            let _ = ml_replace(curwin_mut().w_cursor.lnum, p.cast(), true);
+            let _ = ml_replace(
+                curwin_mut().w_cursor.lnum,
+                crate::memory::cstr_as_bytes(p.cast()),
+                true,
+            );
             curwin_mut().w_cursor.col = c;
             inserted_bytes(curwin_mut().w_cursor.lnum, c, stp.st_orglen, stp.st_wordlen);
         } else {

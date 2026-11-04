@@ -6146,7 +6146,7 @@ fn copy_substring_from_pos(
 
     let mut ga: Vec<u8> = Vec::with_capacity(128);
 
-    let start_line = ml_get(start.lnum);
+    let start_line = ml_get(start.lnum).as_ptr().cast_mut();
     let start_ptr = start_line.wrapping_add(start.col as usize);
     let is_single_line = start.lnum == end.lnum;
 
@@ -6167,7 +6167,7 @@ fn copy_substring_from_pos(
     if !is_single_line {
         let mut lnum = start.lnum + 1;
         while lnum < end.lnum {
-            let line = ml_get(lnum);
+            let line = ml_get(lnum).as_ptr().cast_mut();
             let linelen = ml_get_len(lnum);
             ga.extend_from_slice(crate::memory::cstr_slice(line, linelen as usize));
             if exacttext {

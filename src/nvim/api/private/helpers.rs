@@ -861,7 +861,7 @@ pub fn buf_get_text(
         return rv;
     }
 
-    let bufstr = ml_get_buf(buf, lnum as Linenr);
+    let bufstr = ml_get_buf(buf, lnum as Linenr).as_ptr().cast_mut();
     let line_length = i64::from(ml_get_buf_len(buf, lnum as Linenr));
 
     if start_col < 0 {

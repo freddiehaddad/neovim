@@ -2018,7 +2018,7 @@ pub fn vcol2col(
     vcol: Colnr,
     coladdp: Option<&mut Colnr>,
 ) -> Colnr {
-    let line = ml_get_buf(wp.buf_mut(), lnum);
+    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
     let mut csarg = CharsizeArg::new();
     let cstype: CSType =
         init_charsize_arg(&mut csarg, wp, lnum, crate::memory::cstr_from_ptr(line));

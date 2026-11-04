@@ -1075,7 +1075,7 @@ fn qf_get_next_buf_line(
         return QF_END_OF_INPUT;
     }
     let buf_ptr = ptr::from_mut(buf);
-    let p_buf = ml_get_buf(buf, buflnum);
+    let p_buf = ml_get_buf(buf, buflnum).as_ptr().cast_mut();
     let len = ml_get_buf_len(buf, buflnum) as usize;
     state.source = QfInputSource::Buf {
         buf: buf_ptr,
@@ -4166,7 +4166,10 @@ fn qf_buf_add_line(
     if !ml_append_buf(
         &mut *buf,
         lnum,
-        gap.as_mut_ptr().cast(),
+        crate::memory::cstr_slice(
+            gap.as_mut_ptr().cast(),
+            (gap.len() as Colnr as usize).saturating_sub(1),
+        ),
         gap.len() as Colnr,
         false,
     ) {
@@ -5207,8 +5210,9 @@ fn vgr_match_buflines(
                 None,
             ) > 0
             {
-                let mesg_cstr =
-                    unsafe { CStr::from_ptr(ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)) };
+                let mesg_cstr = unsafe {
+                    CStr::from_ptr((ml_get_buf(buf, regmatch.startpos[0].lnum + lnum)).as_ptr())
+                };
                 if qf_add_entry(
                     qfl,
                     None,
@@ -5245,7 +5249,7 @@ fn vgr_match_buflines(
                 }
             }
         } else {
-            let str_ = ml_get_buf(buf, lnum);
+            let str_ = ml_get_buf(buf, lnum).as_ptr().cast_mut();
             let linelen = ml_get_buf_len(buf, lnum);
             let mut score: i32 = 0;
             let mut matches = [0u32; FUZZY_MATCH_MAX_LEN];

@@ -875,7 +875,10 @@ pub fn suggest_load_files() {
                                 if !ml_append_buf(
                                     sugbuf,
                                     wordnr as Linenr,
-                                    ga.as_mut_ptr().cast(),
+                                    crate::memory::cstr_slice(
+                                        ga.as_mut_ptr().cast(),
+                                        (ga.len() as i32 as usize).saturating_sub(1),
+                                    ),
                                     ga.len() as i32,
                                     true,
                                 ) {
@@ -4646,7 +4649,10 @@ fn sug_filltable(
             if !ml_append_buf(
                 &mut *spellbuf,
                 wordnr as Linenr,
-                gap.as_mut_ptr().cast(),
+                crate::memory::cstr_slice(
+                    gap.as_mut_ptr().cast(),
+                    (gap.len() as i32 as usize).saturating_sub(1),
+                ),
                 gap.len() as i32,
                 true,
             ) {
@@ -4747,7 +4753,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
     let mut write_err = false;
     let mut memtot_add = 0;
     for lnum in 1..=wcount {
-        let line = ml_get_buf(spellbuf, lnum);
+        let line = ml_get_buf(spellbuf, lnum).as_ptr().cast_mut();
         let len = ml_get_buf_len(spellbuf, lnum) + 1;
         let line_slice = crate::memory::cstr_slice(line, len as usize);
         if spell_write(line_slice, &fd) == 0 {

@@ -1337,7 +1337,13 @@ fn fold_add_marker(buf: &mut FileBuf, pos: CursorPos, marker: &[u8]) {
         markerlen + cms_len - 2
     };
     newline_vec.push(0);
-    ml_replace_buf(buf, lnum, newline_vec.as_mut_ptr().cast(), true, false);
+    ml_replace_buf(
+        buf,
+        lnum,
+        crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
+        true,
+        false,
+    );
     if added != 0 {
         extmark_splice_cols(
             buf,
@@ -1410,7 +1416,13 @@ fn fold_del_marker(buf: &mut FileBuf, lnum: Linenr, marker_slice: &[u8]) {
             newline_vec.extend_from_slice(&line_slice[..idx]);
             newline_vec.extend_from_slice(&line_slice[idx + len..]);
             newline_vec.push(0);
-            ml_replace_buf(buf, lnum, newline_vec.as_mut_ptr().cast(), true, false);
+            ml_replace_buf(
+                buf,
+                lnum,
+                crate::memory::cstr_as_bytes(newline_vec.as_mut_ptr().cast()),
+                true,
+                false,
+            );
             extmark_splice_cols(buf, lnum - 1, idx as Colnr, len as Colnr, 0, K_EXTMARK_UNDO);
         }
         break;
@@ -2688,7 +2700,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         }
 
         let mut s = {
-            let _sw_p = ml_get(lnum);
+            let _sw_p = ml_get(lnum).as_ptr().cast_mut();
             _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 _sw_p.cast(),
             )))
@@ -2706,7 +2718,7 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             ))) && lnum + 1 < foldend
             {
                 s = {
-                    let _sw_p = ml_get(lnum + 1);
+                    let _sw_p = ml_get(lnum + 1).as_ptr().cast_mut();
                     _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                         _sw_p.cast(),
                     )))

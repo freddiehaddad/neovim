@@ -1315,7 +1315,7 @@ fn win_line_skip_columns(
     in_multispace: &mut bool,
     multispace_pos: &mut usize,
 ) -> usize {
-    let mut line = ml_get_buf(wp.buf_mut(), wlv.lnum);
+    let mut line = ml_get_buf(wp.buf_mut(), wlv.lnum).as_ptr().cast_mut();
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = if wp.w_onebuf_opt.wo_wrap != 0 && !crate::memory::cstr_is_empty(line) {
@@ -1875,7 +1875,7 @@ pub fn win_line(
     }
 
     let mut line = if draw_text {
-        ml_get_buf(wp.buf_mut(), lnum)
+        ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut()
     } else {
         c"".as_ptr().cast_mut()
     };
@@ -1940,7 +1940,7 @@ pub fn win_line(
             &mut in_multispace,
             &mut multispace_pos,
         );
-        line = ml_get_buf(wp.buf_mut(), lnum);
+        line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
         ptr = line.wrapping_add(skip_off);
         if spv.spv_has_spell {
             let linecol = crate::memory::ptr_offset_from(ptr, line) as Colnr;
@@ -1951,7 +1951,7 @@ pub fn win_line(
             wp.w_cursor.col = linecol;
             let len = spell_move_to(&mut *wp, FORWARD, SMT_ALL, true, Some(&mut spell_hlf));
 
-            line = ml_get_buf(wp.buf_mut(), lnum);
+            line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             ptr = line.wrapping_add(linecol as usize);
 
             if len == 0 || wp.w_cursor.col > linecol {
@@ -1977,7 +1977,7 @@ pub fn win_line(
         let col = crate::memory::ptr_offset_from(ptr, line) as i32;
         decor_provider_end_col =
             decor_providers_setup(endrow - startrow, start_vcol == 0, lnum, col, wp);
-        line = ml_get_buf(wp.buf_mut(), lnum);
+        line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
         ptr = line.wrapping_add(col as usize);
     }
 
@@ -2005,7 +2005,7 @@ pub fn win_line(
             &mut search_attr,
             &mut search_attr_from_match,
         );
-        line = ml_get_buf(wp.buf_mut(), lnum);
+        line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
         ptr = line.wrapping_add(v as usize);
     }
 
@@ -2061,7 +2061,7 @@ pub fn win_line(
         {
             let col = crate::memory::ptr_offset_from(ptr, line) as i32;
             decor_provider_end_col = invoke_range_next(wp, lnum, col, 100);
-            line = ml_get_buf(wp.buf_mut(), lnum);
+            line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
             ptr = line.wrapping_add(col as usize);
             if !has_decor && decor_has_more_decorations(&mut g_st().decor_state, lnum - 1) {
                 has_decor = true;
@@ -2116,7 +2116,7 @@ pub fn win_line(
                     break;
                 }
                 if draw_text {
-                    line = ml_get_buf(wp.buf_mut(), lnum);
+                    line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                     ptr = line.wrapping_add(v as usize);
                 }
             } else {
@@ -2318,7 +2318,7 @@ pub fn win_line(
                         &mut on_last_col,
                         &mut search_attr_from_match,
                     );
-                    line = ml_get_buf(wp.buf_mut(), lnum);
+                    line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                     ptr = line.wrapping_add(v as usize);
 
                     if crate::memory::cstr_is_empty(ptr) {
@@ -2405,7 +2405,7 @@ pub fn win_line(
                 wlv.sc_extra = 0;
                 wlv.sc_final = 0;
 
-                line = ml_get_buf(wp.buf_mut(), lnum);
+                line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                 ptr = line.wrapping_add(v as usize);
             }
 
@@ -2643,7 +2643,7 @@ pub fn win_line(
                             has_syntax = false;
                         }
 
-                        line = ml_get_buf(wp.buf_mut(), lnum);
+                        line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                         ptr = line.wrapping_add(v as usize);
                         prev_ptr = line.wrapping_offset(prev_v);
 
@@ -3692,7 +3692,7 @@ pub fn win_line(
                         if disp_len < 0 {
                             let col = crate::memory::ptr_offset_from(ptr, line);
                             disp_len = linetabsize_disp_eol(&mut *wp, lnum);
-                            line = ml_get_buf(wp.buf_mut(), lnum);
+                            line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
                             ptr = line.wrapping_offset(col);
                         }
                         if wlv.vcol >= disp_len {
@@ -3946,7 +3946,7 @@ fn decor_providers_setup(
 }
 
 fn invoke_range_next(wp: &mut WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_off: Colnr) -> i32 {
-    let line = ml_get_buf(wp.buf_mut(), lnum);
+    let line = ml_get_buf(wp.buf_mut(), lnum).as_ptr().cast_mut();
     let line_len = ml_get_buf_len(wp.buf_mut(), lnum);
     col_off = col_off.max(1);
 

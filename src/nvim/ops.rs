@@ -664,7 +664,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
     }
     ml_replace(
         curwin_mut().w_cursor.lnum,
-        newp_vec.as_mut_ptr().cast(),
+        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
         true,
     );
     drop(newp_vec);
@@ -698,7 +698,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
                 continue;
             }
 
-            let mut oldp = ml_get(lnum);
+            let mut oldp = ml_get(lnum).as_ptr().cast_mut();
 
             if b_insert {
                 ts_val = bdp.start_char_vcols;
@@ -785,7 +785,11 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             let tail = crate::memory::cstr_as_bytes(oldp);
             newp_vec[offset as usize..offset as usize + tail.len()].copy_from_slice(tail);
 
-            ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
+            ml_replace(
+                lnum,
+                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                true,
+            );
             drop(newp_vec);
             extmark_splice_cols(
                 curbuf_mut(),
@@ -851,7 +855,10 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         && oap.motion_force == i32::from(NUL)
         && oap.op_type == OP_DELETE
     {
-        let mut ptr_line = ml_get(oap.end.lnum).wrapping_add(oap.end.col as usize);
+        let mut ptr_line = ml_get(oap.end.lnum)
+            .as_ptr()
+            .cast_mut()
+            .wrapping_add(oap.end.col as usize);
         if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
         }
@@ -942,7 +949,11 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                 newp_vec[..textcol].copy_from_slice(&old_slice[..textcol]);
                 newp_vec[textcol..textcol + pad_len].fill(b' ');
                 newp_vec[textcol + pad_len..textcol + pad_len + tail.len()].copy_from_slice(tail);
-                ml_replace(lnum, newp_vec.as_mut_ptr().cast(), true);
+                ml_replace(
+                    lnum,
+                    crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                    true,
+                );
                 drop(newp_vec);
 
                 extmark_splice_cols(
@@ -1135,7 +1146,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
         return;
     }
 
-    let line = ml_get(oap.end.lnum);
+    let line = ml_get(oap.end.lnum).as_ptr().cast_mut();
     let mut ptr_line = line.wrapping_add(oap.end.col as usize);
     if !crate::memory::cstr_is_empty(ptr_line) {
         ptr_line = ptr_line.wrapping_sub({
@@ -1292,7 +1303,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             }
             ml_replace(
                 curwin_mut().w_cursor.lnum,
-                newp_vec.as_mut_ptr().cast(),
+                crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
                 true,
             );
             drop(newp_vec);
@@ -1303,7 +1314,10 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
                 curwin_mut().w_cursor.lnum += 1;
                 ml_append(
                     cur_lnum,
-                    after_p.as_mut_ptr().cast(),
+                    crate::memory::cstr_slice(
+                        after_p.as_mut_ptr().cast(),
+                        (after_p.len() as i32 as usize).saturating_sub(1),
+                    ),
                     after_p.len() as i32,
                     false,
                 );
@@ -1704,7 +1718,7 @@ pub fn op_insert(oap: &mut Oparg, count1: i32) {
             bd.textlen = bd2.textlen;
         }
 
-        let mut firstline = ml_get(oap.start.lnum);
+        let mut firstline = ml_get(oap.start.lnum).as_ptr().cast_mut();
         let mut len = ml_get_len(oap.start.lnum);
         let mut add = bd.textcol;
         let mut offset: Colnr = 0;
@@ -1828,7 +1842,11 @@ pub fn op_change(oap: &mut Oparg) -> i32 {
                     newp_vec[newlen..newlen + ins_usize].copy_from_slice(&ins_text[..ins_usize]);
                     newlen += ins_usize;
                     newp_vec[newlen..newlen + tail.len()].copy_from_slice(tail);
-                    ml_replace(linenr, newp_vec.as_mut_ptr().cast(), true);
+                    ml_replace(
+                        linenr,
+                        crate::memory::cstr_as_bytes(newp_vec.as_mut_ptr().cast()),
+                        true,
+                    );
                     drop(newp_vec);
                     extmark_splice_cols(
                         curbuf_mut(),
@@ -2103,7 +2121,7 @@ pub fn do_join(
 
         ml_replace_len(
             curwin_mut().w_cursor.lnum,
-            newp_vec.as_ptr().cast(),
+            crate::memory::cstr_slice(newp_vec.as_ptr().cast(), newp_len),
             newp_len,
             true,
         );
@@ -2181,7 +2199,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     bdp.end_char_vcols = 0;
     bdp.start_char_vcols = 0;
 
-    let line = ml_get(lnum);
+    let line = ml_get(lnum).as_ptr().cast_mut();
     let mut prev_pstart = line;
 
     let mut csarg = CharsizeArg::new();
@@ -2349,7 +2367,7 @@ pub fn getregionpos_line(
     ret_p1: &mut CursorPos,
     ret_p2: &mut CursorPos,
 ) {
-    let line = ml_get(lnum);
+    let line = ml_get(lnum).as_ptr().cast_mut();
     let line_len = ml_get_len(lnum);
 
     if region_type == MT_LINE_WISE {
@@ -2457,7 +2475,7 @@ pub fn charwise_block_prep(
     let mut endcol: Colnr = MAXCOL;
     let mut cs: Colnr = 0;
     let mut ce: Colnr = 0;
-    let p = ml_get(lnum);
+    let p = ml_get(lnum).as_ptr().cast_mut();
     let plen = ml_get_len(lnum);
 
     bdp.startspaces = 0;
@@ -2656,7 +2674,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     }
 
     curwin_mut().w_cursor = *pos;
-    let ptr_line = ml_get(pos.lnum);
+    let ptr_line = ml_get(pos.lnum).as_ptr().cast_mut();
     let linelen = ml_get_len(pos.lnum);
     let line_bytes =
         unsafe { std::slice::from_raw_parts(ptr_line.cast::<u8>(), linelen as usize + 1) };
@@ -3191,7 +3209,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                     s = bd.textstart;
                     len = bd.textlen;
                 } else if l_visual_mode == b'V' as i32 {
-                    s = ml_get(lnum).cast();
+                    s = ml_get(lnum).as_ptr().cast_mut().cast();
                     len = MAXCOL;
                 } else if l_visual_mode == b'v' as i32 {
                     let start_col = if lnum == min_pos.lnum { min_pos.col } else { 0 };
@@ -3201,7 +3219,11 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         MAXCOL
                     };
 
-                    s = ml_get(lnum).wrapping_add(start_col as usize).cast();
+                    s = ml_get(lnum)
+                        .as_ptr()
+                        .cast_mut()
+                        .wrapping_add(start_col as usize)
+                        .cast();
                     len = end_col;
                 }
                 if !s.is_null() {

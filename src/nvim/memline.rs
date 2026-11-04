@@ -58,7 +58,7 @@ use crate::path::{
 };
 use crate::spell::spell_delete_wordlist;
 use crate::statusline::get_trans_bufname;
-use crate::strings::{RawCCharPtr, RawCCharPtrMut, gettext, tr};
+use crate::strings::{RawCCharPtrMut, gettext, tr};
 use crate::ui::{ui_flush, ui_has};
 use crate::undo::buf_is_changed_fn;
 use std::ffi::CStr;
@@ -109,20 +109,15 @@ impl Memline {
     }
 
     #[inline]
-    pub fn mfp_ptr(&mut self) -> *mut crate::memfile::Memfile {
+    pub fn mfp_opt(&mut self) -> Option<&'static mut crate::memfile::Memfile> {
         self.ml_mfp
             .as_deref_mut()
-            .map_or(ptr::null_mut(), |m| &raw mut *m)
-    }
-
-    #[inline]
-    pub fn mfp_opt(&mut self) -> Option<&'static mut crate::memfile::Memfile> {
-        crate::globals::gopt_mut(self.mfp_ptr())
+            .map(|m| unsafe { &mut *(m as *mut crate::memfile::Memfile) })
     }
 
     #[inline]
     pub fn mfp_mut(&mut self) -> &'static mut crate::memfile::Memfile {
-        crate::globals::gmut(self.mfp_ptr())
+        self.mfp_opt().expect("ml_mfp is None")
     }
 }
 
@@ -387,24 +382,24 @@ fn pb_count_max(mfp: &Memfile) -> u16 {
 
 impl DataBlock {
     #[inline]
-    fn as_char_ptr(&mut self) -> RawCCharPtrMut {
-        (self as *mut Self).cast()
-    }
-
-    #[inline]
     fn copy_within(&mut self, src_off: usize, dst_off: usize, len: usize) {
-        unsafe {
-            ptr::copy(
-                self.as_char_ptr().wrapping_add(src_off),
-                self.as_char_ptr().wrapping_add(dst_off),
-                len,
-            )
-        };
+        let base = (&raw mut *self).cast::<u8>();
+        unsafe { ptr::copy(base.wrapping_add(src_off), base.wrapping_add(dst_off), len) };
     }
 
     #[inline]
-    fn write_ptr(&mut self, dst_off: usize, src: RawCCharPtr, len: usize) {
-        unsafe { ptr::copy(src, self.as_char_ptr().wrapping_add(dst_off), len) };
+    fn write_bytes(&mut self, dst_off: usize, src: &[u8], total_len: usize) {
+        if total_len == 0 {
+            return;
+        }
+        let dst = (&raw mut *self).cast::<u8>().wrapping_add(dst_off);
+        let copy_len = src.len().min(total_len.saturating_sub(1));
+        unsafe {
+            ptr::copy_nonoverlapping(src.as_ptr(), dst, copy_len);
+            if total_len > copy_len {
+                ptr::write_bytes(dst.wrapping_add(copy_len), 0, total_len - copy_len);
+            }
+        }
     }
 }
 
@@ -416,55 +411,37 @@ impl PointerBlock {
 }
 
 #[inline]
-fn hp_zero_block(hp: *mut Bhdr) -> &'static mut ZeroBlock {
-    crate::globals::gmut(
-        crate::globals::gptr(hp)
-            .data_slice_mut()
-            .as_mut_ptr()
-            .cast::<ZeroBlock>(),
-    )
+fn hp_zero_block(hp: &mut Bhdr) -> &'static mut ZeroBlock {
+    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<ZeroBlock>() }
 }
 
 #[inline]
-fn hp_data_block(hp: *mut Bhdr) -> &'static mut DataBlock {
-    crate::globals::gmut(
-        crate::globals::gptr(hp)
-            .data_slice_mut()
-            .as_mut_ptr()
-            .cast::<DataBlock>(),
-    )
+fn hp_data_block(hp: &mut Bhdr) -> &'static mut DataBlock {
+    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<DataBlock>() }
 }
 
 #[inline]
-fn hp_ptr_block(hp: *mut Bhdr) -> &'static mut PointerBlock {
-    crate::globals::gmut(
-        crate::globals::gptr(hp)
-            .data_slice_mut()
-            .as_mut_ptr()
-            .cast::<PointerBlock>(),
-    )
+fn hp_ptr_block(hp: &mut Bhdr) -> &'static mut PointerBlock {
+    unsafe { &mut *hp.data_slice_mut().as_mut_ptr().cast::<PointerBlock>() }
 }
 
 #[inline]
 fn pb_ptr(pp: &mut PointerBlock, idx: usize) -> &'static mut PointerEntry {
-    crate::globals::gmut(
-        (&raw mut pp.pb_pointer)
+    unsafe {
+        &mut *(&raw mut pp.pb_pointer)
             .cast::<PointerEntry>()
-            .wrapping_add(idx),
-    )
+            .wrapping_add(idx)
+    }
 }
 
 #[inline]
 fn db_idx_ptr(dp: &mut DataBlock, idx: usize) -> &'static mut u32 {
-    crate::globals::gmut((&raw mut dp.db_index).cast::<u32>().wrapping_add(idx))
+    unsafe { &mut *(&raw mut dp.db_index).cast::<u32>().wrapping_add(idx) }
 }
 
 #[inline]
-fn sb_push_cstr(sb: &mut Vec<u8>, s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    if !s.is_null() {
-        sb.extend_from_slice(crate::memory::cstr_as_bytes(s));
-    }
+fn sb_push_cstr(sb: &mut Vec<u8>, s: &CStr) {
+    sb.extend_from_slice(s.to_bytes());
 }
 
 /// Open a new memline for `buf`.
@@ -490,10 +467,10 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     buf.b_ml.ml_flags = ML_EMPTY;
     buf.b_ml.ml_line_count = 1;
 
-    let mut hp: *mut Bhdr = mf_new(mfp, false, 1);
-    if crate::globals::gptr(hp).bh_bnum != 0 {
+    let mut hp = mf_new(mfp, false, 1);
+    if hp.bh_bnum != 0 {
         iemsg(tr(c"E298: Didn't get block nr 0?"));
-        return ml_open_error(buf, Some(mfp), hp);
+        return ml_open_error(buf, Some(mfp), Some(hp));
     }
     let b0p = hp_zero_block(hp);
 
@@ -518,16 +495,15 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
         long_to_char(os_get_pid(), &mut b0p.b0_pid);
     }
 
-    mf_put(mfp, unsafe { &mut *hp }, true, false);
+    mf_put(mfp, hp, true, false);
     if !buf.b_help && !buf.b_spell {
         mf_sync(mfp, 0);
     }
 
     hp = ml_new_ptr(mfp);
-    assert!(!hp.is_null());
-    if crate::globals::gptr(hp).bh_bnum != 1 {
+    if hp.bh_bnum != 1 {
         iemsg(tr(c"E298: Didn't get block nr 1?"));
-        return ml_open_error(buf, Some(mfp), hp);
+        return ml_open_error(buf, Some(mfp), Some(hp));
     }
     let pp = hp_ptr_block(hp);
     pp.pb_count = 1;
@@ -536,12 +512,12 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     pe0.pe_page_count = 1;
     pe0.pe_old_lnum = 1;
     pe0.pe_line_count = 1;
-    mf_put(mfp, unsafe { &mut *hp }, true, false);
+    mf_put(mfp, hp, true, false);
 
     hp = ml_new_data(mfp, false, 1);
-    if crate::globals::gptr(hp).bh_bnum != 2 {
+    if hp.bh_bnum != 2 {
         iemsg(tr(c"E298: Didn't get block nr 2?"));
-        return ml_open_error(buf, Some(mfp), hp);
+        return ml_open_error(buf, Some(mfp), Some(hp));
     }
 
     let dp = hp_data_block(hp);
@@ -549,14 +525,14 @@ pub fn ml_open(buf: &mut FileBuf) -> bool {
     *db_idx_ptr(dp, 0) = dp.db_txt_start;
     dp.db_free -= 1 + INDEX_SIZE as u32;
     dp.db_line_count = 1;
-    dp.write_ptr(dp.db_txt_start as usize, c"".as_ptr(), 1);
+    dp.write_bytes(dp.db_txt_start as usize, b"", 1);
 
     true
 }
 
-fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) -> bool {
+fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: Option<&mut Bhdr>) -> bool {
     if let Some(mfp) = mfp {
-        if let Some(hp) = unsafe { hp.as_mut() } {
+        if let Some(hp) = hp {
             mf_put(mfp, hp, false, false);
         }
         mf_close(buf.b_ml.ml_mfp.take(), true);
@@ -567,7 +543,7 @@ fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: *mut Bhdr) ->
 /// Called when the file name of `buf` has been changed.
 pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
-    let mfp_ptr = buf.b_ml.mfp_ptr();
+    let mfp_ptr = buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut);
     if buf.b_ml.mfp_mut().mf_fd < 0 {
         if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
@@ -575,35 +551,26 @@ pub fn ml_setname(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = opt_vars().p_dir;
+    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
     let mut found_existing_dir = false;
-    loop {
-        if crate::memory::cstr_is_empty(dirp) {
-            break;
-        }
-        let mf_fname_ptr = buf
+    while !dirp.is_empty() {
+        let mf_fname = buf
             .b_ml
             .mfp_mut()
             .mf_fname
-            .as_ref()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        let fname = findswapname(buf, &mut dirp, mf_fname_ptr, &mut found_existing_dir);
-        if buf.b_ml.mfp_ptr() != mfp_ptr {
+            .as_deref()
+            .map(|s| unsafe { &*(s as *const CStr) });
+        let fname = findswapname(buf, &mut dirp, mf_fname, &mut found_existing_dir);
+        if buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut) != mfp_ptr {
             return;
-        }
-        if dirp.is_null() {
-            break;
         }
         let Some(fname) = fname else {
             continue;
         };
 
         let mfp = buf.b_ml.mfp_mut();
-        if path_equal(
-            &fname,
-            crate::memory::cstr_from_ptr((mf_fname_ptr).cast()),
-            K_PATH_CMP_LITERAL,
-        ) {
+        let mf_fname_cstr = mfp.mf_fname.as_deref().unwrap_or(c"");
+        if path_equal(&fname, mf_fname_cstr, K_PATH_CMP_LITERAL) {
             success = true;
             break;
         }
@@ -612,7 +579,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
             mfp.mf_fd = -1;
         }
 
-        if vim_rename(crate::memory::cstr_from_ptr(mf_fname_ptr), &fname) == 0 {
+        if vim_rename(mf_fname_cstr, &fname) == 0 {
             success = true;
             mf_free_fnames(mfp);
             mf_set_fnames(mfp, fname);
@@ -646,7 +613,7 @@ pub fn ml_open_files() {
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
 pub fn ml_open_file(buf: &mut FileBuf) {
-    let mfp_ptr = buf.b_ml.mfp_ptr();
+    let mfp_ptr = buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut);
     let Some(mfp) = buf.b_ml.mfp_opt() else {
         return;
     };
@@ -666,18 +633,12 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = opt_vars().p_dir;
+    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
     let mut found_existing_dir = false;
-    loop {
-        if crate::memory::cstr_is_empty(dirp) {
-            break;
-        }
-        let fname = findswapname(buf, &mut dirp, ptr::null_mut(), &mut found_existing_dir);
-        if buf.b_ml.mfp_ptr() != mfp_ptr {
+    while !dirp.is_empty() {
+        let fname = findswapname(buf, &mut dirp, None, &mut found_existing_dir);
+        if buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut) != mfp_ptr {
             return;
-        }
-        if dirp.is_null() {
-            break;
         }
         let Some(fname) = fname else {
             continue;
@@ -878,28 +839,24 @@ fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     }
 }
 
-fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: impl crate::strings::IntoCCharPtr) -> i32 {
-    let swap_fname = swap_fname.into_c_char_ptr();
+fn swapfile_proc_running(b0p: &ZeroBlock, swap_fname: &CStr) -> i32 {
+    let mut st = FileInfo::new();
+    let mut uptime: f64 = 0.0;
+    if os_fileinfo(swap_fname, &mut st)
+        && unsafe { uv_uptime(&mut uptime) } == 0
+        && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
     {
-        let mut st = FileInfo::new();
-        let mut uptime: f64 = 0.0;
-        if os_fileinfo(crate::memory::cstr_from_ptr((swap_fname).cast()), &mut st)
-            && unsafe { uv_uptime(&mut uptime) } == 0
-            && (st.stat.st_mtim.tv_sec as Timestamp) < os_time().wrapping_sub(uptime as Timestamp)
-        {
-            return 0;
-        }
-        let pid = char_to_long(&b0p.b0_pid) as i32;
-        if os_proc_running(pid) { pid } else { 0 }
+        return 0;
     }
+    let pid = char_to_long(&b0p.b0_pid) as i32;
+    if os_proc_running(pid) { pid } else { 0 }
 }
 
 /// Try to recover `curbuf` from the `.swp` file.
 pub fn ml_recover(checkext: bool) {
     let mut buf_box: Option<Box<FileBuf>> = None;
-    let mut mfp: *mut Memfile = ptr::null_mut();
     let fname_used: Option<std::ffi::CString>;
-    let mut hp: *mut Bhdr = ptr::null_mut();
+    let mut hp: *mut Bhdr;
     let mut b0_fenc: Option<std::ffi::CString> = None;
     let directly: bool;
     let mut serious_error = true;
@@ -908,11 +865,9 @@ pub fn ml_recover(checkext: bool) {
     g_st().recoverymode = true;
     let called_from_main = curbuf_mut().b_ml.ml_mfp.is_none();
 
-    let mut fname = curbuf_mut().b_fname;
-    if fname.is_null() {
-        fname = c"".as_ptr().cast_mut();
-    }
-    let fname_slice = crate::memory::cstr_as_bytes(fname);
+    let fname_opt = crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname);
+    let fname_cstr = fname_opt.unwrap_or(c"");
+    let fname_slice = fname_cstr.to_bytes();
     let len = fname_slice.len();
     if checkext
         && len >= 4
@@ -924,27 +879,21 @@ pub fn ml_recover(checkext: bool) {
         && fname_slice[len - 1].is_ascii_alphabetic()
     {
         directly = true;
-        fname_used = Some(crate::memory::cstr_to_cstring(fname));
+        fname_used = Some(fname_cstr.to_owned());
     } else {
         directly = false;
         let mut items_tv = TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
 
-        recover_names(fname, true, crate::globals::gmut(items_tv.vval.v_list()));
+        recover_names(fname_opt, true, unsafe { &mut *items_tv.vval.v_list() });
 
-        let n_swaps = tv_list_len(crate::globals::gopt(items_tv.vval.v_list()));
+        let n_swaps = tv_list_len(unsafe { items_tv.vval.v_list().as_ref() });
 
         if n_swaps == 0 {
             tv_clear(&mut items_tv);
-            semsg!(tr(c"E305: No swap file found for %s"), fname);
+            semsg!(tr(c"E305: No swap file found for %s"), fname_cstr);
 
-            ml_recover_theend(
-                crate::globals::gopt_mut(mfp),
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
 
             return;
         }
@@ -953,17 +902,11 @@ pub fn ml_recover(checkext: bool) {
             nlua_call_typval(c"vim._core.swapfile", c"select_swap", &mut lua_args, None);
             tv_clear(&mut items_tv);
 
-            ml_recover_theend(
-                crate::globals::gopt_mut(mfp),
-                hp,
-                buf_box,
-                serious_error,
-                called_from_main,
-            );
+            ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
 
             return;
         }
-        let first_str = tv_list_first(crate::globals::gopt(items_tv.vval.v_list()))
+        let first_str = tv_list_first(unsafe { items_tv.vval.v_list().as_ref() })
             .unwrap()
             .li_tv
             .vval
@@ -972,13 +915,7 @@ pub fn ml_recover(checkext: bool) {
         tv_clear(&mut items_tv);
     }
     let Some(fname_used) = fname_used else {
-        ml_recover_theend(
-            crate::globals::gopt_mut(mfp),
-            hp,
-            buf_box,
-            serious_error,
-            called_from_main,
-        );
+        ml_recover_theend(None, None, buf_box, serious_error, called_from_main);
 
         return;
     };
@@ -987,18 +924,18 @@ pub fn ml_recover(checkext: bool) {
     }
 
     let mut allocated_buf = Box::new(FileBuf::new());
-    let buf: *mut FileBuf = &raw mut *allocated_buf;
-    let buf = crate::globals::gmut(buf);
+    let buf_ptr: *mut FileBuf = &raw mut *allocated_buf;
+    let buf: &'static mut FileBuf = unsafe { &mut *buf_ptr };
     buf_box = Some(allocated_buf);
 
     buf.b_ml.ml_mfp = mf_open(Some(fname_used.clone()), O_RDONLY);
-    mfp = buf.b_ml.mfp_ptr();
-    if mfp.is_null() || crate::globals::gptr(mfp).mf_fd < 0 {
+    let mfp_opt = buf.b_ml.mfp_opt();
+    if mfp_opt.as_ref().is_none_or(|m| m.mf_fd < 0) {
         semsg!(tr(c"E306: Cannot open %s"), fname_used.as_ptr());
 
         ml_recover_theend(
-            crate::globals::gopt_mut(mfp),
-            hp,
+            buf.b_ml.mfp_opt(),
+            None,
             buf_box,
             serious_error,
             called_from_main,
@@ -1006,7 +943,7 @@ pub fn ml_recover(checkext: bool) {
 
         return;
     }
-    let mfp = crate::globals::gmut(mfp);
+    let mfp = mfp_opt.unwrap();
     mfp.mf_page_size = MIN_SWAP_PAGE_SIZE;
 
     let hl_id = HLF_E;
@@ -1024,18 +961,15 @@ pub fn ml_recover(checkext: bool) {
         msg_end();
         ml_recover_theend(
             Some(&mut *mfp),
-            hp,
+            None,
             buf_box,
             serious_error,
             called_from_main,
         );
         return;
     }
-    let mut b0p = crate::globals::gptr(hp)
-        .data_slice_mut()
-        .as_mut_ptr()
-        .cast::<ZeroBlock>();
-    if (&crate::globals::gptr(b0p).b0_version)[..7] == *b"VIM 3.0" {
+    let mut b0p = hp_zero_block(unsafe { &mut *hp });
+    if b0p.b0_version[..7] == *b"VIM 3.0" {
         msg_start();
         msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), 0, true);
         msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
@@ -1043,46 +977,42 @@ pub fn ml_recover(checkext: bool) {
         msg_end();
         ml_recover_theend(
             Some(&mut *mfp),
-            hp,
+            unsafe { hp.as_mut() },
             buf_box,
             serious_error,
             called_from_main,
         );
         return;
     }
-    if !ml_check_b0_id(crate::globals::gref(b0p)) {
+    if !ml_check_b0_id(b0p) {
         semsg!(
             tr(c"E307: %s does not look like a Nvim swap file"),
             mfp.mf_fname.as_deref().unwrap_or(c""),
         );
         ml_recover_theend(
             Some(&mut *mfp),
-            hp,
+            unsafe { hp.as_mut() },
             buf_box,
             serious_error,
             called_from_main,
         );
         return;
     }
-    if b0_magic_wrong(crate::globals::gref(b0p)) {
+    if b0_magic_wrong(b0p) {
         msg_start();
         msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
         msg_puts_hl(tr(c" cannot be used on this computer.\n"), hl_id, true);
         msg_puts_hl(tr(c"The file was created on "), hl_id, true);
 
-        crate::globals::gptr(b0p).b0_fname[0] = 0;
+        b0p.b0_fname[0] = 0;
 
-        msg_puts_hl(
-            crate::memory::cstr_until_nul(&crate::globals::gptr(b0p).b0_hname),
-            hl_id,
-            true,
-        );
+        msg_puts_hl(crate::memory::cstr_until_nul(&b0p.b0_hname), hl_id, true);
 
         msg_puts_hl(tr(c",\nor the file has been damaged."), hl_id, true);
         msg_end();
         ml_recover_theend(
             Some(&mut *mfp),
-            hp,
+            unsafe { hp.as_mut() },
             buf_box,
             serious_error,
             called_from_main,
@@ -1090,7 +1020,7 @@ pub fn ml_recover(checkext: bool) {
         return;
     }
 
-    let b0_page_size = char_to_long(&crate::globals::gptr(b0p).b0_page_size) as u32;
+    let b0_page_size = char_to_long(&b0p.b0_page_size) as u32;
     if mfp.mf_page_size != b0_page_size {
         let previous_page_size = mfp.mf_page_size;
         mf_new_page_size(&mut *mfp, b0_page_size);
@@ -1105,7 +1035,7 @@ pub fn ml_recover(checkext: bool) {
             msg_end();
             ml_recover_theend(
                 Some(&mut *mfp),
-                hp,
+                unsafe { hp.as_mut() },
                 buf_box,
                 serious_error,
                 called_from_main,
@@ -1120,25 +1050,20 @@ pub fn ml_recover(checkext: bool) {
         };
         mfp.mf_infile_count = mfp.mf_blocknr_max;
 
-        crate::globals::gptr(hp)
+        unsafe { &mut *hp }
             .bh_data
             .resize(mfp.mf_page_size as usize, 0);
 
-        b0p = crate::globals::gptr(hp)
-            .data_slice_mut()
-            .as_mut_ptr()
-            .cast::<ZeroBlock>();
+        b0p = hp_zero_block(unsafe { &mut *hp });
     }
 
     let namebuff_ptr = g_st().name_buff.as_mut_ptr();
     if directly {
         #[cfg(windows)]
-        path_to_slash(crate::memory::cstr_as_mut_bytes(
-            (&raw mut crate::globals::gptr(b0p).b0_fname).cast(),
-        ));
+        path_to_slash(&mut b0p.b0_fname);
 
         expand_env(
-            crate::memory::cstr_until_nul(&crate::globals::gptr(b0p).b0_fname),
+            crate::memory::cstr_until_nul(&b0p.b0_fname),
             g_st().name_buff_bytes_mut(),
         );
 
@@ -1150,7 +1075,7 @@ pub fn ml_recover(checkext: bool) {
         ) {
             ml_recover_theend(
                 Some(&mut *mfp),
-                hp,
+                unsafe { hp.as_mut() },
                 buf_box,
                 serious_error,
                 called_from_main,
@@ -1167,18 +1092,18 @@ pub fn ml_recover(checkext: bool) {
         .map_or(c"".as_ptr().cast_mut(), |s| s.as_ptr().cast_mut());
     home_replace(
         None,
-        crate::memory::cstr_as_opt_cstr((mf_fname_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr(mf_fname_ptr),
         g_st().name_buff_bytes_mut(),
         true,
     );
     smsg!(0, tr(c"Using swap file \"%s\""), namebuff_ptr);
 
-    if let Some(sp) = buf_spname(crate::globals::gref(g_st().curbuf)) {
+    if let Some(sp) = buf_spname(curbuf_mut()) {
         crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), sp.to_bytes());
     } else {
         home_replace(
             None,
-            crate::memory::cstr_as_opt_cstr((curbuf_mut().b_ffname).cast()),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
             g_st().name_buff_bytes_mut(),
             true,
         );
@@ -1190,14 +1115,14 @@ pub fn ml_recover(checkext: bool) {
 
     let mut org_file_info = FileInfo::new();
     let mut swp_file_info = FileInfo::new();
-    let mtime = char_to_long(&crate::globals::gptr(b0p).b0_mtime);
+    let mtime = char_to_long(&b0p.b0_mtime);
     if !curbuf_mut().b_ffname.is_null()
         && os_fileinfo(
-            crate::memory::cstr_from_ptr((curbuf_mut().b_ffname).cast()),
+            crate::memory::cstr_from_ptr(curbuf_mut().b_ffname),
             &mut org_file_info,
         )
         && ((os_fileinfo(
-            crate::memory::cstr_from_ptr((mf_fname_ptr).cast()),
+            crate::memory::cstr_from_ptr(mf_fname_ptr),
             &mut swp_file_info,
         ) && org_file_info.stat.st_mtim.tv_sec > swp_file_info.stat.st_mtim.tv_sec)
             || mtime != org_file_info.stat.st_mtim.tv_sec as _)
@@ -1206,16 +1131,15 @@ pub fn ml_recover(checkext: bool) {
     }
     ui_flush();
 
-    let b0_ff = (crate::globals::gptr(b0p).flags() & B0_FF_MASK) as i32;
-    if (crate::globals::gptr(b0p).flags() & B0_HAS_FENC) != 0 {
+    let b0_ff = (b0p.flags() & B0_FF_MASK) as i32;
+    if (b0p.flags() & B0_HAS_FENC) != 0 {
         let fnsize = B0_FNAME_SIZE_NOCRYPT;
-        let fname_base: RawCCharPtr = (&raw const crate::globals::gptr(b0p).b0_fname).cast();
-        let mut p = fname_base.wrapping_add(fnsize);
-        while p > fname_base && *crate::globals::gptr(p.wrapping_offset(-1)) != NUL {
-            p = p.wrapping_offset(-1);
+        let fname_slice = &b0p.b0_fname[..fnsize];
+        let mut p_idx = fnsize;
+        while p_idx > 0 && fname_slice[p_idx - 1] != 0 {
+            p_idx -= 1;
         }
-        let fenc_len = crate::memory::ptr_offset_from(fname_base.wrapping_add(fnsize), p) as usize;
-        let fenc_bytes = crate::memory::cstr_slice(p, fenc_len);
+        let fenc_bytes = &fname_slice[p_idx..fnsize];
         let end = fenc_bytes
             .iter()
             .position(|&b| b == 0)
@@ -1282,7 +1206,7 @@ pub fn ml_recover(checkext: bool) {
                 );
                 ml_recover_theend(
                     Some(&mut *mfp),
-                    hp,
+                    None,
                     buf_box,
                     serious_error,
                     called_from_main,
@@ -1290,10 +1214,10 @@ pub fn ml_recover(checkext: bool) {
                 return;
             }
             error += 1;
-            ml_append(lnum, tr(c"???MANY LINES MISSING"), 0, true);
+            ml_append(lnum, tr(c"???MANY LINES MISSING").to_bytes(), 0, true);
             lnum += 1;
         } else {
-            let pp = hp_ptr_block(hp);
+            let pp = hp_ptr_block(unsafe { &mut *hp });
             if pp.pb_id == PTR_ID {
                 let mut ptr_block_error = false;
                 let max_cnt = pb_count_max(&*mfp);
@@ -1315,13 +1239,13 @@ pub fn ml_recover(checkext: bool) {
                     }
                     if line_count != 0 {
                         error += 1;
-                        ml_append(lnum, tr(c"???LINE COUNT WRONG"), 0, true);
+                        ml_append(lnum, tr(c"???LINE COUNT WRONG").to_bytes(), 0, true);
                         lnum += 1;
                     }
                 }
 
                 if pp.pb_count == 0 {
-                    ml_append(lnum, tr(c"???EMPTY BLOCK"), 0, true);
+                    ml_append(lnum, tr(c"???EMPTY BLOCK").to_bytes(), 0, true);
                     lnum += 1;
                     error += 1;
                 } else if idx < i32::from(pp.pb_count) {
@@ -1350,7 +1274,7 @@ pub fn ml_recover(checkext: bool) {
                         }
                         if cannot_open {
                             error += 1;
-                            ml_append(lnum, tr(c"???LINES MISSING"), 0, true);
+                            ml_append(lnum, tr(c"???LINES MISSING").to_bytes(), 0, true);
                             lnum += 1;
                         }
                         idx += 1;
@@ -1371,7 +1295,7 @@ pub fn ml_recover(checkext: bool) {
                             > mfp.mf_blocknr_max.saturating_add(1)
                     {
                         error += 1;
-                        ml_append(lnum, tr(c"???ILLEGAL BLOCK NUMBER"), 0, true);
+                        ml_append(lnum, tr(c"???ILLEGAL BLOCK NUMBER").to_bytes(), 0, true);
                         lnum += 1;
                         idx = ip.ip_index + 1;
                         bnum = ip.ip_bnum;
@@ -1385,7 +1309,7 @@ pub fn ml_recover(checkext: bool) {
                     continue;
                 }
             } else {
-                let dp = hp_data_block(hp);
+                let dp = hp_data_block(unsafe { &mut *hp });
                 if dp.db_id != DATA_ID {
                     if bnum == 1 {
                         semsg!(
@@ -1394,7 +1318,7 @@ pub fn ml_recover(checkext: bool) {
                         );
                         ml_recover_theend(
                             Some(&mut *mfp),
-                            hp,
+                            unsafe { hp.as_mut() },
                             buf_box,
                             serious_error,
                             called_from_main,
@@ -1402,22 +1326,28 @@ pub fn ml_recover(checkext: bool) {
                         return;
                     }
                     error += 1;
-                    ml_append(lnum, tr(c"???BLOCK MISSING"), 0, true);
+                    ml_append(lnum, tr(c"???BLOCK MISSING").to_bytes(), 0, true);
                     lnum += 1;
                 } else {
                     let mut has_error = false;
-                    if crate::globals::gptr(hp).bh_page_count != page_count {
+                    let hp_page_count = unsafe { (*hp).bh_page_count };
+                    if hp_page_count != page_count {
                         error += 1;
-                        ml_append(lnum, tr(c"??? BLOCK PAGE COUNT MISMATCH"), 0, true);
+                        ml_append(
+                            lnum,
+                            tr(c"??? BLOCK PAGE COUNT MISMATCH").to_bytes(),
+                            0,
+                            true,
+                        );
                         lnum += 1;
 
-                        page_count = crate::globals::gptr(hp).bh_page_count;
+                        page_count = hp_page_count;
                     }
 
                     if page_count.wrapping_mul(mfp.mf_page_size) != dp.db_txt_end {
                         ml_append(
                             lnum,
-                            tr(c"??? from here until ???END lines may be messed up"),
+                            tr(c"??? from here until ???END lines may be messed up").to_bytes(),
                             0,
                             true,
                         );
@@ -1428,21 +1358,23 @@ pub fn ml_recover(checkext: bool) {
                     }
 
                     if (dp.db_txt_start as usize) < HEADER_SIZE || dp.db_txt_start > dp.db_txt_end {
-                        ml_append(lnum, tr(c"??? block header corrupted"), 0, true);
+                        ml_append(lnum, tr(c"??? block header corrupted").to_bytes(), 0, true);
                         lnum += 1;
                         error += 1;
                         has_error = true;
                         dp.db_txt_start = dp.db_txt_end;
                     }
 
-                    *crate::globals::gptr(
-                        dp.as_char_ptr().wrapping_add(dp.db_txt_end as usize - 1),
-                    ) = NUL;
+                    let dp_ptr = (&raw mut *dp).cast::<std::ffi::c_char>();
+                    unsafe {
+                        *dp_ptr.wrapping_add(dp.db_txt_end as usize - 1) = NUL;
+                    }
 
                     if i64::from(line_count) != dp.db_line_count {
                         ml_append(
                             lnum,
-                            tr(c"??? from here until ???END lines may have been inserted/deleted"),
+                            tr(c"??? from here until ???END lines may have been inserted/deleted")
+                                .to_bytes(),
                             0,
                             true,
                         );
@@ -1454,33 +1386,36 @@ pub fn ml_recover(checkext: bool) {
                     let mut did_questions = false;
                     for i in 0..(dp.db_line_count as isize) {
                         let idx_ptr = db_idx_ptr(&mut *dp, i as usize);
+                        let dp_ptr = (&raw mut *dp).cast::<std::ffi::c_char>();
                         if ((&raw mut *idx_ptr) as usize)
-                            >= (dp.as_char_ptr().wrapping_add(dp.db_txt_start as usize) as usize)
+                            >= (dp_ptr.wrapping_add(dp.db_txt_start as usize) as usize)
                         {
                             error += 1;
-                            ml_append(lnum, tr(c"??? lines may be missing"), 0, true);
+                            ml_append(lnum, tr(c"??? lines may be missing").to_bytes(), 0, true);
                             lnum += 1;
                             break;
                         }
 
                         let txt_start = (*idx_ptr & DB_INDEX_MASK) as i32;
-                        let line_p: RawCCharPtrMut;
+                        let line_bytes: &[u8];
                         if txt_start <= HEADER_SIZE as i32 || txt_start >= dp.db_txt_end as i32 {
                             error += 1;
                             if did_questions {
                                 continue;
                             }
                             did_questions = true;
-                            line_p = c"???".as_ptr().cast_mut();
+                            line_bytes = b"???";
                         } else {
                             did_questions = false;
-                            line_p = dp.as_char_ptr().wrapping_add(txt_start as usize);
+                            line_bytes = crate::memory::cstr_as_bytes(
+                                dp_ptr.wrapping_add(txt_start as usize),
+                            );
                         }
-                        ml_append(lnum, line_p, 0, true);
+                        ml_append(lnum, line_bytes, 0, true);
                         lnum += 1;
                     }
                     if has_error {
-                        ml_append(lnum, tr(c"???END"), 0, true);
+                        ml_append(lnum, tr(c"???END").to_bytes(), 0, true);
                         lnum += 1;
                     }
                 }
@@ -1492,15 +1427,10 @@ pub fn ml_recover(checkext: bool) {
         }
 
         buf.b_ml.ml_stack_top -= 1;
-        let ip = buf
-            .b_ml
-            .ml_stack
-            .as_mut_ptr()
-            .wrapping_add(buf.b_ml.ml_stack_top as usize);
+        let ip = &buf.b_ml.ml_stack[buf.b_ml.ml_stack_top as usize];
 
-        bnum = crate::globals::gptr(ip).ip_bnum;
-
-        idx = crate::globals::gptr(ip).ip_index + 1;
+        bnum = ip.ip_bnum;
+        idx = ip.ip_index + 1;
 
         page_count = 1;
         line_breakcheck();
@@ -1563,10 +1493,10 @@ pub fn ml_recover(checkext: bool) {
             );
         }
         msg_puts(tr(c"\nYou may want to delete the .swp file now."));
-        if swapfile_proc_running(crate::globals::gref(b0p), fname_used.as_ptr().cast_mut()) != 0 {
+        if swapfile_proc_running(b0p, &fname_used) != 0 {
             msg_puts(tr(c"\nNote: process STILL RUNNING: "));
 
-            msg_outnum(char_to_long(&crate::globals::gptr(b0p).b0_pid) as i32);
+            msg_outnum(char_to_long(&b0p.b0_pid) as i32);
         }
         if !ui_has(K_UIMESSAGES) {
             msg_puts(c"\n\n");
@@ -1577,7 +1507,7 @@ pub fn ml_recover(checkext: bool) {
 
     ml_recover_theend(
         Some(&mut *mfp),
-        hp,
+        unsafe { hp.as_mut() },
         buf_box,
         serious_error,
         called_from_main,
@@ -1586,7 +1516,7 @@ pub fn ml_recover(checkext: bool) {
 
 fn ml_recover_theend(
     mfp: Option<&mut Memfile>,
-    hp: *mut Bhdr,
+    hp: Option<&mut Bhdr>,
     mut buf: Option<Box<FileBuf>>,
     serious_error: bool,
     called_from_main: bool,
@@ -1594,7 +1524,7 @@ fn ml_recover_theend(
     g_st().msg_ext_skip_flush = false;
     g_st().recoverymode = false;
     if let Some(mfp) = mfp {
-        if let Some(hp) = unsafe { hp.as_mut() } {
+        if let Some(hp) = hp {
             mf_put(mfp, hp, false, false);
         }
         mf_close(buf.as_mut().and_then(|b| b.b_ml.ml_mfp.take()), false);
@@ -1621,31 +1551,19 @@ fn ml_recover_theend(
 }
 
 /// Enumerate swapfiles for `fname`, appending each found path to `ret_list`.
-pub fn recover_names(
-    fname: impl crate::strings::IntoCCharPtr,
-    skip_curbuf: bool,
-    ret_list: &mut TvList,
-) {
-    let fname = fname.into_c_char_ptr().cast_mut();
+pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvList) {
     #[cfg(unix)]
     let mut fname_buf = [0u8; MAXPATHL];
-    let mut fname_res: RawCCharPtrMut = ptr::null_mut();
-
-    if !fname.is_null() {
-        #[cfg(unix)]
-        {
-            let buf_ptr: RawCCharPtrMut = (&raw mut fname_buf).cast();
-            fname_res = if resolve_symlink(fname, buf_ptr) {
-                buf_ptr
-            } else {
-                fname
-            };
+    #[cfg(unix)]
+    let fname_res: Option<&CStr> = fname.map(|f| {
+        if resolve_symlink(Some(f), &mut fname_buf) {
+            crate::memory::cstr_until_nul(&fname_buf)
+        } else {
+            f
         }
-        #[cfg(not(unix))]
-        {
-            fname_res = fname;
-        }
-    }
+    });
+    #[cfg(not(unix))]
+    let fname_res: Option<&CStr> = fname;
 
     let dir_cap = (crate::memory::cstr_len(opt_vars().p_dir) + 1).min(31000);
     let mut dir_name_vec: Vec<u8> = vec![0; dir_cap];
@@ -1661,41 +1579,29 @@ pub fn recover_names(
         let dir_bytes = dir_name.as_bytes();
         let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
         if dir_bytes == b"." {
-            if fname.is_null() {
+            if let Some(f_res) = fname_res {
+                recov_file_names(&mut names_vec, f_res, true);
+            } else {
                 names_vec.push(c"*.sw?".to_owned());
                 names_vec.push(c".*.sw?".to_owned());
                 names_vec.push(c".sw?".to_owned());
-            } else {
-                recov_file_names(&mut names_vec, fname_res, true);
             }
-        } else if fname.is_null() {
-            for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
-                names_vec.push(concat_fnames(
-                    dir_name,
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(pat.as_ptr())),
-                    true,
-                ));
-            }
-        } else {
-            let p = dir_name.data.wrapping_add(dir_name.size);
-            let tail = if after_pathsep(crate::memory::ptr_span_bytes(
-                (dir_name.data).cast(),
-                (p).cast(),
-            )) != 0
+        } else if let Some(f_res) = fname_res {
+            let tail = if after_pathsep(dir_bytes) != 0
                 && dir_bytes.len() > 1
                 && dir_bytes[dir_bytes.len() - 1] == dir_bytes[dir_bytes.len() - 2]
             {
-                make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], fname_res)
+                make_percent_swname(&dir_bytes[..dir_bytes.len() - 1], Some(f_res))
             } else {
-                let t = path_tail(crate::memory::cstr_from_ptr((fname_res).cast()));
-                Some(concat_fnames(
-                    dir_name,
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr((t).as_ptr())),
-                    true,
-                ))
+                let t = path_tail(f_res);
+                Some(concat_fnames(dir_name, cstr_as_string(Some(t)), true))
             };
             if let Some(ref tail) = tail {
-                recov_file_names(&mut names_vec, tail.as_ptr().cast_mut(), false);
+                recov_file_names(&mut names_vec, tail, false);
+            }
+        } else {
+            for pat in [c"*.sw?", c".*.sw?", c".sw?"] {
+                names_vec.push(concat_fnames(dir_name, cstr_as_string(Some(pat)), true));
             }
         }
 
@@ -1710,35 +1616,22 @@ pub fn recover_names(
             curbuf_mut()
                 .b_ml
                 .mfp_opt()
-                .and_then(|mfp| mfp.mf_fname.as_ref().map(|p| p.as_ptr()))
+                .and_then(|mfp| mfp.mf_fname.as_deref())
         } else {
             None
         };
 
         if let Some(cur_p) = cur_mfp_fname {
-            files.retain(|f| {
-                !path_equal(
-                    crate::memory::cstr_from_ptr((cur_p).cast()),
-                    f,
-                    K_PATH_CMP_FULL,
-                )
-            });
+            files.retain(|f| !path_equal(cur_p, f, K_PATH_CMP_FULL));
         }
 
         if dirp.is_empty()
             && tv_list_len(Some(ret_list)) == 0
             && files.is_empty()
-            && !fname.is_null()
-            && let Some(swapname) =
-                modname(crate::memory::cstr_as_opt_cstr(fname_res), c".swp", true)
+            && let Some(f_res) = fname_res
+            && let Some(swapname) = modname(Some(f_res), c".swp", true)
             && os_path_exists(&swapname)
-            && cur_mfp_fname.is_none_or(|cur_p| {
-                !path_equal(
-                    crate::memory::cstr_from_ptr((cur_p).cast()),
-                    &swapname,
-                    K_PATH_CMP_FULL,
-                )
-            })
+            && cur_mfp_fname.is_none_or(|cur_p| !path_equal(cur_p, &swapname, K_PATH_CMP_FULL))
         {
             crate::eval::typval::tv_list_append_string(ret_list, Some(swapname.as_c_str()), -1);
         }
@@ -1754,16 +1647,8 @@ pub fn recover_names(
 }
 
 /// Append the full path to `name` with path separators made into percent signs to `dir_slice`.
-pub fn make_percent_swname(
-    dir_slice: &[u8],
-    name: impl crate::strings::IntoCCharPtr,
-) -> Option<std::ffi::CString> {
-    let name = name.into_c_char_ptr();
-    let fname = fix_fname(if !name.is_null() {
-        crate::memory::cstr_as_opt_cstr((name).cast())
-    } else {
-        Some(c"")
-    })?;
+pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std::ffi::CString> {
+    let fname = fix_fname(Some(name.unwrap_or(c"")))?;
     let mut fname_vec: Vec<u8> = fname.into_bytes_with_nul();
 
     let mut file_info = FileInfo::new();
@@ -1800,227 +1685,212 @@ pub fn make_percent_swname(
 }
 
 /// For Vimscript `swapinfo()`.
-pub fn swapfile_dict(fname: impl crate::strings::IntoCCharPtr, d: &mut TvDict) {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut b0 = ZeroBlock::new();
-        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
-        if fd >= 0 {
-            let b0_slice = unsafe {
-                std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
-            };
-            if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
-                if !ml_check_b0_id(&b0) {
-                    tv_dict_add_str_len(d, c"error", Some(b"Not a swap file"));
-                } else if b0_magic_wrong(&b0) {
-                    tv_dict_add_str_len(d, c"error", Some(b"Magic number mismatch"));
-                } else {
-                    tv_dict_add_str_len(
-                        d,
-                        c"version",
-                        Some(crate::memory::bytes_until_nul(&b0.b0_version[..10])),
-                    );
-                    tv_dict_add_str_len(
-                        d,
-                        c"user",
-                        Some(crate::memory::bytes_until_nul(
-                            &b0.b0_uname[..B0_UNAME_SIZE],
-                        )),
-                    );
-                    tv_dict_add_str_len(
-                        d,
-                        c"host",
-                        Some(crate::memory::bytes_until_nul(
-                            &b0.b0_hname[..B0_HNAME_SIZE],
-                        )),
-                    );
-                    tv_dict_add_str_len(
-                        d,
-                        c"fname",
-                        Some(crate::memory::bytes_until_nul(
-                            &b0.b0_fname[..B0_FNAME_SIZE_ORG],
-                        )),
-                    );
-
-                    tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
-                    tv_dict_add_nr(d, c"mtime", char_to_long(&b0.b0_mtime));
-                    tv_dict_add_nr(d, c"dirty", if b0.dirty() != 0 { 1 } else { 0 });
-                    tv_dict_add_nr(d, c"inode", char_to_long(&b0.b0_ino));
-                }
-            } else {
-                tv_dict_add_str_len(d, c"error", Some(b"Cannot read file"));
-            }
-            os_close(fd);
-        } else {
-            tv_dict_add_str_len(d, c"error", Some(b"Cannot open file"));
-        }
-    }
-}
-
-fn swapfile_info(fname: impl crate::strings::IntoCCharPtr, msg: &mut Vec<u8>) -> time_t {
-    let fname = fname.into_c_char_ptr();
-    {
-        assert!(!fname.is_null());
-        let mut b0 = ZeroBlock::new();
-        let mut x: time_t = 0;
-
-        let mut file_info = FileInfo::new();
-        if os_fileinfo(crate::memory::cstr_from_ptr((fname).cast()), &mut file_info) {
-            #[cfg(unix)]
-            {
-                let mut uname = [0u8; B0_UNAME_SIZE];
-                if os_get_uname(file_info.stat.st_uid as u32, &mut uname) {
-                    sb_push_cstr(msg, tr(c"          owned by: "));
-                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&uname));
-                    sb_push_cstr(msg, tr(c"   dated: "));
-                } else {
-                    sb_push_cstr(msg, tr(c"             dated: "));
-                }
-            }
-            #[cfg(not(unix))]
-            {
-                sb_push_cstr(msg, tr(c"             dated: "));
-            }
-            x = file_info.stat.st_mtim.tv_sec as _;
-            let mut ctime_buf = [0u8; 100];
-            let ct = os_ctime_r(&x, &mut ctime_buf, true);
-            sb_push_cstr(msg, ct.as_ptr());
-        }
-
-        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
-        if fd >= 0 {
-            let b0_slice = unsafe {
-                std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
-            };
-            if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
-                if b0.b0_version[..7] == *b"VIM 3.0" {
-                    sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
-                } else if !ml_check_b0_id(&b0) {
-                    sb_push_cstr(msg, tr(c"         [does not look like a Nvim swap file]"));
-                } else if !ml_check_b0_strings(&b0) {
-                    sb_push_cstr(msg, tr(c"         [garbled strings (not nul terminated)]"));
-                } else {
-                    sb_push_cstr(msg, tr(c"         file name: "));
-                    if b0.b0_fname[0] == 0 {
-                        sb_push_cstr(msg, tr(c"[No Name]"));
-                    } else {
-                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_fname));
-                    }
-
-                    sb_push_cstr(msg, tr(c"\n          modified: "));
-                    sb_push_cstr(
-                        msg,
-                        if b0.dirty() != 0 {
-                            tr(c"YES")
-                        } else {
-                            tr(c"no")
-                        },
-                    );
-
-                    if b0.b0_uname[0] != 0 {
-                        sb_push_cstr(msg, tr(c"\n         user name: "));
-                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_uname));
-                    }
-
-                    if b0.b0_hname[0] != 0 {
-                        if b0.b0_uname[0] != 0 {
-                            sb_push_cstr(msg, tr(c"   host name: "));
-                        } else {
-                            sb_push_cstr(msg, tr(c"\n         host name: "));
-                        }
-                        sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_hname));
-                    }
-
-                    let pid = char_to_long(&b0.b0_pid) as i32;
-                    if pid != 0 {
-                        sb_push_cstr(msg, tr(c"\n        process ID: "));
-                        msg.extend_from_slice(pid.to_string().as_bytes());
-                        ml_st().proc_running = swapfile_proc_running(&b0, fname);
-                        if ml_st().proc_running != 0 {
-                            sb_push_cstr(msg, tr(c" (STILL RUNNING)"));
-                        }
-                    }
-
-                    if b0_magic_wrong(&b0) {
-                        sb_push_cstr(msg, tr(c"\n         [not usable on this computer]"));
-                    }
-                }
-            } else {
-                sb_push_cstr(msg, tr(c"         [cannot be read]"));
-            }
-            os_close(fd);
-        } else {
-            sb_push_cstr(msg, tr(c"         [cannot be opened]"));
-        }
-        msg.push(b'\n');
-
-        x
-    }
-}
-
-fn swapfile_unchanged(fname: impl crate::strings::IntoCCharPtr) -> bool {
-    let fname = fname.into_c_char_ptr();
-    {
-        if !os_path_exists(crate::memory::cstr_from_ptr((fname).cast())) {
-            return false;
-        }
-        let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
-        if fd < 0 {
-            return false;
-        }
-        let mut b0 = ZeroBlock::new();
+pub fn swapfile_dict(fname: &CStr, d: &mut TvDict) {
+    let mut b0 = ZeroBlock::new();
+    let fd = os_open(fname, O_RDONLY, 0);
+    if fd >= 0 {
         let b0_slice = unsafe {
             std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
         };
-        if read_eintr(fd, b0_slice) != size_of::<ZeroBlock>() as isize {
-            os_close(fd);
-            return false;
-        }
+        if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+            if !ml_check_b0_id(&b0) {
+                tv_dict_add_str_len(d, c"error", Some(b"Not a swap file"));
+            } else if b0_magic_wrong(&b0) {
+                tv_dict_add_str_len(d, c"error", Some(b"Magic number mismatch"));
+            } else {
+                tv_dict_add_str_len(
+                    d,
+                    c"version",
+                    Some(crate::memory::bytes_until_nul(&b0.b0_version[..10])),
+                );
+                tv_dict_add_str_len(
+                    d,
+                    c"user",
+                    Some(crate::memory::bytes_until_nul(
+                        &b0.b0_uname[..B0_UNAME_SIZE],
+                    )),
+                );
+                tv_dict_add_str_len(
+                    d,
+                    c"host",
+                    Some(crate::memory::bytes_until_nul(
+                        &b0.b0_hname[..B0_HNAME_SIZE],
+                    )),
+                );
+                tv_dict_add_str_len(
+                    d,
+                    c"fname",
+                    Some(crate::memory::bytes_until_nul(
+                        &b0.b0_fname[..B0_FNAME_SIZE_ORG],
+                    )),
+                );
 
-        let mut ret = true;
-        if !ml_check_b0_id(&b0) || b0_magic_wrong(&b0) {
-            ret = false;
-        }
-        if b0.dirty() != 0 {
-            ret = false;
-        }
-        if b0.b0_hname[0] == 0 {
-            ret = false;
-        } else {
-            let mut hostname = [0u8; B0_HNAME_SIZE];
-            os_get_hostname(&mut hostname);
-            hostname[B0_HNAME_SIZE - 1] = 0;
-            b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
-            if !crate::memory::cstr_until_nul(&b0.b0_hname)
-                .to_bytes()
-                .eq_ignore_ascii_case(crate::memory::cstr_until_nul(&hostname).to_bytes())
-            {
-                ret = false;
+                tv_dict_add_nr(d, c"pid", i64::from(swapfile_proc_running(&b0, fname)));
+                tv_dict_add_nr(d, c"mtime", char_to_long(&b0.b0_mtime));
+                tv_dict_add_nr(d, c"dirty", if b0.dirty() != 0 { 1 } else { 0 });
+                tv_dict_add_nr(d, c"inode", char_to_long(&b0.b0_ino));
             }
-        }
-        if char_to_long(&b0.b0_pid) == 0 || swapfile_proc_running(&b0, fname) != 0 {
-            ret = false;
+        } else {
+            tv_dict_add_str_len(d, c"error", Some(b"Cannot read file"));
         }
         os_close(fd);
-        ret
+    } else {
+        tv_dict_add_str_len(d, c"error", Some(b"Cannot open file"));
     }
 }
 
-fn recov_file_names(
-    names: &mut Vec<std::ffi::CString>,
-    path: impl crate::strings::IntoCCharPtr,
-    prepend_dot: bool,
-) {
-    let path = path.into_c_char_ptr();
+fn swapfile_info(fname: &CStr, msg: &mut Vec<u8>) -> time_t {
+    let mut b0 = ZeroBlock::new();
+    let mut x: time_t = 0;
+
+    let mut file_info = FileInfo::new();
+    if os_fileinfo(fname, &mut file_info) {
+        #[cfg(unix)]
+        {
+            let mut uname = [0u8; B0_UNAME_SIZE];
+            if os_get_uname(file_info.stat.st_uid as u32, &mut uname) {
+                sb_push_cstr(msg, tr(c"          owned by: "));
+                sb_push_cstr(msg, crate::memory::cstr_until_nul(&uname));
+                sb_push_cstr(msg, tr(c"   dated: "));
+            } else {
+                sb_push_cstr(msg, tr(c"             dated: "));
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            sb_push_cstr(msg, tr(c"             dated: "));
+        }
+        x = file_info.stat.st_mtim.tv_sec as _;
+        let mut ctime_buf = [0u8; 100];
+        let ct = os_ctime_r(&x, &mut ctime_buf, true);
+        sb_push_cstr(msg, ct);
+    }
+
+    let fd = os_open(fname, O_RDONLY, 0);
+    if fd >= 0 {
+        let b0_slice = unsafe {
+            std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
+        };
+        if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+            if b0.b0_version[..7] == *b"VIM 3.0" {
+                sb_push_cstr(msg, tr(c"         [from Vim version 3.0]"));
+            } else if !ml_check_b0_id(&b0) {
+                sb_push_cstr(msg, tr(c"         [does not look like a Nvim swap file]"));
+            } else if !ml_check_b0_strings(&b0) {
+                sb_push_cstr(msg, tr(c"         [garbled strings (not nul terminated)]"));
+            } else {
+                sb_push_cstr(msg, tr(c"         file name: "));
+                if b0.b0_fname[0] == 0 {
+                    sb_push_cstr(msg, tr(c"[No Name]"));
+                } else {
+                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_fname));
+                }
+
+                sb_push_cstr(msg, tr(c"\n          modified: "));
+                sb_push_cstr(
+                    msg,
+                    if b0.dirty() != 0 {
+                        tr(c"YES")
+                    } else {
+                        tr(c"no")
+                    },
+                );
+
+                if b0.b0_uname[0] != 0 {
+                    sb_push_cstr(msg, tr(c"\n         user name: "));
+                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_uname));
+                }
+
+                if b0.b0_hname[0] != 0 {
+                    if b0.b0_uname[0] != 0 {
+                        sb_push_cstr(msg, tr(c"   host name: "));
+                    } else {
+                        sb_push_cstr(msg, tr(c"\n         host name: "));
+                    }
+                    sb_push_cstr(msg, crate::memory::cstr_until_nul(&b0.b0_hname));
+                }
+
+                let pid = char_to_long(&b0.b0_pid) as i32;
+                if pid != 0 {
+                    sb_push_cstr(msg, tr(c"\n        process ID: "));
+                    msg.extend_from_slice(pid.to_string().as_bytes());
+                    ml_st().proc_running = swapfile_proc_running(&b0, fname);
+                    if ml_st().proc_running != 0 {
+                        sb_push_cstr(msg, tr(c" (STILL RUNNING)"));
+                    }
+                }
+
+                if b0_magic_wrong(&b0) {
+                    sb_push_cstr(msg, tr(c"\n         [not usable on this computer]"));
+                }
+            }
+        } else {
+            sb_push_cstr(msg, tr(c"         [cannot be read]"));
+        }
+        os_close(fd);
+    } else {
+        sb_push_cstr(msg, tr(c"         [cannot be opened]"));
+    }
+    msg.push(b'\n');
+
+    x
+}
+
+fn swapfile_unchanged(fname: &CStr) -> bool {
+    if !os_path_exists(fname) {
+        return false;
+    }
+    let fd = os_open(fname, O_RDONLY, 0);
+    if fd < 0 {
+        return false;
+    }
+    let mut b0 = ZeroBlock::new();
+    let b0_slice = unsafe {
+        std::slice::from_raw_parts_mut((&raw mut b0).cast::<u8>(), size_of::<ZeroBlock>())
+    };
+    if read_eintr(fd, b0_slice) != size_of::<ZeroBlock>() as isize {
+        os_close(fd);
+        return false;
+    }
+
+    let mut ret = true;
+    if !ml_check_b0_id(&b0) || b0_magic_wrong(&b0) {
+        ret = false;
+    }
+    if b0.dirty() != 0 {
+        ret = false;
+    }
+    if b0.b0_hname[0] == 0 {
+        ret = false;
+    } else {
+        let mut hostname = [0u8; B0_HNAME_SIZE];
+        os_get_hostname(&mut hostname);
+        hostname[B0_HNAME_SIZE - 1] = 0;
+        b0.b0_hname[B0_HNAME_SIZE - 1] = 0;
+        if !crate::memory::cstr_until_nul(&b0.b0_hname)
+            .to_bytes()
+            .eq_ignore_ascii_case(crate::memory::cstr_until_nul(&hostname).to_bytes())
+        {
+            ret = false;
+        }
+    }
+    if char_to_long(&b0.b0_pid) == 0 || swapfile_proc_running(&b0, fname) != 0 {
+        ret = false;
+    }
+    os_close(fd);
+    ret
+}
+
+fn recov_file_names(names: &mut Vec<std::ffi::CString>, path: &CStr, prepend_dot: bool) {
     if prepend_dot {
-        let Some(m) = modname(crate::memory::cstr_as_opt_cstr(path), c".sw?", true) else {
+        let Some(m) = modname(Some(path), c".sw?", true) else {
             return;
         };
         names.push(m);
     }
 
     let cur = concat_fnames(
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(path)),
+        cstr_as_string(Some(path)),
         NvimString {
             data: c".sw?".as_ptr().cast_mut(),
             size: 4,
@@ -2111,8 +1981,7 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
     if mf_need_trans(mfp) && !g_st().got_int {
         let mut lnum: Linenr = 1;
         while mf_need_trans(mfp) && lnum <= buf.b_ml.ml_line_count {
-            let hp = ml_find_line(buf, lnum, ML_FIND);
-            if hp.is_null() {
+            if ml_find_line(buf, lnum, ML_FIND).is_none() {
                 status = false;
                 break;
             }
@@ -2138,13 +2007,13 @@ pub fn ml_preserve(buf: &mut FileBuf, message: bool, do_fsync: bool) {
     }
 }
 
-/// Return a pointer to a (read-only copy of a) line in `curbuf`.
-pub fn ml_get(lnum: Linenr) -> RawCCharPtrMut {
+/// Return a reference to a (read-only copy of a) line in `curbuf`.
+pub fn ml_get(lnum: Linenr) -> &'static CStr {
     ml_get_buf_impl(curbuf_mut(), lnum, false)
 }
 
-/// Return a pointer to a (read-only copy of a) line in `buf`.
-pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> RawCCharPtrMut {
+/// Return a reference to a (read-only copy of a) line in `buf`.
+pub fn ml_get_buf(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
     ml_get_buf_impl(buf, lnum, false)
 }
 
@@ -2157,12 +2026,12 @@ pub fn ml_get_slice(lnum: Linenr) -> &'static [u8] {
 /// Return the bytes (excluding NUL) of a line in `buf`.
 #[inline]
 pub fn ml_get_buf_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static [u8] {
-    let ptr = ml_get_buf(buf, lnum);
-    if crate::memory::cstr_is_empty(ptr) {
+    let cstr = ml_get_buf(buf, lnum);
+    if cstr.to_bytes().is_empty() {
         return c"".to_bytes();
     }
     assert!(buf.b_ml.ml_line_textlen > 0);
-    crate::memory::cstr_slice(ptr, (buf.b_ml.ml_line_textlen - 1) as usize)
+    crate::memory::cstr_slice(cstr.as_ptr(), (buf.b_ml.ml_line_textlen - 1) as usize)
 }
 
 /// Return the bytes (excluding NUL) starting at position `pos` in `curbuf`.
@@ -2176,7 +2045,7 @@ pub fn ml_get_pos_slice(pos: &CursorPos) -> &'static [u8] {
 /// Return a mutable byte slice (excluding NUL) of a line in `buf`, marking its data block dirty.
 #[inline]
 pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8] {
-    let ptr = ml_get_buf_impl(buf, lnum, true);
+    let ptr = ml_get_buf_impl(buf, lnum, true).as_ptr().cast_mut();
     if crate::memory::cstr_is_empty(ptr) {
         return &mut [];
     }
@@ -2186,9 +2055,11 @@ pub fn ml_get_buf_mut_slice(buf: &mut FileBuf, lnum: Linenr) -> &'static mut [u8
     }
 }
 
-/// Return pointer to position `pos`.
-pub fn ml_get_pos(pos: &CursorPos) -> RawCCharPtrMut {
-    ml_get_buf(crate::globals::curbuf_mut(), pos.lnum).wrapping_offset(pos.col as isize)
+/// Return reference to CStr starting at position `pos`.
+pub fn ml_get_pos(pos: &CursorPos) -> &'static CStr {
+    let line = ml_get_buf(crate::globals::curbuf_mut(), pos.lnum);
+    let col = (pos.col.max(0) as usize).min(line.to_bytes().len());
+    &line[col..]
 }
 
 /// Return length (excluding NUL) of the given line.
@@ -2238,10 +2109,10 @@ pub fn gchar_pos(pos: &mut CursorPos) -> i32 {
     crate::mbyte::utf_slice2char(ml_get_pos_slice(pos))
 }
 
-fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> RawCCharPtrMut {
+fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> &'static CStr {
     if buf.b_ml.ml_mfp.is_none() {
         buf.b_ml.ml_line_textlen = 1;
-        return c"".as_ptr().cast_mut();
+        return c"";
     }
 
     if lnum > buf.b_ml.ml_line_count {
@@ -2258,13 +2129,12 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
     if buf.b_ml.ml_line_lnum != lnum {
         ml_flush_line(buf, false);
 
-        let hp = ml_find_line(buf, lnum, ML_FIND);
-        if hp.is_null() {
+        let Some(hp) = ml_find_line(buf, lnum, ML_FIND) else {
             if ml_st().ml_get_recursive == 0 {
                 ml_st().ml_get_recursive += 1;
                 get_trans_bufname(buf);
                 let namebuff_ptr = g_st().name_buff.as_mut_ptr();
-                shorten_dir(crate::memory::cstr_as_mut_bytes((namebuff_ptr).cast()));
+                shorten_dir(crate::memory::cstr_as_mut_bytes(namebuff_ptr.cast()));
                 siemsg!(
                     tr(E_ML_GET_CANNOT_FIND_LINE_NR_IN_BUFFER_NR_STR),
                     i64::from(lnum),
@@ -2274,7 +2144,7 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
                 ml_st().ml_get_recursive -= 1;
             }
             return ml_get_errorret(buf, lnum);
-        }
+        };
         let dp = hp_data_block(hp);
         let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
         let start = *db_idx_ptr(dp, idx) & DB_INDEX_MASK;
@@ -2284,7 +2154,9 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
             *db_idx_ptr(dp, idx - 1) & DB_INDEX_MASK
         };
 
-        buf.b_ml.ml_line_ptr = dp.as_char_ptr().wrapping_add(start as usize);
+        buf.b_ml.ml_line_ptr = (&raw mut *dp)
+            .cast::<std::ffi::c_char>()
+            .wrapping_add(start as usize);
         buf.b_ml.ml_line_textlen = (end - start) as Colnr;
         buf.b_ml.ml_line_lnum = lnum;
         buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
@@ -2294,14 +2166,14 @@ fn ml_get_buf_impl(buf: &mut FileBuf, mut lnum: Linenr, will_change: bool) -> Ra
         ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(buf.b_ml.ml_line_ptr));
     }
 
-    buf.b_ml.ml_line_ptr
+    crate::memory::cstr_from_ptr(buf.b_ml.ml_line_ptr)
 }
 
-fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> RawCCharPtrMut {
+fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
     ml_st().ml_get_questions = *b"???\0";
     buf.b_ml.ml_line_textlen = 4;
     buf.b_ml.ml_line_lnum = lnum;
-    (&raw mut ml_st().ml_get_questions).cast()
+    crate::memory::cstr_until_nul(&ml_st().ml_get_questions)
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.
@@ -2309,515 +2181,421 @@ pub fn ml_line_alloced() -> i32 {
     curbuf_mut().b_ml.ml_flags & ML_LINE_DIRTY
 }
 
-fn ml_append_int(
-    buf: &mut FileBuf,
-    lnum: Linenr,
-    line_arg: impl crate::strings::IntoCCharPtr,
-    len_arg: Colnr,
-    flags: i32,
-) -> bool {
-    let line_arg = line_arg.into_c_char_ptr();
+fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, flags: i32) -> bool {
+    let mut len = len_arg;
+
+    if lnum > buf.b_ml.ml_line_count || buf.b_ml.ml_mfp.is_none() {
+        return false;
+    }
+
+    if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
+        ml_st().lowest_marked = lnum + 1;
+    }
+
+    if len == 0 {
+        len = crate::memory::bytes_until_nul(line).len() as Colnr + 1;
+    }
+    let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
+
+    let mfp = buf.b_ml.mfp_mut();
+    let page_size = i64::from(mfp.mf_page_size);
+
+    let Some(mut hp) = ml_find_line(buf, if lnum == 0 { 1 } else { lnum }, ML_INSERT) else {
+        return false;
+    };
+
+    buf.b_ml.ml_flags &= !ML_EMPTY;
+
+    let mut db_idx: i32 = if lnum == 0 {
+        -1
+    } else {
+        lnum - buf.b_ml.ml_locked_low
+    };
+    let mut line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
+
+    let mut dp = hp_data_block(&mut *hp);
+
+    if i64::from(dp.db_free) < space_needed
+        && db_idx == line_count - 1
+        && lnum < buf.b_ml.ml_line_count
     {
-        let line = line_arg;
-        let mut len = len_arg;
-
-        if lnum > buf.b_ml.ml_line_count || buf.b_ml.ml_mfp.is_none() {
+        buf.b_ml.ml_locked_lineadd -= 1;
+        buf.b_ml.ml_locked_high -= 1;
+        let Some(hp_next) = ml_find_line(buf, lnum + 1, ML_INSERT) else {
             return false;
-        }
-
-        if ml_st().lowest_marked != 0 && ml_st().lowest_marked > lnum {
-            ml_st().lowest_marked = lnum + 1;
-        }
-
-        if len == 0 {
-            len = crate::memory::cstr_len(line) as Colnr + 1;
-        }
-        let mut space_needed = i64::from(len) + INDEX_SIZE as i64;
-
-        let mfp = buf.b_ml.mfp_ptr();
-        let page_size = i64::from(crate::globals::gptr(mfp).mf_page_size);
-
-        let mut hp = ml_find_line(buf, if lnum == 0 { 1 } else { lnum }, ML_INSERT);
-        if hp.is_null() {
-            return false;
-        }
-
-        buf.b_ml.ml_flags &= !ML_EMPTY;
-
-        let mut db_idx: i32 = if lnum == 0 {
-            -1
-        } else {
-            lnum - buf.b_ml.ml_locked_low
         };
-        let mut line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
+        hp = hp_next;
 
-        let mut dp = hp_data_block(hp);
+        db_idx = -1;
+        line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
+        dp = hp_data_block(&mut *hp);
+    }
 
-        if i64::from(dp.db_free) < space_needed
-            && db_idx == line_count - 1
-            && lnum < buf.b_ml.ml_line_count
-        {
-            buf.b_ml.ml_locked_lineadd -= 1;
-            buf.b_ml.ml_locked_high -= 1;
-            hp = ml_find_line(buf, lnum + 1, ML_INSERT);
-            if hp.is_null() {
+    if buf.b_prev_line_count == 0 {
+        buf.b_prev_line_count = buf.b_ml.ml_line_count;
+    }
+    buf.b_ml.ml_line_count += 1;
+
+    if i64::from(dp.db_free) >= space_needed {
+        dp.db_txt_start -= len as u32;
+        dp.db_free -= space_needed as u32;
+        dp.db_line_count += 1;
+
+        if line_count > db_idx + 1 {
+            let offset = if db_idx < 0 {
+                dp.db_txt_end as i32
+            } else {
+                (*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK) as i32
+            };
+            dp.copy_within(
+                dp.db_txt_start as usize + len as usize,
+                dp.db_txt_start as usize,
+                offset as usize - (dp.db_txt_start as usize + len as usize),
+            );
+            let mut i = line_count - 1;
+            while i > db_idx {
+                *db_idx_ptr(&mut *dp, (i + 1) as usize) =
+                    *db_idx_ptr(&mut *dp, i as usize) - len as u32;
+                i -= 1;
+            }
+            *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (offset - len) as u32;
+        } else {
+            *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = dp.db_txt_start;
+        }
+
+        let dst_off = *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) as usize;
+        dp.write_bytes(dst_off, line, len as usize);
+        if (flags & ML_APPEND_MARK) != 0 {
+            *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) |= DB_MARKED;
+        }
+
+        buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
+        if (flags & ML_APPEND_NEW) == 0 {
+            buf.b_ml.ml_flags |= ML_LOCKED_POS;
+        }
+    } else {
+        let mut data_moved: i32 = 0;
+        let mut total_moved: i32 = 0;
+        let lines_moved: i32;
+        let in_left: bool;
+
+        if db_idx < 0 {
+            lines_moved = 0;
+            in_left = true;
+        } else {
+            lines_moved = line_count - db_idx - 1;
+            if lines_moved == 0 {
+                in_left = false;
+            } else {
+                data_moved = ((*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK)
+                    - dp.db_txt_start) as i32;
+                total_moved = data_moved + lines_moved * (INDEX_SIZE as i32);
+                if i64::from(dp.db_free) + i64::from(total_moved) >= space_needed {
+                    in_left = true;
+                    space_needed = i64::from(total_moved);
+                } else {
+                    in_left = false;
+                    space_needed += i64::from(total_moved);
+                }
+            }
+        }
+
+        let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
+        let hp_new = ml_new_data(&mut *mfp, (flags & ML_APPEND_NEW) != 0, new_page_count);
+        let hp_left: *mut Bhdr;
+        let hp_right: *mut Bhdr;
+        let mut line_count_left: i32;
+        let mut line_count_right: i32;
+        if db_idx < 0 {
+            hp_left = hp_new;
+            hp_right = hp;
+            line_count_left = 0;
+            line_count_right = line_count;
+        } else {
+            hp_left = hp;
+            hp_right = hp_new;
+            line_count_left = line_count;
+            line_count_right = 0;
+        }
+        let dp_right = hp_data_block(unsafe { &mut *hp_right });
+        let dp_left = hp_data_block(unsafe { &mut *hp_left });
+        let mut bnum_left = unsafe { (*hp_left).bh_bnum };
+        let mut bnum_right = unsafe { (*hp_right).bh_bnum };
+        let mut page_count_left = unsafe { (*hp_left).bh_page_count } as i32;
+        let mut page_count_right = unsafe { (*hp_right).bh_page_count } as i32;
+
+        if !in_left {
+            dp_right.db_txt_start -= len as u32;
+            dp_right.db_free -= len as u32 + INDEX_SIZE as u32;
+            *db_idx_ptr(&mut *dp_right, 0) = dp_right.db_txt_start;
+            if (flags & ML_APPEND_MARK) != 0 {
+                *db_idx_ptr(&mut *dp_right, 0) |= DB_MARKED;
+            }
+            let dst_off = dp_right.db_txt_start as usize;
+            dp_right.write_bytes(dst_off, line, len as usize);
+            line_count_right += 1;
+        }
+
+        if lines_moved != 0 {
+            dp_right.db_txt_start -= data_moved as u32;
+            dp_right.db_free -= total_moved as u32;
+            unsafe {
+                ptr::copy(
+                    (&raw mut *dp_left)
+                        .cast::<u8>()
+                        .wrapping_add(dp_left.db_txt_start as usize),
+                    (&raw mut *dp_right)
+                        .cast::<u8>()
+                        .wrapping_add(dp_right.db_txt_start as usize),
+                    data_moved as usize,
+                )
+            };
+            let offset = (dp_right.db_txt_start as i32).wrapping_sub(dp_left.db_txt_start as i32);
+            dp_left.db_txt_start += data_moved as u32;
+            dp_left.db_free += total_moved as u32;
+
+            let mut to = line_count_right;
+            let mut from = db_idx + 1;
+            while from < line_count_left {
+                *db_idx_ptr(&mut *dp_right, to as usize) =
+                    (*db_idx_ptr(&mut *dp, from as usize)).wrapping_add(offset as u32);
+                from += 1;
+                to += 1;
+            }
+            line_count_right += lines_moved;
+            line_count_left -= lines_moved;
+        }
+
+        if in_left {
+            dp_left.db_txt_start -= len as u32;
+            dp_left.db_free -= len as u32 + INDEX_SIZE as u32;
+            *db_idx_ptr(&mut *dp_left, line_count_left as usize) = dp_left.db_txt_start;
+            if (flags & ML_APPEND_MARK) != 0 {
+                *db_idx_ptr(&mut *dp_left, line_count_left as usize) |= DB_MARKED;
+            }
+            let dst_off = dp_left.db_txt_start as usize;
+            dp_left.write_bytes(dst_off, line, len as usize);
+            line_count_left += 1;
+        }
+
+        let mut lnum_left: Linenr;
+        let mut lnum_right: Linenr;
+        if db_idx < 0 {
+            lnum_left = lnum + 1;
+            lnum_right = 0;
+        } else {
+            lnum_left = 0;
+            if in_left {
+                lnum_right = lnum + 2;
+            } else {
+                lnum_right = lnum + 1;
+            }
+        }
+        dp_left.db_line_count = i64::from(line_count_left);
+        dp_right.db_line_count = i64::from(line_count_right);
+
+        if lines_moved != 0 || in_left {
+            buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
+        }
+        if (flags & ML_APPEND_NEW) == 0 && db_idx >= 0 && in_left {
+            buf.b_ml.ml_flags |= ML_LOCKED_POS;
+        }
+        mf_put(&mut *mfp, hp_new, true, false);
+
+        let lineadd = buf.b_ml.ml_locked_lineadd;
+        buf.b_ml.ml_locked_lineadd = 0;
+        ml_find_line(buf, 0, ML_FLUSH);
+
+        let mut stack_idx = buf.b_ml.ml_stack_top - 1;
+        while stack_idx >= 0 {
+            let ip = &mut buf.b_ml.ml_stack[stack_idx as usize];
+            let pb_idx = ip.ip_index as usize;
+            let Some(hp_cur) = mf_get(&mut *mfp, ip.ip_bnum, 1) else {
+                return false;
+            };
+            let mut hp_ptr: *mut Bhdr = hp_cur;
+            let mut pp = hp_ptr_block(unsafe { &mut *hp_ptr });
+            if pp.pb_id != PTR_ID {
+                iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
+                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, false, false);
                 return false;
             }
-
-            db_idx = -1;
-            line_count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low;
-            dp = hp_data_block(hp);
-        }
-
-        if buf.b_prev_line_count == 0 {
-            buf.b_prev_line_count = buf.b_ml.ml_line_count;
-        }
-        buf.b_ml.ml_line_count += 1;
-
-        if i64::from(dp.db_free) >= space_needed {
-            dp.db_txt_start -= len as u32;
-            dp.db_free -= space_needed as u32;
-            dp.db_line_count += 1;
-
-            if line_count > db_idx + 1 {
-                let offset = if db_idx < 0 {
-                    dp.db_txt_end as i32
-                } else {
-                    (*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK) as i32
-                };
-                unsafe {
-                    ptr::copy(
-                        dp.as_char_ptr()
-                            .wrapping_add(dp.db_txt_start as usize + len as usize),
-                        dp.as_char_ptr().wrapping_add(dp.db_txt_start as usize),
-                        offset as usize - (dp.db_txt_start as usize + len as usize),
-                    )
-                };
-                let mut i = line_count - 1;
-                while i > db_idx {
-                    *db_idx_ptr(&mut *dp, (i + 1) as usize) =
-                        *db_idx_ptr(&mut *dp, i as usize) - len as u32;
-                    i -= 1;
-                }
-                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = (offset - len) as u32;
-            } else {
-                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) = dp.db_txt_start;
-            }
-
-            let dst_off = *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) as usize;
-            unsafe { ptr::copy(line, dp.as_char_ptr().wrapping_add(dst_off), len as usize) };
-            if (flags & ML_APPEND_MARK) != 0 {
-                *db_idx_ptr(&mut *dp, (db_idx + 1) as usize) |= DB_MARKED;
-            }
-
-            buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
-            if (flags & ML_APPEND_NEW) == 0 {
-                buf.b_ml.ml_flags |= ML_LOCKED_POS;
-            }
-        } else {
-            let mut data_moved: i32 = 0;
-            let mut total_moved: i32 = 0;
-            let lines_moved: i32;
-            let in_left: bool;
-
-            if db_idx < 0 {
-                lines_moved = 0;
-                in_left = true;
-            } else {
-                lines_moved = line_count - db_idx - 1;
-                if lines_moved == 0 {
-                    in_left = false;
-                } else {
-                    data_moved = ((*db_idx_ptr(&mut *dp, db_idx as usize) & DB_INDEX_MASK)
-                        - dp.db_txt_start) as i32;
-                    total_moved = data_moved + lines_moved * (INDEX_SIZE as i32);
-                    if i64::from(dp.db_free) + i64::from(total_moved) >= space_needed {
-                        in_left = true;
-                        space_needed = i64::from(total_moved);
-                    } else {
-                        in_left = false;
-                        space_needed += i64::from(total_moved);
-                    }
-                }
-            }
-
-            let new_page_count = ((space_needed + HEADER_SIZE as i64) + page_size - 1) / page_size;
-            let mut hp_new = ml_new_data(
-                crate::globals::gmut(mfp),
-                (flags & ML_APPEND_NEW) != 0,
-                new_page_count,
-            );
-            let hp_left: *mut Bhdr;
-            let hp_right: *mut Bhdr;
-            let mut line_count_left: i32;
-            let mut line_count_right: i32;
-            if db_idx < 0 {
-                hp_left = hp_new;
-                hp_right = hp;
-                line_count_left = 0;
-                line_count_right = line_count;
-            } else {
-                hp_left = hp;
-                hp_right = hp_new;
-                line_count_left = line_count;
-                line_count_right = 0;
-            }
-            let dp_right = crate::globals::gptr(hp_right)
-                .data_slice_mut()
-                .as_mut_ptr()
-                .cast::<DataBlock>();
-            let dp_left = crate::globals::gptr(hp_left)
-                .data_slice_mut()
-                .as_mut_ptr()
-                .cast::<DataBlock>();
-            let mut bnum_left = crate::globals::gptr(hp_left).bh_bnum;
-            let mut bnum_right = crate::globals::gptr(hp_right).bh_bnum;
-            let mut page_count_left = crate::globals::gptr(hp_left).bh_page_count as i32;
-            let mut page_count_right = crate::globals::gptr(hp_right).bh_page_count as i32;
-
-            if !in_left {
-                crate::globals::gptr(dp_right).db_txt_start -= len as u32;
-                crate::globals::gptr(dp_right).db_free -= len as u32 + INDEX_SIZE as u32;
-                *db_idx_ptr(crate::globals::gmut(dp_right), 0) =
-                    crate::globals::gptr(dp_right).db_txt_start;
-                if (flags & ML_APPEND_MARK) != 0 {
-                    *db_idx_ptr(crate::globals::gmut(dp_right), 0) |= DB_MARKED;
-                }
-                unsafe {
-                    ptr::copy(
-                        line.cast::<u8>(),
-                        dp_right
-                            .cast::<u8>()
-                            .wrapping_add(crate::globals::gptr(dp_right).db_txt_start as usize),
-                        len as usize,
-                    )
-                };
-                line_count_right += 1;
-            }
-
-            if lines_moved != 0 {
-                crate::globals::gptr(dp_right).db_txt_start -= data_moved as u32;
-                crate::globals::gptr(dp_right).db_free -= total_moved as u32;
-                unsafe {
-                    ptr::copy(
-                        dp_left
-                            .cast::<u8>()
-                            .wrapping_add(crate::globals::gptr(dp_left).db_txt_start as usize),
-                        dp_right
-                            .cast::<u8>()
-                            .wrapping_add(crate::globals::gptr(dp_right).db_txt_start as usize),
-                        data_moved as usize,
-                    )
-                };
-                let offset = (crate::globals::gptr(dp_right).db_txt_start as i32)
-                    .wrapping_sub(crate::globals::gptr(dp_left).db_txt_start as i32);
-                crate::globals::gptr(dp_left).db_txt_start += data_moved as u32;
-                crate::globals::gptr(dp_left).db_free += total_moved as u32;
-
-                let mut to = line_count_right;
-                let mut from = db_idx + 1;
-                while from < line_count_left {
-                    *db_idx_ptr(crate::globals::gmut(dp_right), to as usize) =
-                        (*db_idx_ptr(&mut *dp, from as usize)).wrapping_add(offset as u32);
-                    from += 1;
-                    to += 1;
-                }
-                line_count_right += lines_moved;
-                line_count_left -= lines_moved;
-            }
-
-            if in_left {
-                crate::globals::gptr(dp_left).db_txt_start -= len as u32;
-                crate::globals::gptr(dp_left).db_free -= len as u32 + INDEX_SIZE as u32;
-                *db_idx_ptr(crate::globals::gmut(dp_left), line_count_left as usize) =
-                    crate::globals::gptr(dp_left).db_txt_start;
-                if (flags & ML_APPEND_MARK) != 0 {
-                    *db_idx_ptr(crate::globals::gmut(dp_left), line_count_left as usize) |=
-                        DB_MARKED;
-                }
-                unsafe {
-                    ptr::copy(
-                        line.cast::<u8>(),
-                        dp_left
-                            .cast::<u8>()
-                            .wrapping_add(crate::globals::gptr(dp_left).db_txt_start as usize),
-                        len as usize,
-                    )
-                };
-                line_count_left += 1;
-            }
-
-            let mut lnum_left: Linenr;
-            let mut lnum_right: Linenr;
-            if db_idx < 0 {
-                lnum_left = lnum + 1;
-                lnum_right = 0;
-            } else {
-                lnum_left = 0;
-                if in_left {
-                    lnum_right = lnum + 2;
-                } else {
-                    lnum_right = lnum + 1;
-                }
-            }
-            crate::globals::gptr(dp_left).db_line_count = line_count_left as i64;
-            crate::globals::gptr(dp_right).db_line_count = line_count_right as i64;
-
-            if lines_moved != 0 || in_left {
-                buf.b_ml.ml_flags |= ML_LOCKED_DIRTY;
-            }
-            if (flags & ML_APPEND_NEW) == 0 && db_idx >= 0 && in_left {
-                buf.b_ml.ml_flags |= ML_LOCKED_POS;
-            }
-            mf_put(
-                crate::globals::gmut(mfp),
-                unsafe { &mut *hp_new },
-                true,
-                false,
-            );
-
-            let lineadd = buf.b_ml.ml_locked_lineadd;
-            buf.b_ml.ml_locked_lineadd = 0;
-            ml_find_line(buf, 0, ML_FLUSH);
-
-            let mut stack_idx = buf.b_ml.ml_stack_top - 1;
-            while stack_idx >= 0 {
-                let ip = buf
-                    .b_ml
-                    .ml_stack
-                    .as_mut_ptr()
-                    .wrapping_add(stack_idx as usize);
-                let ip = crate::globals::gmut(ip);
-                let pb_idx = ip.ip_index as usize;
-                hp = mf_get(crate::globals::gmut(mfp), ip.ip_bnum, 1)
-                    .map_or(ptr::null_mut(), ptr::from_mut);
-                if hp.is_null() {
-                    return false;
-                }
-                let mut pp = hp_ptr_block(hp);
-                if pp.pb_id != PTR_ID {
-                    iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
-                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, false, false);
-                    return false;
-                }
-                if pp.pb_count < pp.pb_count_max {
-                    if pb_idx + 1 < pp.pb_count as usize {
-                        unsafe {
-                            ptr::copy(
-                                pb_ptr(&mut *pp, pb_idx + 1),
-                                pb_ptr(&mut *pp, pb_idx + 2),
-                                pp.pb_count as usize - pb_idx - 1,
-                            )
-                        };
-                    }
-                    pp.pb_count += 1;
-                    let pe_cur = pb_ptr(&mut *pp, pb_idx);
-                    pe_cur.pe_line_count = line_count_left;
-                    pe_cur.pe_bnum = bnum_left;
-                    pe_cur.pe_page_count = page_count_left;
-                    let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
-                    pe_next.pe_line_count = line_count_right;
-                    pe_next.pe_bnum = bnum_right;
-                    pe_next.pe_page_count = page_count_right;
-
-                    if lnum_left != 0 {
-                        pe_cur.pe_old_lnum = lnum_left;
-                    }
-                    if lnum_right != 0 {
-                        pe_next.pe_old_lnum = lnum_right;
-                    }
-
-                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
-                    buf.b_ml.ml_stack_top = stack_idx + 1;
-
-                    if lineadd != 0 {
-                        buf.b_ml.ml_stack_top -= 1;
-                        ml_lineadd(buf, lineadd);
-                        let top_ip = buf
-                            .b_ml
-                            .ml_stack
-                            .as_mut_ptr()
-                            .wrapping_add(buf.b_ml.ml_stack_top as usize);
-                        crate::globals::gptr(top_ip).ip_high += lineadd;
-                        buf.b_ml.ml_stack_top += 1;
-                    }
-
-                    break;
-                }
-
-                let mut pp_new: *mut PointerBlock;
-                loop {
-                    hp_new = ml_new_ptr(crate::globals::gmut(mfp));
-                    if hp_new.is_null() {
-                        return false;
-                    }
-                    pp_new = crate::globals::gptr(hp_new)
-                        .data_slice_mut()
-                        .as_mut_ptr()
-                        .cast::<PointerBlock>();
-
-                    if crate::globals::gptr(hp).bh_bnum != 1 {
-                        break;
-                    }
-
-                    unsafe {
-                        ptr::copy(
-                            (pp as *mut PointerBlock).cast::<u8>(),
-                            pp_new.cast::<u8>(),
-                            page_size as usize,
-                        )
-                    };
-                    pp.pb_count = 1;
-                    let pe0 = pb_ptr(&mut *pp, 0);
-                    pe0.pe_bnum = crate::globals::gptr(hp_new).bh_bnum;
-                    pe0.pe_line_count = buf.b_ml.ml_line_count;
-                    pe0.pe_old_lnum = 1;
-                    pe0.pe_page_count = 1;
-                    mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
-                    hp = hp_new;
-                    pp = crate::globals::gmut(pp_new);
-                    ip.ip_index = 0;
-                    stack_idx += 1;
-                }
-
-                total_moved = i32::from(pp.pb_count) - (pb_idx as i32) - 1;
-                if total_moved != 0 {
+            if pp.pb_count < pp.pb_count_max {
+                if pb_idx + 1 < pp.pb_count as usize {
                     unsafe {
                         ptr::copy(
                             pb_ptr(&mut *pp, pb_idx + 1),
-                            pb_ptr(crate::globals::gmut(pp_new), 0),
-                            total_moved as usize,
+                            pb_ptr(&mut *pp, pb_idx + 2),
+                            pp.pb_count as usize - pb_idx - 1,
                         )
                     };
-                    crate::globals::gptr(pp_new).pb_count = total_moved as u16;
-                    pp.pb_count = (i32::from(pp.pb_count) - (total_moved - 1)) as u16;
-                    let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
-                    pe_next.pe_bnum = bnum_right;
-                    pe_next.pe_line_count = line_count_right;
-                    pe_next.pe_page_count = page_count_right;
-                    if lnum_right != 0 {
-                        pe_next.pe_old_lnum = lnum_right;
-                    }
-                } else {
-                    crate::globals::gptr(pp_new).pb_count = 1;
-                    let pe_new0 = pb_ptr(crate::globals::gmut(pp_new), 0);
-                    pe_new0.pe_bnum = bnum_right;
-                    pe_new0.pe_line_count = line_count_right;
-                    pe_new0.pe_page_count = page_count_right;
-                    pe_new0.pe_old_lnum = lnum_right;
                 }
+                pp.pb_count += 1;
                 let pe_cur = pb_ptr(&mut *pp, pb_idx);
-                pe_cur.pe_bnum = bnum_left;
                 pe_cur.pe_line_count = line_count_left;
+                pe_cur.pe_bnum = bnum_left;
                 pe_cur.pe_page_count = page_count_left;
+                let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
+                pe_next.pe_line_count = line_count_right;
+                pe_next.pe_bnum = bnum_right;
+                pe_next.pe_page_count = page_count_right;
+
                 if lnum_left != 0 {
                     pe_cur.pe_old_lnum = lnum_left;
                 }
-                lnum_left = 0;
-                lnum_right = 0;
-
-                line_count_right = 0;
-                for i in 0..(crate::globals::gptr(pp_new).pb_count as usize) {
-                    line_count_right += pb_ptr(crate::globals::gmut(pp_new), i).pe_line_count;
-                }
-                line_count_left = 0;
-                for i in 0..(pp.pb_count as usize) {
-                    line_count_left += pb_ptr(&mut *pp, i).pe_line_count;
+                if lnum_right != 0 {
+                    pe_next.pe_old_lnum = lnum_right;
                 }
 
-                bnum_left = crate::globals::gptr(hp).bh_bnum;
-                bnum_right = crate::globals::gptr(hp_new).bh_bnum;
-                page_count_left = 1;
-                page_count_right = 1;
-                mf_put(crate::globals::gmut(mfp), unsafe { &mut *hp }, true, false);
-                mf_put(
-                    crate::globals::gmut(mfp),
-                    unsafe { &mut *hp_new },
-                    true,
-                    false,
-                );
+                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
+                buf.b_ml.ml_stack_top = stack_idx + 1;
 
-                stack_idx -= 1;
+                if lineadd != 0 {
+                    buf.b_ml.ml_stack_top -= 1;
+                    ml_lineadd(buf, lineadd);
+                    buf.b_ml.ml_stack[buf.b_ml.ml_stack_top as usize].ip_high += lineadd;
+                    buf.b_ml.ml_stack_top += 1;
+                }
+
+                break;
             }
 
-            if stack_idx < 0 {
-                iemsg(tr(c"E318: Updated too many blocks?"));
-                buf.b_ml.ml_stack_top = 0;
+            let mut hp_new_ptr: *mut Bhdr;
+            let mut pp_new: &'static mut PointerBlock;
+            loop {
+                hp_new_ptr = ml_new_ptr(&mut *mfp);
+                pp_new = hp_ptr_block(unsafe { &mut *hp_new_ptr });
+
+                if unsafe { (*hp_ptr).bh_bnum } != 1 {
+                    break;
+                }
+
+                unsafe {
+                    ptr::copy(
+                        (pp as *mut PointerBlock).cast::<u8>(),
+                        (pp_new as *mut PointerBlock).cast::<u8>(),
+                        page_size as usize,
+                    )
+                };
+                pp.pb_count = 1;
+                let pe0 = pb_ptr(&mut *pp, 0);
+                pe0.pe_bnum = unsafe { (*hp_new_ptr).bh_bnum };
+                pe0.pe_line_count = buf.b_ml.ml_line_count;
+                pe0.pe_old_lnum = 1;
+                pe0.pe_page_count = 1;
+                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
+                hp_ptr = hp_new_ptr;
+                pp = pp_new;
+                buf.b_ml.ml_stack[stack_idx as usize].ip_index = 0;
+                stack_idx += 1;
             }
+
+            total_moved = i32::from(pp.pb_count) - (pb_idx as i32) - 1;
+            if total_moved != 0 {
+                unsafe {
+                    ptr::copy(
+                        pb_ptr(&mut *pp, pb_idx + 1),
+                        pb_ptr(&mut *pp_new, 0),
+                        total_moved as usize,
+                    )
+                };
+                pp_new.pb_count = total_moved as u16;
+                pp.pb_count = (i32::from(pp.pb_count) - (total_moved - 1)) as u16;
+                let pe_next = pb_ptr(&mut *pp, pb_idx + 1);
+                pe_next.pe_bnum = bnum_right;
+                pe_next.pe_line_count = line_count_right;
+                pe_next.pe_page_count = page_count_right;
+                if lnum_right != 0 {
+                    pe_next.pe_old_lnum = lnum_right;
+                }
+            } else {
+                pp_new.pb_count = 1;
+                let pe_new0 = pb_ptr(&mut *pp_new, 0);
+                pe_new0.pe_bnum = bnum_right;
+                pe_new0.pe_line_count = line_count_right;
+                pe_new0.pe_page_count = page_count_right;
+                pe_new0.pe_old_lnum = lnum_right;
+            }
+            let pe_cur = pb_ptr(&mut *pp, pb_idx);
+            pe_cur.pe_bnum = bnum_left;
+            pe_cur.pe_line_count = line_count_left;
+            pe_cur.pe_page_count = page_count_left;
+            if lnum_left != 0 {
+                pe_cur.pe_old_lnum = lnum_left;
+            }
+            lnum_left = 0;
+            lnum_right = 0;
+
+            line_count_right = 0;
+            for i in 0..(pp_new.pb_count as usize) {
+                line_count_right += pb_ptr(&mut *pp_new, i).pe_line_count;
+            }
+            line_count_left = 0;
+            for i in 0..(pp.pb_count as usize) {
+                line_count_left += pb_ptr(&mut *pp, i).pe_line_count;
+            }
+
+            bnum_left = unsafe { (*hp_ptr).bh_bnum };
+            bnum_right = unsafe { (*hp_new_ptr).bh_bnum };
+            page_count_left = 1;
+            page_count_right = 1;
+            mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
+            mf_put(&mut *mfp, unsafe { &mut *hp_new_ptr }, true, false);
+
+            stack_idx -= 1;
         }
 
-        ml_updatechunk(buf, lnum + 1, len, ML_CHNK_ADDLINE);
-        true
+        if stack_idx < 0 {
+            iemsg(tr(c"E318: Updated too many blocks?"));
+            buf.b_ml.ml_stack_top = 0;
+        }
     }
+
+    ml_updatechunk(buf, lnum + 1, len, ML_CHNK_ADDLINE);
+    true
 }
 
-fn ml_append_flush(
-    buf: &mut FileBuf,
-    lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
-    len: Colnr,
-    flags: i32,
-) -> bool {
-    let line = line.into_c_char_ptr();
-    {
-        if lnum > buf.b_ml.ml_line_count {
-            return false;
-        }
-        if buf.b_ml.ml_line_lnum != 0 {
-            ml_flush_line(buf, false);
-        }
-        ml_append_int(buf, lnum, line, len, flags)
+fn ml_append_flush(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
+    if lnum > buf.b_ml.ml_line_count {
+        return false;
     }
+    if buf.b_ml.ml_line_lnum != 0 {
+        ml_flush_line(buf, false);
+    }
+    ml_append_int(buf, lnum, line, len, flags)
 }
 
 /// Append a line after `lnum` (may be 0 to insert in front of the file).
-pub fn ml_append(
-    lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
-    len: Colnr,
-    newfile: bool,
-) -> bool {
-    let line = line.into_c_char_ptr().cast_mut();
+pub fn ml_append(lnum: Linenr, line: &[u8], len: Colnr, newfile: bool) -> bool {
     ml_append_flags(lnum, line, len, if newfile { ML_APPEND_NEW } else { 0 })
 }
 
 /// Append a line after `lnum` using `ML_APPEND_` flags.
-pub fn ml_append_flags(
-    lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
-    len: Colnr,
-    flags: i32,
-) -> bool {
-    let line = line.into_c_char_ptr();
-    {
-        if curbuf_mut().b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
-            return false;
-        }
-        ml_append_flush(curbuf_mut(), lnum, line, len, flags)
+pub fn ml_append_flags(lnum: Linenr, line: &[u8], len: Colnr, flags: i32) -> bool {
+    if curbuf_mut().b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
+        return false;
     }
+    ml_append_flush(curbuf_mut(), lnum, line, len, flags)
 }
 
 /// Like `ml_append()` but for an arbitrary buffer.
 pub fn ml_append_buf(
     buf: &mut FileBuf,
     lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
+    line: &[u8],
     len: Colnr,
     newfile: bool,
 ) -> bool {
-    let line = line.into_c_char_ptr();
-    {
-        if buf.b_ml.ml_mfp.is_none() {
-            return false;
-        }
-        ml_append_flush(
-            buf,
-            lnum,
-            line,
-            len,
-            if newfile { ML_APPEND_NEW } else { 0 },
-        )
+    if buf.b_ml.ml_mfp.is_none() {
+        return false;
     }
+    ml_append_flush(
+        buf,
+        lnum,
+        line,
+        len,
+        if newfile { ML_APPEND_NEW } else { 0 },
+    )
 }
 
 pub fn ml_add_deleted_len(bytes: &[u8]) {
@@ -2844,98 +2622,83 @@ pub fn ml_add_deleted_len_buf(buf: &mut FileBuf, bytes: &[u8]) {
 }
 
 /// Replace line `lnum`, with buffering, in current buffer.
-pub fn ml_replace(lnum: Linenr, line: impl crate::strings::IntoCCharPtr, copy: bool) -> bool {
-    let line = line.into_c_char_ptr();
+pub fn ml_replace(lnum: Linenr, line: &[u8], copy: bool) -> bool {
     ml_replace_buf(curbuf_mut(), lnum, line, copy, false)
 }
 
 /// Replace a line for the current buffer with explicit `len` (excluding NUL).
-pub fn ml_replace_len(
-    lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
-    len: usize,
-    copy: bool,
-) -> bool {
+pub fn ml_replace_len(lnum: Linenr, line: &[u8], len: usize, copy: bool) -> bool {
     ml_replace_buf_len(curbuf_mut(), lnum, line, len, copy, false)
 }
 
 pub fn ml_replace_buf(
     buf: &mut FileBuf,
     lnum: Linenr,
-    line: impl crate::strings::IntoCCharPtr,
+    line: &[u8],
     copy: bool,
     noalloc: bool,
 ) -> bool {
-    let line = line.into_c_char_ptr().cast_mut();
-    {
-        let len = if !line.is_null() {
-            crate::memory::cstr_len(line)
-        } else {
-            usize::MAX
-        };
-        ml_replace_buf_len(buf, lnum, line, len, copy, noalloc)
-    }
+    let len = crate::memory::bytes_until_nul(line).len();
+    ml_replace_buf_len(buf, lnum, line, len, copy, noalloc)
 }
 
 /// Replace line `lnum`, with buffering.
 pub fn ml_replace_buf_len(
     buf: &mut FileBuf,
     lnum: Linenr,
-    line_arg: impl crate::strings::IntoCCharPtr,
+    line_arg: &[u8],
     len_arg: usize,
     copy: bool,
     noalloc: bool,
 ) -> bool {
-    let line_arg = line_arg.into_c_char_ptr().cast_mut();
-    {
-        let mut line = line_arg;
-        if line.is_null() {
-            return false;
-        }
-
-        if buf.b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
-            return false;
-        }
-
-        let new_buf = if copy {
-            assert!(!noalloc);
-            let mut v = Vec::with_capacity(len_arg + 1);
-            if len_arg > 0 {
-                v.extend_from_slice(crate::memory::cstr_slice(line, len_arg));
-            }
-            v.push(0);
-            Some(v)
-        } else {
-            assert!(noalloc);
-            None
-        };
-
-        if buf.b_ml.ml_line_lnum != lnum {
-            ml_flush_line(buf, false);
-        }
-
-        if !buf.update_callbacks.is_empty() {
-            let old_line = ml_get_buf(buf, lnum);
-            ml_add_deleted_len_buf(buf, crate::memory::cstr_as_bytes(old_line));
-        }
-
-        if let Some(mut v) = new_buf {
-            line = v.as_mut_ptr().cast();
-            buf.b_ml.ml_line_buf = v;
-        } else {
-            buf.b_ml.ml_line_buf.clear();
-        }
-
-        buf.b_ml.ml_line_ptr = line;
-        buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
-        buf.b_ml.ml_line_lnum = lnum;
-        buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
-        if noalloc {
-            ml_flush_line(buf, true);
-        }
-
-        true
+    if buf.b_ml.ml_mfp.is_none() && open_buffer(false, None, 0) == FAIL {
+        return false;
     }
+
+    let new_buf = if copy {
+        assert!(!noalloc);
+        let mut v = Vec::with_capacity(len_arg + 1);
+        let copy_len = len_arg.min(line_arg.len());
+        if copy_len > 0 {
+            v.extend_from_slice(&line_arg[..copy_len]);
+        }
+        if len_arg > copy_len {
+            v.resize(len_arg, 0);
+        }
+        v.push(0);
+        Some(v)
+    } else {
+        assert!(noalloc);
+        None
+    };
+
+    if buf.b_ml.ml_line_lnum != lnum {
+        ml_flush_line(buf, false);
+    }
+
+    if !buf.update_callbacks.is_empty() {
+        let old_line = ml_get_buf(buf, lnum);
+        ml_add_deleted_len_buf(buf, old_line.to_bytes());
+    }
+
+    let line: RawCCharPtrMut = if let Some(mut v) = new_buf {
+        let p = v.as_mut_ptr().cast();
+        buf.b_ml.ml_line_buf = v;
+        p
+    } else {
+        buf.b_ml.ml_line_buf.clear();
+        line_arg.as_ptr().cast_mut().cast()
+    };
+
+    buf.b_ml.ml_line_ptr = line;
+    buf.b_ml.ml_line_textlen = (len_arg as Colnr) + 1;
+    buf.b_ml.ml_line_lnum = lnum;
+    buf.b_ml.ml_flags = (buf.b_ml.ml_flags | ML_LINE_DIRTY) & !ML_EMPTY;
+    if noalloc {
+        ml_flush_line(buf, true);
+    }
+
+    true
 }
 
 /// Replace the in-memory dirty line buffer in `buf` with `bytes` (without trailing NUL).
@@ -2967,7 +2730,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         if (flags & ML_DEL_MESSAGE) != 0 {
             set_keep_msg(Some(gettext(NO_LINES_MSG)), 0);
         }
-        let i = ml_replace_buf(buf, 1, c"", true, false);
+        let i = ml_replace_buf(buf, 1, b"", true, false);
         buf.b_ml.ml_flags |= ML_EMPTY;
         return i;
     }
@@ -2976,10 +2739,9 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
         return false;
     };
 
-    let mut hp = ml_find_line(buf, lnum, ML_DELETE);
-    if hp.is_null() {
+    let Some(hp) = ml_find_line(buf, lnum, ML_DELETE) else {
         return false;
-    }
+    };
 
     let dp = hp_data_block(hp);
     let mut count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 2;
@@ -3001,13 +2763,15 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
     ml_add_deleted_len_buf(
         buf,
         crate::memory::cstr_slice(
-            dp.as_char_ptr().wrapping_add(line_start as usize),
+            (&raw mut *dp)
+                .cast::<std::ffi::c_char>()
+                .wrapping_add(line_start as usize),
             (line_size - 1) as usize,
         ),
     );
 
     if count == 1 {
-        mf_free(mfp, crate::globals::gmut(hp));
+        mf_free(mfp, hp);
         buf.b_ml.ml_locked = ptr::null_mut();
 
         let mut stack_idx = buf.b_ml.ml_stack_top - 1;
@@ -3015,25 +2779,24 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
             buf.b_ml.ml_stack_top = 0;
             let ip = buf.b_ml.ml_stack[stack_idx as usize];
             idx = ip.ip_index;
-            hp = mf_get(mfp, ip.ip_bnum, 1).map_or(ptr::null_mut(), ptr::from_mut);
-            if hp.is_null() {
+            let Some(hp_cur) = mf_get(mfp, ip.ip_bnum, 1) else {
                 return false;
-            }
-            let pp = hp_ptr_block(hp);
+            };
+            let pp = hp_ptr_block(hp_cur);
             if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_FOUR));
-                mf_put(mfp, unsafe { &mut *hp }, false, false);
+                mf_put(mfp, hp_cur, false, false);
                 return false;
             }
             pp.pb_count -= 1;
             count = i32::from(pp.pb_count);
             if count == 0 {
-                mf_free(mfp, crate::globals::gmut(hp));
+                mf_free(mfp, hp_cur);
             } else {
                 if count != idx {
                     pp.copy_entries((idx + 1) as usize, idx as usize, (count - idx) as usize);
                 }
-                mf_put(mfp, unsafe { &mut *hp }, true, false);
+                mf_put(mfp, hp_cur, true, false);
 
                 buf.b_ml.ml_stack_top = stack_idx;
                 if buf.b_ml.ml_locked_lineadd != 0 {
@@ -3092,10 +2855,9 @@ pub fn ml_setmarked(lnum: Linenr) {
         ml_st().lowest_marked = lnum;
     }
 
-    let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-    if hp.is_null() {
+    let Some(hp) = ml_find_line(curbuf_mut(), lnum, ML_FIND) else {
         return;
-    }
+    };
     let dp = hp_data_block(hp);
     *db_idx_ptr(dp, (lnum - curbuf_mut().b_ml.ml_locked_low) as usize) |= DB_MARKED;
     curbuf_mut().b_ml.ml_flags |= ML_LOCKED_DIRTY;
@@ -3109,10 +2871,9 @@ pub fn ml_firstmarked() -> Linenr {
 
     let mut lnum = ml_st().lowest_marked;
     while lnum <= curbuf_mut().b_ml.ml_line_count {
-        let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-        if hp.is_null() {
+        let Some(hp) = ml_find_line(curbuf_mut(), lnum, ML_FIND) else {
             return 0;
-        }
+        };
         let dp = hp_data_block(hp);
         let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as usize;
         while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -3139,10 +2900,9 @@ pub fn ml_clearmarked() {
 
     let mut lnum = ml_st().lowest_marked;
     while lnum <= curbuf_mut().b_ml.ml_line_count {
-        let hp = ml_find_line(curbuf_mut(), lnum, ML_FIND);
-        if hp.is_null() {
+        let Some(hp) = ml_find_line(curbuf_mut(), lnum, ML_FIND) else {
             return;
-        }
+        };
         let dp = hp_data_block(hp);
         let mut i = (lnum - curbuf_mut().b_ml.ml_locked_low) as usize;
         while lnum <= curbuf_mut().b_ml.ml_locked_high {
@@ -3186,21 +2946,28 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
         buf.flush_count += 1;
 
         let lnum = buf.b_ml.ml_line_lnum;
+        let new_len = buf.b_ml.ml_line_textlen;
         let owned_line = if noalloc {
             Vec::new()
         } else {
             std::mem::take(&mut buf.b_ml.ml_line_buf)
         };
-        let new_line = if noalloc {
-            buf.b_ml.ml_line_ptr
+        let new_line_slice: &[u8] = if noalloc {
+            crate::memory::cstr_slice(buf.b_ml.ml_line_ptr, (new_len - 1).max(0) as usize)
         } else {
-            owned_line.as_ptr().cast_mut().cast()
+            &owned_line
         };
 
-        let hp = ml_find_line(buf, lnum, ML_FIND);
-        if hp.is_null() {
+        let Some(hp) = ml_find_line(buf, lnum, ML_FIND) else {
             siemsg!(tr(c"E320: Cannot find line %lld"), i64::from(lnum));
-        } else {
+            drop(owned_line);
+            ml_st().ml_flush_entered = false;
+            buf.b_ml.ml_flags &= !ML_LINE_DIRTY;
+            buf.b_ml.ml_line_lnum = 0;
+            buf.b_ml.ml_line_offset = 0;
+            return;
+        };
+        {
             let dp = hp_data_block(hp);
             let idx = (lnum - buf.b_ml.ml_locked_low) as usize;
             let start = (*db_idx_ptr(dp, idx) & DB_INDEX_MASK) as i32;
@@ -3209,7 +2976,6 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
             } else {
                 ((*db_idx_ptr(dp, idx - 1) & DB_INDEX_MASK) as i32) - start
             };
-            let new_len = buf.b_ml.ml_line_textlen;
             let extra = new_len - old_len;
 
             if (dp.db_free as i32) >= extra {
@@ -3230,7 +2996,7 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
                 dp.db_free = dp.db_free.wrapping_sub(extra as u32);
                 dp.db_txt_start = dp.db_txt_start.wrapping_sub(extra as u32);
 
-                dp.write_ptr((start - extra) as usize, new_line, new_len as usize);
+                dp.write_bytes((start - extra) as usize, new_line_slice, new_len as usize);
                 buf.b_ml.ml_flags |= ML_LOCKED_DIRTY | ML_LOCKED_POS;
                 if extra != 0 {
                     ml_updatechunk(buf, lnum, extra, ML_CHNK_UPDLINE);
@@ -3241,7 +3007,7 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
                 } else {
                     0
                 };
-                let _ = ml_append_int(buf, lnum, new_line, new_len, mark_flag);
+                let _ = ml_append_int(buf, lnum, new_line_slice, new_len, mark_flag);
                 let _ = ml_delete_int(buf, lnum, 0);
             }
         }
@@ -3255,9 +3021,9 @@ fn ml_flush_line(buf: &mut FileBuf, noalloc: bool) {
     buf.b_ml.ml_line_offset = 0;
 }
 
-fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr {
+fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> &'static mut Bhdr {
     assert!(page_count >= 0);
-    let hp: *mut Bhdr = mf_new(mfp, negative, page_count as u32);
+    let hp = mf_new(mfp, negative, page_count as u32);
     let dp = hp_data_block(hp);
     dp.db_id = DATA_ID;
     dp.db_txt_end = (page_count as u32).wrapping_mul(mfp.mf_page_size);
@@ -3267,8 +3033,8 @@ fn ml_new_data(mfp: &mut Memfile, negative: bool, page_count: i64) -> *mut Bhdr 
     hp
 }
 
-fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
-    let hp: *mut Bhdr = mf_new(mfp, false, 1);
+fn ml_new_ptr(mfp: &mut Memfile) -> &'static mut Bhdr {
+    let hp = mf_new(mfp, false, 1);
     let pp = hp_ptr_block(hp);
     pp.pb_id = PTR_ID;
     pp.pb_count = 0;
@@ -3276,7 +3042,7 @@ fn ml_new_ptr(mfp: &mut Memfile) -> *mut Bhdr {
     hp
 }
 
-fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
+fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static mut Bhdr> {
     let mfp = buf.b_ml.mfp_mut();
 
     if !buf.b_ml.ml_locked.is_null() {
@@ -3288,7 +3054,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
                 buf.b_ml.ml_locked_lineadd -= 1;
                 buf.b_ml.ml_locked_high -= 1;
             }
-            return buf.b_ml.ml_locked.cast();
+            return Some(unsafe { &mut *buf.b_ml.ml_locked.cast::<Bhdr>() });
         }
 
         mf_put(
@@ -3305,7 +3071,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
     }
 
     if action == ML_FLUSH {
-        return ptr::null_mut();
+        return None;
     }
 
     let mut bnum: Blocknr = 1;
@@ -3345,17 +3111,17 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
             high -= 1;
         }
 
-        let dp = hp_data_block(hp);
+        let dp = hp_data_block(unsafe { &mut *hp });
         if dp.db_id == DATA_ID {
             buf.b_ml.ml_locked = hp.cast();
             buf.b_ml.ml_locked_low = low;
             buf.b_ml.ml_locked_high = high;
             buf.b_ml.ml_locked_lineadd = 0;
             buf.b_ml.ml_flags &= !(ML_LOCKED_DIRTY | ML_LOCKED_POS);
-            return hp;
+            return Some(unsafe { &mut *hp });
         }
 
-        let pp = hp_ptr_block(hp);
+        let pp = hp_ptr_block(unsafe { &mut *hp });
         if pp.pb_id != PTR_ID {
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
             mf_put(mfp, unsafe { &mut *hp }, false, false);
@@ -3417,14 +3183,14 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> *mut Bhdr {
     }
 }
 
-fn ml_find_line_error_noblock(buf: &mut FileBuf, action: i32) -> *mut Bhdr {
+fn ml_find_line_error_noblock(buf: &mut FileBuf, action: i32) -> Option<&'static mut Bhdr> {
     if action == ML_DELETE {
         ml_lineadd(&mut *buf, 1);
     } else if action == ML_INSERT {
         ml_lineadd(&mut *buf, -1);
     }
     buf.b_ml.ml_stack_top = 0;
-    ptr::null_mut()
+    None
 }
 
 fn ml_add_stack(buf: &mut FileBuf) -> i32 {
@@ -3447,146 +3213,120 @@ fn ml_lineadd(buf: &mut FileBuf, count: i32) {
         let Some(hp_ref) = mf_get(mfp, ip.ip_bnum, 1) else {
             break;
         };
-        let hp: *mut Bhdr = hp_ref;
-        let pp = hp_ptr_block(hp);
+        let pp = hp_ptr_block(hp_ref);
         if pp.pb_id != PTR_ID {
-            mf_put(mfp, unsafe { &mut *hp }, false, false);
+            mf_put(mfp, hp_ref, false, false);
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG_TWO));
             break;
         }
         pb_ptr(pp, ip.ip_index as usize).pe_line_count += count;
         ip.ip_high += count;
-        mf_put(mfp, unsafe { &mut *hp }, true, false);
+        mf_put(mfp, hp_ref, true, false);
         idx -= 1;
     }
 }
 
 /// Resolve a symlink in the last component of a file name.
 #[cfg(unix)]
-pub fn resolve_symlink(fname: impl crate::strings::IntoCCharPtr, buf: RawCCharPtrMut) -> bool {
-    let fname = fname.into_c_char_ptr();
-    {
-        let mut tmp = [0u8; MAXPATHL];
-        let mut depth: i32 = 0;
+pub fn resolve_symlink(fname: Option<&CStr>, buf: &mut [u8]) -> bool {
+    let mut tmp = [0u8; MAXPATHL];
+    let mut depth: i32 = 0;
 
-        if fname.is_null() {
+    let Some(fname) = fname else {
+        return false;
+    };
+
+    crate::memory::copy_bytes_to_c_buf(&mut tmp, fname.to_bytes());
+
+    loop {
+        depth += 1;
+        if depth == 100 {
+            semsg!(tr(c"E773: Symlink loop for \"%s\""), fname);
             return false;
         }
 
-        let tmp_ptr: RawCCharPtrMut = (&raw mut tmp).cast();
-        crate::memory::copy_bytes_to_c_buf(&mut tmp, crate::memory::cstr_as_bytes(fname));
-
-        loop {
-            depth += 1;
-            if depth == 100 {
-                semsg!(tr(c"E773: Symlink loop for \"%s\""), fname);
-                return false;
-            }
-
-            let ret = unsafe { readlink(tmp_ptr.cast(), buf.cast(), MAXPATHL - 1) };
-            if ret <= 0 {
-                let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
-                if err == EINVAL || err == ENOENT {
-                    if depth == 1 {
-                        return false;
-                    }
-                    break;
-                }
-                return false;
-            }
-            *crate::globals::gptr(buf.wrapping_add(ret as usize)) = NUL;
-
-            let buf_bytes = crate::memory::cstr_as_bytes(buf);
-            if path_is_absolute(buf_bytes) {
-                crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
-            } else {
-                let tail = path_tail(crate::memory::cstr_from_ptr(tmp_ptr));
-                if tail.to_bytes().len() + buf_bytes.len() >= MAXPATHL {
+        let ret = unsafe {
+            readlink(
+                tmp.as_ptr().cast(),
+                buf.as_mut_ptr().cast(),
+                buf.len().saturating_sub(1),
+            )
+        };
+        if ret <= 0 {
+            let err = std::io::Error::last_os_error().raw_os_error().unwrap_or(0);
+            if err == EINVAL || err == ENOENT {
+                if depth == 1 {
                     return false;
                 }
-                let off = unsafe { tail.as_ptr().offset_from(tmp_ptr) } as usize;
-                crate::memory::copy_bytes_to_c_buf(&mut tmp[off..], buf_bytes);
+                break;
             }
+            return false;
         }
+        buf[ret as usize] = 0;
 
-        vim_full_name(
-            crate::memory::cstr_as_opt_cstr(tmp_ptr.cast()),
-            unsafe { std::slice::from_raw_parts_mut(buf.cast(), MAXPATHL) },
-            true,
-        )
+        let buf_bytes = &buf[..ret as usize];
+        if path_is_absolute(buf_bytes) {
+            crate::memory::copy_bytes_to_c_buf(&mut tmp, buf_bytes);
+        } else {
+            let tmp_cstr = crate::memory::cstr_until_nul(&tmp);
+            let tail = path_tail(tmp_cstr);
+            let off = tmp_cstr.to_bytes().len() - tail.to_bytes().len();
+            if tail.to_bytes().len() + buf_bytes.len() >= MAXPATHL {
+                return false;
+            }
+            crate::memory::copy_bytes_to_c_buf(&mut tmp[off..], buf_bytes);
+        }
     }
+
+    vim_full_name(Some(crate::memory::cstr_until_nul(&tmp)), buf, true)
 }
 
 /// Make swapfile name out of the file name and a directory name.
-pub fn makeswapname(
-    fname: impl crate::strings::IntoCCharPtr,
-    dir_name: impl crate::strings::IntoCCharPtr,
-) -> Option<std::ffi::CString> {
-    let fname = fname.into_c_char_ptr();
-    let dir_name = dir_name.into_c_char_ptr().cast_mut();
-    {
-        #[cfg(unix)]
-        let mut fname_res = fname;
-        #[cfg(not(unix))]
-        let fname_res = fname;
-        #[cfg(unix)]
-        let mut fname_buf = [0u8; MAXPATHL];
-        #[cfg(unix)]
-        {
-            let buf_ptr: RawCCharPtrMut = (&raw mut fname_buf).cast();
-            if resolve_symlink(fname, buf_ptr) {
-                fname_res = buf_ptr;
-            }
-        }
+pub fn makeswapname(fname: Option<&CStr>, dir_name: &CStr) -> Option<std::ffi::CString> {
+    #[cfg(unix)]
+    let mut fname_buf = [0u8; MAXPATHL];
+    #[cfg(unix)]
+    let fname_res: Option<&CStr> = if resolve_symlink(fname, &mut fname_buf) {
+        Some(crate::memory::cstr_until_nul(&fname_buf))
+    } else {
+        fname
+    };
+    #[cfg(not(unix))]
+    let fname_res: Option<&CStr> = fname;
 
-        let dir_bytes = crate::memory::cstr_as_bytes(dir_name);
-        let len = dir_bytes.len();
-        let s = dir_name.wrapping_add(len);
-        if after_pathsep(crate::memory::ptr_span_bytes((dir_name).cast(), (s).cast())) != 0
-            && len > 1
-            && dir_bytes[len - 1] == dir_bytes[len - 2]
-        {
-            let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
-            return modname(Some(&sw), c".swp", false);
-        }
-
-        let r = modname(
-            crate::memory::cstr_as_opt_cstr(fname_res),
-            c".swp",
-            dir_bytes == b".",
-        )?;
-
-        get_file_in_dir(r.as_ptr().cast_mut(), dir_name)
+    let dir_bytes = dir_name.to_bytes();
+    let len = dir_bytes.len();
+    if after_pathsep(dir_bytes) != 0 && len > 1 && dir_bytes[len - 1] == dir_bytes[len - 2] {
+        let sw = make_percent_swname(&dir_bytes[..len - 1], fname_res)?;
+        return modname(Some(&sw), c".swp", false);
     }
+
+    let r = modname(fname_res, c".swp", dir_bytes == b".")?;
+
+    get_file_in_dir(Some(&r), dir_name)
 }
 
 /// Get file name to use for swapfile or backup file.
-pub fn get_file_in_dir(
-    fname: impl crate::strings::IntoCCharPtr,
-    dname: impl crate::strings::IntoCCharPtr,
-) -> Option<std::ffi::CString> {
-    let fname = fname.into_c_char_ptr().cast_mut();
-    let dname = dname.into_c_char_ptr().cast_mut();
-    let tail = cstr_as_string(crate::memory::cstr_as_opt_cstr(
-        (path_tail(crate::memory::cstr_from_ptr((fname).cast()))).as_ptr(),
-    ));
-    let dname_bytes = crate::memory::cstr_as_bytes(dname);
+pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::CString> {
+    let fname = fname.unwrap_or(c"");
+    let fname_bytes = fname.to_bytes();
+    let tail_cstr = path_tail(fname);
+    let tail = cstr_as_string(Some(tail_cstr));
+    let tail_off = fname_bytes.len() - tail_cstr.to_bytes().len();
+    let dname_bytes = dname.to_bytes();
 
     if dname_bytes == b"." {
-        let n = crate::memory::ptr_offset_from(tail.data, fname) as usize + tail.size;
-        return Some(
-            std::ffi::CString::new(crate::memory::cstr_slice(fname, n)).unwrap_or_default(),
-        );
+        return Some(fname.to_owned());
     }
 
     let dname_len = dname_bytes.len();
     let retval = if dname_bytes.first() == Some(&b'.')
         && dname_bytes.get(1).is_some_and(|&b| vim_ispathsep(b))
     {
-        if tail.data == fname {
+        if tail_off == 0 {
             concat_fnames(
                 NvimString {
-                    data: dname.wrapping_add(2),
+                    data: dname.as_ptr().wrapping_add(2).cast_mut(),
                     size: dname_len - 2,
                 },
                 tail,
@@ -3595,25 +3335,21 @@ pub fn get_file_in_dir(
         } else {
             let tmp = concat_fnames(
                 NvimString {
-                    data: fname,
-                    size: crate::memory::ptr_offset_from(tail.data, fname) as usize,
+                    data: fname.as_ptr().cast_mut(),
+                    size: tail_off,
                 },
                 NvimString {
-                    data: dname.wrapping_add(2),
+                    data: dname.as_ptr().wrapping_add(2).cast_mut(),
                     size: dname_len - 2,
                 },
                 true,
             );
-            concat_fnames(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(tmp.as_ptr())),
-                tail,
-                true,
-            )
+            concat_fnames(cstr_as_string(Some(&tmp)), tail, true)
         }
     } else {
         concat_fnames(
             NvimString {
-                data: dname,
+                data: dname.as_ptr().cast_mut(),
                 size: dname_len,
             },
             tail,
@@ -3624,15 +3360,9 @@ pub fn get_file_in_dir(
     Some(retval)
 }
 
-fn attention_message(
-    buf: &mut FileBuf,
-    fname: impl crate::strings::IntoCCharPtr,
-    fhname: impl crate::strings::IntoCCharPtr,
-    msg: &mut Vec<u8>,
-) {
-    let fname = fname.into_c_char_ptr();
-    let fhname = fhname.into_c_char_ptr();
+fn attention_message(buf: &mut FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u8>) {
     assert!(!buf.b_fname.is_null());
+    let buf_fname_cstr = crate::memory::cstr_from_ptr(buf.b_fname);
 
     emsg(tr(c"E325: ATTENTION"));
     sb_push_cstr(msg, tr(c"Found a swap file by the name \""));
@@ -3640,36 +3370,33 @@ fn attention_message(
     msg.extend_from_slice(b"\"\n");
     let swap_mtime = swapfile_info(fname, msg);
     sb_push_cstr(msg, tr(c"While opening file \""));
-    sb_push_cstr(msg, buf.b_fname);
+    sb_push_cstr(msg, buf_fname_cstr);
     msg.extend_from_slice(b"\"\n");
     let mut file_info = FileInfo::new();
-    if !os_fileinfo(
-        crate::memory::cstr_from_ptr((buf.b_fname).cast()),
-        &mut file_info,
-    ) {
+    if !os_fileinfo(buf_fname_cstr, &mut file_info) {
         sb_push_cstr(msg, tr(c"      CANNOT BE FOUND"));
     } else {
         sb_push_cstr(msg, tr(c"             dated: "));
         let x: time_t = file_info.stat.st_mtim.tv_sec as _;
         let mut ctime_buf = [0u8; 50];
         let ct = os_ctime_r(&x, &mut ctime_buf, true);
-        sb_push_cstr(msg, ct.as_ptr());
+        sb_push_cstr(msg, ct);
         if swap_mtime != 0 && x > swap_mtime {
             sb_push_cstr(msg, tr(c"      NEWER than swap file!\n"));
         }
     }
     sb_push_cstr(
-            msg,
-            tr(
-                c"\n(1) Another program may be editing the same file.  If this is the case,\n    be careful not to end up with two different instances of the same\n    file when making changes.  Quit, or continue with caution.\n",
-            ),
-        );
+        msg,
+        tr(
+            c"\n(1) Another program may be editing the same file.  If this is the case,\n    be careful not to end up with two different instances of the same\n    file when making changes.  Quit, or continue with caution.\n",
+        ),
+    );
     sb_push_cstr(msg, tr(c"(2) An edit session for this file crashed.\n"));
     sb_push_cstr(
         msg,
         tr(c"    If this is the case, use \":recover\" or \"nvim -r "),
     );
-    sb_push_cstr(msg, buf.b_fname);
+    sb_push_cstr(msg, buf_fname_cstr);
     sb_push_cstr(
         msg,
         tr(c"\"\n    to recover the changes (see \":help recovery\").\n"),
@@ -3682,299 +3409,271 @@ fn attention_message(
     sb_push_cstr(msg, tr(c"\"\n    to avoid this message.\n"));
 }
 
-fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) -> SeaChoice {
-    let fname = fname.into_c_char_ptr();
+fn do_swapexists(buf: &mut FileBuf, fname: &CStr) -> SeaChoice {
+    set_vim_var_string(VV_SWAPNAME, Some(fname), -1);
+    set_vim_var_string(VV_SWAPCHOICE, None, -1);
+
+    g_st().allbuf_lock += 1;
+    apply_autocmds(
+        EVENT_SWAPEXISTS,
+        crate::memory::cstr_as_opt_cstr(buf.b_fname),
+        None,
+        false,
+        None,
+    );
+    g_st().allbuf_lock -= 1;
+
+    set_vim_var_string(VV_SWAPNAME, None, -1);
+
+    match get_vim_var_str(VV_SWAPCHOICE)
+        .to_bytes()
+        .first()
+        .copied()
+        .unwrap_or(0)
     {
-        set_vim_var_string(VV_SWAPNAME, crate::memory::cstr_as_opt_cstr(fname), -1);
-        set_vim_var_string(VV_SWAPCHOICE, None, -1);
-
-        g_st().allbuf_lock += 1;
-        apply_autocmds(
-            EVENT_SWAPEXISTS,
-            crate::memory::cstr_as_opt_cstr(buf.b_fname),
-            None,
-            false,
-            None,
-        );
-        g_st().allbuf_lock -= 1;
-
-        set_vim_var_string(VV_SWAPNAME, None, -1);
-
-        match get_vim_var_str(VV_SWAPCHOICE)
-            .to_bytes()
-            .first()
-            .copied()
-            .unwrap_or(0)
-        {
-            b'o' => SEA_CHOICE_READONLY,
-            b'e' => SEA_CHOICE_EDIT,
-            b'r' => SEA_CHOICE_RECOVER,
-            b'd' => SEA_CHOICE_DELETE,
-            b'q' => SEA_CHOICE_QUIT,
-            b'a' => SEA_CHOICE_ABORT,
-            _ => SEA_CHOICE_NONE,
-        }
+        b'o' => SEA_CHOICE_READONLY,
+        b'e' => SEA_CHOICE_EDIT,
+        b'r' => SEA_CHOICE_RECOVER,
+        b'd' => SEA_CHOICE_DELETE,
+        b'q' => SEA_CHOICE_QUIT,
+        b'a' => SEA_CHOICE_ABORT,
+        _ => SEA_CHOICE_NONE,
     }
 }
 
 fn findswapname(
     buf: &mut FileBuf,
-    dirp: &mut RawCCharPtrMut,
-    old_fname: impl crate::strings::IntoCCharPtr,
+    dirp: &mut &[u8],
+    old_fname: Option<&CStr>,
     found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
-    let old_fname = old_fname.into_c_char_ptr();
-    {
-        let buf_fname = buf.b_fname;
-        let mut dir_bytes = crate::memory::cstr_as_bytes(*dirp);
-        let old_len = dir_bytes.len();
-        let dir_len = old_len + 1;
-        let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
-        copy_option_part(&mut dir_bytes, &mut dir_name_vec, c",");
-        *dirp = dirp.wrapping_add(old_len - dir_bytes.len());
-        let dir_name: RawCCharPtrMut = dir_name_vec.as_mut_ptr().cast();
+    let buf_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+    let dir_len = dirp.len() + 1;
+    let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
+    copy_option_part(dirp, &mut dir_name_vec, c",");
+    let dir_name = crate::memory::cstr_until_nul(&dir_name_vec);
 
-        let mut fname_vec: Option<Vec<u8>> =
-            makeswapname(buf_fname, dir_name).map(std::ffi::CString::into_bytes_with_nul);
+    let mut fname_vec: Option<Vec<u8>> =
+        makeswapname(buf_fname, dir_name).map(std::ffi::CString::into_bytes_with_nul);
 
-        while let Some(ref mut fvec) = fname_vec {
-            let fname: RawCCharPtrMut = fvec.as_mut_ptr().cast();
-            let n = crate::memory::cstr_len(fname);
-            if n == 0 {
-                fname_vec = None;
-                break;
-            }
-            let mut file_info = FileInfo::new();
-            let file_or_link_found =
-                os_fileinfo_link(crate::memory::cstr_from_ptr((fname).cast()), &mut file_info);
-            if !file_or_link_found {
-                break;
-            }
+    while let Some(ref mut fvec) = fname_vec {
+        let fname_cstr = crate::memory::cstr_until_nul(fvec);
+        let n = fname_cstr.to_bytes().len();
+        if n == 0 {
+            fname_vec = None;
+            break;
+        }
+        let mut file_info = FileInfo::new();
+        let file_or_link_found = os_fileinfo_link(fname_cstr, &mut file_info);
+        if !file_or_link_found {
+            break;
+        }
 
-            if !old_fname.is_null()
-                && path_equal(
-                    crate::memory::cstr_from_ptr((fname).cast()),
-                    crate::memory::cstr_from_ptr((old_fname).cast()),
-                    K_PATH_CMP_LITERAL,
-                )
-            {
-                break;
-            }
+        if let Some(old_f) = old_fname
+            && path_equal(fname_cstr, old_f, K_PATH_CMP_LITERAL)
+        {
+            break;
+        }
 
-            let fname_slice = crate::memory::cstr_slice(fname, n);
-            if fname_slice.ends_with(b"wp")
-                && !g_st().recoverymode
-                && !buf_fname.is_null()
-                && !buf.b_help
-                && (buf.b_flags & BF_DUMMY) == 0
-            {
-                let mut b0 = ZeroBlock::new();
-                let mut differ = false;
-                let namebuff_ptr = g_st().name_buff.as_mut_ptr();
+        let fname_slice = &fvec[..n];
+        if fname_slice.ends_with(b"wp")
+            && !g_st().recoverymode
+            && buf_fname.is_some()
+            && !buf.b_help
+            && (buf.b_flags & BF_DUMMY) == 0
+        {
+            let mut b0 = ZeroBlock::new();
+            let mut differ = false;
+            let namebuff_ptr = g_st().name_buff.as_mut_ptr();
 
-                let fd = os_open(crate::memory::cstr_from_ptr((fname).cast()), O_RDONLY, 0);
-                if fd >= 0 {
-                    let b0_slice = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            (&raw mut b0).cast::<u8>(),
-                            size_of::<ZeroBlock>(),
-                        )
-                    };
-                    if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
-                        #[cfg(windows)]
-                        path_to_slash(crate::memory::cstr_as_mut_bytes(
-                            (b0.b0_fname.as_mut_ptr()).cast(),
-                        ));
-                        ml_st().proc_running = swapfile_proc_running(&b0, fname);
+            let fd = os_open(fname_cstr, O_RDONLY, 0);
+            if fd >= 0 {
+                let b0_slice = unsafe {
+                    std::slice::from_raw_parts_mut(
+                        (&raw mut b0).cast::<u8>(),
+                        size_of::<ZeroBlock>(),
+                    )
+                };
+                if read_eintr(fd, b0_slice) == size_of::<ZeroBlock>() as isize {
+                    #[cfg(windows)]
+                    path_to_slash(&mut b0.b0_fname);
+                    ml_st().proc_running = swapfile_proc_running(&b0, fname_cstr);
 
-                        let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
-                        if (b0.flags() & B0_SAME_DIR) != 0 {
-                            if !path_equal(
-                                path_tail(crate::memory::cstr_from_ptr((buf.b_ffname).cast())),
-                                path_tail(b0_fname_cstr),
-                                K_PATH_CMP_LITERAL,
-                            ) || !same_directory(
-                                crate::memory::cstr_as_opt_cstr((fname).cast()),
-                                crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast()),
-                            ) {
-                                expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
-                                if fnamecmp_ino(
-                                    buf.b_ffname,
-                                    namebuff_ptr,
-                                    char_to_long(&b0.b0_ino),
-                                ) {
-                                    differ = true;
-                                }
-                            }
-                        } else {
+                    let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
+                    let buf_ffname_opt = crate::memory::cstr_as_opt_cstr(buf.b_ffname);
+                    if (b0.flags() & B0_SAME_DIR) != 0 {
+                        if !path_equal(
+                            path_tail(buf_ffname_opt.unwrap_or(c"")),
+                            path_tail(b0_fname_cstr),
+                            K_PATH_CMP_LITERAL,
+                        ) || !same_directory(Some(fname_cstr), buf_ffname_opt)
+                        {
                             expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
-                            if fnamecmp_ino(buf.b_ffname, namebuff_ptr, char_to_long(&b0.b0_ino)) {
+                            if fnamecmp_ino(
+                                buf_ffname_opt,
+                                crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+                                char_to_long(&b0.b0_ino),
+                            ) {
                                 differ = true;
                             }
                         }
-                    }
-                    os_close(fd);
-                }
-
-                if !differ
-                    && (curbuf_mut().b_flags & BF_RECOVERED) == 0
-                    && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_ATTENTION)
-                {
-                    let mut choice: SeaChoice = SEA_CHOICE_NONE;
-
-                    if os_path_exists(crate::memory::cstr_from_ptr((buf.b_fname).cast()))
-                        && swapfile_unchanged(fname)
-                    {
-                        choice = SEA_CHOICE_DELETE;
-                        if opt_vars().p_verbose > 0 {
-                            verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
+                    } else {
+                        expand_env(b0_fname_cstr, g_st().name_buff_bytes_mut());
+                        if fnamecmp_ino(
+                            buf_ffname_opt,
+                            crate::memory::cstr_as_opt_cstr(namebuff_ptr),
+                            char_to_long(&b0.b0_ino),
+                        ) {
+                            differ = true;
                         }
-                    }
-
-                    if choice == SEA_CHOICE_NONE
-                        && g_st().swap_exists_action != SEA_NONE
-                        && has_autocmd(
-                            EVENT_SWAPEXISTS,
-                            crate::memory::cstr_as_opt_cstr(buf_fname),
-                            Some(&mut *buf),
-                        )
-                    {
-                        choice = do_swapexists(buf, fname);
-                    }
-
-                    if choice == SEA_CHOICE_NONE && g_st().swap_exists_action == SEA_READONLY {
-                        choice = SEA_CHOICE_READONLY;
-                    }
-
-                    ml_st().proc_running = 0;
-                    if choice == SEA_CHOICE_NONE {
-                        g_st().no_wait_return += 1;
-                        let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
-                        let fhname = home_replace_save(
-                            None,
-                            crate::memory::cstr_as_opt_cstr((fname).cast()),
-                        );
-                        let fhname_ptr = fhname.as_ptr().cast_mut();
-                        attention_message(buf, fname, fhname_ptr, &mut msg_sb);
-
-                        g_st().got_int = false;
-                        flush_buffers(FLUSH_TYPEAHEAD);
-
-                        if g_st().swap_exists_action != SEA_NONE {
-                            sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
-                            sb_push_cstr(&mut msg_sb, fhname_ptr);
-                            sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
-                            msg_sb.push(0);
-                            let run_but =
-                                tr(c"&Open Read-Only\n&Edit anyway\n&Recover\n&Quit\n&Abort");
-                            let but = tr(
-                                    c"&Open Read-Only\n&Edit anyway\n&Recover\n&Delete it\n&Quit\n&Abort",
-                                );
-                            choice = do_dialog(
-                                VIM_WARNING,
-                                Some(tr(c"VIM - ATTENTION")),
-                                crate::memory::cstr_until_nul(&msg_sb),
-                                if ml_st().proc_running != 0 {
-                                    run_but
-                                } else {
-                                    but
-                                },
-                                1,
-                                None,
-                                0,
-                            );
-
-                            if ml_st().proc_running != 0 && choice >= 4 {
-                                choice += 1;
-                            }
-                            msg_reset_scroll();
-                        } else {
-                            let mut need_clear = false;
-                            msg_ext_set_kind(c"wmsg");
-                            let msg_len = msg_sb.len();
-                            msg_sb.push(0);
-                            msg_multiline(
-                                NvimString {
-                                    data: msg_sb.as_mut_ptr().cast(),
-                                    size: msg_len,
-                                },
-                                0,
-                                false,
-                                false,
-                                &mut need_clear,
-                            );
-                        }
-                        g_st().no_wait_return -= 1;
-                    }
-
-                    match choice {
-                        SEA_CHOICE_READONLY => {
-                            buf.b_p_ro = 1;
-                        }
-                        SEA_CHOICE_EDIT => {}
-                        SEA_CHOICE_RECOVER => {
-                            g_st().swap_exists_action = SEA_RECOVER;
-                        }
-                        SEA_CHOICE_DELETE => {
-                            os_remove(crate::memory::cstr_from_ptr((fname).cast()));
-                        }
-                        SEA_CHOICE_QUIT => {
-                            g_st().swap_exists_action = SEA_QUIT;
-                        }
-                        SEA_CHOICE_ABORT => {
-                            g_st().swap_exists_action = SEA_QUIT;
-                            g_st().got_int = true;
-                        }
-                        SEA_CHOICE_NONE => {
-                            msg_puts(c"\n");
-                            if g_st().msg_silent == 0 {
-                                g_st().need_wait_return = true;
-                            }
-                        }
-                        _ => {}
-                    }
-
-                    if choice != SEA_CHOICE_NONE
-                        && !os_path_exists(crate::memory::cstr_from_ptr((fname).cast()))
-                    {
-                        break;
                     }
                 }
+                os_close(fd);
             }
 
-            if fvec[n - 1] == b'a' {
-                if fvec[n - 2] == b'a' {
-                    emsg(tr(c"E326: Too many swap files found"));
-                    fname_vec = None;
+            if !differ
+                && (curbuf_mut().b_flags & BF_RECOVERED) == 0
+                && !crate::strings::vim_haschr(opt_vars().p_shm, K_SHM_ATTENTION)
+            {
+                let mut choice: SeaChoice = SEA_CHOICE_NONE;
+
+                if os_path_exists(crate::memory::cstr_from_ptr(buf.b_fname))
+                    && swapfile_unchanged(fname_cstr)
+                {
+                    choice = SEA_CHOICE_DELETE;
+                    if opt_vars().p_verbose > 0 {
+                        verb_msg(tr(c"Found a swap file that is not useful, deleting it"));
+                    }
+                }
+
+                if choice == SEA_CHOICE_NONE
+                    && g_st().swap_exists_action != SEA_NONE
+                    && has_autocmd(EVENT_SWAPEXISTS, buf_fname, Some(&mut *buf))
+                {
+                    choice = do_swapexists(buf, fname_cstr);
+                }
+
+                if choice == SEA_CHOICE_NONE && g_st().swap_exists_action == SEA_READONLY {
+                    choice = SEA_CHOICE_READONLY;
+                }
+
+                ml_st().proc_running = 0;
+                if choice == SEA_CHOICE_NONE {
+                    g_st().no_wait_return += 1;
+                    let mut msg_sb = Vec::<u8>::with_capacity(IOSIZE);
+                    let fhname = home_replace_save(None, Some(fname_cstr));
+                    attention_message(buf, fname_cstr, &fhname, &mut msg_sb);
+
+                    g_st().got_int = false;
+                    flush_buffers(FLUSH_TYPEAHEAD);
+
+                    if g_st().swap_exists_action != SEA_NONE {
+                        sb_push_cstr(&mut msg_sb, tr(c"Swap file \""));
+                        sb_push_cstr(&mut msg_sb, &fhname);
+                        sb_push_cstr(&mut msg_sb, tr(c"\" already exists!"));
+                        msg_sb.push(0);
+                        let run_but = tr(c"&Open Read-Only\n&Edit anyway\n&Recover\n&Quit\n&Abort");
+                        let but = tr(
+                            c"&Open Read-Only\n&Edit anyway\n&Recover\n&Delete it\n&Quit\n&Abort",
+                        );
+                        choice = do_dialog(
+                            VIM_WARNING,
+                            Some(tr(c"VIM - ATTENTION")),
+                            crate::memory::cstr_until_nul(&msg_sb),
+                            if ml_st().proc_running != 0 {
+                                run_but
+                            } else {
+                                but
+                            },
+                            1,
+                            None,
+                            0,
+                        );
+
+                        if ml_st().proc_running != 0 && choice >= 4 {
+                            choice += 1;
+                        }
+                        msg_reset_scroll();
+                    } else {
+                        let mut need_clear = false;
+                        msg_ext_set_kind(c"wmsg");
+                        let msg_len = msg_sb.len();
+                        msg_sb.push(0);
+                        msg_multiline(
+                            NvimString {
+                                data: msg_sb.as_mut_ptr().cast(),
+                                size: msg_len,
+                            },
+                            0,
+                            false,
+                            false,
+                            &mut need_clear,
+                        );
+                    }
+                    g_st().no_wait_return -= 1;
+                }
+
+                match choice {
+                    SEA_CHOICE_READONLY => {
+                        buf.b_p_ro = 1;
+                    }
+                    SEA_CHOICE_EDIT => {}
+                    SEA_CHOICE_RECOVER => {
+                        g_st().swap_exists_action = SEA_RECOVER;
+                    }
+                    SEA_CHOICE_DELETE => {
+                        os_remove(fname_cstr);
+                    }
+                    SEA_CHOICE_QUIT => {
+                        g_st().swap_exists_action = SEA_QUIT;
+                    }
+                    SEA_CHOICE_ABORT => {
+                        g_st().swap_exists_action = SEA_QUIT;
+                        g_st().got_int = true;
+                    }
+                    SEA_CHOICE_NONE => {
+                        msg_puts(c"\n");
+                        if g_st().msg_silent == 0 {
+                            g_st().need_wait_return = true;
+                        }
+                    }
+                    _ => {}
+                }
+
+                if choice != SEA_CHOICE_NONE && !os_path_exists(crate::memory::cstr_until_nul(fvec))
+                {
                     break;
                 }
-                fvec[n - 2] -= 1;
-                fvec[n - 1] = b'z' + 1;
-            }
-            fvec[n - 1] -= 1;
-        }
-
-        if os_isdir(crate::memory::cstr_from_ptr((dir_name).cast())) {
-            *found_existing_dir = true;
-        } else if !*found_existing_dir && crate::memory::cstr_is_empty(*dirp) {
-            let mut failed_dir: Option<std::ffi::CString> = None;
-            let ret = os_mkdir_recurse(
-                crate::memory::cstr_from_ptr((dir_name).cast()),
-                0o755,
-                &mut failed_dir,
-                None,
-            );
-            if ret != 0 {
-                semsg!(
-                    tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
-                    failed_dir.as_deref().unwrap_or(c""),
-                     unsafe { uv_strerror(ret) } ,
-                );
             }
         }
 
-        fname_vec.map(|v| crate::memory::cstring_until_nul(&v))
+        if fvec[n - 1] == b'a' {
+            if fvec[n - 2] == b'a' {
+                emsg(tr(c"E326: Too many swap files found"));
+                fname_vec = None;
+                break;
+            }
+            fvec[n - 2] -= 1;
+            fvec[n - 1] = b'z' + 1;
+        }
+        fvec[n - 1] -= 1;
     }
+
+    if os_isdir(dir_name) {
+        *found_existing_dir = true;
+    } else if !*found_existing_dir && dirp.is_empty() {
+        let mut failed_dir: Option<std::ffi::CString> = None;
+        let ret = os_mkdir_recurse(dir_name, 0o755, &mut failed_dir, None);
+        if ret != 0 {
+            semsg!(
+                tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
+                failed_dir.as_deref().unwrap_or(c""),
+                unsafe { uv_strerror(ret) },
+            );
+        }
+    }
+
+    fname_vec.map(|v| crate::memory::cstring_until_nul(&v))
 }
 
 #[inline]
@@ -3985,58 +3684,40 @@ fn b0_magic_wrong(b0p: &ZeroBlock) -> bool {
         || b0p.b0_magic_char != B0_MAGIC_CHAR
 }
 
-fn fnamecmp_ino(
-    fname_c: impl crate::strings::IntoCCharPtr,
-    fname_s: impl crate::strings::IntoCCharPtr,
-    ino_block0: i64,
-) -> bool {
-    let fname_c = fname_c.into_c_char_ptr();
-    let fname_s = fname_s.into_c_char_ptr();
+fn fnamecmp_ino(fname_c: Option<&CStr>, fname_s: Option<&CStr>, ino_block0: i64) -> bool {
+    let mut ino_c: u64 = 0;
+    let mut buf_c = [0u8; MAXPATHL];
+    let mut buf_s = [0u8; MAXPATHL];
+
+    let mut file_info = FileInfo::new();
+    if let Some(fc) = fname_c
+        && os_fileinfo(fc, &mut file_info)
     {
-        let mut ino_c: u64 = 0;
-        let mut buf_c = [0u8; MAXPATHL];
-        let mut buf_s = [0u8; MAXPATHL];
-
-        let mut file_info = FileInfo::new();
-        if os_fileinfo(
-            crate::memory::cstr_from_ptr((fname_c).cast()),
-            &mut file_info,
-        ) {
-            ino_c = os_fileinfo_inode(&file_info);
-        }
-
-        let ino_s: u64 = if os_fileinfo(
-            crate::memory::cstr_from_ptr((fname_s).cast()),
-            &mut file_info,
-        ) {
-            os_fileinfo_inode(&file_info)
-        } else {
-            ino_block0 as u64
-        };
-
-        if ino_c != 0 && ino_s != 0 {
-            return ino_c != ino_s;
-        }
-
-        let retval_c = vim_full_name(
-            crate::memory::cstr_as_opt_cstr((fname_c).cast()),
-            unsafe { std::slice::from_raw_parts_mut((buf_c.as_mut_ptr()).cast(), MAXPATHL) },
-            true,
-        );
-        let retval_s = vim_full_name(
-            crate::memory::cstr_as_opt_cstr((fname_s).cast()),
-            unsafe { std::slice::from_raw_parts_mut((buf_s.as_mut_ptr()).cast(), MAXPATHL) },
-            true,
-        );
-        if retval_c && retval_s {
-            return crate::memory::cstr_until_nul(&buf_c) != crate::memory::cstr_until_nul(&buf_s);
-        }
-
-        if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {
-            return crate::memory::cstr_as_bytes(fname_c) != crate::memory::cstr_as_bytes(fname_s);
-        }
-        true
+        ino_c = os_fileinfo_inode(&file_info);
     }
+
+    let ino_s: u64 = if let Some(fs) = fname_s
+        && os_fileinfo(fs, &mut file_info)
+    {
+        os_fileinfo_inode(&file_info)
+    } else {
+        ino_block0 as u64
+    };
+
+    if ino_c != 0 && ino_s != 0 {
+        return ino_c != ino_s;
+    }
+
+    let retval_c = vim_full_name(fname_c, &mut buf_c, true);
+    let retval_s = vim_full_name(fname_s, &mut buf_s, true);
+    if retval_c && retval_s {
+        return crate::memory::cstr_until_nul(&buf_c) != crate::memory::cstr_until_nul(&buf_s);
+    }
+
+    if ino_s == 0 && ino_c == 0 && !retval_c && !retval_s {
+        return fname_c != fname_s;
+    }
+    true
 }
 
 #[inline]
@@ -4055,8 +3736,7 @@ pub fn ml_setflags(buf: &mut FileBuf) {
         return;
     };
     if let Some(hp_ref) = pmap_get_bhdr(&mfp.mf_hash, 0) {
-        let hp: *mut Bhdr = hp_ref;
-        let b0p = hp_zero_block(hp);
+        let b0p = hp_zero_block(hp_ref);
         b0p.set_dirty(if buf.b_changed != 0 { B0_DIRTY } else { 0 });
         let ff_bits = ((get_fileformat(buf) + 1) as u8) & B0_FF_MASK;
         b0p.set_flags((b0p.flags() & !B0_FF_MASK) | ff_bits);
@@ -4119,11 +3799,10 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
             let mut size: i32 = 0;
             let mut linecnt: i32 = 0;
             while curline < buf.b_ml.ml_line_count && linecnt < MLCS_MINL {
-                let hp = ml_find_line(buf, curline, ML_FIND);
-                if hp.is_null() {
+                let Some(hp) = ml_find_line(buf, curline, ML_FIND) else {
                     buf.b_ml.ml_usedchunks = -1;
                     return;
-                }
+                };
                 let dp = hp_data_block(hp);
                 let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
                 let idx = curline - buf.b_ml.ml_locked_low;
@@ -4161,11 +3840,10 @@ fn ml_updatechunk(buf: &mut FileBuf, line: Linenr, mut len: i32, updtype: i32) {
                 buf.b_ml.ml_chunksize[next_ix].mlcs_numlines = 0;
                 buf.b_ml.ml_chunksize[next_ix].mlcs_totalsize = 0;
             } else {
-                let hp = ml_find_line(buf, buf.b_ml.ml_line_count, ML_FIND);
-                if hp.is_null() {
+                let Some(hp) = ml_find_line(buf, buf.b_ml.ml_line_count, ML_FIND) else {
                     buf.b_ml.ml_usedchunks = -1;
                     return;
-                }
+                };
                 let dp = hp_data_block(hp);
                 let rest = if dp.db_line_count == 1 {
                     (dp.db_txt_end - dp.db_txt_start) as i32
@@ -4278,10 +3956,9 @@ pub fn ml_find_line_or_offset(
         if curline > buf.b_ml.ml_line_count {
             return -1;
         }
-        let hp = ml_find_line(buf, curline, ML_FIND);
-        if hp.is_null() {
+        let Some(hp) = ml_find_line(buf, curline, ML_FIND) else {
             return -1;
-        }
+        };
         let dp = hp_data_block(hp);
         let count = buf.b_ml.ml_locked_high - buf.b_ml.ml_locked_low + 1;
         let start_idx = curline - buf.b_ml.ml_locked_low;

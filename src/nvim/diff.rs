@@ -720,7 +720,7 @@ fn diff_write_buffer(
     m.size = len as i32;
     len = 0;
     for lnum in start..=end {
-        let mut s = ml_get_buf(buf, lnum);
+        let mut s = ml_get_buf(buf, lnum).as_ptr().cast_mut();
         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
             while !crate::memory::cstr_is_empty(s) {
                 let c: i32;
@@ -2467,7 +2467,9 @@ fn diff_find_change_simple(
             if (diff_st().diff_flags & DIFF_INLINE_NONE) != 0 {
                 break;
             }
-            let line_new = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off);
+            let line_new = ml_get_buf(curtab_mut().diffbuf_mut(i), dp.df_lnum[i] + off)
+                .as_ptr()
+                .cast_mut();
             let org_slice = crate::memory::cstr_from_ptr(line_org).to_bytes();
             let new_slice = crate::memory::cstr_from_ptr(line_new).to_bytes();
             let org_bytes = crate::memory::cstr_from_ptr(line_org).to_bytes_with_nul();
@@ -2677,7 +2679,9 @@ fn diff_refine_inline_word_highlight(
                 di += 1;
                 continue;
             }
-            let line = ml_get_buf(curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff);
+            let line = ml_get_buf(curtab_mut().diffbuf_mut(idx1), start_lnum + entry1.lineoff)
+                .as_ptr()
+                .cast_mut();
             let gap_text = line.wrapping_add(gap_start as usize);
             let mut only_non_word = true;
             let mut has_content = false;
@@ -2794,7 +2798,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
             let mut numlines: Linenr = 0;
             curstr.clear();
             for off in 0..dp_count[i] {
-                let curline = ml_get_buf(curtab_mut().diffbuf_mut(i), dp_lnum[i] + off);
+                let curline = ml_get_buf(curtab_mut().diffbuf_mut(i), dp_lnum[i] + off)
+                    .as_ptr()
+                    .cast_mut();
                 let mut in_keyword = false;
                 let mut last_white = false;
                 let mut eol_ga_len: i32 = -1;
@@ -3383,7 +3389,12 @@ fn diffgetput(
                 }
                 let p =
                     crate::memory::cstr_from_bytes(crate::memline::ml_get_buf_slice(from_buf, nr));
-                let _ = ml_append(lnum + i - 1, p.as_ptr().cast_mut(), 0, false);
+                let _ = ml_append(
+                    lnum + i - 1,
+                    crate::memory::cstr_as_bytes((p.as_ptr().cast_mut()).cast()),
+                    0,
+                    false,
+                );
                 added += 1;
                 if buf_empty && curbuf_mut().b_ml.ml_line_count == 2 {
                     buf_empty = false;

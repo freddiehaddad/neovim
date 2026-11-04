@@ -6280,7 +6280,7 @@ fn ins_compl_start() -> bool {
         return false;
     }
 
-    let mut line = ml_get(curwin_mut().w_cursor.lnum);
+    let mut line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
     let curs_col = curwin_mut().w_cursor.col;
     insexp().compl_pending = 0;
     insexp().compl_lnum = curwin_mut().w_cursor.lnum;
@@ -6321,7 +6321,7 @@ fn ins_compl_start() -> bool {
         return false;
     }
     if line_invalid {
-        line = ml_get(curwin_mut().w_cursor.lnum);
+        line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
     }
 
     if compl_status_adding() {

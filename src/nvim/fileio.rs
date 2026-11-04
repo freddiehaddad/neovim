@@ -1394,10 +1394,9 @@ pub fn readfile(
                 }
                 #[cfg(unix)]
                 {
-                    let mfp = curbuf_mut().b_ml.mfp_ptr();
                     if swap_mode > 0
-                        && !mfp.is_null()
-                        && let Some(ref swap_fname) = *unsafe { &(*mfp).mf_fname }
+                        && let Some(mfp) = curbuf_mut().b_ml.mfp_opt()
+                        && let Some(ref swap_fname) = mfp.mf_fname
                     {
                         let swap_cstr = swap_fname.as_c_str();
                         if (swap_mode & 0o44) == 0o40 {
@@ -1405,7 +1404,7 @@ pub fn readfile(
                             if os_fileinfo(swap_cstr, &mut swap_info)
                                 && file_info.stat.st_gid != swap_info.stat.st_gid
                                 && os_fchown(
-                                    unsafe { (*mfp).mf_fd },
+                                    mfp.mf_fd,
                                     u32::MAX as uv_uid_t,
                                     file_info.stat.st_gid as uv_gid_t,
                                 ) == -1
@@ -1777,6 +1776,8 @@ pub fn readfile(
                                     let mut tlen: isize = 0;
                                     loop {
                                         p = ml_get(read_buf_lnum)
+                                            .as_ptr()
+                                            .cast_mut()
                                             .cast::<u8>()
                                             .wrapping_offset(read_buf_col as isize);
                                         let mut n =
@@ -2423,7 +2424,15 @@ pub fn readfile(
                                     unsafe { *ptr = 0 };
                                     let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1)
                                         as Colnr;
-                                    if !ml_append(lnum, line_start.cast(), len, newfile) {
+                                    if !ml_append(
+                                        lnum,
+                                        crate::memory::cstr_slice(
+                                            line_start.cast(),
+                                            (len as usize).saturating_sub(1),
+                                        ),
+                                        len,
+                                        newfile,
+                                    ) {
                                         error = true;
                                         break;
                                     }
@@ -2499,7 +2508,15 @@ pub fn readfile(
                                         ff_error = EOL_DOS;
                                     }
                                 }
-                                if !ml_append(lnum, line_start.cast(), len, newfile) {
+                                if !ml_append(
+                                    lnum,
+                                    crate::memory::cstr_slice(
+                                        line_start.cast(),
+                                        (len as usize).saturating_sub(1),
+                                    ),
+                                    len,
+                                    newfile,
+                                ) {
                                     error = true;
                                     break;
                                 }
@@ -2581,7 +2598,12 @@ pub fn readfile(
                 }
                 unsafe { *ptr = 0 };
                 let len = (crate::memory::ptr_offset_from(ptr, line_start) + 1) as Colnr;
-                if !ml_append(lnum, line_start.cast(), len, newfile) {
+                if !ml_append(
+                    lnum,
+                    crate::memory::cstr_slice(line_start.cast(), (len as usize).saturating_sub(1)),
+                    len,
+                    newfile,
+                ) {
                     error = true;
                 } else {
                     if read_undo_file && len > 0 {
@@ -2976,11 +2998,10 @@ pub fn readfile(
             }
         }
 
-        let mfp = curbuf_mut().b_ml.mfp_ptr();
-        if !mfp.is_null() && unsafe { (*mfp).mf_dirty } == MF_DIRTY_YES_NOSYNC {
-            unsafe {
-                (*mfp).mf_dirty = MF_DIRTY_YES;
-            }
+        if let Some(mfp) = curbuf_mut().b_ml.mfp_opt()
+            && mfp.mf_dirty == MF_DIRTY_YES_NOSYNC
+        {
+            mfp.mf_dirty = MF_DIRTY_YES;
         }
 
         retval
@@ -3838,8 +3859,13 @@ fn move_lines(frombuf: &mut FileBuf, tobuf: &mut FileBuf) -> bool {
 
     g_st().curbuf = ptr::from_mut(tobuf);
     for lnum in 1..=frombuf.b_ml.ml_line_count {
-        let p = crate::memory::cstr_to_cstring(ml_get_buf(frombuf, lnum));
-        if !ml_append(lnum - 1, p.as_ptr().cast_mut(), 0, false) {
+        let p = crate::memory::cstr_to_cstring((ml_get_buf(frombuf, lnum)).as_ptr());
+        if !ml_append(
+            lnum - 1,
+            crate::memory::cstr_as_bytes((p.as_ptr().cast_mut()).cast()),
+            0,
+            false,
+        ) {
             retval = false;
             break;
         }

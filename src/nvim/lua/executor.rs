@@ -2200,7 +2200,9 @@ pub fn ex_luado(eap: &mut Exarg) {
         }
 
         unsafe { lua_pushvalue(lstate, -1) };
-        let old_line = ml_get_buf(crate::globals::curbuf_mut(), l);
+        let old_line = ml_get_buf(crate::globals::curbuf_mut(), l)
+            .as_ptr()
+            .cast_mut();
         let old_line_len: Colnr = ml_get_buf_len(crate::globals::curbuf_mut(), l);
         lua_pushstring(lstate, crate::memory::cstr_from_ptr(old_line));
         unsafe { lua_pushnumber(lstate, f64::from(l)) };
@@ -2226,7 +2228,12 @@ pub fn ex_luado(eap: &mut Exarg) {
                     *b = b'\n';
                 }
             }
-            crate::memline::ml_replace_len(l, new_line_vec.as_mut_ptr().cast(), new_line_len, true);
+            crate::memline::ml_replace_len(
+                l,
+                crate::memory::cstr_slice(new_line_vec.as_mut_ptr().cast(), new_line_len),
+                new_line_len,
+                true,
+            );
             inserted_bytes(l, 0, old_line_len, new_line_len as i32);
         }
         lua_pop(lstate, 1);

@@ -813,7 +813,7 @@ pub fn searchit(
                         if lnum + matchpos.lnum > buf.b_ml.ml_line_count {
                             ptr_line = c"".as_ptr().cast_mut();
                         } else {
-                            ptr_line = ml_get_buf(buf, lnum + matchpos.lnum);
+                            ptr_line = ml_get_buf(buf, lnum + matchpos.lnum).as_ptr().cast_mut();
                         }
 
                         if dir == FORWARD && at_first_line {
@@ -887,7 +887,7 @@ pub fn searchit(
                                 if matchpos.lnum != 0 {
                                     break;
                                 }
-                                ptr_line = ml_get_buf(buf, lnum);
+                                ptr_line = ml_get_buf(buf, lnum).as_ptr().cast_mut();
                             }
                             if !match_ok {
                                 lnum += dir;
@@ -970,7 +970,8 @@ pub fn searchit(
                                 if regmatch.regprog.is_null() {
                                     break;
                                 }
-                                ptr_line = ml_get_buf(buf, lnum + matchpos.lnum);
+                                ptr_line =
+                                    ml_get_buf(buf, lnum + matchpos.lnum).as_ptr().cast_mut();
                             }
 
                             if !match_ok {
@@ -994,7 +995,7 @@ pub fn searchit(
                             } else {
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count {
-                                    ptr_line = ml_get_buf(buf, pos.lnum);
+                                    ptr_line = ml_get_buf(buf, pos.lnum).as_ptr().cast_mut();
                                     pos.col -= {
                                         let (_b, _i) = crate::memory::cstr_span_to_char(
                                             (ptr_line).cast(),
@@ -3977,7 +3978,7 @@ fn show_pat_in_path(
             if *lnum > curbuf_mut().b_ml.ml_line_count {
                 break;
             }
-            line = ml_get(*lnum);
+            line = ml_get(*lnum).as_ptr().cast_mut();
             linelen = ml_get_len(*lnum) as usize;
         }
         msg_putchar(b'\n' as i32);

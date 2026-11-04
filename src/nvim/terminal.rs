@@ -2431,11 +2431,17 @@ fn refresh_scrollback(term: &mut Terminal, buf: &mut FileBuf) {
     }
 
     old_height = old_height.min(buf.b_ml.ml_line_count);
-    let textbuf_ptr = (&raw mut term.textbuf).cast();
+    let textbuf_ptr: *const std::ffi::c_char = (&raw const term.textbuf).cast();
     while term.sb_pending > 0 {
         fetch_row(term, -term.sb_pending, width);
         let buf_index = buf.b_ml.ml_line_count - old_height;
-        ml_append_buf(buf, buf_index, textbuf_ptr, 0, false);
+        ml_append_buf(
+            buf,
+            buf_index,
+            crate::memory::cstr_as_bytes(textbuf_ptr),
+            0,
+            false,
+        );
         appended_lines_buf(buf, buf_index, 1);
         term.sb_pending -= 1;
     }
@@ -2468,17 +2474,29 @@ fn refresh_screen(term: &mut Terminal, buf: &mut FileBuf) {
         return;
     }
 
-    let textbuf_ptr = (&raw mut term.textbuf).cast();
+    let textbuf_ptr: *const std::ffi::c_char = (&raw const term.textbuf).cast();
     let mut r = term.invalid_start;
     let mut linenr = row_to_linenr(term, r);
     while r < term.invalid_end {
         fetch_row(term, r, width);
 
         if linenr <= buf.b_ml.ml_line_count {
-            ml_replace_buf(buf, linenr, textbuf_ptr, true, false);
+            ml_replace_buf(
+                buf,
+                linenr,
+                crate::memory::cstr_as_bytes(textbuf_ptr),
+                true,
+                false,
+            );
             changed += 1;
         } else {
-            ml_append_buf(buf, linenr - 1, textbuf_ptr, 0, false);
+            ml_append_buf(
+                buf,
+                linenr - 1,
+                crate::memory::cstr_as_bytes(textbuf_ptr),
+                0,
+                false,
+            );
             added += 1;
         }
         r += 1;

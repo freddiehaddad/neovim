@@ -538,7 +538,6 @@ fn do_path_expand(
     let path_bytes = path.to_bytes();
     let buflen = path_bytes.len() + MAXPATHL;
     let mut buf_vec = vec![0u8; buflen];
-    let buf = buf_vec.as_mut_ptr();
 
     let mut p_idx = 0usize;
     let mut s_idx = 0usize;
@@ -638,7 +637,7 @@ fn do_path_expand(
         && path_bytes.get(path_idx) == Some(&b'/')
     {
         vim_snprintf!(
-            unsafe { buf.add(s_idx).cast() },
+            buf_vec[s_idx..].as_mut_ptr().cast(),
             buflen - len,
             c"%s",
             path_end_cstr[1..].as_ptr()
@@ -677,15 +676,19 @@ fn do_path_expand(
                         e_pos - s_idx,
                     ) == 0);
             if dot_ok && reg_ok {
-                len += vim_snprintf!(unsafe { buf.add(s_idx).cast() }, buflen - len, c"%s", name)
-                    as usize;
+                len += vim_snprintf!(
+                    buf_vec[s_idx..].as_mut_ptr().cast(),
+                    buflen - len,
+                    c"%s",
+                    name
+                ) as usize;
                 if len + 1 >= buflen {
                     continue;
                 }
 
                 if starstar && path_st().stardepth < 100 {
                     vim_snprintf!(
-                        unsafe { buf.add(len).cast() },
+                        buf_vec[len..].as_mut_ptr().cast(),
                         buflen - len,
                         c"/**%s",
                         path_end_cstr.as_ptr()
@@ -697,7 +700,7 @@ fn do_path_expand(
                 }
 
                 vim_snprintf!(
-                    unsafe { buf.add(len).cast() },
+                    buf_vec[len..].as_mut_ptr().cast(),
                     buflen - len,
                     c"%s",
                     path_end_cstr.as_ptr()
@@ -1934,9 +1937,10 @@ pub fn expand_wildcards_eval(pat: &CStr, file: &mut Vec<std::ffi::CString>, flag
 
     if is_cur_alt_file || first_byte == b'<' {
         g_st().emsg_off += 1;
+        let mut pat_buf = exp_pat.to_bytes_with_nul().to_vec();
         eval_pat = eval_vars(
-            exp_pat,
-            exp_pat,
+            &mut pat_buf,
+            0,
             &mut usedlen,
             None,
             &mut ignored_msg,
