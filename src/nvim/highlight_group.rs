@@ -895,10 +895,10 @@ pub fn load_colors(name: &CStr) -> bool {
     let mut buf = Vec::with_capacity(name_bytes.len() + 12);
     apply_autocmds(
         EVENT_COLORSCHEMEPRE,
-        name.as_ptr(),
-        curbuf_mut().b_fname,
+        Some(name),
+        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
         false,
-        g_st().curbuf,
+        curbuf_opt_mut(),
     );
     buf.extend_from_slice(b"colors/");
     buf.extend_from_slice(name_bytes);
@@ -907,10 +907,10 @@ pub fn load_colors(name: &CStr) -> bool {
     if retval {
         apply_autocmds(
             EVENT_COLORSCHEME,
-            name.as_ptr(),
-            curbuf_mut().b_fname,
+            Some(name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
     }
 

@@ -574,7 +574,7 @@ pub fn ex_breakadd(eap: &mut Exarg) {
     if bp.dbg_type != DBG_EXPR {
         let pat = file_pat_to_reg_pat(bp.dbg_name.as_bytes(), None, 0);
         if let Some(ref pat) = pat {
-            bp.dbg_prog = vim_regcomp_box(pat.as_ptr(), RE_MAGIC + RE_STRING);
+            bp.dbg_prog = vim_regcomp_box(pat, RE_MAGIC + RE_STRING);
         }
         if pat.is_some() && bp.dbg_prog.is_some() {
             if bp.dbg_lnum == 0 {
@@ -741,7 +741,7 @@ fn debuggy_find(
         {
             let prev_got_int = g_st().got_int;
             g_st().got_int = false;
-            if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name.as_ptr(), 0) {
+            if vim_regexec_prog(bp.dbg_prog.as_deref(), false, name, 0) {
                 lnum = bp.dbg_lnum;
                 if let Some(ref mut p) = fp {
                     **p = bp.dbg_forceit != 0;

@@ -197,7 +197,7 @@ use crate::quickfix::{
     qf_get_cur_valid_idx, qf_get_size, qf_get_valid_size, qf_history, qf_list,
 };
 use crate::regexp::{
-    K_MARK_BUF_LOCAL, MAXCOL, NUMBUFLEN, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regfree,
+    K_MARK_BUF_LOCAL, MAXCOL, NUMBUFLEN, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp,
 };
 use crate::register::{
     PUT_CURSLINE, PUT_FIXINDENT, PUT_LINE, do_execreg, do_put, ex_display, op_yank, set_expr_line,
@@ -6484,10 +6484,10 @@ fn do_one_cmd(
             ));
             let ret = apply_autocmds(
                 EVENT_CMDUNDEFINED,
-                cmdname.as_ptr().cast_mut(),
-                cmdname.as_ptr().cast_mut(),
+                Some(&cmdname),
+                Some(&cmdname),
                 true,
-                ptr::null_mut(),
+                None,
             );
             p = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
@@ -6936,9 +6936,10 @@ pub fn parse_command_modifiers(
                     break;
                 }
                 if !skip_only {
-                    let pat_ptr = reg_pat_cstr.map_or(ptr::null(), CStr::as_ptr);
-                    cmod.cmod_filter_pat = Some(cstr_to_cstring(pat_ptr));
-                    cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat_ptr, RE_MAGIC);
+                    let pat_cstr = reg_pat_cstr.unwrap_or(c"");
+                    cmod.cmod_filter_pat = Some(pat_cstr.to_owned());
+                    cmod.cmod_filter_regmatch
+                        .set_prog(vim_regcomp(pat_cstr, RE_MAGIC));
                     if cmod.cmod_filter_regmatch.regprog.is_null() {
                         break;
                     }
@@ -7148,7 +7149,7 @@ pub fn undo_cmdmod(cmod: &mut Cmdmod) {
     }
 
     cmod.cmod_filter_pat = None;
-    vim_regfree(cmod.cmod_filter_regmatch.regprog);
+    cmod.cmod_filter_regmatch.free_prog();
 
     if cmod.cmod_save_msg_silent > 0 {
         if g_st().did_emsg == 0 || g_st().msg_silent > cmod.cmod_save_msg_silent - 1 {
@@ -7670,10 +7671,11 @@ pub fn skip_range(
             }
         } else if b0 == b'/' || b0 == b'?' {
             cmd = skip_regexp(
-                cmd.wrapping_add(1).cast_mut(),
+                unsafe { CStr::from_ptr(cmd.wrapping_add(1)) },
                 i32::from(b0),
                 opt_vars().p_magic,
-            );
+            )
+            .as_ptr();
             if crate::memory::cstr_is_empty(cmd)
                 && let Some(ref mut ctx) = ctx
             {
@@ -7830,7 +7832,9 @@ pub fn get_address(
                         break 'error;
                     }
                     if skip {
-                        cmd = skip_regexp(cmd, c, opt_vars().p_magic);
+                        cmd = skip_regexp(unsafe { CStr::from_ptr(cmd) }, c, opt_vars().p_magic)
+                            .as_ptr()
+                            .cast_mut();
                         if i32::from(crate::memory::cstr_first_byte(cmd)) == c {
                             cmd = cmd.wrapping_add(1);
                         }
@@ -8632,7 +8636,9 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
     *crate::globals::gptr(arg) = NUL;
 
     if ptr::eq(pp, &raw mut eap.force_ff) {
-        if !check_ff_value(eap.cmd.wrapping_add(eap.force_ff as usize)) {
+        if !check_ff_value(crate::memory::cstr_from_ptr(
+            eap.cmd.wrapping_add(eap.force_ff as usize),
+        )) {
             return false;
         }
         eap.force_ff = i32::from(crate::memory::cstr_first_byte(
@@ -8831,14 +8837,14 @@ fn ex_autocmd(eap: &mut Exarg) {
         g_st().secure = 2;
         eap.errmsg = Some(gettext(E_CURDIR));
     } else if eap.cmdidx == Cmdidx::CmdAutocmd as i32 {
-        do_autocmd(eap, eap.arg, eap.forceit);
+        do_autocmd(eap, crate::memory::cstr_from_ptr(eap.arg), eap.forceit);
     } else {
-        do_augroup(eap.arg, eap.forceit != 0);
+        do_augroup(crate::memory::cstr_from_ptr(eap.arg), eap.forceit != 0);
     }
 }
 
 fn ex_doautocmd(eap: &mut Exarg) {
-    let mut arg = eap.arg;
+    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let call_do_modelines = check_nomodeline(&mut arg);
     let mut did_aucmd = false;
 
@@ -9049,11 +9055,11 @@ pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool)
 
     apply_autocmds_win(
         EVENT_QUITPRE,
-        ptr::null_mut(),
-        ptr::null_mut(),
+        None,
+        None,
         false,
-        crate::globals::gptr(wp).w_buffer,
-        crate::globals::gopt(wp),
+        unsafe { (*wp).w_buffer.as_mut() },
+        unsafe { wp.as_ref() },
     );
 
     if !win_valid(wp)
@@ -9066,13 +9072,7 @@ pub fn before_quit_autocmds(wp: *mut WinInfoInfo, quit_all: bool, forceit: bool)
     }
 
     if quit_all || (check_more(false, forceit) && only_one_window()) {
-        apply_autocmds(
-            EVENT_EXITPRE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_EXITPRE, None, None, false, curbuf_opt_mut());
         if !win_valid(wp)
             || curbuf_locked()
             || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
@@ -10145,13 +10145,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
             };
             if !win_new_tabpage(after, eap.arg, true, ptr::null_mut()).is_null() {
                 do_exedit(eap, old_curwin);
-                apply_autocmds(
-                    EVENT_TABNEWENTERED,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                );
+                apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
 
                 if curwin_ptr() != old_curwin
                     && win_valid(old_curwin)
@@ -11800,7 +11794,13 @@ fn ex_findpat(eap: &mut Exarg) {
     if crate::memory::cstr_first_byte(eap.arg) == b'/' {
         whole = false;
         eap.arg = eap.arg.wrapping_add(1);
-        let mut p = skip_regexp(eap.arg, b'/' as i32, opt_vars().p_magic);
+        let mut p = skip_regexp(
+            unsafe { CStr::from_ptr(eap.arg) },
+            b'/' as i32,
+            opt_vars().p_magic,
+        )
+        .as_ptr()
+        .cast_mut();
         if !crate::memory::cstr_is_empty(p) {
             *crate::globals::gptr(p) = NUL;
 

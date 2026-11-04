@@ -883,9 +883,9 @@ fn spell_find_suggest(
         add_banned(su, &bw);
     }
     let sps_copy = crate::memory::cstr_to_cstring(opt_vars().p_sps);
-    let mut p = sps_copy.as_ptr().cast_mut();
-    while !crate::memory::cstr_is_empty(p) {
-        copy_option_part(&raw mut p, (&raw mut buf).cast(), MAXPATHL, c",");
+    let mut p = sps_copy.as_bytes();
+    while !p.is_empty() {
+        copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
         let buf_cstr = crate::memory::cstr_until_nul(&buf);
         let buf_bytes = buf_cstr.to_bytes();
         if buf_bytes.starts_with(b"expr:") {

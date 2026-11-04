@@ -1252,13 +1252,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     }
                     if valid_tabpage(newtab) {
                         goto_tabpage_tp(newtab, true, true);
-                        apply_autocmds(
-                            EVENT_TABNEWENTERED,
-                            ptr::null_mut(),
-                            ptr::null_mut(),
-                            false,
-                            g_st().curbuf,
-                        );
+                        apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
                     }
                 }
             }
@@ -3396,28 +3390,10 @@ fn close_last_window_tabpage(
     }
     entering_window(curwin_mut());
 
-    apply_autocmds(
-        EVENT_WINENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
-    apply_autocmds(
-        EVENT_TABENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_WINENTER, None, None, false, curbuf_opt_mut());
+    apply_autocmds(EVENT_TABENTER, None, None, false, curbuf_opt_mut());
     if !ptr::eq(old_curbuf, g_st().curbuf) {
-        apply_autocmds(
-            EVENT_BUFENTER,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
     }
     true
 }
@@ -3566,13 +3542,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
 
             crate::globals::gptr(win).w_locked += 1;
 
-            apply_autocmds(
-                EVENT_BUFLEAVE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
             if !win_valid(win) {
                 return false;
             }
@@ -3586,13 +3556,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
 
         crate::globals::gptr(win).w_locked += 1;
 
-        apply_autocmds(
-            EVENT_WINLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_WINLEAVE, None, None, false, curbuf_opt_mut());
         if !win_valid(win) {
             return false;
         }
@@ -3766,13 +3730,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
             WEE_CURWIN_INVALID | WEE_TRIGGER_ENTER_AUTOCMDS | WEE_TRIGGER_LEAVE_AUTOCMDS,
         );
         if other_buffer {
-            apply_autocmds(
-                EVENT_BUFENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
         }
     }
 
@@ -3781,13 +3739,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
         && curbuf_mut().b_locked_split != 0
         && !crate::globals::first_tabpage_mut().tp_next.is_null()
     {
-        apply_autocmds(
-            EVENT_TABLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TABLEAVE, None, None, false, curbuf_opt_mut());
     }
 
     win_st().split_disallowed -= 1;
@@ -3824,13 +3776,7 @@ pub fn win_close(win: *mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
 
 fn trigger_winnewpre() {
     window_layout_lock();
-    apply_autocmds(
-        EVENT_WINNEWPRE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        ptr::null_mut(),
-    );
+    apply_autocmds(EVENT_WINNEWPRE, None, None, false, None);
     window_layout_unlock();
 }
 
@@ -3841,12 +3787,13 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
     win_st().winclosed_recursive = true;
     let mut winid = [0u8; NUMBUFLEN];
     vim_snprintf!(winid.as_mut_ptr().cast(), winid.len(), c"%d", win.handle,);
+    let winid_cstr = crate::memory::cstr_until_nul(&winid);
     apply_autocmds_win(
         EVENT_WINCLOSED,
-        winid.as_ptr().cast(),
-        winid.as_ptr().cast(),
+        Some(winid_cstr),
+        Some(winid_cstr),
         false,
-        win.w_buffer,
+        unsafe { win.w_buffer.as_mut() },
         Some(win),
     );
     win_st().winclosed_recursive = false;
@@ -3864,13 +3811,7 @@ pub fn trigger_tabclosedpre(tp: *mut TabPageInfo) {
     }
     win_st().tabclosedpre_recursive = true;
     window_layout_lock();
-    apply_autocmds(
-        EVENT_TABCLOSEDPRE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        ptr::null_mut(),
-    );
+    apply_autocmds(EVENT_TABCLOSEDPRE, None, None, false, None);
     window_layout_unlock();
     win_st().tabclosedpre_recursive = false;
     if valid_tabpage(ptp) {
@@ -4044,16 +3985,18 @@ pub fn win_close_othertab(
         if has_event(EVENT_TABCLOSED) {
             let mut prev_idx = [0u8; NUMBUFLEN];
             vim_snprintf!(prev_idx.as_mut_ptr().cast(), NUMBUFLEN, c"%i", free_tp_idx,);
+            let prev_idx_cstr = crate::memory::cstr_until_nul(&prev_idx);
+            let buf_opt = if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
+                unsafe { bufref.br_buf.as_mut() }
+            } else {
+                curbuf_opt_mut()
+            };
             apply_autocmds(
                 EVENT_TABCLOSED,
-                prev_idx.as_ptr().cast(),
-                prev_idx.as_ptr().cast(),
+                Some(prev_idx_cstr),
+                Some(prev_idx_cstr),
                 false,
-                if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) {
-                    bufref.br_buf
-                } else {
-                    g_st().curbuf
-                },
+                buf_opt,
             );
         }
     }
@@ -5128,34 +5071,23 @@ pub fn win_new_tabpage(
             terminal_check_size(curbuf_mut().terminal_mut());
         }
 
+        let filename_opt = crate::memory::cstr_as_opt_cstr(filename);
         if enter {
             redraw_all_later(UPD_NOT_VALID);
             tabpage_check_windows(crate::globals::gmut(old_curtab));
             g_st().lastused_tabpage = old_curtab;
             entering_window(curwin_mut());
 
+            apply_autocmds(EVENT_WINNEW, None, None, false, curbuf_opt_mut());
+            apply_autocmds(EVENT_WINENTER, None, None, false, curbuf_opt_mut());
             apply_autocmds(
-                EVENT_WINNEW,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                EVENT_TABNEW,
+                filename_opt,
+                filename_opt,
                 false,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
-            apply_autocmds(
-                EVENT_WINENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
-            apply_autocmds(EVENT_TABNEW, filename, filename, false, g_st().curbuf);
-            apply_autocmds(
-                EVENT_TABENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_TABENTER, None, None, false, curbuf_opt_mut());
         } else {
             unuse_tabpage(curtab_mut());
             use_tabpage(old_curtab);
@@ -5174,14 +5106,14 @@ pub fn win_new_tabpage(
             );
             debug_assert!(sw_ok);
 
+            apply_autocmds(EVENT_WINNEW, None, None, false, curbuf_opt_mut());
             apply_autocmds(
-                EVENT_WINNEW,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                EVENT_TABNEW,
+                filename_opt,
+                filename_opt,
                 false,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
-            apply_autocmds(EVENT_TABNEW, filename, filename, false, g_st().curbuf);
 
             ctx_restore(&mut switchwin);
         }
@@ -5205,13 +5137,7 @@ fn may_open_tabpage() -> bool {
     g_st().postponed_split_tab = 0;
     let status = !win_new_tabpage(n, ptr::null_mut(), true, ptr::null_mut()).is_null();
     if status {
-        apply_autocmds(
-            EVENT_TABNEWENTERED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
     }
     status
 }
@@ -5313,34 +5239,16 @@ fn leave_tabpage(new_curbuf: *mut FileBuf, trigger_leave_autocmds: bool) -> bool
     reset_visual_and_resel();
     if trigger_leave_autocmds {
         if !ptr::eq(new_curbuf, g_st().curbuf) {
-            apply_autocmds(
-                EVENT_BUFLEAVE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
             if !ptr::eq(g_st().curtab, tp_ptr) {
                 return false;
             }
         }
-        apply_autocmds(
-            EVENT_WINLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_WINLEAVE, None, None, false, curbuf_opt_mut());
         if !ptr::eq(g_st().curtab, tp_ptr) {
             return false;
         }
-        apply_autocmds(
-            EVENT_TABLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TABLEAVE, None, None, false, curbuf_opt_mut());
         if !ptr::eq(g_st().curtab, tp_ptr) {
             return false;
         }
@@ -5423,21 +5331,9 @@ fn enter_tabpage(
     g_st().lastused_tabpage = old_curtab_ptr;
 
     if trigger_enter_autocmds {
-        apply_autocmds(
-            EVENT_TABENTER,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TABENTER, None, None, false, curbuf_opt_mut());
         if !ptr::eq(old_curbuf, g_st().curbuf) {
-            apply_autocmds(
-                EVENT_BUFENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
         }
     }
 
@@ -5633,8 +5529,8 @@ pub fn tabpage_move(nr: i32) {
         let mut obj = dict_obj(data);
         aucmd_defer(
             EVENT_TABMOVED,
-            prev_idx.as_ptr().cast(),
-            ptr::null_mut(),
+            Some(crate::memory::cstr_until_nul(&prev_idx)),
+            None,
             AUGROUP_ALL,
             curbuf_mut(),
             Some(&mut obj),
@@ -5828,25 +5724,13 @@ fn win_enter_ext(wp: *mut WinInfoInfo, flags: i32) {
 
     if !curwin_invalid && (flags & WEE_TRIGGER_LEAVE_AUTOCMDS) != 0 {
         if !ptr::eq(crate::globals::gptr(wp).w_buffer, g_st().curbuf) {
-            apply_autocmds(
-                EVENT_BUFLEAVE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
             other_buffer = true;
             if !win_valid(wp) {
                 return;
             }
         }
-        apply_autocmds(
-            EVENT_WINLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_WINLEAVE, None, None, false, curbuf_opt_mut());
         if !win_valid(wp) {
             return;
         }
@@ -5888,30 +5772,12 @@ fn win_enter_ext(wp: *mut WinInfoInfo, flags: i32) {
 
     entering_window(curwin_mut());
     if (flags & WEE_TRIGGER_NEW_AUTOCMDS) != 0 {
-        apply_autocmds(
-            EVENT_WINNEW,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_WINNEW, None, None, false, curbuf_opt_mut());
     }
     if (flags & WEE_TRIGGER_ENTER_AUTOCMDS) != 0 {
-        apply_autocmds(
-            EVENT_WINENTER,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_WINENTER, None, None, false, curbuf_opt_mut());
         if other_buffer {
-            apply_autocmds(
-                EVENT_BUFENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
         }
     }
 
@@ -6439,8 +6305,9 @@ fn check_window_scroll_resize(
             continue;
         }
 
-        let ignore_scroll = event_ignored(EVENT_WINSCROLLED, wp.w_onebuf_opt.wo_eiw);
-        let size_changed = !event_ignored(EVENT_WINRESIZED, wp.w_onebuf_opt.wo_eiw)
+        let eiw = crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_eiw);
+        let ignore_scroll = event_ignored(EVENT_WINSCROLLED, eiw);
+        let size_changed = !event_ignored(EVENT_WINRESIZED, eiw)
             && (wp.w_last_width != wp.w_width || wp.w_last_height != wp.w_height);
         if size_changed {
             if let Some(ref mut wl) = winlist {
@@ -6623,12 +6490,13 @@ pub fn may_trigger_win_scrolled_resized() {
             } else {
                 curwin_ptr()
             };
+            let resize_winid_cstr = crate::memory::cstr_until_nul(&resize_winid);
             apply_autocmds_win(
                 EVENT_WINRESIZED,
-                resize_winid.as_ptr().cast(),
-                resize_winid.as_ptr().cast(),
+                Some(resize_winid_cstr),
+                Some(resize_winid_cstr),
                 false,
-                buf,
+                unsafe { buf.as_mut() },
                 crate::globals::gopt(win),
             );
         }
@@ -6653,12 +6521,13 @@ pub fn may_trigger_win_scrolled_resized() {
         } else {
             curwin_ptr()
         };
+        let scroll_winid_cstr = crate::memory::cstr_until_nul(&scroll_winid);
         apply_autocmds_win(
             EVENT_WINSCROLLED,
-            scroll_winid.as_ptr().cast(),
-            scroll_winid.as_ptr().cast(),
+            Some(scroll_winid_cstr),
+            Some(scroll_winid_cstr),
             false,
-            buf,
+            unsafe { buf.as_mut() },
             crate::globals::gopt(win),
         );
 

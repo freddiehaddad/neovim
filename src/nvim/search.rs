@@ -73,7 +73,7 @@ use crate::plines::getvcol;
 use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::regexp::{
     MAGIC_ALL, MAGIC_ON, MAXCOL, RE_MAGIC, RegMagic, Regmatch, Regmmatch, skip_regexp_ex,
-    vim_regcomp, vim_regexec, vim_regexec_multi, vim_regfree,
+    skip_regexp_magic, vim_regcomp, vim_regexec, vim_regexec_multi,
 };
 use crate::state::MODE_SHOWMATCH;
 use crate::strings::{reverse_text, tr, vim_snprintf, vim_strchr};
@@ -398,7 +398,7 @@ pub fn search_regcomp(
 
         regmatch.rmm_ic = ignorecase(pat_ref);
         regmatch.rmm_maxcol = 0;
-        regmatch.regprog = vim_regcomp(pat, if magic { RE_MAGIC } else { 0 });
+        regmatch.set_prog(vim_regcomp(pat_ref, if magic { RE_MAGIC } else { 0 }));
         if regmatch.regprog.is_null() {
             return false;
         }
@@ -537,13 +537,10 @@ pub fn ignorecase_opt(pat: &CStr, ic_in: i32, scs: i32) -> i32 {
 pub fn pat_has_uppercase(pat: &CStr) -> bool {
     let mut magic_val: RegMagic = MAGIC_ON;
 
-    skip_regexp_ex(
-        pat.as_ptr().cast_mut(),
+    skip_regexp_magic(
+        pat.to_bytes(),
         i32::from(NUL),
         opt_vars().p_magic,
-        false,
-        None,
-        None,
         Some(&mut magic_val),
     );
 
@@ -794,8 +791,8 @@ pub fn searchit(
                     };
                     nmatched = vim_regexec_multi(
                         &mut regmatch,
-                        win,
-                        (&raw mut *buf),
+                        unsafe { win.as_mut() },
+                        &mut *buf,
                         lnum,
                         col,
                         tm,
@@ -864,8 +861,8 @@ pub fn searchit(
                                 ) || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
-                                        win,
-                                        (&raw mut *buf),
+                                        unsafe { win.as_mut() },
+                                        &mut *buf,
                                         lnum,
                                         matchcol,
                                         tm,
@@ -948,8 +945,8 @@ pub fn searchit(
                                 ) || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
-                                        win,
-                                        (&raw mut *buf),
+                                        unsafe { win.as_mut() },
+                                        &mut *buf,
                                         lnum + matchpos.lnum,
                                         matchcol,
                                         tm,
@@ -1093,7 +1090,7 @@ pub fn searchit(
             }
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
 
         if found == 0 {
             if g_st().got_int {
@@ -1161,28 +1158,24 @@ pub fn parse_search_pattern_offset(
     let mut cmdlen: i32 = 0;
     let mut strcopy: Vec<u8> = Vec::new();
 
-    let cur_ptr = pat_buf[*pat_off..].as_mut_ptr().cast();
-    let p = skip_regexp_ex(
-        cur_ptr,
+    let off = skip_regexp_ex(
+        &mut pat_buf[*pat_off..],
         search_delim,
         opt_vars().p_magic,
-        true,
         (!*had_copy).then_some(&mut strcopy),
         None,
         None,
     );
     let mut p_off = if !*had_copy && !strcopy.is_empty() {
         *had_copy = true;
-        let new_ptr: crate::strings::RawCCharPtrMut = strcopy.as_mut_ptr().cast();
-        let len = crate::memory::cstr_len(new_ptr);
+        let len = crate::memory::bytes_until_nul(&strcopy).len();
         cmdlen += (*patlen).wrapping_sub(len) as i32;
         *patlen = len;
-        let off = crate::memory::ptr_offset_from(p, new_ptr) as usize;
         *pat_buf = strcopy;
         *pat_off = 0;
         off
     } else {
-        crate::memory::ptr_offset_from(p, cur_ptr) as usize
+        off
     };
 
     let active_slice = crate::memory::cstr_until_nul(&pat_buf[*pat_off..]).to_bytes();
@@ -1558,13 +1551,7 @@ pub fn do_search(
         retval = 1;
 
         if sia.is_some() && sia.as_deref_mut().unwrap().sa_wrapped != 0 {
-            apply_autocmds(
-                EVENT_SEARCHWRAPPED,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                ptr::null_mut(),
-            );
+            apply_autocmds(EVENT_SEARCHWRAPPED, None, None, false, None);
         }
 
         if (options & SEARCH_NOOF) == 0 || pat_buf.get(pat_off) == Some(&b';') {
@@ -2727,8 +2714,8 @@ fn is_zero_width(
                 let start_col = regmatch.startpos[0].col;
                 nmatched = vim_regexec_multi(
                     &mut regmatch,
-                    curwin_ptr(),
-                    g_st().curbuf,
+                    Some(curwin_mut()),
+                    curbuf_mut(),
                     pos.lnum,
                     start_col,
                     None,
@@ -2757,7 +2744,7 @@ fn is_zero_width(
             }
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
         result
     }
 }
@@ -3145,8 +3132,12 @@ pub fn find_pattern_in_path(
                 len as i32,
                 ptr_pat,
             );
-            regmatch.rm_ic = ignorecase(crate::memory::cstr_from_ptr(pat)) != 0;
-            regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+            let pat_cstr = crate::memory::cstr_from_ptr(pat);
+            regmatch.rm_ic = ignorecase(pat_cstr) != 0;
+            regmatch.set_prog(vim_regcomp(
+                pat_cstr,
+                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+            ));
             if regmatch.regprog.is_null() {
                 return;
             }
@@ -3157,10 +3148,12 @@ pub fn find_pattern_in_path(
             curbuf_mut().b_p_inc
         };
         if !crate::memory::cstr_is_empty(inc_opt) {
-            incl_regmatch.regprog =
-                vim_regcomp(inc_opt, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+            incl_regmatch.set_prog(vim_regcomp(
+                crate::memory::cstr_from_ptr(inc_opt),
+                if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+            ));
             if incl_regmatch.regprog.is_null() {
-                vim_regfree(regmatch.regprog);
+                regmatch.free_prog();
                 return;
             }
             incl_regmatch.rm_ic = false;
@@ -3169,17 +3162,19 @@ pub fn find_pattern_in_path(
             && (!crate::memory::cstr_is_empty(curbuf_mut().b_p_def)
                 || !crate::memory::cstr_is_empty(opt_vars().p_def))
         {
-            def_regmatch.regprog = vim_regcomp(
-                if crate::memory::cstr_is_empty(curbuf_mut().b_p_def) {
-                    opt_vars().p_def
-                } else {
-                    curbuf_mut().b_p_def
-                },
+            def_regmatch.set_prog(vim_regcomp(
+                crate::memory::cstr_from_ptr(
+                    if crate::memory::cstr_is_empty(curbuf_mut().b_p_def) {
+                        opt_vars().p_def
+                    } else {
+                        curbuf_mut().b_p_def
+                    },
+                ),
                 if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
-            );
+            ));
             if def_regmatch.regprog.is_null() {
-                vim_regfree(regmatch.regprog);
-                vim_regfree(incl_regmatch.regprog);
+                regmatch.free_prog();
+                incl_regmatch.free_prog();
                 return;
             }
             def_regmatch.rm_ic = false;
@@ -3197,7 +3192,9 @@ pub fn find_pattern_in_path(
         let mut line: crate::strings::RawCCharPtrMut = file_line_vec.as_mut_ptr().cast();
 
         loop {
-            if !incl_regmatch.regprog.is_null() && vim_regexec(&mut incl_regmatch, line, 0) {
+            if !incl_regmatch.regprog.is_null()
+                && vim_regexec(&mut incl_regmatch, unsafe { CStr::from_ptr(line) }, 0)
+            {
                 let p_fname = if curr_fname == curbuf_mut().b_fname {
                     curbuf_mut().b_ffname
                 } else {
@@ -3399,7 +3396,9 @@ pub fn find_pattern_in_path(
                 p = line;
                 loop {
                     define_matched = false;
-                    if !def_regmatch.regprog.is_null() && vim_regexec(&mut def_regmatch, line, 0) {
+                    if !def_regmatch.regprog.is_null()
+                        && vim_regexec(&mut def_regmatch, unsafe { CStr::from_ptr(line) }, 0)
+                    {
                         p = def_regmatch.endp[0].cast();
                         let p_bytes = crate::memory::cstr_as_bytes(p);
                         let skip_n = p_bytes
@@ -3431,7 +3430,7 @@ pub fn find_pattern_in_path(
                         } else if !regmatch.regprog.is_null()
                             && vim_regexec(
                                 &mut regmatch,
-                                line,
+                                unsafe { CStr::from_ptr(line) },
                                 crate::memory::ptr_offset_from(p, line) as Colnr,
                             )
                         {
@@ -3857,9 +3856,9 @@ pub fn find_pattern_in_path(
             msg_end();
         }
 
-        vim_regfree(regmatch.regprog);
-        vim_regfree(incl_regmatch.regprog);
-        vim_regfree(def_regmatch.regprog);
+        regmatch.free_prog();
+        incl_regmatch.free_prog();
+        def_regmatch.free_prog();
     }
 }
 

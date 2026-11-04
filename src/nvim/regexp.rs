@@ -43,7 +43,6 @@ use self::nfa::*;
 use crate::math::{FAIL, OK};
 use crate::option::OptInt;
 pub type RegMagic = i32;
-pub type RegGetlineFlags = u32;
 
 pub const NSUBEXP: usize = 10;
 
@@ -76,10 +75,6 @@ pub(super) const MAX_MCO: usize = 6;
 pub(super) const GRAPHEME_STATE_INIT: GraphemeState = 0;
 pub(super) const K_MARK_BUF_LOCAL: i32 = 0;
 pub(super) const K_CPO_LITERAL: i32 = b'l' as i32;
-
-pub(super) const RGLF_LINE: RegGetlineFlags = 0x01;
-pub(super) const RGLF_LENGTH: RegGetlineFlags = 0x02;
-pub(super) const RGLF_SUBMATCH: RegGetlineFlags = 0x04;
 
 pub(super) const NFA_MAX_STATES: i32 = 100000;
 pub(super) const NFA_TOO_EXPENSIVE: i32 = -1;
@@ -259,6 +254,24 @@ impl Regmmatch {
             rmm_maxcol: 0,
         }
     }
+
+    #[inline]
+    pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
+        self.regprog = prog.map_or(ptr::null_mut(), Box::into_raw);
+    }
+
+    #[inline]
+    pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
+        self.regprog = prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut());
+    }
+
+    #[inline]
+    pub fn free_prog(&mut self) {
+        if !self.regprog.is_null() {
+            drop(unsafe { Box::from_raw(self.regprog) });
+            self.regprog = ptr::null_mut();
+        }
+    }
 }
 
 impl Default for Regmmatch {
@@ -288,6 +301,24 @@ impl Regmatch {
             rm_ic: false,
         }
     }
+
+    #[inline]
+    pub fn set_prog(&mut self, prog: Option<Box<Regprog>>) {
+        self.regprog = prog.map_or(ptr::null_mut(), Box::into_raw);
+    }
+
+    #[inline]
+    pub fn borrow_prog(&mut self, prog: Option<&Regprog>) {
+        self.regprog = prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut());
+    }
+
+    #[inline]
+    pub fn free_prog(&mut self) {
+        if !self.regprog.is_null() {
+            drop(unsafe { Box::from_raw(self.regprog) });
+            self.regprog = ptr::null_mut();
+        }
+    }
 }
 
 impl Default for Regmatch {
@@ -304,10 +335,8 @@ pub struct RegExtmatch {
 }
 
 #[inline]
-pub(super) fn cstring_from_bytes<T>(ptr: *const T, len: usize) -> Option<std::ffi::CString> {
-    let ptr: *const u8 = ptr.cast();
-    let bytes = crate::memory::cstr_slice(ptr.cast(), len);
-    let end = bytes.iter().position(|&b| b == 0).unwrap_or(len);
+pub(super) fn cstring_from_bytes(bytes: &[u8]) -> Option<std::ffi::CString> {
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     std::ffi::CString::new(&bytes[..end]).ok()
 }
 
@@ -382,52 +411,35 @@ pub(super) struct NfaRegprog {
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum RegPos {
-    Ptr(*mut u8),
-    Pos(Lpos),
+pub(super) struct RegPos {
+    pub ptr: *mut u8,
+    pub pos: Lpos,
 }
 
 impl RegPos {
     pub(super) const fn new() -> Self {
-        Self::Ptr(ptr::null_mut())
-    }
-
-    #[inline]
-    pub(super) const fn ptr(self) -> *mut u8 {
-        match self {
-            Self::Ptr(p) => p,
-            Self::Pos(_) => ptr::null_mut(),
+        Self {
+            ptr: ptr::null_mut(),
+            pos: Lpos::new(),
         }
     }
 
     #[inline]
-    pub(super) fn ptr_mut(&mut self) -> &mut *mut u8 {
-        if !matches!(*self, Self::Ptr(_)) {
-            *self = Self::Ptr(ptr::null_mut());
-        }
-        match self {
-            Self::Ptr(p) => p,
-            Self::Pos(_) => unreachable!(),
+    pub(super) const fn from_pos(pos: Lpos) -> Self {
+        Self {
+            ptr: ptr::null_mut(),
+            pos,
         }
     }
 
     #[inline]
     pub(super) const fn pos(self) -> Lpos {
-        match self {
-            Self::Pos(pos) => pos,
-            Self::Ptr(_) => Lpos::new(),
-        }
+        self.pos
     }
 
     #[inline]
-    pub(super) fn pos_mut(&mut self) -> &mut Lpos {
-        if !matches!(*self, Self::Pos(_)) {
-            *self = Self::Pos(Lpos::new());
-        }
-        match self {
-            Self::Pos(pos) => pos,
-            Self::Ptr(_) => unreachable!(),
-        }
+    pub(super) const fn pos_mut(&mut self) -> &mut Lpos {
+        &mut self.pos
     }
 }
 
@@ -544,7 +556,7 @@ impl Default for RegItemSave {
 pub(super) struct Regitem {
     pub rs_state: Regstate,
     pub rs_no: i16,
-    pub rs_scan: *mut u8,
+    pub rs_scan: Option<usize>,
     pub rs_un: RegItemSave,
 }
 
@@ -553,7 +565,7 @@ impl Regitem {
         Self {
             rs_state: 0,
             rs_no: 0,
-            rs_scan: ptr::null_mut(),
+            rs_scan: None,
             rs_un: RegItemSave::new(),
         }
     }
@@ -652,22 +664,22 @@ impl RegSubList {
 
     #[inline]
     pub(super) fn multi(&self) -> &[MultiPos; NSUBEXP] {
-        crate::globals::gref((&raw const self.raw).cast::<[MultiPos; NSUBEXP]>())
+        unsafe { &*(&raw const self.raw).cast::<[MultiPos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn multi_mut(&mut self) -> &mut [MultiPos; NSUBEXP] {
-        crate::globals::gmut((&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>())
+        unsafe { &mut *(&raw mut self.raw).cast::<[MultiPos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn line(&self) -> &[LinePos; NSUBEXP] {
-        crate::globals::gref((&raw const self.raw).cast::<[LinePos; NSUBEXP]>())
+        unsafe { &*(&raw const self.raw).cast::<[LinePos; NSUBEXP]>() }
     }
 
     #[inline]
     pub(super) fn line_mut(&mut self) -> &mut [LinePos; NSUBEXP] {
-        crate::globals::gmut((&raw mut self.raw).cast::<[LinePos; NSUBEXP]>())
+        unsafe { &mut *(&raw mut self.raw).cast::<[LinePos; NSUBEXP]>() }
     }
 
     #[inline]
@@ -1223,7 +1235,6 @@ pub(super) struct RegexpState {
     pub(super) regsub_nesting: usize,
     pub(super) had_endbrace: [u8; NSUBEXP],
     pub(super) num_complex_braces: i32,
-    pub(super) regcode: *mut u8,
     pub(super) regsize: i64,
     pub(super) reg_toolong: i32,
     pub(super) bt_reg_parse_depth: i32,
@@ -1315,7 +1326,6 @@ impl RegexpState {
             regsub_nesting: 0,
             had_endbrace: [0; NSUBEXP],
             num_complex_braces: 0,
-            regcode: ptr::null_mut(),
             regsize: 0,
             reg_toolong: 0,
             bt_reg_parse_depth: 0,
@@ -1392,19 +1402,8 @@ pub(super) const fn toggle_magic(x: i32) -> i32 {
 }
 
 #[inline]
-pub(super) fn ucharat(p: *const u8) -> i32 {
-    (*crate::globals::gptr(p)) as i32
-}
-
-#[inline]
 pub(super) fn reg_multi() -> bool {
     re_st().rex.reg_match.is_null()
-}
-
-#[inline]
-pub(super) fn mb_ptr_adv<T>(p: &mut *mut T) {
-    let step = utfc_ptr2len((*p).cast()) as usize;
-    *p = (*p).cast::<u8>().wrapping_add(step).cast();
 }
 
 /// Return NOT_MULTI if c is not a "multi" operator.
@@ -1618,17 +1617,6 @@ pub(super) fn skip_anyof_slice(bytes: &[u8]) -> &[u8] {
     rem
 }
 
-/// Skip over a `[]` range.
-pub(super) fn skip_anyof<T>(p: *const T) -> *mut T {
-    let p_ptr: *const u8 = p.cast();
-    let bytes = crate::memory::cstr_as_bytes(p_ptr.cast());
-    let rem = skip_anyof_slice(bytes);
-    p_ptr
-        .wrapping_add(bytes.len() - rem.len())
-        .cast_mut()
-        .cast()
-}
-
 /// Skip past regular expression in a byte slice.
 pub fn skip_regexp_slice(start: &[u8], dirc: i32, magic: i32) -> &[u8] {
     let mut rem = crate::memory::bytes_until_nul(start);
@@ -1662,45 +1650,89 @@ pub fn skip_regexp_slice(start: &[u8], dirc: i32, magic: i32) -> &[u8] {
 }
 
 /// Skip past regular expression.
-pub fn skip_regexp<T>(startp: *mut T, delim: i32, magic: i32) -> *mut T {
-    let start_ptr: *const u8 = startp.cast();
-    let bytes = crate::memory::cstr_as_bytes(start_ptr.cast());
+pub fn skip_regexp(start: &std::ffi::CStr, delim: i32, magic: i32) -> &std::ffi::CStr {
+    let bytes = start.to_bytes();
     let rem = skip_regexp_slice(bytes, delim, magic);
-    start_ptr
-        .wrapping_add(bytes.len() - rem.len())
-        .cast_mut()
-        .cast()
+    unsafe { std::ffi::CStr::from_ptr(start.as_ptr().wrapping_add(bytes.len() - rem.len())) }
 }
 
-/// Call `skip_regexp()` and when the delimiter does not match give an error and return NULL.
-pub fn skip_regexp_err<T>(startp: *mut T, delim: i32, magic: i32) -> *mut T {
-    let p = skip_regexp(startp, delim, magic);
-    if crate::memory::cstr_first_byte(p.cast()) as i32 != delim {
-        semsg!(tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR), startp,);
-        return ptr::null_mut();
+/// Call `skip_regexp()` and when the delimiter does not match give an error and return `None`.
+pub fn skip_regexp_err(start: &std::ffi::CStr, delim: i32, magic: i32) -> Option<&std::ffi::CStr> {
+    let p = skip_regexp(start, delim, magic);
+    if p.to_bytes().first().copied().unwrap_or(0) as i32 != delim {
+        semsg!(
+            tr(E_MISSING_DELIMITER_AFTER_SEARCH_PATTERN_STR),
+            start.as_ptr(),
+        );
+        return None;
     }
-    p
+    Some(p)
 }
 
-/// `skip_regexp()` with extra arguments.
-pub fn skip_regexp_ex<T>(
-    startp: *mut T,
+/// Skip past regular expression without mutating `start`, returning the byte offset and final magic state.
+pub fn skip_regexp_magic(
+    start: &[u8],
     dirc: i32,
     magic: i32,
-    in_place: bool,
+    mut magic_val: Option<&mut RegMagic>,
+) -> usize {
+    let bytes = crate::memory::bytes_until_nul(start);
+    let mut rem = bytes;
+    let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
+
+    get_cpo_flags();
+
+    while let Some(&b0) = rem.first() {
+        if i32::from(b0) == dirc {
+            break;
+        }
+        if (b0 == b'[' && mymagic >= MAGIC_ON) || (rem.starts_with(b"\\[") && mymagic <= MAGIC_OFF)
+        {
+            rem = skip_anyof_slice(&rem[1..]);
+            if rem.is_empty() {
+                break;
+            }
+        } else if b0 == b'\\' && rem.len() > 1 {
+            rem = &rem[1..];
+            let next_b = rem.first().copied().unwrap_or(0);
+            if next_b == b'v' {
+                mymagic = MAGIC_ALL;
+            } else if next_b == b'V' {
+                mymagic = MAGIC_NONE;
+            }
+        }
+        let step = crate::mbyte::utfc_slice2len(rem).max(1);
+        rem = &rem[step.min(rem.len())..];
+    }
+    if let Some(ref mut p) = magic_val {
+        **p = mymagic;
+    }
+    bytes.len() - rem.len()
+}
+
+/// `skip_regexp()` with in-place backslash-question removal, returning the byte offset.
+pub fn skip_regexp_ex(
+    start: &mut [u8],
+    dirc: i32,
+    magic: i32,
     mut copy_buf: Option<&mut Vec<u8>>,
     mut dropped: Option<&mut i32>,
     mut magic_val: Option<&mut RegMagic>,
-) -> *mut T {
-    let mut startp: *mut u8 = startp.cast();
+) -> usize {
     let mut mymagic = if magic != 0 { MAGIC_ON } else { MAGIC_OFF };
-    let mut p = startp;
-    let mut startplen: usize = 0;
+    let mut startplen = crate::memory::bytes_until_nul(start).len();
+    let mut off: usize = 0;
+    let mut use_copy = false;
 
     get_cpo_flags();
 
     loop {
-        let p_bytes = crate::memory::cstr_as_bytes(p.cast());
+        let active: &mut [u8] = if use_copy {
+            copy_buf.as_deref_mut().unwrap().as_mut_slice()
+        } else {
+            start
+        };
+        let p_bytes = &active[off..startplen];
         let Some(&b0) = p_bytes.first() else {
             break;
         };
@@ -1710,50 +1742,65 @@ pub fn skip_regexp_ex<T>(
         if (b0 == b'[' && mymagic >= MAGIC_ON)
             || (p_bytes.starts_with(b"\\[") && mymagic <= MAGIC_OFF)
         {
-            p = skip_anyof(p.wrapping_add(1));
-            if crate::memory::cstr_is_empty(p.cast()) {
+            let rem = skip_anyof_slice(&p_bytes[1..]);
+            off += 1 + (p_bytes.len() - 1 - rem.len());
+            if rem.is_empty() {
                 break;
             }
         } else if b0 == b'\\' && p_bytes.len() > 1 {
-            if dirc == b'?' as i32 && in_place && p_bytes[1] == b'?' {
-                if startplen == 0 {
-                    startplen = crate::memory::cstr_len(startp.cast());
-                }
-                let off = crate::memory::ptr_offset_from(p, startp) as usize;
+            if dirc == b'?' as i32 && p_bytes[1] == b'?' {
                 if let Some(buf) = copy_buf.as_deref_mut()
-                    && buf.is_empty()
+                    && !use_copy
                 {
-                    buf.extend_from_slice(crate::memory::cstr_slice(startp.cast(), startplen + 1));
-                    startp = buf.as_mut_ptr();
-                    p = startp.wrapping_add(off);
+                    buf.clear();
+                    buf.extend_from_slice(&start[..=startplen]);
+                    use_copy = true;
                 }
                 if let Some(ref mut p) = dropped {
                     **p += 1;
                 }
-                let start_slice = unsafe { std::slice::from_raw_parts_mut(startp, startplen + 1) };
-                start_slice.copy_within(off + 1..=startplen, off);
+                let target: &mut [u8] = if use_copy {
+                    copy_buf.as_deref_mut().unwrap().as_mut_slice()
+                } else {
+                    start
+                };
+                target.copy_within(off + 1..=startplen, off);
                 startplen -= 1;
             } else {
-                p = p.wrapping_add(1);
+                off += 1;
             }
-            let next_b = crate::memory::cstr_first_byte(p.cast());
+            let target: &[u8] = if use_copy {
+                copy_buf.as_deref().unwrap().as_slice()
+            } else {
+                start
+            };
+            let next_b = target.get(off).copied().unwrap_or(0);
             if next_b == b'v' {
                 mymagic = MAGIC_ALL;
             } else if next_b == b'V' {
                 mymagic = MAGIC_NONE;
             }
         }
-        mb_ptr_adv(&mut p);
+        let target: &[u8] = if use_copy {
+            copy_buf.as_deref().unwrap().as_slice()
+        } else {
+            start
+        };
+        let rem = &target[off..startplen];
+        if rem.is_empty() {
+            break;
+        }
+        let step = crate::mbyte::utfc_slice2len(rem).max(1).min(rem.len());
+        off += step;
     }
     if let Some(ref mut p) = magic_val {
         **p = mymagic;
     }
-    p.cast()
+    off
 }
 
-pub(super) fn initchr(str_: impl crate::strings::IntoCCharPtr) {
-    let str_: *mut u8 = str_.into_c_char_ptr().cast_mut().cast();
-    re_st().regparse = str_;
+pub(super) fn initchr(str_: &CStr) {
+    re_st().regparse = str_.as_ptr().cast_mut().cast();
     re_st().prevchr_len = 0;
     re_st().nextchr = -1;
     re_st().prevchr = -1;
@@ -2068,58 +2115,31 @@ pub(super) fn reg_iswordc(c: i32) -> bool {
     vim_iswordc_buf(c, re_st().rex.buf_mut())
 }
 
-fn reg_getline_common(
-    lnum: Linenr,
-    flags: RegGetlineFlags,
-    line: Option<&mut *mut u8>,
-    length: Option<&mut Colnr>,
-) {
-    let get_line = (flags & RGLF_LINE) != 0;
-    let get_length = (flags & RGLF_LENGTH) != 0;
-    let (firstlnum, maxline) = if (flags & RGLF_SUBMATCH) != 0 {
+fn reg_getline_bounds(lnum: Linenr, submatch: bool) -> (Linenr, Linenr) {
+    if submatch {
         (re_st().rsm.sm_firstlnum + lnum, re_st().rsm.sm_maxline)
     } else {
         (re_st().rex.reg_firstlnum + lnum, re_st().rex.reg_maxline)
-    };
-
-    if firstlnum < 1 {
-        if get_line && let Some(line) = line {
-            *line = ptr::null_mut();
-        }
-        if get_length && let Some(length) = length {
-            *length = 0;
-        }
-        return;
-    }
-
-    if lnum > maxline {
-        if get_line && let Some(line) = line {
-            *line = c"".as_ptr().cast_mut().cast();
-        }
-        if get_length && let Some(length) = length {
-            *length = 0;
-        }
-        return;
-    }
-
-    if get_line && let Some(line) = line {
-        *line = ml_get_buf(re_st().rex.buf_mut(), firstlnum).cast();
-    }
-    if get_length && let Some(length) = length {
-        *length = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum);
     }
 }
 
-pub(super) fn reg_getline(lnum: Linenr) -> *mut u8 {
-    let mut line: *mut u8 = ptr::null_mut();
-    reg_getline_common(lnum, RGLF_LINE, Some(&mut line), None);
-    line
+pub(super) fn reg_getline(lnum: Linenr) -> Option<&'static std::ffi::CStr> {
+    let (firstlnum, maxline) = reg_getline_bounds(lnum, false);
+    if firstlnum < 1 {
+        return None;
+    }
+    if lnum > maxline {
+        return Some(c"");
+    }
+    Some(unsafe { std::ffi::CStr::from_ptr(ml_get_buf(re_st().rex.buf_mut(), firstlnum)) })
 }
 
 pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
-    let mut length: Colnr = 0;
-    reg_getline_common(lnum, RGLF_LENGTH, None, Some(&mut length));
-    length
+    let (firstlnum, maxline) = reg_getline_bounds(lnum, false);
+    if firstlnum < 1 || lnum > maxline {
+        return 0;
+    }
+    ml_get_buf_len(re_st().rex.buf_mut(), firstlnum)
 }
 
 pub(super) fn reg_prev_class() -> i32 {
@@ -2140,7 +2160,7 @@ pub(super) fn reg_match_visual() -> bool {
     } else {
         re_st().rex.reg_win
     };
-    let wp = crate::globals::gmut(wp);
+    let wp = unsafe { &mut *wp };
     if re_st().rex.reg_buf != g_st().curbuf || g_st().visual_global.start.lnum == 0 || !reg_multi()
     {
         return false;
@@ -2218,7 +2238,8 @@ pub(super) fn reg_match_visual() -> bool {
             end = MAXCOL;
         }
 
-        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+        let cur_lnum = re_st().rex.lnum;
+        re_st().rex.load_line(cur_lnum);
         re_st().rex.input = re_st().rex.line.wrapping_add(col as usize);
 
         let cols = win_linetabsize(
@@ -2245,7 +2266,7 @@ pub(super) fn prog_magic_wrong() -> bool {
     let RegProgEngine::Bt(ref bt_prog) = prog.engine else {
         return false;
     };
-    if ucharat(bt_prog.program.as_ptr()) != REGMAGIC {
+    if bt_prog.program.first().copied() != Some(REGMAGIC as u8) {
         emsg(tr(E_RE_CORR));
         return true;
     }
@@ -2261,8 +2282,9 @@ pub(super) fn cleanup_subexpr() {
         re_st().rex.startpos_slice_mut().fill(uninit_pos);
         re_st().rex.endpos_slice_mut().fill(uninit_pos);
     } else {
-        re_st().rex.startp_slice_mut().fill(ptr::null_mut());
-        re_st().rex.endp_slice_mut().fill(ptr::null_mut());
+        let m = re_st().rex.match_mut();
+        m.startp.fill(ptr::null_mut());
+        m.endp.fill(ptr::null_mut());
     }
     re_st().rex.need_clear_subexpr = 0;
 }
@@ -2284,7 +2306,8 @@ pub(super) fn cleanup_zsubexpr() {
 
 pub(super) fn reg_nextline() {
     re_st().rex.lnum += 1;
-    re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+    let cur_lnum = re_st().rex.lnum;
+    re_st().rex.load_line(cur_lnum);
     re_st().rex.input = re_st().rex.line;
     reg_breakcheck();
 }
@@ -2314,8 +2337,8 @@ pub(super) fn match_with_backref(
             re_st().rex.input = re_st().rex.line.wrapping_add(off);
         }
 
-        let p = reg_getline(clnum);
-        debug_assert!(!p.is_null());
+        let p_cstr = reg_getline(clnum).unwrap();
+        let p_bytes = p_cstr.to_bytes_with_nul();
 
         let mut len = if clnum == end_lnum {
             end_col - ccol
@@ -2323,15 +2346,11 @@ pub(super) fn match_with_backref(
             reg_getline_len(clnum) - ccol
         };
 
-        if (!re_st().rex.reg_ic
-            && cstrncmp(
-                p.wrapping_add(ccol as usize).cast(),
-                re_st().rex.input.cast(),
-                &mut len,
-            ) != 0)
+        let input_bytes = crate::memory::cstr_as_bytes(re_st().rex.input.cast());
+        if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    p.wrapping_add(ccol as usize).cast(),
+                    p_cstr.as_ptr().wrapping_add(ccol as usize),
                     re_st().rex.input.cast(),
                     len as usize,
                 ) != 0)
@@ -2379,132 +2398,145 @@ fn mb_decompose(c: i32, c1: &mut i32, c2: &mut i32, c3: &mut i32) {
     }
 }
 
-pub(super) fn cstrncmp(
-    s1: impl crate::strings::IntoCCharPtr,
-    s2: impl crate::strings::IntoCCharPtr,
-    n: &mut i32,
-) -> i32 {
-    let s1 = s1.into_c_char_ptr();
-    let s2 = s2.into_c_char_ptr();
-    {
-        let s1_b = crate::memory::cstr_as_bytes(s1);
-        let s2_b = crate::memory::cstr_as_bytes(s2);
-        let mut result = if !re_st().rex.reg_ic {
-            let max_n = *n as usize;
-            s1_b[..max_n.min(s1_b.len())].cmp(&s2_b[..max_n.min(s2_b.len())]) as i32
+pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
+    let s1_b = crate::memory::bytes_until_nul(s1);
+    let s2_b = crate::memory::bytes_until_nul(s2);
+    let mut result = if !re_st().rex.reg_ic {
+        let max_n = *n as usize;
+        if s1_b.len() < max_n && s1_b.len() == s2_b.len() {
+            s1_b.cmp(s2_b) as i32
+        } else if s1_b.len() < max_n {
+            if s2_b.starts_with(s1_b) {
+                -1
+            } else {
+                s1_b.cmp(&s2_b[..s1_b.len().min(s2_b.len())]) as i32
+            }
+        } else if s2_b.len() < max_n {
+            if s1_b.starts_with(s2_b) {
+                1
+            } else {
+                s1_b[..s2_b.len()].cmp(s2_b) as i32
+            }
         } else {
-            let mut rem1 = s1_b;
-            let mut n2: i32 = 0;
-            let mut n1 = *n;
-            while n1 > 0 && !rem1.is_empty() {
-                let step = crate::mbyte::utfc_slice2len(rem1);
-                n1 -= step as i32;
-                rem1 = &rem1[step..];
-                n2 += 1;
-            }
-            let mut rem2 = s2_b;
-            while n2 > 0 && !rem2.is_empty() {
-                n2 -= 1;
-                let step = crate::mbyte::utfc_slice2len(rem2);
-                rem2 = &rem2[step..];
-            }
-            n2 = (s2_b.len() - rem2.len()) as i32;
-            let r = utf_strnicmp(s1, s2, *n as usize, n2 as usize);
-            if r == 0 {
-                *n = n2;
-            }
-            r
-        };
+            s1_b[..max_n].cmp(&s2_b[..max_n]) as i32
+        }
+    } else {
+        let mut rem1 = s1_b;
+        let mut n2: i32 = 0;
+        let mut n1 = *n;
+        while n1 > 0 && !rem1.is_empty() {
+            let step = crate::mbyte::utfc_slice2len(rem1);
+            n1 -= step as i32;
+            rem1 = &rem1[step..];
+            n2 += 1;
+        }
+        let mut rem2 = s2_b;
+        while n2 > 0 && !rem2.is_empty() {
+            n2 -= 1;
+            let step = crate::mbyte::utfc_slice2len(rem2);
+            rem2 = &rem2[step..];
+        }
+        n2 = (s2_b.len() - rem2.len()) as i32;
+        let r = utf_strnicmp(
+            s1_b.as_ptr().cast(),
+            s2_b.as_ptr().cast(),
+            *n as usize,
+            n2 as usize,
+        );
+        if r == 0 {
+            *n = n2;
+        }
+        r
+    };
 
-        if result != 0 && re_st().rex.reg_icombine {
-            let s1_bytes = crate::memory::cstr_as_bytes(s1);
-            let s2_bytes = crate::memory::cstr_as_bytes(s2);
-            let mut rem1 = s1_bytes;
-            let mut rem2 = s2_bytes;
-            let mut c1: i32 = 0;
-            let mut c2: i32 = 0;
-            let mut c11: i32 = 0;
-            let mut c12: i32 = 0;
-            let mut junk: i32 = 0;
-            let mut junk2: i32 = 0;
+    if result != 0 && re_st().rex.reg_icombine {
+        let mut rem1 = s1_b;
+        let mut rem2 = s2_b;
+        let mut c1: i32 = 0;
+        let mut c2: i32 = 0;
+        let mut c11: i32 = 0;
+        let mut c12: i32 = 0;
+        let mut junk: i32 = 0;
+        let mut junk2: i32 = 0;
 
-            while ((s1_bytes.len() - rem1.len()) as i32) < *n {
-                c1 = mb_ptr2char_adv(&mut rem1);
-                c2 = mb_ptr2char_adv(&mut rem2);
+        while ((s1_b.len() - rem1.len()) as i32) < *n {
+            c1 = mb_ptr2char_adv(&mut rem1);
+            c2 = mb_ptr2char_adv(&mut rem2);
 
-                if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
-                    mb_decompose(c1, &mut c11, &mut junk, &mut junk2);
-                    mb_decompose(c2, &mut c12, &mut junk, &mut junk2);
-                    c1 = c11;
-                    c2 = c12;
-                    if c11 != c12 && (!re_st().rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
-                        break;
-                    }
+            if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
+                mb_decompose(c1, &mut c11, &mut junk, &mut junk2);
+                mb_decompose(c2, &mut c12, &mut junk, &mut junk2);
+                c1 = c11;
+                c2 = c12;
+                if c11 != c12 && (!re_st().rex.reg_ic || utf_fold(c11) != utf_fold(c12)) {
+                    break;
                 }
             }
-            result = c2 - c1;
-            if result == 0 {
-                *n = (s2_bytes.len() - rem2.len()) as i32;
-            }
         }
-
-        result
+        result = c2 - c1;
+        if result == 0 {
+            *n = (s2_b.len() - rem2.len()) as i32;
+        }
     }
+
+    result
 }
 
 #[inline]
-pub(super) fn cstrchr(s: impl crate::strings::IntoCCharPtr, c: i32) -> *mut u8 {
-    let s = s.into_c_char_ptr();
-    {
-        if !re_st().rex.reg_ic {
-            return vim_strchr(s, c).cast();
-        }
-
-        let (cc, lc) = if c > 0x80 {
-            let f = utf_fold(c);
-            (f, f)
-        } else if (c as u8).is_ascii_uppercase() {
-            let l = (c as u8).to_ascii_lowercase() as i32;
-            (l, l)
-        } else if (c as u8).is_ascii_lowercase() {
-            let u = (c as u8).to_ascii_uppercase() as i32;
-            (u, c)
-        } else {
-            return vim_strchr(s, c).cast();
-        };
-
-        let s_bytes = crate::memory::cstr_as_bytes(s);
-        let mut idx = 0usize;
-        while idx < s_bytes.len() {
-            let p = s.wrapping_add(idx);
-            let b0 = s_bytes[idx] as i32;
-            let uc = utf_ptr2char(p);
-            if c > 0x80 || uc > 0x80 {
-                if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
-                    return p.cast_mut().cast();
-                }
-            } else if b0 == c || b0 == cc {
-                return p.cast_mut().cast();
-            }
-            idx += utfc_ptr2len(p) as usize;
-        }
-        ptr::null_mut()
+pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
+    let s_ptr = s.as_ptr();
+    if !re_st().rex.reg_ic {
+        let p = vim_strchr(s_ptr, c);
+        return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
     }
+
+    let (cc, lc) = if c > 0x80 {
+        let f = utf_fold(c);
+        (f, f)
+    } else if (c as u8).is_ascii_uppercase() {
+        let l = (c as u8).to_ascii_lowercase() as i32;
+        (l, l)
+    } else if (c as u8).is_ascii_lowercase() {
+        let u = (c as u8).to_ascii_uppercase() as i32;
+        (u, c)
+    } else {
+        let p = vim_strchr(s_ptr, c);
+        return (!p.is_null()).then(|| crate::memory::ptr_offset_from(p, s_ptr) as usize);
+    };
+
+    let s_bytes = s.to_bytes();
+    let mut idx = 0usize;
+    while idx < s_bytes.len() {
+        let p = s_ptr.wrapping_add(idx);
+        let b0 = s_bytes[idx] as i32;
+        let uc = utf_ptr2char(p);
+        if c > 0x80 || uc > 0x80 {
+            if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
+                return Some(idx);
+            }
+        } else if b0 == c || b0 == cc {
+            return Some(idx);
+        }
+        idx += utfc_ptr2len(p) as usize;
+    }
+    None
 }
 
 /// Replace tildes in the pattern by the old pattern.
 /// Returns `Some(CString)` if a new string was allocated, or `None` if `source` was modified in place.
-pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi::CString> {
+pub fn regtilde(source: &mut [u8], magic: i32, preview: bool) -> Option<std::ffi::CString> {
     let mut newsub_vec: Option<Vec<u8>> = None;
-    let mut newsub: *mut u8 = source.cast();
-    let mut newsublen = crate::memory::cstr_len(newsub.cast());
+    let mut newsublen = crate::memory::bytes_until_nul(source).len();
     let tilde: &[u8] = if magic == 0 { b"\\~" } else { b"~" };
     let tildelen = tilde.len();
     let mut error = false;
 
     let mut idx = 0usize;
     while idx < newsublen {
-        let cur_slice = crate::memory::cstr_slice(newsub.cast(), newsublen);
+        let cur_slice: &[u8] = match newsub_vec {
+            Some(ref v) => &v[..newsublen],
+            None => &source[..newsublen],
+        };
         if cur_slice[idx..].starts_with(tilde) {
             let prefixlen = idx;
             newsublen -= tildelen;
@@ -2529,12 +2561,12 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
                 tmpsub_vec.push(0);
 
                 newsub_vec = Some(tmpsub_vec);
-                newsub = newsub_vec.as_mut().unwrap().as_mut_ptr();
                 newsublen = tmpsublen;
                 idx = prefixlen + reg_prev_sublen;
             } else {
-                let buf = unsafe {
-                    std::slice::from_raw_parts_mut(newsub, prefixlen + tildelen + postfixlen + 1)
+                let buf: &mut [u8] = match newsub_vec {
+                    Some(ref mut v) => v.as_mut_slice(),
+                    None => source,
                 };
                 buf.copy_within(
                     prefixlen + tildelen..=prefixlen + tildelen + postfixlen,
@@ -2557,7 +2589,11 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
         re_st().reg_prev_sub = if newsublen == 0 {
             None
         } else {
-            cstring_from_bytes(newsub, newsublen)
+            let cur_slice: &[u8] = match newsub_vec {
+                Some(ref v) => &v[..newsublen],
+                None => &source[..newsublen],
+            };
+            cstring_from_bytes(cur_slice)
         };
     }
 
@@ -2566,50 +2602,44 @@ pub fn regtilde<T>(source: *mut T, magic: i32, preview: bool) -> Option<std::ffi
 
 pub(crate) fn fill_submatch_list(
     _argc: i32,
-    argv: *mut TypVal,
+    argv: &mut [TypVal],
     argskip: i32,
     fp: &mut UserFunc,
 ) -> i32 {
-    let listarg = argv.wrapping_add(argskip as usize);
     if fp.uf_varargs == 0 && (fp.uf_args.len() as i32) <= argskip {
         return argskip;
     }
+    let listarg = &mut argv[argskip as usize];
 
-    tv_list_init_static10(crate::globals::gmut(
-        crate::globals::gptr(listarg)
-            .vval
-            .v_list()
-            .cast::<StaticList10>(),
-    ));
+    let static_list = unsafe { &mut *listarg.vval.v_list().cast::<StaticList10>() };
+    tv_list_init_static10(static_list);
 
-    let mut li = tv_list_first(crate::globals::gopt(
-        crate::globals::gptr(listarg).vval.v_list(),
-    ));
+    let mut li = tv_list_first(unsafe { listarg.vval.v_list().as_ref() });
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
+        let li_mut = unsafe { &mut *li };
         if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
-            tv_set_string(&mut crate::globals::gptr(li).li_tv, ptr::null());
+            tv_set_string(&mut li_mut.li_tv, ptr::null());
         } else {
             let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
-            let cs = cstring_from_bytes(s, len).unwrap_or_default();
+            let bytes = crate::memory::cstr_slice(s.cast(), len);
+            let cs = cstring_from_bytes(bytes).unwrap_or_default();
 
-            tv_set_string(&mut crate::globals::gptr(li).li_tv, cs.as_ptr());
+            tv_set_string(&mut li_mut.li_tv, cs.as_ptr());
         }
 
-        li = crate::globals::gptr(li).li_next;
+        li = li_mut.li_next;
     }
     argskip + 1
 }
 
-pub fn vim_regsub<T>(
+pub fn vim_regsub(
     rmp: &mut Regmatch,
-    source: impl crate::strings::IntoCCharPtr,
+    source: &CStr,
     expr: Option<&TypVal>,
-    dest: *mut T,
-    destlen: i32,
+    dest: &mut [u8],
     flags: i32,
 ) -> i32 {
-    let source = source.into_c_char_ptr();
     let mut rex_save = Regexec::new();
     let rex_in_use_save = re_st().rex_in_use;
 
@@ -2623,7 +2653,7 @@ pub fn vim_regsub<T>(
     re_st().rex.reg_maxline = 0;
     re_st().rex.reg_buf = g_st().curbuf;
     re_st().rex.reg_line_lbr = true;
-    let result = vim_regsub_both(source, expr, dest, destlen, flags);
+    let result = vim_regsub_both(Some(source), expr, dest, flags);
 
     re_st().rex_in_use = rex_in_use_save;
     if re_st().rex_in_use {
@@ -2633,15 +2663,13 @@ pub fn vim_regsub<T>(
     result
 }
 
-pub fn vim_regsub_multi<T>(
+pub fn vim_regsub_multi(
     rmp: &mut Regmmatch,
     lnum: Linenr,
-    source: impl crate::strings::IntoCCharPtr,
-    dest: *mut T,
-    destlen: i32,
+    source: &CStr,
+    dest: &mut [u8],
     flags: i32,
 ) -> i32 {
-    let source = source.into_c_char_ptr();
     let mut rex_save = Regexec::new();
     let rex_in_use_save = re_st().rex_in_use;
 
@@ -2656,7 +2684,7 @@ pub fn vim_regsub_multi<T>(
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = curbuf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
-    let result = vim_regsub_both(source, None, dest, destlen, flags);
+    let result = vim_regsub_both(Some(source), None, dest, flags);
 
     re_st().rex_in_use = rex_in_use_save;
     if re_st().rex_in_use {
@@ -2666,406 +2694,403 @@ pub fn vim_regsub_multi<T>(
     result
 }
 
-fn vim_regsub_both<T>(
-    source: impl crate::strings::IntoCCharPtr,
+fn vim_regsub_both(
+    source: Option<&CStr>,
     expr: Option<&TypVal>,
-    dest: *mut T,
-    destlen: i32,
+    dest: &mut [u8],
     flags: i32,
 ) -> i32 {
-    let source: *const u8 = source.into_c_char_ptr().cast();
-    let dest: *mut u8 = dest.cast();
-    {
-        let mut no: i32 = -1;
-        let mut func_all: Option<CaseConv> = None;
-        let mut func_one: Option<CaseConv> = None;
-        let mut clnum: Linenr = 0;
-        let mut len: i32 = 0;
-        let copy = (flags & REGSUB_COPY) != 0;
+    let mut no: i32 = -1;
+    let mut func_all: Option<CaseConv> = None;
+    let mut func_one: Option<CaseConv> = None;
+    let mut clnum: Linenr = 0;
+    let mut len: i32 = 0;
+    let copy = (flags & REGSUB_COPY) != 0;
 
-        if (source.is_null() && expr.is_none()) || dest.is_null() {
-            emsg(tr(E_NULL));
-            return 0;
-        }
-        if prog_magic_wrong() {
-            return 0;
-        }
-        if re_st().regsub_nesting == MAX_REGSUB_NESTING {
-            emsg(tr(E_SUBSTITUTE_NESTING_TOO_DEEP));
-            return 0;
-        }
-        let nested = re_st().regsub_nesting;
-        let eval_slot = &mut re_st().eval_result[nested];
-        let src = source;
-        let max_dst = destlen.max(0) as usize;
-        let mut dest_slice = copy.then(|| unsafe { std::slice::from_raw_parts_mut(dest, max_dst) });
-        let mut dst_off = 0usize;
+    if source.is_none() && expr.is_none() {
+        emsg(tr(E_NULL));
+        return 0;
+    }
+    if prog_magic_wrong() {
+        return 0;
+    }
+    if re_st().regsub_nesting == MAX_REGSUB_NESTING {
+        emsg(tr(E_SUBSTITUTE_NESTING_TOO_DEEP));
+        return 0;
+    }
+    let nested = re_st().regsub_nesting;
+    let eval_slot = &mut re_st().eval_result[nested];
+    let max_dst = dest.len();
+    let mut dest_slice = copy.then_some(dest);
+    let mut dst_off = 0usize;
 
-        if expr.is_some() || crate::memory::cstr_as_bytes(source.cast()).starts_with(b"\\=") {
-            if copy {
-                if let Some(ref eval_cstr) = *eval_slot {
-                    let eval_bytes = eval_cstr.to_bytes_with_nul();
-                    let eval_len = eval_bytes.len() - 1;
-                    if eval_len < max_dst {
-                        if let Some(ref mut out) = dest_slice {
-                            out[..eval_bytes.len()].copy_from_slice(eval_bytes);
-                        }
-                        dst_off += eval_len;
-                        *eval_slot = None;
+    if expr.is_some() || source.is_some_and(|s| s.to_bytes().starts_with(b"\\=")) {
+        if copy {
+            if let Some(ref eval_cstr) = *eval_slot {
+                let eval_bytes = eval_cstr.to_bytes_with_nul();
+                let eval_len = eval_bytes.len() - 1;
+                if eval_len < max_dst {
+                    if let Some(ref mut out) = dest_slice {
+                        out[..eval_bytes.len()].copy_from_slice(eval_bytes);
                     }
-                }
-            } else {
-                let prev_can_f_submatch = re_st().can_f_submatch;
-                let mut rsm_save = Regsubmatch::new();
-
-                *eval_slot = None;
-
-                if re_st().can_f_submatch {
-                    rsm_save = re_st().rsm;
-                }
-                re_st().can_f_submatch = true;
-                re_st().rsm.sm_match = re_st().rex.reg_match;
-                re_st().rsm.sm_mmatch = re_st().rex.reg_mmatch;
-                re_st().rsm.sm_firstlnum = re_st().rex.reg_firstlnum;
-                re_st().rsm.sm_maxline = re_st().rex.reg_maxline;
-                re_st().rsm.sm_line_lbr = i32::from(re_st().rex.reg_line_lbr);
-
-                re_st().regsub_nesting += 1;
-
-                if let Some(expr) = expr {
-                    let mut argv: [TypVal; 2] = [TypVal::new(); 2];
-                    let mut rettv: TypVal = TypVal::new();
-                    let mut match_list = StaticList10::new();
-                    rettv.v_type = VarType::VarString;
-                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
-                    argv[0].v_type = VarType::VarList;
-                    argv[0].vval =
-                        crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
-                    let mut funcexe = Funcexe {
-                        fe_fill_submatch: true,
-                        fe_firstline: 0,
-                        fe_lastline: 0,
-                        fe_doesrange: false,
-                        fe_evaluate: true,
-                        fe_partial: ptr::null_mut(),
-                        fe_selfdict: ptr::null_mut(),
-                        fe_basetv: ptr::null_mut(),
-                        fe_found_var: false,
-                    };
-                    if expr.v_type == VarType::VarFunc {
-                        let s = expr.vval.v_string();
-                        call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
-                    } else if expr.v_type == VarType::VarPartial {
-                        let partial = expr.vval.v_partial();
-                        let s = partial_name(crate::globals::gopt(partial));
-                        funcexe.fe_partial = partial;
-                        call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
-                    }
-                    if rettv.v_type == VarType::VarUnknown {
-                        *eval_slot = None;
-                    } else {
-                        let mut buf = [0u8; NUMBUFLEN];
-                        if let Some(s) = tv_get_string_buf_chk(&rettv, &mut buf) {
-                            *eval_slot = Some(s.to_owned());
-                        }
-                    }
-                    tv_clear(&mut rettv);
-                } else {
-                    *eval_slot = eval_to_string(source.wrapping_add(2).cast(), true, false);
-                }
-                re_st().regsub_nesting -= 1;
-
-                if let Some(eval_cstr) = eval_slot.take() {
-                    let mut eval_bytes = eval_cstr.into_bytes_with_nul();
-                    let mut had_backslash = false;
-                    let eval_len = eval_bytes.len().saturating_sub(1);
-                    let mut s_idx = 0usize;
-                    while s_idx < eval_len {
-                        if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
-                            eval_bytes[s_idx] = CAR as u8;
-                        } else if eval_bytes[s_idx] == b'\\' && s_idx + 1 < eval_len {
-                            s_idx += 1;
-                            if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
-                                eval_bytes[s_idx] = CAR as u8;
-                            }
-                            had_backslash = true;
-                        }
-                        s_idx += crate::mbyte::utfc_slice2len(&eval_bytes[s_idx..eval_len]);
-                    }
-                    let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
-                        vim_strsave_escaped(&eval_bytes, b"\\")
-                    } else {
-                        CStr::from_bytes_with_nul(&eval_bytes)
-                            .unwrap_or_default()
-                            .to_owned()
-                    };
-                    dst_off += final_cstr.to_bytes().len();
-                    *eval_slot = Some(final_cstr);
-                }
-
-                re_st().can_f_submatch = prev_can_f_submatch;
-                if re_st().can_f_submatch {
-                    re_st().rsm = rsm_save;
+                    dst_off += eval_len;
+                    *eval_slot = None;
                 }
             }
         } else {
-            let src_bytes = crate::memory::cstr_as_bytes(src.cast());
-            let mut idx = 0usize;
-            while idx < src_bytes.len() {
-                let mut c = src_bytes[idx] as i32;
-                idx += 1;
-                if c == b'&' as i32 && (flags & REGSUB_MAGIC) != 0 {
-                    no = 0;
-                } else if c == b'\\' as i32
-                    && let Some(&next_b) = src_bytes.get(idx)
-                {
-                    if next_b == b'&' && (flags & REGSUB_MAGIC) == 0 {
-                        idx += 1;
-                        no = 0;
-                    } else if next_b.is_ascii_digit() {
-                        no = (next_b - b'0') as i32;
-                        idx += 1;
-                    } else if matches!(next_b, b'u' | b'U' | b'l' | b'L' | b'e' | b'E') {
-                        idx += 1;
-                        match next_b {
-                            b'u' => {
-                                func_one = Some(CaseConv::Upper);
-                                continue;
-                            }
-                            b'U' => {
-                                func_all = Some(CaseConv::Upper);
-                                continue;
-                            }
-                            b'l' => {
-                                func_one = Some(CaseConv::Lower);
-                                continue;
-                            }
-                            b'L' => {
-                                func_all = Some(CaseConv::Lower);
-                                continue;
-                            }
-                            b'e' | b'E' => {
-                                func_one = None;
-                                func_all = None;
-                                continue;
-                            }
-                            _ => {}
-                        }
+            let prev_can_f_submatch = re_st().can_f_submatch;
+            let mut rsm_save = Regsubmatch::new();
+
+            *eval_slot = None;
+
+            if re_st().can_f_submatch {
+                rsm_save = re_st().rsm;
+            }
+            re_st().can_f_submatch = true;
+            re_st().rsm.sm_match = re_st().rex.reg_match;
+            re_st().rsm.sm_mmatch = re_st().rex.reg_mmatch;
+            re_st().rsm.sm_firstlnum = re_st().rex.reg_firstlnum;
+            re_st().rsm.sm_maxline = re_st().rex.reg_maxline;
+            re_st().rsm.sm_line_lbr = i32::from(re_st().rex.reg_line_lbr);
+
+            re_st().regsub_nesting += 1;
+
+            if let Some(expr) = expr {
+                let mut argv: [TypVal; 2] = [TypVal::new(); 2];
+                let mut rettv: TypVal = TypVal::new();
+                let mut match_list = StaticList10::new();
+                rettv.v_type = VarType::VarString;
+                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                argv[0].v_type = VarType::VarList;
+                argv[0].vval = crate::eval::typval::TypvalVval::List(&raw mut match_list.sl_list);
+                let mut funcexe = Funcexe {
+                    fe_fill_submatch: true,
+                    fe_firstline: 0,
+                    fe_lastline: 0,
+                    fe_doesrange: false,
+                    fe_evaluate: true,
+                    fe_partial: ptr::null_mut(),
+                    fe_selfdict: ptr::null_mut(),
+                    fe_basetv: ptr::null_mut(),
+                    fe_found_var: false,
+                };
+                if expr.v_type == VarType::VarFunc {
+                    let s = expr.vval.v_string();
+                    call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
+                } else if expr.v_type == VarType::VarPartial {
+                    let partial = expr.vval.v_partial();
+                    let s = partial_name(unsafe { partial.as_ref() });
+                    funcexe.fe_partial = partial;
+                    call_func(s, -1, &mut rettv, 1, argv.as_mut_ptr(), &mut funcexe);
+                }
+                if rettv.v_type == VarType::VarUnknown {
+                    *eval_slot = None;
+                } else {
+                    let mut buf = [0u8; NUMBUFLEN];
+                    if let Some(s) = tv_get_string_buf_chk(&rettv, &mut buf) {
+                        *eval_slot = Some(s.to_owned());
                     }
                 }
-                if no < 0 {
-                    if c == i32::from(K_SPECIAL) && idx + 2 <= src_bytes.len() {
-                        if let Some(ref mut out) = dest_slice {
-                            if dst_off + 3 > max_dst {
-                                iemsg(c"vim_regsub_both(): not enough space");
-                                return 0;
-                            }
-                            out[dst_off] = c as u8;
-                            out[dst_off + 1] = src_bytes[idx];
-                            out[dst_off + 2] = src_bytes[idx + 1];
+                tv_clear(&mut rettv);
+            } else if let Some(src) = source {
+                *eval_slot = eval_to_string(src.as_ptr().wrapping_add(2), true, false);
+            }
+            re_st().regsub_nesting -= 1;
+
+            if let Some(eval_cstr) = eval_slot.take() {
+                let mut eval_bytes = eval_cstr.into_bytes_with_nul();
+                let mut had_backslash = false;
+                let eval_len = eval_bytes.len().saturating_sub(1);
+                let mut s_idx = 0usize;
+                while s_idx < eval_len {
+                    if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                        eval_bytes[s_idx] = CAR as u8;
+                    } else if eval_bytes[s_idx] == b'\\' && s_idx + 1 < eval_len {
+                        s_idx += 1;
+                        if eval_bytes[s_idx] == NL as u8 && re_st().rsm.sm_line_lbr == 0 {
+                            eval_bytes[s_idx] = CAR as u8;
                         }
-                        dst_off += 3;
-                        idx += 2;
-                        continue;
+                        had_backslash = true;
                     }
+                    s_idx += crate::mbyte::utfc_slice2len(&eval_bytes[s_idx..eval_len]);
+                }
+                let final_cstr = if had_backslash && (flags & REGSUB_BACKSLASH) != 0 {
+                    vim_strsave_escaped(&eval_bytes, b"\\")
+                } else {
+                    CStr::from_bytes_with_nul(&eval_bytes)
+                        .unwrap_or_default()
+                        .to_owned()
+                };
+                dst_off += final_cstr.to_bytes().len();
+                *eval_slot = Some(final_cstr);
+            }
 
-                    if c == b'\\' as i32
-                        && let Some(&next_b) = src_bytes.get(idx)
-                    {
-                        match next_b {
-                            b'r' => {
-                                c = CAR;
-                                idx += 1;
-                            }
-                            b'n' => {
-                                c = NL;
-                                idx += 1;
-                            }
-                            b't' => {
-                                c = TAB;
-                                idx += 1;
-                            }
-                            b'b' => {
-                                c = CTRL_H_CONST;
-                                idx += 1;
-                            }
-                            _ => {
-                                if (flags & REGSUB_BACKSLASH) != 0 {
-                                    if let Some(ref mut out) = dest_slice {
-                                        if dst_off + 1 > max_dst {
-                                            iemsg(c"vim_regsub_both(): not enough space");
-                                            return 0;
-                                        }
-                                        out[dst_off] = b'\\';
-                                    }
-                                    dst_off += 1;
-                                }
-                                c = next_b as i32;
-                                idx += 1;
-                            }
+            re_st().can_f_submatch = prev_can_f_submatch;
+            if re_st().can_f_submatch {
+                re_st().rsm = rsm_save;
+            }
+        }
+    } else if let Some(src) = source {
+        let src_bytes = src.to_bytes();
+        let mut idx = 0usize;
+        while idx < src_bytes.len() {
+            let mut c = src_bytes[idx] as i32;
+            idx += 1;
+            if c == b'&' as i32 && (flags & REGSUB_MAGIC) != 0 {
+                no = 0;
+            } else if c == b'\\' as i32
+                && let Some(&next_b) = src_bytes.get(idx)
+            {
+                if next_b == b'&' && (flags & REGSUB_MAGIC) == 0 {
+                    idx += 1;
+                    no = 0;
+                } else if next_b.is_ascii_digit() {
+                    no = (next_b - b'0') as i32;
+                    idx += 1;
+                } else if matches!(next_b, b'u' | b'U' | b'l' | b'L' | b'e' | b'E') {
+                    idx += 1;
+                    match next_b {
+                        b'u' => {
+                            func_one = Some(CaseConv::Upper);
+                            continue;
                         }
-                    } else {
-                        c = crate::mbyte::utf_slice2char(&src_bytes[idx - 1..]);
+                        b'U' => {
+                            func_all = Some(CaseConv::Upper);
+                            continue;
+                        }
+                        b'l' => {
+                            func_one = Some(CaseConv::Lower);
+                            continue;
+                        }
+                        b'L' => {
+                            func_all = Some(CaseConv::Lower);
+                            continue;
+                        }
+                        b'e' | b'E' => {
+                            func_one = None;
+                            func_all = None;
+                            continue;
+                        }
+                        _ => {}
                     }
-
-                    let cc = if let Some(f) = func_one.take() {
-                        f.apply(c)
-                    } else if let Some(f) = func_all {
-                        f.apply(c)
-                    } else {
-                        c
-                    };
-
-                    let cur_slice = &src_bytes[idx - 1..];
-                    let totlen = crate::mbyte::utfc_slice2len(cur_slice);
-                    let charlen = utf_char2len(cc) as usize;
-
+                }
+            }
+            if no < 0 {
+                if c == i32::from(K_SPECIAL) && idx + 2 <= src_bytes.len() {
                     if let Some(ref mut out) = dest_slice {
-                        if dst_off + charlen > max_dst {
+                        if dst_off + 3 > max_dst {
                             iemsg(c"vim_regsub_both(): not enough space");
                             return 0;
                         }
-                        crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
+                        out[dst_off] = c as u8;
+                        out[dst_off + 1] = src_bytes[idx];
+                        out[dst_off + 2] = src_bytes[idx + 1];
                     }
-                    dst_off = (dst_off + charlen).wrapping_sub(1);
-                    let clen = crate::mbyte::utf_slice2len(cur_slice);
+                    dst_off += 3;
+                    idx += 2;
+                    continue;
+                }
 
-                    if clen < totlen {
-                        let extra_len = totlen - clen;
-                        if let Some(ref mut out) = dest_slice {
-                            if dst_off + extra_len > max_dst {
-                                iemsg(c"vim_regsub_both(): not enough space");
-                                return 0;
-                            }
-                            out[dst_off + 1..dst_off + 1 + extra_len]
-                                .copy_from_slice(&cur_slice[clen..totlen]);
+                if c == b'\\' as i32
+                    && let Some(&next_b) = src_bytes.get(idx)
+                {
+                    match next_b {
+                        b'r' => {
+                            c = CAR;
+                            idx += 1;
                         }
-                        dst_off += extra_len;
+                        b'n' => {
+                            c = NL;
+                            idx += 1;
+                        }
+                        b't' => {
+                            c = TAB;
+                            idx += 1;
+                        }
+                        b'b' => {
+                            c = CTRL_H_CONST;
+                            idx += 1;
+                        }
+                        _ => {
+                            if (flags & REGSUB_BACKSLASH) != 0 {
+                                if let Some(ref mut out) = dest_slice {
+                                    if dst_off + 1 > max_dst {
+                                        iemsg(c"vim_regsub_both(): not enough space");
+                                        return 0;
+                                    }
+                                    out[dst_off] = b'\\';
+                                }
+                                dst_off += 1;
+                            }
+                            c = next_b as i32;
+                            idx += 1;
+                        }
                     }
-                    idx += totlen - 1;
-                    dst_off = dst_off.wrapping_add(1);
                 } else {
-                    let mut s: *mut u8;
-                    if reg_multi() {
-                        clnum = re_st().rex.mmatch_mut().startpos[no as usize].lnum;
-                        if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
-                            s = ptr::null_mut();
-                        } else {
-                            s = reg_getline(clnum).wrapping_add(
-                                re_st().rex.mmatch_mut().startpos[no as usize].col as usize,
-                            );
-                            if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
-                                len = re_st().rex.mmatch_mut().endpos[no as usize].col
-                                    - re_st().rex.mmatch_mut().startpos[no as usize].col;
-                            } else {
-                                len = reg_getline_len(clnum)
-                                    - re_st().rex.mmatch_mut().startpos[no as usize].col;
-                            }
+                    c = crate::mbyte::utf_slice2char(&src_bytes[idx - 1..]);
+                }
+
+                let cc = if let Some(f) = func_one.take() {
+                    f.apply(c)
+                } else if let Some(f) = func_all {
+                    f.apply(c)
+                } else {
+                    c
+                };
+
+                let cur_slice = &src_bytes[idx - 1..];
+                let totlen = crate::mbyte::utfc_slice2len(cur_slice);
+                let charlen = utf_char2len(cc) as usize;
+
+                if let Some(ref mut out) = dest_slice {
+                    if dst_off + charlen > max_dst {
+                        iemsg(c"vim_regsub_both(): not enough space");
+                        return 0;
+                    }
+                    crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
+                }
+                dst_off = (dst_off + charlen).wrapping_sub(1);
+                let clen = crate::mbyte::utf_slice2len(cur_slice);
+
+                if clen < totlen {
+                    let extra_len = totlen - clen;
+                    if let Some(ref mut out) = dest_slice {
+                        if dst_off + extra_len > max_dst {
+                            iemsg(c"vim_regsub_both(): not enough space");
+                            return 0;
                         }
+                        out[dst_off + 1..dst_off + 1 + extra_len]
+                            .copy_from_slice(&cur_slice[clen..totlen]);
+                    }
+                    dst_off += extra_len;
+                }
+                idx += totlen - 1;
+                dst_off = dst_off.wrapping_add(1);
+            } else {
+                let mut s: *mut u8;
+                if reg_multi() {
+                    clnum = re_st().rex.mmatch_mut().startpos[no as usize].lnum;
+                    if clnum < 0 || re_st().rex.mmatch_mut().endpos[no as usize].lnum < 0 {
+                        s = ptr::null_mut();
                     } else {
-                        s = re_st().rex.match_mut().startp[no as usize];
-                        if re_st().rex.match_mut().endp[no as usize].is_null() {
-                            s = ptr::null_mut();
+                        let line_ptr = reg_getline(clnum)
+                            .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut().cast::<u8>());
+                        s = line_ptr.wrapping_add(
+                            re_st().rex.mmatch_mut().startpos[no as usize].col as usize,
+                        );
+                        if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
+                            len = re_st().rex.mmatch_mut().endpos[no as usize].col
+                                - re_st().rex.mmatch_mut().startpos[no as usize].col;
                         } else {
-                            len = crate::memory::ptr_offset_from(
-                                re_st().rex.match_mut().endp[no as usize],
-                                s,
-                            ) as i32;
+                            len = reg_getline_len(clnum)
+                                - re_st().rex.mmatch_mut().startpos[no as usize].col;
                         }
                     }
-                    if !s.is_null() {
-                        loop {
-                            if len == 0 {
-                                if reg_multi() {
-                                    if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
-                                        break;
-                                    }
-                                    if let Some(ref mut out) = dest_slice {
-                                        if dst_off + 1 > max_dst {
-                                            iemsg(c"vim_regsub_both(): not enough space");
-                                            return 0;
-                                        }
-                                        out[dst_off] = CAR as u8;
-                                    }
-                                    dst_off += 1;
-                                    clnum += 1;
-                                    s = reg_getline(clnum);
-                                    if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
-                                        len = re_st().rex.mmatch_mut().endpos[no as usize].col;
-                                    } else {
-                                        len = reg_getline_len(clnum);
-                                    }
-                                } else {
+                } else {
+                    s = re_st().rex.match_mut().startp[no as usize];
+                    if re_st().rex.match_mut().endp[no as usize].is_null() {
+                        s = ptr::null_mut();
+                    } else {
+                        len = crate::memory::ptr_offset_from(
+                            re_st().rex.match_mut().endp[no as usize],
+                            s,
+                        ) as i32;
+                    }
+                }
+                if !s.is_null() {
+                    loop {
+                        if len == 0 {
+                            if reg_multi() {
+                                if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
                                     break;
                                 }
-                            } else if crate::memory::cstr_is_empty(s.cast()) {
-                                if copy {
-                                    iemsg(tr(E_RE_DAMG));
-                                }
-                                return (dst_off + 1) as i32;
-                            } else {
-                                let s_b0 = crate::memory::cstr_first_byte(s.cast());
-                                if (flags & REGSUB_BACKSLASH) != 0
-                                    && (s_b0 == CAR as u8 || s_b0 == b'\\')
-                                {
-                                    if let Some(ref mut out) = dest_slice {
-                                        if dst_off + 2 > max_dst {
-                                            iemsg(c"vim_regsub_both(): not enough space");
-                                            return 0;
-                                        }
-                                        out[dst_off] = b'\\';
-                                        out[dst_off + 1] = s_b0;
+                                if let Some(ref mut out) = dest_slice {
+                                    if dst_off + 1 > max_dst {
+                                        iemsg(c"vim_regsub_both(): not enough space");
+                                        return 0;
                                     }
-                                    dst_off += 2;
+                                    out[dst_off] = CAR as u8;
+                                }
+                                dst_off += 1;
+                                clnum += 1;
+                                s = reg_getline(clnum)
+                                    .map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut().cast());
+                                if re_st().rex.mmatch_mut().endpos[no as usize].lnum == clnum {
+                                    len = re_st().rex.mmatch_mut().endpos[no as usize].col;
                                 } else {
-                                    c = utf_ptr2char(s.cast());
-                                    let cc = if let Some(f) = func_one.take() {
-                                        f.apply(c)
-                                    } else if let Some(f) = func_all {
-                                        f.apply(c)
-                                    } else {
-                                        c
-                                    };
-
-                                    let l = utf_ptr2len(s.cast()) - 1;
-                                    s = s.wrapping_add(l as usize);
-                                    len -= l;
-                                    let charlen = utf_char2len(cc) as usize;
-                                    if let Some(ref mut out) = dest_slice {
-                                        if dst_off + charlen > max_dst {
-                                            iemsg(c"vim_regsub_both(): not enough space");
-                                            return 0;
-                                        }
-                                        crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
-                                    }
-                                    dst_off += charlen;
+                                    len = reg_getline_len(clnum);
                                 }
-                                s = s.wrapping_add(1);
-                                len -= 1;
+                            } else {
+                                break;
                             }
+                        } else if crate::memory::cstr_is_empty(s.cast()) {
+                            if copy {
+                                iemsg(tr(E_RE_DAMG));
+                            }
+                            return (dst_off + 1) as i32;
+                        } else {
+                            let s_b0 = crate::memory::cstr_first_byte(s.cast());
+                            if (flags & REGSUB_BACKSLASH) != 0
+                                && (s_b0 == CAR as u8 || s_b0 == b'\\')
+                            {
+                                if let Some(ref mut out) = dest_slice {
+                                    if dst_off + 2 > max_dst {
+                                        iemsg(c"vim_regsub_both(): not enough space");
+                                        return 0;
+                                    }
+                                    out[dst_off] = b'\\';
+                                    out[dst_off + 1] = s_b0;
+                                }
+                                dst_off += 2;
+                            } else {
+                                c = utf_ptr2char(s.cast());
+                                let cc = if let Some(f) = func_one.take() {
+                                    f.apply(c)
+                                } else if let Some(f) = func_all {
+                                    f.apply(c)
+                                } else {
+                                    c
+                                };
+
+                                let l = utf_ptr2len(s.cast()) - 1;
+                                s = s.wrapping_add(l as usize);
+                                len -= l;
+                                let charlen = utf_char2len(cc) as usize;
+                                if let Some(ref mut out) = dest_slice {
+                                    if dst_off + charlen > max_dst {
+                                        iemsg(c"vim_regsub_both(): not enough space");
+                                        return 0;
+                                    }
+                                    crate::mbyte::utf_char2slice(cc, &mut out[dst_off..]);
+                                }
+                                dst_off += charlen;
+                            }
+                            s = s.wrapping_add(1);
+                            len -= 1;
                         }
                     }
-                    no = -1;
                 }
+                no = -1;
             }
         }
-        if let Some(ref mut out) = dest_slice {
-            out[dst_off] = NUL;
-        }
-        (dst_off + 1) as i32
     }
+    if let Some(ref mut out) = dest_slice {
+        out[dst_off] = NUL;
+    }
+    (dst_off + 1) as i32
 }
 
 fn reg_getline_submatch_slice(lnum: Linenr) -> Option<&'static [u8]> {
-    let mut line: *mut u8 = ptr::null_mut();
-    let mut len: Colnr = 0;
-    reg_getline_common(
-        lnum,
-        RGLF_LINE | RGLF_LENGTH | RGLF_SUBMATCH,
-        Some(&mut line),
-        Some(&mut len),
-    );
-    (!line.is_null()).then(|| crate::memory::cstr_slice(line.cast(), len as usize))
+    let (firstlnum, maxline) = reg_getline_bounds(lnum, true);
+    if firstlnum < 1 {
+        return None;
+    }
+    if lnum > maxline {
+        return Some(b"");
+    }
+    let line = ml_get_buf(re_st().rex.buf_mut(), firstlnum);
+    let len = ml_get_buf_len(re_st().rex.buf_mut(), firstlnum) as usize;
+    Some(crate::memory::cstr_slice(line, len))
 }
 
 pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
@@ -3107,23 +3132,24 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
         if s.is_null() || e.is_null() {
             None
         } else {
-            cstring_from_bytes(s, crate::memory::ptr_offset_from(e, s) as usize)
+            let len = crate::memory::ptr_offset_from(e, s) as usize;
+            cstring_from_bytes(crate::memory::cstr_slice(s.cast(), len))
         }
     }
 }
 
-pub fn reg_submatch_list(no: i32) -> *mut TvList {
+pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
     if !re_st().can_f_submatch || no < 0 {
-        return ptr::null_mut();
+        return None;
     }
     let no = no as usize;
-    let list: &mut TvList;
+    let list: &'static mut TvList;
 
     if re_st().rsm.sm_match.is_null() {
         let slnum = re_st().rsm.mmatch_mut().startpos[no].lnum;
         let elnum = re_st().rsm.mmatch_mut().endpos[no].lnum;
         if slnum < 0 || elnum < 0 {
-            return ptr::null_mut();
+            return None;
         }
 
         let scol = re_st().rsm.mmatch_mut().startpos[no].col;
@@ -3149,27 +3175,26 @@ pub fn reg_submatch_list(no: i32) -> *mut TvList {
         let s = re_st().rsm.match_mut().startp[no];
         let e = re_st().rsm.match_mut().endp[no];
         if s.is_null() || e.is_null() {
-            return ptr::null_mut();
+            return None;
         }
         list = tv_list_alloc(1);
         tv_list_append_string(list, s.cast(), crate::memory::ptr_offset_from(e, s));
     }
 
-    let list_ptr = ptr::from_mut(list);
     tv_list_ref(Some(list));
-    list_ptr
+    Some(list)
 }
 
 pub(super) fn init_regexec_multi(
     rmp: &mut Regmmatch,
-    win: *mut WinInfoInfo,
-    buf: *mut FileBuf,
+    win: Option<&mut WinInfoInfo>,
+    buf: &mut FileBuf,
     lnum: Linenr,
 ) {
     re_st().rex.reg_match = ptr::null_mut();
     re_st().rex.reg_mmatch = rmp;
-    re_st().rex.reg_buf = buf;
-    re_st().rex.reg_win = win;
+    re_st().rex.reg_buf = ptr::from_mut(buf);
+    re_st().rex.reg_win = win.map_or(ptr::null_mut(), ptr::from_mut);
     re_st().rex.reg_firstlnum = lnum;
     re_st().rex.reg_maxline = re_st().rex.buf_mut().b_ml.ml_line_count - lnum;
     re_st().rex.reg_line_lbr = false;
@@ -3248,8 +3273,8 @@ pub(super) fn get_char_class_bits(slice: &[u8], newl: &mut bool) -> i32 {
     config
 }
 
-pub(super) fn regcomp_start(expr: *mut u8, re_flags: i32) {
-    initchr(expr.cast());
+pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
+    initchr(expr);
     if (re_flags & RE_MAGIC) != 0 {
         re_st().reg_magic = MAGIC_ON;
     } else {
@@ -3313,113 +3338,82 @@ pub fn vim_regcomp_had_eol() -> i32 {
 }
 
 /// Compile a regular expression into internal code.
-pub fn vim_regcomp(expr_arg: impl crate::strings::IntoCCharPtr, re_flags: i32) -> *mut Regprog {
-    let expr_arg = expr_arg.into_c_char_ptr();
-    {
-        let mut expr = expr_arg;
+pub fn vim_regcomp(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+    let mut expr = expr_arg;
 
-        re_st().regexp_engine = opt_vars().p_re as i32;
+    re_st().regexp_engine = opt_vars().p_re as i32;
 
-        let expr_bytes = crate::memory::cstr_as_bytes(expr);
-        if expr_bytes.starts_with(b"\\%#=") {
-            let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
-            if newengine == AUTOMATIC_ENGINE
-                || newengine == BACKTRACKING_ENGINE
-                || newengine == NFA_ENGINE
-            {
-                re_st().regexp_engine = newengine;
-                expr = expr.wrapping_add(5);
-            } else {
-                emsg(tr(
-                    c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",
-                ));
-                re_st().regexp_engine = AUTOMATIC_ENGINE;
-            }
-        }
-
-        re_st().rex.reg_buf = g_st().curbuf;
-
-        let called_emsg_before = g_st().called_emsg;
-        let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
-            nfa_regcomp(
-                crate::memory::cstr_from_ptr(expr),
-                re_flags
-                    + if re_st().regexp_engine == AUTOMATIC_ENGINE {
-                        RE_AUTO
-                    } else {
-                        0
-                    },
-            )
-            .map(|mut nfa| {
-                nfa.re_engine = re_st().regexp_engine as u32;
-                Regprog {
-                    regflags: nfa.regflags,
-                    re_engine: re_st().regexp_engine as u32,
-                    re_flags: re_flags as u32,
-                    re_in_use: false,
-                    engine: RegProgEngine::Nfa(nfa),
-                }
-            })
-        } else {
-            bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
-                regflags: bt.regflags,
-                re_engine: re_st().regexp_engine as u32,
-                re_flags: re_flags as u32,
-                re_in_use: false,
-                engine: RegProgEngine::Bt(bt),
-            })
-        };
-
-        if prog_opt.is_none()
-            && re_st().regexp_engine == AUTOMATIC_ENGINE
-            && g_st().called_emsg == called_emsg_before
+    let expr_bytes = expr.to_bytes();
+    if expr_bytes.starts_with(b"\\%#=") {
+        let newengine = expr_bytes.get(4).copied().unwrap_or(0).wrapping_sub(b'0') as i32;
+        if newengine == AUTOMATIC_ENGINE
+            || newengine == BACKTRACKING_ENGINE
+            || newengine == NFA_ENGINE
         {
-            re_st().regexp_engine = BACKTRACKING_ENGINE;
-            report_re_switch(expr);
-            prog_opt = bt_regcomp(expr.cast_mut().cast(), re_flags).map(|bt| Regprog {
-                regflags: bt.regflags,
+            re_st().regexp_engine = newengine;
+            expr = unsafe { CStr::from_ptr(expr.as_ptr().wrapping_add(5)) };
+        } else {
+            emsg(tr(
+                c"E864: \\%#= can only be followed by 0, 1, or 2. The automatic engine will be used ",
+            ));
+            re_st().regexp_engine = AUTOMATIC_ENGINE;
+        }
+    }
+
+    re_st().rex.reg_buf = g_st().curbuf;
+
+    let called_emsg_before = g_st().called_emsg;
+    let mut prog_opt = if re_st().regexp_engine != BACKTRACKING_ENGINE {
+        nfa_regcomp(
+            expr,
+            re_flags
+                + if re_st().regexp_engine == AUTOMATIC_ENGINE {
+                    RE_AUTO
+                } else {
+                    0
+                },
+        )
+        .map(|mut nfa| {
+            nfa.re_engine = re_st().regexp_engine as u32;
+            Regprog {
+                regflags: nfa.regflags,
                 re_engine: re_st().regexp_engine as u32,
                 re_flags: re_flags as u32,
                 re_in_use: false,
-                engine: RegProgEngine::Bt(bt),
-            });
-        }
+                engine: RegProgEngine::Nfa(nfa),
+            }
+        })
+    } else {
+        bt_regcomp(expr, re_flags).map(|bt| Regprog {
+            regflags: bt.regflags,
+            re_engine: re_st().regexp_engine as u32,
+            re_flags: re_flags as u32,
+            re_in_use: false,
+            engine: RegProgEngine::Bt(bt),
+        })
+    };
 
-        if let Some(prog) = prog_opt {
-            Box::into_raw(Box::new(prog))
-        } else {
-            ptr::null_mut()
-        }
-    }
-}
-
-#[inline]
-pub fn vim_regcomp_box(
-    expr_arg: impl crate::strings::IntoCCharPtr,
-    re_flags: i32,
-) -> Option<Box<Regprog>> {
-    let expr_arg = expr_arg.into_c_char_ptr();
+    if prog_opt.is_none()
+        && re_st().regexp_engine == AUTOMATIC_ENGINE
+        && g_st().called_emsg == called_emsg_before
     {
-        let p = vim_regcomp(expr_arg, re_flags);
-        if p.is_null() {
-            None
-        } else {
-            Some(unsafe { Box::from_raw(p) })
-        }
+        re_st().regexp_engine = BACKTRACKING_ENGINE;
+        report_re_switch(expr);
+        prog_opt = bt_regcomp(expr, re_flags).map(|bt| Regprog {
+            regflags: bt.regflags,
+            re_engine: re_st().regexp_engine as u32,
+            re_flags: re_flags as u32,
+            re_in_use: false,
+            engine: RegProgEngine::Bt(bt),
+        });
     }
+
+    prog_opt.map(Box::new)
 }
 
 #[inline]
-pub fn regprog_as_ptr(prog: &Option<Box<Regprog>>) -> *mut Regprog {
-    prog.as_deref()
-        .map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut())
-}
-
-/// Free a compiled regexp program, returned by `vim_regcomp()`.
-pub fn vim_regfree(prog: *mut Regprog) {
-    if !prog.is_null() {
-        drop(unsafe { Box::from_raw(prog) });
-    }
+pub fn vim_regcomp_box(expr_arg: &CStr, re_flags: i32) -> Option<Box<Regprog>> {
+    vim_regcomp(expr_arg, re_flags)
 }
 
 pub fn free_regexp_stuff() {
@@ -3430,91 +3424,76 @@ pub fn free_regexp_stuff() {
     re_st().post_vec = Vec::new();
 }
 
-fn report_re_switch(pat: impl crate::strings::IntoCCharPtr) {
-    let pat = pat.into_c_char_ptr();
+fn report_re_switch(pat: &CStr) {
     if opt_vars().p_verbose > 0 {
         verbose_enter();
         msg_puts(tr(c"Switching to backtracking RE engine for pattern: "));
-        msg_puts(pat);
+        msg_puts(pat.as_ptr());
         verbose_leave();
     }
 }
 
-fn vim_regexec_string(
-    rmp: &mut Regmatch,
-    line: impl crate::strings::IntoCCharPtr,
-    col: Colnr,
-    nl: bool,
-) -> bool {
-    let line = line.into_c_char_ptr();
-    {
-        let mut rex_save = Regexec::new();
-        let rex_in_use_save = re_st().rex_in_use;
+fn vim_regexec_string(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr, nl: bool) -> bool {
+    let mut rex_save = Regexec::new();
+    let rex_in_use_save = re_st().rex_in_use;
 
-        if rmp.prog_mut().re_in_use {
-            emsg(tr(E_RECURSIVE));
-            return false;
-        }
-        rmp.prog_mut().re_in_use = true;
-
-        if re_st().rex_in_use {
-            rex_save = re_st().rex;
-        }
-        re_st().rex_in_use = true;
-
-        re_st().rex.reg_startp = ptr::null_mut();
-        re_st().rex.reg_endp = ptr::null_mut();
-        re_st().rex.reg_startpos = ptr::null_mut();
-        re_st().rex.reg_endpos = ptr::null_mut();
-
-        let mut result = match rmp.prog_mut().engine {
-            RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
-            RegProgEngine::Nfa(_) => {
-                nfa_regexec_nl(rmp, crate::memory::cstr_as_opt_cstr(line), col, nl)
-            }
-        };
-        rmp.prog_mut().re_in_use = false;
-
-        if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
-            let save_p_re = opt_vars().p_re;
-            let re_flags = rmp.prog_mut().re_flags as i32;
-            let prev_prog = rmp.regprog;
-            let pat = crate::globals::gptr(prev_prog).nfa_mut().pattern.as_ptr();
-
-            opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
-            report_re_switch(pat);
-            let new_prog = vim_regcomp(pat, re_flags);
-            if !new_prog.is_null() {
-                *crate::globals::gptr(prev_prog) = *unsafe { Box::from_raw(new_prog) };
-                rmp.prog_mut().re_in_use = true;
-                result = match rmp.prog_mut().engine {
-                    RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line.cast_mut().cast(), col, nl),
-                    RegProgEngine::Nfa(_) => {
-                        nfa_regexec_nl(rmp, crate::memory::cstr_as_opt_cstr(line), col, nl)
-                    }
-                };
-                rmp.prog_mut().re_in_use = false;
-            }
-
-            opt_vars().p_re = save_p_re;
-        }
-
-        re_st().rex_in_use = rex_in_use_save;
-        if re_st().rex_in_use {
-            re_st().rex = rex_save;
-        }
-
-        result > 0
+    if rmp.prog_mut().re_in_use {
+        emsg(tr(E_RECURSIVE));
+        return false;
     }
+    rmp.prog_mut().re_in_use = true;
+
+    if re_st().rex_in_use {
+        rex_save = re_st().rex;
+    }
+    re_st().rex_in_use = true;
+
+    re_st().rex.reg_startp = ptr::null_mut();
+    re_st().rex.reg_endp = ptr::null_mut();
+    re_st().rex.reg_startpos = ptr::null_mut();
+    re_st().rex.reg_endpos = ptr::null_mut();
+
+    let mut result = match rmp.prog_mut().engine {
+        RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line, col, nl),
+        RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line, col, nl),
+    };
+    rmp.prog_mut().re_in_use = false;
+
+    if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
+        let save_p_re = opt_vars().p_re;
+        let re_flags = rmp.prog_mut().re_flags as i32;
+        let prev_prog = unsafe { &mut *rmp.regprog };
+        let pat_owned = prev_prog.nfa_mut().pattern.clone();
+
+        opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
+        report_re_switch(&pat_owned);
+        if let Some(new_prog) = vim_regcomp(&pat_owned, re_flags) {
+            *prev_prog = *new_prog;
+            rmp.prog_mut().re_in_use = true;
+            result = match rmp.prog_mut().engine {
+                RegProgEngine::Bt(_) => bt_regexec_nl(rmp, line, col, nl),
+                RegProgEngine::Nfa(_) => nfa_regexec_nl(rmp, line, col, nl),
+            };
+            rmp.prog_mut().re_in_use = false;
+        }
+
+        opt_vars().p_re = save_p_re;
+    }
+
+    re_st().rex_in_use = rex_in_use_save;
+    if re_st().rex_in_use {
+        re_st().rex = rex_save;
+    }
+
+    result > 0
 }
 
 pub fn vim_regexec_prog(
     prog: Option<&Regprog>,
     ignore_case: bool,
-    line: impl crate::strings::IntoCCharPtr,
+    line: &CStr,
     col: Colnr,
 ) -> bool {
-    let line = line.into_c_char_ptr();
     let mut regmatch = Regmatch {
         regprog: prog.map_or(ptr::null_mut(), |p| ptr::from_ref(p).cast_mut()),
         startp: [ptr::null_mut(); NSUBEXP],
@@ -3522,31 +3501,21 @@ pub fn vim_regexec_prog(
         rm_matchcol: 0,
         rm_ic: ignore_case,
     };
-    vim_regexec_string(&mut regmatch, line, col, false)
+    vim_regexec_string(&mut regmatch, Some(line), col, false)
 }
 
-pub fn vim_regexec(
-    rmp: &mut Regmatch,
-    line: impl crate::strings::IntoCCharPtr,
-    col: Colnr,
-) -> bool {
-    let line = line.into_c_char_ptr();
-    vim_regexec_string(rmp, line, col, false)
+pub fn vim_regexec(rmp: &mut Regmatch, line: &CStr, col: Colnr) -> bool {
+    vim_regexec_string(rmp, Some(line), col, false)
 }
 
-pub fn vim_regexec_nl(
-    rmp: &mut Regmatch,
-    line: impl crate::strings::IntoCCharPtr,
-    col: Colnr,
-) -> bool {
-    let line = line.into_c_char_ptr();
+pub fn vim_regexec_nl(rmp: &mut Regmatch, line: Option<&CStr>, col: Colnr) -> bool {
     vim_regexec_string(rmp, line, col, true)
 }
 
 pub fn vim_regexec_multi(
     rmp: &mut Regmmatch,
-    win: *mut WinInfoInfo,
-    buf: *mut FileBuf,
+    mut win: Option<&mut WinInfoInfo>,
+    buf: &mut FileBuf,
     lnum: Linenr,
     col: Colnr,
     tm: Option<Proftime>,
@@ -3569,21 +3538,21 @@ pub fn vim_regexec_multi(
     let mut result = match rmp.prog_mut().engine {
         RegProgEngine::Bt(_) => bt_regexec_multi(
             rmp,
-            win,
+            win.as_deref_mut(),
             buf,
             lnum,
             col,
             tm,
-            (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            timed_out.as_deref_mut(),
         ),
         RegProgEngine::Nfa(_) => nfa_regexec_multi(
             rmp,
-            unsafe { win.as_mut() },
-            unsafe { &mut *buf },
+            win.as_deref_mut(),
+            buf,
             lnum,
             col,
             tm,
-            (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+            timed_out.as_deref_mut(),
         ),
     };
     rmp.prog_mut().re_in_use = false;
@@ -3591,39 +3560,31 @@ pub fn vim_regexec_multi(
     if rmp.prog_mut().re_engine == AUTOMATIC_ENGINE as u32 && result == NFA_TOO_EXPENSIVE {
         let save_p_re = opt_vars().p_re;
         let re_flags = rmp.prog_mut().re_flags as i32;
-        let prev_prog = rmp.regprog;
-        let pat = crate::globals::gptr(prev_prog).nfa_mut().pattern.as_ptr();
+        let prev_prog = unsafe { &mut *rmp.regprog };
+        let pat_owned = prev_prog.nfa_mut().pattern.clone();
 
         opt_vars().p_re = OptInt::from(BACKTRACKING_ENGINE);
 
-        report_re_switch(pat);
+        report_re_switch(&pat_owned);
         g_st().reg_do_extmatch = REX_ALL;
-        let new_prog = vim_regcomp(pat, re_flags);
+        let new_prog = vim_regcomp(&pat_owned, re_flags);
         g_st().reg_do_extmatch = 0;
 
-        if !new_prog.is_null() {
-            *crate::globals::gptr(prev_prog) = *unsafe { Box::from_raw(new_prog) };
+        if let Some(new_prog) = new_prog {
+            *prev_prog = *new_prog;
 
             rmp.prog_mut().re_in_use = true;
             result = match rmp.prog_mut().engine {
                 RegProgEngine::Bt(_) => bt_regexec_multi(
                     rmp,
-                    win,
+                    win.as_deref_mut(),
                     buf,
                     lnum,
                     col,
                     tm,
-                    (timed_out.is_some()).then(|| &mut *timed_out.as_deref_mut().unwrap()),
+                    timed_out.as_deref_mut(),
                 ),
-                RegProgEngine::Nfa(_) => nfa_regexec_multi(
-                    rmp,
-                    unsafe { win.as_mut() },
-                    unsafe { &mut *buf },
-                    lnum,
-                    col,
-                    tm,
-                    (timed_out.is_some()).then(|| &mut *timed_out.unwrap()),
-                ),
+                RegProgEngine::Nfa(_) => nfa_regexec_multi(rmp, win, buf, lnum, col, tm, timed_out),
             };
             rmp.prog_mut().re_in_use = false;
         }
@@ -3642,19 +3603,23 @@ pub fn vim_regexec_multi(
 impl Regexec {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        crate::globals::gmut(self.reg_mmatch)
+        unsafe { &mut *self.reg_mmatch }
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        crate::globals::gmut(self.reg_match)
+        unsafe { &mut *self.reg_match }
     }
     #[inline]
     pub fn buf_mut(&self) -> &'static mut FileBuf {
-        crate::globals::gmut(self.reg_buf)
+        unsafe { &mut *self.reg_buf }
     }
     #[inline]
     pub fn win_mut(&self) -> &'static mut WinInfoInfo {
-        crate::globals::gmut(self.reg_win)
+        unsafe { &mut *self.reg_win }
+    }
+    #[inline]
+    pub fn load_line(&mut self, lnum: Linenr) {
+        self.line = reg_getline(lnum).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
     }
     #[inline]
     pub fn input_col(&self) -> Colnr {
@@ -3672,14 +3637,6 @@ impl Regexec {
     pub fn endpos_slice_mut(&self) -> &'static mut [Lpos] {
         unsafe { std::slice::from_raw_parts_mut(self.reg_endpos, NSUBEXP) }
     }
-    #[inline]
-    pub fn startp_slice_mut(&self) -> &'static mut [*mut u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.reg_startp, NSUBEXP) }
-    }
-    #[inline]
-    pub fn endp_slice_mut(&self) -> &'static mut [*mut u8] {
-        unsafe { std::slice::from_raw_parts_mut(self.reg_endp, NSUBEXP) }
-    }
 }
 
 impl RegexpState {
@@ -3693,6 +3650,11 @@ impl RegexpState {
             .get(idx)
             .copied()
             .unwrap_or(0)
+    }
+    #[inline]
+    pub fn regparse_mb_adv(&mut self) {
+        let step = utfc_ptr2len(self.regparse.cast()) as usize;
+        self.regparse = self.regparse.wrapping_add(step);
     }
     #[inline]
     pub fn regparse_get_char_class(&mut self) -> i32 {
@@ -3723,25 +3685,25 @@ impl RegexpState {
 impl Regsubmatch {
     #[inline]
     pub fn mmatch_mut(&self) -> &'static mut Regmmatch {
-        crate::globals::gmut(self.sm_mmatch)
+        unsafe { &mut *self.sm_mmatch }
     }
     #[inline]
     pub fn match_mut(&self) -> &'static mut Regmatch {
-        crate::globals::gmut(self.sm_match)
+        unsafe { &mut *self.sm_match }
     }
 }
 
 impl Regmmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        crate::globals::gmut(self.regprog)
+        unsafe { &mut *self.regprog }
     }
 }
 
 impl Regmatch {
     #[inline]
     pub fn prog_mut(&self) -> &'static mut Regprog {
-        crate::globals::gmut(self.regprog)
+        unsafe { &mut *self.regprog }
     }
 }
 

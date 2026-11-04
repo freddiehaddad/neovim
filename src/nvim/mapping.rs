@@ -1384,11 +1384,9 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
             6 => c"<special>",
             _ => continue,
         };
-        let p = p_cstr.as_ptr();
-
         let mut score: i32 = 0;
         let match_found = if !fuzzy {
-            vim_regexec(regmatch, p, 0)
+            vim_regexec(regmatch, p_cstr, 0)
         } else {
             score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
             score != FUZZY_SCORE_NONE
@@ -1425,11 +1423,10 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
                 mp.m_keys.as_bytes(),
                 crate::memory::cstr_from_ptr(opt_vars().p_cpo),
             );
-            let p = p_cstr.as_ptr().cast_mut();
 
             let mut score: i32 = 0;
             let match_found = if !fuzzy {
-                vim_regexec(regmatch, p, 0)
+                vim_regexec(regmatch, &p_cstr, 0)
             } else {
                 score = fuzzy_match_str(Some(p_cstr.to_bytes()), Some(pat.to_bytes()));
                 score != FUZZY_SCORE_NONE
@@ -2599,7 +2596,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 return opt_error(
                     args.os_errbuf,
                     c"E357: 'langmap': Matching character missing for %s",
-                    transchar(from),
+                    crate::memory::cstr_from_ptr(transchar(from)),
                 );
             }
 
@@ -2629,7 +2626,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                             return opt_error(
                                 args.os_errbuf,
                                 c"E358: 'langmap': Extra characters after semicolon: %s",
-                                base.wrapping_add(p_idx),
+                                crate::memory::cstr_from_ptr(base.wrapping_add(p_idx)),
                             );
                         }
                         p_idx += 1;

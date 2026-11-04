@@ -24,9 +24,7 @@ use crate::os::input::os_breakcheck;
 use crate::os::shell::get_cmd_output;
 #[cfg(unix)]
 use crate::os::shell::os_expand_wildcards;
-use crate::regexp::{
-    RE_MAGIC, RE_NOBREAK, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
-};
+use crate::regexp::{RE_MAGIC, RE_NOBREAK, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
 use crate::strings::{RawCCharPtr, RawCCharPtrMut, sort_strings, vim_snprintf};
 use std::cmp::Ordering;
 use std::ffi::CStr;
@@ -694,10 +692,10 @@ fn do_path_expand(
             g_st().emsg_silent += 1;
         }
         let nobreak = (flags & EW_NOBREAK) != 0;
-        regmatch.regprog = vim_regcomp(
-            pat.as_ptr().cast_mut(),
+        regmatch.set_prog(vim_regcomp(
+            &pat,
             RE_MAGIC | if nobreak { RE_NOBREAK } else { 0 },
-        );
+        ));
         if (flags & (EW_NOERROR | EW_NOTWILD)) != 0 {
             g_st().emsg_silent -= 1;
         }
@@ -786,7 +784,7 @@ fn do_path_expand(
         }
 
         drop(buf_vec);
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
 
         let matches = gap.len() - start_len;
         if matches > 0 && !g_st().got_int {
@@ -853,15 +851,16 @@ fn expand_path_option(
     path_option: impl crate::strings::IntoCCharPtr,
     gap: &mut Vec<std::ffi::CString>,
 ) {
-    let mut path_option = path_option.into_c_char_ptr().cast_mut();
+    let path_option = path_option.into_c_char_ptr().cast_mut();
     let curdir = curdir.into_c_char_ptr();
     {
         let mut buf_arr = [0u8; MAXPATHL];
-        let buf = buf_arr.as_mut_ptr();
         let mut curdirlen: usize = 0;
+        let mut path_bytes = crate::memory::cstr_as_bytes(path_option);
 
-        while !crate::memory::cstr_is_empty(path_option) {
-            let mut buflen = copy_option_part(&mut path_option, buf, MAXPATHL, c" ,");
+        while !path_bytes.is_empty() {
+            let mut buflen = copy_option_part(&mut path_bytes, &mut buf_arr[..MAXPATHL], c" ,");
+            let buf = buf_arr.as_mut_ptr();
 
             if crate::strings::vim_haschr(buf.cast(), b'`' as i32) {
                 continue;
@@ -981,12 +980,13 @@ fn uniquefy_paths(
         drop(file_pattern);
 
         let mut regmatch = Regmatch {
-            regprog: vim_regcomp(pat.as_ptr().cast_mut(), RE_MAGIC + RE_STRING),
+            regprog: ptr::null_mut(),
             startp: [ptr::null_mut(); 10],
             endp: [ptr::null_mut(); 10],
             rm_matchcol: 0,
             rm_ic: true,
         };
+        regmatch.set_prog(vim_regcomp(&pat, RE_MAGIC + RE_STRING));
         drop(pat);
         if regmatch.regprog.is_null() {
             return;
@@ -1023,7 +1023,11 @@ fn uniquefy_paths(
                     .get(2)
                     .is_some_and(|&b| vim_ispathsep_nocolon(i32::from(b)))
                 && let Some(c_idx) = cutoff_idx
-                && vim_regexec(&mut regmatch, path.wrapping_add(c_idx), 0)
+                && vim_regexec(
+                    &mut regmatch,
+                    unsafe { CStr::from_ptr(path.wrapping_add(c_idx)) },
+                    0,
+                )
                 && is_unique(&path_bytes[c_idx..], gap, i)
             {
                 sort_again = true;
@@ -1032,7 +1036,7 @@ fn uniquefy_paths(
                 let mut pathsep_idx = path_bytes.len().saturating_sub(1);
                 while find_previous_pathsep(path_bytes, &mut pathsep_idx) {
                     let cand_idx = pathsep_idx + 1;
-                    let candidate = path.wrapping_add(cand_idx);
+                    let candidate = unsafe { CStr::from_ptr(path.wrapping_add(cand_idx)) };
                     if vim_regexec(&mut regmatch, candidate, 0)
                         && is_unique(&path_bytes[cand_idx..], gap, i)
                         && cutoff_idx.is_some_and(|c_idx| cand_idx >= c_idx)
@@ -1098,7 +1102,7 @@ fn uniquefy_paths(
             os_breakcheck();
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
 
         if sort_again {
             remove_duplicate_strings(gap);
@@ -2177,9 +2181,9 @@ pub fn match_suffix(fname: impl crate::strings::IntoCCharPtr) -> bool {
         let mut suf_buf = [0u8; MAXSUFLEN];
         let fnamelen = crate::memory::cstr_len(fname);
         let mut setsuflen: usize = 0;
-        let mut setsuf = opt_vars().p_su;
-        while !crate::memory::cstr_is_empty(setsuf) {
-            setsuflen = copy_option_part(&mut setsuf, suf_buf.as_mut_ptr(), MAXSUFLEN, c".,");
+        let mut setsuf = crate::memory::cstr_as_bytes(opt_vars().p_su);
+        while !setsuf.is_empty() {
+            setsuflen = copy_option_part(&mut setsuf, &mut suf_buf[..MAXSUFLEN], c".,");
             if setsuflen == 0 {
                 let tail = path_tail(fname);
                 if !crate::strings::vim_haschr(tail, b'.' as i32) {

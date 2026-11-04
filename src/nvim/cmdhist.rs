@@ -17,9 +17,7 @@ use crate::message::{
 use crate::option_vars::*;
 use crate::os::env::ExpandCtx;
 use crate::os::time::os_time;
-use crate::regexp::{
-    NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
-};
+use crate::regexp::{NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
 use std::ffi::CStr;
 use std::ptr;
 
@@ -412,12 +410,13 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
     let htype = histype as usize;
     let idx = hist_st().hisidx[htype];
     let mut regmatch = Regmatch {
-        regprog: vim_regcomp(str_ptr.as_ptr(), RE_MAGIC + RE_STRING),
+        regprog: std::ptr::null_mut(),
         startp: [std::ptr::null_mut(); NSUBEXP],
         endp: [std::ptr::null_mut(); NSUBEXP],
         rm_matchcol: 0,
         rm_ic: false,
     };
+    regmatch.set_prog(vim_regcomp(str_ptr, RE_MAGIC + RE_STRING));
     if regmatch.regprog.is_null() {
         return 0;
     }
@@ -426,8 +425,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
     let mut i = idx;
     let mut last = idx;
     while let Some(ref hisstr) = hist_st().history[htype][i as usize].hisstr {
-        let hisstr_ptr = hisstr.as_ptr();
-        if vim_regexec(&mut regmatch, hisstr_ptr, 0) {
+        if vim_regexec(&mut regmatch, hisstr, 0) {
             found = true;
             hist_free_entry(&mut hist_st().history[htype][i as usize]);
         } else {
@@ -454,7 +452,7 @@ fn del_history_entry(histype: i32, str_ptr: &CStr) -> i32 {
         hist_st().hisidx[htype] = -1;
     }
 
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     i32::from(found)
 }
 

@@ -1405,13 +1405,7 @@ pub fn ins_redraw(ready: bool) {
         let mut aco = CtxSwitch::new();
         let tick = buf_get_changedtick(curbuf_mut());
         ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
-        apply_autocmds(
-            EVENT_TEXTCHANGEDI,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTCHANGEDI, None, None, false, curbuf_opt_mut());
         ctx_restore(&mut aco);
         curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
         if tick != buf_get_changedtick(curbuf_mut()) {
@@ -1427,13 +1421,7 @@ pub fn ins_redraw(ready: bool) {
         let mut aco = CtxSwitch::new();
         let tick = buf_get_changedtick(curbuf_mut());
         ctx_switch(&mut aco, None, None, Some(curbuf_mut()), 0);
-        apply_autocmds(
-            EVENT_TEXTCHANGEDP,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTCHANGEDP, None, None, false, curbuf_opt_mut());
         ctx_restore(&mut aco);
         curbuf_mut().b_last_changedtick_pum = buf_get_changedtick(curbuf_mut());
         if tick != buf_get_changedtick(curbuf_mut()) {
@@ -1874,27 +1862,24 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
             true,
         );
         if i > 0 && crate::strings::vim_haschr(flags_opt, i32::from(COM_MIDDLE)) {
-            let mut p = flags_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            while !crate::memory::cstr_is_empty(p)
-                && crate::memory::cstr_first_byte(p.wrapping_offset(-1)) != b':'
-            {
-                p = p.wrapping_add(1);
+            let mut p = flags_opt.map_or(&[][..], CStr::to_bytes);
+            if let Some(colon_pos) = p.iter().position(|&b| b == b':') {
+                p = &p[colon_pos + 1..];
+            } else {
+                p = &[];
             }
             let mut middle_len =
-                copy_option_part(&raw mut p, lead_end.as_mut_ptr().cast(), COM_MAX_LEN, c",")
-                    as i32;
+                copy_option_part(&mut p, &mut lead_end[..COM_MAX_LEN], c",") as i32;
             while middle_len > 0 && ascii_iswhite(i32::from(lead_end[(middle_len - 1) as usize])) {
                 middle_len -= 1;
             }
 
-            while !crate::memory::cstr_is_empty(p)
-                && crate::memory::cstr_first_byte(p.wrapping_offset(-1)) != b':'
-            {
-                p = p.wrapping_add(1);
+            if let Some(colon_pos) = p.iter().position(|&b| b == b':') {
+                p = &p[colon_pos + 1..];
+            } else {
+                p = &[];
             }
-            let end_len =
-                copy_option_part(&raw mut p, lead_end.as_mut_ptr().cast(), COM_MAX_LEN, c",")
-                    as i32;
+            let end_len = copy_option_part(&mut p, &mut lead_end[..COM_MAX_LEN], c",") as i32;
 
             i = curwin_mut().w_cursor.col;
             let line_slice = crate::memory::cstr_slice(line, i.max(0) as usize);
@@ -3988,13 +3973,7 @@ pub fn set_can_cindent(val: bool) {
 /// Trigger `event` and take care of fixing undo.
 pub fn ins_apply_autocmds(event: AuEvent) -> i32 {
     let tick = buf_get_changedtick(curbuf_mut());
-    let r = i32::from(apply_autocmds(
-        event,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    ));
+    let r = i32::from(apply_autocmds(event, None, None, false, curbuf_opt_mut()));
     if event != EVENT_INSERTLEAVE && tick != buf_get_changedtick(curbuf_mut()) {
         u_save(curwin_mut().w_cursor.lnum, curwin_mut().w_cursor.lnum + 1);
     }

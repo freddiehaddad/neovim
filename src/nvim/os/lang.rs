@@ -721,7 +721,7 @@ pub fn ex_language(eap: &mut Exarg) {
                 }
                 if what != LC_CTYPE {
                     let _ = os_setenv(c"LC_MESSAGES", name, 1);
-                    set_helplang_default(name);
+                    set_helplang_default(crate::memory::cstr_as_opt_cstr(name));
                 }
             }
 

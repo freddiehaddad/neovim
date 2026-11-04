@@ -86,7 +86,7 @@ use crate::option_vars::*;
 use crate::quickfix::set_ref_in_quickfix;
 use crate::regexp::{
     NUMBUFLEN, RE_MAGIC, RE_STRING, REGSUB_COPY, REGSUB_MAGIC, Regmatch, vim_regcomp,
-    vim_regexec_nl, vim_regfree, vim_regsub,
+    vim_regexec_nl, vim_regsub,
 };
 use crate::register::{K_GREG_EXPR_SRC, get_reg_contents_str};
 use crate::runtime::{
@@ -133,7 +133,7 @@ use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
-use crate::optionstr::{OptIndex, free_string_option};
+use crate::optionstr::{CStrOptionSlot, OptIndex};
 use crate::os::env::{ExpandCtx, env_name_len, expand_env_save, vim_getenv};
 use crate::os::fs::os_can_exe;
 use crate::os::lang::free_locales;
@@ -2059,11 +2059,18 @@ pub fn pattern_match(
 
     let save_cpo = opt_vars().p_cpo;
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
-    regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+    regmatch.set_prog(vim_regcomp(
+        crate::memory::cstr_from_ptr(pat),
+        RE_MAGIC + RE_STRING,
+    ));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = ic;
-        matches = i32::from(vim_regexec_nl(&mut regmatch, text, 0));
-        vim_regfree(regmatch.regprog);
+        matches = i32::from(vim_regexec_nl(
+            &mut regmatch,
+            crate::memory::cstr_as_opt_cstr(text),
+            0,
+        ));
+        regmatch.free_prog();
     }
     opt_vars().p_cpo = save_cpo;
     matches
@@ -6724,13 +6731,12 @@ pub fn find_option_var_end<T>(
             *opt_flags = 0;
         }
 
-        let end = find_option_end(p.cast(), opt_idxp);
-        *crate::globals::gptr(arg) = if end.is_null() {
-            *crate::globals::gptr(arg)
+        if let Some(end_off) = find_option_end(crate::memory::cstr_as_bytes(p.cast()), opt_idxp) {
+            *crate::globals::gptr(arg) = p;
+            p.wrapping_add(end_off).cast()
         } else {
-            p
-        };
-        end.cast()
+            ptr::null_mut()
+        }
     }
 }
 
@@ -6798,16 +6804,21 @@ pub fn do_string_sub(
         opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
         regmatch.rm_ic = opt_vars().p_ic != 0;
-        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+        regmatch.set_prog(vim_regcomp(
+            crate::memory::cstr_from_ptr(pat),
+            RE_MAGIC + RE_STRING,
+        ));
         if !regmatch.regprog.is_null() {
             let mut tail = str_;
             let end = str_.wrapping_add(len);
             let do_all = crate::memory::cstr_first_byte(flags) == b'g';
             let mut zero_width = ptr::null_mut();
+            let str_opt = crate::memory::cstr_as_opt_cstr(str_);
+            let sub_cstr = crate::memory::cstr_from_ptr(sub);
 
             while vim_regexec_nl(
                 &mut regmatch,
-                str_,
+                str_opt,
                 ((tail as usize).wrapping_sub(str_ as usize)) as Colnr,
             ) {
                 if regmatch.startp[0] == regmatch.endp[0] {
@@ -6822,7 +6833,7 @@ pub fn do_string_sub(
                     zero_width = regmatch.startp[0];
                 }
 
-                let sublen = vim_regsub(&mut regmatch, sub, expr, tail, 0, REGSUB_MAGIC);
+                let sublen = vim_regsub(&mut regmatch, sub_cstr, expr, &mut [], REGSUB_MAGIC);
                 if sublen <= 0 {
                     out = None;
                     break;
@@ -6837,10 +6848,9 @@ pub fn do_string_sub(
                 buf.resize(cur_len + (sublen as usize), 0);
                 vim_regsub(
                     &mut regmatch,
-                    sub,
+                    sub_cstr,
                     expr,
-                    buf.as_mut_ptr().wrapping_add(cur_len),
-                    sublen,
+                    &mut buf[cur_len..cur_len + (sublen as usize)],
                     REGSUB_COPY | REGSUB_MAGIC,
                 );
                 buf.truncate(cur_len + (sublen as usize) - 1);
@@ -6860,7 +6870,7 @@ pub fn do_string_sub(
                 }
             }
 
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
         }
 
         let ret = if let Some(buf) = &out {
@@ -6882,7 +6892,7 @@ pub fn do_string_sub(
                 };
                 set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
             }
-            free_string_option(save_cpo);
+            save_cpo.free_option_str();
         }
 
         ret

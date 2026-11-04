@@ -214,7 +214,6 @@ fn emit2(c: i32) {
 }
 
 fn nfa_regcomp_start(expr_cstr: &std::ffi::CStr, re_flags: i32) {
-    let expr: *mut u8 = expr_cstr.as_ptr().cast_mut().cast();
     re_st().nstate = 0;
     re_st().istate = 0;
     let nstate_max = (expr_cstr.to_bytes().len() + 1) * 25 + 1000;
@@ -225,7 +224,7 @@ fn nfa_regcomp_start(expr_cstr: &std::ffi::CStr, re_flags: i32) {
     re_st().rex.nfa_has_backref = 0;
     re_st().nfa_reg_parse_depth = 0;
 
-    regcomp_start(expr, re_flags);
+    regcomp_start(expr_cstr, re_flags);
 }
 
 fn nfa_get_reganch(states: &[NfaState], start: Option<usize>, depth: i32) -> i32 {
@@ -1290,10 +1289,11 @@ fn nfa_regatom_collection(
     c: &mut i32,
 ) -> i32 {
     let old_regparse: *const u8 = old_regparse_cstr.as_ptr().cast();
-    let p = re_st().regparse;
-    let endp = skip_anyof(p).cast_const();
-    if crate::memory::cstr_first_byte(endp.cast()) == b']' {
-        let len = crate::memory::ptr_offset_from(endp, re_st().regparse) as usize;
+    let p_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+    let rem_bytes = skip_anyof_slice(p_bytes);
+    let len = p_bytes.len() - rem_bytes.len();
+    let endp = re_st().regparse.wrapping_add(len).cast_const();
+    if rem_bytes.first() == Some(&b']') {
         let result = nfa_recognize_char_class(
             crate::memory::cstr_slice(re_st().regparse.cast(), len + 1),
             i32::from(*extra == NFA_ADD_NL),
@@ -1307,14 +1307,14 @@ fn nfa_regatom_collection(
                 emit_fn(result);
             }
             re_st().regparse = endp.cast_mut();
-            mb_ptr_adv(&mut re_st().regparse);
+            re_st().regparse_mb_adv();
             return OK;
         }
 
         let mut negated = false;
         if re_st().regparse_byte() == b'^' {
             negated = true;
-            mb_ptr_adv(&mut re_st().regparse);
+            re_st().regparse_mb_adv();
             emit_fn(NFA_START_NEG_COLL);
         } else {
             emit_fn(NFA_START_COLL);
@@ -1323,7 +1323,7 @@ fn nfa_regatom_collection(
             *startc = b'-' as i32;
             emit_fn(*startc);
             emit_fn(NFA_CONCAT);
-            mb_ptr_adv(&mut re_st().regparse);
+            re_st().regparse_mb_adv();
         }
 
         let mut emit_range = false;
@@ -1388,7 +1388,7 @@ fn nfa_regatom_collection(
             if re_st().regparse_byte() == b'-' && oldstartc != -1 {
                 emit_range = true;
                 *startc = oldstartc;
-                mb_ptr_adv(&mut re_st().regparse);
+                re_st().regparse_mb_adv();
                 continue;
             }
 
@@ -1403,7 +1403,7 @@ fn nfa_regatom_collection(
                         i32::from(re_st().regparse_byte_at(1)),
                     )))
             {
-                mb_ptr_adv(&mut re_st().regparse);
+                re_st().regparse_mb_adv();
                 if re_st().regparse_byte() == b'n' {
                     *startc = if re_st().reg_string != 0
                         || emit_range
@@ -1491,7 +1491,7 @@ fn nfa_regatom_collection(
                 emit_fn(NFA_COMPOSING);
                 emit_fn(NFA_CONCAT);
             }
-            mb_ptr_adv(&mut re_st().regparse);
+            re_st().regparse_mb_adv();
         }
 
         mb_ptr_back(old_regparse, &mut re_st().regparse);
@@ -1501,7 +1501,7 @@ fn nfa_regatom_collection(
         }
 
         re_st().regparse = endp.cast_mut();
-        mb_ptr_adv(&mut re_st().regparse);
+        re_st().regparse_mb_adv();
 
         if negated {
             emit_fn(NFA_END_NEG_COLL);
@@ -2515,7 +2515,7 @@ fn pim_equal(one: Option<&NfaPim>, two: Option<&NfaPim>) -> bool {
         let p2 = two.unwrap().end.pos();
         p1.lnum == p2.lnum && p1.col == p2.col
     } else {
-        one.unwrap().end.ptr() == two.unwrap().end.ptr()
+        one.unwrap().end.ptr == two.unwrap().end.ptr
     }
 }
 
@@ -3174,12 +3174,14 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
         if mpos.start_lnum == re_st().rex.lnum && mpos.end_lnum == re_st().rex.lnum {
             let mut len = mpos.end_col - mpos.start_col;
             if cstrncmp(
-                re_st()
-                    .rex
-                    .line
-                    .wrapping_add(mpos.start_col as usize)
-                    .cast(),
-                re_st().rex.input.cast(),
+                crate::memory::cstr_as_bytes(
+                    re_st()
+                        .rex
+                        .line
+                        .wrapping_add(mpos.start_col as usize)
+                        .cast(),
+                ),
+                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                 &mut len,
             ) == 0
             {
@@ -3203,7 +3205,12 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
             return true;
         }
         let mut len = crate::memory::ptr_offset_from(lpos.end, lpos.start) as i32;
-        if cstrncmp(lpos.start.cast(), re_st().rex.input.cast(), &mut len) == 0 {
+        if cstrncmp(
+            crate::memory::cstr_as_bytes(lpos.start.cast()),
+            crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+            &mut len,
+        ) == 0
+        {
             *bytelen = len;
             return true;
         }
@@ -3222,9 +3229,13 @@ fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
         *bytelen = 0;
         return true;
     };
-    let m = m_cstr.as_ptr();
     let mut len = m_cstr.as_bytes().len() as i32;
-    if cstrncmp(m, re_st().rex.input.cast(), &mut len) == 0 {
+    if cstrncmp(
+        m_cstr.to_bytes(),
+        crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+        &mut len,
+    ) == 0
+    {
         *bytelen = len;
         return true;
     }
@@ -3276,7 +3287,7 @@ fn recursive_regmatch(
         if reg_multi() {
             re_st().rex.input = re_st().rex.line.wrapping_add(pim.end.pos().col as usize);
         } else {
-            re_st().rex.input = pim.end.ptr();
+            re_st().rex.input = pim.end.ptr;
         }
     }
 
@@ -3289,32 +3300,36 @@ fn recursive_regmatch(
         if let Some(pim) = pim {
             endpos.se_u = pim.end;
         } else if reg_multi() {
-            endpos.se_u = crate::regexp::RegPos::Pos(Lpos {
+            endpos.se_u = crate::regexp::RegPos::from_pos(Lpos {
                 col: re_st().rex.input_col(),
                 lnum: re_st().rex.lnum,
             });
         } else {
-            endpos.se_u = crate::regexp::RegPos::Ptr(re_st().rex.input);
+            endpos.se_u.ptr = re_st().rex.input;
         }
         endposp = &raw mut endpos;
 
         if st.val <= 0 {
             if reg_multi() {
                 re_st().rex.lnum -= 1;
-                re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                let prev_lnum = re_st().rex.lnum;
+                re_st().rex.load_line(prev_lnum);
                 if re_st().rex.line.is_null() {
                     re_st().rex.lnum += 1;
-                    re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                    let cur_lnum = re_st().rex.lnum;
+                    re_st().rex.load_line(cur_lnum);
                 }
             }
             re_st().rex.input = re_st().rex.line;
         } else {
             if reg_multi() && re_st().rex.input_col() < st.val {
                 re_st().rex.lnum -= 1;
-                re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                let prev_lnum = re_st().rex.lnum;
+                re_st().rex.load_line(prev_lnum);
                 if re_st().rex.line.is_null() {
                     re_st().rex.lnum += 1;
-                    re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                    let cur_lnum = re_st().rex.lnum;
+                    re_st().rex.load_line(cur_lnum);
                     re_st().rex.input = re_st().rex.line;
                 } else {
                     re_st().rex.input = re_st()
@@ -3362,7 +3377,7 @@ fn recursive_regmatch(
 
     re_st().rex.lnum = save_reglnum;
     if reg_multi() {
-        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+        re_st().rex.load_line(save_reglnum);
     }
     re_st().rex.input = re_st().rex.line.wrapping_add(save_reginput_col);
     if result != NFA_TOO_EXPENSIVE {
@@ -3422,11 +3437,12 @@ fn failure_chance(states: &[NfaState], state: Option<usize>, depth: i32) -> i32 
 }
 
 fn skip_to_start(c: i32, colp: &mut Colnr) -> bool {
-    let s = cstrchr(re_st().rex.line.wrapping_add(*colp as usize).cast(), c);
-    if s.is_null() {
+    let s_cstr =
+        unsafe { std::ffi::CStr::from_ptr(re_st().rex.line.wrapping_add(*colp as usize).cast()) };
+    let Some(off) = cstrchr(s_cstr, c) else {
         return false;
-    }
-    *colp = crate::memory::ptr_offset_from(s, re_st().rex.line) as Colnr;
+    };
+    *colp += off as Colnr;
     true
 }
 
@@ -3462,10 +3478,9 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
                 endpos[0].lnum = re_st().rex.lnum;
                 endpos[0].col = crate::memory::ptr_offset_from(s2, re_st().rex.line) as Colnr;
             } else {
-                let startp = re_st().rex.startp_slice_mut();
-                let endp = re_st().rex.endp_slice_mut();
-                startp[0] = re_st().rex.line.wrapping_add(col as usize);
-                endp[0] = s2;
+                let rm = re_st().rex.match_mut();
+                rm.startp[0] = re_st().rex.line.wrapping_add(col as usize);
+                rm.endp[0] = s2;
             }
             *startcol = col;
             return 1;
@@ -3722,7 +3737,7 @@ fn nfa_regmatch(
                                 ) as Colnr)
                                     != end_pos.col
                         } else {
-                            re_st().rex.input != unsafe { (*re_st().nfa_endp).se_u.ptr() }
+                            re_st().rex.input != unsafe { (*re_st().nfa_endp).se_u.ptr }
                         }
                     {
                         listidx += 1;
@@ -3795,7 +3810,7 @@ fn nfa_regmatch(
                         pim.subs.norm.in_use = 0;
                         pim.subs.synt.in_use = 0;
                         if reg_multi() {
-                            pim.end = crate::regexp::RegPos::Pos(Lpos {
+                            pim.end = crate::regexp::RegPos::from_pos(Lpos {
                                 col: crate::memory::ptr_offset_from(
                                     re_st().rex.input,
                                     re_st().rex.line,
@@ -3803,7 +3818,7 @@ fn nfa_regmatch(
                                 lnum: re_st().rex.lnum,
                             });
                         } else {
-                            pim.end = crate::regexp::RegPos::Ptr(re_st().rex.input);
+                            pim.end.ptr = re_st().rex.input;
                         }
                         if addstate_here(
                             &mut prog.state,
@@ -4338,7 +4353,8 @@ fn nfa_regmatch(
                         t_st.val,
                     );
                     if reg_multi() {
-                        re_st().rex.line = reg_getline(re_st().rex.lnum).cast();
+                        let cur_lnum = re_st().rex.lnum;
+                        re_st().rex.load_line(cur_lnum);
                         re_st().rex.input = re_st().rex.line.wrapping_add(col);
                     }
                     if let Some(fm) = fm
@@ -4532,7 +4548,7 @@ fn nfa_regmatch(
                                 ) as Colnr)
                                     < end_pos.col)
                     } else {
-                        re_st().rex.input < unsafe { (*re_st().nfa_endp).se_u.ptr() }
+                        re_st().rex.input < unsafe { (*re_st().nfa_endp).se_u.ptr }
                     }))
         {
             if toplevel {
@@ -4593,13 +4609,11 @@ fn nfa_regmatch(
                     && clen == 0
                     && !re_st().nfa_endp.is_null()
                     && re_st().rex.lnum < unsafe { (*re_st().nfa_endp).se_u.pos().lnum }
+                    && let Some(next_line) = reg_getline(re_st().rex.lnum + 1)
                 {
-                    let next_line = reg_getline(re_st().rex.lnum + 1);
-                    if !next_line.is_null() {
-                        re_st().rex.line = next_line.cast();
-                        re_st().rex.input = re_st().rex.line;
-                        re_st().rex.lnum += 1;
-                    }
+                    re_st().rex.line = next_line.as_ptr().cast_mut().cast();
+                    re_st().rex.input = re_st().rex.line;
+                    re_st().rex.lnum += 1;
                 }
 
                 let r = addstate_idx(
@@ -4722,18 +4736,17 @@ fn nfa_regtry(
             re_st().rex.lnum = endpos[0].lnum;
         }
     } else {
-        let startp = re_st().rex.startp_slice_mut();
-        let endp = re_st().rex.endp_slice_mut();
+        let rm = re_st().rex.match_mut();
         let norm_line = subs.norm.list.line();
         for (i, item) in norm_line[..subs.norm.in_use as usize].iter().enumerate() {
-            startp[i] = item.start;
-            endp[i] = item.end;
+            rm.startp[i] = item.start;
+            rm.endp[i] = item.end;
         }
-        if startp[0].is_null() {
-            startp[0] = re_st().rex.line.wrapping_add(col as usize);
+        if rm.startp[0].is_null() {
+            rm.startp[0] = re_st().rex.line.wrapping_add(col as usize);
         }
-        if endp[0].is_null() {
-            endp[0] = re_st().rex.input;
+        if rm.endp[0].is_null() {
+            rm.endp[0] = re_st().rex.input;
         }
     }
 
@@ -4748,19 +4761,20 @@ fn nfa_regtry(
                 if mpos.start_lnum >= 0
                     && mpos.start_lnum == mpos.end_lnum
                     && mpos.end_col >= mpos.start_col
+                    && let Some(line_cstr) = reg_getline(mpos.start_lnum)
                 {
-                    extmatch.matches[i] = cstring_from_bytes(
-                        reg_getline(mpos.start_lnum).wrapping_add(mpos.start_col as usize),
+                    extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
+                        line_cstr.as_ptr().wrapping_add(mpos.start_col as usize),
                         (mpos.end_col - mpos.start_col) as usize,
-                    );
+                    ));
                 }
             } else {
                 let lpos = subs.synt.list.line()[i];
                 if !lpos.start.is_null() && !lpos.end.is_null() {
-                    extmatch.matches[i] = cstring_from_bytes(
-                        lpos.start,
+                    extmatch.matches[i] = cstring_from_bytes(crate::memory::cstr_slice(
+                        lpos.start.cast(),
                         crate::memory::ptr_offset_from(lpos.end, lpos.start) as usize,
-                    );
+                    ));
                 }
             }
         }
@@ -4782,7 +4796,7 @@ fn nfa_regexec_both(
 
     let prog: *mut NfaRegprog = if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().nfa_mut();
-        line = reg_getline(0).cast();
+        line = reg_getline(0).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
         re_st().rex.reg_startpos = (&raw mut re_st().rex.mmatch_mut().startpos).cast();
         re_st().rex.reg_endpos = (&raw mut re_st().rex.mmatch_mut().endpos).cast();
         p
@@ -4973,6 +4987,6 @@ pub(super) fn nfa_regexec_multi(
     tm: Option<Proftime>,
     timed_out: Option<&mut i32>,
 ) -> i32 {
-    init_regexec_multi(rmp, win.map_or(ptr::null_mut(), |w| &raw mut *w), buf, lnum);
+    init_regexec_multi(rmp, win, buf, lnum);
     nfa_regexec_both(None, col, tm, timed_out)
 }

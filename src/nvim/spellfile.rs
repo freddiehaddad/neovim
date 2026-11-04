@@ -980,8 +980,10 @@ fn read_prefcond_section(fd: &CFile, lp: &mut Slang) -> i32 {
                 return ret;
             }
             buf[(n + 1) as usize] = 0;
-            lp.sl_prefprog.as_mut_slice()[i as usize] =
-                crate::regexp::vim_regcomp_box(buf.as_ptr().cast(), RE_MAGIC | RE_STRING);
+            lp.sl_prefprog.as_mut_slice()[i as usize] = crate::regexp::vim_regcomp_box(
+                unsafe { std::ffi::CStr::from_ptr(buf.as_ptr().cast()) },
+                RE_MAGIC | RE_STRING,
+            );
         }
     }
     0
@@ -2183,7 +2185,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[4].as_ptr(),
                         );
                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                            buf.as_ptr().cast(),
+                            unsafe { std::ffi::CStr::from_ptr(buf.as_ptr().cast()) },
                             RE_MAGIC + RE_STRING + RE_STRICT,
                         );
                         if aff_entry.ae_prog.is_none() {
@@ -2236,7 +2238,9 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                                         );
                                         aff_entry.ae_cond = Some(cond_cstr);
                                         aff_entry.ae_prog = crate::regexp::vim_regcomp_box(
-                                            buf.as_ptr().cast(),
+                                            unsafe {
+                                                std::ffi::CStr::from_ptr(buf.as_ptr().cast())
+                                            },
                                             RE_MAGIC + RE_STRING,
                                         );
                                     }
@@ -3096,7 +3100,12 @@ fn store_aff_word(
                     || ae_flags.is_some())
                     && ae_chop.is_none_or(|c| c.to_bytes().len() < wordlen)
                     && (ae.ae_prog.is_none()
-                        || vim_regexec_prog(ae.ae_prog.as_deref(), false, word.cast(), 0))
+                        || vim_regexec_prog(
+                            ae.ae_prog.as_deref(),
+                            false,
+                            unsafe { std::ffi::CStr::from_ptr(word.cast()) },
+                            0,
+                        ))
                     && (((condit & CONDIT_CFIX) == 0)
                         == ((condit & CONDIT_AFF) == 0
                             || ae_flags.is_none_or(|fl| {
@@ -5001,14 +5010,14 @@ pub fn spell_add_word(word_bytes: &[u8], what: SpellAddType, idx: i32, undo: boo
         }
         let fnamebuf = fnamebuf_arr.as_mut_ptr();
 
-        let mut spf = win_s(curwin_mut()).b_p_spf;
+        let mut spf = crate::memory::cstr_as_bytes(win_s(curwin_mut()).b_p_spf);
         let mut i: i32 = 1;
-        while !crate::memory::cstr_is_empty(spf) {
-            copy_option_part(&raw mut spf, fnamebuf.cast(), MAXPATHL, c",");
+        while !spf.is_empty() {
+            copy_option_part(&mut spf, &mut fnamebuf_arr[..MAXPATHL], c",");
             if i == idx {
                 break;
             }
-            if crate::memory::cstr_is_empty(spf) {
+            if spf.is_empty() {
                 semsg!(gettext(c"E765: 'spellfile' does not have %d entries"), idx,);
                 return;
             }

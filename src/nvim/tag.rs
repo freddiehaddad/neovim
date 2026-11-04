@@ -54,9 +54,7 @@ use crate::path::{
     path_tail, simplify_filename, to_slash_save, vim_isAbsName,
 };
 use crate::quickfix::{CMDBUFFSIZE, K_OPT_SWB_FLAG_USETAB, set_errorlist};
-use crate::regexp::{
-    MAXCOL, NSUBEXP, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
-};
+use crate::regexp::{MAXCOL, NSUBEXP, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec};
 use crate::runtime::{DIP_ALL, RuntimeCallback, do_in_runtimepath};
 use crate::search::{do_search, ignorecase, ignorecase_opt};
 use crate::state::MODE_INSERT;
@@ -1227,10 +1225,10 @@ fn prepare_pats(pats: &mut Pat, has_re: bool) {
     }
 
     if has_re {
-        pats.regmatch.regprog = vim_regcomp(
-            pats.pat.cast(),
+        pats.regmatch.set_prog(vim_regcomp(
+            unsafe { CStr::from_ptr(pats.pat.cast()) },
             if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
-        );
+        ));
     } else {
         pats.regmatch.regprog = ptr::null_mut();
     }
@@ -1248,8 +1246,12 @@ fn tagfunc_cmd_kind(cmd: &std::ffi::CStr) -> Tagcmd {
         };
     }
     if first_b == b'/' || first_b == b'?' {
-        let end = skip_regexp(cmd.wrapping_add(1), first_b as i32, 0);
-        let end_bytes = crate::memory::cstr_as_bytes(end);
+        let end = skip_regexp(
+            unsafe { CStr::from_ptr(cmd.wrapping_add(1)) },
+            first_b as i32,
+            0,
+        );
+        let end_bytes = end.to_bytes();
         return if end_bytes == [first_b] {
             Tagcmd::TagcmdAddress
         } else {
@@ -1535,7 +1537,7 @@ fn findtags_state_init(st: &mut FindtagsState, pat: &std::ffi::CStr, flags: i32,
 
 impl Drop for FindtagsState {
     fn drop(&mut self) {
-        vim_regfree(self.orgpat.regmatch.regprog);
+        self.orgpat.regmatch.free_prog();
     }
 }
 
@@ -1944,7 +1946,7 @@ fn findtags_match_tag(
         let tagname_cstr =
             std::ffi::CString::new(crate::memory::cstr_slice(tagpp.tagname.cast(), tagname_len))
                 .unwrap_or_default();
-        match_ = vim_regexec(&mut st.orgpat.regmatch, tagname_cstr.as_ptr(), 0);
+        match_ = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);
         if match_ {
             margs.matchoff = crate::memory::ptr_offset_from(
                 st.orgpat.regmatch.startp[0],
@@ -1952,7 +1954,7 @@ fn findtags_match_tag(
             ) as i32;
             if st.orgpat.regmatch.rm_ic {
                 st.orgpat.regmatch.rm_ic = false;
-                margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, tagname_cstr.as_ptr(), 0);
+                margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);
                 st.orgpat.regmatch.rm_ic = true;
             }
         }
@@ -2500,7 +2502,10 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
             }
 
             buf[0] = 0;
-            copy_option_part(&raw mut tnp.tn_np, buf.as_mut_ptr(), MAXPATHL - 1, c" ,");
+            let mut np_bytes = crate::memory::cstr_as_bytes(tnp.tn_np.cast());
+            let old_len = np_bytes.len();
+            copy_option_part(&mut np_bytes, &mut buf[..MAXPATHL - 1], c" ,");
+            tnp.tn_np = tnp.tn_np.wrapping_add(old_len - np_bytes.len());
 
             let stop_off = vim_findfile_stopdir(buf);
             let stopdirs_cstr =
@@ -2747,7 +2752,13 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
         fname = expanded.as_ptr().cast_mut().cast();
         tofree_fname = Some(expanded);
 
-        if !os_path_exists(fname.cast()) && !has_autocmd(EVENT_BUFREADCMD, fname.cast(), None) {
+        if !os_path_exists(fname.cast())
+            && !has_autocmd(
+                EVENT_BUFREADCMD,
+                crate::memory::cstr_as_opt_cstr(fname.cast()),
+                None,
+            )
+        {
             retval = NOTAGFILE;
             tag_st().nofile_fname = tofree_fname.take();
             break 'erret;
@@ -2835,7 +2846,15 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
 
             str_ = pbuf;
             if pbuf_vec[0] == b'/' || pbuf_vec[0] == b'?' {
-                str_ = skip_regexp(pbuf.wrapping_add(1), i32::from(pbuf_vec[0]), 0).wrapping_add(1);
+                str_ = skip_regexp(
+                    unsafe { CStr::from_ptr(pbuf.wrapping_add(1).cast()) },
+                    i32::from(pbuf_vec[0]),
+                    0,
+                )
+                .as_ptr()
+                .wrapping_add(1)
+                .cast_mut()
+                .cast();
             }
             if str_ > pbuf_end.wrapping_sub(1) {
                 let mut pbuflen = pbuf_len;

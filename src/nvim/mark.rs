@@ -347,8 +347,8 @@ fn do_markset_autocmd(c: u8, pos: &CursorPos, buf: &mut FileBuf) {
     };
     aucmd_defer(
         EVENT_MARKSET,
-        mark_str.as_mut_ptr().cast(),
-        ptr::null_mut(),
+        Some(crate::memory::cstr_until_nul(&mark_str)),
+        None,
         AUGROUP_ALL,
         buf,
         Some(&mut dict_obj),

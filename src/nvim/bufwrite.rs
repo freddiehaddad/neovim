@@ -396,13 +396,14 @@ fn buf_write_do_autocmds(
     let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
     set_bufref(bufref, buf);
 
+    let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
     if append {
         did_cmd = apply_autocmds_exarg(
             EVENT_FILEAPPENDCMD,
-            sfname,
-            sfname,
+            sfname_opt,
+            sfname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
         if !did_cmd {
@@ -411,10 +412,10 @@ fn buf_write_do_autocmds(
             } else {
                 let _ = apply_autocmds_exarg(
                     EVENT_FILEAPPENDPRE,
-                    sfname,
-                    sfname,
+                    sfname_opt,
+                    sfname_opt,
                     false,
-                    g_st().curbuf,
+                    curbuf_opt_mut(),
                     eap,
                 );
             }
@@ -422,16 +423,22 @@ fn buf_write_do_autocmds(
     } else if filtering {
         let _ = apply_autocmds_exarg(
             EVENT_FILTERWRITEPRE,
-            ptr::null_mut(),
-            sfname,
+            None,
+            sfname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
     } else if reset_changed && whole {
         let was_changed = curbuf_is_changed_fn();
-        did_cmd =
-            apply_autocmds_exarg(EVENT_BUFWRITECMD, sfname, sfname, false, g_st().curbuf, eap);
+        did_cmd = apply_autocmds_exarg(
+            EVENT_BUFWRITECMD,
+            sfname_opt,
+            sfname_opt,
+            false,
+            curbuf_opt_mut(),
+            eap,
+        );
         if did_cmd {
             if was_changed && !curbuf_is_changed_fn() {
                 u_unchanged(curbuf_mut());
@@ -440,16 +447,22 @@ fn buf_write_do_autocmds(
         } else if overwriting && bt_nofilename(Some(crate::globals::curbuf_mut())) {
             nofile_err = true;
         } else {
-            let _ =
-                apply_autocmds_exarg(EVENT_BUFWRITEPRE, sfname, sfname, false, g_st().curbuf, eap);
+            let _ = apply_autocmds_exarg(
+                EVENT_BUFWRITEPRE,
+                sfname_opt,
+                sfname_opt,
+                false,
+                curbuf_opt_mut(),
+                eap,
+            );
         }
     } else {
         did_cmd = apply_autocmds_exarg(
             EVENT_FILEWRITECMD,
-            sfname,
-            sfname,
+            sfname_opt,
+            sfname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
         if !did_cmd {
@@ -458,10 +471,10 @@ fn buf_write_do_autocmds(
             } else {
                 let _ = apply_autocmds_exarg(
                     EVENT_FILEWRITEPRE,
-                    sfname,
-                    sfname,
+                    sfname_opt,
+                    sfname_opt,
                     false,
-                    g_st().curbuf,
+                    curbuf_opt_mut(),
                     eap,
                 );
             }
@@ -577,40 +590,41 @@ fn buf_write_do_post_autocmds(
 
     let _ = ctx_switch(&mut aco, None, None, Some(buf), 0);
 
+    let fname_opt = crate::memory::cstr_as_opt_cstr(fname_ptr);
     if append {
         let _ = apply_autocmds_exarg(
             EVENT_FILEAPPENDPOST,
-            fname_ptr,
-            fname_ptr,
+            fname_opt,
+            fname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
     } else if filtering {
         let _ = apply_autocmds_exarg(
             EVENT_FILTERWRITEPOST,
-            ptr::null_mut(),
-            fname_ptr,
+            None,
+            fname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
     } else if reset_changed && whole {
         let _ = apply_autocmds_exarg(
             EVENT_BUFWRITEPOST,
-            fname_ptr,
-            fname_ptr,
+            fname_opt,
+            fname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
     } else {
         let _ = apply_autocmds_exarg(
             EVENT_FILEWRITEPOST,
-            fname_ptr,
-            fname_ptr,
+            fname_opt,
+            fname_opt,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             eap,
         );
     }
@@ -824,9 +838,10 @@ pub fn buf_get_backup_name(
     let backup_ext_ptr = backup_ext.as_ptr();
     let mut backup: Option<std::ffi::CString> = None;
     let iobuf = g_st().iobuff.as_mut_ptr();
-    let mut dirp_raw = dirp.as_ptr().cast_mut();
-    let dir_len = copy_option_part(&raw mut dirp_raw, iobuf.cast(), IOSIZE, c",");
-    *dirp = unsafe { CStr::from_ptr(dirp_raw) };
+    let mut dirp_bytes = dirp.to_bytes();
+    let old_len = dirp_bytes.len();
+    let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
+    *dirp = unsafe { CStr::from_ptr(dirp.as_ptr().wrapping_add(old_len - dirp_bytes.len())) };
     let p = iobuf.wrapping_add(dir_len);
     if dirp.to_bytes().is_empty() && !os_isdir(iobuf) {
         let mut failed_dir: Option<std::ffi::CString> = None;

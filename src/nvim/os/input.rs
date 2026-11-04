@@ -24,7 +24,6 @@ use crate::option_vars::*;
 use crate::os::time::{os_hrtime, os_realtime};
 use crate::profile::{prof_input_end, prof_input_start};
 use crate::state::{MODE_INSERT, MODE_MAX_LENGTH, get_mode, get_real_state};
-use std::ptr;
 
 use crate::eval::typval::Varnumber;
 
@@ -144,13 +143,7 @@ pub fn cursorhold_event() {
     } else {
         EVENT_CURSORHOLD
     };
-    apply_autocmds(
-        event,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(event, None, None, false, curbuf_opt_mut());
     g_st().did_cursorhold = true;
 }
 

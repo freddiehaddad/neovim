@@ -779,14 +779,7 @@ const fn convert_index(index: i64) -> i64 {
 //   FUNC_API_SINCE(7)
 //   FUNC_API_DEPRECATED_SINCE(11);
 pub fn nvim_get_option_info(name: NvimString, arena: &mut Arena, err: &mut Error) -> Dict {
-    get_option_info(
-        name,
-        OPT_GLOBAL,
-        g_st().curbuf.cast(),
-        curwin_mut(),
-        arena,
-        err,
-    )
+    get_option_info(name, OPT_GLOBAL, curbuf_mut(), curwin_mut(), arena, err)
 }
 
 /// Sets the global value of an option.
@@ -934,7 +927,7 @@ fn get_option_from(from: OptTarget, scope: OptScope, name: NvimString, err: &mut
         return OBJECT_NIL;
     }
 
-    let opt_idx = find_option(name.data);
+    let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
         api_err_invalid(
             err,
@@ -988,7 +981,7 @@ fn set_option_to(
         return;
     }
 
-    let opt_idx = find_option(name.data);
+    let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
         api_err_invalid(
             err,

@@ -366,9 +366,13 @@ pub fn spell_check(
                 && w_s.b_cap_prog.is_some()
             {
                 let mut regmatch = Regmatch::new();
-                regmatch.regprog = crate::regexp::regprog_as_ptr(&w_s.b_cap_prog);
+                regmatch.borrow_prog(w_s.b_cap_prog.as_deref());
                 regmatch.rm_ic = false;
-                let r = vim_regexec(&mut regmatch, ptr.cast(), 0);
+                let r = vim_regexec(
+                    &mut regmatch,
+                    unsafe { std::ffi::CStr::from_ptr(ptr.cast()) },
+                    0,
+                );
                 if r {
                     *capcol = crate::memory::ptr_offset_from(regmatch.endp[0], ptr.cast()) as i32;
                 }
@@ -879,7 +883,12 @@ pub fn can_compound(slang: &mut Slang, word: &[u8], flags: &[u8]) -> bool {
         p = p.wrapping_add(utf_char2bytes(i32::from(b), p.cast()) as usize);
     }
     p = (&raw mut uflags).cast();
-    if !vim_regexec_prog(slang.sl_compprog.as_deref(), false, p.cast(), 0) {
+    if !vim_regexec_prog(
+        slang.sl_compprog.as_deref(),
+        false,
+        unsafe { std::ffi::CStr::from_ptr(p.cast()) },
+        0,
+    ) {
         return false;
     }
     if slang.sl_compsylmax < MAXWLEN as i32 && count_syllables(slang, word) > slang.sl_compsylmax {
@@ -944,7 +953,7 @@ pub fn valid_word_prefix(
         }
         let rp = &(&slang.sl_prefprog)[(((pidx as u32) >> 8) & 0xffff) as usize];
         if rp.is_some() {
-            if !vim_regexec_prog(rp.as_deref(), false, word.as_ptr(), 0) {
+            if !vim_regexec_prog(rp.as_deref(), false, word, 0) {
                 continue;
             }
         } else if cond_req {
@@ -1345,10 +1354,10 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 && round == 1
                 && apply_autocmds(
                     EVENT_SPELLFILEMISSING,
-                    lang,
-                    curbuf_mut().b_fname,
+                    crate::memory::cstr_as_opt_cstr(lang),
+                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                     false,
-                    g_st().curbuf,
+                    curbuf_opt_mut(),
                 )
             {
                 continue;
@@ -1623,9 +1632,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
     let spl_copy = crate::memory::cstr_to_cstring(w_s.b_p_spl);
     w_s.b_cjk = 0;
     'theend: {
-        let mut splp = spl_copy.as_ptr().cast_mut();
-        while !crate::memory::cstr_is_empty(splp) {
-            let len = copy_option_part(&raw mut splp, (&raw mut lang).cast(), MAXWLEN, c",") as i32;
+        let mut splp = spl_copy.as_bytes();
+        while !splp.is_empty() {
+            let len = copy_option_part(&mut splp, &mut lang[..MAXWLEN], c",") as i32;
             let mut region: *mut u8 = ptr::null_mut();
             let lang_ptr = (&raw mut lang).cast::<u8>();
             if !valid_spelllang(crate::memory::cstr_until_nul(&lang)) {
@@ -1786,7 +1795,10 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
                 int_wordlist_spl(&mut spf_name);
             } else {
-                let len = copy_option_part(&raw mut spf, spf_ptr.cast(), MAXPATHL - 4, c",");
+                let mut spf_bytes = crate::memory::cstr_as_bytes(spf);
+                let old_len = spf_bytes.len();
+                let len = copy_option_part(&mut spf_bytes, &mut spf_name[..MAXPATHL - 4], c",");
+                spf = spf.wrapping_add(old_len - spf_bytes.len());
                 spf_name[len..len + 5].copy_from_slice(b".spl\0");
                 let mut c = 0;
                 while c < ga.len() {
@@ -2215,7 +2227,7 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
     }
     if endcol > 0 {
         let mut regmatch = Regmatch::new();
-        regmatch.regprog = crate::regexp::regprog_as_ptr(&w_s.b_cap_prog);
+        regmatch.borrow_prog(w_s.b_cap_prog.as_deref());
         regmatch.rm_ic = false;
         let mut p = line.wrapping_add(endcol as usize);
         loop {
@@ -2223,8 +2235,11 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             if p == line || spell_iswordp_nmw(crate::memory::cstr_as_bytes(p.cast()), wp) {
                 break;
             }
-            if vim_regexec(&mut regmatch, p.cast(), 0)
-                && regmatch.endp[0] == line.wrapping_add(endcol as usize).cast()
+            if vim_regexec(
+                &mut regmatch,
+                unsafe { std::ffi::CStr::from_ptr(p.cast()) },
+                0,
+            ) && regmatch.endp[0] == line.wrapping_add(endcol as usize).cast()
             {
                 need_cap = true;
                 break;
@@ -3135,9 +3150,9 @@ pub fn valid_spelllang(val: &std::ffi::CStr) -> bool {
 }
 pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
     let mut spf_name: [u8; MAXPATHL] = [0; MAXPATHL];
-    let mut spf = val.as_ptr().cast_mut();
-    while !crate::memory::cstr_is_empty(spf) {
-        let l = copy_option_part(&raw mut spf, (&raw mut spf_name).cast(), MAXPATHL, c",");
+    let mut spf = val.to_bytes();
+    while !spf.is_empty() {
+        let l = copy_option_part(&mut spf, &mut spf_name, c",");
         let spf_ptr = (&raw mut spf_name).cast::<u8>();
         if !(4..(MAXPATHL - 4)).contains(&l)
             || (crate::memory::cstr_as_bytes(spf_ptr.wrapping_add(l - 4).cast()) != b".add")
@@ -3174,7 +3189,7 @@ pub fn compile_cap_prog(
     let mut rp: Option<Box<Regprog>> = None;
     if !value.to_bytes().is_empty() {
         let re = concat_str(b"^", value.to_bytes());
-        rp = crate::regexp::vim_regcomp_box(re.as_ptr(), RE_MAGIC);
+        rp = crate::regexp::vim_regcomp_box(&re, RE_MAGIC);
         if rp.is_none() {
             return Some(E_INVARG);
         }

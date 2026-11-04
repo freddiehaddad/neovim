@@ -772,7 +772,9 @@ fn win_redr_stl_expr(
             sp = sp.wrapping_add(1);
         }
 
-        if opt_vars().p_sc != 0 && find_option(opt_vars().p_sloc) == opt_idx {
+        if opt_vars().p_sc != 0
+            && find_option(crate::memory::cstr_as_bytes(opt_vars().p_sloc)) == opt_idx
+        {
             showcmd_update_clear_state();
         }
 
@@ -2152,7 +2154,8 @@ pub extern "C" fn build_stl_str_hl(
             }
             STL_SHOWCMD => {
                 if opt_vars().p_sc != 0
-                    && (opt_idx == K_OPT_INVALID || find_option(opt_vars().p_sloc) == opt_idx)
+                    && (opt_idx == K_OPT_INVALID
+                        || find_option(crate::memory::cstr_as_bytes(opt_vars().p_sloc)) == opt_idx)
                 {
                     str = (&raw mut g_st().showcmd_buf).cast();
                 }

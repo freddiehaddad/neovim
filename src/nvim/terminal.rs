@@ -86,7 +86,7 @@ use crate::mouse::{
 use crate::r#move::{curs_columns, set_topline, validate_cursor, win_col_off};
 use crate::msgpack_rpc::packer::ObjHandle;
 use crate::option_vars::*;
-use crate::optionstr::{alloc_string_option, free_string_option};
+use crate::optionstr::CStrOptionSlot;
 use crate::state::{
     EditorState, MODE_TERMINAL, SaveVEvent, may_trigger_modechanged, state_enter,
     state_handle_k_event,
@@ -517,7 +517,7 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
             value: term_obj,
         },
     ];
-    let mut data_obj = Object {
+    let data_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(Dict {
             items: data_items.as_mut_ptr(),
@@ -529,14 +529,14 @@ pub fn emit_termrequest(req: Box<TermRequestEvent>) {
     term.refcount += 1;
     apply_autocmds_group(
         EVENT_TERMREQUEST,
-        ptr::null_mut(),
-        ptr::null_mut(),
+        None,
+        None,
         true,
         AUGROUP_ALL,
-        buf_ptr,
+        unsafe { buf_ptr.as_mut() },
         Some(crate::globals::curwin_mut()),
         None,
-        &mut data_obj,
+        Some(&data_obj),
         false,
     );
     term.refcount -= 1;
@@ -868,13 +868,7 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
         coladd: 0,
     };
 
-    apply_autocmds(
-        EVENT_TERMOPEN,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        &raw mut *buf,
-    );
+    apply_autocmds(EVENT_TERMOPEN, None, None, false, Some(&mut *buf));
 
     ctx_restore(&mut aco);
 
@@ -994,7 +988,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
             key: cstr_slice_as_string(b"pos\0"),
             value: integer_obj(i64::from(pos)),
         }];
-        let mut data_obj = Object {
+        let data_obj = Object {
             obj_type: ObjectType::ObjectTypeDict,
             data: ObjectData::Dict(Dict {
                 items: data_items.as_mut_ptr(),
@@ -1005,14 +999,14 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
 
         apply_autocmds_group(
             EVENT_TERMCLOSE,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             status >= 0,
             AUGROUP_ALL,
-            buf,
+            unsafe { buf.as_mut() },
             Some(crate::globals::curwin_mut()),
             None,
-            &mut data_obj,
+            Some(&data_obj),
             false,
         );
 
@@ -1090,8 +1084,10 @@ fn set_terminal_winopts(s: &mut TerminalState) {
             s.save_w_p_culopt = Some(crate::memory::cstr_to_cstring(
                 curwin_mut().w_onebuf_opt.wo_culopt,
             ));
-            free_string_option(curwin_mut().w_onebuf_opt.wo_culopt);
-            curwin_mut().w_onebuf_opt.wo_culopt = alloc_string_option(c"number");
+            curwin_mut()
+                .w_onebuf_opt
+                .wo_culopt
+                .set_option_cstr(c"number");
         }
         curwin_mut().w_p_culopt_flags = K_OPT_CULOPT_FLAG_NUMBER;
     } else {
@@ -1142,8 +1138,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 
         if let Some(winopts) = winopts {
             if let Some(saved) = s.save_w_p_culopt.take() {
-                free_string_option(winopts.wo_culopt);
-                winopts.wo_culopt = alloc_string_option(saved.as_ptr());
+                winopts.wo_culopt.set_option_cstr(saved.as_c_str());
             }
             winopts.wo_cul = i32::from(s.save_w_p_cul);
             winopts.wo_cuc = s.save_w_p_cuc;
@@ -1190,13 +1185,7 @@ pub fn terminal_enter() -> bool {
     curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
 
     s.term_mut().refcount += 1;
-    apply_autocmds(
-        EVENT_TERMENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_TERMENTER, None, None, false, curbuf_opt_mut());
     may_trigger_modechanged();
     s.term_mut().refcount -= 1;
     if s.term_mut().buf_handle == 0 {
@@ -1234,13 +1223,7 @@ pub fn terminal_enter() -> bool {
     if s.close {
         s.term_mut().refcount += 1;
     }
-    apply_autocmds(
-        EVENT_TERMLEAVE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_TERMLEAVE, None, None, false, curbuf_opt_mut());
     if s.close {
         s.term_mut().refcount -= 1;
         let buf_handle = s.term_mut().buf_handle;
@@ -1326,13 +1309,7 @@ fn terminal_check(s: &mut TerminalState) -> i32 {
     if has_event(EVENT_TEXTCHANGEDT)
         && curbuf_mut().b_last_changedtick_i != buf_get_changedtick(curbuf_mut())
     {
-        apply_autocmds(
-            EVENT_TEXTCHANGEDT,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTCHANGEDT, None, None, false, curbuf_opt_mut());
         curbuf_mut().b_last_changedtick_i = buf_get_changedtick(curbuf_mut());
     }
     may_trigger_win_scrolled_resized();

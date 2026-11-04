@@ -17,9 +17,7 @@ use crate::ex_docmd::{Exarg, ends_excmd, find_nextcmd, handle_did_throw, modifie
 use crate::globals::*;
 use crate::message::{emsg, internal_error, msg_puts, semsg, smsg, verbose_enter, verbose_leave};
 use crate::option_vars::*;
-use crate::regexp::{
-    RE_MAGIC, RE_STRING, Regmatch, skip_regexp_err, vim_regcomp, vim_regexec_nl, vim_regfree,
-};
+use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, skip_regexp_err, vim_regcomp, vim_regexec_nl};
 use crate::runtime::{ESTACK_NONE, do_finish, estack_sfile, sourcing_lnum, stacktrace_create};
 use crate::strings::{concat_str, gettext, vim_snprintf, vim_snprintf_safelen};
 use std::ffi::{CStr, CString};
@@ -1137,11 +1135,18 @@ pub fn ex_catch(eap: &mut Exarg) {
         (c".*".as_ptr().cast_mut(), ptr::null_mut())
     } else {
         let pat = eap.arg.wrapping_add(1);
-        let end = skip_regexp_err(pat, i32::from(crate::memory::cstr_first_byte(eap.arg)), 1);
-        if end.is_null() {
+        let end_opt = skip_regexp_err(
+            unsafe { CStr::from_ptr(pat) },
+            i32::from(crate::memory::cstr_first_byte(eap.arg)),
+            1,
+        );
+        if end_opt.is_none() {
             give_up = true;
         }
-        (pat, end)
+        (
+            pat,
+            end_opt.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+        )
     };
 
     if !give_up {
@@ -1173,30 +1178,26 @@ pub fn ex_catch(eap: &mut Exarg) {
                 } else {
                     None
                 };
-                let pat_ptr = pat_cstr.as_ref().map_or(pat.cast_const(), |s| s.as_ptr());
+                let pat_ref: &CStr = pat_cstr
+                    .as_deref()
+                    .unwrap_or_else(|| unsafe { CStr::from_ptr(pat) });
                 let save_cpo = opt_vars().p_cpo;
                 opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();
-                regmatch.regprog = vim_regcomp(pat_ptr, RE_MAGIC + RE_STRING);
+                regmatch.set_prog(vim_regcomp(pat_ref, RE_MAGIC + RE_STRING));
                 g_st().emsg_off -= 1;
                 regmatch.rm_ic = false;
                 opt_vars().p_cpo = save_cpo;
                 if regmatch.regprog.is_null() {
-                    semsg!(gettext(E_INVARG2), pat_ptr);
+                    semsg!(gettext(E_INVARG2), pat_ref.as_ptr());
                 } else {
                     let prev_got_int = g_st().got_int;
                     g_st().got_int = false;
-                    let val_ptr = g_st()
-                        .current_exception
-                        .as_ref()
-                        .unwrap()
-                        .value
-                        .as_ptr()
-                        .cast_mut();
-                    caught = vim_regexec_nl(&mut regmatch, val_ptr, 0);
+                    let val_cstr = g_st().current_exception.as_ref().unwrap().value.as_c_str();
+                    caught = vim_regexec_nl(&mut regmatch, Some(val_cstr), 0);
                     g_st().got_int |= prev_got_int;
-                    vim_regfree(regmatch.regprog);
+                    regmatch.free_prog();
                 }
             }
         }

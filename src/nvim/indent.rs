@@ -44,7 +44,6 @@ use crate::plines::{
 };
 use crate::regexp::{
     MAXCOL, RE_AUTO, RE_MAGIC, RE_STRICT, RE_STRING, Regmatch, vim_regcomp, vim_regexec,
-    vim_regfree,
 };
 use crate::search::{findmatch, linewhite};
 use crate::strings::{gettext, ngettext};
@@ -143,7 +142,7 @@ pub fn tabstop_set(
 
     let err_at = |idx: usize| -> Option<&'static CStr> {
         let cstr = std::ffi::CString::new(&var_bytes[idx..]).unwrap_or_default();
-        opt_error(errbuf, E_INVARG2, cstr.as_ptr())
+        opt_error(errbuf, E_INVARG2, cstr.as_c_str())
     };
 
     let mut idx = 0usize;
@@ -724,18 +723,22 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
     }
 
     let mut regmatch = Regmatch {
-        regprog: vim_regcomp(curbuf_mut().b_p_flp, RE_MAGIC),
+        regprog: ptr::null_mut(),
         startp: [ptr::null_mut(); 10],
         endp: [ptr::null_mut(); 10],
         rm_matchcol: 0,
         rm_ic: false,
     };
+    regmatch.set_prog(vim_regcomp(
+        crate::memory::cstr_from_ptr(curbuf_mut().b_p_flp),
+        RE_MAGIC,
+    ));
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
         if vim_regexec(
             &mut regmatch,
-            ml_get(lnum).wrapping_add(lead_len as usize),
+            unsafe { CStr::from_ptr(ml_get(lnum).wrapping_add(lead_len as usize)) },
             0,
         ) {
             pos.lnum = lnum;
@@ -743,7 +746,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
                 crate::memory::ptr_offset_from(regmatch.endp[0], ml_get(lnum).cast()) as Colnr;
             pos.coladd = 0;
         }
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
     }
 
     if pos.lnum == 0 || ml_get_pos_slice(&pos).is_empty() {
@@ -829,18 +832,22 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
         ind_st().prev_flp = Some(flp_val.to_owned());
 
         if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
-            let flp_ptr = ind_st().prev_flp.as_deref().unwrap().as_ptr().cast_mut();
-            let line_ptr = ind_st().prev_line.as_deref().unwrap().as_ptr();
+            let flp_cstr = ind_st().prev_flp.as_deref().unwrap();
+            let line_cstr = ind_st().prev_line.as_deref().unwrap();
             let mut regmatch = Regmatch {
-                regprog: vim_regcomp(flp_ptr, RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT),
+                regprog: ptr::null_mut(),
                 startp: [ptr::null_mut(); 10],
                 endp: [ptr::null_mut(); 10],
                 rm_matchcol: 0,
                 rm_ic: false,
             };
+            regmatch.set_prog(vim_regcomp(
+                flp_cstr,
+                RE_MAGIC + RE_STRING + RE_AUTO + RE_STRICT,
+            ));
             if !regmatch.regprog.is_null() {
                 regmatch.rm_ic = false;
-                if vim_regexec(&mut regmatch, line_ptr, 0) {
+                if vim_regexec(&mut regmatch, line_cstr, 0) {
                     if wp.w_briopt_list > 0 {
                         ind_st().prev_list += wp.w_briopt_list;
                     } else {
@@ -858,7 +865,7 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                         ind_st().prev_indent = indent;
                     }
                 }
-                vim_regfree(regmatch.regprog);
+                regmatch.free_prog();
             }
         }
     }
@@ -1813,14 +1820,15 @@ pub fn get_lisp_indent() -> i32 {
 
 fn lisp_match(p_bytes: &[u8]) -> bool {
     let mut buf = [0u8; 512];
-    let mut word = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
-        curbuf_mut().b_p_lw
-    } else {
-        opt_vars().p_lispwords
-    };
+    let mut word =
+        crate::memory::cstr_as_bytes(if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
+            curbuf_mut().b_p_lw
+        } else {
+            opt_vars().p_lispwords
+        });
 
-    while !crate::memory::cstr_is_empty(word) {
-        let len = copy_option_part(&raw mut word, buf.as_mut_ptr().cast(), buf.len(), c",");
+    while !word.is_empty() {
+        let len = copy_option_part(&mut word, &mut buf, c",");
         if p_bytes.starts_with(&buf[..len])
             && ascii_iswhite_or_nul(i32::from(p_bytes.get(len).copied().unwrap_or(0)))
         {

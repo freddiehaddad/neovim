@@ -743,8 +743,8 @@ fn atom_emit(atom: &CmdAtom) {
     let mut obj = dict_obj(data);
     aucmd_defer(
         EVENT_CMDATOM,
-        TYPE_NAMES[atom.r#type as usize].as_ptr().cast_mut(),
-        ptr::null_mut(),
+        Some(TYPE_NAMES[atom.r#type as usize]),
+        None,
         AUGROUP_ALL,
         buf,
         Some(&mut obj),

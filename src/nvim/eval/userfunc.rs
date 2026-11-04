@@ -66,9 +66,7 @@ use crate::profile::{
     profile_add, profile_end, profile_self, profile_start, profile_sub_wait, profile_zero,
     script_prof_restore, script_prof_save,
 };
-use crate::regexp::{
-    NUMBUFLEN, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec, vim_regfree,
-};
+use crate::regexp::{NUMBUFLEN, RE_MAGIC, Regmatch, skip_regexp, vim_regcomp, vim_regexec};
 use crate::runtime::{
     autoload_name, estack_pop, estack_push_ufunc, get_sourced_lnum, rt_st, script_autoload,
     set_sourcing_lnum, sourcing_lnum, sourcing_name,
@@ -1949,14 +1947,9 @@ pub fn call_func(
                     fp = find_func(rfname.cast());
                 }
 
+                let rfname_opt = crate::memory::cstr_as_opt_cstr(rfname.cast());
                 if fp.is_null()
-                    && apply_autocmds(
-                        EVENT_FUNCUNDEFINED,
-                        rfname.cast(),
-                        rfname.cast(),
-                        true,
-                        ptr::null_mut(),
-                    )
+                    && apply_autocmds(EVENT_FUNCUNDEFINED, rfname_opt, rfname_opt, true, None)
                     && !aborting()
                 {
                     fp = find_func(rfname.cast());
@@ -1973,8 +1966,14 @@ pub fn call_func(
                         error = FCERR_DELETED;
                     } else {
                         if funcexe.fe_fill_submatch {
+                            let argvars_slice = unsafe {
+                                std::slice::from_raw_parts_mut(argvars, MAX_FUNC_ARGS + 1)
+                            };
                             argcount = crate::regexp::fill_submatch_list(
-                                argcount, argvars, argv_clear, fp_ref,
+                                argcount,
+                                argvars_slice,
+                                argv_clear,
+                                fp_ref,
                             );
                         }
 
@@ -2501,7 +2500,7 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
         let fp = crate::globals::gmut(fp);
         let key = uf2hikey(fp);
         let matches = if let Some(ref mut regmatch) = regmatch {
-            !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key.as_ptr(), 0)
+            !key.to_bytes_with_nul()[0].is_ascii_digit() && vim_regexec(regmatch, key, 0)
         } else {
             !message_filtered(key) && !func_name_refcount(key)
         };
@@ -2518,16 +2517,18 @@ fn list_functions(mut regmatch: Option<&mut Regmatch>) {
 
 fn list_functions_matching_pat(eap: &mut Exarg) -> *mut u8 {
     let pat_start = eap.arg.wrapping_add(1);
-    let mut p = skip_regexp(pat_start, b'/' as i32, 1);
+    let mut p = skip_regexp(unsafe { CStr::from_ptr(pat_start) }, b'/' as i32, 1)
+        .as_ptr()
+        .cast_mut();
     if eap.skip == 0 {
         let mut regmatch: Regmatch = Regmatch::new();
         let pat_len = crate::memory::ptr_offset_from(p, pat_start) as usize;
         let pat_cstr = cstr_from_bytes(crate::memory::cstr_slice(pat_start, pat_len));
-        regmatch.regprog = vim_regcomp(&pat_cstr, RE_MAGIC);
+        regmatch.set_prog(vim_regcomp(&pat_cstr, RE_MAGIC));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic != 0;
             list_functions(Some(&mut regmatch));
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
         }
     }
     if crate::memory::cstr_first_byte(p) == b'/' {

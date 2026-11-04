@@ -707,17 +707,19 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 if buf == g_st().curbuf {
                     apply_autocmds(
                         EVENT_SYNTAX,
-                        curbuf_mut().b_p_syn,
-                        curbuf_mut().b_fname,
+                        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_syn),
+                        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                         true,
-                        g_st().curbuf,
+                        curbuf_opt_mut(),
                     );
                 } else {
-                    let b_p_syn = buf_ref.b_p_syn;
-                    let b_fname = buf_ref.b_fname;
+                    let b_p_syn = crate::memory::cstr_as_opt_cstr(buf_ref.b_p_syn);
+                    let b_fname = crate::memory::cstr_as_opt_cstr(buf_ref.b_fname);
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
-                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, buf);
+                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, unsafe {
+                        buf.as_mut()
+                    });
 
                     ctx_restore(&mut aco);
                 }

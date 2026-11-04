@@ -22,8 +22,7 @@ use crate::change::{HLF_W, save_file_ff};
 use crate::charset::vim_isfilec;
 use crate::charset::{
     EOL_MAC, ascii_isalnum, ascii_iswhite, buf_init_isk_chartab, init_isf_chartab,
-    init_isi_chartab, is_special, skiptowhite_esc, skipwhite, trans_characters, transchar,
-    vim_str2nr, vim_strsize,
+    init_isi_chartab, is_special, trans_characters, transchar, vim_str2nr, vim_strsize,
 };
 use crate::cmdexpand::{
     Cmdidx, EXPAND_BOOL_SETTINGS, EXPAND_DIRECTORIES, EXPAND_FILES, EXPAND_FILETYPE, EXPAND_KEYMAP,
@@ -104,10 +103,9 @@ use crate::normal::{K_OPT_FOLDENABLE, K_OPT_FOLDLEVEL, do_check_scrollbind, get_
 use crate::ops::free_operatorfunc_option;
 use crate::option_vars::*;
 use crate::optionstr::{
-    CharBuf, CharsOption, OptIndex, OptScopeFlags, Optexpand, Optset, Vimoption,
-    alloc_string_option, check_buf_options, check_illegal_path_names, check_signcolumn,
-    check_string_option, clear_string_option, did_set_breakat, didset_string_options,
-    free_string_option, opt_dict_schema, opt_strings_check, set_chars_option,
+    CStrOptionSlot, CharBuf, CharsOption, OptIndex, OptScopeFlags, Optexpand, Optset, Vimoption,
+    check_buf_options, check_illegal_path_names, check_signcolumn, did_set_breakat,
+    didset_string_options, opt_dict_schema, opt_strings_check, set_chars_option,
 };
 use crate::os::env::{
     ExpandCtx, expand_env_esc, home_replace, os_env_exists, os_getenv_cstr, os_setenv, vim_getenv,
@@ -635,28 +633,30 @@ use crate::os::lang::bind_textdomain_codeset;
 
 pub fn opt_error<'a>(
     errbuf: Option<CharBuf>,
-    fmt: impl crate::strings::IntoCCharPtr,
-    arg: impl crate::strings::IntoCCharPtr,
+    fmt: &std::ffi::CStr,
+    arg: &std::ffi::CStr,
 ) -> Option<&'a CStr> {
-    let arg = arg.into_c_char_ptr();
-    let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg);
+    vim_snprintf!(
+        errbuf.data.cast(),
+        errbuf.size,
+        gettext(fmt.as_ptr()),
+        arg.as_ptr()
+    );
     Some(errbuf.as_cstr())
 }
 
 pub fn opt_error_int<'a>(
     errbuf: Option<CharBuf>,
-    fmt: impl crate::strings::IntoCCharPtr,
+    fmt: &std::ffi::CStr,
     arg: i32,
 ) -> Option<&'a CStr> {
-    let fmt = fmt.into_c_char_ptr();
     let Some(errbuf) = errbuf else {
         return Some(c"");
     };
-    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt), arg);
+    vim_snprintf!(errbuf.data.cast(), errbuf.size, gettext(fmt.as_ptr()), arg);
     Some(errbuf.as_cstr())
 }
 
@@ -700,13 +700,76 @@ fn join_cstrings(items: &[std::ffi::CString], sep: &[u8]) -> std::ffi::CString {
 }
 
 #[inline]
-fn get_opt_idx(opt: *mut Vimoption) -> OptIndex {
-    crate::memory::ptr_offset_from(opt, get_option(0)) as OptIndex
+fn varp_eq<T>(varp: &u8, r: &T) -> bool {
+    ptr::eq(ptr::from_ref(varp), ptr::from_ref(r).cast())
 }
 
 #[inline]
-fn get_varp(p: &mut Vimoption) -> *mut c_void {
-    get_varp_from(p, curbuf_mut(), curwin_mut())
+fn varp_bool(varp: &u8) -> i32 {
+    unsafe { *ptr::from_ref(varp).cast::<i32>() }
+}
+
+#[inline]
+fn varp_set_bool(varp: &mut u8, val: i32) {
+    unsafe { *ptr::from_mut(varp).cast::<i32>() = val };
+}
+
+#[inline]
+fn varp_int(varp: &u8) -> OptInt {
+    unsafe { *ptr::from_ref(varp).cast::<OptInt>() }
+}
+
+#[inline]
+fn varp_set_int(varp: &mut u8, val: OptInt) {
+    unsafe { *ptr::from_mut(varp).cast::<OptInt>() = val };
+}
+
+#[inline]
+fn varp_callback_mut(varp: &mut u8) -> &'static mut Callback {
+    unsafe { &mut *ptr::from_mut(varp).cast::<Callback>() }
+}
+
+#[inline]
+fn varp_clear_str(varp: &mut u8) {
+    unsafe { (*ptr::from_mut(varp).cast::<*mut u8>()).clear_option_str() };
+}
+
+#[inline]
+fn varp_check_str(varp: &mut u8) {
+    unsafe { (*ptr::from_mut(varp).cast::<*mut u8>()).check_option_str() };
+}
+
+#[inline]
+fn varp_copy_str_from(varp: &mut u8, s: NvimString) {
+    let slot = unsafe { &mut *ptr::from_mut(varp).cast::<*mut u8>() };
+    slot.free_option_str();
+    *slot = s.data.cast::<u8>().copy_option_str();
+}
+
+#[inline]
+fn varp_opt_cstr(varp: &u8) -> Option<&'static CStr> {
+    let ptr = unsafe { *ptr::from_ref(varp).cast::<*const std::ffi::c_char>() };
+    crate::memory::cstr_as_opt_cstr(ptr)
+}
+
+#[inline]
+fn varp_cstr(varp: &u8) -> &'static CStr {
+    varp_opt_cstr(varp).unwrap_or(c"")
+}
+
+#[inline]
+fn varp_from_mut<T>(r: &mut T) -> &'static mut u8 {
+    unsafe { &mut *ptr::from_mut(r).cast::<u8>() }
+}
+
+#[inline]
+fn get_opt_idx(opt: &Vimoption) -> OptIndex {
+    crate::memory::ptr_offset_from(ptr::from_ref(opt), get_option(0)) as OptIndex
+}
+
+#[inline]
+fn get_varp(p: &mut Vimoption) -> Option<&'static mut u8> {
+    get_varp_from(p, curbuf_mut(), Some(curwin_mut()))
 }
 
 pub fn set_init_tablocal() {
@@ -724,7 +787,7 @@ fn set_init_default_shell() {
             vim_snprintf!(cmd.as_mut_ptr().cast(), len, c"\"%s\"", shell_ptr);
             set_string_default(K_OPT_SHELL, crate::memory::cstr_until_nul(&cmd));
         } else {
-            set_string_default(K_OPT_SHELL, shell_ptr);
+            set_string_default(K_OPT_SHELL, shell.as_c_str());
         }
     }
 }
@@ -851,17 +914,23 @@ fn set_init_expand_env() {
             continue;
         }
         let mut p: Option<&CStr> = None;
-        if (opt.flags & K_OPT_FLAG_GETTEXT) != 0 && !opt.var.is_null() {
-            let var_ptr = *crate::globals::gptr(opt.var.cast::<*const u8>());
-            if !var_ptr.is_null() {
-                p = Some(tr(var_ptr.cast()));
+        if (opt.flags & K_OPT_FLAG_GETTEXT) != 0
+            && let Some(varp) = unsafe { opt.var.cast::<u8>().as_ref() }
+        {
+            if let Some(cstr) = varp_opt_cstr(varp) {
+                p = Some(tr(cstr));
             }
         } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
-            p = option_expand(opt_idx, opt.def_val.data.string().data);
+            p = option_expand(
+                opt_idx,
+                crate::memory::cstr_as_opt_cstr(opt.def_val.data.string().data),
+            );
         }
         if let Some(p) = p {
             let ov = cstr_to_obj(crate::memory::cstr_as_opt_cstr(p));
-            set_option_varp(opt_idx, opt.var, ov);
+            if let Some(varp) = unsafe { opt.var.cast::<u8>().as_mut() } {
+                set_option_varp(opt_idx, varp, ov);
+            }
             change_option_default(opt_idx, ov);
         }
     }
@@ -887,26 +956,26 @@ pub fn set_init_1(clean_arg: bool) {
     backupdir_bytes.extend_from_slice(b".,");
     backupdir_bytes.extend_from_slice(raw_backupdir.as_bytes());
     let backupdir = crate::memory::cstr_from_bytes(&backupdir_bytes);
-    set_string_default(K_OPT_BACKUPDIR, backupdir.as_ptr());
+    set_string_default(K_OPT_BACKUPDIR, backupdir.as_c_str());
     set_string_default(
         K_OPT_VIEWDIR,
-        stdpaths_user_state_subpath(c"view", 2, false).as_ptr(),
+        stdpaths_user_state_subpath(c"view", 2, false).as_c_str(),
     );
     set_string_default(
         K_OPT_DIRECTORY,
-        stdpaths_user_state_subpath(c"swap", 2, true).as_ptr(),
+        stdpaths_user_state_subpath(c"swap", 2, true).as_c_str(),
     );
     set_string_default(
         K_OPT_UNDODIR,
-        stdpaths_user_state_subpath(c"undo", 2, true).as_ptr(),
+        stdpaths_user_state_subpath(c"undo", 2, true).as_c_str(),
     );
     set_string_default(
         K_OPT_PACKLOCKFILE,
-        stdpaths_user_conf_subpath(c"nvim-pack-lock.json").as_ptr(),
+        stdpaths_user_conf_subpath(c"nvim-pack-lock.json").as_c_str(),
     );
     if let Some(rtp) = runtimepath_default(clean_arg) {
-        set_string_default(K_OPT_RUNTIMEPATH, rtp.as_ptr());
-        set_string_default(K_OPT_PACKPATH, rtp.as_ptr());
+        set_string_default(K_OPT_RUNTIMEPATH, rtp.as_c_str());
+        set_string_default(K_OPT_PACKPATH, rtp.as_c_str());
     }
 
     set_options_default(0);
@@ -945,7 +1014,7 @@ pub fn set_init_1(clean_arg: bool) {
 
     bind_textdomain_codeset(c"nvim", crate::memory::cstr_as_opt_cstr(opt_vars().p_enc));
 
-    set_helplang_default(get_mess_lang().map_or(ptr::null(), CStr::as_ptr));
+    set_helplang_default(get_mess_lang());
 }
 
 /// Get default value for option, based on the option's type and scope.
@@ -965,7 +1034,10 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val;
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
-        && let Some(s) = option_expand(opt_idx, def_val.data.string().data)
+        && let Some(s) = option_expand(
+            opt_idx,
+            crate::memory::cstr_as_opt_cstr(def_val.data.string().data),
+        )
     {
         def_val = cstr_as_obj(crate::memory::cstr_as_opt_cstr(s));
     }
@@ -1028,10 +1100,9 @@ fn set_options_default(opt_flags: i32) {
 }
 
 /// Set the Vi-default value of a string option.
-fn set_string_default(opt_idx: OptIndex, val: impl crate::strings::IntoCCharPtr) {
-    let val = val.into_c_char_ptr();
+fn set_string_default(opt_idx: OptIndex, val: &std::ffi::CStr) {
     assert!(opt_idx != K_OPT_INVALID);
-    change_option_default(opt_idx, cstr_to_obj(crate::memory::cstr_as_opt_cstr(val)));
+    change_option_default(opt_idx, cstr_to_obj(Some(val)));
 }
 
 /// For an option value that contains comma separated items, find "newval" in "origval".
@@ -1064,13 +1135,13 @@ pub fn free_all_options() {
         let hidden = is_option_hidden(opt_idx);
 
         if !hidden
-            && !opt.var.is_null()
             && (option_is_global_only(opt_idx) || !option_is_window_local(opt_idx))
+            && let Some(varp) = unsafe { opt.var.cast::<u8>().as_mut() }
         {
             if is_callback_option(opt_idx) {
-                callback_free(crate::globals::gmut(opt.var.cast::<Callback>()));
+                callback_free(varp_callback_mut(varp));
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                crate::optionstr::clear_string_option(opt.var.cast::<*mut u8>());
+                varp_clear_str(varp);
             }
         }
         optval_free(opt.def_val);
@@ -1155,18 +1226,16 @@ pub fn set_init_3() {
 }
 
 /// When 'helplang' is still at its default value, set it to "lang".
-pub fn set_helplang_default(lang: impl crate::strings::IntoCCharPtr) {
-    let lang = lang.into_c_char_ptr();
-    if lang.is_null() {
+pub fn set_helplang_default(lang: Option<&std::ffi::CStr>) {
+    let Some(lang) = lang else {
         return;
-    }
+    };
 
-    let lang_bytes = crate::memory::cstr_as_bytes(lang);
+    let lang_bytes = lang.to_bytes();
     if lang_bytes.len() < 2 || (get_option(K_OPT_HELPLANG).flags & K_OPT_FLAG_WAS_SET) != 0 {
         return;
     }
 
-    free_string_option(opt_vars().p_hlg);
     let mut hlg_bytes = [lang_bytes[0], lang_bytes[1]];
     if lang_bytes.len() >= 5 && hlg_bytes.eq_ignore_ascii_case(b"zh") && lang_bytes[2] == b'_' {
         hlg_bytes[0] = lang_bytes[3].to_ascii_lowercase();
@@ -1174,7 +1243,7 @@ pub fn set_helplang_default(lang: impl crate::strings::IntoCCharPtr) {
     } else if lang_bytes[0] == b'C' {
         hlg_bytes = *b"en";
     }
-    opt_vars().p_hlg = crate::optionstr::alloc_string_option_bytes(&hlg_bytes);
+    opt_vars().p_hlg.set_option_bytes(&hlg_bytes);
 }
 
 pub fn set_title_defaults() {
@@ -1199,24 +1268,22 @@ pub fn ex_set(eap: &mut Exarg) {
     if eap.forceit != 0 {
         flags |= OPT_ONECOLUMN;
     }
-    do_set(eap.arg, flags);
+    do_set(crate::memory::cstr_from_ptr(eap.arg), flags);
 }
 
 /// Copy the new string value into allocated memory for the option.
 fn stropt_copy_value(
-    origval: impl crate::strings::IntoCCharPtr,
-    argp: &mut *mut u8,
+    origval: Option<&std::ffi::CStr>,
+    argp: &mut &[u8],
     op: SetOp,
     flags: u32,
 ) -> Vec<u8> {
-    let origval = origval.into_c_char_ptr();
-    let arg_start = *argp;
-    let arg_bytes = crate::memory::cstr_as_bytes(arg_start.cast());
+    let arg_bytes = crate::memory::bytes_until_nul(argp);
     let mut rem = arg_bytes;
 
     let mut newlen = arg_bytes.len() + 1;
     if op != OP_NONE {
-        newlen += crate::memory::cstr_len(origval) + 1;
+        newlen += origval.map_or(0, |s| s.to_bytes().len()) + 1;
     }
     let mut newval_vec: Vec<u8> = vec![0; newlen];
     let mut pos: usize = 0;
@@ -1247,41 +1314,39 @@ fn stropt_copy_value(
     }
     newval_vec[pos] = 0;
 
-    *argp = arg_start.wrapping_add(arg_bytes.len() - rem.len());
+    let consumed = arg_bytes.len() - rem.len();
+    *argp = &argp[consumed..];
     newval_vec
 }
 
 /// Expand environment variables and ~ in string option value 'newval'.
 fn stropt_expand_envvar(
     opt_idx: OptIndex,
-    origval: impl crate::strings::IntoCCharPtr,
+    origval: Option<&std::ffi::CStr>,
     newval: &mut Vec<u8>,
     op: SetOp,
 ) {
-    let origval = origval.into_c_char_ptr();
-    {
-        let Some(s) = option_expand(opt_idx, crate::memory::cstr_until_nul(newval)) else {
-            return;
-        };
+    let Some(s) = option_expand(opt_idx, Some(crate::memory::cstr_until_nul(newval))) else {
+        return;
+    };
 
-        let mut newlen = (s.to_bytes().len() as u32) + 1;
-        if op != OP_NONE {
-            newlen += (crate::memory::cstr_len(origval) as u32) + 1;
-        }
-        *newval = vec![0; newlen as usize];
-        let s_bytes = s.to_bytes_with_nul();
-        newval[..s_bytes.len()].copy_from_slice(s_bytes);
+    let mut newlen = (s.to_bytes().len() as u32) + 1;
+    if op != OP_NONE {
+        newlen += (origval.map_or(0, |o| o.to_bytes().len()) as u32) + 1;
     }
+    *newval = vec![0; newlen as usize];
+    let s_bytes = s.to_bytes_with_nul();
+    newval[..s_bytes.len()].copy_from_slice(s_bytes);
 }
 
 /// Concatenate the original and new values of a string option, adding a "," if needed.
 fn stropt_concat_with_comma(
-    origval: impl crate::strings::IntoCCharPtr,
+    origval: Option<&std::ffi::CStr>,
     newval: &mut [u8],
     op: SetOp,
     flags: u32,
 ) {
-    let orig = crate::memory::cstr_as_bytes(origval);
+    let orig = origval.map_or(&[][..], CStr::to_bytes);
     let new_len = crate::memory::cstr_until_nul(newval).to_bytes().len();
     let comma = usize::from((flags & K_OPT_FLAG_COMMA) != 0 && !orig.is_empty() && new_len > 0);
     let mut len: usize;
@@ -1309,14 +1374,13 @@ fn stropt_concat_with_comma(
 
 /// Remove a value from a string option.
 fn stropt_remove_val(
-    origval: impl crate::strings::IntoCCharPtr,
+    origval: Option<&std::ffi::CStr>,
     newval: &mut [u8],
     flags: u32,
     dup_idx: Option<usize>,
     mut len: usize,
 ) {
-    let origval = origval.into_c_char_ptr();
-    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
+    let orig_bytes = origval.unwrap_or(c"").to_bytes_with_nul();
     newval[..orig_bytes.len()].copy_from_slice(orig_bytes);
     let orig_slice = &orig_bytes[..orig_bytes.len() - 1];
     if let Some(mut idx) = dup_idx
@@ -1411,19 +1475,18 @@ fn prepend_item(str_arg: &mut [u8], item_bytes: &[u8]) {
 
 /// For a P_COMMA option: process "key:value" items in "newval" individually.
 fn stropt_handle_keymatch(
-    origval: impl crate::strings::IntoCCharPtr,
+    origval: Option<&std::ffi::CStr>,
     newval_slice: &mut [u8],
     op: SetOp,
     _flags: u32,
 ) -> bool {
-    let origval = origval.into_c_char_ptr();
     let newval_bytes = crate::memory::cstr_until_nul(newval_slice).to_bytes();
     if !newval_bytes.contains(&b':') && !newval_bytes.contains(&b',') {
         return false;
     }
 
     let newval_copy = newval_bytes.to_vec();
-    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
+    let orig_bytes = origval.unwrap_or(c"").to_bytes_with_nul();
     newval_slice[..orig_bytes.len()].copy_from_slice(orig_bytes);
 
     for item in newval_copy.split(|&b| b == b',') {
@@ -1505,85 +1568,77 @@ fn stropt_remove_dupflags(newval: &mut [u8], flags: u32) {
 }
 
 /// Get the string value specified for a ":set" command.
-fn stropt_get_newval<T>(
+fn stropt_get_newval(
     opt_idx: OptIndex,
-    argp: *mut *mut T,
-    varp: *mut c_void,
-    origval: impl crate::strings::IntoCCharPtr,
+    argp: &mut &[u8],
+    varp: &u8,
+    origval: Option<&std::ffi::CStr>,
     op_arg: &mut SetOp,
 ) -> std::ffi::CString {
-    let origval = origval.into_c_char_ptr();
+    let mut op = *op_arg;
+    let flags = get_option(opt_idx).flags;
+
+    let mut arg = &argp[usize::from(!argp.is_empty())..];
+    let mut save_arg: Option<&[u8]> = None;
+
+    if varp_eq(varp, &opt_vars().p_kp)
+        && (crate::memory::bytes_until_nul(arg).is_empty() || arg.first() == Some(&b' '))
     {
-        let mut arg = crate::globals::gptr(argp).cast::<u8>();
-        let mut op = *op_arg;
-        let mut save_arg: *mut u8 = ptr::null_mut();
-        let flags = get_option(opt_idx).flags;
-
-        arg = arg.wrapping_add(1);
-
-        if varp == (&raw mut opt_vars().p_kp).cast::<c_void>()
-            && (crate::memory::cstr_is_empty(arg.cast())
-                || crate::memory::cstr_first_byte(arg.cast()) == b' ')
-        {
-            save_arg = arg;
-            arg = c":help".as_ptr().cast_mut().cast();
-        }
-
-        let mut newval_vec = stropt_copy_value(origval, &mut arg, op, flags);
-
-        if op == OP_NONE || (flags & K_OPT_FLAG_COMMA) != 0 {
-            stropt_expand_envvar(opt_idx, origval, &mut newval_vec, op);
-        }
-
-        if (flags & K_OPT_FLAG_COMMA) != 0
-            && (flags & K_OPT_FLAG_COLON) != 0
-            && op != OP_NONE
-            && stropt_handle_keymatch(origval, &mut newval_vec, op, flags)
-        {
-            // fully handled
-        } else {
-            let mut len: usize = 0;
-            let mut dup_idx: Option<usize> = None;
-            if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
-                let newval_bytes = crate::memory::cstr_until_nul(&newval_vec).to_bytes();
-                len = newval_bytes.len();
-                if !origval.is_null() {
-                    dup_idx =
-                        find_dup_item(crate::memory::cstr_as_bytes(origval), newval_bytes, flags);
-                }
-
-                if (op == OP_ADDING || op == OP_PREPENDING) && dup_idx.is_some() {
-                    op = OP_NONE;
-                    let orig_bytes = crate::memory::cstr_from_ptr(origval).to_bytes_with_nul();
-                    newval_vec[..orig_bytes.len()].copy_from_slice(orig_bytes);
-                }
-            }
-
-            if op == OP_ADDING || op == OP_PREPENDING {
-                stropt_concat_with_comma(origval, &mut newval_vec, op, flags);
-            } else if op == OP_REMOVING {
-                stropt_remove_val(origval, &mut newval_vec, flags, dup_idx, len);
-            }
-        }
-
-        if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-            stropt_remove_dupflags(&mut newval_vec, flags);
-        }
-
-        if !save_arg.is_null() {
-            arg = save_arg;
-        }
-
-        *crate::globals::gptr(argp) = arg.cast();
-
-        *op_arg = op;
-
-        crate::memory::cstring_until_nul(&newval_vec)
+        save_arg = Some(arg);
+        arg = b":help";
     }
+
+    let mut newval_vec = stropt_copy_value(origval, &mut arg, op, flags);
+
+    if op == OP_NONE || (flags & K_OPT_FLAG_COMMA) != 0 {
+        stropt_expand_envvar(opt_idx, origval, &mut newval_vec, op);
+    }
+
+    if (flags & K_OPT_FLAG_COMMA) != 0
+        && (flags & K_OPT_FLAG_COLON) != 0
+        && op != OP_NONE
+        && stropt_handle_keymatch(origval, &mut newval_vec, op, flags)
+    {
+        // fully handled
+    } else {
+        let mut len: usize = 0;
+        let mut dup_idx: Option<usize> = None;
+        if op == OP_REMOVING || (flags & K_OPT_FLAG_NO_DUP) != 0 {
+            let newval_bytes = crate::memory::cstr_until_nul(&newval_vec).to_bytes();
+            len = newval_bytes.len();
+            if let Some(orig) = origval {
+                dup_idx = find_dup_item(orig.to_bytes(), newval_bytes, flags);
+            }
+
+            if (op == OP_ADDING || op == OP_PREPENDING) && dup_idx.is_some() {
+                op = OP_NONE;
+                let orig_bytes = origval.unwrap_or(c"").to_bytes_with_nul();
+                newval_vec[..orig_bytes.len()].copy_from_slice(orig_bytes);
+            }
+        }
+
+        if op == OP_ADDING || op == OP_PREPENDING {
+            stropt_concat_with_comma(origval, &mut newval_vec, op, flags);
+        } else if op == OP_REMOVING {
+            stropt_remove_val(origval, &mut newval_vec, flags, dup_idx, len);
+        }
+    }
+
+    if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
+        stropt_remove_dupflags(&mut newval_vec, flags);
+    }
+
+    if let Some(saved) = save_arg {
+        arg = saved;
+    }
+
+    *argp = arg;
+    *op_arg = op;
+
+    crate::memory::cstring_until_nul(&newval_vec)
 }
 
-fn get_op(arg: impl crate::strings::IntoCCharPtr) -> SetOp {
-    let bytes = crate::memory::cstr_as_bytes(arg.into_c_char_ptr());
+fn get_op(bytes: &[u8]) -> SetOp {
     if bytes.get(1) == Some(&b'=') {
         match bytes[0] {
             b'+' => OP_ADDING,
@@ -1596,13 +1651,13 @@ fn get_op(arg: impl crate::strings::IntoCCharPtr) -> SetOp {
     }
 }
 
-fn get_option_prefix(argp: &mut crate::strings::RawCCharPtrMut) -> SetPrefix {
-    let bytes = crate::memory::cstr_as_bytes(*argp);
+fn get_option_prefix(argp: &mut &[u8]) -> SetPrefix {
+    let bytes = *argp;
     if bytes.starts_with(b"no") {
-        *argp = argp.wrapping_add(2);
+        *argp = &bytes[2..];
         PREFIX_NO
     } else if bytes.starts_with(b"inv") {
-        *argp = argp.wrapping_add(3);
+        *argp = &bytes[3..];
         PREFIX_INV
     } else {
         PREFIX_NONE
@@ -1681,15 +1736,11 @@ fn find_tty_option_len(bytes: &[u8]) -> Option<usize> {
 }
 
 /// Skip over the name of an option.
-pub fn find_option_end(
-    arg: impl crate::strings::IntoCCharPtr,
-    opt_idxp: &mut OptIndex,
-) -> *const u8 {
-    let arg = arg.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(arg);
+pub fn find_option_end(arg: &[u8], opt_idxp: &mut OptIndex) -> Option<usize> {
+    let bytes = crate::memory::bytes_until_nul(arg);
     if let Some(tty_len) = find_tty_option_len(bytes) {
         *opt_idxp = K_OPT_INVALID;
-        return arg.wrapping_add(tty_len).cast();
+        return Some(tty_len);
     }
     let alpha_len = bytes
         .iter()
@@ -1697,29 +1748,28 @@ pub fn find_option_end(
         .count();
     if alpha_len == 0 {
         *opt_idxp = K_OPT_INVALID;
-        return ptr::null();
+        return None;
     }
 
-    *opt_idxp = find_option_len(arg, alpha_len);
-    arg.wrapping_add(alpha_len).cast()
+    *opt_idxp = find_option_len(bytes, alpha_len);
+    Some(alpha_len)
 }
 
 /// Get new option value from argp. Allocated Object must be freed by caller.
-pub fn get_option_newval<T>(
+pub fn get_option_newval(
     opt_idx: OptIndex,
     opt_flags: i32,
     prefix: SetPrefix,
-    argp: *mut *mut T,
+    argp: &mut &[u8],
     nextchar: i32,
     mut op: SetOp,
-    varp: *mut c_void,
+    varp: Option<&mut u8>,
     mut oldval_override: Option<&mut Object>,
     errmsg: &mut Option<&'static CStr>,
 ) -> Object {
-    assert!(!varp.is_null());
-
+    let varp = varp.unwrap();
     let opt = get_option(opt_idx);
-    let mut arg: *const u8 = crate::globals::gptr(argp).cast_const().cast();
+    let mut arg = crate::memory::bytes_until_nul(argp);
     let mut newval = nil_obj();
 
     if nextchar == b'&' as i32 {
@@ -1742,7 +1792,7 @@ pub fn get_option_newval<T>(
                 if oldval_is_global {
                     get_varp(&mut *opt)
                 } else {
-                    varp
+                    Some(&mut *varp)
                 },
             ),
         )
@@ -1760,7 +1810,7 @@ pub fn get_option_newval<T>(
                     K_TRUE
                 }
             } else if prefix == PREFIX_INV {
-                *crate::globals::gptr(varp.cast::<i32>()) ^ 1
+                varp_bool(varp) ^ 1
             } else if prefix == PREFIX_NO {
                 0
             } else {
@@ -1773,16 +1823,15 @@ pub fn get_option_newval<T>(
             let oldval_num = oldval.data.integer();
             let mut newval_num: OptInt = 0;
 
-            arg = arg.wrapping_add(1);
-            let arg_bytes = crate::memory::cstr_as_bytes(arg.cast());
-            if (varp.cast::<OptInt>() == &raw mut opt_vars().p_wc
-                || varp.cast::<OptInt>() == &raw mut opt_vars().p_wcm)
+            arg = &arg[usize::from(!arg.is_empty())..];
+            let arg_bytes = arg;
+            if (varp_eq(varp, &opt_vars().p_wc) || varp_eq(varp, &opt_vars().p_wcm))
                 && (matches!(arg_bytes.first(), Some(b'<' | b'^'))
                     || (!arg_bytes.is_empty()
                         && arg_bytes.get(1).is_none_or(|&b| ascii_iswhite(b as i32))
                         && !arg_bytes[0].is_ascii_digit()))
             {
-                newval_num = OptInt::from(string_to_key(arg.cast()));
+                newval_num = OptInt::from(string_to_key(arg_bytes));
                 if newval_num == 0 {
                     *errmsg = Some(E_INVARG);
                     if oldval_override.is_none() {
@@ -1795,8 +1844,9 @@ pub fn get_option_newval<T>(
                 .is_some_and(|&b| b == b'-' || b.is_ascii_digit())
             {
                 let mut i: i32 = 0;
+                let arg_cstr = crate::memory::cstr_from_bytes(arg_bytes);
                 vim_str2nr(
-                    arg.cast(),
+                    arg_cstr.as_ptr(),
                     None,
                     Some(&mut i),
                     STR2NR_ALL,
@@ -1838,12 +1888,12 @@ pub fn get_option_newval<T>(
             newval = integer_obj(newval_num);
         }
         ObjectType::ObjectTypeString => {
-            let oldval_str = oldval.data.string().data;
+            let oldval_str = crate::memory::cstr_as_opt_cstr(oldval.data.string().data);
             let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
             newval = cstr_to_obj(crate::memory::cstr_as_opt_cstr(newval_str.as_ptr()));
         }
         ObjectType::ObjectTypeLuaRef => {
-            let newval_str = stropt_get_newval(opt_idx, argp, varp, c"", &mut op);
+            let newval_str = stropt_get_newval(opt_idx, argp, varp, Some(c""), &mut op);
             newval = cstr_to_obj(crate::memory::cstr_as_opt_cstr(newval_str.as_ptr()));
         }
         _ => std::process::abort(),
@@ -1857,37 +1907,38 @@ pub fn get_option_newval<T>(
 
 fn do_one_set_option<'a>(
     opt_flags: i32,
-    argp: &mut crate::strings::RawCCharPtrMut,
+    argp: &mut &[u8],
     did_show: &mut bool,
     errbuf: Option<CharBuf>,
 ) -> Option<&'a CStr> {
     let prefix = get_option_prefix(argp);
-    let arg = (*argp).cast_const().cast::<u8>();
+    let arg = *argp;
 
     let mut opt_idx: OptIndex = K_OPT_INVALID;
-    let option_end = find_option_end(arg.cast(), &mut opt_idx);
+    let option_end_off = find_option_end(arg, &mut opt_idx);
 
     if opt_idx != K_OPT_INVALID {
-        assert!(option_end >= arg);
-    } else if is_tty_option(crate::memory::cstr_as_bytes(arg.cast())) {
+        assert!(option_end_off.is_some());
+    } else if is_tty_option(arg) {
         return None;
     } else {
         return Some(E_UNKNOWN_OPTION);
     }
 
-    let afterchar = crate::memory::cstr_first_byte(option_end.cast());
-    let mut p = option_end.cast_mut().cast();
+    let end_off = option_end_off.unwrap();
+    let afterchar = arg.get(end_off).copied().unwrap_or(0);
+    let mut p = &arg[end_off..];
 
-    while ascii_iswhite(crate::memory::cstr_first_byte(p)) {
-        p = p.wrapping_add(1);
+    while p.first().is_some_and(|&b| ascii_iswhite(i32::from(b))) {
+        p = &p[1..];
     }
 
     let op = get_op(p);
     if op != OP_NONE {
-        p = p.wrapping_add(1);
+        p = &p[1..];
     }
 
-    let nextchar = crate::memory::cstr_first_byte(p) as i32;
+    let nextchar = i32::from(p.first().copied().unwrap_or(0));
     let opt = get_option(opt_idx);
     let flags = opt.flags;
     let varp = get_varp_scope(opt, opt_flags);
@@ -1899,13 +1950,13 @@ fn do_one_set_option<'a>(
 
     if crate::strings::vim_haschr(c"?=:!&<", nextchar) {
         *argp = p;
-        let arg_bytes = crate::memory::cstr_as_bytes(*argp);
+        let arg_bytes = *argp;
 
         if arg_bytes.starts_with(b"&vi") {
             let skip = if arg_bytes.starts_with(b"&vim") { 3 } else { 2 };
-            *argp = argp.wrapping_add(skip);
+            *argp = &arg_bytes[skip..];
         }
-        let arg_bytes = crate::memory::cstr_as_bytes(*argp);
+        let arg_bytes = *argp;
         if matches!(nextchar as u8, b'?' | b'!' | b'&' | b'<')
             && arg_bytes.get(1).is_some_and(|&b| !ascii_iswhite(b as i32))
         {
@@ -1928,7 +1979,10 @@ fn do_one_set_option<'a>(
         showoneopt(&mut *opt, opt_flags);
 
         if opt_vars().p_verbose > 0 {
-            if varp == opt.var {
+            if varp
+                .as_deref()
+                .is_some_and(|v| ptr::eq(ptr::from_ref(v), opt.var.cast()))
+            {
                 last_set_msg(opt.script_ctx);
             } else if option_has_scope(opt_idx, K_OPT_SCOPE_WIN) {
                 last_set_msg(
@@ -1968,7 +2022,7 @@ fn do_one_set_option<'a>(
         opt_idx,
         opt_flags,
         prefix,
-        &raw mut *argp,
+        argp,
         nextchar,
         op,
         varp,
@@ -1984,23 +2038,22 @@ fn do_one_set_option<'a>(
 }
 
 /// Parse 'arg' for option settings.
-pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
-    let mut arg = arg.into_c_char_ptr().cast_mut();
+pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
+    let mut arg = arg.to_bytes();
     let mut did_show = false;
 
-    if crate::memory::cstr_is_empty(arg) {
+    if arg.is_empty() {
         showoptions(false, opt_flags);
         did_show = true;
     } else {
-        while !crate::memory::cstr_is_empty(arg) {
-            let arg_bytes = crate::memory::cstr_as_bytes(arg);
-            if arg_bytes.starts_with(b"all")
-                && !arg_bytes.get(3).is_some_and(u8::is_ascii_alphabetic)
+        while !arg.is_empty() {
+            if arg.starts_with(b"all")
+                && !arg.get(3).is_some_and(u8::is_ascii_alphabetic)
                 && (opt_flags & OPT_MODELINE) == 0
             {
-                arg = arg.wrapping_add(3);
-                if crate::memory::cstr_first_byte(arg) == b'&' {
-                    arg = arg.wrapping_add(1);
+                arg = &arg[3..];
+                if arg.first() == Some(&b'&') {
+                    arg = &arg[1..];
                     set_options_default(opt_flags);
                     didset_options_all();
                     didset_options();
@@ -2021,9 +2074,22 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
                 let errmsg = do_one_set_option(opt_flags, &mut arg, &mut did_show, Some(errbuf));
 
                 for _ in 0..2 {
-                    arg = skiptowhite_esc(arg);
-                    arg = skipwhite(arg);
-                    if crate::memory::cstr_first_byte(arg) != b'=' {
+                    let mut idx = 0;
+                    while idx < arg.len() {
+                        if arg[idx] == b'\\' && idx + 1 < arg.len() {
+                            idx += 2;
+                            continue;
+                        }
+                        if ascii_iswhite(i32::from(arg[idx])) {
+                            break;
+                        }
+                        idx += 1;
+                    }
+                    arg = &arg[idx..];
+                    while arg.first().is_some_and(|&b| ascii_iswhite(i32::from(b))) {
+                        arg = &arg[1..];
+                    }
+                    if arg.first() != Some(&b'=') {
                         break;
                     }
                 }
@@ -2033,13 +2099,11 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
                     let msg_bytes = tr(errmsg).to_bytes();
                     let mut pos = msg_bytes.len().min(IOSIZE - 1);
                     iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
-                    assert!(arg >= startarg);
-                    let arg_len = crate::memory::ptr_offset_from(arg, startarg) as usize;
+                    let arg_len = startarg.len() - arg.len();
                     if pos + 2 + arg_len < IOSIZE {
                         iobuf[pos..pos + 2].copy_from_slice(b": ");
                         pos += 2;
-                        let arg_slice = crate::memory::cstr_slice(startarg, arg_len);
-                        iobuf[pos..pos + arg_len].copy_from_slice(arg_slice);
+                        iobuf[pos..pos + arg_len].copy_from_slice(&startarg[..arg_len]);
                         pos += arg_len;
                     }
                     iobuf[pos] = 0;
@@ -2053,7 +2117,9 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
                 }
             }
 
-            arg = skipwhite(arg);
+            while arg.first().is_some_and(|&b| ascii_iswhite(i32::from(b))) {
+                arg = &arg[1..];
+            }
         }
     }
 
@@ -2068,10 +2134,13 @@ pub fn do_set(arg: impl crate::strings::IntoCCharPtr, opt_flags: i32) -> bool {
     true
 }
 
-fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: bool) -> i32 {
-    let arg = arg_arg.into_c_char_ptr();
+fn find_key_len(arg_with_lt: &[u8], len: usize, has_lt: bool) -> i32 {
     let mut key: i32 = 0;
-    let arg_b = crate::memory::cstr_as_bytes(arg);
+    let arg_b = if has_lt {
+        &arg_with_lt[usize::from(!arg_with_lt.is_empty())..]
+    } else {
+        arg_with_lt
+    };
     let bytes = &arg_b[..len.saturating_add(1).min(arg_b.len())];
 
     if len >= 4 && bytes.starts_with(b"t_") && bytes.len() >= 4 {
@@ -2080,8 +2149,7 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
         }
     } else if has_lt {
         let mut modifiers: i32 = 0;
-        let mut arg_slice =
-            unsafe { std::slice::from_raw_parts(arg.wrapping_offset(-1).cast::<u8>(), len + 1) };
+        let mut arg_slice = &arg_with_lt[..(len + 1).min(arg_with_lt.len())];
         key = find_special_key(
             &mut arg_slice,
             &mut modifiers,
@@ -2096,11 +2164,10 @@ fn find_key_len(arg_arg: impl crate::strings::IntoCCharPtr, len: usize, has_lt: 
 }
 
 /// Convert a key name or string into a key value.
-pub fn string_to_key(arg: impl crate::strings::IntoCCharPtr) -> i32 {
-    let arg = arg.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(arg);
+pub fn string_to_key(arg: &[u8]) -> i32 {
+    let bytes = crate::memory::bytes_until_nul(arg);
     if bytes.len() >= 2 && bytes[0] == b'<' {
-        return find_key_len(arg.wrapping_add(1), bytes.len(), true);
+        return find_key_len(bytes, bytes.len(), true);
     }
     if bytes.len() >= 2 && bytes[0] == b'^' {
         let mut key = ctrl_chr(i32::from(bytes[1]));
@@ -2168,51 +2235,43 @@ pub fn set_options_bin(oldval: i32, newval: i32, opt_flags: i32) {
 }
 
 /// Expand environment variables for some string options.
-fn option_expand(
-    opt_idx: OptIndex,
-    val: impl crate::strings::IntoCCharPtr,
-) -> Option<&'static CStr> {
-    let mut val = val.into_c_char_ptr();
-    {
-        let opt = get_option(opt_idx);
-        if (opt.flags & K_OPT_FLAG_EXPAND) == 0 || is_option_hidden(opt_idx) {
-            return None;
-        }
-
-        if val.is_null() {
-            val = *crate::globals::gptr((opt.var.cast::<*const u8>()).cast());
-        }
-
-        if val.is_null() || crate::memory::cstr_len(val) > MAXPATHL {
-            return None;
-        }
-
-        let var = opt.var.cast::<*mut u8>();
-        let esc = ptr::eq(var, (&raw mut opt_vars().p_tags).cast())
-            || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
-        let namebuf_ptr = g_st().name_buff.as_mut_ptr();
-        expand_env_esc(
-            val,
-            namebuf_ptr,
-            MAXPATHL as i32,
-            if esc {
-                c" \t".as_ptr().cast_mut()
-            } else {
-                ptr::null_mut()
-            },
-            false,
-            if ptr::eq(var, (&raw mut opt_vars().p_sps).cast()) {
-                c"file:".as_ptr().cast_mut()
-            } else {
-                ptr::null_mut()
-            },
-        );
-        if crate::memory::cstr_as_bytes(namebuf_ptr) == crate::memory::cstr_as_bytes(val) {
-            return None;
-        }
-
-        Some(crate::memory::cstr_from_ptr(namebuf_ptr))
+fn option_expand(opt_idx: OptIndex, val: Option<&std::ffi::CStr>) -> Option<&'static CStr> {
+    let opt = get_option(opt_idx);
+    if (opt.flags & K_OPT_FLAG_EXPAND) == 0 || is_option_hidden(opt_idx) {
+        return None;
     }
+
+    let val_cstr =
+        val.or_else(|| unsafe { opt.var.cast::<u8>().as_ref() }.and_then(varp_opt_cstr))?;
+    if val_cstr.to_bytes().len() > MAXPATHL {
+        return None;
+    }
+
+    let var = opt.var.cast::<*mut u8>();
+    let esc = ptr::eq(var, (&raw mut opt_vars().p_tags).cast())
+        || ptr::eq(var, (&raw mut opt_vars().p_path).cast());
+    let namebuf_ptr = g_st().name_buff.as_mut_ptr();
+    expand_env_esc(
+        val_cstr.as_ptr(),
+        namebuf_ptr,
+        MAXPATHL as i32,
+        if esc {
+            c" \t".as_ptr().cast_mut()
+        } else {
+            ptr::null_mut()
+        },
+        false,
+        if ptr::eq(var, (&raw mut opt_vars().p_sps).cast()) {
+            c"file:".as_ptr().cast_mut()
+        } else {
+            ptr::null_mut()
+        },
+    );
+    if crate::memory::cstr_as_bytes(namebuf_ptr) == val_cstr.to_bytes() {
+        return None;
+    }
+
+    Some(crate::memory::cstr_from_ptr(namebuf_ptr))
 }
 
 /// After setting various option values: recompute variables that depend on option values.
@@ -2246,14 +2305,14 @@ fn didset_options2() {
 
     set_chars_option(
         curwin_mut(),
-        curwin_mut().w_onebuf_opt.wo_fcs,
+        crate::memory::cstr_from_ptr(curwin_mut().w_onebuf_opt.wo_fcs),
         CharsOption::Fillchars,
         true,
         None,
     );
     set_chars_option(
         curwin_mut(),
-        curwin_mut().w_onebuf_opt.wo_lcs,
+        crate::memory::cstr_from_ptr(curwin_mut().w_onebuf_opt.wo_lcs),
         CharsOption::Listchars,
         true,
         None,
@@ -2291,9 +2350,9 @@ pub fn check_options() {
         if option_has_type(opt_idx, ObjectType::ObjectTypeString)
             && !is_callback_option(opt_idx)
             && !opt.immutable
-            && !opt.var.is_null()
+            && let Some(varp) = get_varp(&mut *opt)
         {
-            check_string_option(get_varp(&mut *opt).cast::<*mut u8>());
+            varp_check_str(varp);
         }
     }
 }
@@ -2313,7 +2372,7 @@ pub fn insecure_flag(
 ) -> &'static mut u32 {
     if (opt_flags & OPT_LOCAL) != 0 {
         let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = crate::globals::gmut(wp);
+        let wp = unsafe { &mut *wp };
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_onebuf_opt.wo_wrap_flags,
             K_OPT_STATUSLINE => return &mut wp.w_onebuf_opt.wo_stl_flags,
@@ -2328,7 +2387,7 @@ pub fn insecure_flag(
         }
     } else if matches!(opt_idx, K_OPT_WRAP | K_OPT_FOLDEXPR | K_OPT_FOLDTEXT) {
         let wp: *mut WinInfoInfo = wp.unwrap();
-        let wp = crate::globals::gmut(wp);
+        let wp = unsafe { &mut *wp };
         match opt_idx {
             K_OPT_WRAP => return &mut wp.w_allbuf_opt.wo_wrap_flags,
             K_OPT_FOLDEXPR => return &mut wp.w_allbuf_opt.wo_fde_flags,
@@ -2361,98 +2420,86 @@ pub fn check_blending(wp: &mut WinInfoInfo) {
 }
 
 /// Handle setting 'winhighlight' in window "wp".
-pub fn parse_winhl_opt(
-    winhl: impl crate::strings::IntoCCharPtr,
-    mut wp: Option<&mut WinInfoInfo>,
-) -> bool {
-    let winhl = winhl.into_c_char_ptr();
-    {
-        let mut p = EMPTY_STRING_OPTION.as_ptr().cast_const().cast();
-        if !winhl.is_null() {
-            p = winhl;
-        } else if wp.is_some() {
-            p = wp
-                .as_deref_mut()
-                .unwrap()
-                .w_onebuf_opt
-                .wo_winhl
-                .cast_const();
+pub fn parse_winhl_opt(winhl: Option<&CStr>, mut wp: Option<&mut WinInfoInfo>) -> bool {
+    let p_cstr = if let Some(s) = winhl {
+        s
+    } else if let Some(ref mut w) = wp {
+        crate::memory::cstr_from_ptr(w.w_onebuf_opt.wo_winhl)
+    } else {
+        c""
+    };
+
+    if p_cstr.to_bytes().is_empty() {
+        if let Some(ref mut w) = wp
+            && w.w_ns_hl_winhl > 0
+            && w.w_ns_hl == w.w_ns_hl_winhl
+        {
+            w.w_ns_hl = 0;
+            w.w_hl_needs_update = 1;
         }
-
-        if crate::memory::cstr_is_empty(p) {
-            if wp.is_some()
-                && wp.as_deref_mut().unwrap().w_ns_hl_winhl > 0
-                && wp.as_deref_mut().unwrap().w_ns_hl == wp.as_deref_mut().unwrap().w_ns_hl_winhl
-            {
-                wp.as_deref_mut().unwrap().w_ns_hl = 0;
-                wp.as_deref_mut().unwrap().w_hl_needs_update = 1;
-            }
-            return true;
-        }
-
-        let mut ns_hl: i32 = 0;
-        if wp.is_some() {
-            if wp.as_deref_mut().unwrap().w_ns_hl_winhl == 0 {
-                wp.as_deref_mut().unwrap().w_ns_hl_winhl = nvim_create_namespace(NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                }) as i32;
-            } else {
-                let dp =
-                    get_decor_provider(wp.as_deref_mut().unwrap().w_ns_hl_winhl, true).unwrap();
-
-                dp.hl_valid += 1;
-            }
-            ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
-            if wp.as_deref_mut().unwrap().w_ns_hl <= 0 {
-                wp.as_deref_mut().unwrap().w_ns_hl = wp.as_deref_mut().unwrap().w_ns_hl_winhl;
-            }
-        }
-
-        let mut p = crate::memory::cstr_as_bytes(p);
-        while let Some((key, val)) = option_next_keyval(&mut p) {
-            let Some(val) = val else {
-                return false;
-            };
-            let hl_id = if !val.is_empty() {
-                syn_check_group(val)
-            } else {
-                -1
-            };
-            if hl_id == 0 {
-                return false;
-            }
-            let hl_id_link = if !key.is_empty() {
-                syn_check_group(key)
-            } else {
-                0
-            };
-            if hl_id_link == 0 {
-                return false;
-            }
-
-            if wp.is_some() {
-                let attrs = HlAttrs {
-                    rgb_ae_attr: HL_GLOBAL,
-                    cterm_ae_attr: 0,
-                    rgb_fg_color: -1,
-                    rgb_bg_color: -1,
-                    rgb_sp_color: -1,
-                    cterm_fg_color: 0,
-                    cterm_bg_color: 0,
-                    hl_blend: -1,
-                    url: -1,
-                    font: -1,
-                };
-                ns_hl_def(ns_hl, hl_id_link, attrs, hl_id, None);
-            }
-        }
-
-        if let Some(wp) = wp {
-            wp.w_hl_needs_update = 1;
-        }
-        true
+        return true;
     }
+
+    let mut ns_hl: i32 = 0;
+    if let Some(ref mut w) = wp {
+        if w.w_ns_hl_winhl == 0 {
+            w.w_ns_hl_winhl = nvim_create_namespace(NvimString {
+                data: ptr::null_mut(),
+                size: 0,
+            }) as i32;
+        } else {
+            let dp = get_decor_provider(w.w_ns_hl_winhl, true).unwrap();
+            dp.hl_valid += 1;
+        }
+        ns_hl = w.w_ns_hl_winhl;
+        if w.w_ns_hl <= 0 {
+            w.w_ns_hl = w.w_ns_hl_winhl;
+        }
+    }
+
+    let mut p = p_cstr.to_bytes();
+    while let Some((key, val)) = option_next_keyval(&mut p) {
+        let Some(val) = val else {
+            return false;
+        };
+        let hl_id = if !val.is_empty() {
+            syn_check_group(val)
+        } else {
+            -1
+        };
+        if hl_id == 0 {
+            return false;
+        }
+        let hl_id_link = if !key.is_empty() {
+            syn_check_group(key)
+        } else {
+            0
+        };
+        if hl_id_link == 0 {
+            return false;
+        }
+
+        if wp.is_some() {
+            let attrs = HlAttrs {
+                rgb_ae_attr: HL_GLOBAL,
+                cterm_ae_attr: 0,
+                rgb_fg_color: -1,
+                rgb_bg_color: -1,
+                rgb_sp_color: -1,
+                cterm_fg_color: 0,
+                cterm_bg_color: 0,
+                hl_blend: -1,
+                url: -1,
+                font: -1,
+            };
+            ns_hl_def(ns_hl, hl_id_link, attrs, hl_id, None);
+        }
+    }
+
+    if let Some(wp) = wp {
+        wp.w_hl_needs_update = 1;
+    }
+    true
 }
 
 /// Get the script context of global option at index opt_idx.
@@ -2542,10 +2589,10 @@ pub fn apply_optionset_autocmd_now(
     }
     apply_autocmds(
         EVENT_OPTIONSET,
-        get_option(opt_idx).fullname.as_ptr().cast_mut(),
-        ptr::null_mut(),
+        Some(get_option(opt_idx).fullname),
+        None,
         false,
-        ptr::null_mut(),
+        None,
     );
     reset_v_option_vars();
 
@@ -2651,10 +2698,10 @@ pub fn did_set_buflisted(args: &mut Optset) -> Option<&CStr> {
             } else {
                 EVENT_BUFDELETE
             },
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             true,
-            args.os_buf,
+            unsafe { args.os_buf.as_mut() },
         );
     }
     None
@@ -2826,7 +2873,11 @@ pub fn did_set_lines_or_columns(args: &mut Optset) -> Option<&CStr> {
     {
         if g_st().updating_screen {
             let oldval = integer_obj(args.os_oldval.data.integer());
-            set_option_varp(args.os_idx, args.os_varp, oldval);
+            set_option_varp(
+                args.os_idx,
+                unsafe { &mut *args.os_varp.cast::<u8>() },
+                oldval,
+            );
         } else if g_st().full_screen {
             screen_resize(opt_vars().p_columns as i32, opt_vars().p_lines as i32);
         } else {
@@ -2932,10 +2983,7 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
             buf.b_p_sts = 0;
             buf.b_p_ai = 0;
             buf.b_p_et = 0;
-            if !buf.b_p_vsts.is_null() {
-                free_string_option(buf.b_p_vsts);
-            }
-            buf.b_p_vsts = empty_opt;
+            buf.b_p_vsts.clear_option_str();
             buf.b_p_vsts_array.clear();
         }
 
@@ -2951,10 +2999,7 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
         opt_vars().p_sts = 0;
         opt_vars().p_ai = 0;
         opt_vars().p_et = 0;
-        if !opt_vars().p_vsts.is_null() {
-            free_string_option(opt_vars().p_vsts);
-        }
-        opt_vars().p_vsts = empty_opt;
+        opt_vars().p_vsts.clear_option_str();
     } else if opt_st().old_p_paste != 0 {
         for buf in for_all_buffers_mut() {
             buf.b_p_tw = buf.b_p_tw_nopaste;
@@ -2963,12 +3008,11 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
             buf.b_p_ai = buf.b_p_ai_nopaste;
             buf.b_p_et = buf.b_p_et_nopaste;
             if !buf.b_p_vsts.is_null() {
-                free_string_option(buf.b_p_vsts);
+                buf.b_p_vsts.free_option_str();
             }
-            buf.b_p_vsts = buf
-                .b_p_vsts_nopaste
-                .as_ref()
-                .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
+            buf.b_p_vsts = buf.b_p_vsts_nopaste.as_ref().map_or(empty_opt, |s| {
+                CStrOptionSlot::from_option_cstr(s.as_c_str())
+            });
             if !buf.b_p_vsts.is_null() && buf.b_p_vsts != empty_opt {
                 tabstop_set(
                     crate::memory::cstr_as_bytes(buf.b_p_vsts),
@@ -2993,12 +3037,11 @@ pub fn did_set_paste(_args: &mut Optset) -> Option<&CStr> {
         opt_vars().p_tw = opt_st().p_tw_nopaste;
         opt_vars().p_wm = opt_st().p_wm_nopaste;
         if !opt_vars().p_vsts.is_null() {
-            free_string_option(opt_vars().p_vsts);
+            opt_vars().p_vsts.free_option_str();
         }
-        opt_vars().p_vsts = opt_st()
-            .p_vsts_nopaste
-            .as_ref()
-            .map_or(empty_opt, |s| alloc_string_option(s.as_ptr()));
+        opt_vars().p_vsts = opt_st().p_vsts_nopaste.as_ref().map_or(empty_opt, |s| {
+            CStrOptionSlot::from_option_cstr(s.as_c_str())
+        });
     }
 
     opt_st().old_p_paste = opt_vars().p_paste;
@@ -3019,7 +3062,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     } else {
         win_find_tabpage(win)
     };
-    for wp in for_all_windows_in_tab_ptr(crate::globals::gref(tab)) {
+    for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
         if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
             return Some(E_PREVIEW_WINDOW_ALREADY_EXISTS);
         }
@@ -3288,16 +3331,12 @@ pub fn did_set_wrap(args: &mut Optset) -> Option<&CStr> {
 /// Process the new 'chistory' or 'lhistory' option value.
 pub fn did_set_xhistory(args: &mut Optset) -> Option<&CStr> {
     let is_p_chi = args.os_varp.cast::<OptInt>() == &raw mut opt_vars().p_chi;
-    let arg = if is_p_chi {
-        &raw mut opt_vars().p_chi
-    } else {
-        args.os_varp.cast::<OptInt>()
-    };
 
     if is_p_chi {
-        qf_resize_stack((*crate::globals::gptr(arg)) as i32);
+        qf_resize_stack(opt_vars().p_chi as i32);
     } else {
-        ll_resize_stack(args.win_mut(), (*crate::globals::gptr(arg)) as i32);
+        let val = unsafe { *args.os_varp.cast::<OptInt>() } as i32;
+        ll_resize_stack(args.win_mut(), val);
     }
 
     None
@@ -3308,10 +3347,10 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
     buf.b_flags |= BF_SYN_SET;
     apply_autocmds(
         EVENT_SYNTAX,
-        buf.b_p_syn,
-        buf.b_fname,
+        crate::memory::cstr_as_opt_cstr(buf.b_p_syn),
+        crate::memory::cstr_as_opt_cstr(buf.b_fname),
         value_changed || opt_st().syn_recursive == 1,
-        &raw mut *buf,
+        Some(buf),
     );
     opt_st().syn_recursive -= 1;
 }
@@ -3555,7 +3594,7 @@ fn validate_num_option<'a>(
 }
 
 /// Called after an option changed: check if something needs to be redrawn.
-pub fn check_redraw_for(buf: *mut FileBuf, win: &mut WinInfoInfo, flags: u32) {
+pub fn check_redraw_for(buf: &FileBuf, win: &mut WinInfoInfo, flags: u32) {
     let all = (flags & K_OPT_FLAG_REDR_ALL) == K_OPT_FLAG_REDR_ALL;
 
     if (flags & K_OPT_FLAG_REDR_STAT) != 0 || all {
@@ -3574,7 +3613,7 @@ pub fn check_redraw_for(buf: *mut FileBuf, win: &mut WinInfoInfo, flags: u32) {
         }
     }
     if (flags & K_OPT_FLAG_REDR_BUF) != 0 {
-        redraw_buf_later(unsafe { &*buf }, UPD_NOT_VALID);
+        redraw_buf_later(buf, UPD_NOT_VALID);
     }
     if all {
         redraw_all_later(UPD_NOT_VALID);
@@ -3582,7 +3621,7 @@ pub fn check_redraw_for(buf: *mut FileBuf, win: &mut WinInfoInfo, flags: u32) {
 }
 
 pub fn check_redraw(flags: u32) {
-    check_redraw_for(g_st().curbuf, curwin_mut(), flags);
+    check_redraw_for(curbuf_mut(), curwin_mut(), flags);
 }
 
 pub fn is_tty_option(name: &[u8]) -> bool {
@@ -4847,12 +4886,8 @@ const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
 ];
 
 /// Find index for an option. Don't go beyond `len` length (`find_option_len`).
-pub fn find_option_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> OptIndex {
-    let name = name.into_c_char_ptr();
-    if name.is_null() {
-        return K_OPT_INVALID;
-    }
-    let slice = crate::memory::cstr_slice(name, len);
+pub fn find_option_len(name: &[u8], len: usize) -> OptIndex {
+    let slice = crate::memory::bytes_until_nul(&name[..len.min(name.len())]);
     match OPTION_NAME_MAP.binary_search_by_key(&slice, |&(k, _)| k) {
         Ok(i) => OPTION_NAME_MAP[i].1,
         Err(_) => K_OPT_INVALID,
@@ -4860,9 +4895,9 @@ pub fn find_option_len(name: impl crate::strings::IntoCCharPtr, len: usize) -> O
 }
 
 /// Find index for an option.
-pub fn find_option(name: impl crate::strings::IntoCCharPtr) -> OptIndex {
-    let name = name.into_c_char_ptr();
-    find_option_len(name, crate::memory::cstr_len(name))
+pub fn find_option(name: &[u8]) -> OptIndex {
+    let slice = crate::memory::bytes_until_nul(name);
+    find_option_len(slice, slice.len())
 }
 
 /// True if `opt_idx` is a dict option (`schema.dict` in options.lua, e.g. 'diffopt').
@@ -4958,7 +4993,7 @@ fn optval_snapshot(value: Object) -> Object {
     copy_object(value, None)
 }
 
-fn optval_snapshot_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+fn optval_snapshot_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
     let value = opt_from_varp(opt_idx, varp);
     let snapshot = optval_snapshot(value);
     optval_free_read(opt_idx, value);
@@ -4995,7 +5030,7 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
         }
         ObjectType::ObjectTypeString => {
             if !is_expr {
-                option_set_callback_func(value.data.string().data, &mut cb);
+                option_set_callback_func(value.data.string().as_bytes(), &mut cb);
             } else if value.data.string().size > 0 {
                 let funcref = if let Some(name) = get_scriptlocal_funcname(value.data.string().data)
                 {
@@ -5012,7 +5047,7 @@ fn opt_to_callback(value: Object, is_expr: bool) -> Callback {
 }
 
 /// Creates Object from var pointer.
-pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
+pub fn opt_from_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return if opt.opt_type == ObjectType::ObjectTypeString {
@@ -5024,41 +5059,36 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: *mut c_void) -> Object {
         };
     }
 
-    if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
+    let varp = varp.unwrap();
+    if varp_eq(varp, &curbuf_mut().b_changed) {
         return boolean_obj(curbuf_is_changed_fn());
     }
 
     if is_callback_option(opt_idx) {
-        return opt_from_callback(crate::globals::gmut(varp.cast::<Callback>()));
+        return opt_from_callback(varp_callback_mut(varp));
     }
 
     match opt.opt_type {
-        ObjectType::ObjectTypeBoolean => opt_from_tristate(tristate_from_int(OptInt::from(
-            *crate::globals::gptr(varp.cast::<i32>()),
-        ))),
-        ObjectType::ObjectTypeInteger => integer_obj(*crate::globals::gptr(varp.cast::<OptInt>())),
-        ObjectType::ObjectTypeString => {
-            string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                *crate::globals::gptr((varp.cast::<*mut u8>()).cast::<*mut _>()),
-            )))
+        ObjectType::ObjectTypeBoolean => {
+            opt_from_tristate(tristate_from_int(OptInt::from(varp_bool(varp))))
         }
+        ObjectType::ObjectTypeInteger => integer_obj(varp_int(varp)),
+        ObjectType::ObjectTypeString => string_obj(cstr_as_string(varp_opt_cstr(varp))),
         _ => std::process::abort(),
     }
 }
 
 /// Stores an option value at its "varp", freeing the previously-stored value.
-fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
+fn set_option_varp(opt_idx: OptIndex, varp: &mut u8, value: Object) {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return;
     }
 
     if is_callback_option(opt_idx) {
-        let cb = varp.cast::<Callback>();
-        callback_free(crate::globals::gmut(cb));
-
-        *crate::globals::gptr(cb) = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
-
+        let cb = varp_callback_mut(varp);
+        callback_free(cb);
+        *cb = opt_to_callback(value, (opt.flags & K_OPT_FLAG_EXPR) != 0);
         return;
     }
 
@@ -5066,40 +5096,31 @@ fn set_option_varp(opt_idx: OptIndex, varp: *mut c_void, value: Object) {
         ObjectType::ObjectTypeUnset => {
             assert!(option_is_global_local(opt_idx));
             if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
-                *crate::globals::gptr(varp.cast::<i32>()) = K_NONE;
+                varp_set_bool(varp, K_NONE);
             } else if option_has_type(opt_idx, ObjectType::ObjectTypeString) {
-                let pp = varp.cast::<*mut u8>();
-                free_string_option(*crate::globals::gptr(pp));
-
-                *crate::globals::gptr(pp) = EMPTY_STRING_OPTION.as_ptr().cast();
+                varp_clear_str(varp);
             } else if opt_idx == K_OPT_UNDOLEVELS {
-                *crate::globals::gptr(varp.cast::<OptInt>()) = NO_LOCAL_UNDOLEVEL;
+                varp_set_int(varp, NO_LOCAL_UNDOLEVEL);
             } else {
                 assert!(
                     opt_idx == K_OPT_SCROLLOFF
                         || opt_idx == K_OPT_SCROLLOFFPAD
                         || opt_idx == K_OPT_SIDESCROLLOFF
                 );
-
-                *crate::globals::gptr(varp.cast::<OptInt>()) = -1;
+                varp_set_int(varp, -1);
             }
         }
         ObjectType::ObjectTypeBoolean => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeBoolean));
-
-            *crate::globals::gptr(varp.cast::<i32>()) = i32::from(value.data.boolean());
+            varp_set_bool(varp, i32::from(value.data.boolean()));
         }
         ObjectType::ObjectTypeInteger => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeInteger));
-
-            *crate::globals::gptr(varp.cast::<OptInt>()) = value.data.integer();
+            varp_set_int(varp, value.data.integer());
         }
         ObjectType::ObjectTypeString => {
             assert!(option_has_type(opt_idx, ObjectType::ObjectTypeString));
-            let pp = varp.cast::<*mut u8>();
-            free_string_option(*crate::globals::gptr(pp));
-
-            *crate::globals::gptr(pp) = copy_option_val(value.data.string().data);
+            varp_copy_str_from(varp, value.data.string());
         }
         _ => std::process::abort(),
     }
@@ -5349,7 +5370,8 @@ fn did_set_option<'a>(
     value_untrusted: bool,
 ) -> Option<&'a CStr> {
     let opt_idx = args.os_idx;
-    let varp = args.os_varp;
+    let varp = unsafe { &mut *args.os_varp.cast::<u8>() };
+    let varp_ptr = ptr::from_mut(varp);
     let opt_flags = args.os_flags;
     let opt = get_option(opt_idx);
     let mut errmsg: Option<&'a CStr> = None;
@@ -5361,7 +5383,7 @@ fn did_set_option<'a>(
     } else if args.os_newval.obj_type == ObjectType::ObjectTypeString
         && !is_callback_option(opt_idx)
         && (opt.flags & (K_OPT_FLAG_NFNAME | K_OPT_FLAG_NDNAME)) != 0
-        && check_illegal_path_names(crate::memory::cstr_as_bytes(args.var_cstr_ptr()), opt.flags)
+        && check_illegal_path_names(args.var_cstr().to_bytes(), opt.flags)
     {
         errmsg = Some(E_INVARG);
     } else if let Some(cb) = opt.opt_did_set_cb {
@@ -5374,7 +5396,7 @@ fn did_set_option<'a>(
         return errmsg;
     }
 
-    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+    let new_value = optval_own(opt_idx, opt_from_varp(opt_idx, Some(&mut *varp)));
 
     if set_sid != SID_NONE {
         let script_ctx = if set_sid == 0 {
@@ -5396,12 +5418,13 @@ fn did_set_option<'a>(
 
     if scope_both {
         if option_is_global_local(opt_idx) {
-            set_option_varp(opt_idx, get_varp_scope(opt, OPT_LOCAL), unset_obj());
-        } else {
-            let varp_global = get_varp_scope(opt, OPT_GLOBAL);
-            if varp_global != varp {
-                set_option_varp(opt_idx, varp_global, new_value);
+            if let Some(varp_local) = get_varp_scope(opt, OPT_LOCAL) {
+                set_option_varp(opt_idx, varp_local, unset_obj());
             }
+        } else if let Some(varp_global) = get_varp_scope(opt, OPT_GLOBAL)
+            && !ptr::eq(varp_global, varp_ptr)
+        {
+            set_option_varp(opt_idx, varp_global, new_value);
         }
     }
 
@@ -5412,29 +5435,26 @@ fn did_set_option<'a>(
     }
 
     let ws = curwin_mut().w_s_ptr();
-    if varp == (&raw mut curbuf_mut().b_p_syn).cast::<c_void>() {
+    if varp_eq(varp, &curbuf_mut().b_p_syn) {
         do_syntax_autocmd(curbuf_mut(), args.os_value_changed);
-    } else if varp == (&raw mut curbuf_mut().b_p_ft).cast::<c_void>() {
+    } else if varp_eq(varp, &curbuf_mut().b_p_ft) {
         if (opt_flags & OPT_MODELINE) == 0 || args.os_value_changed {
             do_filetype_autocmd(curbuf_mut(), args.os_value_changed);
         }
-    } else if varp == (&raw mut ws.b_p_spl).cast::<c_void>() {
+    } else if varp_eq(varp, &ws.b_p_spl) {
         do_spelllang_source(curwin_mut());
     }
 
     comp_col();
 
-    if varp == (&raw mut opt_vars().p_mouse).cast::<c_void>() {
+    if varp_eq(varp, &opt_vars().p_mouse) {
         setmouse();
-    } else if (varp == (&raw mut opt_vars().p_flp).cast::<c_void>()
-        || varp == (&raw mut curbuf_mut().b_p_flp).cast::<c_void>())
+    } else if (varp_eq(varp, &opt_vars().p_flp) || varp_eq(varp, &curbuf_mut().b_p_flp))
         && curwin_mut().w_briopt_list != 0
     {
         redraw_all_later(UPD_NOT_VALID);
-    } else if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>()
-        || varp == (&raw mut curwin_mut().w_onebuf_opt.wo_wbr).cast::<c_void>()
-    {
-        if varp == (&raw mut opt_vars().p_wbr).cast::<c_void>() {
+    } else if varp_eq(varp, &opt_vars().p_wbr) || varp_eq(varp, &curwin_mut().w_onebuf_opt.wo_wbr) {
+        if varp_eq(varp, &opt_vars().p_wbr) {
             set_winbar_all(true);
         } else {
             set_winbar(true);
@@ -5491,7 +5511,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         if opt_flags == OPT_GLOBAL {
             errmsg = Some(tr(c"Cannot unset global option value"));
         } else {
-            let varp = get_varp_scope_from(opt, OPT_GLOBAL, buf, win);
+            let varp = get_varp_scope_from(opt, OPT_GLOBAL, buf, Some(&mut *win));
             *newval = if option_is_global_local(opt_idx) {
                 unset_obj()
             } else {
@@ -5525,7 +5545,10 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
     }
 
     if opt.immutable {
-        let oldval = opt_from_varp(opt_idx, get_varp_scope_from(opt, opt_flags, buf, win));
+        let oldval = opt_from_varp(
+            opt_idx,
+            get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win)),
+        );
         let unchanged = option_equal(oldval, *newval);
         optval_free_read(opt_idx, oldval);
         if !unchanged {
@@ -5534,7 +5557,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
     }
     let schema = opt.schema;
     if newval.obj_type == ObjectType::ObjectTypeString && !schema.is_empty() {
-        errmsg = opt_strings_check(newval.data.string().data, schema, errbuf);
+        errmsg = opt_strings_check(newval.data.string().as_bytes(), schema, errbuf);
         if errmsg.is_some() {
             return errmsg;
         }
@@ -5543,12 +5566,14 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         && let Some(validate_cb) = opt.opt_validate_cb
     {
         let scope_both = (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) == 0;
-        args.os_varp = if scope_both && option_is_global_local(opt_idx) {
-            opt.var
+        let mut varp = if scope_both && option_is_global_local(opt_idx) {
+            unsafe { opt.var.cast::<u8>().as_mut() }
         } else {
-            get_varp_scope_from(opt, opt_flags, buf, win)
+            get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win))
         };
-        args.os_oldval = opt_from_varp(opt_idx, args.os_varp);
+        let varp_ptr = varp.as_deref_mut().map_or(ptr::null_mut(), ptr::from_mut);
+        args.os_varp = varp_ptr.cast();
+        args.os_oldval = opt_from_varp(opt_idx, varp);
         let validate_err = validate_cb(args).map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
         optval_free_read(opt_idx, args.os_oldval);
         args.os_oldval = nil_obj();
@@ -5602,14 +5627,14 @@ fn set_option<'a>(
             && value.data.string().size > 0
         {
             let mut cb = Callback::NONE;
-            if !option_set_callback_func(value.data.string().data, &mut cb) {
+            if !option_set_callback_func(value.data.string().as_bytes(), &mut cb) {
                 errmsg = Some(E_INVARG);
             }
             callback_free(&mut cb);
         }
     } else if value.obj_type == ObjectType::ObjectTypeString && is_dict_option(opt_idx) {
         errmsg = opt_strings_check(
-            value.data.string().data,
+            value.data.string().as_bytes(),
             opt_dict_schema(opt_idx).unwrap().schema,
             errbuf,
         );
@@ -5657,15 +5682,15 @@ fn set_option<'a>(
     let scope_both = !scope_local && !scope_global;
     let is_opt_local_unset = is_option_local_value_unset(opt_idx);
 
-    let varp = if scope_both && option_is_global_local(opt_idx) {
-        opt.var
+    let mut varp = if scope_both && option_is_global_local(opt_idx) {
+        unsafe { opt.var.cast::<u8>().as_mut() }
     } else {
         get_varp_scope(opt, opt_flags)
     };
     let varp_local = get_varp_scope(opt, OPT_LOCAL);
     let varp_global = get_varp_scope(opt, OPT_GLOBAL);
 
-    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+    let old_value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()));
 
     let mut saved_used_value = nil_obj();
     let mut saved_old_global_value = nil_obj();
@@ -5696,14 +5721,16 @@ fn set_option<'a>(
         g_st().secure = 1;
     }
 
-    set_option_varp(opt_idx, varp, value);
+    if let Some(ref mut vp) = varp {
+        set_option_varp(opt_idx, vp, value);
+    }
     if value.obj_type == ObjectType::ObjectTypeUnset {
-        value = optval_own(opt_idx, opt_from_varp(opt_idx, varp));
+        value = optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()));
     }
     if !direct {
         saved_new_value = optval_snapshot(value);
     }
-    args.os_varp = varp;
+    args.os_varp = varp.map_or(ptr::null_mut(), |vp| ptr::from_mut(vp).cast());
     args.os_oldval = old_value;
     args.os_newval = value;
     args.os_buf = g_st().curbuf;
@@ -5975,7 +6002,7 @@ pub fn set_option_value_for(
             return;
         }
 
-        crate::globals::gptr(tab).tp_ch_used = value.data.integer();
+        unsafe { (*tab).tp_ch_used = value.data.integer() };
 
         return;
     }
@@ -6026,7 +6053,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 continue;
             }
 
-            let mut varp: *mut c_void = ptr::null_mut();
+            let mut varp: Option<&'static mut u8> = None;
             if (opt_flags & (OPT_LOCAL | OPT_GLOBAL)) != 0 {
                 if !option_is_global_only(opt_idx) {
                     varp = get_varp_scope(opt, opt_flags);
@@ -6034,7 +6061,7 @@ fn showoptions(all: bool, opt_flags: i32) {
             } else {
                 varp = get_varp(&mut *opt);
             }
-            if !varp.is_null() && (all || optval_default(opt_idx, varp) == 0) {
+            if varp.is_some() && (all || optval_default(opt_idx, varp) == 0) {
                 let len = if (opt_flags & OPT_ONECOLUMN) != 0 {
                     g_st().columns_global
                 } else if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
@@ -6083,7 +6110,7 @@ fn showoptions(all: bool, opt_flags: i32) {
     }
 }
 
-fn optval_default(opt_idx: OptIndex, varp: *mut c_void) -> i32 {
+fn optval_default(opt_idx: OptIndex, varp: Option<&mut u8>) -> i32 {
     if is_option_hidden(opt_idx) {
         return 1;
     }
@@ -6104,7 +6131,7 @@ pub fn ui_refresh_options() {
             continue;
         }
         let name = cstr_as_string(crate::memory::cstr_as_opt_cstr(opt.fullname.as_ptr()));
-        let value = opt_from_varp(opt_idx, opt.var);
+        let value = opt_from_varp(opt_idx, unsafe { opt.var.cast::<u8>().as_mut() });
         ui_call_option_set(name, value);
     }
     if !opt_vars().p_mouse.is_null() {
@@ -6118,16 +6145,19 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     g_st().silent_mode = false;
     g_st().info_message = true;
 
-    let opt_idx = get_opt_idx(&raw mut *opt);
-    let varp = get_varp_scope(&raw mut *opt, opt_flags);
+    let opt_idx = get_opt_idx(opt);
+    let varp = get_varp_scope(opt, opt_flags);
 
     if option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         let val_int = if opt.immutable {
             i32::from(opt.def_val.data.boolean())
-        } else if varp.cast::<i32>() == &raw mut curbuf_mut().b_changed {
-            i32::from(curbuf_is_changed_fn())
         } else {
-            *crate::globals::gptr(varp.cast::<i32>())
+            let vp = varp.as_deref().unwrap();
+            if varp_eq(vp, &curbuf_mut().b_changed) {
+                i32::from(curbuf_is_changed_fn())
+            } else {
+                varp_bool(vp)
+            }
         };
         if val_int == 0 {
             msg_puts(c"no");
@@ -6171,10 +6201,12 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                 }
 
                 let mut varp = get_varp_scope(opt, opt_flags);
-                if varp.is_null() {
+                if varp.is_none() {
                     continue;
                 }
-                if (opt_flags & OPT_GLOBAL) != 0 && optval_default(opt_idx, varp) != 0 {
+                if (opt_flags & OPT_GLOBAL) != 0
+                    && optval_default(opt_idx, varp.as_deref_mut()) != 0
+                {
                     continue;
                 }
 
@@ -6186,14 +6218,14 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                 }
 
                 let mut round: i32 = 2;
-                let mut varp_local: *mut c_void = ptr::null_mut();
+                let mut varp_local: Option<&'static mut u8> = None;
                 if option_is_window_local(opt_idx) {
                     if (opt_flags & OPT_LOCAL) == 0 {
                         continue;
                     }
                     if (opt_flags & OPT_GLOBAL) == 0 && local_only == 0 {
-                        let varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
-                        if optval_default(opt_idx, varp_fresh) == 0 {
+                        let mut varp_fresh = get_varp_scope(opt, OPT_GLOBAL);
+                        if optval_default(opt_idx, varp_fresh.as_deref_mut()) == 0 {
                             round = 1;
                             varp_local = varp;
                             varp = varp_fresh;
@@ -6203,18 +6235,19 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
 
                 while round <= 2 {
                     let cmd = if round == 1 || (opt_flags & OPT_GLOBAL) != 0 {
-                        c"set".as_ptr().cast_mut()
+                        c"set"
                     } else {
-                        c"setlocal".as_ptr().cast_mut()
+                        c"setlocal"
                     };
 
+                    let vp = varp.as_deref_mut().unwrap();
                     let mut do_endif = false;
                     if opt_idx == K_OPT_SYNTAX || opt_idx == K_OPT_FILETYPE {
                         if fprintf!(
                             fd,
                             c"if &%s != '%s'",
                             opt.fullname.as_ptr(),
-                            *crate::globals::gptr(varp.cast::<*mut u8>()),
+                            varp_cstr(vp).as_ptr(),
                         ) < 0
                             || !put_eol(fd)
                         {
@@ -6222,14 +6255,14 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
                         }
                         do_endif = true;
                     }
-                    if !put_set(fd, cmd, opt_idx, varp) {
+                    if !put_set(fd, cmd, opt_idx, vp) {
                         return false;
                     }
                     if do_endif && !put_line(fd, c"endif") {
                         return false;
                     }
 
-                    varp = varp_local;
+                    varp = varp_local.take();
                     round += 1;
                 }
             }
@@ -6240,47 +6273,47 @@ pub fn makeset(fd: &crate::os::fs::CFile, opt_flags: i32, local_only: i32) -> bo
 
 /// Generate set commands for the local fold options only.
 pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
-    let cmd = c"setlocal".as_ptr().cast_mut();
+    let cmd = c"setlocal";
     if !put_set(
         fd,
         cmd,
         K_OPT_FOLDMETHOD,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fdm).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdm),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDEXPR,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fde).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fde),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMARKER,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fmr).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fmr),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDIGNORE,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fdi).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdi),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDLEVEL,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fdl).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdl),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDMINLINES,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fml).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fml),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDNESTMAX,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fdn).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fdn),
     ) || !put_set(
         fd,
         cmd,
         K_OPT_FOLDENABLE,
-        (&raw mut curwin_mut().w_onebuf_opt.wo_fen).cast(),
+        varp_from_mut(&mut curwin_mut().w_onebuf_opt.wo_fen),
     ) {
         return false;
     }
@@ -6289,117 +6322,113 @@ pub fn makefoldset(fd: &crate::os::fs::CFile) -> bool {
 
 fn put_set_value(
     fd: &crate::os::fs::CFile,
-    cmd: impl crate::strings::IntoCCharPtr,
+    cmd: &std::ffi::CStr,
     opt_idx: OptIndex,
-    varp: *mut c_void,
+    varp: &u8,
     value: Object,
 ) -> bool {
-    let cmd = cmd.into_c_char_ptr();
-    {
-        let opt = get_option(opt_idx);
-        let name = opt.fullname.as_ptr();
-        let flags = opt.flags;
+    let cmd = cmd.as_ptr();
+    let opt = get_option(opt_idx);
+    let name = opt.fullname.as_ptr();
+    let flags = opt.flags;
 
-        if varp != opt.var && optval_is_unset_local(opt_idx, value) {
-            return true;
-        }
+    if !ptr::eq(ptr::from_ref(varp), opt.var.cast()) && optval_is_unset_local(opt_idx, value) {
+        return true;
+    }
 
-        match value.obj_type {
-            ObjectType::ObjectTypeBoolean => {
-                let value_bool = value.data.boolean();
-                if fprintf!(
-                    fd,
-                    c"%s %s%s",
-                    cmd,
-                    if value_bool {
-                        c"".as_ptr()
-                    } else {
-                        c"no".as_ptr()
-                    },
-                    name,
-                ) < 0
-                {
-                    return false;
-                }
-            }
-            ObjectType::ObjectTypeInteger => {
-                if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
-                    return false;
-                }
-                let value_num = value.data.integer();
-                let mut wc: OptInt = 0;
-                if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
-                    if fd.puts(get_special_key_name(wc as i32, 0).as_ptr()) < 0 {
-                        return false;
-                    }
+    match value.obj_type {
+        ObjectType::ObjectTypeBoolean => {
+            let value_bool = value.data.boolean();
+            if fprintf!(
+                fd,
+                c"%s %s%s",
+                cmd,
+                if value_bool {
+                    c"".as_ptr()
                 } else {
-                    let num_s = format!("{value_num}\0");
-                    if fd.puts(num_s.as_ptr().cast()) < 0 {
-                        return false;
-                    }
-                }
+                    c"no".as_ptr()
+                },
+                name,
+            ) < 0
+            {
+                return false;
             }
-            ObjectType::ObjectTypeString => {
-                if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
+        }
+        ObjectType::ObjectTypeInteger => {
+            if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
+                return false;
+            }
+            let value_num = value.data.integer();
+            let mut wc: OptInt = 0;
+            if wc_use_keyname(varp, &mut wc) != 0 {
+                if fd.puts(get_special_key_name(wc as i32, 0).as_ptr()) < 0 {
                     return false;
                 }
-                let value_str = value.data.string().data;
-                if !value_str.is_null() {
-                    if (flags & K_OPT_FLAG_EXPAND) != 0 {
-                        let size = crate::memory::cstr_len(value_str) + 1;
-                        let mut buf_vec = vec![0u8; size];
-                        let buf = buf_vec.as_mut_ptr();
-                        home_replace(None, value_str, buf, size, false);
+            } else {
+                let num_s = format!("{value_num}\0");
+                if fd.puts(num_s.as_ptr().cast()) < 0 {
+                    return false;
+                }
+            }
+        }
+        ObjectType::ObjectTypeString => {
+            if fprintf!(fd, c"%s %s=", cmd, name) < 0 {
+                return false;
+            }
+            let value_str = value.data.string().data;
+            if !value_str.is_null() {
+                if (flags & K_OPT_FLAG_EXPAND) != 0 {
+                    let size = crate::memory::cstr_len(value_str) + 1;
+                    let mut buf_vec = vec![0u8; size];
+                    let buf = buf_vec.as_mut_ptr();
+                    home_replace(None, value_str, buf, size, false);
 
-                        if size >= MAXPATHL
-                            && (flags & K_OPT_FLAG_COMMA) != 0
-                            && crate::strings::vim_haschr(value_str, b',' as i32)
-                        {
-                            let mut part_vec = vec![0u8; size];
-                            let part = part_vec.as_mut_ptr();
-                            if !put_eol(fd) {
-                                return false;
-                            }
-                            let mut p = buf;
-                            while !crate::memory::cstr_is_empty(p.cast()) {
-                                if fprintf!(fd, c"%s %s+=", cmd, name) < 0 {
-                                    return false;
-                                }
-                                copy_option_part(&raw mut p, part, size, c",");
-                                if !put_escstr(fd, crate::memory::cstr_until_nul(&part_vec), 2)
-                                    || !put_eol(fd)
-                                {
-                                    return false;
-                                }
-                            }
-                            return true;
-                        }
-                        if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
+                    if size >= MAXPATHL
+                        && (flags & K_OPT_FLAG_COMMA) != 0
+                        && crate::strings::vim_haschr(value_str, b',' as i32)
+                    {
+                        let mut part_vec = vec![0u8; size];
+                        if !put_eol(fd) {
                             return false;
                         }
-                    } else if !put_escstr(fd, crate::memory::cstr_from_ptr(value_str), 2) {
+                        let mut p = crate::memory::bytes_until_nul(&buf_vec);
+                        while !p.is_empty() {
+                            if fprintf!(fd, c"%s %s+=", cmd, name) < 0 {
+                                return false;
+                            }
+                            copy_option_part(&mut p, &mut part_vec, c",");
+                            if !put_escstr(fd, crate::memory::cstr_until_nul(&part_vec), 2)
+                                || !put_eol(fd)
+                            {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                    if !put_escstr(fd, crate::memory::cstr_until_nul(&buf_vec), 2) {
                         return false;
                     }
+                } else if !put_escstr(fd, crate::memory::cstr_from_ptr(value_str), 2) {
+                    return false;
                 }
             }
-            _ => std::process::abort(),
         }
-
-        if !put_eol(fd) {
-            return false;
-        }
-        true
+        _ => std::process::abort(),
     }
+
+    if !put_eol(fd) {
+        return false;
+    }
+    true
 }
 
 fn put_set(
     fd: &crate::os::fs::CFile,
-    cmd: impl crate::strings::IntoCCharPtr,
+    cmd: &std::ffi::CStr,
     opt_idx: OptIndex,
-    varp: *mut c_void,
+    varp: &mut u8,
 ) -> bool {
-    let cmd = cmd.into_c_char_ptr();
-    let value = opt_from_varp(opt_idx, varp);
+    let value = opt_from_varp(opt_idx, Some(&mut *varp));
     let ret = if value.obj_type == ObjectType::ObjectTypeLuaRef {
         true
     } else {
@@ -6410,25 +6439,24 @@ fn put_set(
 }
 
 pub fn get_varp_scope_from(
-    p: *mut Vimoption,
+    p: &mut Vimoption,
     opt_flags: i32,
     buf: &mut FileBuf,
-    win: *mut WinInfoInfo,
-) -> *mut c_void {
+    mut win: Option<&mut WinInfoInfo>,
+) -> Option<&'static mut u8> {
     let opt_idx = get_opt_idx(p);
 
     if (opt_flags & OPT_GLOBAL) != 0 && !option_is_global_only(opt_idx) {
         if option_is_window_local(opt_idx) {
-            return get_varp_from(crate::globals::gmut(p), buf, win)
-                .cast::<u8>()
-                .wrapping_add(std::mem::size_of::<Winopt>())
-                .cast::<c_void>();
+            return get_varp_from(p, buf, win).map(|vp| unsafe {
+                &mut *ptr::from_mut(vp).wrapping_add(std::mem::size_of::<Winopt>())
+            });
         }
-        return crate::globals::gptr(p).var;
+        return unsafe { p.var.cast::<u8>().as_mut() };
     }
 
     if (opt_flags & OPT_LOCAL) != 0 && option_is_global_local(opt_idx) {
-        let ptr: *mut c_void = match opt_idx {
+        let ptr: *mut u8 = match opt_idx {
             K_OPT_FORMATPRG => (&raw mut buf.b_p_fp).cast(),
             K_OPT_FSYNC => (&raw mut buf.b_p_fs).cast(),
             K_OPT_FINDFUNC => (&raw mut buf.b_p_ffu).cast(),
@@ -6443,9 +6471,11 @@ pub fn get_varp_scope_from(
             K_OPT_AUTOREAD => (&raw mut buf.b_p_ar).cast(),
             K_OPT_TAGS => (&raw mut buf.b_p_tags).cast(),
             K_OPT_TAGCASE => (&raw mut buf.b_p_tc).cast(),
-            K_OPT_SIDESCROLLOFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_siso).cast(),
-            K_OPT_SCROLLOFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_so).cast(),
-            K_OPT_SCROLLOFFPAD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sop).cast(),
+            K_OPT_SIDESCROLLOFF => {
+                (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_siso).cast()
+            }
+            K_OPT_SCROLLOFF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_so).cast(),
+            K_OPT_SCROLLOFFPAD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sop).cast(),
             K_OPT_DEFINE => (&raw mut buf.b_p_def).cast(),
             K_OPT_INCLUDE => (&raw mut buf.b_p_inc).cast(),
             K_OPT_COMPLETEOPT => (&raw mut buf.b_p_cot).cast(),
@@ -6454,27 +6484,27 @@ pub fn get_varp_scope_from(
             K_OPT_THESAURUS => (&raw mut buf.b_p_tsr).cast(),
             K_OPT_THESAURUSFUNC => (&raw mut buf.b_p_tsrfu).cast(),
             K_OPT_TAGFUNC => (&raw mut buf.b_p_tfu).cast(),
-            K_OPT_SHOWBREAK => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sbr).cast(),
-            K_OPT_STATUSLINE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stl).cast(),
-            K_OPT_WINBAR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wbr).cast(),
+            K_OPT_SHOWBREAK => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sbr).cast(),
+            K_OPT_STATUSLINE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_stl).cast(),
+            K_OPT_WINBAR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wbr).cast(),
             K_OPT_UNDOLEVELS => (&raw mut buf.b_p_ul).cast(),
             K_OPT_LISPWORDS => (&raw mut buf.b_p_lw).cast(),
             K_OPT_BACKUPCOPY => (&raw mut buf.b_p_bkc).cast(),
             K_OPT_MAKEENCODING => (&raw mut buf.b_p_menc).cast(),
-            K_OPT_FILLCHARS => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fcs).cast(),
-            K_OPT_LISTCHARS => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lcs).cast(),
-            K_OPT_VIRTUALEDIT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_ve).cast(),
+            K_OPT_FILLCHARS => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fcs).cast(),
+            K_OPT_LISTCHARS => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lcs).cast(),
+            K_OPT_VIRTUALEDIT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_ve).cast(),
             _ => std::process::abort(),
         };
-        return ptr;
+        return unsafe { ptr.as_mut() };
     }
 
-    get_varp_from(crate::globals::gmut(p), buf, win)
+    get_varp_from(p, buf, win)
 }
 
 /// Get pointer to option variable, depending on local or global scope.
-pub fn get_varp_scope(p: *mut Vimoption, opt_flags: i32) -> *mut c_void {
-    get_varp_scope_from(p, opt_flags, curbuf_mut(), curwin_mut())
+pub fn get_varp_scope(p: &mut Vimoption, opt_flags: i32) -> Option<&'static mut u8> {
+    get_varp_scope_from(p, opt_flags, curbuf_mut(), Some(curwin_mut()))
 }
 
 /// Get pointer to option variable at 'opt_idx', depending on local or global scope.
@@ -6482,19 +6512,23 @@ pub fn get_option_varp_scope_from(
     opt_idx: OptIndex,
     opt_flags: i32,
     buf: &mut FileBuf,
-    win: *mut WinInfoInfo,
-) -> *mut c_void {
+    win: Option<&mut WinInfoInfo>,
+) -> Option<&'static mut u8> {
     get_varp_scope_from(get_option(opt_idx), opt_flags, buf, win)
 }
 
-pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo) -> *mut c_void {
-    let opt_idx = get_opt_idx(&raw mut *p);
+pub fn get_varp_from(
+    p: &mut Vimoption,
+    buf: &mut FileBuf,
+    mut win: Option<&mut WinInfoInfo>,
+) -> Option<&'static mut u8> {
+    let opt_idx = get_opt_idx(p);
 
     if is_option_hidden(opt_idx) || option_is_global_only(opt_idx) {
-        return p.var;
+        return unsafe { p.var.cast::<u8>().as_mut() };
     }
 
-    match opt_idx {
+    let ptr: *mut c_void = match opt_idx {
         K_OPT_EQUALPRG => {
             if !crate::memory::cstr_is_empty(buf.b_p_ep) {
                 (&raw mut buf.b_p_ep).cast()
@@ -6545,22 +6579,25 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_SIDESCROLLOFF => {
-            if crate::globals::gptr(win).w_onebuf_opt.wo_siso >= 0 {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_siso).cast()
+            let w = win.as_deref_mut().unwrap();
+            if w.w_onebuf_opt.wo_siso >= 0 {
+                (&raw mut w.w_onebuf_opt.wo_siso).cast()
             } else {
                 p.var
             }
         }
         K_OPT_SCROLLOFF => {
-            if crate::globals::gptr(win).w_onebuf_opt.wo_so >= 0 {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_so).cast()
+            let w = win.as_deref_mut().unwrap();
+            if w.w_onebuf_opt.wo_so >= 0 {
+                (&raw mut w.w_onebuf_opt.wo_so).cast()
             } else {
                 p.var
             }
         }
         K_OPT_SCROLLOFFPAD => {
-            if crate::globals::gptr(win).w_onebuf_opt.wo_sop >= 0 {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sop).cast()
+            let w = win.as_deref_mut().unwrap();
+            if w.w_onebuf_opt.wo_sop >= 0 {
+                (&raw mut w.w_onebuf_opt.wo_sop).cast()
             } else {
                 p.var
             }
@@ -6671,22 +6708,25 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_SHOWBREAK => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_sbr) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sbr).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_sbr) {
+                (&raw mut w.w_onebuf_opt.wo_sbr).cast()
             } else {
                 p.var
             }
         }
         K_OPT_STATUSLINE => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_stl) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stl).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_stl) {
+                (&raw mut w.w_onebuf_opt.wo_stl).cast()
             } else {
                 p.var
             }
         }
         K_OPT_WINBAR => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_wbr) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wbr).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_wbr) {
+                (&raw mut w.w_onebuf_opt.wo_wbr).cast()
             } else {
                 p.var
             }
@@ -6713,67 +6753,72 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
             }
         }
         K_OPT_FILLCHARS => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_fcs) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fcs).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_fcs) {
+                (&raw mut w.w_onebuf_opt.wo_fcs).cast()
             } else {
                 p.var
             }
         }
         K_OPT_LISTCHARS => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_lcs) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lcs).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_lcs) {
+                (&raw mut w.w_onebuf_opt.wo_lcs).cast()
             } else {
                 p.var
             }
         }
         K_OPT_VIRTUALEDIT => {
-            if !crate::memory::cstr_is_empty(crate::globals::gptr(win).w_onebuf_opt.wo_ve) {
-                (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_ve).cast()
+            let w = win.as_deref_mut().unwrap();
+            if !crate::memory::cstr_is_empty(w.w_onebuf_opt.wo_ve) {
+                (&raw mut w.w_onebuf_opt.wo_ve).cast()
             } else {
                 p.var
             }
         }
 
-        K_OPT_ARABIC => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_arab).cast(),
-        K_OPT_LIST => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_list).cast(),
-        K_OPT_SPELL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_spell).cast(),
-        K_OPT_CURSORCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cuc).cast(),
-        K_OPT_CURSORLINE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cul).cast(),
-        K_OPT_CURSORLINEOPT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_culopt).cast(),
-        K_OPT_COLORCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cc).cast(),
-        K_OPT_DIFF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_diff).cast(),
-        K_OPT_EVENTIGNOREWIN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_eiw).cast(),
-        K_OPT_FOLDCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdc).cast(),
-        K_OPT_FOLDENABLE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fen).cast(),
-        K_OPT_FOLDIGNORE => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdi).cast(),
-        K_OPT_FOLDLEVEL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdl).cast(),
-        K_OPT_FOLDMETHOD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdm).cast(),
-        K_OPT_FOLDMINLINES => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fml).cast(),
-        K_OPT_FOLDNESTMAX => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdn).cast(),
-        K_OPT_FOLDEXPR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fde).cast(),
-        K_OPT_FOLDTEXT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fdt).cast(),
-        K_OPT_FOLDMARKER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_fmr).cast(),
-        K_OPT_NUMBER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_nu).cast(),
-        K_OPT_RELATIVENUMBER => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rnu).cast(),
-        K_OPT_NUMBERWIDTH => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_nuw).cast(),
-        K_OPT_WINFIXBUF => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfb).cast(),
-        K_OPT_WINFIXHEIGHT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfh).cast(),
-        K_OPT_WINFIXWIDTH => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wfw).cast(),
-        K_OPT_WINPINNED => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wp).cast(),
-        K_OPT_PREVIEWWINDOW => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_pvw).cast(),
-        K_OPT_LHISTORY => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lhi).cast(),
-        K_OPT_RIGHTLEFT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rl).cast(),
-        K_OPT_RIGHTLEFTCMD => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_rlc).cast(),
-        K_OPT_SCROLL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scr).cast(),
-        K_OPT_SMOOTHSCROLL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_sms).cast(),
-        K_OPT_WRAP => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_wrap).cast(),
-        K_OPT_LINEBREAK => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_lbr).cast(),
-        K_OPT_BREAKINDENT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_bri).cast(),
-        K_OPT_BREAKINDENTOPT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_briopt).cast(),
-        K_OPT_SCROLLBIND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scb).cast(),
-        K_OPT_CURSORBIND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_crb).cast(),
-        K_OPT_CONCEALCURSOR => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cocu).cast(),
-        K_OPT_CONCEALLEVEL => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_cole).cast(),
+        K_OPT_ARABIC => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_arab).cast(),
+        K_OPT_LIST => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_list).cast(),
+        K_OPT_SPELL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_spell).cast(),
+        K_OPT_CURSORCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cuc).cast(),
+        K_OPT_CURSORLINE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cul).cast(),
+        K_OPT_CURSORLINEOPT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_culopt).cast(),
+        K_OPT_COLORCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cc).cast(),
+        K_OPT_DIFF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_diff).cast(),
+        K_OPT_EVENTIGNOREWIN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_eiw).cast(),
+        K_OPT_FOLDCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdc).cast(),
+        K_OPT_FOLDENABLE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fen).cast(),
+        K_OPT_FOLDIGNORE => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdi).cast(),
+        K_OPT_FOLDLEVEL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdl).cast(),
+        K_OPT_FOLDMETHOD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdm).cast(),
+        K_OPT_FOLDMINLINES => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fml).cast(),
+        K_OPT_FOLDNESTMAX => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdn).cast(),
+        K_OPT_FOLDEXPR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fde).cast(),
+        K_OPT_FOLDTEXT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fdt).cast(),
+        K_OPT_FOLDMARKER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_fmr).cast(),
+        K_OPT_NUMBER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_nu).cast(),
+        K_OPT_RELATIVENUMBER => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rnu).cast(),
+        K_OPT_NUMBERWIDTH => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_nuw).cast(),
+        K_OPT_WINFIXBUF => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfb).cast(),
+        K_OPT_WINFIXHEIGHT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfh).cast(),
+        K_OPT_WINFIXWIDTH => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wfw).cast(),
+        K_OPT_WINPINNED => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wp).cast(),
+        K_OPT_PREVIEWWINDOW => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_pvw).cast(),
+        K_OPT_LHISTORY => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lhi).cast(),
+        K_OPT_RIGHTLEFT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rl).cast(),
+        K_OPT_RIGHTLEFTCMD => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_rlc).cast(),
+        K_OPT_SCROLL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scr).cast(),
+        K_OPT_SMOOTHSCROLL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_sms).cast(),
+        K_OPT_WRAP => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_wrap).cast(),
+        K_OPT_LINEBREAK => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_lbr).cast(),
+        K_OPT_BREAKINDENT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_bri).cast(),
+        K_OPT_BREAKINDENTOPT => {
+            (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt).cast()
+        }
+        K_OPT_SCROLLBIND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scb).cast(),
+        K_OPT_CURSORBIND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_crb).cast(),
+        K_OPT_CONCEALCURSOR => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cocu).cast(),
+        K_OPT_CONCEALLEVEL => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_cole).cast(),
 
         K_OPT_AUTOINDENT => (&raw mut buf.b_p_ai).cast(),
         K_OPT_BINARY => (&raw mut buf.b_p_bin).cast(),
@@ -6832,34 +6877,34 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
         K_OPT_SYNMAXCOL => (&raw mut buf.b_p_smc).cast(),
         K_OPT_SYNTAX => (&raw mut buf.b_p_syn).cast(),
         K_OPT_SPELLCAPCHECK => {
-            let ws = if win.is_null() {
-                &mut buf.b_s
+            let ws = if let Some(ref mut w) = win {
+                w.w_s_ptr()
             } else {
-                crate::globals::gptr(win).w_s_ptr()
+                &mut buf.b_s
             };
             (&raw mut ws.b_p_spc).cast()
         }
         K_OPT_SPELLFILE => {
-            let ws = if win.is_null() {
-                &mut buf.b_s
+            let ws = if let Some(ref mut w) = win {
+                w.w_s_ptr()
             } else {
-                crate::globals::gptr(win).w_s_ptr()
+                &mut buf.b_s
             };
             (&raw mut ws.b_p_spf).cast()
         }
         K_OPT_SPELLLANG => {
-            let ws = if win.is_null() {
-                &mut buf.b_s
+            let ws = if let Some(ref mut w) = win {
+                w.w_s_ptr()
             } else {
-                crate::globals::gptr(win).w_s_ptr()
+                &mut buf.b_s
             };
             (&raw mut ws.b_p_spl).cast()
         }
         K_OPT_SPELLOPTIONS => {
-            let ws = if win.is_null() {
-                &mut buf.b_s
+            let ws = if let Some(ref mut w) = win {
+                w.w_s_ptr()
             } else {
-                crate::globals::gptr(win).w_s_ptr()
+                &mut buf.b_s
             };
             (&raw mut ws.b_p_spo).cast()
         }
@@ -6872,15 +6917,16 @@ pub fn get_varp_from(p: &mut Vimoption, buf: &mut FileBuf, win: *mut WinInfoInfo
         K_OPT_VARSOFTTABSTOP => (&raw mut buf.b_p_vsts).cast(),
         K_OPT_VARTABSTOP => (&raw mut buf.b_p_vts).cast(),
         K_OPT_KEYMAP => (&raw mut buf.b_p_keymap).cast(),
-        K_OPT_SIGNCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_scl).cast(),
-        K_OPT_WINHIGHLIGHT => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_winhl).cast(),
-        K_OPT_WINBLEND => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_winbl).cast(),
-        K_OPT_STATUSCOLUMN => (&raw mut crate::globals::gptr(win).w_onebuf_opt.wo_stc).cast(),
+        K_OPT_SIGNCOLUMN => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_scl).cast(),
+        K_OPT_WINHIGHLIGHT => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_winhl).cast(),
+        K_OPT_WINBLEND => (&raw mut win.as_deref_mut().unwrap().w_onebuf_opt.wo_winbl).cast(),
+        K_OPT_STATUSCOLUMN => (&raw mut win.unwrap().w_onebuf_opt.wo_stc).cast(),
         _ => {
             iemsg(tr(c"E356: get_varp ERROR"));
             (&raw mut buf.b_p_wm).cast()
         }
-    }
+    };
+    unsafe { ptr.cast::<u8>().as_mut() }
 }
 
 /// Get the value of 'equalprg', either the buffer-local one or the global one.
@@ -6908,38 +6954,28 @@ pub fn win_copy_options(wp_from: &mut WinInfoInfo, wp_to: &mut WinInfoInfo) {
     didset_window_options(&mut *wp_to, true);
 }
 
-fn copy_option_val<R>(val: impl crate::strings::IntoCCharPtr) -> *mut R {
-    let val = val.into_c_char_ptr();
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast::<R>();
-    if ptr::eq(val.cast::<R>(), empty_opt) {
-        empty_opt
-    } else {
-        alloc_string_option(val)
-    }
-}
-
 /// Copy the options from one Winopt to another.
 pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
     let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     to.wo_arab = from.wo_arab;
     to.wo_list = from.wo_list;
-    to.wo_lcs = copy_option_val(from.wo_lcs);
-    to.wo_fcs = copy_option_val(from.wo_fcs);
+    to.wo_lcs = from.wo_lcs.copy_option_str();
+    to.wo_fcs = from.wo_fcs.copy_option_str();
     to.wo_nu = from.wo_nu;
     to.wo_rnu = from.wo_rnu;
-    to.wo_ve = copy_option_val(from.wo_ve);
+    to.wo_ve = from.wo_ve.copy_option_str();
     to.wo_ve_flags = from.wo_ve_flags;
     to.wo_nuw = from.wo_nuw;
     to.wo_rl = from.wo_rl;
-    to.wo_rlc = copy_option_val(from.wo_rlc);
-    to.wo_sbr = copy_option_val(from.wo_sbr);
-    to.wo_stl = copy_option_val(from.wo_stl);
-    to.wo_wbr = copy_option_val(from.wo_wbr);
+    to.wo_rlc = from.wo_rlc.copy_option_str();
+    to.wo_sbr = from.wo_sbr.copy_option_str();
+    to.wo_stl = from.wo_stl.copy_option_str();
+    to.wo_wbr = from.wo_wbr.copy_option_str();
     to.wo_wrap = from.wo_wrap;
     to.wo_wrap_save = from.wo_wrap_save;
     to.wo_lbr = from.wo_lbr;
     to.wo_bri = from.wo_bri;
-    to.wo_briopt = copy_option_val(from.wo_briopt);
+    to.wo_briopt = from.wo_briopt.copy_option_str();
     to.wo_scb = from.wo_scb;
     to.wo_scb_save = from.wo_scb_save;
     to.wo_sms = from.wo_sms;
@@ -6951,40 +6987,40 @@ pub fn copy_winopt(from: &mut Winopt, to: &mut Winopt) {
     to.wo_spell = from.wo_spell;
     to.wo_cuc = from.wo_cuc;
     to.wo_cul = from.wo_cul;
-    to.wo_culopt = copy_option_val(from.wo_culopt);
-    to.wo_cc = copy_option_val(from.wo_cc);
+    to.wo_culopt = from.wo_culopt.copy_option_str();
+    to.wo_cc = from.wo_cc.copy_option_str();
     to.wo_diff = from.wo_diff;
     to.wo_diff_saved = from.wo_diff_saved;
-    to.wo_eiw = copy_option_val(from.wo_eiw);
-    to.wo_cocu = copy_option_val(from.wo_cocu);
+    to.wo_eiw = from.wo_eiw.copy_option_str();
+    to.wo_cocu = from.wo_cocu.copy_option_str();
     to.wo_cole = from.wo_cole;
-    to.wo_fdc = copy_option_val(from.wo_fdc);
+    to.wo_fdc = from.wo_fdc.copy_option_str();
     to.wo_fdc_save = if from.wo_diff_saved != 0 {
-        alloc_string_option(from.wo_fdc_save)
+        CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(from.wo_fdc_save))
     } else {
         empty_opt
     };
     to.wo_fen = from.wo_fen;
     to.wo_fen_save = from.wo_fen_save;
-    to.wo_fdi = copy_option_val(from.wo_fdi);
+    to.wo_fdi = from.wo_fdi.copy_option_str();
     to.wo_fml = from.wo_fml;
     to.wo_fdl = from.wo_fdl;
     to.wo_fdl_save = from.wo_fdl_save;
-    to.wo_fdm = copy_option_val(from.wo_fdm);
+    to.wo_fdm = from.wo_fdm.copy_option_str();
     to.wo_fdm_save = if from.wo_diff_saved != 0 {
-        alloc_string_option(from.wo_fdm_save)
+        CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(from.wo_fdm_save))
     } else {
         empty_opt
     };
     to.wo_fdn = from.wo_fdn;
     callback_copy(&mut to.wo_fde, &from.wo_fde);
     callback_copy(&mut to.wo_fdt, &from.wo_fdt);
-    to.wo_fmr = copy_option_val(from.wo_fmr);
-    to.wo_scl = copy_option_val(from.wo_scl);
+    to.wo_fmr = from.wo_fmr.copy_option_str();
+    to.wo_scl = from.wo_scl.copy_option_str();
     to.wo_lhi = from.wo_lhi;
-    to.wo_winhl = copy_option_val(from.wo_winhl);
+    to.wo_winhl = from.wo_winhl.copy_option_str();
     to.wo_winbl = from.wo_winbl;
-    to.wo_stc = copy_option_val(from.wo_stc);
+    to.wo_stc = from.wo_stc.copy_option_str();
 
     to.wo_wrap_flags = from.wo_wrap_flags;
     to.wo_stl_flags = from.wo_stl_flags;
@@ -7002,54 +7038,54 @@ fn check_win_options(win: &mut WinInfoInfo) {
 }
 
 fn check_winopt(wop: &mut Winopt) {
-    check_string_option(&raw mut wop.wo_fdc);
-    check_string_option(&raw mut wop.wo_fdc_save);
-    check_string_option(&raw mut wop.wo_fdi);
-    check_string_option(&raw mut wop.wo_fdm);
-    check_string_option(&raw mut wop.wo_fdm_save);
-    check_string_option(&raw mut wop.wo_fmr);
-    check_string_option(&raw mut wop.wo_eiw);
-    check_string_option(&raw mut wop.wo_scl);
-    check_string_option(&raw mut wop.wo_rlc);
-    check_string_option(&raw mut wop.wo_sbr);
-    check_string_option(&raw mut wop.wo_stl);
-    check_string_option(&raw mut wop.wo_culopt);
-    check_string_option(&raw mut wop.wo_cc);
-    check_string_option(&raw mut wop.wo_cocu);
-    check_string_option(&raw mut wop.wo_briopt);
-    check_string_option(&raw mut wop.wo_winhl);
-    check_string_option(&raw mut wop.wo_lcs);
-    check_string_option(&raw mut wop.wo_fcs);
-    check_string_option(&raw mut wop.wo_ve);
-    check_string_option(&raw mut wop.wo_wbr);
-    check_string_option(&raw mut wop.wo_stc);
+    wop.wo_fdc.check_option_str();
+    wop.wo_fdc_save.check_option_str();
+    wop.wo_fdi.check_option_str();
+    wop.wo_fdm.check_option_str();
+    wop.wo_fdm_save.check_option_str();
+    wop.wo_fmr.check_option_str();
+    wop.wo_eiw.check_option_str();
+    wop.wo_scl.check_option_str();
+    wop.wo_rlc.check_option_str();
+    wop.wo_sbr.check_option_str();
+    wop.wo_stl.check_option_str();
+    wop.wo_culopt.check_option_str();
+    wop.wo_cc.check_option_str();
+    wop.wo_cocu.check_option_str();
+    wop.wo_briopt.check_option_str();
+    wop.wo_winhl.check_option_str();
+    wop.wo_lcs.check_option_str();
+    wop.wo_fcs.check_option_str();
+    wop.wo_ve.check_option_str();
+    wop.wo_wbr.check_option_str();
+    wop.wo_stc.check_option_str();
 }
 
 /// Free the allocated memory inside a Winopt.
 pub fn clear_winopt(wop: &mut Winopt) {
-    clear_string_option(&raw mut wop.wo_fdc);
-    clear_string_option(&raw mut wop.wo_fdc_save);
-    clear_string_option(&raw mut wop.wo_fdi);
-    clear_string_option(&raw mut wop.wo_fdm);
-    clear_string_option(&raw mut wop.wo_fdm_save);
+    wop.wo_fdc.clear_option_str();
+    wop.wo_fdc_save.clear_option_str();
+    wop.wo_fdi.clear_option_str();
+    wop.wo_fdm.clear_option_str();
+    wop.wo_fdm_save.clear_option_str();
     callback_free(&mut wop.wo_fde);
     callback_free(&mut wop.wo_fdt);
-    clear_string_option(&raw mut wop.wo_fmr);
-    clear_string_option(&raw mut wop.wo_eiw);
-    clear_string_option(&raw mut wop.wo_scl);
-    clear_string_option(&raw mut wop.wo_rlc);
-    clear_string_option(&raw mut wop.wo_sbr);
-    clear_string_option(&raw mut wop.wo_stl);
-    clear_string_option(&raw mut wop.wo_culopt);
-    clear_string_option(&raw mut wop.wo_cc);
-    clear_string_option(&raw mut wop.wo_cocu);
-    clear_string_option(&raw mut wop.wo_briopt);
-    clear_string_option(&raw mut wop.wo_winhl);
-    clear_string_option(&raw mut wop.wo_lcs);
-    clear_string_option(&raw mut wop.wo_fcs);
-    clear_string_option(&raw mut wop.wo_ve);
-    clear_string_option(&raw mut wop.wo_wbr);
-    clear_string_option(&raw mut wop.wo_stc);
+    wop.wo_fmr.clear_option_str();
+    wop.wo_eiw.clear_option_str();
+    wop.wo_scl.clear_option_str();
+    wop.wo_rlc.clear_option_str();
+    wop.wo_sbr.clear_option_str();
+    wop.wo_stl.clear_option_str();
+    wop.wo_culopt.clear_option_str();
+    wop.wo_cc.clear_option_str();
+    wop.wo_cocu.clear_option_str();
+    wop.wo_briopt.clear_option_str();
+    wop.wo_winhl.clear_option_str();
+    wop.wo_lcs.clear_option_str();
+    wop.wo_fcs.clear_option_str();
+    wop.wo_ve.clear_option_str();
+    wop.wo_wbr.clear_option_str();
+    wop.wo_stc.clear_option_str();
 }
 
 pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
@@ -7061,27 +7097,30 @@ pub fn didset_window_options(wp: &mut WinInfoInfo, valid_cursor: bool) {
     check_colorcolumn(None::<&CStr>, Some(&mut *wp));
     briopt_check(Some(&mut *wp));
     let mut culopt_flags: u32 = 0;
-    if fill_culopt_flags(wp.w_onebuf_opt.wo_culopt, &mut culopt_flags) {
+    if fill_culopt_flags(
+        crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_culopt),
+        &mut culopt_flags,
+    ) {
         wp.w_p_culopt_flags = culopt_flags as u8;
     }
     set_chars_option(
         wp,
-        wp.w_onebuf_opt.wo_fcs,
+        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fcs),
         CharsOption::Fillchars,
         true,
         None,
     );
     set_chars_option(
         wp,
-        wp.w_onebuf_opt.wo_lcs,
+        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_lcs),
         CharsOption::Listchars,
         true,
         None,
     );
-    parse_winhl_opt(ptr::null(), Some(&mut *wp));
+    parse_winhl_opt(None, Some(&mut *wp));
     check_blending(wp);
     set_winbar_win(wp, false, valid_cursor);
-    check_signcolumn(None::<&CStr>, Some(&mut *wp));
+    check_signcolumn(None, Some(&mut *wp));
     wp.w_grid_alloc.blending = wp.w_onebuf_opt.wo_winbl > 0;
 }
 
@@ -7127,12 +7166,16 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             if !buf.b_p_initialized {
                 free_buf_options(buf, true);
                 buf.b_p_ro = 0;
-                buf.b_p_fenc = alloc_string_option(opt_vars().p_fenc);
+                buf.b_p_fenc = CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(
+                    opt_vars().p_fenc,
+                ));
                 buf.b_p_ff = match crate::memory::cstr_first_byte(opt_vars().p_ffs) {
-                    b'm' => alloc_string_option(c"mac"),
-                    b'd' => alloc_string_option(c"dos"),
-                    b'u' => alloc_string_option(c"unix"),
-                    _ => alloc_string_option(opt_vars().p_ff),
+                    b'm' => CStrOptionSlot::from_option_cstr(c"mac"),
+                    b'd' => CStrOptionSlot::from_option_cstr(c"dos"),
+                    b'u' => CStrOptionSlot::from_option_cstr(c"unix"),
+                    _ => CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(
+                        opt_vars().p_ff,
+                    )),
                 };
                 buf.b_p_bh = empty_opt;
                 buf.b_p_bt = empty_opt;
@@ -7178,13 +7221,16 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_swf = opt_vars().p_swf;
                 copy_opt_sctx(buf, K_BUF_OPT_SWAPFILE);
             }
-            buf.b_p_cpt = alloc_string_option(opt_vars().p_cpt);
+            buf.b_p_cpt =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cpt));
             copy_opt_sctx(buf, K_BUF_OPT_COMPLETE);
             buf.b_p_cpt_flags = copy_opt_insecure(K_BUF_OPT_COMPLETE);
             set_buflocal_cpt_callbacks(Some(&mut *buf));
             #[cfg(windows)]
             {
-                buf.b_p_csl = alloc_string_option(opt_vars().p_csl);
+                buf.b_p_csl = CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(
+                    opt_vars().p_csl,
+                ));
                 copy_opt_sctx(buf, K_BUF_OPT_COMPLETESLASH);
             }
             callback_copy(&mut buf.b_p_cfu, &opt_vars().p_cfu);
@@ -7196,7 +7242,8 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_sts = opt_vars().p_sts;
             copy_opt_sctx(buf, K_BUF_OPT_SOFTTABSTOP);
             buf.b_p_sts_nopaste = opt_st().p_sts_nopaste;
-            buf.b_p_vsts = alloc_string_option(opt_vars().p_vsts);
+            buf.b_p_vsts =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_vsts));
             copy_opt_sctx(buf, K_BUF_OPT_VARSOFTTABSTOP);
             if !opt_vars().p_vsts.is_null() && opt_vars().p_vsts != empty_opt {
                 tabstop_set(
@@ -7208,17 +7255,23 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 buf.b_p_vsts_array.clear();
             }
             buf.b_p_vsts_nopaste = opt_st().p_vsts_nopaste.clone();
-            buf.b_p_com = alloc_string_option(opt_vars().p_com);
+            buf.b_p_com =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_com));
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTS);
-            buf.b_p_cms = alloc_string_option(opt_vars().p_cms);
+            buf.b_p_cms =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cms));
             copy_opt_sctx(buf, K_BUF_OPT_COMMENTSTRING);
-            buf.b_p_fo = alloc_string_option(opt_vars().p_fo);
+            buf.b_p_fo =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_fo));
             copy_opt_sctx(buf, K_BUF_OPT_FORMATOPTIONS);
-            buf.b_p_flp = alloc_string_option(opt_vars().p_flp);
+            buf.b_p_flp =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_flp));
             copy_opt_sctx(buf, K_BUF_OPT_FORMATLISTPAT);
-            buf.b_p_nf = alloc_string_option(opt_vars().p_nf);
+            buf.b_p_nf =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_nf));
             copy_opt_sctx(buf, K_BUF_OPT_NRFORMATS);
-            buf.b_p_mps = alloc_string_option(opt_vars().p_mps);
+            buf.b_p_mps =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_mps));
             copy_opt_sctx(buf, K_BUF_OPT_MATCHPAIRS);
             buf.b_p_si = opt_vars().p_si;
             copy_opt_sctx(buf, K_BUF_OPT_SMARTINDENT);
@@ -7227,19 +7280,24 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             copy_opt_sctx(buf, K_BUF_OPT_COPYINDENT);
             buf.b_p_cin = opt_vars().p_cin;
             copy_opt_sctx(buf, K_BUF_OPT_CINDENT);
-            buf.b_p_cink = alloc_string_option(opt_vars().p_cink);
+            buf.b_p_cink =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cink));
             copy_opt_sctx(buf, K_BUF_OPT_CINKEYS);
-            buf.b_p_cino = alloc_string_option(opt_vars().p_cino);
+            buf.b_p_cino =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cino));
             copy_opt_sctx(buf, K_BUF_OPT_CINOPTIONS);
-            buf.b_p_cinsd = alloc_string_option(opt_vars().p_cinsd);
+            buf.b_p_cinsd =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cinsd));
             copy_opt_sctx(buf, K_BUF_OPT_CINSCOPEDECLS);
-            buf.b_p_lop = alloc_string_option(opt_vars().p_lop);
+            buf.b_p_lop =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_lop));
             copy_opt_sctx(buf, K_BUF_OPT_LISPOPTIONS);
 
             buf.b_p_ft = empty_opt;
             buf.b_p_pi = opt_vars().p_pi;
             copy_opt_sctx(buf, K_BUF_OPT_PRESERVEINDENT);
-            buf.b_p_cinw = alloc_string_option(opt_vars().p_cinw);
+            buf.b_p_cinw =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_cinw));
             copy_opt_sctx(buf, K_BUF_OPT_CINWORDS);
             buf.b_p_lisp = opt_vars().p_lisp;
             copy_opt_sctx(buf, K_BUF_OPT_LISP);
@@ -7247,31 +7305,38 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_smc = opt_vars().p_smc;
             copy_opt_sctx(buf, K_BUF_OPT_SYNMAXCOL);
             buf.b_s.b_syn_isk = None;
-            buf.b_s.b_p_spc = alloc_string_option(opt_vars().p_spc);
+            buf.b_s.b_p_spc =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_spc));
             copy_opt_sctx(buf, K_BUF_OPT_SPELLCAPCHECK);
             compile_cap_prog(
                 crate::memory::cstr_from_ptr(buf.b_s.b_p_spc),
                 &mut buf.b_s.b_cap_prog,
             );
-            buf.b_s.b_p_spf = alloc_string_option(opt_vars().p_spf);
+            buf.b_s.b_p_spf =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_spf));
             copy_opt_sctx(buf, K_BUF_OPT_SPELLFILE);
-            buf.b_s.b_p_spl = alloc_string_option(opt_vars().p_spl);
+            buf.b_s.b_p_spl =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_spl));
             copy_opt_sctx(buf, K_BUF_OPT_SPELLLANG);
-            buf.b_s.b_p_spo = alloc_string_option(opt_vars().p_spo);
+            buf.b_s.b_p_spo =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_spo));
             copy_opt_sctx(buf, K_BUF_OPT_SPELLOPTIONS);
             buf.b_s.b_p_spo_flags = opt_vars().spo_flags;
             callback_copy(&mut buf.b_p_inde, &opt_vars().p_inde);
             copy_opt_sctx(buf, K_BUF_OPT_INDENTEXPR);
             buf.b_p_inde_flags = copy_opt_insecure(K_BUF_OPT_INDENTEXPR);
-            buf.b_p_indk = alloc_string_option(opt_vars().p_indk);
+            buf.b_p_indk =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_indk));
             copy_opt_sctx(buf, K_BUF_OPT_INDENTKEYS);
             buf.b_p_fp = empty_opt;
             callback_copy(&mut buf.b_p_fex, &opt_vars().p_fex);
             copy_opt_sctx(buf, K_BUF_OPT_FORMATEXPR);
             buf.b_p_fex_flags = copy_opt_insecure(K_BUF_OPT_FORMATEXPR);
-            buf.b_p_sua = alloc_string_option(opt_vars().p_sua);
+            buf.b_p_sua =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_sua));
             copy_opt_sctx(buf, K_BUF_OPT_SUFFIXESADD);
-            buf.b_p_keymap = alloc_string_option(opt_vars().p_keymap);
+            buf.b_p_keymap =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_keymap));
             copy_opt_sctx(buf, K_BUF_OPT_KEYMAP);
             buf.b_kmap_state |= KEYMAP_INIT;
             buf.b_p_iminsert = opt_vars().p_iminsert;
@@ -7307,7 +7372,8 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
             buf.b_p_dia = empty_opt;
             buf.b_p_tsr = empty_opt;
             buf.b_p_tsrfu = Callback::NONE;
-            buf.b_p_qe = alloc_string_option(opt_vars().p_qe);
+            buf.b_p_qe =
+                CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(opt_vars().p_qe));
             copy_opt_sctx(buf, K_BUF_OPT_QUOTEESCAPE);
             buf.b_p_udf = opt_vars().p_udf;
             copy_opt_sctx(buf, K_BUF_OPT_UNDOFILE);
@@ -7329,12 +7395,16 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                     buf.b_p_vts_array.clear();
                 }
             } else {
-                buf.b_p_isk = alloc_string_option(opt_vars().p_isk);
+                buf.b_p_isk = CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(
+                    opt_vars().p_isk,
+                ));
                 copy_opt_sctx(buf, K_BUF_OPT_ISKEYWORD);
                 did_isk = true;
                 buf.b_p_ts = opt_vars().p_ts;
                 copy_opt_sctx(buf, K_BUF_OPT_TABSTOP);
-                buf.b_p_vts = alloc_string_option(opt_vars().p_vts);
+                buf.b_p_vts = CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(
+                    opt_vars().p_vts,
+                ));
                 copy_opt_sctx(buf, K_BUF_OPT_VARTABSTOP);
                 if !opt_vars().p_vts.is_null()
                     && !crate::memory::cstr_is_empty(opt_vars().p_vts)
@@ -7350,7 +7420,7 @@ pub fn buf_copy_options(buf: &mut FileBuf, flags: i32) {
                 }
                 buf.b_help = false;
                 if crate::memory::cstr_first_byte(buf.b_p_bt) == b'h' {
-                    clear_string_option(&raw mut buf.b_p_bt);
+                    buf.b_p_bt.clear_option_str();
                 }
                 buf.b_p_ma = opt_vars().p_ma;
                 copy_opt_sctx(buf, K_BUF_OPT_MODIFIABLE);
@@ -7385,16 +7455,12 @@ pub fn set_imsearch_global(buf: &mut FileBuf) {
     opt_vars().p_imsearch = buf.b_p_imsearch;
 }
 
-pub fn set_context_in_set_cmd(
-    xp: &mut ExpandCtx,
-    arg: impl crate::strings::IntoCCharPtr,
-    opt_flags: i32,
-) {
-    let mut arg = arg.into_c_char_ptr().cast_mut();
+pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt_flags: i32) {
+    let mut arg = arg_cstr.as_ptr().cast_mut();
     opt_st().expand_option_flags = opt_flags;
 
     xp.xp_context = EXPAND_SETTINGS;
-    let arg_bytes = crate::memory::cstr_as_bytes(arg);
+    let arg_bytes = arg_cstr.to_bytes();
     if arg_bytes.is_empty() {
         xp.xp_pattern = arg.cast();
         return;
@@ -7470,7 +7536,7 @@ pub fn set_context_in_set_cmd(
         }
         p = p.wrapping_add(name_len);
         nextchar = p_bytes[name_len];
-        opt_idx = find_option_len(arg, name_len);
+        opt_idx = find_option_len(p_bytes, name_len);
         if opt_idx == K_OPT_INVALID || is_option_hidden(opt_idx) {
             xp.xp_context = EXPAND_NOTHING;
             return;
@@ -7628,97 +7694,89 @@ pub fn set_context_in_set_cmd(
 }
 
 fn match_str(
-    str_arg: impl crate::strings::IntoCCharPtr,
+    str_arg: &std::ffi::CStr,
     regmatch: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
     fuzzy: bool,
-    fuzzystr: impl crate::strings::IntoCCharPtr,
+    fuzzystr: Option<&std::ffi::CStr>,
     fuzmatch: &mut Vec<FuzmatchStr>,
 ) -> bool {
-    let str_arg = str_arg.into_c_char_ptr();
-    let fuzzystr = fuzzystr.into_c_char_ptr();
-    {
-        if !fuzzy {
-            if vim_regexec(regmatch, str_arg, 0) {
-                matches.push(crate::memory::cstr_to_cstring(str_arg));
-                return true;
-            }
-        } else {
-            let score = fuzzy_match_str(
-                crate::memory::cstr_as_opt_cstr(str_arg).map(CStr::to_bytes),
-                crate::memory::cstr_as_opt_cstr(fuzzystr).map(CStr::to_bytes),
-            );
-            if score != FUZZY_SCORE_NONE {
-                let idx = fuzmatch.len() as i32;
-                fuzmatch.push(FuzmatchStr {
-                    idx,
-                    str_cstr: crate::memory::cstr_to_cstring(str_arg),
-                    score,
-                });
-                return true;
-            }
+    if !fuzzy {
+        if vim_regexec(regmatch, str_arg, 0) {
+            matches.push(str_arg.to_owned());
+            return true;
         }
-        false
+    } else {
+        let score = fuzzy_match_str(Some(str_arg.to_bytes()), fuzzystr.map(CStr::to_bytes));
+        if score != FUZZY_SCORE_NONE {
+            let idx = fuzmatch.len() as i32;
+            fuzmatch.push(FuzmatchStr {
+                idx,
+                str_cstr: str_arg.to_owned(),
+                score,
+            });
+            return true;
+        }
     }
+    false
 }
 
 pub fn expand_settings(
     xp: &mut ExpandCtx,
     regmatch: &mut Regmatch,
-    fuzzystr: impl crate::strings::IntoCCharPtr,
+    fuzzystr: Option<&std::ffi::CStr>,
     matches: &mut Vec<std::ffi::CString>,
     can_fuzzy: bool,
 ) -> bool {
-    let fuzzystr = fuzzystr.into_c_char_ptr();
-    {
-        let names: [&CStr; 1] = [c"all"];
-        let ic = regmatch.rm_ic;
+    let names: [&CStr; 1] = [c"all"];
+    let ic = regmatch.rm_ic;
 
-        matches.clear();
-        let mut fuzmatch: Vec<FuzmatchStr> = Vec::new();
-        let fuzzy = can_fuzzy && cmdline_fuzzy_complete(crate::memory::cstr_from_ptr(fuzzystr));
+    matches.clear();
+    let mut fuzmatch: Vec<FuzmatchStr> = Vec::new();
+    let fuzzy = can_fuzzy && cmdline_fuzzy_complete(fuzzystr.unwrap_or(c""));
 
-        regmatch.rm_ic = ic;
-        if xp.xp_context != EXPAND_BOOL_SETTINGS {
-            for &name in &names {
-                match_str(name, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch);
-            }
+    regmatch.rm_ic = ic;
+    if xp.xp_context != EXPAND_BOOL_SETTINGS {
+        for &name in &names {
+            match_str(name, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch);
         }
-        for opt_idx in 0..K_OPT_COUNT {
-            let opt = get_option(opt_idx);
-            let str_ptr = opt.fullname.as_ptr().cast_mut();
-            if is_option_hidden(opt_idx) {
-                continue;
-            }
-            if xp.xp_context == EXPAND_BOOL_SETTINGS
-                && !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean)
-            {
-                continue;
-            }
-
-            if !match_str(str_ptr, regmatch, matches, fuzzy, fuzzystr, &mut fuzmatch)
-                && !fuzzy
-                && opt
-                    .shortname
-                    .is_some_and(|s| vim_regexec(regmatch, s.as_ptr(), 0))
-            {
-                matches.push(opt.fullname.to_owned());
-            }
-        }
-
-        if fuzzy {
-            fuzzymatches_slice_to_strmatches(&mut fuzmatch, matches, false);
-        }
-
-        true
     }
+    for opt_idx in 0..K_OPT_COUNT {
+        let opt = get_option(opt_idx);
+        if is_option_hidden(opt_idx) {
+            continue;
+        }
+        if xp.xp_context == EXPAND_BOOL_SETTINGS
+            && !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean)
+        {
+            continue;
+        }
+
+        if !match_str(
+            opt.fullname,
+            regmatch,
+            matches,
+            fuzzy,
+            fuzzystr,
+            &mut fuzmatch,
+        ) && !fuzzy
+            && opt.shortname.is_some_and(|s| vim_regexec(regmatch, s, 0))
+        {
+            matches.push(opt.fullname.to_owned());
+        }
+    }
+
+    if fuzzy {
+        fuzzymatches_slice_to_strmatches(&mut fuzmatch, matches, false);
+    }
+
+    true
 }
 
 /// Escape an option value that can be used on the command-line with :set.
-pub fn escape_option_str_cmdline(var_arg: impl crate::strings::IntoCCharPtr) -> std::ffi::CString {
-    let var_arg = var_arg.into_c_char_ptr();
+pub fn escape_option_str_cmdline(var_arg: &[u8]) -> std::ffi::CString {
     let buf_cstr = vim_strsave_escaped(
-        crate::memory::cstr_as_bytes(var_arg),
+        crate::memory::bytes_until_nul(var_arg),
         ESCAPE_CHARS.to_bytes(),
     );
 
@@ -7756,8 +7814,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
     matches.clear();
 
     if opt_st().expand_option_idx == K_OPT_INVALID {
-        opt_st().expand_option_idx =
-            find_option(crate::memory::cstr_until_nul(&opt_st().expand_option_name));
+        opt_st().expand_option_idx = find_option(&opt_st().expand_option_name);
     }
 
     let var = if opt_st().expand_option_idx != K_OPT_INVALID {
@@ -7774,9 +7831,9 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
             return true;
         }
         optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
-        g_st().name_buff.as_mut_ptr()
+        crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()).to_bytes()
     } else {
-        c"".as_ptr().cast_mut()
+        b""
     };
 
     matches.push(escape_option_str_cmdline(var));
@@ -7801,7 +7858,8 @@ pub fn expand_string_setting(
         .xp_line
         .wrapping_add(opt_st().expand_option_start_col as usize);
     let mut args = Optexpand {
-        oe_varp: get_varp_scope(opt, opt_st().expand_option_flags).cast::<u8>(),
+        oe_varp: get_varp_scope(opt, opt_st().expand_option_flags)
+            .map_or(ptr::null_mut(), ptr::from_mut),
         oe_idx: opt_st().expand_option_idx,
         oe_opt_value: ptr::null_mut(),
         oe_append: opt_st().expand_option_append,
@@ -7813,7 +7871,7 @@ pub fn expand_string_setting(
     };
 
     optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
-    let buf = escape_option_str_cmdline(g_st().name_buff.as_mut_ptr());
+    let buf = escape_option_str_cmdline(g_st().name_buff_bytes_mut());
     args.oe_opt_value = buf.as_ptr().cast_mut().cast();
 
     expand_cb(&mut args, matches)
@@ -7832,15 +7890,14 @@ pub fn expand_setting_subtract(
         return expand_old_setting(matches);
     }
 
-    let option_val = *crate::globals::gptr(
-        get_option_varp_scope_from(
-            opt_st().expand_option_idx,
-            opt_st().expand_option_flags,
-            curbuf_mut(),
-            curwin_ptr(),
-        )
-        .cast::<*mut u8>(),
-    );
+    let option_val = get_option_varp_scope_from(
+        opt_st().expand_option_idx,
+        opt_st().expand_option_flags,
+        curbuf_mut(),
+        Some(curwin_mut()),
+    )
+    .map_or(c"", |vp| varp_cstr(vp))
+    .as_ptr();
 
     let option_flags = get_option(opt_st().expand_option_idx).flags;
 
@@ -7865,15 +7922,16 @@ pub fn expand_setting_subtract(
                 comma = vim_strchr(comma.wrapping_add(1).cast(), b',' as i32).cast::<u8>();
             }
             if !comma.is_null() {
-                *crate::globals::gptr(comma) = 0;
+                unsafe { *comma = 0 };
 
                 next_val = comma.wrapping_add(1);
             } else {
                 next_val = ptr::null_mut();
             }
 
-            if !crate::memory::cstr_is_empty(item.cast()) && vim_regexec(regmatch, item.cast(), 0) {
-                matches.push(escape_option_str_cmdline(item.cast()));
+            let item_cstr = crate::memory::cstr_from_ptr(item.cast());
+            if !item_cstr.to_bytes().is_empty() && vim_regexec(regmatch, item_cstr, 0) {
+                matches.push(escape_option_str_cmdline(item_cstr.to_bytes()));
             }
 
             if next_val.is_null() {
@@ -7914,12 +7972,11 @@ pub fn expand_setting_subtract(
 
 fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     let opt = get_option(opt_idx);
-    let varp = get_varp_scope(opt, opt_flags);
-    assert!(!varp.is_null());
+    let vp = get_varp_scope(opt, opt_flags).unwrap();
 
     let namebuf_ptr = g_st().name_buff.as_mut_ptr();
     let mut wc: OptInt = 0;
-    if wc_use_keyname(varp.cast::<OptInt>(), &mut wc) != 0 {
+    if wc_use_keyname(vp, &mut wc) != 0 {
         crate::memory::copy_bytes_to_c_buf(
             g_st().name_buff_bytes_mut(),
             get_special_key_name(wc as i32, 0).to_bytes(),
@@ -7937,25 +7994,19 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
         && !is_callback_option(opt_idx)
         && option_has_type(opt_idx, ObjectType::ObjectTypeString)
     {
-        home_replace(
-            None,
-            *crate::globals::gptr((varp.cast::<*mut u8>()).cast::<*mut _>()),
-            namebuf_ptr,
-            MAXPATHL,
-            false,
-        );
+        home_replace(None, varp_cstr(vp).as_ptr(), namebuf_ptr, MAXPATHL, false);
         return;
     }
 
-    let o = opt_from_varp(opt_idx, varp);
+    let o = opt_from_varp(opt_idx, Some(vp));
     let s = optval_to_cstr(o, false);
     crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), s.as_bytes());
     optval_free_read(opt_idx, o);
 }
 
-fn wc_use_keyname(p: *const OptInt, wcp: &mut OptInt) -> i32 {
-    if p == &raw const opt_vars().p_wc || p == &raw const opt_vars().p_wcm {
-        *wcp = *crate::globals::gptr(p);
+fn wc_use_keyname(varp: &u8, wcp: &mut OptInt) -> i32 {
+    if varp_eq(varp, &opt_vars().p_wc) || varp_eq(varp, &opt_vars().p_wcm) {
+        *wcp = varp_int(varp);
         if is_special(*wcp as i32) || find_special_key_in_table(*wcp as i32) >= 0 {
             return 1;
         }
@@ -7970,11 +8021,10 @@ pub fn shortmess(x: i32) -> bool {
                 && crate::strings::vim_haschr(SHM_ALL_ABBREVIATIONS, x)))
 }
 
-pub fn vimrc_found(fname: impl crate::strings::IntoCCharPtr, envname: &std::ffi::CStr) {
-    let fname = fname.into_c_char_ptr();
-    if !fname.is_null()
+pub fn vimrc_found(fname: Option<&std::ffi::CStr>, envname: &std::ffi::CStr) {
+    if let Some(fname) = fname
         && vim_getenv(envname.as_ptr().cast_mut()).is_none()
-        && let Some(p) = FullName_save(fname, false)
+        && let Some(p) = FullName_save(fname.as_ptr(), false)
     {
         os_setenv(envname.as_ptr().cast_mut(), p.as_ptr(), 1);
     }
@@ -7993,8 +8043,8 @@ pub fn reset_option_was_set(opt_idx: OptIndex) {
 }
 
 /// Parse 'cursorlineopt', writing flags only when the value is valid.
-pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut u32) -> bool {
-    let mut rem = crate::memory::cstr_as_bytes(val.into_c_char_ptr());
+pub fn fill_culopt_flags(val: &[u8], flags: &mut u32) -> bool {
+    let mut rem = crate::memory::bytes_until_nul(val);
     let mut culopt_flags_new: u8 = 0;
 
     while !rem.is_empty() {
@@ -8030,26 +8080,23 @@ pub fn fill_culopt_flags(val: impl crate::strings::IntoCCharPtr, flags: &mut u32
 }
 
 /// Set the callback function value for an option that accepts a function name, lambda, et al.
-pub fn option_set_callback_func(
-    optval: impl crate::strings::IntoCCharPtr,
-    optcb: &mut Callback,
-) -> bool {
-    let optval = optval.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(optval);
+pub fn option_set_callback_func(optval: &[u8], optcb: &mut Callback) -> bool {
+    let bytes = crate::memory::bytes_until_nul(optval);
     if bytes.is_empty() {
         callback_free(optcb);
         return true;
     }
 
+    let optval_cstr = crate::memory::cstr_from_bytes(bytes);
     let mut tv: TypVal =
         if bytes[0] == b'{' || bytes.starts_with(b"function(") || bytes.starts_with(b"funcref(") {
-            let Some(evaluated) = eval_expr(optval, None) else {
+            let Some(evaluated) = eval_expr(optval_cstr.as_ptr(), None) else {
                 return false;
             };
             evaluated
         } else {
             let mut allocated = TypVal::new();
-            crate::eval::typval::tv_set_string(&mut allocated, optval);
+            crate::eval::typval::tv_set_string(&mut allocated, optval_cstr.as_ptr());
             allocated
         };
 
@@ -8213,23 +8260,18 @@ pub fn skip_to_option_part_slice(mut p: &[u8]) -> &[u8] {
 }
 
 /// Isolate one part of a string option separated by `sep_chars`.
-pub fn copy_option_part<T>(
-    option: *mut *mut T,
-    buf: *mut u8,
-    maxlen: usize,
-    sep_chars: &std::ffi::CStr,
-) -> usize {
+pub fn copy_option_part(option: &mut &[u8], out: &mut [u8], sep_chars: &std::ffi::CStr) -> usize {
     let mut len: usize = 0;
-    let (p_start, out) = (crate::globals::gptr(option).cast::<u8>(), unsafe {
-        std::slice::from_raw_parts_mut(buf, maxlen)
-    });
-    let p_bytes = crate::memory::cstr_as_bytes(p_start.cast());
+    let maxlen = out.len();
+    let p_bytes = crate::memory::bytes_until_nul(option);
     let mut rem = p_bytes;
     let sep = sep_chars.to_bytes();
 
     if let Some((&b'.', rest)) = rem.split_first() {
-        out[len] = b'.';
-        len += 1;
+        if len < maxlen.saturating_sub(1) {
+            out[len] = b'.';
+            len += 1;
+        }
         rem = rest;
     }
     while let Some((&b, rest)) = rem.split_first() {
@@ -8245,19 +8287,22 @@ pub fn copy_option_part<T>(
             ch = b1;
             rem = rest2;
         }
-        if len < maxlen - 1 {
+        if len < maxlen.saturating_sub(1) {
             out[len] = ch;
             len += 1;
         }
     }
-    out[len] = 0;
+    if maxlen > 0 {
+        out[len] = 0;
+    }
 
     if !rem.is_empty() && rem[0] != b',' {
         rem = &rem[1..];
     }
     rem = skip_to_option_part_slice(rem);
 
-    *crate::globals::gptr(option) = p_start.wrapping_add(p_bytes.len() - rem.len()).cast();
+    let consumed = p_bytes.len() - rem.len();
+    *option = &option[consumed..];
 
     len
 }
@@ -8314,7 +8359,7 @@ pub fn get_winbuf_options(bufopt: i32) -> &'static mut TvDict {
             || (bufopt == 0 && option_has_scope(opt_idx, K_OPT_SCOPE_WIN))
         {
             let varp = get_varp(&mut *opt);
-            if !varp.is_null() {
+            if varp.is_some() {
                 let ov = opt_from_varp(opt_idx, varp);
                 let mut opt_tv = opt_to_tv(ov, true);
                 tv_dict_add_tv(&mut *d, opt.fullname.to_bytes(), &mut opt_tv);
@@ -8361,12 +8406,12 @@ pub fn get_sidescrolloff_value(wp: &mut WinInfoInfo) -> i64 {
 pub fn get_option_info(
     name: NvimString,
     opt_flags: i32,
-    buf: *mut FileBuf,
+    buf: &mut FileBuf,
     win: &mut WinInfoInfo,
     arena: &mut Arena,
     err: &mut Error,
 ) -> Dict {
-    let opt_idx = find_option_len(name.data, name.size);
+    let opt_idx = find_option_len(name.as_bytes(), name.size);
     if opt_idx == K_OPT_INVALID {
         api_set_error!(
             err,
@@ -8377,13 +8422,7 @@ pub fn get_option_info(
         return Dict::new();
     }
 
-    option_info_dict(
-        &mut *get_option(opt_idx),
-        opt_flags,
-        crate::globals::gmut(buf),
-        win,
-        arena,
-    )
+    option_info_dict(&mut *get_option(opt_idx), opt_flags, buf, win, arena)
 }
 
 /// Metadata Dict for every option, keyed by full name.
@@ -8404,7 +8443,7 @@ fn option_info_dict(
     win: &mut WinInfoInfo,
     arena: &mut Arena,
 ) -> Dict {
-    let opt_idx = get_opt_idx(&raw mut *opt);
+    let opt_idx = get_opt_idx(opt);
     let mut dict = arena_dict(arena, 13);
 
     put_c(
@@ -8499,7 +8538,7 @@ fn option_info_dict(
         &mut dict,
         c"type",
         cstr_as_obj(crate::memory::cstr_as_opt_cstr(optval_type_name(
-            get_option(get_opt_idx(&raw mut *opt)).opt_type,
+            get_option(get_opt_idx(opt)).opt_type,
         ))),
     );
     put_c(&mut dict, c"default", opt.def_val);
@@ -8521,10 +8560,10 @@ mod tests {
         let _guard = crate::globals::TEST_GLOBAL_LOCK
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        assert_eq!(find_option(c"number"), K_OPT_NUMBER);
-        assert_eq!(find_option(c"nu"), K_OPT_NUMBER);
-        assert_eq!(find_option_len(c"tabstop=4", 7), K_OPT_TABSTOP);
-        assert_eq!(find_option(c"nonexistent_option"), K_OPT_INVALID);
+        assert_eq!(find_option(b"number"), K_OPT_NUMBER);
+        assert_eq!(find_option(b"nu"), K_OPT_NUMBER);
+        assert_eq!(find_option_len(b"tabstop=4", 7), K_OPT_TABSTOP);
+        assert_eq!(find_option(b"nonexistent_option"), K_OPT_INVALID);
 
         assert!(option_has_type(K_OPT_NUMBER, ObjectType::ObjectTypeBoolean));
         assert!(option_has_type(

@@ -671,7 +671,8 @@ pub fn nvim_cmd(
             && has_event(EVENT_CMDUNDEFINED)
         {
             p = arena_string(arena, cmd.cmd).data;
-            let ret = apply_autocmds(EVENT_CMDUNDEFINED, p, p, true, ptr::null_mut());
+            let p_opt = crate::memory::cstr_as_opt_cstr(p);
+            let ret = apply_autocmds(EVENT_CMDUNDEFINED, p_opt, p_opt, true, None);
             p = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
             } else {
@@ -1040,7 +1041,8 @@ pub fn nvim_cmd(
                     cmod.cmod_filter_force = filter.force;
                     if !filter.pattern.cstr_bytes().is_empty() || cmod.cmod_filter_force {
                         let pat = cstr_from_bytes(filter.pattern.as_bytes());
-                        cmod.cmod_filter_regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
+                        cmod.cmod_filter_regmatch
+                            .set_prog(vim_regcomp(&pat, RE_MAGIC));
                         cmod.cmod_filter_pat = Some(pat);
                     }
                 }

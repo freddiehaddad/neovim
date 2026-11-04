@@ -201,13 +201,10 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
     match group.obj_type {
         ObjectType::ObjectTypeNil => AUGROUP_DEFAULT,
         ObjectType::ObjectTypeString => {
-            let au_group = augroup_find(group.data.string().data);
+            let group_cstr = crate::memory::cstr_from_ptr(group.data.string().data);
+            let au_group = augroup_find(group_cstr);
             if au_group == AUGROUP_ERROR {
-                api_err_inv(
-                    err,
-                    c"group",
-                    crate::memory::cstr_from_ptr(group.data.string().data),
-                );
+                api_err_inv(err, c"group", group_cstr);
                 return AUGROUP_ERROR;
             }
             au_group
@@ -215,9 +212,9 @@ fn get_augroup_from_object(group: Object, err: &mut Error) -> i32 {
         ObjectType::ObjectTypeInteger => {
             let au_group = group.data.integer() as i32;
             let name = if au_group == 0 {
-                std::ptr::null()
+                None
             } else {
-                augroup_name(au_group).map_or(std::ptr::null(), CStr::as_ptr)
+                augroup_name(au_group)
             };
             if !augroup_exists(name) {
                 api_err_int(err, c"group", i64::from(au_group));
@@ -304,7 +301,7 @@ fn get_patterns_from_pattern_or_buf(
 }
 
 fn clear_autocmd(event: AuEvent, pat: &std::ffi::CStr, au_group: i32, err: &mut Error) -> bool {
-    if !do_autocmd_event(event, pat.as_ptr(), false, 0, c"", true, au_group) {
+    if !do_autocmd_event(event, pat, false, 0, c"", true, au_group) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -378,22 +375,19 @@ pub fn nvim_get_autocmds(
         match opts.group.obj_type {
             ObjectType::ObjectTypeNil => {}
             ObjectType::ObjectTypeString => {
-                group = augroup_find(opts.group.data.string().data);
+                let group_cstr = crate::memory::cstr_from_ptr(opts.group.data.string().data);
+                group = augroup_find(group_cstr);
                 if group < 0 {
-                    api_err_inv(
-                        err,
-                        c"group",
-                        crate::memory::cstr_from_ptr(opts.group.data.string().data),
-                    );
+                    api_err_inv(err, c"group", group_cstr);
                     break 'body;
                 }
             }
             ObjectType::ObjectTypeInteger => {
                 group = opts.group.data.integer() as i32;
                 let name = if group == 0 {
-                    std::ptr::null()
+                    None
                 } else {
-                    augroup_name(group).map_or(std::ptr::null(), CStr::as_ptr)
+                    augroup_name(group)
                 };
                 if !augroup_exists(name) {
                     api_err_int(err, c"group", opts.group.data.integer());
@@ -935,15 +929,12 @@ pub fn nvim_create_autocmd(
                 let retval = autocmd_register(
                     autocmd_id,
                     event_nr,
-                    pat.data.string().data,
-                    pat.data.string().size as i32,
+                    pat.data.string().as_bytes(),
                     au_group,
                     opts.once,
                     opts.nested,
-                    desc.map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                    handler_cmd
-                        .as_ref()
-                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                    desc,
+                    handler_cmd.as_deref(),
                     &mut handler_fn,
                 );
                 g_st().current_sctx = save_current_sctx;
@@ -1104,7 +1095,7 @@ pub fn nvim_create_augroup(
     };
 
     let save_current_sctx = api_set_sctx(channel_id);
-    let augroup = augroup_add(augroup_name);
+    let augroup = augroup_add(crate::memory::cstr_from_ptr(augroup_name));
     if augroup == AUGROUP_ERROR {
         api_set_error!(err, ErrorType::ErrorTypeException, c"Failed to set augroup",);
         g_st().current_sctx = save_current_sctx;
@@ -1148,7 +1139,7 @@ pub fn nvim_del_augroup_by_id(id: Integer, err: &mut Error) {
 pub fn nvim_del_augroup_by_name(name: NvimString, err: &mut Error) {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    augroup_del(name.data, -1, false);
+    augroup_del(crate::memory::cstr_from_ptr(name.data), -1, false);
     try_leave(&tstate, err);
 }
 
@@ -1183,22 +1174,19 @@ pub fn nvim_exec_autocmds(
     match opts.group.obj_type {
         ObjectType::ObjectTypeNil => {}
         ObjectType::ObjectTypeString => {
-            au_group = augroup_find(opts.group.data.string().data);
+            let group_cstr = crate::memory::cstr_from_ptr(opts.group.data.string().data);
+            au_group = augroup_find(group_cstr);
             if au_group == AUGROUP_ERROR {
-                api_err_inv(
-                    err,
-                    c"group",
-                    crate::memory::cstr_from_ptr(opts.group.data.string().data),
-                );
+                api_err_inv(err, c"group", group_cstr);
                 return;
             }
         }
         ObjectType::ObjectTypeInteger => {
             au_group = opts.group.data.integer() as i32;
             let name = if au_group == 0 {
-                std::ptr::null()
+                None
             } else {
-                augroup_name(au_group).map_or(std::ptr::null(), CStr::as_ptr)
+                augroup_name(au_group)
             };
             if !augroup_exists(name) {
                 api_err_int(err, c"group", i64::from(au_group));
@@ -1267,21 +1255,19 @@ pub fn nvim_exec_autocmds(
         }
         for j in 0..patterns.size {
             let pat = patterns[j];
-            let fname = if !has_buf {
-                pat.data.string().data
-            } else {
-                std::ptr::null_mut()
-            };
+            let fname = (!has_buf)
+                .then(|| crate::memory::cstr_as_opt_cstr(pat.data.string().data))
+                .flatten();
             did_aucmd |= apply_autocmds_group(
                 event_nr,
                 fname,
-                std::ptr::null_mut(),
+                None,
                 true,
                 au_group,
-                b,
+                unsafe { b.as_mut() },
                 Some(crate::globals::curwin_mut()),
                 None,
-                data,
+                unsafe { data.as_ref() },
                 has_buf,
             );
         }

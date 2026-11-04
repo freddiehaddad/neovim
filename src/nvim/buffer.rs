@@ -88,7 +88,7 @@ use crate::option::{
     shortmess,
 };
 use crate::option_vars::*;
-use crate::optionstr::{CharBuf, OptIndex, clear_string_option};
+use crate::optionstr::{CStrOptionSlot, CharBuf, OptIndex};
 use crate::os::env::{home_replace, home_replace_save};
 #[cfg(unix)]
 use crate::os::fs::os_getperm;
@@ -103,7 +103,7 @@ use crate::path::{
 };
 use crate::plines::win_get_fill;
 use crate::quickfix::qf_stack_get_bufnr;
-use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec};
 use crate::runtime::{ETYPE_MODELINE, estack_pop, estack_push};
 use crate::spell::parse_spelllang;
 use crate::state::{MAP_ALL_MODES, MODE_INSERT};
@@ -1023,10 +1023,10 @@ fn read_buffer(read_stdin: bool, eap: Option<&Exarg>, flags: i32) -> bool {
 
         apply_autocmds_retval(
             EVENT_STDINREADPOST,
-            ptr::null_mut(),
-            ptr::null_mut(),
+            None,
+            None,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
             &mut retval,
         );
     }
@@ -1238,7 +1238,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
                 .b_ffname
                 .wrapping_add(crate::memory::cstr_len(curbuf_mut().b_ffname)),
         ) != 0
-        && augroup_exists(c"filetypedetect")
+        && augroup_exists(Some(c"filetypedetect"))
     {
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, g_st().curbuf);
@@ -1256,10 +1256,10 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
     }
     apply_autocmds_retval(
         EVENT_BUFENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
+        None,
+        None,
         false,
-        g_st().curbuf,
+        curbuf_opt_mut(),
         &mut retval,
     );
 
@@ -1281,10 +1281,10 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         if (flags & READ_NOWINENTER) == 0 {
             apply_autocmds_retval(
                 EVENT_BUFWINENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
+                None,
+                None,
                 false,
-                g_st().curbuf,
+                curbuf_opt_mut(),
                 &mut retval,
             );
         }
@@ -1431,13 +1431,13 @@ pub fn close_buffer(
     if win_valid && win.borrow().w_buffer == buf.as_ptr() && buf.borrow().b_nwindows == 1 {
         buf.borrow_mut().b_locked += 1;
         buf.borrow_mut().b_locked_split += 1;
-        let b_fname = buf.borrow().b_fname;
+        let b_fname = crate::memory::cstr_as_opt_cstr(buf.borrow().b_fname);
         if apply_autocmds_win(
             EVENT_BUFWINLEAVE,
             b_fname,
             b_fname,
             false,
-            buf.as_ptr(),
+            buf.opt_mut(),
             win.opt(),
         ) && !bufref_valid(Some(&bufref))
         {
@@ -1454,8 +1454,8 @@ pub fn close_buffer(
         if !unload_buf {
             buf.borrow_mut().b_locked += 1;
             buf.borrow_mut().b_locked_split += 1;
-            let b_fname = buf.borrow().b_fname;
-            if apply_autocmds(EVENT_BUFHIDDEN, b_fname, b_fname, false, buf.as_ptr())
+            let b_fname = crate::memory::cstr_as_opt_cstr(buf.borrow().b_fname);
+            if apply_autocmds(EVENT_BUFHIDDEN, b_fname, b_fname, false, buf.opt_mut())
                 && !bufref_valid(Some(&bufref))
             {
                 emsg(gettext(E_AUABORT));
@@ -1612,44 +1612,37 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     buf_updates_unload(buf, false);
 
-    if buf.b_ml.ml_mfp.is_some()
-        && apply_autocmds(
-            EVENT_BUFUNLOAD,
-            buf.b_fname,
-            buf.b_fname,
-            false,
-            (&raw mut *buf),
-        )
-        && !bufref_valid(Some(&bufref))
-    {
-        return false;
+    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
+    if unsafe { (*buf_ptr).b_ml.ml_mfp.is_some() } {
+        let b_fname = crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_fname });
+        if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, unsafe {
+            buf_ptr.as_mut()
+        }) && !bufref_valid(Some(&bufref))
+        {
+            return false;
+        }
     }
-    if (flags & BFA_DEL) != 0
-        && buf.b_p_bl != 0
-        && apply_autocmds(
-            EVENT_BUFDELETE,
-            buf.b_fname,
-            buf.b_fname,
-            false,
-            (&raw mut *buf),
-        )
-        && !bufref_valid(Some(&bufref))
-    {
-        return false;
+    if (flags & BFA_DEL) != 0 && unsafe { (*buf_ptr).b_p_bl != 0 } {
+        let b_fname = crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_fname });
+        if apply_autocmds(EVENT_BUFDELETE, b_fname, b_fname, false, unsafe {
+            buf_ptr.as_mut()
+        }) && !bufref_valid(Some(&bufref))
+        {
+            return false;
+        }
     }
-    if (flags & BFA_WIPE) != 0
-        && apply_autocmds(
-            EVENT_BUFWIPEOUT,
-            buf.b_fname,
-            buf.b_fname,
-            false,
-            (&raw mut *buf),
-        )
-        && !bufref_valid(Some(&bufref))
-    {
-        return false;
+    if (flags & BFA_WIPE) != 0 {
+        let b_fname = crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_fname });
+        if apply_autocmds(EVENT_BUFWIPEOUT, b_fname, b_fname, false, unsafe {
+            buf_ptr.as_mut()
+        }) && !bufref_valid(Some(&bufref))
+        {
+            return false;
+        }
     }
-    buf.b_locked -= 1;
+    unsafe {
+        (*buf_ptr).b_locked -= 1;
+    }
     buf.b_locked_split -= 1;
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin) {
@@ -2584,13 +2577,8 @@ pub fn set_curbuf(buf: *mut FileBuf, action: i32, update_jumplist: bool) {
     set_bufref(&mut prevbufref, prevbuf);
     set_bufref(&mut newbufref, buf);
 
-    if !apply_autocmds(
-        EVENT_BUFLEAVE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    ) || (bufref_valid(Some(&prevbufref)) && bufref_valid(Some(&newbufref)) && !aborting())
+    if !apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut())
+        || (bufref_valid(Some(&prevbufref)) && bufref_valid(Some(&newbufref)) && !aborting())
     {
         if prevbuf == curwin_mut().w_buffer {
             reset_synblock(curwin_mut());
@@ -2691,20 +2679,8 @@ fn enter_buffer(buf: *mut FileBuf) {
 
         curwin_mut().w_topline = 1;
         curwin_mut().w_topfill = 0;
-        apply_autocmds(
-            EVENT_BUFENTER,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
-        apply_autocmds(
-            EVENT_BUFWINENTER,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
+        apply_autocmds(EVENT_BUFWINENTER, None, None, false, curbuf_opt_mut());
     }
 
     if curwin_mut().w_cursor.lnum == 1 && inindent(0) {
@@ -2831,7 +2807,7 @@ pub fn buflist_new(
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
                 if (flags & BLN_DUMMY) == 0
-                    && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
+                    && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf.as_mut() })
                     && !bufref_valid(Some(&bufref))
                 {
                     return ptr::null_mut();
@@ -2934,13 +2910,13 @@ pub fn buflist_new(
     if (flags & BLN_DUMMY) == 0 {
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, buf);
-        if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
+        if apply_autocmds(EVENT_BUFNEW, None, None, false, unsafe { buf.as_mut() })
             && !bufref_valid(Some(&bufref))
         {
             return ptr::null_mut();
         }
         if (flags & BLN_LISTED) != 0
-            && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
+            && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf.as_mut() })
             && !bufref_valid(Some(&bufref))
         {
             return ptr::null_mut();
@@ -2976,76 +2952,76 @@ pub fn curbuf_reusable() -> bool {
 /// Free the memory for the options of a buffer.
 pub fn free_buf_options(buf: &mut FileBuf, free_p_ff: bool) {
     if free_p_ff {
-        clear_string_option(&raw mut buf.b_p_fenc);
-        clear_string_option(&raw mut buf.b_p_ff);
-        clear_string_option(&raw mut buf.b_p_bh);
-        clear_string_option(&raw mut buf.b_p_bt);
+        buf.b_p_fenc.clear_option_str();
+        buf.b_p_ff.clear_option_str();
+        buf.b_p_bh.clear_option_str();
+        buf.b_p_bt.clear_option_str();
     }
-    clear_string_option(&raw mut buf.b_p_def);
-    clear_string_option(&raw mut buf.b_p_inc);
+    buf.b_p_def.clear_option_str();
+    buf.b_p_inc.clear_option_str();
     callback_free(&mut buf.b_p_inex);
     callback_free(&mut buf.b_p_inde);
-    clear_string_option(&raw mut buf.b_p_indk);
-    clear_string_option(&raw mut buf.b_p_fp);
+    buf.b_p_indk.clear_option_str();
+    buf.b_p_fp.clear_option_str();
     callback_free(&mut buf.b_p_fex);
-    clear_string_option(&raw mut buf.b_p_kp);
-    clear_string_option(&raw mut buf.b_p_mps);
-    clear_string_option(&raw mut buf.b_p_fo);
-    clear_string_option(&raw mut buf.b_p_flp);
-    clear_string_option(&raw mut buf.b_p_isk);
-    clear_string_option(&raw mut buf.b_p_vsts);
+    buf.b_p_kp.clear_option_str();
+    buf.b_p_mps.clear_option_str();
+    buf.b_p_fo.clear_option_str();
+    buf.b_p_flp.clear_option_str();
+    buf.b_p_isk.clear_option_str();
+    buf.b_p_vsts.clear_option_str();
     buf.b_p_vsts_nopaste = None;
     buf.b_p_vsts_array = Vec::new();
-    clear_string_option(&raw mut buf.b_p_vts);
+    buf.b_p_vts.clear_option_str();
     buf.b_p_vts_array = Vec::new();
-    clear_string_option(&raw mut buf.b_p_keymap);
+    buf.b_p_keymap.clear_option_str();
     buf.b_kmap_ga.clear();
-    clear_string_option(&raw mut buf.b_p_com);
-    clear_string_option(&raw mut buf.b_p_cms);
-    clear_string_option(&raw mut buf.b_p_nf);
-    clear_string_option(&raw mut buf.b_p_syn);
+    buf.b_p_com.clear_option_str();
+    buf.b_p_cms.clear_option_str();
+    buf.b_p_nf.clear_option_str();
+    buf.b_p_syn.clear_option_str();
     buf.b_s.b_syn_isk = None;
-    clear_string_option(&raw mut buf.b_s.b_p_spc);
-    clear_string_option(&raw mut buf.b_s.b_p_spf);
+    buf.b_s.b_p_spc.clear_option_str();
+    buf.b_s.b_p_spf.clear_option_str();
     buf.b_s.b_cap_prog = None;
-    clear_string_option(&raw mut buf.b_s.b_p_spl);
-    clear_string_option(&raw mut buf.b_s.b_p_spo);
-    clear_string_option(&raw mut buf.b_p_sua);
-    clear_string_option(&raw mut buf.b_p_ft);
-    clear_string_option(&raw mut buf.b_p_cink);
-    clear_string_option(&raw mut buf.b_p_cino);
-    clear_string_option(&raw mut buf.b_p_lop);
-    clear_string_option(&raw mut buf.b_p_cinsd);
-    clear_string_option(&raw mut buf.b_p_cinw);
-    clear_string_option(&raw mut buf.b_p_cot);
-    clear_string_option(&raw mut buf.b_p_cpt);
+    buf.b_s.b_p_spl.clear_option_str();
+    buf.b_s.b_p_spo.clear_option_str();
+    buf.b_p_sua.clear_option_str();
+    buf.b_p_ft.clear_option_str();
+    buf.b_p_cink.clear_option_str();
+    buf.b_p_cino.clear_option_str();
+    buf.b_p_lop.clear_option_str();
+    buf.b_p_cinsd.clear_option_str();
+    buf.b_p_cinw.clear_option_str();
+    buf.b_p_cot.clear_option_str();
+    buf.b_p_cpt.clear_option_str();
     #[cfg(windows)]
-    clear_string_option(&raw mut buf.b_p_csl);
+    buf.b_p_csl.clear_option_str();
     callback_free(&mut buf.b_p_cfu);
     callback_free(&mut buf.b_p_ofu);
     callback_free(&mut buf.b_p_tsrfu);
     clear_cpt_callbacks(&mut buf.b_p_cpt_cb);
-    clear_string_option(&raw mut buf.b_p_gefm);
-    clear_string_option(&raw mut buf.b_p_gp);
-    clear_string_option(&raw mut buf.b_p_mp);
-    clear_string_option(&raw mut buf.b_p_efm);
-    clear_string_option(&raw mut buf.b_p_ep);
-    clear_string_option(&raw mut buf.b_p_path);
-    clear_string_option(&raw mut buf.b_p_tags);
-    clear_string_option(&raw mut buf.b_p_tc);
+    buf.b_p_gefm.clear_option_str();
+    buf.b_p_gp.clear_option_str();
+    buf.b_p_mp.clear_option_str();
+    buf.b_p_efm.clear_option_str();
+    buf.b_p_ep.clear_option_str();
+    buf.b_p_path.clear_option_str();
+    buf.b_p_tags.clear_option_str();
+    buf.b_p_tc.clear_option_str();
     callback_free(&mut buf.b_p_tfu);
     callback_free(&mut buf.b_p_ffu);
-    clear_string_option(&raw mut buf.b_p_dict);
-    clear_string_option(&raw mut buf.b_p_dia);
-    clear_string_option(&raw mut buf.b_p_tsr);
-    clear_string_option(&raw mut buf.b_p_qe);
+    buf.b_p_dict.clear_option_str();
+    buf.b_p_dia.clear_option_str();
+    buf.b_p_tsr.clear_option_str();
+    buf.b_p_qe.clear_option_str();
     buf.b_p_ac = -1;
     buf.b_p_ar = -1;
     buf.b_p_fs = -1;
     buf.b_p_ul = NO_LOCAL_UNDOLEVEL;
-    clear_string_option(&raw mut buf.b_p_lw);
-    clear_string_option(&raw mut buf.b_p_bkc);
-    clear_string_option(&raw mut buf.b_p_menc);
+    buf.b_p_lw.clear_option_str();
+    buf.b_p_bkc.clear_option_str();
+    buf.b_p_menc.clear_option_str();
 }
 
 /// Get alternate file `n`.
@@ -3220,11 +3196,13 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                     pat_vec[pat_end_idx] = if attempt < 2 { 0 } else { b'$' };
                 }
                 let pat_start = usize::from(pat_vec[0] == b'^' && (attempt & 1) == 0);
-                let p = pat_vec[pat_start..].as_ptr();
+                let p = unsafe { CStr::from_ptr(pat_vec[pat_start..].as_ptr().cast()) };
 
                 let mut regmatch: Regmatch = Regmatch::new();
-                regmatch.regprog =
-                    vim_regcomp(p.cast(), if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+                regmatch.set_prog(vim_regcomp(
+                    p,
+                    if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+                ));
 
                 for buf in for_all_buffers_rev_ptr() {
                     if regmatch.regprog.is_null() {
@@ -3254,7 +3232,7 @@ pub fn buflist_findpat(pat_slice: &[u8], unlisted: bool, diffmode: bool, curtab_
                     }
                 }
 
-                vim_regfree(regmatch.regprog);
+                regmatch.free_prog();
                 if match_fnum >= 0 {
                     break;
                 }
@@ -3323,7 +3301,7 @@ pub fn expand_bufnames(
             } else {
                 pat
             };
-            regmatch.regprog = vim_regcomp(patc, RE_MAGIC);
+            regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(patc), RE_MAGIC));
             if regmatch.regprog.is_null() {
                 return false;
             }
@@ -3393,7 +3371,7 @@ pub fn expand_bufnames(
         }
 
         if !fuzzy {
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
             drop(patc_owned);
         }
 
@@ -3451,13 +3429,14 @@ fn fname_match(
         return None;
     }
 
+    let name_cstr = crate::memory::cstr_from_ptr(name);
     rmp.rm_ic = opt_vars().p_fic != 0 || ignore_case;
-    if vim_regexec(rmp, name, 0) {
-        match_ = Some(crate::memory::cstr_from_ptr(name));
+    if vim_regexec(rmp, name_cstr, 0) {
+        match_ = Some(name_cstr);
     } else if !rmp.regprog.is_null() {
         let p = home_replace_save(None, name);
-        if vim_regexec(rmp, p.as_ptr().cast_mut(), 0) {
-            match_ = Some(crate::memory::cstr_from_ptr(name));
+        if vim_regexec(rmp, &p, 0) {
+            match_ = Some(name_cstr);
         }
     }
 
@@ -4903,21 +4882,9 @@ pub fn set_buflisted(on: i32) {
 
     curbuf_mut().b_p_bl = on;
     if on != 0 {
-        apply_autocmds(
-            EVENT_BUFADD,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFADD, None, None, false, curbuf_opt_mut());
     } else {
-        apply_autocmds(
-            EVENT_BUFDELETE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFDELETE, None, None, false, curbuf_opt_mut());
     }
 }
 

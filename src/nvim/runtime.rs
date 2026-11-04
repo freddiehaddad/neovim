@@ -73,7 +73,7 @@ use crate::profile::{
     profile_init, profile_reset, profile_self, profile_start, profile_sub_wait, profile_zero,
     script_line_end, script_line_start, time_msg, time_pop, time_push,
 };
-use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, RE_STRING, Regmatch, vim_regcomp, vim_regexec};
 use crate::strings::{gettext, vim_snprintf, vim_snprintf_safelen};
 use crate::usercmd::add_win_cmd_modifiers;
 use crate::viml::parser::expressions::AUTOLOAD_CHAR;
@@ -702,9 +702,9 @@ pub fn do_in_path(
 
         let do_all = (flags & DIP_ALL) != 0;
 
-        let mut rtp = rtp_copy.as_ptr().cast_mut();
-        while !crate::memory::cstr_is_empty(rtp) && (do_all || !did_one) {
-            let buflen = copy_option_part(&mut rtp, buf.cast(), MAXPATHL, c",");
+        let mut rtp = rtp_copy.as_bytes();
+        while !rtp.is_empty() && (do_all || !did_one) {
+            let buflen = copy_option_part(&mut rtp, &mut buf_vec[..MAXPATHL], c",");
 
             if (flags & (DIP_NOAFTER | DIP_AFTER)) != 0 {
                 let is_after = path_is_after(crate::memory::cstr_slice(buf.cast(), buflen));
@@ -726,13 +726,12 @@ pub fn do_in_path(
                     let cur_len = crate::memory::cstr_until_nul(&buf_vec).to_bytes().len();
                     buf_vec[cur_len..(cur_len + prefix_len + 1)]
                         .copy_from_slice(prefix.to_bytes_with_nul());
-                    let tail = buf.wrapping_add(cur_len + prefix_len);
 
-                    let mut np = name;
-                    while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
-                        let tail_off = (tail as usize) - (buf as usize);
+                    let mut np = crate::memory::cstr_as_bytes(name);
+                    while !np.is_empty() && (do_all || !did_one) {
+                        let tail_off = cur_len + prefix_len;
                         debug_assert!(MAXPATHL >= tail_off);
-                        copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
+                        copy_option_part(&mut np, &mut buf_vec[tail_off..MAXPATHL], c"\t ");
 
                         if opt_vars().p_verbose > 10 {
                             verbose_enter();
@@ -838,11 +837,11 @@ fn do_in_cached_path(
                 .as_mut_ptr()
                 .wrapping_add(crate::memory::cstr_until_nul(&buf).to_bytes().len());
 
-            let mut np = name;
-            while !crate::memory::cstr_is_empty(np) && (do_all || !did_one) {
+            let mut np = crate::memory::cstr_as_bytes(name);
+            while !np.is_empty() && (do_all || !did_one) {
                 let tail_off = (tail as usize) - (buf.as_ptr() as usize);
                 debug_assert!(MAXPATHL >= tail_off);
-                copy_option_part(&mut np, tail.cast(), MAXPATHL - tail_off, c"\t ");
+                copy_option_part(&mut np, &mut buf[tail_off..MAXPATHL], c"\t ");
 
                 if opt_vars().p_verbose > 10 {
                     verbose_enter();
@@ -1112,10 +1111,10 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let mut after_path: Vec<std::ffi::CString> = Vec::new();
 
     let buf: *mut u8 = (&raw mut rt_st().build_rtp_buf).cast();
-    let mut entry = opt_vars().p_pp;
-    while !crate::memory::cstr_is_empty(entry) {
-        let cur_entry = entry;
-        let buflen = copy_option_part(&mut entry, buf.cast(), MAXPATHL, c",");
+    let mut entry = crate::memory::cstr_as_bytes(opt_vars().p_pp);
+    while !entry.is_empty() {
+        let cur_entry = entry.as_ptr().cast_mut().cast();
+        let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
 
         let the_entry = NvimString {
             data: cur_entry,
@@ -1126,10 +1125,10 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         pack_used.insert(crate::memory::cstr_slice(cur_entry, buflen).to_vec(), 0);
     }
 
-    let mut rtp_entry = opt_vars().p_rtp;
-    while !crate::memory::cstr_is_empty(rtp_entry) {
+    let mut rtp_entry = crate::memory::cstr_as_bytes(opt_vars().p_rtp);
+    while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
-        let buflen = copy_option_part(&mut rtp_entry, buf.cast(), MAXPATHL, c",");
+        let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
         let buf_slice = crate::memory::cstr_slice(buf.cast(), buflen);
 
         if path_is_after(buf_slice) {
@@ -1137,7 +1136,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
             break;
         }
 
-        let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
+        let pos_in_rtp = (cur_entry.as_ptr() as usize) - (opt_vars().p_rtp as usize);
 
         expand_rtp_entry(
             &mut search_path,
@@ -1161,7 +1160,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     }
 
     let sentinel_pos_in_rtp =
-        ((rtp_entry as usize) - (opt_vars().p_rtp as usize)).saturating_sub(1);
+        ((rtp_entry.as_ptr() as usize) - (opt_vars().p_rtp as usize)).saturating_sub(1);
 
     for item in pack_entries {
         let item_bytes = crate::memory::cstr_slice(item.data, item.size);
@@ -1187,10 +1186,10 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         );
     }
 
-    while !crate::memory::cstr_is_empty(rtp_entry) {
+    while !rtp_entry.is_empty() {
         let cur_entry = rtp_entry;
-        let buflen = copy_option_part(&mut rtp_entry, buf.cast(), MAXPATHL, c",");
-        let pos_in_rtp = (cur_entry as usize) - (opt_vars().p_rtp as usize);
+        let buflen = copy_option_part(&mut rtp_entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
+        let pos_in_rtp = (cur_entry.as_ptr() as usize) - (opt_vars().p_rtp as usize);
         expand_rtp_entry(
             &mut search_path,
             &mut rtp_used,
@@ -1352,7 +1351,11 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let mut entry: *mut u8 = opt_vars().p_rtp.cast();
         while !crate::memory::cstr_is_empty(entry.cast()) {
             let cur_entry = entry;
-            buf.size = copy_option_part(&raw mut entry, buf.data.cast(), MAXPATHL, c",");
+            let mut entry_bytes = crate::memory::cstr_as_bytes(entry.cast());
+            let old_len = entry_bytes.len();
+            let dst = unsafe { std::slice::from_raw_parts_mut(buf.data.cast::<u8>(), MAXPATHL) };
+            buf.size = copy_option_part(&mut entry_bytes, dst, c",");
+            entry = entry.wrapping_add(old_len - entry_bytes.len());
 
             p_rtp_len += if crate::memory::cstr_first_byte(cur_entry.wrapping_add(buf.size).cast())
                 == b','
@@ -1570,9 +1573,9 @@ fn add_pack_plugins(opt: bool, fnames: &[std::ffi::CString], all: bool, action: 
         for fname_cstr in fnames {
             let fname = fname_cstr.as_ptr().cast_mut();
             let mut found = false;
-            let mut p: *mut u8 = opt_vars().p_rtp.cast();
-            while !crate::memory::cstr_is_empty(p.cast()) {
-                copy_option_part(&raw mut p, buf.as_mut_ptr(), MAXPATHL, c",");
+            let mut p = crate::memory::cstr_as_bytes(opt_vars().p_rtp);
+            while !p.is_empty() {
+                copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");
                 if path_equal(buf.as_ptr().cast(), fname, K_PATH_CMP_LITERAL) {
                     found = true;
                     break;
@@ -2605,22 +2608,41 @@ fn do_source_ext(
         }
 
         if str_opt.is_none() {
+            let fname_exp_opt = crate::memory::cstr_as_opt_cstr(fname_exp);
             let has_sourcecmd = if fname_opt.is_none() {
-                has_autocmd(EVENT_SOURCECMD, fname_exp, None)
+                has_autocmd(EVENT_SOURCECMD, fname_exp_opt, None)
             } else {
-                has_autocmd_fullname(EVENT_SOURCECMD, fname_exp, None)
+                has_autocmd_fullname(EVENT_SOURCECMD, fname_exp_opt, None)
             };
             if has_sourcecmd
-                && apply_autocmds(EVENT_SOURCECMD, fname_exp, fname_exp, false, g_st().curbuf)
+                && apply_autocmds(
+                    EVENT_SOURCECMD,
+                    fname_exp_opt,
+                    fname_exp_opt,
+                    false,
+                    curbuf_opt_mut(),
+                )
             {
                 retval = !aborting();
                 if retval {
-                    apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
+                    apply_autocmds(
+                        EVENT_SOURCEPOST,
+                        fname_exp_opt,
+                        fname_exp_opt,
+                        false,
+                        curbuf_opt_mut(),
+                    );
                 }
                 break 'block;
             }
 
-            apply_autocmds(EVENT_SOURCEPRE, fname_exp, fname_exp, false, g_st().curbuf);
+            apply_autocmds(
+                EVENT_SOURCEPRE,
+                fname_exp_opt,
+                fname_exp_opt,
+                false,
+                curbuf_opt_mut(),
+            );
         }
 
         if !cookie.source_from_buf_or_str {
@@ -2679,7 +2701,7 @@ fn do_source_ext(
             verbose_leave();
         }
         if is_vimrc == DOSO_VIMRC {
-            vimrc_found(fname_exp, c"MYVIMRC");
+            vimrc_found(crate::memory::cstr_as_opt_cstr(fname_exp), c"MYVIMRC");
         }
 
         #[cfg(windows)]
@@ -2877,8 +2899,14 @@ fn do_source_ext(
         drop(cookie);
 
         if str_opt.is_none() && trigger_source_post {
-            let fname_exp = fname_exp_owned.as_ptr().cast_mut();
-            apply_autocmds(EVENT_SOURCEPOST, fname_exp, fname_exp, false, g_st().curbuf);
+            let fname_exp_opt = Some(fname_exp_owned.as_c_str());
+            apply_autocmds(
+                EVENT_SOURCEPOST,
+                fname_exp_opt,
+                fname_exp_opt,
+                false,
+                curbuf_opt_mut(),
+            );
         }
     }
 
@@ -3083,7 +3111,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         } else {
             pat_owned = crate::eval::typval::tv_dict_get_cstring(arg_dict.as_deref(), c"name");
             if let Some(ref pat) = pat_owned {
-                regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
+                regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
             }
             if !regmatch.regprog.is_null() {
                 filterpat = true;
@@ -3096,7 +3124,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         let si = script_item(i as Scid);
 
         if let Some(ref sn) = si.sn_name
-            && (!filterpat || vim_regexec(&mut regmatch, sn.as_ptr(), 0))
+            && (!filterpat || vim_regexec(&mut regmatch, sn, 0))
         {
             let d = tv_dict_alloc();
             tv_list_append_dict(l, d);
@@ -3116,7 +3144,7 @@ pub fn f_getscriptinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         i += 1;
     }
 
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     drop(pat_owned);
 }
 

@@ -51,7 +51,6 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::path::path_with_url;
 use crate::regexp::{
     RE_AUTO, RE_MAGIC, RE_NOBREAK, RE_STRICT, Regmatch, Regprog, vim_regcomp, vim_regexec,
-    vim_regfree,
 };
 use crate::runtime::script_autoload;
 use crate::viml::parser::parser::CONV_NONE;
@@ -101,7 +100,7 @@ fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32
     let mut rm: Regmatch = Regmatch::new();
     rm.regprog = regex.prog;
     rm.rm_ic = false;
-    let matched = vim_regexec(&mut rm, str_ptr, 0);
+    let matched = vim_regexec(&mut rm, str_, 0);
     regex.prog = rm.regprog;
 
     if matched {
@@ -208,7 +207,10 @@ unsafe extern "C-unwind" fn regex_match_line(lstate: *mut lua_State) -> i32 {
 
 unsafe extern "C-unwind" fn regex_gc(lstate: *mut lua_State) -> i32 {
     let regex = regex_check(lstate);
-    vim_regfree(regex.prog);
+    if !regex.prog.is_null() {
+        drop(unsafe { Box::from_raw(regex.prog) });
+        regex.prog = ptr::null_mut();
+    }
     0
 }
 
@@ -341,7 +343,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
 
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        let prog = vim_regcomp(text.as_ptr(), RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
+        let prog = vim_regcomp(text, RE_AUTO | RE_MAGIC | RE_STRICT | RE_NOBREAK);
         try_leave(&tstate, &mut err);
 
         if err.err_type != ErrorType::ErrorTypeNone {
@@ -351,7 +353,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
             lua_concat(lstate, 3);
             api_clear_error(&mut err);
             return lua_error(lstate);
-        } else if prog.is_null() {
+        } else if prog.is_none() {
             luaL_where(lstate, 1);
             lua_pushlstring(lstate, b"couldn't parse regex".as_ptr().cast(), 20);
             lua_concat(lstate, 2);
@@ -359,7 +361,7 @@ pub unsafe extern "C-unwind" fn nlua_regex(lstate: *mut lua_State) -> i32 {
         }
 
         let p = lua_newuserdata(lstate, size_of::<LuaRegex>()).cast::<LuaRegex>();
-        (*p).prog = prog;
+        (*p).prog = prog.map_or(ptr::null_mut(), Box::into_raw);
 
         lua_getfield(lstate, LUA_REGISTRYINDEX, c"nvim_regex");
         let _ = lua_setmetatable(lstate, -2);

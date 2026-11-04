@@ -559,13 +559,7 @@ pub fn do_record(c: i32) -> bool {
             showmode();
             reg_st().do_record_regname = c;
             retval = true;
-            apply_autocmds(
-                EVENT_RECORDINGENTER,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_RECORDINGENTER, None, None, false, curbuf_opt_mut());
         }
     } else {
         let mut save_v_event: SaveVEvent = SaveVEvent::new();
@@ -589,13 +583,7 @@ pub fn do_record(c: i32) -> bool {
         );
         tv_dict_set_keys_readonly(&mut *dict);
 
-        apply_autocmds(
-            EVENT_RECORDINGLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_RECORDINGLEAVE, None, None, false, curbuf_opt_mut());
         restore_v_event(&mut *dict, &mut save_v_event);
         g_st().reg_recorded = g_st().reg_recording;
         g_st().reg_recording = 0;
@@ -1337,13 +1325,7 @@ pub fn do_autocmd_textyankpost(oap: &mut Oparg, reg: &mut Yankreg) {
 
     tv_dict_set_keys_readonly(&mut *dict);
     g_st().textlock += 1;
-    apply_autocmds(
-        EVENT_TEXTYANKPOST,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_TEXTYANKPOST, None, None, false, curbuf_opt_mut());
     g_st().textlock -= 1;
     restore_v_event(&mut *dict, &mut save_v_event);
 
@@ -1426,21 +1408,9 @@ fn put_do_autocmd(
     reg_st().put_autocmd_recursive = true;
     g_st().textlock += 1;
     if post {
-        apply_autocmds(
-            EVENT_TEXTPUTPOST,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTPUTPOST, None, None, false, curbuf_opt_mut());
     } else {
-        apply_autocmds(
-            EVENT_TEXTPUTPRE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTPUTPRE, None, None, false, curbuf_opt_mut());
     }
     g_st().textlock -= 1;
     reg_st().put_autocmd_recursive = false;

@@ -783,16 +783,19 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 return Some(crate::memory::cstr_to_cstring(file_path.data));
                             }
 
-                            if crate::memory::cstr_is_empty(suf) {
+                            let mut suf_bytes = crate::memory::cstr_as_bytes(suf);
+                            if suf_bytes.is_empty() {
                                 break;
                             }
-                            file_path.size = len
-                                + copy_option_part(
-                                    &raw mut suf,
-                                    file_path.data.wrapping_add(len).cast(),
+                            let old_len = suf_bytes.len();
+                            let dst = unsafe {
+                                std::slice::from_raw_parts_mut(
+                                    file_path.data.wrapping_add(len).cast::<u8>(),
                                     MAXPATHL - len,
-                                    c",",
-                                );
+                                )
+                            };
+                            file_path.size = len + copy_option_part(&mut suf_bytes, dst, c",");
+                            suf = suf.wrapping_add(old_len - suf_bytes.len());
                         }
                     }
                 } else {
@@ -1295,15 +1298,19 @@ pub fn find_file_in_path_option(
                                     .unwrap_or_default(),
                             );
                         }
-                        if crate::memory::cstr_is_empty(suffix) {
+                        let mut suf_bytes = crate::memory::cstr_as_bytes(suffix);
+                        if suf_bytes.is_empty() {
                             break;
                         }
-                        copy_option_part(
-                            &raw mut suffix,
-                            name_buff.wrapping_add(l).cast(),
-                            MAXPATHL - l,
-                            c",",
-                        );
+                        let old_len = suf_bytes.len();
+                        let dst = unsafe {
+                            std::slice::from_raw_parts_mut(
+                                name_buff.wrapping_add(l).cast::<u8>(),
+                                MAXPATHL - l,
+                            )
+                        };
+                        copy_option_part(&mut suf_bytes, dst, c",");
+                        suffix = suffix.wrapping_add(old_len - suf_bytes.len());
                     }
                     run += 1;
                 }
@@ -1323,13 +1330,16 @@ pub fn find_file_in_path_option(
                     }
                     ff_opt.did_findfile_init = false;
                 } else {
-                    if crate::memory::cstr_is_empty(ff_opt.dir.cast()) {
+                    let mut dir_bytes = crate::memory::cstr_as_bytes(ff_opt.dir.cast());
+                    if dir_bytes.is_empty() {
                         *search_ctx = None;
                         break;
                     }
 
                     let mut buf = [0u8; MAXPATHL];
-                    copy_option_part(&raw mut ff_opt.dir, buf.as_mut_ptr(), MAXPATHL, c" ,");
+                    let old_len = dir_bytes.len();
+                    copy_option_part(&mut dir_bytes, &mut buf, c" ,");
+                    ff_opt.dir = ff_opt.dir.wrapping_add(old_len - dir_bytes.len());
 
                     let stop_off = vim_findfile_stopdir(&mut buf);
                     let stopdirs = stop_off.map(|off| crate::memory::cstr_until_nul(&buf[off..]));
@@ -1694,10 +1704,10 @@ pub fn do_autocmd_dirchanged(new_dir: &std::ffi::CStr, scope: CdScope, cause: Cd
 
         apply_autocmds(
             event,
-            buf.as_mut_ptr().cast(),
-            new_dir,
+            Some(crate::memory::cstr_until_nul(&buf)),
+            crate::memory::cstr_as_opt_cstr(new_dir),
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
 
         restore_v_event(&mut *dict, &mut save_v_event);

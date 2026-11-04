@@ -96,7 +96,7 @@ use crate::path::{
     K_PATH_CMP_LITERAL, add_pathsep, after_pathsep, dir_of_file_exists, path_equal,
     path_is_absolute, path_shorten_fname, path_tail, path_with_url, vim_full_name, vim_ispathsep,
 };
-use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, Regmatch, Regprog, vim_regcomp, vim_regexec};
 use crate::sha256::ContextSha256;
 use crate::shada::check_marks_read;
 use crate::state::{MODE_CMDLINE, MODE_NORMAL_BUSY};
@@ -1199,14 +1199,15 @@ pub fn readfile(
                 curbuf_mut().b_op_start.lnum = if from == 0 { 1 } else { from };
                 curbuf_mut().b_op_start.col = 0;
 
+                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname.cast());
                 if newfile {
                     if apply_autocmds_exarg(
                         EVENT_BUFREADCMD,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     ) {
                         retval = OK;
                         if aborting() {
@@ -1219,10 +1220,10 @@ pub fn readfile(
                         {
                             apply_autocmds(
                                 EVENT_FILETYPE,
-                                curbuf_mut().b_p_ft,
-                                curbuf_mut().b_fname,
+                                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
+                                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                                 true,
-                                g_st().curbuf,
+                                curbuf_opt_mut(),
                             );
                             if aborting() {
                                 retval = FAIL;
@@ -1235,11 +1236,11 @@ pub fn readfile(
                     }
                 } else if apply_autocmds_exarg(
                     EVENT_FILEREADCMD,
-                    sfname.cast(),
-                    sfname.cast(),
+                    sfname_opt,
+                    sfname_opt,
                     false,
-                    ptr::null_mut(),
-                    (eap.is_some()).then(|| eap.unwrap()),
+                    None,
+                    eap,
                 ) {
                     retval = if aborting() { FAIL } else { OK };
                     break 'theend;
@@ -1420,12 +1421,13 @@ pub fn readfile(
                     if let Some(eap) = eap {
                         set_forced_fenc(eap);
                     }
+                    let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname.cast());
                     apply_autocmds_exarg(
                         EVENT_BUFNEWFILE,
-                        sfname.cast(),
-                        sfname.cast(),
+                        sfname_opt,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
+                        curbuf_opt_mut(),
                         eap,
                     );
                     save_file_ff(curbuf_mut());
@@ -1534,41 +1536,42 @@ pub fn readfile(
                 }
 
                 g_st().msg_scroll = 1;
+                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname.cast());
                 if filtering {
                     apply_autocmds_exarg(
                         EVENT_FILTERREADPRE,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     );
                 } else if read_stdin {
                     apply_autocmds_exarg(
                         EVENT_STDINREADPRE,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     );
                 } else if newfile {
                     apply_autocmds_exarg(
                         EVENT_BUFREADPRE,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     );
                 } else {
                     apply_autocmds_exarg(
                         EVENT_FILEREADPRE,
-                        sfname.cast(),
-                        sfname.cast(),
+                        sfname_opt,
+                        sfname_opt,
                         false,
-                        ptr::null_mut(),
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        None,
+                        eap,
                     );
                 }
 
@@ -2966,23 +2969,24 @@ pub fn readfile(
                 }
 
                 g_st().msg_scroll = 1;
+                let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname.cast());
                 if filtering {
                     apply_autocmds_exarg(
                         EVENT_FILTERREADPOST,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     );
                 } else if newfile || (read_buffer && !sfname.is_null()) {
                     let did_bufrp = apply_autocmds_exarg(
                         EVENT_BUFREADPOST,
-                        ptr::null_mut(),
-                        sfname.cast(),
+                        None,
+                        sfname_opt,
                         false,
-                        g_st().curbuf,
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        curbuf_opt_mut(),
+                        eap,
                     );
 
                     if !curbuf_mut().b_au_did_filetype
@@ -2990,38 +2994,38 @@ pub fn readfile(
                     {
                         apply_autocmds(
                             EVENT_FILETYPE,
-                            curbuf_mut().b_p_ft,
-                            curbuf_mut().b_fname,
+                            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
+                            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                             true,
-                            g_st().curbuf,
+                            curbuf_opt_mut(),
                         );
                     }
 
                     if !did_bufrp
                         && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
-                        && augroup_exists(c"filetypedetect")
+                        && augroup_exists(Some(c"filetypedetect"))
                     {
                         apply_autocmds_group(
                             EVENT_BUFREADPOST,
-                            sfname.cast(),
-                            ptr::null_mut(),
+                            sfname_opt,
+                            None,
                             true,
                             augroup_find(c"filetypedetect"),
-                            g_st().curbuf,
+                            curbuf_opt_mut(),
                             Some(crate::globals::curwin_mut()),
                             None,
-                            ptr::null_mut(),
+                            None,
                             false,
                         );
                     }
                 } else {
                     apply_autocmds_exarg(
                         EVENT_FILEREADPOST,
-                        sfname.cast(),
-                        sfname.cast(),
+                        sfname_opt,
+                        sfname_opt,
                         false,
-                        ptr::null_mut(),
-                        (eap.is_some()).then(|| eap.unwrap()),
+                        None,
+                        eap,
                     );
                 }
                 if g_st().msg_scrolled == n {
@@ -3211,21 +3215,9 @@ pub fn set_rw_fname(
     let buf = g_st().curbuf;
 
     if curbuf_mut().b_p_bl != 0 {
-        apply_autocmds(
-            EVENT_BUFDELETE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFDELETE, None, None, false, curbuf_opt_mut());
     }
-    apply_autocmds(
-        EVENT_BUFWIPEOUT,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_BUFWIPEOUT, None, None, false, curbuf_opt_mut());
     if aborting() {
         return false;
     }
@@ -3238,28 +3230,16 @@ pub fn set_rw_fname(
         curbuf_mut().b_flags |= BF_NOTEDITED;
     }
 
-    apply_autocmds(
-        EVENT_BUFNEW,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_BUFNEW, None, None, false, curbuf_opt_mut());
     if curbuf_mut().b_p_bl != 0 {
-        apply_autocmds(
-            EVENT_BUFADD,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_BUFADD, None, None, false, curbuf_opt_mut());
     }
     if aborting() {
         return false;
     }
 
     if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
-        if augroup_exists(c"filetypedetect") {
+        if augroup_exists(Some(c"filetypedetect")) {
             do_doautocmd(c"filetypedetect BufRead", false, None);
         }
         do_modelines(0);
@@ -4054,12 +4034,13 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             set_vim_var_string(VV_FCS_REASON, reason, reasonlen);
             set_vim_var_string(VV_FCS_CHOICE, c"", 0);
             g_st().allbuf_lock += 1;
+            let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
             let mut n = apply_autocmds(
                 EVENT_FILECHANGEDSHELL,
-                buf.b_fname,
-                buf.b_fname,
+                b_fname,
+                b_fname,
                 false,
-                &raw mut *buf,
+                Some(&mut *buf),
             );
             g_st().allbuf_lock -= 1;
             BUSY.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -4199,12 +4180,13 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if bufref_valid(Some(&bufref)) && retval != 0 {
+        let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
         apply_autocmds(
             EVENT_FILECHANGEDSHELLPOST,
-            buf.b_fname,
-            buf.b_fname,
+            b_fname,
+            b_fname,
             false,
-            &raw mut *buf,
+            Some(&mut *buf),
         );
     }
     retval
@@ -4740,23 +4722,25 @@ pub fn match_file_pat(
     let mut result = false;
 
     regmatch.rm_ic = opt_vars().p_fic != 0;
-    regmatch.regprog = if let Some(prog) = prog {
-        ptr::from_ref(prog).cast_mut()
+    if let Some(prog) = prog {
+        regmatch.borrow_prog(Some(prog));
     } else {
-        vim_regcomp(pattern, RE_MAGIC)
-    };
+        regmatch.set_prog(vim_regcomp(crate::memory::cstr_from_ptr(pattern), RE_MAGIC));
+    }
 
     if !regmatch.regprog.is_null()
         && ((allow_dirs != 0
-            && (vim_regexec(&mut regmatch, fname, 0)
-                || (!sfname.is_null() && vim_regexec(&mut regmatch, sfname, 0))))
-            || (allow_dirs == 0 && vim_regexec(&mut regmatch, tail, 0)))
+            && (vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(fname), 0)
+                || (!sfname.is_null()
+                    && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(sfname), 0))))
+            || (allow_dirs == 0
+                && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(tail), 0)))
     {
         result = true;
     }
 
     if prog.is_none() {
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
     }
     result
 }
@@ -4772,10 +4756,10 @@ pub fn match_file_list(
     let ffname = ffname.into_c_char_ptr().cast_mut();
     let tail = path_tail(sfname);
 
-    let mut p = list;
-    while !crate::memory::cstr_is_empty(p) {
+    let mut p = crate::memory::cstr_as_bytes(list);
+    while !p.is_empty() {
         let mut buf: [u8; MAXPATHL] = [0; MAXPATHL];
-        let part_len = copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), buf.len(), c",");
+        let part_len = copy_option_part(&mut p, &mut buf, c",");
         let mut allow_dirs = false;
         let Some(regpat) = file_pat_to_reg_pat(&buf[..part_len], Some(&mut allow_dirs), 0) else {
             break;

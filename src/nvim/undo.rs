@@ -599,10 +599,9 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
 
     let ffname_len = crate::memory::cstr_len(ffname);
     let ffname_slice = crate::memory::cstr_slice(ffname, ffname_len);
-    let mut dirp = opt_vars().p_udir;
-    while !crate::memory::cstr_is_empty(dirp) {
-        let mut dir_len =
-            copy_option_part(&raw mut dirp, dir_name.as_mut_ptr().cast(), MAXPATHL, c",");
+    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_udir);
+    while !dirp.is_empty() {
+        let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
             let tail_off = crate::memory::ptr_offset_from(path_tail(ffname), ffname) as usize;
             let mut ufn_vec: Vec<u8> = Vec::with_capacity(ffname_len + 5);
@@ -620,7 +619,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
             }
 
             let mut has_directory = os_isdir(dir_name.as_ptr().cast());
-            if !has_directory && crate::memory::cstr_is_empty(dirp) && !reading {
+            if !has_directory && dirp.is_empty() && !reading {
                 let mut failed_dir: Option<std::ffi::CString> = None;
                 let ret = os_mkdir_recurse(dir_name.as_ptr().cast(), 0o755, &mut failed_dir, None);
                 if ret != 0 {

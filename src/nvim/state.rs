@@ -21,7 +21,6 @@ use crate::strings::vim_snprintf;
 use crate::ui::ui_flush;
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
-use std::ptr;
 
 pub const MODE_MAX_LENGTH: usize = 4;
 
@@ -351,10 +350,10 @@ pub fn may_trigger_modechanged() {
 
     apply_autocmds(
         EVENT_MODECHANGED,
-        pattern_buf.as_mut_ptr().cast(),
-        ptr::null_mut(),
+        Some(crate::memory::cstr_until_nul(&pattern_buf)),
+        None,
         false,
-        g_st().curbuf,
+        curbuf_opt_mut(),
     );
     g_st().last_mode = curr_mode;
 
@@ -390,13 +389,7 @@ pub fn may_trigger_safestate(safe: bool) {
         );
     }
     if is_safe {
-        apply_autocmds(
-            EVENT_SAFESTATE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_SAFESTATE, None, None, false, curbuf_opt_mut());
     }
     state_mod_st().was_safe = is_safe;
 }

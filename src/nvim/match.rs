@@ -25,7 +25,7 @@ use crate::option_vars::*;
 use crate::profile::{Proftime, profile_passed_limit, profile_setlimit};
 use crate::regexp::{
     MAXCOL, NUMBUFLEN, RE_MAGIC, Regmmatch, Regprog, re_multiline, skip_regexp, vim_regcomp,
-    vim_regexec_multi, vim_regfree,
+    vim_regexec_multi,
 };
 use crate::strings::{gettext, vim_snprintf};
 use crate::window::WinInfoInfo;
@@ -106,7 +106,7 @@ pub struct Matchitem {
 
 impl Drop for Matchitem {
     fn drop(&mut self) {
-        vim_regfree(self.mit_match.regprog);
+        self.mit_match.free_prog();
     }
 }
 
@@ -169,11 +169,11 @@ fn match_add(
         return -1;
     }
     if let Some(pat) = pat {
-        regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC);
-        if regprog.is_null() {
+        let Some(prog_box) = vim_regcomp(pat, RE_MAGIC) else {
             semsg!(gettext(E_INVARG2), pat.as_ptr());
             return -1;
-        }
+        };
+        regprog = Box::into_raw(prog_box);
     }
 
     let pos_len = tv_list_len(pos_list);
@@ -476,10 +476,11 @@ fn next_search_hl(
                     == cur.as_deref_mut().unwrap().mit_hl.rm.regprog;
             let mut timed_out: i32 = 0;
 
+            let shl_buf = unsafe { &mut *shl.buf };
             nmatched = vim_regexec_multi(
                 &mut shl.rm,
-                win,
-                shl.buf,
+                Some(win),
+                shl_buf,
                 lnum,
                 matchcol,
                 Some(shl.tm),
@@ -491,7 +492,7 @@ fn next_search_hl(
             }
             if g_st().called_emsg > called_emsg_before || g_st().got_int || timed_out != 0 {
                 if cur.is_none() {
-                    vim_regfree(shl.rm.regprog);
+                    shl.rm.free_prog();
                     set_no_hlsearch(true);
                 }
                 shl.rm.regprog = ptr::null_mut();
@@ -1253,10 +1254,12 @@ pub fn ex_match(eap: &mut Exarg) {
                 return;
             }
             end = skip_regexp(
-                p.wrapping_add(1),
+                unsafe { std::ffi::CStr::from_ptr(p.wrapping_add(1)) },
                 i32::from(crate::memory::cstr_first_byte(p)),
                 1,
-            );
+            )
+            .as_ptr()
+            .cast_mut();
             if eap.skip == 0 {
                 if !crate::memory::cstr_is_empty(end)
                     && ends_excmd(crate::memory::cstr_first_byte(skipwhite(

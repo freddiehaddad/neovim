@@ -25,9 +25,7 @@ use crate::option::{
     K_OPT_BUFHIDDEN, OPT_LOCAL, OptTarget, parse_winhl_opt, set_option_direct_for,
 };
 use crate::option_vars::*;
-use crate::optionstr::{
-    K_OPT_PREVIEWPOPUP, OptKeyDict_pvp, alloc_string_option, free_string_option, opt_keyset,
-};
+use crate::optionstr::{CStrOptionSlot, K_OPT_PREVIEWPOPUP, OptKeyDict_pvp, opt_keyset};
 use crate::os::fs::{MAXPATHL, os_dirname};
 use crate::plines::{plines_m_win, win_max_displaywidth};
 use crate::strings::{concat_str, gettext};
@@ -122,14 +120,10 @@ pub fn win_new_float(
         let wp = win_alloc(tp_last, false);
         win_init(wp, curwin_mut(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
-            if wp.w_onebuf_opt.wo_wbr != empty_opt {
-                free_string_option(wp.w_onebuf_opt.wo_wbr);
-            }
-            wp.w_onebuf_opt.wo_wbr = empty_opt;
+            wp.w_onebuf_opt.wo_wbr.clear_option_str();
         }
         if !wp.w_onebuf_opt.wo_stl.is_null() && wp.w_onebuf_opt.wo_stl != empty_opt {
-            free_string_option(wp.w_onebuf_opt.wo_stl);
-            wp.w_onebuf_opt.wo_stl = empty_opt;
+            wp.w_onebuf_opt.wo_stl.clear_option_str();
         }
         wp
     };
@@ -151,7 +145,6 @@ pub fn win_new_float(
 }
 
 pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     wp.w_onebuf_opt.wo_nu = 0;
     wp.w_onebuf_opt.wo_rnu = 0;
     wp.w_onebuf_opt.wo_cul = 0;
@@ -162,54 +155,47 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
     // Hide EOB region: use " " fillchar and cleared highlighting
     if wp.w_p_fcs_chars.eob != b' ' as u32 {
         let old = wp.w_onebuf_opt.wo_fcs;
-        wp.w_onebuf_opt.wo_fcs = if crate::memory::cstr_is_empty(old) {
-            alloc_string_option(c"eob: ")
+        if crate::memory::cstr_is_empty(old) {
+            wp.w_onebuf_opt.wo_fcs.set_option_cstr(c"eob: ");
         } else {
-            alloc_string_option(concat_str(crate::memory::cstr_as_bytes(old), b",eob: ").as_ptr())
-        };
-        free_string_option(old);
+            let joined = concat_str(crate::memory::cstr_as_bytes(old), b",eob: ");
+            wp.w_onebuf_opt.wo_fcs.set_option_cstr(joined.as_c_str());
+        }
     }
 
     let old = wp.w_onebuf_opt.wo_winhl;
-    wp.w_onebuf_opt.wo_winhl = if crate::memory::cstr_is_empty(old) {
-        alloc_string_option(c"EndOfBuffer:")
+    if crate::memory::cstr_is_empty(old) {
+        wp.w_onebuf_opt.wo_winhl.set_option_cstr(c"EndOfBuffer:");
     } else {
-        alloc_string_option(
-            concat_str(crate::memory::cstr_as_bytes(old), b",EndOfBuffer:").as_ptr(),
-        )
-    };
-    free_string_option(old);
-    parse_winhl_opt(ptr::null(), Some(&mut *wp));
+        let joined = concat_str(crate::memory::cstr_as_bytes(old), b",EndOfBuffer:");
+        wp.w_onebuf_opt.wo_winhl.set_option_cstr(joined.as_c_str());
+    }
+    parse_winhl_opt(None, Some(&mut *wp));
 
     // signcolumn: use 'auto'
     let scl_len = crate::memory::cstr_len(wp.w_onebuf_opt.wo_scl);
     if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_scl) != b'a' || scl_len >= 8 {
-        free_string_option(wp.w_onebuf_opt.wo_scl);
-        wp.w_onebuf_opt.wo_scl = alloc_string_option(c"auto");
+        wp.w_onebuf_opt.wo_scl.set_option_cstr(c"auto");
     }
 
     // foldcolumn: use '0'
     if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdc) != b'0' {
-        free_string_option(wp.w_onebuf_opt.wo_fdc);
-        wp.w_onebuf_opt.wo_fdc = alloc_string_option(c"0");
+        wp.w_onebuf_opt.wo_fdc.set_option_cstr(c"0");
     }
 
     // colorcolumn: cleared
     if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cc) {
-        free_string_option(wp.w_onebuf_opt.wo_cc);
-        wp.w_onebuf_opt.wo_cc = alloc_string_option(c"");
+        wp.w_onebuf_opt.wo_cc.set_option_cstr(c"");
     }
 
     // statuscolumn: cleared
     if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
-        free_string_option(wp.w_onebuf_opt.wo_stc);
-        wp.w_onebuf_opt.wo_stc = empty_opt;
+        wp.w_onebuf_opt.wo_stc.clear_option_str();
     }
 
     // statusline: cleared (for floating windows)
     if wp.w_floating && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) {
-        free_string_option(wp.w_onebuf_opt.wo_stl);
-        wp.w_onebuf_opt.wo_stl = empty_opt;
+        wp.w_onebuf_opt.wo_stl.clear_option_str();
         if wp.w_status_height > 0 {
             let cfg = wp.w_config.clone();
             win_config_float(&mut *wp, cfg);

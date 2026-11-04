@@ -977,13 +977,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         };
 
         if eap.cmdidx == CMD_MKSESSION {
-            apply_autocmds(
-                EVENT_SESSIONWRITEPRE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_SESSIONWRITEPRE, None, None, false, curbuf_opt_mut());
         }
 
         if eap.cmdidx == CMD_MKVIMRC {
@@ -1089,13 +1083,7 @@ pub fn ex_mkrc(eap: &mut Exarg) {
     drop(view_file);
 
     if eap.cmdidx == CMD_MKSESSION {
-        apply_autocmds(
-            EVENT_SESSIONWRITEPOST,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_SESSIONWRITEPOST, None, None, false, curbuf_opt_mut());
     }
 }
 

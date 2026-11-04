@@ -1555,7 +1555,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
         );
     }
 
-    let mut dict_obj = Object {
+    let dict_obj = Object {
         obj_type: ObjectType::ObjectTypeDict,
         data: ObjectData::Dict(Dict {
             items: data_items.as_mut_ptr(),
@@ -1563,21 +1563,23 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
             capacity: 7,
         }),
     };
-    let fname = if msg_data.is_some() && msg_data.as_deref_mut().unwrap().source.size > 0 {
-        msg_data.unwrap().source.data
+    let fname = if let Some(ref d) = msg_data
+        && d.source.size > 0
+    {
+        crate::memory::cstr_from_ptr(d.source.data)
     } else {
-        c"".as_ptr().cast_mut()
+        c""
     };
     apply_autocmds_group(
         EVENT_PROGRESS,
-        fname,
-        ptr::null_mut(),
+        Some(fname),
+        None,
         true,
         AUGROUP_ALL,
-        ptr::null_mut(),
+        None,
         Some(crate::globals::curwin_mut()),
         None,
-        &raw mut dict_obj,
+        Some(&dict_obj),
         false,
     );
 }
@@ -3085,7 +3087,11 @@ pub fn message_filtered(msg: impl crate::strings::IntoCCharPtr) -> bool {
         return false;
     }
 
-    let match_ = vim_regexec(&mut g_st().cmdmod.cmod_filter_regmatch, msg, 0);
+    let match_ = vim_regexec(
+        &mut g_st().cmdmod.cmod_filter_regmatch,
+        crate::memory::cstr_from_ptr(msg),
+        0,
+    );
     if g_st().cmdmod.cmod_filter_force {
         match_
     } else {

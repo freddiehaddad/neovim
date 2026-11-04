@@ -44,9 +44,7 @@ use crate::r#move::{
 use crate::normal::check_scrollbind;
 use crate::option::{OptTarget, set_option_direct_for, set_option_value_give_err};
 use crate::option_vars::*;
-use crate::optionstr::{
-    OptIndex, OptKeyDict_dip, alloc_string_option, free_string_option, opt_keyset,
-};
+use crate::optionstr::{CStrOptionSlot, OptIndex, OptKeyDict_dip, opt_keyset};
 use crate::os::env::{os_env_exists, os_unsetenv};
 use crate::os::fs::{CFile, FileInfo, os_fileinfo, os_fileinfo_size, os_remove};
 use crate::os::shell::call_shell;
@@ -777,7 +775,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
     }
     let save_ml_flags = buf.b_ml.ml_flags;
     let save_ff = buf.b_p_ff;
-    buf.b_p_ff = alloc_string_option(c"unix");
+    buf.b_p_ff = CStrOptionSlot::from_option_cstr(c"unix");
     let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
     if end < start {
@@ -797,7 +795,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         true,
     );
     g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
-    free_string_option(buf.b_p_ff);
+    buf.b_p_ff.free_option_str();
     buf.b_p_ff = save_ff;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
     r == OK
@@ -992,13 +990,7 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
     if had_diffs || !curtab_mut().tp_diffs.is_empty() {
         diff_redraw(true);
         window_layout_lock();
-        apply_autocmds(
-            EVENT_DIFFUPDATED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_DIFFUPDATED, None, None, false, curbuf_opt_mut());
         window_layout_unlock();
     }
 }
@@ -1335,7 +1327,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                     if !newname_vec.is_empty() {
                         eap.arg = newname_vec.as_mut_ptr().cast();
                         ex_file(eap);
-                        if crate::autocmd::augroup_exists(c"filetypedetect") {
+                        if crate::autocmd::augroup_exists(Some(c"filetypedetect")) {
                             do_cmdline_cmd(c":doau filetypedetect BufRead");
                         }
                     }
@@ -1425,9 +1417,10 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     }
     if wp.w_onebuf_opt.wo_diff == 0 {
         if wp.w_onebuf_opt.wo_diff_saved != 0 {
-            free_string_option(wp.w_onebuf_opt.wo_fdm_save);
+            wp.w_onebuf_opt.wo_fdm_save.free_option_str();
         }
-        wp.w_onebuf_opt.wo_fdm_save = alloc_string_option(wp.w_onebuf_opt.wo_fdm);
+        wp.w_onebuf_opt.wo_fdm_save =
+            CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdm));
     }
     set_option_direct_for(
         K_OPT_FOLDMETHOD,
@@ -1440,14 +1433,14 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         wp.w_onebuf_opt.wo_fen_save = wp.w_onebuf_opt.wo_fen;
         wp.w_onebuf_opt.wo_fdl_save = wp.w_onebuf_opt.wo_fdl;
         if wp.w_onebuf_opt.wo_diff_saved != 0 {
-            free_string_option(wp.w_onebuf_opt.wo_fdc_save);
+            wp.w_onebuf_opt.wo_fdc_save.free_option_str();
         }
-        wp.w_onebuf_opt.wo_fdc_save = alloc_string_option(wp.w_onebuf_opt.wo_fdc);
+        wp.w_onebuf_opt.wo_fdc_save =
+            CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdc));
     }
-    free_string_option(wp.w_onebuf_opt.wo_fdc);
     debug_assert!(g_st().diff_foldcolumn >= 0 && g_st().diff_foldcolumn <= 9);
-    let fdc_buf: [u8; 2] = [b'0' + (g_st().diff_foldcolumn as u8), 0];
-    wp.w_onebuf_opt.wo_fdc = alloc_string_option(fdc_buf.as_ptr().cast());
+    let fdc_buf: [u8; 1] = [b'0' + (g_st().diff_foldcolumn as u8)];
+    wp.w_onebuf_opt.wo_fdc.set_option_bytes(&fdc_buf);
     wp.w_onebuf_opt.wo_fen = 1;
     wp.w_onebuf_opt.wo_fdl = 0;
     fold_update_all(wp);
@@ -1486,20 +1479,18 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                     wp.w_onebuf_opt.wo_wrap = 1;
                     wp.w_leftcol = 0;
                 }
-                free_string_option(wp.w_onebuf_opt.wo_fdm);
-                wp.w_onebuf_opt.wo_fdm = alloc_string_option(
+                wp.w_onebuf_opt.wo_fdm.set_option_cstr(
                     if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdm_save) {
-                        wp.w_onebuf_opt.wo_fdm_save
+                        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdm_save)
                     } else {
-                        c"manual".as_ptr()
+                        c"manual"
                     },
                 );
-                free_string_option(wp.w_onebuf_opt.wo_fdc);
-                wp.w_onebuf_opt.wo_fdc = alloc_string_option(
+                wp.w_onebuf_opt.wo_fdc.set_option_cstr(
                     if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdc_save) {
-                        wp.w_onebuf_opt.wo_fdc_save
+                        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdc_save)
                     } else {
-                        c"0".as_ptr()
+                        c"0"
                     },
                 );
                 if wp.w_onebuf_opt.wo_fdl == 0 {
@@ -3250,13 +3241,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     } else {
         diff_redraw(false);
         window_layout_lock();
-        apply_autocmds(
-            EVENT_DIFFUPDATED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_DIFFUPDATED, None, None, false, curbuf_opt_mut());
         window_layout_unlock();
     }
 }

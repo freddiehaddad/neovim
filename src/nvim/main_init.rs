@@ -701,13 +701,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         curwin_mut().w_cursor.lnum = curbuf_mut().b_ml.ml_line_count;
     }
 
-    apply_autocmds(
-        EVENT_BUFENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_BUFENTER, None, None, false, curbuf_opt_mut());
     time_msg_if_enabled(c"BufEnter autocommands");
     setpcmark();
 
@@ -743,13 +737,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     do_autochdir();
 
     set_vim_var_nr(VV_VIM_DID_ENTER, 1);
-    apply_autocmds(
-        EVENT_VIMENTER,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_VIMENTER, None, None, false, curbuf_opt_mut());
     time_msg_if_enabled(c"VimEnter autocommands");
     if use_remote_ui {
         do_autocmd_uienter_all();
@@ -930,7 +918,10 @@ pub fn getout(mut exitval: i32) -> ! {
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, buf_ptr);
-                    apply_autocmds(EVENT_BUFWINLEAVE, buf.b_fname, buf.b_fname, false, buf_ptr);
+                    let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+                    apply_autocmds(EVENT_BUFWINLEAVE, b_fname, b_fname, false, unsafe {
+                        buf_ptr.as_mut()
+                    });
                     if let Some(buf_now) = bufref.buf_opt().filter(|_| bufref_valid(Some(&bufref)))
                     {
                         buf_set_changedtick(buf_now, -1);
@@ -946,7 +937,8 @@ pub fn getout(mut exitval: i32) -> ! {
             if buf.b_ml.ml_mfp.is_some() {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, buf);
-                apply_autocmds(EVENT_BUFUNLOAD, buf.b_fname, buf.b_fname, false, buf);
+                let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+                apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, Some(&mut *buf));
                 if !bufref_valid(Some(&bufref)) {
                     break;
                 }
@@ -958,13 +950,7 @@ pub fn getout(mut exitval: i32) -> ! {
             unblock_autocmds();
             unblock += 1;
         }
-        apply_autocmds(
-            EVENT_VIMLEAVEPRE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_VIMLEAVEPRE, None, None, false, curbuf_opt_mut());
         if unblock != 0 {
             block_autocmds();
         }
@@ -983,13 +969,7 @@ pub fn getout(mut exitval: i32) -> ! {
             unblock_autocmds();
             unblock += 1;
         }
-        apply_autocmds(
-            EVENT_VIMLEAVE,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_VIMLEAVE, None, None, false, curbuf_opt_mut());
         if unblock != 0 {
             block_autocmds();
         }

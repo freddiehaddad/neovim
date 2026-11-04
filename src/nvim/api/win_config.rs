@@ -480,14 +480,9 @@ pub fn nvim_open_win(
                 K_CTX_NO_DISPLAY,
             );
             assert!(result);
-            if apply_autocmds_win(
-                EVENT_WINNEW,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-                unsafe { wp.as_ref() },
-            ) {
+            if apply_autocmds_win(EVENT_WINNEW, None, None, false, curbuf_opt_mut(), unsafe {
+                wp.as_ref()
+            }) {
                 tp = win_find_tabpage(wp);
             }
             ctx_restore(&mut switchwin);

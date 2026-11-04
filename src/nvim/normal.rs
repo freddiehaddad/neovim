@@ -2346,13 +2346,7 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
         && (!ptr::eq(g_st().last_cursormoved_win, curwin_ptr())
             || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
     {
-        apply_autocmds(
-            EVENT_CURSORMOVED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_CURSORMOVED, None, None, false, curbuf_opt_mut());
         g_st().last_cursormoved_win = curwin_ptr();
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
@@ -2363,13 +2357,7 @@ fn normal_check_text_changed(_s: &mut NormalState) {
         && has_event(EVENT_TEXTCHANGED)
         && curbuf_mut().b_last_changedtick != buf_get_changedtick(curbuf_mut())
     {
-        apply_autocmds(
-            EVENT_TEXTCHANGED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_TEXTCHANGED, None, None, false, curbuf_opt_mut());
         curbuf_mut().b_last_changedtick = buf_get_changedtick(curbuf_mut());
     }
 }
@@ -5347,14 +5335,9 @@ fn nv_brackets(cap: &mut Cmdarg) {
 
 fn buf_has_cstyle_comments() -> bool {
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-    let mut list = curbuf_mut().b_p_com;
-    while !crate::memory::cstr_is_empty(list) {
-        let len = copy_option_part(
-            &raw mut list,
-            part_buf.as_mut_ptr().cast(),
-            COM_MAX_LEN,
-            c",",
-        );
+    let mut list = crate::memory::cstr_as_bytes(curbuf_mut().b_p_com);
+    while !list.is_empty() {
+        let len = copy_option_part(&mut list, &mut part_buf, c",");
         let part_slice = &part_buf[..len];
         if let Some(colon_pos) = part_slice.iter().position(|&b| b == b':')
             && let Some(after) = part_slice.get(colon_pos + 1..)

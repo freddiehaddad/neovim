@@ -697,9 +697,12 @@ fn is_executable_ext(
                 continue;
             }
 
-            let mut ext_end = ext.cast_mut();
+            let mut ext_bytes = crate::memory::cstr_as_bytes(ext.cast());
+            let old_len = ext_bytes.len();
             let rem = MAXPATHL - ((buf_end as usize) - (buf as usize));
-            let ext_len = copy_option_part(&raw mut ext_end, buf_end, rem, ENV_SEPSTR);
+            let dst = unsafe { std::slice::from_raw_parts_mut(buf_end, rem) };
+            let ext_len = copy_option_part(&mut ext_bytes, dst, ENV_SEPSTR);
+            let ext_end = ext.wrapping_add(old_len - ext_bytes.len()).cast_mut();
             if ext_len != 0 {
                 let in_pathext =
                     nameext_len == ext_len && mb_strnicmp(nameext, ext.cast(), ext_len) == 0;

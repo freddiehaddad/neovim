@@ -159,7 +159,7 @@ use crate::ops::{
 };
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, free_string_option};
+use crate::optionstr::{CStrOptionSlot, OptIndex};
 use crate::os::dl::os_libcall;
 use crate::os::env::{
     ExpandCtx, expand_env_save, home_replace, os_env_exists, os_get_pid, os_getenv_cstr,
@@ -180,7 +180,7 @@ use crate::profile::{
 };
 use crate::regexp::{
     MAXCOL, NSUBEXP, NUMBUFLEN, RE_MAGIC, RE_STRING, Regmatch, reg_submatch, reg_submatch_list,
-    vim_regcomp, vim_regexec_nl, vim_regfree,
+    vim_regcomp, vim_regexec_nl,
 };
 use crate::register::{
     BlockDef, K_GREG_EXPR_SRC, YREG_YANK, format_reg_type, get_reg_contents_list,
@@ -2252,9 +2252,11 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
         Some(&b'#') => {
             if p_bytes.get(1) == Some(&b'#') {
-                n = i32::from(autocmd_supported(p.wrapping_add(2)));
+                n = i32::from(autocmd_supported(unsafe {
+                    CStr::from_ptr(p.wrapping_add(2))
+                }));
             } else {
-                n = i32::from(au_exists(p.wrapping_add(1)));
+                n = i32::from(au_exists(unsafe { CStr::from_ptr(p.wrapping_add(1)) }));
             }
         }
         _ => {
@@ -4675,13 +4677,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
         let ct = chan;
         'term_done: {
-            apply_autocmds(
-                EVENT_BUFFILEPRE,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                buf,
-            );
+            apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&mut *buf));
 
             if crate::globals::gptr(ct).term.is_null()
                 || terminal_buf(crate::globals::gref(crate::globals::gptr(ct).term)) == 0
@@ -4712,13 +4708,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
 
             setfname(&mut *buf, namebuff, ptr::null_mut(), true);
-            apply_autocmds(
-                EVENT_BUFFILEPOST,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                buf,
-            );
+            apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
             if crate::globals::gptr(ct).term.is_null()
                 || terminal_buf(crate::globals::gref(crate::globals::gptr(ct).term)) == 0
@@ -5219,7 +5209,10 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
             }
         }
 
-        regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+        regmatch.set_prog(vim_regcomp(
+            crate::memory::cstr_from_ptr(pat),
+            RE_MAGIC + RE_STRING,
+        ));
         if !regmatch.regprog.is_null() {
             regmatch.rm_ic = opt_vars().p_ic != 0;
 
@@ -5241,7 +5234,11 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                 }
 
-                match_found = vim_regexec_nl(&mut regmatch, str_, startcol);
+                match_found = vim_regexec_nl(
+                    &mut regmatch,
+                    crate::memory::cstr_as_opt_cstr(str_),
+                    startcol,
+                );
 
                 if match_found {
                     nth -= 1;
@@ -5359,7 +5356,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     }
                 }
             }
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
         }
     }
 
@@ -5388,10 +5385,11 @@ fn get_matches_in_str(
     let str_ = str_.into_c_char_ptr();
     {
         let len = crate::memory::cstr_len(str_);
+        let str_opt = crate::memory::cstr_as_opt_cstr(str_);
         let mut startidx: Colnr = 0;
 
         loop {
-            if !vim_regexec_nl(rmp, str_, startidx) {
+            if !vim_regexec_nl(rmp, str_opt, startidx) {
                 break;
             }
 
@@ -5519,7 +5517,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = opt_vars().p_ic != 0;
 
@@ -5538,7 +5536,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             slnum += 1;
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
     }
 
     opt_vars().p_cpo = save_cpo;
@@ -5591,7 +5589,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
 
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.regprog = vim_regcomp(pat, RE_MAGIC + RE_STRING);
+    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = opt_vars().p_ic != 0;
 
@@ -5625,7 +5623,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             }
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
     }
 
     opt_vars().p_cpo = save_cpo;
@@ -7378,7 +7376,7 @@ pub fn do_searchpair(
                     0,
                 );
             }
-            free_string_option(save_cpo);
+            save_cpo.free_option_str();
         }
 
         retval
@@ -8143,18 +8141,22 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if !typeerr {
         let mut regmatch = Regmatch {
-            regprog: vim_regcomp(pat, RE_MAGIC + RE_STRING),
+            regprog: ptr::null_mut(),
             startp: [ptr::null_mut(); NSUBEXP],
             endp: [ptr::null_mut(); NSUBEXP],
             rm_matchcol: 0,
             rm_ic: false,
         };
+        regmatch.set_prog(vim_regcomp(
+            crate::memory::cstr_from_ptr(pat),
+            RE_MAGIC + RE_STRING,
+        ));
         if !regmatch.regprog.is_null() {
             while !crate::memory::cstr_is_empty(str_) || keepempty {
                 let match_found = if crate::memory::cstr_is_empty(str_) {
                     false
                 } else {
-                    vim_regexec_nl(&mut regmatch, str_, col)
+                    vim_regexec_nl(&mut regmatch, crate::memory::cstr_as_opt_cstr(str_), col)
                 };
                 let end = if match_found {
                     regmatch.startp[0].cast_const().cast()
@@ -8184,7 +8186,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 }
                 str_ = regmatch.endp[0].cast();
             }
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
         }
     }
 
@@ -8403,7 +8405,9 @@ pub fn f_submatch(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         );
     } else {
         rettv.v_type = VarType::VarList;
-        rettv.vval = crate::eval::typval::TypvalVval::List(reg_submatch_list(no));
+        rettv.vval = crate::eval::typval::TypvalVval::List(
+            reg_submatch_list(no).map_or(ptr::null_mut(), ptr::from_mut),
+        );
     }
 }
 

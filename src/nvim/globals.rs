@@ -942,6 +942,11 @@ pub fn curbuf_mut() -> &'static mut FileBuf {
 }
 
 #[inline]
+pub fn curbuf_opt_mut() -> Option<&'static mut FileBuf> {
+    unsafe { g_st().curbuf.as_mut() }
+}
+
+#[inline]
 pub fn curtab_mut() -> &'static mut TabPageInfo {
     unsafe { &mut *g_st().curtab }
 }

@@ -220,9 +220,9 @@ pub fn cin_is_cinword(line: &[u8]) -> bool {
     let line = crate::charset::skipwhite_slice(line);
     let cinw_len = crate::memory::cstr_len(curbuf_mut().b_p_cinw) + 1;
     let mut cinw_buf = vec![0u8; cinw_len];
-    let mut cinw = curbuf_mut().b_p_cinw;
-    while !crate::memory::cstr_is_empty(cinw) {
-        let len = copy_option_part(&raw mut cinw, cinw_buf.as_mut_ptr().cast(), cinw_len, c",");
+    let mut cinw = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cinw);
+    while !cinw.is_empty() {
+        let len = copy_option_part(&mut cinw, &mut cinw_buf, c",");
         if line.starts_with(&cinw_buf[..len])
             && (!line.get(len).is_some_and(|&b| vim_iswordc(i32::from(b)))
                 || (len > 0 && !vim_iswordc(i32::from(line[len - 1]))))
@@ -492,14 +492,9 @@ fn cin_isscopedecl_slice(p: &[u8]) -> bool {
     let s = cin_skipcomment_slice(p);
     let cinsd_len = crate::memory::cstr_len(curbuf_mut().b_p_cinsd) + 1;
     let mut cinsd_buf = vec![0u8; cinsd_len];
-    let mut cinsd = curbuf_mut().b_p_cinsd;
-    while !crate::memory::cstr_is_empty(cinsd) {
-        let len = copy_option_part(
-            &raw mut cinsd,
-            cinsd_buf.as_mut_ptr().cast(),
-            cinsd_len,
-            c",",
-        );
+    let mut cinsd = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cinsd);
+    while !cinsd.is_empty() {
+        let len = copy_option_part(&mut cinsd, &mut cinsd_buf, c",");
         if s.starts_with(&cinsd_buf[..len]) {
             let skip = cin_skipcomment_slice(&s[len..]);
             if skip.first() == Some(&b':') && skip.get(1) != Some(&b':') {
@@ -1552,8 +1547,11 @@ pub fn get_c_indent() -> i32 {
                     if crate::memory::cstr_first_byte(p) == b':' {
                         p = p.wrapping_add(1);
                     }
+                    let mut p_bytes = crate::memory::cstr_as_bytes(p);
+                    let old_len = p_bytes.len();
                     lead_end_len =
-                        copy_option_part(&raw mut p, (&raw mut lead_end).cast(), COM_MAX_LEN, c",");
+                        copy_option_part(&mut p_bytes, &mut lead_end[..COM_MAX_LEN], c",");
+                    p = p.wrapping_add(old_len - p_bytes.len());
                     if what == i32::from(COM_START) {
                         lead_start = lead_end;
                         lead_start_len = lead_end_len;

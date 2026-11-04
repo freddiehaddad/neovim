@@ -157,7 +157,7 @@ fn validate_option_value_args(
             }
         }
 
-        *opt_idxp = find_option(name.as_ptr());
+        *opt_idxp = find_option(name.to_bytes());
         if *opt_idxp == K_OPT_INVALID {
             api_set_error!(
                 err,
@@ -302,7 +302,9 @@ fn do_ft_buf(
     unsafe {
         (*ftbuf).b_p_swf = 0;
         (*ftbuf).b_p_ml = 0;
-        (*ftbuf).b_p_ft = crate::optionstr::alloc_string_option(filetype.as_ptr());
+        (*ftbuf).b_p_ft = crate::optionstr::CStrOptionSlot::from_option_cstr(
+            crate::memory::cstr_from_ptr(filetype.as_ptr()),
+        );
     }
 
     if !has_event(EVENT_FILETYPE) {
@@ -445,7 +447,7 @@ pub fn nvim_option_to_object(
     arena: &mut Arena,
     err: &mut Error,
 ) -> Object {
-    let opt_idx = find_option(name.data);
+    let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
         api_set_error!(
             err,
@@ -488,7 +490,7 @@ pub fn nvim_option_to_object(
         dict_obj(d)
     } else {
         let mut nparts: usize = 1;
-        let mut p = str_ptr;
+        let p = str_ptr;
         for &p_byte in crate::memory::cstr_as_bytes(p) {
             if p_byte == b',' {
                 nparts += 1;
@@ -509,9 +511,9 @@ pub fn nvim_option_to_object(
         };
         let str_len = crate::memory::cstr_len(str_ptr);
         let mut item_buf = vec![0u8; str_len + 1];
-        p = str_ptr;
-        while !crate::memory::cstr_is_empty(p) {
-            copy_option_part(&raw mut p, item_buf.as_mut_ptr().cast(), str_len + 1, c",");
+        let mut p_bytes = crate::memory::cstr_as_bytes(str_ptr);
+        while !p_bytes.is_empty() {
+            copy_option_part(&mut p_bytes, &mut item_buf, c",");
             let item_bytes = CStr::from_bytes_until_nul(&item_buf)
                 .unwrap_or(c"")
                 .to_bytes();
@@ -618,7 +620,7 @@ pub fn nvim_set_option_value(
     } else {
         curwin_ptr()
     };
-    let varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { &mut *win });
+    let mut varp = get_varp_from(&mut *option, unsafe { &mut *buf }, unsafe { win.as_mut() });
 
     let nitems = if is_array {
         value.data.array().size
@@ -666,21 +668,20 @@ pub fn nvim_set_option_value(
             return OBJECT_NIL;
         }
 
-        let mut argp = ptr::null_mut();
+        let mut arg_buf: Vec<u8> = Vec::new();
 
         match optval_right.obj_type {
             ObjectType::ObjectTypeUnset | ObjectType::ObjectTypeNil => {}
             ObjectType::ObjectTypeString => {
-                let optval_escaped = escape_option_str_cmdline(optval_right.data.string().data);
+                let optval_escaped =
+                    escape_option_str_cmdline(optval_right.data.string().as_bytes());
                 let escaped_bytes = optval_escaped.as_bytes();
-                let mut buf_bytes = Vec::with_capacity(1 + escaped_bytes.len());
-                buf_bytes.push(b'=');
-                buf_bytes.extend_from_slice(escaped_bytes);
-                argp = arena_memdupz(arena, buf_bytes.as_ptr().cast(), buf_bytes.len());
+                arg_buf.reserve(1 + escaped_bytes.len());
+                arg_buf.push(b'=');
+                arg_buf.extend_from_slice(escaped_bytes);
             }
             ObjectType::ObjectTypeInteger => {
-                let s = format!("={}", optval_right.data.integer());
-                argp = arena_memdupz(arena, s.as_ptr().cast(), s.len());
+                arg_buf = format!("={}", optval_right.data.integer()).into_bytes();
             }
             ObjectType::ObjectTypeBoolean => {
                 merged_val = optval_right;
@@ -699,10 +700,11 @@ pub fn nvim_set_option_value(
             || optval_right.obj_type == ObjectType::ObjectTypeString
         {
             let mut oldval = if i == 0 {
-                optval_own(opt_idx, opt_from_varp(opt_idx, varp))
+                optval_own(opt_idx, opt_from_varp(opt_idx, varp.as_deref_mut()))
             } else {
                 merged_val
             };
+            let mut argp: &[u8] = &arg_buf;
             merged_val = get_option_newval(
                 opt_idx,
                 opt_flags,
@@ -710,7 +712,7 @@ pub fn nvim_set_option_value(
                 &mut argp,
                 0,
                 operation,
-                varp,
+                varp.as_deref_mut(),
                 Some(&mut oldval),
                 &mut errmsg,
             );
@@ -857,7 +859,14 @@ pub fn nvim_get_option_info2(
         curwin_ptr()
     };
 
-    get_option_info(name, opt_flags, buf, unsafe { &mut *win }, arena, err)
+    get_option_info(
+        name,
+        opt_flags,
+        unsafe { &mut *buf },
+        unsafe { &mut *win },
+        arena,
+        err,
+    )
 }
 
 #[cfg(test)]

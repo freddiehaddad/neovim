@@ -126,18 +126,23 @@ fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
 pub fn change_warning(buf: &mut FileBuf, col: i32) {
     const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-    if !buf.b_did_warn && !curbuf_is_changed_fn() && !g_st().autocmd_busy && buf.b_p_ro != 0 {
-        buf.b_ro_locked += 1;
-        apply_autocmds(
-            EVENT_FILECHANGEDRO,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            (&raw mut *buf),
-        );
-        buf.b_ro_locked -= 1;
-        if buf.b_p_ro == 0 {
-            return;
+    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
+    if !unsafe { (*buf_ptr).b_did_warn }
+        && !curbuf_is_changed_fn()
+        && !g_st().autocmd_busy
+        && unsafe { (*buf_ptr).b_p_ro != 0 }
+    {
+        unsafe {
+            (*buf_ptr).b_ro_locked += 1;
+        }
+        apply_autocmds(EVENT_FILECHANGEDRO, None, None, false, unsafe {
+            buf_ptr.as_mut()
+        });
+        unsafe {
+            (*buf_ptr).b_ro_locked -= 1;
+            if (*buf_ptr).b_p_ro == 0 {
+                return;
+            }
         }
         msg_start();
         if g_st().msg_row == g_st().rows_global - 1 {
@@ -1168,36 +1173,36 @@ pub fn open_line(
             }
             if p_byte == COM_START || p_byte == COM_MIDDLE {
                 let current_flag = p_byte;
+                let mut p_bytes = crate::memory::cstr_as_bytes(p.cast());
                 if p_byte == COM_START {
                     if dir == BACKWARD {
                         lead_len = 0;
                         break;
                     }
-                    copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",");
+                    copy_option_part(&mut p_bytes, &mut lead_middle[..COM_MAX_LEN], c",");
                     require_blank = false;
                 }
 
-                while !crate::memory::cstr_is_empty(p.cast())
-                    && crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) != b':'
-                {
-                    if crate::memory::cstr_first_byte(p.cast()) == COM_BLANK {
+                if let Some(colon_pos) = p_bytes.iter().position(|&b| b == b':') {
+                    if p_bytes[..colon_pos].contains(&COM_BLANK) {
                         require_blank = true;
                     }
-                    p = p.wrapping_add(1);
+                    p_bytes = &p_bytes[colon_pos + 1..];
+                } else {
+                    p_bytes = &[];
                 }
                 lead_middle_len =
-                    copy_option_part(&raw mut p, lead_middle.as_mut_ptr(), COM_MAX_LEN, c",")
-                        as i32;
+                    copy_option_part(&mut p_bytes, &mut lead_middle[..COM_MAX_LEN], c",") as i32;
 
-                while !crate::memory::cstr_is_empty(p.cast())
-                    && crate::memory::cstr_first_byte(p.wrapping_sub(1).cast()) != b':'
-                {
-                    if crate::memory::cstr_first_byte(p.cast()) == COM_AUTO_END {
+                if let Some(colon_pos) = p_bytes.iter().position(|&b| b == b':') {
+                    if p_bytes[..colon_pos].contains(&COM_AUTO_END) {
                         g_st().ins_global.end_comment_pending = -1;
                     }
-                    p = p.wrapping_add(1);
+                    p_bytes = &p_bytes[colon_pos + 1..];
+                } else {
+                    p_bytes = &[];
                 }
-                let n = copy_option_part(&raw mut p, lead_end.as_mut_ptr(), COM_MAX_LEN, c",");
+                let n = copy_option_part(&mut p_bytes, &mut lead_end[..COM_MAX_LEN], c",");
 
                 if g_st().ins_global.end_comment_pending == -1 {
                     g_st().ins_global.end_comment_pending = i32::from(lead_end[n - 1]);
@@ -1942,12 +1947,10 @@ pub fn get_leader_len(
                 *flags_out = crate::memory::cstr_as_opt_cstr(list);
             }
             let prev_list = list;
-            let part_len = copy_option_part(
-                &raw mut list,
-                part_buf.as_mut_ptr().cast(),
-                COM_MAX_LEN,
-                c",",
-            );
+            let mut list_bytes = crate::memory::cstr_as_bytes(list);
+            let old_len = list_bytes.len();
+            let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
+            list = list.wrapping_add(old_len - list_bytes.len());
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 part_flags_range = 0..part_len;
@@ -2064,13 +2067,10 @@ pub fn get_last_leader_offset(
         let mut list = curbuf_mut().b_p_com;
         while !crate::memory::cstr_is_empty(list) {
             let flags_save = list;
-
-            let part_len = copy_option_part(
-                &raw mut list,
-                part_buf.as_mut_ptr().cast(),
-                COM_MAX_LEN,
-                c",",
-            );
+            let mut list_bytes = crate::memory::cstr_as_bytes(list);
+            let old_len = list_bytes.len();
+            let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
+            list = list.wrapping_add(old_len - list_bytes.len());
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 continue;
@@ -2140,13 +2140,11 @@ pub fn get_last_leader_offset(
             let mut list = curbuf_mut().b_p_com;
             while !crate::memory::cstr_is_empty(list) {
                 let flags_save = list;
-
-                let part2_len = copy_option_part(
-                    &raw mut list,
-                    part_buf2.as_mut_ptr().cast(),
-                    COM_MAX_LEN,
-                    c",",
-                );
+                let mut list_bytes = crate::memory::cstr_as_bytes(list);
+                let old_len = list_bytes.len();
+                let part2_len =
+                    copy_option_part(&mut list_bytes, &mut part_buf2[..COM_MAX_LEN], c",");
+                list = list.wrapping_add(old_len - list_bytes.len());
                 if flags_save.cast::<u8>() == com_flags {
                     continue;
                 }

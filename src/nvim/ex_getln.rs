@@ -119,7 +119,7 @@ use crate::path::vim_ispathsep;
 use crate::popupmenu::pum_check_clear;
 use crate::profile::{Proftime, profile_setlimit};
 use crate::regexp::{
-    CTRL_H_CONST, CTRL_V_CONST, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, RegMagic, skip_regexp_ex,
+    CTRL_H_CONST, CTRL_V_CONST, MAGIC_ALL, MAGIC_ON, MAXCOL, NUMBUFLEN, RegMagic, skip_regexp_magic,
 };
 use crate::register::{
     cmdline_paste_reg, get_expr_line, get_expr_register, get_spec_reg, is_literal_register,
@@ -458,12 +458,13 @@ use crate::api::private::helpers::array_add;
 
 fn trigger_cmd_autocmd(typechar: i32, evt: AuEvent) {
     let typestr: [u8; 2] = [typechar as u8, 0];
+    let typestr_cstr = crate::memory::cstr_until_nul(&typestr);
     apply_autocmds(
         evt,
-        typestr.as_ptr().cast(),
-        typestr.as_ptr().cast(),
+        Some(typestr_cstr),
+        Some(typestr_cstr),
         false,
-        g_st().curbuf,
+        curbuf_opt_mut(),
     );
 }
 
@@ -596,15 +597,13 @@ pub fn parse_pattern_and_range(
     };
     *search_delim = delim;
 
-    let end = skip_regexp_ex(
-        p,
+    let end_off = skip_regexp_magic(
+        crate::memory::cstr_as_bytes(p),
         delim,
         i32::from(*is_magic),
-        false,
-        None,
-        None,
         Some(&mut magic),
     );
+    let end = p.wrapping_add(end_off);
     let use_last_pat = end == p && i32::from(crate::memory::cstr_first_byte(end)) == delim;
 
     if end == p && !use_last_pat {
@@ -1135,12 +1134,13 @@ fn command_line_enter(
             tv_dict_set_keys_readonly(&mut *dict);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
+            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
             apply_autocmds(
                 EVENT_CMDLINEENTER,
-                firstcbuf.as_ptr().cast(),
-                firstcbuf.as_ptr().cast(),
+                Some(firstc_cstr),
+                Some(firstc_cstr),
                 false,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
             restore_v_event(&mut *dict, &mut save_v_event);
             try_leave(&tstate, &mut err);
@@ -1228,12 +1228,13 @@ fn command_line_enter(
             set_vim_var_char(s.c);
             let mut tstate = TryState::new();
             try_enter(&mut tstate);
+            let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
             apply_autocmds(
                 EVENT_CMDLINELEAVE,
-                firstcbuf.as_ptr().cast(),
-                firstcbuf.as_ptr().cast(),
+                Some(firstc_cstr),
+                Some(firstc_cstr),
                 false,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
             try_leave(&tstate, &mut err);
             if tv_dict_get_number(Some(&*dict), c"abort") != 0 {
@@ -2875,16 +2876,7 @@ fn empty_pattern(p: &[u8], delim: i32) -> bool {
     let mut magic_val: RegMagic = MAGIC_ON;
 
     if !slice.is_empty() {
-        let p_cstr = crate::memory::cstr_from_bytes(slice);
-        skip_regexp_ex(
-            p_cstr.as_ptr().cast_mut(),
-            delim,
-            opt_vars().p_magic,
-            false,
-            None,
-            None,
-            Some(&mut magic_val),
-        );
+        skip_regexp_magic(slice, delim, opt_vars().p_magic, Some(&mut magic_val));
     } else {
         return true;
     }
@@ -3231,12 +3223,13 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
         tv_dict_set_keys_readonly(&mut *dict);
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
+        let firstc_cstr = crate::memory::cstr_until_nul(&firstcbuf);
         apply_autocmds(
             EVENT_CMDLINECHANGED,
-            firstcbuf.as_ptr().cast(),
-            firstcbuf.as_ptr().cast(),
+            Some(firstc_cstr),
+            Some(firstc_cstr),
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         restore_v_event(&mut *dict, &mut save_v_event);
         try_leave(&tstate, &mut err);
@@ -4958,8 +4951,9 @@ pub fn cmdline_init() {
 
 /// Validate the `'cedit'` option.
 pub fn validate_cedit(args: &mut Optset) -> Option<&'static CStr> {
-    let value = args.os_newval.data.string().data;
-    if !crate::memory::cstr_is_empty(value) {
+    let newval_str = args.os_newval.data.string();
+    let value = newval_str.as_bytes();
+    if !value.is_empty() {
         let n = string_to_key(value);
         if n == 0 || vim_isprintc(n) {
             return Some(E_INVARG);
@@ -4973,7 +4967,7 @@ pub fn did_set_cedit(_args: &mut Optset) -> Option<&'static CStr> {
     getln_st().cedit_key = if crate::memory::cstr_is_empty(opt_vars().p_cedit) {
         -1
     } else {
-        string_to_key(opt_vars().p_cedit)
+        string_to_key(crate::memory::cstr_as_bytes(opt_vars().p_cedit))
     };
     None
 }

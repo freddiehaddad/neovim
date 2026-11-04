@@ -29,7 +29,7 @@ use crate::message::{
     msg_putchar, msg_puts, msg_puts_hl, msg_puts_title, semsg,
 };
 use crate::option_vars::*;
-use crate::optionstr::clear_string_option;
+use crate::optionstr::CStrOptionSlot;
 use crate::os::env::{EXPAND_BUF_LEN, ExpandCtx};
 use crate::os::input::line_breakcheck;
 use crate::path::path_is_absolute;
@@ -41,7 +41,7 @@ use crate::profile::{
 };
 use crate::regexp::{
     MAXCOL, NSUBEXP, RE_MAGIC, REX_SET, REX_USE, RegExtmatch, Regmatch, Regmmatch, Regprog,
-    skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi, vim_regfree,
+    skip_regexp, vim_regcomp, vim_regcomp_had_eol, vim_regexec, vim_regexec_multi,
 };
 use crate::runtime::{DIP_ALL, DOSO_NONE, do_source, source_runtime};
 use crate::strings::{gettext, vim_snprintf, vim_strchr};
@@ -912,7 +912,7 @@ fn syn_match_linecont(lnum: Linenr) -> i32 {
     save_chartab(&mut buf_chartab);
 
     regmatch.rmm_ic = syn_block_mut().b_syn_linecont_ic;
-    regmatch.regprog = crate::regexp::regprog_as_ptr(&syn_block_mut().b_syn_linecont_prog);
+    regmatch.borrow_prog(syn_block_mut().b_syn_linecont_prog.as_deref());
     let r = syn_regexec(
         &mut regmatch,
         lnum,
@@ -1618,7 +1618,7 @@ fn syn_current_attr(
                             }
 
                             regmatch.rmm_ic = spp.sp_ic;
-                            regmatch.regprog = crate::regexp::regprog_as_ptr(&spp.sp_prog);
+                            regmatch.borrow_prog(spp.sp_prog.as_deref());
                             let r = syn_regexec(
                                 &mut regmatch,
                                 syn_st().current_lnum,
@@ -2262,7 +2262,7 @@ fn find_endpos(
             }
 
             regmatch.rmm_ic = spp.sp_ic;
-            regmatch.regprog = crate::regexp::regprog_as_ptr(&spp.sp_prog);
+            regmatch.borrow_prog(spp.sp_prog.as_deref());
             let r = syn_regexec(&mut regmatch, startpos.lnum, lc_col, &mut spp.sp_time);
             if r && (best_idx == -1 || regmatch.startpos[0].col < best_regmatch.startpos[0].col) {
                 best_idx = idx;
@@ -2283,7 +2283,7 @@ fn find_endpos(
                 lc_col = 0;
             }
             regmatch.rmm_ic = spp_skip.sp_ic;
-            regmatch.regprog = crate::regexp::regprog_as_ptr(&spp_skip.sp_prog);
+            regmatch.borrow_prog(spp_skip.sp_prog.as_deref());
             let r = syn_regexec(&mut regmatch, startpos.lnum, lc_col, &mut spp_skip.sp_time);
             if r && regmatch.startpos[0].col <= best_regmatch.startpos[0].col {
                 syn_add_end_off(&mut pos, &mut regmatch, &mut *spp_skip, SPO_ME_OFF, 1);
@@ -2481,10 +2481,12 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
     }
 
     rmp.rmm_maxcol = syn_st().syn_buf_mut().b_p_smc as Colnr;
+    let syn_win = unsafe { syn_st().syn_win.as_mut() };
+    let syn_buf = syn_st().syn_buf_mut();
     let r = vim_regexec_multi(
         rmp,
-        syn_st().syn_win,
-        syn_st().syn_buf,
+        syn_win,
+        syn_buf,
         lnum,
         col,
         syn_st().syn_tm,
@@ -4302,7 +4304,14 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         }
 
         let delim = arg_bytes[0];
-        let mut end = skip_regexp(arg.wrapping_add(1), delim as i32, 1);
+        let mut end = skip_regexp(
+            unsafe { std::ffi::CStr::from_ptr(arg.wrapping_add(1).cast()) },
+            delim as i32,
+            1,
+        )
+        .as_ptr()
+        .cast_mut()
+        .cast::<u8>();
         if crate::memory::cstr_first_byte(end.cast()) != delim {
             semsg!(
                 gettext(c"E401: Pattern delimiter not found: %s"),
@@ -4318,7 +4327,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
 
         let cpo_save = opt_vars().p_cpo;
         opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
-        ci.sp_prog = crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
+        ci.sp_prog = crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
         opt_vars().p_cpo = cpo_save;
         ci.sp_pattern = Some(pat_cstr);
 
@@ -4483,10 +4492,12 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 break;
             }
             arg_end = skip_regexp(
-                next_arg.wrapping_add(1),
+                unsafe { std::ffi::CStr::from_ptr(next_arg.wrapping_add(1)) },
                 i32::from(crate::memory::cstr_first_byte(next_arg)),
                 1,
-            );
+            )
+            .as_ptr()
+            .cast_mut();
             if crate::memory::cstr_first_byte(arg_end) != crate::memory::cstr_first_byte(next_arg) {
                 illegal = true;
                 break;
@@ -4503,7 +4514,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 let cpo_save = opt_vars().p_cpo;
                 opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
                 win_s(curwin_mut()).b_syn_linecont_prog =
-                    crate::regexp::vim_regcomp_box(pat_cstr.as_ptr(), RE_MAGIC);
+                    crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
                 opt_vars().p_cpo = cpo_save;
                 syn_clear_time(&mut win_s(curwin_mut()).b_syn_linecont_time);
 
@@ -4634,7 +4645,10 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                     name_buf[0] = b'^';
                     name_buf[1 + item_len] = b'$';
                     name_buf[2 + item_len] = 0;
-                    regmatch.regprog = vim_regcomp(name.cast(), RE_MAGIC);
+                    regmatch.set_prog(vim_regcomp(
+                        unsafe { std::ffi::CStr::from_ptr(name.cast()) },
+                        RE_MAGIC,
+                    ));
                     if regmatch.regprog.is_null() {
                         failed = true;
                         break;
@@ -4658,7 +4672,7 @@ fn get_id_list(arg: &mut &CStr, keylen: i32, list: &mut SynIdList, skip: bool) -
                         }
                         i -= 1;
                     }
-                    vim_regfree(regmatch.regprog);
+                    regmatch.free_prog();
                 }
                 if id == 0 {
                     semsg!(
@@ -4954,10 +4968,10 @@ pub fn ex_syntax(eap: &mut Exarg) {
 pub fn ex_ownsyntax(eap: &mut Exarg) {
     if curwin_mut().w_s_owned.is_none() {
         let mut new_s = Box::new(Synblock::new());
-        clear_string_option(&raw mut new_s.b_p_spc);
-        clear_string_option(&raw mut new_s.b_p_spf);
-        clear_string_option(&raw mut new_s.b_p_spl);
-        clear_string_option(&raw mut new_s.b_p_spo);
+        new_s.b_p_spc.clear_option_str();
+        new_s.b_p_spf.clear_option_str();
+        new_s.b_p_spl.clear_option_str();
+        new_s.b_p_spo.clear_option_str();
         new_s.b_syn_isk = None;
         curwin_mut().w_s_owned = Some(new_s);
         curwin_mut().w_onebuf_opt.wo_spell = 0;
@@ -4967,10 +4981,10 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
 
     apply_autocmds(
         EVENT_SYNTAX,
-        eap.arg,
-        curbuf_mut().b_fname,
+        crate::memory::cstr_as_opt_cstr(eap.arg),
+        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
         true,
-        g_st().curbuf,
+        curbuf_opt_mut(),
     );
 
     if let Some(new_value) = get_var_value(c"b:current_syntax") {

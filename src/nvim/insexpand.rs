@@ -99,9 +99,7 @@ use crate::path::{path_has_drive_letter, path_to_slash};
 use crate::popupmenu::{
     Pumitem, pum_clear, pum_display, pum_get_height, pum_set_event_info, pum_undisplay, pum_visible,
 };
-use crate::regexp::{
-    CTRL_V_CONST, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree,
-};
+use crate::regexp::{CTRL_V_CONST, MAXCOL, RE_MAGIC, Regmatch, vim_regcomp, vim_regexec};
 use crate::register::{NUM_REGISTERS, copy_register, get_register_name, valid_yank_reg};
 use crate::search::{Direction, find_pattern_in_path, ignorecase, search_for_exact_line, searchit};
 use crate::spell::{
@@ -1611,13 +1609,7 @@ fn trigger_complete_changed_event(cur: i32) {
 
         RECURSIVE.store(true, std::sync::atomic::Ordering::Relaxed);
         g_st().textlock += 1;
-        apply_autocmds(
-            EVENT_COMPLETECHANGED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_COMPLETECHANGED, None, None, false, curbuf_opt_mut());
         g_st().textlock -= 1;
         RECURSIVE.store(false, std::sync::atomic::Ordering::Relaxed);
 
@@ -2065,12 +2057,15 @@ fn ins_compl_dictionaries(
         let mut ptr_vec = vec![0u8; len];
         let ptr = ptr_vec.as_mut_ptr();
         vim_snprintf!(ptr.cast(), len, c"^\\s*\\zs\\V%s", pat_esc.as_ptr());
-        regmatch.regprog = vim_regcomp(ptr.cast(), RE_MAGIC);
+        regmatch.set_prog(vim_regcomp(unsafe { CStr::from_ptr(ptr.cast()) }, RE_MAGIC));
     } else {
-        regmatch.regprog = vim_regcomp(pat, if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 });
+        regmatch.set_prog(vim_regcomp(
+            crate::memory::cstr_from_ptr(pat),
+            if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
+        ));
         if regmatch.regprog.is_null() {
             opt_vars().p_scs = save_p_scs;
-            vim_regfree(regmatch.regprog);
+            regmatch.free_prog();
             return;
         }
     }
@@ -2080,7 +2075,10 @@ fn ins_compl_dictionaries(
         if flags == DICT_EXACT {
             count = 1;
         } else {
-            copy_option_part(&raw mut dict, buf.cast(), LSIZE, c",");
+            let mut dict_bytes = crate::memory::cstr_as_bytes(dict);
+            let old_len = dict_bytes.len();
+            copy_option_part(&mut dict_bytes, &mut buf_vec, c",");
+            dict = dict.wrapping_add(old_len - dict_bytes.len());
             if !thesaurus && crate::memory::cstr_as_bytes(buf.cast()) == b"spell" {
                 count = -1;
             } else if crate::strings::vim_haschr(buf.cast(), b'`' as i32)
@@ -2132,7 +2130,7 @@ fn ins_compl_dictionaries(
     }
 
     opt_vars().p_scs = save_p_scs;
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
 }
 
 fn thesaurus_add_words_in_line(
@@ -3088,15 +3086,14 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
 fn get_cpt_sources_count(cpt: &CStr) -> i32 {
     let mut dummy: [u8; LSIZE] = [0; LSIZE];
     let mut count: i32 = 0;
-    let mut p = cpt.as_ptr().cast_mut();
+    let mut p = cpt.to_bytes();
 
-    while !crate::memory::cstr_is_empty(p) {
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
-            p = p.wrapping_add(1);
+    while !p.is_empty() {
+        while matches!(p.first(), Some(b',' | b' ')) {
+            p = &p[1..];
         }
-        if !crate::memory::cstr_is_empty(p) {
-            let _ = copy_option_part(&raw mut p, dummy.as_mut_ptr().cast(), LSIZE, c",");
+        if !p.is_empty() {
+            let _ = copy_option_part(&mut p, &mut dummy, c",");
             count += 1;
         }
     }
@@ -3147,20 +3144,18 @@ fn parse_cpt_callbacks(cpt: &CStr, cbp: &mut Vec<Callback>) {
 
     let mut buf: [u8; LSIZE] = [0; LSIZE];
     let mut idx: usize = 0;
-    let mut p = cpt.as_ptr().cast_mut();
-    while !crate::memory::cstr_is_empty(p) {
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
-            p = p.wrapping_add(1);
+    let mut p = cpt.to_bytes();
+    while !p.is_empty() {
+        while matches!(p.first(), Some(b',' | b' ')) {
+            p = &p[1..];
         }
-        if !crate::memory::cstr_is_empty(p) {
-            let slen = copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), LSIZE, c",");
+        if !p.is_empty() {
+            let slen = copy_option_part(&mut p, &mut buf, c",");
             if slen > 0 && buf[0] == b'F' && buf[1] != 0 {
                 if let Some(caret_idx) = buf[..slen].iter().position(|&b| b == b'^') {
                     buf[caret_idx] = 0;
                 }
-                if !option_set_callback_func(buf.as_mut_ptr().wrapping_add(1).cast(), &mut cbp[idx])
-                {
+                if !option_set_callback_func(&buf[1..], &mut cbp[idx]) {
                     cbp[idx] = Callback::NONE;
                 }
             }
@@ -3990,11 +3985,13 @@ fn process_next_cpt_value(
             }
         }
 
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let mut cpt_ptr = st.e_cpt_cstr().as_ptr().cast_mut();
-        copy_option_part(&raw mut cpt_ptr, iobuff_ptr.cast(), IOSIZE, c",");
-        st.e_cpt_idx =
-            crate::memory::ptr_offset_from(cpt_ptr, st.e_cpt_copy.as_ptr().cast()) as usize;
+        let cpt_cstr = st.e_cpt_cstr();
+        let mut cpt_bytes = cpt_cstr.to_bytes();
+        let old_len = cpt_bytes.len();
+        copy_option_part(&mut cpt_bytes, g_st().iobuff_bytes_mut(), c",");
+        let consumed = old_len - cpt_bytes.len();
+        let cpt_ptr = cpt_cstr.as_ptr().wrapping_add(consumed);
+        st.e_cpt_idx += consumed;
         *advance_cpt_idx = may_advance_cpt_index(crate::memory::cstr_from_ptr(cpt_ptr));
 
         st.found_all = true;
@@ -4899,8 +4896,10 @@ fn prepare_cpt_compl_funcs() {
             insexp().cpt_sources_array[idx as usize].cs_startcol = -3;
         }
 
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let _ = copy_option_part(&raw mut p, iobuff_ptr.cast(), IOSIZE, c",");
+        let mut p_bytes = crate::memory::cstr_as_bytes(p.cast());
+        let old_len = p_bytes.len();
+        let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
+        p = p.wrapping_add(old_len - p_bytes.len());
         idx += 1;
     }
 }
@@ -6647,16 +6646,15 @@ fn setup_cpt_sources() {
 
     let mut buf: [u8; LSIZE] = [0; LSIZE];
     let mut idx: usize = 0;
-    let mut p = curbuf_mut().b_p_cpt;
-    while !crate::memory::cstr_is_empty(p) {
-        while crate::memory::cstr_first_byte(p) == b',' || crate::memory::cstr_first_byte(p) == b' '
-        {
-            p = p.wrapping_add(1);
+    let mut p = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cpt);
+    while !p.is_empty() {
+        while matches!(p.first(), Some(b',' | b' ')) {
+            p = &p[1..];
         }
-        if !crate::memory::cstr_is_empty(p) {
-            sources[idx].cs_flag = crate::memory::cstr_first_byte(p);
+        if !p.is_empty() {
+            sources[idx].cs_flag = p[0];
             buf.fill(0);
-            let slen = copy_option_part(&raw mut p, buf.as_mut_ptr().cast(), LSIZE, c",");
+            let slen = copy_option_part(&mut p, &mut buf, c",");
             if slen > 0 {
                 let caret = vim_strchr(buf.as_mut_ptr().cast(), b'^' as i32);
                 if !caret.is_null() {
@@ -6818,8 +6816,10 @@ fn cpt_compl_refresh() {
             }
         }
 
-        let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-        let _ = copy_option_part(&raw mut p, iobuff_ptr.cast(), IOSIZE, c",");
+        let mut p_bytes = crate::memory::cstr_as_bytes(p.cast());
+        let old_len = p_bytes.len();
+        let _ = copy_option_part(&mut p_bytes, g_st().iobuff_bytes_mut(), c",");
+        p = p.wrapping_add(old_len - p_bytes.len());
         if may_advance_cpt_index(crate::memory::cstr_from_ptr(p.cast())) {
             let _ = advance_cpt_sources_index_safe();
         }

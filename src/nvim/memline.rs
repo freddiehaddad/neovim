@@ -1586,17 +1586,17 @@ fn ml_recover_theend(
     } else {
         apply_autocmds(
             EVENT_BUFREADPOST,
-            ptr::null_mut(),
-            curbuf_mut().b_fname,
+            None,
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         apply_autocmds(
             EVENT_BUFWINENTER,
-            ptr::null_mut(),
-            curbuf_mut().b_fname,
+            None,
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
     }
 }
@@ -1628,14 +1628,16 @@ pub fn recover_names(
         }
     }
 
-    let mut dir_name_vec: Vec<u8> = vec![0; crate::memory::cstr_len(opt_vars().p_dir) + 1];
+    let dir_cap = (crate::memory::cstr_len(opt_vars().p_dir) + 1).min(31000);
+    let mut dir_name_vec: Vec<u8> = vec![0; dir_cap];
     let mut dir_name = NvimString {
         data: dir_name_vec.as_mut_ptr().cast(),
         size: 0,
     };
-    let mut dirp = opt_vars().p_dir;
-    while !crate::memory::cstr_is_empty(dirp) {
-        dir_name.size = copy_option_part(&raw mut dirp, dir_name.data.cast(), 31000, c",");
+    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+    while !dirp.is_empty() {
+        dir_name.size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
+        dir_name.data = dir_name_vec.as_mut_ptr().cast();
 
         let dir_bytes = dir_name.as_bytes();
         let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
@@ -1702,7 +1704,7 @@ pub fn recover_names(
             files.retain(|f| !path_equal(cur_p, f.as_ptr(), K_PATH_CMP_FULL));
         }
 
-        if crate::memory::cstr_is_empty(dirp)
+        if dirp.is_empty()
             && tv_list_len(Some(ret_list)) == 0
             && files.is_empty()
             && !fname.is_null()
@@ -3630,10 +3632,10 @@ fn do_swapexists(buf: &mut FileBuf, fname: impl crate::strings::IntoCCharPtr) ->
         g_st().allbuf_lock += 1;
         apply_autocmds(
             EVENT_SWAPEXISTS,
-            buf.b_fname,
-            ptr::null_mut(),
+            crate::memory::cstr_as_opt_cstr(buf.b_fname),
+            None,
             false,
-            ptr::null_mut(),
+            None,
         );
         g_st().allbuf_lock -= 1;
 
@@ -3665,10 +3667,13 @@ fn findswapname(
     let old_fname = old_fname.into_c_char_ptr();
     {
         let buf_fname = buf.b_fname;
-        let dir_len = crate::memory::cstr_len(*dirp) + 1;
+        let mut dir_bytes = crate::memory::cstr_as_bytes(*dirp);
+        let old_len = dir_bytes.len();
+        let dir_len = old_len + 1;
         let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
+        copy_option_part(&mut dir_bytes, &mut dir_name_vec, c",");
+        *dirp = dirp.wrapping_add(old_len - dir_bytes.len());
         let dir_name: RawCCharPtrMut = dir_name_vec.as_mut_ptr().cast();
-        copy_option_part(dirp, dir_name.cast(), dir_len, c",");
 
         let mut fname_vec: Option<Vec<u8>> =
             makeswapname(buf_fname, dir_name).map(std::ffi::CString::into_bytes_with_nul);
@@ -3752,7 +3757,11 @@ fn findswapname(
 
                     if choice == SEA_CHOICE_NONE
                         && g_st().swap_exists_action != SEA_NONE
-                        && has_autocmd(EVENT_SWAPEXISTS, buf_fname, Some(&mut *buf))
+                        && has_autocmd(
+                            EVENT_SWAPEXISTS,
+                            crate::memory::cstr_as_opt_cstr(buf_fname),
+                            Some(&mut *buf),
+                        )
                     {
                         choice = do_swapexists(buf, fname);
                     }

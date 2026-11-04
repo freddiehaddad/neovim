@@ -3547,7 +3547,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
 /// Set option "varname" to the value of "varp" for the current buffer/window.
 fn set_option_from_tv(varname: impl crate::strings::IntoCCharPtr, varp: &mut TypVal) {
     let varname = varname.into_c_char_ptr();
-    let opt_idx = find_option(varname);
+    let opt_idx = find_option(crate::memory::cstr_as_bytes(varname));
     if opt_idx == K_OPT_INVALID {
         semsg!(gettext(E_UNKNOWN_OPTION2), varname);
         return;

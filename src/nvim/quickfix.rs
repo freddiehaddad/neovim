@@ -71,7 +71,6 @@ use crate::os::fs::{
 };
 use crate::regexp::{
     RE_MAGIC, RE_STRING, Regmatch, Regmmatch, Regprog, vim_regcomp, vim_regexec, vim_regexec_multi,
-    vim_regfree,
 };
 use crate::window::{
     TabPageInfo, WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HELP, WSP_NEWLOC, WSP_QUICKFIX, WSP_TOP,
@@ -95,7 +94,7 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::reset_visual_and_resel;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
-use crate::optionstr::{OptIndex, free_string_option};
+use crate::optionstr::{CStrOptionSlot, OptIndex};
 use crate::os::env::{expand_env, os_get_pid};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::{os_time, time_t};
@@ -988,8 +987,10 @@ fn parse_efm_option(efm: &[u8]) -> Vec<Efm> {
             errored = true;
             break;
         }
-        fmt_item.prog =
-            crate::regexp::vim_regcomp_box(fmtstr.as_ptr().cast(), RE_MAGIC + RE_STRING);
+        fmt_item.prog = crate::regexp::vim_regcomp_box(
+            crate::memory::cstr_until_nul(&fmtstr),
+            RE_MAGIC + RE_STRING,
+        );
         if fmt_item.prog.is_none() {
             errored = true;
             break;
@@ -1889,10 +1890,10 @@ fn qf_parse_get_fields(
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.rm_ic = true;
-    regmatch.regprog = crate::regexp::regprog_as_ptr(&fmt_ptr.prog);
+    regmatch.borrow_prog(fmt_ptr.prog.as_deref());
     let line_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(line));
     let line_ptr: *const u8 = line_cstr.as_ptr().cast();
-    let r = vim_regexec(&mut regmatch, line_cstr.as_ptr(), 0);
+    let r = vim_regexec(&mut regmatch, &line_cstr, 0);
     let mut status = QF_FAIL;
     if r {
         status = qf_parse_match(
@@ -4362,17 +4363,17 @@ fn qf_fill_buffer(qfl: Option<&mut QfList>, buf: &mut FileBuf, old_count: usize,
         curbuf_mut().b_keep_filetype = true;
         apply_autocmds(
             EVENT_BUFREADPOST,
-            c"quickfix",
-            ptr::null_mut(),
+            Some(c"quickfix"),
+            None,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         apply_autocmds(
             EVENT_BUFWINENTER,
-            c"quickfix",
-            ptr::null_mut(),
+            Some(c"quickfix"),
+            None,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         curbuf_mut().b_keep_filetype = false;
         curbuf_mut().b_ro_locked -= 1;
@@ -4510,10 +4511,10 @@ pub fn ex_make(eap: &mut Exarg) {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -4573,10 +4574,10 @@ pub fn ex_make(eap: &mut Exarg) {
         if let Some(au_name) = au_name {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
-                au_name.as_ptr().cast_mut(),
-                curbuf_mut().b_fname,
+                Some(au_name),
+                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                 true,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
         }
         if res > 0 && eap.forceit == 0 && qflist_valid(wp, save_qfid) {
@@ -5076,10 +5077,10 @@ pub fn ex_cfile(eap: &mut Exarg) {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            ptr::null_mut(),
+            Some(au_name),
+            None,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -5131,10 +5132,10 @@ pub fn ex_cfile(eap: &mut Exarg) {
     if let Some(au_name) = au_name {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
-            au_name.as_ptr().cast_mut(),
-            ptr::null_mut(),
+            Some(au_name),
+            None,
             false,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
     }
     if res > 0
@@ -5167,13 +5168,13 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: impl crate::strings::IntoCChar
         regmatch.regprog = ptr::null_mut();
 
         if crate::memory::cstr_is_empty(s) {
-            if last_search_pat().is_none() {
+            let Some(last_pat) = last_search_pat() else {
                 emsg(gettext(E_NOPREVRE));
                 return;
-            }
-            regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
+            };
+            regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
         } else {
-            regmatch.regprog = vim_regcomp(s, RE_MAGIC);
+            regmatch.set_prog(vim_regcomp(unsafe { CStr::from_ptr(s) }, RE_MAGIC));
         }
 
         regmatch.rmm_ic = opt_vars().p_ic;
@@ -5260,8 +5261,8 @@ fn vgr_match_buflines(
             if (flags & VGR_FUZZY) == 0 {
                 while vim_regexec_multi(
                     regmatch,
-                    curwin_ptr(),
-                    &raw mut *buf,
+                    Some(curwin_mut()),
+                    &mut *buf,
                     lnum,
                     col,
                     None,
@@ -5563,8 +5564,10 @@ fn vgr_process_files(
                     }
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
+                    let b_p_ft = crate::memory::cstr_as_opt_cstr(buf.b_p_ft);
+                    let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
                     ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
-                    apply_autocmds(EVENT_FILETYPE, buf.b_p_ft, buf.b_fname, true, buf);
+                    apply_autocmds(EVENT_FILETYPE, b_p_ft, b_fname, true, Some(&mut *buf));
                     do_modelines(OPT_NOWIN);
                     ctx_restore(&mut aco);
                 }
@@ -5589,10 +5592,10 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -5643,10 +5646,10 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
             if let Some(au_name) = au_name {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
-                    au_name.as_ptr().cast_mut(),
-                    curbuf_mut().b_fname,
+                    Some(au_name),
+                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                     true,
-                    g_st().curbuf,
+                    curbuf_opt_mut(),
                 );
             }
 
@@ -5681,7 +5684,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
     }
 
     drop(target_dir);
-    vim_regfree(args.regmatch.regprog);
+    args.regmatch.free_prog();
 }
 
 fn restore_start_dir(dirname_start: impl crate::strings::IntoCCharPtr) {
@@ -6972,10 +6975,10 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -7030,10 +7033,10 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         let curbuf_old = g_st().curbuf;
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         if g_st().curbuf != curbuf_old {
             res = 0;
@@ -7066,10 +7069,10 @@ fn trigger_cexpr_autocmd(cmdidx: i32) -> bool {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -7113,10 +7116,10 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
         if let Some(au_name) = au_name {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
-                au_name.as_ptr().cast_mut(),
-                curbuf_mut().b_fname,
+                Some(au_name),
+                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
                 true,
-                g_st().curbuf,
+                curbuf_opt_mut(),
             );
         }
         if res > 0
@@ -7177,7 +7180,7 @@ fn hgr_search_file(
     while !vim_fgets(g_st().iobuff_bytes_mut(), &fd) && !g_st().got_int {
         let line = iobuff_ptr;
 
-        if vim_regexec(p_regmatch, line, 0) {
+        if vim_regexec(p_regmatch, unsafe { CStr::from_ptr(line) }, 0) {
             let mut l = crate::memory::cstr_len(line);
             while l > 0 && (g_st().iobuff[l - 1] as u8) <= b' ' {
                 l -= 1;
@@ -7261,14 +7264,9 @@ fn hgr_search_in_rtp(
 ) {
     let lang = lang.into_c_char_ptr();
     {
-        let mut p = opt_vars().p_rtp;
-        while !crate::memory::cstr_is_empty(p) && !g_st().got_int {
-            copy_option_part(
-                &raw mut p,
-                g_st().name_buff.as_mut_ptr().cast(),
-                MAXPATHL,
-                c",",
-            );
+        let mut p = crate::memory::cstr_as_bytes(opt_vars().p_rtp);
+        while !p.is_empty() && !g_st().got_int {
+            copy_option_part(&mut p, g_st().name_buff_bytes_mut(), c",");
             hgr_search_files_in_dir(qfl, &mut g_st().name_buff, p_regmatch, lang);
         }
     }
@@ -7283,10 +7281,10 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     if let Some(au_name) = au_name
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         )
         && aborting()
     {
@@ -7314,7 +7312,10 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         check_help_lang(slice).map_or(ptr::null(), |s| s.as_ptr())
     };
     let mut regmatch: Regmatch = Regmatch::new();
-    regmatch.regprog = vim_regcomp(eap.arg, RE_MAGIC + RE_STRING);
+    regmatch.set_prog(vim_regcomp(
+        unsafe { CStr::from_ptr(eap.arg) },
+        RE_MAGIC + RE_STRING,
+    ));
     regmatch.rm_ic = false;
     if !regmatch.regprog.is_null() {
         qf_new_list(qi, &qf_cmdtitle(eap.cmdline()));
@@ -7322,7 +7323,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
 
         hgr_search_in_rtp(qfl, &mut regmatch, lang);
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
 
         qfl.qf_nonevalid = false;
         qfl.qf_index = 1;
@@ -7340,7 +7341,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
                 0,
             );
         }
-        free_string_option(save_cpo);
+        save_cpo.free_option_str();
     }
 
     if updated {
@@ -7351,10 +7352,10 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     if let Some(au_name) = au_name {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
-            au_name.as_ptr().cast_mut(),
-            curbuf_mut().b_fname,
+            Some(au_name),
+            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
             true,
-            g_st().curbuf,
+            curbuf_opt_mut(),
         );
         if !new_qi
             && is_ll_stack(crate::globals::gref(qi_ptr))

@@ -79,7 +79,7 @@ use crate::mark::{mark_adjust, mark_adjust_nofold, set_last_cursor, setpcmark};
 use crate::regexp::{
     MAXCOL, RE_MAGIC, REGSUB_BACKSLASH, REGSUB_COPY, REGSUB_MAGIC, Regmatch, Regmmatch,
     re_multiline, regtilde, skip_regexp, skip_regexp_err, skip_regexp_ex, vim_regcomp, vim_regexec,
-    vim_regexec_multi, vim_regfree, vim_regsub_multi,
+    vim_regexec_multi, vim_regsub_multi,
 };
 use crate::runtime::SID_NONE;
 use crate::window::{
@@ -742,27 +742,30 @@ pub fn ex_sort(eap: &mut Exarg) {
             } else if !ascii_isalpha(crate::memory::cstr_first_byte(p))
                 && regmatch.regprog.is_null()
             {
-                let s = skip_regexp_err(
-                    p.wrapping_add(1),
+                let Some(s_cstr) = skip_regexp_err(
+                    unsafe { CStr::from_ptr(p.wrapping_add(1)) },
                     (crate::memory::cstr_first_byte(p)) as i32,
                     1,
-                );
-                if s.is_null() {
+                ) else {
                     break 'sortend;
-                }
+                };
+                let s = s_cstr.as_ptr().cast_mut();
 
                 unsafe {
                     *s = NUL;
                 }
 
                 if s == p.wrapping_add(1) {
-                    if last_search_pat().is_none() {
+                    let Some(last_pat) = last_search_pat() else {
                         emsg(gettext(E_NOPREVRE));
                         break 'sortend;
-                    }
-                    regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
+                    };
+                    regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
                 } else {
-                    regmatch.regprog = vim_regcomp(p.wrapping_add(1), RE_MAGIC);
+                    regmatch.set_prog(vim_regcomp(
+                        unsafe { CStr::from_ptr(p.wrapping_add(1)) },
+                        RE_MAGIC,
+                    ));
                 }
                 if regmatch.regprog.is_null() {
                     break 'sortend;
@@ -790,7 +793,9 @@ pub fn ex_sort(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
+            if !regmatch.regprog.is_null()
+                && vim_regexec(&mut regmatch, unsafe { CStr::from_ptr(s) }, 0)
+            {
                 if excmds_st().sort_rx {
                     start_col =
                         crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
@@ -958,7 +963,7 @@ pub fn ex_sort(eap: &mut Exarg) {
     }
 
     // sortend:
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     if g_st().got_int {
         emsg(gettext(E_INTERR));
     }
@@ -1012,23 +1017,28 @@ pub fn ex_uniq(eap: &mut Exarg) {
                 eap.nextcmd = check_nextcmd(p);
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
-                let s = skip_regexp_err(p.wrapping_add(1), b0 as i32, 1);
-                if s.is_null() {
+                let Some(s_cstr) =
+                    skip_regexp_err(unsafe { CStr::from_ptr(p.wrapping_add(1)) }, b0 as i32, 1)
+                else {
                     break 'uniqend;
-                }
+                };
+                let s = s_cstr.as_ptr().cast_mut();
 
                 unsafe {
                     *s = NUL;
                 }
 
                 if s == p.wrapping_add(1) {
-                    if last_search_pat().is_none() {
+                    let Some(last_pat) = last_search_pat() else {
                         emsg(gettext(E_NOPREVRE));
                         break 'uniqend;
-                    }
-                    regmatch.regprog = vim_regcomp(last_search_pat(), RE_MAGIC);
+                    };
+                    regmatch.set_prog(vim_regcomp(last_pat, RE_MAGIC));
                 } else {
-                    regmatch.regprog = vim_regcomp(p.wrapping_add(1), RE_MAGIC);
+                    regmatch.set_prog(vim_regcomp(
+                        unsafe { CStr::from_ptr(p.wrapping_add(1)) },
+                        RE_MAGIC,
+                    ));
                 }
                 if regmatch.regprog.is_null() {
                     break 'uniqend;
@@ -1067,7 +1077,9 @@ pub fn ex_uniq(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s, 0) {
+            if !regmatch.regprog.is_null()
+                && vim_regexec(&mut regmatch, unsafe { CStr::from_ptr(s) }, 0)
+            {
                 if excmds_st().sort_rx {
                     start_col =
                         crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
@@ -1185,7 +1197,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
     }
 
     // uniqend:
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     if g_st().got_int {
         emsg(gettext(E_INTERR));
     }
@@ -1510,13 +1522,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 do_in,
                 do_out,
             );
-            apply_autocmds(
-                EVENT_SHELLFILTERPOST,
-                ptr::null_mut(),
-                ptr::null_mut(),
-                false,
-                g_st().curbuf,
-            );
+            apply_autocmds(EVENT_SHELLFILTERPOST, None, None, false, curbuf_opt_mut());
         }
     }
 }
@@ -1793,13 +1799,7 @@ pub fn do_shell(cmd: Option<&CStr>, flags: i32) {
     g_st().msg_row = g_st().rows_global - 1;
     g_st().msg_col = 0;
 
-    apply_autocmds(
-        EVENT_SHELLCMDPOST,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_SHELLCMDPOST, None, None, false, curbuf_opt_mut());
 }
 
 #[cfg(not(unix))]
@@ -2018,13 +2018,7 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
     let new_fname_ptr = new_fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut buf = g_st().curbuf;
-    apply_autocmds(
-        EVENT_BUFFILEPRE,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
     if buf != g_st().curbuf {
         return false;
     }
@@ -2051,13 +2045,7 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
     }
     drop(fname_cstr);
     drop(sfname_cstr);
-    apply_autocmds(
-        EVENT_BUFFILEPOST,
-        ptr::null_mut(),
-        ptr::null_mut(),
-        false,
-        g_st().curbuf,
-    );
+    apply_autocmds(EVENT_BUFFILEPOST, None, None, false, curbuf_opt_mut());
     do_autochdir();
     true
 }
@@ -2219,20 +2207,10 @@ pub fn do_write(eap: &mut Exarg) -> bool {
             if eap.cmdidx == Cmdidx::CmdSaveas as i32 && !alt_buf.is_null() {
                 let was_curbuf = g_st().curbuf;
 
-                apply_autocmds(
-                    EVENT_BUFFILEPRE,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                );
-                apply_autocmds(
-                    EVENT_BUFFILEPRE,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    alt_buf,
-                );
+                apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
+                apply_autocmds(EVENT_BUFFILEPRE, None, None, false, unsafe {
+                    alt_buf.as_mut()
+                });
                 if g_st().curbuf != was_curbuf || aborting() {
                     retval = false;
                     break 'theend;
@@ -2241,32 +2219,16 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 unsafe { (*alt_buf).swap_fnames(curbuf_mut()) };
 
                 buf_name_changed(curbuf_mut());
-                apply_autocmds(
-                    EVENT_BUFFILEPOST,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                );
-                apply_autocmds(
-                    EVENT_BUFFILEPOST,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    alt_buf,
-                );
+                apply_autocmds(EVENT_BUFFILEPOST, None, None, false, curbuf_opt_mut());
+                apply_autocmds(EVENT_BUFFILEPOST, None, None, false, unsafe {
+                    alt_buf.as_mut()
+                });
                 if unsafe { (*alt_buf).b_p_bl == 0 } {
                     unsafe {
                         (*alt_buf).b_p_bl = 1;
                     }
 
-                    apply_autocmds(
-                        EVENT_BUFADD,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
-                        false,
-                        alt_buf,
-                    );
+                    apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { alt_buf.as_mut() });
                 }
                 if g_st().curbuf != was_curbuf || aborting() {
                     retval = false;
@@ -2274,7 +2236,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 }
 
                 if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
-                    if augroup_exists(c"filetypedetect") {
+                    if augroup_exists(Some(c"filetypedetect")) {
                         do_doautocmd(c"filetypedetect BufRead", true, None);
                     }
                     do_modelines(0);
@@ -2367,8 +2329,8 @@ pub fn check_overwrite(
                 dir[0] = b'.';
                 dir[1] = 0;
             } else {
-                let mut p = opt_vars().p_dir;
-                copy_option_part(&raw mut p, dir.as_mut_ptr(), MAXPATHL, c",");
+                let mut p = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+                copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) = makeswapname(fname, crate::memory::cstr_until_nul(&dir))
                 && os_path_exists(swapname.as_ptr())
@@ -2868,13 +2830,7 @@ pub fn do_ecmd(
                 }
                 let save_au_new_curbuf = g_st().au_new_curbuf;
                 set_bufref(&mut g_st().au_new_curbuf, buf);
-                apply_autocmds(
-                    EVENT_BUFLEAVE,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                    false,
-                    g_st().curbuf,
-                );
+                apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
 
                 if !bufref_valid(Some(&g_st().au_new_curbuf)) {
                     delbuf_msg(new_name.take());
@@ -3086,19 +3042,19 @@ pub fn do_ecmd(
                 let mut au_retval = if retval { OK } else { FAIL };
                 apply_autocmds_retval(
                     EVENT_BUFENTER,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
+                    None,
+                    None,
                     false,
-                    g_st().curbuf,
+                    curbuf_opt_mut(),
                     &mut au_retval,
                 );
                 if (flags & ECMD_NOWINENTER) == 0 {
                     apply_autocmds_retval(
                         EVENT_BUFWINENTER,
-                        ptr::null_mut(),
-                        ptr::null_mut(),
+                        None,
+                        None,
                         false,
-                        g_st().curbuf,
+                        curbuf_opt_mut(),
                         &mut au_retval,
                     );
                 }
@@ -3914,8 +3870,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
             cmd = cmd.wrapping_add(1);
             pat.data = cmd;
-            cmd = skip_regexp_ex(cmd, delimiter, opt_vars().p_magic, true, None, None, None);
-            pat.size = crate::memory::ptr_offset_from(cmd, pat.data) as usize;
+            let cmd_len = crate::memory::cstr_len(cmd);
+            let cmd_slice =
+                unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), cmd_len + 1) };
+            let off = skip_regexp_ex(cmd_slice, delimiter, opt_vars().p_magic, None, None, None);
+            cmd = cmd.wrapping_add(off);
+            pat.size = off;
             if i32::from(crate::memory::cstr_first_byte(cmd)) == delimiter {
                 unsafe {
                     *cmd = NUL;
@@ -4054,11 +4014,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     debug_assert!(!sub.is_null());
 
-    if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=")
-        && let Some(new_sub) = regtilde(sub, opt_vars().p_magic, cmdpreview_ns > 0)
-    {
-        sub = new_sub.as_ptr().cast_mut();
-        sub_owned = Some(new_sub);
+    if !crate::memory::cstr_as_bytes(sub).starts_with(b"\\=") {
+        let sub_len = crate::memory::cstr_len(sub);
+        let sub_slice = unsafe { std::slice::from_raw_parts_mut(sub.cast::<u8>(), sub_len + 1) };
+        if let Some(new_sub) = regtilde(sub_slice, opt_vars().p_magic, cmdpreview_ns > 0) {
+            sub = new_sub.as_ptr().cast_mut();
+            sub_owned = Some(new_sub);
+        }
     }
 
     let mut line2 = eap.line2;
@@ -4075,8 +4037,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     {
         let mut nmatch = vim_regexec_multi(
             &mut regmatch,
-            curwin_ptr(),
-            g_st().curbuf,
+            Some(curwin_mut()),
+            curbuf_mut(),
             lnum,
             0,
             Some(tm),
@@ -4364,12 +4326,12 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         g_st().textlock += 1;
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
+                        let sub_cstr = unsafe { CStr::from_ptr(sub) };
                         let sublen_i = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
-                            sub,
-                            sub_firstline.as_mut_slice().as_mut_ptr(),
-                            0,
+                            sub_cstr,
+                            &mut [],
                             REGSUB_BACKSLASH
                                 | if opt_vars().p_magic != 0 {
                                     REGSUB_MAGIC
@@ -4435,12 +4397,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
                         g_st().textlock += 1;
                         let rel_lnum = sub_firstlnum - regmatch.startpos[0].lnum;
+                        let new_end_slice =
+                            unsafe { std::slice::from_raw_parts_mut(new_end, sublen) };
                         let mut n = vim_regsub_multi(
                             &mut regmatch,
                             rel_lnum,
-                            sub,
-                            new_end,
-                            sublen as Colnr,
+                            sub_cstr,
+                            new_end_slice,
                             REGSUB_COPY
                                 | REGSUB_BACKSLASH
                                 | if opt_vars().p_magic != 0 {
@@ -4596,8 +4559,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     || {
                         nmatch = vim_regexec_multi(
                             &mut regmatch,
-                            curwin_ptr(),
-                            g_st().curbuf,
+                            Some(curwin_mut()),
+                            curbuf_mut(),
                             sub_firstlnum,
                             matchcol,
                             Some(tm),
@@ -4693,8 +4656,8 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                     if nmatch == -1 && !lastone {
                         nmatch = vim_regexec_multi(
                             &mut regmatch,
-                            curwin_ptr(),
-                            g_st().curbuf,
+                            Some(curwin_mut()),
+                            curbuf_mut(),
                             sub_firstlnum,
                             matchcol,
                             Some(tm),
@@ -4797,7 +4760,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         changed_window_setting(curwin_mut());
     }
 
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     drop(sub_owned);
 
     excmds_st().subflags.do_all = save_do_all;
@@ -4945,15 +4908,17 @@ pub fn ex_global(eap: &mut Exarg) {
         delim = crate::memory::cstr_first_byte(cmd.cast());
         cmd = cmd.wrapping_add(1);
         pat = cmd;
-        cmd = skip_regexp_ex(
-            cmd,
+        let cmd_len = crate::memory::cstr_len(cmd.cast());
+        let cmd_slice = unsafe { std::slice::from_raw_parts_mut(cmd, cmd_len + 1) };
+        let off = skip_regexp_ex(
+            cmd_slice,
             delim as i32,
             opt_vars().p_magic,
-            true,
             None,
             None,
             None,
         );
+        cmd = cmd.wrapping_add(off);
         if crate::memory::cstr_first_byte(cmd.cast()) == delim {
             unsafe {
                 *cmd = 0;
@@ -4983,8 +4948,8 @@ pub fn ex_global(eap: &mut Exarg) {
         lnum = curwin_mut().w_cursor.lnum;
         let matched = vim_regexec_multi(
             &mut regmatch,
-            curwin_ptr(),
-            g_st().curbuf,
+            Some(curwin_mut()),
+            curbuf_mut(),
             lnum,
             0,
             None,
@@ -5000,8 +4965,8 @@ pub fn ex_global(eap: &mut Exarg) {
         while lnum <= eap.line2 && !g_st().got_int {
             let matched = vim_regexec_multi(
                 &mut regmatch,
-                curwin_ptr(),
-                g_st().curbuf,
+                Some(curwin_mut()),
+                curbuf_mut(),
                 lnum,
                 0,
                 None,
@@ -5037,7 +5002,7 @@ pub fn ex_global(eap: &mut Exarg) {
         }
         ml_clearmarked();
     }
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
 }
 
 /// Execute `cmd` on lines marked with `ml_setmarked()`.
@@ -5314,7 +5279,10 @@ pub fn skip_vimgrep_pat<'a>(
     } else {
         let start_p = p.wrapping_add(1);
         let c = i32::from(first_b);
-        p = skip_regexp(start_p, c, 1);
+        p = skip_regexp(unsafe { CStr::from_ptr(start_p.cast()) }, c, 1)
+            .as_ptr()
+            .cast_mut()
+            .cast();
         if i32::from(crate::memory::cstr_first_byte(p.cast())) != c {
             return None;
         }

@@ -1487,9 +1487,14 @@ pub fn show_popupmenu() {
         return;
     }
     let mode_cstr = MENU_MODE_CHARS[menu_mode as usize];
-    let mode = mode_cstr.as_ptr().cast_mut();
 
-    apply_autocmds(EVENT_MENUPOPUP, mode, ptr::null_mut(), false, g_st().curbuf);
+    apply_autocmds(
+        EVENT_MENUPOPUP,
+        Some(mode_cstr),
+        None,
+        false,
+        curbuf_opt_mut(),
+    );
 
     let mut found_idx: Option<usize> = None;
     let mode_bytes = mode_cstr.to_bytes();

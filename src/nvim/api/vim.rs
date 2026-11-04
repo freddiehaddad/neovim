@@ -1488,21 +1488,22 @@ pub fn nvim_create_buf(listed: Boolean, scratch: Boolean, err: &mut Error) -> Bu
 
         unblock_autocmds();
 
+        let buf_ptr = std::hint::black_box(std::ptr::from_mut(buf));
         let mut bufref = Bufref::new();
-        set_bufref(&mut bufref, buf);
-        if apply_autocmds(EVENT_BUFNEW, ptr::null_mut(), ptr::null_mut(), false, buf)
+        set_bufref(&mut bufref, buf_ptr);
+        if apply_autocmds(EVENT_BUFNEW, None, None, false, unsafe { buf_ptr.as_mut() })
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
         }
         if listed
-            && apply_autocmds(EVENT_BUFADD, ptr::null_mut(), ptr::null_mut(), false, buf)
+            && apply_autocmds(EVENT_BUFADD, None, None, false, unsafe { buf_ptr.as_mut() })
             && !bufref_valid(Some(&bufref))
         {
             break 'create;
         }
 
-        ret = buf.b_fnum;
+        ret = unsafe { (*buf_ptr).b_fnum };
     }
     try_leave(&tstate, err);
 
@@ -2778,7 +2779,7 @@ pub fn nvim_eval_statusline(
             data: raw_errbuf.as_mut_ptr(),
             size: ERR_BUFLEN,
         };
-        if let Some(errmsg) = check_stl_option(str_.data, Some(errbuf)) {
+        if let Some(errmsg) = check_stl_option(str_bytes, Some(errbuf)) {
             api_set_error!(err, ErrorType::ErrorTypeValidation, c"%s", errmsg.as_ptr());
             return result;
         }

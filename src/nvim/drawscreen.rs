@@ -64,7 +64,7 @@ use crate::plines::{
 };
 use crate::popupmenu::{pum_check_clear, pum_drawn, pum_invalidate, pum_redraw};
 use crate::profile::profile_setlimit;
-use crate::regexp::{CTRL_V_CONST, MAXCOL, re_multiline, vim_regfree};
+use crate::regexp::{CTRL_V_CONST, MAXCOL, re_multiline};
 use crate::search::last_pat_prog;
 use crate::spell::spell_check_window;
 use crate::state::{
@@ -450,13 +450,7 @@ pub fn screen_resize(mut width: i32, mut height: i32) {
             break;
         }
 
-        apply_autocmds(
-            EVENT_VIMRESIZED,
-            ptr::null_mut(),
-            ptr::null_mut(),
-            false,
-            g_st().curbuf,
-        );
+        apply_autocmds(EVENT_VIMRESIZED, None, None, false, curbuf_opt_mut());
     }
 
     ds_st().resizing_autocmd = false;
@@ -829,12 +823,7 @@ pub fn start_search_hl() {
 }
 
 pub fn end_search_hl() {
-    if g_st().screen_search_hl.rm.regprog.is_null() {
-        return;
-    }
-
-    vim_regfree(g_st().screen_search_hl.rm.regprog);
-    g_st().screen_search_hl.rm.regprog = ptr::null_mut();
+    g_st().screen_search_hl.rm.free_prog();
 }
 
 pub fn setcursor() {

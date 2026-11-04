@@ -29,7 +29,7 @@ use crate::path::{
     K_PATH_CMP_FULL, K_PATH_CMP_LITERAL, expand_wildcards_vec, fix_fname, gen_expand_wildcards_vec,
     path_equal,
 };
-use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec, vim_regfree};
+use crate::regexp::{RE_MAGIC, Regmatch, vim_regcomp, vim_regexec};
 use crate::strings::gettext;
 use crate::undo::buf_is_changed_fn;
 use crate::version::list_in_columns;
@@ -375,10 +375,10 @@ fn arglist_del_files(alist_ga: &[CString]) {
         let Some(p) = file_pat_to_reg_pat(orig_p.to_bytes(), None, 0) else {
             break;
         };
-        regmatch.regprog = vim_regcomp(
-            p.as_ptr(),
+        regmatch.set_prog(vim_regcomp(
+            &p,
             if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
-        );
+        ));
         if regmatch.regprog.is_null() {
             break;
         }
@@ -388,7 +388,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
         while match_idx < argcount() {
             if vim_regexec(
                 &mut regmatch,
-                alist_name(&arglist_slice()[match_idx as usize]).map_or(ptr::null(), CStr::as_ptr),
+                alist_name(&arglist_slice()[match_idx as usize]).unwrap_or(c""),
                 0,
             ) {
                 didone = true;
@@ -401,7 +401,7 @@ fn arglist_del_files(alist_ga: &[CString]) {
             match_idx += 1;
         }
 
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
         if !didone {
             semsg!(gettext(E_NOMATCH2), orig_p.as_ptr());
         }

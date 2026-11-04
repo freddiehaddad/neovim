@@ -88,7 +88,6 @@ use crate::popupmenu::{
 use crate::profile::{get_profile_name, set_context_in_profile_cmd};
 use crate::regexp::{
     RE_MAGIC, RE_STRING, Regmatch, skip_regexp, vim_regcomp, vim_regexec, vim_regexec_nl,
-    vim_regfree,
 };
 use crate::runtime::{
     DIP_OPT, DIP_START, ExpandPackAddDir, expand_rtdir, expand_runtime_cmd, script_id_valid,
@@ -276,7 +275,9 @@ impl LineGetter {
             Self::None => None,
             Self::ExLine => crate::ex_getln::getexline(c, indent, do_concat),
             Self::CmdKeyCmd => crate::input::getcmdkeycmd(c, indent, do_concat),
-            Self::AutoCmd(cookie) => crate::autocmd::getnextac(c, cookie, indent, do_concat),
+            Self::AutoCmd(cookie) => {
+                crate::autocmd::getnextac(c, unsafe { &mut *cookie }, indent, do_concat)
+            }
             Self::Func(cookie) => {
                 crate::eval::userfunc::get_func_line(c, unsafe { &mut *cookie }, indent, do_concat)
             }
@@ -3411,10 +3412,12 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
         if !crate::memory::cstr_is_empty(p.cast()) {
             xp.xp_context = EXPAND_NOTHING;
             p = skip_regexp(
-                p.wrapping_add(1).cast_mut(),
+                unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) },
                 crate::memory::cstr_first_byte(p.cast()) as i32,
                 opt_vars().p_magic,
-            );
+            )
+            .as_ptr()
+            .cast();
         }
     }
     let next = find_nextcmd(p.cast());
@@ -3448,10 +3451,12 @@ fn find_cmd_after_substitute_cmd(arg: &CStr) -> Option<&CStr> {
     let delim = crate::memory::cstr_first_byte(p.cast());
     if delim != 0 {
         p = skip_regexp(
-            p.wrapping_add(1).cast_mut(),
+            unsafe { CStr::from_ptr(p.wrapping_add(1).cast()) },
             i32::from(delim),
             opt_vars().p_magic,
-        );
+        )
+        .as_ptr()
+        .cast();
         let bytes = crate::memory::cstr_as_bytes(p.cast());
         if let Some(mut rem) = bytes.strip_prefix(&[delim]) {
             while !rem.is_empty() && rem[0] != delim {
@@ -3790,21 +3795,19 @@ fn set_context_by_cmdname<'a>(
             return find_cmd_after_isearch_cmd(xp, arg_cstr);
         }
         Cmdidx::CmdAutocmd => {
-            let next = aucmd_set_expand_context(xp, arg.cast_mut(), false);
-            return (!next.is_null()).then(|| unsafe { CStr::from_ptr(next.cast()) });
+            return aucmd_set_expand_context(xp, arg_cstr, false);
         }
         Cmdidx::CmdDoautocmd | Cmdidx::CmdDoautoall => {
-            let next = aucmd_set_expand_context(xp, arg.cast_mut(), true);
-            return (!next.is_null()).then(|| unsafe { CStr::from_ptr(next.cast()) });
+            return aucmd_set_expand_context(xp, arg_cstr, true);
         }
         Cmdidx::CmdSet => {
-            set_context_in_set_cmd(xp, arg.cast_mut().cast(), 0);
+            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()), 0);
         }
         Cmdidx::CmdSetglobal => {
-            set_context_in_set_cmd(xp, arg.cast_mut().cast(), OPT_GLOBAL);
+            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()), OPT_GLOBAL);
         }
         Cmdidx::CmdSetlocal => {
-            set_context_in_set_cmd(xp, arg.cast_mut().cast(), OPT_LOCAL);
+            set_context_in_set_cmd(xp, crate::memory::cstr_from_ptr(arg.cast()), OPT_LOCAL);
         }
         Cmdidx::CmdTag
         | Cmdidx::CmdStag
@@ -5022,10 +5025,10 @@ fn expand_from_context(
     }
 
     if !fuzzy {
-        regmatch.regprog = vim_regcomp(
-            pat_cstr.as_ptr(),
+        regmatch.set_prog(vim_regcomp(
+            pat_cstr,
             if opt_vars().p_magic != 0 { RE_MAGIC } else { 0 },
-        );
+        ));
         if regmatch.regprog.is_null() {
             return false;
         }
@@ -5033,7 +5036,7 @@ fn expand_from_context(
     }
 
     let ret = if xp.xp_context == EXPAND_SETTINGS || xp.xp_context == EXPAND_BOOL_SETTINGS {
-        expand_settings(xp, &mut regmatch, pat_cstr.as_ptr(), matches, fuzzy)
+        expand_settings(xp, &mut regmatch, Some(pat_cstr), matches, fuzzy)
     } else if xp.xp_context == EXPAND_STRING_SETTING {
         expand_string_setting(xp, &mut regmatch, matches)
     } else if xp.xp_context == EXPAND_SETTING_SUBTRACT {
@@ -5049,7 +5052,7 @@ fn expand_from_context(
     };
 
     if !fuzzy {
-        vim_regfree(regmatch.regprog);
+        regmatch.free_prog();
     }
     drop(tofree);
 
@@ -5370,7 +5373,7 @@ fn expand_user_defined(
         let mut score: i32 = 0;
         if !crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
             if !fuzzy {
-                match_ok = vim_regexec(regmatch, line_cstr.as_ptr(), 0);
+                match_ok = vim_regexec(regmatch, &line_cstr, 0);
             } else {
                 score = fuzzy_match_str(Some(line_cstr.to_bytes()), Some(pat.to_bytes()));
                 match_ok = score != FUZZY_SCORE_NONE;
@@ -5504,7 +5507,7 @@ pub fn globpath(
     expand_options: i32,
     dirs: bool,
 ) {
-    let mut path = path_arg.as_ptr().cast_mut();
+    let path = path_arg.as_ptr().cast_mut();
     let file_bytes = file_arg.to_bytes();
     let filelen = file_bytes.len();
     let mut buf_vec = vec![0u8; MAXPATHL];
@@ -5516,9 +5519,9 @@ pub fn globpath(
         EXPAND_FILES
     };
 
-    while !crate::memory::cstr_is_empty(path) {
-        let mut pathlen =
-            copy_option_part(&raw mut path, buf_vec.as_mut_ptr().cast(), MAXPATHL, c",");
+    let mut path_bytes = crate::memory::cstr_as_bytes(path);
+    while !path_bytes.is_empty() {
+        let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
         let seplen = if buf_vec[0] != 0
             && after_pathsep(
                 buf_vec.as_ptr().cast(),
@@ -6082,7 +6085,7 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
 
     g_st().emsg_off += 1;
     g_st().msg_silent += 1;
-    regmatch.regprog = vim_regcomp(pat.as_ptr(), RE_MAGIC + RE_STRING);
+    regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     g_st().emsg_off -= 1;
     g_st().msg_silent -= 1;
 
@@ -6096,11 +6099,11 @@ fn is_regex_match(pat: &CStr, str_arg: &CStr) -> bool {
 
     g_st().emsg_off += 1;
     g_st().msg_silent += 1;
-    let result = vim_regexec_nl(&mut regmatch, str_arg, 0);
+    let result = vim_regexec_nl(&mut regmatch, Some(str_arg), 0);
     g_st().emsg_off -= 1;
     g_st().msg_silent -= 1;
 
-    vim_regfree(regmatch.regprog);
+    regmatch.free_prog();
     result
 }
 
