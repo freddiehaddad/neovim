@@ -411,12 +411,11 @@ pub(crate) fn receive_msgpack(rbuf: &[u8], channel: &mut Channel, eof: bool) -> 
 
     if c > 0 {
         let p = channel.unpacker_mut();
-        p.read_ptr = rbuf.as_ptr();
-        p.read_size = c;
+        p.read_buf = unsafe { &*(rbuf as *const [u8]) };
         parse_msgpack(channel);
 
         if !unpacker_closed(p) {
-            consumed = c - p.read_size;
+            consumed = c - p.read_buf.len();
         }
     }
 
@@ -695,12 +694,11 @@ fn channel_write(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) -> bool {
 pub fn internal_read_event(channel: &mut Channel, buffer: std::rc::Rc<WBuffer>) {
     let p = channel.unpacker_mut();
 
-    p.read_ptr = buffer.data.as_ptr();
-    p.read_size = buffer.size();
+    p.read_buf = unsafe { &*(buffer.data.as_slice() as *const [u8]) };
     if !unpacker_closed(p) {
         parse_msgpack(channel);
 
-        if p.read_size != 0 && !channel.rpc.closed {
+        if !p.read_buf.is_empty() && !channel.rpc.closed {
             chan_close_on_err(channel, c"internal channel: internal error", LOGLVL_ERR);
         }
     }

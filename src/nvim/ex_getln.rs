@@ -1114,7 +1114,7 @@ fn command_line_enter(
                 .ccline
                 .xp_arg
                 .as_deref()
-                .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut().cast());
+                .map(|a| unsafe { &*(a as *const std::ffi::CStr) });
         }
 
         g_st().msg_scroll = 0;
@@ -3651,14 +3651,8 @@ pub fn realloc_cmdbuff(mut len: i32) {
 /// Color expression cmdline using built-in expressions parser.
 fn color_expr_cmdline(colored_ccline: &CmdlineInfo, ret_ccline_colors: &mut ColoredCmdline) {
     let parser_lines = [
-        ParserLine {
-            data: colored_ccline.cmdbuff.cast::<u8>(),
-            size: crate::memory::cstr_len(colored_ccline.cmdbuff.cast()),
-        },
-        ParserLine {
-            data: ptr::null(),
-            size: 0,
-        },
+        ParserLine::from_slice(crate::memory::cstr_as_bytes(colored_ccline.cmdbuff.cast())),
+        ParserLine::NONE,
     ];
     let mut pstate = ParserState {
         reader: ParserInputReader::new(&parser_lines),
@@ -4811,10 +4805,7 @@ fn get_cmdline_completion() -> Option<std::ffi::CString> {
         return None;
     }
 
-    cmdcomplete_type_to_str(
-        xp_context,
-        crate::memory::cstr_as_opt_bytes(xpc.xp_arg.cast()),
-    )
+    cmdcomplete_type_to_str(xp_context, xpc.xp_arg.map(CStr::to_bytes))
 }
 
 /// `"getcmdcomplpat()"` function.

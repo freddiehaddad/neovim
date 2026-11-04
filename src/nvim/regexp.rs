@@ -817,7 +817,7 @@ impl CaseConv {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct ParseState {
-    pub regparse: *mut u8,
+    pub regparse_off: usize,
     pub prevchr_len: i32,
     pub curchr: i32,
     pub prevchr: i32,
@@ -831,7 +831,7 @@ pub(super) struct ParseState {
 impl ParseState {
     pub(super) const fn new() -> Self {
         Self {
-            regparse: ptr::null_mut(),
+            regparse_off: 0,
             prevchr_len: 0,
             curchr: 0,
             prevchr: 0,
@@ -1203,7 +1203,8 @@ pub(super) struct RegexpState {
     pub(super) reg_prev_sub: Option<std::ffi::CString>,
     pub(super) class_tab: [i16; 256],
     pub(super) init_class_tab_done: bool,
-    pub(super) regparse: *mut u8,
+    pub(super) regparse_base: &'static std::ffi::CStr,
+    pub(super) regparse_off: usize,
     pub(super) regnpar: i32,
     pub(super) wants_nfa: bool,
     pub(super) regnzpar: i32,
@@ -1261,7 +1262,8 @@ impl RegexpState {
             reg_prev_sub: None,
             class_tab: [0; 256],
             init_class_tab_done: false,
-            regparse: ptr::null_mut(),
+            regparse_base: c"",
+            regparse_off: 0,
             regnpar: 0,
             wants_nfa: false,
             regnzpar: 0,
@@ -1803,7 +1805,8 @@ pub fn skip_regexp_ex(
 }
 
 pub(super) fn initchr(str_: &CStr) {
-    re_st().regparse = str_.as_ptr().cast_mut().cast();
+    re_st().regparse_base = unsafe { &*(str_ as *const CStr) };
+    re_st().regparse_off = 0;
     re_st().prevchr_len = 0;
     re_st().nextchr = -1;
     re_st().prevchr = -1;
@@ -1814,7 +1817,7 @@ pub(super) fn initchr(str_: &CStr) {
 }
 
 pub(super) fn save_parse_state(ps: &mut ParseState) {
-    ps.regparse = re_st().regparse;
+    ps.regparse_off = re_st().regparse_off;
     ps.prevchr_len = re_st().prevchr_len;
     ps.curchr = re_st().curchr;
     ps.prevchr = re_st().prevchr;
@@ -1826,7 +1829,7 @@ pub(super) fn save_parse_state(ps: &mut ParseState) {
 }
 
 pub(super) fn restore_parse_state(ps: &mut ParseState) {
-    re_st().regparse = ps.regparse;
+    re_st().regparse_off = ps.regparse_off;
     re_st().prevchr_len = ps.prevchr_len;
     re_st().curchr = ps.curchr;
     re_st().prevchr = ps.prevchr;
@@ -1842,7 +1845,7 @@ pub(super) fn peekchr() -> i32 {
         return re_st().curchr;
     }
 
-    re_st().curchr = crate::memory::cstr_first_byte(re_st().regparse.cast()) as i32;
+    re_st().curchr = re_st().regparse_byte() as i32;
     match re_st().curchr as u8 {
         b'.' | b'[' | b'~' => {
             if re_st().reg_magic >= MAGIC_ON {
@@ -1885,14 +1888,10 @@ pub(super) fn peekchr() -> i32 {
         }
         b'$' => {
             if re_st().reg_magic >= MAGIC_OFF {
-                let mut p = re_st().regparse.wrapping_add(1);
+                let mut p_bytes = &re_st().regparse_bytes()[1..];
                 let mut is_magic_all = re_st().reg_magic == MAGIC_ALL;
 
-                loop {
-                    let p_bytes = crate::memory::cstr_as_bytes(p.cast());
-                    let Some(&next_b) = p_bytes.get(1) else {
-                        break;
-                    };
+                while let Some(&next_b) = p_bytes.get(1) {
                     if p_bytes[0] != b'\\'
                         || !matches!(next_b, b'c' | b'C' | b'm' | b'M' | b'v' | b'V' | b'Z')
                     {
@@ -1903,9 +1902,8 @@ pub(super) fn peekchr() -> i32 {
                     } else if matches!(next_b, b'm' | b'M' | b'V') {
                         is_magic_all = false;
                     }
-                    p = p.wrapping_add(2);
+                    p_bytes = &p_bytes[2..];
                 }
-                let p_bytes = crate::memory::cstr_as_bytes(p.cast());
                 let p_b = p_bytes.first().copied().unwrap_or(0);
                 if p_b == NUL
                     || (p_b == b'\\'
@@ -1927,10 +1925,10 @@ pub(super) fn peekchr() -> i32 {
                 re_st().curchr = -1;
                 re_st().prev_at_start = re_st().at_start;
                 re_st().at_start = 0;
-                re_st().regparse = re_st().regparse.wrapping_add(1);
+                re_st().regparse_off += 1;
                 re_st().peekchr_after_slash += 1;
                 let _ = peekchr();
-                re_st().regparse = re_st().regparse.wrapping_sub(1);
+                re_st().regparse_off -= 1;
                 re_st().peekchr_after_slash -= 1;
                 re_st().curchr = toggle_magic(re_st().curchr);
             } else if crate::strings::vim_haschr(REGEXP_ABBR, c) {
@@ -1939,9 +1937,7 @@ pub(super) fn peekchr() -> i32 {
                 re_st().curchr = toggle_magic(c);
             } else {
                 re_st().curchr = if c >= 0x80 {
-                    utf_ptr2char(crate::memory::cstr_char_bytes(
-                        re_st().regparse.wrapping_add(1).cast(),
-                    ))
+                    utf_ptr2char(&re_st().regparse_bytes()[1..])
                 } else {
                     c
                 };
@@ -1949,8 +1945,7 @@ pub(super) fn peekchr() -> i32 {
         }
         _ => {
             if re_st().curchr >= 0x80 {
-                re_st().curchr =
-                    utf_ptr2char(crate::memory::cstr_char_bytes(re_st().regparse.cast()));
+                re_st().curchr = utf_ptr2char(re_st().regparse_bytes());
             }
         }
     }
@@ -1959,7 +1954,7 @@ pub(super) fn peekchr() -> i32 {
 }
 
 pub(super) fn skipchr() {
-    if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b'\\' {
+    if re_st().regparse_byte() == b'\\' {
         re_st().prevchr_len = 1;
     } else {
         re_st().prevchr_len = 0;
@@ -1969,15 +1964,11 @@ pub(super) fn skipchr() {
         if next_b < 0x80 {
             re_st().prevchr_len += 1;
         } else {
-            re_st().prevchr_len += utf_ptr2len(crate::memory::cstr_char_bytes(
-                re_st()
-                    .regparse
-                    .wrapping_add(re_st().prevchr_len as usize)
-                    .cast(),
-            ));
+            let off = re_st().prevchr_len as usize;
+            re_st().prevchr_len += utf_ptr2len(&re_st().regparse_bytes()[off..]);
         }
     }
-    re_st().regparse = re_st().regparse.wrapping_add(re_st().prevchr_len as usize);
+    re_st().regparse_off += re_st().prevchr_len as usize;
     re_st().prev_at_start = re_st().at_start;
     re_st().at_start = 0;
     re_st().prevprevchr = re_st().prevchr;
@@ -2009,20 +2000,20 @@ pub(super) fn ungetchr() {
     re_st().prevchr = re_st().prevprevchr;
     re_st().at_start = re_st().prev_at_start;
     re_st().prev_at_start = 0;
-    re_st().regparse = re_st().regparse.wrapping_sub(re_st().prevchr_len as usize);
+    re_st().regparse_off -= re_st().prevchr_len as usize;
 }
 
 pub(super) fn gethexchrs(maxinputlen: i32) -> i64 {
     let mut nr: i64 = 0;
     let mut i: i32 = 0;
     while i < maxinputlen {
-        let c = crate::memory::cstr_first_byte(re_st().regparse.cast()) as i32;
+        let c = re_st().regparse_byte() as i32;
         if !ascii_isxdigit(c) {
             break;
         }
         nr <<= 4;
         nr |= i64::from(hex2nr(c));
-        re_st().regparse = re_st().regparse.wrapping_add(1);
+        re_st().regparse_off += 1;
         i += 1;
     }
     if i == 0 { -1 } else { nr }
@@ -2032,12 +2023,12 @@ pub(super) fn getdecchrs() -> i64 {
     let mut nr: i64 = 0;
     let mut i: i32 = 0;
     loop {
-        let c = crate::memory::cstr_first_byte(re_st().regparse.cast());
+        let c = re_st().regparse_byte();
         if !c.is_ascii_digit() {
             break;
         }
         nr = nr.wrapping_mul(10).wrapping_add(i64::from(c - b'0'));
-        re_st().regparse = re_st().regparse.wrapping_add(1);
+        re_st().regparse_off += 1;
         re_st().curchr = -1;
         i += 1;
     }
@@ -2048,13 +2039,13 @@ pub(super) fn getoctchrs() -> i64 {
     let mut nr: i64 = 0;
     let mut i: i32 = 0;
     while i < 3 && nr < 0o40 {
-        let c = crate::memory::cstr_first_byte(re_st().regparse.cast());
+        let c = re_st().regparse_byte();
         if !(b'0'..=b'7').contains(&c) {
             break;
         }
         nr <<= 3;
         nr |= i64::from(hex2nr(c as i32));
-        re_st().regparse = re_st().regparse.wrapping_add(1);
+        re_st().regparse_off += 1;
         i += 1;
     }
     if i == 0 { -1 } else { nr }
@@ -2062,36 +2053,36 @@ pub(super) fn getoctchrs() -> i64 {
 
 pub(super) fn read_limits(minval: &mut i32, maxval: &mut i32) -> bool {
     let mut reverse = false;
-    if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b'-' {
-        re_st().regparse = re_st().regparse.wrapping_add(1);
+    if re_st().regparse_byte() == b'-' {
+        re_st().regparse_off += 1;
         reverse = true;
     }
-    let first_char = re_st().regparse;
+    let first_char_b = re_st().regparse_byte();
     {
-        let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+        let start_bytes = re_st().regparse_bytes();
         let mut rem = start_bytes;
         *minval = getdigits_int(&mut rem, false, 0);
-        re_st().regparse = re_st().regparse.wrapping_add(start_bytes.len() - rem.len());
+        re_st().regparse_off += start_bytes.len() - rem.len();
     }
-    if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b',' {
-        re_st().regparse = re_st().regparse.wrapping_add(1);
-        if ascii_isdigit(crate::memory::cstr_first_byte(re_st().regparse.cast()) as i32) {
-            let start_bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+    if re_st().regparse_byte() == b',' {
+        re_st().regparse_off += 1;
+        if ascii_isdigit(re_st().regparse_byte() as i32) {
+            let start_bytes = re_st().regparse_bytes();
             let mut rem = start_bytes;
             *maxval = getdigits_int(&mut rem, false, MAX_LIMIT);
-            re_st().regparse = re_st().regparse.wrapping_add(start_bytes.len() - rem.len());
+            re_st().regparse_off += start_bytes.len() - rem.len();
         } else {
             *maxval = MAX_LIMIT;
         }
-    } else if ascii_isdigit(crate::memory::cstr_first_byte(first_char.cast()) as i32) {
+    } else if ascii_isdigit(first_char_b as i32) {
         *maxval = *minval;
     } else {
         *maxval = MAX_LIMIT;
     }
-    if crate::memory::cstr_first_byte(re_st().regparse.cast()) == b'\\' {
-        re_st().regparse = re_st().regparse.wrapping_add(1);
+    if re_st().regparse_byte() == b'\\' {
+        re_st().regparse_off += 1;
     }
-    if crate::memory::cstr_first_byte(re_st().regparse.cast()) != b'}' {
+    if re_st().regparse_byte() != b'}' {
         semsg!(
             tr(c"E554: Syntax error in %s{...}"),
             if re_st().reg_magic == MAGIC_ALL {
@@ -3335,7 +3326,7 @@ pub(super) fn regcomp_start(expr: &CStr, re_flags: i32) {
 
 pub(super) fn seen_endbrace(refnum: i32) -> bool {
     if re_st().had_endbrace[refnum as usize] == 0 {
-        let bytes = crate::memory::cstr_as_bytes(re_st().regparse.cast());
+        let bytes = re_st().regparse_bytes();
         let has_lookbehind = bytes
             .windows(3)
             .any(|w| w[0] == b'@' && w[1] == b'<' && (w[2] == b'!' || w[2] == b'='));
@@ -3350,8 +3341,8 @@ pub(super) fn seen_endbrace(refnum: i32) -> bool {
 
 pub(super) fn coll_get_char() -> i32 {
     let mut nr: i64 = -1;
-    let ch = crate::memory::cstr_first_byte(re_st().regparse.cast());
-    re_st().regparse = re_st().regparse.wrapping_add(1);
+    let ch = re_st().regparse_byte();
+    re_st().regparse_off += 1;
     match ch {
         b'd' => nr = getdecchrs(),
         b'o' => nr = getoctchrs(),
@@ -3361,7 +3352,7 @@ pub(super) fn coll_get_char() -> i32 {
         _ => {}
     }
     if nr < 0 {
-        re_st().regparse = re_st().regparse.wrapping_sub(1);
+        re_st().regparse_off -= 1;
         nr = i64::from(b'\\');
     }
     if nr > i64::from(i32::MAX) {
@@ -3678,43 +3669,53 @@ impl Regexec {
 
 impl RegexpState {
     #[inline]
+    pub fn regparse_bytes(&self) -> &'static [u8] {
+        self.regparse_base
+            .to_bytes()
+            .get(self.regparse_off..)
+            .unwrap_or(&[])
+    }
+    #[inline]
     pub fn regparse_byte(&self) -> u8 {
-        crate::memory::cstr_first_byte(self.regparse.cast())
+        self.regparse_bytes().first().copied().unwrap_or(0)
     }
     #[inline]
     pub fn regparse_byte_at(&self, idx: usize) -> u8 {
-        crate::memory::cstr_as_bytes(self.regparse.cast())
-            .get(idx)
-            .copied()
-            .unwrap_or(0)
+        self.regparse_bytes().get(idx).copied().unwrap_or(0)
     }
     #[inline]
     pub fn regparse_mb_adv(&mut self) {
-        let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(self.regparse.cast())) as usize;
-        self.regparse = self.regparse.wrapping_add(step);
+        let step = utfc_ptr2len(self.regparse_bytes()) as usize;
+        self.regparse_off += step;
+    }
+    #[inline]
+    pub fn regparse_prev_char(&mut self) {
+        let base = self.regparse_base.to_bytes();
+        self.regparse_off -=
+            1 + crate::mbyte::utf_head_off_slice(base, self.regparse_off - 1) as usize;
     }
     #[inline]
     pub fn regparse_get_char_class(&mut self) -> i32 {
-        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let bytes = self.regparse_bytes();
         let mut rem = bytes;
         let res = get_char_class(&mut rem);
-        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        self.regparse_off += bytes.len() - rem.len();
         res
     }
     #[inline]
     pub fn regparse_get_equi_class(&mut self) -> i32 {
-        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let bytes = self.regparse_bytes();
         let mut rem = bytes;
         let res = get_equi_class(&mut rem);
-        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        self.regparse_off += bytes.len() - rem.len();
         res
     }
     #[inline]
     pub fn regparse_get_coll_element(&mut self) -> i32 {
-        let bytes = crate::memory::cstr_as_bytes(self.regparse.cast());
+        let bytes = self.regparse_bytes();
         let mut rem = bytes;
         let res = get_coll_element(&mut rem);
-        self.regparse = self.regparse.wrapping_add(bytes.len() - rem.len());
+        self.regparse_off += bytes.len() - rem.len();
         res
     }
 }

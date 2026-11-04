@@ -559,16 +559,7 @@ pub fn nvim_parse_expression(
         }
     }
 
-    let parser_lines = [
-        ParserLine {
-            data: expr.data.cast::<u8>(),
-            size: expr.size,
-        },
-        ParserLine {
-            data: std::ptr::null(),
-            size: 0,
-        },
-    ];
+    let parser_lines = [ParserLine::from_slice(expr.as_bytes()), ParserLine::NONE];
     let mut pstate = ParserState {
         reader: ParserInputReader::new(&parser_lines),
         pos: ParserPosition { line: 0, col: 0 },
@@ -580,7 +571,7 @@ pub fn nvim_parse_expression(
     let ret_size = 2 + usize::from(east.err.msg.is_some()) + usize::from(hl);
     let mut ret = arena_dict(arena, ret_size);
     let parsed_len = if pstate.pos.line == 1 {
-        parser_lines[0].size
+        parser_lines[0].size()
     } else {
         pstate.pos.col
     };

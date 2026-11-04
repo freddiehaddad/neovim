@@ -54,7 +54,6 @@ use crate::window::{
     WSP_ABOVE, WSP_BELOW, WSP_BOT, WSP_HOR, WSP_TOP, WSP_VERT, prevwin_curwin, tabpage_index,
 };
 use std::ffi::{CStr, CString};
-use std::ptr;
 
 pub(crate) const UC_BUFFER: i32 = 1;
 
@@ -289,8 +288,8 @@ pub fn find_ucmd(
                         xp.as_deref_mut().unwrap().xp_luaref = uc.uc_compl_luaref;
                         xp.as_deref_mut().unwrap().xp_arg = uc
                             .uc_compl_arg
-                            .as_ref()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+                            .as_deref()
+                            .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
                         xp.as_deref_mut().unwrap().xp_script_ctx = uc.uc_script_ctx;
                         xp.as_deref_mut().unwrap().xp_script_ctx.sc_lnum += sourcing_lnum();
                     }

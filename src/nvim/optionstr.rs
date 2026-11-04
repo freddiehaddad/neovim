@@ -239,14 +239,13 @@ impl Optset {
 
 #[repr(C)]
 pub struct Optexpand {
-    pub oe_varp: *mut u8,
     pub oe_idx: OptIndex,
-    pub oe_opt_value: *mut u8,
+    pub oe_opt_value: &'static std::ffi::CStr,
     pub oe_append: bool,
     pub oe_include_orig_val: bool,
     pub oe_regmatch: *mut Regmatch,
     pub oe_xp: *mut ExpandCtx,
-    pub oe_set_arg: *mut u8,
+    pub oe_set_arg: &'static std::ffi::CStr,
 }
 
 impl Optexpand {
@@ -435,7 +434,7 @@ const E_CONFLICTS_WITH_VALUE_OF_FILLCHARS: &CStr = c"E835: Conflicts with value 
 const SHM_ALL: &CStr = c"rmlwaWtToOsAIcCqFSunfxi";
 
 struct OptionStrState {
-    set_opt_callback_orig_option: *mut u8,
+    set_opt_callback_orig_option: Option<&'static std::ffi::CStr>,
     set_opt_callback_func: CompleteListItemGetter,
     expand_eiw: bool,
     opt_keyset_shared: [u64; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
@@ -444,7 +443,7 @@ struct OptionStrState {
 impl OptionStrState {
     const fn new() -> Self {
         Self {
-            set_opt_callback_orig_option: ptr::null_mut(),
+            set_opt_callback_orig_option: None,
             set_opt_callback_func: None,
             expand_eiw: false,
             opt_keyset_shared: [0; std::mem::size_of::<OptKeyDict_mopt>().div_ceil(8)],
@@ -1378,20 +1377,19 @@ fn expand_set_opt_string(
 ) -> bool {
     let regmatch = args.regmatch_mut();
     let include_orig_val = args.oe_include_orig_val;
-    let option_val = args.oe_opt_value.cast();
+    let option_val = args.oe_opt_value;
 
     matches.clear();
 
-    if include_orig_val && !crate::memory::cstr_is_empty(option_val) {
-        matches.push(crate::memory::cstr_to_cstring(option_val));
+    if include_orig_val && !option_val.to_bytes().is_empty() {
+        matches.push(option_val.to_owned());
     }
 
     for &val in values {
         if val.to_bytes().is_empty()
             || (include_orig_val
-                && !crate::memory::cstr_is_empty(option_val)
-                && (crate::memory::cstr_as_bytes(val.as_ptr())
-                    == crate::memory::cstr_as_bytes(option_val)))
+                && !option_val.to_bytes().is_empty()
+                && val.to_bytes() == option_val.to_bytes())
         {
             continue;
         }
@@ -1408,13 +1406,7 @@ fn expand_set_opt_string(
 /// Callback used by expand_set_opt_generic to also include the original value.
 fn expand_set_opt_callback(xp: &mut ExpandCtx, idx: i32) -> Option<&CStr> {
     if idx == 0 {
-        if !optstr_st().set_opt_callback_orig_option.is_null() {
-            return Some(crate::memory::cstr_from_ptr(
-                optstr_st().set_opt_callback_orig_option.cast(),
-            ));
-        } else {
-            return Some(c"");
-        }
+        return Some(optstr_st().set_opt_callback_orig_option.unwrap_or(c""));
     }
     optstr_st().set_opt_callback_func?(xp, idx - 1)
 }
@@ -1425,11 +1417,8 @@ fn expand_set_opt_generic(
     func: CompleteListItemGetter,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    optstr_st().set_opt_callback_orig_option = if args.oe_include_orig_val {
-        args.oe_opt_value
-    } else {
-        ptr::null_mut()
-    };
+    optstr_st().set_opt_callback_orig_option =
+        args.oe_include_orig_val.then_some(args.oe_opt_value);
     optstr_st().set_opt_callback_func = func;
 
     expand_generic(
@@ -1441,7 +1430,7 @@ fn expand_set_opt_generic(
         false,
     );
 
-    optstr_st().set_opt_callback_orig_option = ptr::null_mut();
+    optstr_st().set_opt_callback_orig_option = None;
     optstr_st().set_opt_callback_func = None;
     true
 }
@@ -1453,16 +1442,16 @@ fn expand_set_opt_listflag(
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
     let flags_bytes = flags.to_bytes();
-    let option_val = args.oe_opt_value.cast();
-    let option_bytes = crate::memory::cstr_as_bytes(option_val);
-    let cmdline_bytes = crate::memory::cstr_as_bytes(args.oe_set_arg.cast());
+    let option_val = args.oe_opt_value;
+    let option_bytes = option_val.to_bytes();
+    let cmdline_bytes = args.oe_set_arg.to_bytes();
     let append = args.oe_append;
     let include_orig_val = args.oe_include_orig_val && !option_bytes.is_empty();
 
     matches.clear();
 
     if include_orig_val {
-        matches.push(crate::memory::cstr_to_cstring(option_val));
+        matches.push(option_val.to_owned());
     }
 
     for &flag_b in flags_bytes {
@@ -1486,7 +1475,7 @@ fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CSt
     let suffix_bytes = name_suffix.to_bytes();
     let len = suffix_bytes.len();
 
-    crate::memory::ptr_offset_from(colon, args.oe_set_arg.cast()) >= (len as isize)
+    crate::memory::ptr_offset_from(colon, args.oe_set_arg.as_ptr().cast()) >= (len as isize)
         && crate::memory::cstr_slice(colon.wrapping_sub(len).cast(), len) == suffix_bytes
 }
 
@@ -1819,9 +1808,7 @@ pub fn did_set_chars_option(args: &mut Optset) -> Option<&CStr> {
 
 /// Expand 'fillchars' or 'listchars' option value.
 pub fn expand_set_chars_option(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    let varp = args.oe_varp;
-    let is_lcs = ptr::eq(varp, (&raw mut opt_vars().p_lcs).cast())
-        || ptr::eq(varp, (&raw mut curwin_mut().w_onebuf_opt.wo_lcs).cast());
+    let is_lcs = args.oe_idx == K_OPT_LISTCHARS;
     expand_set_opt_generic(
         args,
         Some(if is_lcs {
@@ -2125,7 +2112,7 @@ pub fn did_set_diffopt(_args: &mut Optset) -> Option<&CStr> {
 pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
     let xp_pat = args.xp_mut().xp_pattern;
 
-    if (xp_pat as usize) > (args.oe_set_arg as usize)
+    if (xp_pat as usize) > (args.oe_set_arg.as_ptr() as usize)
         && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
     {
         if completing_value_for_subopt(args, c"algorithm") {
@@ -2237,7 +2224,7 @@ fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 }
 
 pub fn expand_set_eventignore(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    optstr_st().expand_eiw = !ptr::eq(args.oe_varp, (&raw mut opt_vars().p_ei).cast::<u8>());
+    optstr_st().expand_eiw = args.oe_idx == K_OPT_EVENTIGNOREWIN;
     expand_set_opt_generic(args, Some(get_eventignore_name), matches)
 }
 
@@ -4065,7 +4052,7 @@ pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
 pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
     let xp_pat = args.xp_mut().xp_pattern;
 
-    if (xp_pat as usize) > (args.oe_set_arg as usize)
+    if (xp_pat as usize) > (args.oe_set_arg.as_ptr() as usize)
         && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
     {
         if completing_value_for_subopt(args, c"border") {

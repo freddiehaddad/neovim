@@ -852,11 +852,10 @@ pub fn ex_drop(eap: &mut Exarg) {
                     ex_rewind(eap);
                 }
 
-                if !eap.do_ecmd_cmd.is_null() {
-                    let did_set_swapcommand =
-                        set_swapcommand(crate::memory::cstr_as_opt_cstr(eap.do_ecmd_cmd), 0);
+                if let Some(ref cmd) = eap.do_ecmd_cmd {
+                    let did_set_swapcommand = set_swapcommand(Some(cmd.as_c_str()), 0);
                     do_cmdline(
-                        crate::memory::cstr_as_opt_cstr(eap.do_ecmd_cmd),
+                        Some(cmd.as_c_str()),
                         crate::cmdexpand::LineGetter::None,
                         DOCMD_VERBOSE,
                     );

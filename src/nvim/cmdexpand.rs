@@ -126,7 +126,7 @@ pub struct ExpandCtx {
     pub xp_context: i32,
     pub xp_pattern_len: usize,
     pub xp_prefix: i32,
-    pub xp_arg: *mut u8,
+    pub xp_arg: Option<&'static std::ffi::CStr>,
     pub xp_luaref: LuaRef,
     pub xp_script_ctx: Sctx,
     pub xp_backslash: i32,
@@ -154,7 +154,7 @@ impl ExpandCtx {
             xp_context: 0,
             xp_pattern_len: 0,
             xp_prefix: XP_PREFIX_NONE,
-            xp_arg: ptr::null_mut(),
+            xp_arg: None,
             xp_luaref: 0,
             xp_script_ctx: Sctx {
                 sc_sid: 0,
@@ -4423,8 +4423,8 @@ pub fn set_cmd_context(
         xp.xp_pattern = ccline.cmdbuff;
         xp.xp_arg = ccline
             .xp_arg
-            .as_ref()
-            .map_or(ptr::null_mut(), |a| a.as_ptr().cast_mut().cast());
+            .as_deref()
+            .map(|a| unsafe { &*(a as *const std::ffi::CStr) });
         if xp.xp_context == EXPAND_SHELLCMDLINE {
             let mut context = xp.xp_context;
             let pat_cstr = crate::memory::cstr_from_ptr(xp.xp_pattern.cast());
@@ -5437,7 +5437,10 @@ where
     let mut args: [TypVal; 4] = [TypVal::new(); 4];
     let save_current_sctx = g_st().current_sctx;
 
-    if crate::memory::cstr_is_empty(xp.xp_arg.cast()) || xp.xp_line.is_null() {
+    let Some(arg_cstr) = xp.xp_arg.filter(|s| !s.to_bytes().is_empty()) else {
+        return default;
+    };
+    if xp.xp_line.is_null() {
         return default;
     }
 
@@ -5462,7 +5465,6 @@ where
 
     g_st().current_sctx = xp.xp_script_ctx;
 
-    let arg_cstr = unsafe { CStr::from_ptr(xp.xp_arg.cast()) };
     let ret = user_expand_func(arg_cstr, 3, &mut args);
 
     g_st().current_sctx = save_current_sctx;
@@ -5996,14 +5998,14 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = type_str.as_ptr().wrapping_add(7).cast_mut().cast();
+                xpc.xp_arg = Some(unsafe { &*(&type_str[7..] as *const std::ffi::CStr) });
             }
             EXPAND_USER_LIST => {
                 if !type_str.to_bytes().starts_with(b"customlist,") {
                     semsg!(gettext(E_INVARG2), type_str);
                     return;
                 }
-                xpc.xp_arg = type_str.as_ptr().wrapping_add(11).cast_mut().cast();
+                xpc.xp_arg = Some(unsafe { &*(&type_str[11..] as *const std::ffi::CStr) });
             }
             EXPAND_MENUS => {
                 let pat_p = xpc.xp_pattern;
@@ -6103,11 +6105,7 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     );
     crate::eval::typval::tv_set_string(
         rettv,
-        cmdcomplete_type_to_str(
-            xpc.xp_context,
-            crate::memory::cstr_as_opt_bytes(xpc.xp_arg.cast()),
-        )
-        .as_deref(),
+        cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.map(CStr::to_bytes)).as_deref(),
     );
 }
 

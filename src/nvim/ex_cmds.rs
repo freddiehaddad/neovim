@@ -2712,7 +2712,7 @@ pub fn do_ecmd(
     let mut topline: Linenr = 0;
     let mut newcol: i32 = -1;
     let mut solcol: i32 = -1;
-    let mut command = ptr::null_mut();
+    let command: Option<std::ffi::CString> = eap.as_ref().and_then(|e| e.do_ecmd_cmd.clone());
     let mut did_get_winopts = false;
     let mut readfile_flags: i32 = 0;
     let mut did_inc_redrawing_disabled = false;
@@ -2721,10 +2721,6 @@ pub fn do_ecmd(
     } else {
         &raw mut opt_vars().p_so
     };
-
-    if let Some(eap) = eap {
-        command = eap.do_ecmd_cmd;
-    }
 
     set_bufref(&mut old_curbuf, unsafe { g_st().curbuf.as_mut() });
 
@@ -2806,7 +2802,7 @@ pub fn do_ecmd(
             oldwin = ptr::null_mut();
         }
 
-        did_set_swapcommand = set_swapcommand(crate::memory::cstr_as_opt_cstr(command), newlnum);
+        did_set_swapcommand = set_swapcommand(command.as_deref(), newlnum);
 
         if other_file {
             let prev_alt_fnum = curwin_mut().w_alt_fnum;
@@ -2826,10 +2822,8 @@ pub fn do_ecmd(
                 if (flags & (ECMD_ADDBUF | ECMD_ALTBUF)) != 0 {
                     let mut tlnum: Linenr = 0;
 
-                    if !command.is_null() {
-                        tlnum =
-                            crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(command))
-                                as i64 as Linenr;
+                    if let Some(ref cmd) = command {
+                        tlnum = crate::charset::parse_i64_prefix(cmd.as_bytes()) as Linenr;
                         if tlnum <= 0 {
                             tlnum = 1;
                         }
@@ -3164,7 +3158,7 @@ pub fn do_ecmd(
             parse_spelllang(curwin_mut());
         }
 
-        if command.is_null() {
+        if command.is_none() {
             if newcol >= 0 {
                 curwin_mut().w_cursor.lnum = newlnum;
                 curwin_mut().w_cursor.col = newcol;
@@ -3213,9 +3207,9 @@ pub fn do_ecmd(
 
         curbuf_mut().b_last_used = os_time() as time_t;
 
-        if !command.is_null() {
+        if let Some(ref cmd) = command {
             do_cmdline(
-                crate::memory::cstr_as_opt_cstr(command),
+                Some(cmd.as_c_str()),
                 crate::cmdexpand::LineGetter::None,
                 DOCMD_VERBOSE,
             );
@@ -3229,7 +3223,7 @@ pub fn do_ecmd(
         did_inc_redrawing_disabled = false;
         if !g_st().skip_redraw {
             let n = unsafe { *so_ptr };
-            if topline == 0 && command.is_null() {
+            if topline == 0 && command.is_none() {
                 unsafe {
                     *so_ptr = 999;
                 }

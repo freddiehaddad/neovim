@@ -1160,7 +1160,7 @@ pub fn nvim_cmd(
         }
 
         if (ea.argt & EX_CMDARG) != 0 && ea.usefilter == 0 {
-            ea.do_ecmd_cmd = getargcmd(&mut ea).map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            ea.do_ecmd_cmd = getargcmd(&mut ea).map(CStr::to_owned);
         }
 
         let mut capture_local: Vec<u8> = Vec::new();

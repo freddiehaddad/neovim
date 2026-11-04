@@ -5,20 +5,29 @@ use crate::mbyte::{Vimconv, string_convert_slice};
 pub const CONV_NONE: i32 = 0;
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct ParserLine {
-    pub data: *const u8,
-    pub size: usize,
+    pub data: Option<&'static [u8]>,
 }
 
 impl ParserLine {
+    pub const NONE: Self = Self { data: None };
+
     #[inline]
-    pub fn as_bytes(&self) -> &[u8] {
-        if self.size == 0 || self.data.is_null() {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(self.data, self.size) }
+    pub fn from_slice(data: &[u8]) -> Self {
+        Self {
+            data: Some(unsafe { &*(data as *const [u8]) }),
         }
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &'static [u8] {
+        self.data.unwrap_or(&[])
+    }
+
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.data.map_or(0, <[u8]>::len)
     }
 }
 
@@ -79,20 +88,14 @@ fn viml_preader_get_line(preader: &mut ParserInputReader<'_>, ret_pline: &mut Pa
         preader.cursor = rest;
         *first
     } else {
-        ParserLine {
-            data: std::ptr::null(),
-            size: 0,
-        }
+        ParserLine::NONE
     };
-    if preader.conv.vc_type != CONV_NONE && pline.size != 0 {
-        let mut cpline = ParserLine {
-            data: std::ptr::null(),
-            size: pline.size,
-        };
-        if let Some(conv_bytes) =
-            string_convert_slice(&preader.conv, pline.as_bytes(), &mut cpline.size)
+    if preader.conv.vc_type != CONV_NONE && pline.size() != 0 {
+        let mut csize = pline.size();
+        let mut cpline = ParserLine::NONE;
+        if let Some(conv_bytes) = string_convert_slice(&preader.conv, pline.as_bytes(), &mut csize)
         {
-            cpline.data = conv_bytes.as_ptr();
+            cpline = ParserLine::from_slice(&conv_bytes[..csize.min(conv_bytes.len())]);
             preader.owned_lines.push(conv_bytes);
         }
         pline = cpline;
@@ -113,11 +116,10 @@ pub fn viml_parser_get_remaining_line(
         *ret_pline = *pstate.reader.lines.last().unwrap();
     }
     assert_eq!(pstate.pos.line, pstate.reader.lines.len() - 1);
-    if !ret_pline.data.is_null() {
-        ret_pline.data = ret_pline.data.wrapping_add(pstate.pos.col);
-        ret_pline.size -= pstate.pos.col;
+    if let Some(ref mut d) = ret_pline.data {
+        *d = &d[pstate.pos.col..];
     }
-    !ret_pline.data.is_null()
+    ret_pline.data.is_some()
 }
 
 #[cfg(test)]
@@ -126,24 +128,12 @@ mod tests {
 
     #[test]
     fn preader_get_line_advances_cursor() {
-        let lines = [
-            ParserLine {
-                data: b"let x = 1".as_ptr(),
-                size: 9,
-            },
-            ParserLine {
-                data: std::ptr::null(),
-                size: 0,
-            },
-        ];
+        let lines = [ParserLine::from_slice(b"let x = 1"), ParserLine::NONE];
         let mut reader = ParserInputReader::new(&lines);
-        let mut out = ParserLine {
-            data: std::ptr::null(),
-            size: 0,
-        };
+        let mut out = ParserLine::NONE;
         viml_preader_get_line(&mut reader, &mut out);
-        assert_eq!(out.size, 9);
+        assert_eq!(out.size(), 9);
         viml_preader_get_line(&mut reader, &mut out);
-        assert!(out.data.is_null());
+        assert!(out.data.is_none());
     }
 }
