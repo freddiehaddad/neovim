@@ -776,7 +776,7 @@ fn menu_get_recursive(menu: Option<&Vimmenu>, modes: i32) -> Option<&'static mut
 
     if menu.mnemonic != 0 {
         let mut buf = [0u8; MB_MAXCHAR + 1];
-        let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast()) as usize;
+        let buflen = utf_char2bytes(menu.mnemonic, &mut buf) as usize;
         tv_dict_add_str_len(&mut *dict, c"shortcut", Some(&buf[..buflen]));
     }
 
@@ -1889,7 +1889,7 @@ fn menuitem_getinfo(menu: &Vimmenu, modes: i32, dict: &mut TvDict) {
     tv_dict_add_str(dict, c"modes", Some(get_menu_mode_str(menu.modes)));
 
     let mut buf = [0u8; NUMBUFLEN];
-    let buflen = utf_char2bytes(menu.mnemonic, buf.as_mut_ptr().cast()) as usize;
+    let buflen = utf_char2bytes(menu.mnemonic, &mut buf) as usize;
     buf[buflen] = 0;
     tv_dict_add_str_len(dict, c"shortcut", Some(&buf[..buflen]));
 

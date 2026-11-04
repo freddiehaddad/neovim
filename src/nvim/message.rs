@@ -1028,7 +1028,7 @@ fn get_emsg_source() -> Option<std::ffi::CString> {
         }
 
         let p = gettext(c"Error in %s:");
-        let buf_len = sname.to_bytes().len() + crate::memory::cstr_len(p) + 1;
+        let buf_len = sname.to_bytes().len() + crate::memory::cstr_len((p).as_ptr()) + 1;
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, sname);
         return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));
@@ -1045,7 +1045,7 @@ fn get_emsg_lnum() -> Option<std::ffi::CString> {
         && slnum != 0
     {
         let p = gettext(c"line %4d:");
-        let buf_len = 20 + crate::memory::cstr_len(p);
+        let buf_len = 20 + crate::memory::cstr_len((p).as_ptr());
         let mut buf_vec: Vec<u8> = vec![0; buf_len];
         vim_snprintf!(buf_vec.as_mut_ptr().cast(), buf_len, p, slnum);
         return Some(crate::memory::cstr_to_cstring(buf_vec.as_ptr().cast()));
@@ -1341,8 +1341,8 @@ pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
         }
         let mut n = 0usize;
         while size >= room {
-            size -= utf_ptr2cells(s[n..].as_ptr().cast());
-            n += utfc_ptr2len(s[n..].as_ptr().cast()) as usize;
+            size -= utf_ptr2cells(crate::memory::cstr_cluster_bytes(s[n..].as_ptr().cast()));
+            n += utfc_ptr2len(crate::memory::cstr_cluster_bytes(s[n..].as_ptr().cast())) as usize;
         }
         n -= 1;
         s[n] = b'<';
@@ -2160,7 +2160,7 @@ pub fn msg_putchar_hl(c: i32, hl_id: i32) {
         buf[2] = k_third(c);
         buf[3] = 0;
     } else {
-        let len = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
+        let len = utf_char2bytes(c, &mut buf) as usize;
         buf[len] = 0;
     }
     msg_puts_hl(crate::memory::cstr_until_nul(&buf), hl_id, false);
@@ -2224,12 +2224,12 @@ pub fn msg_outtrans_len(msgstr: &[u8], mut len: i32, hl_id: i32, hist: bool) -> 
     } {
         let cur_ptr: crate::strings::RawCCharPtr = slice[idx..].as_ptr().cast();
         // Don't include composing chars after the end.
-        let mb_l = utfc_ptr2len_len(cur_ptr, len + 1);
+        let mb_l = utfc_ptr2len_len(crate::memory::cstr_as_bytes((cur_ptr).cast()), len + 1);
         if mb_l > 1 {
-            let c = utf_ptr2char(cur_ptr);
+            let c = utf_ptr2char(crate::memory::cstr_char_bytes((cur_ptr).cast()));
             if vim_isprintc(c) {
                 // Printable multi-byte char: count the cells.
-                retval += utf_ptr2cells(cur_ptr);
+                retval += utf_ptr2cells(crate::memory::cstr_cluster_bytes((cur_ptr).cast()));
             } else {
                 // Unprintable multi-byte char: print the printable chars so
                 // far and the translation of the unprintable char.
@@ -2336,7 +2336,7 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
         // Highlight special keys
         msg_puts_hl(
             crate::memory::cstr_from_ptr(text),
-            if len > 1 && utfc_ptr2len(text) <= 1 {
+            if len > 1 && utfc_ptr2len(crate::memory::cstr_cluster_bytes((text).cast())) <= 1 {
                 hl_id
             } else {
                 0
@@ -2944,8 +2944,11 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
 
             if s_slice[0] >= 0x20 {
                 let s_ptr: crate::strings::RawCCharPtr = s_slice.as_ptr().cast();
-                let mut cw = utf_ptr2cells(s_ptr);
-                let l = utfc_ptr2len_len(s_ptr, s_slice.len() as i32);
+                let mut cw = utf_ptr2cells(crate::memory::cstr_cluster_bytes((s_ptr).cast()));
+                let l = utfc_ptr2len_len(
+                    crate::memory::cstr_as_bytes((s_ptr).cast()),
+                    s_slice.len() as i32,
+                );
 
                 if cw > 1 && g_st().msg_col == g_st().columns_global - 1 {
                     grid_line_puts(g_st().msg_col, c">", 1, hl_attr(HLF_AT));
@@ -3178,7 +3181,7 @@ pub fn msg_ui_flush() {
 
 /// Increment "msg_scrolled".
 fn inc_msg_scrolled() {
-    if crate::memory::cstr_is_empty(get_vim_var_str(VV_SCROLLSTART)) {
+    if crate::memory::cstr_is_empty((get_vim_var_str(VV_SCROLLSTART)).as_ptr()) {
         let sname = sourcing_name();
         let mut tofree_vec: Vec<u8>;
 
@@ -3397,7 +3400,9 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
         let mut rem = slice;
         while !rem.is_empty() {
             let s_ptr: crate::strings::RawCCharPtr = rem.as_ptr().cast();
-            let len = (utf_ptr2len(s_ptr) as usize).max(1).min(rem.len());
+            let len = (utf_ptr2len(crate::memory::cstr_char_bytes((s_ptr).cast())) as usize)
+                .max(1)
+                .min(rem.len());
             let first = rem[0];
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut pos = 0usize;
@@ -3418,7 +3423,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
                 }
             }
 
-            let cw = utf_char2cells(utf_ptr2char(s_ptr));
+            let cw = utf_char2cells(utf_ptr2char(crate::memory::cstr_char_bytes((s_ptr).cast())));
             if matches!(first, b'\r' | b'\n') {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;

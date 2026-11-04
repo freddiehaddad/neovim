@@ -864,7 +864,9 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                                 crate::memory::cstr_as_bytes(ptr_cur.cast()),
                                 indent,
                             );
-                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur.cast()) as usize);
+                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(
+                                crate::memory::cstr_cluster_bytes(ptr_cur.cast()),
+                            ) as usize);
                         }
                         ind_st().prev_indent = indent;
                     }
@@ -1178,7 +1180,8 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                 0,
                 crate::memory::cstr_from_ptr(line),
             );
-            let mut ci: StrCharInfo = utf_ptr2_str_char_info(line);
+            let mut ci: StrCharInfo =
+                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1514,7 +1517,9 @@ pub fn ex_retab(eap: &mut Exarg) {
                 emsg_text_too_long();
                 break;
             }
-            col += utfc_ptr2len(ptr.wrapping_add(col as usize));
+            col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                (ptr.wrapping_add(col as usize)).cast(),
+            ));
         }
         if new_line.is_null() {
             break;
@@ -1695,7 +1700,8 @@ pub fn get_lisp_indent() -> i32 {
                 crate::memory::cstr_from_ptr(line),
             );
 
-            let mut sci: StrCharInfo = utf_ptr2_str_char_info(line);
+            let mut sci: StrCharInfo =
+                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
             amount = 0;
             while !crate::memory::cstr_is_empty(sci.ptr) && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);
@@ -1749,7 +1755,8 @@ pub fn get_lisp_indent() -> i32 {
 
                     parencount = 0;
 
-                    let mut ci: CharInfo = utf_ptr2_char_info(that);
+                    let mut ci: CharInfo =
+                        utf_ptr2_char_info(crate::memory::cstr_char_bytes((that).cast()));
                     if ci.value != b'"' as i32
                         && ci.value != b'\'' as i32
                         && ci.value != b'#' as i32

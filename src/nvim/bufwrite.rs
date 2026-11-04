@@ -215,12 +215,17 @@ fn buf_write_convert(ip: &mut BwInfo, use_conv_buf: &mut bool, lenp: &mut i32) -
         wlen = 0;
         while wlen < *lenp {
             let w_usize = wlen as usize;
-            let n = utf_ptr2len_len(ip.bw_buf[w_usize..].as_ptr().cast(), *lenp - wlen);
+            let n = utf_ptr2len_len(
+                crate::memory::cstr_as_bytes((ip.bw_buf[w_usize..].as_ptr()).cast()),
+                *lenp - wlen,
+            );
             if n > *lenp - wlen {
                 break;
             }
             let c: u32 = if n > 1 {
-                utf_ptr2char(ip.bw_buf[w_usize..].as_ptr().cast()) as u32
+                utf_ptr2char(crate::memory::cstr_char_bytes(
+                    ip.bw_buf[w_usize..].as_ptr().cast(),
+                )) as u32
             } else {
                 u32::from(ip.bw_buf[w_usize])
             };
@@ -1407,7 +1412,9 @@ pub fn buf_write(
                 let fenc = if let Some(eap) = eap
                     && eap.force_enc != 0
                 {
-                    let e = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
+                    let e = enc_canonize(crate::memory::cstr_from_ptr(
+                        (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
+                    ));
                     let ptr = e.as_ptr().cast_mut();
                     fenc_tofree = Some(e);
                     ptr
@@ -1433,7 +1440,8 @@ pub fn buf_write(
 
                 if converted && wb_flags == 0 {
                     write_info.bw_iconv_fd =
-                        my_iconv_open(fenc, c"utf-8").map_or(-1, |fd| fd as iconv_t);
+                        my_iconv_open(crate::memory::cstr_from_ptr((fenc).cast()), c"utf-8")
+                            .map_or(-1, |fd| fd as iconv_t);
                     if write_info.bw_iconv_fd != -1 {
                         write_info.bw_conv_buf = vec![0; (bufsize as usize) * ICONV_MULT];
                         write_info.bw_first = 1;

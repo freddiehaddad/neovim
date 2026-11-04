@@ -40,9 +40,7 @@ use crate::input::openscript;
 use crate::lua::executor::{
     K_RET_NIL_BOOL, nlua_exec, nlua_exec_file, nlua_exec_lines, nlua_is_deferred_safe,
 };
-use crate::mbyte::{
-    Vimconv, convert_setup, enc_canonize, mb_prevptr, string_convert, utfc_ptr2len,
-};
+use crate::mbyte::{Vimconv, convert_setup, enc_canonize, string_convert, utfc_ptr2len};
 use crate::memory::{Arena, cstr_from_bytes, cstr_to_cstring};
 #[cfg(windows)]
 use crate::message::msg_source;
@@ -1347,7 +1345,9 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
             p2 = p1;
             p1 = past_head.wrapping_add(idx);
         }
-        idx += utfc_ptr2len(past_head.wrapping_add(idx)) as usize;
+        idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+            (past_head.wrapping_add(idx)).cast(),
+        )) as usize;
     }
 
     p4 = p4.wrapping_add(1);
@@ -1940,7 +1940,17 @@ fn expand_rtdir_int(
                     break;
                 }
             }
-            s = mb_prevptr(match_ptr, s);
+            s = {
+                let _l = match_ptr;
+                let _p = s;
+                if (_p as usize) > (_l as usize) {
+                    let (_b, _i) =
+                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
+                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                } else {
+                    _p
+                }
+            };
         }
         s = s.wrapping_add(1);
         let start_idx = (s as usize) - (match_ptr as usize);
@@ -2145,7 +2155,7 @@ fn add_dir(
             dest.push(PATHSEP);
         }
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes(appname);
+        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
         debug_assert!(appname_bytes.len() < IOSIZE - 6);
         dest.extend_from_slice(appname_bytes);
         #[cfg(windows)]
@@ -2854,12 +2864,23 @@ fn do_source_ext(
             if let Some(ref fl) = firstline
                 && fl.to_bytes().starts_with(&[0xef, 0xbb, 0xbf])
             {
-                convert_setup(&mut cookie.conv, c"utf-8", opt_vars().p_enc);
+                convert_setup(
+                    &mut cookie.conv,
+                    Some(c"utf-8"),
+                    crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+                );
                 let after_bom = fl.as_ptr().wrapping_add(3).cast_mut();
-                firstline = Some(string_convert(&cookie.conv, after_bom, None).map_or_else(
-                    || cstr_to_cstring(after_bom),
-                    |v| cstr_to_cstring(v.as_ptr().cast()),
-                ));
+                firstline = Some(
+                    string_convert(
+                        &cookie.conv,
+                        crate::memory::cstr_as_bytes((after_bom).cast()),
+                        None,
+                    )
+                    .map_or_else(
+                        || cstr_to_cstring(after_bom),
+                        |v| cstr_to_cstring(v.as_ptr().cast()),
+                    ),
+                );
             }
             do_cmdline(
                 firstline.as_deref(),
@@ -3246,7 +3267,11 @@ pub fn getsourceline(
     let line = line_vec.map(|b| {
         let len = b.len().saturating_sub(usize::from(b.last() == Some(&0)));
         if sp.conv.vc_type != CONV_NONE
-            && let Some(s) = string_convert(&sp.conv, b.as_ptr().cast_mut().cast(), None)
+            && let Some(s) = string_convert(
+                &sp.conv,
+                crate::memory::cstr_as_bytes((b.as_ptr().cast_mut()).cast()),
+                None,
+            )
         {
             cstr_to_cstring(s.as_ptr().cast())
         } else {
@@ -3396,13 +3421,17 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
 
     let name_owned: Option<std::ffi::CString>;
     let name = if !crate::memory::cstr_is_empty(eap.arg) {
-        name_owned = Some(enc_canonize(eap.arg));
+        name_owned = Some(enc_canonize(crate::memory::cstr_from_ptr((eap.arg).cast())));
         name_owned.as_ref().unwrap().as_ptr().cast_mut()
     } else {
         eap.arg
     };
 
-    convert_setup(&mut sp.conv, name, opt_vars().p_enc);
+    convert_setup(
+        &mut sp.conv,
+        crate::memory::cstr_as_opt_cstr((name).cast()),
+        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+    );
 }
 
 /// ":finish": Mark a sourced file as finished.

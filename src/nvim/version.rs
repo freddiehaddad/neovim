@@ -4131,24 +4131,24 @@ pub fn list_version() {
         }
         version_msg(c"\n\n");
 
-        version_msg(crate::memory::cstr_from_ptr(gettext(
-            c"   system vimrc file: \"",
-        )));
+        version_msg(crate::memory::cstr_from_ptr(
+            (gettext(c"   system vimrc file: \"")).as_ptr(),
+        ));
         version_msg(c"$VIM/sysinit.vim");
         version_msg(c"\"\n");
 
         if !default_vim_dir().to_bytes().is_empty() {
-            version_msg(crate::memory::cstr_from_ptr(gettext(
-                c"  fall-back for $VIM: \"",
-            )));
+            version_msg(crate::memory::cstr_from_ptr(
+                (gettext(c"  fall-back for $VIM: \"")).as_ptr(),
+            ));
             version_msg(default_vim_dir());
             version_msg(c"\"\n");
         }
 
         if !default_vimruntime_dir().to_bytes().is_empty() {
-            version_msg(crate::memory::cstr_from_ptr(gettext(
-                c" f-b for $VIMRUNTIME: \"",
-            )));
+            version_msg(crate::memory::cstr_from_ptr(
+                (gettext(c" f-b for $VIMRUNTIME: \"")).as_ptr(),
+            ));
             version_msg(default_vimruntime_dir());
             version_msg(c"\"\n");
         }
@@ -4226,7 +4226,7 @@ pub fn intro_message(colon: bool) {
                 formatted_cstr = CString::new(formatted).ok();
                 formatted_cstr.as_deref().unwrap_or(c"")
             } else if !p.to_bytes().is_empty() {
-                crate::memory::cstr_from_ptr(gettext(p.as_ptr()))
+                crate::memory::cstr_from_ptr((gettext(p.as_ptr())).as_ptr())
             } else {
                 c""
             };
@@ -4265,10 +4265,12 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             let mut idx = 0usize;
             while idx < mesg_bytes.len() {
                 let p = mesg.wrapping_add(idx);
-                let clen = utfc_ptr2len(p);
+                let clen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
                 let mut attr: i32 = 0;
                 if mesg_bytes[idx] >= 0x80 {
-                    seen_diagonal = seen_diagonal || (clen == 3 && utf_ptr2char(p) == 0x2572);
+                    seen_diagonal = seen_diagonal
+                        || (clen == 3
+                            && utf_ptr2char(crate::memory::cstr_char_bytes((p).cast())) == 0x2572);
                     attr = if seen_diagonal {
                         string_attr
                     } else {
@@ -4283,7 +4285,8 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
         }
 
         let is_version = mesg_bytes.starts_with(b"NVIM");
-        let is_sep = utfc_ptr2len(mesg) == 3 && utf_ptr2char(mesg) == 0x2500;
+        let is_sep = utfc_ptr2len(crate::memory::cstr_cluster_bytes((mesg).cast())) == 3
+            && utf_ptr2char(crate::memory::cstr_char_bytes((mesg).cast())) == 0x2500;
         if is_version || is_sep {
             let clen = if is_sep { 3 } else { 1 };
             let attr = if is_sep { nontext_attr } else { string_attr };
@@ -4308,7 +4311,9 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
             let rem = &mesg_bytes[idx..];
             let mut l: usize = 0;
             while l < rem.len() && (l == 0 || (rem[l] != b'<' && rem[l - 1] != b'>')) {
-                l += utfc_ptr2len(p.wrapping_add(l)) as usize;
+                l += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (p.wrapping_add(l)).cast(),
+                )) as usize;
             }
 
             if rem[0] == b'<' {

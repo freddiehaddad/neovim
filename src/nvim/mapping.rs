@@ -42,8 +42,7 @@ use crate::lua::executor::{
     K_RET_OBJECT, api_free_luaref, api_new_luaref, nlua_call_ref, nlua_funcref_str, nlua_set_sctx,
 };
 use crate::mbyte::{
-    mb_prevptr, mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char,
-    utfc_ptr2len,
+    mb_unescape, utf_char2bytes, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
 };
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
 use crate::message::{
@@ -846,7 +845,9 @@ fn buf_do_map(
 
                     let first = vim_iswordp(crate::memory::cstr_as_bytes(p.cast()));
                     let mut last = first;
-                    p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                    p = p.wrapping_add(
+                        utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
+                    );
                     let mut n: i32 = 1;
                     while (p as usize) < (end_p as usize) {
                         n += 1;
@@ -854,7 +855,9 @@ fn buf_do_map(
                         if same == -1 && last != first {
                             same = n - 1;
                         }
-                        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                        p = p.wrapping_add(
+                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize,
+                        );
                     }
                     if last && n > 2 && same >= 0 && same < n - 1 {
                         retval = 1;
@@ -1577,23 +1580,60 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
     let mut scol: i32;
     {
         let mut is_id = true;
-        let mut p: *mut u8 = mb_prevptr(ptr_arg, ptr_arg.wrapping_add(col as usize));
+        let mut p: *mut u8 = {
+            let _l = ptr_arg;
+            let _p = ptr_arg.wrapping_add(col as usize);
+            if (_p as usize) > (_l as usize) {
+                let (_b, _i) =
+                    crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
+                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+            } else {
+                _p
+            }
+        };
         let vim_abbr = if !vim_iswordp(crate::memory::cstr_as_bytes(p.cast())) {
             true
         } else {
             if (p as usize) > (ptr_arg as usize) {
-                is_id = vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(ptr_arg, p).cast()));
+                is_id = vim_iswordp(crate::memory::cstr_as_bytes(
+                    {
+                        let _l = ptr_arg;
+                        let _p = p;
+                        if (_p as usize) > (_l as usize) {
+                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                _l.cast(),
+                                _p.wrapping_sub(1).cast(),
+                            );
+                            _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                        } else {
+                            _p
+                        }
+                    }
+                    .cast(),
+                ));
             }
             false
         };
         clen = 1;
         let min_ptr = ptr_arg.wrapping_add(mincol.max(0) as usize);
         while (p as usize) > (min_ptr as usize) {
-            p = mb_prevptr(ptr_arg, p);
+            p = {
+                let _l = ptr_arg;
+                let _p = p;
+                if (_p as usize) > (_l as usize) {
+                    let (_b, _i) =
+                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
+                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                } else {
+                    _p
+                }
+            };
             if ascii_isspace(crate::memory::cstr_first_byte(p.cast()) as i32)
                 || (!vim_abbr && is_id != vim_iswordp(crate::memory::cstr_as_bytes(p.cast())))
             {
-                p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+                p = p.wrapping_add(
+                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize
+                );
                 break;
             }
             clen += 1;
@@ -1646,8 +1686,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                     if c >= ABBR_OFF {
                         c -= ABBR_OFF;
                     }
-                    let mut newlen =
-                        utf_char2bytes(c, tb.as_mut_ptr().wrapping_add(j).cast()) as usize;
+                    let mut newlen = utf_char2bytes(c, unsafe {
+                        std::slice::from_raw_parts_mut(tb.as_mut_ptr().wrapping_add(j).cast(), 6)
+                    }) as usize;
                     tb[j + newlen] = 0;
                     let escaped = vim_strsave_escape_ks(&tb[j..j + newlen]);
                     let escaped_bytes = escaped.to_bytes();
@@ -2127,9 +2168,9 @@ fn mapblock_fill_dict(
         );
     } else {
         let rhs = cstr_as_string(crate::memory::cstr_as_opt_cstr(if compatible {
-            mp.m_orig_str.as_c_str()
+            (mp.m_orig_str.as_c_str()).as_ptr()
         } else {
-            str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)
+            (str2special_arena(mp.m_str.as_bytes(), false, K_NONE, arena)).as_ptr()
         }));
         put_c(&mut dict, c"rhs", string_obj(rhs));
     }
@@ -2143,7 +2184,7 @@ fn mapblock_fill_dict(
     put_c(
         &mut dict,
         c"lhs",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(lhs)),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr((lhs).as_ptr())),
     );
     put_c(
         &mut dict,
@@ -2215,7 +2256,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
 
     let keys = tv_get_string(&argvars[0]);
-    if crate::memory::cstr_is_empty(keys) {
+    if crate::memory::cstr_is_empty((keys).as_ptr()) {
         return;
     }
 
@@ -2245,7 +2286,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mut which_bytes = crate::memory::cstr_as_bytes(which);
     let mode = get_map_mode(&mut which_bytes, false);
 
-    let keys_bytes = crate::memory::cstr_as_bytes(keys);
+    let keys_bytes = crate::memory::cstr_as_bytes((keys).as_ptr());
     let cpo_bytes = crate::memory::cstr_as_bytes(opt_vars().p_cpo);
     let keys_simplified = replace_termcodes(
         keys_bytes,
@@ -2542,7 +2583,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 };
                 let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
                 let keys_buf = replace_termcodes(
-                    crate::memory::cstr_as_bytes(lhs),
+                    crate::memory::cstr_as_bytes((lhs).as_ptr()),
                     false,
                     0,
                     flags,
@@ -2641,7 +2682,9 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
             if bytes[p2_idx] == b'\\' && p2_idx + 1 < bytes.len() {
                 p2_idx += 1;
             }
-            p2_idx += utfc_ptr2len(base.wrapping_add(p2_idx)) as usize;
+            p2_idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                (base.wrapping_add(p2_idx)).cast(),
+            )) as usize;
         }
         let mut p2_opt = if bytes.get(p2_idx) == Some(&b';') {
             Some(p2_idx + 1)
@@ -2657,7 +2700,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 p_idx += 1;
             }
             let from_ptr = base.wrapping_add(p_idx);
-            let from = utf_ptr2char(from_ptr);
+            let from = utf_ptr2char(crate::memory::cstr_char_bytes((from_ptr).cast()));
             let mut to: i32 = NUL as i32;
             let mut to_ptr = c"".as_ptr();
             if let Some(ref mut p2) = p2_opt {
@@ -2666,23 +2709,24 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                         *p2 += 1;
                     }
                     to_ptr = base.wrapping_add(*p2);
-                    to = utf_ptr2char(to_ptr);
+                    to = utf_ptr2char(crate::memory::cstr_char_bytes((to_ptr).cast()));
                 }
             } else {
-                p_idx += utfc_ptr2len(from_ptr) as usize;
+                p_idx +=
+                    utfc_ptr2len(crate::memory::cstr_cluster_bytes((from_ptr).cast())) as usize;
                 if p_idx < bytes.len() && bytes[p_idx] != b',' {
                     if bytes[p_idx] == b'\\' && p_idx + 1 < bytes.len() {
                         p_idx += 1;
                     }
                     to_ptr = base.wrapping_add(p_idx);
-                    to = utf_ptr2char(to_ptr);
+                    to = utf_ptr2char(crate::memory::cstr_char_bytes((to_ptr).cast()));
                 }
             }
             if to == NUL as i32 {
                 return opt_error(
                     args.os_errbuf,
                     c"E357: 'langmap': Matching character missing for %s",
-                    crate::memory::cstr_from_ptr(transchar(from)),
+                    crate::memory::cstr_from_ptr((transchar(from)).as_ptr()),
                 );
             }
 
@@ -2693,18 +2737,22 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                     swmsg!(
                         true,
                         c"'langmap': Mapping from %.*s to %.*s will not work properly",
-                        utf_ptr2len(from_ptr),
+                        utf_ptr2len(crate::memory::cstr_char_bytes((from_ptr).cast())),
                         from_ptr,
-                        utf_ptr2len(to_ptr),
+                        utf_ptr2len(crate::memory::cstr_char_bytes((to_ptr).cast())),
                         to_ptr,
                     );
                 }
                 g_st().langmap_mapchar[(from & 255) as usize] = to as u8;
             }
 
-            p_idx += utfc_ptr2len(base.wrapping_add(p_idx)) as usize;
+            p_idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                (base.wrapping_add(p_idx)).cast(),
+            )) as usize;
             if let Some(ref mut p2) = p2_opt {
-                *p2 += utfc_ptr2len(base.wrapping_add(*p2)) as usize;
+                *p2 += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (base.wrapping_add(*p2)).cast(),
+                )) as usize;
                 if bytes.get(p_idx) == Some(&b';') {
                     p_idx = *p2;
                     if p_idx < bytes.len() {

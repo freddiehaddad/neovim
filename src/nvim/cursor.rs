@@ -210,7 +210,7 @@ fn coladvance2(
             pos.lnum,
             crate::memory::cstr_from_ptr(line),
         );
-        let mut ci = utf_ptr2_str_char_info(line);
+        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
         col = 0;
         while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
             let cli = utf_cluster_info(ci);

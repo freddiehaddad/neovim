@@ -48,7 +48,7 @@ use crate::mapping::{
     get_maphash_list, langmap_adjust_mb, map_luaid_get,
 };
 use crate::mbyte::{
-    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info, utf_head_off,
+    mb_cptr2char_adv, mb_unescape, utf_byte2len, utf_char2bytes, utf_cluster_info,
     utf_ptr2_str_char_info, utf_ptr2cells, utf_ptr2char, utf_slice2char,
 };
 use crate::mcursor::mc_replaying;
@@ -457,7 +457,7 @@ fn key_char_encode(c: i32, buf: &mut [u8]) -> usize {
     let len = if is_special(c) {
         1
     } else {
-        utf_char2bytes(c, bytes.as_mut_ptr().cast())
+        utf_char2bytes(c, &mut bytes)
     };
     let mut off: usize = 0;
     for &b in bytes.iter().take(len as usize) {
@@ -1571,7 +1571,7 @@ pub fn vgetc() -> i32 {
                     }
                 }
                 g_st().no_mapping -= 1;
-                c = utf_ptr2char(buf.as_ptr().cast());
+                c = utf_ptr2char(crate::memory::cstr_char_bytes(buf.as_ptr().cast()));
             }
 
             if g_st().no_mapping == 0
@@ -1832,7 +1832,9 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
             temp[i + 2] = k_third(ni);
             i += 3;
         } else {
-            i += utf_char2bytes(ni, temp[i..].as_mut_ptr().cast()) as usize;
+            i += utf_char2bytes(ni, unsafe {
+                std::slice::from_raw_parts_mut(temp[i..].as_mut_ptr().cast(), 6)
+            }) as usize;
         }
         assert!(i < 10);
         crate::eval::typval::tv_set_bytes(&mut *rettv, &temp[..i]);
@@ -1957,7 +1959,7 @@ fn check_simplify_modifier(max_offset: i32) -> i32 {
                     new_string[2] = k_third(new_c);
                     3
                 } else {
-                    utf_char2bytes(new_c, new_string.as_mut_ptr().cast())
+                    utf_char2bytes(new_c, &mut new_string)
                 };
                 if modifier == 0 {
                     if !put_string_in_typebuf(offset, 4, &mut new_string, len) {
@@ -2017,7 +2019,7 @@ fn char_iter(itp: &mut &[u8], nomap: i32) -> i32 {
                 return 0;
             }
 
-            c = utf_ptr2char(buf.as_ptr().cast());
+            c = utf_ptr2char(crate::memory::cstr_char_bytes(buf.as_ptr().cast()));
             if c == buf[0] as i32 {
                 it = *itp;
             }
@@ -2084,7 +2086,7 @@ fn handle_mapping(keylenp: &mut i32, timedout: &bool, mapdepth: &mut i32, advanc
             );
             if orig_tb_c1 != tb_c1 {
                 let mut cbuf = [0u8; 6];
-                utf_char2bytes(tb_c1, cbuf.as_mut_ptr().cast());
+                utf_char2bytes(tb_c1, &mut cbuf);
                 tb_b1 = i32::from(cbuf[0]);
             }
             nolmaplen = 0;
@@ -2526,7 +2528,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     curwin_mut().w_cursor.lnum,
                                     crate::memory::cstr_from_ptr(ptr),
                                 );
-                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr);
+                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(
+                                    crate::memory::cstr_from_ptr((ptr).cast()),
+                                );
                                 let mut vcol: i32 = 0;
                                 while ci.ptr < endptr.cast_const() {
                                     if !ascii_iswhite(ci.chr.value) {
@@ -2562,8 +2566,17 @@ fn vgetorpeek(advance: bool) -> i32 {
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
                             let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
-                            col -= utf_head_off(ptr, ptr.wrapping_add(col as usize));
-                            if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
+                            col -= {
+                                let (_b, _i) = crate::memory::cstr_span_to_char(
+                                    (ptr).cast(),
+                                    (ptr.wrapping_add(col as usize)).cast(),
+                                );
+                                crate::mbyte::utf_head_off(_b, _i)
+                            };
+                            if utf_ptr2cells(crate::memory::cstr_cluster_bytes(
+                                (ptr.wrapping_add(col as usize)).cast(),
+                            )) > 1
+                            {
                                 curwin_mut().w_wcol -= 1;
                             }
                         }
@@ -2630,7 +2643,9 @@ fn vgetorpeek(advance: bool) -> i32 {
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
                         if (g_st().state_global & MODE_INSERT) != 0
-                            && utf_ptr2cells(g_st().typebuf.tb_buf[last_idx..].as_ptr().cast()) == 1
+                            && utf_ptr2cells(crate::memory::cstr_cluster_bytes(
+                                g_st().typebuf.tb_buf[last_idx..].as_ptr().cast(),
+                            )) == 1
                         {
                             edit_putchar(i32::from(g_st().typebuf.tb_buf[last_idx]), false);
                             setcursor();
@@ -2658,8 +2673,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                         && g_st().cmdline_star == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
-                        let p = g_st().typebuf.tb_buf[last_idx..].as_ptr().cast();
-                        if utf_ptr2cells(p) == 1 && (crate::memory::cstr_first_byte(p)) < 128 {
+                        let p: *const std::ffi::c_char =
+                            g_st().typebuf.tb_buf[last_idx..].as_ptr().cast();
+                        if utf_ptr2cells(crate::memory::cstr_cluster_bytes(p)) == 1
+                            && (crate::memory::cstr_first_byte(p)) < 128
+                        {
                             putcmdline(crate::memory::cstr_first_byte(p), false);
                             showing_partial = true;
                         }
@@ -2927,7 +2945,7 @@ pub fn get_keystroke(events: Option<&MultiQueue>) -> i32 {
         }
         let term_idx = if len >= buflen { buflen - 1 } else { len } as usize;
         buf[term_idx] = NUL as u8;
-        n = utf_ptr2char(buf.as_ptr().cast());
+        n = utf_ptr2char(crate::memory::cstr_char_bytes(buf.as_ptr().cast()));
         break;
     }
 

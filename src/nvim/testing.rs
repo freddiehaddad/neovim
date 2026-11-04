@@ -589,7 +589,8 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                         error_found = true;
                         expected_str = Some(expected);
                     } else if list_len == 2 {
-                        let s = crate::memory::cstr_to_cstring(get_vim_var_str(VV_ERRMSG));
+                        let s =
+                            crate::memory::cstr_to_cstring((get_vim_var_str(VV_ERRMSG)).as_ptr());
                         actual = s.as_ptr().cast_mut();
                         tofree = Some(s);
                         let last_tv = &list_ref.last_opt().unwrap().li_tv;

@@ -13,7 +13,7 @@ use crate::globals::*;
 use crate::indent::{fixthisline, get_expr_indent, get_indent, get_indent_lnum, get_sw_value};
 use crate::keycodes::get_special_key_code;
 use crate::math::trim_to_int;
-use crate::mbyte::{mb_prevptr, mb_strnicmp};
+use crate::mbyte::mb_strnicmp;
 use crate::option::copy_option_part;
 use crate::option_vars::*;
 use crate::plines::getvcol;
@@ -2871,7 +2871,21 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     let line = get_cursor_line_ptr().as_ptr().cast_mut();
                     let mut s = line.wrapping_add(curwin_mut().w_cursor.col as usize);
                     while s > line {
-                        let n = mb_prevptr(line, s);
+                        let n = {
+                            let _l = line;
+                            let _p = s;
+                            if (_p as usize) > (_l as usize) {
+                                let (_b, _i) = crate::memory::cstr_span_to_char(
+                                    _l.cast(),
+                                    _p.wrapping_sub(1).cast(),
+                                );
+                                _p.wrapping_sub(
+                                    1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize,
+                                )
+                            } else {
+                                _p
+                            }
+                        };
                         if !vim_iswordp(crate::memory::cstr_as_bytes(n)) {
                             break;
                         }
@@ -2883,7 +2897,11 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         let line_slice = crate::cursor::get_cursor_line_slice();
                         let cand = &line_slice[s_off..s_off + word_len];
                         let eq = if icase {
-                            mb_strnicmp(cand.as_ptr().cast(), word.as_ptr().cast(), word_len) == 0
+                            mb_strnicmp(
+                                crate::memory::cstr_as_bytes(cand.as_ptr().cast()),
+                                crate::memory::cstr_as_bytes(word.as_ptr().cast()),
+                                word_len,
+                            ) == 0
                         } else {
                             cand == word
                         };
@@ -2906,8 +2924,11 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                         {
                             let cand = &line_slice[col_usize - word_len..col_usize];
                             let eq = if icase {
-                                mb_strnicmp(cand.as_ptr().cast(), word.as_ptr().cast(), word_len)
-                                    == 0
+                                mb_strnicmp(
+                                    crate::memory::cstr_as_bytes(cand.as_ptr().cast()),
+                                    crate::memory::cstr_as_bytes(word.as_ptr().cast()),
+                                    word_len,
+                                ) == 0
                             } else {
                                 cand == word
                             };

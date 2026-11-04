@@ -227,7 +227,7 @@ mod win_impl {
                 }
 
                 if let Some(ref hdr_cwd) = hdr.cwd {
-                    status = utf8_to_utf16(hdr_cwd.as_ptr(), -1, &mut cwd);
+                    status = utf8_to_utf16(hdr_cwd.to_bytes(), -1, &mut cwd);
                     if status != 0 {
                         emsg = Some(c"utf8_to_utf16(proc->cwd) failed");
                         break 'cleanup;
@@ -247,11 +247,8 @@ mod win_impl {
                         emsg = Some(c"executable not found");
                         break 'cleanup;
                     }
-                    status = utf8_to_utf16(
-                        path.as_ref().map_or(ptr::null(), |s| s.as_ptr()),
-                        -1,
-                        &mut file,
-                    );
+                    status =
+                        utf8_to_utf16(path.as_ref().map_or(&[], |s| s.to_bytes()), -1, &mut file);
                     if status != 0 {
                         emsg = Some(c"utf8_to_utf16(proc->argv[0]) failed");
                         break 'cleanup;
@@ -425,7 +422,11 @@ mod win_impl {
         }
         utf8_cmd_line.push(0);
 
-        utf8_to_utf16(utf8_cmd_line.as_ptr().cast(), -1, cmd_line)
+        utf8_to_utf16(
+            crate::memory::cstr_as_bytes((utf8_cmd_line.as_ptr()).cast()),
+            -1,
+            cmd_line,
+        )
     }
 
     fn build_env_block(denv: Option<&TvDict>, env_block: &mut Vec<u16>) -> i32 {
@@ -435,7 +436,7 @@ mod win_impl {
         let mut str_utf16: Vec<u16> = Vec::new();
 
         for entry in &env {
-            rc = utf8_to_utf16(entry.as_ptr(), -1, &mut str_utf16);
+            rc = utf8_to_utf16(entry.to_bytes(), -1, &mut str_utf16);
             if rc != 0 {
                 env_block.clear();
                 break;

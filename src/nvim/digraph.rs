@@ -1731,7 +1731,7 @@ fn registerdigraph(char1: i32, char2: i32, n: i32) {
 pub fn check_digraph_chars_valid(char1: i32, char2: i32) -> bool {
     if char2 == 0 {
         let mut msg = [0u8; MB_MAXCHAR + 1];
-        let len = utf_char2bytes(char1, msg.as_mut_ptr().cast()) as usize;
+        let len = utf_char2bytes(char1, &mut msg) as usize;
         msg[len] = 0;
         let msg_cstr = CStr::from_bytes_until_nul(&msg).unwrap_or(c"");
         semsg!(
@@ -1831,7 +1831,7 @@ fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
     crate::eval::typval::tv_list_append_bytes(&mut *l2, &[dp.char1, dp.char2]);
 
     let mut buf = [0u8; 30];
-    let len = utf_char2bytes(dp.result, buf.as_mut_ptr().cast()) as usize;
+    let len = utf_char2bytes(dp.result, &mut buf) as usize;
     crate::eval::typval::tv_list_append_bytes(&mut *l2, &buf[..len]);
 }
 
@@ -1906,7 +1906,9 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         buf[pos] = b' ';
         pos += 1;
     }
-    pos += utf_char2bytes(dp.result, buf[pos..].as_mut_ptr().cast()) as usize;
+    pos += utf_char2bytes(dp.result, unsafe {
+        std::slice::from_raw_parts_mut(buf[pos..].as_mut_ptr().cast(), 6)
+    }) as usize;
     buf[pos] = 0;
     msg_outtrans(crate::memory::cstr_until_nul(&buf), HLF_8, false);
 
@@ -1986,7 +1988,7 @@ pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let code = digraph_get(i32::from(bytes[0]), i32::from(bytes[1]), false);
 
     let mut buf = [0u8; NUMBUFLEN];
-    let len = utf_char2bytes(code, buf.as_mut_ptr().cast()) as usize;
+    let len = utf_char2bytes(code, &mut buf) as usize;
     crate::eval::typval::tv_set_bytes(rettv, &buf[..len]);
 }
 

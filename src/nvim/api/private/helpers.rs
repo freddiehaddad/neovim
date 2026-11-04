@@ -153,7 +153,9 @@ pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
 
 #[inline]
 pub fn cstr_as_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(s)))
+    string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+        (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+    )))
 }
 
 #[inline]
@@ -249,14 +251,18 @@ pub const fn static_cstr_as_obj(s: &'static CStr) -> Object {
 
 #[inline]
 pub fn cstr_to_obj(s: Option<&CStr>) -> Object {
-    string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(s)))
+    string_obj(cstr_to_string(crate::memory::cstr_as_opt_cstr(
+        (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+    )))
 }
 
 #[inline]
 pub fn cstr_to_arena_obj(arena: &mut Arena, s: Option<&CStr>) -> Object {
     string_obj(arena_string(
         arena,
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(s)),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(
+            (s).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+        )),
     ))
 }
 

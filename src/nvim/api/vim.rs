@@ -2784,7 +2784,7 @@ pub fn nvim_eval_statusline(
     let window = opts.winid;
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
-        let ci = utf_ptr2_str_char_info(opts.fillchar.data);
+        let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((opts.fillchar.data).cast()));
         let cli = utf_cluster_info(ci);
         if crate::memory::cstr_is_empty(ci.ptr)
             || !crate::memory::cstr_is_empty(cli.next.ptr)

@@ -8454,7 +8454,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                 ) {
                     repl_cstr = vim_strsave_escaped(
                         repl_cstr.as_bytes(),
-                        crate::memory::cstr_as_bytes(esc_chars),
+                        crate::memory::cstr_as_bytes((esc_chars).as_ptr()),
                     );
                     break;
                 }
@@ -8679,7 +8679,7 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 break;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
     }
 
     if (eap.argt & EX_NOTRLCOM) == 0 {
@@ -9262,7 +9262,7 @@ pub fn not_exiting(save_exiting: bool) {
 
 pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
     let wp = std::hint::black_box(ptr::from_mut(wp_in));
-    if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
+    if crate::memory::cstr_is_empty((get_vim_var_str(VV_EXITREASON)).as_ptr()) {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
 
@@ -9464,14 +9464,14 @@ fn ex_restart(eap: &mut Exarg) {
     while !li.is_null() {
         let arg = tv_get_string(unsafe { &(*li).li_tv });
         let i = argv_vec.len();
-        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--")) {
+        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--")) {
             break;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-S")) {
+        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-S")) {
             let next_li = unsafe { (*li).li_next };
             if !next_li.is_null() {
                 let next_arg = tv_get_string(unsafe { &(*next_li).li_tv });
-                if crate::memory::cstr_first_byte(next_arg) != b'-' {
+                if crate::memory::cstr_first_byte((next_arg).as_ptr()) != b'-' {
                     li = next_li;
                 }
             }
@@ -9480,7 +9480,7 @@ fn ex_restart(eap: &mut Exarg) {
 
             continue;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"-s")) {
+        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-s")) {
             li = unsafe { (*li).li_next };
 
             if !li.is_null() {
@@ -9488,11 +9488,11 @@ fn ex_restart(eap: &mut Exarg) {
             }
             continue;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes(arg) == Some(b"--listen")) {
+        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--listen")) {
             let next_li = unsafe { (*li).li_next };
             if let Some(next_li) = unsafe { next_li.as_mut() } {
                 let addr = tv_get_string(&next_li.li_tv);
-                if crate::memory::cstr_as_bytes(addr)
+                if crate::memory::cstr_as_bytes((addr).as_ptr())
                     .iter()
                     .any(|b| matches!(b, b':' | b'/' | b'\\'))
                 {
@@ -9506,11 +9506,11 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
         if i == 0
-            || (!(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--embed"))
-                && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"--headless"))
-                && !(crate::memory::cstr_as_opt_bytes(arg) == Some(b"-")))
+            || (!(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--embed"))
+                && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--headless"))
+                && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-")))
         {
-            argv_vec.push(crate::memory::cstr_to_cstring(arg));
+            argv_vec.push(crate::memory::cstr_to_cstring((arg).as_ptr()));
             if argv_vec.len() == 1 {
                 argv_vec.push(c"--embed".to_owned());
                 if no_ui {
@@ -9581,7 +9581,7 @@ fn ex_restart(eap: &mut Exarg) {
     let globaldir_opt = g_st().globaldir.as_deref();
     let channel = channel_job_start(
         argv_vec,
-        crate::memory::cstr_as_opt_cstr(exepath),
+        crate::memory::cstr_as_opt_cstr((exepath).as_ptr()),
         on_stdout,
         on_err,
         on_exit,
@@ -11831,7 +11831,7 @@ fn ex_normal(eap: &mut Exarg) {
     let mut len: usize = 0;
     let mut p = eap.arg;
     while !crate::memory::cstr_is_empty(p) {
-        let mut l = utfc_ptr2len(p) - 1;
+        let mut l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) - 1;
         while l > 0 {
             p = p.wrapping_add(1);
             if (crate::memory::cstr_first_byte(p)) == K_SPECIAL {
@@ -11847,7 +11847,7 @@ fn ex_normal(eap: &mut Exarg) {
         p = eap.arg;
         while !crate::memory::cstr_is_empty(p) {
             v.push(crate::memory::cstr_first_byte(p));
-            let mut l = utfc_ptr2len(p) - 1;
+            let mut l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) - 1;
             while l > 0 {
                 p = p.wrapping_add(1);
                 let b = crate::memory::cstr_first_byte(p);

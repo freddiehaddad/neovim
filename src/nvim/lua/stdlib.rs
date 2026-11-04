@@ -262,7 +262,10 @@ unsafe extern "C-unwind" fn nlua_str_utf_pos(lstate: *mut lua_State) -> i32 {
         let mut idx: i32 = 1;
         let mut i: usize = 0;
         while i < s1_bytes.len() {
-            let clen = utf_ptr2len_len(s1.wrapping_add(i), (s1_len - i) as i32) as usize;
+            let clen = utf_ptr2len_len(
+                crate::memory::cstr_as_bytes((s1.wrapping_add(i)).cast()),
+                (s1_len - i) as i32,
+            ) as usize;
             lua_pushinteger(lstate, (i as lua_Integer) + 1);
             lua_rawseti(lstate, -2, idx);
             idx += 1;
@@ -554,7 +557,10 @@ unsafe extern "C-unwind" fn nlua_stricmp(lstate: *mut lua_State) -> i32 {
             let slice2 = crate::memory::cstr_slice(s2, s2_len);
             let nul1 = slice1.iter().position(|&b| b == 0);
             let nul2 = slice2.iter().position(|&b| b == 0);
-            ret = mb_stricmp(s1, s2);
+            ret = mb_stricmp(
+                crate::memory::cstr_from_ptr((s1).cast()),
+                crate::memory::cstr_from_ptr((s2).cast()),
+            );
             if ret == 0 {
                 if nul1.is_some() != nul2.is_some() {
                     ret = i32::from(nul1.is_some()) - i32::from(nul2.is_some());
@@ -594,12 +600,12 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     let mut str_len: usize = 0;
     let str_ = unsafe { lua_tolstring(lstate, 1, &raw mut str_len) };
 
-    let from = enc_canonize(enc_skip(
-        unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut(),
-    ));
-    let to = enc_canonize(enc_skip(
-        unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut(),
-    ));
+    let from = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
+        (unsafe { lua_tolstring(lstate, 2, ptr::null_mut()) }.cast_mut()).cast(),
+    )));
+    let to = enc_canonize(enc_skip(crate::memory::cstr_from_ptr(
+        (unsafe { lua_tolstring(lstate, 3, ptr::null_mut()) }.cast_mut()).cast(),
+    )));
 
     let mut vimconv = Vimconv {
         vc_type: CONV_NONE,
@@ -609,13 +615,17 @@ unsafe extern "C-unwind" fn nlua_iconv(lstate: *mut lua_State) -> i32 {
     };
     let _ = convert_setup_ext(
         &mut vimconv,
-        from.as_ptr().cast_mut(),
+        crate::memory::cstr_as_opt_cstr((from.as_ptr().cast_mut()).cast()),
         false,
-        to.as_ptr().cast_mut(),
+        crate::memory::cstr_as_opt_cstr((to.as_ptr().cast_mut()).cast()),
         false,
     );
 
-    let ret = string_convert(&vimconv, str_.cast_mut(), Some(&mut str_len));
+    let ret = string_convert(
+        &vimconv,
+        crate::memory::cstr_as_bytes((str_.cast_mut()).cast()),
+        Some(&mut str_len),
+    );
 
     match ret {
         None => unsafe { lua_pushnil(lstate) },

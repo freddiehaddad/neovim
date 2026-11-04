@@ -625,13 +625,13 @@ fn atom_key_name(c: i32) -> std::ffi::CString {
         return std::ffi::CString::default();
     }
     if is_special(c) || c < b' ' as i32 {
-        return cstr_to_cstring(get_special_key_name(c, 0));
+        return cstr_to_cstring((get_special_key_name(c, 0)).as_ptr());
     }
     if c == DEL {
         return c"<Del>".to_owned();
     }
     let mut buf = [0u8; MB_MAXBYTES + 1];
-    let n = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
+    let n = utf_char2bytes(c, &mut buf) as usize;
     buf[n] = 0;
     cstr_from_bytes(&buf[..n])
 }

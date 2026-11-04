@@ -199,7 +199,9 @@ fn match_add(
         mit_botlnum: 0,
         mit_hl: SynMatch::new(),
         mit_hlg_id: hlg_id,
-        mit_conceal_char: conceal_char.map_or(0, |c| utf_ptr2char(c.as_ptr())),
+        mit_conceal_char: conceal_char.map_or(0, |c| {
+            utf_ptr2char(crate::memory::cstr_char_bytes((c.as_ptr()).cast()))
+        }),
     };
 
     if pos_list.is_some() {
@@ -653,7 +655,7 @@ pub fn prepare_search_hl_line(
             if shl.startcol == shl.endcol {
                 let p = line.wrapping_add(shl.endcol as usize);
                 if !crate::memory::cstr_is_empty(p) {
-                    shl.endcol += utfc_ptr2len(p);
+                    shl.endcol += utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
                 } else {
                     shl.endcol += 1;
                 }
@@ -710,7 +712,10 @@ pub fn update_search_hl(
         let mut pos_inprogress = true;
         while !shl.rm.regprog.is_null() || (!cur.is_null() && pos_inprogress) {
             if shl.startcol != MAXCOL && col >= shl.startcol && col < shl.endcol {
-                let next_col = col + utfc_ptr2len(line.wrapping_add(col as usize));
+                let next_col = col
+                    + utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                        (line.wrapping_add(col as usize)).cast(),
+                    ));
                 if shl.endcol < next_col {
                     shl.endcol = next_col;
                 }
@@ -760,7 +765,8 @@ pub fn update_search_hl(
                         if crate::memory::cstr_is_empty(p) {
                             shl.endcol += 1;
                         } else {
-                            shl.endcol += utfc_ptr2len(p);
+                            shl.endcol +=
+                                utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
                         }
                     }
                     continue;
@@ -945,7 +951,7 @@ pub fn f_getmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
         if cur.mit_conceal_char != 0 {
             let mut buf = [0u8; MB_MAXCHAR + 1];
-            let buflen = utf_char2bytes(cur.mit_conceal_char, buf.as_mut_ptr().cast()) as usize;
+            let buflen = utf_char2bytes(cur.mit_conceal_char, &mut buf) as usize;
             buf[buflen] = 0;
             tv_dict_add_str_len(&mut *dict, c"conceal", Some(&buf[..buflen]));
         }
@@ -1031,16 +1037,18 @@ pub fn f_setmatches(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         }
 
         let mut group_buf = [0u8; NUMBUFLEN];
-        let group = crate::memory::cstr_as_opt_cstr(tv_dict_get_string_buf(
-            Some(d),
-            c"group",
-            &mut group_buf,
-        ));
+        let group = crate::memory::cstr_as_opt_cstr(
+            (tv_dict_get_string_buf(Some(d), c"group", &mut group_buf))
+                .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+        );
         let priority = tv_dict_get_number(Some(d), c"priority") as i32;
         let id = tv_dict_get_number(Some(d), c"id") as i32;
         let conceal = tv_dict_find_opt(Some(d), c"conceal", 7).map(|di| tv_get_string(&di.di_tv));
         if i == 0 {
-            let pat = crate::memory::cstr_as_opt_cstr(tv_dict_get_string(Some(d), c"pattern"));
+            let pat = crate::memory::cstr_as_opt_cstr(
+                (tv_dict_get_string(Some(d), c"pattern"))
+                    .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            );
             if match_add(&mut *win, group, pat, priority, id, None, conceal) != id {
                 match_add_failed = true;
             }

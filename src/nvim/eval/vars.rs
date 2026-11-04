@@ -2492,7 +2492,7 @@ pub fn set_vim_var_special(idx: VimVarIndex, val: SpecialVarValue) {
 
 pub fn set_vim_var_char(c: i32) {
     let mut buf = [0u8; MB_MAXCHAR + 1];
-    let buflen = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
+    let buflen = utf_char2bytes(c, &mut buf) as usize;
     set_vim_var_bytes(VV_CHAR, &buf[..buflen]);
 }
 

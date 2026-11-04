@@ -312,7 +312,9 @@ fn nfa_get_match_text(states: &[NfaState], start: Option<usize>) -> Option<std::
     p = states[states[start_idx].out?].out?;
     let mut s = ret.as_mut_ptr();
     while states[p].c > 0 {
-        s = s.wrapping_add(utf_char2bytes(states[p].c, s.cast()) as usize);
+        s = s.wrapping_add(utf_char2bytes(states[p].c, unsafe {
+            std::slice::from_raw_parts_mut(s.cast(), 6)
+        }) as usize);
         p = states[p].out?;
     }
     let actual_len = s as usize - ret.as_ptr() as usize;
@@ -965,11 +967,12 @@ fn nfa_regatom() -> bool {
             let start_ptr = prev_sub.as_ptr().cast::<u8>();
             let mut lp = start_ptr;
             while crate::memory::cstr_first_byte(lp.cast()) != NUL {
-                emit_fn(utf_ptr2char(lp.cast()));
+                emit_fn(utf_ptr2char(crate::memory::cstr_char_bytes(lp.cast())));
                 if lp != start_ptr {
                     emit_fn(NFA_CONCAT);
                 }
-                lp = lp.wrapping_add(utf_ptr2len(lp.cast()) as usize);
+                lp = lp
+                    .wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes(lp.cast())) as usize);
             }
             emit_fn(NFA_NOPEN);
             return true;
@@ -1055,7 +1058,7 @@ fn nfa_regatom() -> bool {
         c = mb_c;
     }
 
-    let plen = utfc_ptr2len(old_regparse.cast());
+    let plen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(old_regparse.cast()));
     if utf_char2len(c) != plen || utf_iscomposing_legacy(c) {
         let mut i: i32 = 0;
         loop {
@@ -1067,7 +1070,9 @@ fn nfa_regatom() -> bool {
             if i >= plen {
                 break;
             }
-            c = utf_ptr2char(old_regparse.wrapping_add(i as usize).cast());
+            c = utf_ptr2char(crate::memory::cstr_char_bytes(
+                old_regparse.wrapping_add(i as usize).cast(),
+            ));
         }
         emit_fn(NFA_COMPOSING);
         re_st().regparse = old_regparse.wrapping_add(plen as usize).cast();
@@ -1421,14 +1426,21 @@ fn nfa_regatom_collection(
                         return FAIL;
                     }
                     got_coll_char = true;
-                    mb_ptr_back(old_regparse, &mut re_st().regparse);
+                    {
+                        let (_b, _i) = crate::memory::cstr_span_to_char(
+                            (old_regparse).cast(),
+                            (re_st().regparse).wrapping_sub(1).cast(),
+                        );
+                        re_st().regparse = (re_st().regparse)
+                            .wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize);
+                    };
                 } else {
                     *startc = backslash_trans(i32::from(re_st().regparse_byte()));
                 }
             }
 
             if *startc == -1 {
-                *startc = utf_ptr2char(re_st().regparse.cast());
+                *startc = utf_ptr2char(crate::memory::cstr_char_bytes(re_st().regparse.cast()));
             }
 
             if emit_range {
@@ -1466,15 +1478,21 @@ fn nfa_regatom_collection(
                 emit_fn(NFA_CONCAT);
             } else {
                 emit_fn(*startc);
-                if utf_ptr2len(re_st().regparse.cast()) == utfc_ptr2len(re_st().regparse.cast()) {
+                if utf_ptr2len(crate::memory::cstr_char_bytes(re_st().regparse.cast()))
+                    == utfc_ptr2len(crate::memory::cstr_cluster_bytes(re_st().regparse.cast()))
+                {
                     emit_fn(NFA_CONCAT);
                 }
             }
 
-            let plen = utfc_ptr2len(re_st().regparse.cast());
-            if !range_endpoint && utf_ptr2len(re_st().regparse.cast()) != plen {
-                let mut i = utf_ptr2len(re_st().regparse.cast());
-                *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize).cast());
+            let plen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(re_st().regparse.cast()));
+            if !range_endpoint
+                && utf_ptr2len(crate::memory::cstr_char_bytes(re_st().regparse.cast())) != plen
+            {
+                let mut i = utf_ptr2len(crate::memory::cstr_char_bytes(re_st().regparse.cast()));
+                *c = utf_ptr2char(crate::memory::cstr_char_bytes(
+                    re_st().regparse.wrapping_add(i as usize).cast(),
+                ));
                 loop {
                     if *c == 0 {
                         emit_fn(1);
@@ -1486,7 +1504,9 @@ fn nfa_regatom_collection(
                     if i >= plen {
                         break;
                     }
-                    *c = utf_ptr2char(re_st().regparse.wrapping_add(i as usize).cast());
+                    *c = utf_ptr2char(crate::memory::cstr_char_bytes(
+                        re_st().regparse.wrapping_add(i as usize).cast(),
+                    ));
                 }
                 emit_fn(NFA_COMPOSING);
                 emit_fn(NFA_CONCAT);
@@ -1494,7 +1514,14 @@ fn nfa_regatom_collection(
             re_st().regparse_mb_adv();
         }
 
-        mb_ptr_back(old_regparse, &mut re_st().regparse);
+        {
+            let (_b, _i) = crate::memory::cstr_span_to_char(
+                (old_regparse).cast(),
+                (re_st().regparse).wrapping_sub(1).cast(),
+            );
+            re_st().regparse = (re_st().regparse)
+                .wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize);
+        };
         if re_st().regparse_byte() == b'-' {
             emit_fn(b'-' as i32);
             emit_fn(NFA_CONCAT);
@@ -3340,11 +3367,13 @@ fn recursive_regmatch(
             }
             if re_st().rex.input_col() >= st.val {
                 re_st().rex.input = re_st().rex.input.wrapping_sub(st.val as usize);
-                re_st().rex.input =
-                    re_st().rex.input.wrapping_sub(utf_head_off(
+                re_st().rex.input = re_st().rex.input.wrapping_sub({
+                    let (_b, _i) = crate::memory::cstr_span_to_char(
                         re_st().rex.line.cast(),
                         re_st().rex.input.cast(),
-                    ) as usize);
+                    );
+                    crate::mbyte::utf_head_off(_b, _i)
+                } as usize);
             } else {
                 re_st().rex.input = re_st().rex.line;
             }
@@ -3451,7 +3480,9 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
     loop {
         let mut matched = true;
         let mut s1 = match_text;
-        let regstart_len2 = utf_ptr2len(re_st().rex.line.wrapping_add(col as usize).cast());
+        let regstart_len2 = utf_ptr2len(crate::memory::cstr_char_bytes(
+            re_st().rex.line.wrapping_add(col as usize).cast(),
+        ));
         let mut s2 = re_st()
             .rex
             .line
@@ -3459,8 +3490,8 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
         while !s1.is_empty() {
             let c1_len = crate::mbyte::utf_slice2len(s1);
             let c1 = crate::mbyte::utf_slice2char(s1);
-            let c2_len = utf_ptr2len(s2.cast()) as usize;
-            let c2 = utf_ptr2char(s2.cast());
+            let c2_len = utf_ptr2len(crate::memory::cstr_char_bytes(s2.cast())) as usize;
+            let c2 = utf_ptr2char(crate::memory::cstr_char_bytes(s2.cast()));
             if c1 != c2 && (!re_st().rex.reg_ic || utf_fold(c1) != utf_fold(c2)) {
                 matched = false;
                 break;
@@ -3468,7 +3499,9 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
             s1 = &s1[c1_len..];
             s2 = s2.wrapping_add(c2_len);
         }
-        if matched && !utf_iscomposing_legacy(utf_ptr2char(s2.cast())) {
+        if matched
+            && !utf_iscomposing_legacy(utf_ptr2char(crate::memory::cstr_char_bytes(s2.cast())))
+        {
             cleanup_subexpr();
             if reg_multi() {
                 let startpos = re_st().rex.startpos_slice_mut();
@@ -3519,7 +3552,9 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
     }
 
     while len < clen {
-        mc = utf_ptr2char(re_st().rex.input.wrapping_add(len as usize).cast());
+        mc = utf_ptr2char(crate::memory::cstr_char_bytes(
+            re_st().rex.input.wrapping_add(len as usize).cast(),
+        ));
         cchars[ccount] = mc;
         ccount += 1;
         len += utf_char2len(mc);
@@ -3651,8 +3686,8 @@ fn nfa_regmatch(
 
             clen = 1;
         } else {
-            curc = utf_ptr2char(input_ptr.cast());
-            clen = utfc_ptr2len(input_ptr.cast());
+            curc = utf_ptr2char(crate::memory::cstr_char_bytes(input_ptr.cast()));
+            clen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(input_ptr.cast()));
         }
         if curc == NUL as i32 {
             clen = 0;
@@ -4419,7 +4454,8 @@ fn nfa_regmatch(
                         matched = utf_fold(c) == utf_fold(curc);
                     }
                     if matched && !re_st().rex.reg_icombine {
-                        clen = utf_ptr2len(re_st().rex.input.cast());
+                        clen =
+                            utf_ptr2len(crate::memory::cstr_char_bytes(re_st().rex.input.cast()));
                     }
                     if matched {
                         add_state = t_st.out;
@@ -4564,7 +4600,9 @@ fn nfa_regmatch(
                         }
                         re_st().rex.input = re_st().rex.line.wrapping_add((col - clen) as usize);
                     } else {
-                        let c = utf_ptr2char(re_st().rex.input.wrapping_add(clen as usize).cast());
+                        let c = utf_ptr2char(crate::memory::cstr_char_bytes(
+                            re_st().rex.input.wrapping_add(clen as usize).cast(),
+                        ));
                         if c != prog.regstart
                             && (!re_st().rex.reg_ic || utf_fold(c) != utf_fold(prog.regstart))
                         {

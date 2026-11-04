@@ -102,8 +102,7 @@ use crate::mark::{mark_view_make, reset_fmark};
 use crate::marktree::K_MTMETA_INLINE;
 use crate::mbyte::{
     mb_adjust_cursor, mb_get_class, ptr2cells, utf_char2bytes, utf_char2len, utf_cluster_info,
-    utf_composinglike, utf_head_off, utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len,
-    utfc_ptr2len,
+    utf_composinglike, utf_ptr2_str_char_info, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::mcursor::{mc_ins_cascade, mc_ins_cascade_restart, mc_ins_join, mc_ins_replaying};
 use crate::memline::{gchar_pos, ml_append, ml_get, ml_get_len, ml_replace, ml_replace_dirty_line};
@@ -762,8 +761,12 @@ fn insert_execute(s: &mut InsertState, key: i32) -> i32 {
                 if let Some(str_) = do_insert_char_pre(s.c) {
                     let mut p = str_.as_ptr().cast_mut();
                     while !crate::memory::cstr_is_empty(p) {
-                        ins_compl_addleader(utf_ptr2char(p));
-                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                        ins_compl_addleader(utf_ptr2char(crate::memory::cstr_char_bytes(
+                            (p).cast(),
+                        )));
+                        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            (p).cast(),
+                        )) as usize);
                     }
                 } else {
                     ins_compl_addleader(s.c);
@@ -1253,13 +1256,15 @@ fn insert_handle_key(s: &mut InsertState) -> i32 {
                 if !crate::memory::cstr_is_empty(str_ptr) && stop_arrow() {
                     let mut p = str_ptr;
                     while !crate::memory::cstr_is_empty(p) {
-                        s.c = utf_ptr2char(p);
+                        s.c = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
                         if s.c == CAR || s.c == K_KENTER || s.c == NL {
                             ins_eol(s.c);
                         } else {
                             ins_char(s.c);
                         }
-                        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            (p).cast(),
+                        )) as usize);
                     }
                     redo_append_lit(str_.as_bytes());
                 }
@@ -1509,7 +1514,7 @@ pub fn edit_putchar(c: i32, highlight: bool) {
     }
 
     let mut buf = [0u8; MB_MAXCHAR + 1];
-    let len = utf_char2bytes(c, buf.as_mut_ptr().cast());
+    let len = utf_char2bytes(c, &mut buf);
     grid_line_puts(
         ins_st().pc_col,
         crate::memory::cstr_until_nul(&buf),
@@ -1638,7 +1643,11 @@ pub fn display_dollar(col_arg: Colnr) {
     curwin_mut().w_cursor.col = col;
 
     let p = get_cursor_line_ptr().as_ptr().cast_mut();
-    curwin_mut().w_cursor.col -= utf_head_off(p, p.wrapping_offset(col as isize));
+    curwin_mut().w_cursor.col -= {
+        let (_b, _i) =
+            crate::memory::cstr_span_to_char((p).cast(), (p.wrapping_offset(col as isize)).cast());
+        crate::mbyte::utf_head_off(_b, _i)
+    };
     curs_columns(curwin_mut(), 0);
     if curwin_mut().w_wcol < curwin_mut().w_view_width {
         edit_putchar(b'$' as i32, false);
@@ -1958,7 +1967,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
         let cc = utf_char2len(c);
         if cc > 1 {
             let mut buf = [0u8; MB_MAXCHAR + 1];
-            utf_char2bytes(c, buf.as_mut_ptr().cast());
+            utf_char2bytes(c, &mut buf);
             buf[cc as usize] = 0;
             ins_char_bytes(&buf, cc as usize);
             redo_append_char(c);
@@ -2235,9 +2244,9 @@ pub fn oneright() -> bool {
         let prevpos = curwin_mut().w_cursor;
         let ptr = get_cursor_pos_ptr().as_ptr().cast_mut();
         let step = if crate::memory::cstr_first_byte(ptr) != TAB as u8
-            && vim_isprintc(utf_ptr2char(ptr))
+            && vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes((ptr).cast())))
         {
-            ptr2cells(ptr)
+            ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast()))
         } else {
             1
         };
@@ -2252,7 +2261,7 @@ pub fn oneright() -> bool {
         return false;
     }
 
-    let l = utfc_ptr2len(ptr);
+    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr).cast()));
     if crate::memory::cstr_is_empty(ptr.wrapping_add(l as usize))
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
     {
@@ -2282,8 +2291,8 @@ pub fn oneleft() -> bool {
         if curwin_mut().w_cursor.coladd == 1 {
             let ptr = get_cursor_pos_ptr().as_ptr().cast_mut();
             if crate::memory::cstr_first_byte(ptr) != TAB as u8
-                && vim_isprintc(utf_ptr2char(ptr))
-                && ptr2cells(ptr) > 1
+                && vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes((ptr).cast())))
+                && ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) > 1
             {
                 curwin_mut().w_cursor.coladd = 0;
             }
@@ -2552,9 +2561,8 @@ fn replace_pop_ins() {
 
 fn mb_replace_pop_ins() {
     let stack = replace_stack_mut();
-    let ptr: *const _ = stack.as_ptr().cast();
     let size = stack.len();
-    let len = (utf_head_off(ptr, ptr.wrapping_add(size - 1)) + 1) as usize;
+    let len = (crate::mbyte::utf_head_off(stack, size - 1) + 1) as usize;
     let new_size = size - len;
     let popped = stack.split_off(new_size);
     ins_bytes_len(&popped, len);
@@ -2600,7 +2608,9 @@ fn replace_do_bs(limit_col: i32) {
                     crate::memory::cstr_as_bytes(p.wrapping_offset(i as isize)),
                     vcol,
                 );
-                i += utfc_ptr2len(p.wrapping_offset(i as isize));
+                i += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (p.wrapping_offset(i as isize)).cast(),
+                ));
             }
             vcol -= start_vcol;
 
@@ -3142,7 +3152,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
 
             let mut vcol: Colnr = 0;
             let mut space_vcol: Colnr = 0;
-            let mut sci = utf_ptr2_str_char_info(line);
+            let mut sci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
             let mut space_sci = sci;
             let mut prev_space = false;
 
@@ -3243,8 +3253,16 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                     let mut has_composing = false;
                     if opt_vars().p_deco != 0 {
                         let p0 = get_cursor_pos_ptr().as_ptr().cast_mut();
-                        has_composing =
-                            utf_composinglike(p0, p0.wrapping_add(utf_ptr2len(p0) as usize), None);
+                        has_composing = utf_composinglike(
+                            crate::memory::cstr_as_bytes((p0).cast()),
+                            crate::memory::cstr_as_bytes(
+                                (p0.wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes(
+                                    (p0).cast(),
+                                )) as usize))
+                                .cast(),
+                            ),
+                            None,
+                        );
                     }
                     del_char(false);
                     if has_composing {
@@ -3869,7 +3887,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
         lnum,
         crate::memory::cstr_from_ptr(line),
     );
-    let mut ci = utf_ptr2_str_char_info(line);
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((line).cast()));
     let mut vcol: i32 = 0;
     while vcol < end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info(ci);
@@ -3943,7 +3961,7 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
 
     let mut buf = [0u8; MB_MAXBYTES + 1];
     let save_state = g_st().state_global;
-    let buflen = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
+    let buflen = utf_char2bytes(c, &mut buf) as usize;
     buf[buflen] = 0;
 
     g_st().textlock += 1;
@@ -3956,8 +3974,8 @@ fn do_insert_char_pre(c: i32) -> Option<std::ffi::CString> {
     let mut res: Option<std::ffi::CString> = None;
     if ins_apply_autocmds(EVENT_INSERTCHARPRE) != 0 {
         let vchar = get_vim_var_str(VV_CHAR);
-        if &buf[..buflen] != crate::memory::cstr_as_bytes(vchar) {
-            res = Some(crate::memory::cstr_to_cstring(vchar));
+        if &buf[..buflen] != crate::memory::cstr_as_bytes((vchar).as_ptr()) {
+            res = Some(crate::memory::cstr_to_cstring((vchar).as_ptr()));
         }
     }
 

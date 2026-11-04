@@ -1594,13 +1594,13 @@ pub fn f_chanclose(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut part = K_CHANNEL_PART_ALL;
     if argvars[1].v_type == VarType::VarString {
         let stream = tv_get_string(&argvars[1]);
-        if crate::memory::cstr_as_bytes(stream) == b"stdin" {
+        if crate::memory::cstr_as_bytes((stream).as_ptr()) == b"stdin" {
             part = K_CHANNEL_PART_STDIN;
-        } else if crate::memory::cstr_as_bytes(stream) == b"stdout" {
+        } else if crate::memory::cstr_as_bytes((stream).as_ptr()) == b"stdout" {
             part = K_CHANNEL_PART_STDOUT;
-        } else if crate::memory::cstr_as_bytes(stream) == b"stderr" {
+        } else if crate::memory::cstr_as_bytes((stream).as_ptr()) == b"stderr" {
             part = K_CHANNEL_PART_STDERR;
-        } else if crate::memory::cstr_as_bytes(stream) == b"rpc" {
+        } else if crate::memory::cstr_as_bytes((stream).as_ptr()) == b"rpc" {
             part = K_CHANNEL_PART_RPC_CONST;
         } else {
             semsg!(gettext(c"Invalid channel stream \"%s\""), stream);
@@ -1671,7 +1671,7 @@ pub fn f_char2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf_ptr2char(
-        tv_get_string(&argvars[0]),
+        (tv_get_string(&argvars[0])).to_bytes(),
     )));
 }
 
@@ -1725,7 +1725,7 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
                     )
                     && !crate::memory::cstr_is_empty(p)
                 {
-                    let l = utfc_ptr2len(p);
+                    let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
                     if crate::memory::cstr_is_empty(p.wrapping_add(l as usize)) {
                         col += l;
                     }
@@ -1953,7 +1953,7 @@ pub fn f_dictwatcheradd(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
         return;
     } else if argvars[0].vval.v_dict().is_null() {
         let arg_errmsg = gettext(c"dictwatcheradd() argument");
-        let arg_errmsg_len = crate::memory::cstr_len(arg_errmsg);
+        let arg_errmsg_len = crate::memory::cstr_len((arg_errmsg).as_ptr());
         semsg!(
             gettext(E_CANNOT_CHANGE_READONLY_VARIABLE_STR),
             arg_errmsg_len as i32,
@@ -2375,11 +2375,11 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     }
 
     let arg_str = tv_get_string(&argvars[0]);
-    if crate::memory::cstr_is_empty(arg_str) {
+    if crate::memory::cstr_is_empty((arg_str).as_ptr()) {
         crate::eval::typval::tv_set_string(rettv, Some(arg_str));
         return;
     }
-    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_from_ptr(arg_str)
+    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_from_ptr((arg_str).as_ptr())
         .to_bytes_with_nul()
         .to_vec();
     let mut cmdstr = cmdline_buf.as_mut_ptr().cast();
@@ -2487,7 +2487,9 @@ pub fn f_feedkeys(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncDa
     }
     nvim_feedkeys(
         cstr_as_string(Some(keys)),
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(flags)),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr(
+            (flags).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+        )),
         true,
     );
 }
@@ -2773,37 +2775,37 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 
         if let Some(pt) = unsafe { pt.as_mut() } {
             let what = tv_get_string(&argvars[1]);
-            if crate::memory::cstr_as_bytes(what) == b"func"
-                || crate::memory::cstr_as_bytes(what) == b"name"
+            if crate::memory::cstr_as_bytes((what).as_ptr()) == b"func"
+                || crate::memory::cstr_as_bytes((what).as_ptr()) == b"name"
             {
                 let mut name = partial_name(Some(&*pt));
-                if crate::memory::cstr_first_byte(what) == b'f' {
+                if crate::memory::cstr_first_byte((what).as_ptr()) == b'f' {
                     func_ref(Some(name));
                 }
-                if crate::memory::cstr_first_byte(what) == b'n'
+                if crate::memory::cstr_first_byte((what).as_ptr()) == b'n'
                     && pt.pt_name.is_none()
                     && !pt.pt_func.is_null()
                 {
                     name = printable_func_name(unsafe { &mut *pt.pt_func });
                 }
                 crate::eval::typval::tv_set_string(rettv, Some(name));
-                rettv.v_type = if crate::memory::cstr_first_byte(what) == b'f' {
+                rettv.v_type = if crate::memory::cstr_first_byte((what).as_ptr()) == b'f' {
                     VarType::VarFunc
                 } else {
                     VarType::VarString
                 };
-            } else if crate::memory::cstr_as_bytes(what) == b"dict" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"dict" {
                 what_is_dict = true;
                 if !pt.pt_dict.is_null() {
                     tv_dict_set_ret(rettv, unsafe { pt.pt_dict.as_mut() });
                 }
-            } else if crate::memory::cstr_as_bytes(what) == b"args" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"args" {
                 rettv.v_type = VarType::VarList;
                 tv_list_alloc_ret(rettv, pt.pt_argv.len() as isize);
                 for arg in &mut pt.pt_argv {
                     tv_list_append_tv(rettv.vval.v_list_ref(), &mut *arg);
                 }
-            } else if crate::memory::cstr_as_bytes(what) == b"arity" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"arity" {
                 let mut required: i32 = 0;
                 let mut optional: i32 = 0;
                 let mut varargs = false;
@@ -4399,7 +4401,7 @@ pub fn create_environment(
 
     if set_nvim_addr {
         let nvim_addr = get_vim_var_str(VV_SEND_SERVER);
-        if !crate::memory::cstr_is_empty(nvim_addr) {
+        if !crate::memory::cstr_is_empty((nvim_addr).as_ptr()) {
             if let Some(dv) = crate::eval::typval::tv_dict_find_opt(Some(&*env), c"NVIM", 4) {
                 tv_dict_item_remove(&mut *env, dv);
             }
@@ -4952,7 +4954,7 @@ pub fn f_len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     match argvars[0].v_type {
         VarType::VarString | VarType::VarNumber => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(
-                tv_get_string(&argvars[0]),
+                (tv_get_string(&argvars[0])).as_ptr(),
             ) as Varnumber);
         }
         VarType::VarBlob => {
@@ -5103,7 +5105,7 @@ pub fn f_luaeval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     };
     nlua_call_luaeval(
-        cstr_as_string(crate::memory::cstr_as_opt_cstr(str_)),
+        cstr_as_string(crate::memory::cstr_as_opt_cstr((str_).as_ptr())),
         &mut argvars[1],
         rettv,
     );
@@ -5251,8 +5253,9 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                     idx += 1;
                 } else {
                     startcol = (crate::memory::ptr_offset_from(
-                        regmatch.startp[0]
-                            .wrapping_add(utfc_ptr2len(regmatch.startp[0].cast()) as usize),
+                        regmatch.startp[0].wrapping_add(utfc_ptr2len(
+                            crate::memory::cstr_cluster_bytes(regmatch.startp[0].cast()),
+                        ) as usize),
                         str_.cast(),
                     )) as Colnr;
                     if i64::from(startcol) > len
@@ -5932,7 +5935,7 @@ pub fn f_nr2char(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     let mut buf = [0u8; MB_MAXCHAR];
-    let len = utf_char2bytes(num as i32, buf.as_mut_ptr().cast());
+    let len = utf_char2bytes(num as i32, &mut buf);
 
     crate::eval::typval::tv_set_string_len(rettv, Some(&buf[..len as usize]));
 }
@@ -6469,7 +6472,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
                 );
                 return;
             }
-            len = utfc_ptr2len(p);
+            len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
             *rettv = TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: VAR_UNLOCKED,
@@ -6490,7 +6493,7 @@ fn reduce_string(argvars: &mut [TypVal], rettv: &mut TypVal) {
             let mut argv = [tv_initial_value(); 3];
             argv[0] = *rettv;
             rettv.v_type = VarType::VarUnknown;
-            len = utfc_ptr2len(p);
+            len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
             crate::eval::typval::tv_set_string_len(
                 &mut argv[1],
                 Some(crate::memory::cstr_slice(p, len as usize)),
@@ -6897,7 +6900,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let mut err = Error::new();
     let chan_id = argvars[0].vval.v_number() as u64;
     let method = tv_get_string(&argvars[1]);
-    let method_cstr = crate::memory::cstr_from_ptr(method);
+    let method_cstr = crate::memory::cstr_from_ptr((method).as_ptr());
 
     let mut res_mem: ArenaMem = ptr::null_mut();
     let result = rpc_send_call(chan_id, method_cstr, args, &mut res_mem, &mut err);
@@ -7003,9 +7006,13 @@ pub fn f_screenchars(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
     let mut i: usize = 0;
     loop {
-        let c = utf_ptr2char(buf.as_ptr().wrapping_add(i).cast());
+        let c = utf_ptr2char(crate::memory::cstr_char_bytes(
+            buf.as_ptr().wrapping_add(i).cast(),
+        ));
         tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(c));
-        i += utf_ptr2len(buf.as_ptr().wrapping_add(i).cast()) as usize;
+        i += utf_ptr2len(crate::memory::cstr_char_bytes(
+            buf.as_ptr().wrapping_add(i).cast(),
+        )) as usize;
         if buf[i] == 0 {
             break;
         }
@@ -7546,10 +7553,10 @@ pub fn f_setcharsearch(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
     };
 
     if let Some(csearch) = tv_dict_get_string(Some(d), c"char") {
-        let c = utf_ptr2char(csearch);
+        let c = utf_ptr2char(csearch.to_bytes());
         set_last_csearch(
             c,
-            crate::memory::cstr_slice(csearch, utfc_ptr2len(csearch) as usize),
+            &csearch.to_bytes()[..utfc_ptr2len(csearch.to_bytes()) as usize],
         );
     }
 
@@ -7831,9 +7838,9 @@ pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         crate::eval::typval::tv_set_string_len(rettv, Some(&hex));
     } else {
         let p = tv_get_string(&argvars[0]);
-        let len = crate::memory::cstr_len(p);
+        let len = crate::memory::cstr_len((p).as_ptr());
         let slice = if len > 0 {
-            crate::memory::cstr_slice(p, len)
+            crate::memory::cstr_slice((p).as_ptr(), len)
         } else {
             &[]
         };
@@ -7888,9 +7895,9 @@ pub fn f_sockconnect(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let address = to_slash_save(tv_get_string(&argvars[1])).unwrap_or_default();
 
     'cleanup: {
-        let tcp = if crate::memory::cstr_as_bytes(mode) == b"tcp" {
+        let tcp = if crate::memory::cstr_as_bytes((mode).as_ptr()) == b"tcp" {
             true
-        } else if crate::memory::cstr_as_bytes(mode) == b"pipe" {
+        } else if crate::memory::cstr_as_bytes((mode).as_ptr()) == b"pipe" {
             false
         } else {
             semsg!(gettext(E_INVARG2), c"invalid mode");
@@ -8171,7 +8178,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 if regmatch.endp[0].cast_const().cast() > str_ {
                     col = 0;
                 } else {
-                    col = utfc_ptr2len(regmatch.endp[0].cast());
+                    col = utfc_ptr2len(crate::memory::cstr_cluster_bytes(regmatch.endp[0].cast()));
                 }
                 str_ = regmatch.endp[0].cast();
             }
@@ -8297,10 +8304,14 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let enc_ptr = enc
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    convert_setup(&mut conv, opt_vars().p_enc, enc_ptr);
+    convert_setup(
+        &mut conv,
+        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+    );
     let p_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        p_owned = string_convert(&conv, p, None);
+        p_owned = string_convert(&conv, crate::memory::cstr_as_bytes((p).cast()), None);
         p = p_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -8322,9 +8333,17 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
     drop(p_owned);
 
-    convert_setup(&mut conv, enc_ptr, opt_vars().p_enc);
+    convert_setup(
+        &mut conv,
+        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+    );
     if conv.vc_type != CONV_NONE {
-        if let Some(conv_bytes) = string_convert(&conv, result_buf.as_mut_ptr().cast(), None) {
+        if let Some(conv_bytes) = string_convert(
+            &conv,
+            crate::memory::cstr_as_bytes((result_buf.as_mut_ptr()).cast()),
+            None,
+        ) {
             crate::eval::typval::tv_set_string(
                 rettv,
                 Some(crate::memory::cstr_until_nul(&conv_bytes)),
@@ -8355,10 +8374,14 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let enc_ptr = enc
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    convert_setup(&mut conv, opt_vars().p_enc, enc_ptr);
+    convert_setup(
+        &mut conv,
+        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
+    );
     let fmt_owned: Option<Vec<u8>>;
     if conv.vc_type != CONV_NONE {
-        fmt_owned = string_convert(&conv, fmt, None);
+        fmt_owned = string_convert(&conv, crate::memory::cstr_as_bytes((fmt).cast()), None);
         fmt = fmt_owned
             .as_ref()
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
@@ -8517,7 +8540,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let _ = &mut modec;
 
     let mut p: Option<&CStr> = None;
-    let what_bytes = crate::memory::cstr_as_bytes(what);
+    let what_bytes = crate::memory::cstr_as_bytes((what).as_ptr());
     let w = |i: usize| {
         what_bytes
             .get(i)
@@ -8526,7 +8549,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     match w(0) {
         b'b' => {
             if w(1) == b'g' {
-                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes((what).as_ptr()), modec);
             } else if w(1) == b'l' {
                 p = highlight_has_attr(id, HL_BLINK, modec);
             } else {
@@ -8536,7 +8559,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         b'c' => p = highlight_has_attr(id, HL_CONCEALED, modec),
         b'd' => p = highlight_has_attr(id, HL_DIM, modec),
         b'o' => p = highlight_has_attr(id, HL_OVERLINE, modec),
-        b'f' => p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec),
+        b'f' => p = highlight_color(id, crate::memory::cstr_as_bytes((what).as_ptr()), modec),
         b'i' => {
             if w(1) == b'n' {
                 p = highlight_has_attr(id, HL_INVERSE, modec);
@@ -8554,7 +8577,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         b'r' => p = highlight_has_attr(id, HL_INVERSE, modec),
         b's' => {
             if w(1) == b'p' {
-                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes((what).as_ptr()), modec);
             } else if w(1) == b't' && w(2) == b'r' {
                 p = highlight_has_attr(id, HL_STRIKETHROUGH, modec);
             } else {
@@ -8562,7 +8585,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             }
         }
         b'u' => {
-            if crate::memory::cstr_len(what) >= 9 {
+            if crate::memory::cstr_len((what).as_ptr()) >= 9 {
                 if w(5) == b'l' {
                     p = highlight_has_attr(id, HL_UNDERLINE, modec);
                 } else if w(5) != b'd' {
@@ -8575,7 +8598,7 @@ pub fn f_syn_idattr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
                     p = highlight_has_attr(id, HL_UNDERDOTTED, modec);
                 }
             } else {
-                p = highlight_color(id, crate::memory::cstr_as_bytes(what), modec);
+                p = highlight_color(id, crate::memory::cstr_as_bytes((what).as_ptr()), modec);
             }
         }
         _ => {}

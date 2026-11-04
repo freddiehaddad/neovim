@@ -1097,8 +1097,10 @@ pub fn draw_tabline() {
                 let mut len = vim_strsize(crate::memory::cstr_from_ptr(name_buff));
                 let mut p = name_buff;
                 while len > room {
-                    len -= ptr2cells(p);
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                    len -= ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+                    p = p.wrapping_add(
+                        utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize
+                    );
                 }
                 let n = g_st().columns_global - col - 1;
                 len = len.min(n);
@@ -1270,12 +1272,14 @@ fn stl_truncate(
         trunc_p = start_p;
         *width = 0;
         loop {
-            let char_cells = ptr2cells(trunc_p.cast());
+            let char_cells = ptr2cells(crate::memory::cstr_cluster_bytes(trunc_p.cast()));
             if *width + char_cells >= maxwid {
                 break;
             }
             *width += char_cells;
-            trunc_p = trunc_p.wrapping_add(utfc_ptr2len(trunc_p.cast()) as usize);
+            trunc_p = trunc_p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                trunc_p.cast(),
+            )) as usize);
         }
 
         for i in startitem..*curitem {
@@ -1299,8 +1303,12 @@ fn stl_truncate(
     } else {
         let mut trunc_len: i32 = 0;
         while *width >= maxwid {
-            *width -= ptr2cells(trunc_p.wrapping_add(trunc_len as usize).cast());
-            trunc_len += utfc_ptr2len(trunc_p.wrapping_add(trunc_len as usize).cast());
+            *width -= ptr2cells(crate::memory::cstr_cluster_bytes(
+                trunc_p.wrapping_add(trunc_len as usize).cast(),
+            ));
+            trunc_len += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                trunc_p.wrapping_add(trunc_len as usize).cast(),
+            ));
         }
 
         let trunc_end_p = trunc_p.wrapping_add(trunc_len as usize);
@@ -2430,8 +2438,10 @@ pub extern "C" fn build_stl_str_hl(
 
             if l > maxwid {
                 while l >= maxwid {
-                    l -= ptr2cells(t.cast());
-                    t = t.wrapping_add(utfc_ptr2len(t.cast()) as usize);
+                    l -= ptr2cells(crate::memory::cstr_cluster_bytes(t.cast()));
+                    t = t.wrapping_add(
+                        utfc_ptr2len(crate::memory::cstr_cluster_bytes(t.cast())) as usize
+                    );
                 }
                 if out_p >= out_end_p {
                     break;

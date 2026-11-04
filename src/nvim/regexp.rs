@@ -17,9 +17,9 @@ use crate::globals::*;
 use crate::keycodes::{BS, CAR, ESC, K_SPECIAL, NL, NUL, TAB};
 use crate::mark::mark_get;
 use crate::mbyte::{
-    GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr_back, mb_ptr2char_adv,
-    mb_strnicmp, mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
-    utf_head_off, utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
+    GraphemeState, mb_get_class_tab, mb_islower, mb_isupper, mb_ptr2char_adv, mb_strnicmp,
+    mb_tolower, mb_toupper, utf_char2bytes, utf_char2len, utf_composinglike, utf_fold,
+    utf_iscomposing_legacy, utf_ptr2char, utf_ptr2len, utf_strnicmp, utfc_ptr2len,
 };
 use crate::memline::{ml_get_buf, ml_get_buf_len};
 use crate::message::{emsg, iemsg, internal_error, msg_puts, semsg, verbose_enter, verbose_leave};
@@ -1936,7 +1936,9 @@ pub(super) fn peekchr() -> i32 {
                 re_st().curchr = toggle_magic(c);
             } else {
                 re_st().curchr = if c >= 0x80 {
-                    utf_ptr2char(re_st().regparse.wrapping_add(1).cast())
+                    utf_ptr2char(crate::memory::cstr_char_bytes(
+                        re_st().regparse.wrapping_add(1).cast(),
+                    ))
                 } else {
                     c
                 };
@@ -1944,7 +1946,8 @@ pub(super) fn peekchr() -> i32 {
         }
         _ => {
             if re_st().curchr >= 0x80 {
-                re_st().curchr = utf_ptr2char(re_st().regparse.cast());
+                re_st().curchr =
+                    utf_ptr2char(crate::memory::cstr_char_bytes(re_st().regparse.cast()));
             }
         }
     }
@@ -1963,12 +1966,12 @@ pub(super) fn skipchr() {
         if next_b < 0x80 {
             re_st().prevchr_len += 1;
         } else {
-            re_st().prevchr_len += utf_ptr2len(
+            re_st().prevchr_len += utf_ptr2len(crate::memory::cstr_char_bytes(
                 re_st()
                     .regparse
                     .wrapping_add(re_st().prevchr_len as usize)
                     .cast(),
-            );
+            ));
         }
     }
     re_st().regparse = re_st().regparse.wrapping_add(re_st().prevchr_len as usize);
@@ -2145,7 +2148,10 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 pub(super) fn reg_prev_class() -> i32 {
     if re_st().rex.input > re_st().rex.line {
         let prev = re_st().rex.input.wrapping_sub(1);
-        let head = prev.wrapping_sub(utf_head_off(re_st().rex.line.cast(), prev.cast()) as usize);
+        let head = prev.wrapping_sub({
+            let (_b, _i) = crate::memory::cstr_span_to_char(re_st().rex.line.cast(), prev.cast());
+            crate::mbyte::utf_head_off(_b, _i)
+        } as usize);
         return mb_get_class_tab(
             crate::memory::cstr_as_bytes(head.cast()),
             &re_st().rex.buf_mut().b_chartab,
@@ -2350,8 +2356,10 @@ pub(super) fn match_with_backref(
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
-                    p_cstr.as_ptr().wrapping_add(ccol as usize),
-                    re_st().rex.input.cast(),
+                    crate::memory::cstr_as_bytes(
+                        (p_cstr.as_ptr().wrapping_add(ccol as usize)).cast(),
+                    ),
+                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                     len as usize,
                 ) != 0)
         {
@@ -2438,8 +2446,8 @@ pub(super) fn cstrncmp(s1: &[u8], s2: &[u8], n: &mut i32) -> i32 {
         }
         n2 = (s2_b.len() - rem2.len()) as i32;
         let r = utf_strnicmp(
-            s1_b.as_ptr().cast(),
-            s2_b.as_ptr().cast(),
+            crate::memory::cstr_as_bytes(s1_b.as_ptr().cast()),
+            crate::memory::cstr_as_bytes(s2_b.as_ptr().cast()),
             *n as usize,
             n2 as usize,
         );
@@ -2509,7 +2517,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
     while idx < s_bytes.len() {
         let p = s_ptr.wrapping_add(idx);
         let b0 = s_bytes[idx] as i32;
-        let uc = utf_ptr2char(p);
+        let uc = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
         if c > 0x80 || uc > 0x80 {
             if (uc < 0x80 || uc != b0) && utf_fold(uc) == lc {
                 return Some(idx);
@@ -2517,7 +2525,7 @@ pub(super) fn cstrchr(s: &CStr, c: i32) -> Option<usize> {
         } else if b0 == c || b0 == cc {
             return Some(idx);
         }
-        idx += utfc_ptr2len(p) as usize;
+        idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize;
     }
     None
 }
@@ -3053,7 +3061,7 @@ fn vim_regsub_both(
                                 }
                                 dst_off += 2;
                             } else {
-                                c = utf_ptr2char(s.cast());
+                                c = utf_ptr2char(crate::memory::cstr_char_bytes(s.cast()));
                                 let cc = if let Some(f) = func_one.take() {
                                     f.apply(c)
                                 } else if let Some(f) = func_all {
@@ -3062,7 +3070,7 @@ fn vim_regsub_both(
                                     c
                                 };
 
-                                let l = utf_ptr2len(s.cast()) - 1;
+                                let l = utf_ptr2len(crate::memory::cstr_char_bytes(s.cast())) - 1;
                                 s = s.wrapping_add(l as usize);
                                 len -= l;
                                 let charlen = utf_char2len(cc) as usize;
@@ -3673,7 +3681,7 @@ impl RegexpState {
     }
     #[inline]
     pub fn regparse_mb_adv(&mut self) {
-        let step = utfc_ptr2len(self.regparse.cast()) as usize;
+        let step = utfc_ptr2len(crate::memory::cstr_cluster_bytes(self.regparse.cast())) as usize;
         self.regparse = self.regparse.wrapping_add(step);
     }
     #[inline]

@@ -266,7 +266,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
 
     w.push(watcher);
 
-    if crate::memory::cstr_as_bytes(get_vim_var_str(VV_SEND_SERVER)).is_empty() {
+    if crate::memory::cstr_as_bytes((get_vim_var_str(VV_SEND_SERVER)).as_ptr()).is_empty() {
         set_vservername();
     }
 
@@ -303,7 +303,8 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
     socket_watcher_close(unsafe { &mut *watcher });
 
     if !keep_vservername
-        && Some(addr_bytes) == crate::memory::cstr_as_opt_bytes(get_vim_var_str(VV_SEND_SERVER))
+        && Some(addr_bytes)
+            == crate::memory::cstr_as_opt_bytes((get_vim_var_str(VV_SEND_SERVER)).as_ptr())
     {
         set_vservername();
     }

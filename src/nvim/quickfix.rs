@@ -1175,7 +1175,11 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
     let cur_slice = state.linebuf_slice();
     if state.vc.vc_type != CONV_NONE && !crate::memory::bytes_until_nul(cur_slice).is_ascii() {
         let cur_ptr = cur_slice.as_ptr();
-        if let Some(line) = string_convert(&state.vc, cur_ptr.cast(), Some(&mut state.linelen)) {
+        if let Some(line) = string_convert(
+            &state.vc,
+            crate::memory::cstr_as_bytes((cur_ptr).cast()),
+            Some(&mut state.linelen),
+        ) {
             if state.linelen < IOSIZE {
                 state.use_growbuf = false;
                 let n = state.linelen + 1;
@@ -1352,7 +1356,11 @@ fn qf_setup_state(
 ) -> bool {
     pstate.vc.vc_type = CONV_NONE;
     if let Some(enc_cstr) = enc.filter(|s| !s.to_bytes().is_empty()) {
-        convert_setup(&mut pstate.vc, enc_cstr.as_ptr(), opt_vars().p_enc);
+        convert_setup(
+            &mut pstate.vc,
+            crate::memory::cstr_as_opt_cstr((enc_cstr.as_ptr()).cast()),
+            crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        );
     }
 
     if let Some(efile) = efile {
@@ -2953,12 +2961,12 @@ fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
         if crate::memory::cstr_first_byte(p) == TAB {
             col += 8 - (col % 8);
         } else {
-            col += ptr2cells(p);
+            col += ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
         }
         if col > vcol {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
     }
     crate::memory::ptr_offset_from(p, line) as i32
 }

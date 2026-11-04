@@ -335,11 +335,9 @@ fn convert_mo_bytes_to_utf8(bytes: &[u8], charset: Option<&[u8]>) -> Vec<u8> {
     }
     if let Ok(cs_cstr) = CString::new(cs) {
         let mut vc = Vimconv::new();
-        if convert_setup(&mut vc, cs_cstr.as_ptr().cast_mut(), c"utf-8") && vc.vc_type != 0 {
+        if convert_setup(&mut vc, Some(&cs_cstr), Some(c"utf-8")) && vc.vc_type != 0 {
             let mut len = bytes.len();
-            if let Some(mut slice) =
-                string_convert(&vc, bytes.as_ptr().cast_mut().cast(), Some(&mut len))
-            {
+            if let Some(mut slice) = string_convert(&vc, bytes, Some(&mut len)) {
                 slice.truncate(len);
                 return slice;
             }
@@ -624,7 +622,7 @@ pub fn init_locale() {
     let mut localepath = [0u8; MAXPATHL];
     crate::memory::copy_bytes_to_c_buf(
         &mut localepath,
-        crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
+        crate::memory::cstr_as_bytes((get_vim_var_str(VV_PROGPATH)).as_ptr()),
     );
     let mut tail = path_tail_with_sep(localepath.as_mut_ptr().cast()).cast::<u8>();
     unsafe {
@@ -661,25 +659,45 @@ pub fn ex_language(eap: &mut Exarg) {
         || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
         && arg_len >= 3
     {
-        if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
+        if mb_strnicmp(
+            crate::memory::cstr_as_bytes((eap.arg).cast()),
+            (c"messages").to_bytes(),
+            arg_len,
+        ) == 0
+        {
             what = VIM_LC_MESSAGES;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"messages ";
-        } else if mb_strnicmp(eap.arg, c"ctype", arg_len) == 0 {
+        } else if mb_strnicmp(
+            crate::memory::cstr_as_bytes((eap.arg).cast()),
+            (c"ctype").to_bytes(),
+            arg_len,
+        ) == 0
+        {
             what = LC_CTYPE;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"ctype ";
-        } else if mb_strnicmp(eap.arg, c"time", arg_len) == 0 {
+        } else if mb_strnicmp(
+            crate::memory::cstr_as_bytes((eap.arg).cast()),
+            (c"time").to_bytes(),
+            arg_len,
+        ) == 0
+        {
             what = LC_TIME;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"time ";
-        } else if mb_strnicmp(eap.arg, c"collate", arg_len) == 0 {
+        } else if mb_strnicmp(
+            crate::memory::cstr_as_bytes((eap.arg).cast()),
+            (c"collate").to_bytes(),
+            arg_len,
+        ) == 0
+        {
             what = LC_COLLATE;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),

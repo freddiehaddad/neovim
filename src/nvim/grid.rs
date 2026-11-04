@@ -291,7 +291,7 @@ pub fn schar_get_adv(buf_out: &mut [u8], sc: Schar) -> usize {
 pub fn schar_cells(sc: Schar) -> i32 {
     let mut buf = [0u8; MAX_SCHAR_SIZE];
     schar_get(&mut buf, sc);
-    crate::mbyte::utf_ptr2cells(buf.as_ptr().cast())
+    crate::mbyte::utf_ptr2cells(crate::memory::cstr_cluster_bytes(buf.as_ptr().cast()))
 }
 
 pub fn schar_len(sc: Schar) -> usize {
@@ -520,7 +520,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
 
     let start_col = col;
     let max_col = grid_st().grid_line_maxcol;
-    let mut ci = utf_ptr2_str_char_info_len(text, len);
+    let mut ci = utf_ptr2_str_char_info_len(crate::memory::cstr_as_bytes((text).cast()), len);
     while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
         let cli = utf_cluster_info_len(ci, &mut len);
         let mut mbyte_cells = cli.cells;
@@ -1235,8 +1235,10 @@ fn grid_draw_bordertext(
             }
             let mut p = text;
             while !crate::memory::cstr_is_empty(p) && overflow > 0 {
-                overflow -= utf_ptr2cells(p);
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                overflow -= utf_ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
+                p = p.wrapping_add(
+                    utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize
+                );
             }
             text = p;
         }
@@ -1388,7 +1390,9 @@ pub fn schar_from_char(mut c: i32) -> Schar {
     if c >= 0x20_0000 {
         c = 0xFFFD;
     }
-    utf_char2bytes(c, (&raw mut sc).cast());
+    utf_char2bytes(c, unsafe {
+        std::slice::from_raw_parts_mut((&raw mut sc).cast(), 6)
+    });
     sc
 }
 
@@ -1441,7 +1445,7 @@ pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
 
 #[cfg(test)]
 pub fn unittest_schar_from_cluster(buf: &std::ffi::CStr, firstc: &mut i32) -> Schar {
-    let ci = crate::mbyte::utf_ptr2_str_char_info(buf.as_ptr());
+    let ci = crate::mbyte::utf_ptr2_str_char_info(buf);
     let cli = crate::mbyte::utf_cluster_info(ci);
     *firstc = ci.chr.value;
     if ci.chr.value >= 0 {

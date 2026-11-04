@@ -52,7 +52,7 @@ use crate::keycodes::{
 use crate::mapping::{REMAP_NONE, REMAP_YES};
 use crate::mark::mark_adjust;
 use crate::mbyte::{
-    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_cluster_info, utf_head_off,
+    mb_charlen, mb_string2cells_len, mb_tolower, ptr2cells, utf_cluster_info,
     utf_ptr2_str_char_info, utfc_ptr2len,
 };
 use crate::mcursor::mc_ins_cascading;
@@ -1006,10 +1006,13 @@ fn yank_copy_line(
             ))
         {
             s =
-                s - utf_head_off(
-                    bd.textstart.cast(),
-                    bd.textstart.wrapping_add((s - 1) as usize).cast(),
-                ) - 1;
+                s - {
+                    let (_b, _i) = crate::memory::cstr_span_to_char(
+                        bd.textstart.cast(),
+                        bd.textstart.wrapping_add((s - 1) as usize).cast(),
+                    );
+                    crate::mbyte::utf_head_off(_b, _i)
+                } - 1;
             out_size -= 1;
         }
     }
@@ -1645,7 +1648,9 @@ pub fn do_put(
                 let p_orig = p;
                 let plen = get_cursor_pos_len() as usize;
                 if dir == FORWARD && !crate::memory::cstr_is_empty(p) {
-                    p = p.wrapping_add(utfc_ptr2len(p) as usize);
+                    p = p.wrapping_add(
+                        utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize
+                    );
                 }
                 split_pos = ((p as usize) - (curline as usize)) as Colnr;
 
@@ -1842,7 +1847,7 @@ pub fn do_put(
                     curwin_mut().w_cursor.lnum,
                     crate::memory::cstr_from_ptr(oldp),
                 );
-                let mut ci = utf_ptr2_str_char_info(oldp);
+                let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((oldp).cast()));
                 vcol = 0;
                 while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
                     let cli = utf_cluster_info(ci);
@@ -1864,7 +1869,13 @@ pub fn do_put(
                     bd.startspaces = incr - bd.endspaces;
                     bd.textcol -= 1;
                     delcount = 1;
-                    bd.textcol -= utf_head_off(oldp, oldp.wrapping_add(bd.textcol as usize));
+                    bd.textcol -= {
+                        let (_b, _i) = crate::memory::cstr_span_to_char(
+                            (oldp).cast(),
+                            (oldp.wrapping_add(bd.textcol as usize)).cast(),
+                        );
+                        crate::mbyte::utf_head_off(_b, _i)
+                    };
                     if crate::memory::cstr_first_byte(oldp.wrapping_add(bd.textcol as usize))
                         != TAB as u8
                     {
@@ -2079,7 +2090,13 @@ pub fn do_put(
 
                         ml_replace(lnum, newp.cast(), true);
 
-                        first_byte_off = utf_head_off(newp.cast(), ptr_.wrapping_sub(1).cast());
+                        first_byte_off = {
+                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                newp.cast(),
+                                ptr_.wrapping_sub(1).cast(),
+                            );
+                            crate::mbyte::utf_head_off(_b, _i)
+                        };
                         drop(newp_vec);
 
                         if lnum == curwin_mut().w_cursor.lnum {
@@ -2286,10 +2303,13 @@ pub fn do_put(
                 if col > 1 {
                     curbuf_mut().b_op_end.col = col - 1;
                     if last_item.size > 0 {
-                        curbuf_mut().b_op_end.col -= utf_head_off(
-                            last_item.data,
-                            last_item.data.wrapping_add(last_item.size - 1),
-                        );
+                        curbuf_mut().b_op_end.col -= {
+                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                (last_item.data).cast(),
+                                (last_item.data.wrapping_add(last_item.size - 1)).cast(),
+                            );
+                            crate::mbyte::utf_head_off(_b, _i)
+                        };
                     }
                 } else {
                     curbuf_mut().b_op_end.col = 0;
@@ -2371,11 +2391,11 @@ fn dis_msg(p_opt: Option<&CStr>, skip_esc: bool) {
             && skip_esc
             && crate::memory::cstr_len(p) == 1)
     {
-        n -= ptr2cells(p);
+        n -= ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
         if n < 0 {
             break;
         }
-        let l = utfc_ptr2len(p);
+        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
         if l > 1 {
             msg_outtrans_len(crate::memory::cstr_slice(p, l as usize), l, 0, false);
             p = p.wrapping_add(l as usize);
@@ -2464,11 +2484,11 @@ pub fn ex_display(eap: &mut Exarg) {
                     }
                     let mut p = yb_ref.y_array[j].data.cast_const();
                     while !crate::memory::cstr_is_empty(p) {
-                        n -= ptr2cells(p);
+                        n -= ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
                         if n < 0 {
                             break;
                         }
-                        let clen = utfc_ptr2len(p);
+                        let clen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
                         msg_outtrans_len(
                             crate::memory::cstr_slice(p, clen.max(0) as usize),
                             clen,
@@ -2739,7 +2759,9 @@ fn str_to_reg(
             let s = item.as_ref();
             y_ptr
                 .y_array
-                .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(s)));
+                .push(cstr_to_string(crate::memory::cstr_as_opt_cstr(
+                    (s).as_ptr(),
+                )));
             if yank_type == MotionType::MtBlockWise {
                 let charlen = vim_strsize(s) as usize;
                 maxlen = maxlen.max(charlen);

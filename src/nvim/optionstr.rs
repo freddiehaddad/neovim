@@ -967,7 +967,7 @@ fn illegal_char<'a>(errbuf: Option<CharBuf>, c: i32) -> Option<&'a CStr> {
     opt_error(
         errbuf,
         c"E539: Illegal character <%s>",
-        crate::memory::cstr_from_ptr(transchar(c)),
+        crate::memory::cstr_from_ptr((transchar(c)).as_ptr()),
     )
 }
 
@@ -2167,7 +2167,9 @@ pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
         }
     }
 
-    let value_cstr = enc_canonize(args.os_newval.data.string().data);
+    let value_cstr = enc_canonize(crate::memory::cstr_from_ptr(
+        (args.os_newval.data.string().data).cast(),
+    ));
     let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
     args.os_prep = OptSetPrep::Encoding(value_cstr);
     if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
@@ -2645,7 +2647,7 @@ pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
                     return opt_error(
                         errbuf,
                         c"E526: Missing number after <%s>",
-                        crate::memory::cstr_from_ptr(transchar_byte(i32::from(b0))),
+                        crate::memory::cstr_from_ptr((transchar_byte(i32::from(b0))).as_ptr()),
                     );
                 } else {
                     return Some(c"");
@@ -2718,10 +2720,10 @@ pub fn validate_shortmess(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_showbreak(args: &mut Optset) -> Option<&CStr> {
     let mut s = args.os_newval.data.string().data;
     while !crate::memory::cstr_is_empty(s) {
-        if ptr2cells(s) != 1 {
+        if ptr2cells(crate::memory::cstr_cluster_bytes((s).cast())) != 1 {
             return Some(E_SHOWBREAK_CONTAINS_UNPRINTABLE_OR_WIDE_CHARACTER);
         }
-        s = s.wrapping_add(utfc_ptr2len(s) as usize);
+        s = s.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize);
     }
     None
 }
@@ -3427,7 +3429,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
         };
     }
 
-    let ci = utf_ptr2_str_char_info(s);
+    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((s).cast()));
     let cli = utf_cluster_info(ci);
     *p = crate::memory::cstr_from_ptr(cli.next.ptr);
     if cli.cells > 1 {
@@ -3762,7 +3764,13 @@ pub fn set_chars_option<'a>(
             for entry in tab {
                 if let Some(slot) = entry.target.slot_mut(&mut fcs_chars, &mut lcs_chars) {
                     let s_cstr = match entry.def {
-                        Some(d) if ptr2cells(d.as_ptr()) == 1 => Some(d),
+                        Some(d)
+                            if ptr2cells(crate::memory::cstr_cluster_bytes(
+                                (d.as_ptr()).cast(),
+                            )) == 1 =>
+                        {
+                            Some(d)
+                        }
                         _ => entry.fallback,
                     };
                     *slot = schar_from_str(s_cstr);

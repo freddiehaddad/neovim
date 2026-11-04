@@ -805,7 +805,7 @@ fn set_init_default_backupskip() {
     for &name in &names {
         #[cfg(unix)]
         let (p_owned, p, mut plen): (Option<std::ffi::CString>, *const _, usize) =
-            if crate::memory::cstr_is_empty(name) {
+            if name.to_bytes().is_empty() {
                 #[cfg(target_os = "macos")]
                 {
                     (None, c"/private/tmp".as_ptr(), "/private/tmp".len())
@@ -901,7 +901,7 @@ fn set_init_default_cdpath() {
     change_option_default(
         K_OPT_CDPATH,
         cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-            crate::memory::cstr_until_nul(&buf_vec),
+            (crate::memory::cstr_until_nul(&buf_vec)).as_ptr(),
         )),
     );
 }
@@ -927,7 +927,7 @@ fn set_init_expand_env() {
             );
         }
         if let Some(p) = p {
-            let ov = cstr_to_obj(crate::memory::cstr_as_opt_cstr(p));
+            let ov = cstr_to_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr()));
             if let Some(varp) = unsafe { opt.var.cast::<u8>().as_mut() } {
                 set_option_varp(opt_idx, varp, ov);
             }
@@ -1039,7 +1039,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
             crate::memory::cstr_as_opt_cstr(def_val.data.string().data),
         )
     {
-        def_val = cstr_as_obj(crate::memory::cstr_as_opt_cstr(s));
+        def_val = cstr_as_obj(crate::memory::cstr_as_opt_cstr((s).as_ptr()));
     }
     if optval_is_owned(opt_idx) {
         copy_object(def_val, None)
@@ -2533,7 +2533,9 @@ pub fn apply_optionset_autocmd_now(
     oldval_l: Object,
     newval: Object,
 ) {
-    if starting_val() != 0 || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE)) {
+    if starting_val() != 0
+        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_OPTION_TYPE)).as_ptr())
+    {
         return;
     }
 
@@ -3640,7 +3642,7 @@ pub fn get_tty_option(name: &[u8]) -> Object {
             let mut value = [0u8; NUMBUFLEN];
             vim_snprintf!(value.as_mut_ptr().cast(), NUMBUFLEN, c"%d", g_st().t_colors);
             cstr_to_obj(crate::memory::cstr_as_opt_cstr(
-                crate::memory::cstr_until_nul(&value),
+                (crate::memory::cstr_until_nul(&value)).as_ptr(),
             ))
         }
     } else if name == b"term" {
@@ -5009,7 +5011,9 @@ fn opt_from_callback(cb: &mut Callback) -> Object {
             return luaref_obj(api_new_luaref(luaref));
         }
         K_CALLBACK_EXPR | K_CALLBACK_FUNCREF => {
-            return cstr_to_obj(crate::memory::cstr_as_opt_cstr(cb.data.as_funcref()));
+            return cstr_to_obj(crate::memory::cstr_as_opt_cstr(
+                (cb.data.as_funcref()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            ));
         }
         K_CALLBACK_PARTIAL => {
             let mut tv = TypVal::new();
@@ -7994,7 +7998,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     if wc != 0 {
         crate::memory::copy_bytes_to_c_buf(
             g_st().name_buff_bytes_mut(),
-            crate::memory::cstr_as_bytes(transchar(wc as i32)),
+            crate::memory::cstr_as_bytes((transchar(wc as i32)).as_ptr()),
         );
         return;
     }
@@ -8249,7 +8253,7 @@ pub fn set_fileformat(eol_style: i32, opt_flags: i32) {
     if let Some(p) = p {
         set_option_direct(
             K_OPT_FILEFORMAT,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p)),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr())),
             opt_flags,
             0,
         );
@@ -8550,9 +8554,9 @@ fn option_info_dict(
     put_c(
         &mut dict,
         c"type",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(optval_type_name(
-            get_option(get_opt_idx(opt)).opt_type,
-        ))),
+        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
+            (optval_type_name(get_option(get_opt_idx(opt)).opt_type)).as_ptr(),
+        )),
     );
     put_c(&mut dict, c"default", opt.def_val);
     put_c(

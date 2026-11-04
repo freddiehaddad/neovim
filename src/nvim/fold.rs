@@ -1503,17 +1503,17 @@ pub fn get_foldtext(
             let mut idx = 0;
             let slen = bytes.len() - 1;
             while idx < slen && bytes[idx] != 0 {
-                let p_at = bytes[idx..].as_ptr().cast();
-                let len = utfc_ptr2len(p_at) as usize;
+                let p_at: *const std::ffi::c_char = bytes[idx..].as_ptr().cast();
+                let len = utfc_ptr2len(&bytes[idx..slen]) as usize;
                 if len > 1 {
-                    if !vim_isprintc(utf_ptr2char(p_at)) {
+                    if !vim_isprintc(utf_ptr2char(&bytes[idx..slen])) {
                         break;
                     }
                     idx += len;
                 } else if bytes[idx] == TAB {
                     bytes[idx] = b' ';
                     idx += 1;
-                } else if ptr2cells(p_at) > 1 {
+                } else if ptr2cells(crate::memory::cstr_cluster_bytes((p_at).cast())) > 1 {
                     break;
                 } else {
                     idx += 1;
@@ -2725,7 +2725,10 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let txt = ngettext(c"+-%s%3d line: ", c"+-%s%3d lines: ", count as u64);
         let s_bytes = crate::memory::cstr_from_ptr(s).to_bytes_with_nul();
         let s_len = s_bytes.len() - 1;
-        let len = crate::memory::cstr_len(txt) + crate::memory::cstr_len(dashes) + 20 + s_len;
+        let len = crate::memory::cstr_len((txt).as_ptr())
+            + crate::memory::cstr_len((dashes).as_ptr())
+            + 20
+            + s_len;
         let mut r_vec = vec![0u8; len];
         vim_snprintf!(r_vec.as_mut_ptr().cast(), len, txt, dashes, count);
         let r_len = crate::memory::cstr_until_nul(&r_vec).to_bytes().len();

@@ -1538,12 +1538,18 @@ fn vim_vsnprintf_typval_inner(
                                     let mut p1 = str_arg;
                                     let mut i: usize = 0;
                                     while !crate::memory::cstr_is_empty(p1) {
-                                        let cell = utf_ptr2cells(p1) as usize;
+                                        let cell = utf_ptr2cells(crate::memory::cstr_cluster_bytes(
+                                            (p1).cast(),
+                                        ))
+                                            as usize;
                                         if precision_specified && i + cell > precision {
                                             break;
                                         }
                                         i += cell;
-                                        p1 = p1.wrapping_add(utfc_ptr2len(p1) as usize);
+                                        p1 = p1.wrapping_add(utfc_ptr2len(
+                                            crate::memory::cstr_cluster_bytes((p1).cast()),
+                                        )
+                                            as usize);
                                     }
                                     str_arg_l =
                                         crate::memory::ptr_offset_from(p1, str_arg) as usize;
@@ -2359,8 +2365,11 @@ pub fn f_str2list(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     tv_list_alloc_ret(rettv, K_LIST_LEN_UNKNOWN_CONST);
     let mut p = tv_get_string(&argvars[0]).as_ptr();
     while !crate::memory::cstr_is_empty(p) {
-        tv_list_append_number(rettv.vval.v_list_ref(), Varnumber::from(utf_ptr2char(p)));
-        p = p.wrapping_add(utf_ptr2len(p) as usize);
+        tv_list_append_number(
+            rettv.vval.v_list_ref(),
+            Varnumber::from(utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()))),
+        );
+        p = p.wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((p).cast())) as usize);
     }
 }
 
@@ -2428,12 +2437,14 @@ pub fn f_strgetchar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     while charidx >= 0 && byteidx < len {
         if charidx == 0 {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(utf_ptr2char(
-                str_.wrapping_add(byteidx),
+                crate::memory::cstr_char_bytes((str_.wrapping_add(byteidx)).cast()),
             )));
             break;
         }
         charidx -= 1;
-        byteidx += utf_ptr2len(str_.wrapping_add(byteidx)) as usize;
+        byteidx += utf_ptr2len(crate::memory::cstr_char_bytes(
+            (str_.wrapping_add(byteidx)).cast(),
+        )) as usize;
     }
 }
 
@@ -2596,9 +2607,13 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         if nchar > 0 {
             while nchar > 0 && (nbyte as usize) < slen {
                 if skipcc != 0 {
-                    nbyte += utfc_ptr2len(p.wrapping_add(nbyte as usize));
+                    nbyte += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                        (p.wrapping_add(nbyte as usize)).cast(),
+                    ));
                 } else {
-                    nbyte += utf_ptr2len(p.wrapping_add(nbyte as usize));
+                    nbyte += utf_ptr2len(crate::memory::cstr_char_bytes(
+                        (p.wrapping_add(nbyte as usize)).cast(),
+                    ));
                 }
                 nchar -= 1;
             }
@@ -2614,9 +2629,13 @@ pub fn f_strcharpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
             if off < 0 {
                 len += 1;
             } else if skipcc != 0 {
-                len += utfc_ptr2len(p.wrapping_add(off as usize));
+                len += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (p.wrapping_add(off as usize)).cast(),
+                ));
             } else {
-                len += utf_ptr2len(p.wrapping_add(off as usize));
+                len += utf_ptr2len(crate::memory::cstr_char_bytes(
+                    (p.wrapping_add(off as usize)).cast(),
+                ));
             }
             charlen -= 1;
         }
@@ -2675,7 +2694,9 @@ pub fn f_strpart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     if argvars[2].v_type != VarType::VarUnknown && argvars[3].v_type != VarType::VarUnknown {
         let mut off = n;
         while off < slen && len > 0 {
-            off += Varnumber::from(utfc_ptr2len(p.wrapping_add(off as usize)));
+            off += Varnumber::from(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                (p.wrapping_add(off as usize)).cast(),
+            )));
             len -= 1;
         }
         len = off - n;
@@ -2857,18 +2878,19 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut first = true;
     while !crate::memory::cstr_is_empty(in_str) {
         let mut cpstr = in_str;
-        let inlen = utfc_ptr2len(in_str) as usize;
+        let inlen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((in_str).cast())) as usize;
         let mut cplen = inlen;
         let mut idx: i32 = 0;
         let mut p = fromstr;
         while !crate::memory::cstr_is_empty(p) {
-            let fromlen = utfc_ptr2len(p) as usize;
+            let fromlen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize;
             let in_slice = crate::memory::cstr_slice(in_str, inlen);
             let p_slice = crate::memory::cstr_slice(p, fromlen);
             if fromlen == inlen && in_slice == p_slice {
                 let mut tp = tostr;
                 while !crate::memory::cstr_is_empty(tp) {
-                    let tolen = utfc_ptr2len(tp) as usize;
+                    let tolen =
+                        utfc_ptr2len(crate::memory::cstr_cluster_bytes((tp).cast())) as usize;
                     if idx == 0 {
                         idx -= 1;
                         cplen = tolen;
@@ -2892,7 +2914,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             first = false;
             let mut tp = tostr;
             while !crate::memory::cstr_is_empty(tp) {
-                let tolen = utfc_ptr2len(tp) as usize;
+                let tolen = utfc_ptr2len(crate::memory::cstr_cluster_bytes((tp).cast())) as usize;
                 idx -= 1;
                 tp = tp.wrapping_add(tolen);
             }

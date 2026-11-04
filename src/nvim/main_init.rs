@@ -495,7 +495,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     if use_builtin_ui && !remote_ui {
         g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
         let rv = ui_client_start_server(
-            crate::memory::cstr_from_ptr(get_vim_var_str(VV_PROGPATH)),
+            crate::memory::cstr_from_ptr((get_vim_var_str(VV_PROGPATH)).as_ptr()),
             &params.argv,
         );
         if rv == 0 {
@@ -892,7 +892,7 @@ pub fn getout(mut exitval: i32) -> ! {
     set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
     set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
-    if crate::memory::cstr_is_empty(get_vim_var_str(VV_EXITREASON)) {
+    if crate::memory::cstr_is_empty((get_vim_var_str(VV_EXITREASON)).as_ptr()) {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
 
@@ -2229,7 +2229,7 @@ fn do_system_initialization() {
         let config_bytes = config_dirs.as_bytes();
         let mut iter = None;
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes(appname);
+        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
         let sysinit_suffix: [u8; 13] = [
             PATHSEP, b's', b'y', b's', b'i', b'n', b'i', b't', b'.', b'v', b'i', b'm', 0,
         ];
@@ -2298,7 +2298,7 @@ fn do_user_initialization() -> bool {
 
     if let Some(config_dirs) = stdpaths_get_xdg_var(XDGVarType::XDGConfigDirs) {
         let appname = get_appname(false);
-        let appname_bytes = crate::memory::cstr_as_bytes(appname);
+        let appname_bytes = crate::memory::cstr_as_bytes((appname).as_ptr());
         let init_lua_suffix: [u8; 10] =
             [PATHSEP, b'i', b'n', b'i', b't', b'.', b'l', b'u', b'a', 0];
         let init_vim_suffix: [u8; 10] =

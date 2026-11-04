@@ -38,7 +38,7 @@ use crate::help::{
 use crate::insexpand::{TAG_INS_COMP, TAG_NOIC, ins_compl_check_keys, ins_compl_interrupted};
 use crate::lua::executor::nlua_call_excmd;
 use crate::mark::{Fmark, Fmarkv, fm_getname, mark_view_make, mark_view_restore, setpcmark};
-use crate::mbyte::{Vimconv, convert_setup, mb_ptr_adv, mb_strnicmp, string_convert, utfc_ptr2len};
+use crate::mbyte::{Vimconv, convert_setup, mb_strnicmp, string_convert, utfc_ptr2len};
 use crate::memory::cstr_to_cstring;
 use crate::message::{
     emsg, give_warning, msg, msg_delay, msg_outtrans, msg_putchar, msg_puts, msg_puts_title, semsg,
@@ -1412,18 +1412,32 @@ fn find_tagfunc_tags(
 
                 if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
                     len += crate::memory::cstr_len(tv.vval.v_string()) + 1;
-                    if crate::memory::cstr_as_bytes(dict_key) == b"name" {
+                    if crate::memory::cstr_as_bytes(
+                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    ) == b"name"
+                    {
                         res_name = tv.vval.v_string().cast();
-                    } else if crate::memory::cstr_as_bytes(dict_key) == b"filename" {
+                    } else if crate::memory::cstr_as_bytes(
+                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    ) == b"filename"
+                    {
                         res_fname = tv.vval.v_string().cast();
-                    } else if crate::memory::cstr_as_bytes(dict_key) == b"cmd" {
+                    } else if crate::memory::cstr_as_bytes(
+                        (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    ) == b"cmd"
+                    {
                         res_cmd = tv.vval.v_string().cast();
                     } else {
                         has_extra = true;
-                        if crate::memory::cstr_as_bytes(dict_key) == b"kind" {
+                        if crate::memory::cstr_as_bytes(
+                            (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                        ) == b"kind"
+                        {
                             res_kind = tv.vval.v_string().cast();
                         } else {
-                            len += crate::memory::cstr_len(dict_key) + 1;
+                            len += crate::memory::cstr_len(
+                                (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                            ) + 1;
                         }
                     }
                 }
@@ -1472,7 +1486,9 @@ fn find_tagfunc_tags(
                     for (hi, di) in item_dict.dv_hashtab.iter_items() {
                         let dict_key = hi.key_cstr();
                         let tv = &di.di_tv;
-                        let key_bytes = crate::memory::cstr_as_bytes(dict_key);
+                        let key_bytes = crate::memory::cstr_as_bytes(
+                            (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                        );
                         if tv.v_type == VarType::VarString
                             && !tv.vval.v_string().is_null()
                             && key_bytes != b"name"
@@ -1578,8 +1594,8 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
 
     if let Some(ref lang_find) = st.help_lang_find
         && mb_strnicmp(
-            st.help_lang.as_ptr().cast(),
-            lang_find.as_ptr().cast(),
+            crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
+            crate::memory::cstr_as_bytes(lang_find.as_ptr().cast()),
             MAXCOL as usize,
         ) != 0
     {
@@ -1593,8 +1609,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         && fname_bytes[fname_bytes.len() - 1] == b'x'
         && fname_bytes[fname_bytes.len() - 4] == b'.'
         && mb_strnicmp(
-            curbuf_mut().b_fname.wrapping_add(fname_bytes.len() - 3),
-            st.help_lang.as_ptr().cast(),
+            crate::memory::cstr_as_bytes(
+                (curbuf_mut().b_fname.wrapping_add(fname_bytes.len() - 3)).cast(),
+            ),
+            crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
             2,
         ) == 0
     {
@@ -1603,7 +1621,12 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         st.help_pri = 1;
         let mut s = opt_vars().p_hlg;
         while !crate::memory::cstr_is_empty(s) {
-            if mb_strnicmp(s, st.help_lang.as_ptr().cast(), 2) == 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes((s).cast()),
+                crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
+                2,
+            ) == 0
+            {
                 break;
             }
             st.help_pri += 1;
@@ -1615,7 +1638,12 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         }
         if crate::memory::cstr_is_empty(s) {
             st.help_pri += 1;
-            if mb_strnicmp(st.help_lang.as_ptr().cast(), c"en", MAXCOL as usize) != 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
+                (c"en").to_bytes(),
+                MAXCOL as usize,
+            ) != 0
+            {
                 st.help_pri += 1;
             }
         }
@@ -1731,8 +1759,8 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         }
         convert_setup(
             &mut st.vimconv,
-            st.lbuf[20..].as_ptr().cast(),
-            opt_vars().p_enc,
+            crate::memory::cstr_as_opt_cstr(st.lbuf[20..].as_ptr().cast()),
+            crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
         );
     }
 
@@ -1883,7 +1911,12 @@ fn findtags_parse_line(
             return TagmatchStatus::TagMatchStop;
         } else if st.state == TagsearchState::TsSkipBack {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes(tagpp.tagname.cast()),
+                crate::memory::cstr_as_bytes(st.orgpat.head.cast()),
+                cmplen as usize,
+            ) != 0
+            {
                 st.state = TagsearchState::TsStepForward;
             } else {
                 sinfo_p.curr_offset = sinfo_p.curr_offset_used;
@@ -1891,7 +1924,12 @@ fn findtags_parse_line(
             return TagmatchStatus::TagMatchNext;
         } else if st.state == TagsearchState::TsStepForward {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes(tagpp.tagname.cast()),
+                crate::memory::cstr_as_bytes(st.orgpat.head.cast()),
+                cmplen as usize,
+            ) != 0
+            {
                 return if st.tell() > sinfo_p.match_offset {
                     TagmatchStatus::TagMatchStop
                 } else {
@@ -1900,7 +1938,12 @@ fn findtags_parse_line(
             }
         } else {
             assert!(cmplen >= 0);
-            if mb_strnicmp(tagpp.tagname.cast(), st.orgpat.head.cast(), cmplen as usize) != 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes(tagpp.tagname.cast()),
+                crate::memory::cstr_as_bytes(st.orgpat.head.cast()),
+                cmplen as usize,
+            ) != 0
+            {
                 return TagmatchStatus::TagMatchNext;
             }
         }
@@ -1948,7 +1991,11 @@ fn findtags_match_tag(
         match_ = false;
     } else if st.orgpat.regmatch.rm_ic {
         assert!(cmplen >= 0);
-        match_ = mb_strnicmp(tagpp.tagname.cast(), st.orgpat.pat.cast(), cmplen as usize) == 0;
+        match_ = mb_strnicmp(
+            crate::memory::cstr_as_bytes(tagpp.tagname.cast()),
+            crate::memory::cstr_as_bytes(st.orgpat.pat.cast()),
+            cmplen as usize,
+        ) == 0;
         if match_ {
             let tn_b = crate::memory::cstr_as_bytes(tagpp.tagname.cast());
             let pat_b = crate::memory::cstr_as_bytes(st.orgpat.pat.cast());
@@ -1987,7 +2034,11 @@ fn findtags_match_tag(
 }
 
 fn findtags_string_convert(st: &mut FindtagsState) {
-    let Some(conv_line) = string_convert(&st.vimconv, st.lbuf.as_mut_ptr().cast(), None) else {
+    let Some(conv_line) = string_convert(
+        &st.vimconv,
+        crate::memory::cstr_as_bytes((st.lbuf.as_mut_ptr()).cast()),
+        None,
+    ) else {
         return;
     };
 
@@ -2232,7 +2283,7 @@ fn findtags_in_file(st: &mut FindtagsState, _flags: i32, buf_ffname: Option<&std
 
         st.fp = None;
         if st.vimconv.vc_type != CONV_NONE {
-            convert_setup(&mut st.vimconv, ptr::null_mut(), ptr::null_mut());
+            convert_setup(&mut st.vimconv, None, None);
         }
 
         if margs.sort_error {
@@ -2363,8 +2414,10 @@ pub fn find_tags(
                     let i = crate::memory::cstr_len(curbuf_mut().b_fname) as i32;
                     if i > 4
                         && mb_strnicmp(
-                            curbuf_mut().b_fname.wrapping_add((i - 4) as usize),
-                            c".txt",
+                            crate::memory::cstr_as_bytes(
+                                (curbuf_mut().b_fname.wrapping_add((i - 4) as usize)).cast(),
+                            ),
+                            (c".txt").to_bytes(),
                             MAXCOL as usize,
                         ) == 0
                     {
@@ -2646,7 +2699,7 @@ fn parse_match(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
                 loop {
                     let p_bytes = crate::memory::cstr_as_bytes(p.cast());
                     if !p_bytes.first().is_some_and(u8::is_ascii_alphabetic)
-                        && utfc_ptr2len(p.cast()) <= 1
+                        && utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) <= 1
                     {
                         break;
                     }
@@ -2673,7 +2726,12 @@ fn parse_match(lbuf_slice: &[u8], tagp: &mut Tagptrs) -> bool {
                         break;
                     };
                     p = p.wrapping_add(t_idx);
-                    mb_ptr_adv(&mut p);
+                    {
+                        let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            (p).cast(),
+                        )) as usize;
+                        p = (p).wrapping_add(_adv);
+                    };
                 }
             }
         }
@@ -3365,7 +3423,12 @@ pub fn get_tags(
                             break;
                         }
                     }
-                    mb_ptr_adv(&mut p);
+                    {
+                        let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            (p).cast(),
+                        )) as usize;
+                        p = (p).wrapping_add(_adv);
+                    };
                 }
             }
         }

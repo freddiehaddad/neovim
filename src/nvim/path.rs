@@ -10,7 +10,7 @@ use crate::fileio::{file_pat_to_reg_pat, match_file_list};
 use crate::globals::*;
 #[cfg(unix)]
 use crate::mbyte::mb_isalpha;
-use crate::mbyte::{mb_strcmp_ic, utf_fold, utf_head_off, utfc_ptr2len};
+use crate::mbyte::{mb_strcmp_ic, utf_fold, utfc_ptr2len};
 use crate::memory::{cstr_from_bytes, cstr_to_cstring};
 use crate::option::copy_option_part;
 use crate::option_vars::*;
@@ -282,7 +282,9 @@ pub fn invocation_path_tail(
     let mut idx = 0usize;
     let mut inquote = false;
     while idx < bytes.len() && (inquote || bytes[idx] != b' ') {
-        let l = utfc_ptr2len(base.wrapping_add(idx)) as usize;
+        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+            (base.wrapping_add(idx)).cast(),
+        )) as usize;
         if vim_ispathsep_nocolon(bytes[idx] as i32) {
             tail_idx = idx + 1;
             tail_end_idx = tail_idx;
@@ -429,7 +431,7 @@ pub fn shorten_dir_len(str_: *mut u8, trim_len: i32) {
                     skip = true;
                 }
             }
-            let mut l = utfc_ptr2len(s.cast());
+            let mut l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(s.cast()));
             while {
                 l -= 1;
                 l > 0
@@ -490,8 +492,8 @@ pub fn concat_fnames_cstr(
     sep: bool,
 ) -> std::ffi::CString {
     do_concat_fnames(
-        crate::memory::cstr_as_bytes(fname1),
-        crate::memory::cstr_as_bytes(fname2),
+        crate::memory::cstr_as_bytes(fname1.into_c_char_ptr()),
+        crate::memory::cstr_as_bytes(fname2.into_c_char_ptr()),
         sep,
     )
 }
@@ -632,14 +634,17 @@ fn do_path_expand(
                 #[cfg(not(windows))]
                 let is_icase_alpha = opt_vars().p_fic == 0
                     && (flags & EW_ICASE) != 0
-                    && mb_isalpha(crate::mbyte::utf_ptr2char(path_end));
+                    && mb_isalpha(crate::mbyte::utf_ptr2char(crate::memory::cstr_char_bytes(
+                        (path_end).cast(),
+                    )));
                 #[cfg(windows)]
                 let is_icase_alpha = false;
                 is_esc_wild || is_icase_alpha
             } {
                 e = p;
             }
-            let charlen = utfc_ptr2len(path_end) as usize;
+            let charlen =
+                utfc_ptr2len(crate::memory::cstr_cluster_bytes((path_end).cast())) as usize;
             unsafe { ptr::copy_nonoverlapping(path_end, p, charlen) };
             p = p.wrapping_add(charlen);
             path_end = path_end.wrapping_add(charlen);
@@ -1685,7 +1690,13 @@ pub fn simplify_filename(filename: *mut u8) -> usize {
 
                     p = p.wrapping_sub(1);
                     while p > start && after_pathsep(start.cast(), p.cast()) == 0 {
-                        let off = utf_head_off(start.cast(), p.wrapping_sub(1).cast()) + 1;
+                        let off = {
+                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                start.cast(),
+                                p.wrapping_sub(1).cast(),
+                            );
+                            crate::mbyte::utf_head_off(_b, _i)
+                        } + 1;
                         p = p.wrapping_sub(off as usize);
                     }
 
@@ -1837,8 +1848,8 @@ pub fn path_with_extension(
         let last_dot = path.wrapping_add(pos);
         mb_strcmp_ic(
             opt_vars().p_fic != 0,
-            last_dot.wrapping_add(1),
-            extension.as_ptr(),
+            crate::memory::cstr_from_ptr((last_dot.wrapping_add(1)).cast()),
+            crate::memory::cstr_from_ptr((extension.as_ptr()).cast()),
         ) == 0
     }
 }
@@ -1974,9 +1985,11 @@ pub fn after_pathsep(
     let p = p.into_c_char_ptr();
     {
         i32::from(
-            p > b
-                && vim_ispathsep((*crate::globals::gptr(p.wrapping_sub(1))) as i32)
-                && utf_head_off(b, p.wrapping_sub(1)) == 0,
+            p > b && vim_ispathsep((*crate::globals::gptr(p.wrapping_sub(1))) as i32) && {
+                let (_b, _i) =
+                    crate::memory::cstr_span_to_char((b).cast(), (p.wrapping_sub(1)).cast());
+                crate::mbyte::utf_head_off(_b, _i)
+            } == 0,
         )
     }
 }
@@ -2425,7 +2438,10 @@ mod tests {
     use std::ffi::CString;
 
     fn init_progpath() {
-        if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
+        if crate::eval::vars::get_vim_var_str(VV_PROGPATH)
+            .to_bytes()
+            .is_empty()
+        {
             set_vim_var_string(VV_PROGPATH, Some(c"nvim"), -1);
         }
     }

@@ -1671,7 +1671,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
     let mut idx: Varnumber = 0;
     while !crate::memory::cstr_is_empty(p) {
-        let len = utfc_ptr2len(p);
+        let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast()));
         if len == 0 {
             break;
         }
@@ -1906,7 +1906,7 @@ pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
     for li in crate::eval::typval::list_iter_mut(l.first_opt()) {
         let n = tv_get_number(&li.li_tv);
-        let buflen = utf_char2bytes(n as i32, buf.as_mut_ptr()) as usize;
+        let buflen = utf_char2bytes(n as i32, &mut buf) as usize;
         buf[buflen] = 0;
         out.extend_from_slice(&buf[..buflen]);
     }
@@ -3355,7 +3355,7 @@ pub fn tv_dict_copy(
         let new_di = if let Some(conv) = conv.filter(|c| c.vc_type != CONV_NONE) {
             let key_bytes = key_cstr.to_bytes();
             let mut len = key_bytes.len();
-            if let Some(key) = string_convert(conv, key_cstr.as_ptr(), Some(&mut len)) {
+            if let Some(key) = string_convert(conv, key_cstr.to_bytes(), Some(&mut len)) {
                 tv_dict_item_alloc_len(&key[..len])
             } else {
                 tv_dict_item_alloc_len(key_bytes)

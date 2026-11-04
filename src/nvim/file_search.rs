@@ -1508,7 +1508,7 @@ pub fn file_name_in_line(
             if p_bytes.starts_with(english) {
                 p_bytes = &p_bytes[english.len()..];
             } else {
-                let loc_msg = crate::memory::cstr_as_bytes(tr(LINE_MSG));
+                let loc_msg = crate::memory::cstr_as_bytes((tr(LINE_MSG)).as_ptr());
                 if p_bytes.starts_with(loc_msg) {
                     p_bytes = &p_bytes[loc_msg.len()..];
                 } else {
@@ -1551,7 +1551,7 @@ fn eval_includeexpr(ptr_slice: &[u8]) -> Option<std::ffi::CString> {
         let mut res = None;
         if eval_expr_option_tv(&mut curbuf_mut().b_p_inex, use_sandbox, &mut tv) {
             let s = tv_get_string(&tv);
-            res = Some(crate::memory::cstr_to_cstring(s));
+            res = Some(crate::memory::cstr_to_cstring((s).as_ptr()));
             tv_clear(&mut tv);
         }
 

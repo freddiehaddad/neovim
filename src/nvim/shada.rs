@@ -1216,7 +1216,10 @@ fn var_shada_iter(
         let mut i = 0;
         while i < hinum
             && (hashitem_empty(&harray[i])
-                || (var_flavour(crate::memory::cstr_as_bytes(harray[i].key_cstr())) & flavour) == 0)
+                || (var_flavour(crate::memory::cstr_as_bytes(
+                    (harray[i].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                )) & flavour)
+                    == 0)
         {
             i += 1;
         }
@@ -1231,7 +1234,10 @@ fn var_shada_iter(
     idx += 1;
     while idx < hinum {
         if !hashitem_empty(&harray[idx])
-            && (var_flavour(crate::memory::cstr_as_bytes(harray[idx].key_cstr())) & flavour) != 0
+            && (var_flavour(crate::memory::cstr_as_bytes(
+                (harray[idx].key_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            )) & flavour)
+                != 0
         {
             return Some(idx);
         }
@@ -2430,9 +2436,10 @@ fn add_search_pattern(
                 is_last_used,
                 is_substitute_pattern,
                 highlighted: is_last_used && search_highlighted,
-                pat: cstr_as_string(crate::memory::cstr_as_opt_cstr(get_search_pattern_ptr(
-                    is_substitute_pattern,
-                ))),
+                pat: cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    (get_search_pattern_ptr(is_substitute_pattern))
+                        .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                )),
                 search_backward: !is_substitute_pattern && pat.off.dir == b'?',
             }),
             additional_data: pat.additional_data,
@@ -2644,7 +2651,7 @@ fn shada_write(
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    long_version(),
+                    (long_version()).as_ptr(),
                 ))),
             },
         },
@@ -4075,7 +4082,12 @@ fn shada_removable(name: &CStr) -> bool {
                 g_st().name_buff_bytes_mut(),
                 true,
             );
-            if mb_strnicmp(name_buff_ptr, new_name.as_ptr(), n) == 0 {
+            if mb_strnicmp(
+                crate::memory::cstr_as_bytes((name_buff_ptr).cast()),
+                crate::memory::cstr_as_bytes((new_name.as_ptr()).cast()),
+                n,
+            ) == 0
+            {
                 retval = true;
                 break;
             }

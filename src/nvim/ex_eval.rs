@@ -1607,12 +1607,12 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
 fn get_end_emsg(cstack: &Cstack) -> &'static CStr {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
     if (fl & CSF_WHILE) != 0 {
-        return crate::memory::cstr_from_ptr(gettext(E_ENDWHILE));
+        return crate::memory::cstr_from_ptr((gettext(E_ENDWHILE)).as_ptr());
     }
     if (fl & CSF_FOR) != 0 {
-        return crate::memory::cstr_from_ptr(gettext(E_ENDFOR));
+        return crate::memory::cstr_from_ptr((gettext(E_ENDFOR)).as_ptr());
     }
-    crate::memory::cstr_from_ptr(gettext(E_ENDIF))
+    crate::memory::cstr_from_ptr((gettext(E_ENDIF)).as_ptr())
 }
 
 pub fn rewind_conditionals(cstack: &mut Cstack, idx: i32, cond_type: i32, cond_level: &mut i32) {

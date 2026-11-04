@@ -54,8 +54,8 @@ use crate::r#match::{
     get_prevcol_hl_flag, get_search_match_hl, prepare_search_hl_line, update_search_hl,
 };
 use crate::mbyte::{
-    mb_charlen, mb_off_next, mb_string2cells, utf_cluster_info, utf_head_off,
-    utf_ptr2_str_char_info, utf_ptr2cells, utfc_ptr2len,
+    mb_charlen, mb_string2cells, utf_cluster_info, utf_ptr2_str_char_info, utf_ptr2cells,
+    utfc_ptr2len,
 };
 use crate::memline::{gchar_pos, ml_get_buf, ml_get_buf_len};
 use crate::r#move::{
@@ -552,9 +552,9 @@ fn draw_col_buf(
     mut fold_vcol: Option<&[Colnr]>,
     inc_vcol: bool,
 ) {
-    let text = text_buf.as_ptr().cast();
+    let text: *const std::ffi::c_char = text_buf.as_ptr().cast();
     {
-        let mut ci = utf_ptr2_str_char_info(text);
+        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(text));
         let end = text.wrapping_add(len);
         while ci.ptr < end && wlv.off < wp.w_view_width {
             let cli = utf_cluster_info(ci);
@@ -1211,18 +1211,20 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
             wlv.sc_extra = 0;
             wlv.sc_final = 0;
             wlv.extra_attr = attr;
-            wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes(text));
+            wlv.n_attr = mb_charlen(crate::memory::cstr_as_bytes((text).as_ptr()));
             if wlv.skip_cells > 0 {
                 let virt_text_width =
                     mb_string2cells(crate::memory::cstr_as_bytes(wlv.p_extra.cast())) as i32;
                 if virt_text_width > wlv.skip_cells {
                     let mut skip_cells_remaining = wlv.skip_cells;
                     while skip_cells_remaining > 0 {
-                        let cells = utf_ptr2cells(wlv.p_extra.cast());
+                        let cells =
+                            utf_ptr2cells(crate::memory::cstr_cluster_bytes(wlv.p_extra.cast()));
                         if cells > skip_cells_remaining {
                             break;
                         }
-                        let c_len = utfc_ptr2len(wlv.p_extra.cast());
+                        let c_len =
+                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(wlv.p_extra.cast()));
                         skip_cells_remaining -= cells;
                         wlv.p_extra = wlv.p_extra.wrapping_add(c_len as usize);
                         wlv.n_extra -= c_len;
@@ -1294,7 +1296,10 @@ fn schar_get_single_width(mb_schar: Schar) -> i32 {
     {
         let mut sc_buf = [0u8; MAX_SCHAR_SIZE];
         schar_get(&mut sc_buf, mb_schar);
-        debug_assert_eq!(crate::mbyte::ptr2cells(sc_buf.as_ptr().cast()), 1);
+        debug_assert_eq!(
+            crate::mbyte::ptr2cells(crate::memory::cstr_cluster_bytes(sc_buf.as_ptr().cast())),
+            1
+        );
     }
     let _ = mb_schar;
     1
@@ -1325,7 +1330,7 @@ fn win_line_skip_columns(
     let mut cs = CharSize::default();
 
     let mut vcol = wlv.vcol;
-    let mut ci = utf_ptr2_str_char_info(ptr);
+    let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((ptr).cast()));
     while vcol - csarg.extconceal_off < start_vcol {
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
@@ -2231,7 +2236,9 @@ pub fn win_line(
                 if has_decor && wlv.n_extra == 0 {
                     if wlv.vcol == wlv.fromcol
                         || (wlv.vcol + 1 == wlv.fromcol
-                            && (wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1))
+                            && (wlv.n_extra == 0
+                                && utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast()))
+                                    > 1))
                     {
                         area_active = true;
                     } else if area_active && wlv.vcol == wlv.tocol {
@@ -2281,10 +2288,13 @@ pub fn win_line(
 
                 if wlv.vcol == wlv.fromcol
                     || (wlv.vcol + 1 == wlv.fromcol
-                        && ((wlv.n_extra == 0 && utf_ptr2cells(ptr) > 1)
+                        && ((wlv.n_extra == 0
+                            && utf_ptr2cells(crate::memory::cstr_cluster_bytes((ptr).cast())) > 1)
                             || (wlv.n_extra > 0
                                 && !wlv.p_extra.is_null()
-                                && utf_ptr2cells(wlv.p_extra.cast()) > 1)))
+                                && utf_ptr2cells(crate::memory::cstr_cluster_bytes(
+                                    wlv.p_extra.cast(),
+                                )) > 1)))
                 {
                     *area_attr_p = vi_attr;
 
@@ -2427,7 +2437,8 @@ pub fn win_line(
                     wlv.n_extra -= 1;
                 } else {
                     debug_assert!(!wlv.p_extra.is_null());
-                    let ci = utf_ptr2_str_char_info(wlv.p_extra.cast());
+                    let ci =
+                        utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((wlv.p_extra).cast()));
                     let cli = utf_cluster_info(ci);
                     let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                     mb_schar = schar_from_cluster(ci, cli);
@@ -2511,7 +2522,7 @@ pub fn win_line(
                     wlv.skip_cells = 0;
                 }
 
-                let ci = utf_ptr2_str_char_info(ptr);
+                let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((ptr).cast()));
                 let cli = utf_cluster_info(ci);
                 let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
                 let mb_c = ci.chr.value;
@@ -2770,7 +2781,13 @@ pub fn win_line(
                         && lbr_char < 128
                         && vim_isbreak(lbr_char)
                     {
-                        let mb_off = utf_head_off(line, ptr.wrapping_sub(1));
+                        let mb_off = {
+                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                (line).cast(),
+                                (ptr.wrapping_sub(1)).cast(),
+                            );
+                            crate::mbyte::utf_head_off(_b, _i)
+                        };
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();
@@ -2789,7 +2806,8 @@ pub fn win_line(
                                 csarg.extconceal_off = wlv.extconceal_off;
                                 cstype = false;
                             }
-                            let lbr_ci = utf_ptr2_str_char_info(p);
+                            let lbr_ci =
+                                utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((p).cast()));
                             let lbr_cli = utf_cluster_info(lbr_ci);
                             let lbr_size = win_charsize(
                                 cstype,
@@ -3087,7 +3105,9 @@ pub fn win_line(
                     } else if mb_schar != 0 {
                         crate::memory::copy_bytes_to_c_buf(
                             &mut wlv.extra,
-                            crate::memory::cstr_as_bytes(transchar_buf(wp.buf_opt(), mb_c)),
+                            crate::memory::cstr_as_bytes(
+                                (transchar_buf(wp.buf_opt(), mb_c)).as_ptr(),
+                            ),
                         );
 
                         if wlv.n_extra == 0 {
@@ -3932,7 +3952,13 @@ fn invoke_range_next(wp: &mut WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_
 
     if col_off <= line_len - begin_col {
         let mut end_col = begin_col + col_off;
-        end_col += mb_off_next(line, line.wrapping_add(end_col as usize));
+        end_col += {
+            let (_b, _i) = crate::memory::cstr_span_to_char(
+                (line).cast(),
+                (line.wrapping_add(end_col as usize)).cast(),
+            );
+            crate::mbyte::mb_off_next(_b, _i)
+        };
         decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum - 1, end_col);
         validate_virtcol(wp);
         end_col

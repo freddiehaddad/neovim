@@ -476,10 +476,10 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     if !is_user_cmdidx(eap.cmdidx) && eap.cmdidx < CMD_SIZE {
         crate::lua::converter::lua_pushstring_opt(
             lstate,
-            crate::memory::cstr_as_opt_cstr(get_command_name(
-                &mut crate::os::env::ExpandCtx::new(),
-                eap.cmdidx,
-            )),
+            crate::memory::cstr_as_opt_cstr(
+                (get_command_name(&mut crate::os::env::ExpandCtx::new(), eap.cmdidx))
+                    .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            ),
         );
         lua_setfield(lstate, -2, c"name");
     }

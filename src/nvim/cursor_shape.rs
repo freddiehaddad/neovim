@@ -150,7 +150,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
             Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    cur.full_name,
+                    (cur.full_name).as_ptr(),
                 ))),
             },
         );
@@ -159,7 +159,9 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
             c"short_name",
             Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(cur.name))),
+                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    (cur.name).as_ptr(),
+                ))),
             },
         );
         if (cur.used_for & SHAPE_MOUSE) != 0 {
@@ -184,7 +186,7 @@ pub fn mode_style_array(arena: &mut Arena) -> Array {
                 Object {
                     obj_type: ObjectType::ObjectTypeString,
                     data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                        shape_cstr,
+                        (shape_cstr).as_ptr(),
                     ))),
                 },
             );

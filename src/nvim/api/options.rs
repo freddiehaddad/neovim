@@ -886,8 +886,8 @@ mod tests {
         assert!(has_key(mask, KEYSET_OPTIDX_OPTION_SCOPE));
         assert!(!has_key(mask, KEYSET_OPTIDX_OPTION_WIN));
         {
-            assert!((crate::memory::cstr_as_opt_bytes(c"local") == Some(b"local")));
-            assert!(!(crate::memory::cstr_as_opt_bytes(c"local") == Some(b"global")));
+            assert!((crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"local")));
+            assert!(!(crate::memory::cstr_as_opt_bytes(c"local".as_ptr()) == Some(b"global")));
             assert!(crate::memory::cstr_as_opt_bytes(std::ptr::null()).is_none());
         }
     }

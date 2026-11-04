@@ -428,7 +428,7 @@ pub fn prepare_help_buffer() {
     if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
         set_option_direct(
             K_OPT_ISKEYWORD,
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(p)),
+            cstr_as_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr())),
             OPT_LOCAL,
             0,
         );

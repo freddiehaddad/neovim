@@ -956,11 +956,11 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
 /// Check the position in `fm` is valid (`mark_check`).
 pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: &mut Option<&'static CStr>) -> bool {
     if fm.is_none() {
-        *errormsg = crate::memory::cstr_as_opt_cstr(gettext(E_UMARK));
+        *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_UMARK)).as_ptr());
         return false;
     } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
         if fm.as_deref_mut().unwrap().mark.lnum == 0 {
-            *errormsg = crate::memory::cstr_as_opt_cstr(gettext(E_MARKNOTSET));
+            *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_MARKNOTSET)).as_ptr());
         }
         return false;
     }
@@ -981,7 +981,7 @@ pub fn mark_check_line_bounds(
     if let Some(buf) = buf
         && fm.mark.lnum > buf.b_ml.ml_line_count
     {
-        *errormsg = crate::memory::cstr_as_opt_cstr(gettext(E_MARKINVAL));
+        *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_MARKINVAL)).as_ptr());
         return false;
     }
     true
@@ -1030,11 +1030,11 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
     let mut p = line;
     let end = line.wrapping_add(max_bytes);
     while p < end && !crate::memory::cstr_is_empty(p) {
-        len += ptr2cells(p);
+        len += ptr2cells(crate::memory::cstr_cluster_bytes((p).cast()));
         if len >= g_st().columns_global - lead_len {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
     }
     let keep = (crate::memory::ptr_offset_from(p, line) as usize).min(max_bytes);
     std::ffi::CString::new(crate::memory::cstr_slice(line, keep)).unwrap_or_default()

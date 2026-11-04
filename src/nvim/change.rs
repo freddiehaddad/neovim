@@ -34,8 +34,8 @@ use crate::insexpand::ins_compl_active;
 use crate::mark::{JUMPLISTSIZE, mark_adjust, mark_col_adjust, mark_view_make, reset_fmark};
 use crate::marktree::{K_MTMETA_INLINE, K_MTMETA_LINES};
 use crate::mbyte::{
-    mb_adjust_cursor, ptr2cells, utf_char2slice, utf_composinglike, utf_head_off,
-    utf_iscomposing_first, utf_ptr2char, utf_ptr2len, utfc_ptr2len,
+    mb_adjust_cursor, ptr2cells, utf_char2slice, utf_composinglike, utf_iscomposing_first,
+    utf_ptr2char, utf_ptr2len, utfc_ptr2len,
 };
 use crate::mcursor::mc_replaying;
 use crate::memline::{
@@ -723,14 +723,18 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
                     {
                         break;
                     }
-                    oldlen += utfc_ptr2len(oldp.wrapping_add(col + oldlen)) as usize;
+                    oldlen += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                        (oldp.wrapping_add(col + oldlen)).cast(),
+                    )) as usize;
                     if vcol > new_vcol {
                         newlen += (vcol - new_vcol) as usize;
                     }
                 }
                 curwin_mut().w_onebuf_opt.wo_list = old_list;
             } else if !crate::memory::cstr_is_empty(oldp.wrapping_add(col)) {
-                oldlen = utfc_ptr2len(oldp.wrapping_add(col)) as usize;
+                oldlen = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (oldp.wrapping_add(col)).cast(),
+                )) as usize;
             }
 
             replace_push_nul();
@@ -836,23 +840,25 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
 
     if opt_vars().p_deco != 0
         && use_delcombine
-        && utfc_ptr2len(oldp.wrapping_add(col as usize)) >= count
+        && utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+            (oldp.wrapping_add(col as usize)).cast(),
+        )) >= count
     {
         let p0 = oldp.wrapping_add(col as usize);
         let mut state = GRAPHEME_STATE_INIT;
         if utf_composinglike(
-            p0,
-            p0.wrapping_add(utf_ptr2len(p0) as usize),
+            crate::memory::cstr_as_bytes((p0).cast()),
+            crate::memory::cstr_as_bytes((p0.wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((p0).cast())) as usize)).cast()),
             Some(&mut state),
         ) {
             let mut n = col;
             loop {
                 col = n;
-                count = utf_ptr2len(oldp.wrapping_add(n as usize));
+                count = utf_ptr2len(crate::memory::cstr_char_bytes((oldp.wrapping_add(n as usize)).cast()));
                 n += count;
                 if !utf_composinglike(
-                    oldp.wrapping_add(col as usize),
-                    oldp.wrapping_add(n as usize),
+                    crate::memory::cstr_as_bytes((oldp.wrapping_add(col as usize)).cast()),
+                    crate::memory::cstr_as_bytes((oldp.wrapping_add(n as usize)).cast()),
                     Some(&mut state),
                 ) {
                     break;
@@ -871,8 +877,13 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         {
             curwin_mut().w_cursor.col -= 1;
             curwin_mut().w_cursor.coladd = 0;
-            curwin_mut().w_cursor.col -=
-                utf_head_off(oldp, oldp.wrapping_add(curwin_mut().w_cursor.col as usize));
+            curwin_mut().w_cursor.col -= {
+                let (_b, _i) = crate::memory::cstr_span_to_char(
+                    (oldp).cast(),
+                    (oldp.wrapping_add(curwin_mut().w_cursor.col as usize)).cast(),
+                );
+                crate::mbyte::utf_head_off(_b, _i)
+            };
         }
         count = oldlen - col;
         movelen = 1;
@@ -1371,9 +1382,16 @@ pub fn open_line(
 
                         while old_size < repl_size && p > leader {
                             p = p.wrapping_sub(
-                                utf_head_off(leader.cast(), p.wrapping_sub(1).cast()) as usize + 1,
+                                {
+                                    let (_b, _i) = crate::memory::cstr_span_to_char(
+                                        leader.cast(),
+                                        p.wrapping_sub(1).cast(),
+                                    );
+                                    crate::mbyte::utf_head_off(_b, _i)
+                                } as usize
+                                    + 1,
                             );
-                            old_size += ptr2cells(p.cast());
+                            old_size += ptr2cells(crate::memory::cstr_cluster_bytes(p.cast()));
                         }
                         let l = lead_repl_len - crate::memory::ptr_offset_from(endp, p) as i32;
                         if l != 0 {
@@ -1403,10 +1421,14 @@ pub fn open_line(
                         p = p.wrapping_sub(1);
                         p >= leader
                     } {
-                        let mut l = utf_head_off(leader.cast(), p.cast());
+                        let mut l = {
+                            let (_b, _i) =
+                                crate::memory::cstr_span_to_char(leader.cast(), p.cast());
+                            crate::mbyte::utf_head_off(_b, _i)
+                        };
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
-                            if ptr2cells(p.cast()) > 1 {
+                            if ptr2cells(crate::memory::cstr_cluster_bytes(p.cast())) > 1 {
                                 unsafe { *p.wrapping_add(1) = b' ' };
 
                                 l -= 1;
@@ -1450,7 +1472,9 @@ pub fn open_line(
                         while i < lead_len
                             && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
                         {
-                            let l = utfc_ptr2len(p.wrapping_add(i as usize).cast());
+                            let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                p.wrapping_add(i as usize).cast(),
+                            ));
                             if vim_strnsize(
                                 crate::memory::cstr_slice(p.cast(), (i + l).max(0) as usize),
                                 i + l,
@@ -1497,9 +1521,10 @@ pub fn open_line(
                                     )
                                 };
                             } else {
-                                let mut l = utfc_ptr2len(p.cast());
+                                let mut l =
+                                    utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast()));
                                 if l > 1 {
-                                    if ptr2cells(p.cast()) > 1 {
+                                    if ptr2cells(crate::memory::cstr_cluster_bytes(p.cast())) > 1 {
                                         l -= 1;
 
                                         unsafe { *p = b' ' };
@@ -1613,7 +1638,9 @@ pub fn open_line(
         if curbuf_mut().b_p_ai != 0 || (flags & OPENLINE_DELSPACES) != 0 {
             while (crate::memory::cstr_first_byte(p_extra.cast()) == b' '
                 || crate::memory::cstr_first_byte(p_extra.cast()) == b'\t')
-                && !utf_iscomposing_first(utf_ptr2char(p_extra.wrapping_add(1).cast()))
+                && !utf_iscomposing_first(utf_ptr2char(crate::memory::cstr_char_bytes(
+                    p_extra.wrapping_add(1).cast(),
+                )))
             {
                 if replace_normal(g_st().state_global) {
                     replace_push(crate::memory::cstr_slice(p_extra.cast(), 1));
@@ -1665,10 +1692,10 @@ pub fn open_line(
         {
             let prompt_line = ml_get(curwin_mut().w_cursor.lnum);
             let prompt = prompt_text();
-            let prompt_len = crate::memory::cstr_len(prompt);
+            let prompt_len = crate::memory::cstr_len((prompt).as_ptr());
 
             if crate::memory::cstr_as_bytes(prompt_line)
-                .starts_with(crate::memory::cstr_as_bytes(prompt))
+                .starts_with(crate::memory::cstr_as_bytes((prompt).as_ptr()))
             {
                 let rem_len = crate::memory::cstr_len(prompt_line.wrapping_add(prompt_len)) + 1;
 
@@ -1677,7 +1704,7 @@ pub fn open_line(
                 g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
                 ml_replace(curwin_mut().w_cursor.lnum, prompt_line, true);
                 prompt_moved = Some(concat_str(
-                    crate::memory::cstr_as_bytes(prompt),
+                    crate::memory::cstr_as_bytes((prompt).as_ptr()),
                     crate::memory::cstr_as_bytes(p_extra.cast()),
                 ));
                 p_extra = prompt_moved

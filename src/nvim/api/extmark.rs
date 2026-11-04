@@ -861,7 +861,9 @@ pub fn nvim_buf_set_extmark(
                 let conceal_str = opts.conceal.data.string();
                 hl.flags |= K_SHCONCEAL;
                 if conceal_str.size > 0 {
-                    let ci = utf_ptr2_str_char_info(conceal_str.data);
+                    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(
+                        (conceal_str.data).cast(),
+                    ));
                     let cli = utf_cluster_info(ci);
                     if ci.chr.value < 0x20 || cli.cells > 2 {
                         api_set_error!(

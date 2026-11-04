@@ -61,7 +61,7 @@ fn copy_char(from: &[u8], to: &mut [u8], lowercase: bool) -> usize {
     }
     if lowercase {
         let c = mb_tolower(crate::mbyte::utf_slice2char(from));
-        utf_char2bytes(c, to.as_mut_ptr().cast()) as usize
+        utf_char2bytes(c, to) as usize
     } else {
         let len = crate::mbyte::utfc_slice2len(from);
         to[..len].copy_from_slice(&from[..len]);

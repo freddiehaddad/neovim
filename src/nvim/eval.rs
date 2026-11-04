@@ -126,8 +126,7 @@ use crate::keycodes::{
 use crate::mark::mark_get;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utf_head_off,
-    utfc_ptr2len,
+    Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len,
 };
 use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
@@ -1068,7 +1067,7 @@ fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
         {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
     }
     unsafe { CStr::from_ptr(p.cast()) }
 }
@@ -1875,7 +1874,9 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
         }
         ForSource::Str { text, byte_idx } => {
             let str_ptr = text.as_ptr();
-            let len = utfc_ptr2len(str_ptr.wrapping_add(*byte_idx));
+            let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                (str_ptr.wrapping_add(*byte_idx)).cast(),
+            ));
             if len == 0 {
                 return false;
             }
@@ -1934,7 +1935,11 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             while (p as usize) >= (arg as usize) {
                 xp.xp_pattern = p;
                 p = p.wrapping_offset(
-                    -((utf_head_off(arg.cast(), p.wrapping_sub(1).cast()) + 1) as isize),
+                    -(({
+                        let (_b, _i) =
+                            crate::memory::cstr_span_to_char(arg.cast(), p.wrapping_sub(1).cast());
+                        crate::mbyte::utf_head_off(_b, _i)
+                    } + 1) as isize),
                 );
                 if (p as usize) >= (arg as usize)
                     && ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
@@ -3974,7 +3979,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
             }
             extra -= 1;
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
     }
 
     if unsafe { *p } != b'"' && !(interpolate && unsafe { *p } == b'{') {
@@ -4040,7 +4045,7 @@ fn eval_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpolate:
                         rem = &rem[1..];
                         if c != b'X' {
                             let mut utf_buf = [0u8; crate::cmdexpand::MB_MAXBYTES];
-                            let ulen = utf_char2bytes(nr, utf_buf.as_mut_ptr().cast()) as usize;
+                            let ulen = utf_char2bytes(nr, &mut utf_buf) as usize;
                             buf_vec.extend_from_slice(&utf_buf[..ulen]);
                         } else {
                             buf_vec.push(nr as u8);
@@ -4130,7 +4135,7 @@ fn eval_lit_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, interpol
                 reduce += 1;
             }
         }
-        p = p.wrapping_add(utfc_ptr2len(p.cast()) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(p.cast())) as usize);
     }
 
     if unsafe { *p } != b'\'' && !(interpolate && unsafe { *p } == b'{') {
@@ -5038,7 +5043,7 @@ pub fn tv_to_argv(
     if cmd_tv.v_type == VarType::VarString {
         let cmd_str = tv_get_string(&*cmd_tv);
         if let Some(cmd_out) = cmd {
-            *cmd_out = crate::memory::cstr_to_cstring(cmd_str);
+            *cmd_out = crate::memory::cstr_to_cstring((cmd_str).as_ptr());
         }
         return shell_build_argv(Some(cmd_str), None);
     }
@@ -6505,7 +6510,11 @@ pub fn var_item_copy(
             if from.vval.v_string().is_null() {
                 tv_copy(&*from, &mut *to);
             } else {
-                if let Some(conv_bytes) = string_convert(conv, from.vval.v_string(), None) {
+                if let Some(conv_bytes) = string_convert(
+                    conv,
+                    crate::memory::cstr_as_bytes((from.vval.v_string()).cast()),
+                    None,
+                ) {
                     crate::eval::typval::tv_set_string(
                         &mut *to,
                         Some(crate::memory::cstr_until_nul(&conv_bytes)),
@@ -6857,7 +6866,7 @@ pub fn do_string_sub(
         ) {
             if regmatch.startp[0] == regmatch.endp[0] {
                 if zero_width == regmatch.startp[0] {
-                    let i = utfc_ptr2len(tail) as usize;
+                    let i = utfc_ptr2len(crate::memory::cstr_cluster_bytes((tail).cast())) as usize;
                     if let Some(buf) = &mut out {
                         buf.extend_from_slice(crate::memory::cstr_slice(tail, i));
                     }

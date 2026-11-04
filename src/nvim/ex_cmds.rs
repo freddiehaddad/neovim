@@ -340,7 +340,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
     let data = get_cursor_pos_ptr().as_ptr().cast_mut();
-    let len = utfc_ptr2len(data) as usize;
+    let len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((data).cast())) as usize;
 
     if len == 0 {
         msg(c"NUL", 0);
@@ -351,7 +351,7 @@ pub fn do_ascii(_eap: &mut Exarg) {
     msg_sb_eol();
     msg_start();
 
-    let mut c = utf_ptr2char(data);
+    let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((data).cast()));
     let mut off: usize = 0;
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
 
@@ -409,11 +409,13 @@ pub fn do_ascii(_eap: &mut Exarg) {
             &mut need_clear,
         );
 
-        off += utf_ptr2len(data) as usize;
+        off += utf_ptr2len(crate::memory::cstr_char_bytes((data).cast())) as usize;
     }
 
     while off < len {
-        c = utf_ptr2char(data.wrapping_add(off));
+        c = utf_ptr2char(crate::memory::cstr_char_bytes(
+            (data.wrapping_add(off)).cast(),
+        ));
 
         let mut iobuff_len: usize = 0;
         if off > 0 {
@@ -426,7 +428,9 @@ pub fn do_ascii(_eap: &mut Exarg) {
             g_st().iobuff_bytes_mut()[iobuff_len] = b' ';
             iobuff_len += 1;
         }
-        iobuff_len += utf_char2bytes(c, iobuff_ptr.wrapping_add(iobuff_len).cast()) as usize;
+        iobuff_len += utf_char2bytes(c, unsafe {
+            std::slice::from_raw_parts_mut(iobuff_ptr.wrapping_add(iobuff_len).cast(), 6)
+        }) as usize;
 
         if let Some(dig) = get_digraph_for_char(c) {
             let fmt = if c < 0x10000 {
@@ -467,7 +471,9 @@ pub fn do_ascii(_eap: &mut Exarg) {
             &mut need_clear,
         );
 
-        off += utf_ptr2len(data.wrapping_add(off)) as usize;
+        off += utf_ptr2len(crate::memory::cstr_char_bytes(
+            (data.wrapping_add(off)).cast(),
+        )) as usize;
     }
 
     if need_clear {
@@ -2634,7 +2640,7 @@ pub fn getfile(
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
 pub fn set_swapcommand(command: Option<&CStr>, newlnum: Linenr) -> bool {
     if (command.is_none() && newlnum <= 0)
-        || !crate::memory::cstr_is_empty(get_vim_var_str(VV_SWAPCOMMAND))
+        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_SWAPCOMMAND)).as_ptr())
     {
         return false;
     }
@@ -4149,13 +4155,13 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         ) {
                             skip_match = true;
                         } else {
-                            matchcol += utfc_ptr2len(
+                            matchcol += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
                                 sub_firstline
                                     .as_slice()
                                     .as_ptr()
                                     .wrapping_add(matchcol as usize)
                                     .cast(),
-                            );
+                            ));
                         }
                         current_match.start.col = matchcol;
                         current_match.end.lnum = sub_firstlnum;
@@ -4551,7 +4557,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                                     p1 = p1.wrapping_add(1);
                                 }
                             } else {
-                                p1 = p1.wrapping_add(utfc_ptr2len(p1.cast()) as usize);
+                                p1 = p1.wrapping_add(utfc_ptr2len(
+                                    crate::memory::cstr_cluster_bytes(p1.cast()),
+                                ) as usize);
                             }
                         }
                         let new_endcol = new_start.size as Colnr;

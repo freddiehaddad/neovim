@@ -14,9 +14,8 @@ use crate::fileio::{
 };
 use crate::globals::*;
 use crate::mbyte::{
-    Vimconv, convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr_adv,
-    mb_ptr2char_adv, string_convert, utf_char2bytes, utf_ptr2char, utf_slice2char,
-    utf_valid_string, utfc_ptr2len,
+    Vimconv, convert_setup, enc_canonize, mb_charlen, mb_cptr2char_adv, mb_ptr2char_adv,
+    string_convert, utf_char2bytes, utf_ptr2char, utf_slice2char, utf_valid_string, utfc_ptr2len,
 };
 use crate::memline::{ml_append_buf, ml_get_buf, ml_get_buf_len};
 use crate::message::{
@@ -1321,7 +1320,9 @@ fn read_compound(fd: &CFile, slang: &mut Slang, len: i32) -> i32 {
                 pat_vec[pos] = b'\\';
                 pos += 1;
             }
-            pos += utf_char2bytes(c, pat_vec[pos..].as_mut_ptr().cast()) as usize;
+            pos += utf_char2bytes(c, unsafe {
+                std::slice::from_raw_parts_mut(pat_vec[pos..].as_mut_ptr().cast(), 6)
+            }) as usize;
         }
     }
 
@@ -1706,8 +1707,11 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         }
 
         let line = if spin.si_conv.vc_type != CONV_NONE {
-            let Some(pc_bytes) = string_convert(&spin.si_conv, rline.as_mut_ptr().cast(), None)
-            else {
+            let Some(pc_bytes) = string_convert(
+                &spin.si_conv,
+                crate::memory::cstr_as_bytes((rline.as_mut_ptr()).cast()),
+                None,
+            ) else {
                 smsg!(
                     0,
                     gettext(c"Conversion failure for word in %s line %d: %s"),
@@ -1762,13 +1766,17 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
             let itemcnt_i = itemcnt as i32;
             let item0_bytes = items[0].to_bytes();
             if is_aff_rule(&items, itemcnt_i, c"SET", 2) && aff.af_enc.is_none() {
-                aff.af_enc = Some(enc_canonize(items[1].as_ptr()));
+                aff.af_enc = Some(enc_canonize(items[1]));
                 let af_enc_ptr = aff
                     .af_enc
                     .as_ref()
                     .map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
                 if spin.si_ascii == 0
-                    && !convert_setup(&mut spin.si_conv, af_enc_ptr, opt_vars().p_enc)
+                    && !convert_setup(
+                        &mut spin.si_conv,
+                        crate::memory::cstr_as_opt_cstr((af_enc_ptr).cast()),
+                        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+                    )
                 {
                     smsg!(
                         0,
@@ -2204,14 +2212,21 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         let mut upper = false;
                         if let (Some(chop), Some(add)) =
                             (aff_entry.chop_cstr(), aff_entry.add_cstr())
-                            && chop.to_bytes().len() == utfc_ptr2len(chop.as_ptr()) as usize
+                            && chop.to_bytes().len()
+                                == utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                    (chop.as_ptr()).cast(),
+                                )) as usize
                         {
-                            let c = utf_ptr2char(chop.as_ptr());
+                            let c = utf_ptr2char(crate::memory::cstr_char_bytes(
+                                (chop.as_ptr()).cast(),
+                            ));
                             let c_up = spell_toupper(c);
                             if c_up != c
-                                && aff_entry
-                                    .cond_cstr()
-                                    .is_none_or(|cond| utf_ptr2char(cond.as_ptr()) == c)
+                                && aff_entry.cond_cstr().is_none_or(|cond| {
+                                    utf_ptr2char(crate::memory::cstr_char_bytes(
+                                        (cond.as_ptr()).cast(),
+                                    )) == c
+                                })
                             {
                                 let add_bytes = add.to_bytes();
                                 let mut end_idx = add_bytes.len();
@@ -2810,8 +2825,11 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
 
         let mut pc_vec: Vec<u8>;
         let w_slice: &mut [u8] = if spin.si_conv.vc_type != CONV_NONE {
-            let Some(pc_bytes) = string_convert(&spin.si_conv, line.as_mut_ptr().cast(), None)
-            else {
+            let Some(pc_bytes) = string_convert(
+                &spin.si_conv,
+                crate::memory::cstr_as_bytes((line.as_mut_ptr()).cast()),
+                None,
+            ) else {
                 smsg!(
                     0,
                     gettext(c"Conversion failure for word in %s line %d: %s"),
@@ -3127,7 +3145,12 @@ fn store_aff_word(
                         if let Some(ae_chop) = ae_chop {
                             let mut i = mb_charlen(ae_chop.to_bytes());
                             while i > 0 {
-                                mb_ptr_adv(&mut p);
+                                {
+                                    let _adv = crate::mbyte::utfc_ptr2len(
+                                        crate::memory::cstr_cluster_bytes((p).cast()),
+                                    ) as usize;
+                                    p = (p).wrapping_add(_adv);
+                                };
                                 i -= 1;
                             }
                         }
@@ -3395,8 +3418,11 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             rline[l] = 0;
 
             let mut line: *mut u8 = if spin.si_conv.vc_type != CONV_NONE {
-                let Some(pc_bytes) = string_convert(&spin.si_conv, rline.as_mut_ptr().cast(), None)
-                else {
+                let Some(pc_bytes) = string_convert(
+                    &spin.si_conv,
+                    crate::memory::cstr_as_bytes((rline.as_mut_ptr()).cast()),
+                    None,
+                ) else {
                     smsg!(
                         0,
                         gettext(c"Conversion failure for word in %s line %d: %s"),
@@ -3434,12 +3460,12 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                         );
                     } else {
                         line = line.wrapping_add(9);
-                        let enc = enc_canonize(line.cast());
+                        let enc = enc_canonize(crate::memory::cstr_from_ptr((line).cast()));
                         if spin.si_ascii == 0
                             && !convert_setup(
                                 &mut spin.si_conv,
-                                enc.as_ptr().cast_mut(),
-                                opt_vars().p_enc,
+                                crate::memory::cstr_as_opt_cstr((enc.as_ptr().cast_mut()).cast()),
+                                crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
                             )
                         {
                             smsg!(
@@ -4021,10 +4047,9 @@ fn write_vim_spell(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> bool {
 
         let mut l: usize = 0;
         for i in 128..256 {
-            l += utf_char2bytes(
-                spell_priv_st().spelltab.st_fold[i] as i32,
-                folchars.as_mut_ptr().wrapping_add(l).cast(),
-            ) as usize;
+            l += utf_char2bytes(spell_priv_st().spelltab.st_fold[i] as i32, unsafe {
+                std::slice::from_raw_parts_mut(folchars.as_mut_ptr().wrapping_add(l).cast(), 6)
+            }) as usize;
         }
         put_bytes(&fd, (1 + 128 + 2 + l) as u64, 4);
 
@@ -4883,7 +4908,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     error = true;
                 }
 
-                convert_setup(&mut spin.si_conv, ptr::null_mut(), ptr::null_mut());
+                convert_setup(&mut spin.si_conv, None, None);
                 i += 1;
             }
 

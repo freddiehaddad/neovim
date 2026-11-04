@@ -360,7 +360,7 @@ pub fn os_get_hostname(hostname: &mut [u8]) {
         host_utf16[host_wsize as usize] = 0;
 
         let mut host_utf8: Option<std::ffi::CString> = None;
-        let conversion_result = utf16_to_utf8(host_utf16.as_ptr(), -1, &mut host_utf8);
+        let conversion_result = utf16_to_utf8(&host_utf16, -1, &mut host_utf8);
         if conversion_result != 0 {
             semsg!(c"utf16_to_utf8 failed: %d", conversion_result);
             return;
@@ -822,7 +822,7 @@ pub fn vim_env_iter_rev<'a>(
 pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
     crate::memory::copy_bytes_to_c_buf(
         exe_name,
-        crate::memory::cstr_as_bytes(get_vim_var_str(VV_PROGPATH)),
+        crate::memory::cstr_as_bytes((get_vim_var_str(VV_PROGPATH)).as_ptr()),
     );
     let ptr = exe_name.as_mut_ptr();
     let path_end: *mut u8 = path_tail_with_sep(ptr.cast()).cast();
@@ -839,7 +839,9 @@ pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
 pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
     let name_bytes = name.to_bytes();
     {
-        assert!(!crate::memory::cstr_is_empty(get_vim_var_str(VV_PROGPATH)));
+        assert!(!crate::memory::cstr_is_empty(
+            (get_vim_var_str(VV_PROGPATH)).as_ptr()
+        ));
 
         #[cfg(windows)]
         if name_bytes == b"HOME" {
@@ -1262,7 +1264,10 @@ mod tests {
             assert_eq!(dir.len(), 4);
             assert!(iter.is_none());
 
-            if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(VV_PROGPATH)) {
+            if crate::eval::vars::get_vim_var_str(VV_PROGPATH)
+                .to_bytes()
+                .is_empty()
+            {
                 crate::eval::vars::set_vim_var_string(VV_PROGPATH, Some(c"nvim"), -1);
             }
 

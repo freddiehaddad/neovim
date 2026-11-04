@@ -2590,7 +2590,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     if !has_event(EVENT_OPTIONSET)
         || (bt_nofile(Some(buf)) && buf.b_p_bl == 0)
-        || !crate::memory::cstr_is_empty(get_vim_var_str(VV_OPTION_TYPE))
+        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_OPTION_TYPE)).as_ptr())
     {
         return;
     }
@@ -3154,9 +3154,9 @@ pub extern "C" fn unblock_autocmds() {
     au_st().autocmd_blocked -= 1;
 
     if !is_autocmd_blocked() && au_st().termresponse_changed && has_event(EVENT_TERMRESPONSE) {
-        let sequence = cstr_to_string(crate::memory::cstr_as_opt_cstr(get_vim_var_str(
-            VV_TERMRESPONSE,
-        )));
+        let sequence = cstr_to_string(crate::memory::cstr_as_opt_cstr(
+            (get_vim_var_str(VV_TERMRESPONSE)).as_ptr(),
+        ));
         do_termresponse_autocmd(sequence, au_st().termresponse_chan_id);
         api_free_string(sequence);
     }
@@ -3656,8 +3656,11 @@ pub fn au_exists(arg: &CStr) -> bool {
                         if let Some(fnum) = buflocal_fnum {
                             ap.buflocal_nr == fnum
                         } else {
-                            mb_strcmp_ic(opt_vars().p_fic != 0, ap.pat.as_ptr(), pattern.as_ptr())
-                                == 0
+                            mb_strcmp_ic(
+                                opt_vars().p_fic != 0,
+                                crate::memory::cstr_from_ptr((ap.pat.as_ptr()).cast()),
+                                crate::memory::cstr_from_ptr((pattern.as_ptr()).cast()),
+                            ) == 0
                         }
                     } else {
                         true
@@ -3924,10 +3927,7 @@ mod tests {
         let ev = event_name2nr(&mut end);
         assert_eq!(ev, EVENT_BUFREADPOST);
         assert_eq!(end, b"BufEnter");
-        assert_eq!(
-            crate::memory::cstr_as_bytes(event_nr2name(EVENT_VIMENTER)),
-            b"VimEnter"
-        );
+        assert_eq!(event_nr2name(EVENT_VIMENTER).to_bytes(), b"VimEnter");
 
         let (span, rest) = aucmd_span_pattern_slice(b",,*.{c,h},*.rs").unwrap();
         assert_eq!(span, b"*.{c,h}");

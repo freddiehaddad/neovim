@@ -1228,7 +1228,9 @@ pub fn nvim_win_get_config(win: Window, arena: &mut Arena, err: &mut Error) -> K
                     add_c(&mut tuple, string_obj(s));
                     add_c(
                         &mut tuple,
-                        string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(hi_name))),
+                        string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                            (hi_name).as_ptr(),
+                        ))),
                     );
                     add_c(&mut border, array_obj(tuple));
                 } else {

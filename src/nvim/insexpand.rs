@@ -73,9 +73,8 @@ use crate::keycodes::{
 use crate::lua::executor::nlua_expand_pat;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    mb_get_class, mb_islower, mb_isupper, mb_prevptr, mb_ptr2char_adv, mb_tolower, mb_toupper,
-    ptr2cells, utf_char2bytes, utf_char2len, utf_head_off, utf_ptr2char, utf_ptr2len,
-    utf_slice2char, utfc_ptr2len,
+    mb_get_class, mb_islower, mb_isupper, mb_ptr2char_adv, mb_tolower, mb_toupper, ptr2cells,
+    utf_char2bytes, utf_char2len, utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len,
 };
 use crate::memline::{dec, ml_delete, ml_get, ml_get_len};
 use crate::message::{
@@ -280,7 +279,7 @@ const fn empty_nvim_string() -> NvimString {
     }
 }
 
-use crate::mbyte::{mb_ptr_adv, utf_byte2len};
+use crate::mbyte::utf_byte2len;
 use crate::path::vim_ispathsep;
 
 /// Structure used to store one match for insert completion (`Compl`).
@@ -1020,14 +1019,16 @@ fn ins_compl_infercase_gettext<'a>(
     while i < char_len {
         if !gap.is_empty() {
             let mut ch_buf = [0u8; 6];
-            let n = utf_char2bytes(wca[i as usize], ch_buf.as_mut_ptr().cast()) as usize;
+            let n = utf_char2bytes(wca[i as usize], &mut ch_buf) as usize;
             gap.extend_from_slice(&ch_buf[..n]);
             i += 1;
         } else if p_idx + 6 >= IOSIZE {
             gap.reserve(IOSIZE);
             gap.extend_from_slice(&iobuff[..p_idx]);
         } else {
-            p_idx += utf_char2bytes(wca[i as usize], iobuff[p_idx..].as_mut_ptr().cast()) as usize;
+            p_idx += utf_char2bytes(wca[i as usize], unsafe {
+                std::slice::from_raw_parts_mut(iobuff[p_idx..].as_mut_ptr().cast(), 6)
+            }) as usize;
             i += 1;
         }
     }
@@ -1066,7 +1067,8 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = str_slice;
             while !rem.is_empty() {
-                let step = utf_ptr2len(rem.as_ptr().cast()) as usize;
+                let step =
+                    utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 char_len += 1;
             }
@@ -1076,7 +1078,8 @@ pub fn ins_compl_add_infercase(
         {
             let mut rem = insexp().compl_orig_text.as_bytes();
             while !rem.is_empty() {
-                let step = utf_ptr2len(rem.as_ptr().cast()) as usize;
+                let step =
+                    utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
                 rem = &rem[step.max(1).min(rem.len())..];
                 compl_char_len += 1;
             }
@@ -1448,8 +1451,8 @@ fn ins_compl_longest_match(match_: &mut Compl) {
     let mut p = insexp().compl_leader.data;
     let mut s = match_.cp_str.data;
     while !crate::memory::cstr_is_empty(p) {
-        let c1 = utf_ptr2char(p);
-        let c2 = utf_ptr2char(s);
+        let c1 = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
+        let c2 = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
 
         let diff = if (match_.cp_flags & CP_ICASE) != 0 {
             mb_tolower(c1) != mb_tolower(c2)
@@ -1459,8 +1462,16 @@ fn ins_compl_longest_match(match_: &mut Compl) {
         if diff {
             break;
         }
-        mb_ptr_adv(&mut p);
-        mb_ptr_adv(&mut s);
+        {
+            let _adv =
+                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize;
+            p = (p).wrapping_add(_adv);
+        };
+        {
+            let _adv =
+                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize;
+            s = (s).wrapping_add(_adv);
+        };
     }
 
     if !crate::memory::cstr_is_empty(p) {
@@ -2145,7 +2156,7 @@ fn thesaurus_add_words_in_line(
         let wstart = rem;
 
         while !rem.is_empty() {
-            let l = utfc_ptr2len(rem.as_ptr().cast()) as usize;
+            let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(rem.as_ptr().cast())) as usize;
             if l < 2 && !vim_iswordc(i32::from(rem[0])) {
                 break;
             }
@@ -2610,7 +2621,7 @@ pub fn ins_compl_addleader(c: i32) {
     let cc = utf_char2len(c);
     if cc > 1 {
         let mut buf: [u8; MB_MAXCHAR + 1] = [0; MB_MAXCHAR + 1];
-        utf_char2bytes(c, buf.as_mut_ptr().cast());
+        utf_char2bytes(c, &mut buf);
         buf[cc as usize] = 0;
         ins_char_bytes(&buf, cc as usize);
     } else {
@@ -2685,7 +2696,7 @@ pub fn ins_compl_addfrommatch() {
         }
     }
     p = p.wrapping_add(len as usize);
-    let c = utf_ptr2char(p);
+    let c = utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()));
     ins_compl_addleader(c);
 }
 
@@ -3015,12 +3026,16 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
             .take_while(|&(a, b)| a == b)
             .count();
         if len > 0 {
-            len -= utf_head_off(p, p.wrapping_add(len)) as usize;
+            len -= {
+                let (_b, _i) =
+                    crate::memory::cstr_span_to_char((p).cast(), (p.wrapping_add(len)).cast());
+                crate::mbyte::utf_head_off(_b, _i)
+            } as usize;
         }
         let mut rem = &orig_bytes[len..];
         while !rem.is_empty() {
             redo_append_char(K_BS);
-            let step = utf_ptr2len(rem.as_ptr().cast()) as usize;
+            let step = utf_ptr2len(crate::memory::cstr_char_bytes(rem.as_ptr().cast())) as usize;
             rem = &rem[step.max(1).min(rem.len())..];
         }
     }
@@ -3669,21 +3684,21 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
         what_flag = 0;
         for item in crate::eval::typval::list_iter_mut(what_list.first_opt()) {
             let what = tv_get_string(&item.li_tv);
-            if crate::memory::cstr_as_bytes(what) == b"mode" {
+            if crate::memory::cstr_as_bytes((what).as_ptr()) == b"mode" {
                 what_flag |= CI_WHAT_MODE;
-            } else if crate::memory::cstr_as_bytes(what) == b"pum_visible" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"pum_visible" {
                 what_flag |= CI_WHAT_PUM_VISIBLE;
-            } else if crate::memory::cstr_as_bytes(what) == b"items" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"items" {
                 what_flag |= CI_WHAT_ITEMS;
-            } else if crate::memory::cstr_as_bytes(what) == b"selected" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"selected" {
                 what_flag |= CI_WHAT_SELECTED;
-            } else if crate::memory::cstr_as_bytes(what) == b"completed" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"completed" {
                 what_flag |= CI_WHAT_COMPLETED;
-            } else if crate::memory::cstr_as_bytes(what) == b"preinserted_text" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"preinserted_text" {
                 what_flag |= CI_WHAT_PREINSERTED_TEXT;
-            } else if crate::memory::cstr_as_bytes(what) == b"matches" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"matches" {
                 what_flag |= CI_WHAT_MATCHES;
-            } else if crate::memory::cstr_as_bytes(what) == b"auto" {
+            } else if crate::memory::cstr_as_bytes((what).as_ptr()) == b"auto" {
                 what_flag |= CI_WHAT_AUTO;
             }
         }
@@ -4138,14 +4153,25 @@ fn fuzzy_longest_match() {
             && !crate::memory::cstr_is_empty(match_ptr)
             && !crate::memory::cstr_is_empty(prefix_ptr)
         {
-            let clen = utfc_ptr2len(prefix_ptr) as usize;
+            let clen =
+                utfc_ptr2len(crate::memory::cstr_cluster_bytes((prefix_ptr).cast())) as usize;
             let m_b = crate::memory::cstr_as_bytes(match_ptr);
             if crate::memory::cstr_slice(prefix_ptr, clen) != &m_b[..clen.min(m_b.len())] {
                 break;
             }
 
-            mb_ptr_adv(&mut prefix_ptr);
-            mb_ptr_adv(&mut match_ptr);
+            {
+                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (prefix_ptr).cast(),
+                )) as usize;
+                prefix_ptr = (prefix_ptr).wrapping_add(_adv);
+            };
+            {
+                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (match_ptr).cast(),
+                )) as usize;
+                match_ptr = (match_ptr).wrapping_add(_adv);
+            };
             j += 1;
         }
 
@@ -5138,11 +5164,13 @@ pub fn ins_compl_delete(new_leader: bool) {
         let mut leader = ins_compl_leader_slice();
         while !crate::memory::cstr_is_empty(orig)
             && !leader.is_empty()
-            && utf_ptr2char(orig) == utf_ptr2char(leader.as_ptr().cast())
+            && utf_ptr2char(crate::memory::cstr_char_bytes((orig).cast()))
+                == utf_ptr2char(crate::memory::cstr_char_bytes(leader.as_ptr().cast()))
         {
-            let step = utf_ptr2len(leader.as_ptr().cast()) as usize;
+            let step = utf_ptr2len(crate::memory::cstr_char_bytes(leader.as_ptr().cast())) as usize;
             leader = &leader[step.max(1).min(leader.len())..];
-            orig = orig.wrapping_add(utf_ptr2len(orig) as usize);
+            orig = orig
+                .wrapping_add(utf_ptr2len(crate::memory::cstr_char_bytes((orig).cast())) as usize);
         }
         orig_col = crate::memory::ptr_offset_from(orig, insexp().compl_orig_text.data) as i32;
     }
@@ -5411,12 +5439,20 @@ fn ins_compl_show_filename() {
     let mut s = fname_ptr;
     let mut e = s;
     while !crate::memory::cstr_is_empty(e) {
-        space -= ptr2cells(e);
+        space -= ptr2cells(crate::memory::cstr_cluster_bytes((e).cast()));
         while space < 0 {
-            space += ptr2cells(s);
-            mb_ptr_adv(&mut s);
+            space += ptr2cells(crate::memory::cstr_cluster_bytes((s).cast()));
+            {
+                let _adv = crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast()))
+                    as usize;
+                s = (s).wrapping_add(_adv);
+            };
         }
-        mb_ptr_adv(&mut e);
+        {
+            let _adv =
+                crate::mbyte::utfc_ptr2len(crate::memory::cstr_cluster_bytes((e).cast())) as usize;
+            e = (e).wrapping_add(_adv);
+        };
     }
     if !insexp().compl_autocomplete {
         g_st().msg_hist_off = true;
@@ -5817,10 +5853,17 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
         if !vim_iswordp(crate::memory::cstr_as_bytes(
             line.wrapping_add(insexp().compl_col as usize),
         )) || (insexp().compl_col > 0
-            && vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
-                line,
-                line.wrapping_add(insexp().compl_col as usize),
-            ))))
+            && vim_iswordp(crate::memory::cstr_as_bytes({
+                let _l = line;
+                let _p = line.wrapping_add(insexp().compl_col as usize);
+                if (_p as usize) > (_l as usize) {
+                    let (_b, _i) =
+                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
+                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                } else {
+                    _p
+                }
+            })))
         {
             prefix = c"".as_ptr();
             prefixlen = 0;
@@ -5838,17 +5881,30 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
     } else {
         startcol -= 1;
         if startcol < 0
-            || !vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
-                line,
-                line.wrapping_add((startcol + 1) as usize),
-            )))
+            || !vim_iswordp(crate::memory::cstr_as_bytes({
+                let _l = line;
+                let _p = line.wrapping_add((startcol + 1) as usize);
+                if (_p as usize) > (_l as usize) {
+                    let (_b, _i) =
+                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
+                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                } else {
+                    _p
+                }
+            }))
         {
             insexp().compl_pattern = Some(c"\\<\\k\\k".to_owned());
             insexp().compl_col += curs_col;
             insexp().compl_length = 0;
             insexp().compl_from_nonkeyword = true;
         } else {
-            startcol -= utf_head_off(line, line.wrapping_add(startcol as usize));
+            startcol -= {
+                let (_b, _i) = crate::memory::cstr_span_to_char(
+                    (line).cast(),
+                    (line.wrapping_add(startcol as usize)).cast(),
+                );
+                crate::mbyte::utf_head_off(_b, _i)
+            };
             let base_class = mb_get_class(crate::memory::cstr_as_bytes(
                 line.wrapping_add(startcol as usize),
             ));
@@ -5856,7 +5912,13 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                 startcol -= 1;
                 startcol >= 0
             } {
-                let head_off = utf_head_off(line, line.wrapping_add(startcol as usize));
+                let head_off = {
+                    let (_b, _i) = crate::memory::cstr_span_to_char(
+                        (line).cast(),
+                        (line.wrapping_add(startcol as usize)).cast(),
+                    );
+                    crate::mbyte::utf_head_off(_b, _i)
+                };
                 if base_class
                     != mb_get_class(crate::memory::cstr_as_bytes(
                         line.wrapping_add((startcol - head_off) as usize),

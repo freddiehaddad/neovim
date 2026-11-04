@@ -248,8 +248,7 @@ pub fn free_items<T>(items: *mut T) {
 }
 
 /// Allocate `len + 1` bytes, copy `data[..len]`, and NUL-terminate.
-pub fn alloc_cstring_len(data: impl crate::strings::IntoCCharPtr, len: usize) -> RawCCharPtrMut {
-    let data = data.into_c_char_ptr();
+pub fn alloc_cstring_len(data: *const std::ffi::c_char, len: usize) -> RawCCharPtrMut {
     let Some(total_size) = len.checked_add(1) else {
         preserve_exit(Some(
             c"Nvim: Data too large to fit into virtual memory space\n",
@@ -291,8 +290,7 @@ pub fn xstrnlen(s: RawCCharPtr, n: usize) -> usize {
 
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
-pub fn cstr_len<S: crate::strings::IntoCCharPtr>(s: S) -> usize {
-    let s = s.into_c_char_ptr();
+pub fn cstr_len(s: *const std::ffi::c_char) -> usize {
     if s.is_null() {
         0
     } else {
@@ -302,22 +300,19 @@ pub fn cstr_len<S: crate::strings::IntoCCharPtr>(s: S) -> usize {
 
 /// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
 #[inline]
-pub fn cstr_is_empty<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
-    let s = s.into_c_char_ptr();
+pub fn cstr_is_empty(s: *const std::ffi::c_char) -> bool {
     s.is_null() || unsafe { *s == 0 }
 }
 
 /// Return the first byte of `s` (or `0` if `s` is null).
 #[inline]
-pub fn cstr_first_byte<S: crate::strings::IntoCCharPtr>(s: S) -> u8 {
-    let s = s.into_c_char_ptr();
+pub fn cstr_first_byte(s: *const std::ffi::c_char) -> u8 {
     if s.is_null() { 0 } else { unsafe { *s as u8 } }
 }
 
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
 #[inline]
-pub fn cstr_slice<'a, S: crate::strings::IntoCCharPtr>(s: S, len: usize) -> &'a [u8] {
-    let s = s.into_c_char_ptr();
+pub fn cstr_slice<'a>(s: *const std::ffi::c_char, len: usize) -> &'a [u8] {
     if s.is_null() {
         c"".to_bytes()
     } else {
@@ -333,8 +328,7 @@ pub fn ptr_offset_from<T>(p: *const T, origin: *const T) -> isize {
 
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
 #[inline]
-pub fn cstr_from_ptr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a CStr {
-    let s = s.into_c_char_ptr();
+pub fn cstr_from_ptr<'a>(s: *const std::ffi::c_char) -> &'a CStr {
     if s.is_null() {
         c""
     } else {
@@ -365,8 +359,7 @@ pub fn cstring_until_nul(bytes: &[u8]) -> CString {
 
 /// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
 #[inline]
-pub fn cstr_as_opt_cstr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a CStr> {
-    let s = s.into_c_char_ptr();
+pub fn cstr_as_opt_cstr<'a>(s: *const std::ffi::c_char) -> Option<&'a CStr> {
     if s.is_null() {
         None
     } else {
@@ -376,8 +369,7 @@ pub fn cstr_as_opt_cstr<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a
 
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
-pub fn cstr_as_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
-    let s = s.into_c_char_ptr();
+pub fn cstr_as_bytes<'a>(s: *const std::ffi::c_char) -> &'a [u8] {
     if s.is_null() {
         c"".to_bytes()
     } else {
@@ -385,10 +377,90 @@ pub fn cstr_as_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> &'a [u8] {
     }
 }
 
+/// View up to `max_size` bytes of a NUL-terminated C string as a byte slice (without full `strlen`).
+#[inline]
+pub fn cstr_prefix_bytes<'a>(p: *const std::ffi::c_char, max_size: usize) -> &'a [u8] {
+    if p.is_null() || max_size == 0 {
+        return &[];
+    }
+    let p = p.cast::<u8>();
+    let mut n = 0usize;
+    while n < max_size && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+/// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.
+#[inline]
+pub fn cstr_char_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
+    if p.is_null() {
+        return &[];
+    }
+    let p = p.cast::<u8>();
+    let b0 = unsafe { *p };
+    if b0 == 0 {
+        return &[];
+    }
+    if b0 < 0x80 {
+        return unsafe { std::slice::from_raw_parts(p, 1) };
+    }
+    let mut n = 1usize;
+    while n < 6 && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+/// View up to 1 UTF-8 grapheme cluster (at most 64 bytes before NUL) starting at `p`.
+#[inline]
+pub fn cstr_cluster_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
+    if p.is_null() {
+        return &[];
+    }
+    let p = p.cast::<u8>();
+    let b0 = unsafe { *p };
+    if b0 == 0 {
+        return &[];
+    }
+    if b0 < 0x80 && unsafe { *p.wrapping_add(1) } < 0x80 {
+        return unsafe { std::slice::from_raw_parts(p, 1) };
+    }
+    let mut n = 1usize;
+    while n < 64 && unsafe { *p.wrapping_add(n) } != 0 {
+        n += 1;
+    }
+    unsafe { std::slice::from_raw_parts(p, n) }
+}
+
+/// View the span `[base .. p + 6]` (stopping at NUL after `p`) and return `(slice, p - base)`.
+#[inline]
+pub fn cstr_span_to_char<'a>(
+    base: *const std::ffi::c_char,
+    p: *const std::ffi::c_char,
+) -> (&'a [u8], usize) {
+    if base.is_null() || p.is_null() || (p as usize) < (base as usize) {
+        return (&[], 0);
+    }
+    let base_u8 = base.cast::<u8>();
+    let p_u8 = p.cast::<u8>();
+    if unsafe { *p_u8 } < 0x80 {
+        return (&[], 0);
+    }
+    let idx = (p_u8 as usize) - (base_u8 as usize);
+    let mut tail_len = 1usize;
+    while tail_len < 6 && unsafe { *p_u8.wrapping_add(tail_len) } != 0 {
+        tail_len += 1;
+    }
+    (
+        unsafe { std::slice::from_raw_parts(base_u8, idx + tail_len) },
+        idx,
+    )
+}
+
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
 #[inline]
-pub fn cstr_as_opt_bytes<'a, S: crate::strings::IntoCCharPtr>(s: S) -> Option<&'a [u8]> {
-    let s = s.into_c_char_ptr();
+pub fn cstr_as_opt_bytes<'a>(s: *const std::ffi::c_char) -> Option<&'a [u8]> {
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
@@ -419,8 +491,7 @@ pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
 }
 
 /// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
-pub fn cstr_to_cstring<S: crate::strings::IntoCCharPtr>(ptr: S) -> CString {
-    let ptr = ptr.into_c_char_ptr();
+pub fn cstr_to_cstring(ptr: *const std::ffi::c_char) -> CString {
     if ptr.is_null() {
         CString::default()
     } else {
@@ -589,10 +660,9 @@ pub fn arena_allocz_opt(arena: Option<&mut Arena>, size: usize) -> RawCCharPtrMu
 /// Copy `buf[..size]` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
 pub fn arena_memdupz(
     arena: &mut Arena,
-    buf: impl crate::strings::IntoCCharPtr,
+    buf: *const std::ffi::c_char,
     size: usize,
 ) -> RawCCharPtrMut {
-    let buf = buf.into_c_char_ptr();
     let mem = arena_allocz(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {
@@ -606,10 +676,9 @@ pub fn arena_memdupz(
 #[inline]
 pub fn arena_memdupz_opt(
     arena: Option<&mut Arena>,
-    buf: impl crate::strings::IntoCCharPtr,
+    buf: *const std::ffi::c_char,
     size: usize,
 ) -> RawCCharPtrMut {
-    let buf = buf.into_c_char_ptr();
     let mem = arena_allocz_opt(arena, size).cast::<u8>();
     if size > 0 {
         unsafe {

@@ -1113,7 +1113,9 @@ pub fn nvim_call_atomic(
             add_c(
                 &mut errval,
                 string_obj(copy_string(
-                    cstr_as_string(crate::memory::cstr_as_opt_cstr(nested_error.msg_cstr())),
+                    cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                        (nested_error.msg_cstr()).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+                    )),
                     Some(arena),
                 )),
             );

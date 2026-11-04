@@ -388,7 +388,9 @@ pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     for hlf in 0..HLF_COUNT {
         remote_ui_hl_group_set(
             ui,
-            cstr_as_string(crate::memory::cstr_as_opt_cstr(hlf_name_ptr(hlf))),
+            cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                (hlf_name_ptr(hlf)).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
+            )),
             Integer::from(g_st().highlight_attr[hlf]),
         );
     }
@@ -1297,7 +1299,9 @@ pub fn hlattrs2dict(
             put_c(
                 &mut *hl,
                 c"font",
-                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(font))),
+                string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
+                    (font).as_ptr(),
+                ))),
             );
         }
     } else {

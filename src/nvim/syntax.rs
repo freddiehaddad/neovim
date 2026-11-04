@@ -1297,8 +1297,8 @@ fn syn_stack_equal(sp: &Synstate) -> bool {
                 };
                 if mb_strcmp_ic(
                     syn_items(syn_block_mut(), cur_si.si_idx as isize).sp_ic != 0,
-                    bs_m.as_ptr(),
-                    si_m.as_ptr(),
+                    crate::memory::cstr_from_ptr((bs_m.as_ptr()).cast()),
+                    crate::memory::cstr_from_ptr((si_m.as_ptr()).cast()),
                 ) != 0
                 {
                     break;
@@ -3381,7 +3381,7 @@ fn syn_list_keywords(
                 {
                     force_newline = true;
                 } else {
-                    outlen = crate::memory::cstr_len(ke2hikey(kp)) as i32;
+                    outlen = crate::memory::cstr_len((ke2hikey(kp)).as_ptr()) as i32;
                 }
                 if syn_list_header(did_header, outlen, id, force_newline) {
                     prev_contained = 0;
@@ -3610,8 +3610,13 @@ fn get_syn_options<'a>(
             } else if argtype == 11
                 && crate::memory::cstr_as_bytes(arg.cast()).get(5) == Some(&b'=')
             {
-                *conceal_char = utf_ptr2char(arg.wrapping_add(6).cast());
-                arg = arg.wrapping_offset((utfc_ptr2len(arg.wrapping_add(6).cast()) - 1) as isize);
+                *conceal_char =
+                    utf_ptr2char(crate::memory::cstr_char_bytes(arg.wrapping_add(6).cast()));
+                arg = arg.wrapping_offset(
+                    (utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                        arg.wrapping_add(6).cast(),
+                    )) - 1) as isize,
+                );
                 if !vim_isprintc(*conceal_char) {
                     emsg(gettext(E_INVALID_CCHAR_VALUE));
                     return None;
@@ -3885,7 +3890,9 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
                             kwlen = 1;
                             break;
                         }
-                        let l = utfc_ptr2len(p.wrapping_add(1).cast()) as usize;
+                        let l = utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            p.wrapping_add(1).cast(),
+                        )) as usize;
                         unsafe { ptr::copy(p.wrapping_add(1), p, l) };
                         p = p.wrapping_add(l);
                     }
@@ -4023,13 +4030,13 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
             .to_ascii_uppercase(),
         ));
         let key_ptr = key.as_deref().unwrap_or(c"");
-        let item = if crate::memory::cstr_as_bytes(key_ptr) == b"MATCHGROUP" {
+        let item = if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"MATCHGROUP" {
             ITEM_MATCHGROUP
-        } else if crate::memory::cstr_as_bytes(key_ptr) == b"START" {
+        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"START" {
             ITEM_START
-        } else if crate::memory::cstr_as_bytes(key_ptr) == b"END" {
+        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"END" {
             ITEM_END
-        } else if crate::memory::cstr_as_bytes(key_ptr) == b"SKIP" {
+        } else if crate::memory::cstr_as_bytes((key_ptr).as_ptr()) == b"SKIP" {
             if !pat_ptrs[ITEM_SKIP].is_empty() {
                 illegal = true;
                 break;
@@ -4506,7 +4513,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             .to_ascii_uppercase(),
         ));
         let key = key_owned.as_deref().unwrap_or(c"");
-        if crate::memory::cstr_as_bytes(key) == b"CCOMMENT" {
+        if crate::memory::cstr_as_bytes((key).as_ptr()) == b"CCOMMENT" {
             if eap.skip == 0 {
                 win_s(curwin_mut()).b_syn_sync_flags |= SF_CCOMMENT;
             }
@@ -4558,12 +4565,12 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                     win_s(curwin_mut()).b_syn_sync_minlines = n;
                 }
             }
-        } else if crate::memory::cstr_as_bytes(key) == b"FROMSTART" {
+        } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"FROMSTART" {
             if eap.skip == 0 {
                 win_s(curwin_mut()).b_syn_sync_minlines = MAXLNUM;
                 win_s(curwin_mut()).b_syn_sync_maxlines = 0;
             }
-        } else if crate::memory::cstr_as_bytes(key) == b"LINECONT" {
+        } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"LINECONT" {
             if crate::memory::cstr_is_empty(next_arg) {
                 illegal = true;
                 break;
@@ -4617,11 +4624,11 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
             };
         } else {
             eap.arg = next_arg;
-            if crate::memory::cstr_as_bytes(key) == b"MATCH" {
+            if crate::memory::cstr_as_bytes((key).as_ptr()) == b"MATCH" {
                 syn_cmd_match(eap, 1);
-            } else if crate::memory::cstr_as_bytes(key) == b"REGION" {
+            } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"REGION" {
                 syn_cmd_region(eap, 1);
-            } else if crate::memory::cstr_as_bytes(key) == b"CLEAR" {
+            } else if crate::memory::cstr_as_bytes((key).as_ptr()) == b"CLEAR" {
                 syn_cmd_clear(eap, 1);
             } else {
                 illegal = true;

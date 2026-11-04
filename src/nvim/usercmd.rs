@@ -1851,7 +1851,9 @@ pub fn commands_array(buf: Option<&FileBuf>, arena: &mut Arena) -> Dict {
                 &mut d,
                 c"complete",
                 match get_command_complete(cmd.uc_compl) {
-                    Some(cmd_compl) => cstr_as_obj(crate::memory::cstr_as_opt_cstr(cmd_compl)),
+                    Some(cmd_compl) => {
+                        cstr_as_obj(crate::memory::cstr_as_opt_cstr((cmd_compl).as_ptr()))
+                    }
                     None => nil_obj(),
                 },
             );

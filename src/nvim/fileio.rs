@@ -52,7 +52,7 @@ use crate::insert::beginline;
 use crate::log::logmsg;
 use crate::mbyte::{
     enc_canon_props, enc_canonize, my_iconv_open, utf_byte2len, utf_char2bytes, utf_char2len,
-    utf_head_off, utf_ptr2char, utf_ptr2len_len,
+    utf_ptr2char, utf_ptr2len_len,
 };
 use crate::mcursor::mc_buf_clear;
 use crate::memfile::mf_fullname;
@@ -1566,7 +1566,9 @@ pub fn readfile(
             if let Some(eap) = eap
                 && eap.force_enc != 0
             {
-                fenc_owned = Some(enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize)));
+                fenc_owned = Some(enc_canonize(crate::memory::cstr_from_ptr(
+                    (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
+                )));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
                 keep_dest_enc = true;
             } else if curbuf_mut().b_p_bin != 0 {
@@ -1657,7 +1659,8 @@ pub fn readfile(
 
                     if fio_flags == 0 && !did_iconv {
                         iconv_fd =
-                            my_iconv_open(c"utf-8", fenc.cast()).map_or(-1, |fd| fd as iconv_t);
+                            my_iconv_open(c"utf-8", crate::memory::cstr_from_ptr((fenc).cast()))
+                                .map_or(-1, |fd| fd as iconv_t);
                     }
 
                     if fio_flags == 0
@@ -2173,9 +2176,16 @@ pub fn readfile(
                                     if unsafe { *p } < 0x80 {
                                         u8c = u32::from(unsafe { *p });
                                     } else {
-                                        let len = utf_head_off(ptr.cast(), p.cast());
+                                        let len = {
+                                            let (_b, _i) = crate::memory::cstr_span_to_char(
+                                                ptr.cast(),
+                                                p.cast(),
+                                            );
+                                            crate::mbyte::utf_head_off(_b, _i)
+                                        };
                                         p = p.wrapping_offset(-(len as isize));
-                                        u8c = utf_ptr2char(p.cast()) as u32;
+                                        u8c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()))
+                                            as u32;
                                         if len == 0 {
                                             if can_retry {
                                                 if crate::eval::typval::Callback::raw_cb_type(
@@ -2211,7 +2221,9 @@ pub fn readfile(
                                 }
                                 debug_assert!(u8c <= i32::MAX as u32);
                                 dest = dest.wrapping_offset(-(utf_char2len(u8c as i32) as isize));
-                                utf_char2bytes(u8c as i32, dest.cast());
+                                utf_char2bytes(u8c as i32, unsafe {
+                                    std::slice::from_raw_parts_mut(dest.cast(), 6)
+                                });
                             }
 
                             line_start = dest.wrapping_offset(-linerest);
@@ -2249,7 +2261,10 @@ pub fn readfile(
                                     break;
                                 }
                                 if unsafe { *p } >= 0x80 {
-                                    let l = utf_ptr2len_len(p.cast(), todo);
+                                    let l = utf_ptr2len_len(
+                                        crate::memory::cstr_as_bytes((p).cast()),
+                                        todo,
+                                    );
                                     if l > todo && !incomplete_tail {
                                         if p > ptr || filesize > 0 {
                                             incomplete_tail = true;
@@ -3041,7 +3056,9 @@ pub fn set_forced_fenc(eap: &Exarg) {
         return;
     }
 
-    let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize));
+    let fenc = enc_canonize(crate::memory::cstr_from_ptr(
+        (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
+    ));
     set_option_direct(
         K_OPT_FILEENCODING,
         cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc.as_ptr())),
@@ -3059,11 +3076,11 @@ fn next_fenc(pp: &mut &[u8]) -> std::ffi::CString {
     if let Some(comma_pos) = pp.iter().position(|&b| b == b',') {
         let tmp = std::ffi::CString::new(&pp[..comma_pos]).unwrap_or_default();
         *pp = &pp[comma_pos + 1..];
-        enc_canonize(tmp.as_ptr())
+        enc_canonize(&tmp)
     } else {
         let tmp = std::ffi::CString::new(crate::memory::bytes_until_nul(pp)).unwrap_or_default();
         *pp = b"";
-        enc_canonize(tmp.as_ptr())
+        enc_canonize(&tmp)
     }
 }
 
@@ -3432,10 +3449,13 @@ pub fn modname(
             ptr_idx += 1;
             break;
         }
-        let head_off = utf_head_off(
-            retval_vec.as_ptr().cast(),
-            retval_vec[(ptr_idx - 1)..].as_ptr().cast(),
-        ) as usize;
+        let head_off = {
+            let (_b, _i) = crate::memory::cstr_span_to_char(
+                retval_vec.as_ptr().cast(),
+                retval_vec[(ptr_idx - 1)..].as_ptr().cast(),
+            );
+            crate::mbyte::utf_head_off(_b, _i)
+        } as usize;
         ptr_idx -= head_off + 1;
     }
 
@@ -3918,8 +3938,8 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 if !bufref_valid(Some(&bufref)) {
                     emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
                 }
-                let s = crate::memory::cstr_from_ptr(get_vim_var_str(VV_FCS_CHOICE));
-                if s == c"reload" && crate::memory::cstr_first_byte(reason) != b'd' {
+                let s = crate::memory::cstr_from_ptr((get_vim_var_str(VV_FCS_CHOICE)).as_ptr());
+                if s == c"reload" && crate::memory::cstr_first_byte((reason).as_ptr()) != b'd' {
                     reload = RELOAD_NORMAL;
                 } else if s == c"edit" {
                     reload = RELOAD_DETECT;
@@ -3930,7 +3950,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 }
             }
             if !n {
-                if crate::memory::cstr_first_byte(reason) == b'd' {
+                if crate::memory::cstr_first_byte((reason).as_ptr()) == b'd' {
                     if prev_b_mtime != -1 {
                         mesg = Some(tr(c"E211: File \"%s\" no longer available"));
                     }
@@ -3938,7 +3958,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     helpmesg = true;
                     can_reload = true;
 
-                    let reason_bytes = crate::memory::cstr_as_bytes(reason);
+                    let reason_bytes = crate::memory::cstr_as_bytes((reason).as_ptr());
                     if reason_bytes.get(2) == Some(&b'n') {
                         mesg = Some(tr(
                             c"W12: Warning: File \"%s\" has changed and the buffer was changed in Vim as well",
@@ -3949,7 +3969,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                             c"W11: Warning: File \"%s\" has changed since editing started",
                         ));
                         mesg2 = tr(c"See \":help W11\" for more info.");
-                    } else if crate::memory::cstr_first_byte(reason) == b'm' {
+                    } else if crate::memory::cstr_first_byte((reason).as_ptr()) == b'm' {
                         mesg = Some(tr(
                             c"W16: Warning: Mode of file \"%s\" has changed since editing started",
                         ));
@@ -4973,9 +4993,10 @@ mod tests {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         {
-            if crate::memory::cstr_is_empty(crate::eval::vars::get_vim_var_str(
-                crate::eval::vars::VV_PROGPATH,
-            )) {
+            if crate::eval::vars::get_vim_var_str(crate::eval::vars::VV_PROGPATH)
+                .to_bytes()
+                .is_empty()
+            {
                 crate::eval::vars::set_vim_var_string(
                     crate::eval::vars::VV_PROGPATH,
                     Some(c"nvim"),

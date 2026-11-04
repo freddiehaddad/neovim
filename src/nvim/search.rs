@@ -45,8 +45,8 @@ use crate::mark::setpcmark;
 use crate::r#match::K_CPO_SEARCH;
 use crate::math::{FAIL, OK};
 use crate::mbyte::{
-    mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_head_off, utf_iscomposing_first,
-    utf_ptr2char, utfc_ptr2len,
+    mb_isupper, mb_strcmp_ic, mb_strnicmp, utf_char2bytes, utf_iscomposing_first, utf_ptr2char,
+    utfc_ptr2len,
 };
 use crate::memline::{decl, inc, incl, ml_get, ml_get_buf, ml_get_buf_len, ml_get_len};
 use crate::message::{
@@ -842,7 +842,9 @@ pub fn searchit(
                                         )
                                     {
                                         matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
+                                            ));
                                     }
                                 } else {
                                     matchcol = regmatch.rmm_matchcol;
@@ -850,7 +852,9 @@ pub fn searchit(
                                         ptr_line.wrapping_add(matchcol as usize),
                                     ) {
                                         matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
+                                            ));
                                     }
                                 }
                                 if matchcol == 0 && (options & SEARCH_START) != 0 {
@@ -926,7 +930,9 @@ pub fn searchit(
                                         )
                                     {
                                         matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
+                                            ));
                                     }
                                 } else {
                                     if matchpos.lnum > 0 {
@@ -937,7 +943,9 @@ pub fn searchit(
                                         ptr_line.wrapping_add(matchcol as usize),
                                     ) {
                                         matchcol +=
-                                            utfc_ptr2len(ptr_line.wrapping_add(matchcol as usize));
+                                            utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                                (ptr_line.wrapping_add(matchcol as usize)).cast(),
+                                            ));
                                     }
                                 }
                                 if crate::memory::cstr_is_empty(
@@ -987,10 +995,13 @@ pub fn searchit(
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count {
                                     ptr_line = ml_get_buf(buf, pos.lnum);
-                                    pos.col -= utf_head_off(
-                                        ptr_line,
-                                        ptr_line.wrapping_add(pos.col as usize),
-                                    );
+                                    pos.col -= {
+                                        let (_b, _i) = crate::memory::cstr_span_to_char(
+                                            (ptr_line).cast(),
+                                            (ptr_line.wrapping_add(pos.col as usize)).cast(),
+                                        );
+                                        crate::mbyte::utf_head_off(_b, _i)
+                                    };
                                 }
                             }
                             if let Some(end_pos) = end_pos.as_deref_mut() {
@@ -1433,7 +1444,7 @@ pub fn do_search(
                 ui_busy_start();
                 msgbuf_vec[0] = dirc as u8;
                 let p_bytes = crate::memory::cstr_slice(p, plen).to_vec();
-                if utf_iscomposing_first(utf_ptr2char(p)) {
+                if utf_iscomposing_first(utf_ptr2char(crate::memory::cstr_char_bytes((p).cast()))) {
                     msgbuf_vec[1] = b' ';
                     msgbuf_vec[2..2 + plen].copy_from_slice(&p_bytes);
                 } else {
@@ -1690,13 +1701,22 @@ pub fn search_for_exact_line(
             pos.col = (line_slice.len() - p_slice.len()) as Colnr;
 
             if compl_status_adding() && !compl_status_sol() {
-                if mb_strcmp_ic(opt_vars().p_ic != 0, p_slice.as_ptr().cast(), pat) == 0 {
+                if mb_strcmp_ic(
+                    opt_vars().p_ic != 0,
+                    crate::memory::cstr_from_ptr(p_slice.as_ptr().cast()),
+                    crate::memory::cstr_from_ptr((pat).cast()),
+                ) == 0
+                {
                     return true;
                 }
             } else if !p_slice.is_empty() {
                 debug_assert!(compl_len >= 0);
                 let eq = if opt_vars().p_ic != 0 {
-                    mb_strnicmp(p_slice.as_ptr().cast(), pat, compl_len as usize) == 0
+                    mb_strnicmp(
+                        crate::memory::cstr_as_bytes(p_slice.as_ptr().cast()),
+                        crate::memory::cstr_as_bytes((pat).cast()),
+                        compl_len as usize,
+                    ) == 0
                 } else {
                     let pat_b = crate::memory::cstr_as_bytes(pat);
                     p_slice[..p_slice.len().min(compl_len as usize)]
@@ -1727,7 +1747,9 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 srch().lastc_bytelen = cap.nchar_len;
                 srch().lastc_bytes[..n].copy_from_slice(&cap.nchar_composing[..n]);
             } else {
-                srch().lastc_bytelen = utf_char2bytes(c, (&raw mut srch().lastc_bytes).cast());
+                srch().lastc_bytelen = utf_char2bytes(c, unsafe {
+                    std::slice::from_raw_parts_mut((&raw mut srch().lastc_bytes).cast(), 6)
+                });
             }
         }
     } else {
@@ -1757,7 +1779,9 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         count -= 1;
         loop {
             if dir > 0 {
-                col += utfc_ptr2len(p.wrapping_add(col as usize));
+                col += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                    (p.wrapping_add(col as usize)).cast(),
+                ));
                 if col >= len {
                     return false;
                 }
@@ -1765,7 +1789,13 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 if col == 0 {
                     return false;
                 }
-                col -= utf_head_off(p, p.wrapping_add((col - 1) as usize)) + 1;
+                col -= {
+                    let (_b, _i) = crate::memory::cstr_span_to_char(
+                        (p).cast(),
+                        (p.wrapping_add((col - 1) as usize)).cast(),
+                    );
+                    crate::mbyte::utf_head_off(_b, _i)
+                } + 1;
             }
             if srch().lastc_bytelen <= 1 {
                 if i32::from(crate::memory::cstr_first_byte(p.wrapping_add(col as usize))) == c
@@ -1788,7 +1818,13 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         if dir < 0 {
             col += srch().lastc_bytelen - 1;
         } else {
-            col -= utf_head_off(p, p.wrapping_add(col as usize));
+            col -= {
+                let (_b, _i) = crate::memory::cstr_span_to_char(
+                    (p).cast(),
+                    (p.wrapping_add(col as usize)).cast(),
+                );
+                crate::mbyte::utf_head_off(_b, _i)
+            };
         }
     }
     curwin_mut().w_cursor.col = col;
@@ -2410,17 +2446,19 @@ pub fn showmatch(c: i32) {
 
     let mut p = curbuf_mut().b_p_mps;
     while !crate::memory::cstr_is_empty(p) {
-        if utf_ptr2char(p) == c && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
+        if utf_ptr2char(crate::memory::cstr_char_bytes((p).cast())) == c
+            && ((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
         {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize + 1);
-        if utf_ptr2char(p) == c
+        p = p
+            .wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize + 1);
+        if utf_ptr2char(crate::memory::cstr_char_bytes((p).cast())) == c
             && !((curwin_mut().w_onebuf_opt.wo_rl != 0) ^ (opt_vars().p_ri != 0))
         {
             break;
         }
-        p = p.wrapping_add(utfc_ptr2len(p) as usize);
+        p = p.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes((p).cast())) as usize);
         if crate::memory::cstr_is_empty(p) {
             return;
         }
@@ -3421,7 +3459,11 @@ pub fn find_pattern_in_path(
                             ));
                             let start_bytes = crate::memory::cstr_as_bytes(startp);
                             if opt_vars().p_ic != 0 {
-                                matched = mb_strnicmp(startp, ptr_pat, len) == 0;
+                                matched = mb_strnicmp(
+                                    crate::memory::cstr_as_bytes((startp).cast()),
+                                    crate::memory::cstr_as_bytes((ptr_pat).cast()),
+                                    len,
+                                ) == 0;
                             } else {
                                 matched = start_bytes.starts_with(pat_slice);
                             }
@@ -3731,7 +3773,8 @@ pub fn find_pattern_in_path(
                                     } else if !getfile_success(getfile(
                                         0,
                                         crate::memory::cstr_as_opt_cstr(
-                                            files[depth as usize].name_ptr(),
+                                            (files[depth as usize].name_ptr())
+                                                .map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                                         ),
                                         None,
                                         true,
@@ -3776,10 +3819,14 @@ pub fn find_pattern_in_path(
                         && !compl_status_sol()
                         && !crate::memory::cstr_is_empty(startp)
                         && !crate::memory::cstr_is_empty(
-                            startp.wrapping_add(utfc_ptr2len(startp) as usize),
+                            startp.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                                (startp).cast(),
+                            )) as usize),
                         )
                     {
-                        p = startp.wrapping_add(utfc_ptr2len(startp) as usize);
+                        p = startp.wrapping_add(utfc_ptr2len(crate::memory::cstr_cluster_bytes(
+                            (startp).cast(),
+                        )) as usize);
                         continue;
                     }
                     break;

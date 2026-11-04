@@ -2288,7 +2288,9 @@ pub fn trans_function_name(
 
                 *pp = unsafe { CStr::from_ptr(end.wrapping_add(1 + len as usize).cast()) };
             } else {
-                res = Some(cstr_to_cstring(partial_name(unsafe { pt.as_ref() })));
+                res = Some(cstr_to_cstring(
+                    (partial_name(unsafe { pt.as_ref() })).as_ptr(),
+                ));
 
                 *pp = unsafe { CStr::from_ptr(end.cast()) };
             }

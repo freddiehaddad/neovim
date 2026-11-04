@@ -32,8 +32,8 @@ use crate::globals::*;
 use crate::linematch::linematch_nbuffers;
 use crate::mark::{mark_adjust, setpcmark};
 use crate::mbyte::{
-    mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_head_off,
-    utf_ptr2char, utfc_ptr2len,
+    mb_get_class_tab, mb_stricmp, utf_char2bytes, utf_char2len, utf_fold, utf_ptr2char,
+    utfc_ptr2len,
 };
 use crate::memline::{ml_append, ml_delete, ml_get_buf, ml_get_buf_len};
 use crate::message::{emsg, semsg};
@@ -729,11 +729,11 @@ fn diff_write_buffer(
                 if crate::memory::cstr_first_byte(s) == NL as u8 {
                     c = NUL as i32;
                 } else {
-                    let ch = utf_ptr2char(s);
+                    let ch = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
                     c_len = utf_char2len(ch);
                     c = utf_fold(ch);
                 }
-                let orig_len = utfc_ptr2len(s) as usize;
+                let orig_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast())) as usize;
                 let s_bytes = crate::memory::cstr_slice(s, orig_len);
                 if crate::mbyte::utf_char2slice(c, &mut cbuf) != c_len as usize {
                     backing[len..len + orig_len].copy_from_slice(s_bytes);
@@ -2118,7 +2118,10 @@ fn diff_cmp(s1: &[u8], s2: &[u8]) -> i32 {
     if (diff_st().diff_flags & DIFF_ICASE) != 0 && (diff_st().diff_flags & ALL_WHITE_DIFF) == 0 {
         let s1_cstr = CString::new(crate::memory::bytes_until_nul(s1)).unwrap_or_default();
         let s2_cstr = CString::new(crate::memory::bytes_until_nul(s2)).unwrap_or_default();
-        return mb_stricmp(s1_cstr.as_ptr(), s2_cstr.as_ptr());
+        return mb_stricmp(
+            crate::memory::cstr_from_ptr((s1_cstr.as_ptr()).cast()),
+            crate::memory::cstr_from_ptr((s2_cstr.as_ptr()).cast()),
+        );
     }
     let mut p1 = s1;
     let mut p2 = s2;
@@ -2511,8 +2514,20 @@ fn diff_find_change_simple(
                     si_new += l;
                 }
             }
-            si_org -= utf_head_off(line_org, line_org.wrapping_add(si_org as usize));
-            si_new -= utf_head_off(line_new, line_new.wrapping_add(si_new as usize));
+            si_org -= {
+                let (_b, _i) = crate::memory::cstr_span_to_char(
+                    (line_org).cast(),
+                    (line_org.wrapping_add(si_org as usize)).cast(),
+                );
+                crate::mbyte::utf_head_off(_b, _i)
+            };
+            si_new -= {
+                let (_b, _i) = crate::memory::cstr_span_to_char(
+                    (line_new).cast(),
+                    (line_new.wrapping_add(si_new as usize)).cast(),
+                );
+                crate::mbyte::utf_head_off(_b, _i)
+            };
             *startp = (*startp).min(si_org);
             if org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0
                 || new_bytes.get(si_new as usize).copied().unwrap_or(0) != 0
@@ -2826,7 +2841,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if crate::memory::cstr_first_byte(s) == NL as u8 {
                         curstr.push(NUL as u8);
                     } else {
-                        char_len = utfc_ptr2len(s);
+                        char_len = utfc_ptr2len(crate::memory::cstr_cluster_bytes((s).cast()));
                         if ascii_iswhite(crate::memory::cstr_first_byte(s))
                             && (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
@@ -2838,11 +2853,11 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                             ) as i32;
                         }
                         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
-                            let mut c = utf_ptr2char(s);
+                            let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));
                             let c_len = utf_char2len(c);
                             c = utf_fold(c);
                             let mut cbuf: [u8; MB_MAXBYTES + 1] = [0; MB_MAXBYTES + 1];
-                            let c_fold_len = utf_char2bytes(c, cbuf.as_mut_ptr().cast());
+                            let c_fold_len = utf_char2bytes(c, &mut cbuf);
                             curstr.extend_from_slice(&cbuf[..c_fold_len as usize]);
                             if char_len > c_len {
                                 curstr.extend_from_slice(crate::memory::cstr_slice(

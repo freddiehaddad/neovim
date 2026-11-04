@@ -23,7 +23,7 @@ use crate::globals::*;
 use crate::input::beep_flush;
 use crate::input_cmdatom::Cmdarg;
 use crate::insert::{beginline, cursor_down, cursor_down_inner, cursor_up, cursor_up_inner};
-use crate::mbyte::{mb_adjust_cursor, utf_head_off};
+use crate::mbyte::mb_adjust_cursor;
 use crate::memline::ml_get_buf;
 use crate::message::semsg;
 use crate::mouse::vcol2col;
@@ -221,7 +221,7 @@ pub fn sms_marker_overlap(wp: &mut WinInfoInfo, mut extra2: i32) -> i32 {
     if extra2 == -1 {
         extra2 = win_col_off(wp) - win_col_off2(&mut *wp);
     }
-    if !crate::memory::cstr_is_empty(get_showbreak_value(&*wp)) {
+    if !crate::memory::cstr_is_empty((get_showbreak_value(&*wp)).as_ptr()) {
         return 0;
     }
 
@@ -1221,7 +1221,14 @@ fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
         if p == line {
             return 0;
         }
-        p = p.wrapping_sub(utf_head_off(line, p.wrapping_sub(1)) as usize + 1);
+        p = p.wrapping_sub(
+            {
+                let (_b, _i) =
+                    crate::memory::cstr_span_to_char((line).cast(), (p.wrapping_sub(1)).cast());
+                crate::mbyte::utf_head_off(_b, _i)
+            } as usize
+                + 1,
+        );
     }
     crate::memory::ptr_offset_from(p, line) as i32 + 1
 }

@@ -704,8 +704,12 @@ fn is_executable_ext(
             let ext_len = copy_option_part(&mut ext_bytes, dst, ENV_SEPSTR);
             let ext_end = ext.wrapping_add(old_len - ext_bytes.len()).cast_mut();
             if ext_len != 0 {
-                let in_pathext =
-                    nameext_len == ext_len && mb_strnicmp(nameext, ext.cast(), ext_len) == 0;
+                let in_pathext = nameext_len == ext_len
+                    && mb_strnicmp(
+                        crate::memory::cstr_as_bytes((nameext).cast()),
+                        crate::memory::cstr_as_bytes(ext.cast()),
+                        ext_len,
+                    ) == 0;
                 if ((in_pathext || is_unix_shell)
                     && is_executable(name_cstr, abspath.as_deref_mut()))
                     || is_executable(
@@ -2028,7 +2032,7 @@ pub fn os_resolve_shortcut(fname_opt: Option<&CStr>) -> Option<std::ffi::CString
         );
         if hr == 0 {
             let mut p: Vec<u16> = Vec::new();
-            let r = utf8_to_utf16(fname, -1, &mut p);
+            let r = utf8_to_utf16(crate::memory::cstr_as_bytes((fname).cast()), -1, &mut p);
             if r != 0 {
                 semsg!(c"utf8_to_utf16 failed: %d", r);
             } else if !p.is_empty() {
@@ -2051,7 +2055,7 @@ pub fn os_resolve_shortcut(fname_opt: Option<&CStr>) -> Option<std::ffi::CString
                         );
                         if hr4 == 0 && wsz[0] != 0 {
                             let mut rfname_cstr: Option<std::ffi::CString> = None;
-                            let r2 = utf16_to_utf8(wsz.as_ptr(), -1, &mut rfname_cstr);
+                            let r2 = utf16_to_utf8(&wsz, -1, &mut rfname_cstr);
                             if r2 != 0 {
                                 semsg!(c"utf16_to_utf8 failed: %d", r2);
                             } else if let Some(cstr) = rfname_cstr {
@@ -2087,7 +2091,7 @@ pub fn os_is_reparse_point_include(path: &CStr) -> bool {
     #[cfg(windows)]
     {
         let mut utf16_vec: Vec<u16> = Vec::new();
-        let r = utf8_to_utf16(path.as_ptr(), -1, &mut utf16_vec);
+        let r = utf8_to_utf16(path.to_bytes(), -1, &mut utf16_vec);
         if r != 0 {
             semsg!(c"utf8_to_utf16 failed: %d", r);
             return false;
