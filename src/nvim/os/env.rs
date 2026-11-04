@@ -2,7 +2,6 @@
 
 use crate::api::private::validate::NvimString;
 use crate::buffer::FileBuf;
-use crate::charset::skipwhite;
 #[cfg(unix)]
 use crate::charset::vim_isfilec;
 pub(crate) use crate::cmdexpand::EXPAND_BUF_LEN;
@@ -571,7 +570,12 @@ pub fn expand_env_esc<T>(
     let mut at_start = true;
     let prefix_bytes = crate::memory::cstr_as_bytes(prefix);
 
-    let mut src: *mut u8 = skipwhite(srcp).cast();
+    let mut src: *mut u8 = srcp
+        .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            srcp.cast(),
+        )))
+        .cast_mut()
+        .cast();
     while crate::memory::cstr_first_byte(src.cast()) != 0 && dst_rem > 0 {
         let src_bytes = crate::memory::cstr_as_bytes(src.cast());
         if src_bytes.starts_with(b"`=") {
@@ -1092,7 +1096,13 @@ pub fn home_replace<T>(
     };
 
     if !one {
-        src = skipwhite(src.cast()).cast();
+        src = {
+            let _sw_p = src.cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast();
     }
     let src_bytes = crate::memory::cstr_as_bytes(src.cast());
     let mut src_idx = 0usize;

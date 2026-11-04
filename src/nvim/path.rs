@@ -768,7 +768,11 @@ fn do_path_expand(
                     } else {
                         let mut file_info: FileInfo = FileInfo::new();
                         if !crate::memory::cstr_is_empty(path_end) {
-                            backslash_halve(buf.wrapping_add(len + 1));
+                            let tail_ptr = buf.wrapping_add(len + 1);
+                            let tail_len = crate::memory::cstr_len(tail_ptr.cast());
+                            backslash_halve(unsafe {
+                                std::slice::from_raw_parts_mut(tail_ptr.cast::<u8>(), tail_len + 1)
+                            });
                         }
                         if if (flags & EW_ALLLINKS) != 0 {
                             os_fileinfo_link(buf, &mut file_info)

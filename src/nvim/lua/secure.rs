@@ -1,6 +1,5 @@
 //! Secure file reading and `:trust` command (`src/nvim/lua/secure.c`).
 
-use crate::charset::{skiptowhite, skipwhite};
 use crate::errors::{E_INVARG2, E_TRUSTFILE};
 use crate::lua::converter::{
     LUA_GLOBALSINDEX, lua_createtable, lua_getfield, lua_gettop, lua_pushnumber, lua_pushstring,
@@ -64,11 +63,15 @@ fn nlua_trust(action: &std::ffi::CStr, path: Option<&std::ffi::CStr>) -> bool {
 /// `:trust` command implementation (`ex_trust`).
 pub fn ex_trust(eap: &mut Exarg) {
     let arg = eap.arg;
-    let p = skiptowhite(arg);
+    let p = arg.wrapping_add(crate::charset::skiptowhite_len(
+        crate::memory::cstr_as_bytes(arg.cast()),
+    ));
     let arg1_len = (p as usize) - (arg as usize);
     let arg1_bytes = crate::memory::cstr_slice(arg, arg1_len);
     let mut action = c"allow";
-    let path_ptr = skipwhite(p);
+    let path_ptr = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        p.cast(),
+    )));
 
     if arg1_bytes == b"++deny" {
         action = c"deny";
@@ -91,16 +94,13 @@ pub fn ex_trust(eap: &mut Exarg) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn skipwhite_and_skiptowhite_scan_ascii_whitespace() {
         let s = c"++deny   file.lua";
-        {
-            let p = skiptowhite(s.as_ptr());
-            assert_eq!((p as usize) - (s.as_ptr() as usize), 6);
-            let q = skipwhite(p);
-            assert_eq!(crate::memory::cstr_as_bytes(q), b"file.lua");
-        }
+        let len = crate::charset::skiptowhite_len(s.to_bytes());
+        assert_eq!(len, 6);
+        let p = unsafe { std::ffi::CStr::from_ptr(s.as_ptr().wrapping_add(len)) };
+        let q = crate::charset::skipwhite(p);
+        assert_eq!(q.to_bytes(), b"file.lua");
     }
 }

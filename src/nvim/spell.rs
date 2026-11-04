@@ -4,8 +4,8 @@ use crate::autocmd::{EVENT_SPELLFILEMISSING, apply_autocmds};
 use crate::buffer::{Bufref, FileBuf, buf_is_empty, bufref_valid, set_bufref};
 use crate::change::{TAB, inserted_bytes};
 use crate::charset::{
-    NUL, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin, skipdigits, skiphex, skipwhite,
-    vim_is_fname_char,
+    NUL, ascii_isdigit, ascii_iswhite, getwhitecols, skipbin_slice, skipdigits_slice,
+    skiphex_slice, vim_is_fname_char,
 };
 use crate::cursor::{Colnr, CursorPos, Linenr, get_cursor_line_slice};
 use crate::decoration::{decor_redraw_col, decor_redraw_line, decor_redraw_reset};
@@ -280,14 +280,15 @@ pub fn spell_check(
     let mut mi = Matchinf::new();
     let ptr_bytes = ptr_cstr.to_bytes();
     if ptr_bytes.first().is_some_and(u8::is_ascii_digit) {
-        if ptr_bytes[0] == b'0' && matches!(ptr_bytes.get(1), Some(b'b' | b'B')) {
-            mi.mi_end = skipbin(ptr.wrapping_add(2).cast()).cast_mut().cast();
+        let rem = if ptr_bytes[0] == b'0' && matches!(ptr_bytes.get(1), Some(b'b' | b'B')) {
+            skipbin_slice(&ptr_bytes[2..])
         } else if ptr_bytes[0] == b'0' && matches!(ptr_bytes.get(1), Some(b'x' | b'X')) {
-            mi.mi_end = skiphex(ptr.wrapping_add(2).cast()).cast();
+            skiphex_slice(&ptr_bytes[2..])
         } else {
-            mi.mi_end = skipdigits(ptr.cast()).cast();
-        }
-        nrlen = crate::memory::ptr_offset_from(mi.mi_end, ptr) as usize;
+            skipdigits_slice(ptr_bytes)
+        };
+        nrlen = ptr_bytes.len() - rem.len();
+        mi.mi_end = ptr.wrapping_add(nrlen);
     }
     mi.mi_word = ptr;
     mi.mi_fend = ptr;
@@ -1155,7 +1156,9 @@ pub fn spell_move_to(
                 }
                 line = ml_get_buf(wp.buf_mut(), lnum);
             }
-            let empty_line = crate::memory::cstr_is_empty(skipwhite(line));
+            let empty_line = crate::memory::cstr_is_empty(line.wrapping_add(
+                crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(line.cast())),
+            ));
             let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes_with_nul();
             buf_vec[..line_bytes.len()].copy_from_slice(line_bytes);
             if lnum < wp.buf_mut().b_ml.ml_line_count {
@@ -2212,7 +2215,12 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             need_cap = true;
         } else {
             line = ml_get_buf(wp.buf_mut(), lnum - 1).cast();
-            if crate::memory::cstr_is_empty(skipwhite(line.cast())) {
+            if crate::memory::cstr_is_empty({
+                let _sw_p = line.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }) {
                 need_cap = true;
             } else {
                 line_copy = Some(concat_str(crate::memory::cstr_as_bytes(line.cast()), b" "));
@@ -2694,7 +2702,7 @@ pub fn ex_spellinfo(_eap: &mut Exarg) {
         let lp = &(&w_s.b_langp)[lpi];
         let slang = lp.slang_mut();
         msg_puts(c"file: ");
-        msg_puts(slang.sl_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()));
+        msg_puts(slang.sl_fname.as_deref().unwrap_or(c""));
         let p = slang
             .sl_info
             .as_ref()
@@ -2703,7 +2711,7 @@ pub fn ex_spellinfo(_eap: &mut Exarg) {
             msg_putchar(b'\n' as i32);
         }
         if !p.is_null() {
-            msg_puts(p);
+            msg_puts(crate::memory::cstr_from_ptr(p));
             if lpi + 1 < len {
                 msg_putchar(b'\n' as i32);
             }
@@ -2798,7 +2806,7 @@ pub fn spell_dump_compl(
                 g_st().iobuff.as_mut_ptr(),
                 IOSIZE,
                 c"# file: %s",
-                slang.sl_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                slang.sl_fname.as_deref().unwrap_or(c""),
             );
             let _ = ml_append(lnum, g_st().iobuff.as_mut_ptr(), 0, false);
             lnum += 1;

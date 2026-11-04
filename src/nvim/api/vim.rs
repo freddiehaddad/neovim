@@ -1319,7 +1319,7 @@ pub fn nvim_echo(
     id = msg_multihl(
         opts.id,
         &mut hl_msg,
-        kind,
+        crate::memory::cstr_as_opt_cstr(kind),
         history,
         opts.err,
         Some(&mut msg_data),

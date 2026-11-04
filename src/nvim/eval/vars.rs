@@ -6,7 +6,7 @@ use crate::api::private::helpers::{
 };
 use crate::api::private::validate::{Object, ObjectType};
 use crate::buffer::{DO_NOT_FREE_CNT, FileBuf, NOTDONE, VAR_FIXED, VAR_SCOPE};
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int};
 use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
@@ -814,7 +814,14 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
     let mut save_val: TypVal = TypVal::new();
     let mut rettv: TypVal = TypVal::new();
     let mut list: *mut TvList = ptr::null_mut();
-    let mut p = unsafe { CStr::from_ptr(skipwhite(expr.as_ptr())) };
+    let mut p = unsafe {
+        CStr::from_ptr({
+            let _sw_p = expr.as_ptr();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
     let saved_sctx = g_st().current_sctx;
 
     prepare_vimvar(VV_VAL, &mut save_val);
@@ -924,7 +931,14 @@ pub fn eval_one_expr_in_str<'a>(
     evaluate: bool,
 ) -> Option<&'a CStr> {
     let p = p_in.as_ptr().cast::<u8>();
-    let block_start: *mut u8 = skipwhite(p.wrapping_add(1).cast()).cast();
+    let block_start: *mut u8 = {
+        let _sw_p = p.wrapping_add(1).cast::<std::ffi::c_char>();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p,
+        )))
+    }
+    .cast_mut()
+    .cast();
     let mut block_end = block_start;
 
     if crate::memory::cstr_is_empty(block_start.cast()) {
@@ -938,7 +952,13 @@ pub fn eval_one_expr_in_str<'a>(
     if !skip_expr(&mut block_end_cstr, None) {
         return None;
     }
-    block_end = skipwhite(block_end_cstr.as_ptr().cast_mut()).cast();
+    block_end = {
+        let _sw_p = block_end_cstr.as_ptr().cast_mut();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    }
+    .cast();
     if crate::memory::cstr_first_byte(block_end.cast()) != b'}' {
         semsg!(
             gettext(E_MISSING_CLOSE_CURLY_STR),
@@ -1193,7 +1213,12 @@ pub fn ex_let(eap: &mut Exarg) {
     ) else {
         return;
     };
-    let mut expr = skipwhite(argend_cstr.as_ptr().cast_mut());
+    let mut expr = {
+        let _sw_p = argend_cstr.as_ptr().cast_mut();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    };
     let expr_bytes = crate::memory::cstr_as_bytes(expr);
     let concat = expr_bytes.starts_with(b"..=");
     let has_assign = expr_bytes.first() == Some(&b'=')
@@ -1261,7 +1286,9 @@ pub fn ex_let(eap: &mut Exarg) {
         expr = expr.wrapping_add(1);
     }
 
-    expr = skipwhite(expr);
+    expr = expr.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        expr.cast(),
+    )));
 
     if eap.skip != 0 {
         g_st().emsg_skip += 1;
@@ -1332,7 +1359,14 @@ pub fn ex_let_vars(
     let mut rest_len = tv_list_len(Some(l)) as usize;
     while arg.to_bytes().first() != Some(&b']') {
         let cur = item.unwrap();
-        let next_arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1))) };
+        let next_arg = unsafe {
+            CStr::from_ptr({
+                let _sw_p = arg.as_ptr().wrapping_add(1);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            })
+        };
         let Some(after_one) = ex_let_one(
             next_arg,
             &mut cur.li_tv,
@@ -1346,7 +1380,14 @@ pub fn ex_let_vars(
         rest_len -= 1;
 
         item = cur.next_opt();
-        arg = unsafe { CStr::from_ptr(skipwhite(after_one.as_ptr())) };
+        arg = unsafe {
+            CStr::from_ptr({
+                let _sw_p = after_one.as_ptr();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            })
+        };
         if arg.to_bytes().first() == Some(&b';') {
             let rest_list = tv_list_alloc(rest_len as isize);
             while let Some(rem) = item {
@@ -1359,7 +1400,14 @@ pub fn ex_let_vars(
             ltv.vval = crate::eval::typval::TypvalVval::List(rest_list);
             tv_list_ref(Some(&mut *rest_list));
 
-            let semi_arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1))) };
+            let semi_arg = unsafe {
+                CStr::from_ptr({
+                    let _sw_p = arg.as_ptr().wrapping_add(1);
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                })
+            };
             let res = ex_let_one(semi_arg, &mut ltv, false, is_const != 0, Some(c"]"), op);
             tv_clear(&mut ltv);
             if res.is_none() {
@@ -1385,7 +1433,13 @@ pub fn skip_var_list<'a>(
     if arg_in.to_bytes().first() == Some(&b'[') {
         let mut p = arg_in.as_ptr().cast::<u8>();
         loop {
-            p = skipwhite(p.wrapping_add(1).cast()).cast();
+            p = {
+                let _sw_p = p.wrapping_add(1).cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }
+            .cast();
             let p_cstr = unsafe { CStr::from_ptr(p.cast()) };
             let s = skip_var_one(p_cstr).as_ptr().cast::<u8>();
             if s == p {
@@ -1396,7 +1450,13 @@ pub fn skip_var_list<'a>(
             }
             *var_count += 1;
 
-            p = skipwhite(s.cast()).cast();
+            p = {
+                let _sw_p = s.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }
+            .cast();
             if crate::memory::cstr_first_byte(p.cast()) == b']' {
                 break;
             } else if crate::memory::cstr_first_byte(p.cast()) == b';' {
@@ -1447,7 +1507,7 @@ pub fn list_hashtable_vars(ht: &mut Hashtab, prefix: &std::ffi::CStr, empty: i32
 
         crate::memory::copy_bytes_to_c_buf(&mut buf, prefix.to_bytes());
         crate::memory::append_bytes_to_c_buf(&mut buf, di.key_bytes());
-        if message_filtered(buf.as_ptr().cast()) {
+        if message_filtered(crate::memory::cstr_until_nul(&buf)) {
             continue;
         }
 
@@ -1604,7 +1664,13 @@ fn list_arg_vars<'a>(eap: &mut Exarg, arg_in: &'a CStr, first: &mut i32) -> &'a 
             drop(tofree);
         }
 
-        arg = skipwhite(arg.cast()).cast();
+        arg = {
+            let _sw_p = arg.cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast();
     }
 
     unsafe { CStr::from_ptr(arg.cast()) }
@@ -1638,7 +1704,12 @@ fn ex_let_env<'a>(
     } else if endchars.is_some_and(|ec| {
         !crate::strings::vim_haschr(
             ec,
-            crate::memory::cstr_first_byte(skipwhite(arg.cast())) as i32,
+            crate::memory::cstr_first_byte({
+                let _sw_p = arg.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }) as i32,
         )
     }) {
         emsg(gettext(E_LETUNEXP));
@@ -1690,7 +1761,12 @@ fn ex_let_option<'a>(
         || endchars.is_some_and(|ec| {
             !crate::strings::vim_haschr(
                 ec,
-                crate::memory::cstr_first_byte(skipwhite(p.cast())) as i32,
+                crate::memory::cstr_first_byte({
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }) as i32,
             )
         })
     {
@@ -1820,7 +1896,12 @@ fn ex_let_register<'a>(
     } else if endchars.is_some_and(|ec| {
         !crate::strings::vim_haschr(
             ec,
-            crate::memory::cstr_first_byte(skipwhite(arg.wrapping_add(1).cast())) as i32,
+            crate::memory::cstr_first_byte({
+                let _sw_p = arg.wrapping_add(1).cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }) as i32,
         )
     }) {
         emsg(gettext(E_LETUNEXP));
@@ -1882,7 +1963,12 @@ fn ex_let_one<'a>(
                 if endchars.is_some_and(|ec| {
                     !crate::strings::vim_haschr(
                         ec,
-                        crate::memory::cstr_first_byte(skipwhite(p.cast())) as i32,
+                        crate::memory::cstr_first_byte({
+                            let _sw_p = p.cast::<std::ffi::c_char>();
+                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                            ))
+                        }) as i32,
                     )
                 }) {
                     emsg(gettext(E_LETUNEXP));
@@ -1989,7 +2075,13 @@ fn ex_unletlock(
                 error = true;
             }
         }
-        arg = skipwhite(name_end.cast()).cast();
+        arg = {
+            let _sw_p = name_end.cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast();
         if ends_excmd(crate::memory::cstr_first_byte(arg.cast())) != 0 {
             break;
         }
@@ -2116,7 +2208,8 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             }
         }
 
-        let mut hi = hash_find(unsafe { &*ht }, varname);
+        let mut hi: *mut Hashitem =
+            hash_find(unsafe { &*ht }, crate::memory::cstr_from_ptr(varname));
         if hashitem_empty(unsafe { &*hi }) {
             let mut ht_opt: Option<&'static mut Hashtab> = Some(unsafe { &mut *ht });
             hi = find_hi_in_scoped_ht(unsafe { CStr::from_ptr(name) }, &mut ht_opt)
@@ -2703,15 +2796,14 @@ pub fn find_var_in_ht(
         return unsafe { ptr.as_mut() };
     }
 
-    let mut hi = hash_find_len(ht, varname_ptr, varname_len);
+    let varname_slice = crate::memory::cstr_slice(varname_ptr, varname_len);
+    let mut hi: *mut Hashitem = hash_find_len(ht, varname_slice);
     if hashitem_empty(unsafe { &*hi }) {
         if (&raw mut *ht) == get_globvar_ht() && no_autoload == 0 {
-            if !script_autoload(crate::memory::cstr_slice(varname_ptr, varname_len), false)
-                || aborting()
-            {
+            if !script_autoload(varname_slice, false) || aborting() {
                 return None;
             }
-            hi = hash_find_len(ht, varname_ptr, varname_len);
+            hi = hash_find_len(ht, varname_slice);
         }
         if hashitem_empty(unsafe { &*hi }) {
             return None;
@@ -2740,8 +2832,8 @@ fn find_var_ht_dict<'a>(
         }
         *varname = Some(name_in);
 
-        let hi = hash_find_len(&vars_st().compat_hashtab, name.cast(), name_len);
-        if !hashitem_empty(unsafe { &*hi }) {
+        let hi = hash_find_len(&vars_st().compat_hashtab, name_slice);
+        if !hashitem_empty(hi) {
             return Some(&mut vars_st().compat_hashtab);
         }
 
@@ -2899,10 +2991,10 @@ fn list_one_var_a(
         msg_putchar(b'\n' as i32);
     }
     if !prefix.to_bytes().is_empty() {
-        msg_puts(prefix.as_ptr());
+        msg_puts(prefix);
     }
     if let Some(name) = name {
-        msg_puts_len(name.as_ptr(), name_len, 0, false);
+        msg_puts_len(name.to_bytes(), name_len, 0, false);
     }
     msg_putchar(b' ' as i32);
     msg_advance(22);
@@ -2924,7 +3016,7 @@ fn list_one_var_a(
         msg_putchar(b' ' as i32);
     }
 
-    msg_outtrans(string, 0, false);
+    msg_outtrans(crate::memory::cstr_from_ptr(string), 0, false);
 
     if v_type == VarType::VarFunc || v_type == VarType::VarPartial {
         msg_puts(c"()");

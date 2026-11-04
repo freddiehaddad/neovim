@@ -20,7 +20,6 @@ use crate::plines::{
 };
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
-use crate::strings::RawCCharPtrMut;
 use crate::window::WinInfoInfo;
 use std::ptr;
 
@@ -521,15 +520,18 @@ pub fn pchar_cursor(c: u8) {
     get_cursor_line_mut_slice()[curwin_mut().w_cursor.col as usize] = c;
 }
 
-/// Return pointer to cursor line (`get_cursor_line_ptr`).
-pub fn get_cursor_line_ptr() -> RawCCharPtrMut {
-    ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
+/// Return the cursor line as a CStr (`get_cursor_line_ptr`).
+pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
+    let lnum = curwin_mut().w_cursor.lnum;
+    crate::memory::cstr_from_ptr(ml_get_buf(crate::globals::curbuf_mut(), lnum))
 }
 
-/// Return pointer to cursor position (`get_cursor_pos_ptr`).
-pub fn get_cursor_pos_ptr() -> RawCCharPtrMut {
-    ml_get_buf(crate::globals::curbuf_mut(), curwin_mut().w_cursor.lnum)
-        .wrapping_add(curwin_mut().w_cursor.col as usize)
+/// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).
+pub fn get_cursor_pos_ptr() -> &'static std::ffi::CStr {
+    let cursor = curwin_mut().w_cursor;
+    crate::memory::cstr_from_ptr(
+        ml_get_buf(crate::globals::curbuf_mut(), cursor.lnum).wrapping_add(cursor.col as usize),
+    )
 }
 
 /// Return the bytes (excluding the NUL) of the cursor line.

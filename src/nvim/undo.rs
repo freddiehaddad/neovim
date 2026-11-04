@@ -2442,7 +2442,7 @@ pub fn ex_undolist(_eap: &mut Exarg) {
             if g_st().got_int {
                 break;
             }
-            msg_puts(line.as_ptr());
+            msg_puts(line);
         }
         msg_end();
     }

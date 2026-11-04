@@ -19,8 +19,8 @@ use crate::buffer::{
     do_buffer,
 };
 use crate::charset::{
-    ascii_isalpha, ascii_isspace, ascii_iswhite, is_special, skipwhite, skipwhite_slice,
-    vim_is_idc, vim_isprintc, vim_iswordc, vim_slice2nr,
+    ascii_isalpha, ascii_isspace, ascii_iswhite, is_special, skipwhite_slice, vim_is_idc,
+    vim_isprintc, vim_iswordc, vim_slice2nr,
 };
 use crate::cmdexpand::{
     CTRL_N, CTRL_P, CmdlineColorChunk, CmdlineInfo, ColoredCmdline, EXPAND_NOTHING,
@@ -539,7 +539,9 @@ pub fn parse_pattern_and_range(
         .take_while(|b| b.is_ascii_alphabetic())
         .count();
     let mut p = cmd.wrapping_add(cmd_len);
-    if crate::memory::cstr_is_empty(skipwhite(p)) {
+    if crate::memory::cstr_is_empty(p.wrapping_add(crate::charset::skipwhite_len(
+        crate::memory::cstr_as_bytes(p.cast()),
+    ))) {
         return false;
     }
 
@@ -557,10 +559,17 @@ pub fn parse_pattern_and_range(
     } else if cmd_len >= 3 && (b"sort".starts_with(cmd_name) || b"uniq".starts_with(cmd_name)) {
         // skip over ! and flags
         if crate::memory::cstr_first_byte(p) == b'!' {
-            p = skipwhite(p.wrapping_add(1));
+            p = {
+                let _sw_p = p.wrapping_add(1);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
         }
         loop {
-            p = skipwhite(p);
+            p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             if !ascii_isalpha(crate::memory::cstr_first_byte(p)) {
                 break;
             }
@@ -578,7 +587,9 @@ pub fn parse_pattern_and_range(
         // skip optional "!"
         if crate::memory::cstr_first_byte(p) == b'!' {
             p = p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(skipwhite(p)) {
+            if crate::memory::cstr_is_empty(p.wrapping_add(crate::charset::skipwhite_len(
+                crate::memory::cstr_as_bytes(p.cast()),
+            ))) {
                 return false;
             }
         }
@@ -589,7 +600,9 @@ pub fn parse_pattern_and_range(
         return false;
     }
 
-    p = skipwhite(p);
+    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        p.cast(),
+    )));
     let delim = if delim_optional && vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
         b' ' as i32
     } else {
@@ -1152,7 +1165,7 @@ fn command_line_enter(
                     msg_putchar(b'\n' as i32);
                 }
                 g_st().msg_scroll = 1;
-                msg_puts_hl(err.msg_cstr(), HLF_E, true);
+                msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
                 api_clear_error(&mut err);
                 redrawcmd();
             }
@@ -1317,7 +1330,7 @@ fn command_line_enter(
             if !ui_has(K_UIMESSAGES) {
                 msg_putchar(b'\n' as i32);
             }
-            emsg(err.msg_cstr());
+            emsg(err.msg_cstr().unwrap_or(c""));
             g_st().did_emsg = 0;
             api_clear_error(&mut err);
         }
@@ -1329,7 +1342,7 @@ fn command_line_enter(
         set_option_direct(
             K_OPT_INCCOMMAND,
             cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-                s.save_p_icm.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                s.save_p_icm.as_deref().unwrap_or(c""),
             )),
             0,
             SID_NONE,
@@ -3232,7 +3245,7 @@ fn do_autocmd_cmdlinechanged(firstc: i32) {
                 msg_putchar(b'\n' as i32);
             }
             g_st().msg_scroll = 1;
-            msg_puts_hl(err.msg_cstr(), HLF_E, true);
+            msg_puts_hl(err.msg_cstr().unwrap_or(c""), HLF_E, true);
             api_clear_error(&mut err);
             redrawcmd();
         }
@@ -3929,28 +3942,26 @@ fn draw_cmdline(start: i32, len: i32) {
                 continue;
             }
             let chunk_start = chunk.start.max(start);
-            msg_outtrans_len(
+            let slice = crate::memory::cstr_slice(
                 getln_st()
                     .ccline
                     .cmdbuff
                     .wrapping_add(chunk_start as usize)
                     .cast(),
-                chunk.end - chunk_start,
-                chunk.hl_id,
-                false,
+                (chunk.end - chunk_start).max(0) as usize,
             );
+            msg_outtrans_len(slice, chunk.end - chunk_start, chunk.hl_id, false);
         }
     } else {
-        msg_outtrans_len(
+        let slice = crate::memory::cstr_slice(
             getln_st()
                 .ccline
                 .cmdbuff
                 .wrapping_add(start as usize)
                 .cast(),
-            len,
-            0,
-            false,
+            len.max(0) as usize,
         );
+        msg_outtrans_len(slice, len, 0, false);
     }
 }
 
@@ -4439,7 +4450,7 @@ fn redrawcmdprompt() {
     }
     let cp = &raw const getln_st().ccline.cmdprompt;
     if let Some(ref prompt) = *unsafe { &(*cp) } {
-        msg_puts_hl(prompt.as_ptr(), getln_st().ccline.hl_id, false);
+        msg_puts_hl(prompt, getln_st().ccline.hl_id, false);
         getln_st().ccline.cmdindent =
             g_st().msg_col + (g_st().msg_row - g_st().cmdline_row) * g_st().columns_global;
         if getln_st().ccline.cmdfirstc != NUL as i32 {
@@ -5198,9 +5209,10 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             p = lastnl.wrapping_add(1);
             msg_start();
             msg_clr_eos();
+            let plen = crate::memory::ptr_offset_from(p, prompt);
             msg_puts_len(
-                prompt.cast(),
-                crate::memory::ptr_offset_from(p, prompt),
+                crate::memory::cstr_slice(prompt.cast(), plen.max(0) as usize),
+                plen,
                 get_echo_hl_id(),
                 false,
             );

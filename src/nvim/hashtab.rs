@@ -27,13 +27,13 @@ impl Hashitem {
         if self.hi_di.is_null() {
             None
         } else {
-            CStr::from_bytes_until_nul(&crate::globals::gref(self.hi_di).di_key).ok()
+            CStr::from_bytes_until_nul(unsafe { &(*self.hi_di).di_key }).ok()
         }
     }
 
     #[inline]
     pub fn di_opt(&self) -> Option<&'static mut crate::eval::typval::Dictitem> {
-        crate::globals::gopt_mut(self.hi_di)
+        unsafe { self.hi_di.as_mut() }
     }
 }
 
@@ -61,12 +61,13 @@ impl Hashtab {
     }
 
     #[inline]
-    pub fn array_ptr(&self) -> *mut Hashitem {
-        if self.ht_array.is_empty() {
-            empty_hasharray_ptr()
+    pub fn array_ptr(&self) -> &'static mut Hashitem {
+        let ptr = if self.ht_array.is_empty() {
+            EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>()
         } else {
             self.ht_array.as_ptr().cast_mut()
-        }
+        };
+        unsafe { &mut *ptr }
     }
 
     #[inline]
@@ -77,7 +78,7 @@ impl Hashtab {
                 if hi.hi_di.is_null() {
                     None
                 } else {
-                    Some((hi, crate::globals::gref(hi.hi_di)))
+                    Some((hi, unsafe { &*hi.hi_di }))
                 }
             })
             .take(self.ht_used)
@@ -94,21 +95,14 @@ impl Hashtab {
     }
 
     #[inline]
-    pub fn find_hi_mut(
-        &self,
-        key: impl crate::strings::IntoCCharPtr,
-    ) -> Option<&'static mut Hashitem> {
-        let hi = crate::globals::gmut(hash_find(self, key));
+    pub fn find_hi_mut(&self, key: &CStr) -> Option<&'static mut Hashitem> {
+        let hi = hash_find(self, key);
         (!hashitem_empty(hi)).then_some(hi)
     }
 
     #[inline]
-    pub fn find_hi_len_mut(
-        &self,
-        key: impl crate::strings::IntoCCharPtr,
-        len: usize,
-    ) -> Option<&'static mut Hashitem> {
-        let hi = crate::globals::gmut(hash_find_len(self, key, len));
+    pub fn find_hi_len_mut(&self, key: &[u8]) -> Option<&'static mut Hashitem> {
+        let hi = hash_find_len(self, key);
         (!hashitem_empty(hi)).then_some(hi)
     }
 
@@ -139,22 +133,13 @@ static EMPTY_HASHARRAY: crate::globals::GlobalState<[Hashitem; HT_INIT_SIZE]> =
     );
 
 #[inline]
-pub const fn empty_hasharray_ptr() -> *mut Hashitem {
-    EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>()
-}
-
-#[inline]
 pub fn hashitem_empty(hi: &Hashitem) -> bool {
     hi.hi_di.is_null()
 }
 
 #[inline]
-fn key_matches(
-    hi_key: impl crate::strings::IntoCCharPtr,
-    key: impl crate::strings::IntoCCharPtr,
-    key_len: usize,
-) -> bool {
-    crate::memory::cstr_as_bytes(hi_key) == crate::memory::cstr_slice(key, key_len)
+fn key_matches(hi_key: Option<&CStr>, key: &[u8]) -> bool {
+    hi_key.map_or(&b""[..], CStr::to_bytes) == key
 }
 
 /// Free the array of a hash table without freeing contained values (`hash_clear`).
@@ -166,61 +151,48 @@ pub fn hash_clear(ht: &mut Hashtab) {
 }
 
 /// Find item for NUL-terminated `key` in `ht` (`hash_find`).
-pub fn hash_find(ht: &Hashtab, key: impl crate::strings::IntoCCharPtr) -> *mut Hashitem {
-    let key = key.into_c_char_ptr();
-    let len = crate::memory::cstr_len(key);
+pub fn hash_find(ht: &Hashtab, key: &CStr) -> &'static mut Hashitem {
     let hash = hash_hash(key);
-    hash_lookup(ht, key, len, hash)
+    hash_lookup(ht, key.to_bytes(), hash)
 }
 
-/// Find item for `key[..len]` in `ht` (`hash_find_len`).
-pub fn hash_find_len(
-    ht: &Hashtab,
-    key: impl crate::strings::IntoCCharPtr,
-    len: usize,
-) -> *mut Hashitem {
-    let key = key.into_c_char_ptr();
-    let hash = hash_hash_len(key, len);
-    hash_lookup(ht, key, len, hash)
+/// Find item for `key` slice in `ht` (`hash_find_len`).
+pub fn hash_find_len(ht: &Hashtab, key: &[u8]) -> &'static mut Hashitem {
+    let hash = hash_hash_len(key);
+    hash_lookup(ht, key, hash)
 }
 
-/// Find item for `key[..key_len]` with precomputed `hash` in `ht` (`hash_lookup`).
-pub fn hash_lookup(
-    ht: &Hashtab,
-    key: impl crate::strings::IntoCCharPtr,
-    key_len: usize,
-    hash: HashVal,
-) -> *mut Hashitem {
-    let key = key.into_c_char_ptr();
-    let arr_ptr = ht.array_ptr();
+/// Find item for `key` slice with precomputed `hash` in `ht` (`hash_lookup`).
+pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hashitem {
+    let arr_ptr: *mut Hashitem = ht.array_ptr();
 
     let mut idx = hash & ht.ht_mask;
     let mut hi = arr_ptr.wrapping_add(idx);
-    let hi_ref = crate::globals::gref(hi);
+    let hi_ref = unsafe { &*hi };
 
     if hi_ref.is_null_slot() {
-        return hi;
+        return unsafe { &mut *hi };
     }
 
     let mut freeitem: *mut Hashitem = std::ptr::null_mut();
     if hi_ref.hi_removed {
         freeitem = hi;
-    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key, key_len) {
-        return hi;
+    } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key) {
+        return unsafe { &mut *hi };
     }
 
     let mut perturb = hash;
     loop {
         idx = idx.wrapping_mul(5).wrapping_add(perturb).wrapping_add(1);
         hi = arr_ptr.wrapping_add(idx & ht.ht_mask);
-        let item = crate::globals::gref(hi);
+        let item = unsafe { &*hi };
 
         if item.is_null_slot() {
-            return if freeitem.is_null() { hi } else { freeitem };
+            return unsafe { &mut *(if freeitem.is_null() { hi } else { freeitem }) };
         }
 
-        if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key, key_len) {
-            return hi;
+        if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
+            return unsafe { &mut *hi };
         }
 
         if item.hi_removed && freeitem.is_null() {
@@ -236,11 +208,10 @@ pub fn hash_lookup(
 /// # Safety
 /// `ht` and `di` must be valid pointers, and `di` must outlive the entry in `ht`.
 pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> bool {
-    let key: crate::strings::RawCCharPtr = di.di_key.as_ptr().cast();
-    let len = crate::memory::cstr_len(key);
+    let key = di.key_cstr();
     let hash = hash_hash(key);
-    let hi = hash_lookup(ht, key, len, hash);
-    if !hashitem_empty(crate::globals::gref(hi)) {
+    let hi = hash_lookup(ht, key.to_bytes(), hash);
+    if !hashitem_empty(hi) {
         siemsg!(
             c"E685: Internal error: hash_add(): duplicate key \"%s\"",
             key,
@@ -257,16 +228,18 @@ pub fn hash_add(ht: &mut Hashtab, di: &mut crate::eval::typval::Dictitem) -> boo
 /// `ht`, `hi`, and `di` must be valid pointers, with `hi` obtained from `hash_lookup(ht, ...)`.
 pub fn hash_add_item(
     ht: &mut Hashtab,
-    mut hi: *mut Hashitem,
+    hi_in: &mut Hashitem,
     di: &mut crate::eval::typval::Dictitem,
     hash: HashVal,
 ) {
+    let mut hi: *mut Hashitem = std::hint::black_box(std::ptr::from_mut(hi_in));
     if ht.ht_array.is_empty() {
-        let offset = crate::memory::ptr_offset_from(hi, empty_hasharray_ptr()) as usize;
+        let offset = crate::memory::ptr_offset_from(hi, EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>())
+            as usize;
         ht.ht_array = vec![Hashitem::default(); HT_INIT_SIZE];
         hi = ht.ht_array.as_mut_ptr().wrapping_add(offset);
     }
-    let hi_ref = crate::globals::gmut(hi);
+    let hi_ref = unsafe { &mut *hi };
     ht.ht_used += 1;
     ht.ht_changed += 1;
     if hi_ref.is_null_slot() {
@@ -387,40 +360,17 @@ fn hash_may_resize(ht: &mut Hashtab, mut minitems: usize) {
 }
 
 /// Compute hash for NUL-terminated `key` (`hash_hash`).
-///
-/// # Safety
-/// `key` must be a valid NUL-terminated C string.
-pub fn hash_hash(key: impl crate::strings::IntoCCharPtr) -> HashVal {
-    let key = key.into_c_char_ptr();
-    let first = *crate::globals::gptr(key.cast::<u8>());
-    if first == 0 {
-        return 0;
-    }
-    let mut hash = usize::from(first);
-    let mut p = key.cast::<u8>().wrapping_add(1);
-    loop {
-        let b = *crate::globals::gptr(p);
-        if b == 0 {
-            break;
-        }
-        hash = hash.wrapping_mul(101).wrapping_add(usize::from(b));
-        p = p.wrapping_add(1);
-    }
-    hash
+pub fn hash_hash(key: &CStr) -> HashVal {
+    hash_hash_len(key.to_bytes())
 }
 
-/// Compute hash for `key[..len]` (`hash_hash_len`).
-///
-/// # Safety
-/// `key` must be valid for `len` bytes when `len > 0`.
-pub fn hash_hash_len(key: impl crate::strings::IntoCCharPtr, len: usize) -> HashVal {
-    let key = key.into_c_char_ptr();
-    if len == 0 {
+/// Compute hash for `key` slice (`hash_hash_len`).
+pub fn hash_hash_len(key: &[u8]) -> HashVal {
+    let Some((&first, rest)) = key.split_first() else {
         return 0;
-    }
-    let slice = crate::memory::cstr_slice(key, len);
-    let mut hash = usize::from(slice[0]);
-    for &b in &slice[1..] {
+    };
+    let mut hash = usize::from(first);
+    for &b in rest {
         hash = hash.wrapping_mul(101).wrapping_add(usize::from(b));
     }
     hash
@@ -449,30 +399,34 @@ mod tests {
                 .collect();
 
             for &di in &items {
-                assert!(hash_add(ht, crate::globals::gmut(di)));
+                assert!(hash_add(ht, unsafe { &mut *di }));
             }
             assert_eq!(ht.ht_used, 50);
             // Duplicate key returns FAIL
             crate::globals::g_st().emsg_skip += 1;
-            assert!(!hash_add(ht, crate::globals::gmut(items[0])));
+            let first_di = items[0];
+            assert!(!hash_add(ht, unsafe { &mut *first_di }));
             crate::globals::g_st().emsg_skip -= 1;
 
             for (k, &di) in keys.iter().zip(&items) {
-                let hi = hash_find(ht, k.as_ptr());
-                assert!(!hashitem_empty(crate::globals::gref(hi)));
-                assert_eq!(crate::globals::gptr(hi).key_cstr(), Some(k.as_c_str()));
-                assert_eq!(crate::globals::gptr(hi).hi_di, di);
+                let hi = hash_find(ht, k.as_c_str());
+                assert!(!hashitem_empty(hi));
+                assert_eq!(hi.key_cstr(), Some(k.as_c_str()));
+                assert_eq!(hi.hi_di, di);
             }
 
             // Remove all keys and verify table shrinks back to HT_INIT_SIZE
             for k in &keys {
-                let hi = hash_find(ht, k.as_ptr());
-                hash_remove(ht, crate::globals::gmut(hi));
+                let hi = hash_find(ht, k.as_c_str());
+                hash_remove(ht, hi);
             }
             assert_eq!(ht.ht_used, 0);
             assert_eq!(ht.ht_mask, HT_INIT_SIZE - 1);
             hash_clear(ht);
-            assert!(std::ptr::eq(ht.array_ptr(), empty_hasharray_ptr()));
+            assert!(std::ptr::eq(
+                ht.array_ptr(),
+                EMPTY_HASHARRAY.as_ptr().cast::<Hashitem>()
+            ));
 
             for di in items {
                 crate::eval::typval::tv_dict_item_free(unsafe { &mut *di });

@@ -7,7 +7,7 @@ use crate::api::private::helpers::{
 use crate::api::private::validate::{Dict, KeyValuePair, NvimString, Object};
 use crate::autocmd::{DOCMD_NOWAIT, DOCMD_VERBOSE, HLF_8};
 use crate::buffer::FileBuf;
-use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{ascii_isupper, ascii_iswhite, getdigits_int};
 use crate::cmdexpand::{
     CmdAddr, EXPAND_ARGLIST, EXPAND_AUGROUP, EXPAND_BREAKPOINT, EXPAND_BUFFERS, EXPAND_CHECKHEALTH,
     EXPAND_COLORS, EXPAND_COMMANDS, EXPAND_COMPILER, EXPAND_DIFF_BUFFERS, EXPAND_DIRECTORIES,
@@ -580,7 +580,7 @@ fn uc_list(name_prefix: &[u8]) {
                 let cmd_b = cmd.uc_name.as_bytes();
 
                 if name_prefix != &cmd_b[..name_len.min(cmd_b.len())]
-                    || message_filtered(cmd.uc_name.as_ptr())
+                    || message_filtered(&cmd.uc_name)
                 {
                     i += 1;
                     continue;
@@ -615,15 +615,15 @@ fn uc_list(name_prefix: &[u8]) {
                     len -= 1;
                 }
                 if len != 0 {
-                    msg_puts(c"    ".as_ptr().wrapping_add(4 - len));
+                    msg_puts(unsafe { CStr::from_ptr(c"    ".as_ptr().wrapping_add(4 - len)) });
                 }
 
-                msg_outtrans(cmd.uc_name.as_ptr(), HLF_D, false);
+                msg_outtrans(&cmd.uc_name, HLF_D, false);
                 len = cmd.uc_name.as_bytes().len() + 4;
 
                 if len < 21 {
                     const SPACES: &CStr = c"                 ";
-                    msg_puts(SPACES.as_ptr().wrapping_add(len - 4));
+                    msg_puts(unsafe { CStr::from_ptr(SPACES.as_ptr().wrapping_add(len - 4)) });
                     len = 21;
                 }
                 msg_putchar(b' ' as i32);
@@ -738,11 +738,15 @@ fn uc_list(name_prefix: &[u8]) {
                 }
 
                 iobuff[len] = 0;
-                msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
+                msg_outtrans(
+                    crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                    0,
+                    false,
+                );
 
                 if cmd.uc_luaref != LUA_NOREF {
                     let fn_str = nlua_funcref_str(cmd.uc_luaref, true);
-                    msg_puts_hl(fn_str.as_ptr(), HLF_8, false);
+                    msg_puts_hl(&fn_str, HLF_8, false);
                     if !cmd.uc_rep.as_bytes().is_empty() {
                         msg_puts(c"\n                                               ");
                     }
@@ -1138,7 +1142,9 @@ pub fn ex_command(eap: &mut Exarg) {
 
     while crate::memory::cstr_first_byte(p) == b'-' {
         p = p.wrapping_add(1);
-        let end = skiptowhite(p);
+        let end = p.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(p.cast()),
+        ));
         let attr_len = crate::memory::ptr_offset_from(end, p) as usize;
         if !uc_scan_attr(
             crate::memory::cstr_slice(p, attr_len),
@@ -1151,7 +1157,9 @@ pub fn ex_command(eap: &mut Exarg) {
         ) {
             return;
         }
-        p = skipwhite(end);
+        p = end.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            end.cast(),
+        )));
     }
 
     let name = p;
@@ -1162,7 +1170,9 @@ pub fn ex_command(eap: &mut Exarg) {
     let end = name.wrapping_add(name_len);
     let name_slice = crate::memory::cstr_slice(name, name_len);
 
-    p = skipwhite(end);
+    p = end.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        end.cast(),
+    )));
     if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
         uc_list(name_slice);
     } else if !ascii_isupper(crate::memory::cstr_first_byte(name)) {
@@ -1216,7 +1226,12 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         buffer_only = true;
-        arg = skipwhite(arg.wrapping_add(7));
+        arg = {
+            let _sw_p = arg.wrapping_add(7);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     let mut is_global = false;

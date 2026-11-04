@@ -3448,7 +3448,7 @@ fn report_re_switch(pat: &CStr) {
     if opt_vars().p_verbose > 0 {
         verbose_enter();
         msg_puts(tr(c"Switching to backtracking RE engine for pattern: "));
-        msg_puts(pat.as_ptr());
+        msg_puts(pat);
         verbose_leave();
     }
 }

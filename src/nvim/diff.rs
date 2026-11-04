@@ -7,7 +7,7 @@ use crate::buffer::{
 };
 use crate::bufwrite::buf_write;
 use crate::change::{change_warning, changed_lines};
-use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32, skipwhite};
+use crate::charset::{ascii_isdigit, ascii_iswhite, getdigits_int, getdigits_int32};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, Linenr, check_cursor};
 use crate::decoration::decor_conceal_line;
@@ -2478,11 +2478,21 @@ fn diff_find_change_simple(
                         && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                 {
                     si_org = crate::memory::ptr_offset_from(
-                        skipwhite(line_org.wrapping_add(si_org as usize)),
+                        {
+                            let _sw_p = line_org.wrapping_add(si_org as usize);
+                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                            ))
+                        },
                         line_org,
                     ) as i32;
                     si_new = crate::memory::ptr_offset_from(
-                        skipwhite(line_new.wrapping_add(si_new as usize)),
+                        {
+                            let _sw_p = line_new.wrapping_add(si_new as usize);
+                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                            ))
+                        },
                         line_new,
                     ) as i32;
                 } else {
@@ -2788,7 +2798,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if ascii_iswhite(crate::memory::cstr_first_byte(s)) {
                         if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                             in_keyword = false;
-                            s = skipwhite(s);
+                            s = s.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(s.cast()),
+                            ));
                             continue;
                         } else if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0
                             || (diff_st().diff_flags & DIFF_IWHITE) != 0)
@@ -2815,7 +2827,12 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         if ascii_iswhite(crate::memory::cstr_first_byte(s))
                             && (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
-                            char_len = crate::memory::ptr_offset_from(skipwhite(s), s) as i32;
+                            char_len = crate::memory::ptr_offset_from(
+                                s.wrapping_add(crate::charset::skipwhite_len(
+                                    crate::memory::cstr_as_bytes(s.cast()),
+                                )),
+                                s,
+                            ) as i32;
                         }
                         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                             let mut c = utf_ptr2char(s);

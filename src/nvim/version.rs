@@ -3999,7 +3999,7 @@ pub fn ex_version(eap: &mut Exarg) {
 }
 
 fn version_msg_wrap(s: &CStr, wrap: bool) {
-    let len = vim_strsize(s.as_ptr()) + if wrap { 2 } else { 0 };
+    let len = vim_strsize(s) + if wrap { 2 } else { 0 };
     if !g_st().got_int
         && len < g_st().columns_global
         && g_st().msg_col + len >= g_st().columns_global
@@ -4011,7 +4011,7 @@ fn version_msg_wrap(s: &CStr, wrap: bool) {
         if wrap {
             msg_puts(c"[");
         }
-        msg_puts(s.as_ptr());
+        msg_puts(s);
         if wrap {
             msg_puts(c"]");
         }
@@ -4028,7 +4028,7 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
     let mut width: i32 = 0;
 
     for (i, &item) in items.iter().enumerate() {
-        let l = vim_strsize(item.as_ptr()) + if i as i32 == current { 2 } else { 0 };
+        let l = vim_strsize(item) + if i as i32 == current { 2 } else { 0 };
         if l > width {
             width = l;
         }
@@ -4057,7 +4057,7 @@ pub fn list_in_columns(items: &[&CStr], current: i32) {
             if idx == current {
                 msg_putchar(b'[' as i32);
             }
-            msg_puts(items[idx as usize].as_ptr());
+            msg_puts(items[idx as usize]);
             if idx == current {
                 msg_putchar(b']' as i32);
             }
@@ -4102,7 +4102,7 @@ pub fn list_lua_version() {
     );
     debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
     debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
-    msg_puts(ret.data.string().data);
+    msg_puts(crate::memory::cstr_from_ptr(ret.data.string().data));
     api_free_object(ret);
 }
 
@@ -4122,7 +4122,7 @@ pub fn list_version() {
             if i > 0 {
                 msg_puts(c", ");
             }
-            msg_puts(ver.as_ptr());
+            msg_puts(ver);
         }
 
         if let Some(cflags) = version_cflags() {
@@ -4243,7 +4243,7 @@ fn do_intro_line(row: i32, mesg_cstr: &CStr, colon: bool, is_logo: bool) {
     let mesg = mesg_cstr.as_ptr();
     let mesg_bytes = mesg_cstr.to_bytes();
     {
-        let mut col = (g_st().columns_global - vim_strsize(mesg)) / 2;
+        let mut col = (g_st().columns_global - vim_strsize(mesg_cstr)) / 2;
         if col < 0 {
             col = 0;
         }

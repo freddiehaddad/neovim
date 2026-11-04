@@ -10,7 +10,7 @@ use crate::change::{
 use crate::charset::{
     NUL, STR2NR_BIN, STR2NR_HEX, STR2NR_OCT, Uvarnumber, ascii_isalpha, ascii_isbdigit,
     ascii_isdigit, ascii_isspace, ascii_isupper, ascii_iswhite, ascii_isxdigit, getwhitecols,
-    getwhitecols_curline, skipwhite, vim_str2nr,
+    getwhitecols_curline, vim_str2nr,
 };
 use crate::clipboard::set_clipboard;
 use crate::cursor::{
@@ -337,7 +337,12 @@ pub fn op_shift(oap: &mut Oparg, curs_top: bool, amount: i32) {
             op,
             amount,
         );
-        msg_keep(iobuff_ptr, 0, true, false);
+        msg_keep(
+            crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+            0,
+            true,
+            false,
+        );
     }
 
     if (g_st().cmdmod.cmod_flags & CMOD_LOCKMARKS) == 0 {
@@ -489,7 +494,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
         return;
     }
 
-    let oldp = get_cursor_line_ptr();
+    let oldp = get_cursor_line_ptr().as_ptr().cast_mut();
     let old_line_len = get_cursor_line_len();
 
     let mut newp_vec: Vec<u8>;
@@ -842,7 +847,9 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
         }
-        ptr_line = skipwhite(ptr_line);
+        ptr_line = ptr_line.wrapping_add(crate::charset::skipwhite_len(
+            crate::memory::cstr_as_bytes(ptr_line.cast()),
+        ));
         if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
             oap.motion_type = MT_LINE_WISE;
         }
@@ -1231,7 +1238,7 @@ fn op_replace(oap: &mut Oparg, mut c: i32) -> bool {
             let mut num_chars = numc;
             numc *= utf_char2len(c);
 
-            let mut oldp = get_cursor_line_ptr();
+            let mut oldp = get_cursor_line_ptr().as_ptr().cast_mut();
             let oldlen = get_cursor_line_len();
 
             let mut newp_size = (bd.textcol as usize) + (bd.startspaces as usize);
@@ -2778,7 +2785,7 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
         let mut overflow = false;
         vim_str2nr(
-            ptr_line.wrapping_add(col as usize),
+            crate::memory::cstr_as_bytes(ptr_line.wrapping_add(col as usize)),
             Some(&mut pre),
             Some(&mut length),
             (if do_bin { STR2NR_BIN } else { 0 })
@@ -3198,7 +3205,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                         );
                 }
             } else {
-                let p = get_cursor_line_ptr();
+                let p = get_cursor_line_ptr().as_ptr().cast_mut();
                 validate_virtcol(curwin_mut());
                 col_print(
                     &mut buf1,
@@ -3268,7 +3275,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 msg_start();
                 g_st().msg_scroll = 1;
             }
-            msg(iobuff_ptr, 0);
+            msg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()), 0);
             opt_vars().p_shm = p;
         }
     }

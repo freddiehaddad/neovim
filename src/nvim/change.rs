@@ -7,7 +7,7 @@ use crate::buffer::{
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::charset::{
-    ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, skipwhite, vim_strnsize,
+    ascii_isdigit, ascii_iswhite, getdigits_int, getwhitecols_curline, vim_strnsize,
 };
 use crate::context::INIT_FMARKV;
 use crate::cursor::{
@@ -964,7 +964,12 @@ pub fn open_line(
         let col_u = curwin_mut().w_cursor.col as usize;
         p_extra = saved_line.wrapping_add(col_u);
         if do_si {
-            let p = skipwhite(p_extra.cast());
+            let p = {
+                let _sw_p = p_extra.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
             first_char = i32::from(crate::memory::cstr_first_byte(p));
         }
         extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
@@ -1243,7 +1248,13 @@ pub fn open_line(
             }
             if p_byte == COM_END {
                 if dir == FORWARD {
-                    comment_end = skipwhite(saved_line.cast()).cast();
+                    comment_end = {
+                        let _sw_p = saved_line.cast::<std::ffi::c_char>();
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    }
+                    .cast();
                     lead_len = 0;
                     break;
                 }
@@ -1348,7 +1359,13 @@ pub fn open_line(
                     p = p.wrapping_add(1);
 
                     {
-                        let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
+                        let repl_size = vim_strnsize(
+                            crate::memory::cstr_slice(
+                                lead_repl.cast(),
+                                lead_repl_len.max(0) as usize,
+                            ),
+                            lead_repl_len,
+                        );
                         let mut old_size: i32 = 0;
                         let endp = p;
 
@@ -1414,15 +1431,31 @@ pub fn open_line(
                         }
                     }
                 } else {
-                    let mut p = skipwhite(leader.cast()).cast::<u8>();
+                    let mut p = {
+                        let _sw_p = leader.cast::<std::ffi::c_char>();
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    }
+                    .cast::<u8>();
                     {
-                        let repl_size = vim_strnsize(lead_repl.cast(), lead_repl_len);
+                        let repl_size = vim_strnsize(
+                            crate::memory::cstr_slice(
+                                lead_repl.cast(),
+                                lead_repl_len.max(0) as usize,
+                            ),
+                            lead_repl_len,
+                        );
                         let mut i: i32 = 0;
                         while i < lead_len
                             && !crate::memory::cstr_is_empty(p.wrapping_add(i as usize).cast())
                         {
                             let l = utfc_ptr2len(p.wrapping_add(i as usize).cast());
-                            if vim_strnsize(p.cast(), i + l) > repl_size {
+                            if vim_strnsize(
+                                crate::memory::cstr_slice(p.cast(), (i + l).max(0) as usize),
+                                i + l,
+                            ) > repl_size
+                            {
                                 break;
                             }
                             i += l;
@@ -1513,7 +1546,15 @@ pub fn open_line(
                 }
 
                 while off > 0 && lead_len > 0 && allocated_vec[(lead_len - 1) as usize] == b' ' {
-                    if crate::strings::vim_haschr(skipwhite(leader.cast()), b'\t' as i32) {
+                    if crate::strings::vim_haschr(
+                        {
+                            let _sw_p = leader.cast::<std::ffi::c_char>();
+                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                            ))
+                        },
+                        b'\t' as i32,
+                    ) {
                         break;
                     }
                     lead_len -= 1;

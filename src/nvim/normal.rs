@@ -1808,9 +1808,8 @@ fn normal_redraw_mode_message(_s: &mut NormalState) {
         setcursor();
         update_screen();
         if let Some(kmsg_cstr) = kmsg {
-            let ptr = kmsg_cstr.as_ptr();
             g_st().keep_msg = Some(kmsg_cstr.clone());
-            msg(ptr, g_st().keep_msg_hl_id);
+            msg(&kmsg_cstr, g_st().keep_msg_hl_id);
         }
     }
     setcursor();
@@ -2397,7 +2396,7 @@ fn normal_redraw(_s: &mut NormalState) {
 
     if let Some(p) = g_st().keep_msg.clone() {
         g_st().msg_hist_off = true;
-        msg(p.as_ptr(), g_st().keep_msg_hl_id);
+        msg(&p, g_st().keep_msg_hl_id);
         g_st().msg_hist_off = false;
     }
 
@@ -2795,11 +2794,11 @@ pub fn clear_showcmd() {
             let (mut s, e) = if cursor_bot {
                 (
                     ml_get_pos(&g_st().visual_global.start),
-                    get_cursor_pos_ptr(),
+                    get_cursor_pos_ptr().as_ptr().cast_mut(),
                 )
             } else {
                 (
-                    get_cursor_pos_ptr(),
+                    get_cursor_pos_ptr().as_ptr().cast_mut(),
                     ml_get_pos(&g_st().visual_global.start),
                 )
             };
@@ -4305,9 +4304,10 @@ fn nv_ident(cap: &mut Cmdarg) {
     match cmdchar {
         c if c == b'*' as i32 || c == b'#' as i32 => {
             setpcmark();
-            curwin_mut().w_cursor.col =
-                crate::memory::ptr_offset_from(ident_slice.as_ptr().cast(), get_cursor_line_ptr())
-                    as Colnr;
+            curwin_mut().w_cursor.col = crate::memory::ptr_offset_from(
+                ident_slice.as_ptr().cast(),
+                get_cursor_line_ptr().as_ptr().cast_mut(),
+            ) as Colnr;
 
             if !g_cmd && vim_iswordp(ident_slice) {
                 buf_vec[..3].copy_from_slice(b"\\<\0");
@@ -4423,7 +4423,7 @@ fn nv_ident(cap: &mut Cmdarg) {
     if cmdchar == b'*' as i32 || cmdchar == b'#' as i32 {
         if !g_cmd
             && vim_iswordp(crate::memory::cstr_as_bytes(mb_prevptr(
-                get_cursor_line_ptr(),
+                get_cursor_line_ptr().as_ptr().cast_mut(),
                 ptr.cast_mut().cast(),
             )))
         {
@@ -4468,7 +4468,10 @@ pub fn get_visual_text(cap: Option<&mut Cmdarg>) -> Option<(&'static CStr, usize
         return None;
     }
     let (p, len) = if g_st().visual_global.mode == b'V' as i32 {
-        (get_cursor_line_ptr(), get_cursor_line_len() as usize)
+        (
+            get_cursor_line_ptr().as_ptr().cast_mut(),
+            get_cursor_line_len() as usize,
+        )
     } else {
         let (p, mut len) = if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
             (
@@ -6215,7 +6218,7 @@ pub fn nv_g_home_m_cmd(cap: &mut Cmdarg) {
         );
         loop {
             i = gchar_cursor();
-            csarg.line = get_cursor_line_ptr().cast();
+            csarg.line = get_cursor_line_ptr().as_ptr().cast_mut().cast();
             if !(i != i32::from(NUL)
                 && ascii_iswhite_or_nul(conceal_disp_byte(&csarg, curwin_mut().w_cursor.col))
                 && oneright())
@@ -6301,7 +6304,9 @@ fn nv_g_dollar_cmd(cap: &mut Cmdarg) {
         i = curwin_mut().w_leftcol + curwin_mut().w_view_width - col_off - 1;
         coladvance(curwin_mut(), i);
 
-        if curwin_mut().w_cursor.col > 0 && utf_ptr2cells(get_cursor_pos_ptr()) > 1 {
+        if curwin_mut().w_cursor.col > 0
+            && utf_ptr2cells(get_cursor_pos_ptr().as_ptr().cast_mut()) > 1
+        {
             let mut vcol: Colnr = 0;
             getvvcol(
                 curwin_mut(),

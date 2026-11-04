@@ -15,8 +15,8 @@ use crate::change::{
     ins_bytes_len, ins_char, ins_char_bytes, ins_str, open_line,
 };
 use crate::charset::{
-    ascii_iswhite, ascii_iswhite_or_nul, getwhitecols, skipwhite, str_foldcase, vim_is_idc,
-    vim_isfilec, vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
+    ascii_iswhite, ascii_iswhite_or_nul, getwhitecols, str_foldcase, vim_is_idc, vim_isfilec,
+    vim_isprintc, vim_iswordc, vim_iswordp, vim_strsize,
 };
 use crate::cmdexpand::{
     CTRL_N, CTRL_P, EXPAND_FILES, EXPAND_LUA, EXPAND_NOTHING, EXPAND_OK, EXPAND_UNSUCCESSFUL,
@@ -2203,7 +2203,7 @@ fn ins_compl_files(
                 file,
             );
             msg_progress(
-                iobuff_ptr,
+                Some(g_st().iobuff_bytes_mut()),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -3714,7 +3714,7 @@ fn get_complete_info(what_list: Option<&TvList>, retdict: &mut TvDict) {
     }
 
     if ret && (what_flag & CI_WHAT_PREINSERTED_TEXT) != 0 {
-        let line = get_cursor_line_ptr();
+        let line = get_cursor_line_ptr().as_ptr().cast_mut();
         let len = insexp().compl_ins_end_col - curwin_mut().w_cursor.col;
         ret = tv_dict_add_str_len(
             retdict,
@@ -3904,7 +3904,7 @@ fn process_next_cpt_value(
             };
             vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s"), name);
             msg_progress(
-                iobuff_ptr,
+                Some(g_st().iobuff_bytes_mut()),
                 c"nvim.completion",
                 c"running",
                 -1,
@@ -3949,7 +3949,7 @@ fn process_next_cpt_value(
                     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
                     vim_snprintf!(iobuff_ptr, IOSIZE, c"%s", gettext(c"Scanning tags."),);
                     msg_progress(
-                        iobuff_ptr,
+                        Some(g_st().iobuff_bytes_mut()),
                         c"nvim.completion",
                         c"running",
                         -1,
@@ -5433,7 +5433,7 @@ fn ins_compl_show_filename() {
             },
             s,
         );
-        msg(iobuff_ptr, 0);
+        msg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()), 0);
         g_st().msg_hist_off = false;
         g_st().redraw_cmdline = false;
     }
@@ -6171,10 +6171,14 @@ fn ins_compl_continue_search(line_cstr: &CStr) {
         } else {
             if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
                 insexp().compl_cont_status |= CONT_SOL;
-                let p =
-                    skipwhite(line.wrapping_add(
+                let p = {
+                    let _sw_p = line.wrapping_add(
                         (insexp().compl_length + insexp().compl_startpos.col) as usize,
-                    ));
+                    );
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                };
                 insexp().compl_startpos.col = crate::memory::ptr_offset_from(p, line) as Colnr;
             }
             insexp().compl_col = insexp().compl_startpos.col;
@@ -6466,7 +6470,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
 
     if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
         msg_progress(
-            ptr::null_mut::<u8>(),
+            None,
             c"nvim.completion",
             c"success",
             -1,

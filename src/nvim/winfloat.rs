@@ -433,7 +433,7 @@ fn win_float_special_fail(
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
     if error_set(err) {
-        emsg(err.msg_cstr());
+        emsg(err.msg_cstr().unwrap_or(c""));
         api_clear_error(err);
     }
     if let Some(wp) = wp {

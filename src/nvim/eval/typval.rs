@@ -2944,7 +2944,8 @@ pub fn tv_dict_find(d: Option<&TvDict>, key: &CStr, len: isize) -> Option<&'stat
     let hi = if len < 0 {
         d.dv_hashtab.find_hi_mut(key)
     } else {
-        d.dv_hashtab.find_hi_len_mut(key, len as usize)
+        d.dv_hashtab
+            .find_hi_len_mut(crate::memory::cstr_slice(key.as_ptr(), len as usize))
     };
     hi.and_then(|hi| unsafe { hi.hi_di.as_mut() })
 }
@@ -4538,7 +4539,7 @@ pub fn tv_get_number_chk(tv: &TypVal, mut ret_error: Option<&mut bool>) -> Varnu
             let mut n: Varnumber = 0;
             if !tv.vval.v_string().is_null() {
                 vim_str2nr(
-                    tv.vval.v_string(),
+                    crate::memory::cstr_as_bytes(tv.vval.v_string()),
                     None,
                     None,
                     STR2NR_ALL,

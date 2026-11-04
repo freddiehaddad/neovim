@@ -15,7 +15,7 @@ use crate::buffer::{
     no_write_message, set_bufref, setfname, wipe_buffer,
 };
 use crate::change::{TAB, changed_lines};
-use crate::charset::{NL, NUL, ascii_iswhite, skipdigits, skipwhite, vim_isprintc};
+use crate::charset::{NL, NUL, ascii_iswhite, skipdigits_slice, skipwhite_slice, vim_isprintc};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, get_cursor_line_ptr};
 use crate::drawscreen::{
@@ -2948,7 +2948,7 @@ fn qf_jump_edit_buffer(
 }
 
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
-    let line = get_cursor_line_ptr().cast_const();
+    let line = get_cursor_line_ptr().as_ptr();
     let mut p = line;
     let mut col: Colnr = 0;
 
@@ -3051,7 +3051,7 @@ fn qf_jump_print_msg(
         g_st().msg_scroll = 0;
     }
     msg_ext_set_kind(c"quickfix");
-    msg_keep(gap.as_ptr().cast(), 0, true, false);
+    msg_keep(crate::memory::cstr_until_nul(gap), 0, true, false);
     g_st().msg_scroll = i;
 
     qfga_clear();
@@ -3280,16 +3280,16 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     if let Some(ref module) = qfp.qf_module
         && !module.as_bytes().is_empty()
     {
-        filter_entry &= message_filtered(module.as_ptr());
+        filter_entry &= message_filtered(module);
     }
     if filter_entry && !fname.is_null() {
-        filter_entry &= message_filtered(fname);
+        filter_entry &= message_filtered(crate::memory::cstr_from_ptr(fname));
     }
     if filter_entry && let Some(ref pat) = qfp.qf_pattern {
-        filter_entry &= message_filtered(pat.as_ptr());
+        filter_entry &= message_filtered(pat);
     }
     if filter_entry {
-        filter_entry &= message_filtered(qfp.qf_text.as_ptr());
+        filter_entry &= message_filtered(&qfp.qf_text);
     }
     if filter_entry {
         return;
@@ -3299,7 +3299,7 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         msg_putchar(b'\n' as i32);
     }
     msg_outtrans(
-        iobuff_ptr,
+        crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
         if cursel {
             HLF_QFL
         } else {
@@ -3318,14 +3318,18 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
     qfga_concat(gap, qf_types(i32::from(qfp.qf_type), qfp.qf_nr).as_bytes());
     gap.push(0);
     if !crate::memory::cstr_is_empty(gap.as_ptr().cast()) {
-        msg_puts_hl(gap.as_ptr().cast(), qf_st().qf_line_hl_id, false);
+        msg_puts_hl(
+            crate::memory::cstr_until_nul(gap),
+            qf_st().qf_line_hl_id,
+            false,
+        );
     }
     msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     if let Some(ref pat) = qfp.qf_pattern {
         gap = qfga_get();
         qf_fmt_text(gap, pat.as_bytes());
         gap.push(0);
-        msg_puts(gap.as_ptr().cast());
+        msg_puts(crate::memory::cstr_until_nul(gap));
         msg_puts_hl(c":", qf_st().qf_sep_hl_id, false);
     }
     msg_puts(c" ");
@@ -3493,7 +3497,7 @@ fn qf_msg(qi: &mut QfInfo, which: i32, lead: &CStr) {
         crate::memory::append_bytes_to_c_buf(&mut buf, title.as_bytes());
     }
     trunc_string(None, &mut buf, g_st().columns_global - 1);
-    msg(buf.as_ptr().cast(), 0);
+    msg(crate::memory::cstr_until_nul(&buf), 0);
 }
 
 pub fn qf_age(eap: &mut Exarg) {
@@ -4417,7 +4421,7 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
     }
     msg_start();
     msg_puts(c":!");
-    msg_outtrans(cmd, 0, false);
+    msg_outtrans(crate::memory::cstr_from_ptr(cmd), 0, false);
 
     crate::memory::cstr_to_cstring(cmd)
 }
@@ -5108,9 +5112,9 @@ fn vgr_init_regmatch(regmatch: &mut Regmmatch, s: Option<&CStr>) {
 
 fn vgr_display_fname(fname: &CStr) {
     msg_start();
-    match msg_strtrunc(fname.as_ptr(), 1) {
-        Some(p) => msg_outtrans(p.as_ptr(), 0, false),
-        None => msg_outtrans(fname.as_ptr(), 0, false),
+    match msg_strtrunc(fname, 1) {
+        Some(p) => msg_outtrans(&p, 0, false),
+        None => msg_outtrans(fname, 0, false),
     };
     msg_clr_eos();
     g_st().msg_didout = false;
@@ -5346,7 +5350,9 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    p = skipwhite(p);
+    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        p.cast(),
+    )));
     if crate::memory::cstr_is_empty(p) {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;
@@ -6799,7 +6805,7 @@ fn cbuffer_process_args(
 
     if crate::memory::cstr_is_empty(eap.arg) {
         buf = g_st().curbuf;
-    } else if crate::memory::cstr_is_empty(skipwhite(skipdigits(eap.arg))) {
+    } else if skipwhite_slice(skipdigits_slice(crate::memory::cstr_as_bytes(eap.arg))).is_empty() {
         buf = buflist_findnr(
             crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32,
         )

@@ -1,7 +1,7 @@
 //! Code for menus, used for the GUI and `'wildmenu'` (`src/nvim/menu.c`).
 
 use crate::autocmd::{EVENT_MENUPOPUP, HLF_8, apply_autocmds};
-use crate::charset::{CTRL_V_CONST, ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite};
+use crate::charset::{CTRL_V_CONST, ascii_isdigit, ascii_iswhite, getdigits_int};
 use crate::cursor::{CursorPos, check_cursor, gchar_cursor};
 use crate::errors::*;
 use crate::eval::typval::{
@@ -235,16 +235,31 @@ pub fn ex_menu(eap: &mut Exarg) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
-            arg = skipwhite(arg.wrapping_add(8));
+            arg = {
+                let _sw_p = arg.wrapping_add(8);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
             continue;
         }
         if arg_bytes.starts_with(b"<silent>") {
             silent = true;
-            arg = skipwhite(arg.wrapping_add(8));
+            arg = {
+                let _sw_p = arg.wrapping_add(8);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
             continue;
         }
         if arg_bytes.starts_with(b"<special>") {
-            arg = skipwhite(arg.wrapping_add(9));
+            arg = {
+                let _sw_p = arg.wrapping_add(9);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
             continue;
         }
         break;
@@ -298,7 +313,9 @@ pub fn ex_menu(eap: &mut Exarg) {
             i += 1;
         }
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        arg = skipwhite(arg);
+        arg = arg.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            arg.cast(),
+        )));
     } else if eap.addr_count != 0 && eap.line2 != 0 {
         pri_tab[0] = eap.line2;
         i = 1;
@@ -318,14 +335,24 @@ pub fn ex_menu(eap: &mut Exarg) {
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_TRUE;
-        arg = skipwhite(arg.wrapping_add(6));
+        arg = {
+            let _sw_p = arg.wrapping_add(6);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     } else if arg_bytes.starts_with(b"disable")
         && arg_bytes
             .get(7)
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_FALSE;
-        arg = skipwhite(arg.wrapping_add(7));
+        arg = {
+            let _sw_p = arg.wrapping_add(7);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     if crate::memory::cstr_is_empty(arg) {
@@ -920,7 +947,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
             msg_outnum(menu.as_deref_mut().unwrap().priority);
             msg_puts(c" ");
         }
-        msg_outtrans(menu.as_deref_mut().unwrap().name.as_ptr(), HLF_D, false);
+        msg_outtrans(&menu.as_deref_mut().unwrap().name, HLF_D, false);
     }
 
     if menu.is_some() && menu.as_deref_mut().unwrap().children.is_empty() {
@@ -933,7 +960,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
                 for _ in 0..(depth + 2) {
                     msg_puts(c"  ");
                 }
-                msg_puts(mode_cstr.as_ptr());
+                msg_puts(mode_cstr);
                 if menu.as_deref_mut().unwrap().noremap[bit] == REMAP_NONE {
                     msg_putchar(b'*' as i32);
                 } else if menu.as_deref_mut().unwrap().noremap[bit] == REMAP_SCRIPT {
@@ -1665,7 +1692,12 @@ pub fn ex_emenu(eap: &mut Exarg) {
                 return;
             }
         }
-        arg = skipwhite(arg.wrapping_add(2));
+        arg = {
+            let _sw_p = arg.wrapping_add(2);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     let Some(menu) = menu_getbyname(crate::memory::cstr_from_ptr(arg)) else {
@@ -1721,9 +1753,12 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
     let menutrans = &mut menu_st().menutrans_ga;
 
     if crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"clear")
-        && ends_excmd(i32::from(crate::memory::cstr_first_byte(skipwhite(
-            arg.wrapping_add(5).cast(),
-        )))) != 0
+        && ends_excmd(i32::from(crate::memory::cstr_first_byte({
+            let _sw_p = arg.wrapping_add(5).cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }))) != 0
     {
         menutrans.clear();
         del_menutrans_vars();
@@ -1731,7 +1766,13 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         let from_arg = arg;
         let part1_len = menu_skip_part(crate::memory::cstr_as_bytes(from_arg.cast()));
         arg = from_arg.wrapping_add(part1_len);
-        let to_arg = skipwhite(arg.cast()).cast::<u8>();
+        let to_arg = {
+            let _sw_p = arg.cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast::<u8>();
 
         unsafe { *arg = 0 };
 

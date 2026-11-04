@@ -2817,7 +2817,7 @@ pub fn utf_find_illegal() {
     'search: loop {
         let cursor_slice = crate::cursor::get_cursor_pos_slice();
         let search_bytes: &[u8] = if vimconv.vc_type != CONV_NONE {
-            tofree = string_convert(&vimconv, get_cursor_pos_ptr(), None);
+            tofree = string_convert(&vimconv, get_cursor_pos_ptr().as_ptr().cast_mut(), None);
             let Some(ref tf) = tofree else {
                 break;
             };

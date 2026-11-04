@@ -10,7 +10,7 @@ use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_SOURCECMD, EVENT_SOURCEPOST, EVENT_SOURCEPRE,
     PROF_YES, apply_autocmds, has_autocmd, has_autocmd_fullname,
 };
-use crate::charset::{CTRL_V_CONST, skip_to_newline, skiptowhite, skiptowhite_esc, skipwhite};
+use crate::charset::{CTRL_V_CONST, skiptowhite_esc_len};
 use crate::cmdexpand::{EXPAND_RUNTIME, LineGetter, WILD_ADD_SLASH, globpath};
 use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
@@ -558,19 +558,39 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
     }
     let slice = crate::memory::cstr_slice(arg, where_len);
     if b"START".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
+        *argp = crate::memory::cstr_from_ptr({
+            let _sw_p = arg.wrapping_add(where_len);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        });
         return DIP_START + DIP_NORTP;
     }
     if b"OPT".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
+        *argp = crate::memory::cstr_from_ptr({
+            let _sw_p = arg.wrapping_add(where_len);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        });
         return DIP_OPT + DIP_NORTP;
     }
     if b"PACK".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
+        *argp = crate::memory::cstr_from_ptr({
+            let _sw_p = arg.wrapping_add(where_len);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        });
         return DIP_START + DIP_OPT + DIP_NORTP;
     }
     if b"ALL".starts_with(slice) {
-        *argp = crate::memory::cstr_from_ptr(skipwhite(arg.wrapping_add(where_len)));
+        *argp = crate::memory::cstr_from_ptr({
+            let _sw_p = arg.wrapping_add(where_len);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        });
         return DIP_START + DIP_OPT;
     }
     0
@@ -580,7 +600,12 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
 pub fn ex_runtime(eap: &mut Exarg) {
     let mut arg = crate::memory::cstr_from_ptr(eap.arg);
     let mut flags = if eap.forceit != 0 { DIP_ALL } else { 0 };
-    let p = skiptowhite(arg.as_ptr());
+    let p = {
+        let _sw_p = arg.as_ptr();
+        _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(_sw_p.cast()),
+        ))
+    };
     let where_len = (p as usize) - (arg.as_ptr() as usize);
     flags += get_runtime_cmd_flags(&mut arg, where_len);
     source_runtime(arg, flags);
@@ -588,7 +613,12 @@ pub fn ex_runtime(eap: &mut Exarg) {
 
 /// Set the completion context for the :runtime command.
 pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
-    let mut p = skiptowhite(arg.as_ptr());
+    let mut p = {
+        let _sw_p = arg.as_ptr();
+        _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(_sw_p.cast()),
+        ))
+    };
     rt_st().runtime_expand_flags = if !crate::memory::cstr_is_empty(p) {
         let len = (p as usize) - (arg.as_ptr() as usize);
         get_runtime_cmd_flags(&mut arg, len)
@@ -597,14 +627,16 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
     };
     let mut arg_ptr = arg.as_ptr();
     loop {
-        p = skiptowhite_esc(arg_ptr);
+        p = arg_ptr.wrapping_add(skiptowhite_esc_len(crate::memory::cstr_as_bytes(arg_ptr)));
         if crate::memory::cstr_is_empty(p) {
             break;
         }
         if rt_st().runtime_expand_flags == 0 {
             rt_st().runtime_expand_flags = DIP_ALL;
         }
-        arg_ptr = skipwhite(p);
+        arg_ptr = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            p,
+        )));
     }
     xp.xp_context = EXPAND_RUNTIME;
     xp.xp_pattern = arg_ptr.cast_mut().cast();
@@ -2496,14 +2528,13 @@ fn do_source_buffer_init(
 }
 
 fn do_source_str_init(sp: &mut SourceCookie, str_cstr: &std::ffi::CStr) {
-    let mut str_ptr = str_cstr.as_ptr();
+    let mut rem = str_cstr.to_bytes();
     sp.buflines.clear();
-    while !crate::memory::cstr_is_empty(str_ptr) {
-        let eol = skip_to_newline(str_ptr);
-        let slice = crate::memory::cstr_slice(str_ptr, (eol as usize) - (str_ptr as usize));
+    while !rem.is_empty() {
+        let off = rem.iter().position(|&b| b == b'\n').unwrap_or(rem.len());
         sp.buflines
-            .push(std::ffi::CString::new(slice).unwrap_or_default());
-        str_ptr = eol.wrapping_add(usize::from(!crate::memory::cstr_is_empty(eol)));
+            .push(std::ffi::CString::new(&rem[..off]).unwrap_or_default());
+        rem = &rem[(off + 1).min(rem.len())..];
     }
     sp.buf_lnum = 0;
     sp.source_from_buf_or_str = true;
@@ -2973,11 +3004,15 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         if let Some(ref sn) = si.sn_name {
             home_replace(None, sn.as_ptr(), namebuff, MAXPATHL, true);
             vim_snprintf!(iobuff, IOSIZE, c"%3d: %s", i, namebuff);
-            if !message_filtered(iobuff) {
+            if !message_filtered(crate::memory::cstr_until_nul(g_st().iobuff_bytes())) {
                 if g_st().msg_col > 0 {
                     msg_putchar(b'\n' as i32);
                 }
-                msg_outtrans(iobuff, 0, false);
+                msg_outtrans(
+                    crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                    0,
+                    false,
+                );
                 line_breakcheck();
             }
         }
@@ -3175,7 +3210,12 @@ pub fn getsourceline(
 
         sp.nextline = get_one_sourceline(sp);
         if let Some(ref next) = sp.nextline {
-            let p_bytes = crate::memory::cstr_as_bytes(skipwhite(next.as_ptr().cast()));
+            let p_bytes = crate::memory::cstr_as_bytes({
+                let _sw_p = next.as_ptr().cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            });
             if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                 if buf.last() == Some(&0) {
                     buf.pop();

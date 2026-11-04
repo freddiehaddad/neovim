@@ -5,7 +5,7 @@ use crate::change::{
     OPENLINE_DO_COM, OPENLINE_FORMAT, OPENLINE_KEEPTRAIL, OPENLINE_MARKFIX, del_bytes, del_char,
     get_leader_len, ins_bytes, ins_str, open_line,
 };
-use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline, skipwhite};
+use crate::charset::{ascii_isspace, ascii_iswhite, char2cells, getwhitecols_curline};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, check_cursor_col, coladvance, dec_cursor, gchar_cursor,
     get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice, get_cursor_pos_slice,
@@ -576,8 +576,12 @@ fn fmt_check_par(
         is_com_end = flags_bytes.get(idx) == Some(&COM_END);
     }
 
-    crate::memory::cstr_is_empty(skipwhite(ptr.wrapping_add(*leader_len as usize)))
-        || (*leader_len > 0 && is_com_end)
+    crate::memory::cstr_is_empty({
+        let _sw_p = ptr.wrapping_add(*leader_len as usize);
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    }) || (*leader_len > 0 && is_com_end)
         || start_ps(lnum, 0, false)
 }
 
@@ -708,7 +712,7 @@ pub fn auto_format(trailblank: bool, prev_line: bool) {
     }
 
     let pos = curwin_mut().w_cursor;
-    let old = get_cursor_line_ptr();
+    let old = get_cursor_line_ptr().as_ptr().cast_mut();
 
     check_auto_format(false);
 

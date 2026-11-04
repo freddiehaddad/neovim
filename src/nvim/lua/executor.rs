@@ -572,7 +572,7 @@ fn nlua_get_error<'a>(lstate: *mut lua_State) -> Option<(&'a CStr, usize)> {
 pub fn nlua_error(lstate: *mut lua_State, msg: &CStr) {
     let (str_, len) = nlua_get_error(lstate).map_or((ptr::null(), 0), |(s, l)| (s.as_ptr(), l));
     msg_ext_no_fast();
-    semsg_multiline!(c"lua_error", msg.as_ptr(), len as i32, str_);
+    semsg_multiline!(c"lua_error", msg, len as i32, str_);
     lua_pop(lstate, 1);
 }
 
@@ -1338,7 +1338,7 @@ pub fn nlua_print_event(text: NvimString) {
     msg_multihl(
         OBJECT_NIL,
         &mut msg,
-        c"lua_print",
+        Some(c"lua_print"),
         true,
         false,
         None,

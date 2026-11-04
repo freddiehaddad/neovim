@@ -715,7 +715,7 @@ pub fn free_all_mem() {
 
         g_st().last_cmdline = None;
         g_st().new_last_cmdline = None;
-        set_keep_msg(std::ptr::null(), 0);
+        set_keep_msg(None, 0);
 
         opt_vars().p_hi = 0;
         init_history();

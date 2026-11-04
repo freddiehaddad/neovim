@@ -16,7 +16,7 @@ use crate::api::private::validate::{
 };
 use crate::api::tabpage::Buffer;
 use crate::autocmd::{EVENT_CMDUNDEFINED, apply_autocmds, has_event};
-use crate::charset::{ascii_isupper, getdigits_long, skiptowhite, skipwhite};
+use crate::charset::{ascii_isupper, getdigits_long};
 use crate::ex_docmd::{
     ADDR_ARGUMENTS, ADDR_BUFFERS, ADDR_LINES, ADDR_LOADED_BUFFERS, ADDR_NONE, ADDR_OTHER,
     ADDR_QUICKFIX, ADDR_TABS, ADDR_WINDOWS, CMD_SIZE, CMD_USER, CMD_USER_BUF, CMOD_BROWSE,
@@ -214,7 +214,9 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
     let mut args = arena_array(arena, 2);
 
     let lhs_start = arg_str.as_ptr().cast_mut();
-    let lhs_end = skiptowhite(lhs_start);
+    let lhs_end = lhs_start.wrapping_add(crate::charset::skiptowhite_len(
+        crate::memory::cstr_as_bytes(lhs_start.cast()),
+    ));
     let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
 
     add_c(
@@ -224,7 +226,9 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
         ))),
     );
 
-    let rhs_start = skipwhite(lhs_end);
+    let rhs_start = lhs_end.wrapping_add(crate::charset::skipwhite_len(
+        crate::memory::cstr_as_bytes(lhs_end.cast()),
+    ));
     if !crate::memory::cstr_is_empty(rhs_start) {
         let rhs_len = crate::memory::cstr_len(rhs_start);
         add_c(

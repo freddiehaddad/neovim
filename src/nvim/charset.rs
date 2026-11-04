@@ -11,8 +11,8 @@ use crate::memory::cstr_from_bytes;
 use crate::option::{get_fileformat, skip_to_option_part_slice};
 use crate::option_vars::*;
 use crate::path::path_has_wildcard;
-use crate::strings::{RawCChar, RawCCharPtr, RawCCharPtrMut};
-use std::ffi::CString;
+use crate::strings::RawCChar;
+use std::ffi::{CStr, CString};
 
 use crate::change::TAB;
 use crate::eval::typval::Varnumber;
@@ -455,8 +455,8 @@ pub fn transstr_buf(mut bytes: &[u8], buf_slice: &mut [u8], untab: bool) -> usiz
     out
 }
 
-pub fn transstr(s: impl crate::strings::IntoCCharPtr, untab: bool) -> CString {
-    let bytes = crate::memory::cstr_as_bytes(s);
+pub fn transstr(s: &[u8], untab: bool) -> CString {
+    let bytes = crate::memory::bytes_until_nul(s);
     let len = transstr_len(bytes, untab) + 1;
     let mut buf = vec![0u8; len];
     let written = transstr_buf(bytes, &mut buf, untab);
@@ -656,25 +656,27 @@ pub fn char2cells(c: i32) -> i32 {
     ascii2cells(c)
 }
 
-pub fn vim_strsize(s: impl crate::strings::IntoCCharPtr) -> i32 {
-    let s = s.into_c_char_ptr();
-    vim_strnsize(s, MAXCOL)
+pub fn vim_strsize(s: &CStr) -> i32 {
+    vim_strnsize(s.to_bytes(), MAXCOL)
 }
 
-pub fn vim_strnsize(s: impl crate::strings::IntoCCharPtr, mut len: i32) -> i32 {
-    let s = s.into_c_char_ptr();
-    {
-        assert!(!s.is_null());
-        let mut size: i32 = 0;
-        let mut ci = utf_ptr2_str_char_info(s);
-        while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
-            let cli = utf_cluster_info(ci);
-            size += cli.cells;
-            len -= crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
-            ci = cli.next;
-        }
-        size
+pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
+    let s_bytes = crate::memory::bytes_until_nul(s);
+    let max_len = (len.max(0) as usize).min(s_bytes.len());
+    let slice = &s_bytes[..max_len];
+    if slice.is_empty() {
+        return 0;
     }
+    let cstr = crate::memory::cstr_from_bytes(slice);
+    let mut size: i32 = 0;
+    let mut ci = utf_ptr2_str_char_info(cstr.as_ptr());
+    while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
+        let cli = utf_cluster_info(ci);
+        size += cli.cells;
+        len -= crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
+        ci = cli.next;
+    }
+    size
 }
 
 pub fn vim_is_idc(c: i32) -> bool {
@@ -840,11 +842,16 @@ pub fn skiptobin_slice(mut s: &[u8]) -> &[u8] {
     s
 }
 
-pub fn skipwhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
+pub fn skipwhite(p: &CStr) -> &CStr {
+    let bytes = p.to_bytes();
     let rem = skipwhite_slice(bytes);
-    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
+    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(bytes.len() - rem.len())) }
+}
+
+#[inline]
+pub fn skipwhite_len(bytes: &[u8]) -> usize {
+    let b = crate::memory::bytes_until_nul(bytes);
+    b.len() - skipwhite_slice(b).len()
 }
 
 pub fn getwhitecols_curline() -> isize {
@@ -855,48 +862,22 @@ pub fn getwhitecols(bytes: &[u8]) -> isize {
     (bytes.len() - skipwhite_slice(bytes).len()) as isize
 }
 
-pub fn skipdigits(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let q = q.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skipdigits_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len()).cast_mut()
+#[inline]
+pub fn skipdigits_len(bytes: &[u8]) -> usize {
+    let b = crate::memory::bytes_until_nul(bytes);
+    b.len() - skipdigits_slice(b).len()
 }
 
-pub fn skipbin(q: impl crate::strings::IntoCCharPtr) -> RawCCharPtr {
-    let q = q.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skipbin_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len())
+#[inline]
+pub fn skiptowhite_len(bytes: &[u8]) -> usize {
+    let b = crate::memory::bytes_until_nul(bytes);
+    b.len() - skiptowhite_slice(b).len()
 }
 
-pub fn skiphex(q: RawCCharPtrMut) -> RawCCharPtrMut {
-    let bytes = crate::memory::cstr_as_bytes(q);
-    let rem = skiphex_slice(bytes);
-    q.wrapping_add(bytes.len() - rem.len())
-}
-
-pub fn skiptowhite(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
-    let rem = skiptowhite_slice(bytes);
-    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
-}
-
-pub fn skiptowhite_esc(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
-    let rem = skiptowhite_esc_slice(bytes);
-    p.wrapping_add(bytes.len() - rem.len()).cast_mut()
-}
-
-pub fn skip_to_newline(p: impl crate::strings::IntoCCharPtr) -> RawCCharPtrMut {
-    let p = p.into_c_char_ptr();
-    let bytes = crate::memory::cstr_as_bytes(p);
-    let off = bytes
-        .iter()
-        .position(|&x| x == NL as u8)
-        .unwrap_or(bytes.len());
-    p.wrapping_add(off).cast_mut()
+#[inline]
+pub fn skiptowhite_esc_len(bytes: &[u8]) -> usize {
+    let b = crate::memory::bytes_until_nul(bytes);
+    b.len() - skiptowhite_esc_slice(b).len()
 }
 
 pub fn try_getdigits(s: &mut &[u8], nr: &mut i64) -> bool {
@@ -1218,7 +1199,7 @@ pub fn vim_slice2nr(
 }
 
 pub fn vim_str2nr(
-    start: impl crate::strings::IntoCCharPtr,
+    start: &[u8],
     prep: Option<&mut i32>,
     len: Option<&mut i32>,
     what: i32,
@@ -1228,11 +1209,11 @@ pub fn vim_str2nr(
     strict: bool,
     overflow: Option<&mut bool>,
 ) {
-    let start = start.into_c_char_ptr();
+    let s = crate::memory::bytes_until_nul(start);
     let bytes = if maxlen > 0 {
-        crate::memory::cstr_slice(start, crate::memory::xstrnlen(start, maxlen as usize))
+        &s[..(maxlen as usize).min(s.len())]
     } else {
-        crate::memory::cstr_as_bytes(start)
+        s
     };
     vim_slice2nr(bytes, prep, len, what, nptr, unptr, strict, overflow);
 }
@@ -1270,32 +1251,31 @@ pub fn rem_backslash(bytes: &[u8]) -> bool {
     }
 }
 
-pub fn backslash_halve(mut p: RawCCharPtrMut) {
-    while !crate::memory::cstr_is_empty(p) && !rem_backslash(crate::memory::cstr_as_bytes(p)) {
-        p = p.wrapping_add(1);
+pub fn backslash_halve(p: &mut [u8]) {
+    let len = crate::memory::bytes_until_nul(p).len();
+    let mut i = 0usize;
+    while i < len && !rem_backslash(&p[i..len]) {
+        i += 1;
     }
-    if !crate::memory::cstr_is_empty(p) {
-        let mut dst = p;
-
-        *crate::globals::gptr(dst) = *crate::globals::gptr(p.wrapping_add(1));
-
-        dst = dst.wrapping_add(1);
-        p = p.wrapping_add(2);
-        while !crate::memory::cstr_is_empty(p) {
-            if rem_backslash(crate::memory::cstr_as_bytes(p)) {
-                *crate::globals::gptr(dst) = *crate::globals::gptr(p.wrapping_add(1));
-
-                dst = dst.wrapping_add(1);
-                p = p.wrapping_add(2);
+    if i < len {
+        let mut dst = i;
+        p[dst] = p[i + 1];
+        dst += 1;
+        i += 2;
+        while i < len {
+            if rem_backslash(&p[i..len]) {
+                p[dst] = p[i + 1];
+                dst += 1;
+                i += 2;
             } else {
-                *crate::globals::gptr(dst) = *crate::globals::gptr(p);
-
-                dst = dst.wrapping_add(1);
-                p = p.wrapping_add(1);
+                p[dst] = p[i];
+                dst += 1;
+                i += 1;
             }
         }
-
-        *crate::globals::gptr(dst) = NUL;
+        if dst < p.len() {
+            p[dst] = 0;
+        }
     }
 }
 
@@ -1343,7 +1323,7 @@ mod tests {
             let mut num: Varnumber = -99;
             let mut unum: Uvarnumber = 99;
             vim_str2nr(
-                s.as_ptr(),
+                s.to_bytes(),
                 Some(&mut pre),
                 Some(&mut len),
                 what,

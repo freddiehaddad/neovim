@@ -675,8 +675,8 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
 
     if let Some(id) = msg_id {
         let _ = msg_progress(
-            errmsg_ptr,
-            id.as_ptr().cast_mut(),
+            Some(&mut errmsg),
+            id,
             c"failed",
             -1,
             HLF_E,
@@ -685,7 +685,7 @@ fn emit_err(e: &mut BwError, msg_id: Option<&CStr>) {
             true,
         );
     } else {
-        emsg(errmsg_ptr);
+        emsg(crate::memory::cstr_until_nul(&errmsg));
     }
     e.msg = None;
 }
@@ -1678,15 +1678,14 @@ pub fn buf_write(
                                 && (progress >= 0 || os_hrtime() - write_start > slow_io_ns())
                             {
                                 progress = percent;
-                                let iobuf = g_st().iobuff.as_mut_ptr();
                                 add_quoted_fname(
                                     g_st().iobuff_bytes_mut(),
                                     Some(&*buf),
                                     crate::memory::cstr_as_opt_cstr(msgname),
                                 );
                                 let _ = msg_progress(
-                                    iobuf,
-                                    msg_id.as_mut_ptr().cast(),
+                                    Some(g_st().iobuff_bytes_mut()),
+                                    crate::memory::cstr_until_nul(&msg_id),
                                     c"running",
                                     progress,
                                     0,
@@ -1918,32 +1917,30 @@ pub fn buf_write(
                             });
                         }
                     }
-                    set_keep_msg(
-                        if progress >= 0 {
-                            msg_progress(
-                                iobuf,
-                                msg_id.as_mut_ptr().cast(),
-                                c"success",
-                                -1,
-                                0,
-                                true,
-                                true,
-                                false,
-                            )
-                        } else {
-                            msg_with_id(
-                                iobuf,
-                                msg_id.as_mut_ptr().cast(),
-                                c"bufwrite",
-                                None,
-                                0,
-                                true,
-                                true,
-                                false,
-                            )
-                        },
-                        0,
-                    );
+                    let keep = if progress >= 0 {
+                        msg_progress(
+                            Some(g_st().iobuff_bytes_mut()),
+                            crate::memory::cstr_until_nul(&msg_id),
+                            c"success",
+                            -1,
+                            0,
+                            true,
+                            true,
+                            false,
+                        )
+                    } else {
+                        msg_with_id(
+                            Some(g_st().iobuff_bytes_mut()),
+                            crate::memory::cstr_until_nul(&msg_id),
+                            c"bufwrite",
+                            None,
+                            0,
+                            true,
+                            true,
+                            false,
+                        )
+                    };
+                    set_keep_msg(keep, 0);
                 }
 
                 if reset_changed

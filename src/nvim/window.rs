@@ -1446,7 +1446,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                     config.external = true;
                     let mut err = ERROR_INIT;
                     if win_new_float(Some(curwin_mut()), false, config, &mut err).is_none() {
-                        emsg(err.msg_cstr());
+                        emsg(err.msg_cstr().unwrap_or(c""));
                         api_clear_error(&mut err);
                         beep_flush();
                     }
@@ -5439,7 +5439,7 @@ pub fn goto_tabpage_tp(
 ) {
     let tp: *mut TabPageInfo =
         tp_in.map_or(ptr::null_mut(), |t| std::hint::black_box(ptr::from_mut(t)));
-    set_keep_msg(ptr::null(), 0);
+    set_keep_msg(None, 0);
 
     g_st().skip_win_fix_scroll = true;
     let Some(tp_ref) = (unsafe { (tp).as_mut() }) else {

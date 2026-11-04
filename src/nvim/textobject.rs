@@ -1,6 +1,6 @@
 //! Functions for text objects (`src/nvim/textobject.c`).
 
-use crate::charset::{NUL, ascii_iswhite, skipwhite};
+use crate::charset::{NUL, ascii_iswhite};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, clearpos, coladvance, dec_cursor, equalpos, gchar_cursor,
     get_cursor_line_ptr, inc_cursor, lt, ltoreq,
@@ -705,7 +705,9 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let line = ml_get(curwin_mut().w_cursor.lnum);
-    let start = skipwhite(line);
+    let start = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        line.cast(),
+    )));
     let mut end = line.wrapping_add(crate::memory::cstr_len(line));
     while end > start {
         let prev = mb_prevptr(line, end);
@@ -1038,7 +1040,7 @@ pub fn current_block(
 
 /// Return true if the cursor is on a `<aaa>` tag (or `</aaa>` when `end_tag` is true) (`in_html_tag`).
 fn in_html_tag(end_tag: bool) -> bool {
-    let line = get_cursor_line_ptr();
+    let line = get_cursor_line_ptr().as_ptr().cast_mut();
     let line_bytes = crate::memory::cstr_from_ptr(line).to_bytes_with_nul();
     let mut idx = (curwin_mut().w_cursor.col as usize).min(line_bytes.len().saturating_sub(1));
     let mut lc: i32 = i32::from(NUL);

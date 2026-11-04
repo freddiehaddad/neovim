@@ -8,7 +8,7 @@ use crate::buffer::{
     FileBuf, GETF_SETMARK, K_MARK_ADJUST_NORMAL, MAXLNUM, NMARKS, bt_prompt, buflist_findnr,
     buflist_findnr_opt, buflist_getfile, buflist_new, buflist_nr2name, first_win_in_tab,
 };
-use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, skipwhite, vim_isprintc};
+use crate::charset::{ascii_isdigit, ascii_islower, ascii_isupper, vim_isprintc};
 use crate::context::{INIT_FMARK, INIT_FMARKV};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, equalpos, lt};
 use crate::diff::diff_mark_adjust;
@@ -1019,7 +1019,12 @@ fn mark_line(mp: &mut CursorPos, lead_len: i32) -> std::ffi::CString {
         return c"-invalid-".to_owned();
     }
     debug_assert!(g_st().columns_global >= 0);
-    let line = skipwhite(ml_get(mp.lnum));
+    let line = {
+        let _sw_p = ml_get(mp.lnum);
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    };
     let max_bytes = crate::memory::cstr_len(line).min((g_st().columns_global as usize) * 5);
 
     let mut len: i32 = 0;
@@ -1206,7 +1211,7 @@ pub fn ex_jumps(_eap: &mut Exarg) {
                 i += 1;
                 continue;
             };
-            if message_filtered(name_cstr.as_ptr()) {
+            if message_filtered(&name_cstr) {
                 i += 1;
                 continue;
             }
@@ -1226,9 +1231,13 @@ pub fn ex_jumps(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:2} {lnum:5} {col:4} ");
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
-            msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
             msg_outtrans(
-                name_cstr.as_ptr(),
+                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                0,
+                false,
+            );
+            msg_outtrans(
+                &name_cstr,
                 if curwin_mut().w_jumplist[idx].fmark.fnum == curbuf_mut().b_fnum {
                     HLF_D
                 } else {
@@ -1275,9 +1284,13 @@ pub fn ex_changes(_eap: &mut Exarg) {
             let s = format!("{indicator} {dist:3} {lnum:5} {col:4} ");
             crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.as_bytes());
 
-            msg_outtrans(g_st().iobuff.as_ptr(), 0, false);
+            msg_outtrans(
+                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                0,
+                false,
+            );
             let name = mark_line(&mut curbuf_mut().b_changelist[idx].mark, 17);
-            msg_outtrans(name.as_ptr(), HLF_D, false);
+            msg_outtrans(&name, HLF_D, false);
             os_breakcheck();
         }
         i += 1;

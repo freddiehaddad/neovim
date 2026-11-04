@@ -3,7 +3,7 @@
 use crate::autocmd::{EVENT_SEARCHWRAPPED, apply_autocmds};
 use crate::buffer::{FileBuf, K_UIMESSAGES, buf_get_changedtick};
 use crate::change::{TAB, get_leader_len};
-use crate::charset::{NUL, skipwhite, vim_isfilec, vim_iswordc, vim_iswordp};
+use crate::charset::{NUL, vim_isfilec, vim_iswordc, vim_iswordp};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
 use crate::cursor::{
     Colnr, CursorPos, Linenr, Lpos, check_cursor, clearpos, dec_cursor, equalpos,
@@ -1443,7 +1443,7 @@ pub fn do_search(
                     msgbuf_vec[plen + 1..plen + 1 + off_len].copy_from_slice(&off_buf[..off_len]);
                 }
 
-                if let Some(trunc) = msg_strtrunc(msgbuf_vec.as_ptr().cast(), 1) {
+                if let Some(trunc) = msg_strtrunc(crate::memory::cstr_until_nul(&msgbuf_vec), 1) {
                     msgbuflen = trunc.as_bytes().len();
                     msgbuf_vec = trunc.into_bytes_with_nul();
                 }
@@ -1462,7 +1462,7 @@ pub fn do_search(
                     msgbuf_vec.copy_within(r_off..msgbuflen, 0);
                     msgbuf_vec[pat_len..msgbuflen].fill(b' ');
                 }
-                msg_outtrans(msgbuf_vec.as_ptr().cast(), 0, false);
+                msg_outtrans(crate::memory::cstr_until_nul(&msgbuf_vec), 0, false);
                 msg_clr_eos();
                 msg_check();
 
@@ -1749,7 +1749,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
 
     cap.oap_mut().inclusive = dir != BACKWARD;
 
-    let p = get_cursor_line_ptr();
+    let p = get_cursor_line_ptr().as_ptr().cast_mut();
     let mut col = curwin_mut().w_cursor.col;
     let len = get_cursor_line_len();
 
@@ -2816,7 +2816,7 @@ fn cmdline_search_stat(
 
     g_st().msg_ext_overwrite = true;
     msg_ext_set_kind(c"search_count");
-    give_warning(msgbuf.as_ptr().cast(), false, false);
+    give_warning(crate::memory::cstr_until_nul(msgbuf), false, false);
 }
 
 fn update_search_stat(
@@ -3253,7 +3253,7 @@ pub fn find_pattern_in_path(
                             {
                                 msg_putchar(b'\n' as i32);
                                 if !g_st().got_int {
-                                    msg_home_replace(nf_ptr);
+                                    msg_home_replace(crate::memory::cstr_as_opt_cstr(nf_ptr));
                                     msg_puts(tr(c" (includes previously listed match)"));
                                     prev_fname = ptr::null_mut();
                                 }
@@ -3294,7 +3294,7 @@ pub fn find_pattern_in_path(
                             msg_puts(c"  ");
                         }
                         if let Some(ref nf) = new_fname_cstr {
-                            msg_outtrans(nf.as_ptr(), HLF_D, false);
+                            msg_outtrans(nf, HLF_D, false);
                         } else {
                             if find_substr(inc_opt_cstr, b"\\zs") {
                                 p = incl_regmatch.startp[0].cast();
@@ -3330,7 +3330,12 @@ pub fn find_pattern_in_path(
                                     i += 1;
                                 }
                             }
-                            msg_outtrans_len(p, i, HLF_D, false);
+                            msg_outtrans_len(
+                                crate::memory::cstr_slice(p, i.max(0) as usize),
+                                i,
+                                HLF_D,
+                                false,
+                            );
                         }
 
                         if new_fname_cstr.is_none() && action == ACTION_SHOW_ALL {
@@ -3383,7 +3388,7 @@ pub fn find_pattern_in_path(
                                 tr(c"Scanning included file: %s"),
                                 curr_fname,
                             );
-                            msg_trunc(iobuff_ptr, true, HLF_R);
+                            msg_trunc(g_st().iobuff_bytes_mut(), true, HLF_R);
                         } else if opt_vars().p_verbose >= 5 {
                             verbose_enter();
                             smsg!(0, tr(c"Searching included file %s"), curr_fname);
@@ -3411,7 +3416,9 @@ pub fn find_pattern_in_path(
 
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
-                            startp = skipwhite(p);
+                            startp = p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(p.cast()),
+                            ));
                             let start_bytes = crate::memory::cstr_as_bytes(startp);
                             if opt_vars().p_ic != 0 {
                                 matched = mb_strnicmp(startp, ptr_pat, len) == 0;
@@ -3542,7 +3549,9 @@ pub fn find_pattern_in_path(
                                     }
 
                                     if !skip_add {
-                                        p = skipwhite(line);
+                                        p = line.wrapping_add(crate::charset::skipwhite_len(
+                                            crate::memory::cstr_as_bytes(line.cast()),
+                                        ));
                                         aux = p;
                                         already = p;
                                         p = find_word_start(crate::memory::cstr_as_bytes(p))
@@ -3629,7 +3638,7 @@ pub fn find_pattern_in_path(
                                 msg_putchar(b'\n' as i32);
                             }
                             if !g_st().got_int {
-                                msg_home_replace(curr_fname);
+                                msg_home_replace(crate::memory::cstr_as_opt_cstr(curr_fname));
                             }
                             prev_fname = curr_fname;
                         }
@@ -3895,9 +3904,13 @@ fn show_pat_in_path(
         if action == ACTION_SHOW_ALL {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
             vim_snprintf!(iobuff_ptr, IOSIZE, c"%3d: ", count);
-            msg_puts(iobuff_ptr);
+            msg_puts(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
             vim_snprintf!(iobuff_ptr, IOSIZE, c"%4d", *lnum);
-            msg_puts_hl(iobuff_ptr, HLF_N, false);
+            msg_puts_hl(
+                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                HLF_N,
+                false,
+            );
             msg_puts(c" ");
         }
         msg_prt_line(crate::memory::cstr_as_bytes(line), false);

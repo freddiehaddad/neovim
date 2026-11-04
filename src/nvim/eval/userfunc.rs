@@ -4,10 +4,7 @@ use crate::api::private::validate::NvimString;
 use crate::autocmd::{
     DOCMD_NOWAIT, DOCMD_REPEAT, DOCMD_VERBOSE, EVENT_FUNCUNDEFINED, PROF_YES, apply_autocmds,
 };
-use crate::charset::{
-    NUL, ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, skiptowhite, skipwhite,
-    vim_strsize,
-};
+use crate::charset::{NUL, ascii_isalnum, ascii_islower, ascii_iswhite, getdigits, vim_strsize};
 use crate::cmdexpand::{Cmdidx, EXPAND_USER_FUNC, K_UICMDLINE};
 use crate::cursor::Linenr;
 use crate::debugger::{dbg_breakpoint, dbg_find_breakpoint, has_profiling};
@@ -420,13 +417,32 @@ fn get_function_args(
                 break;
             }
 
-            if crate::memory::cstr_first_byte(skipwhite(p.cast())) == b'=' && default_args.is_some()
+            if crate::memory::cstr_first_byte({
+                let _sw_p = p.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            }) == b'='
+                && default_args.is_some()
             {
                 let mut rettv: TypVal = TypVal::new();
 
                 any_default = true;
-                p = skipwhite(p.cast()).wrapping_add(1).cast();
-                p = skipwhite(p.cast()).cast();
+                p = {
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }
+                .wrapping_add(1)
+                .cast();
+                p = {
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }
+                .cast();
                 let expr = p;
                 let mut p_cstr = unsafe { CStr::from_ptr(p.cast()) };
                 let eval_ok = eval1(&mut p_cstr, &mut rettv, None);
@@ -455,7 +471,12 @@ fn get_function_args(
             }
 
             if ascii_iswhite(crate::memory::cstr_first_byte(p.cast()))
-                && crate::memory::cstr_first_byte(skipwhite(p.cast())) == b','
+                && crate::memory::cstr_first_byte({
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }) == b','
             {
                 if !skip {
                     semsg!(
@@ -471,7 +492,13 @@ fn get_function_args(
                     }
                     return false;
                 }
-                p = skipwhite(p.cast()).cast();
+                p = {
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }
+                .cast();
             }
             if crate::memory::cstr_first_byte(p.cast()) == b',' {
                 p = p.wrapping_add(1);
@@ -479,7 +506,13 @@ fn get_function_args(
                 mustend = true;
             }
         }
-        p = skipwhite(p.cast()).cast();
+        p = {
+            let _sw_p = p.cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast();
         if mustend && crate::memory::cstr_first_byte(p.cast()) != endchar {
             if !skip {
                 semsg!(gettext(E_INVARG2), argp.as_ptr());
@@ -586,13 +619,27 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
     let old_eval_lavars = eval_st().eval_lavars_used;
     let mut eval_lavars = false;
 
-    let mut s = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1))) };
+    let mut s = unsafe {
+        CStr::from_ptr({
+            let _sw_p = arg.as_ptr().wrapping_add(1);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
     let mut ret = get_function_args(&mut s, b'-', None, None, None, true);
     if !ret || s.to_bytes().first() != Some(&b'>') {
         return NOTDONE;
     }
 
-    *arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1))) };
+    *arg = unsafe {
+        CStr::from_ptr({
+            let _sw_p = arg.as_ptr().wrapping_add(1);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
 
     ret = get_function_args(
         arg,
@@ -611,8 +658,14 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
         eval_st().eval_lavars_used = &raw mut eval_lavars;
     }
 
-    let mut arg_cstr =
-        unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(1).cast_mut())) };
+    let mut arg_cstr = unsafe {
+        CStr::from_ptr({
+            let _sw_p = arg.as_ptr().wrapping_add(1).cast_mut();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
     let start: *const u8 = arg_cstr.as_ptr().cast();
     ret = skip_expr(&mut arg_cstr, evalarg);
     let end: *const u8 = arg_cstr.as_ptr().cast();
@@ -622,7 +675,13 @@ pub fn get_lambda_tv(arg: &mut &CStr, rettv: &mut TypVal, evalarg: Option<&mut E
         return FAIL;
     }
 
-    let arg_ptr: *mut u8 = skipwhite(arg_cstr.as_ptr().cast_mut()).cast();
+    let arg_ptr: *mut u8 = {
+        let _sw_p = arg_cstr.as_ptr().cast_mut();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    }
+    .cast();
     *arg = unsafe { CStr::from_ptr(arg_ptr.cast()) };
 
     if unsafe { *arg_ptr } != b'}' {
@@ -763,7 +822,13 @@ fn get_func_arguments(
     let mut ret = true;
 
     while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
-        argp = skipwhite(argp.wrapping_add(1).cast()).cast();
+        argp = {
+            let _sw_p = argp.wrapping_add(1).cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }
+        .cast();
 
         if crate::memory::cstr_first_byte(argp.cast()) == b')'
             || crate::memory::cstr_first_byte(argp.cast()) == b','
@@ -788,7 +853,13 @@ fn get_func_arguments(
         }
     }
 
-    argp = skipwhite(argp.cast()).cast();
+    argp = {
+        let _sw_p = argp.cast::<std::ffi::c_char>();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    }
+    .cast();
     if crate::memory::cstr_first_byte(argp.cast()) == b')' {
         argp = argp.wrapping_add(1);
     } else {
@@ -857,7 +928,14 @@ pub fn get_func_tv(
         tv_clear(&mut argvars[argcount as usize]);
     }
 
-    *arg = unsafe { CStr::from_ptr(skipwhite(argp.as_ptr())) };
+    *arg = unsafe {
+        CStr::from_ptr({
+            let _sw_p = argp.as_ptr();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
     ret
 }
 
@@ -1388,11 +1466,11 @@ pub fn call_user_func(
                     g_st().emsg_off -= 1;
                     let mut s = tf.as_ptr().cast_mut();
                     let mut buf = [0u8; MSG_BUF_LEN];
-                    if vim_strsize(s) > MSG_BUF_CLEN {
+                    if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                         trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                         s = buf.as_mut_ptr().cast();
                     }
-                    msg_puts(s);
+                    msg_puts(crate::memory::cstr_from_ptr(s));
                 }
             }
             msg_puts(c")");
@@ -1491,7 +1569,7 @@ pub fn call_user_func(
             let tf = encode_tv2string(unsafe { &mut *fc.fc_rettv }, None);
             g_st().emsg_off -= 1;
             let mut s = tf.as_ptr().cast_mut();
-            if vim_strsize(s) > MSG_BUF_CLEN {
+            if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                 trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
                 s = buf.as_mut_ptr().cast();
             }
@@ -2074,13 +2152,9 @@ fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
     if indent {
         msg_puts(c"   ");
     }
-    msg_puts(if force {
-        c"function! ".as_ptr()
-    } else {
-        c"function ".as_ptr()
-    });
+    msg_puts(if force { c"function! " } else { c"function " });
     if let Some(ref exp) = fp.uf_name_exp {
-        msg_puts(exp.as_ptr());
+        msg_puts(exp);
     } else {
         msg_puts(uf2hikey(fp));
     }
@@ -2095,7 +2169,7 @@ fn list_func_head(fp: &mut UserFunc, indent: bool, force: bool) -> bool {
         msg_puts(funcarg(fp, j));
         if j >= uf_args_len - uf_def_args_len {
             msg_puts(c" = ");
-            msg_puts((&fp.uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize].as_ptr());
+            msg_puts(&(&fp.uf_def_args)[(j - uf_args_len + uf_def_args_len) as usize]);
         }
         j += 1;
     }
@@ -2482,7 +2556,10 @@ fn list_one_function(
     let p = eap
         .arg
         .wrapping_add((p_cstr.as_ptr() as usize) - (eap.arg as usize));
-    if ends_excmd(crate::memory::cstr_first_byte(skipwhite(p))) == 0 {
+    if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
+        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p.cast())),
+    ))) == 0
+    {
         semsg!(gettext(E_TRAILING_ARG), p);
         return None;
     }
@@ -2542,9 +2619,9 @@ fn list_one_function(
         msg_putchar(b'\n' as i32);
         if !function_list_modified(prev_ht_changed) {
             msg_puts(if eap.forceit != 0 {
-                c"endfunction".as_ptr()
+                c"endfunction"
             } else {
-                c"   endfunction".as_ptr()
+                c"   endfunction"
             });
         }
     }
@@ -2634,7 +2711,10 @@ fn get_function_body(
 
         if let Some(ref marker) = skip_until {
             if heredoc_trimmed.is_none()
-                || (is_heredoc && skipwhite(theline) == theline)
+                || (is_heredoc
+                    && theline.wrapping_add(crate::charset::skipwhite_len(
+                        crate::memory::cstr_as_bytes(theline.cast()),
+                    )) == theline)
                 || heredoc_trimmed.as_ref().is_some_and(|ht| {
                     crate::memory::cstr_as_bytes(theline)
                         .starts_with(&ht.as_bytes()[..heredoc_trimmedlen.min(ht.as_bytes().len())])
@@ -2643,7 +2723,10 @@ fn get_function_body(
                 p = if heredoc_trimmed.is_none() {
                     theline
                 } else if is_heredoc {
-                    if skipwhite(theline) == theline {
+                    if theline.wrapping_add(crate::charset::skipwhite_len(
+                        crate::memory::cstr_as_bytes(theline.cast()),
+                    )) == theline
+                    {
                         theline
                     } else {
                         theline.wrapping_add(heredoc_trimmedlen)
@@ -2668,7 +2751,10 @@ fn get_function_body(
                 p = p.wrapping_add(1);
             }
 
-            if checkforcmd(&mut p, b"endfunction", 4) {
+            if checkforcmd(crate::memory::cstr_as_bytes(p), b"endfunction", 4)
+                .inspect(|&n| p = p.wrapping_add(n))
+                .is_some()
+            {
                 let prev_nesting = nesting;
                 nesting -= 1;
                 if prev_nesting == 0 {
@@ -2684,7 +2770,11 @@ fn get_function_body(
                             p.wrapping_add(1)
                         };
                     } else if !line_arg.is_null()
-                        && crate::memory::cstr_first_byte(skipwhite(line_arg)) != 0
+                        && crate::memory::cstr_first_byte(line_arg.wrapping_add(
+                            crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                                line_arg.cast(),
+                            )),
+                        )) != 0
                     {
                         nextcmd = line_arg;
                     } else if !crate::memory::cstr_is_empty(p)
@@ -2718,15 +2808,26 @@ fn get_function_body(
                 indent += 2;
             }
 
-            if checkforcmd(&mut p, b"function", 2) {
+            if checkforcmd(crate::memory::cstr_as_bytes(p), b"function", 2)
+                .inspect(|&n| p = p.wrapping_add(n))
+                .is_some()
+            {
                 if crate::memory::cstr_first_byte(p) == b'!' {
-                    p = skipwhite(p.wrapping_add(1));
+                    p = {
+                        let _sw_p = p.wrapping_add(1);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    };
                 }
                 p = p.wrapping_add(eval_fname_script(crate::memory::cstr_as_bytes(p)));
                 let mut p_cstr = unsafe { CStr::from_ptr(p) };
                 let _ = trans_function_name(&mut p_cstr, true, 0, None, None);
                 p = p_cstr.as_ptr().cast_mut();
-                if crate::memory::cstr_first_byte(skipwhite(p)) == b'(' {
+                if crate::memory::cstr_first_byte(p.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(p.cast()),
+                ))) == b'('
+                {
                     if nesting == MAX_FUNC_NESTING - 1 {
                         emsg(gettext(E_FUNCTION_NESTING_TOO_DEEP));
                     } else {
@@ -2740,9 +2841,15 @@ fn get_function_body(
                 .as_ptr()
                 .cast_mut();
             let tp = p;
-            if (checkforcmd(&mut p, b"append", 1)
-                || checkforcmd(&mut p, b"change", 1)
-                || checkforcmd(&mut p, b"insert", 1))
+            if (checkforcmd(crate::memory::cstr_as_bytes(p), b"append", 1)
+                .inspect(|&n| p = p.wrapping_add(n))
+                .is_some()
+                || checkforcmd(crate::memory::cstr_as_bytes(p), b"change", 1)
+                    .inspect(|&n| p = p.wrapping_add(n))
+                    .is_some()
+                || checkforcmd(crate::memory::cstr_as_bytes(p), b"insert", 1)
+                    .inspect(|&n| p = p.wrapping_add(n))
+                    .is_some())
                 && (crate::memory::cstr_first_byte(p) == b'!'
                     || crate::memory::cstr_first_byte(p) == b'|'
                     || ascii_iswhite_nl_or_nul(i32::from(crate::memory::cstr_first_byte(p))))
@@ -2752,7 +2859,14 @@ fn get_function_body(
                 p = tp;
             }
 
-            arg = skipwhite(skiptowhite(p));
+            arg = {
+                let _sw_p = p.wrapping_add(crate::charset::skiptowhite_len(
+                    crate::memory::cstr_as_bytes(p.cast()),
+                ));
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
             let p_bytes = crate::memory::cstr_as_bytes(p);
             let p0 = p_bytes.first().copied().unwrap_or(0);
             let p1 = p_bytes.get(1).copied().unwrap_or(0);
@@ -2773,14 +2887,28 @@ fn get_function_body(
                         && (!p3.is_ascii_alphabetic() || p3 == b'y'))
                     || (p0 == b'm' && p1 == b'z' && (!p2.is_ascii_alphabetic() || p2 == b's')));
             if is_script_heredoc {
-                p = skipwhite(arg.wrapping_add(2));
+                p = {
+                    let _sw_p = arg.wrapping_add(2);
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                };
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if p_bytes.starts_with(b"trim")
                     && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                 {
-                    p = skipwhite(p.wrapping_add(4));
-                    heredoc_trimmedlen =
-                        crate::memory::ptr_offset_from(skipwhite(theline), theline) as usize;
+                    p = {
+                        let _sw_p = p.wrapping_add(4);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    };
+                    heredoc_trimmedlen = crate::memory::ptr_offset_from(
+                        theline.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(theline.cast()),
+                        )),
+                        theline,
+                    ) as usize;
                     let slice = crate::memory::cstr_slice(theline, heredoc_trimmedlen);
                     heredoc_trimmed = Some(std::ffi::CString::new(slice).unwrap());
                 }
@@ -2789,7 +2917,12 @@ fn get_function_body(
                 } else {
                     let slice = crate::memory::cstr_slice(
                         p,
-                        crate::memory::ptr_offset_from(skiptowhite(p), p) as usize,
+                        crate::memory::ptr_offset_from(
+                            p.wrapping_add(crate::charset::skiptowhite_len(
+                                crate::memory::cstr_as_bytes(p.cast()),
+                            )),
+                            p,
+                        ) as usize,
                     );
                     skip_until = Some(std::ffi::CString::new(slice).unwrap());
                 }
@@ -2799,7 +2932,13 @@ fn get_function_body(
 
             if !is_heredoc {
                 arg = p;
-                if checkforcmd(&mut arg, b"let", 2) || checkforcmd(&mut p, b"const", 5) {
+                if checkforcmd(crate::memory::cstr_as_bytes(arg), b"let", 2)
+                    .inspect(|&n| arg = arg.wrapping_add(n))
+                    .is_some()
+                    || checkforcmd(crate::memory::cstr_as_bytes(p), b"const", 5)
+                        .inspect(|&n| p = p.wrapping_add(n))
+                        .is_some()
+                {
                     let mut var_count = 0;
                     let mut semicolon = 0;
                     arg = skip_var_list(
@@ -2810,32 +2949,52 @@ fn get_function_body(
                     )
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                     if !arg.is_null() {
-                        arg = skipwhite(arg);
+                        arg = arg.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(arg.cast()),
+                        ));
                     }
                     if !arg.is_null() && crate::memory::cstr_as_bytes(arg).starts_with(b"=<<") {
-                        p = skipwhite(arg.wrapping_add(3));
+                        p = {
+                            let _sw_p = arg.wrapping_add(3);
+                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                            ))
+                        };
                         let mut has_trim = false;
                         loop {
                             let p_bytes = crate::memory::cstr_as_bytes(p);
                             if p_bytes.starts_with(b"trim")
                                 && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                             {
-                                p = skipwhite(p.wrapping_add(4));
+                                p = {
+                                    let _sw_p = p.wrapping_add(4);
+                                    _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                    ))
+                                };
                                 has_trim = true;
                                 continue;
                             }
                             if p_bytes.starts_with(b"eval")
                                 && p_bytes.get(4).is_none_or(|&b| ascii_iswhite(b as i32))
                             {
-                                p = skipwhite(p.wrapping_add(4));
+                                p = {
+                                    let _sw_p = p.wrapping_add(4);
+                                    _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                    ))
+                                };
                                 continue;
                             }
                             break;
                         }
                         if has_trim {
-                            heredoc_trimmedlen =
-                                crate::memory::ptr_offset_from(skipwhite(theline), theline)
-                                    as usize;
+                            heredoc_trimmedlen = crate::memory::ptr_offset_from(
+                                theline.wrapping_add(crate::charset::skipwhite_len(
+                                    crate::memory::cstr_as_bytes(theline.cast()),
+                                )),
+                                theline,
+                            ) as usize;
                             let slice = unsafe {
                                 std::slice::from_raw_parts(theline.cast::<u8>(), heredoc_trimmedlen)
                             };
@@ -2843,7 +3002,12 @@ fn get_function_body(
                         }
                         let slice = crate::memory::cstr_slice(
                             p,
-                            crate::memory::ptr_offset_from(skiptowhite(p), p) as usize,
+                            crate::memory::ptr_offset_from(
+                                p.wrapping_add(crate::charset::skiptowhite_len(
+                                    crate::memory::cstr_as_bytes(p.cast()),
+                                )),
+                                p,
+                            ) as usize,
                         );
                         skip_until = Some(std::ffi::CString::new(slice).unwrap());
                         do_concat = false;
@@ -2964,7 +3128,9 @@ pub fn ex_function(eap: &mut Exarg) {
         ret_free!();
     }
 
-    p = skipwhite(p);
+    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        p.cast(),
+    )));
     if crate::memory::cstr_first_byte(p) != b'(' {
         if eap.skip == 0 {
             semsg!(gettext(c"E124: Missing '(': %s"), eap.arg);
@@ -2975,7 +3141,12 @@ pub fn ex_function(eap: &mut Exarg) {
             p = open_paren;
         }
     }
-    p = skipwhite(p.wrapping_add(1));
+    p = {
+        let _sw_p = p.wrapping_add(1);
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    };
 
     if eap.skip == 0 {
         let fudi_newkey_ptr = fudi
@@ -3038,7 +3209,9 @@ pub fn ex_function(eap: &mut Exarg) {
     }
 
     loop {
-        p = skipwhite(p);
+        p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            p.cast(),
+        )));
         let p_bytes = crate::memory::cstr_as_bytes(p);
         if p_bytes.starts_with(b"range") {
             flags |= FC_RANGE;
@@ -3319,7 +3492,12 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
         flag |= TFN_NO_DEREF;
     }
     let p = trans_function_name(&mut nm, false, flag, None, None);
-    let nm_ptr = skipwhite(nm.as_ptr().cast_mut());
+    let nm_ptr = {
+        let _sw_p = nm.as_ptr().cast_mut();
+        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            _sw_p.cast(),
+        )))
+    };
 
     if let Some(ref p) = p
         && (crate::memory::cstr_is_empty(nm_ptr) || crate::memory::cstr_first_byte(nm_ptr) == b'(')
@@ -3382,7 +3560,10 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         return;
     };
     let name = name_cstr.as_ptr();
-    if ends_excmd(crate::memory::cstr_first_byte(skipwhite(p))) == 0 {
+    if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
+        crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p.cast())),
+    ))) == 0
+    {
         semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
@@ -3849,7 +4030,14 @@ pub fn ex_call(eap: &mut Exarg) {
         Some(&mut found_var),
     );
 
-    let startarg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().cast_mut())) };
+    let startarg = unsafe {
+        CStr::from_ptr({
+            let _sw_p = arg.as_ptr().cast_mut();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
 
     if crate::memory::cstr_first_byte(startarg.as_ptr()) != b'(' {
         semsg!(gettext(E_MISSINGPAREN), eap.arg);
@@ -4217,10 +4405,11 @@ pub fn find_hi_in_scoped_ht(
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
             let ht_ptr: *mut Hashtab = ht_ref;
+            let len =
+                namelen - crate::memory::ptr_offset_from(varname.as_ptr(), name.as_ptr()) as usize;
             hi = hash_find_len(
                 unsafe { &*ht_ptr },
-                varname.as_ptr(),
-                namelen - crate::memory::ptr_offset_from(varname.as_ptr(), name.as_ptr()) as usize,
+                crate::memory::cstr_slice(varname.as_ptr(), len),
             );
             if !hashitem_empty(unsafe { &*hi }) {
                 *pht = Some(unsafe { &mut *ht_ptr });

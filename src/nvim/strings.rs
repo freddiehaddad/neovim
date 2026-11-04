@@ -2,7 +2,7 @@
 
 use crate::charset::{
     STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, STR2NR_OOCT, STR2NR_QUOTE, ascii_isdigit,
-    ascii_iswhite, rem_backslash, skipwhite, transstr, vim_str2nr,
+    ascii_iswhite, rem_backslash, transstr, vim_str2nr,
 };
 use crate::errors::*;
 use crate::eval::encode::{encode_tv2echo, encode_tv2string};
@@ -2379,10 +2379,15 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
 
-    let mut p = skipwhite(tv_get_string(&argvars[0]));
+    let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
     let isneg = crate::memory::cstr_first_byte(p) == b'-';
     if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = skipwhite(p.wrapping_add(1));
+        p = {
+            let _sw_p = p.wrapping_add(1);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
     match base {
         2 => what |= STR2NR_BIN | STR2NR_FORCE,
@@ -2391,7 +2396,17 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         _ => {}
     }
     let mut n: Varnumber = 0;
-    vim_str2nr(p, None, None, what, Some(&mut n), None, 0, false, None);
+    vim_str2nr(
+        crate::memory::cstr_as_bytes(p),
+        None,
+        None,
+        what,
+        Some(&mut n),
+        None,
+        0,
+        false,
+        None,
+    );
     rettv.vval = crate::eval::typval::TypvalVval::Number(if isneg { -n } else { n });
 }
 
@@ -2733,7 +2748,7 @@ pub fn f_strridx(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 }
 
 pub fn f_strtrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let trans = transstr(tv_get_string(&argvars[0]), true);
+    let trans = transstr(tv_get_string(&argvars[0]).to_bytes(), true);
     crate::eval::typval::tv_set_string(rettv, Some(trans.as_c_str()));
 }
 

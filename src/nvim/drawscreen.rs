@@ -1024,7 +1024,11 @@ pub fn showmode() -> i32 {
                     } else if get_keymap_str(curwin_mut(), c" (%s)", g_st().name_buff_bytes_mut())
                         > 0
                     {
-                        msg_puts_hl(g_st().name_buff.as_ptr(), hl_id, false);
+                        msg_puts_hl(
+                            crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()),
+                            hl_id,
+                            false,
+                        );
                     }
                 }
                 if (g_st().state_global & MODE_INSERT) != 0 && opt_vars().p_paste != 0 {

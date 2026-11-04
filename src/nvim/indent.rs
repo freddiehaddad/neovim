@@ -8,7 +8,7 @@ use crate::change::{
 };
 use crate::charset::{
     K_OPT_DY_FLAG_UHEX, ascii_isdigit, ascii_iswhite, ascii_iswhite_or_nul, char2cells, getdigits,
-    getwhitecols_curline, skipwhite, vim_strsize,
+    getwhitecols_curline, vim_strsize,
 };
 use crate::cursor::{
     Colnr, CursorPos, Linenr, check_cursor, coladvance, get_cursor_line_len, get_cursor_line_ptr,
@@ -490,7 +490,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
 
     let mut todo = size;
     let mut ind_len: i32 = 0;
-    let oldline = get_cursor_line_ptr();
+    let oldline = get_cursor_line_ptr().as_ptr().cast_mut();
     let oldline_bytes = crate::memory::cstr_as_bytes(oldline);
     let mut p_idx = 0usize;
     let mut p;
@@ -575,7 +575,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     if (flags & SIN_INSERT) != 0 {
         p = oldline;
     } else {
-        p = skipwhite(p);
+        p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            p.cast(),
+        )));
         line_len -= crate::memory::ptr_offset_from(p, oldline) as i32;
     }
 
@@ -643,7 +645,9 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 todo -= tab_pad;
                 ind_done += tab_pad;
             }
-            p = skipwhite(p);
+            p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
         }
 
         loop {
@@ -940,7 +944,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let save_lnum = curwin_mut().w_cursor.lnum;
                 curwin_mut().w_cursor.lnum = start_lnum;
                 msg_progress(
-                    g_st().iobuff.as_mut_ptr(),
+                    Some(g_st().iobuff_bytes_mut()),
                     c"nvim.indent",
                     c"running",
                     -1,
@@ -1002,7 +1006,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
         iobuff[copy_len] = 0;
         msg_progress(
-            g_st().iobuff.as_mut_ptr(),
+            Some(g_st().iobuff_bytes_mut()),
             c"nvim.indent",
             c"success",
             -1,
@@ -1164,7 +1168,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         curwin_mut().w_virtcol = end_vcol;
 
         new_cursor_col = 0;
-        let line = get_cursor_line_ptr();
+        let line = get_cursor_line_ptr().as_ptr().cast_mut();
         vcol = 0;
         if !crate::memory::cstr_is_empty(line) {
             let mut csarg = CharsizeArg::new();
@@ -1359,7 +1363,12 @@ pub fn ex_retab(eap: &mut Exarg) {
         && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
-        ptr = skipwhite(ptr.wrapping_add(11));
+        ptr = {
+            let _sw_p = ptr.wrapping_add(11);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     let ts_start = ptr;
@@ -1677,7 +1686,7 @@ pub fn get_lisp_indent() -> i32 {
             curwin_mut().w_cursor.col = pos.col;
             let mut col = pos.col;
 
-            let line = get_cursor_line_ptr();
+            let line = get_cursor_line_ptr().as_ptr().cast_mut();
             let mut csarg = CharsizeArg::new();
             let cstype: CSType = init_charsize_arg(
                 &mut csarg,

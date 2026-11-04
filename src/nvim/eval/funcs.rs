@@ -22,7 +22,7 @@ use crate::channel::{
     K_PROC_TYPE_PTY, channel_close, channel_connect, channel_create_event, channel_decref,
     channel_from_stdio, channel_incref, channel_job_start, channel_send, channel_terminal_alloc,
 };
-use crate::charset::{CTRL_V_CONST, VARNUMBER_MIN, ascii_isdigit, getdigits_int, skipwhite};
+use crate::charset::{CTRL_V_CONST, VARNUMBER_MIN, ascii_isdigit, getdigits_int};
 use crate::cmdexpand::{
     Cmdidx, EXPAND_FILES, SEARCH_START, WILD_ALL, WILD_ALL_KEEP, WILD_ICASE, WILD_KEEP_ALL,
     WILD_LIST_NOTFOUND, WILD_SILENT, WILD_USE_NL, WILD_USE_SHELLSLASH, cmdline_pum_active,
@@ -1661,7 +1661,7 @@ pub fn f_chansend(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     rettv.vval =
         crate::eval::typval::TypvalVval::Number(channel_send(id, input, &mut error) as Varnumber);
     if let Some(err) = error {
-        emsg(err.as_ptr());
+        emsg(err);
     }
 }
 
@@ -2088,7 +2088,9 @@ pub fn f_getenv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut s = tv_get_string_chk(&argvars[0]).map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
     if !s.is_null() {
-        s = skipwhite(s);
+        s = s.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            s.cast(),
+        )));
     }
     let expr_start = s;
     let mut s_cstr = if s.is_null() {
@@ -7997,7 +7999,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     if argvars[0].v_type == VarType::VarUnknown {
         len = spell_move_to(curwin_mut(), FORWARD, SMT_ALL, true, Some(&mut attr));
         if len != 0 {
-            word = get_cursor_pos_ptr();
+            word = get_cursor_pos_ptr().as_ptr().cast_mut();
             curwin_mut().w_set_curswant = true;
         }
     } else if !crate::memory::cstr_is_empty(curbuf_mut().b_s.b_p_spl) {
@@ -8247,10 +8249,15 @@ pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
 /// "str2float()" function
 pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut p = skipwhite(tv_get_string(&argvars[0]));
+    let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
     let isneg = crate::memory::cstr_first_byte(p) == b'-';
     if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = skipwhite(p.wrapping_add(1));
+        p = {
+            let _sw_p = p.wrapping_add(1);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
     string2float(unsafe { CStr::from_ptr(p) }, rettv.vval.v_float_mut());
     if isneg {

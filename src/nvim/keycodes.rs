@@ -2485,11 +2485,8 @@ pub fn find_special_key(
             {
                 let mut l: i32 = 0;
                 let num_slice = &bytes[bp_idx + 5..=end_idx];
-                let mut num_cstr = [0u8; 64];
-                let copy_len = num_slice.len().min(63);
-                num_cstr[..copy_len].copy_from_slice(&num_slice[..copy_len]);
                 vim_str2nr(
-                    num_cstr.as_ptr().cast(),
+                    num_slice,
                     None,
                     Some(&mut l),
                     STR2NR_ALL,
@@ -2541,11 +2538,8 @@ pub fn find_special_key(
                 let mut l: i32 = 0;
                 let mut n: u64 = 0;
                 let num_slice = &after_dash[5..];
-                let mut num_cstr = [0u8; 64];
-                let copy_len = num_slice.len().min(63);
-                num_cstr[..copy_len].copy_from_slice(&num_slice[..copy_len]);
                 vim_str2nr(
-                    num_cstr.as_ptr().cast(),
+                    num_slice,
                     None,
                     Some(&mut l),
                     STR2NR_ALL,

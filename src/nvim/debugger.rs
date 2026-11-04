@@ -1,6 +1,6 @@
 //! Vimscript debugger (`src/nvim/debugger.c`).
 
-use crate::charset::{getdigits_int32, skipwhite, skipwhite_slice};
+use crate::charset::{getdigits_int32, skipwhite_slice};
 use crate::drawscreen::{UPD_NOT_VALID, redraw_all_later};
 use crate::errors::{E_INVARG2, E_NONAME};
 use crate::eval::typval::{Callback, TypVal, tv_clear};
@@ -229,7 +229,7 @@ pub fn do_debug(cmd: &CStr) {
             smsg!(0, c"Newval = \"%s\"", newval.as_ptr());
         }
         if let Some(sname) = estack_sfile(ESTACK_NONE) {
-            msg(sname.as_ptr(), 0);
+            msg(&sname, 0);
         }
         let slnum = sourcing_lnum();
         if slnum != 0 {
@@ -278,7 +278,9 @@ pub fn do_debug(cmd: &CStr) {
             g_st().cmdline_row = g_st().msg_row;
             msg_starthere();
             if !cmdline.is_null() {
-                let mut p = skipwhite(cmdline);
+                let mut p = cmdline.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(cmdline.cast()),
+                ));
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if let Some(&b0) = p_bytes.first() {
                     let b1 = p_bytes.get(1).copied().unwrap_or(0);
@@ -358,7 +360,9 @@ pub fn do_debug(cmd: &CStr) {
                             if crate::memory::cstr_is_empty(p) {
                                 do_showbacktrace(cmd);
                             } else {
-                                p = skipwhite(p);
+                                p = p.wrapping_add(crate::charset::skipwhite_len(
+                                    crate::memory::cstr_as_bytes(p.cast()),
+                                ));
                                 do_setdebugtracelevel(crate::memory::cstr_as_bytes(p));
                             }
                             continue;
@@ -507,7 +511,12 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = skipwhite(p.wrapping_add(4));
+        p = {
+            let _sw_p = p.wrapping_add(4);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;

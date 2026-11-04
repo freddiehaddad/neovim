@@ -1656,9 +1656,9 @@ pub fn parse_virt_text(
 
             let text_cstr = transstr(
                 if str_val.size > 0 {
-                    str_val.data
+                    crate::memory::cstr_as_bytes(str_val.data)
                 } else {
-                    c"".as_ptr()
+                    b""
                 },
                 untab,
             );

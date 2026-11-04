@@ -61,7 +61,7 @@ struct ValuesStackItem {
 #[inline]
 fn json_err(fmt: &std::ffi::CStr, slice: &[u8]) {
     let cstr = crate::memory::cstr_from_bytes(slice);
-    semsg!(fmt.as_ptr(), cstr.as_ptr());
+    semsg!(fmt, cstr.as_ptr());
 }
 
 fn create_special_dict(rettv: &mut TypVal, mp_type: usize, val: TypVal) {

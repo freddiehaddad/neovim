@@ -727,7 +727,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     drop(tofree);
     set_vim_var_string(VV_ERRMSG, None, 0);
     if let Some(msg) = wrong_arg_msg {
-        emsg(msg.as_ptr());
+        emsg(msg);
     }
 }
 

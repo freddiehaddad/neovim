@@ -394,7 +394,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> i32 {
     } else {
         path_cstr.as_ptr()
     };
-    semsg!(msg.as_ptr(), objname.as_ptr(), path_ptr);
+    semsg!(msg, objname.as_ptr(), path_ptr);
     FAIL
 }
 

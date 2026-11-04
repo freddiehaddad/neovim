@@ -239,19 +239,19 @@ fn pum_compute_size() {
     pum().extra_width = 0;
     for item in pum().items() {
         if let Some(ref text) = item.pum_text {
-            let w = vim_strsize(text.as_ptr().cast_mut());
+            let w = vim_strsize(text);
             if pum().base_width < w {
                 pum().base_width = w;
             }
         }
         if let Some(ref kind) = item.pum_kind {
-            let w = vim_strsize(kind.as_ptr().cast_mut()) + 1;
+            let w = vim_strsize(kind) + 1;
             if pum().kind_width < w {
                 pum().kind_width = w;
             }
         }
         if let Some(ref extra) = item.pum_extra {
-            let w = vim_strsize(extra.as_ptr().cast_mut()) + 1;
+            let w = vim_strsize(extra) + 1;
             if pum().extra_width < w {
                 pum().extra_width = w;
             }
@@ -659,7 +659,7 @@ fn pum_compute_text_attrs(
             match_positions.as_ref()?;
         }
 
-        let mut attrs = vec![0; vim_strsize(text) as usize];
+        let mut attrs = vec![0; vim_strsize(crate::memory::cstr_from_ptr(text)) as usize];
         let mut ptr = text;
         let mut cell_idx: usize = 0;
         let mut char_pos: u32 = 0;
@@ -832,7 +832,7 @@ pub fn pum_redraw() {
             &mut err,
         ) {
             if err.err_type != ErrorType::ErrorTypeNone {
-                emsg(err.msg_cstr());
+                emsg(err.msg_cstr().unwrap_or(c""));
             }
             api_clear_error(&mut err);
             return;
@@ -996,7 +996,7 @@ pub fn pum_redraw() {
                     let width_limit = pum().width;
 
                     let seg_cstr = crate::memory::cstr_from_bytes(&item_bytes[seg_start..p_idx]);
-                    let mut st_bytes = transstr(seg_cstr.as_c_str(), true).into_bytes_with_nul();
+                    let mut st_bytes = transstr(seg_cstr.as_bytes(), true).into_bytes_with_nul();
 
                     let attrs = if item_type == CPT_ABBR {
                         pum_compute_text_attrs(
@@ -1253,7 +1253,7 @@ fn pum_preview_set_text(
     );
     g_st().textlock = original_textlock;
     if err.err_type != ErrorType::ErrorTypeNone {
-        emsg(err.msg_cstr());
+        emsg(err.msg_cstr().unwrap_or(c""));
         api_clear_error(&mut err);
     }
     arena_mem_free(arena_finish(&mut arena));

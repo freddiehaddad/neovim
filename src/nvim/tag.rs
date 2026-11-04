@@ -862,13 +862,14 @@ pub fn do_tag(
                                 gettext(c"  Using tag with different case!").to_bytes(),
                             );
                         }
+                        let iobuf_cstr = crate::memory::cstr_until_nul(g_st().iobuff_bytes());
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
                         {
-                            msg(iobuf_ptr, if ic { HLF_W } else { 0 });
+                            msg(iobuf_cstr, if ic { HLF_W } else { 0 });
                             g_st().msg_scroll = 1;
                         } else {
-                            give_warning(iobuf_ptr, ic, true);
+                            give_warning(iobuf_cstr, ic, true);
                         }
                         if ic && g_st().msg_scrolled == 0 && g_st().msg_silent == 0 {
                             msg_delay(1007, true);
@@ -1176,9 +1177,13 @@ pub fn do_tags(_eap: &mut Exarg) {
                 tagname.as_ptr(),
                 entry.fmark.mark.lnum,
             );
-            msg_outtrans(iobuf_ptr, 0, false);
             msg_outtrans(
-                name.as_ptr(),
+                crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+                0,
+                false,
+            );
+            msg_outtrans(
+                &name,
                 if entry.fmark.fnum == curbuf_mut().b_fnum {
                     HLF_D
                 } else {

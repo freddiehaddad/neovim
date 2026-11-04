@@ -903,7 +903,6 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
         return;
     }
 
-    let iobuf_ptr = g_st().iobuff.as_mut_ptr();
     add_quoted_fname(&mut g_st().iobuff_bytes_mut()[..IOSIZE - 100], buf, name);
 
     crate::memory::append_bytes_to_c_buf(g_st().iobuff_bytes_mut(), s.to_bytes());
@@ -927,8 +926,8 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
     g_st().msg_scrolled_ign = true;
     if let Some(msg_id) = msg_id {
         msg_with_id(
-            iobuf_ptr,
-            msg_id.as_ptr().cast_mut(),
+            Some(g_st().iobuff_bytes_mut()),
+            msg_id,
             c"bufwrite",
             None,
             0,
@@ -937,7 +936,8 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
             false,
         );
     } else {
-        msg_outtrans(msg_may_trunc(false, iobuf_ptr), 0, false);
+        let trunc = msg_may_trunc(false, g_st().iobuff_bytes_mut());
+        msg_outtrans(trunc, 0, false);
     }
     msg_clr_eos();
     g_st().msg_scrolled_ign = false;
@@ -961,7 +961,7 @@ pub fn slow_io_ns() -> u64 {
 /// Shows the progress-message of a slow readfile(). Locks `curbuf` so Progress handlers cannot
 /// accidentally unload it while it is loading.
 fn readfile_progress(
-    s: Option<&CStr>,
+    s: Option<&mut [u8]>,
     msg_id: &CStr,
     status: &CStr,
     percent: i32,
@@ -973,22 +973,15 @@ fn readfile_progress(
         (*buf).b_locked += 1;
     }
 
-    let rv = msg_progress(
-        s.map_or(ptr::null_mut(), |cs| cs.as_ptr().cast_mut()),
-        msg_id.as_ptr().cast_mut(),
-        status.as_ptr().cast_mut(),
-        percent,
-        0,
-        hist,
-        s.is_some(),
-        false,
-    );
+    let trunc = s.is_some();
+    let rv = msg_progress(s, msg_id, status, percent, 0, hist, trunc, false)
+        .map(|cs| unsafe { CStr::from_ptr(cs.as_ptr()) });
 
     unsafe {
         (*buf).b_locked -= 1;
     }
 
-    (!rv.is_null()).then(|| unsafe { CStr::from_ptr(rv) })
+    rv
 }
 
 /// Read lines from file "fname" into the buffer after line "from".
@@ -2532,9 +2525,8 @@ pub fn readfile(
                                 unsafe { g_st().curbuf.as_ref() },
                                 crate::memory::cstr_as_opt_cstr(sfname.cast()),
                             );
-                            let iobuf_cstr = crate::memory::cstr_until_nul(g_st().iobuff_bytes());
                             let _ = readfile_progress(
-                                Some(iobuf_cstr),
+                                Some(g_st().iobuff_bytes_mut()),
                                 crate::memory::cstr_until_nul(&msg_id),
                                 c"running",
                                 percent,
@@ -2816,9 +2808,8 @@ pub fn readfile(
                             msg_putchar(b'\r' as i32);
                         }
                         p = if progress {
-                            let iobuf_cstr = crate::memory::cstr_until_nul(g_st().iobuff_bytes());
                             readfile_progress(
-                                Some(iobuf_cstr),
+                                Some(g_st().iobuff_bytes_mut()),
                                 crate::memory::cstr_until_nul(&msg_id),
                                 if error { c"failed" } else { c"success" },
                                 -1,
@@ -2826,7 +2817,8 @@ pub fn readfile(
                             )
                             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
                         } else {
-                            msg_trunc(iobuf_ptr, false, 0).cast()
+                            msg_trunc(g_st().iobuff_bytes_mut(), false, 0)
+                                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast())
                         };
                     }
 
@@ -2835,7 +2827,7 @@ pub fn readfile(
                         || g_st().restart_edit != 0
                         || (g_st().msg_scrolled != 0 && !g_st().need_wait_return)
                     {
-                        set_keep_msg(p.cast(), 0);
+                        set_keep_msg(crate::memory::cstr_as_opt_cstr(p.cast()), 0);
                     }
                     g_st().msg_scrolled_ign = false;
                 } else if progress {
@@ -4026,12 +4018,12 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                     mesg2,
                 );
             }
-            emsg(tbuf.cast());
+            emsg(crate::memory::cstr_from_ptr(tbuf.cast()));
             retval = 2;
         } else {
             if !g_st().autocmd_busy {
                 msg_start();
-                msg_puts_hl(tbuf.cast(), HLF_E, true);
+                msg_puts_hl(crate::memory::cstr_from_ptr(tbuf.cast()), HLF_E, true);
                 if !mesg2.to_bytes().is_empty() {
                     msg_puts_hl(mesg2, HLF_W, true);
                 }

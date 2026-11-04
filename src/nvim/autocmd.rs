@@ -14,7 +14,7 @@ use crate::api::ui::NO_SCREEN;
 use crate::buffer::{
     Bufref, FileBuf, bt_nofile, buflist_findnr, bufref_valid, do_modelines, set_bufref,
 };
-use crate::charset::{ascii_iswhite, getdigits_int, skipwhite};
+use crate::charset::{ascii_iswhite, getdigits_int};
 use crate::cmdexpand::{EXPAND_EVENTS, EXPAND_FILES, EXPAND_NOTHING};
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch, is_ctx_win};
 use crate::errors::*;
@@ -1580,9 +1580,9 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
 
                 if ap.group != AUGROUP_DEFAULT {
                     if let Some(gn) = last_group_name {
-                        msg_puts_hl(gn.as_ptr(), HLF_T, false);
+                        msg_puts_hl(gn, HLF_T, false);
                     } else {
-                        msg_puts_hl(get_deleted_augroup().as_ptr(), HLF_E, false);
+                        msg_puts_hl(get_deleted_augroup(), HLF_E, false);
                     }
                     msg_puts(c"  ");
                 }
@@ -1598,7 +1598,7 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                 }
 
                 msg_advance(4);
-                msg_outtrans(ap.pat.as_ptr(), 0, false);
+                msg_outtrans(&ap.pat, 0, false);
             }
 
             if g_st().got_int {
@@ -1622,17 +1622,17 @@ fn au_show_for_event(group: i32, event: AuEvent, pat_in: &CStr) {
                     let h_str = handler_str.to_string_lossy();
                     format!("{h_str} [{desc_str}]")
                 } else {
-                    msg_puts_hl(handler_str.as_ptr(), HLF_8, false);
+                    msg_puts_hl(&handler_str, HLF_8, false);
                     format!(" [{desc_str}]")
                 };
                 let copy_len = formatted.len().min(msglen - 1);
                 mbuf[..copy_len].copy_from_slice(&formatted.as_bytes()[..copy_len]);
                 mbuf[copy_len] = 0;
-                msg_outtrans(mbuf.as_ptr().cast(), 0, false);
+                msg_outtrans(crate::memory::cstr_until_nul(&mbuf), 0, false);
             } else if ac.handler.is_cmd() {
-                msg_outtrans(handler_str.as_ptr(), 0, false);
+                msg_outtrans(&handler_str, 0, false);
             } else {
-                msg_puts_hl(handler_str.as_ptr(), HLF_8, false);
+                msg_puts_hl(&handler_str, HLF_8, false);
             }
             if opt_vars().p_verbose > 0 {
                 last_set_msg(ac.script_ctx);
@@ -1863,9 +1863,9 @@ pub fn do_augroup(arg: &CStr, del_group: bool) {
 
         for (name, value) in &au_st().map_augroup_name_to_id {
             if *value > 0 {
-                msg_puts(name.as_ptr());
+                msg_puts(name);
             } else {
-                msg_puts(augroup_name(*value).map_or(ptr::null(), CStr::as_ptr));
+                msg_puts(augroup_name(*value).unwrap_or(c""));
             }
             msg_puts(c"  ");
         }
@@ -2023,7 +2023,14 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
         return;
     };
 
-    let mut pat = unsafe { CStr::from_ptr(skipwhite(pat_after_ev.as_ptr())) };
+    let mut pat = unsafe {
+        CStr::from_ptr({
+            let _sw_p = pat_after_ev.as_ptr();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
     'run: {
         if pat.to_bytes().first() == Some(&b'|') {
             eap.nextcmd = pat.as_ptr().wrapping_add(1).cast_mut();
@@ -2055,7 +2062,14 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: i32) {
                 envpat = Some(ep);
             }
 
-            cmd = unsafe { CStr::from_ptr(skipwhite(cmd.as_ptr())) };
+            cmd = unsafe {
+                CStr::from_ptr({
+                    let _sw_p = cmd.as_ptr();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                })
+            };
 
             let mut invalid_flags = false;
             for _ in 0..2 {
@@ -2387,7 +2401,14 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
         return false;
     };
 
-    let fname = unsafe { CStr::from_ptr(skipwhite(fname_after_ev.as_ptr())) };
+    let fname = unsafe {
+        CStr::from_ptr({
+            let _sw_p = fname_after_ev.as_ptr();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        })
+    };
 
     while let Some(&b0) = arg.to_bytes().first()
         && ends_excmd(b0) == 0
@@ -3469,7 +3490,11 @@ pub fn aucmd_set_expand_context<'a>(
     }
 
     let p_ptr = ev_base.wrapping_add(p_idx);
-    arg = unsafe { CStr::from_ptr(skipwhite(p_ptr)) };
+    arg = unsafe {
+        CStr::from_ptr(p_ptr.wrapping_add(crate::charset::skipwhite_len(
+            crate::memory::cstr_as_bytes(p_ptr.cast()),
+        )))
+    };
     let pat_bytes = arg.to_bytes();
     let mut pat_idx = 0usize;
     while pat_idx < pat_bytes.len()
@@ -3480,25 +3505,53 @@ pub fn aucmd_set_expand_context<'a>(
     }
     arg = unsafe { CStr::from_ptr(arg.as_ptr().wrapping_add(pat_idx)) };
     if pat_idx < pat_bytes.len() {
-        arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr())) };
+        arg = unsafe {
+            CStr::from_ptr({
+                let _sw_p = arg.as_ptr();
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            })
+        };
         for _ in 0..2 {
             let bytes = arg.to_bytes();
             if bytes.starts_with(b"++once")
                 && bytes.get(6).is_some_and(|&b| ascii_iswhite(b as i32))
             {
-                arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(6))) };
+                arg = unsafe {
+                    CStr::from_ptr({
+                        let _sw_p = arg.as_ptr().wrapping_add(6);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    })
+                };
             }
             let bytes = arg.to_bytes();
             if bytes.starts_with(b"++nested")
                 && bytes.get(8).is_some_and(|&b| ascii_iswhite(b as i32))
             {
-                arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(8))) };
+                arg = unsafe {
+                    CStr::from_ptr({
+                        let _sw_p = arg.as_ptr().wrapping_add(8);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    })
+                };
             }
             let bytes = arg.to_bytes();
             if bytes.starts_with(b"nested")
                 && bytes.get(6).is_some_and(|&b| ascii_iswhite(b as i32))
             {
-                arg = unsafe { CStr::from_ptr(skipwhite(arg.as_ptr().wrapping_add(6))) };
+                arg = unsafe {
+                    CStr::from_ptr({
+                        let _sw_p = arg.as_ptr().wrapping_add(6);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    })
+                };
             }
         }
         return Some(arg);
@@ -3730,7 +3783,14 @@ fn arg_augroup_get(argp_ref: &mut &CStr) -> i32 {
     if group == AUGROUP_ERROR {
         group = AUGROUP_ALL;
     } else {
-        *argp_ref = unsafe { CStr::from_ptr(skipwhite(argp_ref.as_ptr().wrapping_add(len))) };
+        *argp_ref = unsafe {
+            CStr::from_ptr({
+                let _sw_p = argp_ref.as_ptr().wrapping_add(len);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            })
+        };
     }
     group
 }
@@ -3747,7 +3807,14 @@ fn arg_autocmd_flag_get(flag: &mut bool, cmd_ptr: &mut &CStr, pat_slice: &[u8]) 
             return true;
         }
         *flag = true;
-        *cmd_ptr = unsafe { CStr::from_ptr(skipwhite(cmd_ptr.as_ptr().wrapping_add(len))) };
+        *cmd_ptr = unsafe {
+            CStr::from_ptr({
+                let _sw_p = cmd_ptr.as_ptr().wrapping_add(len);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            })
+        };
     }
     false
 }

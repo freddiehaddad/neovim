@@ -315,7 +315,7 @@ pub fn prompt_for_input(
     }
 
     if let Some(ref kmsg_cstr) = kmsg {
-        set_keep_msg(kmsg_cstr.as_ptr(), g_st().keep_msg_hl_id);
+        set_keep_msg(Some(kmsg_cstr.as_c_str()), g_st().keep_msg_hl_id);
     }
 
     ret

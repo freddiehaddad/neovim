@@ -9,7 +9,7 @@ use crate::buffer::{
     FileBuf, K_UIMESSAGES, append_arg_number, bt_quickfix, buf_spname, calc_percentage, get_rel_pos,
 };
 use crate::charset::{
-    EOL_MAC, ascii_isdigit, getdigits_int, skipdigits, trans_characters, transstr_buf,
+    EOL_MAC, ascii_isdigit, getdigits_int, skipdigits_slice, trans_characters, transstr_buf,
     vim_strnsize, vim_strsize,
 };
 use crate::context::ctx_saved_curwin;
@@ -253,7 +253,6 @@ impl Default for Foldinfo {
 
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::HLF_T;
-use crate::charset::NUL;
 use crate::cmdexpand::K_UIWILDMENU_CONST;
 use crate::decoration::{SCL_NUM, SignTextAttrs};
 use crate::keycodes::CAR;
@@ -444,9 +443,10 @@ pub fn stl_fill_click_defs(
         if rec.start.is_null() {
             break;
         }
+        let rec_len = crate::memory::ptr_offset_from(rec.start, buf).max(0) as usize;
         len += vim_strnsize(
-            buf.cast_mut().cast(),
-            crate::memory::ptr_offset_from(rec.start, buf) as i32,
+            crate::memory::cstr_slice(buf.cast(), rec_len),
+            rec_len as i32,
         );
         debug_assert!(len <= width);
         while col < len {
@@ -1090,7 +1090,7 @@ pub fn draw_tabline() {
                 get_trans_bufname(unsafe { (*cwp).buf_mut() });
 
                 shorten_dir(name_buff);
-                let mut len = vim_strsize(name_buff);
+                let mut len = vim_strsize(crate::memory::cstr_from_ptr(name_buff));
                 let mut p = name_buff;
                 while len > room {
                     len -= ptr2cells(p);
@@ -1262,7 +1262,7 @@ fn stl_truncate(
         }
     }
 
-    if *width - vim_strsize(trunc_p.cast()) >= maxwid {
+    if *width - vim_strsize(crate::memory::cstr_from_ptr(trunc_p.cast())) >= maxwid {
         trunc_p = start_p;
         *width = 0;
         loop {
@@ -1643,7 +1643,7 @@ pub extern "C" fn build_stl_str_hl(
                 *out_p = 0;
             }
 
-            let mut group_len = vim_strsize(t.cast());
+            let mut group_len = vim_strsize(crate::memory::cstr_from_ptr(t.cast()));
 
             if stl_st().curitem > gidx + 1 && stl_items!()[gidx as usize].minwid == 0 {
                 let mut group_start_userhl = 0;
@@ -2058,7 +2058,7 @@ pub extern "C" fn build_stl_str_hl(
 
                     if !zeropad
                         && !crate::memory::cstr_is_empty(str.cast())
-                        && unsafe { *skipdigits(str.cast()) } == NUL
+                        && skipdigits_slice(crate::memory::cstr_as_bytes(str.cast())).is_empty()
                     {
                         num = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(
                             str.cast(),
@@ -2420,7 +2420,7 @@ pub extern "C" fn build_stl_str_hl(
                 prevchar_isflag = true;
             }
 
-            let mut l = vim_strsize(t.cast());
+            let mut l = vim_strsize(crate::memory::cstr_from_ptr(t.cast()));
             if l > 0 {
                 prevchar_isitem = true;
             }
@@ -2610,7 +2610,7 @@ pub extern "C" fn build_stl_str_hl(
 
     drop(owned_usefmt);
 
-    let mut width = vim_strsize(out.data.cast());
+    let mut width = vim_strsize(crate::memory::cstr_from_ptr(out.data.cast()));
     let out_slice = unsafe { std::slice::from_raw_parts_mut(out.data, out.size) };
     let mut out_idx = crate::memory::ptr_offset_from(out_p, out.data) as usize;
     if maxwidth > 0 && width > maxwidth && (stcp.is_null() || width > MAX_STCWIDTH) {

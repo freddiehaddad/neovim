@@ -30,8 +30,8 @@ use crate::change::{
 use crate::channel::channel_job_running;
 use crate::charset::{
     EOL_MAC, NUL, STR2NR_BIN, STR2NR_FORCE, STR2NR_HEX, STR2NR_OCT, ascii_isalnum, ascii_isalpha,
-    ascii_isdigit, ascii_iswhite, getdigits_int, skipwhite, transchar, transchar_nonprint,
-    vim_is_idc, vim_isprintc,
+    ascii_isdigit, ascii_iswhite, getdigits_int, transchar, transchar_nonprint, vim_is_idc,
+    vim_isprintc,
 };
 use crate::cmdexpand::{Cmdidx, RE_LAST};
 use crate::cmdhist::{HIST_SEARCH, add_to_history};
@@ -339,7 +339,7 @@ use crate::undo::{buf_is_changed_fn, curbuf_is_changed_fn};
 
 /// `":ascii"` and `"ga"` implementation.
 pub fn do_ascii(_eap: &mut Exarg) {
-    let data = get_cursor_pos_ptr();
+    let data = get_cursor_pos_ptr().as_ptr().cast_mut();
     let len = utfc_ptr2len(data) as usize;
 
     if len == 0 {
@@ -560,11 +560,13 @@ pub fn ex_align(eap: &mut Exarg) {
 
 /// @return the length of the current line, excluding trailing white space.
 fn linelen(has_tab: Option<&mut i32>) -> i32 {
-    let line = get_cursor_line_ptr();
+    let line = get_cursor_line_ptr().as_ptr().cast_mut();
     if crate::memory::cstr_is_empty(line) {
         return 0;
     }
-    let first = skipwhite(line);
+    let first = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        line.cast(),
+    )));
 
     let mut last = first.wrapping_add(crate::memory::cstr_len(first));
     while last > first && ascii_iswhite(crate::memory::cstr_first_byte(last.wrapping_sub(1))) {
@@ -1435,7 +1437,9 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
 
     let mut ins_prevcmd = forceit;
 
-    let mut trailarg = skipwhite(arg);
+    let mut trailarg = arg.wrapping_add(crate::charset::skipwhite_len(
+        crate::memory::cstr_as_bytes(arg.cast()),
+    ));
     loop {
         let mut t: Vec<u8> = Vec::new();
         if !newcmd.is_empty() {
@@ -1512,7 +1516,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             msg_ext_set_kind(c"shell_cmd");
             msg_putchar(b':' as i32);
             msg_putchar(b'!' as i32);
-            msg_outtrans(newcmd.as_ptr().cast(), 0, false);
+            msg_outtrans(crate::memory::cstr_until_nul(&newcmd), 0, false);
             msg_clr_eos();
             ui_cursor_goto(g_st().msg_row, g_st().msg_col);
 
@@ -1734,8 +1738,9 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                             gettext(c"%lld lines filtered"),
                             linecount as i64,
                         );
-                        if msg(msg_buf_ptr, 0) && g_st().msg_scroll == 0 {
-                            set_keep_msg(msg_buf_ptr, 0);
+                        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
+                        if msg(msg_cstr, 0) && g_st().msg_scroll == 0 {
+                            set_keep_msg(Some(msg_cstr), 0);
                         }
                     } else {
                         msgmore(linecount);
@@ -1989,7 +1994,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
             number_width(curwin_mut()),
             lnum,
         );
-        msg_puts_hl(numbuf.as_ptr().cast(), HLF_N + 1, false);
+        msg_puts_hl(crate::memory::cstr_until_nul(&numbuf), HLF_N + 1, false);
     }
     msg_prt_line(crate::memline::ml_get_slice(lnum), list);
 }
@@ -1998,7 +2003,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
 pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
     let save_silent = g_st().silent_mode;
 
-    if message_filtered(ml_get(lnum)) {
+    if message_filtered(crate::memory::cstr_from_ptr(ml_get(lnum))) {
         return;
     }
 
@@ -3233,7 +3238,7 @@ pub fn do_ecmd(
 fn delbuf_msg(name: Option<std::ffi::CString>) {
     semsg!(
         gettext(c"E143: Autocommands unexpectedly deleted new buffer %s"),
-        name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+        name.as_deref().unwrap_or(c""),
     );
     g_st().au_new_curbuf.br_buf = ptr::null_mut();
     g_st().au_new_curbuf.br_buf_free_count = 0;
@@ -3969,7 +3974,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let save_do_all = excmds_st().subflags.do_all;
     let save_do_ask = excmds_st().subflags.do_ask;
 
-    cmd = skipwhite(cmd);
+    cmd = cmd.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        cmd.cast(),
+    )));
     if ascii_isdigit(crate::memory::cstr_first_byte(cmd)) {
         let count_arg = cmd;
         let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
@@ -3992,7 +3999,9 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
     }
 
-    cmd = skipwhite(cmd);
+    cmd = cmd.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        cmd.cast(),
+    )));
     if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
         eap.nextcmd = check_nextcmd(crate::memory::cstr_from_ptr(cmd))
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
@@ -4869,8 +4878,9 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             g_st().sub_nsubs as i64,
             g_st().sub_nlines as i64,
         );
-        if msg(msg_buf_ptr, 0) {
-            set_keep_msg(msg_buf_ptr, 0);
+        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
+        if msg(msg_cstr, 0) {
+            set_keep_msg(Some(msg_cstr), 0);
         }
         return true;
     }

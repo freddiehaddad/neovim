@@ -1001,11 +1001,7 @@ pub fn ml_recover(checkext: bool) {
     if hp.is_null() {
         msg_start();
         msg_puts_hl(tr(c"Unable to read block 0 from "), hl_id, true);
-        msg_outtrans(
-            mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-            hl_id,
-            true,
-        );
+        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
         msg_puts_hl(
             tr(c"\nMaybe no changes were made or Nvim did not update the swap file."),
             hl_id,
@@ -1027,11 +1023,7 @@ pub fn ml_recover(checkext: bool) {
         .cast::<ZeroBlock>();
     if (&crate::globals::gptr(b0p).b0_version)[..7] == *b"VIM 3.0" {
         msg_start();
-        msg_outtrans(
-            mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-            0,
-            true,
-        );
+        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), 0, true);
         msg_puts_hl(tr(c" cannot be used with this version of Nvim.\n"), 0, true);
         msg_puts_hl(tr(c"Use Vim version 3.0.\n"), 0, true);
         msg_end();
@@ -1047,7 +1039,7 @@ pub fn ml_recover(checkext: bool) {
     if !ml_check_b0_id(crate::globals::gref(b0p)) {
         semsg!(
             tr(c"E307: %s does not look like a Nvim swap file"),
-            mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+            mfp.mf_fname.as_deref().unwrap_or(c""),
         );
         ml_recover_theend(
             Some(&mut *mfp),
@@ -1060,18 +1052,14 @@ pub fn ml_recover(checkext: bool) {
     }
     if b0_magic_wrong(crate::globals::gref(b0p)) {
         msg_start();
-        msg_outtrans(
-            mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-            hl_id,
-            true,
-        );
+        msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
         msg_puts_hl(tr(c" cannot be used on this computer.\n"), hl_id, true);
         msg_puts_hl(tr(c"The file was created on "), hl_id, true);
 
         crate::globals::gptr(b0p).b0_fname[0] = 0;
 
         msg_puts_hl(
-            (&raw const crate::globals::gptr(b0p).b0_hname).cast(),
+            crate::memory::cstr_until_nul(&crate::globals::gptr(b0p).b0_hname),
             hl_id,
             true,
         );
@@ -1094,11 +1082,7 @@ pub fn ml_recover(checkext: bool) {
         mf_new_page_size(&mut *mfp, b0_page_size);
         if mfp.mf_page_size < previous_page_size {
             msg_start();
-            msg_outtrans(
-                mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
-                hl_id,
-                true,
-            );
+            msg_outtrans(mfp.mf_fname.as_deref().unwrap_or(c""), hl_id, true);
             msg_puts_hl(
                 tr(c" has been damaged (page size is smaller than minimum value).\n"),
                 hl_id,
@@ -1264,7 +1248,7 @@ pub fn ml_recover(checkext: bool) {
             if bnum == 1 {
                 semsg!(
                     tr(c"E309: Unable to read block 1 from %s"),
-                    mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    mfp.mf_fname.as_deref().unwrap_or(c""),
                 );
                 ml_recover_theend(
                     Some(&mut *mfp),
@@ -1376,7 +1360,7 @@ pub fn ml_recover(checkext: bool) {
                     if bnum == 1 {
                         semsg!(
                             tr(c"E310: Block 1 ID wrong (%s not a .swp file?)"),
-                            mfp.mf_fname.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                            mfp.mf_fname.as_deref().unwrap_or(c""),
                         );
                         ml_recover_theend(
                             Some(&mut *mfp),
@@ -2938,7 +2922,7 @@ fn ml_delete_int(buf: &mut FileBuf, lnum: Linenr, flags: i32) -> bool {
 
     if buf.b_ml.ml_line_count == 1 {
         if (flags & ML_DEL_MESSAGE) != 0 {
-            set_keep_msg(gettext(NO_LINES_MSG), 0);
+            set_keep_msg(Some(gettext(NO_LINES_MSG)), 0);
         }
         let i = ml_replace_buf(buf, 1, c"", true, false);
         buf.b_ml.ml_flags |= ML_EMPTY;
@@ -3905,7 +3889,7 @@ fn findswapname(
             if ret != 0 {
                 semsg!(
                     tr(c"E303: Unable to create directory \"%s\" for swap file, recovery impossible: %s"),
-                    failed_dir.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr()),
+                    failed_dir.as_deref().unwrap_or(c""),
                      unsafe { uv_strerror(ret) } ,
                 );
             }

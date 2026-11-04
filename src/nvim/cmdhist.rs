@@ -626,7 +626,7 @@ pub fn ex_history(eap: &mut Exarg) {
     while !g_st().got_int && histype1 <= histype2 {
         let hname = HISTORY_NAMES[histype1 as usize].to_str().unwrap();
         let title = format!("\n      #  {hname} history\0");
-        msg_puts_title(title.as_ptr().cast());
+        msg_puts_title(crate::memory::cstr_until_nul(title.as_bytes()));
 
         let idx = hist_st().hisidx[histype1 as usize];
         let hist = hist_st().history[histype1 as usize].as_slice();
@@ -657,7 +657,7 @@ pub fn ex_history(eap: &mut Exarg) {
                 if !entry_ptr.is_null()
                     && entry.hisnum >= j
                     && entry.hisnum <= k
-                    && !message_filtered(entry_ptr)
+                    && !message_filtered(crate::memory::cstr_from_ptr(entry_ptr))
                 {
                     msg_putchar(b'\n' as i32);
                     let marker = if i == idx { '>' } else { ' ' };
@@ -665,7 +665,9 @@ pub fn ex_history(eap: &mut Exarg) {
                     let prefix_bytes = prefix.as_bytes();
                     let len = prefix_bytes.len();
                     iobuf[..len].copy_from_slice(prefix_bytes);
-                    if vim_strsize(entry_ptr) > g_st().columns_global - 10 {
+                    if vim_strsize(crate::memory::cstr_from_ptr(entry_ptr))
+                        > g_st().columns_global - 10
+                    {
                         trunc_string(
                             Some(crate::memory::cstr_as_bytes(entry_ptr)),
                             &mut iobuf[len..],
@@ -677,7 +679,7 @@ pub fn ex_history(eap: &mut Exarg) {
                             crate::memory::cstr_as_bytes(entry_ptr),
                         );
                     }
-                    msg_outtrans(iobuf.as_ptr().cast(), 0, false);
+                    msg_outtrans(crate::memory::cstr_until_nul(&iobuf), 0, false);
                 }
                 if i == idx {
                     break;

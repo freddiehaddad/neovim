@@ -13,7 +13,7 @@ use crate::buffer_updates::{buf_free_callbacks, buf_updates_unload};
 use crate::change::{changed, deleted_lines_mark, file_ff_differs, save_file_ff, unchanged};
 use crate::channel::channel_job_running;
 use crate::charset::{
-    ascii_isdigit, ascii_isspace, buf_init_isk_chartab, getdigits_int, skiptowhite_esc, skipwhite,
+    ascii_isdigit, ascii_isspace, buf_init_isk_chartab, getdigits_int, skiptowhite_esc_len,
     trans_characters, try_getdigits, vim_strsize,
 };
 use crate::cmdexpand::{
@@ -1856,10 +1856,7 @@ fn free_buffer_stuff(buf: &mut FileBuf, free_flags: i32) {
     }
     {
         let changedtick_hi = hash_find(&buf.b_vars().dv_hashtab, c"changedtick");
-        debug_assert!(!changedtick_hi.is_null());
-        hash_remove(&mut buf.b_vars().dv_hashtab, unsafe {
-            &mut *changedtick_hi
-        });
+        hash_remove(&mut buf.b_vars().dv_hashtab, changedtick_hi);
     }
     vars_clear(&mut buf.b_vars().dv_hashtab);
     if (free_flags & K_BFF_INIT_CHANGEDTICK) != 0 {
@@ -2014,12 +2011,15 @@ pub fn do_bufdel(
                     break;
                 }
             } else {
-                arg = skipwhite(arg);
+                arg = arg.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(arg.cast()),
+                ));
                 if crate::memory::cstr_is_empty(arg) {
                     break;
                 }
                 if !ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
-                    let p = skiptowhite_esc(arg);
+                    let p =
+                        arg.wrapping_add(skiptowhite_esc_len(crate::memory::cstr_as_bytes(arg)));
                     bnr = buflist_findpat(
                         crate::memory::cstr_slice(
                             arg,
@@ -3688,7 +3688,7 @@ pub fn buflist_list(eap: &mut Exarg) {
             home_replace(Some(&*buf), buf.b_fname, namebuff_ptr, MAXPATHL, true);
         }
 
-        if message_filtered(namebuff_ptr) {
+        if message_filtered(crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut())) {
             continue;
         }
 
@@ -3748,7 +3748,7 @@ pub fn buflist_list(eap: &mut Exarg) {
         )
         .min(IOSIZE - 20);
 
-        let mut i = 40 - vim_strsize(iobuff_ptr);
+        let mut i = 40 - vim_strsize(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
         loop {
             g_st().iobuff_bytes_mut()[len] = b' ';
             len += 1;
@@ -3772,7 +3772,11 @@ pub fn buflist_list(eap: &mut Exarg) {
             );
         }
 
-        msg_outtrans(iobuff_ptr, 0, false);
+        msg_outtrans(
+            crate::memory::cstr_until_nul(g_st().iobuff_bytes()),
+            0,
+            false,
+        );
         line_breakcheck();
     }
 }
@@ -4126,10 +4130,10 @@ pub fn fileinfo(fullname: i32, shorthelp: i32, dont_truncate: bool) {
         msg_start();
         let n = g_st().msg_scroll;
         g_st().msg_scroll = 1;
-        msg(buffer, 0);
+        msg(crate::memory::cstr_until_nul(&buffer_vec), 0);
         g_st().msg_scroll = n;
     } else {
-        let p = msg_trunc(buffer, false, 0);
+        let p = msg_trunc(&mut buffer_vec, false, 0);
         if g_st().restart_edit != 0 || (g_st().msg_scrolled != 0 && !g_st().need_wait_return) {
             set_keep_msg(p, 0);
         }

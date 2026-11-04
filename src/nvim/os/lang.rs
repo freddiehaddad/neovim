@@ -1,9 +1,7 @@
 //! Locale and message language management (`src/nvim/os/lang.c`).
 
 use crate::buffer::maketitle;
-use crate::charset::{
-    buf_init_isk_chartab, init_isf_chartab, init_isi_chartab, skiptowhite, skipwhite,
-};
+use crate::charset::{buf_init_isk_chartab, init_isf_chartab, init_isi_chartab};
 use crate::eval::vars::{
     VV_COLLATE, VV_CTYPE, VV_LANG, VV_LC_TIME, VV_PROGPATH, get_vim_var_str, set_vim_var_string,
 };
@@ -657,7 +655,9 @@ pub fn ex_language(eap: &mut Exarg) {
     let mut whatstr: &CStr = c"";
     let mut name = eap.arg;
 
-    let p = skiptowhite(eap.arg);
+    let p = eap.arg.wrapping_add(crate::charset::skiptowhite_len(
+        crate::memory::cstr_as_bytes(eap.arg.cast()),
+    ));
     let arg_len = (p as usize) - (eap.arg as usize);
     if (crate::memory::cstr_is_empty(p)
         || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
@@ -665,19 +665,27 @@ pub fn ex_language(eap: &mut Exarg) {
     {
         if mb_strnicmp(eap.arg, c"messages", arg_len) == 0 {
             what = VIM_LC_MESSAGES;
-            name = skipwhite(p);
+            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             whatstr = c"messages ";
         } else if mb_strnicmp(eap.arg, c"ctype", arg_len) == 0 {
             what = LC_CTYPE;
-            name = skipwhite(p);
+            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             whatstr = c"ctype ";
         } else if mb_strnicmp(eap.arg, c"time", arg_len) == 0 {
             what = LC_TIME;
-            name = skipwhite(p);
+            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             whatstr = c"time ";
         } else if mb_strnicmp(eap.arg, c"collate", arg_len) == 0 {
             what = LC_COLLATE;
-            name = skipwhite(p);
+            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             whatstr = c"collate ";
         }
     }

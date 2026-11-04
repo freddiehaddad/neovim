@@ -1,6 +1,5 @@
 //! Script, function, and startup profiling (`src/nvim/profile.c`).
 
-use crate::charset::{skiptowhite, skipwhite};
 use crate::debugger::ex_breakadd;
 use crate::errors::E_NOTOPEN;
 use crate::eval::typval::{Dictitem, Listitem, TvDict, TvList, TypVal};
@@ -381,9 +380,13 @@ pub fn profile_reset() {
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
     let arg = eap.arg;
-    let mut e = skiptowhite(arg);
+    let mut e = arg.wrapping_add(crate::charset::skiptowhite_len(
+        crate::memory::cstr_as_bytes(arg.cast()),
+    ));
     let len = (e as usize) - (arg as usize);
-    e = skipwhite(e);
+    e = e.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        e.cast(),
+    )));
 
     let arg_bytes = crate::memory::cstr_as_bytes(arg);
     if len == 5 && &arg_bytes[..5] == b"start" && !crate::memory::cstr_is_empty(e) {
@@ -430,12 +433,14 @@ pub fn get_profile_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 
 /// Set command-line completion context for `:profile` (`set_context_in_profile_cmd`).
 pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
-    let arg = arg_slice.as_ptr().cast();
+    let arg: *const std::ffi::c_char = arg_slice.as_ptr().cast();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
     xp.xp_pattern = arg_slice.as_ptr().cast_mut();
 
-    let end_subcmd = skiptowhite(arg);
+    let end_subcmd = arg.wrapping_add(crate::charset::skiptowhite_len(
+        crate::memory::cstr_as_bytes(arg.cast()),
+    ));
     if crate::memory::cstr_is_empty(end_subcmd) {
         return;
     }
@@ -444,10 +449,20 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
     let sub_bytes = &arg_slice[..len.min(arg_slice.len())];
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
-        xp.xp_pattern = skipwhite(end_subcmd).cast();
+        xp.xp_pattern = end_subcmd
+            .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                end_subcmd.cast(),
+            )))
+            .cast_mut()
+            .cast();
     } else if sub_bytes == b"func" {
         xp.xp_context = EXPAND_USER_FUNC;
-        xp.xp_pattern = skipwhite(end_subcmd).cast();
+        xp.xp_pattern = end_subcmd
+            .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                end_subcmd.cast(),
+            )))
+            .cast_mut()
+            .cast();
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }

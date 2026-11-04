@@ -1,8 +1,6 @@
 //! Digraph and keymap functions (`src/nvim/digraph.c`).
 
-use crate::charset::{
-    NUL, char2cells, getdigits_int, is_special, skiptowhite, skipwhite, skipwhite_slice,
-};
+use crate::charset::{NUL, char2cells, getdigits_int, is_special, skipwhite_slice};
 use crate::drawscreen::status_redraw_curbuf;
 use crate::errors::*;
 use crate::eval::eval_to_string;
@@ -1901,7 +1899,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
     buf[1] = dp.char2;
     buf[2] = b' ';
     buf[3] = 0;
-    msg_outtrans(buf.as_ptr().cast(), 0, false);
+    msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
 
     let mut pos = 0usize;
     if utf_iscomposing_first(dp.result) {
@@ -1910,7 +1908,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
     }
     pos += utf_char2bytes(dp.result, buf[pos..].as_mut_ptr().cast()) as usize;
     buf[pos] = 0;
-    msg_outtrans(buf.as_ptr().cast(), HLF_8, false);
+    msg_outtrans(crate::memory::cstr_until_nul(&buf), HLF_8, false);
 
     pos = 0;
     if char2cells(dp.result) == 1 {
@@ -1923,7 +1921,7 @@ fn printdigraph(dp: &DigraphEntry, previous: Option<&mut DigrResult>) {
         c" %3d",
         dp.result
     );
-    msg_outtrans(buf.as_ptr().cast(), 0, false);
+    msg_outtrans(crate::memory::cstr_until_nul(&buf), 0, false);
 }
 
 /// Get the two digraph characters from a typval (`get_digraph_chars`).
@@ -2116,13 +2114,21 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     while let Some(line_cstr) = fgetline.call(0, 0, true) {
         let line = line_cstr.as_ptr();
-        let mut p = skipwhite(line);
+        let mut p = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            line.cast(),
+        )));
         if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
-            let mut s = skiptowhite(p);
+            let mut s = p.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(p.cast()),
+            ));
             let from_len = crate::memory::ptr_offset_from(s, p) as usize;
             let from_slice = crate::memory::cstr_slice(p, from_len);
-            p = skipwhite(s);
-            s = skiptowhite(p);
+            p = s.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                s.cast(),
+            )));
+            s = p.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(p.cast()),
+            ));
             let to_len = crate::memory::ptr_offset_from(s, p) as usize;
             let to_slice = crate::memory::cstr_slice(p, to_len);
 

@@ -10,9 +10,7 @@ use crate::api::win_config::UIExtension;
 use crate::autocmd::{EVENT_COLORSCHEME, EVENT_COLORSCHEMEPRE, apply_autocmds};
 use crate::buffer::K_UIMESSAGES;
 use crate::change::HLF_W;
-use crate::charset::{
-    ascii_iswhite, getdigits_int, skiptowhite, skipwhite, vim_isprintc, vim_strsize,
-};
+use crate::charset::{ascii_iswhite, getdigits_int, vim_isprintc, vim_strsize};
 use crate::cmdexpand::{EXPAND_HIGHLIGHT, EXPAND_NOTHING, HLF_D};
 use crate::cursor_shape::cursor_mode_uses_syn_id;
 use crate::decoration::NS;
@@ -1130,15 +1128,23 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
 
         let mut dodefault = false;
 
-        let mut name_end = skiptowhite(line).cast_const();
-        let mut linep = skipwhite(name_end).cast_const();
+        let mut name_end = line.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(line.cast()),
+        ));
+        let mut linep = name_end.wrapping_add(crate::charset::skipwhite_len(
+            crate::memory::cstr_as_bytes(name_end.cast()),
+        ));
 
         let def_len = name_end as usize - line as usize;
         if crate::memory::cstr_slice(line, def_len) == &b"default"[..def_len.min(7)] {
             dodefault = true;
             line = linep;
-            name_end = skiptowhite(line).cast_const();
-            linep = skipwhite(name_end).cast_const();
+            name_end = line.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(line.cast()),
+            ));
+            linep = name_end.wrapping_add(crate::charset::skipwhite_len(
+                crate::memory::cstr_as_bytes(name_end.cast()),
+            ));
         }
 
         let mut doclear = false;
@@ -1166,9 +1172,15 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
 
         if dolink {
             let from_start = linep;
-            let from_end = skiptowhite(from_start).cast_const();
-            let to_start = skipwhite(from_end).cast_const();
-            let to_end = skiptowhite(to_start).cast_const();
+            let from_end = from_start.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(from_start.cast()),
+            ));
+            let to_start = from_end.wrapping_add(crate::charset::skipwhite_len(
+                crate::memory::cstr_as_bytes(from_end.cast()),
+            ));
+            let to_end = to_start.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(to_start.cast()),
+            ));
 
             if ends_excmd(i32::from(crate::memory::cstr_first_byte(from_start))) != 0
                 || ends_excmd(i32::from(crate::memory::cstr_first_byte(to_start))) != 0
@@ -1180,7 +1192,12 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 return;
             }
 
-            if ends_excmd(i32::from(crate::memory::cstr_first_byte(skipwhite(to_end)))) == 0 {
+            if ends_excmd(i32::from(crate::memory::cstr_first_byte(
+                to_end.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    to_end.cast(),
+                ))),
+            ))) == 0
+            {
                 semsg!(
                     gettext(c"E413: Too many arguments: \":highlight link %s\""),
                     from_start,
@@ -1257,8 +1274,12 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 redraw_all_later(UPD_NOT_VALID);
                 return;
             }
-            name_end = skiptowhite(line);
-            linep = skipwhite(name_end);
+            name_end = line.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(line.cast()),
+            ));
+            linep = name_end.wrapping_add(crate::charset::skipwhite_len(
+                crate::memory::cstr_as_bytes(name_end.cast()),
+            ));
         }
 
         let id = syn_check_group(crate::memory::cstr_slice(
@@ -1316,7 +1337,9 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     *dst = linep_bytes[i].to_ascii_uppercase();
                 }
                 key[key_len] = 0;
-                linep = skipwhite(linep);
+                linep = linep.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(linep.cast()),
+                ));
 
                 let key_bytes = &key[..key_len];
                 if key_bytes == b"NONE" {
@@ -1336,7 +1359,9 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                 }
                 linep = linep.wrapping_add(1);
 
-                linep = skipwhite(linep);
+                linep = linep.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(linep.cast()),
+                ));
                 let arg_start;
                 if crate::memory::cstr_first_byte(linep) == b'\'' {
                     linep = linep.wrapping_add(1);
@@ -1352,7 +1377,9 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     }
                 } else {
                     arg_start = linep;
-                    linep = skiptowhite(linep);
+                    linep = linep.wrapping_add(crate::charset::skiptowhite_len(
+                        crate::memory::cstr_as_bytes(linep.cast()),
+                    ));
                 }
                 if ptr::eq(linep, arg_start) {
                     semsg!(gettext(E_MISSING_ARGUMENT_STR), key_start);
@@ -1590,7 +1617,9 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                     hl_table_at(idx as usize).sg_link = 0;
                 }
 
-                linep = skipwhite(linep);
+                linep = linep.wrapping_add(crate::charset::skipwhite_len(
+                    crate::memory::cstr_as_bytes(linep.cast()),
+                ));
             }
         }
 
@@ -1673,7 +1702,7 @@ fn highlight_list_one(id: i32) {
     let sgp = &*hl_table_at((id - 1) as usize);
     let mut didh = false;
 
-    if message_filtered(sgp.sg_name.as_ptr()) {
+    if message_filtered(&sgp.sg_name) {
         return;
     }
 
@@ -1722,11 +1751,7 @@ fn highlight_list_one(id: i32) {
         msg_puts_hl(c"links to", HLF_D, false);
         msg_putchar(i32::from(b' '));
         let link_id = hl_table_at((id - 1) as usize).sg_link;
-        msg_outtrans(
-            hl_table_at((link_id - 1) as usize).sg_name.as_ptr(),
-            0,
-            false,
-        );
+        msg_outtrans(&hl_table_at((link_id - 1) as usize).sg_name, 0, false);
     }
 
     if !didh {
@@ -1900,17 +1925,17 @@ fn highlight_list_arg(
 
     syn_list_header(
         didh,
-        vim_strsize(ts) + name.to_bytes().len() as i32 + 1,
+        vim_strsize(crate::memory::cstr_from_ptr(ts)) + name.to_bytes().len() as i32 + 1,
         id,
         false,
     );
     didh = true;
     if !g_st().got_int {
         if !crate::memory::cstr_is_empty(name.as_ptr()) {
-            msg_puts_hl(name.as_ptr(), HLF_D, false);
+            msg_puts_hl(name, HLF_D, false);
             msg_puts_hl(c"=", HLF_D, false);
         }
-        msg_outtrans(ts, 0, false);
+        msg_outtrans(crate::memory::cstr_from_ptr(ts), 0, false);
     }
     didh
 }
@@ -2021,7 +2046,7 @@ pub fn syn_list_header(did_header: bool, outlen: i32, id: i32, force_newline: bo
         if g_st().got_int {
             return true;
         }
-        name_col = msg_outtrans(hl_table_at((id - 1) as usize).sg_name.as_ptr(), 0, false);
+        name_col = msg_outtrans(&hl_table_at((id - 1) as usize).sg_name, 0, false);
         g_st().msg_col = name_col;
         endcol = 15;
     } else if (ui_has(K_UIMESSAGES) || g_st().msg_silent != 0) && !force_newline {
@@ -2415,7 +2440,9 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
             return;
         }
 
-        let mut p = skiptowhite(arg).cast_const();
+        let mut p = arg.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(arg.cast()),
+        ));
         if crate::memory::cstr_is_empty(p) {
             return;
         }
@@ -2423,9 +2450,13 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         g_st().include_default = 0;
         let dlen = p as usize - arg as usize;
         if crate::memory::cstr_slice(arg, dlen) == &b"default"[..dlen.min(7)] {
-            arg = skipwhite(p);
+            arg = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                p.cast(),
+            )));
             xp.xp_pattern = arg.cast_mut().cast();
-            p = skiptowhite(arg).cast_const();
+            p = arg.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(arg.cast()),
+            ));
         }
         if crate::memory::cstr_is_empty(p) {
             return;
@@ -2438,11 +2469,33 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         let len = p as usize - arg as usize;
         let arg_word = crate::memory::cstr_slice(arg, len);
         if arg_word == &b"link"[..len.min(4)] || arg_word == &b"clear"[..len.min(5)] {
-            xp.xp_pattern = skipwhite(p).cast();
-            p = skiptowhite(xp.xp_pattern.cast()).cast_const();
+            xp.xp_pattern = p
+                .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    p.cast(),
+                )))
+                .cast_mut()
+                .cast();
+            p = {
+                let _sw_p = xp.xp_pattern.cast::<std::ffi::c_char>();
+                _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                    crate::memory::cstr_as_bytes(_sw_p.cast()),
+                ))
+            }
+            .cast_const();
             if !crate::memory::cstr_is_empty(p) {
-                xp.xp_pattern = skipwhite(p).cast();
-                p = skiptowhite(xp.xp_pattern.cast()).cast_const();
+                xp.xp_pattern = p
+                    .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        p.cast(),
+                    )))
+                    .cast_mut()
+                    .cast();
+                p = {
+                    let _sw_p = xp.xp_pattern.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                    ))
+                }
+                .cast_const();
             }
         }
         if !crate::memory::cstr_is_empty(p) {
@@ -2466,7 +2519,11 @@ fn highlight_list() {
 
 fn highlight_list_two(cnt: i32, id: i32) {
     const MSG: &CStr = c"N \x08I \x08!  \x08";
-    msg_puts_hl(MSG.as_ptr().wrapping_add((cnt / 11) as usize), id, false);
+    msg_puts_hl(
+        unsafe { CStr::from_ptr(MSG.as_ptr().wrapping_add((cnt / 11) as usize)) },
+        id,
+        false,
+    );
     msg_clr_eos();
     ui_flush();
     os_delay(if cnt == 99 { 40 } else { (cnt as u64) * 50 }, false);

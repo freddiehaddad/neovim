@@ -2,7 +2,7 @@
 
 use crate::api::private::validate::NvimString;
 use crate::buffer::{K_UIMESSAGES, read_buffer_into};
-use crate::charset::{NL, skipwhite};
+use crate::charset::NL;
 #[cfg(unix)]
 use crate::charset::{ascii_iswhite, backslash_halve};
 use crate::errors::*;
@@ -135,7 +135,7 @@ fn save_patterns(pat: &[&CStr], file: &mut Vec<std::ffi::CString>) {
     file.reserve(pat.len());
     for &p in pat {
         let mut v: Vec<u8> = p.to_bytes_with_nul().to_vec();
-        backslash_halve(v.as_mut_ptr().cast());
+        backslash_halve(&mut v);
         file.push(crate::memory::cstr_to_cstring(v.as_ptr().cast()));
     }
 }
@@ -414,7 +414,13 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 while *p != b' ' && *p != b'\n' {
                     p = p.add(1);
                 }
-                p = skipwhite(p.cast()).cast();
+                p = {
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }
+                .cast();
                 count += 1;
             }
         } else if shell_style == STYLE_BT
@@ -430,7 +436,13 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 if *p != 0 {
                     p = p.add(1);
                 }
-                p = skipwhite(p.cast()).cast();
+                p = {
+                    let _sw_p = p.cast::<std::ffi::c_char>();
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                }
+                .cast();
                 count += 1;
             }
         } else {
@@ -487,7 +499,13 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                     *p = 0;
                 } else {
                     *p = 0;
-                    p = skipwhite(p.add(1).cast()).cast();
+                    p = {
+                        let _sw_p = p.add(1).cast::<std::ffi::c_char>();
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    }
+                    .cast();
                 }
             } else {
                 while *p != 0 && (p as usize) < (buffer.add(len) as usize) {
@@ -815,9 +833,13 @@ fn do_os_system(
             loop_poll_events(&mut *mloop, 0);
             if !silent {
                 msg_puts(gettext(c"\nshell failed to start: "));
-                msg_outtrans(unsafe { uv_strerror(status) }, 0, false);
+                msg_outtrans(
+                    crate::memory::cstr_from_ptr(unsafe { uv_strerror(status) }),
+                    0,
+                    false,
+                );
                 msg_puts(c": ");
-                msg_outtrans(prog.as_ptr().cast(), 0, false);
+                msg_outtrans(crate::memory::cstr_until_nul(&prog), 0, false);
                 msg_putchar(b'\n' as i32);
             }
             break 'end;
@@ -972,9 +994,9 @@ pub fn out_data_event(str_copy: Vec<u8>, fd: i32) {
     let mut need_clear = true;
     let hl = if fd == STDERR_FILENO { HLF_SE } else { HLF_SO };
     msg_ext_set_kind(if fd == STDERR_FILENO {
-        c"shell_err".as_ptr()
+        c"shell_err"
     } else {
-        c"shell_out".as_ptr()
+        c"shell_out"
     });
     msg_ext_set_append(true);
     msg_ext_no_fast();
@@ -1037,7 +1059,12 @@ fn tokenize(str_in: Option<&CStr>, argv: &mut Vec<std::ffi::CString>) {
     while !crate::memory::cstr_is_empty(p) {
         let len = word_length(crate::memory::cstr_from_ptr(p));
         argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
-        p = skipwhite(p.wrapping_add(len));
+        p = {
+            let _sw_p = p.wrapping_add(len);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 }
 

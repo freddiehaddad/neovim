@@ -3,7 +3,7 @@
 use crate::api::private::helpers::api_clear_error;
 use crate::api::private::validate::{Array, Error, ErrorType, NvimString};
 use crate::api::vim::{is_internal_call, nvim_paste};
-use crate::charset::{ascii_iswhite, is_special, skipwhite, to_special};
+use crate::charset::{ascii_iswhite, is_special, to_special};
 use crate::cursor::{Colnr, Linenr, get_cursor_line_ptr};
 use crate::drawscreen::{SHOWCMD_COLS, setcursor, showmode, unshowmode, update_screen};
 use crate::errors::*;
@@ -2503,13 +2503,18 @@ fn vgetorpeek(advance: bool) -> i32 {
                         let mut col: Colnr = 0;
                         if curwin_mut().w_wcol > 0 {
                             if g_st().ins_global.did_ai
-                                && crate::memory::cstr_is_empty(skipwhite(
-                                    get_cursor_line_ptr()
-                                        .wrapping_add(curwin_mut().w_cursor.col as usize),
-                                ))
+                                && crate::memory::cstr_is_empty({
+                                    let _sw_p = get_cursor_line_ptr()
+                                        .as_ptr()
+                                        .cast_mut()
+                                        .wrapping_add(curwin_mut().w_cursor.col as usize);
+                                    _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                    ))
+                                })
                             {
                                 curwin_mut().w_wcol = 0;
-                                let ptr = get_cursor_line_ptr();
+                                let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
                                 let endptr = ptr.wrapping_add(curwin_mut().w_cursor.col as usize);
 
                                 let mut csarg = CharsizeArg::new();
@@ -2554,7 +2559,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                             col = curwin_mut().w_cursor.col - 1;
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
-                            let ptr = get_cursor_line_ptr();
+                            let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
                             col -= utf_head_off(ptr, ptr.wrapping_add(col as usize));
                             if utf_ptr2cells(ptr.wrapping_add(col as usize)) > 1 {
                                 curwin_mut().w_wcol -= 1;

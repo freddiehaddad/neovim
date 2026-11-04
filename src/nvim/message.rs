@@ -9,7 +9,7 @@ use crate::api::private::validate::{
 use crate::api::vim::{HLF_N, HlMessage, MessageData};
 use crate::autocmd::{AUGROUP_ALL, EVENT_PROGRESS, HLF_8, HLF_T, apply_autocmds_group, has_event};
 use crate::charset::{
-    ascii_iswhite, ascii2cells, char2cells, is_special, skipwhite, to_special, transchar_buf,
+    ascii_iswhite, ascii2cells, char2cells, is_special, to_special, transchar_buf,
     transchar_byte_buf, vim_isprintc, vim_strsize,
 };
 use crate::dialog::{dlg_st, prompt_for_input};
@@ -55,7 +55,7 @@ use crate::mbyte::{
     UTF8LEN_TAB, mb_string2cells_len, mb_unescape, utf_char2bytes, utf_char2cells, utf_ptr2cells,
     utf_ptr2char, utf_ptr2len, utf_slice2char, utfc_ptr2len, utfc_ptr2len_len,
 };
-use crate::memory::{Arena, arena_alloc, xstrnlen};
+use crate::memory::{Arena, arena_alloc};
 use crate::mouse::{MOUSE_SETPOS, jump_to_mouse, setmouse};
 use crate::msgpack_rpc::packer::Integer;
 use crate::option::shortmess;
@@ -229,16 +229,15 @@ fn msg_st() -> &'static mut MessageState {
 macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
-        let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 $crate::globals::g_st().iobuff.as_mut_ptr(),
                 1025,
-                fmt_ptr
+                $fmt
                 $(, $arg)*
             );
             $crate::message::msg(
-                $crate::globals::g_st().iobuff.as_ptr(),
+                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
                 hl,
             )
         }
@@ -250,16 +249,15 @@ pub use smsg;
 macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
-        let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 $crate::globals::g_st().iobuff.as_mut_ptr(),
                 1025,
-                fmt_ptr
+                $fmt
                 $(, $arg)*
             );
             $crate::message::msg_keep(
-                $crate::globals::g_st().iobuff.as_ptr(),
+                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
                 hl,
                 true,
                 false,
@@ -270,37 +268,34 @@ macro_rules! smsg_keep {
 pub use smsg_keep;
 
 #[inline(never)]
-pub fn semsg_fmt(fmt: impl crate::strings::IntoCCharPtr, args: &[crate::strings::FmtVal]) -> bool {
-    let fmt = fmt.into_c_char_ptr();
+pub fn semsg_fmt(fmt: &std::ffi::CStr, args: &[crate::strings::FmtVal]) -> bool {
     if emsg_not_now() {
         return true;
     }
     let mut errbuf = [0u8; 1025];
     crate::strings::vim_snprintf_fmt(errbuf.as_mut_ptr().cast(), errbuf.len(), fmt, args);
-    emsg(errbuf.as_ptr().cast())
+    emsg(crate::memory::cstr_until_nul(&errbuf))
 }
 
 #[inline(never)]
 pub fn semsg_multiline_fmt(
-    kind: impl crate::strings::IntoCCharPtr,
-    fmt: impl crate::strings::IntoCCharPtr,
+    kind: &std::ffi::CStr,
+    fmt: &std::ffi::CStr,
     args: &[crate::strings::FmtVal],
 ) -> bool {
-    let kind = kind.into_c_char_ptr();
-    let fmt = fmt.into_c_char_ptr();
     if emsg_not_now() {
         return true;
     }
     let mut errbuf = [0u8; 8192];
     crate::strings::vim_snprintf_fmt(errbuf.as_mut_ptr().cast(), errbuf.len(), fmt, args);
-    emsg_multiline(errbuf.as_ptr().cast(), kind, 6, true)
+    emsg_multiline(crate::memory::cstr_until_nul(&errbuf), kind, 6, true)
 }
 
 #[macro_export]
 macro_rules! semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         $crate::message::semsg_fmt(
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+            $fmt,
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     }};
@@ -311,8 +306,8 @@ pub use semsg;
 macro_rules! semsg_multiline {
     ($kind:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         $crate::message::semsg_multiline_fmt(
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($kind),
-            $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt),
+            $kind,
+            $fmt,
             &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
         )
     }};
@@ -330,16 +325,15 @@ pub use siemsg;
 #[macro_export]
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 $crate::globals::g_st().iobuff.as_mut_ptr(),
                 1025,
-                fmt_ptr
+                $fmt
                 $(, $arg)*
             );
             $crate::message::msg_schedule_semsg_cstr(
-                $crate::globals::g_st().iobuff.as_ptr(),
+                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
             );
         }
     }};
@@ -349,16 +343,15 @@ pub use msg_schedule_semsg;
 #[macro_export]
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
-        let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 $crate::globals::g_st().iobuff.as_mut_ptr(),
                 1025,
-                fmt_ptr
+                $fmt
                 $(, $arg)*
             );
             $crate::message::msg_schedule_semsg_multiline_cstr(
-                $crate::globals::g_st().iobuff.as_ptr(),
+                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
             );
         }
     }};
@@ -369,16 +362,15 @@ pub use msg_schedule_semsg_multiline;
 macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
-        let fmt_ptr = $crate::strings::IntoCCharPtr::into_c_char_ptr($fmt);
         {
             $crate::strings::vim_snprintf!(
                 $crate::globals::g_st().iobuff.as_mut_ptr(),
                 1025,
-                fmt_ptr
+                $fmt
                 $(, $arg)*
             );
             $crate::message::give_warning(
-                $crate::globals::g_st().iobuff.as_ptr(),
+                $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
                 hl_val,
                 true,
             );
@@ -522,8 +514,7 @@ pub fn msg_grid_validate() {
 }
 
 /// Like msg() but keep it silent when 'verbosefile' is set.
-pub fn verb_msg(s: impl crate::strings::IntoCCharPtr) -> i32 {
-    let s = s.into_c_char_ptr();
+pub fn verb_msg(s: &std::ffi::CStr) -> i32 {
     verbose_enter();
     let n = i32::from(msg_keep(s, 0, false, false));
     verbose_leave();
@@ -534,8 +525,8 @@ pub fn verb_msg(s: impl crate::strings::IntoCCharPtr) -> i32 {
 /// When terminal not initialized (yet) printf("%s", ..) is used.
 ///
 /// @return  true if wait_return() not called
-pub fn msg<S: crate::strings::IntoCCharPtr>(s: S, hl_id: i32) -> bool {
-    msg_keep(s.into_c_char_ptr(), hl_id, false, false)
+pub fn msg(s: &std::ffi::CStr, hl_id: i32) -> bool {
+    msg_keep(s, hl_id, false, false)
 }
 
 /// Similar to msg_outtrans_len, but support newlines and tabs.
@@ -548,6 +539,7 @@ pub fn msg_multiline(
 ) {
     let mut s = str_.data.cast_const();
     let mut chunk = s;
+    let end = str_.data.cast_const().wrapping_add(str_.size);
     while (crate::memory::ptr_offset_from(s, str_.data) as usize) < str_.size {
         if check_int && g_st().got_int {
             return;
@@ -555,9 +547,11 @@ pub fn msg_multiline(
         let b = crate::memory::cstr_first_byte(s);
         if b == b'\n' || i32::from(b) == TAB || b == b'\r' || b == BELL as u8 {
             // Print all chars before the delimiter
+            let chunk_len = crate::memory::ptr_offset_from(s, chunk) as usize;
+            let chunk_avail = crate::memory::ptr_offset_from(end, chunk) as usize;
             msg_outtrans_len(
-                chunk,
-                crate::memory::ptr_offset_from(s, chunk) as i32,
+                crate::memory::cstr_slice(chunk, chunk_avail),
+                chunk_len as i32,
                 hl_id,
                 hist,
             );
@@ -579,7 +573,12 @@ pub fn msg_multiline(
     // Print the remainder or emit empty event if entire message is empty.
     let rem = str_.size - (crate::memory::ptr_offset_from(chunk, str_.data) as usize);
     if rem > 0 || chunk == str_.data.cast_const() {
-        msg_outtrans_len(chunk, rem as i32, hl_id, hist);
+        msg_outtrans_len(
+            crate::memory::cstr_slice(chunk, rem),
+            rem as i32,
+            hl_id,
+            hist,
+        );
     }
 }
 
@@ -656,14 +655,13 @@ fn format_progress_message(
 pub fn msg_multihl(
     mut id: MsgID,
     hl_msg: &mut HlMessage,
-    kind: impl crate::strings::IntoCCharPtr,
+    kind: Option<&std::ffi::CStr>,
     history: bool,
     err: bool,
     mut msg_data: Option<&mut MessageData>,
     needs_msg_clear: &mut bool,
     raw_for_lua_print: bool,
 ) -> MsgID {
-    let kind = kind.into_c_char_ptr();
     if id.obj_type == ObjectType::ObjectTypeNil {
         let next_id = msg_st().msg_id_next;
         msg_st().msg_id_next += 1;
@@ -678,7 +676,7 @@ pub fn msg_multihl(
     let mut updated_msg = HlMessage::new();
     let mut hl_msg_updated = false;
     // don't display progress message in cmd when target doesn't have cmd
-    if crate::memory::cstr_as_opt_bytes(kind) == Some(b"progress") {
+    if kind.is_some_and(|k| k.to_bytes() == b"progress") {
         do_autocmd_progress(id, hl_msg, msg_data.as_deref_mut());
         if (msg_st().progress_msg_target & PROGRESS_TARGET_CMD) == 0 {
             *needs_msg_clear = true;
@@ -696,8 +694,8 @@ pub fn msg_multihl(
     msg_start();
     msg_clr_eos();
     let mut need_clear = false;
-    if !kind.is_null() {
-        msg_ext_set_kind(kind);
+    if let Some(kind_cstr) = kind {
+        msg_ext_set_kind(kind_cstr);
     }
     if raw_for_lua_print {
         msg_st().msg_special_case_for_lua_print = true;
@@ -712,11 +710,19 @@ pub fn msg_multihl(
     for chunk in active_msg {
         msg_st().is_multihl += 1;
         if err {
-            emsg_multiline(chunk.text.data, kind, chunk.hl_id, true);
+            emsg_multiline(
+                crate::memory::cstr_from_ptr(chunk.text.data),
+                kind.unwrap_or(c""),
+                chunk.hl_id,
+                true,
+            );
         } else {
             msg_multiline(chunk.text, chunk.hl_id, true, false, &mut need_clear);
         }
-        assert!(!ui_has(K_UIMESSAGES) || kind.is_null() || msg_st().msg_ext_kind == kind.cast());
+        assert!(
+            !ui_has(K_UIMESSAGES)
+                || kind.is_none_or(|k| msg_st().msg_ext_kind == k.as_ptr().cast())
+        );
     }
 
     let has_chunks = !active_msg.is_empty();
@@ -743,13 +749,8 @@ pub fn msg_multihl(
 }
 
 /// @param keep set keep_msg if it doesn't scroll
-pub fn msg_keep(
-    s: impl crate::strings::IntoCCharPtr,
-    hl_id: i32,
-    keep: bool,
-    multiline: bool,
-) -> bool {
-    let mut s = s.into_c_char_ptr();
+pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) -> bool {
+    let mut s = s_in;
     {
         if keep && multiline {
             std::process::abort();
@@ -762,7 +763,7 @@ pub fn msg_keep(
         }
 
         if hl_id == 0 {
-            set_vim_var_string(VV_STATUSMSG, crate::memory::cstr_as_opt_cstr(s), -1);
+            set_vim_var_string(VV_STATUSMSG, Some(s), -1);
         }
 
         // It is possible that displaying a messages causes a problem (e.g.,
@@ -776,14 +777,14 @@ pub fn msg_keep(
         // Add message to history unless it's a multihl, repeated kept or truncated message.
         let keep_msg_ptr = g_st().keep_msg.as_ref().map_or(ptr::null(), |k| k.as_ptr());
         if msg_st().is_multihl == 0
-            && (s != keep_msg_ptr
-                || (crate::memory::cstr_first_byte(s) != b'<'
+            && (s.as_ptr() != keep_msg_ptr
+                || (s.to_bytes().first().copied().unwrap_or(0) != b'<'
                     && msg_st().msg_hist.back().is_some_and(|last| {
-                        crate::memory::cstr_as_bytes(s)
+                        s.to_bytes()
                             != crate::memory::cstr_as_bytes(last.msg.as_slice()[0].text.data)
                     })))
         {
-            msg_hist_add(s, -1, hl_id);
+            msg_hist_add(s.to_bytes(), -1, hl_id);
         }
 
         if msg_st().is_multihl == 0 {
@@ -792,13 +793,13 @@ pub fn msg_keep(
         // Truncate the message if needed.
         let buf = msg_strtrunc(s, 0);
         if let Some(ref buf) = buf {
-            s = buf.as_ptr();
+            s = buf.as_c_str();
         }
 
         let mut need_clear = true;
         if multiline {
             msg_multiline(
-                cstr_as_string(crate::memory::cstr_as_opt_cstr(s)),
+                cstr_as_string(Some(s)),
                 hl_id,
                 false,
                 false,
@@ -821,7 +822,7 @@ pub fn msg_keep(
                 < (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global
                     + g_st().sc_col
         {
-            set_keep_msg(s, 0);
+            set_keep_msg(Some(s), 0);
         }
 
         g_st().need_fileinfo = false;
@@ -835,8 +836,7 @@ pub fn msg_keep(
 /// Truncate a string such that it can be printed without causing a scroll.
 ///
 /// @param force  always truncate
-pub fn msg_strtrunc(s: impl crate::strings::IntoCCharPtr, force: i32) -> Option<std::ffi::CString> {
-    let s = s.into_c_char_ptr();
+pub fn msg_strtrunc(s: &std::ffi::CStr, force: i32) -> Option<std::ffi::CString> {
     {
         // May truncate message to avoid a hit-return prompt
         if (g_st().msg_scroll == 0
@@ -864,7 +864,7 @@ pub fn msg_strtrunc(s: impl crate::strings::IntoCCharPtr, force: i32) -> Option<
                 // composing chars)
                 let buflen = (room + 2) * 18;
                 let mut buf: Vec<u8> = vec![0; buflen as usize];
-                trunc_string(Some(crate::memory::cstr_as_bytes(s)), &mut buf, room);
+                trunc_string(Some(s.to_bytes()), &mut buf, room);
                 return Some(crate::memory::cstr_to_cstring(buf.as_ptr().cast()));
             }
         }
@@ -1065,10 +1065,10 @@ pub fn msg_source(hl_id: i32) {
     g_st().no_wait_return += 1;
     if let Some(p) = get_emsg_source() {
         g_st().msg_scroll = 1;
-        msg(p.as_ptr(), hl_id);
+        msg(p.as_c_str(), hl_id);
     }
     if let Some(p) = get_emsg_lnum() {
-        msg(p.as_ptr(), HLF_N);
+        msg(p.as_c_str(), HLF_N);
         msg_st().last_sourcing_lnum = sourcing_lnum();
     }
 
@@ -1099,13 +1099,11 @@ pub fn emsg_not_now() -> bool {
 }
 
 pub fn emsg_multiline(
-    s: impl crate::strings::IntoCCharPtr,
-    kind: impl crate::strings::IntoCCharPtr,
+    s: &std::ffi::CStr,
+    kind: &std::ffi::CStr,
     hl_id: i32,
     multiline: bool,
 ) -> bool {
-    let s = s.into_c_char_ptr();
-    let kind = kind.into_c_char_ptr();
     {
         let mut ignore = false;
 
@@ -1122,13 +1120,7 @@ pub fn emsg_multiline(
         g_st().emsg_severe = false;
 
         if g_st().emsg_off == 0 || crate::strings::vim_haschr(opt_vars().p_debug, b't' as i32) {
-            if cause_errthrow(
-                crate::memory::cstr_from_ptr(s),
-                multiline,
-                msg_st().is_multihl > 1,
-                severe,
-                &mut ignore,
-            ) {
+            if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
                 if !ignore {
                     g_st().did_emsg += 1;
                 }
@@ -1136,14 +1128,14 @@ pub fn emsg_multiline(
             }
 
             if g_st().in_assert_fails && g_st().emsg_assert_fails_msg.is_none() {
-                g_st().emsg_assert_fails_msg = Some(crate::memory::cstr_to_cstring(s));
+                g_st().emsg_assert_fails_msg = Some(s.to_owned());
                 g_st().emsg_assert_fails_lnum = sourcing_lnum() as i64;
                 let sname = sourcing_name();
                 g_st().emsg_assert_fails_context = Some(sname.unwrap_or_default().to_owned());
             }
 
             // set "v:errmsg", also when using ":silent! cmd"
-            set_vim_var_string(VV_ERRMSG, crate::memory::cstr_as_opt_cstr(s), -1);
+            set_vim_var_string(VV_ERRMSG, Some(s), -1);
 
             let sname = sourcing_name();
             let slnum = sourcing_lnum();
@@ -1154,16 +1146,16 @@ pub fn emsg_multiline(
                 if !g_st().emsg_noredir {
                     msg_start();
                     if let Some(p) = get_emsg_source() {
-                        let p_len = p.as_bytes().len();
-                        redir_write(p.as_ptr(), p_len as isize);
-                        redir_write(c"\n", 1);
+                        let p_bytes = p.as_bytes();
+                        redir_write(p_bytes, p_bytes.len() as isize);
+                        redir_write(b"\n", 1);
                     }
                     if let Some(p) = get_emsg_lnum() {
-                        let p_len = p.as_bytes().len();
-                        redir_write(p.as_ptr(), p_len as isize);
-                        redir_write(c"\n", 1);
+                        let p_bytes = p.as_bytes();
+                        redir_write(p_bytes, p_bytes.len() as isize);
+                        redir_write(b"\n", 1);
                     }
-                    redir_write(s, crate::memory::cstr_len(s) as isize);
+                    redir_write(s.to_bytes(), s.to_bytes().len() as isize);
                 }
 
                 // Log (silent) errors as debug messages.
@@ -1177,7 +1169,7 @@ pub fn emsg_multiline(
                         line!() as i32,
                         true,
                         c"(:silent) %s (%s (line %d))",
-                        s,
+                        s.as_ptr(),
                         sname.as_ptr(),
                         slnum,
                     );
@@ -1189,7 +1181,7 @@ pub fn emsg_multiline(
                         line!() as i32,
                         true,
                         c"(:silent) %s",
-                        s,
+                        s.as_ptr(),
                     );
                 }
 
@@ -1207,7 +1199,7 @@ pub fn emsg_multiline(
                     line!() as i32,
                     true,
                     c"%s (%s (line %d))",
-                    s,
+                    s.as_ptr(),
                     sname.as_ptr(),
                     slnum,
                 );
@@ -1219,7 +1211,7 @@ pub fn emsg_multiline(
                     line!() as i32,
                     true,
                     c"%s",
-                    s,
+                    s.as_ptr(),
                 );
             }
 
@@ -1263,8 +1255,8 @@ pub fn emsg_multiline(
 }
 
 /// emsg() - display an error message
-pub fn emsg<S: crate::strings::IntoCCharPtr>(s: S) -> bool {
-    emsg_multiline(s.into_c_char_ptr(), c"emsg", HLF_E, false)
+pub fn emsg(s: &std::ffi::CStr) -> bool {
+    emsg_multiline(s, c"emsg", HLF_E, false)
 }
 
 pub fn emsg_invreg(name: i32) {
@@ -1277,7 +1269,7 @@ pub fn emsg_invreg(name: i32) {
 /// Same as emsg(...), but abort on error when ABORT_ON_INTERNAL_ERROR is
 /// defined. It is used for internal errors only, so that they can be
 /// detected when fuzzing vim.
-pub fn iemsg<S: crate::strings::IntoCCharPtr>(s: S) {
+pub fn iemsg(s: &std::ffi::CStr) {
     if emsg_not_now() {
         return;
     }
@@ -1290,27 +1282,22 @@ pub fn internal_error(where_: &std::ffi::CStr) {
 }
 
 pub fn msg_semsg_event(s: std::ffi::CString) {
-    emsg(s.as_ptr());
+    emsg(s.as_c_str());
 }
 
-pub fn msg_schedule_semsg_cstr(s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    {
-        let dup = crate::memory::cstr_to_cstring(s);
-        loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsg(dup));
-    }
+pub fn msg_schedule_semsg_cstr(s: &std::ffi::CStr) {
+    loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsg(s.to_owned()));
 }
 
 pub fn msg_semsg_multiline_event(s: std::ffi::CString) {
-    emsg_multiline(s.as_ptr(), c"emsg", HLF_E, true);
+    emsg_multiline(s.as_c_str(), c"emsg", HLF_E, true);
 }
 
-pub fn msg_schedule_semsg_multiline_cstr(s: impl crate::strings::IntoCCharPtr) {
-    let s = s.into_c_char_ptr();
-    {
-        let dup = crate::memory::cstr_to_cstring(s);
-        loop_schedule_deferred(&mut g_st().main_loop, Event::MsgSemsgMultiline(dup));
-    }
+pub fn msg_schedule_semsg_multiline_cstr(s: &std::ffi::CStr) {
+    loop_schedule_deferred(
+        &mut g_st().main_loop,
+        Event::MsgSemsgMultiline(s.to_owned()),
+    );
 }
 
 /// Like msg(), but truncate to a single line if opt_vars().p_shm contains 't', or when
@@ -1318,17 +1305,17 @@ pub fn msg_schedule_semsg_multiline_cstr(s: impl crate::strings::IntoCCharPtr) {
 /// Careful: The string may be changed by msg_may_trunc()!
 ///
 /// @return  a pointer to the printed message, if wait_return() not called.
-pub fn msg_trunc<T>(s: *mut T, force: bool, hl_id: i32) -> *mut T {
+pub fn msg_trunc(s: &mut [u8], force: bool, hl_id: i32) -> Option<&std::ffi::CStr> {
     // Add message to history before truncating.
-    msg_hist_add(s.cast(), -1, hl_id);
+    msg_hist_add(crate::memory::bytes_until_nul(s), -1, hl_id);
 
     let ts = msg_may_trunc(force, s);
 
     g_st().msg_hist_off = true;
-    let n = msg(ts.cast(), hl_id);
+    let n = msg(ts, hl_id);
     g_st().msg_hist_off = false;
 
-    if n { ts } else { ptr::null_mut() }
+    n.then_some(ts)
 }
 
 /// Check if message "s" should be truncated at the start (for filenames).
@@ -1336,51 +1323,46 @@ pub fn msg_trunc<T>(s: *mut T, force: bool, hl_id: i32) -> *mut T {
 /// @return  a pointer to where the truncated message starts.
 ///
 /// @note: May change the message by replacing a character with '<'.
-pub fn msg_may_trunc<T>(force: bool, s: *mut T) -> *mut T {
+pub fn msg_may_trunc(force: bool, s: &mut [u8]) -> &std::ffi::CStr {
     if ui_has(K_UIMESSAGES) {
-        return s;
+        return crate::memory::cstr_until_nul(s);
     }
 
-    let mut s: *mut u8 = s.cast();
+    let slen = crate::memory::bytes_until_nul(s).len() as i32;
     let room =
         (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global + g_st().sc_col - 1;
-    if room > 0
-        && (force || shortmess(K_SHM_TRUNC))
-        && (crate::memory::cstr_len(s.cast()) as i32) - room > 0
-    {
-        let mut size = vim_strsize(s.cast());
+    let mut off = 0usize;
+    if room > 0 && (force || shortmess(K_SHM_TRUNC)) && slen - room > 0 {
+        let mut size = vim_strsize(crate::memory::cstr_until_nul(s));
 
         // There may be room anyway when there are multibyte chars.
         if size <= room {
-            return s.cast();
+            return crate::memory::cstr_until_nul(s);
         }
         let mut n = 0usize;
         while size >= room {
-            size -= utf_ptr2cells(s.wrapping_add(n).cast());
-            n += utfc_ptr2len(s.wrapping_add(n).cast()) as usize;
+            size -= utf_ptr2cells(s[n..].as_ptr().cast());
+            n += utfc_ptr2len(s[n..].as_ptr().cast()) as usize;
         }
         n -= 1;
-        s = s.wrapping_add(n);
-
-        *crate::globals::gptr(s) = b'<';
+        s[n] = b'<';
+        off = n;
     }
-    s.cast()
+    crate::memory::cstr_until_nul(&s[off..])
 }
 
 /// Shows a progress-message.  A non-"running" `status` ends the message and announces the
 /// progress task as "done".
-pub fn msg_progress<T>(
-    s: *mut T,
-    id: impl crate::strings::IntoCCharPtr,
-    status: impl crate::strings::IntoCCharPtr,
+pub fn msg_progress<'a>(
+    s: Option<&'a mut [u8]>,
+    id: &std::ffi::CStr,
+    status: &std::ffi::CStr,
     percent: i32,
     hl_id: i32,
     hist: bool,
     trunc: bool,
     err: bool,
-) -> *mut T {
-    let status = status.into_c_char_ptr().cast_mut();
-    let id = id.into_c_char_ptr().cast_mut();
+) -> Option<&'a std::ffi::CStr> {
     let mut data = MessageData {
         source: cstr_as_string(Some(c"nvim")),
         percent: Integer::from(percent),
@@ -1388,47 +1370,50 @@ pub fn msg_progress<T>(
             data: ptr::null_mut(),
             size: 0,
         },
-        status: cstr_as_string(crate::memory::cstr_as_opt_cstr(status)),
+        status: cstr_as_string(Some(status)),
         data: Dict::new(),
     };
     msg_with_id(s, id, c"progress", Some(&mut data), hl_id, hist, trunc, err)
 }
 
 /// Shows message `s` with `id`: replaces the message with the same `id`, if any.
-pub fn msg_with_id<T>(
-    mut s: *mut T,
-    id: impl crate::strings::IntoCCharPtr,
+pub fn msg_with_id<'a>(
+    s: Option<&'a mut [u8]>,
+    id: &std::ffi::CStr,
     kind: &std::ffi::CStr,
     data: Option<&mut MessageData>,
     hl_id: i32,
     hist: bool,
     trunc: bool,
     err: bool,
-) -> *mut T {
-    let id = id.into_c_char_ptr();
+) -> Option<&'a std::ffi::CStr> {
     let mut clear = false;
     let mut chunks = HlMessage::new();
-    if !s.is_null() {
+    let mut out_cstr: Option<&'a std::ffi::CStr> = None;
+    if let Some(s_buf) = s {
         if hist && (!trunc || ui_has(K_UIMESSAGES)) {
-            msg_hist_add(s.cast(), -1, 0);
+            msg_hist_add(crate::memory::bytes_until_nul(s_buf), -1, 0);
         }
-        if trunc {
-            s = msg_may_trunc(false, s);
-        }
+        let s_cstr = if trunc {
+            msg_may_trunc(false, s_buf)
+        } else {
+            crate::memory::cstr_until_nul(s_buf)
+        };
         chunks.push(HlMessageChunk {
-            text: cstr_to_string(crate::memory::cstr_as_opt_cstr(s.cast())),
+            text: cstr_to_string(Some(s_cstr)),
             hl_id,
         });
+        out_cstr = Some(s_cstr);
     }
     msg_ext_no_fast();
     let id_obj = Object {
         obj_type: ObjectType::ObjectTypeString,
-        data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(id))),
+        data: ObjectData::String(cstr_as_string(Some(id))),
     };
     msg_multihl(
         id_obj,
         &mut chunks,
-        kind.as_ptr(),
+        Some(kind),
         false,
         err,
         data,
@@ -1436,37 +1421,30 @@ pub fn msg_with_id<T>(
         false,
     );
     ui_flush();
-    s
+    out_cstr
 }
 
 /// Add the message at the end of the history
 ///
 /// @param[in]  len  Length of s or -1.
-fn msg_hist_add(s: impl crate::strings::IntoCCharPtr, len: i32, hl_id: i32) {
-    let mut s = s.into_c_char_ptr();
-    {
-        let mut size = if len < 0 {
-            crate::memory::cstr_len(s)
-        } else {
-            len as usize
-        };
-        // Remove leading and trailing newlines.
-        while size > 0 && crate::memory::cstr_first_byte(s) == b'\n' {
-            size -= 1;
-            s = s.wrapping_add(1);
-        }
-        let s_slice = crate::memory::cstr_slice(s, size);
-        while size > 0 && s_slice[size - 1] == b'\n' {
-            size -= 1;
-        }
-        if size == 0 {
-            return;
-        }
-        let text = crate::api::private::helpers::cbuf_to_string(crate::memory::cstr_slice(s, size));
-
-        let msg = vec![HlMessageChunk { text, hl_id }];
-        msg_hist_add_multihl(msg, false);
+fn msg_hist_add(s: &[u8], len: i32, hl_id: i32) {
+    let mut slice = if len < 0 {
+        crate::memory::bytes_until_nul(s)
+    } else {
+        &s[..(len as usize).min(s.len())]
+    };
+    while let Some((&b'\n', rest)) = slice.split_first() {
+        slice = rest;
     }
+    while let Some((&b'\n', rest)) = slice.split_last() {
+        slice = rest;
+    }
+    if slice.is_empty() {
+        return;
+    }
+    let text = crate::api::private::helpers::cbuf_to_string(slice);
+    let msg = vec![HlMessageChunk { text, hl_id }];
+    msg_hist_add_multihl(msg, false);
 }
 
 pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<&mut MessageData>) {
@@ -1766,7 +1744,7 @@ pub fn ex_messages(eap: &mut Exarg) {
             msg_multihl(
                 NIL_OBJ,
                 &mut p.msg,
-                p.kind.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
+                p.kind.as_deref(),
                 false,
                 false,
                 None,
@@ -1970,7 +1948,7 @@ pub fn wait_return(redraw: i32) {
     g_st().lines_left = -1;
     reset_last_sourcing();
     if g_st().keep_msg.as_ref().is_some_and(|km| {
-        vim_strsize(km.as_ptr())
+        vim_strsize(km)
             >= (g_st().rows_global - g_st().cmdline_row - 1) * g_st().columns_global + g_st().sc_col
     }) {
         g_st().keep_msg = None;
@@ -2010,21 +1988,20 @@ fn hit_return_msg(newline_sb: bool) {
 }
 
 /// Set "keep_msg" to "s".  Free the old value and check for NULL pointer.
-pub fn set_keep_msg(s: impl crate::strings::IntoCCharPtr, hl_id: i32) {
-    let s = s.into_c_char_ptr();
-    {
-        if ui_has(K_UIMESSAGES) {
-            return;
-        }
-
-        if !s.is_null() && g_st().msg_silent == 0 {
-            g_st().keep_msg = Some(crate::memory::cstr_to_cstring(s));
-        } else {
-            g_st().keep_msg = None;
-        }
-        msg_st().keep_msg_more = false;
-        g_st().keep_msg_hl_id = hl_id;
+pub fn set_keep_msg(s: Option<&std::ffi::CStr>, hl_id: i32) {
+    if ui_has(K_UIMESSAGES) {
+        return;
     }
+
+    if let Some(s) = s
+        && g_st().msg_silent == 0
+    {
+        g_st().keep_msg = Some(s.to_owned());
+    } else {
+        g_st().keep_msg = None;
+    }
+    msg_st().keep_msg_more = false;
+    g_st().keep_msg_hl_id = hl_id;
 }
 
 /// Return true if printing messages should currently be done.
@@ -2067,27 +2044,25 @@ pub fn msgmore(n: i32) {
                 gettext(c" (Interrupted)").to_bytes(),
             );
         }
-        if msg(msg_ptr, 0) {
-            set_keep_msg(msg_ptr, 0);
+        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
+        if msg(msg_cstr, 0) {
+            set_keep_msg(Some(msg_cstr), 0);
             msg_st().keep_msg_more = true;
         }
     }
 }
 
-pub fn msg_ext_set_kind<S: crate::strings::IntoCCharPtr>(msg_kind: S) {
-    let msg_kind = msg_kind.into_c_char_ptr();
-    {
-        msg_ext_ui_flush();
-        msg_st().msg_ext_kind = msg_kind.cast();
-        msg_st().redir_col = if msg_st().msg_ext_append {
-            msg_st().redir_col
-        } else {
-            0
-        };
+pub fn msg_ext_set_kind(msg_kind: &std::ffi::CStr) {
+    msg_ext_ui_flush();
+    msg_st().msg_ext_kind = msg_kind.as_ptr().cast();
+    msg_st().redir_col = if msg_st().msg_ext_append {
+        msg_st().redir_col
+    } else {
+        0
+    };
 
-        if !msg_kind.is_null() && crate::memory::cstr_as_bytes(msg_kind) == b"list_cmd" {
-            msg_ext_no_fast();
-        }
+    if msg_kind.to_bytes() == b"list_cmd" {
+        msg_ext_no_fast();
     }
 }
 
@@ -2142,7 +2117,7 @@ pub fn msg_start() {
         if ((opt_vars().p_ch == 0 && !g_st().msg_didout) || msg_st().msg_special_case_for_lua_print)
             && msg_use_printf() != 0
         {
-            msg_puts_display(c"\n", 1, 0, 0);
+            msg_puts_display(b"\n", 1, 0, 0);
         } else {
             msg_putchar(NL);
         }
@@ -2162,7 +2137,7 @@ pub fn msg_start() {
     }
 
     if !did_return {
-        redir_write(c"\n", 1);
+        redir_write(b"\n", 1);
     }
 }
 
@@ -2188,156 +2163,146 @@ pub fn msg_putchar_hl(c: i32, hl_id: i32) {
         let len = utf_char2bytes(c, buf.as_mut_ptr().cast()) as usize;
         buf[len] = 0;
     }
-    msg_puts_hl(buf.as_ptr().cast(), hl_id, false);
+    msg_puts_hl(crate::memory::cstr_until_nul(&buf), hl_id, false);
 }
 
 pub fn msg_outnum(n: i32) {
     let mut buf = [0u8; 20];
     vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"%d", n);
-    msg_puts(buf.as_ptr().cast());
+    msg_puts(crate::memory::cstr_until_nul(&buf));
 }
 
-pub fn msg_home_replace(fname: impl crate::strings::IntoCCharPtr) {
-    let fname = fname.into_c_char_ptr();
+pub fn msg_home_replace(fname: Option<&std::ffi::CStr>) {
     msg_home_replace_hl(fname, 0);
 }
 
-fn msg_home_replace_hl(fname: impl crate::strings::IntoCCharPtr, hl_id: i32) {
-    let fname = fname.into_c_char_ptr();
-    let name = home_replace_save(None, fname);
-    msg_outtrans(name.as_ptr(), hl_id, false);
+fn msg_home_replace_hl(fname: Option<&std::ffi::CStr>, hl_id: i32) {
+    let name = home_replace_save(None, fname.map_or(ptr::null(), std::ffi::CStr::as_ptr));
+    msg_outtrans(name.as_c_str(), hl_id, false);
 }
 
 /// Output "len" characters in "str" (including NULs) with translation
 /// if "len" is -1, output up to a NUL character. Use highlight "hl_id".
 ///
 /// @return  the number of characters it takes on the screen.
-pub fn msg_outtrans(str_: impl crate::strings::IntoCCharPtr, hl_id: i32, hist: bool) -> i32 {
-    let str_ = str_.into_c_char_ptr();
-    msg_outtrans_len(str_, crate::memory::cstr_len(str_) as i32, hl_id, hist)
+pub fn msg_outtrans(str_: &std::ffi::CStr, hl_id: i32, hist: bool) -> i32 {
+    let bytes = str_.to_bytes();
+    msg_outtrans_len(bytes, bytes.len() as i32, hl_id, hist)
 }
 
-pub fn msg_outtrans_len(
-    msgstr: impl crate::strings::IntoCCharPtr,
-    mut len: i32,
-    hl_id: i32,
-    hist: bool,
-) -> i32 {
-    let msgstr = msgstr.into_c_char_ptr();
-    {
-        let mut retval = 0;
-        let mut str_ = msgstr;
-        let mut plain_start = msgstr;
-        let save_got_int = g_st().got_int;
+pub fn msg_outtrans_len(msgstr: &[u8], mut len: i32, hl_id: i32, hist: bool) -> i32 {
+    let slice = &msgstr[..(len.max(0) as usize).min(msgstr.len())];
+    len = slice.len() as i32;
+    let mut retval = 0;
+    let mut idx = 0usize;
+    let mut plain_start = 0usize;
+    let save_got_int = g_st().got_int;
 
-        // Only quit when got_int was set in here.
-        g_st().got_int = false;
+    // Only quit when got_int was set in here.
+    g_st().got_int = false;
 
-        if hist {
-            msg_hist_add(str_, len, hl_id);
-        }
-
-        // When drawing over the command line no need to clear it later or remove
-        // the mode message.
-        if g_st().msg_silent == 0
-            && len > 0
-            && g_st().msg_row >= g_st().cmdline_row
-            && g_st().msg_col == 0
-        {
-            g_st().clear_cmdline = false;
-            g_st().mode_displayed = false;
-        }
-
-        // Go over the string.  Special characters are translated and printed.
-        // Normal characters are printed several at a time.
-        while {
-            len -= 1;
-            len >= 0 && !g_st().got_int
-        } {
-            // Don't include composing chars after the end.
-            let mb_l = utfc_ptr2len_len(str_, len + 1);
-            if mb_l > 1 {
-                let c = utf_ptr2char(str_);
-                if vim_isprintc(c) {
-                    // Printable multi-byte char: count the cells.
-                    retval += utf_ptr2cells(str_);
-                } else {
-                    // Unprintable multi-byte char: print the printable chars so
-                    // far and the translation of the unprintable char.
-                    if str_ > plain_start {
-                        msg_puts_len(
-                            plain_start,
-                            crate::memory::ptr_offset_from(str_, plain_start),
-                            hl_id,
-                            hist,
-                        );
-                    }
-                    plain_start = str_.wrapping_add(mb_l as usize);
-                    msg_puts_hl(
-                        transchar_buf(None, c),
-                        if hl_id == 0 { HLF_8 } else { hl_id },
-                        false,
-                    );
-                    retval += char2cells(c);
-                }
-                len -= mb_l - 1;
-                str_ = str_.wrapping_add(mb_l as usize);
-            } else {
-                let s = transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(str_)));
-                if s.to_bytes().len() > 1 {
-                    if str_ > plain_start {
-                        msg_puts_len(
-                            plain_start,
-                            crate::memory::ptr_offset_from(str_, plain_start),
-                            hl_id,
-                            hist,
-                        );
-                    }
-                    plain_start = str_.wrapping_add(1);
-                    msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
-                    retval += s.to_bytes().len() as i32;
-                } else {
-                    retval += 1;
-                }
-                str_ = str_.wrapping_add(1);
-            }
-        }
-
-        if (str_ > plain_start || plain_start == msgstr) && !g_st().got_int {
-            msg_puts_len(
-                plain_start,
-                crate::memory::ptr_offset_from(str_, plain_start),
-                hl_id,
-                hist,
-            );
-        }
-
-        g_st().got_int |= save_got_int;
-
-        retval
+    if hist {
+        msg_hist_add(slice, len, hl_id);
     }
+
+    // When drawing over the command line no need to clear it later or remove
+    // the mode message.
+    if g_st().msg_silent == 0
+        && len > 0
+        && g_st().msg_row >= g_st().cmdline_row
+        && g_st().msg_col == 0
+    {
+        g_st().clear_cmdline = false;
+        g_st().mode_displayed = false;
+    }
+
+    // Go over the string.  Special characters are translated and printed.
+    // Normal characters are printed several at a time.
+    while {
+        len -= 1;
+        len >= 0 && !g_st().got_int
+    } {
+        let cur_ptr: crate::strings::RawCCharPtr = slice[idx..].as_ptr().cast();
+        // Don't include composing chars after the end.
+        let mb_l = utfc_ptr2len_len(cur_ptr, len + 1);
+        if mb_l > 1 {
+            let c = utf_ptr2char(cur_ptr);
+            if vim_isprintc(c) {
+                // Printable multi-byte char: count the cells.
+                retval += utf_ptr2cells(cur_ptr);
+            } else {
+                // Unprintable multi-byte char: print the printable chars so
+                // far and the translation of the unprintable char.
+                if idx > plain_start {
+                    msg_puts_len(
+                        &slice[plain_start..idx],
+                        (idx - plain_start) as isize,
+                        hl_id,
+                        hist,
+                    );
+                }
+                plain_start = idx + mb_l as usize;
+                msg_puts_hl(
+                    transchar_buf(None, c),
+                    if hl_id == 0 { HLF_8 } else { hl_id },
+                    false,
+                );
+                retval += char2cells(c);
+            }
+            len -= mb_l - 1;
+            idx += mb_l as usize;
+        } else {
+            let s = transchar_byte_buf(None, i32::from(slice[idx]));
+            if s.to_bytes().len() > 1 {
+                if idx > plain_start {
+                    msg_puts_len(
+                        &slice[plain_start..idx],
+                        (idx - plain_start) as isize,
+                        hl_id,
+                        hist,
+                    );
+                }
+                plain_start = idx + 1;
+                msg_puts_hl(s, if hl_id == 0 { HLF_8 } else { hl_id }, false);
+                retval += s.to_bytes().len() as i32;
+            } else {
+                retval += 1;
+            }
+            idx += 1;
+        }
+    }
+
+    if (idx > plain_start || plain_start == 0) && !g_st().got_int {
+        msg_puts_len(
+            &msgstr[plain_start..],
+            (idx - plain_start) as isize,
+            hl_id,
+            hist,
+        );
+    }
+
+    g_st().got_int |= save_got_int;
+
+    retval
 }
 
-pub fn msg_make(arg: impl crate::strings::IntoCCharPtr) {
-    let mut arg = arg.into_c_char_ptr();
-    {
-        const STR: &[u8; 6] = b"eeffoc";
-        const RS: &[u8; 15] = b"Plon#dqg#vxjduB";
+pub fn msg_make(arg: &std::ffi::CStr) {
+    const STR: &[u8; 6] = b"eeffoc";
+    const RS: &[u8; 15] = b"Plon#dqg#vxjduB";
 
-        arg = skipwhite(arg);
-        let mut i: isize = 5;
-        while !crate::memory::cstr_is_empty(arg) && i >= 0 {
-            if crate::memory::cstr_first_byte(arg) != STR[i as usize] {
-                break;
-            }
-            arg = arg.wrapping_add(1);
-            i -= 1;
+    let mut rem = crate::charset::skipwhite_slice(arg.to_bytes());
+    let mut i: isize = 5;
+    while let Some((&b, rest)) = rem.split_first() {
+        if i < 0 || b != STR[i as usize] {
+            break;
         }
-        if i < 0 {
-            msg_putchar(NL);
-            for &b in RS {
-                msg_putchar(i32::from(b - 3));
-            }
+        rem = rest;
+        i -= 1;
+    }
+    if i < 0 {
+        msg_putchar(NL);
+        for &b in RS {
+            msg_putchar(i32::from(b - 3));
         }
     }
 }
@@ -2364,13 +2329,13 @@ pub fn msg_outtrans_special(strstart: &[u8], from: bool, maxlen: i32) -> i32 {
             text =
                 transchar_byte_buf(None, i32::from(crate::memory::cstr_first_byte(text))).as_ptr();
         }
-        let len = vim_strsize(text);
+        let len = vim_strsize(crate::memory::cstr_from_ptr(text));
         if maxlen > 0 && retval + len >= maxlen {
             break;
         }
         // Highlight special keys
         msg_puts_hl(
-            text,
+            crate::memory::cstr_from_ptr(text),
             if len > 1 && utfc_ptr2len(text) <= 1 {
                 hl_id
             } else {
@@ -2604,7 +2569,7 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
                     buf[..l].copy_from_slice(&rem[..l]);
                     buf[l] = 0;
                 }
-                msg_puts(buf.as_ptr().cast());
+                msg_puts(crate::memory::cstr_until_nul(&buf));
                 idx += l;
                 continue;
             } else {
@@ -2731,107 +2696,100 @@ pub fn msg_prt_line(s: &[u8], mut list: bool) {
 
 /// Output a string to the screen at position msg_row, msg_col.
 /// Update msg_row and msg_col for the next message.
-pub fn msg_puts<S: crate::strings::IntoCCharPtr>(s: S) {
-    msg_puts_hl(s.into_c_char_ptr(), 0, false);
+pub fn msg_puts(s: &std::ffi::CStr) {
+    msg_puts_hl(s, 0, false);
 }
 
-pub fn msg_puts_title(s: impl crate::strings::IntoCCharPtr) {
-    let mut s = s.into_c_char_ptr();
-    {
-        if ui_has(K_UIMESSAGES) && crate::memory::cstr_first_byte(s) == b'\n' {
-            s = s.wrapping_add(1);
-        }
-        msg_puts_hl(s, HLF_T, false);
+pub fn msg_puts_title(mut s: &std::ffi::CStr) {
+    if ui_has(K_UIMESSAGES) && s.to_bytes().first() == Some(&b'\n') {
+        s = unsafe { std::ffi::CStr::from_ptr(s.as_ptr().wrapping_add(1)) };
     }
+    msg_puts_hl(s, HLF_T, false);
 }
 
 /// Show a message in such a way that it always fits in the line.  Cut out a
 /// part in the middle and replace it with "..." when necessary.
 /// Does not handle multi-byte characters!
-pub fn msg_outtrans_long(longstr: impl crate::strings::IntoCCharPtr, hl_id: i32) {
-    let longstr = longstr.into_c_char_ptr();
-    {
-        let len = crate::memory::cstr_len(longstr) as i32;
-        let mut slen = len;
-        let room = g_st().columns_global - g_st().msg_col;
-        if !ui_has(K_UIMESSAGES) && len > room && room >= 20 {
-            slen = (room - 3) / 2;
-            msg_outtrans_len(longstr, slen, hl_id, false);
-            msg_puts_hl(c"...", HLF_8, false);
-        }
-        msg_outtrans_len(
-            longstr.wrapping_add((len - slen) as usize),
-            slen,
-            hl_id,
-            false,
-        );
+pub fn msg_outtrans_long(longstr: &std::ffi::CStr, hl_id: i32) {
+    let bytes = longstr.to_bytes();
+    let len = bytes.len() as i32;
+    let mut slen = len;
+    let room = g_st().columns_global - g_st().msg_col;
+    if !ui_has(K_UIMESSAGES) && len > room && room >= 20 {
+        slen = (room - 3) / 2;
+        msg_outtrans_len(bytes, slen, hl_id, false);
+        msg_puts_hl(c"...", HLF_8, false);
     }
+    msg_outtrans_len(&bytes[(len - slen) as usize..], slen, hl_id, false);
 }
 
 /// Basic function for writing a message with highlight id.
-pub fn msg_puts_hl<S: crate::strings::IntoCCharPtr>(s: S, hl_id: i32, hist: bool) {
-    msg_puts_len(s.into_c_char_ptr(), -1, hl_id, hist);
+pub fn msg_puts_hl(s: &std::ffi::CStr, hl_id: i32, hist: bool) {
+    msg_puts_len(s.to_bytes(), -1, hl_id, hist);
 }
 
 /// Write a message with highlight id.
-pub fn msg_puts_len(str_: impl crate::strings::IntoCCharPtr, len: isize, hl_id: i32, hist: bool) {
-    let str_ = str_.into_c_char_ptr();
-    {
-        assert!(len < 0 || !crate::memory::cstr_slice(str_, len as usize).contains(&0));
-        // If redirection is on, also write to the redirection file.
-        redir_write(str_, len);
+pub fn msg_puts_len(str_: &[u8], len: isize, hl_id: i32, hist: bool) {
+    let str_non_nul = crate::memory::bytes_until_nul(str_);
+    let slice = if len < 0 {
+        str_non_nul
+    } else {
+        &str_[..(len as usize).min(str_.len())]
+    };
+    assert!(len < 0 || !slice.contains(&0));
+    // If redirection is on, also write to the redirection file.
+    redir_write(slice, len);
 
-        // Don't print anything when using ":silent cmd" or empty message.
-        if g_st().msg_silent != 0 || crate::memory::cstr_is_empty(str_) {
-            if crate::memory::cstr_is_empty(str_) && ui_has(K_UIMESSAGES) {
-                msg_ext_no_fast();
-                ui_call_msg_show(
-                    cstr_as_string(Some(c"empty")),
-                    Array::new(),
-                    false,
-                    false,
-                    false,
-                    Object {
-                        obj_type: ObjectType::ObjectTypeInteger,
-                        data: ObjectData::Integer(-1),
-                    },
-                    NvimString {
-                        data: ptr::null_mut(),
-                        size: 0,
-                    },
-                );
-                g_st().cmdline_was_last_drawn = false;
-            }
-            return;
+    // Don't print anything when using ":silent cmd" or empty message.
+    if g_st().msg_silent != 0 || str_non_nul.is_empty() {
+        if str_non_nul.is_empty() && ui_has(K_UIMESSAGES) {
+            msg_ext_no_fast();
+            ui_call_msg_show(
+                cstr_as_string(Some(c"empty")),
+                Array::new(),
+                false,
+                false,
+                false,
+                Object {
+                    obj_type: ObjectType::ObjectTypeInteger,
+                    data: ObjectData::Integer(-1),
+                },
+                NvimString {
+                    data: ptr::null_mut(),
+                    size: 0,
+                },
+            );
+            g_st().cmdline_was_last_drawn = false;
         }
-
-        if hist {
-            msg_hist_add(str_, len as i32, hl_id);
-        }
-
-        let overflow =
-            !ui_has(K_UIMESSAGES) && g_st().msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
-
-        if overflow && !g_st().msg_scrolled_ign && crate::memory::cstr_as_bytes(str_) != b"\r" {
-            g_st().need_wait_return = true;
-        }
-        g_st().msg_didany = true;
-
-        if msg_use_printf() != 0 && !msg_st().msg_special_case_for_lua_print {
-            let saved_msg_col = g_st().msg_col;
-            msg_puts_printf(str_, len);
-            if g_st().headless_mode {
-                g_st().msg_col = saved_msg_col;
-            }
-        }
-        if msg_use_printf() == 0
-            || (g_st().headless_mode && crate::grid::grid_allocated(&g_st().default_grid))
-        {
-            msg_puts_display(str_, len as i32, hl_id, 0);
-        }
-
-        g_st().need_fileinfo = false;
+        return;
     }
+
+    if hist {
+        msg_hist_add(slice, len as i32, hl_id);
+    }
+
+    let overflow =
+        !ui_has(K_UIMESSAGES) && g_st().msg_scrolled > if opt_vars().p_ch == 0 { 1 } else { 0 };
+
+    if overflow && !g_st().msg_scrolled_ign && slice != b"\r" {
+        g_st().need_wait_return = true;
+    }
+    g_st().msg_didany = true;
+
+    if msg_use_printf() != 0 && !msg_st().msg_special_case_for_lua_print {
+        let saved_msg_col = g_st().msg_col;
+        msg_puts_printf(slice, len);
+        if g_st().headless_mode {
+            g_st().msg_col = saved_msg_col;
+        }
+    }
+    if msg_use_printf() == 0
+        || (g_st().headless_mode && crate::grid::grid_allocated(&g_st().default_grid))
+    {
+        msg_puts_display(slice, len as i32, hl_id, 0);
+    }
+
+    g_st().need_fileinfo = false;
 }
 
 fn msg_ext_emit_chunk() {
@@ -2865,16 +2823,17 @@ fn msg_ext_emit_chunk() {
 
 /// The display part of msg_puts_len().
 /// May be called recursively to display scroll-back text.
-fn msg_puts_display(
-    str_: impl crate::strings::IntoCCharPtr,
-    maxlen: i32,
-    hl_id: i32,
-    recurse: i32,
-) {
-    let str_ = str_.into_c_char_ptr();
+fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
+    let str_cstr = crate::memory::cstr_from_bytes(if maxlen < 0 {
+        crate::memory::bytes_until_nul(str_in)
+    } else {
+        let max_u = (maxlen as usize).min(str_in.len());
+        crate::memory::bytes_until_nul(&str_in[..max_u])
+    });
+    let str_slice = str_cstr.as_bytes();
     {
-        let mut s = str_;
-        let mut sb_str = str_;
+        let mut s_slice: &[u8] = str_slice;
+        let mut sb_slice: &[u8] = str_slice;
         let mut sb_col = g_st().msg_col;
         let attr = if hl_id != 0 { syn_id2attr(hl_id) } else { 0 };
 
@@ -2886,26 +2845,17 @@ fn msg_puts_display(
                 msg_st().msg_ext_last_attr = attr;
                 msg_st().msg_ext_last_hl_id = hl_id;
             }
-            let len = if maxlen < 0 {
-                crate::memory::cstr_len(str_)
-            } else {
-                xstrnlen(str_, maxlen as usize)
-            };
-            let str_slice = crate::memory::cstr_slice(str_, len);
             if !str_slice.is_empty() {
                 msg_st().msg_ext_last_chunk.extend_from_slice(str_slice);
             }
 
             let lastline_idx = str_slice.iter().rposition(|&b| b == b'\n');
-            let p = if let Some(idx) = lastline_idx {
-                str_.wrapping_add(idx + 1)
+            let tail = if let Some(idx) = lastline_idx {
+                &str_slice[idx + 1..]
             } else {
-                str_
+                str_slice
             };
-            let col = mb_string2cells_len(crate::memory::cstr_slice(
-                p,
-                len - (crate::memory::ptr_offset_from(p, str_) as usize),
-            )) as i32;
+            let col = mb_string2cells_len(tail) as i32;
             g_st().msg_col = (if lastline_idx.is_some() {
                 0
             } else {
@@ -2925,7 +2875,7 @@ fn msg_puts_display(
         loop {
             if g_st().msg_col >= g_st().columns_global {
                 if opt_vars().p_more != 0 && recurse == 0 {
-                    store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 1);
+                    store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                 }
                 if g_st().msg_no_more && g_st().lines_left == 0 {
                     break;
@@ -2968,7 +2918,8 @@ fn msg_puts_display(
                         && !g_st().msg_no_more
                     {
                         if do_more_prompt(NUL as i32) {
-                            s = dlg_st().confirm_buttons.as_ptr().cast();
+                            s_slice = crate::memory::bytes_until_nul(&dlg_st().confirm_buttons);
+                            sb_slice = s_slice;
                         }
                         if g_st().quit_more {
                             return;
@@ -2977,15 +2928,12 @@ fn msg_puts_display(
                 }
             }
 
-            if !((maxlen < 0 || (crate::memory::ptr_offset_from(s, str_) as i32) < maxlen)
-                && !crate::memory::cstr_is_empty(s))
-            {
+            if s_slice.is_empty() {
                 break;
             }
 
             if g_st().msg_row != msg_row_pending
-                && (crate::memory::cstr_first_byte(s) >= 0x20
-                    || i32::from(crate::memory::cstr_first_byte(s)) == TAB)
+                && (s_slice[0] >= 0x20 || i32::from(s_slice[0]) == TAB)
             {
                 if msg_row_pending >= 0 {
                     msg_line_flush();
@@ -2994,41 +2942,31 @@ fn msg_puts_display(
                 msg_row_pending = g_st().msg_row;
             }
 
-            if crate::memory::cstr_first_byte(s) >= 0x20 {
-                let mut cw = utf_ptr2cells(s);
-                let l = if maxlen >= 0 {
-                    utfc_ptr2len_len(
-                        s,
-                        crate::memory::ptr_offset_from(str_.wrapping_add(maxlen as usize), s)
-                            as i32,
-                    )
-                } else {
-                    utfc_ptr2len(s)
-                };
+            if s_slice[0] >= 0x20 {
+                let s_ptr: crate::strings::RawCCharPtr = s_slice.as_ptr().cast();
+                let mut cw = utf_ptr2cells(s_ptr);
+                let l = utfc_ptr2len_len(s_ptr, s_slice.len() as i32);
 
                 if cw > 1 && g_st().msg_col == g_st().columns_global - 1 {
                     grid_line_puts(g_st().msg_col, c">", 1, hl_attr(HLF_AT));
                     cw = 1;
                 } else {
-                    grid_line_puts(
-                        g_st().msg_col,
-                        crate::memory::cstr_from_ptr(s),
-                        l,
-                        print_attr,
-                    );
-                    s = s.wrapping_add(l as usize);
+                    let ch_cstr =
+                        crate::memory::cstr_from_bytes(&s_slice[..(l as usize).min(s_slice.len())]);
+                    grid_line_puts(g_st().msg_col, ch_cstr.as_c_str(), l, print_attr);
+                    s_slice = &s_slice[(l as usize).min(s_slice.len())..];
                 }
                 g_st().msg_didout = true;
                 g_st().msg_col += cw;
             } else {
-                let c = crate::memory::cstr_first_byte(s);
-                s = s.wrapping_add(1);
+                let c = s_slice[0];
+                s_slice = &s_slice[1..];
                 if c == b'\n' {
                     g_st().msg_didout = false;
                     g_st().msg_col = 0;
                     g_st().msg_row += 1;
                     if opt_vars().p_more != 0 && recurse == 0 {
-                        store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 1);
+                        store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 1);
                     }
                 } else if c == b'\r' {
                     g_st().msg_col = 0;
@@ -3057,7 +2995,7 @@ fn msg_puts_display(
         msg_cursor_goto(g_st().msg_row, g_st().msg_col);
 
         if opt_vars().p_more != 0 && recurse == 0 {
-            store_sb_text(&mut sb_str, s, hl_id, &mut sb_col, 0);
+            store_sb_text(&mut sb_slice, s_slice, hl_id, &mut sb_col, 0);
         }
 
         msg_check();
@@ -3081,17 +3019,12 @@ pub fn msg_cursor_goto(mut row: i32, mut col: i32) {
 
 /// @return  true when ":filter pattern" was used and "msg" does not match
 ///          "pattern".
-pub fn message_filtered(msg: impl crate::strings::IntoCCharPtr) -> bool {
-    let msg = msg.into_c_char_ptr();
+pub fn message_filtered(msg: &std::ffi::CStr) -> bool {
     if g_st().cmdmod.cmod_filter_regmatch.regprog.is_null() {
         return false;
     }
 
-    let match_ = vim_regexec(
-        &mut g_st().cmdmod.cmod_filter_regmatch,
-        crate::memory::cstr_from_ptr(msg),
-        0,
-    );
+    let match_ = vim_regexec(&mut g_st().cmdmod.cmod_filter_regmatch, msg, 0);
     if g_st().cmdmod.cmod_filter_force {
         match_
     } else {
@@ -3275,34 +3208,31 @@ fn inc_msg_scrolled() {
 }
 
 /// Store part of a printed message for displaying when scrolling back.
-fn store_sb_text(
-    sb_str: &mut *const std::ffi::c_char,
-    s: *const std::ffi::c_char,
+fn store_sb_text<'a>(
+    sb_str: &mut &'a [u8],
+    s: &'a [u8],
     hl_id: i32,
     sb_col: &mut i32,
     finish: i32,
 ) {
-    let sb_ptr = (*sb_str).cast::<u8>();
-    let s_ptr = s.cast::<u8>();
     if msg_st().do_clear_sb_text == SbClear::SbClearAll
         || msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
     {
         clear_sb_text(msg_st().do_clear_sb_text == SbClear::SbClearAll);
         msg_sb_eol();
         if msg_st().do_clear_sb_text == SbClear::SbClearCmdlineDone
-            && s_ptr > sb_ptr
-            && *crate::globals::gptr(sb_ptr) == b'\n'
+            && sb_str.len() > s.len()
+            && sb_str[0] == b'\n'
         {
-            *sb_str = (*sb_str).wrapping_add(1);
+            *sb_str = &sb_str[1..];
         }
         msg_st().do_clear_sb_text = SbClear::SbClearNone;
     }
 
-    let sb_ptr = (*sb_str).cast::<u8>();
-    if s_ptr > sb_ptr {
-        let text_len = crate::memory::ptr_offset_from(s_ptr, sb_ptr) as usize;
+    if sb_str.len() > s.len() {
+        let text_len = sb_str.len() - s.len();
         let mut text = Vec::with_capacity(text_len + 1);
-        text.extend_from_slice(crate::memory::cstr_slice(*sb_str, text_len));
+        text.extend_from_slice(&sb_str[..text_len]);
         text.push(0);
         msg_st().msgchunks.push(Msgchunk {
             sb_eol: finish as u8,
@@ -3408,12 +3338,17 @@ fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
     let mut idx = smp;
     loop {
         g_st().msg_row = row;
-        let chunk = &mut msg_st().msgchunks.as_mut_slice()[idx];
-        g_st().msg_col = chunk.sb_msg_col;
-        let p: *mut _ = chunk.sb_text.as_mut_ptr().cast();
-        let hl_id = chunk.sb_hl_id;
-        let eol = chunk.sb_eol;
-        msg_puts_display(p, -1, hl_id, 1);
+        let (sb_msg_col, hl_id, eol, text) = {
+            let chunk = &msg_st().msgchunks.as_slice()[idx];
+            (
+                chunk.sb_msg_col,
+                chunk.sb_hl_id,
+                chunk.sb_eol,
+                chunk.sb_text.clone(),
+            )
+        };
+        g_st().msg_col = sb_msg_col;
+        msg_puts_display(&text, -1, hl_id, 1);
         if eol != 0 || idx + 1 >= msg_st().msgchunks.len() {
             break;
         }
@@ -3432,17 +3367,22 @@ pub fn msg_use_printf() -> i32 {
 }
 
 /// Print a message when there is no valid screen.
-fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
-    let str_ = str_.into_c_char_ptr();
+fn msg_puts_printf(str_: &[u8], maxlen: isize) {
+    let slice = if maxlen < 0 {
+        crate::memory::bytes_until_nul(str_)
+    } else {
+        let max_u = (maxlen as usize).min(str_.len());
+        crate::memory::bytes_until_nul(&str_[..max_u])
+    };
     {
-        let mut s = str_;
         let mut buf = [0u8; 7];
 
         if crate::eval::typval::Callback::raw_cb_type(&g_st().on_print) != K_CALLBACK_NONE_CONST {
+            let cstr = crate::memory::cstr_from_bytes(slice);
             let mut argv = [TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(str_.cast_mut()),
+                vval: TypvalVval::String(cstr.as_ptr().cast_mut()),
             }];
             let mut rettv = TypVal {
                 v_type: VarType::VarUnknown,
@@ -3454,11 +3394,11 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
             return;
         }
 
-        while (maxlen < 0 || crate::memory::ptr_offset_from(s, str_) < maxlen)
-            && !crate::memory::cstr_is_empty(s)
-        {
-            let len = utf_ptr2len(s) as usize;
-            let first = crate::memory::cstr_first_byte(s);
+        let mut rem = slice;
+        while !rem.is_empty() {
+            let s_ptr: crate::strings::RawCCharPtr = rem.as_ptr().cast();
+            let len = (utf_ptr2len(s_ptr) as usize).max(1).min(rem.len());
+            let first = rem[0];
             if !(g_st().silent_mode && opt_vars().p_verbose == 0) {
                 let mut pos = 0usize;
                 if first == b'\n'
@@ -3469,7 +3409,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                     buf[pos] = b'\r';
                     pos += 1;
                 }
-                buf[pos..pos + len].copy_from_slice(crate::memory::cstr_slice(s, len));
+                buf[pos..pos + len].copy_from_slice(&rem[..len]);
                 buf[pos + len] = 0;
                 if g_st().info_message {
                     printf!(c"%s", buf.as_ptr());
@@ -3478,7 +3418,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 }
             }
 
-            let cw = utf_char2cells(utf_ptr2char(s));
+            let cw = utf_char2cells(utf_ptr2char(s_ptr));
             if matches!(first, b'\r' | b'\n') {
                 g_st().msg_col = 0;
                 g_st().msg_didout = false;
@@ -3486,7 +3426,7 @@ fn msg_puts_printf(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 g_st().msg_col += cw;
                 g_st().msg_didout = true;
             }
-            s = s.wrapping_add(len);
+            rem = &rem[len..];
         }
     }
 }
@@ -3533,7 +3473,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
             used_typed_char = NUL as i32;
             ch
         } else {
-            get_keystroke(crate::globals::gopt(g_st().resize_events))
+            get_keystroke(unsafe { g_st().resize_events.as_ref() })
         };
 
         let mut toscroll = 0;
@@ -3588,7 +3528,7 @@ fn do_more_prompt(typed_char: i32) -> bool {
                     g_st().lines_left = g_st().rows_global - 1;
                 }
                 K_EVENT => {
-                    multiqueue_process_events(  crate::globals::gmut(g_st().resize_events) );
+                    multiqueue_process_events(unsafe { &mut *g_st().resize_events });
                     to_redraw = true;
                 }
                 _ => {
@@ -3906,16 +3846,18 @@ pub fn msg_ext_ui_flush() {
             let mut msg = HlMessage::new();
             for i in 0..tofree.size {
                 let chunk = tofree[i].data.array().items;
-                let text = crate::globals::gptr(chunk.wrapping_add(1)).data.string();
+                let text = unsafe { (*chunk.wrapping_add(1)).data.string() };
 
-                crate::globals::gptr(chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
-                    data: ptr::null_mut(),
-                    size: 0,
-                });
+                unsafe {
+                    (*chunk.wrapping_add(1)).data = ObjectData::String(NvimString {
+                        data: ptr::null_mut(),
+                        size: 0,
+                    });
+                }
 
                 msg.push(HlMessageChunk {
                     text,
-                    hl_id: crate::globals::gptr(chunk.wrapping_add(2)).data.integer() as i32,
+                    hl_id: unsafe { (*chunk.wrapping_add(2)).data.integer() as i32 },
                 });
             }
             api_free_array(tofree);
@@ -3961,12 +3903,15 @@ pub fn msg_check() {
 }
 
 /// May write a string to the redirection file.
-fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
-    let str_ = str_.into_c_char_ptr();
+fn redir_write(str_: &[u8], maxlen: isize) {
+    let slice = if maxlen < 0 {
+        crate::memory::bytes_until_nul(str_)
+    } else {
+        let max_u = (maxlen as usize).min(str_.len());
+        crate::memory::bytes_until_nul(&str_[..max_u])
+    };
     {
-        let mut s = str_;
-
-        if maxlen == 0 {
+        if maxlen == 0 || slice.is_empty() {
             return;
         }
 
@@ -3979,10 +3924,10 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
         }
 
         if redirecting() != 0 {
-            if !matches!(*crate::globals::gptr(s.cast::<u8>()), b'\n' | b'\r') {
+            if !matches!(slice[0], b'\n' | b'\r') {
                 while msg_st().redir_col < g_st().msg_col {
                     if !g_st().capture_ga.is_null() {
-                        crate::globals::gptr(g_st().capture_ga).push(b' ');
+                        unsafe { &mut *g_st().capture_ga }.push(b' ');
                     }
                     if g_st().redir_reg != 0 {
                         write_reg_contents(g_st().redir_reg, b" ", 1, 1);
@@ -3998,49 +3943,35 @@ fn redir_write(str_: impl crate::strings::IntoCCharPtr, maxlen: isize) {
                 }
             }
 
-            let len = if maxlen == -1 {
-                crate::memory::cstr_len(s)
-            } else {
-                maxlen as usize
-            };
+            let len = slice.len();
             if !g_st().capture_ga.is_null() && len > 0 {
-                crate::globals::gptr(g_st().capture_ga).extend_from_slice(unsafe {
-                    std::slice::from_raw_parts(str_.cast::<u8>(), len)
-                });
+                unsafe { &mut *g_st().capture_ga }.extend_from_slice(slice);
             }
             if g_st().redir_reg != 0 {
-                write_reg_contents(
-                    g_st().redir_reg,
-                    crate::memory::cstr_slice(s, len),
-                    len as isize,
-                    1,
-                );
+                write_reg_contents(g_st().redir_reg, slice, len as isize, 1);
             }
             if g_st().redir_vname {
-                var_redir_str(crate::memory::cstr_slice(s, len));
+                var_redir_str(slice);
             }
 
-            while (maxlen < 0 || (crate::memory::ptr_offset_from(s, str_) as i32) < maxlen as i32)
-                && !crate::memory::cstr_is_empty(s)
-            {
+            for &b in slice {
                 if g_st().redir_reg == 0
                     && !g_st().redir_vname
                     && g_st().capture_ga.is_null()
                     && let Some(ref rf) = g_st().redir_fd
                 {
-                    rf.putc(i32::from(crate::memory::cstr_first_byte(s)));
+                    rf.putc(i32::from(b));
                 }
                 if let Some(ref vf) = msg_st().verbose_fd {
-                    vf.putc(i32::from(crate::memory::cstr_first_byte(s)));
+                    vf.putc(i32::from(b));
                 }
-                if matches!(*crate::globals::gptr(s.cast::<u8>()), b'\r' | b'\n') {
+                if matches!(b, b'\r' | b'\n') {
                     msg_st().redir_col = 0;
-                } else if i32::from(*crate::globals::gptr(s.cast::<u8>())) == TAB {
+                } else if i32::from(b) == TAB {
                     msg_st().redir_col += 8 - msg_st().redir_col % 8;
                 } else {
                     msg_st().redir_col += 1;
                 }
-                s = s.wrapping_add(1);
             }
 
             if g_st().msg_silent != 0 {
@@ -4085,7 +4016,9 @@ pub fn verbose_leave() {
         }
     }
     if !msg_st().pre_verbose_kind.is_null() {
-        msg_ext_set_kind(msg_st().pre_verbose_kind.cast());
+        msg_ext_set_kind(crate::memory::cstr_from_ptr(
+            msg_st().pre_verbose_kind.cast(),
+        ));
         msg_st().pre_verbose_kind = ptr::null();
     }
 }
@@ -4130,8 +4063,7 @@ pub fn verbose_open() -> bool {
 
 /// Give a warning message (for searching).
 /// Use 'w' highlighting and may repeat the message after redrawing
-pub fn give_warning(message: impl crate::strings::IntoCCharPtr, hl: bool, hist: bool) {
-    let message = message.into_c_char_ptr();
+pub fn give_warning(message: &std::ffi::CStr, hl: bool, hist: bool) {
     if g_st().msg_silent != 0 {
         return;
     }
@@ -4141,7 +4073,7 @@ pub fn give_warning(message: impl crate::strings::IntoCCharPtr, hl: bool, hist: 
 
     g_st().no_wait_return += 1;
 
-    set_vim_var_string(VV_WARNINGMSG, crate::memory::cstr_as_opt_cstr(message), -1);
+    set_vim_var_string(VV_WARNINGMSG, Some(message), -1);
     g_st().keep_msg = None;
     if hl {
         g_st().keep_msg_hl_id = HLF_W;
@@ -4154,7 +4086,7 @@ pub fn give_warning(message: impl crate::strings::IntoCCharPtr, hl: bool, hist: 
     }
 
     if msg(message, g_st().keep_msg_hl_id) && g_st().msg_scrolled == 0 {
-        set_keep_msg(message, g_st().keep_msg_hl_id);
+        set_keep_msg(Some(message), g_st().keep_msg_hl_id);
     }
     g_st().msg_didout = false;
     g_st().msg_nowait = true;
@@ -4181,7 +4113,7 @@ pub fn display_confirm_msg() {
     msg_st().confirm_msg_used += 1;
     if let Some(ref msg) = dlg_st().confirm_msg {
         msg_ext_set_kind(c"confirm");
-        msg_puts_hl(msg.as_ptr(), HLF_M, false);
+        msg_puts_hl(msg.as_c_str(), HLF_M, false);
     }
     msg_st().confirm_msg_used -= 1;
 }

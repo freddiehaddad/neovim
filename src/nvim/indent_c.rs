@@ -1586,8 +1586,8 @@ pub fn get_c_indent() -> i32 {
                             if start_off != 0 {
                                 amount += start_off;
                             } else if start_align == i32::from(COM_RIGHT) {
-                                amount += vim_strsize((&raw const lead_start).cast())
-                                    - vim_strsize((&raw const lead_middle).cast());
+                                amount += vim_strsize(crate::memory::cstr_until_nul(&lead_start))
+                                    - vim_strsize(crate::memory::cstr_until_nul(&lead_middle));
                             }
                             break;
                         }
@@ -1598,8 +1598,8 @@ pub fn get_c_indent() -> i32 {
                             if off != 0 {
                                 amount += off;
                             } else if align == i32::from(COM_RIGHT) {
-                                amount += vim_strsize((&raw const lead_start).cast())
-                                    - vim_strsize((&raw const lead_middle).cast());
+                                amount += vim_strsize(crate::memory::cstr_until_nul(&lead_start))
+                                    - vim_strsize(crate::memory::cstr_until_nul(&lead_middle));
                             }
                             done = true;
                             break;
@@ -2868,7 +2868,7 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
             if (try_match || try_match_word) && (curwin_mut().w_cursor.col as usize) >= word_len {
                 let mut matched = false;
                 if keytyped == KEY_COMPLETE {
-                    let line = get_cursor_line_ptr();
+                    let line = get_cursor_line_ptr().as_ptr().cast_mut();
                     let mut s = line.wrapping_add(curwin_mut().w_cursor.col as usize);
                     while s > line {
                         let n = mb_prevptr(line, s);

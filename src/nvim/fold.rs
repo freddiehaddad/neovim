@@ -6,7 +6,7 @@ use crate::api::private::validate::{Error, ErrorType, ObjectType};
 use crate::buffer::{FileBuf, MAXLNUM};
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::change::{TAB, changed_lines};
-use crate::charset::{ascii_isdigit, ascii_iswhite, skipwhite, transstr, vim_isprintc};
+use crate::charset::{ascii_isdigit, ascii_iswhite, transstr, vim_isprintc};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor_col, ltoreq};
 use crate::decoration::{VirtText, next_virt_text_chunk};
 use crate::diff::{diff_infold, diff_lnum_win};
@@ -1520,7 +1520,7 @@ pub fn get_foldtext(
                 }
             }
             text = if idx < slen && bytes[idx] != 0 {
-                Some(transstr(bytes.as_ptr().cast(), true))
+                Some(transstr(&bytes, true))
             } else {
                 Some(CStr::from_bytes_with_nul(&bytes).unwrap().to_owned())
             };
@@ -2687,14 +2687,37 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s = skipwhite(ml_get(lnum));
+        let mut s = {
+            let _sw_p = ml_get(lnum);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
         let s_bytes = crate::memory::cstr_as_bytes(s);
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
-            s = skipwhite(s.wrapping_add(2));
-            if crate::memory::cstr_is_empty(skipwhite(s)) && lnum + 1 < foldend {
-                s = skipwhite(ml_get(lnum + 1));
+            s = {
+                let _sw_p = s.wrapping_add(2);
+                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    _sw_p.cast(),
+                )))
+            };
+            if crate::memory::cstr_is_empty(s.wrapping_add(crate::charset::skipwhite_len(
+                crate::memory::cstr_as_bytes(s.cast()),
+            ))) && lnum + 1 < foldend
+            {
+                s = {
+                    let _sw_p = ml_get(lnum + 1);
+                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                        _sw_p.cast(),
+                    )))
+                };
                 if crate::memory::cstr_first_byte(s) == b'*' {
-                    s = skipwhite(s.wrapping_add(1));
+                    s = {
+                        let _sw_p = s.wrapping_add(1);
+                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                        ))
+                    };
                 }
             }
         }

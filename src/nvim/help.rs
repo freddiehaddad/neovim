@@ -2,9 +2,7 @@
 
 use crate::api::private::helpers::cstr_as_obj;
 use crate::buffer::{bt_help, buflist_findnr_opt, set_buflisted, wipe_buffer};
-use crate::charset::{
-    ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab, skipwhite,
-};
+use crate::charset::{ascii_isalnum, ascii_isalpha, ascii_iswhite, buf_init_isk_chartab};
 use crate::errors::*;
 use crate::eval::K_BOOL_VAR_FALSE_CONST;
 use crate::eval::K_BOOL_VAR_TRUE_CONST;
@@ -480,7 +478,12 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
     if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(arg_bytes[3]) {
         add_help_tags = true;
-        eap.arg = skipwhite(eap.arg.wrapping_add(3));
+        eap.arg = {
+            let _sw_p = eap.arg.wrapping_add(3);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     let mut tv_args = [

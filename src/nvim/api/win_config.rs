@@ -1385,7 +1385,10 @@ pub fn parse_bordertext(
             *is_present = false;
             return;
         }
-        let text_cstr = transstr(bordertext.data.string().data, true);
+        let text_cstr = transstr(
+            crate::memory::cstr_as_bytes(bordertext.data.string().data),
+            true,
+        );
         *width = mb_string2cells(text_cstr.as_bytes()) as i32;
         chunks.clear();
         chunks.push(VirtTextChunk {

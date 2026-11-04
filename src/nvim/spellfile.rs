@@ -3,7 +3,7 @@
 use crate::api::private::helpers::cstr_as_obj;
 use crate::arglist::get_arglist_exp;
 use crate::buffer::{FileBuf, buflist_findname_exp};
-use crate::charset::{NUL, ascii_isdigit, getdigits_int, skipdigits, skipwhite};
+use crate::charset::{NUL, ascii_isdigit, getdigits_int, skipdigits_slice};
 use crate::cursor::Linenr;
 use crate::drawscreen::{UPD_SOME_VALID, redraw_all_later};
 use crate::errors::*;
@@ -1901,9 +1901,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                     );
                 }
             } else if is_aff_rule(&items, itemcnt_i, c"COMPOUNDRULE", 2) {
-                if compflags.is_some()
-                    || !crate::memory::cstr_is_empty(skipdigits(items[1].as_ptr()))
-                {
+                if compflags.is_some() || !skipdigits_slice(items[1].to_bytes()).is_empty() {
                     let mut bytes = compflags
                         .as_ref()
                         .map_or_else(Vec::new, |s| s.to_bytes().to_vec());
@@ -2785,9 +2783,12 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     spin.si_msg_count = 999999;
 
     if vim_fgets(&mut line, &fd)
-        || !ascii_isdigit(crate::memory::cstr_first_byte(skipwhite(
-            line.as_ptr().cast(),
-        )))
+        || !ascii_isdigit(crate::memory::cstr_first_byte({
+            let _sw_p = line.as_ptr().cast::<std::ffi::c_char>();
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        }))
     {
         semsg!(gettext(c"E760: No word count in %s"), fname);
     }
@@ -2864,7 +2865,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
                     w.cast::<std::ffi::c_void>(),
                 );
                 msg_start();
-                msg_outtrans_long(message.as_ptr().cast(), 0);
+                msg_outtrans_long(crate::memory::cstr_until_nul(&message), 0);
                 msg_clr_eos();
                 g_st().msg_didout = false;
                 g_st().msg_col = 0;
@@ -4412,7 +4413,12 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 
     if crate::memory::cstr_as_bytes(arg).starts_with(b"-ascii") {
         ascii = true;
-        arg = skipwhite(arg.wrapping_add(6));
+        arg = {
+            let _sw_p = arg.wrapping_add(6);
+            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                _sw_p.cast(),
+            )))
+        };
     }
 
     if !get_arglist_exp(crate::memory::cstr_as_bytes(arg), &mut fnames, false) {
@@ -4943,7 +4949,7 @@ fn spell_message(spin: &Spellinfo, str_: &std::ffi::CStr) {
         if spin.si_verbose == 0 {
             verbose_enter();
         }
-        msg(str_.as_ptr(), 0);
+        msg(str_, 0);
         ui_flush();
         if spin.si_verbose == 0 {
             verbose_leave();

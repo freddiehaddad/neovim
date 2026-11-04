@@ -8,8 +8,8 @@ use crate::autocmd::HLF_8;
 use crate::buffer::{FileBuf, bt_quickfix, buf_meta_total};
 use crate::change::TAB;
 use crate::charset::{
-    K_OPT_DY_FLAG_UHEX, NUL, ascii_isdigit, ascii_iswhite, rl_mirror_ascii, skipwhite,
-    transchar_buf, transchar_hex, transstr_buf, vim_isprintc,
+    K_OPT_DY_FLAG_UHEX, NUL, ascii_isdigit, ascii_iswhite, rl_mirror_ascii, transchar_buf,
+    transchar_hex, transstr_buf, vim_isprintc,
 };
 use crate::cursor::{Colnr, CursorPos, Linenr, VALID_VIRTCOL, get_cursor_rel_lnum, ltoreq};
 use crate::decoration::{
@@ -2656,7 +2656,14 @@ pub fn win_line(
                     let mut v1 = crate::memory::ptr_offset_from(ptr, line) as i32;
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
-                        if mb_schar != 0 && unsafe { *skipwhite(prev_ptr) } != NUL && can_spell {
+                        if mb_schar != 0
+                            && unsafe {
+                                *prev_ptr.wrapping_add(crate::charset::skipwhite_len(
+                                    crate::memory::cstr_as_bytes(prev_ptr.cast()),
+                                ))
+                            } != NUL
+                            && can_spell
+                        {
                             let mut spell_hlf: Hlf = HLF_COUNT;
                             v1 -= mb_l - 1;
 

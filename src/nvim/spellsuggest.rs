@@ -1,7 +1,7 @@
 //! Functions for spelling suggestions (`src/nvim/spellsuggest.c`).
 use crate::buffer::FileBuf;
 use crate::change::inserted_bytes;
-use crate::charset::{ascii_iswhite, getdigits_int, skiptowhite, skipwhite};
+use crate::charset::{ascii_iswhite, getdigits_int};
 use crate::cursor::{
     Colnr, check_cursor, get_cursor_line_len, get_cursor_line_ptr, get_cursor_line_slice,
 };
@@ -670,7 +670,7 @@ pub fn spell_suggest(count: i32) {
             || curwin_mut().w_cursor.col > prev_cursor.col
         {
             curwin_mut().w_cursor = prev_cursor;
-            let curline = get_cursor_line_ptr();
+            let curline = get_cursor_line_ptr().as_ptr().cast_mut();
             let curline_bytes = get_cursor_line_slice();
             let mut p_idx = (curwin_mut().w_cursor.col as usize).min(curline_bytes.len());
             while p_idx > 0 && spell_iswordp_nmw(&curline_bytes[p_idx..], curwin_mut()) {
@@ -1037,9 +1037,16 @@ fn spell_suggest_intern(su: &mut Suginfo, interactive: bool) {
 fn suggest_try_special(su: &mut Suginfo) {
     let mut word: [u8; MAXWLEN] = [0; MAXWLEN];
     let fbadword_ptr = su.su_fbadword.as_mut_ptr();
-    let mut p = skiptowhite(fbadword_ptr.cast());
+    let mut p = {
+        let _sw_p = fbadword_ptr.cast::<std::ffi::c_char>();
+        _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+            crate::memory::cstr_as_bytes(_sw_p.cast()),
+        ))
+    };
     let len = crate::memory::ptr_offset_from(p, fbadword_ptr.cast()) as usize;
-    p = skipwhite(p);
+    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+        p.cast(),
+    )));
     if crate::memory::cstr_as_bytes(p) == &su.su_fbadword[..len] {
         make_case_word(&su.su_fbadword[..len], &mut word, su.su_badflags);
         add_suggestion(
@@ -1320,8 +1327,24 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                             }
                             if compound_ok {
                                 p = preword.as_mut_ptr();
-                                while !crate::memory::cstr_is_empty(skiptowhite(p.cast())) {
-                                    p = skipwhite(skiptowhite(p.cast())).cast();
+                                while !crate::memory::cstr_is_empty({
+                                    let _sw_p = p.cast::<std::ffi::c_char>();
+                                    _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                    ))
+                                }) {
+                                    p = {
+                                        let _sw_p = {
+                                            let _sw_p = p.cast::<std::ffi::c_char>();
+                                            _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                            ))
+                                        };
+                                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                        ))
+                                    }
+                                    .cast();
                                 }
                                 if fword_ends
                                     && !can_compound(
@@ -1520,8 +1543,24 @@ fn suggest_trie_walk(su: &mut Suginfo, lp: &Langp, fword_buf: &mut [u8; MAXWLEN]
                                     continue;
                                 }
                                 p = preword.as_mut_ptr();
-                                while !crate::memory::cstr_is_empty(skiptowhite(p.cast())) {
-                                    p = skipwhite(skiptowhite(p.cast())).cast();
+                                while !crate::memory::cstr_is_empty({
+                                    let _sw_p = p.cast::<std::ffi::c_char>();
+                                    _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                    ))
+                                }) {
+                                    p = {
+                                        let _sw_p = {
+                                            let _sw_p = p.cast::<std::ffi::c_char>();
+                                            _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                                                crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                            ))
+                                        };
+                                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
+                                            crate::memory::cstr_as_bytes(_sw_p.cast()),
+                                        ))
+                                    }
+                                    .cast();
                                 }
                                 if stack[udepth].ts_complen > stack[udepth].ts_compsplit
                                     && !can_compound(
@@ -2353,8 +2392,12 @@ fn stp_sal_score(stp: &Suggest, su: &Suginfo, slang: &mut Slang, badsound: &[u8]
         );
         if ascii_iswhite(crate::memory::cstr_first_byte(
             su.su_badptr.wrapping_add(su.su_badlen as usize).cast(),
-        )) && crate::memory::cstr_is_empty(skiptowhite(stp.st_word.as_ptr()))
-        {
+        )) && crate::memory::cstr_is_empty({
+            let _sw_p = stp.st_word.as_ptr();
+            _sw_p.wrapping_add(crate::charset::skiptowhite_len(
+                crate::memory::cstr_as_bytes(_sw_p.cast()),
+            ))
+        }) {
             let mut fword_len = crate::memory::cstr_until_nul(&fword).to_bytes().len();
             let mut idx = 0;
             while idx < fword_len {

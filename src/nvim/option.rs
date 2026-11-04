@@ -1844,9 +1844,8 @@ pub fn get_option_newval(
                 .is_some_and(|&b| b == b'-' || b.is_ascii_digit())
             {
                 let mut i: i32 = 0;
-                let arg_cstr = crate::memory::cstr_from_bytes(arg_bytes);
                 vim_str2nr(
-                    arg_cstr.as_ptr(),
+                    arg_bytes,
                     None,
                     Some(&mut i),
                     STR2NR_ALL,
@@ -2110,7 +2109,7 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                     trans_characters(iobuf);
 
                     g_st().no_wait_return += 1;
-                    emsg(g_st().iobuff.as_ptr());
+                    emsg(crate::memory::cstr_until_nul(g_st().iobuff_bytes()));
                     g_st().no_wait_return -= 1;
 
                     return false;
@@ -6064,7 +6063,7 @@ fn showoptions(all: bool, opt_flags: i32) {
         items.clear();
         for opt_idx in 0..K_OPT_COUNT {
             let opt = get_option(opt_idx);
-            if message_filtered(opt.fullname.as_ptr().cast_mut()) {
+            if message_filtered(opt.fullname) {
                 continue;
             }
 
@@ -6084,7 +6083,7 @@ fn showoptions(all: bool, opt_flags: i32) {
                 } else {
                     optval_fmt(opt_idx, opt_flags);
                     (opt.fullname.to_bytes().len() as i32)
-                        + vim_strsize(g_st().name_buff.as_ptr())
+                        + vim_strsize(crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut()))
                         + 1
                 };
                 if (len <= INC - GAP && run == 1) || (len > INC - GAP && run == 2) {
@@ -6184,13 +6183,13 @@ fn showoneopt(opt: &mut Vimoption, opt_flags: i32) {
     } else {
         msg_puts(c"  ");
     }
-    msg_puts(opt.fullname.as_ptr());
+    msg_puts(opt.fullname);
     if !option_has_type(opt_idx, ObjectType::ObjectTypeBoolean) {
         msg_putchar(b'=' as i32);
         optval_fmt(opt_idx, opt_flags);
         let namebuf_ptr = g_st().name_buff.as_ptr();
         if !crate::memory::cstr_is_empty(namebuf_ptr) {
-            msg_outtrans(namebuf_ptr, 0, false);
+            msg_outtrans(crate::memory::cstr_from_ptr(namebuf_ptr), 0, false);
         }
     }
 
