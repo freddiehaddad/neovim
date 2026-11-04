@@ -1061,7 +1061,7 @@ pub fn readfile(
         curbuf_mut().b_no_eol_lnum = 0;
 
         'theend: {
-            if curbuf_mut().b_ffname.is_null()
+            if curbuf_mut().b_ffname.is_none()
                 && !filtering
                 && !fname.is_null()
                 && crate::strings::vim_haschr(
@@ -1078,12 +1078,14 @@ pub fn readfile(
             }
 
             let old_curbuf = g_st().curbuf;
-            let old_b_ffname = curbuf_mut().b_ffname;
-            let old_b_fname = curbuf_mut().b_fname;
-            let using_b_ffname =
-                fname == curbuf_mut().b_ffname.cast() || sfname == curbuf_mut().b_ffname.cast();
-            let using_b_fname =
-                fname == curbuf_mut().b_fname.cast() || sfname == curbuf_mut().b_fname.cast();
+            let old_b_ffname = curbuf_mut()
+                .ffname_opt()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            let old_b_fname = curbuf_mut()
+                .fname_opt()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            let using_b_ffname = fname == old_b_ffname.cast() || sfname == old_b_ffname.cast();
+            let using_b_fname = fname == old_b_fname.cast() || sfname == old_b_fname.cast();
 
             g_st().need_fileinfo = false;
 
@@ -1123,7 +1125,7 @@ pub fn readfile(
                             apply_autocmds(
                                 EVENT_FILETYPE,
                                 crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
-                                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                                curbuf_mut().fname_opt(),
                                 true,
                                 curbuf_opt_mut(),
                             );
@@ -1304,8 +1306,16 @@ pub fn readfile(
                     if !bt_dontwrite(Some(crate::globals::curbuf_mut())) {
                         check_need_swap(newfile);
                         if g_st().curbuf != old_curbuf
-                            || (using_b_ffname && old_b_ffname != curbuf_mut().b_ffname)
-                            || (using_b_fname && old_b_fname != curbuf_mut().b_fname)
+                            || (using_b_ffname
+                                && old_b_ffname
+                                    != curbuf_mut()
+                                        .ffname_opt()
+                                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
+                            || (using_b_fname
+                                && old_b_fname
+                                    != curbuf_mut()
+                                        .fname_opt()
+                                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
                         {
                             emsg(tr(E_AUCHANGEDBUF));
                             break 'theend;
@@ -1386,8 +1396,16 @@ pub fn readfile(
                 check_need_swap(newfile);
                 if !read_stdin
                     && (g_st().curbuf != old_curbuf
-                        || (using_b_ffname && old_b_ffname != curbuf_mut().b_ffname)
-                        || (using_b_fname && old_b_fname != curbuf_mut().b_fname))
+                        || (using_b_ffname
+                            && old_b_ffname
+                                != curbuf_mut()
+                                    .ffname_opt()
+                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
+                        || (using_b_fname
+                            && old_b_fname
+                                != curbuf_mut()
+                                    .fname_opt()
+                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())))
                 {
                     emsg(tr(E_AUCHANGEDBUF));
                     if !read_buffer {
@@ -1521,8 +1539,16 @@ pub fn readfile(
 
                 if !read_stdin
                     && (g_st().curbuf != old_curbuf
-                        || (using_b_ffname && old_b_ffname != curbuf_mut().b_ffname)
-                        || (using_b_fname && old_b_fname != curbuf_mut().b_fname)
+                        || (using_b_ffname
+                            && old_b_ffname
+                                != curbuf_mut()
+                                    .ffname_opt()
+                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
+                        || (using_b_fname
+                            && old_b_fname
+                                != curbuf_mut()
+                                    .fname_opt()
+                                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()))
                         || {
                             fd = os_open(crate::memory::cstr_from_ptr(fname.cast()), O_RDONLY, 0);
                             fd < 0
@@ -1730,7 +1756,7 @@ pub fn readfile(
                     conv_restlen = 0;
                     read_undo_file = newfile
                         && (flags & READ_KEEP_UNDO) == 0
-                        && !curbuf_mut().b_ffname.is_null()
+                        && curbuf_mut().b_ffname.is_some()
                         && curbuf_mut().b_p_udf != 0
                         && !filtering
                         && !read_fifo
@@ -2973,7 +2999,7 @@ pub fn readfile(
                         apply_autocmds(
                             EVENT_FILETYPE,
                             crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
-                            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                            curbuf_mut().fname_opt(),
                             true,
                             curbuf_opt_mut(),
                         );
@@ -3414,38 +3440,31 @@ fn check_for_bom(bytes: &[u8], lenp: &mut i32, flags: i32) -> Option<&'static CS
 
 /// Shorten filename of a buffer.
 pub fn shorten_buf_fname(buf: &mut FileBuf, dirname: &CStr, force: i32) -> bool {
-    if buf.b_fname.is_null()
+    if buf.fname_opt().is_none()
         || bt_nofilename(Some(&*buf))
-        || path_with_url(crate::memory::cstr_as_bytes((buf.b_fname).cast()))
-        || !(force != 0
-            || buf.b_sfname.is_null()
-            || path_is_absolute(crate::memory::cstr_as_bytes((buf.b_sfname).cast())))
+        || path_with_url(buf.fname_bytes())
+        || !(force != 0 || buf.b_sfname.is_none() || path_is_absolute(buf.sfname_bytes()))
     {
         return false;
     }
 
     let p = path_shorten_fname(
-        crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast()),
+        buf.ffname_opt(),
         crate::memory::cstr_from_ptr(dirname.as_ptr().cast_mut().cast()),
     );
     let shorten = p.is_some_and(|s| !s.to_bytes().is_empty());
-    if shorten && !buf.b_sfname.is_null() && p == Some(crate::memory::cstr_from_ptr(buf.b_sfname)) {
+    if shorten && buf.b_sfname.is_some() && p == Some(buf.sfname_cstr()) {
         return false;
     }
 
-    let new_fname = if shorten {
-        p
-    } else {
-        crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast())
-    };
-    let changed =
-        new_fname.is_none() || new_fname != crate::memory::cstr_as_opt_cstr((buf.b_fname).cast());
+    let new_fname = if shorten { p } else { buf.ffname_opt() };
+    let changed = new_fname.is_none() || new_fname != buf.fname_opt();
 
     buf.set_sfname(shorten.then(|| p.unwrap().to_owned()));
     if shorten {
-        buf.b_fname = buf.b_sfname;
+        buf.b_fname = crate::buffer::BufFname::Short;
     } else {
-        buf.b_fname = buf.b_ffname;
+        buf.b_fname = crate::buffer::BufFname::Full;
     }
     changed
 }
@@ -3929,7 +3948,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     set_bufref(&mut bufref, Some(&mut *buf));
 
     if !buf.terminal.is_null()
-        || buf.b_ffname.is_null()
+        || buf.b_ffname.is_none()
         || buf.b_ml.ml_mfp.is_none()
         || !bt_normal(Some(&*buf))
         || buf.b_saving
@@ -3943,10 +3962,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     if (buf.b_flags & BF_NOTEDITED) == 0
         && buf.b_mtime != 0
         && ({
-            file_info_ok = os_fileinfo(
-                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
-                &mut file_info,
-            );
+            file_info_ok = os_fileinfo(buf.ffname_cstr(), &mut file_info);
             !file_info_ok
                 || time_differs(&file_info, buf.b_mtime, buf.b_mtime_ns)
                 || (file_info.stat.st_mode as i32) != buf.b_orig_mode
@@ -3964,7 +3980,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             buf_store_file_info(&mut *buf, &mut file_info);
         }
 
-        if os_isdir(crate::memory::cstr_from_ptr((buf.b_fname).cast())) {
+        if os_isdir(buf.fname_cstr()) {
             // Don't do anything for a directory.
         } else if (if buf.b_p_ar >= 0 {
             buf.b_p_ar
@@ -3992,7 +4008,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
             set_vim_var_string(VV_FCS_REASON, Some(reason), reasonlen);
             set_vim_var_string(VV_FCS_CHOICE, Some(c""), 0);
             g_st().allbuf_lock += 1;
-            let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+            let b_fname = buf.fname_opt();
             let mut n = apply_autocmds(
                 EVENT_FILECHANGEDSHELL,
                 b_fname,
@@ -4051,7 +4067,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
         }
     } else if (buf.b_flags & BF_NEW) != 0
         && (buf.b_flags & BF_NEW_W) == 0
-        && os_path_exists(crate::memory::cstr_from_ptr((buf.b_ffname).cast()))
+        && os_path_exists(buf.ffname_cstr())
     {
         retval = 1;
         mesg = Some(tr(
@@ -4062,10 +4078,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if let Some(mesg) = mesg {
-        let path = home_replace_save(
-            Some(buf),
-            crate::memory::cstr_as_opt_cstr((buf.b_fname).cast()),
-        );
+        let path = home_replace_save(Some(buf), buf.fname_opt());
         if !helpmesg {
             mesg2 = c"";
         }
@@ -4137,7 +4150,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
 
     if reload != RELOAD_NONE {
         buf_reload(&mut *buf, orig_mode, reload == RELOAD_DETECT);
-        if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && !buf.b_ffname.is_null() {
+        if bufref_valid(Some(&bufref)) && buf.b_p_udf != 0 && buf.b_ffname.is_some() {
             let mut hash: [u8; UNDO_HASH_SIZE] = [0; UNDO_HASH_SIZE];
             u_compute_hash(buf, &mut hash);
             u_write_undo(None, false, buf, &hash);
@@ -4145,7 +4158,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
     }
 
     if bufref_valid(Some(&bufref)) && retval != 0 {
-        let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+        let b_fname = buf.fname_opt();
         apply_autocmds(
             EVENT_FILECHANGEDSHELLPOST,
             b_fname,
@@ -4215,7 +4228,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         {
             semsg!(
                 tr(c"E462: Could not prepare for reloading \"%s\""),
-                buf.b_fname,
+                buf.fname_cstr(),
             );
             saved = FAIL;
         }
@@ -4225,8 +4238,8 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         curbuf_mut().b_flags |= BF_CHECK_RO;
         curbuf_mut().b_keep_filetype = true;
         if readfile(
-            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
-            crate::memory::cstr_as_opt_cstr(buf.b_fname),
+            buf.ffname_opt(),
+            buf.fname_opt(),
             0,
             0,
             MAXLNUM,
@@ -4236,7 +4249,7 @@ pub fn buf_reload(buf: &mut FileBuf, orig_mode: i32, reload_options: bool) {
         ) != OK
         {
             if !aborting() {
-                semsg!(tr(c"E321: Could not reload \"%s\""), buf.b_fname,);
+                semsg!(tr(c"E321: Could not reload \"%s\""), buf.fname_cstr(),);
             }
             if bufref_valid(Some(&bufref))
                 && let Some(sb) = bufref.buf_opt()

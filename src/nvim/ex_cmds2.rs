@@ -123,7 +123,7 @@ pub fn autowrite(buf: &mut FileBuf, forceit: bool) -> bool {
         || opt_vars().p_write == 0
         || bt_dontwrite(Some(&*buf))
         || (!forceit && buf.b_p_ro != 0)
-        || buf.b_ffname.is_null()
+        || buf.b_ffname.is_none()
     {
         return false;
     }
@@ -179,7 +179,7 @@ pub fn check_changed(buf: &mut FileBuf, flags: i32) -> bool {
 
             if (flags & CCGD_ALLBUF) != 0 {
                 for buf2 in for_all_buffers_mut() {
-                    if buf_is_changed_fn(buf2) && !buf2.b_ffname.is_null() {
+                    if buf_is_changed_fn(buf2) && buf2.b_ffname.is_some() {
                         count += 1;
                     }
                 }
@@ -208,11 +208,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
     let mut ea: Exarg = Exarg::new();
 
-    let fname = if !buf.b_fname.is_null() {
-        buf.b_fname.cast_const()
-    } else {
-        gettext(c"Untitled").as_ptr()
-    };
+    let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
     vim_snprintf!(
         buff.as_mut_ptr().cast(),
         DIALOG_MSG_SIZE,
@@ -227,24 +223,18 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     };
 
     if ret == VIM_YES {
-        let empty_bufname = buf.b_fname.is_null();
+        let empty_bufname = buf.fname_opt().is_none();
         if empty_bufname {
             buf_set_name(buf.b_fnum, c"Untitled");
         }
 
-        if check_overwrite(
-            &mut ea,
-            buf,
-            crate::memory::cstr_as_opt_cstr(buf.b_fname),
-            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
-            false,
-        ) && buf_write_all(buf, false) == OK
+        if check_overwrite(&mut ea, buf, buf.fname_opt(), buf.ffname_opt(), false)
+            && buf_write_all(buf, false) == OK
         {
             return;
         }
 
         if empty_bufname {
-            buf.b_fname = ptr::null_mut();
             buf.clear_fnames();
         }
     } else if ret == VIM_NO {
@@ -252,20 +242,13 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_ALL {
         let mut buf2 = g_st().firstbuf;
         while let Some(buf2_ref) = unsafe { buf2.as_mut() } {
-            if buf_is_changed_fn(buf2_ref) && !buf2_ref.b_ffname.is_null() && buf2_ref.b_p_ro == 0 {
+            if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && buf2_ref.b_p_ro == 0 {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf2_ref));
 
-                let b_fname = buf2_ref.b_fname;
-                let b_ffname = buf2_ref.b_ffname;
-                if !b_fname.is_null()
-                    && check_overwrite(
-                        &mut ea,
-                        buf2_ref,
-                        crate::memory::cstr_as_opt_cstr(b_fname),
-                        crate::memory::cstr_as_opt_cstr(b_ffname),
-                        false,
-                    )
+                let b_fname = buf2_ref.fname_opt();
+                let b_ffname = buf2_ref.ffname_opt();
+                if b_fname.is_some() && check_overwrite(&mut ea, buf2_ref, b_fname, b_ffname, false)
                 {
                     buf_write_all(unsafe { &mut *buf2 }, false);
                 }
@@ -287,11 +270,7 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
 /// Ask the user whether to close the terminal buffer or not (`dialog_close_terminal`).
 pub fn dialog_close_terminal(buf: &mut FileBuf) -> bool {
     let mut buff = [0u8; DIALOG_MSG_SIZE];
-    let fname = if !buf.b_fname.is_null() {
-        buf.b_fname.cast_const()
-    } else {
-        c"?".as_ptr()
-    };
+    let fname = buf.fname_opt().unwrap_or(c"?");
     vim_snprintf!(
         buff.as_mut_ptr().cast(),
         DIALOG_MSG_SIZE,
@@ -385,17 +364,13 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                 if !buf_ref.terminal.is_null() && channel_job_running(buf_ref.b_p_channel as u64) {
                     semsg!(
                         gettext(c"E947: Job still running in buffer \"%s\""),
-                        buf_ref.b_fname,
+                        buf_ref.fname_cstr(),
                     )
                 } else {
                     let sp = buf_spname(buf_ref);
                     semsg!(
                         gettext(c"E162: No write since last change for buffer \"%s\""),
-                        if let Some(sp) = sp {
-                            sp.as_ptr()
-                        } else {
-                            buf_ref.b_fname.cast_const()
-                        },
+                        sp.unwrap_or_else(|| buf_ref.fname_cstr()),
                     )
                 };
             if shown && g_st().msg_didany {
@@ -448,7 +423,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
 
 /// Return `FAIL` if there is no file name, `OK` if there is one (`check_fname`).
 pub fn check_fname() -> bool {
-    if curbuf_mut().b_ffname.is_null() {
+    if curbuf_mut().b_ffname.is_none() {
         emsg(gettext(E_NONAME));
         return false;
     }
@@ -460,8 +435,8 @@ pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> i32 {
     let old_curbuf = g_st().curbuf;
     let retval = buf_write(
         buf,
-        crate::memory::cstr_as_opt_cstr(buf.b_ffname),
-        crate::memory::cstr_as_opt_cstr(buf.b_fname),
+        buf.ffname_opt(),
+        buf.fname_opt(),
         1,
         buf.b_ml.ml_line_count,
         None,
@@ -718,13 +693,13 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     apply_autocmds(
                         EVENT_SYNTAX,
                         crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_syn),
-                        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                        curbuf_mut().fname_opt(),
                         true,
                         curbuf_opt_mut(),
                     );
                 } else {
                     let b_p_syn = crate::memory::cstr_as_opt_cstr(buf_ref.b_p_syn);
-                    let b_fname = crate::memory::cstr_as_opt_cstr(buf_ref.b_fname);
+                    let b_fname = buf_ref.fname_opt();
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
                     apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, unsafe {

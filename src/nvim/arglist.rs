@@ -404,10 +404,10 @@ fn do_arglist(str_cstr: &CStr, what: i32, after: i32, will_edit: bool) -> bool {
     }
 
     if what == AL_ADD && str_bytes.is_empty() {
-        if curbuf_mut().b_ffname.is_null() {
+        if curbuf_mut().b_ffname.is_none() {
             return false;
         }
-        str_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
+        str_bytes = curbuf_mut().fname_bytes();
         arg_escaped = false;
     }
 
@@ -456,13 +456,13 @@ pub fn editing_arg_idx(win: &mut WinInfoInfo) -> bool {
     if win.buf_mut().b_fnum == entry.ae_fnum {
         return true;
     }
-    let ffname = win.buf_mut().b_ffname;
-    !ffname.is_null()
-        && path_equal(
+    win.buf_mut().ffname_opt().is_some_and(|ffname| {
+        path_equal(
             alist_name(entry).unwrap_or(c""),
-            crate::memory::cstr_from_ptr((ffname).cast()),
+            ffname,
             K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
         )
+    })
 }
 
 /// Check if window `win` is editing the `w_arg_idx` file in its argument list (`check_arg_idx`).
@@ -480,10 +480,10 @@ pub fn check_arg_idx(win: &mut WinInfoInfo) {
             let last_entry = &garglist_slice()[(gcount - 1) as usize];
             let buf = win.buf_mut();
             if buf.b_fnum == last_entry.ae_fnum
-                || (!buf.b_ffname.is_null()
+                || (buf.b_ffname.is_some()
                     && path_equal(
                         alist_name(last_entry).unwrap_or(c""),
-                        crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                        buf.ffname_cstr(),
                         K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                     ))
             {
@@ -734,7 +734,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
 
     if curwin_mut().w_arg_idx == 0
         && (curbuf_mut().b_ml.ml_flags & ML_EMPTY) != 0
-        && (curbuf_mut().b_ffname.is_null() || curbuf_is_reusable)
+        && (curbuf_mut().b_ffname.is_none() || curbuf_is_reusable)
     {
         i = 0;
     }
@@ -820,9 +820,9 @@ pub fn get_arglist_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
 /// Get the file name for an argument list entry (`alist_name`).
 pub fn alist_name(aep: &Aentry) -> Option<&'static CStr> {
     if let Some(bp) = buflist_findnr_opt(aep.ae_fnum)
-        && !bp.b_fname.is_null()
+        && bp.fname_opt().is_some()
     {
-        Some(crate::memory::cstr_from_ptr(bp.b_fname))
+        Some(bp.fname_cstr())
     } else {
         aep.ae_fname
             .as_ref()
@@ -863,7 +863,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             let aall_ref = &mut *aall;
             let opened_len = aall_ref.opened.len() as i32;
             let mut i: i32;
-            if buf.b_ffname.is_null()
+            if buf.b_ffname.is_none()
                 || (!aall_ref.keep_tabs
                     && (buf.b_nwindows > 1
                         || unsafe { (*wp).w_width } != g_st().columns_global
@@ -879,7 +879,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                         if entry.ae_fnum == buf.b_fnum
                             || path_equal(
                                 alist_name(entry).unwrap_or(c""),
-                                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                                buf.ffname_cstr(),
                                 K_PATH_CMP_EXPAND | K_PATH_CMP_FULL,
                             )
                         {
@@ -974,7 +974,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
     if aall.keep_tabs
         && buf_is_empty(curbuf_mut())
         && curbuf_mut().b_nwindows == 1
-        && curbuf_mut().b_ffname.is_null()
+        && curbuf_mut().b_ffname.is_none()
         && curbuf_mut().b_changed == 0
     {
         aall.use_firstwin = true;

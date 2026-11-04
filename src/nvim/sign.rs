@@ -354,11 +354,7 @@ fn sign_list_placed(rbuf: Option<&FileBuf>, group: Option<&CStr>) {
         let buf_ref = unsafe { &*buf };
         if buf_has_signs(buf_ref) {
             msg_putchar(b'\n' as i32);
-            let fname = if !buf_ref.b_fname.is_null() {
-                buf_ref.b_fname.cast_const()
-            } else {
-                gettext(c"Untitled").as_ptr()
-            };
+            let fname = buf_ref.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
             vim_snprintf!(
                 lbuf.as_mut_ptr().cast(),
                 MSG_BUF_LEN,
@@ -739,7 +735,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
         check_cursor_lnum(curwin_mut());
         beginline(BL_WHITE);
     } else {
-        if buf.b_fname.is_null() {
+        if buf.fname_opt().is_none() {
             emsg(gettext(
                 c"E934: Cannot jump to a buffer that does not have a name",
             ));

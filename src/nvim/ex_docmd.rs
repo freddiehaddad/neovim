@@ -4933,14 +4933,10 @@ fn is_other_file(fnum: i32, ffname: Option<&CStr>) -> bool {
     }
 
     if !curbuf_mut().file_id_valid
-        && !curbuf_mut().b_sfname.is_null()
-        && !crate::memory::cstr_is_empty(curbuf_mut().b_sfname)
+        && curbuf_mut().b_sfname.is_some()
+        && !curbuf_mut().sfname_bytes().is_empty()
     {
-        return !path_equal(
-            ffname,
-            crate::memory::cstr_from_ptr((curbuf_mut().b_sfname).cast()),
-            K_PATH_CMP_LITERAL,
-        );
+        return !path_equal(ffname, curbuf_mut().sfname_cstr(), K_PATH_CMP_LITERAL);
     }
 
     otherfile(Some(ffname))
@@ -9190,7 +9186,7 @@ fn check_more(message: bool, forceit: bool) -> bool {
     {
         if message {
             if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-                && !curbuf_mut().b_fname.is_null()
+                && curbuf_mut().fname_opt().is_some()
             {
                 let mut buff = [0u8; DIALOG_MSG_SIZE];
                 let _ = vim_snprintf!(
@@ -10335,7 +10331,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
                     crate::memory::cstr_as_bytes(eap.arg),
                     FNAME_MESS,
                     i32::from(true),
-                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                    curbuf_mut().ffname_opt(),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10504,7 +10500,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             } else {
                 home_replace(
                     wp.buf_opt(),
-                    crate::memory::cstr_as_opt_cstr(wp.buf_mut().b_fname),
+                    wp.buf_mut().fname_opt(),
                     g_st().iobuff_bytes_mut(),
                     true,
                 );
@@ -10740,7 +10736,7 @@ fn ex_find(eap: &mut Exarg) {
             crate::memory::cstr_as_bytes(eap.arg),
             FNAME_MESS,
             i32::from(true),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            curbuf_mut().ffname_opt(),
             &mut file_to_find,
             &mut search_ctx,
         );
@@ -10754,7 +10750,7 @@ fn ex_find(eap: &mut Exarg) {
                     &[],
                     FNAME_MESS,
                     i32::from(false),
-                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                    curbuf_mut().ffname_opt(),
                     &mut file_to_find,
                     &mut search_ctx,
                 );
@@ -10983,8 +10979,8 @@ fn ex_read(eap: &mut Exarg) {
             return;
         }
         readfile(
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().ffname_opt(),
+            curbuf_mut().fname_opt(),
             eap.line2,
             0,
             MAXLNUM,
@@ -12356,12 +12352,12 @@ pub fn eval_vars(
     } else {
         match spec_idx {
             SPEC_PERC => {
-                if curbuf_mut().b_fname.is_null() {
+                if let Some(f) = curbuf_mut().fname_opt() {
+                    result = f.as_ptr().cast_mut();
+                    tilde_file = f.to_bytes() == b"~";
+                } else {
                     result = c"".as_ptr().cast_mut();
                     valid = 0;
-                } else {
-                    result = curbuf_mut().b_fname;
-                    tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                 }
                 use_shellslash = true;
             }
@@ -12411,12 +12407,12 @@ pub fn eval_vars(
                         if let Some(lnump) = lnump {
                             *lnump = ECMD_LAST;
                         }
-                        if buf.b_fname.is_null() {
+                        if let Some(f) = buf.fname_opt() {
+                            result = f.as_ptr().cast_mut();
+                            tilde_file = f.to_bytes() == b"~";
+                        } else {
                             result = c"".as_ptr().cast_mut();
                             valid = 0;
-                        } else {
-                            result = buf.b_fname;
-                            tilde_file = crate::memory::cstr_as_bytes(result) == b"~";
                         }
                     }
                 }

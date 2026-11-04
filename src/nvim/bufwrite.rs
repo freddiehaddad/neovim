@@ -347,9 +347,13 @@ fn make_bom(buf_in: &mut [u8], name: &CStr) -> i32 {
 }
 
 struct BufWriteNames {
-    fname: *mut std::ffi::c_char,
-    sfname: *mut std::ffi::c_char,
-    ffname: *mut std::ffi::c_char,
+    fname: Option<std::ffi::CString>,
+    sfname: Option<std::ffi::CString>,
+    ffname: Option<std::ffi::CString>,
+    buf_ffname: bool,
+    buf_sfname: bool,
+    buf_fname_f: bool,
+    buf_fname_s: bool,
 }
 
 fn buf_write_do_autocmds(
@@ -375,16 +379,10 @@ fn buf_write_do_autocmds(
     let mut nofile_err = false;
     let empty_memline = unsafe { (*buf).b_ml.ml_mfp.is_none() };
 
-    let sfname = names.sfname;
-    let buf_ffname = unsafe { names.ffname == (*buf).b_ffname };
-    let buf_sfname = unsafe { sfname == (*buf).b_sfname };
-    let buf_fname_f = unsafe { names.fname == (*buf).b_ffname };
-    let buf_fname_s = unsafe { names.fname == (*buf).b_sfname };
-
     let _ = ctx_switch(&mut aco, None, None, unsafe { buf.as_mut() }, 0);
     set_bufref(bufref, unsafe { buf.as_mut() });
 
-    let sfname_opt = crate::memory::cstr_as_opt_cstr(sfname);
+    let sfname_opt = names.sfname.as_deref();
     if append {
         did_cmd = apply_autocmds_exarg(
             EVENT_FILEAPPENDCMD,
@@ -552,17 +550,17 @@ fn buf_write_do_autocmds(
         }
     }
 
-    if buf_ffname {
-        names.ffname = b.b_ffname;
+    if names.buf_ffname {
+        names.ffname = b.b_ffname.clone();
     }
-    if buf_sfname {
-        names.sfname = b.b_fname;
+    if names.buf_sfname {
+        names.sfname = b.fname_opt().map(CStr::to_owned);
     }
-    if buf_fname_f {
-        names.fname = b.b_ffname;
+    if names.buf_fname_f {
+        names.fname = b.b_ffname.clone();
     }
-    if buf_fname_s {
-        names.fname = b.b_fname;
+    if names.buf_fname_s {
+        names.fname = b.fname_opt().map(CStr::to_owned);
     }
     NOTDONE
 }
@@ -1187,7 +1185,7 @@ pub fn buf_write(
         bw_iconv_fd: -1,
     };
 
-    if unsafe { (*buf).b_ffname.is_null() }
+    if unsafe { (*buf).b_ffname.is_none() }
         && reset_changed
         && whole
         && buf == g_st().curbuf
@@ -1222,12 +1220,13 @@ pub fn buf_write(
     }
 
     let overwriting = unsafe {
-        !(*buf).b_ffname.is_null()
-            && path_equal(
+        (*buf).ffname_opt().is_some_and(|bf| {
+            path_equal(
                 crate::memory::cstr_from_ptr((ffname).cast()),
-                crate::memory::cstr_from_ptr(((*buf).b_ffname).cast()),
+                bf,
                 K_PATH_CMP_LITERAL,
             )
+        })
     };
 
     g_st().no_wait_return += 1;
@@ -1247,10 +1246,24 @@ pub fn buf_write(
         br_fnum: 0,
         br_buf_free_count: 0,
     };
+    let buf_ffname_ptr = unsafe {
+        (*buf)
+            .ffname_opt()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    };
+    let buf_sfname_ptr = unsafe {
+        (*buf)
+            .sfname_opt()
+            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+    };
     let mut names = BufWriteNames {
-        fname,
-        sfname,
-        ffname,
+        fname: (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname)),
+        sfname: (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname)),
+        ffname: (!ffname.is_null()).then(|| crate::memory::cstr_to_cstring(ffname)),
+        buf_ffname: ffname == buf_ffname_ptr,
+        buf_sfname: sfname == buf_sfname_ptr,
+        buf_fname_f: fname == buf_ffname_ptr,
+        buf_fname_s: fname == buf_sfname_ptr,
     };
     let res = buf_write_do_autocmds(
         &mut bufref,
@@ -1269,14 +1282,11 @@ pub fn buf_write(
     if res != NOTDONE {
         return res;
     }
-    fname = names.fname;
-    sfname = names.sfname;
-    ffname = names.ffname;
     let buf = unsafe { &mut *bufref.br_buf };
 
-    let fname_copy = (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname));
-    let sfname_copy = (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname));
-    let ffname_copy = (!ffname.is_null()).then(|| crate::memory::cstr_to_cstring(ffname));
+    let fname_copy = names.fname;
+    let sfname_copy = names.sfname;
+    let ffname_copy = names.ffname;
     fname = fname_copy
         .as_ref()
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());

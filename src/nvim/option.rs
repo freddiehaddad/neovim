@@ -3221,7 +3221,7 @@ pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
             && bp.b_ml.ml_mfp.is_some()
         {
             u_compute_hash(&mut *bp, &mut hash);
-            u_read_undo(None, &hash, crate::memory::cstr_as_opt_cstr(bp.b_fname));
+            u_read_undo(None, &hash, bp.fname_opt());
         }
     }
 
@@ -3357,7 +3357,7 @@ fn do_syntax_autocmd(buf: &mut FileBuf, value_changed: bool) {
     apply_autocmds(
         EVENT_SYNTAX,
         crate::memory::cstr_as_opt_cstr(buf.b_p_syn),
-        crate::memory::cstr_as_opt_cstr(buf.b_fname),
+        buf.fname_opt(),
         value_changed || opt_st().syn_recursive == 1,
         Some(buf),
     );

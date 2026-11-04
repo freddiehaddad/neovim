@@ -3907,26 +3907,31 @@ fn process_next_cpt_value(
             compl_type = 0;
         } else {
             st.found_all = true;
-            if ins_buf.b_fname.is_null() {
+            if ins_buf.fname_opt().is_none() {
                 *compl_type_arg = compl_type;
                 return INS_COMPL_CPT_CONT;
             }
             compl_type = CTRL_X_DICTIONARY;
 
-            st.dict = Some(crate::memory::cstr_to_cstring(ins_buf.b_fname));
+            st.dict = Some(ins_buf.fname_cstr().to_owned());
 
             st.dict_f = DICT_EXACT;
         }
         if !shortmess(K_SHM_COMPLETIONSCAN) && !insexp().compl_autocomplete {
             let iobuff_ptr = g_st().iobuff.as_mut_ptr();
-            let name = if ins_buf.b_fname.is_null() {
-                buf_spname(ins_buf).map_or(ptr::null(), |s| s.as_ptr())
-            } else if ins_buf.b_sfname.is_null() {
-                ins_buf.b_fname.cast_const()
+            let name = if ins_buf.fname_opt().is_none() {
+                buf_spname(ins_buf)
+            } else if ins_buf.b_sfname.is_none() {
+                ins_buf.fname_opt()
             } else {
-                ins_buf.b_sfname.cast_const()
+                ins_buf.sfname_opt()
             };
-            vim_snprintf!(iobuff_ptr, IOSIZE, gettext(c"Scanning: %s"), name);
+            vim_snprintf!(
+                iobuff_ptr,
+                IOSIZE,
+                gettext(c"Scanning: %s"),
+                name.unwrap_or(c"")
+            );
             msg_progress(
                 Some(g_st().iobuff_bytes_mut()),
                 c"nvim.completion",
@@ -4071,7 +4076,7 @@ fn get_next_tag_completion() {
                 0
             },
         TAG_MANY,
-        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+        curbuf_mut().ffname_opt(),
     ) == OK
         && !matches.is_empty()
     {
@@ -4616,7 +4621,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             if in_curbuf {
                 None
             } else {
-                crate::memory::cstr_as_opt_cstr(unsafe { (*st.ins_buf).b_sfname })
+                unsafe { (*st.ins_buf).sfname_opt() }
             },
             0,
             cont_s_ipos,
@@ -4824,8 +4829,8 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
 
 fn get_next_bufname_token() {
     for b in for_all_buffers_mut() {
-        if b.b_p_bl != 0 && !b.b_sfname.is_null() {
-            let tail = path_tail(crate::memory::cstr_from_ptr((b.b_sfname).cast()));
+        if b.b_p_bl != 0 && b.b_sfname.is_some() {
+            let tail = path_tail(b.sfname_cstr());
             let orig_bytes = insexp().compl_orig_text.as_bytes();
             let tail_b = crate::memory::cstr_as_bytes((tail).as_ptr());
             if &tail_b[..orig_bytes.len().min(tail_b.len())] == orig_bytes {

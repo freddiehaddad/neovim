@@ -808,10 +808,10 @@ fn expand_path_option(curdir: &CStr, path_option: &CStr, gap: &mut Vec<std::ffi:
         if buf_arr.first() == Some(&b'.')
             && (buflen == 1 || buf_arr.get(1).is_some_and(|&b| vim_ispathsep(i32::from(b))))
         {
-            if curbuf_mut().b_ffname.is_null() {
+            if curbuf_mut().b_ffname.is_none() {
                 continue;
             }
-            let ffname_cstr = crate::memory::cstr_from_ptr(curbuf_mut().b_ffname);
+            let ffname_cstr = curbuf_mut().ffname_cstr();
             let ffname_bytes = ffname_cstr.to_bytes();
             let p = path_tail(ffname_cstr);
             let plen = ffname_bytes.len() - p.to_bytes().len();

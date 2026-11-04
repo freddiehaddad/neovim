@@ -1256,13 +1256,7 @@ fn find_buffer(
     }
 
     for buf in for_all_buffers_ptr() {
-        if !buf.b_ffname.is_null()
-            && path_equal(
-                fname,
-                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
-                K_PATH_CMP_LITERAL,
-            )
-        {
+        if buf.b_ffname.is_some() && path_equal(fname, buf.ffname_cstr(), K_PATH_CMP_LITERAL) {
             fname_bufs.insert(key.to_vec(), ptr::from_mut(buf) as usize);
             return Some(buf);
         }
@@ -2283,10 +2277,10 @@ fn shada_read_when_writing(
                             }
                         } else {
                             for buf in for_all_buffers_mut() {
-                                if !buf.b_ffname.is_null()
+                                if buf.b_ffname.is_some()
                                     && path_equal(
                                         crate::memory::cstr_from_ptr((fname_ptr).cast()),
-                                        crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
+                                        buf.ffname_cstr(),
                                         K_PATH_CMP_LITERAL,
                                     )
                                 {
@@ -2375,7 +2369,7 @@ fn ignore_buf(buf: Option<&FileBuf>, removable_bufs: &std::collections::HashSet<
     let Some(buf) = buf else {
         return true;
     };
-    buf.b_ffname.is_null()
+    buf.b_ffname.is_none()
         || (buf.b_p_bl == 0 && buf.b_p_initialized)
         || bt_quickfix(Some(buf))
         || bt_terminal(Some(buf))
@@ -2393,7 +2387,7 @@ fn shada_get_buflist(removable_bufs: &std::collections::HashSet<usize>) -> Shada
             }
             buffers.push(BufferListBuffer {
                 pos: buf.b_last_cursor.mark,
-                fname: Some(crate::memory::cstr_to_cstring(buf.b_ffname)),
+                fname: Some(buf.ffname_cstr().to_owned()),
                 additional_data: buf.additional_data.clone(),
             });
         }
@@ -2522,7 +2516,7 @@ fn replace_numbered_mark(wms: &mut WriteMergerState, idx: usize, entry: ShadaEnt
 #[inline]
 fn find_removable_bufs(removable_bufs: &mut std::collections::HashSet<usize>) {
     for buf in for_all_buffers_ptr() {
-        if !buf.b_ffname.is_null() && shada_removable(crate::memory::cstr_from_ptr(buf.b_ffname)) {
+        if buf.b_ffname.is_some() && shada_removable(buf.ffname_cstr()) {
             removable_bufs.insert(ptr::from_mut(buf) as usize);
         }
     }
@@ -2857,7 +2851,7 @@ fn shada_write(
                         }
                         continue;
                     };
-                    if buf.b_ffname.is_null()
+                    if buf.b_ffname.is_none()
                         || removable_bufs.contains(&(ptr::from_ref(&*buf) as usize))
                     {
                         if global_mark_iter.is_none() {
@@ -2865,7 +2859,7 @@ fn shada_write(
                         }
                         continue;
                     }
-                    crate::memory::cstr_to_cstring(buf.b_ffname)
+                    buf.ffname_cstr().to_owned()
                 };
                 let entry = ShadaEntry {
                     can_free_entry: false,
@@ -2898,8 +2892,7 @@ fn shada_write(
             for buf in for_all_buffers_ptr() {
                 if !ignore_buf(Some(&*buf), &removable_bufs) {
                     let mut local_marks_iter: Option<u8> = None;
-                    let fname = buf.b_ffname;
-                    let fname_cstr = crate::memory::cstr_to_cstring(fname);
+                    let fname_cstr = buf.ffname_cstr().to_owned();
                     let fname_bytes = fname_cstr.to_bytes().to_vec();
                     let filemarks = wms
                         .file_marks
@@ -2975,7 +2968,7 @@ fn shada_write(
                     data: ShadaEntryData::Filemark(ShadaFilemark {
                         mark: curwin_mut().w_cursor,
                         name: b'0',
-                        fname: Some(crate::memory::cstr_to_cstring(curbuf_mut().b_ffname)),
+                        fname: Some(curbuf_mut().ffname_cstr().to_owned()),
                     }),
                     additional_data: None,
                 },
@@ -4150,9 +4143,9 @@ fn shada_init_jumps(
         let fname = if fm.fmark.fnum == 0 {
             fm.fname
         } else if let Some(buf) = buf
-            && !buf.b_ffname.is_null()
+            && buf.b_ffname.is_some()
         {
-            Some(crate::memory::cstr_to_cstring(buf.b_ffname))
+            Some(buf.ffname_cstr().to_owned())
         } else {
             None
         };
@@ -4326,7 +4319,7 @@ pub fn find_shada_parameter(param_type: i32) -> Option<&'static CStr> {
 pub fn check_marks_read() {
     if !curbuf_mut().b_marks_read
         && get_shada_parameter(b'\'' as i32) > 0
-        && !curbuf_mut().b_ffname.is_null()
+        && curbuf_mut().b_ffname.is_some()
     {
         shada_read_marks();
     }

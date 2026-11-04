@@ -1433,7 +1433,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                 let mut res = OK;
                 if !resized
                     && curbuf_mut().b_nwindows == 1
-                    && curbuf_mut().b_fname.is_null()
+                    && curbuf_mut().fname_opt().is_none()
                     && bt_nofile(Some(crate::globals::curbuf_mut()))
                     && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
                 {

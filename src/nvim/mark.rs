@@ -928,7 +928,7 @@ fn fname2fnum(fm: &Xfmark) {
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
 pub fn fmarks_check_names(buf: &mut FileBuf) {
-    let Some(name) = crate::memory::cstr_as_opt_cstr(buf.b_ffname) else {
+    let Some(name) = buf.ffname_opt() else {
         return;
     };
 

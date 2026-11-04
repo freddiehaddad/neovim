@@ -438,7 +438,7 @@ pub fn do_tag(
         };
         let use_tagstack: bool;
         let mut skip_msg = false;
-        let mut buf_ffname = curbuf_mut().b_ffname;
+        let mut buf_ffname = curbuf_mut().ffname_opt();
         let mut use_tfu = true;
         let mut tofree: Option<std::ffi::CString> = None;
         if type_ == DT_FREE {
@@ -654,7 +654,7 @@ pub fn do_tag(
             if cur_fnum != curbuf_mut().b_fnum
                 && let Some(buf) = buflist_findnr(cur_fnum)
             {
-                buf_ffname = buf.b_ffname;
+                buf_ffname = buf.ffname_opt();
             }
 
             loop {
@@ -717,7 +717,7 @@ pub fn do_tag(
                         &mut new_matches,
                         tag_st().do_tag_flags,
                         tag_st().do_tag_max_num_matches,
-                        crate::memory::cstr_as_opt_cstr(buf_ffname),
+                        buf_ffname,
                     ) == OK
                         && (new_matches.len() as i32) < tag_st().do_tag_max_num_matches
                     {
@@ -1602,16 +1602,14 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         return false;
     }
 
-    let fname_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
+    let fname_bytes = curbuf_mut().fname_bytes();
     if (st.flags & TAG_KEEP_LANG) != 0
         && st.help_lang_find.is_none()
         && fname_bytes.len() > 4
         && fname_bytes[fname_bytes.len() - 1] == b'x'
         && fname_bytes[fname_bytes.len() - 4] == b'.'
         && mb_strnicmp(
-            crate::memory::cstr_as_bytes(
-                (curbuf_mut().b_fname.wrapping_add(fname_bytes.len() - 3)).cast(),
-            ),
+            &fname_bytes[fname_bytes.len() - 3..],
             crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
             2,
         ) == 0
@@ -2414,14 +2412,12 @@ pub fn find_tags(
 
                 if (flags & TAG_KEEP_LANG) != 0
                     && st.help_lang_find.is_none()
-                    && !curbuf_mut().b_fname.is_null()
+                    && curbuf_mut().fname_opt().is_some()
                 {
-                    let i = crate::memory::cstr_len(curbuf_mut().b_fname) as i32;
-                    if i > 4
+                    let fname_bytes = curbuf_mut().fname_bytes();
+                    if fname_bytes.len() > 4
                         && mb_strnicmp(
-                            crate::memory::cstr_as_bytes(
-                                (curbuf_mut().b_fname.wrapping_add((i - 4) as usize)).cast(),
-                            ),
+                            &fname_bytes[fname_bytes.len() - 4..],
                             (c".txt").to_bytes(),
                             MAXCOL as usize,
                         ) == 0
@@ -2610,7 +2606,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 FINDFILE_FILE,
                 tnp.tn_search_ctx.take(),
                 1,
-                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                curbuf_mut().ffname_opt(),
             );
             if tnp.tn_search_ctx.is_some() {
                 tnp.tn_did_filefind_init = 1;
@@ -3244,7 +3240,7 @@ pub fn expand_tags(
 ) -> bool {
     let extra_flag = if tagnames { TAG_NAMES } else { 0 };
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
-    let b_ffname = crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname);
+    let b_ffname = curbuf_mut().ffname_opt();
     let ret = if pat.to_bytes().first() == Some(&b'/') {
         let pat_after = unsafe { CStr::from_ptr(pat.as_ptr().wrapping_add(1)) };
         find_tags(

@@ -2530,8 +2530,8 @@ fn do_source_buffer_init(
     }
 
     let iobuff = g_st().iobuff.as_mut_ptr();
-    let fname = if !curbuf_mut().b_ffname.is_null() {
-        cstr_to_cstring(curbuf_mut().b_ffname)
+    let fname = if curbuf_mut().b_ffname.is_some() {
+        curbuf_mut().ffname_cstr().to_owned()
     } else {
         if ex_lua {
             vim_snprintf!(
@@ -2841,11 +2841,9 @@ fn do_source_ext(
             && let Some(eap) = eap
             && !ex_lua
             && !(crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
-            && !(!curbuf_mut().b_fname.is_null()
-                && path_with_extension(
-                    crate::memory::cstr_from_ptr((curbuf_mut().b_fname).cast()),
-                    c"lua",
-                ))
+            && !curbuf_mut()
+                .fname_opt()
+                .is_some_and(|f| path_with_extension(f, c"lua"))
         {
             let mut args_items = [
                 integer_obj(Integer::from(curbuf_mut().b_fnum)),
@@ -2879,11 +2877,9 @@ fn do_source_ext(
             && (ex_lua
                 || ts_lua
                 || (crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"lua"))
-                || (!curbuf_mut().b_fname.is_null()
-                    && path_with_extension(
-                        crate::memory::cstr_from_ptr((curbuf_mut().b_fname).cast()),
-                        c"lua",
-                    )))
+                || curbuf_mut()
+                    .fname_opt()
+                    .is_some_and(|f| path_with_extension(f, c"lua")))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
         } else if !si.is_null() && unsafe { (*si).sn_lua } {

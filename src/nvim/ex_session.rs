@@ -210,7 +210,7 @@ fn ses_do_win(wp: &mut WinInfoInfo) -> i32 {
         return 0;
     }
     let buf = wp.buf_mut();
-    if buf.b_fname.is_null() || (buf.terminal.is_null() && bt_nofilename(Some(buf))) {
+    if buf.fname_opt().is_none() || (buf.terminal.is_null() && bt_nofilename(Some(buf))) {
         return (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_BLANK) as i32;
     }
     if bt_help(Some(buf)) {
@@ -259,15 +259,15 @@ fn ses_arglist(
 }
 
 fn ses_get_fname<'a>(buf: &'a mut FileBuf, flagp: &u32) -> Option<&'a CStr> {
-    if !buf.b_sfname.is_null()
+    if buf.b_sfname.is_some()
         && ptr::eq(flagp, &raw const opt_vars().ssop_flags)
         && (opt_vars().ssop_flags & (K_OPT_SSOP_FLAG_CURDIR | K_OPT_SSOP_FLAG_SESDIR)) != 0
         && opt_vars().p_acd == 0
         && !exses_st().did_lcd
     {
-        return crate::memory::cstr_as_opt_cstr(buf.b_sfname);
+        return buf.sfname_opt();
     }
-    crate::memory::cstr_as_opt_cstr(buf.b_ffname)
+    buf.ffname_opt()
 }
 
 fn ses_fname(fd: &CFile, buf: &mut FileBuf, flagp: &mut u32, add_eol: bool) -> bool {
@@ -357,7 +357,7 @@ fn put_view(
             {
                 return false;
             }
-        } else if !(*wp).buf_mut().b_ffname.is_null()
+        } else if (*wp).buf_mut().b_ffname.is_some()
             && (!bt_nofilename(wp.buf_opt()) || !(*wp).buf_mut().terminal.is_null())
         {
             let fesc = cstr_to_str(&fname_esc);
@@ -373,7 +373,7 @@ fn put_view(
             if !put_line(fd, c"enew") {
                 return false;
             }
-            if !(*wp).buf_mut().b_ffname.is_null()
+            if (*wp).buf_mut().b_ffname.is_some()
                 && !write_fmt(fd, format!("file {}\n", cstr_to_str(&fname_esc)))
             {
                 return false;
@@ -385,7 +385,7 @@ fn put_view(
     if wp.w_alt_fnum != 0
         && let Some(alt) = buflist_findnr(wp.w_alt_fnum)
         && ptr::eq(flagp, &raw mut opt_vars().ssop_flags)
-        && !crate::memory::cstr_is_empty(alt.b_fname)
+        && !alt.fname_bytes().is_empty()
         && alt.b_p_bl != 0
         && !(bt_terminal(Some(alt)) && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
         && (fd.puts(c"balt ") < 0 || !ses_fname(fd, alt, &mut *flagp, true))
@@ -423,7 +423,7 @@ fn put_view(
     }
 
     if (*flagp & K_OPT_SSOP_FLAG_FOLDS) != 0
-        && !(*wp).buf_mut().b_ffname.is_null()
+        && (*wp).buf_mut().b_ffname.is_some()
         && (bt_normal(wp.buf_opt()) || bt_help(wp.buf_opt()))
         && !put_folds(fd, &mut *wp)
     {
@@ -624,7 +624,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 && !(buf.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
                 && !(bt_terminal(Some(&*buf))
                     && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TERMINAL) == 0)
-                && !buf.b_fname.is_null()
+                && buf.fname_opt().is_some()
                 && buf.b_p_bl != 0
             {
                 let lnum = buf
@@ -654,7 +654,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 let Some(ref b_localdir) = b.b_localdir else {
                     continue;
                 };
-                if b.b_fname.is_null()
+                if b.fname_opt().is_none()
                     || b.b_p_bl == 0
                     || (only_save_windows && b.b_nwindows == 0)
                     || (b.b_help && (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_HELP) == 0)
@@ -756,7 +756,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
             let mut wp = tab_firstwin;
             while let Some(wp_ref) = unsafe { wp.as_mut() } {
                 if ses_do_win(wp_ref) != 0
-                    && !wp_ref.buf_mut().b_ffname.is_null()
+                    && wp_ref.buf_mut().b_ffname.is_some()
                     && !bt_help(wp_ref.buf_opt())
                     && !bt_nofilename(wp_ref.buf_opt())
                 {
@@ -1110,14 +1110,11 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 }
 
 fn get_view_file(c: u8) -> Option<CString> {
-    if curbuf_mut().b_ffname.is_null() {
+    if curbuf_mut().b_ffname.is_none() {
         emsg(gettext(E_NONAME));
         return None;
     }
-    let sname_cstr = home_replace_save(
-        None,
-        crate::memory::cstr_as_opt_cstr((curbuf_mut().b_ffname).cast()),
-    );
+    let sname_cstr = home_replace_save(None, curbuf_mut().ffname_opt());
     let sname_bytes = sname_cstr.as_bytes();
 
     let mut len: usize = 0;

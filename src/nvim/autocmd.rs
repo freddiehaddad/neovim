@@ -2842,7 +2842,11 @@ pub fn apply_autocmds_group(
                 {
                     fname
                 } else if !buf.is_null() {
-                    unsafe { (*buf).b_ffname }
+                    unsafe {
+                        (*buf)
+                            .ffname_opt()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                    }
                 } else {
                     ptr::null_mut()
                 }
@@ -2874,11 +2878,12 @@ pub fn apply_autocmds_group(
                 } else if event == EVENT_FILETYPE {
                     fname = unsafe { (*buf).b_p_ft };
                 } else {
-                    let b_sfname = unsafe { (*buf).b_sfname };
-                    if !b_sfname.is_null() {
-                        sfname_owned = Some(crate::memory::cstr_to_cstring(b_sfname));
-                    }
-                    fname = unsafe { (*buf).b_ffname };
+                    sfname_owned = unsafe { (*buf).b_sfname.clone() };
+                    fname = unsafe {
+                        (*buf)
+                            .ffname_opt()
+                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                    };
                 }
                 if fname.is_null() {
                     fname = c"".as_ptr().cast_mut();
@@ -3907,7 +3912,7 @@ pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
     let ret = apply_autocmds(
         EVENT_FILETYPE,
         crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_p_ft }),
-        crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_fname }),
+        unsafe { (*buf_ptr).fname_opt() },
         force || au_st().ft_recursive == 1,
         unsafe { buf_ptr.as_mut() },
     );

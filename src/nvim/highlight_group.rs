@@ -894,7 +894,7 @@ pub fn load_colors(name: &CStr) -> bool {
     apply_autocmds(
         EVENT_COLORSCHEMEPRE,
         Some(name),
-        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+        curbuf_mut().fname_opt(),
         false,
         curbuf_opt_mut(),
     );
@@ -906,7 +906,7 @@ pub fn load_colors(name: &CStr) -> bool {
         apply_autocmds(
             EVENT_COLORSCHEME,
             Some(name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             false,
             curbuf_opt_mut(),
         );

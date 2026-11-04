@@ -4174,7 +4174,7 @@ pub fn list_version() {
 /// Whether it still is not too late to show an intro message (`may_show_intro`).
 pub fn may_show_intro() -> bool {
     buf_is_empty(curbuf_mut())
-        && curbuf_mut().b_fname.is_null()
+        && curbuf_mut().fname_opt().is_none()
         && curbuf_mut().b_fnum == 1
         && curwin_mut().handle == LOWEST_WIN_ID
         && one_window(curwin_mut(), None)

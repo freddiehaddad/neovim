@@ -534,7 +534,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     }
 
     // Title is the previewed file's name, only known once it is loaded.
-    if wp.w_config.border && !wp.buf_mut().b_fname.is_null() {
+    if wp.w_config.border && wp.buf_mut().fname_opt().is_some() {
         let mut dirname = [0u8; MAXPATHL];
         os_dirname(&mut dirname);
         shorten_buf_fname(wp.buf_mut(), crate::memory::cstr_until_nul(&dirname), 0);
@@ -542,7 +542,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
         wp.w_config.title_chunks.clear();
         let mut err = error_init();
         parse_bordertext(
-            cstr_as_obj(crate::memory::cstr_as_opt_cstr(wp.buf_mut().b_fname)),
+            cstr_as_obj(wp.buf_mut().fname_opt()),
             K_BORDER_TEXT_TITLE,
             &mut wp.w_config,
             &mut err,

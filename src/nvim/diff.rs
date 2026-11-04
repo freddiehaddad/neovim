@@ -1316,8 +1316,8 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         if !info_ok || filesize == 0 {
             emsg(gettext(c"E816: Cannot read patch output"));
         } else {
-            if !curbuf_mut().b_fname.is_null() {
-                let fname_bytes = crate::memory::cstr_as_bytes(curbuf_mut().b_fname);
+            if curbuf_mut().fname_opt().is_some() {
+                let fname_bytes = curbuf_mut().fname_bytes();
                 newname_vec = Vec::with_capacity(fname_bytes.len() + 5);
                 newname_vec.extend_from_slice(fname_bytes);
                 newname_vec.extend_from_slice(b".new\0");

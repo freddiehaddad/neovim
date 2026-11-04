@@ -999,7 +999,7 @@ pub fn u_write_undo(
     let file_name_cstr: &CStr = if let Some(n) = name {
         n
     } else {
-        f_owned = u_get_undo_file_name(crate::memory::cstr_as_opt_cstr(buf.b_ffname), false);
+        f_owned = u_get_undo_file_name(buf.ffname_opt(), false);
         let Some(ref f) = f_owned else {
             if opt_vars().p_verbose > 0 {
                 verbose_enter();
@@ -1017,8 +1017,8 @@ pub fn u_write_undo(
     let file_name = file_name_cstr.as_ptr().cast_mut();
 
     let mut perm: i32 = 0o600;
-    if !buf.b_ffname.is_null() {
-        perm = os_getperm(crate::memory::cstr_from_ptr((buf.b_ffname).cast()));
+    if buf.b_ffname.is_some() {
+        perm = os_getperm(buf.ffname_cstr());
         if perm < 0 {
             perm = 0o600;
         }
@@ -1103,11 +1103,8 @@ pub fn u_write_undo(
             let mut file_info_old = FileInfo::new();
             let mut file_info_new = FileInfo::new();
             let file_name_cstr = crate::memory::cstr_from_ptr(file_name);
-            if !buf.b_ffname.is_null()
-                && os_fileinfo(
-                    crate::memory::cstr_from_ptr(buf.b_ffname),
-                    &mut file_info_old,
-                )
+            if buf.b_ffname.is_some()
+                && os_fileinfo(buf.ffname_cstr(), &mut file_info_old)
                 && os_fileinfo(file_name_cstr, &mut file_info_new)
                 && file_info_old.stat.st_gid != file_info_new.stat.st_gid
                 && os_fchown(
@@ -1195,8 +1192,8 @@ pub fn u_write_undo(
             semsg!(gettext(E_WRITE_ERROR_IN_UNDO_FILE_STR), file_name);
         }
 
-        if !buf.b_ffname.is_null() {
-            let acl: VimAcl = os_get_acl(crate::memory::cstr_from_ptr((buf.b_ffname).cast()));
+        if buf.b_ffname.is_some() {
+            let acl: VimAcl = os_get_acl(buf.ffname_cstr());
             os_set_acl(crate::memory::cstr_from_ptr((file_name).cast()), acl);
             os_free_acl(acl);
         }
@@ -1233,8 +1230,7 @@ pub fn u_read_undo(name: Option<&CStr>, hash: &[u8; UNDO_HASH_SIZE], orig_name: 
     let file_name_cstr: &CStr = if let Some(n) = name {
         n
     } else {
-        f_owned =
-            u_get_undo_file_name(crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname), true);
+        f_owned = u_get_undo_file_name(curbuf_mut().ffname_opt(), true);
         let Some(ref f_cstr) = f_owned else {
             return;
         };
@@ -3095,8 +3091,7 @@ mod tests {
 
             // Write undo file to undodir
             u_write_undo(None, false, &mut *buf, &hash);
-            let ufile_cstr =
-                u_get_undo_file_name(crate::memory::cstr_as_opt_cstr(buf.b_ffname), false).unwrap();
+            let ufile_cstr = u_get_undo_file_name(buf.ffname_opt(), false).unwrap();
             let ufile = ufile_cstr.to_str().unwrap().to_owned();
             assert!(std::path::Path::new(&ufile).exists());
             let _ = std::fs::remove_file(&ufile);

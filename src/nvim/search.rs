@@ -3162,8 +3162,8 @@ pub fn find_pattern_in_path(
         let mut max_path_depth: i32 = 50;
         let mut match_count: i32 = 1;
 
-        let mut curr_fname = curbuf_mut().b_fname;
-        let mut prev_fname = ptr::null_mut();
+        let mut curr_fname = curbuf_mut().fname_opt();
+        let mut prev_fname: Option<&'static std::ffi::CStr> = None;
         let mut p;
         let mut define_matched: bool;
         let mut regmatch: Regmatch = Regmatch::new();
@@ -3259,14 +3259,13 @@ pub fn find_pattern_in_path(
             if !incl_regmatch.regprog.is_null()
                 && vim_regexec(&mut incl_regmatch, unsafe { CStr::from_ptr(line) }, 0)
             {
-                let p_fname = if curr_fname == curbuf_mut().b_fname {
-                    curbuf_mut().b_ffname
+                let p_fname_opt = if curr_fname == curbuf_mut().fname_opt() {
+                    curbuf_mut().ffname_opt()
                 } else {
                     curr_fname
                 };
 
                 let inc_opt_cstr = crate::memory::cstr_from_ptr(inc_opt);
-                let p_fname_opt = crate::memory::cstr_as_opt_cstr(p_fname);
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
                         crate::memory::cstr_slice(
@@ -3319,7 +3318,7 @@ pub fn find_pattern_in_path(
                                 if !g_st().got_int {
                                     msg_home_replace(crate::memory::cstr_as_opt_cstr(nf_ptr));
                                     msg_puts(tr(c" (includes previously listed match)"));
-                                    prev_fname = ptr::null_mut();
+                                    prev_fname = None;
                                 }
                             }
                             new_fname_cstr = None;
@@ -3440,7 +3439,7 @@ pub fn find_pattern_in_path(
                         files[depth as usize].name = Some(nf_cstr);
                         curr_fname = files[depth as usize]
                             .name_ptr()
-                            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                            .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
                         files[depth as usize].lnum = 0;
                         files[depth as usize].matched = 0;
                         if action == ACTION_EXPAND && !shortmess(K_SHM_COMPLETIONSCAN) && !silent {
@@ -3450,12 +3449,16 @@ pub fn find_pattern_in_path(
                                 iobuff_ptr,
                                 IOSIZE,
                                 tr(c"Scanning included file: %s"),
-                                curr_fname,
+                                curr_fname.unwrap_or(c""),
                             );
                             msg_trunc(g_st().iobuff_bytes_mut(), true, HLF_R);
                         } else if opt_vars().p_verbose >= 5 {
                             verbose_enter();
-                            smsg!(0, tr(c"Searching included file %s"), curr_fname);
+                            smsg!(
+                                0,
+                                tr(c"Searching included file %s"),
+                                curr_fname.unwrap_or(c""),
+                            );
                             verbose_leave();
                         }
                     }
@@ -3677,12 +3680,10 @@ pub fn find_pattern_in_path(
                                         crate::memory::cstr_slice(aux, i.max(0) as usize),
                                         i,
                                         opt_vars().p_ic != 0,
-                                        if curr_fname == curbuf_mut().b_fname {
+                                        if curr_fname == curbuf_mut().fname_opt() {
                                             None
                                         } else {
-                                            path_try_shorten_fname(crate::memory::cstr_as_opt_cstr(
-                                                (curr_fname).cast(),
-                                            ))
+                                            path_try_shorten_fname(curr_fname)
                                         },
                                         dir,
                                         cont_s_ipos,
@@ -3706,7 +3707,7 @@ pub fn find_pattern_in_path(
                                 msg_putchar(b'\n' as i32);
                             }
                             if !g_st().got_int {
-                                msg_home_replace(crate::memory::cstr_as_opt_cstr(curr_fname));
+                                msg_home_replace(curr_fname);
                             }
                             prev_fname = curr_fname;
                         }
@@ -3883,11 +3884,11 @@ pub fn find_pattern_in_path(
                 files[old_files as usize].matched = files[depth as usize].matched;
                 depth -= 1;
                 curr_fname = if depth == -1 {
-                    curbuf_mut().b_fname
+                    curbuf_mut().fname_opt()
                 } else {
                     files[depth as usize]
                         .name_ptr()
-                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                        .map(|s| unsafe { &*(s as *const std::ffi::CStr) })
                 };
                 depth_displayed = depth_displayed.min(depth);
             }

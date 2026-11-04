@@ -867,7 +867,11 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
             if errmsg {
                 check_fname();
             }
-            Some(ptr_to_vec(curbuf_mut().b_fname))
+            Some(
+                curbuf_mut()
+                    .fname_opt()
+                    .map(|s| s.to_bytes_with_nul().to_vec()),
+            )
         }
         x if x == i32::from(b'#') => {
             Some(getaltfname(errmsg).map(|s| s.to_bytes_with_nul().to_vec()))
@@ -2570,17 +2574,17 @@ pub fn ex_display(eap: &mut Exarg) {
         dis_msg(Some(last_cmd), false);
     }
 
-    if !curbuf_mut().b_fname.is_null()
+    if curbuf_mut().fname_opt().is_some()
         && (arg.is_null()
             || crate::strings::vim_haschr(
                 crate::memory::cstr_from_ptr((arg).cast()),
                 i32::from(b'%'),
             ))
         && !g_st().got_int
-        && !message_filtered(crate::memory::cstr_from_ptr(curbuf_mut().b_fname))
+        && !message_filtered(curbuf_mut().fname_cstr())
     {
         msg_puts(c"\n  c  \"%   ");
-        dis_msg(crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname), false);
+        dis_msg(curbuf_mut().fname_opt(), false);
     }
 
     if (arg.is_null()

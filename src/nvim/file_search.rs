@@ -1448,7 +1448,7 @@ pub fn grab_file_name(count: i32, file_lnum: &mut Linenr) -> Option<std::ffi::CS
             &vis_bytes[..len.min(vis_bytes.len())],
             options,
             count as i64,
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            curbuf_mut().ffname_opt(),
         )
     } else {
         file_name_at_cursor(options | FNAME_HYP, count, Some(&mut *file_lnum))
@@ -1473,7 +1473,7 @@ pub fn file_name_at_cursor(
         curwin_mut().w_cursor.col,
         options,
         count,
-        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+        curbuf_mut().ffname_opt(),
         (file_lnum.is_some()).then(|| &mut *file_lnum.unwrap()),
     )
 }
@@ -1827,7 +1827,7 @@ pub fn vim_chdir(new_dir: &std::ffi::CStr) -> i32 {
     let Some(dir_name) = find_directory_in_path(
         new_dir.to_bytes(),
         FNAME_MESS,
-        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+        curbuf_mut().ffname_opt(),
         &mut file_to_find,
         &mut search_ctx,
     ) else {

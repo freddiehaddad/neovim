@@ -380,7 +380,7 @@ pub fn get_trans_bufname(buf: &mut FileBuf) {
     } else {
         home_replace(
             Some(&*buf),
-            crate::memory::cstr_as_opt_cstr((buf.b_fname).cast()),
+            buf.fname_opt(),
             g_st().name_buff_bytes_mut(),
             true,
         );
@@ -1967,14 +1967,14 @@ pub extern "C" fn build_stl_str_hl(
                     );
                 } else {
                     let t = if opt == STL_FULLPATH {
-                        (*wp).buf_mut().b_ffname
+                        (*wp).buf_mut().ffname_opt()
                     } else {
-                        (*wp).buf_mut().b_fname
+                        (*wp).buf_mut().fname_opt()
                     };
 
                     home_replace(
                         unsafe { wp.w_buffer.as_ref() },
-                        crate::memory::cstr_as_opt_cstr(t),
+                        t,
                         g_st().name_buff_bytes_mut(),
                         true,
                     );

@@ -852,8 +852,8 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
     );
     buf.b_locked -= 1;
 
-    if !buf.b_ffname.is_null() {
-        let ffname_bytes = crate::memory::cstr_as_bytes(buf.b_ffname).to_vec();
+    if buf.b_ffname.is_some() {
+        let ffname_bytes = buf.ffname_bytes().to_vec();
         buf_set_term_title(Some(&mut *buf), &ffname_bytes);
     }
     curwin_mut().w_onebuf_opt.wo_scb = 0;

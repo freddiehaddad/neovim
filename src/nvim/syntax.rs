@@ -5111,7 +5111,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
     apply_autocmds(
         EVENT_SYNTAX,
         crate::memory::cstr_as_opt_cstr(eap.arg),
-        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+        curbuf_mut().fname_opt(),
         true,
         curbuf_opt_mut(),
     );

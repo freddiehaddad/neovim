@@ -1305,13 +1305,13 @@ pub fn nvim_buf_get_name(buf: Buffer, err: &mut Error) -> NvimString {
             size: 0,
         };
     };
-    if b.b_ffname.is_null() {
+    if b.b_ffname.is_none() {
         return NvimString {
             data: ptr::null_mut(),
             size: 0,
         };
     }
-    cstr_as_string(crate::memory::cstr_as_opt_cstr(b.b_ffname))
+    cstr_as_string(b.ffname_opt())
 }
 
 /// Sets the full file name for a buffer, like |:file_f|

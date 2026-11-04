@@ -915,7 +915,7 @@ pub fn getout(mut exitval: i32) -> ! {
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
-                    let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+                    let b_fname = buf.fname_opt();
                     apply_autocmds(EVENT_BUFWINLEAVE, b_fname, b_fname, false, unsafe {
                         buf_ptr.as_mut()
                     });
@@ -934,7 +934,7 @@ pub fn getout(mut exitval: i32) -> ! {
             if buf.b_ml.ml_mfp.is_some() {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf));
-                let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+                let b_fname = buf.fname_opt();
                 apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, Some(&mut *buf));
                 if !bufref_valid(Some(&bufref)) {
                     break;
@@ -1925,7 +1925,7 @@ fn read_stdin() {
     g_st().no_wait_return = 1;
     let save_msg_didany = g_st().msg_didany;
 
-    if !curbuf_mut().b_ffname.is_null() {
+    if curbuf_mut().b_ffname.is_some() {
         let Some(stdin_buf_ref) = buflist_new(None, None, 0, BLN_LISTED) else {
             semsg!(c"Failed to create buffer for stdin");
             return;
@@ -2118,7 +2118,7 @@ fn edit_buffers(parmp: &mut Mparm) {
         }
         advance = true;
 
-        if ptr::eq(g_st().curbuf, firstwin_mut().w_buffer) || curbuf_mut().b_ffname.is_null() {
+        if ptr::eq(g_st().curbuf, firstwin_mut().w_buffer) || curbuf_mut().b_ffname.is_none() {
             curwin_mut().w_arg_idx = arg_idx;
             g_st().swap_exists_did_quit = false;
             let fname = if arg_idx < gargcount() {

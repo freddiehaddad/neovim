@@ -2108,13 +2108,9 @@ fn qf_add_entry(
     let fullname = fname.and_then(|f| fix_fname(Some(f)));
     qfp.qf_fname = None;
     if let Some(buf) = buf
-        && !buf.b_ffname.is_null()
+        && buf.b_ffname.is_some()
         && let Some(ref full) = fullname
-        && !path_equal(
-            full,
-            crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
-            K_PATH_CMP_LITERAL,
-        )
+        && !path_equal(full, buf.ffname_cstr(), K_PATH_CMP_LITERAL)
         && let Some(p) = path_try_shorten_fname(Some(full))
     {
         qfp.qf_fname = Some(p.to_owned());
@@ -3269,10 +3265,13 @@ fn qf_list_entry(qfp: &mut Qfline, qf_idx: i32, cursel: bool) {
         if qfp.qf_fnum != 0
             && let Some(buf) = buflist_findnr_opt(qfp.qf_fnum)
         {
-            fname = qfp
-                .qf_fname
-                .as_ref()
-                .map_or(buf.b_fname, |s| s.as_ptr().cast_mut());
+            fname = qfp.qf_fname.as_ref().map_or_else(
+                || {
+                    buf.fname_opt()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                },
+                |s| s.as_ptr().cast_mut(),
+            );
             if qfp.qf_type == 1 {
                 fname = path_tail(crate::memory::cstr_from_ptr((fname).cast()))
                     .as_ptr()
@@ -4115,19 +4114,16 @@ fn qf_buf_add_line(
             qfga_concat(gap, module.as_bytes());
         } else if qfp.qf_fnum != 0
             && let Some(errbuf) = buflist_findnr_opt(qfp.qf_fnum)
-            && !errbuf.b_fname.is_null()
+            && errbuf.fname_opt().is_some()
         {
             if qfp.qf_type == 1 {
                 qfga_concat(
                     gap,
-                    crate::memory::cstr_as_bytes(
-                        (path_tail(crate::memory::cstr_from_ptr((errbuf.b_fname).cast()))).as_ptr(),
-                    ),
+                    crate::memory::cstr_as_bytes((path_tail(errbuf.fname_cstr())).as_ptr()),
                 );
             } else {
                 if first_bufline
-                    && (errbuf.b_sfname.is_null()
-                        || path_is_absolute(crate::memory::cstr_as_bytes((errbuf.b_sfname).cast())))
+                    && (errbuf.b_sfname.is_none() || path_is_absolute(errbuf.sfname_bytes()))
                 {
                     if dirname[0] == 0 {
                         os_dirname(dirname);
@@ -4136,10 +4132,9 @@ fn qf_buf_add_line(
                 }
                 qfga_concat(
                     gap,
-                    qfp.qf_fname.as_ref().map_or_else(
-                        || crate::memory::cstr_as_bytes(errbuf.b_fname),
-                        |s| s.as_bytes(),
-                    ),
+                    qfp.qf_fname
+                        .as_ref()
+                        .map_or_else(|| errbuf.fname_bytes(), |s| s.as_bytes()),
                 );
             }
         }
@@ -4463,7 +4458,7 @@ pub fn ex_make(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         )
@@ -4526,7 +4521,7 @@ pub fn ex_make(eap: &mut Exarg) {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 Some(au_name),
-                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                curbuf_mut().fname_opt(),
                 true,
                 curbuf_opt_mut(),
             );
@@ -5509,7 +5504,7 @@ fn vgr_process_files(
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
                     let b_p_ft = crate::memory::cstr_as_opt_cstr(buf.b_p_ft);
-                    let b_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+                    let b_fname = buf.fname_opt();
                     ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
                     apply_autocmds(EVENT_FILETYPE, b_p_ft, b_fname, true, Some(&mut *buf));
                     do_modelines(OPT_NOWIN);
@@ -5537,7 +5532,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         )
@@ -5589,7 +5584,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                 apply_autocmds(
                     EVENT_QUICKFIXCMDPOST,
                     Some(au_name),
-                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                    curbuf_mut().fname_opt(),
                     true,
                     curbuf_opt_mut(),
                 );
@@ -6870,7 +6865,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         )
@@ -6891,8 +6886,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
 
     let qf_title_cstr = qf_cmdtitle(eap.cmdline_cstr());
     let mut qf_title = qf_title_cstr.as_ptr().cast_mut();
-    let buf_sfname = buf.b_sfname;
-    if !buf_sfname.is_null() {
+    if let Some(buf_sfname) = buf.sfname_opt() {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuff_ptr, IOSIZE, c"%s (%s)", qf_title, buf_sfname,);
         qf_title = iobuff_ptr;
@@ -6928,7 +6922,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         );
@@ -6964,7 +6958,7 @@ fn trigger_cexpr_autocmd(cmdidx: i32) -> bool {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         )
@@ -7012,7 +7006,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             apply_autocmds(
                 EVENT_QUICKFIXCMDPOST,
                 Some(au_name),
-                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                curbuf_mut().fname_opt(),
                 true,
                 curbuf_opt_mut(),
             );
@@ -7170,7 +7164,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         && apply_autocmds(
             EVENT_QUICKFIXCMDPRE,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         )
@@ -7241,7 +7235,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         apply_autocmds(
             EVENT_QUICKFIXCMDPOST,
             Some(au_name),
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             true,
             curbuf_opt_mut(),
         );

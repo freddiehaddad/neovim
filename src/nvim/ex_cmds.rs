@@ -2064,26 +2064,25 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
     if aborting() {
         return false;
     }
-    let xfname = curbuf_mut().b_fname;
-    let (fname_cstr, sfname_cstr) = curbuf_mut().take_fnames();
+    let (fname_cstr, sfname_cstr, xfname_kind) = curbuf_mut().take_fnames();
     if !setfname(
         curbuf_mut(),
         crate::memory::cstr_as_opt_cstr(new_fname_ptr),
         None,
         true,
     ) {
-        curbuf_mut().restore_fnames(fname_cstr, sfname_cstr);
+        curbuf_mut().restore_fnames(fname_cstr, sfname_cstr, xfname_kind);
         return false;
     }
     curbuf_mut().b_flags |= BF_NOTEDITED;
-    if !crate::memory::cstr_is_empty(xfname) {
-        buf = buflist_new(
-            fname_cstr.as_deref(),
-            crate::memory::cstr_as_opt_cstr(xfname),
-            curwin_mut().w_cursor.lnum,
-            0,
-        )
-        .map_or(ptr::null_mut(), ptr::from_mut);
+    let xfname = match xfname_kind {
+        crate::buffer::BufFname::None => None,
+        crate::buffer::BufFname::Short => sfname_cstr.as_deref(),
+        crate::buffer::BufFname::Full => fname_cstr.as_deref(),
+    };
+    if xfname.is_some_and(|s| !s.to_bytes().is_empty()) {
+        buf = buflist_new(fname_cstr.as_deref(), xfname, curwin_mut().w_cursor.lnum, 0)
+            .map_or(ptr::null_mut(), ptr::from_mut);
         if let Some(b) = unsafe { buf.as_ref() }
             && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
@@ -2122,8 +2121,9 @@ pub fn ex_file(eap: &mut Exarg) {
 pub fn ex_update(eap: &mut Exarg) {
     if curbuf_is_changed_fn()
         || (!bt_nofilename(Some(crate::globals::curbuf_mut()))
-            && !curbuf_mut().b_ffname.is_null()
-            && !os_path_exists(crate::memory::cstr_from_ptr((curbuf_mut().b_ffname).cast())))
+            && curbuf_mut()
+                .ffname_opt()
+                .is_some_and(|f| !os_path_exists(f)))
     {
         do_write(eap);
     }
@@ -2224,7 +2224,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 break 'theend;
             }
             #[cfg(unix)]
-            if !check_writable(crate::memory::cstr_from_ptr(curbuf_mut().b_ffname)) {
+            if !check_writable(curbuf_mut().ffname_cstr()) {
                 break 'theend;
             }
             if check_readonly(&mut eap.forceit, curbuf_mut()) {
@@ -2233,8 +2233,12 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         }
 
         if !other {
-            ffname = curbuf_mut().b_ffname;
-            fname = curbuf_mut().b_fname;
+            ffname = curbuf_mut()
+                .ffname_opt()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+            fname = curbuf_mut()
+                .fname_opt()
+                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             if (eap.line1 != 1 || eap.line2 != curbuf_mut().b_ml.ml_line_count)
                 && eap.forceit == 0
                 && eap.append == 0
@@ -2299,7 +2303,9 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     do_modelines(0);
                 }
 
-                fname = curbuf_mut().b_sfname;
+                fname = curbuf_mut()
+                    .sfname_opt()
+                    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
             }
 
             if !handle_mkdir_p_arg(eap, crate::memory::cstr_as_opt_cstr(fname)) {
@@ -2307,7 +2313,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                 break 'theend;
             }
 
-            let name_was_missing = curbuf_mut().b_ffname.is_null();
+            let name_was_missing = curbuf_mut().b_ffname.is_none();
             retval = buf_write(
                 curbuf_mut(),
                 crate::memory::cstr_as_opt_cstr(ffname),
@@ -2472,27 +2478,20 @@ pub fn do_wqall(eap: &mut Exarg) {
             error += 1;
             break;
         }
-        if b.b_ffname.is_null() {
+        if b.b_ffname.is_none() {
             semsg!(
                 gettext(c"E141: No file name for buffer %lld"),
                 b.b_fnum as i64,
             );
             error += 1;
         } else if check_readonly(&mut eap.forceit, b)
-            || !check_overwrite(
-                eap,
-                b,
-                crate::memory::cstr_as_opt_cstr(b.b_fname),
-                crate::memory::cstr_as_opt_cstr(b.b_ffname),
-                false,
-            )
+            || !check_overwrite(eap, b, b.fname_opt(), b.ffname_opt(), false)
         {
             error += 1;
         } else {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
-            if !handle_mkdir_p_arg(eap, crate::memory::cstr_as_opt_cstr(b.b_fname))
-                || buf_write_all(b, eap.forceit != 0) == FAIL
+            if !handle_mkdir_p_arg(eap, b.fname_opt()) || buf_write_all(b, eap.forceit != 0) == FAIL
             {
                 error += 1;
             }
@@ -2531,18 +2530,13 @@ fn not_writing() -> bool {
 fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
     if *forceit == 0
         && (buf.b_p_ro != 0
-            || (os_path_exists(crate::memory::cstr_from_ptr((buf.b_ffname).cast()))
-                && os_file_is_writable(crate::memory::cstr_from_ptr((buf.b_ffname).cast())) == 0))
+            || (os_path_exists(buf.ffname_cstr()) && os_file_is_writable(buf.ffname_cstr()) == 0))
     {
         if (opt_vars().p_confirm != 0 || (g_st().cmdmod.cmod_flags & CMOD_CONFIRM) != 0)
-            && !buf.b_fname.is_null()
+            && buf.fname_opt().is_some()
         {
             let mut buff: [u8; DIALOG_MSG_SIZE] = [0; DIALOG_MSG_SIZE];
-            let fname = if !buf.b_fname.is_null() {
-                buf.b_fname.cast_const()
-            } else {
-                gettext(c"Untitled").as_ptr()
-            };
+            let fname = buf.fname_opt().unwrap_or_else(|| gettext(c"Untitled"));
             if buf.b_p_ro != 0 {
                 vim_snprintf!(
                     buff.as_mut_ptr().cast(),
@@ -2573,7 +2567,7 @@ fn check_readonly(forceit: &mut i32, buf: &mut FileBuf) -> bool {
         } else {
             semsg!(
                 gettext(c"E505: \"%s\" is read-only (add ! to override)"),
-                buf.b_fname,
+                buf.fname_cstr(),
             );
         }
         return true;
@@ -2755,12 +2749,16 @@ pub fn do_ecmd(
 
             if ffname.is_null() {
                 other_file = true;
-            } else if crate::memory::cstr_is_empty(ffname) && curbuf_mut().b_ffname.is_null() {
+            } else if crate::memory::cstr_is_empty(ffname) && curbuf_mut().b_ffname.is_none() {
                 other_file = false;
             } else {
                 if crate::memory::cstr_is_empty(ffname) {
-                    ffname = curbuf_mut().b_ffname;
-                    sfname = curbuf_mut().b_fname;
+                    ffname = curbuf_mut()
+                        .ffname_opt()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+                    sfname = curbuf_mut()
+                        .fname_opt()
+                        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 }
                 free_fname = fix_fname(crate::memory::cstr_as_opt_cstr((ffname).cast()));
                 if let Some(ref ff) = free_fname {
@@ -2897,8 +2895,8 @@ pub fn do_ecmd(
             }
 
             if buf != g_st().curbuf {
-                if unsafe { !(*buf).b_fname.is_null() } {
-                    new_name = Some(cstr_to_cstring(unsafe { (*buf).b_fname }));
+                if let Some(f) = unsafe { (*buf).fname_opt() } {
+                    new_name = Some(f.to_owned());
                 }
                 let save_au_new_curbuf = g_st().au_new_curbuf;
                 set_bufref(&mut g_st().au_new_curbuf, unsafe { buf.as_mut() });
@@ -3025,11 +3023,7 @@ pub fn do_ecmd(
                 solcol = curwin_mut().w_cursor.col;
             }
             buf = g_st().curbuf;
-            new_name = if unsafe { !(*buf).b_fname.is_null() } {
-                Some(cstr_to_cstring(unsafe { (*buf).b_fname }))
-            } else {
-                None
-            };
+            new_name = unsafe { (*buf).fname_opt().map(CStr::to_owned) };
             set_bufref(&mut bufref, unsafe { buf.as_mut() });
 
             if (curbuf_mut().b_flags & BF_NEVERLOADED) == 0

@@ -749,7 +749,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
                 i32::from(first),
                 crate::memory::cstr_from_ptr(path),
                 find_what,
-                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                curbuf_mut().ffname_opt(),
                 if find_what == FINDFILE_DIR {
                     c""
                 } else {

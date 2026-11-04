@@ -80,10 +80,9 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
         if buf.is_null() {
             let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
             for bp in for_all_buffers_mut() {
-                if !bp.b_fname.is_null()
-                    && (path_with_url(crate::memory::cstr_as_bytes((bp.b_fname).cast()))
-                        || bt_nofilename(Some(&*bp)))
-                    && crate::memory::cstr_as_bytes(bp.b_fname) == target
+                if bp.fname_opt().is_some()
+                    && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&*bp)))
+                    && bp.fname_bytes() == target
                 {
                     buf = bp;
                     break;
@@ -575,9 +574,9 @@ pub fn f_bufname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         tv_get_buf_from_arg(&mut argvars[0]).map_or(ptr::null(), |b| b)
     };
     if let Some(buf) = unsafe { buf.as_ref() }
-        && !buf.b_fname.is_null()
+        && buf.fname_opt().is_some()
     {
-        tv_set_string(rettv, crate::memory::cstr_as_opt_cstr(buf.b_fname));
+        tv_set_string(rettv, buf.fname_opt());
     }
 }
 
@@ -721,15 +720,7 @@ fn get_buffer_info(buf: &mut FileBuf) -> &'static mut TvDict {
     let dict = tv_dict_alloc();
 
     tv_dict_add_nr(&mut *dict, c"bufnr", buf.b_fnum as Varnumber);
-    tv_dict_add_str(
-        &mut *dict,
-        c"name",
-        Some(if !buf.b_ffname.is_null() {
-            unsafe { std::ffi::CStr::from_ptr(buf.b_ffname) }
-        } else {
-            c""
-        }),
-    );
+    tv_dict_add_str(&mut *dict, c"name", Some(buf.ffname_cstr()));
     let lnum = if ptr::eq(buf, g_st().curbuf) {
         curwin_mut().w_cursor.lnum
     } else {

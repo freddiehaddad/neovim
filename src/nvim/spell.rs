@@ -1439,7 +1439,7 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
                 && apply_autocmds(
                     EVENT_SPELLFILEMISSING,
                     crate::memory::cstr_as_opt_cstr(lang),
-                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+                    curbuf_mut().fname_opt(),
                     false,
                     curbuf_opt_mut(),
                 )

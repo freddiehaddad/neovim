@@ -662,11 +662,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         let sp = buf_spname(buf);
         semsg!(
             tr(c"E303: Unable to open swap file for \"%s\", recovery impossible"),
-            if let Some(sp) = sp {
-                sp.as_ptr()
-            } else {
-                buf.b_fname.cast_const()
-            },
+            sp.unwrap_or_else(|| buf.fname_cstr()),
         );
         g_st().no_wait_return -= 1;
     }
@@ -755,13 +751,13 @@ fn ml_upd_block0(buf: &mut FileBuf, what: UpdBlock0) {
 }
 
 fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
-    if buf.b_ffname.is_null() {
+    if buf.b_ffname.is_none() {
         b0p.b0_fname[0] = 0;
     } else {
         let mut uname = [0u8; B0_UNAME_SIZE];
         let flen = home_replace(
             None,
-            crate::memory::cstr_as_opt_cstr(buf.b_ffname),
+            buf.ffname_opt(),
             &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
             true,
         );
@@ -771,7 +767,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
             if !retval || ulen + flen > B0_FNAME_SIZE_CRYPT - 1 {
                 crate::memory::copy_bytes_to_c_buf(
                     &mut b0p.b0_fname[..B0_FNAME_SIZE_CRYPT],
-                    crate::memory::cstr_as_bytes(buf.b_ffname),
+                    buf.ffname_bytes(),
                 );
             } else {
                 b0p.b0_fname.copy_within(1..(1 + flen), ulen + 1);
@@ -779,10 +775,7 @@ fn set_b0_fname(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
             }
         }
         let mut file_info = FileInfo::new();
-        if os_fileinfo(
-            crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
-            &mut file_info,
-        ) {
+        if os_fileinfo(buf.ffname_cstr(), &mut file_info) {
             buf_store_file_info(buf, &mut file_info);
             long_to_char(buf.b_mtime, &mut b0p.b0_mtime);
             long_to_char(os_fileinfo_inode(&file_info) as i64, &mut b0p.b0_ino);
@@ -812,7 +805,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if same_directory(
         crate::memory::cstr_as_opt_cstr((mf_fname_ptr).cast()),
-        crate::memory::cstr_as_opt_cstr((buf.b_ffname).cast()),
+        buf.ffname_opt(),
     ) {
         b0p.set_flags(b0p.flags() | B0_SAME_DIR);
     } else {
@@ -865,7 +858,7 @@ pub fn ml_recover(checkext: bool) {
     g_st().recoverymode = true;
     let called_from_main = curbuf_mut().b_ml.ml_mfp.is_none();
 
-    let fname_opt = crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname);
+    let fname_opt = curbuf_mut().fname_opt();
     let fname_cstr = fname_opt.unwrap_or(c"");
     let fname_slice = fname_cstr.to_bytes();
     let len = fname_slice.len();
@@ -1105,7 +1098,7 @@ pub fn ml_recover(checkext: bool) {
     } else {
         home_replace(
             None,
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            curbuf_mut().ffname_opt(),
             g_st().name_buff_bytes_mut(),
             true,
         );
@@ -1118,11 +1111,8 @@ pub fn ml_recover(checkext: bool) {
     let mut org_file_info = FileInfo::new();
     let mut swp_file_info = FileInfo::new();
     let mtime = char_to_long(&b0p.b0_mtime);
-    if !curbuf_mut().b_ffname.is_null()
-        && os_fileinfo(
-            crate::memory::cstr_from_ptr(curbuf_mut().b_ffname),
-            &mut org_file_info,
-        )
+    if curbuf_mut().b_ffname.is_some()
+        && os_fileinfo(curbuf_mut().ffname_cstr(), &mut org_file_info)
         && ((os_fileinfo(
             crate::memory::cstr_from_ptr(mf_fname_ptr),
             &mut swp_file_info,
@@ -1156,9 +1146,9 @@ pub fn ml_recover(checkext: bool) {
         ml_delete(1);
     }
 
-    if !curbuf_mut().b_ffname.is_null() {
+    if curbuf_mut().b_ffname.is_some() {
         orig_file_status = readfile(
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+            curbuf_mut().ffname_opt(),
             None,
             0,
             0,
@@ -1192,7 +1182,7 @@ pub fn ml_recover(checkext: bool) {
     buf.b_ml.ml_stack_top = 0;
     buf.b_ml.ml_stack.clear();
 
-    let mut cannot_open = curbuf_mut().b_ffname.is_null();
+    let mut cannot_open = curbuf_mut().b_ffname.is_none();
 
     serious_error = false;
     while !g_st().got_int {
@@ -1259,7 +1249,7 @@ pub fn ml_recover(checkext: bool) {
                             if line_count <= 0
                                 || pe_old_lnum < 1
                                 || readfile(
-                                    crate::memory::cstr_as_opt_cstr(curbuf_mut().b_ffname),
+                                    curbuf_mut().ffname_opt(),
                                     None,
                                     lnum,
                                     pe_old_lnum - 1,
@@ -1538,14 +1528,14 @@ fn ml_recover_theend(
         apply_autocmds(
             EVENT_BUFREADPOST,
             None,
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             false,
             curbuf_opt_mut(),
         );
         apply_autocmds(
             EVENT_BUFWINENTER,
             None,
-            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_fname),
+            curbuf_mut().fname_opt(),
             false,
             curbuf_opt_mut(),
         );
@@ -1929,13 +1919,11 @@ pub fn ml_sync_all(check_file: i32, check_char: i32, do_fsync: bool) {
         if buf_is_changed_fn(&mut *buf)
             && check_file != 0
             && mf_need_trans(mfp)
-            && !buf.b_ffname.is_null()
+            && buf.b_ffname.is_some()
         {
             let mut file_info = FileInfo::new();
-            if !os_fileinfo(
-                crate::memory::cstr_from_ptr((buf.b_ffname).cast()),
-                &mut file_info,
-            ) || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
+            if !os_fileinfo(buf.ffname_cstr(), &mut file_info)
+                || buf.b_mtime_read != file_info.stat.st_mtim.tv_sec as _
                 || buf.b_mtime_read_ns != file_info.stat.st_mtim.tv_nsec as _
                 || os_fileinfo_size(&file_info) != buf.b_orig_size
             {
@@ -3376,8 +3364,8 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
 }
 
 fn attention_message(buf: &mut FileBuf, fname: &CStr, fhname: &CStr, msg: &mut Vec<u8>) {
-    assert!(!buf.b_fname.is_null());
-    let buf_fname_cstr = crate::memory::cstr_from_ptr(buf.b_fname);
+    assert!(buf.fname_opt().is_some());
+    let buf_fname_cstr = buf.fname_cstr();
 
     emsg(tr(c"E325: ATTENTION"));
     sb_push_cstr(msg, tr(c"Found a swap file by the name \""));
@@ -3429,13 +3417,7 @@ fn do_swapexists(buf: &mut FileBuf, fname: &CStr) -> SeaChoice {
     set_vim_var_string(VV_SWAPCHOICE, None, -1);
 
     g_st().allbuf_lock += 1;
-    apply_autocmds(
-        EVENT_SWAPEXISTS,
-        crate::memory::cstr_as_opt_cstr(buf.b_fname),
-        None,
-        false,
-        None,
-    );
+    apply_autocmds(EVENT_SWAPEXISTS, buf.fname_opt(), None, false, None);
     g_st().allbuf_lock -= 1;
 
     set_vim_var_string(VV_SWAPNAME, None, -1);
@@ -3462,7 +3444,7 @@ fn findswapname(
     old_fname: Option<&CStr>,
     found_existing_dir: &mut bool,
 ) -> Option<std::ffi::CString> {
-    let buf_fname = crate::memory::cstr_as_opt_cstr(buf.b_fname);
+    let buf_fname = buf.fname_opt();
     let dir_len = dirp.len() + 1;
     let mut dir_name_vec: Vec<u8> = vec![0; dir_len];
     copy_option_part(dirp, &mut dir_name_vec, c",");
@@ -3515,7 +3497,7 @@ fn findswapname(
                     ml_st().proc_running = swapfile_proc_running(&b0, fname_cstr);
 
                     let b0_fname_cstr = crate::memory::cstr_until_nul(&b0.b0_fname);
-                    let buf_ffname_opt = crate::memory::cstr_as_opt_cstr(buf.b_ffname);
+                    let buf_ffname_opt = buf.ffname_opt();
                     if (b0.flags() & B0_SAME_DIR) != 0 {
                         if !path_equal(
                             path_tail(buf_ffname_opt.unwrap_or(c"")),
@@ -3555,9 +3537,7 @@ fn findswapname(
             {
                 let mut choice: SeaChoice = SEA_CHOICE_NONE;
 
-                if os_path_exists(crate::memory::cstr_from_ptr(buf.b_fname))
-                    && swapfile_unchanged(fname_cstr)
-                {
+                if os_path_exists(buf.fname_cstr()) && swapfile_unchanged(fname_cstr) {
                     choice = SEA_CHOICE_DELETE;
                     if opt_vars().p_verbose > 0 {
                         verb_msg(tr(c"Found a swap file that is not useful, deleting it"));

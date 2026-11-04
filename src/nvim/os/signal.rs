@@ -269,7 +269,7 @@ pub(crate) fn on_signal(signum: i32) {
             apply_autocmds(
                 EVENT_SIGNAL,
                 Some(c"SIGUSR1"),
-                crate::memory::cstr_as_opt_cstr(crate::globals::curbuf_mut().b_fname),
+                crate::globals::curbuf_mut().fname_opt(),
                 true,
                 crate::globals::curbuf_opt_mut(),
             );
@@ -292,7 +292,7 @@ pub(crate) fn on_signal(signum: i32) {
                 apply_autocmds(
                     EVENT_SIGNAL,
                     Some(c"SIGWINCH"),
-                    crate::memory::cstr_as_opt_cstr(crate::globals::curbuf_mut().b_fname),
+                    crate::globals::curbuf_mut().fname_opt(),
                     true,
                     crate::globals::curbuf_opt_mut(),
                 );
