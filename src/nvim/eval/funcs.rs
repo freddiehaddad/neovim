@@ -4222,7 +4222,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         FNE_CHECK_START,
     );
     if let Some(end_cstr) = end
-        && !lv.ll_name.is_null()
+        && let Some(ll_name) = lv.ll_name
     {
         let end = end_cstr.as_ptr();
         if !end_cstr.to_bytes().is_empty() {
@@ -4235,12 +4235,7 @@ pub fn f_islocked(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 end,
             );
         } else if lv.ll_tv.is_null() {
-            if let Some(di) = crate::eval::vars::find_var_opt(
-                crate::memory::cstr_from_ptr(lv.ll_name.cast()),
-                lv.ll_name_len,
-                None,
-                1,
-            ) {
+            if let Some(di) = crate::eval::vars::find_var_opt(ll_name, lv.ll_name_len, None, 1) {
                 rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(
                     (di.di_flags & DI_FLAGS_LOCK) != 0 || tv_islocked(&di.di_tv),
                 ));

@@ -2308,7 +2308,7 @@ pub fn trans_function_name(
         return res;
     }
 
-    if lv.ll_name.is_null() {
+    if lv.ll_name.is_none() {
         *pp = unsafe { CStr::from_ptr(end.cast()) };
 
         return None;
@@ -2352,25 +2352,29 @@ pub fn trans_function_name(
     if let Some(ref exp_name) = lv.ll_exp_name {
         len = exp_name.as_bytes().len() as i32;
         if lead <= 2
-            && lv.ll_name == exp_name.as_ptr().cast()
+            && lv.ll_name.map(CStr::as_ptr) == Some(exp_name.as_ptr())
             && lv.ll_name_len >= 2
             && exp_name.as_bytes().starts_with(b"s:")
         {
-            lv.ll_name = lv.ll_name.wrapping_add(2);
+            lv.ll_name = lv.ll_name.map(|s| &s[2..]);
             lv.ll_name_len -= 2;
             len -= 2;
             lead = 2;
         }
     } else {
-        if lead == 2 || crate::memory::cstr_as_bytes(lv.ll_name.cast()).starts_with(b"g:") {
-            lv.ll_name = lv.ll_name.wrapping_add(2);
+        if lead == 2 || lv.ll_name.is_some_and(|s| s.to_bytes().starts_with(b"g:")) {
+            lv.ll_name = lv.ll_name.map(|s| &s[2..]);
             lv.ll_name_len = lv.ll_name_len.wrapping_sub(2);
         }
-        len = crate::memory::ptr_offset_from(end.cast(), lv.ll_name) as i32;
+        len = crate::memory::ptr_offset_from(
+            end.cast(),
+            lv.ll_name.map_or(ptr::null(), CStr::as_ptr),
+        ) as i32;
     }
 
     let mut sid_buflen = 0usize;
     let mut sid_buf = [0u8; 20];
+    let ll_name_ptr = lv.ll_name.map_or(ptr::null(), CStr::as_ptr);
 
     if skip {
         lead = 0;
@@ -2395,7 +2399,7 @@ pub fn trans_function_name(
             lead += sid_buflen as i32;
         }
     } else if (flags & TFN_INT) == 0
-        && builtin_function(crate::memory::cstr_slice(lv.ll_name.cast(), lv.ll_name_len))
+        && builtin_function(crate::memory::cstr_slice(ll_name_ptr, lv.ll_name_len))
     {
         semsg!(
             gettext(c"E128: Function name must start with a capital or \"s:\": %s"),
@@ -2406,7 +2410,7 @@ pub fn trans_function_name(
 
     if !skip && (flags & TFN_QUIET) == 0 && (flags & TFN_NO_DEREF) == 0 {
         let cp: *const u8 = {
-            let _s = (lv.ll_name).cast::<u8>();
+            let _s = ll_name_ptr.cast::<u8>();
             let _sz = lv.ll_name_len;
             if _sz == 0 {
                 std::ptr::null()
@@ -2435,7 +2439,7 @@ pub fn trans_function_name(
     }
 
     bytes.extend_from_slice(unsafe {
-        std::slice::from_raw_parts(lv.ll_name.cast::<u8>(), len as usize)
+        std::slice::from_raw_parts(ll_name_ptr.cast::<u8>(), len as usize)
     });
 
     *pp = unsafe { CStr::from_ptr(end.cast()) };

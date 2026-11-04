@@ -108,7 +108,7 @@ impl Default for Evalarg {
 
 #[repr(C)]
 pub struct Lval {
-    pub ll_name: *const u8,
+    pub ll_name: Option<&'static std::ffi::CStr>,
     pub ll_name_len: usize,
     pub ll_exp_name: Option<std::ffi::CString>,
     pub ll_tv: *mut TypVal,
@@ -127,7 +127,7 @@ pub struct Lval {
 impl Lval {
     pub const fn new() -> Self {
         Self {
-            ll_name: ptr::null(),
+            ll_name: None,
             ll_name_len: 0,
             ll_exp_name: None,
             ll_tv: ptr::null_mut(),
@@ -354,7 +354,7 @@ struct VarsModuleState {
     varnamebuf: Vec<u8>,
     redir_lval: Option<Lval>,
     redir_buf: Vec<u8>,
-    redir_endp: *mut u8,
+    redir_endp: Option<&'static std::ffi::CStr>,
     redir_varname: Option<std::ffi::CString>,
     gdone: usize,
     bdone: usize,
@@ -486,7 +486,7 @@ impl VarsModuleState {
             varnamebuf: Vec::new(),
             redir_lval: None,
             redir_buf: Vec::new(),
-            redir_endp: ptr::null_mut(),
+            redir_endp: None,
             redir_varname: None,
             gdone: 0,
             bdone: 0,
@@ -1950,7 +1950,7 @@ fn ex_let_one<'a>(
             let mut lv: Lval = Lval::new();
             let p_opt = get_lval(arg_in, Some(tv), &mut lv, false, false, 0, FNE_CHECK_START);
             if let Some(p_cstr) = p_opt
-                && !lv.ll_name.is_null()
+                && lv.ll_name.is_some()
             {
                 let p = p_cstr.as_ptr().cast_mut().cast::<u8>();
                 if endchars.is_some_and(|ec| {
@@ -2025,7 +2025,8 @@ fn ex_unletlock(
 
     loop {
         if crate::memory::cstr_first_byte(arg.cast()) == b'$' {
-            lv.ll_name = arg;
+            let name_start = arg;
+            lv.ll_name = Some(crate::memory::cstr_from_ptr(arg.cast()));
             lv.ll_tv = ptr::null_mut();
             arg = arg.wrapping_add(1);
             let mut arg_cstr = unsafe { CStr::from_ptr(arg.cast()) };
@@ -2034,7 +2035,7 @@ fn ex_unletlock(
                 return;
             }
             arg = arg_cstr.as_ptr().cast_mut().cast();
-            lv.ll_name_len = (arg as usize).wrapping_sub(lv.ll_name as usize);
+            lv.ll_name_len = (arg as usize).wrapping_sub(name_start as usize);
             if !error && eap.skip == 0 && !callback(&mut lv, eap, deep) {
                 error = true;
             }
@@ -2050,7 +2051,7 @@ fn ex_unletlock(
                 FNE_CHECK_START,
             )
             .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-            if lv.ll_name.is_null() {
+            if lv.ll_name.is_none() {
                 error = true;
             }
             if name_end.is_null()
@@ -2088,9 +2089,10 @@ fn ex_unletlock(
 fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     let forceit = eap.forceit != 0;
     let mut ret = true;
+    let ll_name = lp.ll_name.unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
-        let name_slice = crate::memory::cstr_slice(lp.ll_name.cast(), lp.ll_name_len);
+        let name_slice = crate::memory::cstr_slice(ll_name.as_ptr(), lp.ll_name_len);
         if name_slice.first() == Some(&b'$') {
             let env_cstr = cstr_from_bytes(&name_slice[1..]);
             vim_unsetenv_ext(env_cstr.as_c_str());
@@ -2100,16 +2102,12 @@ fn do_unlet_var(lp: &mut Lval, eap: &mut Exarg, _deep: i32) -> bool {
     } else if (!lp.ll_list.is_null()
         && value_check_lock(
             tv_list_locked(lp.list_opt().as_deref()),
-            crate::memory::cstr_as_opt_cstr(lp.ll_name.cast()),
+            lp.ll_name,
             lp.ll_name_len,
         ))
-        || (lp.dict_opt().is_some_and(|d| {
-            value_check_lock(
-                d.dv_lock,
-                crate::memory::cstr_as_opt_cstr(lp.ll_name.cast()),
-                lp.ll_name_len,
-            )
-        }))
+        || (lp
+            .dict_opt()
+            .is_some_and(|d| value_check_lock(d.dv_lock, lp.ll_name, lp.ll_name_len)))
     {
         return false;
     } else if lp.ll_range {
@@ -2252,25 +2250,21 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
 fn do_lock_var(lp: &mut Lval, eap: &mut Exarg, deep: i32) -> bool {
     let lock = eap.cmdidx == Cmdidx::CmdLockvar as i32;
     let mut ret = true;
+    let ll_name = lp.ll_name.unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
-        if crate::memory::cstr_first_byte(lp.ll_name.cast()) == b'$' {
-            semsg!(gettext(E_LOCK_UNLOCK), lp.ll_name);
+        if ll_name.to_bytes().first() == Some(&b'$') {
+            semsg!(gettext(E_LOCK_UNLOCK), ll_name);
             ret = false;
         } else {
-            let Some(di) = find_var_opt(
-                unsafe { CStr::from_ptr(lp.ll_name.cast()) },
-                lp.ll_name_len,
-                None,
-                1,
-            ) else {
+            let Some(di) = find_var_opt(ll_name, lp.ll_name_len, None, 1) else {
                 return false;
             };
             if (di.di_flags & DI_FLAGS_FIX) != 0
                 && di.di_tv.v_type != VarType::VarDict
                 && di.di_tv.v_type != VarType::VarList
             {
-                semsg!(gettext(E_LOCK_UNLOCK), lp.ll_name);
+                semsg!(gettext(E_LOCK_UNLOCK), ll_name);
                 ret = false;
             } else {
                 if lock {
@@ -3692,19 +3686,18 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         0,
         FNE_CHECK_START,
     )
-    .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
-    if vars_st().redir_endp.is_null()
-        || unsafe { (*lval_ptr).ll_name.is_null() }
-        || !crate::memory::cstr_is_empty(vars_st().redir_endp.cast())
+    .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
+    if vars_st()
+        .redir_endp
+        .is_none_or(|s| !s.to_bytes().is_empty())
+        || unsafe { (*lval_ptr).ll_name.is_none() }
     {
-        if !vars_st().redir_endp.is_null()
-            && !crate::memory::cstr_is_empty(vars_st().redir_endp.cast())
-        {
-            semsg!(gettext(E_TRAILING_ARG), vars_st().redir_endp);
+        if let Some(endp) = vars_st().redir_endp.filter(|s| !s.to_bytes().is_empty()) {
+            semsg!(gettext(E_TRAILING_ARG), endp);
         } else {
             semsg!(gettext(E_INVARG2), name.as_ptr());
         }
-        vars_st().redir_endp = ptr::null_mut();
+        vars_st().redir_endp = None;
         var_redir_stop();
         return false;
     }
@@ -3716,7 +3709,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         v_lock: 0,
         vval: TypvalVval::String(c"".as_ptr().cast_mut()),
     };
-    let endp_cstr = unsafe { CStr::from_ptr(vars_st().redir_endp.cast()) };
+    let endp_cstr = vars_st().redir_endp.unwrap_or(c"");
     if append {
         set_var_lval(
             unsafe { &mut *lval_ptr },
@@ -3740,7 +3733,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
         *lval_ptr = Lval::new();
     }
     if g_st().called_emsg > called_emsg_before {
-        vars_st().redir_endp = ptr::null_mut();
+        vars_st().redir_endp = None;
         var_redir_stop();
         return false;
     }
@@ -3764,7 +3757,7 @@ pub fn var_redir_stop() {
     let rl = &raw mut vars_st().redir_lval;
     if let Some(ref mut lval) = *unsafe { &mut (*rl) } {
         let lval_ptr: *mut Lval = lval;
-        if !vars_st().redir_endp.is_null() {
+        if vars_st().redir_endp.is_some() {
             vars_st().redir_buf.push(0);
             let mut tv = TypVal {
                 v_type: VarType::VarString,
@@ -3782,12 +3775,14 @@ pub fn var_redir_stop() {
                 0,
                 FNE_CHECK_START,
             )
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
+            .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
 
-            if !vars_st().redir_endp.is_null() && unsafe { !(*lval_ptr).ll_name.is_null() } {
+            if let Some(endp) = vars_st().redir_endp
+                && unsafe { (*lval_ptr).ll_name.is_some() }
+            {
                 set_var_lval(
                     unsafe { &mut *lval_ptr },
-                    unsafe { CStr::from_ptr(vars_st().redir_endp.cast()) },
+                    endp,
                     &mut tv,
                     false,
                     false,

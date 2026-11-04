@@ -1479,7 +1479,7 @@ pub fn get_lval<'a>(
     *lp = Lval::new();
 
     if skip {
-        lp.ll_name = name.cast();
+        lp.ll_name = Some(unsafe { &*(name_in as *const CStr) });
         return Some(find_name_end(name_in, None, FNE_INCL_BR | fne_flags));
     }
 
@@ -1505,10 +1505,13 @@ pub fn get_lval<'a>(
         ) {
             lp.ll_name_len = cstr.as_bytes().len();
             lp.ll_exp_name = Some(cstr);
-            lp.ll_name = lp.ll_exp_name.as_ref().unwrap().as_ptr().cast();
+            lp.ll_name = lp
+                .ll_exp_name
+                .as_ref()
+                .map(|s| unsafe { &*(s.as_c_str() as *const CStr) });
         } else {
             lp.ll_exp_name = None;
-            lp.ll_name = ptr::null();
+            lp.ll_name = None;
             if !aborting() && !quiet {
                 g_st().emsg_severe = true;
                 semsg!(gettext(E_INVARG2), name_in.as_ptr());
@@ -1517,20 +1520,21 @@ pub fn get_lval<'a>(
             lp.ll_name_len = 0;
         }
     } else {
-        lp.ll_name = name.cast();
-        lp.ll_name_len = (p as usize).wrapping_sub(lp.ll_name as usize);
+        lp.ll_name = Some(unsafe { &*(name_in as *const CStr) });
+        lp.ll_name_len = (p as usize).wrapping_sub(name as usize);
     }
 
     if (crate::memory::cstr_first_byte(p) != b'[' && crate::memory::cstr_first_byte(p) != b'.')
-        || lp.ll_name.is_null()
+        || lp.ll_name.is_none()
     {
         return Some(p_cstr);
     }
 
     let mut ht: Option<&'static mut Hashtab> = None;
+    let ll_name = lp.ll_name.unwrap_or(c"");
 
     let v = find_var(
-        crate::memory::cstr_from_ptr(lp.ll_name.cast()),
+        ll_name,
         lp.ll_name_len,
         if (flags & GLV_READ_ONLY) != 0 {
             None
@@ -1543,7 +1547,7 @@ pub fn get_lval<'a>(
         semsg!(
             gettext(c"E121: Undefined variable: %.*s"),
             lp.ll_name_len as i32,
-            lp.ll_name,
+            ll_name.as_ptr(),
         );
     }
     let v = v?;
@@ -1564,7 +1568,7 @@ pub fn get_lval<'a>(
     )?;
 
     if lp.ll_exp_name.is_none() {
-        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(lp.ll_name as usize);
+        lp.ll_name_len = (p_cstr.as_ptr() as usize).wrapping_sub(ll_name.as_ptr() as usize);
     }
     Some(p_cstr)
 }
@@ -1580,13 +1584,15 @@ pub fn set_var_lval(
 ) {
     let endp: *const u8 = endp_cstr.as_ptr().cast();
     let op = op_opt.map_or(ptr::null(), CStr::as_ptr);
+    let ll_name = lp.ll_name.unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
         let name_cstr = if lp.ll_exp_name.is_some() {
-            crate::memory::cstr_to_cstring(lp.ll_name.cast())
+            ll_name.to_owned()
         } else {
-            let full_len = crate::memory::ptr_offset_from(endp, lp.ll_name) as usize;
-            cstr_from_bytes(crate::memory::cstr_slice(lp.ll_name.cast(), full_len))
+            let full_len =
+                crate::memory::ptr_offset_from(endp, ll_name.as_ptr().cast::<u8>()) as usize;
+            cstr_from_bytes(crate::memory::cstr_slice(ll_name.as_ptr(), full_len))
         };
         if let Some(blob) = unsafe { lp.ll_blob.as_mut() } {
             if !op.is_null() && crate::memory::cstr_first_byte(op) != b'=' {
@@ -1654,7 +1660,7 @@ pub fn set_var_lval(
         } else {
             unsafe { (*lp.tv_mut().vval.v_dict()).dv_lock }
         },
-        crate::memory::cstr_as_opt_cstr(lp.ll_name.cast()),
+        lp.ll_name,
         TV_CSTRING,
     ) {
         // Skip
@@ -1671,7 +1677,7 @@ pub fn set_var_lval(
             lp.ll_n2,
             lp.ll_empty2,
             crate::memory::cstr_as_opt_cstr(op),
-            unsafe { CStr::from_ptr(lp.ll_name.cast()) },
+            ll_name,
         );
     } else {
         let mut oldtv = tv_initial_value();
