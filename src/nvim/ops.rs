@@ -876,10 +876,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         if g_st().virtual_op != 0 {
             only_setmarks = true;
         } else {
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_EMPTYREGION,
-            ) {
+            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EMPTYREGION) {
                 beep_flush();
             }
             return true;
@@ -1040,10 +1037,8 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     return false;
                 }
 
-                if crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_DOLLAR,
-                ) && oap.op_type == OP_CHANGE
+                if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
+                    && oap.op_type == OP_CHANGE
                     && oap.end.lnum == curwin_mut().w_cursor.lnum
                     && !oap.is_visual
                 {
@@ -2147,14 +2142,12 @@ pub fn do_join(
         g_st().curbuf_splice_pending -= 1;
         curbuf_mut().deleted_bytes2 = 0;
 
-        curwin_mut().w_cursor.col = if crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_JOINCOL,
-        ) {
-            currsize
-        } else {
-            col
-        };
+        curwin_mut().w_cursor.col =
+            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_JOINCOL) {
+                currsize
+            } else {
+                col
+            };
         check_cursor_col(curwin_mut());
 
         curwin_mut().w_cursor.coladd = 0;
@@ -2663,30 +2656,12 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     let endpos: CursorPos;
     let mut save_coladd: Colnr = 0;
 
-    let do_hex = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'x' as i32,
-    );
-    let do_oct = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'o' as i32,
-    );
-    let do_bin = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'b' as i32,
-    );
-    let do_alpha = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'p' as i32,
-    );
-    let do_unsigned = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'u' as i32,
-    );
-    let do_blank = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((curbuf_mut().b_p_nf).cast()),
-        b'k' as i32,
-    );
+    let do_hex = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'x' as i32);
+    let do_oct = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'o' as i32);
+    let do_bin = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'b' as i32);
+    let do_alpha = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'p' as i32);
+    let do_unsigned = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'u' as i32);
+    let do_blank = crate::strings::vim_haschr(curbuf_mut().b_p_nf.as_cstr(), b'k' as i32);
 
     if virtual_active(curwin_mut()) {
         save_coladd = pos.coladd;
@@ -3176,16 +3151,14 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
                 min_pos = curwin_mut().w_cursor;
                 max_pos = g_st().visual_global.start;
             }
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && max_pos.col > 0 {
+            if opt_vars().p_sel.first_byte() == b'e' && max_pos.col > 0 {
                 max_pos.col -= 1;
             }
 
             if l_visual_mode == CTRL_V_CONST {
-                let saved_sbr = opt_vars().p_sbr;
-                let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
+                let saved_sbr = std::mem::take(&mut opt_vars().p_sbr);
+                let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
-                opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
-                curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
                 oparg.is_visual = true;
                 oparg.motion_type = MT_BLOCK_WISE;
                 oparg.op_type = OP_NOP;
@@ -3410,8 +3383,7 @@ pub fn cursor_pos_info(mut dict: Option<&mut TvDict>) {
             );
         }
         if dict.is_none() {
-            let p = opt_vars().p_shm;
-            opt_vars().p_shm = c"".as_ptr().cast_mut();
+            let p = std::mem::take(&mut opt_vars().p_shm);
             if opt_vars().p_ch < 1 {
                 msg_start();
                 g_st().msg_scroll = 1;
@@ -3500,10 +3472,10 @@ fn op_colon(oap: &mut Oparg) {
         stuff_readbuff(get_equalprg());
         stuff_readbuff(c"\n");
     } else if oap.op_type == OP_FORMAT {
-        if !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp) {
-            stuff_readbuff(crate::memory::cstr_from_ptr(curbuf_mut().b_p_fp));
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_fp) {
-            stuff_readbuff(crate::memory::cstr_from_ptr(opt_vars().p_fp));
+        if !curbuf_mut().b_p_fp.is_empty() {
+            stuff_readbuff(curbuf_mut().b_p_fp.as_cstr());
+        } else if !opt_vars().p_fp.is_empty() {
+            stuff_readbuff(opt_vars().p_fp.as_cstr());
         } else {
             stuff_readbuff(c"fmt");
         }
@@ -3610,11 +3582,7 @@ fn get_op_vcol(oap: &mut Oparg, initial: bool) {
 
     oap.start_vcol = oap.start_vcol.min(start);
     if end > oap.end_vcol {
-        if initial
-            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-            && start >= 1
-            && start > oap.end_vcol
-        {
+        if initial && opt_vars().p_sel.first_byte() == b'e' && start >= 1 && start > oap.end_vcol {
             oap.end_vcol = start - 1;
         } else {
             oap.end_vcol = end;
@@ -3686,10 +3654,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
 
     if (g_st().finish_op || g_st().visual_global.active) && oap.op_type != OP_NOP {
         let mut include_line_break = false;
-        let redo_yank = crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_YANK,
-        ) && !gui_yank;
+        let redo_yank =
+            crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_YANK) && !gui_yank;
 
         reset_lbr();
         oap.is_visual = g_st().visual_global.active;
@@ -3840,7 +3806,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     && (include_line_break || g_st().virtual_op == 0)
                 {
                     oap.inclusive = false;
-                    if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o'
+                    if opt_vars().p_sel.first_byte() != b'o'
                         && op_on_lines(oap.op_type) == 0
                         && oap.end.lnum < curbuf_mut().b_ml.ml_line_count
                     {
@@ -3885,11 +3851,8 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                 || (oap.op_type == OP_YANK && gchar_pos(&mut oap.end) == i32::from(NUL)))
             && equalpos(oap.start, oap.end)
             && !(g_st().virtual_op != 0 && oap.start.coladd != oap.end.coladd);
-        let empty_region_error = oap.empty
-            && crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_EMPTYREGION,
-            );
+        let empty_region_error =
+            oap.empty && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_EMPTYREGION);
 
         if oap.is_visual && (oap.empty || !modifiable(curbuf_mut()) || oap.op_type == OP_FOLD) {
             restore_lbr(lbr_saved);
@@ -3900,7 +3863,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             && !oap.inclusive
             && (cap.retval & CA_NO_ADJ_OP_END) == 0
             && oap.end.col == 0
-            && (!oap.is_visual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+            && (!oap.is_visual || opt_vars().p_sel.first_byte() == b'o')
             && oap.line_count > 1
         {
             oap.end_adjusted = true;
@@ -4006,10 +3969,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             }
             OP_FILTER | OP_INDENT | OP_COLON => {
                 if oap.op_type == OP_FILTER {
-                    if crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                        K_CPO_FILTER,
-                    ) {
+                    if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FILTER) {
                         redo_append_str(b"!\r");
                     } else {
                         g_st().bangredo = true;
@@ -4051,9 +4011,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
             OP_FORMAT => {
                 if curbuf_mut().b_p_fex.cb_type() != K_CALLBACK_NONE_CONST {
                     op_formatexpr(oap);
-                } else if !crate::memory::cstr_is_empty(opt_vars().p_fp)
-                    || !crate::memory::cstr_is_empty(curbuf_mut().b_p_fp)
-                {
+                } else if !opt_vars().p_fp.is_empty() || !curbuf_mut().b_p_fp.is_empty() {
                     op_colon(oap);
                 } else {
                     op_format(oap, false);

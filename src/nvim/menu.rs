@@ -429,7 +429,7 @@ pub fn ex_menu(eap: &mut Exarg) {
                     0,
                     REPTERM_DO_LT,
                     None,
-                    crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+                    opt_vars().p_cpo.as_bytes(),
                 )
             } else {
                 None
@@ -1585,9 +1585,7 @@ pub fn execute_menu(eap: &Exarg, menu: &mut Vimmenu, mode_idx: i32) {
 
             check_cursor(curwin_mut());
 
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                && gchar_cursor() != i32::from(NUL)
-            {
+            if opt_vars().p_sel.first_byte() == b'e' && gchar_cursor() != i32::from(NUL) {
                 curwin_mut().w_cursor.col += 1;
             }
         }

@@ -871,7 +871,7 @@ pub fn init_highlight(both: bool, reset: bool) {
         return;
     }
 
-    let pp = if crate::memory::cstr_first_byte(opt_vars().p_bg) == b'l' {
+    let pp = if opt_vars().p_bg.first_byte() == b'l' {
         &HIGHLIGHT_INIT_LIGHT
     } else {
         &HIGHLIGHT_INIT_DARK
@@ -1556,9 +1556,7 @@ pub fn do_highlight(line_in: &CStr, forceit: bool, init: bool) {
                                         -1
                                     };
                                     if dark != -1
-                                        && (dark != 0)
-                                            != (crate::memory::cstr_first_byte(opt_vars().p_bg)
-                                                == b'd')
+                                        && (dark != 0) != (opt_vars().p_bg.first_byte() == b'd')
                                         && !option_was_set(K_OPT_BACKGROUND)
                                     {
                                         set_option_value_give_err(

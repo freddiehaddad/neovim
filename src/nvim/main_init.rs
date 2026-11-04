@@ -665,7 +665,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
         opt_vars().p_ut = 1;
     }
 
-    if !crate::memory::cstr_is_empty(opt_vars().p_shada) {
+    if !opt_vars().p_shada.is_empty() {
         shada_read_everything(None, false, true);
         time_msg_if_enabled(c"reading ShaDa");
     }
@@ -955,7 +955,7 @@ pub fn getout(mut exitval: i32) -> ! {
 
     if !mem_st().entered_free_all_mem
         && !opt_vars().p_shada.is_null()
-        && !crate::memory::cstr_is_empty(opt_vars().p_shada)
+        && !opt_vars().p_shada.is_empty()
     {
         shada_write_file(None, false);
     }
@@ -990,10 +990,8 @@ pub fn getout(mut exitval: i32) -> ! {
         wait_return(0);
     }
 
-    if opt_vars().p_title != 0 && !crate::memory::cstr_is_empty(opt_vars().p_titleold) {
-        ui_call_set_title(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-            opt_vars().p_titleold,
-        )));
+    if opt_vars().p_title != 0 && !opt_vars().p_titleold.is_empty() {
+        ui_call_set_title(cstr_as_string(Some(opt_vars().p_titleold.as_cstr())));
     }
 
     if g_st().garbage_collect_at_exit {
@@ -1458,9 +1456,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         g_st().silent_mode = true;
                         g_st().exmode_active = true;
                         parmp.no_swap_file = 1;
-                        if opt_vars().p_shadafile.is_null()
-                            || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
-                        {
+                        if opt_vars().p_shadafile.is_null() || opt_vars().p_shadafile.is_empty() {
                             set_option_value_give_err(
                                 K_OPT_SHADAFILE,
                                 cstr_as_obj(Some(c"NONE")),
@@ -1611,9 +1607,7 @@ fn command_line_scan(parmp: &mut Mparm) {
                         if parmp.use_vimrc.is_none() {
                             parmp.use_vimrc = Some(c"NONE".to_owned());
                         }
-                        if opt_vars().p_shadafile.is_null()
-                            || crate::memory::cstr_is_empty(opt_vars().p_shadafile)
-                        {
+                        if opt_vars().p_shadafile.is_null() || opt_vars().p_shadafile.is_empty() {
                             set_option_value_give_err(
                                 K_OPT_SHADAFILE,
                                 cstr_as_obj(Some(c"NONE")),
@@ -1883,15 +1877,15 @@ fn handle_quickfix(paramp: &mut Mparm) {
             g_st().iobuff.as_mut_ptr(),
             IOSIZE,
             c"cfile %s",
-            opt_vars().p_ef
+            &opt_vars().p_ef
         );
         if qf_init(
             None,
-            crate::memory::cstr_as_opt_cstr(opt_vars().p_ef),
-            crate::memory::cstr_from_ptr(opt_vars().p_efm),
+            Some(opt_vars().p_ef.as_cstr()),
+            opt_vars().p_efm.as_cstr(),
             1,
             Some(crate::memory::cstr_until_nul(g_st().iobuff_bytes())),
-            crate::memory::cstr_as_opt_cstr(opt_vars().p_menc),
+            Some(opt_vars().p_menc.as_cstr()),
         ) < 0
         {
             msg_putchar(b'\n' as i32);
@@ -2101,8 +2095,13 @@ fn edit_buffers(parmp: &mut Mparm) {
                 goto_tabpage(0);
                 if i == 1 {
                     let mut buf = [0u8; 100];
-                    p_shm_save = Some(crate::memory::cstr_to_cstring(opt_vars().p_shm));
-                    vim_snprintf!(buf.as_mut_ptr().cast(), buf.len(), c"F%s", opt_vars().p_shm);
+                    p_shm_save = Some(opt_vars().p_shm.to_owned());
+                    vim_snprintf!(
+                        buf.as_mut_ptr().cast(),
+                        buf.len(),
+                        c"F%s",
+                        &opt_vars().p_shm
+                    );
                     set_option_value_give_err(
                         K_OPT_SHORTMESS,
                         cstr_as_obj(crate::memory::cstr_as_opt_cstr(buf.as_ptr().cast())),

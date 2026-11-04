@@ -132,7 +132,7 @@ use crate::memline::ml_get_buf_len;
 use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
-use crate::optionstr::{CStrOptionSlot, OptIndex};
+use crate::optionstr::OptIndex;
 use crate::os::env::{ExpandCtx, env_name_len, expand_env_save, vim_getenv};
 use crate::os::fs::os_can_exe;
 use crate::os::lang::free_locales;
@@ -2086,8 +2086,7 @@ pub fn pattern_match(pat: &CStr, text: Option<&CStr>, ic: bool) -> i32 {
     let mut matches: i32 = 0;
     let mut regmatch: Regmatch = Regmatch::new();
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = ic;
@@ -6858,8 +6857,7 @@ pub fn do_string_sub(
     let mut regmatch: Regmatch = Regmatch::new();
     let mut out: Option<Vec<u8>> = None;
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     regmatch.rm_ic = opt_vars().p_ic != 0;
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
@@ -6933,18 +6931,14 @@ pub fn do_string_sub(
         cstr_from_bytes(crate::memory::cstr_slice(str_, len))
     };
     drop(out);
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
-    if opt_vars().p_cpo == empty_opt {
+    if opt_vars().p_cpo.is_null() {
         opt_vars().p_cpo = save_cpo;
-    } else {
-        if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
-            let obj = Object {
-                obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(save_cpo))),
-            };
-            set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
-        }
-        save_cpo.free_option_str();
+    } else if opt_vars().p_cpo.is_empty() {
+        let obj = Object {
+            obj_type: ObjectType::ObjectTypeString,
+            data: ObjectData::String(cstr_as_string(Some(save_cpo.as_cstr()))),
+        };
+        set_option_value_give_err(K_OPT_CPOPTIONS, obj, 0);
     }
 
     ret

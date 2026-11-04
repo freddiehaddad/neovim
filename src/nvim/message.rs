@@ -1093,14 +1093,8 @@ pub fn msg_source(hl_id: i32) {
 ///            If "emsg_skip" is set: never do error messages.
 pub fn emsg_not_now() -> bool {
     (g_st().emsg_off > 0
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
-            b'm' as i32,
-        )
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
-            b't' as i32,
-        ))
+        && !crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b'm' as i32)
+        && !crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32))
         || g_st().emsg_skip > 0
 }
 
@@ -1126,10 +1120,7 @@ pub fn emsg_multiline(
         g_st().emsg_severe = false;
 
         if g_st().emsg_off == 0
-            || crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
-                b't' as i32,
-            )
+            || crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32)
         {
             if cause_errthrow(s, multiline, msg_st().is_multihl > 1, severe, &mut ignore) {
                 if !ignore {
@@ -1653,10 +1644,7 @@ pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
 
 /// Process the updated 'messagesopt' option value.
 pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
-    let v: &OptKeyDict_mopt = opt_keyset(
-        crate::memory::cstr_as_bytes(opt_vars().p_mopt),
-        K_OPT_MESSAGESOPT,
-    );
+    let v: &OptKeyDict_mopt = opt_keyset(opt_vars().p_mopt.as_bytes(), K_OPT_MESSAGESOPT);
 
     msg_st().msg_hit_enter = v.hit_enter;
     msg_st().msg_wait = v.wait as i32;
@@ -3931,7 +3919,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
             return;
         }
 
-        if !crate::memory::cstr_is_empty(opt_vars().p_vfile) && msg_st().verbose_fd.is_none() {
+        if !opt_vars().p_vfile.is_empty() && msg_st().verbose_fd.is_none() {
             verbose_open();
         }
 
@@ -3996,7 +3984,7 @@ fn redir_write(str_: &[u8], maxlen: isize) {
 pub fn redirecting() -> i32 {
     i32::from(
         has_redir_fd()
-            || !crate::memory::cstr_is_empty(opt_vars().p_vfile)
+            || !opt_vars().p_vfile.is_empty()
             || g_st().redir_reg != 0
             || g_st().redir_vname
             || !g_st().capture_ga.is_null(),
@@ -4006,7 +3994,7 @@ pub fn redirecting() -> i32 {
 /// Before giving verbose message.
 /// Must always be called paired with verbose_leave()!
 pub fn verbose_enter() {
-    if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+    if !opt_vars().p_vfile.is_empty() {
         g_st().msg_silent += 1;
     }
     if !g_st().msg_ext_skip_verbose {
@@ -4021,7 +4009,7 @@ pub fn verbose_enter() {
 /// After giving verbose message.
 /// Must always be called paired with verbose_enter()!
 pub fn verbose_leave() {
-    if !crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+    if !opt_vars().p_vfile.is_empty() {
         g_st().msg_silent -= 1;
         if g_st().msg_silent < 0 {
             g_st().msg_silent = 0;
@@ -4035,7 +4023,7 @@ pub fn verbose_leave() {
 /// Like verbose_enter() and set msg_scroll when displaying the message.
 pub fn verbose_enter_scroll() {
     verbose_enter();
-    if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+    if opt_vars().p_vfile.is_empty() {
         g_st().msg_scroll = 1;
     }
 }
@@ -4043,7 +4031,7 @@ pub fn verbose_enter_scroll() {
 /// Like verbose_leave() and set cmdline_row when displaying the message.
 pub fn verbose_leave_scroll() {
     verbose_leave();
-    if crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+    if opt_vars().p_vfile.is_empty() {
         g_st().cmdline_row = g_st().msg_row;
     }
 }
@@ -4061,12 +4049,9 @@ pub fn verbose_open() -> bool {
     if msg_st().verbose_fd.is_none() && !msg_st().verbose_did_open {
         msg_st().verbose_did_open = true;
 
-        msg_st().verbose_fd = CFile::open(
-            crate::memory::cstr_from_ptr((opt_vars().p_vfile).cast()),
-            c"a",
-        );
+        msg_st().verbose_fd = CFile::open(opt_vars().p_vfile.as_cstr(), c"a");
         if msg_st().verbose_fd.is_none() {
-            semsg!(gettext(E_NOTOPEN), opt_vars().p_vfile);
+            semsg!(gettext(E_NOTOPEN), &opt_vars().p_vfile);
             return false;
         }
     }

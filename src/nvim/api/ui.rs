@@ -969,7 +969,7 @@ pub fn remote_ui_default_colors_set(
     cterm_bg: Integer,
 ) {
     if !ui.ui_ext[K_UITERM_COLORS] {
-        let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+        let dark = opt_vars().p_bg.first_byte() == b'd';
         if rgb_fg == -1 {
             rgb_fg = if dark { 0xFFFFFF } else { 0x000000 };
         }

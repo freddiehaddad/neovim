@@ -1699,7 +1699,7 @@ fn shada_get_default_file() -> &'static CStr {
 
 fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {
     if file.is_none_or(|s| s.is_empty()) {
-        if let Some(shadafile) = crate::memory::cstr_as_opt_cstr(opt_vars().p_shadafile)
+        if let Some(shadafile) = Some(opt_vars().p_shadafile.as_cstr())
             && !shadafile.is_empty()
         {
             if shadafile.to_bytes() != b"NONE" {
@@ -2676,9 +2676,7 @@ fn shada_write(
             key: static_cstr_as_string(c"encoding"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    opt_vars().p_enc,
-                ))),
+                data: ObjectData::String(cstr_as_string(Some(opt_vars().p_enc.as_cstr()))),
             },
         },
     ];
@@ -4075,7 +4073,7 @@ fn shada_removable(name: &CStr) -> bool {
     let mut part = [0u8; MAXPATHL + 1];
     let mut retval = false;
     let new_name = home_replace_save(None, Some(name));
-    let mut p = crate::memory::cstr_as_bytes(opt_vars().p_shada);
+    let mut p = opt_vars().p_shada.as_bytes();
     while !p.is_empty() {
         copy_option_part(&mut p, &mut part, c", ");
         if part[0] == b'r' {
@@ -4297,20 +4295,16 @@ pub fn get_shada_parameter(param_type: i32) -> i32 {
 
 /// Find the parameter represented by the given character in 'shada' (`find_shada_parameter`).
 pub fn find_shada_parameter(param_type: i32) -> Option<&'static CStr> {
-    let mut p = opt_vars().p_shada;
-    while !crate::memory::cstr_is_empty(p) {
-        if i32::from(crate::memory::cstr_first_byte(p)) == param_type {
-            return crate::memory::cstr_as_opt_cstr(p.wrapping_add(1));
+    let mut p = opt_vars().p_shada.as_cstr();
+    while !p.to_bytes().is_empty() {
+        if i32::from(p.to_bytes()[0]) == param_type {
+            return Some(&p[1..]);
         }
-        if crate::memory::cstr_first_byte(p) == b'n' {
+        if p.to_bytes()[0] == b'n' {
             break;
         }
-        p = vim_strchr(crate::memory::cstr_from_ptr((p).cast()), b',' as i32)
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if p.is_null() {
-            break;
-        }
-        p = p.wrapping_add(1);
+        let found = vim_strchr(p, b',' as i32)?;
+        p = &found[1..];
     }
     None
 }

@@ -391,10 +391,7 @@ pub fn vim_beep(val: u32) {
         }
     }
 
-    if crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
-        b'e' as i32,
-    ) {
+    if crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b'e' as i32) {
         msg_source(HLF_W);
         msg(gettext(c"Beep!"), HLF_W);
     }
@@ -607,7 +604,7 @@ pub fn ui_flush() {
             size: 0,
         };
         let style = mode_style_array(&mut arena);
-        let enabled = !crate::memory::cstr_is_empty(opt_vars().p_guicursor);
+        let enabled = !opt_vars().p_guicursor.is_empty();
         ui_call_mode_info_set(enabled, style);
         arena_mem_free(arena_finish(&mut arena));
         ui_state().pending_mode_info_update = false;
@@ -649,7 +646,7 @@ pub fn ui_flush() {
 
 pub fn ui_check_mouse() {
     ui_state().has_mouse = false;
-    if crate::memory::cstr_is_empty(opt_vars().p_mouse) {
+    if opt_vars().p_mouse.is_empty() {
         return;
     }
 
@@ -676,8 +673,7 @@ pub fn ui_check_mouse() {
 }
 
 pub fn ui_mouse_has(mode: i32) -> bool {
-    let p = opt_vars().p_mouse;
-    for &p_byte in crate::memory::cstr_as_bytes(p) {
+    for &p_byte in opt_vars().p_mouse.as_bytes() {
         if p_byte == b'a' {
             if crate::strings::vim_haschr(MOUSE_A, mode) {
                 return true;

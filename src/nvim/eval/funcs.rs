@@ -159,7 +159,7 @@ use crate::ops::{
 };
 use crate::option::set_option_value_give_err;
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, OptIndex};
+use crate::optionstr::OptIndex;
 use crate::os::dl::os_libcall;
 use crate::os::env::{
     ExpandCtx, expand_env_save, home_replace, os_env_exists, os_get_pid, os_getenv_cstr,
@@ -1449,8 +1449,7 @@ pub fn tv_get_buf(tv: &mut TypVal, curtab_only: i32) -> Option<&'static mut File
 
     let save_magic = opt_vars().p_magic;
     opt_vars().p_magic = 1;
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let buf = buflist_findnr(buflist_findpat(
         crate::memory::cstr_as_bytes(name),
@@ -3158,7 +3157,7 @@ fn getregionpos(
         is_select_exclusive = tv_dict_get_bool(
             d,
             c"exclusive",
-            i32::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'),
+            i32::from(opt_vars().p_sel.first_byte() == b'e'),
         ) != 0;
 
         type_str = if let Some(s) = tv_dict_get_string(d, c"type") {
@@ -3167,7 +3166,7 @@ fn getregionpos(
             default_type.as_mut_ptr().cast()
         };
     } else {
-        is_select_exclusive = crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e';
+        is_select_exclusive = opt_vars().p_sel.first_byte() == b'e';
         type_str = default_type.as_mut_ptr().cast();
     }
 
@@ -5057,7 +5056,7 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if let Some(wp_ref) = win_id2wp_tp(id, Some(&mut tp))
             && tp.is_some()
         {
-            if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c'
+            if opt_vars().p_spk.first_byte() != b'c'
                 || (wp_ref.w_onebuf_opt.wo_diff != 0 && curwin_mut().w_onebuf_opt.wo_diff != 0)
             {
                 g_st().skip_update_topline = true;
@@ -5126,8 +5125,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
     let mut idx: i32 = 0;
     let mut tofree_owned: Option<std::ffi::CString> = None;
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
     match type_ {
@@ -5510,8 +5508,7 @@ pub fn f_matchbufline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         }
     }
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
@@ -5582,8 +5579,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     };
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let mut regmatch: Regmatch = Regmatch::new();
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
@@ -7201,8 +7197,7 @@ pub fn do_searchpair(
     let mut use_skip = false;
     let mut options = SEARCH_KEEP;
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let tm = profile_setlimit(time_limit);
 
@@ -7354,22 +7349,17 @@ pub fn do_searchpair(
 
     drop(pat2_vec);
     drop(pat3_vec);
-    if opt_vars().p_cpo == EMPTY_STRING_OPTION.as_ptr().cast() {
+    if opt_vars().p_cpo.is_null() {
         opt_vars().p_cpo = save_cpo;
-    } else {
-        if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
-            set_option_value_give_err(
-                K_OPT_CPOPTIONS,
-                Object {
-                    obj_type: ObjectType::ObjectTypeString,
-                    data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                        save_cpo,
-                    ))),
-                },
-                0,
-            );
-        }
-        save_cpo.free_option_str();
+    } else if opt_vars().p_cpo.is_empty() {
+        set_option_value_give_err(
+            K_OPT_CPOPTIONS,
+            Object {
+                obj_type: ObjectType::ObjectTypeString,
+                data: ObjectData::String(cstr_as_string(Some(save_cpo.as_cstr()))),
+            },
+            0,
+        );
     }
 
     retval
@@ -8001,7 +7991,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let ws = curwin_mut().w_s_ptr();
-    if crate::memory::cstr_is_empty(ws.b_p_spl) {
+    if ws.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
         curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
         return;
@@ -8016,7 +8006,7 @@ pub fn f_spellbadword(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             word = get_cursor_pos_ptr().as_ptr().cast_mut();
             curwin_mut().w_set_curswant = true;
         }
-    } else if !crate::memory::cstr_is_empty(curbuf_mut().b_s.b_p_spl) {
+    } else if !curbuf_mut().b_s.b_p_spl.is_empty() {
         let mut capcol: i32 = -1;
         if let Some(str_cstr) = tv_get_string_chk(&argvars[0]) {
             let mut str_ = str_cstr.as_ptr();
@@ -8067,7 +8057,7 @@ pub fn f_spellsuggest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
     }
 
     let ws = curwin_mut().w_s_ptr();
-    if crate::memory::cstr_is_empty(ws.b_p_spl) {
+    if ws.b_p_spl.is_empty() {
         emsg(gettext(E_NO_SPELL));
         curwin_mut().w_onebuf_opt.wo_spell = wo_spell_save;
         return;
@@ -8112,8 +8102,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut keepempty = false;
     let mut typeerr = false;
 
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let mut str_ = tv_get_string(&argvars[0]).as_ptr();
     let mut pat = ptr::null();
@@ -8305,7 +8294,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     convert_setup(
         &mut conv,
-        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        Some(opt_vars().p_enc.as_cstr()),
         crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
     );
     let p_owned: Option<Vec<u8>>;
@@ -8335,7 +8324,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     convert_setup(
         &mut conv,
         crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
-        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        Some(opt_vars().p_enc.as_cstr()),
     );
     if conv.vc_type != CONV_NONE {
         if let Some(conv_bytes) = string_convert(
@@ -8375,7 +8364,7 @@ pub fn f_strptime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     convert_setup(
         &mut conv,
-        crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+        Some(opt_vars().p_enc.as_cstr()),
         crate::memory::cstr_as_opt_cstr((enc_ptr).cast()),
     );
     let fmt_owned: Option<Vec<u8>>;

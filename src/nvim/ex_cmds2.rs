@@ -692,13 +692,13 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 if buf == g_st().curbuf {
                     apply_autocmds(
                         EVENT_SYNTAX,
-                        crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_syn),
+                        Some(curbuf_mut().b_p_syn.as_cstr()),
                         curbuf_mut().fname_opt(),
                         true,
                         curbuf_opt_mut(),
                     );
                 } else {
-                    let b_p_syn = crate::memory::cstr_as_opt_cstr(buf_ref.b_p_syn);
+                    let b_p_syn = Some(buf_ref.b_p_syn.as_cstr());
                     let b_fname = buf_ref.fname_opt();
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 

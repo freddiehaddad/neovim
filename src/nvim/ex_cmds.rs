@@ -1522,12 +1522,12 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
             redo_append_str(b"\n");
             g_st().bangredo = false;
         }
-        if !crate::memory::cstr_is_empty(opt_vars().p_shq) {
+        if !opt_vars().p_shq.is_empty() {
             let prev_bytes = excmds_st()
                 .prevcmd
                 .as_ref()
                 .map_or(&[][..], |s| s.to_bytes());
-            let shq_bytes = crate::memory::cstr_as_bytes(opt_vars().p_shq);
+            let shq_bytes = opt_vars().p_shq.as_bytes();
             newcmd = Vec::with_capacity(prev_bytes.len() + 2 * shq_bytes.len() + 1);
             newcmd.extend_from_slice(shq_bytes);
             newcmd.extend_from_slice(prev_bytes);
@@ -1711,10 +1711,7 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
 
                 if do_in {
                     if (g_st().cmdmod.cmod_flags & CMOD_KEEPMARKS) != 0
-                        || !crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                            K_CPO_REMMARK,
-                        )
+                        || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REMMARK)
                     {
                         if read_linecount >= linecount {
                             mark_adjust(line1, line2, linecount, 0, K_EXTMARK_NOOP);
@@ -1866,8 +1863,7 @@ pub fn make_filter_cmd(
     do_in: bool,
 ) -> std::ffi::CString {
     let sh_tail = crate::memory::cstr_as_bytes(
-        (invocation_path_tail(crate::memory::cstr_from_ptr((opt_vars().p_sh).cast()), None))
-            .as_ptr(),
+        (invocation_path_tail(opt_vars().p_sh.as_cstr(), None)).as_ptr(),
     );
     #[cfg(unix)]
     let is_fish_shell = sh_tail.starts_with(b"fish");
@@ -1899,7 +1895,7 @@ pub fn make_filter_cmd(
     }
 
     if let Some(otmp_s) = otmp {
-        len += otmp_s.to_bytes().len() + crate::memory::cstr_len(opt_vars().p_srr) + 2;
+        len += otmp_s.to_bytes().len() + opt_vars().p_srr.as_bytes().len() + 2;
     }
 
     let mut buf_vec = vec![0u8; len];
@@ -1944,14 +1940,14 @@ pub fn make_filter_cmd(
         {
             crate::memory::copy_bytes_to_c_buf(&mut buf_vec, cmd_bytes);
             if itmp.is_some() {
-                if crate::memory::cstr_is_empty(opt_vars().p_shq)
+                if opt_vars().p_shq.is_empty()
                     && let Some(pipe_idx) = find_pipe(&buf_vec)
                 {
                     buf_vec[pipe_idx] = 0;
                 }
                 crate::memory::append_bytes_to_c_buf(&mut buf_vec, b" < ");
                 crate::memory::append_bytes_to_c_buf(&mut buf_vec, itmp_bytes);
-                if crate::memory::cstr_is_empty(opt_vars().p_shq)
+                if opt_vars().p_shq.is_empty()
                     && let Some(pipe_idx) = find_pipe(cmd_bytes)
                 {
                     crate::memory::append_bytes_to_c_buf(&mut buf_vec[..len - 1], b" ");
@@ -1964,11 +1960,7 @@ pub fn make_filter_cmd(
         }
     }
     if let Some(otmp_s) = otmp {
-        append_redir(
-            &mut buf_vec,
-            crate::memory::cstr_from_ptr(opt_vars().p_srr),
-            otmp_s,
-        );
+        append_redir(&mut buf_vec, opt_vars().p_srr.as_cstr(), otmp_s);
     }
     cstr_to_cstring(buf_vec.as_ptr().cast())
 }
@@ -2196,10 +2188,8 @@ pub fn do_write(eap: &mut Exarg) -> bool {
         }
 
         if other {
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_ALTWRITE,
-            ) || eap.cmdidx == Cmdidx::CmdSaveas as i32
+            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTWRITE)
+                || eap.cmdidx == Cmdidx::CmdSaveas as i32
             {
                 alt_buf = setaltfname(
                     crate::memory::cstr_as_opt_cstr(ffname),
@@ -2296,7 +2286,7 @@ pub fn do_write(eap: &mut Exarg) -> bool {
                     break 'theend;
                 }
 
-                if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+                if curbuf_mut().b_p_ft.is_empty() {
                     if augroup_exists(Some(c"filetypedetect")) {
                         do_doautocmd(c"filetypedetect BufRead", true, None);
                     }
@@ -2356,10 +2346,7 @@ pub fn check_overwrite(
         || (!bt_nofilename(Some(&*buf))
             && ((buf.b_flags & BF_NOTEDITED) != 0
                 || ((buf.b_flags & BF_NEW) != 0
-                    && !crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                        K_CPO_OVERNEW,
-                    ))
+                    && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_OVERNEW))
                 || (buf.b_flags & BF_READERR) != 0)))
         && opt_vars().p_wa == 0
         && os_path_exists(crate::memory::cstr_from_ptr((ffname).cast()))
@@ -2391,11 +2378,11 @@ pub fn check_overwrite(
 
         if other && g_st().emsg_silent == 0 {
             let mut dir = [0u8; MAXPATHL];
-            if crate::memory::cstr_is_empty(opt_vars().p_dir) {
+            if opt_vars().p_dir.is_empty() {
                 dir[0] = b'.';
                 dir[1] = 0;
             } else {
-                let mut p = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+                let mut p = opt_vars().p_dir.as_bytes();
                 copy_option_part(&mut p, &mut dir, c",");
             }
             if let Some(swapname) = makeswapname(
@@ -3153,7 +3140,7 @@ pub fn do_ecmd(
 
         if did_get_winopts
             && curwin_mut().w_onebuf_opt.wo_spell != 0
-            && unsafe { *curwin_mut().w_s_ptr().b_p_spl } != NUL
+            && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
         {
             parse_spelllang(curwin_mut());
         }
@@ -4219,10 +4206,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                             do_check_cursorbind();
                         }
 
-                        if crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                            K_CPO_UNDO,
-                        ) {
+                        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
                             g_st().no_u_sync += 1;
                         }
 
@@ -4343,10 +4327,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                         }
                         g_st().state_global = save_state;
                         setmouse();
-                        if crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                            K_CPO_UNDO,
-                        ) {
+                        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
                             g_st().no_u_sync -= 1;
                         }
 
@@ -4867,7 +4848,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     if cmdpreview_ns > 0 && !aborting() {
         if got_quit || profile_passed_limit(tm) {
             set_option_direct(K_OPT_INCCOMMAND, cstr_as_obj(Some(c"")), 0, SID_NONE);
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_icm) && !pat.data.is_null() {
+        } else if !opt_vars().p_icm.is_empty() && !pat.data.is_null() {
             if excmds_st().pre_hl_id == 0 {
                 excmds_st().pre_hl_id = syn_check_group(b"Substitute");
             }
@@ -5212,7 +5193,7 @@ fn show_sub(
     cmdpreview_ns: i32,
     cmdpreview_bufnr: ObjHandle,
 ) -> i32 {
-    let save_shm_p = cstr_to_cstring(opt_vars().p_shm);
+    let save_shm_p = opt_vars().p_shm.to_owned();
     let subresults = &preview_lines.subresults;
     let mut cmdpreview_buf: Option<&'static mut FileBuf> = None;
 
@@ -5229,7 +5210,7 @@ fn show_sub(
     update_topline(curwin_mut());
 
     let mut col_width: i32 = 0;
-    let preview = (crate::memory::cstr_first_byte(opt_vars().p_icm) == b's')
+    let preview = (opt_vars().p_icm.first_byte() == b's')
         && (eap.line1 != old_cusr.lnum || eap.line2 != old_cusr.lnum);
 
     if preview {

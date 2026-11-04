@@ -2073,12 +2073,12 @@ pub fn f_digraph_setlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eval
 pub fn keymap_init() -> Option<&'static CStr> {
     curbuf_mut().b_kmap_state &= !KEYMAP_INIT;
 
-    if crate::memory::cstr_is_empty(curbuf_mut().b_p_keymap) {
+    if curbuf_mut().b_p_keymap.is_empty() {
         keymap_unload();
         do_cmdline_cmd(c"unlet! b:keymap_name");
     } else {
-        let kmap = crate::memory::cstr_from_ptr(curbuf_mut().b_p_keymap).to_string_lossy();
-        let enc = crate::memory::cstr_from_ptr(opt_vars().p_enc).to_string_lossy();
+        let kmap = curbuf_mut().b_p_keymap.as_cstr().to_string_lossy();
+        let enc = opt_vars().p_enc.as_cstr().to_string_lossy();
         let primary = CString::new(format!("keymap/{kmap}_{enc}.vim")).unwrap_or_default();
         if !source_runtime(primary.as_c_str(), 0) {
             let fallback = CString::new(format!("keymap/{kmap}.vim")).unwrap_or_default();
@@ -2094,7 +2094,6 @@ pub fn keymap_init() -> Option<&'static CStr> {
 /// `:loadkeymap` command: load the following lines as the keymap (`ex_loadkeymap`).
 pub fn ex_loadkeymap(eap: &mut Exarg) {
     let mut buf = [0u8; KMAP_LLEN + 11];
-    let save_cpo = opt_vars().p_cpo;
     let fgetline: LineGetter = eap.ea_getline;
 
     if !fgetline.is_source() {
@@ -2112,7 +2111,7 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
     curbuf_mut().b_kmap_state = 0;
     curbuf_mut().b_kmap_ga.clear();
 
-    opt_vars().p_cpo = c"C".as_ptr().cast_mut();
+    let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
 
     while let Some(line_cstr) = fgetline.call(0, 0, true) {
         let line = line_cstr.as_ptr();
@@ -2172,13 +2171,12 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 /// Stop using `'keymap'` (`keymap_unload`).
 fn keymap_unload() {
     let mut buf = [0u8; KMAP_MAXLEN + 10];
-    let save_cpo = opt_vars().p_cpo;
 
     if (curbuf_mut().b_kmap_state & KEYMAP_LOADED) == 0 {
         return;
     }
 
-    opt_vars().p_cpo = c"C".as_ptr().cast_mut();
+    let save_cpo = std::mem::replace(&mut opt_vars().p_cpo, OptString::from_cstr(c"C"));
 
     for entry in &curbuf_mut().b_kmap_ga {
         vim_snprintf!(
@@ -2221,7 +2219,7 @@ pub fn get_keymap_str(wp: &mut WinInfoInfo, fmt: &CStr, buf: &mut [u8]) -> i32 {
     set_curwin(old_curwin);
     if crate::memory::cstr_is_empty(p) {
         if (wp.buf_mut().b_kmap_state & KEYMAP_LOADED) != 0 {
-            p = wp.buf_mut().b_p_keymap;
+            p = wp.buf_mut().b_p_keymap.as_ptr();
         } else {
             p = c"lang".as_ptr();
         }

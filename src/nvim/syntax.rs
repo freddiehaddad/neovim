@@ -4405,8 +4405,7 @@ fn get_syn_pattern<'a>(arg: Option<&'a CStr>, ci: &mut Synpat) -> Option<&'a CSt
         );
         let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
 
-        let cpo_save = opt_vars().p_cpo;
-        opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+        let cpo_save = std::mem::take(&mut opt_vars().p_cpo);
         ci.sp_prog = crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
         opt_vars().p_cpo = cpo_save;
         ci.sp_pattern = Some(pat_cstr);
@@ -4606,8 +4605,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 let pat_cstr = std::ffi::CString::new(pat_slice).unwrap();
                 win_s(curwin_mut()).b_syn_linecont_ic = win_s(curwin_mut()).b_syn_ic;
 
-                let cpo_save = opt_vars().p_cpo;
-                opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+                let cpo_save = std::mem::take(&mut opt_vars().p_cpo);
                 win_s(curwin_mut()).b_syn_linecont_prog =
                     crate::regexp::vim_regcomp_box(&pat_cstr, RE_MAGIC);
                 opt_vars().p_cpo = cpo_save;

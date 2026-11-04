@@ -472,13 +472,13 @@ fn throw_exception(value: ExceptionValue, cmdname: Option<&CStr>) -> bool {
             verbose_enter();
         }
         g_st().no_wait_return += 1;
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().msg_scroll = 1;
         }
         smsg!(0, gettext(c"Exception thrown: %s"), excp.value.as_ptr(),);
         msg_puts(c"\n");
 
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().cmdline_row = g_st().msg_row;
         }
         g_st().no_wait_return -= 1;
@@ -515,7 +515,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
             verbose_enter();
         }
         g_st().no_wait_return += 1;
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().msg_scroll = 1;
         }
         let fmt = if was_finished {
@@ -525,7 +525,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
         };
         smsg!(0, fmt, excp.value.as_ptr());
         msg_puts(c"\n");
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().cmdline_row = g_st().msg_row;
         }
         g_st().no_wait_return -= 1;
@@ -586,13 +586,13 @@ fn catch_exception(excp: &std::rc::Rc<Except>) {
             verbose_enter();
         }
         g_st().no_wait_return += 1;
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().msg_scroll = 1;
         }
         smsg!(0, gettext(c"Exception caught: %s"), excp.value.as_ptr(),);
         msg_puts(c"\n");
 
-        if g_st().debug_break_level > 0 || crate::memory::cstr_is_empty(opt_vars().p_vfile) {
+        if g_st().debug_break_level > 0 || opt_vars().p_vfile.is_empty() {
             g_st().cmdline_row = g_st().msg_row;
         }
         g_st().no_wait_return -= 1;
@@ -1212,8 +1212,7 @@ pub fn ex_catch(eap: &mut Exarg) {
                 let pat_ref: &CStr = pat_cstr
                     .as_deref()
                     .unwrap_or_else(|| unsafe { CStr::from_ptr(pat) });
-                let save_cpo = opt_vars().p_cpo;
-                opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+                let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
                 g_st().emsg_off += 1;
                 let mut regmatch: Regmatch = Regmatch::new();
                 regmatch.set_prog(vim_regcomp(pat_ref, RE_MAGIC + RE_STRING));

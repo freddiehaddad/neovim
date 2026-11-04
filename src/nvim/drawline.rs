@@ -817,10 +817,7 @@ fn get_line_number_attr(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) -> i32 {
 }
 
 fn draw_lnum_col(wp: &mut WinInfoInfo, wlv: &mut Winlinevars) {
-    let has_cpo_n = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-        K_CPO_NUMCOL,
-    );
+    let has_cpo_n = crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL);
 
     if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
         && (wlv.row == wlv.startrow + wlv.filler_lines || !has_cpo_n)
@@ -943,10 +940,8 @@ fn draw_statuscol(
     }
 
     let width = build_statuscol_str(wp, lnum, relnum, virtnum, &mut buf, stcp);
-    if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
-        || (width > stcp.width && stcp.width < MAX_STCWIDTH)
-    {
-        if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+    if wp.w_onebuf_opt.wo_stc.is_empty() || (width > stcp.width && stcp.width < MAX_STCWIDTH) {
+        if wp.w_onebuf_opt.wo_stc.is_empty() {
             wp.w_nrwidth_line_count = 0;
             wp.w_nrwidth = i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
                 * number_width(&mut *wp);
@@ -1628,17 +1623,14 @@ pub fn win_line(
                     }
                 }
                 if g_st().visual_global.mode != b'V' as i32 && lnum == bot.lnum {
-                    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                        && bot.col == 0
-                        && bot.coladd == 0
-                    {
+                    if opt_vars().p_sel.first_byte() == b'e' && bot.col == 0 && bot.coladd == 0 {
                         wlv.fromcol = -10;
                         wlv.tocol = MAXCOL;
                     } else if bot.col == MAXCOL {
                         wlv.tocol = MAXCOL;
                     } else {
                         let mut pos = bot;
-                        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                        if opt_vars().p_sel.first_byte() == b'e' {
                             getvvcol(
                                 &mut *wp,
                                 &mut pos,
@@ -1794,7 +1786,7 @@ pub fn win_line(
     );
 
     let mut statuscol = Statuscol::new();
-    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+    if !wp.w_onebuf_opt.wo_stc.is_empty() {
         statuscol.draw = true;
         statuscol.sattrs = wlv.sattrs;
         statuscol.lnum = lnum;
@@ -3854,10 +3846,7 @@ pub fn win_line(
                 wlv.need_showbreak = true;
             }
             if statuscol.draw
-                && crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_NUMCOL,
-                )
+                && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
                 && wlv.row > startrow + wlv.filler_lines
             {
                 statuscol.draw = false;

@@ -416,12 +416,12 @@ fn pum_compute_horizontal_placement(
 
 #[inline]
 fn pum_border_width() -> i32 {
-    if crate::memory::cstr_is_empty(opt_vars().p_pumborder)
-        || (crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+    if opt_vars().p_pumborder.is_empty()
+        || (Some(opt_vars().p_pumborder.as_bytes())
             == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[7].as_ptr()))
     {
         0
-    } else if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+    } else if Some(opt_vars().p_pumborder.as_bytes())
         == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
     {
         1
@@ -845,7 +845,7 @@ pub fn pum_redraw() {
         let mut err = Error::new();
         if !parse_winborder(
             Some(&mut fconfig),
-            crate::memory::cstr_as_bytes(opt_vars().p_pumborder),
+            opt_vars().p_pumborder.as_bytes(),
             &mut err,
         ) {
             if err.err_type != ErrorType::ErrorTypeNone {
@@ -855,7 +855,7 @@ pub fn pum_redraw() {
             return;
         }
 
-        if crate::memory::cstr_as_opt_bytes(opt_vars().p_pumborder)
+        if Some(opt_vars().p_pumborder.as_bytes())
             == crate::memory::cstr_as_opt_bytes(OPT_WINBORDER_VALUES[3].as_ptr())
         {
             fconfig.shadow = true;
@@ -1435,7 +1435,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     && curbuf_mut().b_nwindows == 1
                     && curbuf_mut().fname_opt().is_none()
                     && bt_nofile(Some(crate::globals::curbuf_mut()))
-                    && crate::memory::cstr_first_byte(curbuf_mut().b_p_bh) == b'w'
+                    && curbuf_mut().b_p_bh.first_byte() == b'w'
                 {
                     buf_clear();
                 } else {

@@ -648,7 +648,7 @@ pub fn spell_suggest(count: i32) {
     let prev_cursor = curwin_mut().w_cursor;
     'skip: {
         let w_s = curwin_mut().w_s_ptr();
-        if crate::memory::cstr_is_empty(w_s.b_p_spl) {
+        if w_s.b_p_spl.is_empty() {
             emsg(gettext(E_NO_SPELL));
             break 'skip;
         }
@@ -892,7 +892,7 @@ fn spell_find_suggest(
         let bw = su.su_badword;
         add_banned(su, &bw);
     }
-    let sps_copy = crate::memory::cstr_to_cstring(opt_vars().p_sps);
+    let sps_copy = opt_vars().p_sps.to_owned();
     let mut p = sps_copy.as_bytes();
     while !p.is_empty() {
         copy_option_part(&mut p, &mut buf[..MAXPATHL], c",");

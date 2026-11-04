@@ -491,7 +491,7 @@ fn buf_write_do_autocmds(
         if nofile_err {
             let _ = semsg!(
                 gettext(c"E676: No matching autocommands for buftype=%s buffer"),
-                curbuf_mut().b_p_bt,
+                &curbuf_mut().b_p_bt,
             );
         }
 
@@ -514,10 +514,7 @@ fn buf_write_do_autocmds(
                 && b.b_changed != 0
                 && !append
                 && (overwriting
-                    || crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                        K_CPO_PLUS,
-                    ))
+                    || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
             {
                 return FAIL;
             }
@@ -803,10 +800,7 @@ fn get_fileinfo(
         *readonly = os_file_is_writable(crate::memory::cstr_from_ptr((fname_ptr).cast())) == 0;
 
         if !forceit && *readonly {
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_FWRITE,
-            ) {
+            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
                 *err = set_err_num(
                     c"E504",
                     gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -973,15 +967,15 @@ fn buf_write_make_backup(
         }
     }
 
-    let backup_ext_cstr = if crate::memory::cstr_is_empty(opt_vars().p_bex) {
+    let backup_ext_cstr = if opt_vars().p_bex.is_empty() {
         c".bak"
     } else {
-        crate::memory::cstr_from_ptr(opt_vars().p_bex)
+        opt_vars().p_bex.as_cstr()
     };
 
     if *backup_copyp {
         let mut some_error = false;
-        let mut dirp = crate::memory::cstr_from_ptr(opt_vars().p_bdir);
+        let mut dirp = opt_vars().p_bdir.as_cstr();
         'nobackup: {
             while !dirp.to_bytes().is_empty() {
                 *backupp =
@@ -1075,12 +1069,7 @@ fn buf_write_make_backup(
         }
         *err = set_err(None);
     } else {
-        if file_readonly
-            && crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_FWRITE,
-            )
-        {
+        if file_readonly && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE) {
             *err = set_err_num(
                 c"E504",
                 gettext(c"is read-only (cannot override: \"W\" in 'cpoptions')"),
@@ -1088,7 +1077,7 @@ fn buf_write_make_backup(
             return false;
         }
 
-        let mut dirp = crate::memory::cstr_from_ptr(opt_vars().p_bdir);
+        let mut dirp = opt_vars().p_bdir.as_cstr();
         while !dirp.to_bytes().is_empty() {
             *backupp = buf_get_backup_name(fname_cstr, &mut dirp, no_prepend_dot, backup_ext_cstr);
             if let Some(bk_cstr) = backupp.take() {
@@ -1191,15 +1180,8 @@ pub fn buf_write(
         && buf == g_st().curbuf
         && !bt_nofilename(unsafe { buf.as_ref() })
         && !filtering
-        && (!append
-            || crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_FNAMEAPP,
-            ))
-        && crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_FNAMEW,
-        )
+        && (!append || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEAPP))
+        && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEW)
     {
         if !set_rw_fname(
             crate::memory::cstr_as_opt_cstr(fname),
@@ -1365,13 +1347,12 @@ pub fn buf_write(
                 acl = os_get_acl(crate::memory::cstr_from_ptr((fname).cast()));
             }
 
-            let mut dobackup = opt_vars().p_wb != 0
-                || opt_vars().p_bk != 0
-                || !crate::memory::cstr_is_empty(opt_vars().p_pm);
+            let mut dobackup =
+                opt_vars().p_wb != 0 || opt_vars().p_bk != 0 || !opt_vars().p_pm.is_empty();
             if dobackup
-                && !crate::memory::cstr_is_empty(opt_vars().p_bsk)
+                && !opt_vars().p_bsk.is_empty()
                 && match_file_list(
-                    crate::memory::cstr_from_ptr(opt_vars().p_bsk),
+                    opt_vars().p_bsk.as_cstr(),
                     crate::memory::cstr_as_opt_cstr(sfname),
                     crate::memory::cstr_from_ptr(ffname),
                 )
@@ -1384,7 +1365,7 @@ pub fn buf_write(
             g_st().got_int = false;
             buf.b_saving = true;
 
-            if !(append && crate::memory::cstr_is_empty(opt_vars().p_pm))
+            if !(append && opt_vars().p_pm.is_empty())
                 && !filtering
                 && perm >= 0
                 && dobackup
@@ -1413,10 +1394,7 @@ pub fn buf_write(
                 && perm >= 0
                 && (perm & 0o200) == 0
                 && file_info_old.stat.st_uid == u64::from(unsafe { getuid() })
-                && !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr(opt_vars().p_cpo),
-                    K_CPO_FWRITE,
-                )
+                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FWRITE)
             {
                 perm |= 0o200;
                 let _ = os_setperm(crate::memory::cstr_from_ptr(fname), perm);
@@ -1425,10 +1403,7 @@ pub fn buf_write(
 
             if forceit
                 && overwriting
-                && !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_KEEPRO,
-                )
+                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_KEEPRO)
             {
                 buf.b_p_ro = 0;
                 g_st().need_maketitle = true;
@@ -1468,7 +1443,7 @@ pub fn buf_write(
                     fenc_tofree = Some(e);
                     ptr
                 } else {
-                    buf.b_p_fenc
+                    buf.b_p_fenc.as_ptr().cast_mut()
                 };
 
                 let fenc_opt = crate::memory::cstr_as_opt_cstr(fenc);
@@ -1578,7 +1553,7 @@ pub fn buf_write(
                                         );
                                         if forceit
                                             && !crate::strings::vim_haschr(
-                                                crate::memory::cstr_from_ptr(opt_vars().p_cpo),
+                                                opt_vars().p_cpo.as_cstr(),
                                                 K_CPO_FWRITE,
                                             )
                                             && perm >= 0
@@ -1610,7 +1585,7 @@ pub fn buf_write(
                                     );
                                     if forceit
                                         && !crate::strings::vim_haschr(
-                                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+                                            opt_vars().p_cpo.as_cstr(),
                                             K_CPO_FWRITE,
                                         )
                                         && perm >= 0
@@ -2037,10 +2012,7 @@ pub fn buf_write(
                     && !append
                     && write_info.bw_conv_error == 0
                     && (overwriting
-                        || crate::strings::vim_haschr(
-                            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                            K_CPO_PLUS,
-                        ))
+                        || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_PLUS))
                     && buf_get_changedtick(&*buf) == write_tick
                 {
                     unchanged(&mut *buf, true, false);
@@ -2061,10 +2033,10 @@ pub fn buf_write(
                     }
                 }
 
-                if !crate::memory::cstr_is_empty(opt_vars().p_pm) && dobackup {
+                if !opt_vars().p_pm.is_empty() && dobackup {
                     let org = modname(
                         crate::memory::cstr_as_opt_cstr(fname),
-                        crate::memory::cstr_from_ptr(opt_vars().p_pm),
+                        opt_vars().p_pm.as_cstr(),
                         false,
                     );
                     if let Some(ref bk) = backup {

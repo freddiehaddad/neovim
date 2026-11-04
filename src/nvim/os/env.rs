@@ -898,12 +898,9 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
             if vim_path_cstr.is_none() {
                 let mut vim_path: *mut u8 = ptr::null_mut();
                 if !opt_vars().p_hf.is_null()
-                    && !crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_hf).cast()),
-                        b'$' as i32,
-                    )
+                    && !crate::strings::vim_haschr(opt_vars().p_hf.as_cstr(), b'$' as i32)
                 {
-                    vim_path = opt_vars().p_hf.cast();
+                    vim_path = opt_vars().p_hf.as_ptr().cast_mut().cast();
                 }
 
                 let mut exe_name = [0u8; MAXPATHL];
@@ -922,7 +919,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                             .cast();
                     let mut end_off = (vim_path_end as usize) - (vim_path as usize);
                     let vim_path_slice = crate::memory::cstr_slice(vim_path.cast(), end_off);
-                    if vim_path == opt_vars().p_hf.cast() {
+                    if vim_path == opt_vars().p_hf.as_ptr().cast_mut().cast() {
                         end_off = remove_tail(vim_path_slice, end_off, b"doc");
                     }
                     if !vimruntime {

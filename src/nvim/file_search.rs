@@ -201,10 +201,7 @@ pub fn vim_findfile_init(
                 .is_some_and(|&b| vim_ispathsep(i32::from(b)))
                 || path_bytes.len() == 1)
             && (tagfile == 0
-                || !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_DOTTAG,
-                ))
+                || !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOTTAG))
             && !rel_fname.is_null()
         {
             let len = crate::memory::ptr_offset_from(
@@ -781,7 +778,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                         let mut suf = if search_ctx.ffsc_tagfile != 0 {
                             EMPTY_C.as_ptr().cast_mut()
                         } else {
-                            curbuf_mut().b_p_sua
+                            curbuf_mut().b_p_sua.as_ptr().cast_mut()
                         };
                         loop {
                             let vis_idx = search_ctx.ffsc_visited_list.unwrap();
@@ -1170,14 +1167,14 @@ pub fn find_file_in_path(
         ptr,
         options,
         first,
-        crate::memory::cstr_from_ptr(if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
-            opt_vars().p_path
+        if curbuf_mut().b_p_path.is_empty() {
+            opt_vars().p_path.as_cstr()
         } else {
-            curbuf_mut().b_p_path
-        }),
+            curbuf_mut().b_p_path.as_cstr()
+        },
         FINDFILE_BOTH,
         rel_fname,
-        crate::memory::cstr_from_ptr(curbuf_mut().b_p_sua),
+        curbuf_mut().b_p_sua.as_cstr(),
         file_to_find,
         search_ctx,
     )
@@ -1197,7 +1194,7 @@ pub fn find_directory_in_path(
         ptr,
         options,
         i32::from(true),
-        crate::memory::cstr_from_ptr(opt_vars().p_cdpath),
+        opt_vars().p_cdpath.as_cstr(),
         FINDFILE_DIR,
         rel_fname,
         EMPTY_C,

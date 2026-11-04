@@ -647,10 +647,8 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
         }
 
         let to_parse_bytes = crate::memory::cstr_as_bytes(to_parse);
-        let do_backslash = !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_BSLASH_CONST,
-        );
+        let do_backslash =
+            !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BSLASH_CONST);
         let mut orig_lhs_len = 0usize;
         while orig_lhs_len < to_parse_bytes.len()
             && (is_unmap || !ascii_iswhite(to_parse_bytes[orig_lhs_len] as i32))
@@ -677,7 +675,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
             &to_parse_bytes[..orig_lhs_len],
             crate::memory::cstr_as_bytes(rhs_start),
             LUA_NOREF,
-            crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+            opt_vars().p_cpo.as_bytes(),
             mapargs,
         ) {
             return 1;
@@ -1231,7 +1229,7 @@ pub fn map_to_exists(str_ptr: &CStr, modechars: &CStr, abbr: bool) -> bool {
         0,
         REPTERM_DO_LT,
         None,
-        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+        opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
 
@@ -1508,10 +1506,7 @@ pub fn expand_mappings(pat: &CStr, regmatch: &mut Regmatch, matches: &mut Vec<CS
                 continue;
             }
 
-            let p_cstr = translate_mapping(
-                mp.m_keys.as_bytes(),
-                crate::memory::cstr_from_ptr(opt_vars().p_cpo),
-            );
+            let p_cstr = translate_mapping(mp.m_keys.as_bytes(), opt_vars().p_cpo.as_cstr());
 
             let mut score: i32 = 0;
             let match_found = if !fuzzy {
@@ -1788,7 +1783,7 @@ pub fn eval_map_expr(mp: &Mapblock, c: i32) -> Option<CString> {
             0,
             REPTERM_DO_LT,
             None,
-            crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+            opt_vars().p_cpo.as_bytes(),
         )
     } else {
         Some(vim_strsave_escape_ks(p.to_bytes()))
@@ -2290,7 +2285,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     let mode = get_map_mode(&mut which_bytes, false);
 
     let keys_bytes = crate::memory::cstr_as_bytes((keys).as_ptr());
-    let cpo_bytes = crate::memory::cstr_as_bytes(opt_vars().p_cpo);
+    let cpo_bytes = opt_vars().p_cpo.as_bytes();
     let keys_simplified = replace_termcodes(
         keys_bytes,
         false,
@@ -2509,7 +2504,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
     let lnum = tv_dict_get_number(d_opt, c"lnum") as Linenr;
     let buffer = tv_dict_get_number(d_opt, c"buffer") != 0;
 
-    let cpo_bytes = crate::memory::cstr_as_bytes(opt_vars().p_cpo);
+    let cpo_bytes = opt_vars().p_cpo.as_bytes();
     set_maparg_rhs(orig_rhs.as_bytes(), rhs_lua, sid, cpo_bytes, &mut args);
 
     let mut unmap_args = MapArguments::new();
@@ -2591,7 +2586,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     0,
                     flags,
                     Some(&mut did_simplify),
-                    crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+                    opt_vars().p_cpo.as_bytes(),
                 )
                 .unwrap_or_default();
 
@@ -2640,7 +2635,7 @@ pub fn add_map(lhs: &std::ffi::CStr, rhs: &std::ffi::CStr, mode: i32, buffer: bo
         lhs.to_bytes(),
         rhs.to_bytes(),
         LUA_NOREF,
-        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+        opt_vars().p_cpo.as_bytes(),
         &mut args,
     );
     args.buffer = buffer;
@@ -2676,8 +2671,8 @@ pub fn langmap_init() {
 pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
     langmap_init();
 
-    let base = opt_vars().p_langmap;
-    let bytes = crate::memory::cstr_as_bytes(base);
+    let base_cstr = opt_vars().p_langmap.as_cstr();
+    let bytes = base_cstr.to_bytes();
     let mut p_idx = 0usize;
     while p_idx < bytes.len() {
         let mut p2_idx = p_idx;
@@ -2685,9 +2680,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
             if bytes[p2_idx] == b'\\' && p2_idx + 1 < bytes.len() {
                 p2_idx += 1;
             }
-            p2_idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (base.wrapping_add(p2_idx)).cast(),
-            )) as usize;
+            p2_idx += utfc_ptr2len(&bytes[p2_idx..]) as usize;
         }
         let mut p2_opt = if bytes.get(p2_idx) == Some(&b';') {
             Some(p2_idx + 1)
@@ -2702,27 +2695,26 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
             if bytes[p_idx] == b'\\' && p_idx + 1 < bytes.len() {
                 p_idx += 1;
             }
-            let from_ptr = base.wrapping_add(p_idx);
-            let from = utf_ptr2char(crate::memory::cstr_char_bytes((from_ptr).cast()));
+            let from_slice = &bytes[p_idx..];
+            let from = utf_ptr2char(from_slice);
             let mut to: i32 = NUL as i32;
-            let mut to_ptr = c"".as_ptr();
+            let mut to_cstr = c"";
             if let Some(ref mut p2) = p2_opt {
                 if bytes.get(*p2) != Some(&b',') && *p2 < bytes.len() {
                     if bytes[*p2] == b'\\' && *p2 + 1 < bytes.len() {
                         *p2 += 1;
                     }
-                    to_ptr = base.wrapping_add(*p2);
-                    to = utf_ptr2char(crate::memory::cstr_char_bytes((to_ptr).cast()));
+                    to_cstr = &base_cstr[*p2..];
+                    to = utf_ptr2char(to_cstr.to_bytes());
                 }
             } else {
-                p_idx +=
-                    utfc_ptr2len(crate::memory::cstr_cluster_bytes((from_ptr).cast())) as usize;
+                p_idx += utfc_ptr2len(from_slice) as usize;
                 if p_idx < bytes.len() && bytes[p_idx] != b',' {
                     if bytes[p_idx] == b'\\' && p_idx + 1 < bytes.len() {
                         p_idx += 1;
                     }
-                    to_ptr = base.wrapping_add(p_idx);
-                    to = utf_ptr2char(crate::memory::cstr_char_bytes((to_ptr).cast()));
+                    to_cstr = &base_cstr[p_idx..];
+                    to = utf_ptr2char(to_cstr.to_bytes());
                 }
             }
             if to == NUL as i32 {
@@ -2737,25 +2729,22 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 langmap_set_entry(from, to);
             } else {
                 if to > UCHAR_MAX {
+                    let from_cstr = &base_cstr[bytes.len() - from_slice.len()..];
                     swmsg!(
                         true,
                         c"'langmap': Mapping from %.*s to %.*s will not work properly",
-                        utf_ptr2len(crate::memory::cstr_char_bytes((from_ptr).cast())),
-                        from_ptr,
-                        utf_ptr2len(crate::memory::cstr_char_bytes((to_ptr).cast())),
-                        to_ptr,
+                        utf_ptr2len(from_slice),
+                        from_cstr,
+                        utf_ptr2len(to_cstr.to_bytes()),
+                        to_cstr,
                     );
                 }
                 g_st().langmap_mapchar[(from & 255) as usize] = to as u8;
             }
 
-            p_idx += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                (base.wrapping_add(p_idx)).cast(),
-            )) as usize;
+            p_idx += utfc_ptr2len(&bytes[p_idx..]) as usize;
             if let Some(ref mut p2) = p2_opt {
-                *p2 += utfc_ptr2len(crate::memory::cstr_cluster_bytes(
-                    (base.wrapping_add(*p2)).cast(),
-                )) as usize;
+                *p2 += utfc_ptr2len(&bytes[*p2..]) as usize;
                 if bytes.get(p_idx) == Some(&b';') {
                     p_idx = *p2;
                     if p_idx < bytes.len() {
@@ -2763,7 +2752,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                             return opt_error(
                                 args.os_errbuf,
                                 c"E358: 'langmap': Extra characters after semicolon: %s",
-                                crate::memory::cstr_from_ptr(base.wrapping_add(p_idx)),
+                                &base_cstr[p_idx..],
                             );
                         }
                         p_idx += 1;
@@ -2934,7 +2923,7 @@ pub fn modify_keymap(
             lhs.as_bytes(),
             rhs.as_bytes(),
             lua_funcref,
-            crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+            opt_vars().p_cpo.as_bytes(),
             &mut parsed_args,
         ) {
             api_set_error!(

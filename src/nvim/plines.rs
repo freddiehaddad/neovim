@@ -1181,7 +1181,7 @@ pub fn getvcol(
             && wp.w_onebuf_opt.wo_list == 0
             && !virtual_active(&mut *wp)
             && !(g_st().visual_global.active
-                && (crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                && (opt_vars().p_sel.first_byte() == b'e'
                     || ltoreq(*pos, g_st().visual_global.start)))
         {
             *cursor.as_deref_mut().unwrap() = vcol + incr - char_size.hidden - 1 - off;
@@ -1281,7 +1281,7 @@ pub fn getvcols(
     *left = from1.min(from2);
 
     if to2 > to1 {
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && from2 > to1 {
+        if opt_vars().p_sel.first_byte() == b'e' && from2 > to1 {
             *right = from2 - 1;
         } else {
             *right = to2;

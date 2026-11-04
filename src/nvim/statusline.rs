@@ -352,7 +352,7 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
         g_st().redraw_cmdline = true;
     } else if !redrawing() {
         wp.w_redr_status = true;
-    } else if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
+    } else if !wp.w_onebuf_opt.wo_stl.is_empty()
         || !wp.w_floating
         || (is_stl_global && is_stl_curwin)
     {
@@ -524,7 +524,7 @@ fn win_redr_stl_expr(
     }
 
     if wp.is_null() {
-        stl = opt_vars().p_tal.cast();
+        stl = opt_vars().p_tal.as_ptr().cast_mut().cast();
         row = 0;
         fillchar = schar_from_ascii(b' ');
         group = HLF_TPF;
@@ -535,12 +535,12 @@ fn win_redr_stl_expr(
     } else if draw_winbar {
         let wp = unsafe { &mut *wp };
         opt_idx = K_OPT_WINBAR;
-        stl = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
-            wp.w_onebuf_opt.wo_wbr.cast()
+        stl = if !wp.w_onebuf_opt.wo_wbr.is_empty() {
+            wp.w_onebuf_opt.wo_wbr.as_ptr().cast_mut().cast()
         } else {
-            opt_vars().p_wbr.cast()
+            opt_vars().p_wbr.as_ptr().cast_mut().cast()
         };
-        opt_scope = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr) {
+        opt_scope = if !wp.w_onebuf_opt.wo_wbr.is_empty() {
             OPT_LOCAL
         } else {
             0
@@ -570,7 +570,7 @@ fn win_redr_stl_expr(
         stl_clear_click_defs(&mut wp.w_winbar_click_defs);
         click_defs = stl_alloc_click_defs(&mut wp.w_winbar_click_defs, maxwidth).as_mut_ptr();
     } else if draw_ruler && ui_event {
-        stl = opt_vars().p_ruf.cast();
+        stl = opt_vars().p_ruf.as_ptr().cast_mut().cast();
         opt_idx = K_OPT_RULERFORMAT;
         maxwidth = g_st().columns_global / 2;
         fillchar = schar_from_ascii(b' ');
@@ -578,7 +578,7 @@ fn win_redr_stl_expr(
         attr = hl_attr(group);
         click_defs = ptr::null_mut();
     } else if draw_ruler {
-        stl = opt_vars().p_ruf.cast();
+        stl = opt_vars().p_ruf.as_ptr().cast_mut().cast();
         opt_idx = K_OPT_RULERFORMAT;
         if crate::memory::cstr_first_byte(stl.cast()) == b'%' {
             stl = stl.wrapping_add(1);
@@ -595,7 +595,7 @@ fn win_redr_stl_expr(
             let ch = unsafe { *stl };
             stl = stl.wrapping_add(1);
             if ch != b'(' {
-                stl = opt_vars().p_ruf.cast();
+                stl = opt_vars().p_ruf.as_ptr().cast_mut().cast();
             }
         }
         row = g_st().rows_global - 1;
@@ -608,13 +608,13 @@ fn win_redr_stl_expr(
         click_defs = ptr::null_mut();
     } else {
         let wp_ref = unsafe { &mut *wp };
-        stl = if !crate::memory::cstr_is_empty(wp_ref.w_onebuf_opt.wo_stl) {
-            wp_ref.w_onebuf_opt.wo_stl.cast()
+        stl = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
+            wp_ref.w_onebuf_opt.wo_stl.as_ptr().cast_mut().cast()
         } else {
-            opt_vars().p_stl.cast()
+            opt_vars().p_stl.as_ptr().cast_mut().cast()
         };
         opt_idx = K_OPT_STATUSLINE;
-        opt_scope = if !crate::memory::cstr_is_empty(wp_ref.w_onebuf_opt.wo_stl) {
+        opt_scope = if !wp_ref.w_onebuf_opt.wo_stl.is_empty() {
             OPT_LOCAL
         } else {
             0
@@ -776,9 +776,7 @@ fn win_redr_stl_expr(
             sp = sp.wrapping_add(1);
         }
 
-        if opt_vars().p_sc != 0
-            && find_option(crate::memory::cstr_as_bytes(opt_vars().p_sloc)) == opt_idx
-        {
+        if opt_vars().p_sc != 0 && find_option(opt_vars().p_sloc.as_bytes()) == opt_idx {
             showcmd_update_clear_state();
         }
 
@@ -809,9 +807,7 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
 
     if wp.w_winbar_height == 0 || !redrawing() {
         // Do nothing.
-    } else if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr)
-    {
+    } else if !opt_vars().p_wbr.is_empty() || !wp.w_onebuf_opt.wo_wbr.is_empty() {
         win_redr_stl_expr(Some(wp), true, false, false);
     }
     stl_st().winbar_entered = false;
@@ -1000,7 +996,7 @@ pub fn draw_tabline() {
     debug_assert!(g_st().tab_page_click_defs.len() >= g_st().columns_global as usize);
     stl_clear_click_defs(&mut g_st().tab_page_click_defs);
 
-    if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
+    if !opt_vars().p_tal.is_empty() {
         win_redr_stl_expr(None, false, false, false);
     } else {
         let mut tabcount: i32 = 0;
@@ -1135,7 +1131,7 @@ pub fn draw_tabline() {
         let c = if use_sep_chars { b'_' } else { b' ' };
         grid_line_fill(col, g_st().columns_global, schar_from_ascii(c), attr_fill);
 
-        if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b't' {
+        if opt_vars().p_sc != 0 && opt_vars().p_sloc.first_byte() == b't' {
             let n = g_st().columns_global - col - i32::from(tabcount > 1) * 3;
             let sc_width = 10.min(n);
 
@@ -1188,7 +1184,7 @@ pub fn build_statuscol_str(
     let mut clickrec: *mut StlClickRecord = ptr::null_mut();
     let mut hlrec_ptr: *mut StlHlrec = ptr::null_mut();
     let buf_data = buf.as_mut_ptr();
-    let stc = crate::memory::cstr_to_cstring(wp.w_onebuf_opt.wo_stc);
+    let stc = wp.w_onebuf_opt.wo_stc.to_owned();
     let width = build_stl_str_hl(
         wp,
         CharBuf {
@@ -2185,7 +2181,7 @@ pub extern "C" fn build_stl_str_hl(
             STL_SHOWCMD => {
                 if opt_vars().p_sc != 0
                     && (opt_idx == K_OPT_INVALID
-                        || find_option(crate::memory::cstr_as_bytes(opt_vars().p_sloc)) == opt_idx)
+                        || find_option(opt_vars().p_sloc.as_bytes()) == opt_idx)
                 {
                     str = (&raw mut g_st().showcmd_buf).cast();
                 }
@@ -2260,16 +2256,16 @@ pub extern "C" fn build_stl_str_hl(
                 handle_stcsign = true;
             }
             STL_FILETYPE => {
-                let ft = (*wp).buf_mut().b_p_ft;
-                if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 3 {
+                let ft = (*wp).buf_mut().b_p_ft.as_cstr();
+                if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 3 {
                     vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c"[%s]", ft);
                     str = buf_tmp.as_mut_ptr();
                 }
             }
             STL_FILETYPE_ALT => {
                 itemisflag = true;
-                let ft = (*wp).buf_mut().b_p_ft;
-                if !crate::memory::cstr_is_empty(ft) && crate::memory::cstr_len(ft) < TMPLEN - 2 {
+                let ft = (*wp).buf_mut().b_p_ft.as_cstr();
+                if !ft.to_bytes().is_empty() && ft.to_bytes().len() < TMPLEN - 2 {
                     vim_snprintf!(buf_tmp.as_mut_ptr().cast(), buf_tmp.len(), c",%s", ft);
                     for b in &mut buf_tmp {
                         if *b == 0 {

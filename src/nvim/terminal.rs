@@ -1065,12 +1065,8 @@ fn set_terminal_winopts(s: &mut TerminalState) {
     if curwin_mut().w_onebuf_opt.wo_cul != 0
         && (curwin_mut().w_p_culopt_flags & K_OPT_CULOPT_FLAG_NUMBER) != 0
     {
-        if !(crate::memory::cstr_as_opt_bytes(curwin_mut().w_onebuf_opt.wo_culopt)
-            == Some(b"number"))
-        {
-            s.save_w_p_culopt = Some(crate::memory::cstr_to_cstring(
-                curwin_mut().w_onebuf_opt.wo_culopt,
-            ));
+        if curwin_mut().w_onebuf_opt.wo_culopt.as_bytes() != b"number" {
+            s.save_w_p_culopt = Some(curwin_mut().w_onebuf_opt.wo_culopt.to_owned());
             curwin_mut()
                 .w_onebuf_opt
                 .wo_culopt
@@ -1846,7 +1842,7 @@ fn term_bell(_data: Option<&mut Terminal>) -> i32 {
 
 fn term_theme(dark: &mut bool, _data: Option<&mut Terminal>) -> i32 {
     {
-        *dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+        *dark = opt_vars().p_bg.first_byte() == b'd';
     }
     1
 }

@@ -674,7 +674,7 @@ pub fn update_screen() -> bool {
     if curwin_mut().w_redr_type < UPD_NOT_VALID {
         let curwin_nrw = if curwin_mut().w_onebuf_opt.wo_nu != 0
             || curwin_mut().w_onebuf_opt.wo_rnu != 0
-            || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_stc)
+            || !curwin_mut().w_onebuf_opt.wo_stc.is_empty()
         {
             number_width(curwin_mut())
         } else {
@@ -890,9 +890,7 @@ pub fn show_cursor_info_later(force: bool) {
             g_st().redraw_cmdline = true;
         }
 
-        if !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-            || !crate::memory::cstr_is_empty(curwin_mut().w_onebuf_opt.wo_wbr)
-        {
+        if !opt_vars().p_wbr.is_empty() || !curwin_mut().w_onebuf_opt.wo_wbr.is_empty() {
             curwin_mut().w_redr_status = true;
         }
 
@@ -1152,7 +1150,7 @@ pub fn comp_col() {
             g_st().sc_col = g_st().ru_col;
         }
     }
-    if opt_vars().p_sc != 0 && crate::memory::cstr_first_byte(opt_vars().p_sloc) == b'l' {
+    if opt_vars().p_sc != 0 && opt_vars().p_sloc.first_byte() == b'l' {
         g_st().sc_col += SHOWCMD_COLS;
         if opt_vars().p_ru == 0 || last_has_status {
             g_st().sc_col += 1;
@@ -1175,7 +1173,7 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
     let buf = wp.buf_mut();
 
     if !buf.b_signcols.autom
-        && (!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        && (!wp.w_onebuf_opt.wo_stc.is_empty()
             || (wp.w_maxscwidth > 1 && wp.w_minscwidth != wp.w_maxscwidth))
     {
         buf.b_signcols.autom = true;
@@ -1188,8 +1186,8 @@ fn win_redraw_signcols(wp: &mut WinInfoInfo) -> bool {
     }
 
     let mut width = wp.w_maxscwidth.min(buf.b_signcols.max);
-    let rebuild_stc = buf.b_signcols.max != buf.b_signcols.last_max
-        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc);
+    let rebuild_stc =
+        buf.b_signcols.max != buf.b_signcols.last_max && !wp.w_onebuf_opt.wo_stc.is_empty();
 
     if rebuild_stc {
         wp.w_nrwidth_line_count = 0;
@@ -1510,7 +1508,7 @@ fn win_update(wp: &mut WinInfoInfo) {
     let nrwidth_before = wp.w_nrwidth;
     let nrwidth_new = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
-        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        || !wp.w_onebuf_opt.wo_stc.is_empty()
     {
         number_width(&mut *wp)
     } else {
@@ -2502,10 +2500,7 @@ pub fn win_draw_end(
             }
 
             if (wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
-                && !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_NUMCOL,
-                )
+                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
             {
                 let width = number_width(&mut *wp) + 1;
                 n = grid_line_fill(
@@ -2556,7 +2551,7 @@ pub fn number_width(wp: &mut WinInfoInfo) -> i32 {
     }
     wp.w_nrwidth_line_count = lnum;
 
-    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+    if !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_statuscol_line_count = 0;
         wp.w_nrwidth_width = i32::from(wp.w_onebuf_opt.wo_nu != 0 || wp.w_onebuf_opt.wo_rnu != 0)
             * (wp.w_onebuf_opt.wo_nuw as i32);
@@ -2760,7 +2755,7 @@ pub fn win_redraw_last_status(mut frp: &Frame) {
 }
 
 pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
-    if crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cocu) {
+    if wp.w_onebuf_opt.wo_cocu.is_empty() {
         return false;
     }
     let c = if (get_real_state() & MODE_VISUAL) != 0 {
@@ -2774,10 +2769,7 @@ pub fn conceal_cursor_line(wp: &WinInfoInfo) -> bool {
     } else {
         return false;
     };
-    crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((wp.w_onebuf_opt.wo_cocu).cast()),
-        c,
-    )
+    crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu.as_cstr(), c)
 }
 
 /// Redraws lines `line1` to `line2` of `wp` and invalidates their heights, after 'concealcursor'
@@ -2811,10 +2803,7 @@ pub fn conceal_cursor_reveals_line(wp: &WinInfoInfo, lnum: Linenr) -> bool {
                 .start
                 .lnum
                 .max(curwin_mut().w_cursor.lnum)
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((wp.w_onebuf_opt.wo_cocu).cast()),
-            i32::from(b'v'),
-        )
+        && !crate::strings::vim_haschr(wp.w_onebuf_opt.wo_cocu.as_cstr(), i32::from(b'v'))
 }
 
 pub fn win_cursorline_standout(wp: &WinInfoInfo) -> bool {

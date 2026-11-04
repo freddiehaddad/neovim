@@ -774,8 +774,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         end = buf.b_ml.ml_line_count;
     }
     let save_ml_flags = buf.b_ml.ml_flags;
-    let save_ff = buf.b_p_ff;
-    buf.b_p_ff = CStrOptionSlot::from_option_cstr(c"unix");
+    let save_ff = std::mem::replace(&mut buf.b_p_ff, CStrOptionSlot::from_option_cstr(c"unix"));
     let save_cmod_flags = g_st().cmdmod.cmod_flags != 0;
     g_st().cmdmod.cmod_flags |= CMOD_LOCKMARKS;
     if end < start {
@@ -795,7 +794,7 @@ fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linen
         true,
     );
     g_st().cmdmod.cmod_flags = i32::from(save_cmod_flags);
-    buf.b_p_ff.free_option_str();
+    buf.b_p_ff.clear_option_str();
     buf.b_p_ff = save_ff;
     buf.b_ml.ml_flags = (buf.b_ml.ml_flags & !ML_EMPTY) | (save_ml_flags & ML_EMPTY);
     r == OK
@@ -1133,7 +1132,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     let len = crate::memory::cstr_len(tmp_orig)
         + crate::memory::cstr_len(tmp_new)
         + crate::memory::cstr_len(tmp_diff)
-        + crate::memory::cstr_len(opt_vars().p_srr)
+        + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
     let cmd = cmd_vec.as_mut_ptr().cast();
@@ -1180,7 +1179,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
     );
     append_redir(
         unsafe { std::slice::from_raw_parts_mut(cmd.cast(), len) },
-        crate::memory::cstr_from_ptr(opt_vars().p_srr),
+        opt_vars().p_srr.as_cstr(),
         crate::memory::cstr_from_ptr(tmp_diff),
     );
     crate::autocmd::block_autocmds();
@@ -1430,10 +1429,9 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     }
     if wp.w_onebuf_opt.wo_diff == 0 {
         if wp.w_onebuf_opt.wo_diff_saved != 0 {
-            wp.w_onebuf_opt.wo_fdm_save.free_option_str();
+            wp.w_onebuf_opt.wo_fdm_save.clear_option_str();
         }
-        wp.w_onebuf_opt.wo_fdm_save =
-            CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdm));
+        wp.w_onebuf_opt.wo_fdm_save = wp.w_onebuf_opt.wo_fdm.clone();
     }
     set_option_direct_for(
         K_OPT_FOLDMETHOD,
@@ -1446,10 +1444,9 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
         wp.w_onebuf_opt.wo_fen_save = wp.w_onebuf_opt.wo_fen;
         wp.w_onebuf_opt.wo_fdl_save = wp.w_onebuf_opt.wo_fdl;
         if wp.w_onebuf_opt.wo_diff_saved != 0 {
-            wp.w_onebuf_opt.wo_fdc_save.free_option_str();
+            wp.w_onebuf_opt.wo_fdc_save.clear_option_str();
         }
-        wp.w_onebuf_opt.wo_fdc_save =
-            CStrOptionSlot::from_option_cstr(crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdc));
+        wp.w_onebuf_opt.wo_fdc_save = wp.w_onebuf_opt.wo_fdc.clone();
     }
     debug_assert!(g_st().diff_foldcolumn >= 0 && g_st().diff_foldcolumn <= 9);
     let fdc_buf: [u8; 1] = [b'0' + (g_st().diff_foldcolumn as u8)];
@@ -1458,10 +1455,7 @@ pub fn diff_win_options(wp: &mut WinInfoInfo, addbuf: bool) {
     wp.w_onebuf_opt.wo_fdl = 0;
     fold_update_all(wp);
     changed_window_setting(wp);
-    if !crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
-        b'h' as i32,
-    ) {
+    if !crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32) {
         do_cmdline_cmd(c"set sbo+=hor");
     }
     wp.w_onebuf_opt.wo_diff_saved = 1;
@@ -1496,15 +1490,15 @@ pub fn ex_diffoff(eap: &mut Exarg) {
                     wp.w_leftcol = 0;
                 }
                 wp.w_onebuf_opt.wo_fdm.set_option_cstr(
-                    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdm_save) {
-                        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdm_save)
+                    if !wp.w_onebuf_opt.wo_fdm_save.is_empty() {
+                        wp.w_onebuf_opt.wo_fdm_save.as_cstr()
                     } else {
                         c"manual"
                     },
                 );
                 wp.w_onebuf_opt.wo_fdc.set_option_cstr(
-                    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_fdc_save) {
-                        crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_fdc_save)
+                    if !wp.w_onebuf_opt.wo_fdc_save.is_empty() {
+                        wp.w_onebuf_opt.wo_fdc_save.as_cstr()
                     } else {
                         c"0"
                     },
@@ -1536,12 +1530,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         curtab_mut().tp_diff_update = 0;
         diff_clear(curtab_mut());
     }
-    if !diffwin
-        && crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
-            b'h' as i32,
-        )
-    {
+    if !diffwin && crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32) {
         do_cmdline_cmd(c"set sbo-=hor");
     }
 }
@@ -2213,10 +2202,10 @@ fn parse_diffanchors(
     mut anchors: Option<&mut [Linenr; MAX_DIFF_ANCHORS]>,
     num_anchors: Option<&mut i32>,
 ) -> bool {
-    let mut dia = if crate::memory::cstr_is_empty(buf.b_p_dia) {
-        opt_vars().p_dia
+    let mut dia = if buf.b_p_dia.is_empty() {
+        opt_vars().p_dia.as_ptr().cast_mut()
     } else {
-        buf.b_p_dia
+        buf.b_p_dia.as_ptr().cast_mut()
     };
     let orig_curbuf = g_st().curbuf;
     let orig_curwin = curwin_ptr();
@@ -2310,10 +2299,7 @@ pub fn diffanchors_changed(buflocal: bool) -> bool {
     result
 }
 pub fn diffopt_changed() -> bool {
-    let v: &OptKeyDict_dip = opt_keyset(
-        crate::memory::cstr_as_bytes(opt_vars().p_dip),
-        K_OPT_DIFFOPT,
-    );
+    let v: &OptKeyDict_dip = opt_keyset(opt_vars().p_dip.as_bytes(), K_OPT_DIFFOPT);
     let mut flags = (if v.filler { DIFF_FILLER } else { 0 })
         | (if v.anchor { DIFF_ANCHOR } else { 0 })
         | (if v.iblank { DIFF_IBLANK } else { 0 })
@@ -3290,7 +3276,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
     if curtab_mut().tp_diffs.is_empty() {
         for wp in for_all_windows_mut() {
             if wp.w_onebuf_opt.wo_diff != 0
-                && crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdm) == b'd'
+                && wp.w_onebuf_opt.wo_fdm.first_byte() == b'd'
                 && wp.w_onebuf_opt.wo_fen != 0
             {
                 fold_update_all(wp);

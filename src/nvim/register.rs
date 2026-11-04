@@ -1055,7 +1055,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
     if orig_motion == MotionType::MtCharWise
         && oap.start.col == 0
         && !oap.inclusive
-        && (!oap.is_visual || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+        && (!oap.is_visual || opt_vars().p_sel.first_byte() == b'o')
         && oap.end.col == 0
         && yanklines > 1
     {
@@ -1128,10 +1128,7 @@ pub fn op_yank_reg(oap: &mut Oparg, message: bool, reg_in: &mut Yankreg, append:
         }
 
         if curr_reg.y_type == MotionType::MtCharWise
-            && !crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_REGAPPEND,
-            )
+            && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_REGAPPEND)
             && !curr_reg.y_array.is_empty()
             && !new_reg.y_array.is_empty()
         {

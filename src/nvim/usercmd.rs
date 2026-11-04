@@ -1041,15 +1041,8 @@ pub fn uc_add_command(
     let name_len = name_prefix.len();
     let rep = crate::memory::bytes_until_nul(rep);
     let mut cmp: i32 = 1;
-    let rep_cstr = replace_termcodes(
-        rep,
-        false,
-        0,
-        0,
-        None,
-        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
-    )
-    .unwrap_or_else(|| CString::new(rep).unwrap_or_default());
+    let rep_cstr = replace_termcodes(rep, false, 0, 0, None, opt_vars().p_cpo.as_bytes())
+        .unwrap_or_else(|| CString::new(rep).unwrap_or_default());
 
     let u = ucmds_mut();
     let gap: &mut Vec<Ucmd> = if (flags & UC_BUFFER) != 0 {

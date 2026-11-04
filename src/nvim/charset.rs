@@ -234,10 +234,7 @@ pub fn buf_init_isk_chartab(buf: &mut FileBuf) -> bool {
     if buf.b_p_lisp != 0 {
         set_chartab(&mut buf.b_chartab, b'-' as i32);
     }
-    if !parse_isopt(
-        crate::memory::cstr_as_bytes(buf.b_p_isk),
-        Some(&mut buf.b_chartab),
-    ) {
+    if !parse_isopt(buf.b_p_isk.as_bytes(), Some(&mut buf.b_chartab)) {
         buf.b_chartab = save_chartab;
         return false;
     }
@@ -248,7 +245,7 @@ pub fn init_isf_chartab() -> bool {
     let save_chartab = charset_st().isf_chartab;
     charset_st().isf_chartab = [0, 0, 0xFFFF_FFFF_0000_0000, 0xFFFF_FFFF_FFFF_FFFF];
     if !parse_isopt(
-        crate::memory::cstr_as_bytes(opt_vars().p_isf),
+        opt_vars().p_isf.as_bytes(),
         Some(&mut charset_st().isf_chartab),
     ) {
         charset_st().isf_chartab = save_chartab;
@@ -261,7 +258,7 @@ pub fn init_isi_chartab() -> bool {
     let save_chartab = charset_st().isi_chartab;
     charset_st().isi_chartab = [0; 4];
     if !parse_isopt(
-        crate::memory::cstr_as_bytes(opt_vars().p_isi),
+        opt_vars().p_isi.as_bytes(),
         Some(&mut charset_st().isi_chartab),
     ) {
         charset_st().isi_chartab = save_chartab;

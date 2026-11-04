@@ -218,9 +218,9 @@ fn is_pos_in_string_slice(bytes: &[u8], col: Colnr) -> i32 {
 }
 pub fn cin_is_cinword(line: &[u8]) -> bool {
     let line = crate::charset::skipwhite_slice(line);
-    let cinw_len = crate::memory::cstr_len(curbuf_mut().b_p_cinw) + 1;
+    let cinw_len = curbuf_mut().b_p_cinw.as_bytes().len() + 1;
     let mut cinw_buf = vec![0u8; cinw_len];
-    let mut cinw = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cinw);
+    let mut cinw = curbuf_mut().b_p_cinw.as_bytes();
     while !cinw.is_empty() {
         let len = copy_option_part(&mut cinw, &mut cinw_buf, c",");
         if line.starts_with(&cinw_buf[..len])
@@ -490,9 +490,9 @@ fn cin_isdefault_slice(s: &[u8]) -> bool {
 }
 fn cin_isscopedecl_slice(p: &[u8]) -> bool {
     let s = cin_skipcomment_slice(p);
-    let cinsd_len = crate::memory::cstr_len(curbuf_mut().b_p_cinsd) + 1;
+    let cinsd_len = curbuf_mut().b_p_cinsd.as_bytes().len() + 1;
     let mut cinsd_buf = vec![0u8; cinsd_len];
-    let mut cinsd = crate::memory::cstr_as_bytes(curbuf_mut().b_p_cinsd);
+    let mut cinsd = curbuf_mut().b_p_cinsd.as_bytes();
     while !cinsd.is_empty() {
         let len = copy_option_part(&mut cinsd, &mut cinsd_buf, c",");
         if s.starts_with(&cinsd_buf[..len]) {
@@ -1319,7 +1319,7 @@ pub fn parse_cino(buf: &mut FileBuf) {
     buf.b_ind_hash_comment = 0;
     buf.b_ind_cpp_extern_c = 0;
     buf.b_ind_pragma = 0;
-    let mut rem = crate::memory::cstr_as_bytes(buf.b_p_cino);
+    let mut rem = buf.b_p_cino.as_bytes();
     while !rem.is_empty() {
         let l0 = rem[0];
         let is_neg = rem.get(1) == Some(&b'-');
@@ -1518,40 +1518,30 @@ pub fn get_c_indent() -> i32 {
                 amount = col;
                 lead_start[0] = 0;
                 lead_middle[0] = 0;
-                let mut p = curbuf_mut().b_p_com;
-                while !crate::memory::cstr_is_empty(p) {
+                let mut p_bytes = curbuf_mut().b_p_com.as_bytes();
+                while !p_bytes.is_empty() {
                     let mut align: i32 = 0;
                     let mut off: i32 = 0;
                     let mut what: i32 = 0;
-                    while !crate::memory::cstr_is_empty(p)
-                        && crate::memory::cstr_first_byte(p) != b':'
-                    {
-                        let b = crate::memory::cstr_first_byte(p);
+                    while !p_bytes.is_empty() && p_bytes[0] != b':' {
+                        let b = p_bytes[0];
                         if b == COM_START || b == COM_END || b == COM_MIDDLE {
                             what = i32::from(b);
-                            p = p.wrapping_add(1);
+                            p_bytes = &p_bytes[1..];
                         } else if b == COM_LEFT || b == COM_RIGHT {
                             align = i32::from(b);
-                            p = p.wrapping_add(1);
-                        } else if ascii_isdigit(crate::memory::cstr_first_byte(p))
-                            || crate::memory::cstr_first_byte(p) == b'-'
-                        {
-                            let p_bytes = crate::memory::cstr_as_bytes(p);
-                            let mut rem = p_bytes;
-                            off = getdigits_int(&mut rem, true, 0);
-                            p = p.wrapping_add(p_bytes.len() - rem.len());
+                            p_bytes = &p_bytes[1..];
+                        } else if ascii_isdigit(i32::from(b)) || b == b'-' {
+                            off = getdigits_int(&mut p_bytes, true, 0);
                         } else {
-                            p = p.wrapping_add(1);
+                            p_bytes = &p_bytes[1..];
                         }
                     }
-                    if crate::memory::cstr_first_byte(p) == b':' {
-                        p = p.wrapping_add(1);
+                    if p_bytes.first() == Some(&b':') {
+                        p_bytes = &p_bytes[1..];
                     }
-                    let mut p_bytes = crate::memory::cstr_as_bytes(p);
-                    let old_len = p_bytes.len();
                     lead_end_len =
                         copy_option_part(&mut p_bytes, &mut lead_end[..COM_MAX_LEN], c",");
-                    p = p.wrapping_add(old_len - p_bytes.len());
                     if what == i32::from(COM_START) {
                         lead_start = lead_end;
                         lead_start_len = lead_end_len;
@@ -2750,12 +2740,11 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
     if keytyped == NUL as i32 {
         return false;
     }
-    let look_base = if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
-        curbuf_mut().b_p_indk.cast_const()
+    let look_full = if curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST {
+        curbuf_mut().b_p_indk.as_bytes()
     } else {
-        curbuf_mut().b_p_cink.cast_const()
+        curbuf_mut().b_p_cink.as_bytes()
     };
-    let look_full = crate::memory::cstr_as_bytes(look_base);
     let mut rem = look_full;
     while !rem.is_empty() {
         let mut try_match = match when as u8 {

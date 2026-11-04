@@ -1186,7 +1186,7 @@ pub fn mc_vsel_refresh() {
             &mut s,
             &mut e,
             r_type,
-            crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e',
+            opt_vars().p_sel.first_byte() == b'e',
             0,
             &mut inclusive,
             &mut oa,
@@ -1417,8 +1417,7 @@ fn mc_zq_first(
     let bof = dec(&mut before) == -1;
     step.lnum = 0;
     if !bof {
-        let save_ww = opt_vars().p_ww;
-        opt_vars().p_ww = c"s,l,>".as_ptr().cast_mut();
+        let save_ww = std::mem::replace(&mut opt_vars().p_ww, OptString::from_cstr(c"s,l,>"));
         let s = mc_zq_step(keys, before);
         opt_vars().p_ww = save_ww;
         curwin_mut().w_curswant = curswant;

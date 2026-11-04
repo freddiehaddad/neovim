@@ -551,7 +551,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+    let mut dirp = opt_vars().p_dir.as_bytes();
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let mf_fname = buf
@@ -633,7 +633,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         return;
     }
 
-    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+    let mut dirp = opt_vars().p_dir.as_bytes();
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let fname = findswapname(buf, &mut dirp, None, &mut found_existing_dir);
@@ -656,7 +656,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
         }
     }
 
-    if !crate::memory::cstr_is_empty(opt_vars().p_dir) && buf.b_ml.mfp_mut().mf_fname.is_none() {
+    if !opt_vars().p_dir.is_empty() && buf.b_ml.mfp_mut().mf_fname.is_none() {
         g_st().need_wait_return = true;
         g_st().no_wait_return += 1;
         let sp = buf_spname(buf);
@@ -815,7 +815,7 @@ fn set_b0_dir_flag(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
 
 fn add_b0_fenc(b0p: &mut ZeroBlock, buf: &mut FileBuf) {
     let size = B0_FNAME_SIZE_NOCRYPT;
-    let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
+    let fenc_bytes = buf.b_p_fenc.as_bytes();
     let n = fenc_bytes.len();
     if crate::memory::cstr_until_nul(&b0p.b0_fname)
         .to_bytes()
@@ -1557,13 +1557,13 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
     #[cfg(not(unix))]
     let fname_res: Option<&CStr> = fname;
 
-    let dir_cap = (crate::memory::cstr_len(opt_vars().p_dir) + 1).min(31000);
+    let dir_cap = (opt_vars().p_dir.as_bytes().len() + 1).min(31000);
     let mut dir_name_vec: Vec<u8> = vec![0; dir_cap];
     let mut dir_name = NvimString {
         data: dir_name_vec.as_mut_ptr().cast(),
         size: 0,
     };
-    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_dir);
+    let mut dirp = opt_vars().p_dir.as_bytes();
     while !dirp.is_empty() {
         dir_name.size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
         dir_name.data = dir_name_vec.as_mut_ptr().cast();
@@ -3530,10 +3530,7 @@ fn findswapname(
 
             if !differ
                 && (curbuf_mut().b_flags & BF_RECOVERED) == 0
-                && !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()),
-                    K_SHM_ATTENTION,
-                )
+                && !crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), K_SHM_ATTENTION)
             {
                 let mut choice: SeaChoice = SEA_CHOICE_NONE;
 

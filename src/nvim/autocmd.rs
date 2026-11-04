@@ -1925,7 +1925,7 @@ pub fn event_nr2name(event: AuEvent) -> &'static std::ffi::CStr {
 }
 
 pub fn event_ignored(event: AuEvent, ei: &CStr) -> bool {
-    let is_p_ei = ptr::eq(ei.as_ptr(), opt_vars().p_ei.cast_const());
+    let is_p_ei = ptr::eq(ei.as_ptr(), opt_vars().p_ei.as_ptr());
     let mut rem = ei.to_bytes();
     let full_len = rem.len();
     let mut ignored = false;
@@ -1972,9 +1972,9 @@ pub fn check_ei(ei: &CStr, win: bool) -> bool {
 }
 
 pub fn au_event_disable(what: &std::ffi::CStr) -> std::ffi::CString {
-    let p_ei_bytes = crate::memory::cstr_as_bytes(opt_vars().p_ei);
+    let p_ei_bytes = opt_vars().p_ei.as_bytes();
     let what_bytes = what.to_bytes();
-    let save_ei = crate::memory::cstr_to_cstring(opt_vars().p_ei);
+    let save_ei = opt_vars().p_ei.to_owned();
     let mut new_ei_vec: Vec<u8> = Vec::with_capacity(p_ei_bytes.len() + what_bytes.len());
     if what_bytes.first() == Some(&b',') && p_ei_bytes.is_empty() {
         new_ei_vec.extend_from_slice(&what_bytes[1..]);
@@ -2776,16 +2776,13 @@ pub fn apply_autocmds_group(
                 break 'bypass_au;
             }
 
-            if event_ignored(event, crate::memory::cstr_from_ptr(opt_vars().p_ei)) {
+            if event_ignored(event, opt_vars().p_ei.as_cstr()) {
                 break 'bypass_au;
             }
 
             let mut win_ignore = false;
             if buf == g_st().curbuf && EVENT_NAMES[event as usize].event <= 0 {
-                win_ignore = event_ignored(
-                    event,
-                    crate::memory::cstr_from_ptr(curwin_mut().w_onebuf_opt.wo_eiw),
-                );
+                win_ignore = event_ignored(event, curwin_mut().w_onebuf_opt.wo_eiw.as_cstr());
             } else if !buf.is_null()
                 && EVENT_NAMES[event as usize].event <= 0
                 && unsafe { (*buf).b_nwindows > 0 }
@@ -2794,10 +2791,7 @@ pub fn apply_autocmds_group(
                 for tp in for_all_tabpages_ptr() {
                     for wp in for_all_windows_in_tab_mut(&*tp) {
                         if wp.w_buffer == buf
-                            && !event_ignored(
-                                event,
-                                crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_eiw),
-                            )
+                            && !event_ignored(event, wp.w_onebuf_opt.wo_eiw.as_cstr())
                         {
                             win_ignore = false;
                             break;
@@ -2874,9 +2868,9 @@ pub fn apply_autocmds_group(
                 if buf.is_null() {
                     fname = ptr::null_mut();
                 } else if event == EVENT_SYNTAX {
-                    fname = unsafe { (*buf).b_p_syn };
+                    fname = unsafe { (*buf).b_p_syn.as_ptr().cast_mut() };
                 } else if event == EVENT_FILETYPE {
-                    fname = unsafe { (*buf).b_p_ft };
+                    fname = unsafe { (*buf).b_p_ft.as_ptr().cast_mut() };
                 } else {
                     sfname_owned = unsafe { (*buf).b_sfname.clone() };
                     fname = unsafe {
@@ -2981,7 +2975,7 @@ pub fn apply_autocmds_group(
             au_st().filechangeshell_busy = event == EVENT_FILECHANGEDSHELL;
             au_st().apply_autocmds_nesting += 1;
 
-            if event == EVENT_FILETYPE && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+            if event == EVENT_FILETYPE && !curbuf_mut().b_p_ft.is_empty() {
                 curbuf_mut().b_did_filetype = true;
             }
 
@@ -3911,7 +3905,7 @@ pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
     }
     let ret = apply_autocmds(
         EVENT_FILETYPE,
-        crate::memory::cstr_as_opt_cstr(unsafe { (*buf_ptr).b_p_ft }),
+        Some(unsafe { (*buf_ptr).b_p_ft.as_cstr() }),
         unsafe { (*buf_ptr).fname_opt() },
         force || au_st().ft_recursive == 1,
         unsafe { buf_ptr.as_mut() },

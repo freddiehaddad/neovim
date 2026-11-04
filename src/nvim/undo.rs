@@ -599,7 +599,7 @@ pub fn u_get_undo_file_name(buf_ffname: Option<&CStr>, reading: bool) -> Option<
 
     let ffname_len = crate::memory::cstr_len(ffname);
     let ffname_slice = crate::memory::cstr_slice(ffname, ffname_len);
-    let mut dirp = crate::memory::cstr_as_bytes(opt_vars().p_udir);
+    let mut dirp = opt_vars().p_udir.as_bytes();
     while !dirp.is_empty() {
         let mut dir_len = copy_option_part(&mut dirp, &mut dir_name[..MAXPATHL], c",");
         if dir_len == 1 && dir_name[0] == b'.' {
@@ -1571,10 +1571,7 @@ pub fn u_undo(mut count: i32) {
         count = 1;
     }
 
-    if !crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-        K_CPO_UNDO,
-    ) {
+    if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
         undo_st().undo_undoes = true;
     } else {
         undo_st().undo_undoes = !undo_st().undo_undoes;
@@ -1584,10 +1581,7 @@ pub fn u_undo(mut count: i32) {
 
 /// Redo `count` times.
 pub fn u_redo(count: i32) {
-    if !crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-        K_CPO_UNDO,
-    ) {
+    if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_UNDO) {
         undo_st().undo_undoes = false;
     }
 
@@ -3070,9 +3064,9 @@ mod tests {
             let _ = std::fs::remove_dir_all(&base);
             std::fs::create_dir_all(&base).unwrap();
 
-            let save_udir = opt_vars().p_udir;
             let base_c = CString::new(base.clone()).unwrap();
-            opt_vars().p_udir = base_c.as_ptr().cast_mut();
+            let save_udir =
+                std::mem::replace(&mut opt_vars().p_udir, OptString::from_cstr(&base_c));
 
             let fpath = format!("{base}/Xtest-unit-undo");
             std::fs::write(&fpath, b"hello\n").unwrap();

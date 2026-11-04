@@ -443,10 +443,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
     changed_common(curbuf_mut(), lnum, col, lnum + 1, 0);
     if spell_check_window(curwin_mut())
         && lnum < curbuf_mut().b_ml.ml_line_count
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_DOLLAR,
-        )
+        && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DOLLAR)
     {
         redraw_winline(crate::globals::curwin_mut(), lnum + 1);
     }
@@ -604,18 +601,18 @@ pub fn unchanged(buf: &mut FileBuf, ff: bool, always_inc_changedtick: bool) {
 
 /// Save the current values of `'fileformat'` and `'fileencoding'`.
 pub fn save_file_ff(buf: &mut FileBuf) {
-    buf.b_start_ffc = i32::from(crate::memory::cstr_first_byte(buf.b_p_ff));
+    buf.b_start_ffc = i32::from(buf.b_p_ff.first_byte());
     buf.b_start_eof = buf.b_p_eof;
     buf.b_start_eol = buf.b_p_eol;
     buf.b_start_bomb = buf.b_p_bomb;
 
-    let p_fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
+    let p_fenc_bytes = buf.b_p_fenc.as_bytes();
     if buf
         .b_start_fenc
         .as_ref()
         .is_none_or(|s| s.to_bytes() != p_fenc_bytes)
     {
-        buf.b_start_fenc = Some(crate::memory::cstr_to_cstring(buf.b_p_fenc));
+        buf.b_start_fenc = Some(buf.b_p_fenc.to_owned());
     }
 }
 
@@ -632,7 +629,7 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
     {
         return false;
     }
-    if buf.b_start_ffc != i32::from(crate::memory::cstr_first_byte(buf.b_p_ff)) {
+    if buf.b_start_ffc != i32::from(buf.b_p_ff.first_byte()) {
         return true;
     }
     if (buf.b_p_bin != 0 || buf.b_p_fixeol == 0)
@@ -644,9 +641,9 @@ pub fn file_ff_differs(buf: &mut FileBuf, ignore_empty: bool) -> bool {
         return true;
     }
     let Some(ref start_fenc) = buf.b_start_fenc else {
-        return !crate::memory::cstr_is_empty(buf.b_p_fenc);
+        return !buf.b_p_fenc.is_empty();
     };
-    start_fenc.to_bytes() != crate::memory::cstr_as_bytes(buf.b_p_fenc)
+    start_fenc.to_bytes() != buf.b_p_fenc.as_bytes()
 }
 
 /// Insert string `p` at the cursor position. Stops at a NUL byte.
@@ -700,10 +697,7 @@ pub fn ins_char_bytes(buf: &[u8], charlen: usize) {
             if (g_st().state_global & VREPLACE_FLAG) != 0 {
                 let old_list = curwin_mut().w_onebuf_opt.wo_list;
                 if old_list != 0
-                    && !crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                        K_CPO_LISTWM,
-                    )
+                    && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LISTWM)
                 {
                     curwin_mut().w_onebuf_opt.wo_list = 0;
                 }
@@ -1290,13 +1284,13 @@ pub fn open_line(
                     break;
                 }
 
-                while p > curbuf_mut().b_p_com.cast()
+                while p > curbuf_mut().b_p_com.as_ptr().cast_mut().cast()
                     && crate::memory::cstr_first_byte(p.cast()) != b','
                 {
                     p = p.wrapping_sub(1);
                 }
                 lead_repl = p;
-                while lead_repl > curbuf_mut().b_p_com.cast()
+                while lead_repl > curbuf_mut().b_p_com.as_ptr().cast_mut().cast()
                     && crate::memory::cstr_first_byte(lead_repl.wrapping_sub(1).cast()) != b':'
                 {
                     lead_repl = lead_repl.wrapping_sub(1);
@@ -2053,16 +2047,16 @@ pub fn get_leader_len(
     while i < line_bytes.len() {
         let mut found_one = false;
         let mut part_flags_range: std::ops::Range<usize> = 0..0;
-        let mut list = curbuf_mut().b_p_com;
-        while !crate::memory::cstr_is_empty(list) {
+        let mut list = curbuf_mut().b_p_com.as_cstr();
+        while !list.to_bytes().is_empty() {
             if !got_com && let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = crate::memory::cstr_as_opt_cstr(list);
+                *flags_out = Some(list);
             }
             let prev_list = list;
-            let mut list_bytes = crate::memory::cstr_as_bytes(list);
+            let mut list_bytes = list.to_bytes();
             let old_len = list_bytes.len();
             let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
-            list = list.wrapping_add(old_len - list_bytes.len());
+            list = &list[old_len - list_bytes.len()..];
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 part_flags_range = 0..part_len;
@@ -2112,7 +2106,7 @@ pub fn get_leader_len(
             if part_flags.contains(&COM_MIDDLE) {
                 if middle_match_len == 0 {
                     middle_match_len = j;
-                    saved_flags = prev_list.cast();
+                    saved_flags = prev_list.as_ptr().cast_mut().cast();
                 }
                 continue;
             }
@@ -2176,13 +2170,13 @@ pub fn get_last_leader_offset(
         let i_usize = i as usize;
         let mut found_one = false;
         let mut part_flags_range: std::ops::Range<usize> = 0..0;
-        let mut list = curbuf_mut().b_p_com;
-        while !crate::memory::cstr_is_empty(list) {
+        let mut list = curbuf_mut().b_p_com.as_cstr();
+        while !list.to_bytes().is_empty() {
             let flags_save = list;
-            let mut list_bytes = crate::memory::cstr_as_bytes(list);
+            let mut list_bytes = list.to_bytes();
             let old_len = list_bytes.len();
             let part_len = copy_option_part(&mut list_bytes, &mut part_buf[..COM_MAX_LEN], c",");
-            list = list.wrapping_add(old_len - list_bytes.len());
+            list = &list[old_len - list_bytes.len()..];
             let part = &part_buf[..part_len];
             let Some(colon_idx) = part.iter().position(|&b| b == b':') else {
                 continue;
@@ -2224,9 +2218,9 @@ pub fn get_last_leader_offset(
 
             found_one = true;
             if let Some(flags_out) = flags.as_deref_mut() {
-                *flags_out = crate::memory::cstr_as_opt_cstr(flags_save);
+                *flags_out = Some(flags_save);
             }
-            com_flags = flags_save.cast();
+            com_flags = flags_save.as_ptr().cast_mut().cast();
             break;
         }
 
@@ -2249,15 +2243,15 @@ pub fn get_last_leader_offset(
             }
             let len1 = com_leader.len() as i32;
 
-            let mut list = curbuf_mut().b_p_com;
-            while !crate::memory::cstr_is_empty(list) {
+            let mut list = curbuf_mut().b_p_com.as_cstr();
+            while !list.to_bytes().is_empty() {
                 let flags_save = list;
-                let mut list_bytes = crate::memory::cstr_as_bytes(list);
+                let mut list_bytes = list.to_bytes();
                 let old_len = list_bytes.len();
                 let part2_len =
                     copy_option_part(&mut list_bytes, &mut part_buf2[..COM_MAX_LEN], c",");
-                list = list.wrapping_add(old_len - list_bytes.len());
-                if flags_save.cast::<u8>() == com_flags {
+                list = &list[old_len - list_bytes.len()..];
+                if flags_save.as_ptr().cast::<u8>() == com_flags {
                     continue;
                 }
                 let part2 = &part_buf2[..part2_len];

@@ -284,29 +284,29 @@ pub struct FileBuf {
     pub b_p_ac: i32,
     pub b_p_ai: i32,
     pub b_p_ai_nopaste: i32,
-    pub b_p_bkc: RawCCharPtrMut,
+    pub b_p_bkc: crate::option_vars::OptString,
     pub b_bkc_flags: u32,
     pub b_p_ci: i32,
     pub b_p_bin: i32,
     pub b_p_bomb: i32,
-    pub b_p_bh: RawCCharPtrMut,
-    pub b_p_bt: RawCCharPtrMut,
+    pub b_p_bh: crate::option_vars::OptString,
+    pub b_p_bt: crate::option_vars::OptString,
     pub b_p_busy: i64,
     pub b_has_qf_entry: i32,
     pub b_p_bl: i32,
     pub b_p_channel: i64,
     pub b_p_cin: i32,
-    pub b_p_cino: RawCCharPtrMut,
-    pub b_p_cink: RawCCharPtrMut,
-    pub b_p_cinw: RawCCharPtrMut,
-    pub b_p_cinsd: RawCCharPtrMut,
-    pub b_p_com: RawCCharPtrMut,
-    pub b_p_cms: RawCCharPtrMut,
-    pub b_p_cot: RawCCharPtrMut,
+    pub b_p_cino: crate::option_vars::OptString,
+    pub b_p_cink: crate::option_vars::OptString,
+    pub b_p_cinw: crate::option_vars::OptString,
+    pub b_p_cinsd: crate::option_vars::OptString,
+    pub b_p_com: crate::option_vars::OptString,
+    pub b_p_cms: crate::option_vars::OptString,
+    pub b_p_cot: crate::option_vars::OptString,
     pub b_cot_flags: u32,
-    pub b_p_cpt: RawCCharPtrMut,
+    pub b_p_cpt: crate::option_vars::OptString,
     #[cfg(windows)]
-    pub b_p_csl: RawCCharPtrMut,
+    pub b_p_csl: crate::option_vars::OptString,
     pub b_p_cpt_flags: u32,
     pub b_p_cpt_cb: Vec<crate::eval::typval::Callback>,
     pub b_p_cfu: crate::eval::typval::Callback,
@@ -319,46 +319,46 @@ pub struct FileBuf {
     pub b_p_et: i32,
     pub b_p_et_nobin: i32,
     pub b_p_et_nopaste: i32,
-    pub b_p_fenc: RawCCharPtrMut,
-    pub b_p_ff: RawCCharPtrMut,
-    pub b_p_ft: RawCCharPtrMut,
+    pub b_p_fenc: crate::option_vars::OptString,
+    pub b_p_ff: crate::option_vars::OptString,
+    pub b_p_ft: crate::option_vars::OptString,
     pub b_p_follow: i32,
-    pub b_p_fo: RawCCharPtrMut,
-    pub b_p_flp: RawCCharPtrMut,
+    pub b_p_fo: crate::option_vars::OptString,
+    pub b_p_flp: crate::option_vars::OptString,
     pub b_p_inf: i32,
-    pub b_p_isk: RawCCharPtrMut,
-    pub b_p_def: RawCCharPtrMut,
-    pub b_p_inc: RawCCharPtrMut,
+    pub b_p_isk: crate::option_vars::OptString,
+    pub b_p_def: crate::option_vars::OptString,
+    pub b_p_inc: crate::option_vars::OptString,
     pub b_p_inex: crate::eval::typval::Callback,
     pub b_p_inex_flags: u32,
     pub b_p_inde: crate::eval::typval::Callback,
     pub b_p_inde_flags: u32,
-    pub b_p_indk: RawCCharPtrMut,
-    pub b_p_fp: RawCCharPtrMut,
+    pub b_p_indk: crate::option_vars::OptString,
+    pub b_p_fp: crate::option_vars::OptString,
     pub b_p_fex: crate::eval::typval::Callback,
     pub b_p_fex_flags: u32,
     pub b_p_fs: i32,
-    pub b_p_kp: RawCCharPtrMut,
+    pub b_p_kp: crate::option_vars::OptString,
     pub b_p_lisp: i32,
-    pub b_p_lop: RawCCharPtrMut,
-    pub b_p_menc: RawCCharPtrMut,
-    pub b_p_mps: RawCCharPtrMut,
+    pub b_p_lop: crate::option_vars::OptString,
+    pub b_p_menc: crate::option_vars::OptString,
+    pub b_p_mps: crate::option_vars::OptString,
     pub b_p_ml: i32,
     pub b_p_ml_nobin: i32,
     pub b_p_ma: i32,
-    pub b_p_nf: RawCCharPtrMut,
+    pub b_p_nf: crate::option_vars::OptString,
     pub b_p_pi: i32,
-    pub b_p_qe: RawCCharPtrMut,
+    pub b_p_qe: crate::option_vars::OptString,
     pub b_p_ro: i32,
     pub b_p_sw: i64,
     pub b_p_scbk: i64,
     pub b_p_si: i32,
     pub b_p_sts: i64,
     pub b_p_sts_nopaste: i64,
-    pub b_p_sua: RawCCharPtrMut,
+    pub b_p_sua: crate::option_vars::OptString,
     pub b_p_swf: i32,
     pub b_p_smc: i64,
-    pub b_p_syn: RawCCharPtrMut,
+    pub b_p_syn: crate::option_vars::OptString,
     pub b_p_ts: i64,
     pub b_p_tw: i64,
     pub b_p_tw_nobin: i64,
@@ -366,29 +366,29 @@ pub struct FileBuf {
     pub b_p_wm: i64,
     pub b_p_wm_nobin: i64,
     pub b_p_wm_nopaste: i64,
-    pub b_p_vsts: RawCCharPtrMut,
+    pub b_p_vsts: crate::option_vars::OptString,
     pub b_p_vsts_array: Vec<i32>,
     pub b_p_vsts_nopaste: Option<std::ffi::CString>,
-    pub b_p_vts: RawCCharPtrMut,
+    pub b_p_vts: crate::option_vars::OptString,
     pub b_p_vts_array: Vec<i32>,
-    pub b_p_keymap: RawCCharPtrMut,
-    pub b_p_gefm: RawCCharPtrMut,
-    pub b_p_gp: RawCCharPtrMut,
-    pub b_p_mp: RawCCharPtrMut,
-    pub b_p_efm: RawCCharPtrMut,
-    pub b_p_ep: RawCCharPtrMut,
-    pub b_p_path: RawCCharPtrMut,
+    pub b_p_keymap: crate::option_vars::OptString,
+    pub b_p_gefm: crate::option_vars::OptString,
+    pub b_p_gp: crate::option_vars::OptString,
+    pub b_p_mp: crate::option_vars::OptString,
+    pub b_p_efm: crate::option_vars::OptString,
+    pub b_p_ep: crate::option_vars::OptString,
+    pub b_p_path: crate::option_vars::OptString,
     pub b_p_ar: i32,
-    pub b_p_tags: RawCCharPtrMut,
-    pub b_p_tc: RawCCharPtrMut,
+    pub b_p_tags: crate::option_vars::OptString,
+    pub b_p_tc: crate::option_vars::OptString,
     pub b_tc_flags: u32,
-    pub b_p_dict: RawCCharPtrMut,
-    pub b_p_dia: RawCCharPtrMut,
-    pub b_p_tsr: RawCCharPtrMut,
+    pub b_p_dict: crate::option_vars::OptString,
+    pub b_p_dia: crate::option_vars::OptString,
+    pub b_p_tsr: crate::option_vars::OptString,
     pub b_p_tsrfu: crate::eval::typval::Callback,
     pub b_p_ul: i64,
     pub b_p_udf: i32,
-    pub b_p_lw: RawCCharPtrMut,
+    pub b_p_lw: crate::option_vars::OptString,
     pub b_ind_level: i32,
     pub b_ind_open_imag: i32,
     pub b_ind_no_brace: i32,
@@ -577,29 +577,29 @@ impl FileBuf {
             b_p_ac: 0,
             b_p_ai: 0,
             b_p_ai_nopaste: 0,
-            b_p_bkc: ptr::null_mut(),
+            b_p_bkc: crate::option_vars::OptString::new(),
             b_bkc_flags: 0,
             b_p_ci: 0,
             b_p_bin: 0,
             b_p_bomb: 0,
-            b_p_bh: ptr::null_mut(),
-            b_p_bt: ptr::null_mut(),
+            b_p_bh: crate::option_vars::OptString::new(),
+            b_p_bt: crate::option_vars::OptString::new(),
             b_p_busy: 0,
             b_has_qf_entry: 0,
             b_p_bl: 0,
             b_p_channel: 0,
             b_p_cin: 0,
-            b_p_cino: ptr::null_mut(),
-            b_p_cink: ptr::null_mut(),
-            b_p_cinw: ptr::null_mut(),
-            b_p_cinsd: ptr::null_mut(),
-            b_p_com: ptr::null_mut(),
-            b_p_cms: ptr::null_mut(),
-            b_p_cot: ptr::null_mut(),
+            b_p_cino: crate::option_vars::OptString::new(),
+            b_p_cink: crate::option_vars::OptString::new(),
+            b_p_cinw: crate::option_vars::OptString::new(),
+            b_p_cinsd: crate::option_vars::OptString::new(),
+            b_p_com: crate::option_vars::OptString::new(),
+            b_p_cms: crate::option_vars::OptString::new(),
+            b_p_cot: crate::option_vars::OptString::new(),
             b_cot_flags: 0,
-            b_p_cpt: ptr::null_mut(),
+            b_p_cpt: crate::option_vars::OptString::new(),
             #[cfg(windows)]
-            b_p_csl: ptr::null_mut(),
+            b_p_csl: crate::option_vars::OptString::new(),
             b_p_cpt_flags: 0,
             b_p_cpt_cb: Vec::new(),
             b_p_cfu: crate::eval::typval::Callback::NONE,
@@ -612,46 +612,46 @@ impl FileBuf {
             b_p_et: 0,
             b_p_et_nobin: 0,
             b_p_et_nopaste: 0,
-            b_p_fenc: ptr::null_mut(),
-            b_p_ff: ptr::null_mut(),
-            b_p_ft: ptr::null_mut(),
+            b_p_fenc: crate::option_vars::OptString::new(),
+            b_p_ff: crate::option_vars::OptString::new(),
+            b_p_ft: crate::option_vars::OptString::new(),
             b_p_follow: 0,
-            b_p_fo: ptr::null_mut(),
-            b_p_flp: ptr::null_mut(),
+            b_p_fo: crate::option_vars::OptString::new(),
+            b_p_flp: crate::option_vars::OptString::new(),
             b_p_inf: 0,
-            b_p_isk: ptr::null_mut(),
-            b_p_def: ptr::null_mut(),
-            b_p_inc: ptr::null_mut(),
+            b_p_isk: crate::option_vars::OptString::new(),
+            b_p_def: crate::option_vars::OptString::new(),
+            b_p_inc: crate::option_vars::OptString::new(),
             b_p_inex: crate::eval::typval::Callback::NONE,
             b_p_inex_flags: 0,
             b_p_inde: crate::eval::typval::Callback::NONE,
             b_p_inde_flags: 0,
-            b_p_indk: ptr::null_mut(),
-            b_p_fp: ptr::null_mut(),
+            b_p_indk: crate::option_vars::OptString::new(),
+            b_p_fp: crate::option_vars::OptString::new(),
             b_p_fex: crate::eval::typval::Callback::NONE,
             b_p_fex_flags: 0,
             b_p_fs: 0,
-            b_p_kp: ptr::null_mut(),
+            b_p_kp: crate::option_vars::OptString::new(),
             b_p_lisp: 0,
-            b_p_lop: ptr::null_mut(),
-            b_p_menc: ptr::null_mut(),
-            b_p_mps: ptr::null_mut(),
+            b_p_lop: crate::option_vars::OptString::new(),
+            b_p_menc: crate::option_vars::OptString::new(),
+            b_p_mps: crate::option_vars::OptString::new(),
             b_p_ml: 0,
             b_p_ml_nobin: 0,
             b_p_ma: 0,
-            b_p_nf: ptr::null_mut(),
+            b_p_nf: crate::option_vars::OptString::new(),
             b_p_pi: 0,
-            b_p_qe: ptr::null_mut(),
+            b_p_qe: crate::option_vars::OptString::new(),
             b_p_ro: 0,
             b_p_sw: 0,
             b_p_scbk: 0,
             b_p_si: 0,
             b_p_sts: 0,
             b_p_sts_nopaste: 0,
-            b_p_sua: ptr::null_mut(),
+            b_p_sua: crate::option_vars::OptString::new(),
             b_p_swf: 0,
             b_p_smc: 0,
-            b_p_syn: ptr::null_mut(),
+            b_p_syn: crate::option_vars::OptString::new(),
             b_p_ts: 0,
             b_p_tw: 0,
             b_p_tw_nobin: 0,
@@ -659,29 +659,29 @@ impl FileBuf {
             b_p_wm: 0,
             b_p_wm_nobin: 0,
             b_p_wm_nopaste: 0,
-            b_p_vsts: ptr::null_mut(),
+            b_p_vsts: crate::option_vars::OptString::new(),
             b_p_vsts_array: Vec::new(),
             b_p_vsts_nopaste: None,
-            b_p_vts: ptr::null_mut(),
+            b_p_vts: crate::option_vars::OptString::new(),
             b_p_vts_array: Vec::new(),
-            b_p_keymap: ptr::null_mut(),
-            b_p_gefm: ptr::null_mut(),
-            b_p_gp: ptr::null_mut(),
-            b_p_mp: ptr::null_mut(),
-            b_p_efm: ptr::null_mut(),
-            b_p_ep: ptr::null_mut(),
-            b_p_path: ptr::null_mut(),
+            b_p_keymap: crate::option_vars::OptString::new(),
+            b_p_gefm: crate::option_vars::OptString::new(),
+            b_p_gp: crate::option_vars::OptString::new(),
+            b_p_mp: crate::option_vars::OptString::new(),
+            b_p_efm: crate::option_vars::OptString::new(),
+            b_p_ep: crate::option_vars::OptString::new(),
+            b_p_path: crate::option_vars::OptString::new(),
             b_p_ar: 0,
-            b_p_tags: ptr::null_mut(),
-            b_p_tc: ptr::null_mut(),
+            b_p_tags: crate::option_vars::OptString::new(),
+            b_p_tc: crate::option_vars::OptString::new(),
             b_tc_flags: 0,
-            b_p_dict: ptr::null_mut(),
-            b_p_dia: ptr::null_mut(),
-            b_p_tsr: ptr::null_mut(),
+            b_p_dict: crate::option_vars::OptString::new(),
+            b_p_dia: crate::option_vars::OptString::new(),
+            b_p_tsr: crate::option_vars::OptString::new(),
             b_p_tsrfu: crate::eval::typval::Callback::NONE,
             b_p_ul: 0,
             b_p_udf: 0,
-            b_p_lw: ptr::null_mut(),
+            b_p_lw: crate::option_vars::OptString::new(),
             b_ind_level: 0,
             b_ind_open_imag: 0,
             b_ind_no_brace: 0,
@@ -1211,17 +1211,9 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
         parse_cino(curbuf_mut());
     }
 
-    if (g_st().got_int
-        && crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_INTMOD,
-        ))
+    if (g_st().got_int && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
         || curbuf_mut().b_modified_was_set
-        || (aborting()
-            && crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_INTMOD,
-            ))
+        || (aborting() && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_INTMOD))
     {
         changed(crate::globals::curbuf_mut());
     } else if retval != FAIL && !read_stdin && !read_fifo {
@@ -1239,7 +1231,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> i32
     }
 
     if retval == NOTDONE
-        && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
+        && curbuf_mut().b_p_ft.is_empty()
         && curbuf_mut().b_ffname.is_some()
         && after_pathsep(curbuf_mut().ffname_bytes()) != 0
         && augroup_exists(Some(c"filetypedetect"))
@@ -1397,7 +1389,7 @@ pub fn close_buffer(
     let the_curtab = crate::globals::curtab_handle();
 
     if buf.borrow().terminal.is_null() {
-        let bh0 = crate::memory::cstr_first_byte(buf.borrow().b_p_bh);
+        let bh0 = buf.borrow().b_p_bh.first_byte();
         if bh0 == b'd' {
             del_buf = true;
             unload_buf = true;
@@ -2720,7 +2712,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
     curwin_mut().w_valid = 0;
 
     if curbuf_mut().b_ml.ml_mfp.is_none() {
-        if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+        if curbuf_mut().b_p_ft.is_empty() {
             curbuf_mut().b_did_filetype = false;
         }
         open_buffer(false, None, 0);
@@ -2754,7 +2746,7 @@ fn enter_buffer(buf_in: &mut FileBuf) {
     }
     if !curbuf_mut().b_help
         && curwin_mut().w_onebuf_opt.wo_spell != 0
-        && !crate::memory::cstr_is_empty(curwin_mut().w_s_ptr().b_p_spl)
+        && !curwin_mut().w_s_ptr().b_p_spl.is_empty()
     {
         parse_spelllang(curwin_mut());
     }
@@ -4257,12 +4249,12 @@ pub fn maketitle() {
                 ((opt_vars().p_titlelen * i64::from(g_st().columns_global) / 100) as i32).max(10);
         }
 
-        if !crate::memory::cstr_is_empty(opt_vars().p_titlestring) {
+        if !opt_vars().p_titlestring.is_empty() {
             if (g_st().stl_syntax & STL_IN_TITLE) != 0 {
                 build_stl_str_hl(
                     curwin_ptr(),
                     outbuf,
-                    opt_vars().p_titlestring.cast(),
+                    opt_vars().p_titlestring.as_ptr().cast_mut().cast(),
                     K_OPT_TITLESTRING,
                     0,
                     0,
@@ -4274,7 +4266,7 @@ pub fn maketitle() {
                 );
                 title_str = buf.as_mut_ptr().cast();
             } else {
-                title_str = opt_vars().p_titlestring;
+                title_str = opt_vars().p_titlestring.as_ptr().cast_mut();
             }
         } else {
             #[cfg(windows)]
@@ -4314,12 +4306,12 @@ pub fn maketitle() {
 
     if opt_vars().p_icon != 0 {
         icon_str = buf.as_mut_ptr().cast();
-        if !crate::memory::cstr_is_empty(opt_vars().p_iconstring) {
+        if !opt_vars().p_iconstring.is_empty() {
             if (g_st().stl_syntax & STL_IN_ICON) != 0 {
                 build_stl_str_hl(
                     curwin_ptr(),
                     outbuf,
-                    opt_vars().p_iconstring.cast(),
+                    opt_vars().p_iconstring.as_ptr().cast_mut().cast(),
                     K_OPT_ICONSTRING,
                     0,
                     0,
@@ -4330,7 +4322,7 @@ pub fn maketitle() {
                     ptr::null_mut(),
                 );
             } else {
-                icon_str = opt_vars().p_iconstring;
+                icon_str = opt_vars().p_iconstring.as_ptr().cast_mut();
             }
         } else {
             let name_bytes = if let Some(sp) = buf_spname(curbuf_mut()) {
@@ -4507,7 +4499,7 @@ pub fn fname_expand(
 
 /// Return true if `buf` is a prompt buffer.
 pub fn bt_prompt(buf: Option<&FileBuf>) -> bool {
-    buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'p'
+    buf.is_some() && buf.unwrap().b_p_bt.first_byte() == b'p'
 }
 
 /// Return true if `buf` is the `|cmdwin|` scratch buffer.
@@ -4865,17 +4857,17 @@ pub fn bt_help(buf: Option<&FileBuf>) -> bool {
 
 /// Return true if `buf` is a normal buffer, `'buftype'` is empty.
 pub fn bt_normal(buf: Option<&FileBuf>) -> bool {
-    buf.is_some() && crate::memory::cstr_is_empty(buf.unwrap().b_p_bt)
+    buf.is_some() && buf.unwrap().b_p_bt.is_empty()
 }
 
 /// Return true if `buf` is the quickfix buffer.
 pub fn bt_quickfix(buf: Option<&FileBuf>) -> bool {
-    buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b'q'
+    buf.is_some() && buf.unwrap().b_p_bt.first_byte() == b'q'
 }
 
 /// Return true if `buf` is a terminal buffer.
 pub fn bt_terminal(buf: Option<&FileBuf>) -> bool {
-    buf.is_some() && crate::memory::cstr_first_byte(buf.unwrap().b_p_bt) == b't'
+    buf.is_some() && buf.unwrap().b_p_bt.first_byte() == b't'
 }
 
 /// Return true if `buf` is a `"nofile"`, `"acwrite"`, `"terminal"` or `"prompt"` buffer.
@@ -4883,7 +4875,7 @@ pub fn bt_nofilename(buf: Option<&FileBuf>) -> bool {
     let Some(buf) = buf else {
         return false;
     };
-    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    let bt = buf.b_p_bt.as_bytes();
     (bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f'))
         || matches!(bt.first(), Some(b'a' | b'p'))
         || !buf.terminal.is_null()
@@ -4893,7 +4885,7 @@ fn bt_nofileread(buf: Option<&FileBuf>) -> bool {
     let Some(buf) = buf else {
         return false;
     };
-    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    let bt = buf.b_p_bt.as_bytes();
     (bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f'))
         || matches!(bt.first(), Some(b't' | b'q' | b'p'))
 }
@@ -4903,7 +4895,7 @@ pub fn bt_nofile(buf: Option<&FileBuf>) -> bool {
     let Some(buf) = buf else {
         return false;
     };
-    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    let bt = buf.b_p_bt.as_bytes();
     bt.first() == Some(&b'n') && bt.get(2) == Some(&b'f')
 }
 
@@ -4912,7 +4904,7 @@ pub fn bt_dontwrite(buf: Option<&FileBuf>) -> bool {
     let Some(buf) = buf else {
         return false;
     };
-    let bt = crate::memory::cstr_as_bytes(buf.b_p_bt);
+    let bt = buf.b_p_bt.as_bytes();
     matches!(bt.first(), Some(b'n' | b'p')) || !buf.terminal.is_null()
 }
 
@@ -4926,7 +4918,7 @@ pub fn bt_dontwrite_msg(buf: Option<&FileBuf>) -> bool {
 
 /// Return true if the buffer should be hidden, according to `'hidden'`, `":hide"` and `'bufhidden'`.
 pub fn buf_hide(buf: &FileBuf) -> bool {
-    match crate::memory::cstr_first_byte(buf.b_p_bh) {
+    match buf.b_p_bh.first_byte() {
         b'u' | b'w' | b'd' => false,
         b'h' => true,
         _ => opt_vars().p_hid != 0 || (g_st().cmdmod.cmod_flags & CMOD_HIDE) != 0,

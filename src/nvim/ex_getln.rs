@@ -1060,7 +1060,7 @@ fn command_line_enter(
     state.prev_cmdpos = -1;
     state.ignore_drag_release = true;
     let s = &mut state;
-    s.save_p_icm = Some(crate::memory::cstr_to_cstring(opt_vars().p_icm));
+    s.save_p_icm = Some(opt_vars().p_icm.to_owned());
     init_incsearch_state(&mut s.is_state);
     let mut did_save_ccline = false;
 
@@ -1089,7 +1089,7 @@ fn command_line_enter(
         clear_cmdline_orig();
 
         g_st().cmdmsg_rl = curwin_mut().w_onebuf_opt.wo_rl != 0
-            && crate::memory::cstr_first_byte(curwin_mut().w_onebuf_opt.wo_rlc) == b's'
+            && curwin_mut().w_onebuf_opt.wo_rlc.first_byte() == b's'
             && (s.firstc == b'/' as i32 || s.firstc == b'?' as i32);
 
         msg_grid_validate();
@@ -1190,17 +1190,17 @@ fn command_line_enter(
             let mut found_one = false;
 
             for wp in for_all_windows_mut() {
-                if !crate::memory::cstr_is_empty(opt_vars().p_stl)
-                    || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-                    || !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-                    || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr)
+                if !opt_vars().p_stl.is_empty()
+                    || !wp.w_onebuf_opt.wo_stl.is_empty()
+                    || !opt_vars().p_wbr.is_empty()
+                    || !wp.w_onebuf_opt.wo_wbr.is_empty()
                 {
                     wp.w_redr_status = true;
                     found_one = true;
                 }
             }
 
-            if !crate::memory::cstr_is_empty(opt_vars().p_tal) {
+            if !opt_vars().p_tal.is_empty() {
                 g_st().redraw_tabline = true;
                 found_one = true;
             }
@@ -1871,10 +1871,7 @@ fn command_line_execute(s: &mut CommandLineState, key: i32) -> i32 {
         || s.c == K_KENTER
         || (s.c == ESC
             && (!g_st().key_typed
-                || crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_ESC,
-                )))
+                || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ESC)))
     {
         s.gotesc = false;
         if ccheck_abbr(s.c + ABBR_OFF) != 0 {
@@ -3190,7 +3187,7 @@ fn cmdpreview_may_show(_s: &mut CommandLineState) -> bool {
         std::mem::swap(&mut ea.line1, &mut ea.line2);
     }
 
-    let mut icm_split = crate::memory::cstr_first_byte(opt_vars().p_icm) == b's';
+    let mut icm_split = opt_vars().p_icm.first_byte() == b's';
     let mut cmdpreview_buf: *mut FileBuf = ptr::null_mut();
     let mut cmdpreview_win: *mut WinInfoInfo = ptr::null_mut();
 
@@ -3300,7 +3297,7 @@ fn command_line_changed(s: &mut CommandLineState) -> i32 {
     let prev_cmdpreview = g_st().cmdpreview;
     if s.firstc == b':' as i32
         && g_st().current_sctx.sc_sid == 0
-        && !crate::memory::cstr_is_empty(opt_vars().p_icm)
+        && !opt_vars().p_icm.is_empty()
         && g_st().cmdline_star == 0
         && vpeekc_any() == 0
         && cmdpreview_may_show(s)
@@ -5016,10 +5013,10 @@ pub fn validate_cedit(args: &mut Optset) -> Option<&'static CStr> {
 
 /// The `'cedit'` option is changed.
 pub fn did_set_cedit(_args: &mut Optset) -> Option<&'static CStr> {
-    getln_st().cedit_key = if crate::memory::cstr_is_empty(opt_vars().p_cedit) {
+    getln_st().cedit_key = if opt_vars().p_cedit.is_empty() {
         -1
     } else {
-        string_to_key(crate::memory::cstr_as_bytes(opt_vars().p_cedit))
+        string_to_key(opt_vars().p_cedit.as_bytes())
     };
     None
 }

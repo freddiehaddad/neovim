@@ -1037,10 +1037,10 @@ pub fn gettail_dir(fname: &CStr) -> &CStr {
 
 fn expand_in_path(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, flags: i32) -> i32 {
     let mut path_ga: Vec<std::ffi::CString> = Vec::new();
-    let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
-        crate::memory::cstr_from_ptr(opt_vars().p_path)
+    let path_option = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.as_cstr()
     } else {
-        crate::memory::cstr_from_ptr(curbuf_mut().b_p_path)
+        curbuf_mut().b_p_path.as_cstr()
     };
 
     let mut curdir_arr = [0u8; MAXPATHL];
@@ -1048,11 +1048,7 @@ fn expand_in_path(gap: &mut Vec<std::ffi::CString>, pattern: &CStr, flags: i32) 
     let curdir_cstr = crate::memory::cstr_until_nul(&curdir_arr);
 
     if (flags & EW_CDPATH) != 0 {
-        expand_path_option(
-            curdir_cstr,
-            crate::memory::cstr_from_ptr(opt_vars().p_cdpath),
-            &mut path_ga,
-        );
+        expand_path_option(curdir_cstr, opt_vars().p_cdpath.as_cstr(), &mut path_ga);
     } else {
         expand_path_option(curdir_cstr, path_option, &mut path_ga);
     }
@@ -1142,10 +1138,10 @@ pub fn gen_expand_wildcards_vec(
 ) -> bool {
     file.clear();
     let mut did_expand_in_path = false;
-    let path_option = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
-        crate::memory::cstr_from_ptr(opt_vars().p_path)
+    let path_option = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.as_cstr()
     } else {
-        crate::memory::cstr_from_ptr(curbuf_mut().b_p_path)
+        curbuf_mut().b_p_path.as_cstr()
     };
 
     if path_st().expand_recursive {
@@ -1262,14 +1258,10 @@ pub fn expand_wildcards_vec(pat: &[&CStr], files: &mut Vec<std::ffi::CString>, f
         return retval;
     }
 
-    if !crate::memory::cstr_is_empty(opt_vars().p_wig) {
+    if !opt_vars().p_wig.is_empty() {
         files.retain(|fi_cstr| {
             let ffname = FullName_save(Some(fi_cstr.as_c_str()), false).unwrap_or_default();
-            !match_file_list(
-                crate::memory::cstr_from_ptr(opt_vars().p_wig),
-                Some(fi_cstr),
-                &ffname,
-            )
+            !match_file_list(opt_vars().p_wig.as_cstr(), Some(fi_cstr), &ffname)
         });
     }
 
@@ -1983,7 +1975,7 @@ pub fn match_suffix(fname: &CStr) -> bool {
     let fname_bytes = fname.to_bytes();
     let fnamelen = fname_bytes.len();
     let mut setsuflen: usize = 0;
-    let mut setsuf = crate::memory::cstr_as_bytes(opt_vars().p_su);
+    let mut setsuf = opt_vars().p_su.as_bytes();
     while !setsuf.is_empty() {
         setsuflen = copy_option_part(&mut setsuf, &mut suf_buf[..MAXSUFLEN], c".,");
         if setsuflen == 0 {

@@ -733,10 +733,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
         rm_matchcol: 0,
         rm_ic: false,
     };
-    regmatch.set_prog(vim_regcomp(
-        crate::memory::cstr_from_ptr(curbuf_mut().b_p_flp),
-        RE_MAGIC,
-    ));
+    regmatch.set_prog(vim_regcomp(curbuf_mut().b_p_flp.as_cstr(), RE_MAGIC));
 
     if !regmatch.regprog.is_null() {
         regmatch.rm_ic = false;
@@ -776,7 +773,7 @@ pub fn briopt_check(mut wp: Option<&mut WinInfoInfo>) {
         return;
     }
     let vr: &OptKeyDict_briopt = opt_keyset(
-        crate::memory::cstr_as_bytes(wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt),
+        wp.as_deref_mut().unwrap().w_onebuf_opt.wo_briopt.as_bytes(),
         K_OPT_BREAKINDENTOPT,
     );
     wp.as_deref_mut().unwrap().w_briopt_shift = if has_briopt_key(vr, KEYSET_OPTIDX_BRIOPT_SHIFT) {
@@ -1606,10 +1603,8 @@ pub fn get_expr_indent() -> i32 {
     g_st().state_global = save_state;
 
     if g_st().did_throw
-        && (!crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_debug).cast()),
-            b't' as i32,
-        ) || g_st().trylevel == 0)
+        && (!crate::strings::vim_haschr(opt_vars().p_debug.as_cstr(), b't' as i32)
+            || g_st().trylevel == 0)
     {
         handle_did_throw();
         g_st().did_throw = false;
@@ -1848,12 +1843,11 @@ pub fn get_lisp_indent() -> i32 {
 
 fn lisp_match(p_bytes: &[u8]) -> bool {
     let mut buf = [0u8; 512];
-    let mut word =
-        crate::memory::cstr_as_bytes(if !crate::memory::cstr_is_empty(curbuf_mut().b_p_lw) {
-            curbuf_mut().b_p_lw
-        } else {
-            opt_vars().p_lispwords
-        });
+    let mut word = if !curbuf_mut().b_p_lw.is_empty() {
+        curbuf_mut().b_p_lw.as_bytes()
+    } else {
+        opt_vars().p_lispwords.as_bytes()
+    };
 
     while !word.is_empty() {
         let len = copy_option_part(&mut word, &mut buf, c",");
@@ -1883,7 +1877,7 @@ pub fn fixthisline(get_the_indent: IndentGetter) {
 pub fn use_indentexpr_for_lisp() -> bool {
     curbuf_mut().b_p_lisp != 0
         && curbuf_mut().b_p_inde.cb_type() != K_CALLBACK_NONE_CONST
-        && (crate::memory::cstr_as_bytes(curbuf_mut().b_p_lop) == b"expr:1")
+        && (curbuf_mut().b_p_lop.as_bytes() == b"expr:1")
 }
 
 /// Fix indent for `'lisp'` and `'cindent'` (`fix_indent`).

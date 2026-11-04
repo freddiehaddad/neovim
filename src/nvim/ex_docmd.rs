@@ -7266,7 +7266,7 @@ pub fn apply_cmdmod(cmod: &mut Cmdmod) {
     }
 
     if (cmod.cmod_flags & CMOD_NOAUTOCMD) != 0 && cmod.cmod_save_ei.is_none() {
-        cmod.cmod_save_ei = Some(cstr_to_cstring(opt_vars().p_ei));
+        cmod.cmod_save_ei = Some(opt_vars().p_ei.to_owned());
         set_option_direct(K_OPT_EVENTIGNORE, cstr_as_obj(Some(c"all")), 0, SID_NONE);
     }
 }
@@ -8347,23 +8347,22 @@ pub fn replace_makeprg(eap: &mut Exarg, arg_in: &CStr) -> &'static CStr {
     if (eap.cmdidx == Cmdidx::CmdMake as i32 || eap.cmdidx == Cmdidx::CmdLmake as i32 || isgrep)
         && !(eap.cmdidx >= 0 && grep_internal(eap.cmdidx) != 0)
     {
-        let program = if isgrep {
-            if crate::memory::cstr_is_empty(curbuf_mut().b_p_gp) {
-                opt_vars().p_gp
+        let prog_b = if isgrep {
+            if curbuf_mut().b_p_gp.is_empty() {
+                opt_vars().p_gp.as_bytes()
             } else {
-                curbuf_mut().b_p_gp
+                curbuf_mut().b_p_gp.as_bytes()
             }
-        } else if crate::memory::cstr_is_empty(curbuf_mut().b_p_mp) {
-            opt_vars().p_mp
+        } else if curbuf_mut().b_p_mp.is_empty() {
+            opt_vars().p_mp.as_bytes()
         } else {
-            curbuf_mut().b_p_mp
+            curbuf_mut().b_p_mp.as_bytes()
         };
 
         arg = arg.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
             arg.cast(),
         )));
 
-        let prog_b = crate::memory::cstr_as_bytes(program);
         let arg_b = crate::memory::cstr_as_bytes(arg);
         let new_buf: Vec<u8> = if let Some(rep) = strrep(prog_b, b"$*", arg_b) {
             rep.into_bytes_with_nul()
@@ -8650,10 +8649,8 @@ pub fn separate_nextcmd(eap: &mut Exarg) {
                 && eap.cmdidx != Cmdidx::CmdInsert as i32)
             || b0 == b'\n'
         {
-            if (!crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_BAR,
-            ) || (eap.argt & EX_CTRLV) == 0)
+            if (!crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_BAR)
+                || (eap.argt & EX_CTRLV) == 0)
                 && (unsafe { *p.wrapping_sub(1) } as u8) == b'\\'
             {
                 let tail_len = crate::memory::cstr_len(p);
@@ -10975,10 +10972,7 @@ fn ex_read(eap: &mut Exarg) {
             false,
         )
     } else {
-        if crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_ALTREAD,
-        ) {
+        if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_ALTREAD) {
             let arg_opt = crate::memory::cstr_as_opt_cstr(eap.arg);
             setaltfname(arg_opt, arg_opt, 1);
         }
@@ -11061,7 +11055,7 @@ fn post_chdir(scope: CdScope, trigger_dirchanged: bool) {
 
     g_st().last_chdir_reason = None;
     shorten_fnames(i32::from(!crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+        opt_vars().p_cpo.as_cstr(),
         K_CPO_NOSYMLINKS,
     )));
 
@@ -11502,7 +11496,7 @@ fn ex_at(eap: &mut Exarg) {
         c,
         i32::from(true),
         i32::from(crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
+            opt_vars().p_cpo.as_cstr(),
             K_CPO_EXECBUF,
         )),
         i32::from(true),
@@ -12173,7 +12167,7 @@ fn ex_pbuffer(eap: &mut Exarg) {
 
 fn prepare_preview_window() {
     g_st().g_do_tagpreview = opt_vars().p_pvh as i32;
-    prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
+    prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
 }
 
 fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
@@ -12622,9 +12616,9 @@ pub fn expand_sfile(arg: &CStr) -> Option<std::ffi::CString> {
 }
 
 fn ex_shada(eap: &mut Exarg) {
-    let save_shada = opt_vars().p_shada;
-    if crate::memory::cstr_is_empty(opt_vars().p_shada) {
-        opt_vars().p_shada = c"'100".as_ptr().cast_mut();
+    let save_shada = opt_vars().p_shada.clone();
+    if opt_vars().p_shada.is_empty() {
+        opt_vars().p_shada = OptString::from_cstr(c"'100");
     }
     if eap.cmdidx == Cmdidx::CmdRviminfo as i32 || eap.cmdidx == Cmdidx::CmdRshada as i32 {
         shada_read_everything(
@@ -12873,7 +12867,9 @@ fn ex_checkhealth(eap: &mut Exarg) {
     };
     let vr_bytes = vimruntime_env.to_bytes();
     let rtp_ok = vr_bytes.is_empty()
-        || crate::memory::cstr_as_bytes(opt_vars().p_rtp)
+        || opt_vars()
+            .p_rtp
+            .as_bytes()
             .windows(vr_bytes.len())
             .any(|w| w == vr_bytes);
     if rtp_ok {
@@ -12901,7 +12897,7 @@ fn ex_terminal(eap: &mut Exarg) {
             None,
         );
     } else {
-        if crate::memory::cstr_is_empty(opt_vars().p_sh) {
+        if opt_vars().p_sh.is_empty() {
             let _ = emsg(gettext(E_SHELLEMPTY));
             return;
         }

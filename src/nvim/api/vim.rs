@@ -799,7 +799,7 @@ pub fn nvim_replace_termcodes(
         0,
         flags,
         None,
-        crate::memory::cstr_as_bytes(opt_vars().p_cpo),
+        opt_vars().p_cpo.as_bytes(),
     )
     .unwrap_or_default();
     cbuf_to_string(crate::memory::cstr_slice(
@@ -3060,7 +3060,7 @@ pub fn nvim_complete_set(
 }
 
 fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
-    if opts.statuscolumn && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+    if opts.statuscolumn && !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_nrwidth_line_count = 0;
         changed_window_setting(&mut *wp);
     }

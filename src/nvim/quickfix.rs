@@ -94,7 +94,7 @@ use crate::msgpack_rpc::packer::ObjHandle;
 use crate::normal::reset_visual_and_resel;
 use crate::ops::get_region_bytecount;
 use crate::option_vars::*;
-use crate::optionstr::{CStrOptionSlot, OptIndex};
+use crate::optionstr::OptIndex;
 use crate::os::env::{expand_env, os_get_pid};
 use crate::os::input::{line_breakcheck, os_breakcheck};
 use crate::os::time::{os_time, time_t};
@@ -1360,7 +1360,7 @@ fn qf_setup_state(
         convert_setup(
             &mut pstate.vc,
             crate::memory::cstr_as_opt_cstr((enc_cstr.as_ptr()).cast()),
-            crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+            Some(opt_vars().p_enc.as_cstr()),
         );
     }
 
@@ -1444,12 +1444,12 @@ fn qf_init_ext(
         }
     }
 
-    let efm = if ptr::eq(errorformat.as_ptr(), opt_vars().p_efm)
+    let efm = if ptr::eq(errorformat.as_ptr(), opt_vars().p_efm.as_ptr())
         && tv.is_none()
         && let Some(ref b) = buf
-        && !crate::memory::cstr_is_empty(b.b_p_efm)
+        && !b.b_p_efm.is_empty()
     {
-        crate::memory::cstr_from_ptr(b.b_p_efm)
+        b.b_p_efm.as_cstr()
     } else {
         errorformat
     };
@@ -2721,7 +2721,7 @@ fn qf_open_new_file_win(ll_ref: Option<&mut QfInfo>) -> bool {
     if !win_split(0, flags) {
         return false;
     }
-    opt_vars().p_swb = EMPTY_STRING_OPTION.as_ptr().cast();
+    opt_vars().p_swb = OptString::new();
     opt_vars().swb_flags = 0;
     reset_binding(curwin_mut());
     if let Some(ll_ref) = ll_ref {
@@ -3180,7 +3180,7 @@ pub fn qf_jump(qi: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: i32) {
 }
 
 fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: i32, newwin: bool) {
-    let old_swb = opt_vars().p_swb;
+    let old_swb = opt_vars().p_swb.clone();
     let old_swb_flags = opt_vars().swb_flags;
     let old_key_typed = g_st().key_typed;
 
@@ -3247,7 +3247,7 @@ fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: 
     if !qi.is_null() {
         unsafe { (*qfl).qf_index = qf_index };
     }
-    if opt_vars().p_swb != old_swb && opt_vars().p_swb == EMPTY_STRING_OPTION.as_ptr().cast() {
+    if opt_vars().p_swb != old_swb && opt_vars().p_swb.is_null() {
         opt_vars().p_swb = old_swb;
         opt_vars().swb_flags = old_swb_flags;
     }
@@ -4381,17 +4381,17 @@ fn qf_jump_first(qi: &mut QfInfo, save_qfid: u32, forceit: i32) {
 }
 
 pub fn grep_internal(cmdidx: i32) -> i32 {
-    let gp = if crate::memory::cstr_is_empty(curbuf_mut().b_p_gp) {
-        opt_vars().p_gp
+    let gp = if curbuf_mut().b_p_gp.is_empty() {
+        opt_vars().p_gp.as_bytes()
     } else {
-        curbuf_mut().b_p_gp
+        curbuf_mut().b_p_gp.as_bytes()
     };
     i32::from(
         (cmdidx == CMD_GREP
             || cmdidx == CMD_LGREP
             || cmdidx == CMD_GREPADD
             || cmdidx == CMD_LGREPADD)
-            && b"internal" == crate::memory::cstr_as_bytes(gp),
+            && b"internal" == gp,
     )
 }
 
@@ -4408,9 +4408,9 @@ fn make_get_auname(cmdidx: i32) -> Option<&'static CStr> {
 }
 
 fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
-    let mut len = crate::memory::cstr_len(opt_vars().p_shq) * 2 + makecmd.to_bytes().len() + 1;
-    if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
-        len += crate::memory::cstr_len(opt_vars().p_sp) + fname.to_bytes().len() + 3;
+    let mut len = opt_vars().p_shq.as_bytes().len() * 2 + makecmd.to_bytes().len() + 1;
+    if !opt_vars().p_sp.is_empty() {
+        len += opt_vars().p_sp.as_bytes().len() + fname.to_bytes().len() + 3;
     }
     let mut cmd_vec: Vec<u8> = vec![0; len];
     let cmd: *mut _ = cmd_vec.as_mut_ptr().cast();
@@ -4418,17 +4418,13 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
         cmd,
         len,
         c"%s%s%s",
-        opt_vars().p_shq,
+        &opt_vars().p_shq,
         makecmd.as_ptr(),
-        opt_vars().p_shq
+        &opt_vars().p_shq
     );
 
-    if !crate::memory::cstr_is_empty(opt_vars().p_sp) {
-        append_redir(
-            &mut cmd_vec,
-            crate::memory::cstr_from_ptr(opt_vars().p_sp),
-            fname,
-        );
+    if !opt_vars().p_sp.is_empty() {
+        append_redir(&mut cmd_vec, opt_vars().p_sp.as_cstr(), fname);
     }
 
     if g_st().msg_col == 0 {
@@ -4442,10 +4438,10 @@ fn make_get_fullcmd(makecmd: &CStr, fname: &CStr) -> std::ffi::CString {
 }
 
 pub fn ex_make(eap: &mut Exarg) {
-    let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
-        curbuf_mut().b_p_menc
+    let enc = if !curbuf_mut().b_p_menc.is_empty() {
+        curbuf_mut().b_p_menc.as_cstr()
     } else {
-        opt_vars().p_menc
+        opt_vars().p_menc.as_cstr()
     };
 
     if grep_internal(eap.cmdidx) != 0 {
@@ -4486,13 +4482,13 @@ pub fn ex_make(eap: &mut Exarg) {
     incr_quickfix_busy();
 
     let errorformat = if eap.cmdidx != CMD_MAKE && eap.cmdidx != CMD_LMAKE {
-        if !crate::memory::cstr_is_empty(curbuf_mut().b_p_gefm) {
-            curbuf_mut().b_p_gefm
+        if !curbuf_mut().b_p_gefm.is_empty() {
+            curbuf_mut().b_p_gefm.as_cstr()
         } else {
-            opt_vars().p_gefm
+            opt_vars().p_gefm.as_cstr()
         }
     } else {
-        opt_vars().p_efm
+        opt_vars().p_efm.as_cstr()
     };
 
     let newlist = eap.cmdidx != CMD_GREPADD && eap.cmdidx != CMD_LGREPADD;
@@ -4500,10 +4496,10 @@ pub fn ex_make(eap: &mut Exarg) {
     let res = qf_init(
         unsafe { wp.as_mut() },
         Some(&fname),
-        crate::memory::cstr_from_ptr(errorformat),
+        errorformat,
         i32::from(newlist),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
-        crate::memory::cstr_as_opt_cstr(enc),
+        Some(enc),
     );
 
     let qi = if !wp.is_null() {
@@ -4536,7 +4532,7 @@ pub fn ex_make(eap: &mut Exarg) {
 }
 
 fn get_mef_name() -> Option<std::ffi::CString> {
-    let mef_bytes = crate::memory::cstr_as_bytes(opt_vars().p_mef);
+    let mef_bytes = opt_vars().p_mef.as_bytes();
     if mef_bytes.is_empty() {
         let name = vim_tempname();
         if name.is_none() {
@@ -4546,7 +4542,7 @@ fn get_mef_name() -> Option<std::ffi::CString> {
     }
 
     let Some(off_idx) = mef_bytes.windows(2).position(|w| w == b"##") else {
-        return Some(crate::memory::cstr_to_cstring(opt_vars().p_mef));
+        return Some(opt_vars().p_mef.to_owned());
     };
 
     loop {
@@ -5042,10 +5038,10 @@ pub fn ex_cfile(eap: &mut Exarg) {
         );
     }
 
-    let enc = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_menc) {
-        curbuf_mut().b_p_menc
+    let enc = if !curbuf_mut().b_p_menc.is_empty() {
+        curbuf_mut().b_p_menc.as_cstr()
     } else {
-        opt_vars().p_menc
+        opt_vars().p_menc.as_cstr()
     };
 
     if is_loclist_cmd(eap.cmdidx) {
@@ -5056,11 +5052,11 @@ pub fn ex_cfile(eap: &mut Exarg) {
 
     let res = qf_init(
         unsafe { wp.as_mut() },
-        crate::memory::cstr_as_opt_cstr(opt_vars().p_ef),
-        crate::memory::cstr_from_ptr(opt_vars().p_efm),
+        Some(opt_vars().p_ef.as_cstr()),
+        opt_vars().p_efm.as_cstr(),
         i32::from(eap.cmdidx != CMD_CADDFILE && eap.cmdidx != CMD_LADDFILE),
         Some(&qf_cmdtitle(eap.cmdline_cstr())),
-        crate::memory::cstr_as_opt_cstr(enc),
+        Some(enc),
     );
     let qi = if !wp.is_null() {
         let Some(ll) = get_loc_list_opt(unsafe { &*wp }) else {
@@ -5470,10 +5466,7 @@ fn vgr_process_files(
                     wipe_dummy_buffer(unsafe { &mut *buf }, Some(dirname_start_cstr));
                     buf = ptr::null_mut();
                 } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
-                    || matches!(
-                        crate::memory::cstr_first_byte(unsafe { (*buf).b_p_bh }),
-                        b'u' | b'w' | b'd'
-                    )
+                    || matches!(unsafe { (*buf).b_p_bh.first_byte() }, b'u' | b'w' | b'd')
                 {
                     if !found_match {
                         wipe_dummy_buffer(unsafe { &mut *buf }, Some(dirname_start_cstr));
@@ -5503,7 +5496,7 @@ fn vgr_process_files(
                     }
 
                     let mut aco: CtxSwitch = CtxSwitch::new();
-                    let b_p_ft = crate::memory::cstr_as_opt_cstr(buf.b_p_ft);
+                    let b_p_ft = Some(buf.b_p_ft.as_cstr());
                     let b_fname = buf.fname_opt();
                     ctx_switch(&mut aco, None, None, Some(&mut *buf), 0);
                     apply_autocmds(EVENT_FILETYPE, b_p_ft, b_fname, true, Some(&mut *buf));
@@ -5858,12 +5851,12 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         return false;
     }
 
-    let mut errorformat = opt_vars().p_efm;
+    let mut errorformat = opt_vars().p_efm.as_cstr();
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }
-        errorformat = efm_di.di_tv.vval.v_string();
+        errorformat = crate::memory::cstr_from_ptr(efm_di.di_tv.vval.v_string());
     }
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5883,7 +5876,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         None,
         None,
         Some(&mut di.di_tv),
-        crate::memory::cstr_from_ptr(errorformat),
+        errorformat,
         true,
         0,
         0,
@@ -6514,14 +6507,14 @@ fn qf_setprop_items_from_lines(
     di: &mut Dictitem,
     action: i32,
 ) -> bool {
-    let mut errorformat = opt_vars().p_efm;
+    let mut errorformat = opt_vars().p_efm.as_cstr();
     let mut retval = false;
 
     if let Some(efm_di) = tv_dict_find_opt(Some(what), c"efm", 3) {
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }
-        errorformat = efm_di.di_tv.vval.v_string();
+        errorformat = crate::memory::cstr_from_ptr(efm_di.di_tv.vval.v_string());
     }
 
     if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
@@ -6537,7 +6530,7 @@ fn qf_setprop_items_from_lines(
         None,
         None,
         Some(&mut di.di_tv),
-        crate::memory::cstr_from_ptr(errorformat),
+        errorformat,
         false,
         0,
         0,
@@ -6901,7 +6894,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
         None,
         Some(buf),
         None,
-        crate::memory::cstr_from_ptr(opt_vars().p_efm),
+        opt_vars().p_efm.as_cstr(),
         eap.cmdidx != CMD_CADDBUFFER && eap.cmdidx != CMD_LADDBUFFER,
         eap.line1,
         eap.line2,
@@ -6986,7 +6979,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
             None,
             None,
             Some(&mut *tv),
-            crate::memory::cstr_from_ptr(opt_vars().p_efm),
+            opt_vars().p_efm.as_cstr(),
             eap.cmdidx != CMD_CADDEXPR && eap.cmdidx != CMD_LADDEXPR,
             0,
             0,
@@ -7147,7 +7140,7 @@ fn hgr_search_files_in_dir(
 }
 
 fn hgr_search_in_rtp(qfl: &mut QfList, p_regmatch: &mut Regmatch, lang: Option<&CStr>) {
-    let mut p = crate::memory::cstr_as_bytes(opt_vars().p_rtp);
+    let mut p = opt_vars().p_rtp.as_bytes();
     while !p.is_empty() && !g_st().got_int {
         copy_option_part(&mut p, g_st().name_buff_bytes_mut(), c",");
         hgr_search_files_in_dir(qfl, &mut g_st().name_buff, p_regmatch, lang);
@@ -7174,8 +7167,7 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
     }
 
     let mut updated = false;
-    let save_cpo = opt_vars().p_cpo;
-    opt_vars().p_cpo = EMPTY_STRING_OPTION.as_ptr().cast();
+    let save_cpo = std::mem::take(&mut opt_vars().p_cpo);
 
     let mut new_qi = false;
     let qi = if is_loclist_cmd(eap.cmdidx) {
@@ -7213,17 +7205,10 @@ pub fn ex_helpgrep(eap: &mut Exarg) {
         updated = true;
     }
 
-    if opt_vars().p_cpo == EMPTY_STRING_OPTION.as_ptr().cast() {
+    if opt_vars().p_cpo.is_null() {
         opt_vars().p_cpo = save_cpo;
-    } else {
-        if crate::memory::cstr_is_empty(opt_vars().p_cpo) {
-            set_option_value_give_err(
-                K_OPT_CPOPTIONS,
-                cstr_as_obj(crate::memory::cstr_as_opt_cstr(save_cpo)),
-                0,
-            );
-        }
-        save_cpo.free_option_str();
+    } else if opt_vars().p_cpo.is_empty() {
+        set_option_value_give_err(K_OPT_CPOPTIONS, cstr_as_obj(Some(save_cpo.as_cstr())), 0);
     }
 
     if updated {

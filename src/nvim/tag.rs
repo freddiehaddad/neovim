@@ -1571,10 +1571,10 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
         st.help_pri = 0;
     } else {
         st.help_pri = 1;
-        let mut s = opt_vars().p_hlg;
-        while !crate::memory::cstr_is_empty(s) {
+        let mut s = opt_vars().p_hlg.as_cstr();
+        while !s.to_bytes().is_empty() {
             if mb_strnicmp(
-                crate::memory::cstr_as_bytes((s).cast()),
+                s.to_bytes(),
                 crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
                 2,
             ) == 0
@@ -1582,14 +1582,13 @@ fn findtags_in_help_init(st: &mut FindtagsState) -> bool {
                 break;
             }
             st.help_pri += 1;
-            s = vim_strchr(crate::memory::cstr_from_ptr((s).cast()), b',' as i32)
-                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-            if s.is_null() {
+            let Some(found) = vim_strchr(s, b',' as i32) else {
+                s = c"";
                 break;
-            }
-            s = s.wrapping_add(1);
+            };
+            s = &found[1..];
         }
-        if crate::memory::cstr_is_empty(s) {
+        if s.to_bytes().is_empty() {
             st.help_pri += 1;
             if mb_strnicmp(
                 crate::memory::cstr_as_bytes(st.help_lang.as_ptr().cast()),
@@ -1713,7 +1712,7 @@ fn findtags_hdr_parse(st: &mut FindtagsState) -> bool {
         convert_setup(
             &mut st.vimconv,
             crate::memory::cstr_as_opt_cstr(st.lbuf[20..].as_ptr().cast()),
-            crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
+            Some(opt_vars().p_enc.as_cstr()),
         );
     }
 
@@ -2446,13 +2445,13 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
 
         let len = tag_st().tag_fnames.len() as i32;
         if tnp.tn_hf_idx >= len {
-            if tnp.tn_hf_idx > len || crate::memory::cstr_is_empty(opt_vars().p_hf) {
+            if tnp.tn_hf_idx > len || opt_vars().p_hf.is_empty() {
                 return false;
             }
             tnp.tn_hf_idx += 1;
             crate::memory::copy_bytes_to_c_buf(
                 &mut buf[..MAXPATHL - 4],
-                crate::memory::cstr_as_bytes(opt_vars().p_hf),
+                opt_vars().p_hf.as_bytes(),
             );
             let tail_off = crate::memory::ptr_offset_from(
                 path_tail(crate::memory::cstr_from_ptr(buf_ptr.cast())).as_ptr(),
@@ -2480,12 +2479,12 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
     }
 
     if first != 0 {
-        let src = if !crate::memory::cstr_is_empty(curbuf_mut().b_p_tags) {
-            curbuf_mut().b_p_tags
+        let src = if !curbuf_mut().b_p_tags.is_empty() {
+            curbuf_mut().b_p_tags.to_owned()
         } else {
-            opt_vars().p_tags
+            opt_vars().p_tags.to_owned()
         };
-        tnp.tn_tags = Some(crate::memory::cstr_to_cstring(src));
+        tnp.tn_tags = Some(src);
         tnp.tn_np_off = 0;
     }
 
@@ -2749,7 +2748,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                     .as_ref()
                     .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut().cast());
 
-                prepare_tagpreview(true, !crate::memory::cstr_is_empty(opt_vars().p_pvp));
+                prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
             }
         }
 
@@ -2811,14 +2810,12 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
 
             let save_no_hlsearch = g_st().search_global.no_hlsearch;
 
-            let search_options = if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_TAGPAT,
-            ) {
-                0
-            } else {
-                SEARCH_KEEP
-            };
+            let search_options =
+                if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_TAGPAT) {
+                    0
+                } else {
+                    SEARCH_KEEP
+                };
 
             let mut str_ = pbuf;
             if pbuf_vec[0] == b'/' || pbuf_vec[0] == b'?' {

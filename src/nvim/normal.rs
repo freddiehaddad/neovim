@@ -1892,10 +1892,7 @@ fn normal_get_additional_char(s: &mut NormalState) {
         if !lit {
             if ch == CTRL_K_CONST
                 && ((NV_CMDS[s.idx as usize].cmd_flags & NV_LANG) != 0 || is_extra)
-                && !crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_DIGRAPH,
-                )
+                && !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_DIGRAPH)
             {
                 s.c = get_digraph(false);
                 if s.c > 0 {
@@ -2778,11 +2775,9 @@ pub fn clear_showcmd() {
         let lines = bot - top + 1;
 
         if g_st().visual_global.mode == CTRL_V_CONST {
-            let saved_sbr = opt_vars().p_sbr;
-            let saved_w_sbr = curwin_mut().w_onebuf_opt.wo_sbr;
+            let saved_sbr = std::mem::take(&mut opt_vars().p_sbr);
+            let saved_w_sbr = std::mem::take(&mut curwin_mut().w_onebuf_opt.wo_sbr);
 
-            opt_vars().p_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
-            curwin_mut().w_onebuf_opt.wo_sbr = EMPTY_STRING_OPTION.as_ptr().cast();
             getvcols(
                 curwin_mut(),
                 &mut curwin_mut().w_cursor,
@@ -2819,7 +2814,7 @@ pub fn clear_showcmd() {
             let mut bytes: i32 = 0;
             let mut chars: i32 = 0;
 
-            while if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e' {
+            while if opt_vars().p_sel.first_byte() != b'e' {
                 s <= e
             } else {
                 s < e
@@ -2989,7 +2984,7 @@ pub fn display_showcmd() {
 
     showcmd_update_clear_state();
 
-    if crate::memory::cstr_first_byte(opt_vars().p_sloc) == b's' {
+    if opt_vars().p_sloc.first_byte() == b's' {
         if norm_st().showcmd_is_clear && g_st().vgetc_busy == 0 {
             curwin_mut().w_redr_status = true;
         } else {
@@ -2998,7 +2993,7 @@ pub fn display_showcmd() {
         }
         return;
     }
-    if crate::memory::cstr_first_byte(opt_vars().p_sloc) == b't' {
+    if opt_vars().p_sloc.first_byte() == b't' {
         if norm_st().showcmd_is_clear && g_st().vgetc_busy == 0 {
             g_st().redraw_tabline = true;
         } else {
@@ -3105,10 +3100,7 @@ pub fn do_check_scrollbind(check: bool) {
                     curwin_mut().w_leftcol - norm_st().do_check_scrollbind_old_leftcol,
                 );
             }
-        } else if crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
-            b'j' as i32,
-        ) {
+        } else if crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'j' as i32) {
             check_scrollbind(vtopline - curwin_mut().w_scbind_pos, 0);
         }
         curwin_mut().w_scbind_pos = vtopline;
@@ -3128,14 +3120,10 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     let tgt_leftcol = old_curwin.w_leftcol;
 
     let want_ver = old_curwin.w_onebuf_opt.wo_diff != 0
-        || (crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
-            b'v' as i32,
-        ) && vtopline_diff != 0);
-    let want_hor = crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_sbo).cast()),
-        b'h' as i32,
-    ) && (leftcol_diff != 0 || vtopline_diff != 0);
+        || (crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'v' as i32)
+            && vtopline_diff != 0);
+    let want_hor = crate::strings::vim_haschr(opt_vars().p_sbo.as_cstr(), b'h' as i32)
+        && (leftcol_diff != 0 || vtopline_diff != 0);
 
     g_st().visual_global.select = false;
     g_st().visual_global.active = false;
@@ -4308,12 +4296,11 @@ fn nv_ident(cap: &mut Cmdarg) {
         ident_slice = ident;
     }
 
-    let kp = if crate::memory::cstr_is_empty(curbuf_mut().b_p_kp) {
-        opt_vars().p_kp
+    let kp_cstr = if curbuf_mut().b_p_kp.is_empty() {
+        opt_vars().p_kp.as_cstr()
     } else {
-        curbuf_mut().b_p_kp
+        curbuf_mut().b_p_kp.as_cstr()
     };
-    let kp_cstr = crate::memory::cstr_from_ptr(kp);
     let kp_bytes = kp_cstr.to_bytes();
     let kp_helpbang = kp_bytes == b":help!";
     let kp_help = kp_helpbang || kp_bytes.is_empty() || kp_bytes == b":he" || kp_bytes == b":help";
@@ -4411,7 +4398,7 @@ fn nv_ident(cap: &mut Cmdarg) {
                 c"/?^$\\".as_ptr()
             }
         } else if tag_cmd {
-            if crate::memory::cstr_as_opt_bytes(curbuf_mut().b_p_ft) == Some(b"help") {
+            if Some(curbuf_mut().b_p_ft.as_bytes()) == Some(b"help") {
                 c"".as_ptr()
             } else {
                 c"\\|\"\n[".as_ptr()
@@ -4638,8 +4625,7 @@ fn nv_right(cap: &mut Cmdarg) {
 
     cap.oap_mut().motion_type = MT_CHAR_WISE;
     cap.oap_mut().inclusive = false;
-    let mut past_line =
-        g_st().visual_global.active && crate::memory::cstr_first_byte(opt_vars().p_sel) != b'o';
+    let mut past_line = g_st().visual_global.active && opt_vars().p_sel.first_byte() != b'o';
 
     if virtual_active(curwin_mut()) {
         past_line = false;
@@ -4651,20 +4637,11 @@ fn nv_right(cap: &mut Cmdarg) {
             || (past_line && crate::cursor::get_cursor_pos_slice().is_empty())
         {
             if ((cap.cmdchar == b' ' as i32
-                && crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                    b's' as i32,
-                ))
+                && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b's' as i32))
                 || (cap.cmdchar == b'l' as i32
-                    && crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                        b'l' as i32,
-                    ))
+                    && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'l' as i32))
                 || (cap.cmdchar == K_RIGHT
-                    && crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                        b'>' as i32,
-                    )))
+                    && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'>' as i32)))
                 && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
             {
                 if cap.oap_mut().op_type != OP_NOP
@@ -4725,20 +4702,11 @@ fn nv_left(cap: &mut Cmdarg) {
     while n > 0 {
         if !oneleft() {
             if (((cap.cmdchar == K_BS || cap.cmdchar == CTRL_H_CONST)
-                && crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                    b'b' as i32,
-                ))
+                && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'b' as i32))
                 || (cap.cmdchar == b'h' as i32
-                    && crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                        b'h' as i32,
-                    ))
+                    && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'h' as i32))
                 || (cap.cmdchar == K_LEFT
-                    && crate::strings::vim_haschr(
-                        crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                        b'<' as i32,
-                    )))
+                    && crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'<' as i32)))
                 && curwin_mut().w_cursor.lnum > 1
             {
                 curwin_mut().w_cursor.lnum -= 1;
@@ -4992,7 +4960,7 @@ fn normal_search(
 fn nv_csearch(cap: &mut Cmdarg) {
     let mut cursor_dec = false;
 
-    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+    if opt_vars().p_sel.first_byte() == b'e'
         && g_st().visual_global.active
         && g_st().visual_global.mode == b'v' as i32
         && g_st().visual_global.select_exclu_adj
@@ -5401,7 +5369,7 @@ fn nv_brackets(cap: &mut Cmdarg) {
 
 fn buf_has_cstyle_comments() -> bool {
     let mut part_buf: [u8; COM_MAX_LEN] = [0; COM_MAX_LEN];
-    let mut list = crate::memory::cstr_as_bytes(curbuf_mut().b_p_com);
+    let mut list = curbuf_mut().b_p_com.as_bytes();
     while !list.is_empty() {
         let len = copy_option_part(&mut list, &mut part_buf, c",");
         let part_slice = &part_buf[..len];
@@ -5441,10 +5409,8 @@ fn nv_percent(cap: &mut Cmdarg) {
         }
     } else {
         let mut flags = 0;
-        if !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_MATCH,
-        ) && buf_has_cstyle_comments()
+        if !crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_MATCH)
+            && buf_has_cstyle_comments()
         {
             let comment_col = check_linecomment(crate::cursor::get_cursor_line_slice());
             if comment_col == MAXCOL || curwin_mut().w_cursor.col < comment_col {
@@ -5700,7 +5666,7 @@ fn v_swap_corners(cmdchar: i32) {
         curwin_mut().w_cursor.lnum = old_cursor.lnum;
         curwin_mut().w_curswant = right;
         if old_cursor.lnum >= g_st().visual_global.start.lnum
-            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+            && opt_vars().p_sel.first_byte() == b'e'
         {
             curwin_mut().w_curswant += 1;
         }
@@ -5710,7 +5676,7 @@ fn v_swap_corners(cmdchar: i32) {
         {
             curwin_mut().w_cursor.lnum = g_st().visual_global.start.lnum;
             if old_cursor.lnum <= g_st().visual_global.start.lnum
-                && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+                && opt_vars().p_sel.first_byte() == b'e'
             {
                 right += 1;
             }
@@ -5798,10 +5764,7 @@ fn n_swapchar(cap: &mut Cmdarg) {
     }
 
     if lineempty(curwin_mut().w_cursor.lnum)
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-            b'~' as i32,
-        )
+        && !crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'~' as i32)
     {
         clearopbeep(cap.oap_mut());
         return;
@@ -5819,10 +5782,8 @@ fn n_swapchar(cap: &mut Cmdarg) {
         did_change |= swapchar(cap.oap_mut().op_type, &mut curwin_mut().w_cursor);
         inc_cursor();
         if gchar_cursor() == NUL as i32 {
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_ww).cast()),
-                b'~' as i32,
-            ) && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
+            if crate::strings::vim_haschr(opt_vars().p_ww.as_cstr(), b'~' as i32)
+                && curwin_mut().w_cursor.lnum < curbuf_mut().b_ml.ml_line_count
             {
                 curwin_mut().w_cursor.lnum += 1;
                 curwin_mut().w_cursor.col = 0;
@@ -6091,7 +6052,7 @@ fn nv_visual(cap: &mut Cmdarg) {
             if g_st().visual_global.resel.line_count <= 1 {
                 update_curswant_force();
                 curwin_mut().w_curswant += g_st().visual_global.resel.vcol * cap.count0;
-                if crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e' {
+                if opt_vars().p_sel.first_byte() != b'e' {
                     curwin_mut().w_curswant -= 1;
                 }
             } else {
@@ -6108,7 +6069,7 @@ fn nv_visual(cap: &mut Cmdarg) {
             update_curswant_force();
             curwin_mut().w_curswant += g_st().visual_global.resel.vcol * cap.count0 - 1;
             curwin_mut().w_cursor = tmp_cursor;
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            if opt_vars().p_sel.first_byte() == b'e' {
                 curwin_mut().w_curswant += 1;
             }
             coladvance(curwin_mut(), curwin_mut().w_curswant);
@@ -6121,9 +6082,7 @@ fn nv_visual(cap: &mut Cmdarg) {
             may_start_select(b'c' as i32);
         }
         n_start_visual_mode(cap.cmdchar);
-        if g_st().visual_global.mode != b'V' as i32
-            && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-        {
+        if g_st().visual_global.mode != b'V' as i32 && opt_vars().p_sel.first_byte() == b'e' {
             cap.count1 += 1;
         } else {
             g_st().visual_global.select_exclu_adj = false;
@@ -6150,7 +6109,7 @@ pub fn start_selection() {
 
 pub fn may_start_select(c: i32) {
     g_st().visual_global.select = (c == b'o' as i32 || (stuff_empty() && typebuf_typed() != 0))
-        && crate::strings::vim_haschr(crate::memory::cstr_from_ptr((opt_vars().p_slm).cast()), c);
+        && crate::strings::vim_haschr(opt_vars().p_slm.as_cstr(), c);
 }
 
 fn n_start_visual_mode(c: i32) {
@@ -6873,10 +6832,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
     if !word_end && cap.oap_mut().op_type == OP_CHANGE {
         let n = gchar_cursor();
         if n != NUL as i32 && !ascii_iswhite(n) {
-            if crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                K_CPO_CHANGEW,
-            ) {
+            if crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_CHANGEW) {
                 cap.oap_mut().inclusive = true;
                 word_end = true;
             }
@@ -6912,8 +6868,7 @@ fn nv_wordcmd(cap: &mut Cmdarg) {
 fn adjust_cursor(oap: &mut Oparg) {
     if curwin_mut().w_cursor.col > 0
         && gchar_cursor() == NUL as i32
-        && (!g_st().visual_global.active
-            || crate::memory::cstr_first_byte(opt_vars().p_sel) == b'o')
+        && (!g_st().visual_global.active || opt_vars().p_sel.first_byte() == b'o')
         && !virtual_active(curwin_mut())
         && (get_ve_flags(curwin_mut()) & K_OPT_VE_FLAG_ONEMORE) == 0
     {
@@ -6939,7 +6894,7 @@ fn nv_beginline(cap: &mut Cmdarg) {
 fn adjust_for_sel(cap: &mut Cmdarg) {
     if g_st().visual_global.active
         && cap.oap_mut().inclusive
-        && crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+        && opt_vars().p_sel.first_byte() == b'e'
         && gchar_cursor() != NUL as i32
         && lt(g_st().visual_global.start, curwin_mut().w_cursor)
     {
@@ -6950,7 +6905,7 @@ fn adjust_for_sel(cap: &mut Cmdarg) {
 }
 
 pub fn unadjust_for_sel() -> bool {
-    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
+    if opt_vars().p_sel.first_byte() == b'e'
         && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
     {
         return unadjust_for_sel_inner(if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
@@ -7162,8 +7117,10 @@ fn invoke_edit(cap: &mut Cmdarg, repl: i32, cmd: i32, startln: i32) {
 
 fn nv_object(cap: &mut Cmdarg) {
     let include = cap.cmdchar != b'i' as i32;
-    let mps_save = curbuf_mut().b_p_mps;
-    curbuf_mut().b_p_mps = c"(:),{:},[:],<:>".as_ptr().cast_mut();
+    let mps_save = std::mem::replace(
+        &mut curbuf_mut().b_p_mps,
+        OptString::from_cstr(c"(:),{:},[:],<:>"),
+    );
 
     let flag = match cap.nchar {
         c if c == b'w' as i32 => current_word(cap.oap_mut(), cap.count1, include, false),
@@ -7474,7 +7431,7 @@ fn nv_put_opt(cap: &mut Cmdarg, fix_indent: bool) {
         }
         curbuf_mut().b_visual.vi_start = curbuf_mut().b_op_start;
         curbuf_mut().b_visual.vi_end = curbuf_mut().b_op_end;
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+        if opt_vars().p_sel.first_byte() == b'e' {
             inc(&mut curbuf_mut().b_visual.vi_end);
         }
     }

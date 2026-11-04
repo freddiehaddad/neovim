@@ -983,7 +983,7 @@ fn get_colors_force(mut attrs: HlAttrs) -> HlAttrs {
     if attrs.rgb_sp_color == -1 {
         attrs.rgb_sp_color = g_st().normal_sp;
     }
-    let dark = crate::memory::cstr_first_byte(opt_vars().p_bg) == b'd';
+    let dark = opt_vars().p_bg.first_byte() == b'd';
     if attrs.rgb_fg_color == -1 {
         attrs.rgb_fg_color = if dark { 0xFFFFFF } else { 0x000000 };
     }

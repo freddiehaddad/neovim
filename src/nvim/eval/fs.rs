@@ -705,10 +705,10 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 
 fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
     let mut fresult: Option<std::ffi::CString> = None;
-    let mut path = if crate::memory::cstr_is_empty(curbuf_mut().b_p_path) {
-        opt_vars().p_path
+    let mut path = if curbuf_mut().b_p_path.is_empty() {
+        opt_vars().p_path.as_cstr()
     } else {
-        curbuf_mut().b_p_path
+        curbuf_mut().b_p_path.as_cstr()
     };
     let mut count: i32 = 1;
     let mut first = true;
@@ -723,7 +723,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
     if argvars[1].v_type != VarType::VarUnknown {
         if let Some(p) = tv_get_string_buf_chk(&argvars[1], &mut pathbuf) {
             if !p.to_bytes().is_empty() {
-                path = p.as_ptr().cast_mut();
+                path = p;
             }
 
             if argvars[2].v_type != VarType::VarUnknown {
@@ -747,13 +747,13 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
                 if first { fname.to_bytes() } else { &[] },
                 0,
                 i32::from(first),
-                crate::memory::cstr_from_ptr(path),
+                path,
                 find_what,
                 curbuf_mut().ffname_opt(),
                 if find_what == FINDFILE_DIR {
                     c""
                 } else {
-                    crate::memory::cstr_from_ptr(curbuf_mut().b_p_sua)
+                    curbuf_mut().b_p_sua.as_cstr()
                 },
                 &mut file_to_find,
                 &mut search_ctx,

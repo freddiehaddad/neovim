@@ -1571,10 +1571,8 @@ pub(super) fn get_coll_element(rem: &mut &[u8]) -> i32 {
 }
 
 pub(super) fn get_cpo_flags() {
-    re_st().reg_cpo_lit = (crate::strings::vim_haschr(
-        crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-        K_CPO_LITERAL,
-    )) as i32;
+    re_st().reg_cpo_lit =
+        (crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_LITERAL)) as i32;
 }
 
 /// Skip over a `[]` range in a byte slice.
@@ -2201,9 +2199,7 @@ pub(super) fn reg_match_visual() -> bool {
     if mode == b'v' as i32 {
         if (lnum == top.lnum && col < top.col)
             || (lnum == bot.lnum
-                && col
-                    >= bot.col
-                        + Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) != b'e'))
+                && col >= bot.col + Colnr::from(opt_vars().p_sel.first_byte() != b'e'))
         {
             return false;
         }
@@ -2250,9 +2246,7 @@ pub(super) fn reg_match_visual() -> bool {
             crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
             col,
         );
-        if cols < start
-            || cols > end - Colnr::from(crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e')
-        {
+        if cols < start || cols > end - Colnr::from(opt_vars().p_sel.first_byte() == b'e') {
             return false;
         }
     }

@@ -278,8 +278,7 @@ pub fn parse_shape_opt(what: i32) -> Option<&'static CStr> {
     let mut idx: usize = 0;
     let mut found_ve = false;
     let tbl = shape_table_mut();
-    let guicursor_ptr = opt_vars().p_guicursor;
-    let guicursor = crate::memory::cstr_as_bytes(guicursor_ptr);
+    let guicursor = opt_vars().p_guicursor.as_bytes();
 
     for round in 1..=2 {
         if round == 2 || guicursor.is_empty() {
@@ -481,7 +480,7 @@ pub fn cursor_mode_str2int(mode: &std::ffi::CStr) -> i32 {
 
 /// Check if a syntax id is used as a cursor style (`cursor_mode_uses_syn_id`).
 pub fn cursor_mode_uses_syn_id(syn_id: i32) -> bool {
-    if crate::memory::cstr_is_empty(opt_vars().p_guicursor) {
+    if opt_vars().p_guicursor.is_empty() {
         return false;
     }
     let tbl = shape_table_mut();
@@ -516,7 +515,7 @@ pub fn cursor_get_mode_idx() -> i32 {
     } else if g_st().finish_op {
         SHAPE_IDX_O as i32
     } else if g_st().visual_global.active {
-        if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+        if opt_vars().p_sel.first_byte() == b'e' {
             SHAPE_IDX_VE as i32
         } else {
             SHAPE_IDX_V as i32

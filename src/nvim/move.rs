@@ -842,9 +842,9 @@ pub fn validate_cursor_col(wp: &mut WinInfoInfo) {
 pub extern "C" fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
     let num_off = if wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
-        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        || !wp.w_onebuf_opt.wo_stc.is_empty()
     {
-        number_width(&mut *wp) + i32::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
+        number_width(&mut *wp) + i32::from(wp.w_onebuf_opt.wo_stc.is_empty())
     } else {
         0
     };
@@ -856,13 +856,10 @@ pub extern "C" fn win_col_off(wp: &mut WinInfoInfo) -> i32 {
 pub fn win_col_off2(wp: &mut WinInfoInfo) -> i32 {
     if (wp.w_onebuf_opt.wo_nu != 0
         || wp.w_onebuf_opt.wo_rnu != 0
-        || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc))
-        && crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-            K_CPO_NUMCOL,
-        )
+        || !wp.w_onebuf_opt.wo_stc.is_empty())
+        && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_NUMCOL)
     {
-        return number_width(wp) + i32::from(crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc));
+        return number_width(wp) + i32::from(wp.w_onebuf_opt.wo_stc.is_empty());
     }
     0
 }

@@ -4178,10 +4178,7 @@ pub fn may_show_intro() -> bool {
         && curbuf_mut().b_fnum == 1
         && curwin_mut().handle == LOWEST_WIN_ID
         && one_window(curwin_mut(), None)
-        && !crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((opt_vars().p_shm).cast()),
-            K_SHM_INTRO,
-        )
+        && !crate::strings::vim_haschr(opt_vars().p_shm.as_cstr(), K_SHM_INTRO)
 }
 
 /// Give an introductory message about Vim (`intro_message`).

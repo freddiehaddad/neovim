@@ -1064,10 +1064,7 @@ pub fn readfile(
             if curbuf_mut().b_ffname.is_none()
                 && !filtering
                 && !fname.is_null()
-                && crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_cpo).cast()),
-                    K_CPO_FNAMER,
-                )
+                && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMER)
                 && (flags & READ_DUMMY) == 0
                 && !set_rw_fname(
                     crate::memory::cstr_as_opt_cstr(fname.cast()),
@@ -1120,11 +1117,11 @@ pub fn readfile(
 
                         if retval == OK
                             && !curbuf_mut().b_au_did_filetype
-                            && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
+                            && !curbuf_mut().b_p_ft.is_empty()
                         {
                             apply_autocmds(
                                 EVENT_FILETYPE,
-                                crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
+                                Some(curbuf_mut().b_p_ft.as_cstr()),
                                 curbuf_mut().fname_opt(),
                                 true,
                                 curbuf_opt_mut(),
@@ -1452,15 +1449,15 @@ pub fn readfile(
             curbuf_mut().b_op_start.col = 0;
 
             let mut try_mac = i32::from(crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                opt_vars().p_ffs.as_cstr(),
                 b'm' as i32,
             ));
             let mut try_dos = i32::from(crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                opt_vars().p_ffs.as_cstr(),
                 b'd' as i32,
             ));
             let mut try_unix = i32::from(crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                opt_vars().p_ffs.as_cstr(),
                 b'x' as i32,
             ));
 
@@ -1513,15 +1510,15 @@ pub fn readfile(
                 }
 
                 try_mac = i32::from(crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    opt_vars().p_ffs.as_cstr(),
                     b'm' as i32,
                 ));
                 try_dos = i32::from(crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    opt_vars().p_ffs.as_cstr(),
                     b'd' as i32,
                 ));
                 try_unix = i32::from(crate::strings::vim_haschr(
-                    crate::memory::cstr_from_ptr((opt_vars().p_ffs).cast()),
+                    opt_vars().p_ffs.as_cstr(),
                     b'x' as i32,
                 ));
                 curbuf_mut().b_op_start = orig_start;
@@ -1625,10 +1622,10 @@ pub fn readfile(
             } else if curbuf_mut().b_help {
                 fenc_next = b"latin1";
                 fenc = c"utf-8".as_ptr().cast_mut().cast();
-            } else if crate::memory::cstr_is_empty(opt_vars().p_fencs) {
-                fenc = curbuf_mut().b_p_fenc.cast();
+            } else if opt_vars().p_fencs.is_empty() {
+                fenc = curbuf_mut().b_p_fenc.as_ptr().cast_mut().cast();
             } else {
-                fenc_next = crate::memory::cstr_as_bytes(opt_vars().p_fencs);
+                fenc_next = opt_vars().p_fencs.as_bytes();
                 fenc_owned = Some(next_fenc(&mut fenc_next));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
             }
@@ -1664,7 +1661,7 @@ pub fn readfile(
                     try_mac = 0;
                 } else if curbuf_mut().b_p_bin != 0 {
                     fileformat = EOL_UNIX;
-                } else if crate::memory::cstr_is_empty(opt_vars().p_ffs) {
+                } else if opt_vars().p_ffs.is_empty() {
                     fileformat = get_fileformat(curbuf_mut());
                 } else {
                     fileformat = EOL_UNKNOWN;
@@ -2993,12 +2990,10 @@ pub fn readfile(
                         eap,
                     );
 
-                    if !curbuf_mut().b_au_did_filetype
-                        && !crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
-                    {
+                    if !curbuf_mut().b_au_did_filetype && !curbuf_mut().b_p_ft.is_empty() {
                         apply_autocmds(
                             EVENT_FILETYPE,
-                            crate::memory::cstr_as_opt_cstr(curbuf_mut().b_p_ft),
+                            Some(curbuf_mut().b_p_ft.as_cstr()),
                             curbuf_mut().fname_opt(),
                             true,
                             curbuf_opt_mut(),
@@ -3006,7 +3001,7 @@ pub fn readfile(
                     }
 
                     if !did_bufrp
-                        && crate::memory::cstr_is_empty(curbuf_mut().b_p_ft)
+                        && curbuf_mut().b_p_ft.is_empty()
                         && augroup_exists(Some(c"filetypedetect"))
                     {
                         apply_autocmds_group(
@@ -3080,7 +3075,7 @@ fn readfile_linenr(linecnt: Linenr, slice: &[u8]) -> Linenr {
 /// Fill "*eap" to force the 'fileencoding', 'fileformat' and 'binary' to be
 /// equal to the buffer "buf".
 pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
-    let fenc_bytes = crate::memory::cstr_as_bytes(buf.b_p_fenc);
+    let fenc_bytes = buf.b_p_fenc.as_bytes();
     let mut cmd_vec = Vec::with_capacity(8 + fenc_bytes.len());
     cmd_vec.extend_from_slice(b"e ++enc=");
     cmd_vec.extend_from_slice(fenc_bytes);
@@ -3088,7 +3083,7 @@ pub fn prep_exarg(eap: &mut Exarg, buf: &FileBuf) -> std::ffi::CString {
     eap.cmd = cmd_cstr.as_ptr().cast_mut();
     eap.force_enc = 8;
     eap.bad_char = buf.b_bad_char;
-    eap.force_ff = (crate::memory::cstr_first_byte(buf.b_p_ff)) as i32;
+    eap.force_ff = (buf.b_p_ff.first_byte()) as i32;
     eap.force_bin = if buf.b_p_bin != 0 {
         FORCE_BIN
     } else {
@@ -3107,7 +3102,7 @@ pub fn set_file_options(set_options: bool, eap: Option<&Exarg>) {
                 get_fileformat_force(curbuf_mut(), (eap.is_some()).then(|| eap.unwrap())),
                 OPT_LOCAL,
             );
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_ffs) {
+        } else if !opt_vars().p_ffs.is_empty() {
             set_fileformat(default_fileformat(), OPT_LOCAL);
         }
     }
@@ -3229,7 +3224,7 @@ pub fn set_rw_fname(fname: Option<&CStr>, sfname: Option<&CStr>) -> bool {
         return false;
     }
 
-    if crate::memory::cstr_is_empty(curbuf_mut().b_p_ft) {
+    if curbuf_mut().b_p_ft.is_empty() {
         if augroup_exists(Some(c"filetypedetect")) {
             do_doautocmd(c"filetypedetect BufRead", false, None);
         }
@@ -3349,7 +3344,7 @@ pub fn need_conversion(fenc: Option<&CStr>) -> bool {
     let same_encoding: bool;
     let fenc_flags: i32;
 
-    let p_enc_opt = crate::memory::cstr_as_opt_cstr(opt_vars().p_enc);
+    let p_enc_opt = Some(opt_vars().p_enc.as_cstr());
     if fenc.is_none_or(|s| s.to_bytes().is_empty()) || p_enc_opt == fenc {
         same_encoding = true;
         fenc_flags = 0;
@@ -3370,7 +3365,13 @@ pub fn need_conversion(fenc: Option<&CStr>) -> bool {
 pub fn get_fio_flags(name: Option<&CStr>) -> i32 {
     let name_cstr = match name.filter(|s| !s.to_bytes().is_empty()) {
         Some(s) => s,
-        None => crate::memory::cstr_as_opt_cstr(opt_vars().p_enc).unwrap_or(c"utf-8"),
+        None => {
+            if opt_vars().p_enc.is_null() {
+                c"utf-8"
+            } else {
+                opt_vars().p_enc.as_cstr()
+            }
+        }
     };
     let prop = enc_canon_props(name_cstr.to_bytes());
     if (prop & ENC_UNICODE) != 0 {

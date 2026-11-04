@@ -1523,7 +1523,7 @@ pub fn win_set_buf(win: &mut WinInfoInfo, buf: &mut FileBuf, err: &mut Error) {
 
 /// Return the number of fold columns to display
 pub fn win_fdccol_count(wp: &mut WinInfoInfo) -> i32 {
-    let fdc_bytes = crate::memory::cstr_as_bytes(wp.w_onebuf_opt.wo_fdc);
+    let fdc_bytes = wp.w_onebuf_opt.wo_fdc.as_bytes();
     if fdc_bytes.starts_with(b"auto") {
         let fdccol = if fdc_bytes.get(4) == Some(&b':') {
             i32::from(fdc_bytes.get(5).copied().unwrap_or(0)) - i32::from(b'0')
@@ -1965,7 +1965,7 @@ pub fn win_split_ins(
         if !do_equal
             && opt_vars().p_ea != 0
             && size == 0
-            && crate::memory::cstr_first_byte(opt_vars().p_ead) != b'v'
+            && opt_vars().p_ead.first_byte() != b'v'
             && !oldwin.frame_mut().fr_parent.is_null()
         {
             for frp in frame_iter_mut((unsafe { &mut *(oldwin.frame_mut().fr_parent) }).fr_child) {
@@ -2055,7 +2055,7 @@ pub fn win_split_ins(
         if !do_equal
             && opt_vars().p_ea != 0
             && size == 0
-            && crate::memory::cstr_first_byte(opt_vars().p_ead) != b'h'
+            && opt_vars().p_ead.first_byte() != b'h'
             && !oldwin.frame_mut().fr_parent.is_null()
         {
             for frp in frame_iter_mut((unsafe { &mut *(oldwin.frame_mut().fr_parent) }).fr_child) {
@@ -2439,8 +2439,8 @@ pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_localdir = oldp.w_localdir.clone();
     newp.w_prevdir = oldp.w_prevdir.clone();
 
-    if crate::memory::cstr_first_byte(opt_vars().p_spk) != b'c' {
-        if crate::memory::cstr_first_byte(opt_vars().p_spk) == b't' {
+    if opt_vars().p_spk.first_byte() != b'c' {
+        if opt_vars().p_spk.first_byte() == b't' {
             newp.w_skipcol = oldp.w_skipcol;
         }
         newp.w_botline = oldp.w_botline;
@@ -2913,7 +2913,7 @@ fn get_maximum_wincount(fr: &mut Frame, mut height: i32) -> i32 {
 pub fn win_equal(next_curwin: Option<&WinInfoInfo>, current: bool, mut dir: i32) {
     let next_ptr = next_curwin.map_or(ptr::null_mut(), |w| ptr::from_ref(w).cast_mut());
     if dir == 0 {
-        dir = i32::from(crate::memory::cstr_first_byte(opt_vars().p_ead));
+        dir = i32::from(opt_vars().p_ead.first_byte());
     }
     win_equal_rec(
         crate::globals::WinPtr::new(if next_ptr.is_null() {
@@ -3716,8 +3716,8 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
         if !curwin_mut().w_floating
             && opt_vars().p_ea != 0
-            && (crate::memory::cstr_first_byte(opt_vars().p_ead) == b'b'
-                || i32::from(crate::memory::cstr_first_byte(opt_vars().p_ead)) == dir)
+            && (opt_vars().p_ead.first_byte() == b'b'
+                || i32::from(opt_vars().p_ead.first_byte()) == dir)
         {
             win_equal(
                 unsafe { curwin_ptr().as_ref() },
@@ -5779,7 +5779,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
         u_sync(false);
     }
 
-    if crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' && !curwin_invalid {
+    if opt_vars().p_spk.first_byte() == b'c' && !curwin_invalid {
         update_topline(curwin_mut());
     }
 
@@ -5797,7 +5797,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
     if !virtual_active(curwin_mut()) {
         curwin_mut().w_cursor.coladd = 0;
     }
-    if crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' {
+    if opt_vars().p_spk.first_byte() == b'c' {
         changed_line_abv_curs();
     } else {
         win_fix_cursor((get_real_state() & (MODE_NORMAL | MODE_CMDLINE | MODE_TERMINAL)) != 0);
@@ -6370,7 +6370,7 @@ fn check_window_scroll_resize(
             continue;
         }
 
-        let eiw = crate::memory::cstr_from_ptr(wp.w_onebuf_opt.wo_eiw);
+        let eiw = wp.w_onebuf_opt.wo_eiw.as_cstr();
         let ignore_scroll = event_ignored(EVENT_WINSCROLLED, eiw);
         let size_changed = !event_ignored(EVENT_WINRESIZED, eiw)
             && (wp.w_last_width != wp.w_width || wp.w_last_height != wp.w_height);
@@ -7262,7 +7262,7 @@ pub fn set_fraction(wp: &mut WinInfoInfo) {
 }
 
 pub fn win_fix_scroll(resize: bool) {
-    if crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' {
+    if opt_vars().p_spk.first_byte() == b'c' {
         return;
     }
 
@@ -7271,7 +7271,7 @@ pub fn win_fix_scroll(resize: bool) {
         if !wp.w_floating && wp.w_height != wp.w_prev_height {
             wp.w_do_win_fix_cursor = true;
 
-            if crate::memory::cstr_first_byte(opt_vars().p_spk) == b's'
+            if opt_vars().p_spk.first_byte() == b's'
                 && wp.w_winrow != wp.w_prev_winrow
                 && wp.w_botline - 1 <= (*wp).buf_mut().b_ml.ml_line_count
             {
@@ -7443,8 +7443,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
 
     if height != prev_height {
         if height > 0 && valid_cursor {
-            if ptr::eq(wp, curwin_ptr())
-                && (crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' || wp.w_floating)
+            if ptr::eq(wp, curwin_ptr()) && (opt_vars().p_spk.first_byte() == b'c' || wp.w_floating)
             {
                 validate_cursor(curwin_mut());
             }
@@ -7460,7 +7459,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
 
         if valid_cursor
             && !g_st().exiting
-            && (crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' || wp.w_floating)
+            && (opt_vars().p_spk.first_byte() == b'c' || wp.w_floating)
         {
             if wp.w_onebuf_opt.wo_sms == 0 {
                 wp.w_skipcol = 0;
@@ -7476,8 +7475,7 @@ pub fn win_set_inner_size(wp: &mut WinInfoInfo, valid_cursor: bool) {
         if valid_cursor {
             changed_line_abv_curs_win(wp);
             invalidate_botline_win(wp);
-            if ptr::eq(wp, curwin_ptr())
-                && (crate::memory::cstr_first_byte(opt_vars().p_spk) == b'c' || wp.w_floating)
+            if ptr::eq(wp, curwin_ptr()) && (opt_vars().p_spk.first_byte() == b'c' || wp.w_floating)
             {
                 curs_columns(&mut *wp, 1);
             }
@@ -7725,12 +7723,9 @@ fn last_status_rec(fr: &mut Frame, statusline: bool, is_stl_global: bool) {
 
 pub fn set_winbar_win(wp: &mut WinInfoInfo, make_room: bool, valid_cursor: bool) -> i32 {
     let winbar_height = if wp.w_floating {
-        i32::from(!crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr))
+        i32::from(!wp.w_onebuf_opt.wo_wbr.is_empty())
     } else {
-        i32::from(
-            !crate::memory::cstr_is_empty(opt_vars().p_wbr)
-                || !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_wbr),
-        )
+        i32::from(!opt_vars().p_wbr.is_empty() || !wp.w_onebuf_opt.wo_wbr.is_empty())
     };
 
     if wp.w_winbar_height != winbar_height {
@@ -7800,7 +7795,7 @@ pub fn tabline_height() -> i32 {
 }
 
 pub fn global_winbar_height() -> i32 {
-    i32::from(!crate::memory::cstr_is_empty(opt_vars().p_wbr))
+    i32::from(!opt_vars().p_wbr.is_empty())
 }
 
 pub fn global_stl_height() -> i32 {
@@ -8082,11 +8077,11 @@ pub fn check_colorcolumn(
         return None;
     }
 
-    let mut s = EMPTY_STRING_OPTION.as_ptr().cast();
+    let mut rem: &[u8] = &[];
     if let Some(cc_cstr) = cc {
-        s = cc_cstr.as_ptr().cast_mut();
+        rem = cc_cstr.to_bytes();
     } else if wp.is_some() {
-        s = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_cc;
+        rem = wp.as_deref_mut().unwrap().w_onebuf_opt.wo_cc.as_bytes();
     }
 
     let tw: OptInt = if wp.is_some() {
@@ -8097,7 +8092,6 @@ pub fn check_colorcolumn(
 
     let mut count: usize = 0;
     let mut color_cols = [0_i32; 256];
-    let mut rem = crate::memory::cstr_as_bytes(s);
     while !rem.is_empty() && count < 255 {
         let mut col: i32;
         let mut skip = false;

@@ -241,7 +241,7 @@ fn find_start_of_word(pos: &mut CursorPos) {
 /// When 'selection' is "exclusive", the position is just after the word.
 fn find_end_of_word(pos: &mut CursorPos) {
     let line_bytes = crate::memline::ml_get_slice(pos.lnum);
-    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' && pos.col > 0 {
+    if opt_vars().p_sel.first_byte() == b'e' && pos.col > 0 {
         pos.col -= 1;
         pos.col -= crate::mbyte::utf_head_off_slice(line_bytes, pos.col as usize);
     }
@@ -249,7 +249,7 @@ fn find_end_of_word(pos: &mut CursorPos) {
     while (pos.col as usize) < line_bytes.len() {
         let col = pos.col + crate::mbyte::utfc_slice2len(&line_bytes[pos.col as usize..]) as i32;
         if get_mouse_class(line_bytes.get(col as usize..).unwrap_or(&[])) != cclass {
-            if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+            if opt_vars().p_sel.first_byte() == b'e' {
                 pos.col = col;
             }
             break;
@@ -403,7 +403,7 @@ fn get_fpos_of_mouse(
     let below_buffer = mouse_comp_pos(&mut *wp, &mut row, &mut col, &mut mpos.lnum);
 
     if !below_buffer
-        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl != 0 {
             wincol >= wp.w_view_width - win_col_off(wp)
         } else {
@@ -444,7 +444,7 @@ fn get_fpos_of_mouse(
 
 fn do_popup(which_button: i32, m_pos_flag: i32, mut m_pos: CursorPos) -> i32 {
     let mut jump_flags = 0;
-    if crate::memory::cstr_as_bytes(opt_vars().p_mousem) == b"popup_setpos" {
+    if opt_vars().p_mousem.as_bytes() == b"popup_setpos" {
         if g_st().visual_global.active {
             if m_pos_flag != IN_BUFFER {
                 jump_flags = MOUSE_MAY_STOP_VIS;
@@ -1119,7 +1119,7 @@ pub fn do_mouse(
 
                         if oap.unwrap().motion_type == MT_LINE_WISE {
                             g_st().visual_global.mode = b'V' as i32;
-                        } else if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e' {
+                        } else if opt_vars().p_sel.first_byte() == b'e' {
                             if lt(curwin_mut().w_cursor, g_st().visual_global.start) {
                                 g_st().visual_global.start.col += 1;
                             } else {
@@ -1136,9 +1136,7 @@ pub fn do_mouse(
                 } else {
                     find_start_of_word(&mut g_st().visual_global.start);
                     let cur_pos_slice = crate::cursor::get_cursor_pos_slice();
-                    if crate::memory::cstr_first_byte(opt_vars().p_sel) == b'e'
-                        && !cur_pos_slice.is_empty()
-                    {
+                    if opt_vars().p_sel.first_byte() == b'e' && !cur_pos_slice.is_empty() {
                         curwin_mut().w_cursor.col +=
                             crate::mbyte::utfc_slice2len(cur_pos_slice) as i32;
                     }
@@ -1360,7 +1358,7 @@ pub fn is_mouse_key(c: i32) -> bool {
 
 /// Return true when 'mousemodel' is set to "popup" or "popup_setpos".
 fn mouse_model_popup() -> bool {
-    crate::memory::cstr_first_byte(opt_vars().p_mousem) == b'p'
+    opt_vars().p_mousem.first_byte() == b'p'
 }
 
 /// Reset the window being dragged. To be called when switching tab page.
@@ -1458,7 +1456,7 @@ pub fn jump_to_mouse(mut flags: i32, inclusive: Option<&mut bool>, which_button:
         && !mouse_st().on_status_line
         && !mouse_st().on_sep_line
         && !mouse_st().on_winbar
-        && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc)
+        && !wp.w_onebuf_opt.wo_stc.is_empty()
         && (if wp.w_onebuf_opt.wo_rl != 0 {
             col >= wp.w_view_width - win_col_off(wp)
         } else {

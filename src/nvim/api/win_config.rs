@@ -1908,13 +1908,9 @@ fn parse_win_config(
                     break 'fail;
                 }
             }
-        } else if !crate::memory::cstr_is_empty(opt_vars().p_winborder)
+        } else if !opt_vars().p_winborder.is_empty()
             && wp.as_ref().is_none_or(|w| !w.w_floating)
-            && !parse_winborder(
-                Some(&mut *fconfig),
-                crate::memory::cstr_as_bytes(opt_vars().p_winborder),
-                err,
-            )
+            && !parse_winborder(Some(&mut *fconfig), opt_vars().p_winborder.as_bytes(), err)
         {
             break 'fail;
         }

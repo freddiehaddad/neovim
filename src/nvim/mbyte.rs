@@ -1171,7 +1171,7 @@ pub fn enc_canon_props(bytes: &[u8]) -> i32 {
 pub fn bomb_size() -> i32 {
     let mut n = 0;
     if curbuf_mut().b_p_bomb != 0 && curbuf_mut().b_p_bin == 0 {
-        let fenc = crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc);
+        let fenc = curbuf_mut().b_p_fenc.as_bytes();
         if fenc.is_empty() || fenc == b"utf-8" {
             n = 3;
         } else if fenc.starts_with(b"ucs-2") || fenc.starts_with(b"utf-16") {
@@ -1241,7 +1241,7 @@ pub fn utf_char2cells(c: i32) -> i32 {
         return 2;
     }
     if !opt_vars().p_ambw.is_null()
-        && crate::memory::cstr_first_byte(opt_vars().p_ambw) == b'd'
+        && opt_vars().p_ambw.first_byte() == b'd'
         && prop.ambiguous_width()
     {
         return 2;
@@ -2699,11 +2699,11 @@ pub fn utf_find_illegal() {
     };
     let mut tofree: Option<Vec<u8>> = None;
 
-    if (enc_canon_props(crate::memory::cstr_as_bytes(curbuf_mut().b_p_fenc)) & ENC_8BIT) != 0 {
+    if (enc_canon_props(curbuf_mut().b_p_fenc.as_bytes()) & ENC_8BIT) != 0 {
         convert_setup(
             &mut vimconv,
-            crate::memory::cstr_as_opt_cstr((opt_vars().p_enc).cast()),
-            crate::memory::cstr_as_opt_cstr((curbuf_mut().b_p_fenc).cast()),
+            Some(opt_vars().p_enc.as_cstr()),
+            Some(curbuf_mut().b_p_fenc.as_cstr()),
         );
     }
 

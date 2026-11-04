@@ -1055,16 +1055,13 @@ pub fn spell_valid_case(wordflags: i32, treeflags: i32) -> bool {
 pub fn spell_check_window(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
     wp.w_onebuf_opt.wo_spell != 0
-        && !crate::memory::cstr_is_empty(w_s.b_p_spl)
+        && !w_s.b_p_spl.is_empty()
         && !w_s.b_langp.is_empty()
         && !(&w_s.b_langp)[0].lp_slang.is_null()
 }
 pub fn no_spell_checking(wp: &mut WinInfoInfo) -> bool {
     let w_s = wp.w_s_ptr();
-    if wp.w_onebuf_opt.wo_spell == 0
-        || crate::memory::cstr_is_empty(w_s.b_p_spl)
-        || w_s.b_langp.is_empty()
-    {
+    if wp.w_onebuf_opt.wo_spell == 0 || w_s.b_p_spl.is_empty() || w_s.b_langp.is_empty() {
         emsg(gettext(E_NO_SPELL));
         return true;
     }
@@ -1386,10 +1383,8 @@ fn spell_load_lang(lang_cstr: &std::ffi::CStr) {
     curbuf_mut().b_locked -= 1;
 }
 pub fn spell_enc() -> &'static std::ffi::CStr {
-    if crate::memory::cstr_len(opt_vars().p_enc) < 60
-        && (crate::memory::cstr_as_bytes(opt_vars().p_enc) != b"iso-8859-15")
-    {
-        return crate::memory::cstr_from_ptr(opt_vars().p_enc);
+    if opt_vars().p_enc.as_bytes().len() < 60 && (opt_vars().p_enc.as_bytes() != b"iso-8859-15") {
+        return opt_vars().p_enc.as_cstr();
     }
     c"latin1"
 }
@@ -1618,7 +1613,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
     let mut ga: Vec<Langp> = Vec::with_capacity(2);
     clear_midword(wp);
     let w_s = wp.w_s_ptr();
-    let spl_copy = crate::memory::cstr_to_cstring(w_s.b_p_spl);
+    let spl_copy = w_s.b_p_spl.to_owned();
     w_s.b_cjk = 0;
     'theend: {
         let mut splp = spl_copy.as_bytes();
@@ -1781,9 +1776,9 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
             }
         }
         let cur_w_s = curwin_mut().w_s_ptr();
-        let mut spf = cur_w_s.b_p_spf;
+        let mut spf_bytes = cur_w_s.b_p_spf.as_bytes();
         let mut round = 0;
-        while round == 0 || !crate::memory::cstr_is_empty(spf) {
+        while round == 0 || !spf_bytes.is_empty() {
             let cur_round = round;
             round += 1;
             let spf_ptr = (&raw mut spf_name).cast::<u8>();
@@ -1793,10 +1788,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 }
                 int_wordlist_spl(&mut spf_name);
             } else {
-                let mut spf_bytes = crate::memory::cstr_as_bytes(spf);
-                let old_len = spf_bytes.len();
                 let len = copy_option_part(&mut spf_bytes, &mut spf_name[..MAXPATHL - 4], c",");
-                spf = spf.wrapping_add(old_len - spf_bytes.len());
                 spf_name[len..len + 5].copy_from_slice(b".spl\0");
                 let mut c = 0;
                 while c < ga.len() {
@@ -2029,7 +2021,7 @@ pub fn spell_reload() {
     spell_free_all();
     for wp in for_all_windows_ptr() {
         let w_s = (*wp).w_s_ptr();
-        if !crate::memory::cstr_is_empty(w_s.b_p_spl) && wp.w_onebuf_opt.wo_spell != 0 {
+        if !w_s.b_p_spl.is_empty() && wp.w_onebuf_opt.wo_spell != 0 {
             let _ = parse_spelllang(&mut *wp);
             break;
         }
@@ -2410,7 +2402,7 @@ pub fn make_case_word(fword: &[u8], cword: &mut [u8], flags: i32) {
 }
 pub fn eval_soundfold(word: &std::ffi::CStr) -> std::ffi::CString {
     let w_s = curwin_mut().w_s_ptr();
-    if curwin_mut().w_onebuf_opt.wo_spell != 0 && !crate::memory::cstr_is_empty(w_s.b_p_spl) {
+    if curwin_mut().w_onebuf_opt.wo_spell != 0 && !w_s.b_p_spl.is_empty() {
         for lp in &w_s.b_langp {
             let slang = lp.slang_mut();
             if slang.has_sal() {

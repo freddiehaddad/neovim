@@ -171,13 +171,8 @@ pub fn ex_help(eap: &mut Exarg) {
             && wp.buf_mut().b_nwindows > 0
         {
             win_enter(wp, true);
-        } else if CFile::open(
-            crate::memory::cstr_from_ptr((opt_vars().p_hf).cast()),
-            c"rb",
-        )
-        .is_none()
-        {
-            smsg!(0, gettext(c"Help file \"%s\" not found"), opt_vars().p_hf);
+        } else if CFile::open(opt_vars().p_hf.as_cstr(), c"rb").is_none() {
+            smsg!(0, gettext(c"Help file \"%s\" not found"), &opt_vars().p_hf);
             early_ret = true;
         } else {
             let mut n = WSP_HELP;
@@ -374,7 +369,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
 /// Cleanup matches for help tags (`cleanup_help_tags`).
 pub fn cleanup_help_tags(file: &mut [std::ffi::CString]) {
     let mut buf = [0u8; 3];
-    let hlg_bytes = crate::memory::cstr_as_bytes(opt_vars().p_hlg);
+    let hlg_bytes = opt_vars().p_hlg.as_bytes();
     let has_default_lang = !hlg_bytes.is_empty() && !hlg_bytes.starts_with(b"en");
     if has_default_lang {
         buf[0] = b'@';
@@ -425,7 +420,7 @@ pub fn prepare_help_buffer() {
     set_option_direct(K_OPT_BUFTYPE, cstr_as_obj(Some(c"help")), OPT_LOCAL, 0);
 
     let p = c"!-~,^*,^|,^\",192-255";
-    if crate::memory::cstr_as_bytes(curbuf_mut().b_p_isk) != p.to_bytes() {
+    if curbuf_mut().b_p_isk.as_bytes() != p.to_bytes() {
         set_option_direct(
             K_OPT_ISKEYWORD,
             cstr_as_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr())),

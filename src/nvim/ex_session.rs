@@ -903,7 +903,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 fd,
                 format!(
                     "set shortmess={}\n",
-                    cstr_to_str(crate::memory::cstr_from_ptr(opt_vars().p_shm))
+                    cstr_to_str(opt_vars().p_shm.as_cstr())
                 ),
             ) {
                 return false;
@@ -973,8 +973,8 @@ pub fn ex_mkrc(eap: &mut Exarg) {
         fname = c".exrc";
     }
 
-    if using_vdir && !os_isdir(crate::memory::cstr_from_ptr((opt_vars().p_vdir).cast())) {
-        vim_mkdir_emsg(crate::memory::cstr_from_ptr(opt_vars().p_vdir), 0o755);
+    if using_vdir && !os_isdir(opt_vars().p_vdir.as_cstr()) {
+        vim_mkdir_emsg(opt_vars().p_vdir.as_cstr(), 0o755);
     }
 
     if let Some(fd) = open_exfile(fname, eap.forceit, c"wb") {
@@ -1124,7 +1124,7 @@ fn get_view_file(c: u8) -> Option<CString> {
         }
     }
     let sname_len = sname_bytes.len();
-    let vdir_bytes = crate::memory::cstr_from_ptr(opt_vars().p_vdir).to_bytes_with_nul();
+    let vdir_bytes = opt_vars().p_vdir.as_cstr().to_bytes_with_nul();
     let vdir_len = vdir_bytes.len() - 1;
     let mut retval_vec: Vec<u8> = vec![0; sname_len + len + vdir_len + 9];
     retval_vec[..vdir_len + 1].copy_from_slice(vdir_bytes);

@@ -51,7 +51,6 @@ pub fn win_new_float(
     fconfig: WinConfig,
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
-    let empty_opt = EMPTY_STRING_OPTION.as_ptr().cast();
     let wp = if let Some(wp) = wp_opt {
         debug_assert!(!last);
         debug_assert!(!wp.w_floating);
@@ -121,19 +120,18 @@ pub fn win_new_float(
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             wp.w_onebuf_opt.wo_wbr.clear_option_str();
         }
-        if !wp.w_onebuf_opt.wo_stl.is_null() && wp.w_onebuf_opt.wo_stl != empty_opt {
+        if !wp.w_onebuf_opt.wo_stl.is_null() {
             wp.w_onebuf_opt.wo_stl.clear_option_str();
         }
         wp
     };
     wp.w_floating = true;
-    wp.w_status_height = if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-        && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2)
-    {
-        STATUS_HEIGHT
-    } else {
-        0
-    };
+    wp.w_status_height =
+        if !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2) {
+            STATUS_HEIGHT
+        } else {
+            0
+        };
     wp.w_winbar_height = 0;
     wp.w_hsep_height = 0;
     wp.w_vsep_width = 0;
@@ -153,47 +151,47 @@ pub fn win_set_minimal_style(wp: &mut WinInfoInfo) {
 
     // Hide EOB region: use " " fillchar and cleared highlighting
     if wp.w_p_fcs_chars.eob != b' ' as u32 {
-        let old = wp.w_onebuf_opt.wo_fcs;
-        if crate::memory::cstr_is_empty(old) {
+        let old = wp.w_onebuf_opt.wo_fcs.as_bytes();
+        if old.is_empty() {
             wp.w_onebuf_opt.wo_fcs.set_option_cstr(c"eob: ");
         } else {
-            let joined = concat_str(crate::memory::cstr_as_bytes(old), b",eob: ");
+            let joined = concat_str(old, b",eob: ");
             wp.w_onebuf_opt.wo_fcs.set_option_cstr(joined.as_c_str());
         }
     }
 
-    let old = wp.w_onebuf_opt.wo_winhl;
-    if crate::memory::cstr_is_empty(old) {
+    let old = wp.w_onebuf_opt.wo_winhl.as_bytes();
+    if old.is_empty() {
         wp.w_onebuf_opt.wo_winhl.set_option_cstr(c"EndOfBuffer:");
     } else {
-        let joined = concat_str(crate::memory::cstr_as_bytes(old), b",EndOfBuffer:");
+        let joined = concat_str(old, b",EndOfBuffer:");
         wp.w_onebuf_opt.wo_winhl.set_option_cstr(joined.as_c_str());
     }
     parse_winhl_opt(None, Some(&mut *wp));
 
     // signcolumn: use 'auto'
-    let scl_len = crate::memory::cstr_len(wp.w_onebuf_opt.wo_scl);
-    if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_scl) != b'a' || scl_len >= 8 {
+    let scl_len = wp.w_onebuf_opt.wo_scl.as_bytes().len();
+    if wp.w_onebuf_opt.wo_scl.first_byte() != b'a' || scl_len >= 8 {
         wp.w_onebuf_opt.wo_scl.set_option_cstr(c"auto");
     }
 
     // foldcolumn: use '0'
-    if crate::memory::cstr_first_byte(wp.w_onebuf_opt.wo_fdc) != b'0' {
+    if wp.w_onebuf_opt.wo_fdc.first_byte() != b'0' {
         wp.w_onebuf_opt.wo_fdc.set_option_cstr(c"0");
     }
 
     // colorcolumn: cleared
-    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_cc) {
+    if !wp.w_onebuf_opt.wo_cc.is_empty() {
         wp.w_onebuf_opt.wo_cc.set_option_cstr(c"");
     }
 
     // statuscolumn: cleared
-    if !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stc) {
+    if !wp.w_onebuf_opt.wo_stc.is_empty() {
         wp.w_onebuf_opt.wo_stc.clear_option_str();
     }
 
     // statusline: cleared (for floating windows)
-    if wp.w_floating && !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl) {
+    if wp.w_floating && !wp.w_onebuf_opt.wo_stl.is_empty() {
         wp.w_onebuf_opt.wo_stl.clear_option_str();
         if wp.w_status_height > 0 {
             let cfg = wp.w_config.clone();
@@ -212,8 +210,8 @@ pub fn win_border_width(wp: &mut WinInfoInfo) -> i32 {
 
 pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
     // Process statusline changes before applying new height from config
-    let show_stl = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-        && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+    let show_stl =
+        !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
     if wp.w_status_height != 0 && !show_stl {
         win_remove_status_line(wp, false);
     } else if wp.w_status_height == 0 && show_stl {
@@ -359,8 +357,8 @@ pub fn win_check_anchored_floats(win: &mut WinInfoInfo) {
 pub fn win_float_update_statusline() {
     for wp in for_all_windows_rev_ptr().take_while(|wp| wp.w_floating) {
         let has_status = wp.w_status_height > 0;
-        let should_show = !crate::memory::cstr_is_empty(wp.w_onebuf_opt.wo_stl)
-            && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
+        let should_show =
+            !wp.w_onebuf_opt.wo_stl.is_empty() && (opt_vars().p_ls == 1 || opt_vars().p_ls == 2);
         if should_show != has_status {
             let cfg = wp.w_config.clone();
             win_config_float(wp, cfg);
@@ -468,9 +466,7 @@ pub fn win_float_special(
     config.style = K_WIN_STYLE_MINIMAL;
     let mut err = error_init();
     let preview = kind == K_WIN_PREVIEW;
-    if preview
-        && !win_previewpopup_config(crate::memory::cstr_from_ptr(opt_vars().p_pvp), &mut config)
-    {
+    if preview && !win_previewpopup_config(opt_vars().p_pvp.as_cstr(), &mut config) {
         emsg(gettext(E_INVARG));
         return None;
     }
@@ -556,10 +552,7 @@ pub fn win_float_update_preview(wp: &mut WinInfoInfo) {
     let row = wp.w_wantline.max(0).min(g_st().rows_global - 1);
     let col = wp.w_wantcol.max(0).min(g_st().columns_global - 1);
 
-    let v: &OptKeyDict_pvp = opt_keyset(
-        crate::memory::cstr_as_bytes(opt_vars().p_pvp),
-        K_OPT_PREVIEWPOPUP,
-    );
+    let v: &OptKeyDict_pvp = opt_keyset(opt_vars().p_pvp.as_bytes(), K_OPT_PREVIEWPOPUP);
     let mut want_w = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_WIDTH) {
         v.width as i32
     } else {
@@ -634,7 +627,7 @@ pub fn win_previewpopup_config(value: &std::ffi::CStr, config: &mut WinConfig) -
         let border = if has_key(v.is_set_pvp, KEYSET_OPTIDX_PVP_BORDER) {
             Some(crate::memory::bytes_until_nul(&v.border))
         } else {
-            crate::memory::cstr_as_opt_bytes(opt_vars().p_winborder).filter(|b| !b.is_empty())
+            Some(opt_vars().p_winborder.as_bytes()).filter(|b| !b.is_empty())
         };
         if let Some(border) = border {
             let mut err = error_init();

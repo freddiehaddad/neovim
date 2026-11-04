@@ -1065,6 +1065,20 @@ pub trait IntoFmtVal<'a> {
     fn into_fmt_val(self) -> FmtVal<'a>;
 }
 
+impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a mut crate::option_vars::OptString {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(self.as_cstr()))
+    }
+}
+
 impl<'a> IntoFmtVal<'a> for FmtVal<'a> {
     #[inline]
     fn into_fmt_val(self) -> FmtVal<'a> {
