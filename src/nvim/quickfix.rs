@@ -2475,7 +2475,7 @@ fn qf_guess_filepath<'a>(qfl: &'a mut QfList, filename: &CStr) -> Option<&'a CSt
 
 fn qflist_valid(wp: Option<&WinInfoInfo>, qf_id: u32) -> bool {
     let qi = if let Some(wp) = wp {
-        if !win_valid(ptr::from_ref(wp).cast_mut()) {
+        if !win_valid(Some(wp)) {
             return false;
         }
         let Some(ll) = get_loc_list_opt(wp) else {
@@ -2757,7 +2757,7 @@ fn qf_goto_win_with_ll_file(
             }
         }
     }
-    win_goto(win);
+    win_goto(unsafe { &mut *win });
 
     if unsafe { (*win).w_llist.is_null() }
         && let Some(ll_ref) = ll_ref
@@ -2781,7 +2781,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
 
         if is_qf_window(unsafe { &*win }) {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
-                && win_valid(g_st().prevwin)
+                && win_valid(unsafe { g_st().prevwin.as_ref() })
                 && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
             {
                 win = g_st().prevwin;
@@ -2804,7 +2804,7 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
         }
     }
 
-    win_goto(win);
+    win_goto(unsafe { &mut *win });
 }
 
 fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool) -> bool {
@@ -2892,11 +2892,11 @@ fn qf_jump_edit_buffer(
                 return FAIL;
             }
 
-            if win_valid(g_st().prevwin)
+            if win_valid(unsafe { g_st().prevwin.as_ref() })
                 && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
                 && !bt_quickfix(crate::globals::prevwin_mut().buf_opt())
             {
-                win_goto(g_st().prevwin);
+                win_goto(crate::globals::prevwin_mut());
             }
             if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
                 if win_split(0, 0) {
@@ -3227,7 +3227,7 @@ fn qf_jump_newwin(qi_opt: Option<&mut QfInfo>, dir: i32, errornr: i32, forceit: 
             }
             if retval != OK {
                 if opened_window {
-                    win_close(curwin_ptr(), true, false);
+                    win_close(curwin_mut(), true, false);
                 }
                 if !qi.is_null()
                     && unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum != 0
@@ -3812,7 +3812,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
         win_setheight(height);
     }
     curwin_mut().w_onebuf_opt.wo_wfh = 1;
-    if win_valid(win) {
+    if win_valid(unsafe { win.as_ref() }) {
         g_st().prevwin = win;
     }
     true

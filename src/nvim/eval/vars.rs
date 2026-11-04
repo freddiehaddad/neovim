@@ -3321,6 +3321,7 @@ fn getwinvar(argvars: &mut [TypVal], rettv: &mut TypVal, off: usize) {
     let (head, tail) = argvars.split_at_mut(off + 2);
     let tp = if off == 1 {
         find_tabpage(tv_get_number_chk(&head[0], None) as i32)
+            .map_or(ptr::null_mut(), ptr::from_mut)
     } else {
         g_st().curtab
     };
@@ -3490,6 +3491,7 @@ fn setwinvar(argvars: &mut [TypVal], off: usize) {
     let varp = &mut tail[0];
     let tp = if off == 1 {
         find_tabpage(tv_get_number_chk(&head[0], None) as i32)
+            .map_or(ptr::null_mut(), ptr::from_mut)
     } else {
         g_st().curtab
     };
@@ -3720,7 +3722,8 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         unreachable!()
     };
     let varname = tv_get_string_chk(arg1);
-    let tp = find_tabpage(tv_get_number_chk(arg0, None) as i32);
+    let tp =
+        find_tabpage(tv_get_number_chk(arg0, None) as i32).map_or(ptr::null_mut(), ptr::from_mut);
     let mut win: *mut WinInfoInfo = ptr::null_mut();
 
     if let Some(tp_ref) = unsafe { tp.as_mut() } {
@@ -3784,9 +3787,9 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     let Some(varname) = tv_get_string_chk(arg1) else {
         return;
     };
-    if tp.is_null() {
+    let Some(tp_ref) = tp else {
         return;
-    }
+    };
     let varname_len = varname.to_bytes().len();
     let mut tabvarname = Vec::with_capacity(varname_len + 3);
     tabvarname.push(b't');
@@ -3795,13 +3798,13 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
 
     let save_curtab = g_st().curtab;
     let save_lu_tp = g_st().lastused_tabpage;
-    goto_tabpage_tp(tp, false, false);
+    goto_tabpage_tp(Some(tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
 
-    if valid_tabpage(save_curtab) {
-        goto_tabpage_tp(save_curtab, false, false);
-        if valid_tabpage(save_lu_tp) {
+    if valid_tabpage(unsafe { save_curtab.as_ref() }) {
+        goto_tabpage_tp(unsafe { save_curtab.as_mut() }, false, false);
+        if valid_tabpage(unsafe { save_lu_tp.as_ref() }) {
             g_st().lastused_tabpage = save_lu_tp;
         }
     }

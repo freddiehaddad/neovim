@@ -1840,7 +1840,10 @@ pub fn did_set_cinoptions(args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn validate_colorcolumn(args: &mut Optset) -> Option<&CStr> {
-    check_colorcolumn(args.os_newval.data.string().data, None)
+    check_colorcolumn(
+        crate::memory::cstr_as_opt_cstr(args.os_newval.data.string().data),
+        None,
+    )
 }
 
 /// The 'colorcolumn' option is changed.
@@ -1848,7 +1851,7 @@ pub fn did_set_colorcolumn(args: &mut Optset) -> Option<&CStr> {
     let win = args.win_mut();
     let varp = args.os_varp.cast::<*mut u8>();
     let is_local = ptr::eq(varp, (&raw mut win.w_onebuf_opt.wo_cc).cast());
-    check_colorcolumn(args.var_cstr().as_ptr().cast_mut(), is_local.then_some(win))
+    check_colorcolumn(Some(args.var_cstr()), is_local.then_some(win))
 }
 
 /// Validate the 'comments' option.

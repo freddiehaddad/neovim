@@ -1475,16 +1475,19 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
 
                     if use_float
                         && !pum_adjust_info_position(curwin_mut(), max_info_width)
-                        && win_valid(curwin_save)
+                        && win_valid(unsafe { curwin_save.as_ref() })
                     {
-                        win_enter(curwin_save, false);
+                        win_enter(unsafe { &mut *curwin_save }, false);
                     }
 
-                    if (curwin_ptr() != curwin_save && win_valid(curwin_save))
-                        || (g_st().curtab != curtab_save && valid_tabpage(curtab_save))
+                    if (curwin_ptr() != curwin_save && win_valid(unsafe { curwin_save.as_ref() }))
+                        || (g_st().curtab != curtab_save
+                            && valid_tabpage(unsafe { curtab_save.as_ref() }))
                     {
-                        if g_st().curtab != curtab_save && valid_tabpage(curtab_save) {
-                            goto_tabpage_tp(curtab_save, false, false);
+                        if g_st().curtab != curtab_save
+                            && valid_tabpage(unsafe { curtab_save.as_ref() })
+                        {
+                            goto_tabpage_tp(unsafe { curtab_save.as_mut() }, false, false);
                         }
 
                         if ins_compl_active() && !resized {
@@ -1494,9 +1497,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         validate_cursor(curwin_mut());
                         redraw_later(Some(crate::globals::curwin_mut()), UPD_SOME_VALID);
 
-                        if resized && win_valid(curwin_save) {
+                        if resized && win_valid(unsafe { curwin_save.as_ref() }) {
                             g_st().no_u_sync += 1;
-                            win_enter(curwin_save, true);
+                            win_enter(unsafe { &mut *curwin_save }, true);
                             g_st().no_u_sync -= 1;
                             update_topline(curwin_mut());
                         }
@@ -1509,9 +1512,9 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                         pum().is_visible = true;
                         pum().is_drawn = save_pum_is_drawn;
 
-                        if !resized && win_valid(curwin_save) {
+                        if !resized && win_valid(unsafe { curwin_save.as_ref() }) {
                             g_st().no_u_sync += 1;
-                            win_enter(curwin_save, true);
+                            win_enter(unsafe { &mut *curwin_save }, true);
                             g_st().no_u_sync -= 1;
                         }
 

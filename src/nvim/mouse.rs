@@ -264,7 +264,7 @@ fn move_tab_to_mouse() {
     let tabnr = g_st().tab_page_click_defs.as_slice()[g_st().mouse_col as usize].tabnr;
     if tabnr <= 0 {
         tabpage_move(9999);
-    } else if tabnr < tabpage_index(g_st().curtab) {
+    } else if tabnr < tabpage_index(unsafe { g_st().curtab.as_ref() }) {
         tabpage_move(tabnr - 1);
     } else {
         tabpage_move(tabnr);
@@ -276,7 +276,7 @@ fn mouse_tab_close(c1: i32) {
     let tp = if c1 == 999 {
         g_st().curtab
     } else {
-        find_tabpage(c1)
+        find_tabpage(c1).map_or(ptr::null_mut(), ptr::from_mut)
     };
     if tp == g_st().curtab {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
@@ -1178,7 +1178,7 @@ pub fn ins_mouse(c: i32) {
     if do_mouse(None, c, BACKWARD, 1, false) {
         let new_curwin = curwin_ptr();
 
-        if curwin_ptr() != old_curwin && win_valid(old_curwin) {
+        if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
             set_curwin(old_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
             if bt_prompt(Some(crate::globals::curbuf_mut())) {
@@ -1194,7 +1194,7 @@ pub fn ins_mouse(c: i32) {
             true,
             0,
         );
-        if curwin_ptr() != new_curwin && win_valid(new_curwin) {
+        if curwin_ptr() != new_curwin && win_valid(unsafe { new_curwin.as_ref() }) {
             set_curwin(new_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
         }

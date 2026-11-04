@@ -868,7 +868,13 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
         }
 
         if (opt_vars().ssop_flags & K_OPT_SSOP_FLAG_TABPAGES) != 0
-            && !write_fmt(fd, format!("tabnext {}\n", tabpage_index(g_st().curtab)))
+            && !write_fmt(
+                fd,
+                format!(
+                    "tabnext {}\n",
+                    tabpage_index(unsafe { g_st().curtab.as_ref() })
+                ),
+            )
         {
             return false;
         }

@@ -47,7 +47,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     };
     let tab_ptr = std::ptr::from_ref(tab);
 
-    if !valid_tabpage(tab_ptr) {
+    if !valid_tabpage(Some(tab)) {
         return rv;
     }
 
@@ -126,7 +126,7 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
         return 0;
     };
     let tab_ptr = std::ptr::from_ref(tab);
-    if !valid_tabpage(tab_ptr) {
+    if !valid_tabpage(Some(tab)) {
         return 0;
     }
     if std::ptr::eq(tab_ptr, g_st().curtab) {
@@ -154,7 +154,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if wp.is_null() {
         return;
     }
-    if !tabpage_win_valid((&raw mut *tp), wp) {
+    if !tabpage_win_valid(Some(&*tp), unsafe { wp.as_ref() }) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -166,7 +166,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if (&raw mut *tp) == g_st().curtab {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        win_goto(wp);
+        win_goto(unsafe { &mut *wp });
         try_leave(&tstate, err);
     } else if tp.tp_curwin != wp {
         tp.tp_prevwin = tp.tp_curwin;
@@ -184,7 +184,7 @@ pub fn nvim_tabpage_get_number(tabpage: Tabpage, err: &mut Error) -> Integer {
     let Some(tab) = find_tab_by_handle(tabpage, err) else {
         return 0;
     };
-    i64::from(tabpage_index(tab))
+    i64::from(tabpage_index(Some(tab)))
 }
 
 /// Checks if a tabpage is valid
@@ -230,11 +230,13 @@ pub fn nvim_open_tabpage(
         -1
     };
 
-    let mut wp: *mut WinInfoInfo = std::ptr::null_mut();
+    let mut wp_opt: Option<&'static mut WinInfoInfo> = None;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let tp = win_new_tabpage(after + 1, std::ptr::null_mut(), enter, &mut wp);
+    let tp = win_new_tabpage(after + 1, None, enter, Some(&mut wp_opt))
+        .map_or(std::ptr::null_mut(), std::ptr::from_mut);
     try_leave(&tstate, err);
+    let wp: *mut WinInfoInfo = wp_opt.map_or(std::ptr::null_mut(), std::ptr::from_mut);
 
     if tp.is_null() {
         if !error_set(err) {
@@ -246,7 +248,7 @@ pub fn nvim_open_tabpage(
         }
         return 0;
     }
-    if !valid_tabpage(tp) {
+    if !valid_tabpage(unsafe { tp.as_ref() }) {
         api_clear_error(err);
         api_set_error!(
             err,
@@ -256,7 +258,9 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(tp, wp) && unsafe { (*wp).w_buffer } != (&raw mut *b) {
+    if tabpage_win_valid(unsafe { tp.as_ref() }, unsafe { wp.as_ref() })
+        && unsafe { (*wp).w_buffer } != (&raw mut *b)
+    {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st().autocmd_no_enter += 1;
@@ -267,7 +271,7 @@ pub fn nvim_open_tabpage(
             g_st().autocmd_no_enter -= 1;
             g_st().autocmd_no_leave -= 1;
         }
-        if !valid_tabpage(tp) {
+        if !valid_tabpage(unsafe { tp.as_ref() }) {
             api_clear_error(err);
             api_set_error!(
                 err,

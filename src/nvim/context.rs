@@ -732,7 +732,7 @@ fn ctx_win_prep(cs: &mut CtxSwitch, buf: &mut FileBuf) -> &'static mut WinInfoIn
     ctx_win_dirs_save(cs, &mut *cw_win, buf);
 
     if need_append {
-        win_append(g_st().lastwin, cw_win, ptr::null_mut());
+        win_append(unsafe { g_st().lastwin.as_mut() }, &mut *cw_win, None);
         g_st().window_handles.insert(cw_win.handle, cw_win);
         let cfg = cw_win.w_config.clone();
         win_config_float(cw_win, cfg);
@@ -751,9 +751,9 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
                 for wp in for_all_windows_in_tab_ptr(&*tp) {
                     if std::ptr::eq(wp, cwp) {
                         if !std::ptr::eq(tp, g_st().curtab) {
-                            goto_tabpage_tp(tp, true, true);
+                            goto_tabpage_tp(Some(&mut *tp), true, true);
                         }
-                        win_goto(cwp);
+                        win_goto(unsafe { &mut *cwp });
                         break 'win_found;
                     }
                 }
@@ -762,7 +762,7 @@ fn ctx_win_rest(cs: &mut CtxSwitch) -> &'static mut WinInfoInfo {
     }
 
     curbuf_mut().b_nwindows -= 1;
-    win_remove(curwin_mut(), ptr::null_mut());
+    win_remove(curwin_mut(), None);
     g_st().window_handles.remove(&curwin_mut().handle);
 
     g_st().ctx_win_vec.as_mut_slice()[cs.cs_ctxwin_idx as usize].cw_used = false;
@@ -779,7 +779,7 @@ pub fn ctx_saved_curwin() -> Option<&'static mut WinInfoInfo> {
     if ctx_st().ctx_saved_curwin == 0 {
         None
     } else {
-        unsafe { win_find_by_handle(ctx_st().ctx_saved_curwin).as_mut() }
+        win_find_by_handle(ctx_st().ctx_saved_curwin)
     }
 }
 
@@ -838,7 +838,7 @@ pub fn ctx_switch(
     }
 
     cs.cs_curwin = curwin_mut().handle;
-    cs.cs_curwin_xtab = !win_valid(curwin_ptr());
+    cs.cs_curwin_xtab = !win_valid(unsafe { curwin_ptr().as_ref() });
     cs.cs_prevwin = if g_st().prevwin.is_null() {
         0
     } else {
@@ -860,9 +860,9 @@ pub fn ctx_switch(
         cs.cs_curtab = g_st().curtab;
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(curtab_mut());
-            use_tabpage(tp);
+            use_tabpage(unsafe { &mut *tp });
         } else {
-            goto_tabpage_tp(tp, false, false);
+            goto_tabpage_tp(unsafe { tp.as_mut() }, false, false);
         }
     }
 
@@ -873,8 +873,8 @@ pub fn ctx_switch(
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
             g_st().prevwin = curwin_ptr();
         }
-        assert!(wp == curwin_ptr() || win_valid(wp));
-    } else if !win_valid(wp) {
+        assert!(wp == curwin_ptr() || win_valid(unsafe { wp.as_ref() }));
+    } else if !win_valid(unsafe { wp.as_ref() }) {
         return false;
     }
     set_curwin(wp);
@@ -898,7 +898,7 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
     let mut save_curwin: Option<&'static mut WinInfoInfo> = if cs.cs_curwin_xtab {
         handle_get_window(cs.cs_curwin)
     } else {
-        unsafe { win_find_by_handle(cs.cs_curwin).as_mut() }
+        win_find_by_handle(cs.cs_curwin)
     };
     if save_curwin.is_none() {
         save_curwin = fallback;
@@ -907,7 +907,7 @@ fn ctx_restore_curwin(cs: &mut CtxSwitch, fallback: Option<&'static mut WinInfoI
         set_curwin(save_curwin);
         g_st().curbuf = curwin_mut().w_buffer;
     }
-    g_st().prevwin = win_find_by_handle(cs.cs_prevwin);
+    g_st().prevwin = win_find_by_handle(cs.cs_prevwin).map_or(ptr::null_mut(), ptr::from_mut);
 }
 
 pub fn ctx_restore(cs: &mut CtxSwitch) {
@@ -916,14 +916,14 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     }
 
     if cs.cs_mode == K_CTX_SWITCH_WIN {
-        if !cs.cs_curtab.is_null() && valid_tabpage(cs.cs_curtab) {
+        if !cs.cs_curtab.is_null() && valid_tabpage(unsafe { cs.cs_curtab.as_ref() }) {
             if (cs.cs_flags & K_CTX_NO_DISPLAY) != 0 {
                 let old_tp_curwin = curtab_mut().tp_curwin;
                 unuse_tabpage(curtab_mut());
                 curtab_mut().tp_curwin = old_tp_curwin;
-                use_tabpage(cs.cs_curtab);
+                use_tabpage(unsafe { &mut *cs.cs_curtab });
             } else {
-                goto_tabpage_tp(cs.cs_curtab, false, false);
+                goto_tabpage_tp(unsafe { cs.cs_curtab.as_mut() }, false, false);
             }
         }
         ctx_restore_curwin(cs, None);
@@ -985,7 +985,7 @@ pub fn ctx_restore(cs: &mut CtxSwitch) {
     }
     ctx_st().ctx_did_chdir = ctx_st().ctx_did_chdir || cs.cs_did_chdir;
     if (cs.cs_flags & K_CTX_VALIDATE) != 0 {
-        if let Some(wp) = unsafe { win_find_by_handle(cs.cs_target_win).as_mut() }
+        if let Some(wp) = win_find_by_handle(cs.cs_target_win)
             && !equalpos(cs.cs_target_old_pos, wp.w_cursor)
         {
             wp.w_redr_status = true;

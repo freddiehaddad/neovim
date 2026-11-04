@@ -765,7 +765,7 @@ pub fn free_all_mem() {
         reset_last_sourcing();
 
         if !g_st().first_tabpage.is_null() {
-            free_tabpage(g_st().first_tabpage);
+            free_tabpage(unsafe { g_st().first_tabpage.as_mut() });
             g_st().first_tabpage = std::ptr::null_mut();
         }
 

@@ -3030,7 +3030,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
     let mut buf: *mut FileBuf = buf_arg;
     if flag == b'w' as i32 {
-        if ptr::eq(buf, g_st().curbuf) || !win_valid(insexp().next_buf_wp) {
+        if ptr::eq(buf, g_st().curbuf) || !win_valid(unsafe { insexp().next_buf_wp.as_ref() }) {
             insexp().next_buf_wp = curwin_ptr();
         }
 

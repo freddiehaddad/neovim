@@ -721,15 +721,15 @@ unsafe extern "C-unwind" fn nlua_with(lstate: *mut lua_State) -> i32 {
                 } else {
                     K_CTX_KEEP_CWD
                 };
-                let tab = if !win.is_null() {
-                    win_find_tabpage(win)
+                let tab = if let Some(win_ref) = win.as_ref() {
+                    win_find_tabpage(win_ref)
                 } else {
-                    ptr::null_mut()
+                    None
                 };
                 switched = ctx_switch(
                     &mut cs,
                     win.as_mut(),
-                    tab.as_mut(),
+                    tab,
                     buf.as_mut(),
                     K_CTX_NO_DISPLAY | dirs | if !win.is_null() { K_CTX_VALIDATE } else { 0 },
                 );

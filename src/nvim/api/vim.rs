@@ -11,9 +11,9 @@ use crate::api::private::helpers::{
     api_typename, arena_array, arena_dict, arena_take_arraybuilder, array_obj, boolean_obj,
     buffer_obj, cbuf_to_string, copy_array, copy_dict, copy_object, copy_string, cstr_as_obj,
     cstr_to_arena_obj, dict_get_value, dict_obj, dict_set_var, error_set, find_buffer_by_handle,
-    find_tab_by_handle, find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj,
-    parse_hl_msg, put_c, set_mark, static_cstr_as_string, string_obj, string_to_array, tabpage_obj,
-    try_enter, try_leave, window_obj,
+    find_window_by_handle, get_default_stl_hl, integer_obj, nil_obj, parse_hl_msg, put_c, set_mark,
+    static_cstr_as_string, string_obj, string_to_array, tabpage_obj, try_enter, try_leave,
+    window_obj,
 };
 use crate::api::private::validate::{
     Array, Dict, Error, ErrorType, KeyValuePair, NvimString, Object, ObjectType, api_err_exp,
@@ -1424,10 +1424,7 @@ pub fn nvim_set_current_win(win: Window, err: &mut Error) {
     if w.w_buffer != g_st().curbuf {
         reset_visual_and_resel();
     }
-    goto_tabpage_win(
-        unsafe { &mut *win_find_tabpage(&raw mut *w) },
-        (&raw mut *w),
-    );
+    goto_tabpage_win(win_find_tabpage(&*w).unwrap(), w);
     try_leave(&tstate, err);
 }
 
@@ -1687,13 +1684,13 @@ pub fn nvim_get_current_tabpage() -> Tabpage {
 // DLLEXPORT void nvim_set_current_tabpage(Tabpage tabpage,
 //                                         Error *err) FUNC_API_SINCE(1) FUNC_API_TEXTLOCK;
 pub fn nvim_set_current_tabpage(tabpage: Tabpage, err: &mut Error) {
-    let Some(tp) = find_tab_by_handle(tabpage, err) else {
+    let Some(tp) = crate::api::private::helpers::find_tab_by_handle_mut(tabpage, err) else {
         return;
     };
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    goto_tabpage_tp(tp, true, true);
+    goto_tabpage_tp(Some(tp), true, true);
     try_leave(&tstate, err);
 }
 

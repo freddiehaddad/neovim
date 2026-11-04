@@ -1117,7 +1117,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                 }
             }
         } else {
-            if win_valid(wp_ptr) {
+            if win_valid(unsafe { wp_ptr.as_ref() }) {
                 if s.save_w_p_cuc != wp.w_onebuf_opt.wo_cuc {
                     redraw_later(Some(&mut *wp), UPD_SOME_VALID);
                 } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul != 0)

@@ -348,7 +348,7 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
     };
     set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
 
-    close_windows(buf_ptr, false);
+    close_windows(unsafe { buf_ptr.as_mut() }, false);
     if bufref_valid(Some(&bufref))
         && !ptr::eq(buf_ptr, g_st().curbuf)
         && unsafe { (*buf_ptr).b_nwindows } == 0

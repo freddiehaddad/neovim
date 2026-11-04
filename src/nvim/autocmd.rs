@@ -2310,7 +2310,7 @@ pub fn autocmd_register(
                 snapshot_windows_scroll_size();
             }
             unuse_tabpage(curtab_mut());
-            use_tabpage(save_curtab);
+            use_tabpage(unsafe { &mut *save_curtab });
         }
 
         std::rc::Rc::new(AutoPat {

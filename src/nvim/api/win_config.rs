@@ -371,14 +371,17 @@ pub fn nvim_open_win(
                 );
                 break 'cleanup;
             }
-            tp = win_find_tabpage(parent);
+            tp = win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
         }
         if is_split {
             if !check_split_disallowed_err(
-                if !parent.is_null() {
-                    parent
-                } else {
-                    curwin_ptr()
+                unsafe {
+                    (if !parent.is_null() {
+                        parent
+                    } else {
+                        curwin_ptr()
+                    })
+                    .as_ref()
                 },
                 err,
             ) {
@@ -411,7 +414,8 @@ pub fn nvim_open_win(
 
             try_wrap(err, || {
                 if parent.is_null() || parent == curwin_ptr() {
-                    wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
+                    wp = win_split_ins(size, flags, None, 0, None)
+                        .map_or(ptr::null_mut(), ptr::from_mut);
                 } else {
                     let mut switchwin: CtxSwitch = CtxSwitch::new();
                     let result = ctx_switch(
@@ -422,7 +426,8 @@ pub fn nvim_open_win(
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                     );
                     assert!(result);
-                    wp = win_split_ins(size, flags, ptr::null_mut(), 0, ptr::null_mut());
+                    wp = win_split_ins(size, flags, None, 0, None)
+                        .map_or(ptr::null_mut(), ptr::from_mut);
                     ctx_restore(&mut switchwin);
                 }
             });
@@ -483,13 +488,13 @@ pub fn nvim_open_win(
             if apply_autocmds_win(EVENT_WINNEW, None, None, false, curbuf_opt_mut(), unsafe {
                 wp.as_ref()
             }) {
-                tp = win_find_tabpage(wp);
+                tp = win_find_tabpage(unsafe { &*wp }).map_or(ptr::null_mut(), ptr::from_mut);
             }
             ctx_restore(&mut switchwin);
         }
         if !tp.is_null() && enter {
-            goto_tabpage_win(unsafe { &mut *tp }, wp);
-            tp = win_find_tabpage(wp);
+            goto_tabpage_win(unsafe { &mut *tp }, unsafe { &mut *wp });
+            tp = win_find_tabpage(unsafe { &*wp }).map_or(ptr::null_mut(), ptr::from_mut);
         }
         if !tp.is_null()
             && bufref_valid(Some(&bufref))
@@ -502,7 +507,7 @@ pub fn nvim_open_win(
             }
             win_set_buf(unsafe { &mut *wp }, b, err);
             if !fconfig.noautocmd {
-                tp = win_find_tabpage(wp);
+                tp = win_find_tabpage(unsafe { &*wp }).map_or(ptr::null_mut(), ptr::from_mut);
             }
             if au_no_enter_leave {
                 g_st().autocmd_no_enter -= 1;
@@ -571,9 +576,9 @@ fn win_can_move_tp(wp: &mut WinInfoInfo, tp: &mut TabPageInfo, err: &mut Error) 
     if one_window(
         wp,
         if &raw mut *tp == g_st().curtab {
-            ptr::null_mut()
+            None
         } else {
-            &raw mut *tp
+            Some(&*tp)
         },
     ) {
         api_set_error!(
@@ -618,13 +623,12 @@ fn win_find_altwin(
     } else {
         &raw mut *tp
     };
-    let ptr = if win.w_floating {
-        win_float_find_altwin(&*win, unsafe { tp_arg.as_ref() })
+    if win.w_floating {
+        Some(win_float_find_altwin(&*win, unsafe { tp_arg.as_ref() }))
     } else {
         let mut dir: i32 = 0;
-        winframe_find_altwin(&mut *win, &mut dir, tp_arg, ptr::null_mut())
-    };
-    unsafe { ptr.as_mut() }
+        winframe_find_altwin(&mut *win, &mut dir, unsafe { tp_arg.as_mut() }, None)
+    }
 }
 
 fn win_config_split(
@@ -673,10 +677,11 @@ fn win_config_split(
             if parent.is_null() {
                 return false;
             }
-            parent_tp = win_find_tabpage(parent);
+            parent_tp =
+                win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
         }
 
-        let mut win_tp = win_find_tabpage(&raw mut *win);
+        let mut win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
         if !parent.is_null() {
             if unsafe { (*parent).w_floating } {
                 api_set_error!(
@@ -691,7 +696,7 @@ fn win_config_split(
             }
         }
 
-        if !check_split_disallowed_err((&raw mut *win), err) {
+        if !check_split_disallowed_err(Some(&*win), err) {
             return false;
         }
 
@@ -704,7 +709,7 @@ fn win_config_split(
                 let altwin = win_find_altwin(win, unsafe { &mut *win_tp })
                     .map_or(ptr::null_mut(), ptr::from_mut);
                 assert!(!altwin.is_null());
-                win_goto(altwin);
+                win_goto(unsafe { &mut *altwin });
 
                 if curwin_ptr() == (&raw mut *win) {
                     api_set_error!(
@@ -715,8 +720,8 @@ fn win_config_split(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&raw mut *win);
-                if win_tp.is_null() || !win_valid_any_tab(parent) {
+                win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
+                if win_tp.is_null() || !win_valid_any_tab(unsafe { parent.as_ref() }) {
                     api_set_error!(
                         err,
                         ErrorType::ErrorTypeException,
@@ -735,7 +740,7 @@ fn win_config_split(
             }
 
             let mut dir: i32 = 0;
-            let mut unflat_altfr: *mut Frame = ptr::null_mut();
+            let mut unflat_altfr_opt: Option<&'static mut Frame> = None;
             let altwin: *mut WinInfoInfo;
 
             if was_split {
@@ -769,23 +774,25 @@ fn win_config_split(
                             win,
                             &mut dir,
                             if win_tp == g_st().curtab {
-                                ptr::null_mut()
+                                None
                             } else {
-                                win_tp
+                                unsafe { win_tp.as_mut() }
                             },
-                            &mut unflat_altfr,
-                        );
+                            Some(&mut unflat_altfr_opt),
+                        )
+                        .map_or(ptr::null_mut(), ptr::from_mut);
                     } else if n_frames == 2 {
                         altwin = winframe_remove(
                             win,
                             &mut dir,
                             if win_tp == g_st().curtab {
-                                ptr::null_mut()
+                                None
                             } else {
-                                win_tp
+                                unsafe { win_tp.as_mut() }
                             },
-                            &mut unflat_altfr,
-                        );
+                            Some(&mut unflat_altfr_opt),
+                        )
+                        .map_or(ptr::null_mut(), ptr::from_mut);
                         neighbor = altwin;
                     } else {
                         api_set_error!(
@@ -801,12 +808,13 @@ fn win_config_split(
                         win,
                         &mut dir,
                         if win_tp == g_st().curtab {
-                            ptr::null_mut()
+                            None
                         } else {
-                            win_tp
+                            unsafe { win_tp.as_mut() }
                         },
-                        &mut unflat_altfr,
-                    );
+                        Some(&mut unflat_altfr_opt),
+                    )
+                    .map_or(ptr::null_mut(), ptr::from_mut);
                 }
             } else {
                 altwin = win_float_find_altwin(
@@ -814,13 +822,14 @@ fn win_config_split(
                     (win_tp != g_st().curtab).then(|| unsafe { &*win_tp }),
                 );
             }
+            let unflat_altfr: *mut Frame = unflat_altfr_opt.map_or(ptr::null_mut(), ptr::from_mut);
 
             win_remove(
                 win,
                 if win_tp == g_st().curtab {
-                    ptr::null_mut()
+                    None
                 } else {
-                    win_tp
+                    unsafe { win_tp.as_mut() }
                 },
             );
             if win_tp == g_st().curtab {
@@ -830,11 +839,12 @@ fn win_config_split(
 
             let flags = win_split_flags(fconfig.split, parent.is_null()) | WSP_NOENTER;
             parent_tp = if !parent.is_null() {
-                win_find_tabpage(parent)
+                win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut)
             } else {
                 g_st().curtab
             };
 
+            let win_ptr: *mut WinInfoInfo = win;
             try_wrap(err, || {
                 let need_switch = !parent.is_null() && parent != curwin_ptr();
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -848,15 +858,18 @@ fn win_config_split(
                     );
                     assert!(result);
                 }
-                to_split_ok = !win_split_ins(0, flags, (&raw mut *win), 0, unflat_altfr).is_null();
+                to_split_ok = win_split_ins(0, flags, unsafe { win_ptr.as_mut() }, 0, unsafe {
+                    unflat_altfr.as_mut()
+                })
+                .is_some();
                 if !to_split_ok {
                     win_append(
-                        win.w_prev,
-                        (&raw mut *win),
+                        unsafe { (*win_ptr).w_prev.as_mut() },
+                        unsafe { &mut *win_ptr },
                         if win_tp == g_st().curtab {
-                            ptr::null_mut()
+                            None
                         } else {
-                            win_tp
+                            unsafe { win_tp.as_mut() }
                         },
                     );
                 }
@@ -885,8 +898,8 @@ fn win_config_split(
             break 'resize;
         }
 
-        if curwin_moving_tp && win_valid(&raw mut *win) {
-            win_goto(&raw mut *win);
+        if curwin_moving_tp && win_valid(Some(&*win)) {
+            win_goto(win);
         }
         return false;
     }
@@ -911,7 +924,7 @@ fn win_config_float_tp(
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
-    let mut win_tp = win_find_tabpage(&raw mut *win);
+    let mut win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
     let mut parent = (&raw mut *win);
     let mut parent_tp = win_tp;
     if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
@@ -919,7 +932,7 @@ fn win_config_float_tp(
         if parent.is_null() {
             return false;
         }
-        parent_tp = win_find_tabpage(parent);
+        parent_tp = win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
     }
 
     let mut curwin_moving_tp = false;
@@ -936,7 +949,7 @@ fn win_config_float_tp(
 
             if curwin_ptr() == (&raw mut *win) {
                 curwin_moving_tp = true;
-                win_goto(altwin);
+                win_goto(unsafe { &mut *altwin });
 
                 if curwin_ptr() == (&raw mut *win) {
                     api_set_error!(
@@ -947,8 +960,9 @@ fn win_config_float_tp(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&raw mut *win);
-                parent_tp = win_find_tabpage(parent);
+                win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
+                parent_tp =
+                    win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
 
                 if win_tp.is_null() || parent_tp.is_null() {
                     api_set_error!(
@@ -985,9 +999,9 @@ fn win_config_float_tp(
             win_remove(
                 win,
                 if win_tp == g_st().curtab {
-                    ptr::null_mut()
+                    None
                 } else {
-                    win_tp
+                    unsafe { win_tp.as_mut() }
                 },
             );
             let append_tp = if parent_tp == g_st().curtab {
@@ -995,7 +1009,11 @@ fn win_config_float_tp(
             } else {
                 parent_tp
             };
-            win_append(lastwin_nofloating(append_tp), (&raw mut *win), append_tp);
+            win_append(
+                Some(lastwin_nofloating(unsafe { append_tp.as_ref() })),
+                &mut *win,
+                unsafe { append_tp.as_mut() },
+            );
 
             if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == (&raw mut *win) {
                 unsafe { (*win_tp).tp_curwin = altwin };
@@ -1011,8 +1029,8 @@ fn win_config_float_tp(
         return true;
     }
 
-    if curwin_moving_tp && win_valid(&raw mut *win) {
-        win_goto(&raw mut *win);
+    if curwin_moving_tp && win_valid(Some(&*win)) {
+        win_goto(win);
     }
     false
 }

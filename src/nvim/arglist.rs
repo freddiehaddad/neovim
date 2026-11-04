@@ -858,7 +858,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
     let old_curtab = g_st().curtab;
 
     if aall.had_tab > 0 {
-        goto_tabpage_tp(g_st().first_tabpage, true, true);
+        goto_tabpage_tp(unsafe { g_st().first_tabpage.as_mut() }, true, true);
     }
 
     g_st().tabpage_move_disallowed += 1;
@@ -949,7 +949,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                     let mut bufref: Bufref = Bufref::new();
                     set_bufref(&mut bufref, Some(&mut *buf));
                     autowrite(&mut *buf, false);
-                    if !win_valid(wp) || !bufref_valid(Some(&bufref)) {
+                    if !win_valid(unsafe { wp.as_ref() }) || !bufref_valid(Some(&bufref)) {
                         wp = if lastwin_mut().w_floating {
                             g_st().lastwin
                         } else {
@@ -963,8 +963,9 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 {
                     aall.use_firstwin = true;
                 } else {
-                    win_close(wp, !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf), false);
-                    if !win_valid(wpnext) {
+                    let close_b = !buf_hide(&*buf) && !buf_is_changed_fn(&mut *buf);
+                    win_close(unsafe { &mut *wp }, close_b, false);
+                    if !win_valid(unsafe { wpnext.as_ref() }) {
                         wpnext = if lastwin_mut().w_floating {
                             g_st().lastwin
                         } else {
@@ -980,10 +981,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             break;
         }
 
-        if !valid_tabpage(tpnext) {
+        if !valid_tabpage(unsafe { tpnext.as_ref() }) {
             tpnext = g_st().first_tabpage;
         }
-        goto_tabpage_tp(tpnext, true, true);
+        goto_tabpage_tp(unsafe { tpnext.as_mut() }, true, true);
     }
     g_st().tabpage_move_disallowed -= 1;
 }
@@ -1074,7 +1075,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
         }
         os_breakcheck();
 
-        if aall.had_tab > 0 && (tabpage_index(ptr::null_mut()) as OptInt) <= opt_vars().p_tpm {
+        if aall.had_tab > 0 && (tabpage_index(None) as OptInt) <= opt_vars().p_tpm {
             g_st().cmdmod.cmod_tab = 9999;
         }
         i += 1;
@@ -1121,7 +1122,7 @@ fn do_arg_all(mut count: i32, forceit: i32, keep_tabs: bool) {
     g_st().autocmd_no_leave += 1;
     let last_curwin = curwin_ptr();
     let last_curtab = g_st().curtab;
-    win_enter(lastwin_nofloating(ptr::null_mut()), false);
+    win_enter(lastwin_nofloating(None), false);
 
     arg_all_open_windows(&mut aall, count);
 
@@ -1131,23 +1132,23 @@ fn do_arg_all(mut count: i32, forceit: i32, keep_tabs: bool) {
     g_st().autocmd_no_enter -= 1;
 
     if last_curtab != aall.new_curtab {
-        if valid_tabpage(last_curtab) {
-            goto_tabpage_tp(last_curtab, true, true);
+        if valid_tabpage(unsafe { last_curtab.as_ref() }) {
+            goto_tabpage_tp(unsafe { last_curtab.as_mut() }, true, true);
         }
-        if win_valid(last_curwin) {
-            win_enter(last_curwin, false);
+        if win_valid(unsafe { last_curwin.as_ref() }) {
+            win_enter(unsafe { &mut *last_curwin }, false);
         }
     }
-    if valid_tabpage(aall.new_curtab) {
-        goto_tabpage_tp(aall.new_curtab, true, true);
+    if valid_tabpage(unsafe { aall.new_curtab.as_ref() }) {
+        goto_tabpage_tp(unsafe { aall.new_curtab.as_mut() }, true, true);
     }
 
-    if valid_tabpage(new_lu_tp) {
+    if valid_tabpage(unsafe { new_lu_tp.as_ref() }) {
         g_st().lastused_tabpage = new_lu_tp;
     }
 
-    if win_valid(aall.new_curwin) {
-        win_enter(aall.new_curwin, false);
+    if win_valid(unsafe { aall.new_curwin.as_ref() }) {
+        win_enter(unsafe { &mut *aall.new_curwin }, false);
     }
 
     g_st().autocmd_no_leave -= 1;

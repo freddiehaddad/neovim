@@ -3700,7 +3700,7 @@ pub fn find_pattern_in_path(
                                 if !stop_fpip_loop {
                                     if depth == -1 {
                                         if l_g_do_tagpreview != 0 {
-                                            if !win_valid(curwin_save)
+                                            if !win_valid(unsafe { curwin_save.as_ref() })
                                                 || !getfile_success(getfile(
                                                     unsafe { (*curwin_save).buf_mut().b_fnum },
                                                     None,
@@ -3744,11 +3744,11 @@ pub fn find_pattern_in_path(
 
                                 if l_g_do_tagpreview != 0
                                     && curwin_ptr() != curwin_save
-                                    && win_valid(curwin_save)
+                                    && win_valid(unsafe { curwin_save.as_ref() })
                                 {
                                     validate_cursor(curwin_mut());
                                     redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                                    win_enter(curwin_save, true);
+                                    win_enter(unsafe { &mut *curwin_save }, true);
                                 }
                                 stop_fpip_loop = true;
                             }

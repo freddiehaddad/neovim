@@ -496,7 +496,7 @@ fn atom_origin_changed(origin: CmdOrigin) -> bool {
 #[inline]
 fn atom_origin_moved(origin: CmdOrigin) -> bool {
     bufref_valid(Some(&origin.buf))
-        && win_valid(origin.win)
+        && win_valid(unsafe { origin.win.as_ref() })
         && unsafe { origin.win.as_ref() }
             .is_some_and(|w| w.w_buffer == origin.buf.br_buf && !equalpos(origin.pos, w.w_cursor))
 }

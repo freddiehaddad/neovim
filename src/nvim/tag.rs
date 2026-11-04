@@ -2801,7 +2801,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
             && (opt_vars().swb_flags & (K_OPT_SWB_FLAG_USEOPEN | K_OPT_SWB_FLAG_USETAB)) != 0
             && let Some(existing_buf) =
                 buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fname.cast()))
-            && !swbuf_goto_win_with_buf(existing_buf).is_null()
+            && swbuf_goto_win_with_buf(Some(existing_buf)).is_some()
         {
             getfile_result = GETFILE_SAME_FILE;
         }
@@ -2812,7 +2812,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 g_st().cmdmod.cmod_split |= WSP_VERT;
             }
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_NEWTAB) != 0 && g_st().cmdmod.cmod_tab == 0 {
-                g_st().cmdmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
+                g_st().cmdmod.cmod_tab = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
             }
             if !win_split(
                 if g_st().postponed_split > 0 {
@@ -3021,17 +3021,20 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: i32, keep_help: bool) -> i32 {
                 }
             }
 
-            if l_g_do_tagpreview != 0 && curwin_ptr() != curwin_save && win_valid(curwin_save) {
+            if l_g_do_tagpreview != 0
+                && curwin_ptr() != curwin_save
+                && win_valid(unsafe { curwin_save.as_ref() })
+            {
                 validate_cursor(curwin_mut());
                 redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-                win_enter(curwin_save, true);
+                win_enter(unsafe { &mut *curwin_save }, true);
             }
 
             g_st().redrawing_disabled -= 1;
         } else {
             g_st().redrawing_disabled -= 1;
             if g_st().postponed_split != 0 {
-                win_close(curwin_ptr(), false, false);
+                win_close(curwin_mut(), false, false);
                 g_st().postponed_split = 0;
             }
         }

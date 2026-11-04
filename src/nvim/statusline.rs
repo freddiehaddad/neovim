@@ -815,11 +815,10 @@ pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
 
 pub fn redraw_ruler() {
     let wp = if !curwin_mut().w_config.hide && curwin_mut().w_status_height == 0 {
-        curwin_ptr()
+        curwin_mut()
     } else {
-        lastwin_nofloating(ptr::null_mut())
+        lastwin_nofloating(None)
     };
-    let wp = unsafe { &mut *wp };
     let is_stl_global = global_stl_height() > 0;
 
     let part_of_status = wp.w_status_height != 0 || is_stl_global;

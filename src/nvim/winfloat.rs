@@ -56,14 +56,14 @@ pub fn win_new_float(
         debug_assert!(!last);
         debug_assert!(!wp.w_floating);
 
-        let win_tp = win_find_tabpage(wp);
+        let win_tp = win_find_tabpage(wp).map_or(ptr::null_mut(), ptr::from_mut);
         debug_assert!(!win_tp.is_null());
         if (win_tp == g_st().curtab
             && ptr::eq(g_st().firstwin, wp)
-            && ptr::eq(lastwin_nofloating(ptr::null_mut()), wp))
+            && ptr::eq(lastwin_nofloating(None), wp))
             || win_tp != g_st().curtab
                 && ptr::eq(unsafe { (*win_tp).tp_firstwin }, wp)
-                && ptr::eq(lastwin_nofloating(win_tp), wp)
+                && ptr::eq(lastwin_nofloating(unsafe { win_tp.as_ref() }), wp)
         {
             api_set_error!(
                 err,
@@ -79,7 +79,7 @@ pub fn win_new_float(
         };
         let mut dir: i32 = 0;
 
-        winframe_remove(wp, &mut dir, tp, ptr::null_mut());
+        winframe_remove(wp, &mut dir, unsafe { tp.as_mut() }, None);
 
         if !wp.w_frame.is_null() {
             drop(unsafe { Box::from_raw(wp.w_frame) });
@@ -87,19 +87,20 @@ pub fn win_new_float(
 
         wp.w_frame = ptr::null_mut();
 
-        win_remove(wp, tp);
+        win_remove(wp, unsafe { tp.as_mut() });
 
         if win_tp == g_st().curtab {
             last_status(false);
             win_comp_pos();
         }
-        win_append(lastwin_nofloating(tp), wp, tp);
+        let prev = lastwin_nofloating(unsafe { tp.as_ref() });
+        win_append(Some(prev), wp, unsafe { tp.as_mut() });
         wp
     } else {
-        let mut tp_last = if last {
+        let mut tp_last: *mut WinInfoInfo = if last {
             g_st().lastwin
         } else {
-            lastwin_nofloating(ptr::null_mut())
+            lastwin_nofloating(None)
         };
         if fconfig.window != 0 {
             debug_assert!(!last);
@@ -107,17 +108,15 @@ pub fn win_new_float(
             if parent_wp.is_null() {
                 return None;
             }
-            let tp = win_find_tabpage(parent_wp);
-            if tp.is_null() {
-                return None;
-            }
+            let tp_ref = win_find_tabpage(unsafe { &*parent_wp })?;
+            let tp: *mut TabPageInfo = tp_ref;
             tp_last = lastwin_nofloating(if tp == g_st().curtab {
-                ptr::null_mut()
+                None
             } else {
-                tp
+                unsafe { tp.as_ref() }
             });
         }
-        let wp = win_alloc(tp_last, false);
+        let wp = win_alloc(unsafe { tp_last.as_mut() }, false);
         win_init(wp, curwin_mut(), 0);
         if !wp.w_onebuf_opt.wo_wbr.is_null() && fconfig.height == 1 {
             wp.w_onebuf_opt.wo_wbr.clear_option_str();
@@ -337,7 +336,7 @@ pub fn win_float_remove(bang: bool, mut count: i32) {
         float_win_arr.sort_unstable_by_key(|&w| std::cmp::Reverse(unsafe { (*w).w_config.zindex }));
     }
     for w in float_win_arr {
-        if win_valid(w) && !win_close(w, false, false) {
+        if win_valid(unsafe { w.as_ref() }) && !win_close(unsafe { &mut *w }, false, false) {
             break;
         }
         if !bang {
@@ -398,7 +397,7 @@ pub fn win_float_find_altwin(
     tp: Option<&TabPageInfo>,
 ) -> &'static mut WinInfoInfo {
     let Some(tp) = tp else {
-        return if win_valid(g_st().prevwin)
+        return if win_valid(unsafe { g_st().prevwin.as_ref() })
             && let Some(wp) = prevwin_opt()
             && !ptr::eq(wp, win)
             && wp.w_config.focusable
@@ -411,7 +410,7 @@ pub fn win_float_find_altwin(
     };
 
     debug_assert!(!ptr::eq(tp, g_st().curtab));
-    let wp = if tabpage_win_valid(tp, tp.tp_prevwin) {
+    let wp = if tabpage_win_valid(Some(tp), unsafe { tp.tp_prevwin.as_ref() }) {
         tp.tp_prevwin
     } else {
         tp.tp_firstwin
@@ -438,9 +437,8 @@ fn win_float_special_fail(
         api_clear_error(err);
     }
     if let Some(wp) = wp {
-        let wp_ptr = ptr::from_mut(wp);
-        win_remove(wp, ptr::null_mut());
-        win_free(wp_ptr, ptr::null_mut());
+        win_remove(wp, None);
+        win_free(wp, None);
     }
     unblock_autocmds();
     None

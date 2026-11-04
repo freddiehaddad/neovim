@@ -7051,7 +7051,7 @@ pub fn parse_command_modifiers(
                             return false;
                         }
                         if tabnr == MAXLNUM {
-                            cmod.cmod_tab = tabpage_index(g_st().curtab) + 1;
+                            cmod.cmod_tab = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
                         } else {
                             if tabnr < 0 || tabnr > current_tab_nr(None) {
                                 *errormsg = Some(gettext(E_INVRANGE));
@@ -8803,8 +8803,8 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 if crate::memory::cstr_as_bytes(p) == b"$" {
                     tab_number = last_tab;
                 } else if crate::memory::cstr_as_bytes(p) == b"#" {
-                    if valid_tabpage(g_st().lastused_tabpage) {
-                        tab_number = tabpage_index(g_st().lastused_tabpage);
+                    if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
+                        tab_number = tabpage_index(unsafe { g_st().lastused_tabpage.as_ref() });
                     } else {
                         eap.errmsg = Some(ex_errmsg(
                             E_INVARGVAL,
@@ -8832,7 +8832,8 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     eap.errmsg = Some(ex_errmsg(E_INVARG2, crate::memory::cstr_from_ptr(eap.arg)));
                     break 'theend;
                 }
-                tab_number = tab_number * relative + tabpage_index(g_st().curtab);
+                tab_number =
+                    tab_number * relative + tabpage_index(unsafe { g_st().curtab.as_ref() });
                 if unaccept_arg0 == 0 && relative == -1 {
                     tab_number -= 1;
                 }
@@ -8862,14 +8863,14 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                 }
             }
         } else if eap.cmdidx == Cmdidx::CmdTabnextVariant as i32 {
-            tab_number = tabpage_index(g_st().curtab) + 1;
+            tab_number = tabpage_index(unsafe { g_st().curtab.as_ref() }) + 1;
             if tab_number > last_tab {
                 tab_number = 1;
             }
         } else if eap.cmdidx == Cmdidx::CmdTabmove as i32 {
             tab_number = last_tab;
         } else {
-            tab_number = tabpage_index(g_st().curtab);
+            tab_number = tabpage_index(unsafe { g_st().curtab.as_ref() });
         }
     }
 
@@ -9104,7 +9105,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
         unsafe { wp.as_ref() },
     );
 
-    if !win_valid(wp)
+    if !win_valid(unsafe { wp.as_ref() })
         || curbuf_locked()
         || unsafe { (*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0 }
     {
@@ -9114,7 +9115,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
 
     if quit_all || (check_more(false, forceit) && only_one_window()) {
         apply_autocmds(EVENT_EXITPRE, None, None, false, curbuf_opt_mut());
-        if !win_valid(wp)
+        if !win_valid(unsafe { wp.as_ref() })
             || curbuf_locked()
             || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
         {
@@ -9176,7 +9177,7 @@ fn ex_quit(eap: &mut Exarg) {
         }
         not_exiting(save_exiting);
         let close_buf = !buf_hide(wp.borrow().buf_mut()) || eap.forceit != 0;
-        win_close(wp.as_ptr(), close_buf, eap.forceit != 0);
+        win_close(wp.borrow_mut(), close_buf, eap.forceit != 0);
     }
 }
 
@@ -9712,18 +9713,11 @@ pub fn ex_win_close(forceit: i32, win: &mut WinInfoInfo, tp_in: Option<&mut TabP
     }
 
     if tp.is_null() {
-        win_close(
-            &raw mut *win,
-            !need_hide && !buf_hide(win.buf_mut()),
-            forceit != 0,
-        );
+        let close_b = !need_hide && !buf_hide(win.buf_mut());
+        win_close(win, close_b, forceit != 0);
     } else {
-        win_close_othertab(
-            &raw mut *win,
-            i32::from(!need_hide && !buf_hide(win.buf_mut())),
-            tp,
-            forceit != 0,
-        );
+        let close_b = i32::from(!need_hide && !buf_hide(win.buf_mut()));
+        win_close_othertab(win, close_b, unsafe { &mut *tp }, forceit != 0);
     }
 }
 
@@ -9742,13 +9736,12 @@ fn ex_tabclose(eap: &mut Exarg) {
         return;
     }
 
-    let tp = find_tabpage(tab_number);
-    if tp.is_null() {
+    let Some(tp) = find_tabpage(tab_number) else {
         beep_flush();
         return;
-    }
-    if tp != g_st().curtab {
-        tabpage_close_other(unsafe { &mut *tp }, eap.forceit);
+    };
+    if !ptr::eq(tp, g_st().curtab) {
+        tabpage_close_other(tp, eap.forceit);
     } else if !text_locked() && !curbuf_locked() {
         tabpage_close(eap.forceit);
     }
@@ -9774,8 +9767,9 @@ fn ex_tabonly(eap: &mut Exarg) {
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
             if tp.tp_topframe != g_st().topframe.cast() {
-                tabpage_close_other(&mut *tp, eap.forceit);
-                if valid_tabpage(tp) {
+                let tp_ptr: *mut TabPageInfo = tp;
+                tabpage_close_other(unsafe { &mut *tp_ptr }, eap.forceit);
+                if valid_tabpage(unsafe { tp_ptr.as_ref() }) {
                     done = 1000;
                 }
                 break;
@@ -9795,7 +9789,7 @@ pub fn tabpage_close(forceit: i32) {
         return;
     }
 
-    trigger_tabclosedpre(g_st().curtab);
+    trigger_tabclosedpre(curtab_mut());
     curtab_mut().tp_did_tabclosedpre = true;
     let save_curtab = g_st().curtab;
 
@@ -9845,7 +9839,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: i32) {
             prev_idx.as_mut_ptr().cast(),
             NUMBUFLEN,
             c"%i",
-            tabpage_index(tp),
+            tabpage_index(unsafe { tp.as_ref() }),
         );
         let wp = unsafe { (*tp).tp_lastwin };
 
@@ -9856,7 +9850,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: i32) {
 
         ex_win_close(forceit, unsafe { &mut *wp }, Some(unsafe { &mut *tp }));
 
-        if !valid_tabpage(tp) {
+        if !valid_tabpage(unsafe { tp.as_ref() }) {
             break;
         }
 
@@ -9865,7 +9859,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: i32) {
             break;
         }
     }
-    if done >= 1000 && valid_tabpage(tp) {
+    if done >= 1000 && valid_tabpage(unsafe { tp.as_ref() }) {
         unsafe {
             (*tp).tp_did_tabclosedpre = false;
         }
@@ -9911,7 +9905,7 @@ fn ex_hide(eap: &mut Exarg) {
         return;
     }
 
-    win_close(win, false, eap.forceit != 0);
+    win_close(unsafe { &mut *win }, false, eap.forceit != 0);
 }
 
 fn ex_stop(eap: &mut Exarg) {
@@ -9944,11 +9938,8 @@ fn ex_exit(eap: &mut Exarg) {
             getout(0);
         }
         not_exiting(save_exiting);
-        win_close(
-            curwin_ptr(),
-            !buf_hide(curwin_mut().buf_mut()),
-            eap.forceit != 0,
-        );
+        let close_b = !buf_hide(curwin_mut().buf_mut());
+        win_close(curwin_mut(), close_b, eap.forceit != 0);
     }
 }
 
@@ -10180,12 +10171,14 @@ pub fn ex_splitview(eap: &mut Exarg) {
             } else {
                 eap.line2 + 1
             };
-            if !win_new_tabpage(after, eap.arg, true, ptr::null_mut()).is_null() {
+            if win_new_tabpage(after, crate::memory::cstr_as_opt_cstr(eap.arg), true, None)
+                .is_some()
+            {
                 do_exedit(eap, unsafe { old_curwin.as_mut() });
                 apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
 
                 if curwin_ptr() != old_curwin
-                    && win_valid(old_curwin)
+                    && win_valid(unsafe { old_curwin.as_ref() })
                     && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
@@ -10273,7 +10266,7 @@ fn ex_tabs(_eap: &mut Exarg) {
     msg_start();
     g_st().msg_scroll = i32::from(true);
 
-    let lastused_win = if valid_tabpage(g_st().lastused_tabpage) {
+    let lastused_win = if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
         unsafe { (*g_st().lastused_tabpage).tp_curwin }
     } else {
         ptr::null_mut()
@@ -10614,7 +10607,8 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
                 if !need_hide || buf_hide(curbuf_mut()) {
                     let mut cs: ExCleanup = ExCleanup::new();
                     enter_cleanup(&mut cs);
-                    win_close(curwin_ptr(), !need_hide && !buf_hide(curbuf_mut()), false);
+                    let close_b = !need_hide && !buf_hide(curbuf_mut());
+                    win_close(curwin_mut(), close_b, false);
                     leave_cleanup(&mut cs);
                 }
             }
@@ -10636,7 +10630,7 @@ pub fn do_exedit(eap: &mut Exarg, old_curwin_in: Option<&mut WinInfoInfo>) {
     if !old_curwin.is_null()
         && !crate::memory::cstr_is_empty(eap.arg)
         && curwin_ptr() != old_curwin
-        && win_valid(old_curwin)
+        && win_valid(unsafe { old_curwin.as_ref() })
         && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
         && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
     {
@@ -11917,7 +11911,7 @@ fn prepare_preview_window() {
 
 fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
     let curwin_save = curwin_save.map_or(ptr::null_mut(), ptr::from_mut);
-    if curwin_ptr() != curwin_save && win_valid(curwin_save) {
+    if curwin_ptr() != curwin_save && win_valid(unsafe { curwin_save.as_ref() }) {
         validate_cursor(curwin_mut());
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
         win_enter(unsafe { &mut *curwin_save }, true);

@@ -8656,15 +8656,12 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
     let mut wp: *mut WinInfoInfo = ptr::null_mut();
     if argvars[0].v_type == VarType::VarUnknown {
         wp = g_st().firstwin;
-    } else {
-        let tp = find_tabpage(tv_get_number(&argvars[0]) as i32);
-        if !tp.is_null() {
-            wp = if tp == g_st().curtab {
-                g_st().firstwin
-            } else {
-                unsafe { (*tp).tp_firstwin }
-            };
-        }
+    } else if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
+        wp = if ptr::eq(tp, g_st().curtab) {
+            g_st().firstwin
+        } else {
+            tp.tp_firstwin
+        };
     }
     if !wp.is_null() {
         tv_list_alloc_ret(rettv, K_LIST_LEN_MAY_KNOW_CONST);

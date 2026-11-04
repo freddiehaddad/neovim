@@ -280,7 +280,7 @@ pub fn nvim_win_get_tabpage(win: Window, err: &mut Error) -> Tabpage {
     let mut rv: Tabpage = 0;
     let w = find_window_by_handle(win, err);
     if !w.is_null() {
-        rv = unsafe { (*win_find_tabpage(w)).handle };
+        rv = win_find_tabpage(unsafe { &*w }).unwrap().handle;
     }
     rv
 }
@@ -331,14 +331,14 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         return;
     }
 
-    let tabpage = win_find_tabpage(w);
+    let tabpage = win_find_tabpage(unsafe { &*w }).map_or(std::ptr::null_mut(), std::ptr::from_mut);
     try_wrap(err, || {
         if is_ctx_win(unsafe { &*w }) {
             emsg(gettext(E_AUTOCMD_CLOSE));
         } else if tabpage == g_st().curtab {
-            win_close(w, false, false);
+            win_close(unsafe { &mut *w }, false, false);
         } else {
-            win_close_othertab(w, 0, tabpage, false);
+            win_close_othertab(unsafe { &mut *w }, 0, unsafe { &mut *tabpage }, false);
         }
     });
 }
@@ -358,7 +358,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         return;
     };
 
-    let tabpage = win_find_tabpage(&raw mut *w);
+    let tabpage = win_find_tabpage(&*w).map_or(std::ptr::null_mut(), std::ptr::from_mut);
     try_wrap(err, || {
         ex_win_close(
             i32::from(force),
@@ -390,7 +390,7 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
     if w.is_null() {
         return OBJECT_NIL;
     }
-    let tabpage = win_find_tabpage(w);
+    let tabpage = win_find_tabpage(unsafe { &*w }).map_or(std::ptr::null_mut(), std::ptr::from_mut);
 
     try_wrap_err(err, |err| {
         let mut cs: CtxSwitch = CtxSwitch::new();

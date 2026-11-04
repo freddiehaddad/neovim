@@ -2991,7 +2991,7 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
     curwin_mut().w_onebuf_opt.wo_spell = 0;
     curwin_mut().w_onebuf_opt.wo_fen = 0;
 
-    win_enter(save_curwin, false);
+    win_enter(unsafe { &mut *save_curwin }, false);
     unsafe { preview_win.as_mut() }
 }
 
@@ -3003,7 +3003,7 @@ fn cmdpreview_close_win() {
         ptr::null_mut()
     };
     if !buf.is_null() {
-        close_windows(buf, false);
+        close_windows(unsafe { buf.as_mut() }, false);
     }
 }
 
@@ -4502,7 +4502,7 @@ pub fn compute_cmdrow() {
     if g_st().msg_scrolled != 0 {
         g_st().cmdline_row = g_st().rows_global - 1;
     } else {
-        let wp = lastwin_nofloating(ptr::null_mut());
+        let wp = lastwin_nofloating(None);
         g_st().cmdline_row =
             wp.w_winrow + wp.w_height + wp.w_hsep_height + wp.w_status_height + global_stl_height();
     }

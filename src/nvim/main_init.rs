@@ -2049,7 +2049,7 @@ fn create_windows(parmp: &mut Mparm) {
         }
         if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
-        } else if parmp.window_count > 1 || !win_valid(startup_curwin) {
+        } else if parmp.window_count > 1 || !win_valid(unsafe { startup_curwin.as_ref() }) {
             set_curwin(g_st().firstwin);
         } else {
             set_curwin(startup_curwin);
@@ -2068,7 +2068,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     g_st().autocmd_no_leave += 1;
 
     if curwin_mut().w_arg_idx == -1 {
-        win_close(curwin_ptr(), true, false);
+        win_close(curwin_mut(), true, false);
         advance = false;
     }
 
@@ -2076,7 +2076,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     for i in 1..parmp.window_count {
         if curwin_mut().w_arg_idx == -1 {
             arg_idx += 1;
-            win_close(curwin_ptr(), true, false);
+            win_close(curwin_mut(), true, false);
             advance = false;
             continue;
         }
@@ -2101,7 +2101,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                 if curwin_mut().w_next.is_null() {
                     break;
                 }
-                win_enter(curwin_mut().w_next, false);
+                win_enter(unsafe { &mut *curwin_mut().w_next }, false);
             }
         }
         advance = true;
@@ -2129,7 +2129,7 @@ fn edit_buffers(parmp: &mut Mparm) {
                     ui_call_error_exit(1);
                     getout(1);
                 }
-                win_close(curwin_ptr(), true, false);
+                win_close(curwin_mut(), true, false);
                 advance = false;
             }
             if arg_idx == gargcount() - 1 {
@@ -2169,12 +2169,12 @@ fn edit_buffers(parmp: &mut Mparm) {
             break;
         }
     }
-    win_enter(win, false);
+    win_enter(unsafe { &mut *win }, false);
 
     g_st().autocmd_no_leave -= 1;
     time_msg_if_enabled(c"editing files in windows");
     if parmp.window_count > 1 && parmp.window_layout != WIN_TABS {
-        win_equal(curwin_ptr(), false, b'b' as i32);
+        win_equal(Some(curwin_mut()), false, b'b' as i32);
     }
 }
 

@@ -912,7 +912,7 @@ fn getcwd_scope_args(
 
     // Find the tabpage by number.
     if argv[K_TAB_ARG] > 0 {
-        *tp = unsafe { find_tabpage(argv[K_TAB_ARG]).as_mut() };
+        *tp = find_tabpage(argv[K_TAB_ARG]);
 
         if tp.is_none() {
             emsg(gettext(c"E5000: Cannot find tab number."));

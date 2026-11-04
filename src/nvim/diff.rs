@@ -1331,7 +1331,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
                 eap.cmdidx = CMD_SPLIT;
                 eap.arg = tmp_new;
                 do_exedit(eap, unsafe { old_curwin.as_mut() });
-                if curwin_ptr() != old_curwin && win_valid(old_curwin) {
+                if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
                     diff_win_options(curwin_mut(), true);
                     diff_win_options(unsafe { &mut *old_curwin }, true);
                     if !newname_vec.is_empty() {
@@ -1380,7 +1380,7 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
         return;
     }
     diff_win_options(curwin_mut(), true);
-    if win_valid(old_curwin) {
+    if win_valid(unsafe { old_curwin.as_ref() }) {
         let old_curwin = unsafe { &mut *old_curwin };
         diff_win_options(old_curwin, true);
         if bufref_valid(Some(&old_curbuf))

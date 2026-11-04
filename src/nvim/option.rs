@@ -2758,7 +2758,7 @@ pub fn did_set_eof_eol_fixeol_bomb(_args: &mut Optset) -> Option<&CStr> {
 /// Process the updated 'equalalways' option value.
 pub fn did_set_equalalways(args: &mut Optset) -> Option<&CStr> {
     if opt_vars().p_ea != 0 && !args.os_oldval.data.boolean() {
-        win_equal(args.os_win, false, 0);
+        win_equal(unsafe { args.os_win.as_ref() }, false, 0);
     }
     None
 }
@@ -3072,7 +3072,7 @@ pub fn validate_previewwindow(args: &mut Optset) -> Option<&CStr> {
     let tab = if win == curwin_ptr() {
         g_st().curtab
     } else {
-        win_find_tabpage(win)
+        win_find_tabpage(unsafe { &*win }).map_or(ptr::null_mut(), ptr::from_mut)
     };
     for wp in for_all_windows_in_tab_ptr(unsafe { &*tab }) {
         if !std::ptr::eq(wp, win) && wp.w_onebuf_opt.wo_pvw != 0 {
@@ -5907,10 +5907,11 @@ fn switch_option_context(
                 return false;
             }
             let mut cs = CtxSwitch::new();
+            let tab = unsafe { win.as_ref() }.and_then(win_find_tabpage);
             if !ctx_switch(
                 &mut cs,
                 unsafe { win.as_mut() },
-                unsafe { win_find_tabpage(win).as_mut() },
+                tab,
                 None,
                 K_CTX_NO_DISPLAY,
             ) {
@@ -5948,7 +5949,7 @@ fn switch_option_context(
             }
             *ctx = OptSavedCtx::Tab(g_st().curtab);
             unuse_tabpage(curtab_mut());
-            use_tabpage(tab);
+            use_tabpage(unsafe { &mut *tab });
             true
         }
         _ => unreachable!(),
@@ -5963,7 +5964,7 @@ fn restore_option_context(ctx: &mut OptSavedCtx, scope: OptScope) {
         }
         (K_OPT_SCOPE_TAB, OptSavedCtx::Tab(saved_curtab)) => {
             unuse_tabpage(curtab_mut());
-            use_tabpage(*saved_curtab);
+            use_tabpage(unsafe { &mut **saved_curtab });
         }
         _ => {}
     }

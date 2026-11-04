@@ -250,11 +250,7 @@ pub fn find_tabwin(wvp: &TypVal, tvp: &TypVal) -> Option<&'static mut WinInfoInf
     if wvp.v_type != VarType::VarUnknown {
         let tp = if tvp.v_type != VarType::VarUnknown {
             let n = tv_get_number(tvp) as i32;
-            if n >= 0 {
-                unsafe { find_tabpage(n).as_mut() }
-            } else {
-                None
-            }
+            if n >= 0 { find_tabpage(n) } else { None }
         } else {
             Some(curtab_mut())
         };
@@ -337,13 +333,17 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                     let tail = rem;
                     let twin_ref = unsafe { &mut *twin };
                     if tail == b"j" {
-                        twin = win_vert_neighbor(tp, twin_ref, false, count);
+                        twin = win_vert_neighbor(tp, twin_ref, false, count)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
                     } else if tail == b"k" {
-                        twin = win_vert_neighbor(tp, twin_ref, true, count);
+                        twin = win_vert_neighbor(tp, twin_ref, true, count)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
                     } else if tail == b"h" {
-                        twin = win_horz_neighbor(tp, twin_ref, true, count);
+                        twin = win_horz_neighbor(tp, twin_ref, true, count)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
                     } else if tail == b"l" {
-                        twin = win_horz_neighbor(tp, twin_ref, false, count);
+                        twin = win_horz_neighbor(tp, twin_ref, false, count)
+                            .map_or(ptr::null_mut(), ptr::from_mut);
                     } else {
                         invalid_arg = true;
                     }
@@ -457,7 +457,8 @@ pub fn f_gettabinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     );
 
     if argvars[0].v_type != VarType::VarUnknown {
-        tparg = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32);
+        tparg = find_tabpage(tv_get_number_chk(&argvars[0], None) as i32)
+            .map_or(ptr::null_mut(), ptr::from_mut);
         if tparg.is_null() {
             return;
         }
@@ -534,10 +535,10 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         if let Some(arg) = tv_get_string_chk(&argvars[0]) {
             let bytes = arg.to_bytes();
             if bytes == b"$" {
-                nr = tabpage_index(ptr::null_mut()) - 1;
+                nr = tabpage_index(None) - 1;
             } else if bytes == b"#" {
-                nr = if valid_tabpage(g_st().lastused_tabpage) {
-                    tabpage_index(g_st().lastused_tabpage)
+                nr = if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
+                    tabpage_index(unsafe { g_st().lastused_tabpage.as_ref() })
                 } else {
                     0
                 };
@@ -546,18 +547,17 @@ pub fn f_tabpagenr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             }
         }
     } else {
-        nr = tabpage_index(g_st().curtab);
+        nr = tabpage_index(unsafe { g_st().curtab.as_ref() });
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }
 
 /// `tabpagewinnr()` function (`f_tabpagewinnr`).
 pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let tp = find_tabpage(tv_get_number(&argvars[0]) as i32);
-    let nr = if tp.is_null() {
-        0
+    let nr = if let Some(tp) = find_tabpage(tv_get_number(&argvars[0]) as i32) {
+        get_winnr(tp, &mut argvars[1])
     } else {
-        get_winnr(unsafe { &mut *tp }, &mut argvars[1])
+        0
     };
     rettv.vval = crate::eval::typval::TypvalVval::Number(nr as Varnumber);
 }
@@ -645,7 +645,7 @@ pub fn f_win_move_separator(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: E
     if wp.w_floating {
         return;
     }
-    if !win_valid(wp) {
+    if !win_valid(Some(&*wp)) {
         emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
         return;
     }
@@ -665,7 +665,7 @@ pub fn f_win_move_statusline(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: 
     if wp.w_floating {
         return;
     }
-    if !win_valid(wp) {
+    if !win_valid(Some(&*wp)) {
         emsg(gettext(E_CANNOT_RESIZE_WINDOW_IN_ANOTHER_TAB_PAGE));
         return;
     }
@@ -701,8 +701,8 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     if wp.is_null()
         || targetwin.is_null()
         || wp == targetwin
-        || !win_valid(wp)
-        || !win_valid(targetwin)
+        || !win_valid(unsafe { wp.as_ref() })
+        || !win_valid(unsafe { targetwin.as_ref() })
         || unsafe { (*targetwin).w_floating }
     {
         emsg(gettext(E_INVALWINDOW));
@@ -731,24 +731,27 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         size = tv_dict_get_number(d.as_deref(), c"size") as i32;
     }
 
-    if is_ctx_win(unsafe { &*wp }) || text_or_buf_locked() || !check_split_disallowed(wp) {
+    if is_ctx_win(unsafe { &*wp })
+        || text_or_buf_locked()
+        || !check_split_disallowed(unsafe { wp.as_ref() })
+    {
         return;
     }
 
     if curwin_ptr() != targetwin {
-        win_goto(targetwin);
+        win_goto(unsafe { &mut *targetwin });
     }
 
-    if curwin_ptr() == targetwin && win_valid(wp) {
-        if win_splitmove(wp, size, flags) {
+    if curwin_ptr() == targetwin && win_valid(unsafe { wp.as_ref() }) {
+        if win_splitmove(unsafe { &mut *wp }, size, flags) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     } else {
         emsg(gettext(E_AUABORT));
     }
 
-    if oldwin != curwin_ptr() && win_valid(oldwin) {
-        win_goto(oldwin);
+    if oldwin != curwin_ptr() && win_valid(unsafe { oldwin.as_ref() }) {
+        win_goto(unsafe { &mut *oldwin });
     }
 }
 
@@ -821,8 +824,7 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let tp = if argvars[0].v_type == VarType::VarUnknown {
         curtab_mut()
     } else {
-        let Some(found) = (unsafe { find_tabpage(tv_get_number(&argvars[0]) as i32).as_mut() })
-        else {
+        let Some(found) = find_tabpage(tv_get_number(&argvars[0]) as i32) else {
             return;
         };
         found

@@ -1722,7 +1722,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                     let _ = spell_load_file(fname_cstr.as_c_str(), Some(&mut lang), None, false);
                 } else {
                     spell_load_lang(crate::memory::cstr_until_nul(&lang));
-                    if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(&raw mut *wp) {
+                    if !bufref_valid(Some(&bufref)) || !win_valid_any_tab(Some(wp)) {
                         ret_msg = Some(c"E797: SpellFileMissing autocommand deleted buffer");
                         break 'theend;
                     }

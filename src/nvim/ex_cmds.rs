@@ -2759,7 +2759,7 @@ pub fn do_ecmd(
 
         reset_visual();
 
-        if !oldwin.is_null() && !win_valid(oldwin) {
+        if !oldwin.is_null() && !win_valid(unsafe { oldwin.as_ref() }) {
             oldwin = ptr::null_mut();
         }
 
@@ -2899,7 +2899,7 @@ pub fn do_ecmd(
                         !oldwin.is_null(),
                     );
 
-                    if win_valid(the_curwin) {
+                    if win_valid(unsafe { the_curwin.as_ref() }) {
                         unsafe {
                             (*the_curwin).w_locked -= 1;
                         }

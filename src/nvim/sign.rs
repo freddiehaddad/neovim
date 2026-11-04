@@ -739,7 +739,7 @@ fn sign_jump(id: i32, group: Option<&CStr>, buf: &mut FileBuf) -> Linenr {
         return -1;
     }
 
-    if !buf_jump_open_win(&raw mut *buf).is_null() {
+    if buf_jump_open_win(buf).is_some() {
         curwin_mut().w_cursor.lnum = lnum;
         check_cursor_lnum(curwin_mut());
         beginline(BL_WHITE);

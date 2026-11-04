@@ -1427,7 +1427,7 @@ pub fn close_buffer(
         return false;
     }
 
-    let mut win_valid = win_valid_any_tab(win.as_ptr());
+    let mut win_valid = win_valid_any_tab(win.opt());
     if set_context && win_valid && win.borrow().w_buffer == buf.as_ptr() {
         if buf.borrow().b_nwindows == 1 {
             set_last_cursor(win.borrow_mut());
@@ -1463,7 +1463,7 @@ pub fn close_buffer(
         }
         buf.borrow_mut().b_locked -= 1;
         buf.borrow_mut().b_locked_split -= 1;
-        if abort_if_last && one_window(win.borrow_mut(), ptr::null_mut()) {
+        if abort_if_last && one_window(win.borrow_mut(), None) {
             emsg(gettext(E_AUABORT));
             return false;
         }
@@ -1480,7 +1480,7 @@ pub fn close_buffer(
             }
             buf.borrow_mut().b_locked -= 1;
             buf.borrow_mut().b_locked_split -= 1;
-            if abort_if_last && one_window(win.borrow_mut(), ptr::null_mut()) {
+            if abort_if_last && one_window(win.borrow_mut(), None) {
                 emsg(gettext(E_AUABORT));
                 return false;
             }
@@ -1488,12 +1488,12 @@ pub fn close_buffer(
         if !ignore_abort && aborting() {
             return false;
         }
-        win_valid = win_valid && win_valid_any_tab(win.as_ptr());
+        win_valid = win_valid && win_valid_any_tab(win.opt());
     }
 
     if is_curwin && win != curwin_handle() && win_valid {
         block_autocmds();
-        goto_tabpage_win(the_curtab.borrow_mut(), win.as_ptr());
+        goto_tabpage_win(the_curtab.borrow_mut(), win.borrow_mut());
         unblock_autocmds();
     }
 
@@ -1526,7 +1526,7 @@ pub fn close_buffer(
     }
 
     let mut clear_w_buf = false;
-    win_valid = win_valid && win_valid_any_tab(win.as_ptr());
+    win_valid = win_valid && win_valid_any_tab(win.opt());
     if win_valid && win.borrow().w_buffer == buf.as_ptr() {
         buf.borrow_mut().b_nwindows -= 1;
         clear_w_buf = true;
@@ -1662,9 +1662,10 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         (*buf_ptr).b_locked_split -= 1;
     }
 
-    if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin) {
+    if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(unsafe { the_curwin.as_ref() })
+    {
         block_autocmds();
-        goto_tabpage_win(unsafe { &mut *the_curtab }, the_curwin);
+        goto_tabpage_win(unsafe { &mut *the_curtab }, unsafe { &mut *the_curwin });
         unblock_autocmds();
     }
     if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1912,7 +1913,7 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
     if g_st().swap_exists_action == SEA_QUIT && crate::memory::cstr_first_byte(eap.cmd) == b's' {
         let mut cs: ExCleanup = ExCleanup::new();
         enter_cleanup(&mut cs);
-        win_close(curwin_ptr(), true, false);
+        win_close(curwin_mut(), true, false);
         g_st().swap_exists_action = save_sea;
         g_st().swap_exists_did_quit = true;
         leave_cleanup(&mut cs);
@@ -2122,7 +2123,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
                 }
             }
         }
-        close_windows(buf, can_close_all_others);
+        close_windows(unsafe { buf.as_mut() }, can_close_all_others);
     }
 
     setpcmark();
@@ -2333,7 +2334,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
             && !(win_locked(curwin_mut()) != 0 || curwin_mut().buf_mut().b_locked > 0)
             && (is_ctx_win(lastwin_mut()) || !last_window(curwin_mut()))
         {
-            if !win_close(curwin_ptr(), false, false) {
+            if !win_close(curwin_mut(), false, false) {
                 break;
             }
         }
@@ -2343,11 +2344,11 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
                 mark_jumplist_forget_file(curwin_mut(), buf_fnum);
             }
 
-            close_windows(buf, false);
+            close_windows(unsafe { buf.as_mut() }, false);
             if buf != g_st().curbuf
                 && bufref_valid(Some(&bufref))
                 && firstwin_mut().w_buffer == buf
-                && one_window(firstwin_mut(), ptr::null_mut())
+                && one_window(firstwin_mut(), None)
             {
                 debug_assert!(curwin_mut().w_floating);
                 let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -2505,7 +2506,7 @@ fn do_buffer_ext(action: i32, start: i32, dir: i32, mut count: i32, flags: i32) 
         return empty_curbuf(false, flags & DOBUF_FORCEIT, action);
     }
 
-    if action == DOBUF_SPLIT && !swbuf_goto_win_with_buf(buf).is_null() {
+    if action == DOBUF_SPLIT && swbuf_goto_win_with_buf(unsafe { buf.as_mut() }).is_some() {
         return true;
     }
     if buf != g_st().curbuf && unsafe { (*buf).b_locked_split != 0 } {
@@ -2590,7 +2591,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
             reset_synblock(curwin_mut());
         }
         if unload {
-            close_windows(prevbuf, false);
+            close_windows(unsafe { prevbuf.as_mut() }, false);
         }
         if bufref_valid(Some(&prevbufref)) && !aborting() {
             if prevbuf == g_st().curbuf
@@ -3073,9 +3074,9 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
     let buf_fnum = buf_ref.b_fnum;
 
     if (options & GETF_SWITCH) != 0 {
-        let wp = swbuf_goto_win_with_buf(buf);
+        let wp = swbuf_goto_win_with_buf(unsafe { buf.as_mut() });
 
-        if wp.is_null()
+        if wp.is_none()
             && (opt_vars().swb_flags
                 & (K_OPT_SWB_FLAG_VSPLIT | K_OPT_SWB_FLAG_SPLIT | K_OPT_SWB_FLAG_NEWTAB))
                 != 0
@@ -4442,7 +4443,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
     setpcmark();
 
     if had_tab > 0 {
-        goto_tabpage_tp(g_st().first_tabpage, true, true);
+        goto_tabpage_tp(unsafe { g_st().first_tabpage.as_mut() }, true, true);
     }
     loop {
         let mut tpnext = curtab_mut().tp_next;
@@ -4481,7 +4482,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 && !(win_locked(wp.borrow_mut()) != 0 || wp.borrow().buf_mut().b_locked > 0)
                 && !is_ctx_win(&wp)
             {
-                if !win_close(wp.as_ptr(), false, false) {
+                if !win_close(wp.borrow_mut(), false, false) {
                     break;
                 }
                 wpnext = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
@@ -4500,11 +4501,11 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if had_tab == 0 || tpnext.is_null() {
             break;
         }
-        goto_tabpage_tp(tpnext, true, true);
+        goto_tabpage_tp(unsafe { tpnext.as_mut() }, true, true);
     }
 
     g_st().autocmd_no_enter += 1;
-    win_enter(lastwin_nofloating(ptr::null_mut()), false);
+    win_enter(lastwin_nofloating(None), false);
     g_st().autocmd_no_leave += 1;
     let mut buf = crate::globals::BufPtr::new(g_st().firstbuf);
     while !buf.is_null() && open_wins < count {
@@ -4560,7 +4561,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             if g_st().swap_exists_action == SEA_QUIT {
                 let mut cs: ExCleanup = ExCleanup::new();
                 enter_cleanup(&mut cs);
-                win_close(curwin_ptr(), true, false);
+                win_close(curwin_mut(), true, false);
                 open_wins -= 1;
                 g_st().swap_exists_action = SEA_NONE;
                 g_st().swap_exists_did_quit = true;
@@ -4578,13 +4579,13 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if aborting() {
             break;
         }
-        if had_tab > 0 && i64::from(tabpage_index(ptr::null_mut())) <= opt_vars().p_tpm {
+        if had_tab > 0 && i64::from(tabpage_index(None)) <= opt_vars().p_tpm {
             g_st().cmdmod.cmod_tab = 9999;
         }
         buf = crate::globals::BufPtr::new(buf.borrow().b_next);
     }
     g_st().autocmd_no_enter -= 1;
-    win_enter(g_st().firstwin, false);
+    win_enter(firstwin_mut(), false);
     g_st().autocmd_no_leave -= 1;
 
     let mut wp = crate::globals::WinPtr::new(g_st().lastwin);
@@ -4593,11 +4594,11 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
             || !buf_is_changed(wp.borrow().buf_mut())
             || autowrite(wp.borrow().buf_mut(), false))
             && !is_ctx_win(&wp);
-        if !win_valid(wp.as_ptr()) {
+        if !win_valid(wp.opt()) {
             wp = crate::globals::WinPtr::new(g_st().lastwin);
         } else if r {
             let close_buf = !buf_hide(wp.borrow().buf_mut());
-            win_close(wp.as_ptr(), close_buf, false);
+            win_close(wp.borrow_mut(), close_buf, false);
             open_wins -= 1;
             wp = crate::globals::WinPtr::new(g_st().lastwin);
         } else {

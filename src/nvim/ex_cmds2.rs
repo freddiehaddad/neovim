@@ -488,8 +488,10 @@ pub fn ex_listdo(eap: &mut Exarg) {
             return;
         }
 
-        if win_valid(g_st().prevwin) && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0 {
-            win_goto(g_st().prevwin);
+        if win_valid(unsafe { g_st().prevwin.as_ref() })
+            && crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb == 0
+        {
+            win_goto(crate::globals::prevwin_mut());
         }
         if curwin_mut().w_onebuf_opt.wo_wfb != 0 {
             win_split(0, 0);
@@ -600,7 +602,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     break;
                 }
             } else if eap.cmdidx == CMD_WINDO {
-                if !win_valid(wp) {
+                if !win_valid(unsafe { wp.as_ref() }) {
                     break;
                 }
                 debug_assert!(!wp.is_null());
@@ -610,7 +612,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     !wp_ref.w_floating || (!wp_ref.w_config.hide && wp_ref.w_config.focusable);
 
                 if execute {
-                    win_goto(wp);
+                    win_goto(unsafe { &mut *wp });
                     if curwin_ptr() != wp {
                         break;
                     }
@@ -618,11 +620,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
                 wp = unsafe { (*wp).w_next };
             } else if eap.cmdidx == CMD_TABDO {
-                if !valid_tabpage(tp) {
+                if !valid_tabpage(unsafe { tp.as_ref() }) {
                     break;
                 }
                 debug_assert!(!tp.is_null());
-                goto_tabpage_tp(tp, true, true);
+                goto_tabpage_tp(unsafe { tp.as_mut() }, true, true);
 
                 tp = unsafe { (*tp).tp_next };
             } else if eap.cmdidx == CMD_BUFDO {
