@@ -265,7 +265,7 @@ pub fn diff_buf_delete(buf: &FileBuf) {
     for tp in for_all_tabpages_ptr() {
         let i = diff_buf_idx(buf, &*tp);
         if i != DB_COUNT as i32 {
-            tp.tp_diffbuf[i as usize] = ptr::null_mut();
+            tp.tp_diffbuf[i as usize] = crate::globals::BufPtr::NULL;
             tp.tp_diff_invalid = 1;
             if ptr::eq(tp, g_st().curtab) {
                 g_st().need_diff_redraw = true;
@@ -285,7 +285,7 @@ pub fn diff_buf_adjust(win: &mut WinInfoInfo) {
         if !found_win {
             let i = diff_buf_idx(win.buf_mut(), curtab_mut());
             if i != DB_COUNT as i32 {
-                curtab_mut().tp_diffbuf[i as usize] = ptr::null_mut();
+                curtab_mut().tp_diffbuf[i as usize] = crate::globals::BufPtr::NULL;
                 curtab_mut().tp_diff_invalid = 1;
                 diff_redraw(true);
             }
@@ -300,7 +300,7 @@ pub fn diff_buf_add(buf: &mut FileBuf) {
     }
     for i in 0..DB_COUNT {
         if curtab_mut().tp_diffbuf[i].is_null() {
-            curtab_mut().tp_diffbuf[i] = buf;
+            curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::from(&mut *buf);
             curtab_mut().tp_diff_invalid = 1;
             diff_redraw(true);
             return;
@@ -314,7 +314,7 @@ pub fn diff_buf_add(buf: &mut FileBuf) {
 fn diff_buf_clear() {
     for i in 0..DB_COUNT {
         if !curtab_mut().tp_diffbuf[i].is_null() {
-            curtab_mut().tp_diffbuf[i] = ptr::null_mut();
+            curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::NULL;
             curtab_mut().tp_diff_invalid = 1;
             diff_redraw(true);
         }
@@ -323,7 +323,7 @@ fn diff_buf_clear() {
 fn diff_buf_idx(buf: &FileBuf, tp: &TabPageInfo) -> i32 {
     let mut idx: usize = 0;
     while idx < DB_COUNT {
-        if ptr::eq(tp.tp_diffbuf[idx], buf) {
+        if tp.tp_diffbuf[idx] == buf {
             break;
         }
         idx += 1;
@@ -2746,7 +2746,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 continue;
             }
             if dp_count[i] == 0 {
-                curtab_mut().tp_diffbuf[i] = ptr::null_mut();
+                curtab_mut().tp_diffbuf[i] = crate::globals::BufPtr::NULL;
                 continue;
             }
             if file1_idx == -1 {

@@ -61,7 +61,7 @@ pub fn win_new_float(
             && ptr::eq(g_st().firstwin, wp)
             && ptr::eq(lastwin_nofloating(None), wp))
             || win_tp != g_st().curtab
-                && ptr::eq(unsafe { (*win_tp).tp_firstwin }, wp)
+                && unsafe { (*win_tp).tp_firstwin } == wp
                 && ptr::eq(lastwin_nofloating(unsafe { win_tp.as_ref() }), wp)
         {
             api_set_error!(
@@ -408,10 +408,10 @@ pub fn win_float_find_altwin(
     };
 
     debug_assert!(!ptr::eq(tp, g_st().curtab));
-    let wp = if tabpage_win_valid(Some(tp), unsafe { tp.tp_prevwin.as_ref() }) {
-        tp.tp_prevwin
+    let wp = if tabpage_win_valid(Some(tp), tp.tp_prevwin.opt()) {
+        tp.tp_prevwin.as_ptr()
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.as_ptr()
     };
     if let Some(wp_ref) = unsafe { wp.as_mut() }
         && !ptr::eq(wp, win)
@@ -420,7 +420,7 @@ pub fn win_float_find_altwin(
     {
         wp_ref
     } else {
-        unsafe { &mut *tp.tp_firstwin }
+        tp.tp_firstwin.borrow_mut()
     }
 }
 

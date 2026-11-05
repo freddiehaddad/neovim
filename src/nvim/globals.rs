@@ -1273,7 +1273,7 @@ pub fn for_all_windows_in_tab_mut(tp: &TabPageInfo) -> WinMutIter {
     WinMutIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.as_ptr()
     })
 }
 
@@ -1292,7 +1292,7 @@ pub fn for_all_windows_in_tab_ptr(tp: &TabPageInfo) -> WinPtrIter {
     WinPtrIter(if ptr::eq((&raw const *tp), g_st().curtab) {
         g_st().firstwin
     } else {
-        tp.tp_firstwin
+        tp.tp_firstwin.as_ptr()
     })
 }
 
@@ -1332,7 +1332,7 @@ impl Iterator for TabMutIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).tp_next;
+                self.0 = (*cur).tp_next.as_ptr();
                 Some(&mut *cur)
             }
         }
@@ -1351,7 +1351,7 @@ impl Iterator for TabPtrIter {
             None
         } else {
             unsafe {
-                self.0 = (*cur).tp_next;
+                self.0 = (*cur).tp_next.as_ptr();
                 Some(&mut *cur)
             }
         }

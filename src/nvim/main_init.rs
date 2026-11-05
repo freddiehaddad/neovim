@@ -704,7 +704,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
     edit_buffers(&mut params);
 
     if params.diff_mode != 0 {
-        for wp in win_iter_ptr(curtab_mut().tp_firstwin) {
+        for wp in win_iter_ptr(curtab_mut().tp_firstwin.as_ptr()) {
             if !wp.w_arg_idx_invalid {
                 diff_win_options(&mut *wp, true);
             }
@@ -898,7 +898,7 @@ pub fn getout(mut exitval: i32) -> ! {
             let first_wp = if ptr::eq(tp, g_st().curtab) {
                 g_st().firstwin
             } else {
-                tp.tp_firstwin
+                tp.tp_firstwin.as_ptr()
             };
             for wp in win_iter_mut(first_wp) {
                 if !buf_valid(wp.buf_opt()) {

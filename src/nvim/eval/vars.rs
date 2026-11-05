@@ -3719,7 +3719,7 @@ pub fn f_gettabvar(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         win = if std::ptr::eq(tp_ref, g_st().curtab) || tp_ref.tp_firstwin.is_null() {
             g_st().firstwin
         } else {
-            tp_ref.tp_firstwin
+            tp_ref.tp_firstwin.as_ptr()
         };
     }
 

@@ -623,7 +623,7 @@ fn tab_firstwin(tp: &TabPageInfo) -> &'static mut WinInfoInfo {
     if ptr::eq(tp, g_st().curtab) {
         unsafe { &mut *g_st().firstwin }
     } else {
-        unsafe { &mut *tp.tp_firstwin }
+        tp.tp_firstwin.borrow_mut()
     }
 }
 

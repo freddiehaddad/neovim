@@ -892,8 +892,8 @@ fn win_config_split(
                 break 'restore_curwin;
             }
 
-            if win_tp != parent_tp && unsafe { (*win_tp).tp_curwin } == (&raw mut *win) {
-                unsafe { (*win_tp).tp_curwin = altwin };
+            if win_tp != parent_tp && unsafe { (*win_tp).tp_curwin } == win {
+                unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(altwin) };
             }
             break 'resize;
         }
@@ -1015,8 +1015,8 @@ fn win_config_float_tp(
                 unsafe { append_tp.as_mut() },
             );
 
-            if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == (&raw mut *win) {
-                unsafe { (*win_tp).tp_curwin = altwin };
+            if win_tp != g_st().curtab && unsafe { (*win_tp).tp_curwin } == win {
+                unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(altwin) };
             }
 
             ui_comp_remove_grid(&mut win.w_grid_alloc);

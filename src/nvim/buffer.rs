@@ -955,7 +955,7 @@ pub fn first_win_in_tab(tp: &mut TabPageInfo) -> &'static mut WinInfoInfo {
     if (&raw mut *tp) == g_st().curtab {
         unsafe { &mut *g_st().firstwin }
     } else {
-        unsafe { &mut *tp.tp_firstwin }
+        tp.tp_firstwin.borrow_mut()
     }
 }
 
@@ -4491,7 +4491,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         goto_tabpage_tp(unsafe { g_st().first_tabpage.as_mut() }, true, true);
     }
     loop {
-        let mut tpnext = curtab_mut().tp_next;
+        let mut tpnext = curtab_mut().tp_next.as_ptr();
         let mut wp = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
             g_st().lastwin
         } else {

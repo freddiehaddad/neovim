@@ -395,7 +395,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     }
                 }
 
-                tp = unsafe { (*tp).tp_next };
+                tp = unsafe { (*tp).tp_next.as_ptr() };
             }
         }
 
@@ -506,7 +506,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 while !tp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    tp = unsafe { (*tp).tp_next };
+                    tp = unsafe { (*tp).tp_next.as_ptr() };
                 }
             }
             Cmdidx::CmdArgdo => {
@@ -594,7 +594,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
                 debug_assert!(!tp.is_null());
                 goto_tabpage_tp(unsafe { tp.as_mut() }, true, true);
 
-                tp = unsafe { (*tp).tp_next };
+                tp = unsafe { (*tp).tp_next.as_ptr() };
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
                 for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {

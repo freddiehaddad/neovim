@@ -1511,7 +1511,7 @@ pub fn nvim_buf_set_conceal_provider(buf: Buffer, enabled: Boolean, err: &mut Er
         for wp in win_iter_mut(if ptr::eq(tp, g_st().curtab) {
             g_st().firstwin
         } else {
-            tp.tp_firstwin
+            tp.tp_firstwin.as_ptr()
         }) {
             if wp.w_buffer == b_ptr {
                 changed_window_setting(wp);

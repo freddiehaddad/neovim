@@ -721,8 +721,8 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                     tab_firstwin = g_st().firstwin;
                     tab_topframe = g_st().topframe;
                 } else {
-                    tab_firstwin = unsafe { (*tp).tp_firstwin };
-                    tab_topframe = unsafe { (*tp).tp_topframe.cast::<Frame>() };
+                    tab_firstwin = unsafe { (*tp).tp_firstwin.as_ptr() };
+                    tab_topframe = unsafe { (*tp).tp_topframe.as_ptr() };
                 }
                 if !ptr::eq(tp, g_st().first_tabpage) {
                     need_tabnext = true;

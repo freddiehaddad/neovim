@@ -54,7 +54,7 @@ pub fn nvim_tabpage_list_wins(tabpage: Tabpage, arena: &mut Arena, err: &mut Err
     let first = if std::ptr::eq(tab_ptr, g_st().curtab) {
         g_st().firstwin
     } else {
-        tab.tp_firstwin
+        tab.tp_firstwin.as_ptr()
     };
     let n = win_iter_mut(first).count();
 
@@ -132,8 +132,8 @@ pub fn nvim_tabpage_get_win(tabpage: Tabpage, err: &mut Error) -> Window {
     if std::ptr::eq(tab_ptr, g_st().curtab) {
         return nvim_get_current_win();
     }
-    for wp in win_iter_ptr(tab.tp_firstwin) {
-        if std::ptr::eq(wp, tab.tp_curwin) {
+    for wp in win_iter_ptr(tab.tp_firstwin.as_ptr()) {
+        if tab.tp_curwin == wp {
             return wp.handle;
         }
     }
@@ -170,7 +170,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
         try_leave(&tstate, err);
     } else if tp.tp_curwin != wp {
         tp.tp_prevwin = tp.tp_curwin;
-        tp.tp_curwin = wp;
+        tp.tp_curwin = crate::globals::WinPtr::new(wp);
     }
 }
 

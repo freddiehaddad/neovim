@@ -73,7 +73,7 @@ pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &mut TabPageInfo) -> bool {
     let cur = if ptr::eq((&raw mut *tp), g_st().curtab) {
         curwin_ptr()
     } else {
-        tp.tp_curwin
+        tp.tp_curwin.as_ptr()
     };
     ptr::eq(wp, cur) || (!wp.w_config.hide && wp.w_config.focusable)
 }
@@ -302,7 +302,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut twin = if ptr::eq(tp, g_st().curtab) {
         curwin_ptr()
     } else {
-        tp.tp_curwin
+        tp.tp_curwin.as_ptr()
     };
     if argvar.v_type != VarType::VarUnknown {
         let mut invalid_arg = false;
@@ -312,13 +312,13 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
                 twin = if ptr::eq(tp, g_st().curtab) {
                     g_st().lastwin
                 } else {
-                    tp.tp_lastwin
+                    tp.tp_lastwin.as_ptr()
                 };
             } else if bytes == b"#" {
                 twin = if ptr::eq(tp, g_st().curtab) {
                     g_st().prevwin
                 } else {
-                    tp.tp_prevwin
+                    tp.tp_prevwin.as_ptr()
                 };
                 if twin.is_null() {
                     nr = 0;
@@ -830,11 +830,7 @@ pub fn f_winlayout(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         found
     };
 
-    get_framelayout(
-        unsafe { tp.tp_topframe.as_ref() },
-        rettv.vval.v_list_ref(),
-        true,
-    );
+    get_framelayout(tp.tp_topframe.opt(), rettv.vval.v_list_ref(), true);
 }
 
 /// `winline()` function (`f_winline`).

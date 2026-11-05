@@ -8645,7 +8645,7 @@ pub fn f_tabpagebuflist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
         wp = if ptr::eq(tp, g_st().curtab) {
             g_st().firstwin
         } else {
-            tp.tp_firstwin
+            tp.tp_firstwin.as_ptr()
         };
     }
     if !wp.is_null() {

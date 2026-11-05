@@ -9783,7 +9783,7 @@ fn ex_tabonly(eap: &mut Exarg) {
     let mut done: i32 = 0;
     while done < 1000 {
         for tp in for_all_tabpages_ptr() {
-            if tp.tp_topframe != g_st().topframe.cast() {
+            if tp.tp_topframe != g_st().topframe {
                 let tp_ptr: *mut TabPageInfo = tp;
                 tabpage_close_other(unsafe { &mut *tp_ptr }, eap.forceit);
                 if valid_tabpage(unsafe { tp_ptr.as_ref() }) {
@@ -9858,7 +9858,7 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
             c"%i",
             tabpage_index(unsafe { tp.as_ref() }),
         );
-        let wp = unsafe { (*tp).tp_lastwin };
+        let wp = unsafe { (*tp).tp_lastwin.as_ptr() };
 
         if ptr::eq(tp, g_st().curtab) {
             done = 1000;
@@ -10277,7 +10277,7 @@ fn ex_tabs(_eap: &mut Exarg) {
     g_st().msg_scroll = i32::from(true);
 
     let lastused_win = if valid_tabpage(unsafe { g_st().lastused_tabpage.as_ref() }) {
-        unsafe { (*g_st().lastused_tabpage).tp_curwin }
+        unsafe { (*g_st().lastused_tabpage).tp_curwin.as_ptr() }
     } else {
         ptr::null_mut()
     };

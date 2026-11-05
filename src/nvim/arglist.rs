@@ -832,7 +832,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
 
     g_st().tabpage_move_disallowed += 1;
     loop {
-        let mut tpnext = curtab_mut().tp_next;
+        let mut tpnext = curtab_mut().tp_next.as_ptr();
         let mut wp = if lastwin_mut().w_floating {
             g_st().lastwin
         } else {
