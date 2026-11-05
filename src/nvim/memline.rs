@@ -542,7 +542,7 @@ fn ml_open_error(buf: &mut FileBuf, mfp: Option<&mut Memfile>, hp: Option<&mut B
 /// Called when the file name of `buf` has been changed.
 pub fn ml_setname(buf: &mut FileBuf) {
     let mut success = false;
-    let mfp_ptr = buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut);
+    let mfp_ptr = crate::globals::GraphPtr::from(buf.b_ml.mfp_opt());
     if buf.b_ml.mfp_mut().mf_fd < 0 {
         if opt_vars().p_uc != 0 && (g_st().cmdmod.cmod_flags & CMOD_NOSWAPFILE) == 0 {
             ml_open_file(buf);
@@ -560,7 +560,7 @@ pub fn ml_setname(buf: &mut FileBuf) {
             .as_deref()
             .map(|s| unsafe { &*(s as *const CStr) });
         let fname = findswapname(buf, &mut dirp, mf_fname, &mut found_existing_dir);
-        if buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut) != mfp_ptr {
+        if crate::globals::GraphPtr::from(buf.b_ml.mfp_opt()) != mfp_ptr {
             return;
         }
         let Some(fname) = fname else {
@@ -612,7 +612,7 @@ pub fn ml_open_files() {
 
 /// Open a swapfile for an existing memfile, if there is no swapfile yet.
 pub fn ml_open_file(buf: &mut FileBuf) {
-    let mfp_ptr = buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut);
+    let mfp_ptr = crate::globals::GraphPtr::from(buf.b_ml.mfp_opt());
     let Some(mfp) = buf.b_ml.mfp_opt() else {
         return;
     };
@@ -636,7 +636,7 @@ pub fn ml_open_file(buf: &mut FileBuf) {
     let mut found_existing_dir = false;
     while !dirp.is_empty() {
         let fname = findswapname(buf, &mut dirp, None, &mut found_existing_dir);
-        if buf.b_ml.mfp_opt().map_or(ptr::null_mut(), ptr::from_mut) != mfp_ptr {
+        if crate::globals::GraphPtr::from(buf.b_ml.mfp_opt()) != mfp_ptr {
             return;
         }
         let Some(fname) = fname else {

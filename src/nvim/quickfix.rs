@@ -2315,21 +2315,20 @@ fn qf_get_fnum(qfl: &mut QfList, directory: Option<&CStr>, fname: Option<&CStr>)
         .is_some_and(|last| crate::memory::cstr_as_bytes(bufname_ptr) == last.to_bytes());
     let buf = if same_as_last && bufref_valid(Some(&qf_st().qf_last_bufref)) {
         drop(ptr_cstr);
-        qf_st().qf_last_bufref.br_buf.as_ptr()
+        qf_st().qf_last_bufref.br_buf
     } else {
-        let b = buflist_new(
+        let b = crate::globals::GraphPtr::from(buflist_new(
             crate::memory::cstr_as_opt_cstr(bufname_ptr),
             None,
             0,
             BLN_NOOPT,
-        )
-        .map_or(ptr::null_mut(), ptr::from_mut);
+        ));
         qf_st().qf_last_bufname =
             ptr_cstr.or_else(|| Some(crate::memory::cstr_to_cstring(bufname_ptr)));
-        set_bufref(&mut qf_st().qf_last_bufref, unsafe { b.as_mut() });
+        set_bufref(&mut qf_st().qf_last_bufref, b.opt_mut());
         b
     };
-    let Some(buf) = (unsafe { buf.as_mut() }) else {
+    let Some(buf) = buf.opt_mut() else {
         return 0;
     };
     buf.b_has_qf_entry = if is_qf_list(qfl) {
@@ -2483,7 +2482,7 @@ fn get_nth_valid_entry<'a>(
     dir: i32,
     new_qfidx: &mut i32,
 ) -> Option<&'a mut Qfline> {
-    let mut qf_ptr = qfl.cur_entry().map_or(ptr::null_mut(), ptr::from_mut);
+    let mut qf_ptr = crate::globals::GraphPtr::from(qfl.cur_entry());
     let mut qf_idx = qfl.qf_index;
     let mut err: Option<&CStr> = Some(E_NO_MORE_ITEMS);
 
@@ -2493,11 +2492,9 @@ fn get_nth_valid_entry<'a>(
         let prev_index = qf_idx;
 
         if dir == FORWARD || dir == FORWARD_FILE {
-            qf_ptr =
-                get_next_valid_entry(qfl, &mut qf_idx, dir).map_or(ptr::null_mut(), ptr::from_mut);
+            qf_ptr = get_next_valid_entry(qfl, &mut qf_idx, dir).into();
         } else {
-            qf_ptr =
-                get_prev_valid_entry(qfl, &mut qf_idx, dir).map_or(ptr::null_mut(), ptr::from_mut);
+            qf_ptr = get_prev_valid_entry(qfl, &mut qf_idx, dir).into();
         }
 
         if qf_ptr.is_null() {
@@ -2514,7 +2511,7 @@ fn get_nth_valid_entry<'a>(
     }
 
     *new_qfidx = qf_idx;
-    unsafe { qf_ptr.as_mut() }
+    qf_ptr.opt_mut()
 }
 
 fn get_nth_entry<'a>(
@@ -2657,25 +2654,25 @@ fn qf_goto_win_with_ll_file(
     qf_fnum: i32,
     ll_ref: Option<&mut QfInfo>,
 ) {
-    let mut win = use_win.map_or(ptr::null_mut(), ptr::from_mut);
+    let mut win = crate::globals::GraphPtr::from(use_win);
 
     if win.is_null() {
         for win2 in win_iter_ptr(tab_firstwin(curtab_mut())) {
             if (*win2).buf_mut().b_fnum == qf_fnum {
-                win = win2;
+                win = win2.into();
                 break;
             }
         }
         if win.is_null() {
-            win = curwin_ptr().as_ptr();
+            win = curwin_ptr();
             loop {
-                if bt_normal(unsafe { (*win).w_buffer.opt() }) {
+                if bt_normal(win.w_buffer.opt()) {
                     break;
                 }
-                if unsafe { (*win).w_prev.is_null() } {
-                    win = g_st().lastwin.as_ptr();
+                if win.w_prev.is_null() {
+                    win = g_st().lastwin;
                 } else {
-                    win = unsafe { (*win).w_prev.as_ptr() };
+                    win = win.w_prev;
                 }
                 if win == curwin_ptr() {
                     break;
@@ -2683,12 +2680,12 @@ fn qf_goto_win_with_ll_file(
             }
         }
     }
-    win_goto(unsafe { &mut *win });
+    win_goto(win.borrow_mut());
 
-    if unsafe { (*win).w_llist.is_null() }
+    if win.w_llist.is_null()
         && let Some(ll_ref) = ll_ref
     {
-        win_set_loclist(unsafe { &mut *win }, ll_ref);
+        win_set_loclist(win.borrow_mut(), ll_ref);
     }
 }
 
@@ -3686,7 +3683,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     let mut flags: i32 = 0;
 
     let qf_buf_fnum = qf_find_buf(qi).map(|b| b.b_fnum);
-    let win = curwin_ptr().as_ptr();
+    let win = curwin_ptr();
 
     if g_st().cmdmod.cmod_split == 0 {
         flags = if is_qf_stack(&*qi) {
@@ -3749,8 +3746,8 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
         win_setheight(height);
     }
     curwin_mut().w_onebuf_opt.wo_wfh = true;
-    if win_valid(unsafe { win.as_ref() }) {
-        g_st().prevwin = (win).into();
+    if win_valid(win.opt()) {
+        g_st().prevwin = win;
     }
     true
 }
@@ -3804,7 +3801,7 @@ pub fn ex_copen(eap: &mut Exarg) {
 }
 
 fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
-    let old_curwin = curwin_ptr().as_ptr();
+    let old_curwin = curwin_ptr();
 
     set_curwin(&mut *win);
     g_st().curbuf = win.w_buffer;
@@ -3899,7 +3896,7 @@ fn qf_find_buf(qi: &mut QfInfo) -> Option<&'static mut FileBuf> {
 
 fn qf_update_win_titlevar(qi: &mut QfInfo) {
     let qfl = qf_get_curlist(&mut *qi);
-    let save_curwin = curwin_ptr().as_ptr();
+    let save_curwin = curwin_ptr();
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_ptr(tab_firstwin(tp)) {
@@ -5310,7 +5307,7 @@ fn vgr_process_files(
     first_match_buf: &mut Option<&'static mut FileBuf>,
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
-    let wp = wp_in.map_or(ptr::null(), ptr::from_ref);
+    let wp = crate::globals::GraphPtr::from(wp_in);
     let qi = crate::globals::GraphPtr::from(qi_in);
     let mut status = false;
     let mut save_qfid = qf_get_curlist(qi.borrow_mut()).qf_id;
@@ -5335,21 +5332,21 @@ fn vgr_process_files(
             vgr_display_fname(fname_cstr);
         }
 
-        let mut buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fname_exp))
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        let mut buf = crate::globals::GraphPtr::from(buflist_findname_exp(
+            crate::memory::cstr_as_opt_cstr(fname_exp),
+        ));
         let using_dummy: bool;
-        if buf.is_null() || unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+        if buf.is_null() || buf.b_ml.ml_mfp.is_none() {
             duplicate_name = !buf.is_null();
             using_dummy = true;
             *redraw_for_dummy = true;
-            buf = vgr_load_dummy_buf(fname_cstr, dirname_start_cstr, &mut dirname_now)
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            buf = vgr_load_dummy_buf(fname_cstr, dirname_start_cstr, &mut dirname_now).into();
         } else {
             using_dummy = false;
         }
 
         if !vgr_qflist_valid(
-            unsafe { wp.as_ref() },
+            wp.opt(),
             qi.borrow_mut(),
             save_qfid,
             cmd_args.qf_title.as_deref(),
@@ -5368,7 +5365,7 @@ fn vgr_process_files(
             let found_match = vgr_match_buflines(
                 qf_get_curlist(qi.borrow_mut()),
                 fname,
-                unsafe { &mut *buf },
+                buf.borrow_mut(),
                 cmd_args.spat.as_deref(),
                 &mut cmd_args.regmatch,
                 &mut cmd_args.tomatch,
@@ -5378,34 +5375,30 @@ fn vgr_process_files(
 
             if using_dummy {
                 if found_match && first_match_buf.is_none() {
-                    *first_match_buf = Some(unsafe { &mut *buf });
+                    *first_match_buf = Some(buf.borrow_mut());
                 }
-                let is_first_match = first_match_buf
-                    .as_deref()
-                    .is_some_and(|first| ptr::eq(buf, first));
+                let is_first_match = first_match_buf.as_deref().is_some_and(|first| buf == first);
                 if duplicate_name {
-                    wipe_dummy_buffer(unsafe { &mut *buf }, Some(dirname_start_cstr));
-                    buf = ptr::null_mut();
+                    wipe_dummy_buffer(buf.borrow_mut(), Some(dirname_start_cstr));
+                    buf = crate::globals::BufPtr::NULL;
                 } else if (g_st().cmdmod.cmod_flags & CMOD_HIDE) == 0
-                    || matches!(unsafe { (*buf).b_p_bh.first_byte() }, b'u' | b'w' | b'd')
+                    || matches!(buf.b_p_bh.first_byte(), b'u' | b'w' | b'd')
                 {
                     if !found_match {
-                        wipe_dummy_buffer(unsafe { &mut *buf }, Some(dirname_start_cstr));
-                        buf = ptr::null_mut();
+                        wipe_dummy_buffer(buf.borrow_mut(), Some(dirname_start_cstr));
+                        buf = crate::globals::BufPtr::NULL;
                     } else if !is_first_match
                         || (cmd_args.flags & VGR_NOJUMP) != 0
-                        || existing_swapfile(unsafe { &*buf })
+                        || existing_swapfile(buf.borrow())
                     {
-                        unload_dummy_buffer(unsafe { &mut *buf }, dirname_start_cstr);
-                        unsafe {
-                            (*buf).b_flags &= !BF_DUMMY;
-                        }
-                        buf = ptr::null_mut();
+                        unload_dummy_buffer(buf.borrow_mut(), dirname_start_cstr);
+                        buf.b_flags &= !BF_DUMMY;
+                        buf = crate::globals::BufPtr::NULL;
                     }
                 }
 
                 if !buf.is_null() {
-                    let buf = unsafe { &mut *buf };
+                    let buf = buf.borrow_mut();
                     buf.b_flags &= !BF_DUMMY;
 
                     if is_first_match
@@ -5457,7 +5450,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
 
     let mut wp: Option<&'static mut WinInfoInfo> = None;
     let qi = qf_cmd_get_or_alloc_stack(eap, &mut wp);
-    let wp_ptr = wp.as_deref().map_or(ptr::null(), ptr::from_ref);
+    let wp_ptr = crate::globals::GraphPtr::from(wp.as_deref());
     let mut target_dir: Option<std::ffi::CString> = None;
     let mut args = VgrArgs::new();
     if vgr_process_args(eap, &mut args) {
@@ -5475,7 +5468,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
         let mut redraw_for_dummy = false;
         let mut first_match_buf: Option<&'static mut FileBuf> = None;
         let status = vgr_process_files(
-            unsafe { wp_ptr.as_ref() },
+            wp_ptr.opt(),
             qi,
             &mut args,
             &mut redraw_for_dummy,
@@ -5504,7 +5497,7 @@ pub fn ex_vimgrep(eap: &mut Exarg) {
                 );
             }
 
-            if qflist_valid(unsafe { wp_ptr.as_ref() }, save_qfid)
+            if qflist_valid(wp_ptr.opt(), save_qfid)
                 && qf_restore_list(unsafe { &mut *qi_ptr }, save_qfid)
             {
                 if !qf_list_empty(Some(&*(qf_get_curlist(unsafe { &mut *qi_ptr })))) {
@@ -5559,22 +5552,22 @@ fn load_dummy_buffer(
     dirname_start: &CStr,
     resulting_dir: &mut [u8],
 ) -> Option<&'static mut FileBuf> {
-    let mut newbuf = buflist_new(None, None, 1, BLN_DUMMY).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut newbuf = crate::globals::GraphPtr::from(buflist_new(None, None, 1, BLN_DUMMY));
     if newbuf.is_null() {
         return None;
     }
 
     let mut failed = true;
     let mut newbufref: Bufref = Bufref::new();
-    set_bufref(&mut newbufref, unsafe { newbuf.as_mut() });
+    set_bufref(&mut newbufref, newbuf.opt_mut());
 
-    buf_copy_options(unsafe { &mut *newbuf }, BCO_ENTER | BCO_NOHELP);
+    buf_copy_options(newbuf.borrow_mut(), BCO_ENTER | BCO_NOHELP);
 
-    if ml_open(unsafe { &mut *newbuf }) {
-        unsafe { (*newbuf).b_locked += 1 };
+    if ml_open(newbuf.borrow_mut()) {
+        newbuf.b_locked += 1;
 
         let mut aco: CtxSwitch = CtxSwitch::new();
-        ctx_switch(&mut aco, None, None, unsafe { newbuf.as_mut() }, 0);
+        ctx_switch(&mut aco, None, None, newbuf.opt_mut(), 0);
 
         setfname(curbuf_mut(), Some(fname), None, false);
         check_need_swap(true);
@@ -5592,14 +5585,14 @@ fn load_dummy_buffer(
             false,
         );
 
-        unsafe { (*newbuf).b_locked -= 1 };
+        newbuf.b_locked -= 1;
 
         if readfile_result == Some(true) && !g_st().got_int && (curbuf_mut().b_flags & BF_NEW) == 0
         {
             failed = false;
             if g_st().curbuf != newbuf {
-                set_bufref(&mut newbuf_to_wipe, unsafe { newbuf.as_mut() });
-                newbuf = g_st().curbuf.as_ptr();
+                set_bufref(&mut newbuf_to_wipe, newbuf.opt_mut());
+                newbuf = g_st().curbuf;
             }
         }
 
@@ -5611,7 +5604,7 @@ fn load_dummy_buffer(
             unblock_autocmds();
         }
 
-        unsafe { (*newbuf).b_flags |= BF_DUMMY };
+        newbuf.b_flags |= BF_DUMMY;
     }
 
     os_dirname(resulting_dir);
@@ -5621,10 +5614,10 @@ fn load_dummy_buffer(
         return None;
     }
     if failed {
-        wipe_dummy_buffer(unsafe { &mut *newbuf }, Some(dirname_start));
+        wipe_dummy_buffer(newbuf.borrow_mut(), Some(dirname_start));
         return None;
     }
-    Some(unsafe { &mut *newbuf })
+    Some(newbuf.borrow_mut())
 }
 
 fn wipe_dummy_buffer(buf: &mut FileBuf, dirname_start: Option<&CStr>) {
@@ -6555,9 +6548,9 @@ fn qf_set_properties(qi: &mut QfInfo, what: &TvDict, action: i32, title: Option<
 }
 
 fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
-    let mut wp = wp_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let mut wp = crate::globals::GraphPtr::from(wp_in);
     let mut qi = crate::globals::GraphPtr::from(qi_in);
-    let qfwin = qf_find_win(qi.borrow()).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut qfwin = crate::globals::GraphPtr::from(qf_find_win(qi.borrow()));
 
     if !qfwin.is_null() {
         if qi.qf_curlist < qi.qf_listcount {
@@ -6568,32 +6561,30 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
     }
 
     if !wp.is_null()
-        && is_ll_window(unsafe { &*wp })
+        && is_ll_window(wp.borrow())
         && let Some(llwin) = qf_find_win_with_loclist(qi.borrow())
     {
-        wp = ptr::from_mut(llwin);
+        wp = llwin.into();
     }
 
-    qf_free_all(unsafe { wp.as_mut() });
+    qf_free_all(wp.opt_mut());
 
     if wp.is_null() {
         qi.qf_curlist = 0;
         qi.qf_listcount = 0;
     } else if !qfwin.is_null() {
-        let new_ll = qf_alloc_stack(QFLT_LOCATION, unsafe { (*wp).w_onebuf_opt.wo_lhi } as i32);
+        let new_ll = qf_alloc_stack(QFLT_LOCATION, wp.w_onebuf_opt.wo_lhi as i32);
 
-        new_ll.qf_bufnr = unsafe { (*qfwin).buf_mut().b_fnum };
+        new_ll.qf_bufnr = qfwin.buf_mut().b_fnum;
 
-        let old_llist_ref = std::mem::replace(
-            unsafe { &mut (*qfwin).w_llist_ref },
-            crate::globals::GraphPtr::NULL,
-        );
+        let old_llist_ref =
+            std::mem::replace(&mut qfwin.w_llist_ref, crate::globals::GraphPtr::NULL);
         ll_free_all(old_llist_ref.opt_mut());
 
-        unsafe { (*qfwin).w_llist_ref = crate::globals::GraphPtr::new(new_ll) };
+        qfwin.w_llist_ref = crate::globals::GraphPtr::new(new_ll);
 
         if wp != qfwin {
-            win_set_loclist(unsafe { &mut *wp }, &mut *new_ll);
+            win_set_loclist(wp.borrow_mut(), &mut *new_ll);
         }
     }
 }
@@ -6789,7 +6780,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
 
     let mut wp: Option<&'static mut WinInfoInfo> = None;
     let qi = qf_cmd_get_or_alloc_stack(eap, &mut wp);
-    let wp_ptr = wp.as_deref().map_or(ptr::null(), ptr::from_ref);
+    let wp_ptr = crate::globals::GraphPtr::from(wp.as_deref());
 
     let mut line1: Linenr = 0;
     let mut line2: Linenr = 0;
@@ -6845,7 +6836,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     }
     if res > 0
         && (eap.cmdidx == Cmdidx::CmdCbuffer || eap.cmdidx == Cmdidx::CmdLbuffer)
-        && qflist_valid(unsafe { wp_ptr.as_ref() }, save_qfid)
+        && qflist_valid(wp_ptr.opt(), save_qfid)
     {
         qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
     }
@@ -6885,7 +6876,7 @@ fn trigger_cexpr_autocmd(cmdidx: Cmdidx) -> bool {
 pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
     let mut wp: Option<&'static mut WinInfoInfo> = None;
     let qi = qf_cmd_get_or_alloc_stack(eap, &mut wp);
-    let wp_ptr = wp.as_deref().map_or(ptr::null(), ptr::from_ref);
+    let wp_ptr = crate::globals::GraphPtr::from(wp.as_deref());
 
     if (tv.v_type == VarType::VarString && !tv.vval.v_string().is_null())
         || tv.v_type == VarType::VarList
@@ -6926,7 +6917,7 @@ pub fn cexpr_core(eap: &Exarg, tv: &mut TypVal) -> bool {
         }
         if res > 0
             && (eap.cmdidx == Cmdidx::CmdCexpr || eap.cmdidx == Cmdidx::CmdLexpr)
-            && qflist_valid(unsafe { wp_ptr.as_ref() }, save_qfid)
+            && qflist_valid(wp_ptr.opt(), save_qfid)
         {
             qf_jump_first(unsafe { &mut *qi_ptr }, save_qfid, eap.forceit);
         }

@@ -681,7 +681,7 @@ fn win_config_split(
                 win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
         }
 
-        let mut win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
+        let mut win_tp = crate::globals::GraphPtr::from(win_find_tabpage(&*win));
         if !parent.is_null() {
             if unsafe { (*parent).w_floating } {
                 api_set_error!(
@@ -691,7 +691,7 @@ fn win_config_split(
                 );
                 return false;
             }
-            if win_tp != parent_tp && !win_can_move_tp(win, unsafe { &mut *win_tp }, err) {
+            if win_tp != parent_tp && !win_can_move_tp(win, win_tp.borrow_mut(), err) {
                 return false;
             }
         }
@@ -706,10 +706,10 @@ fn win_config_split(
 
         'restore_curwin: {
             if curwin_moving_tp {
-                let altwin = win_find_altwin(win, unsafe { &mut *win_tp })
-                    .map_or(ptr::null_mut(), ptr::from_mut);
+                let altwin =
+                    crate::globals::GraphPtr::from(win_find_altwin(win, win_tp.borrow_mut()));
                 assert!(!altwin.is_null());
-                win_goto(unsafe { &mut *altwin });
+                win_goto(altwin.borrow_mut());
 
                 if curwin_ptr() == (&raw mut *win) {
                     api_set_error!(
@@ -720,7 +720,7 @@ fn win_config_split(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
+                win_tp = win_find_tabpage(&*win).into();
                 if win_tp.is_null() || !win_valid_any_tab(unsafe { parent.as_ref() }) {
                     api_set_error!(
                         err,
@@ -776,7 +776,7 @@ fn win_config_split(
                             if win_tp == g_st().curtab.as_ptr() {
                                 None
                             } else {
-                                unsafe { win_tp.as_mut() }
+                                win_tp.opt_mut()
                             },
                             Some(&mut unflat_altfr_opt),
                         )
@@ -788,7 +788,7 @@ fn win_config_split(
                             if win_tp == g_st().curtab.as_ptr() {
                                 None
                             } else {
-                                unsafe { win_tp.as_mut() }
+                                win_tp.opt_mut()
                             },
                             Some(&mut unflat_altfr_opt),
                         )
@@ -810,7 +810,7 @@ fn win_config_split(
                         if win_tp == g_st().curtab.as_ptr() {
                             None
                         } else {
-                            unsafe { win_tp.as_mut() }
+                            win_tp.opt_mut()
                         },
                         Some(&mut unflat_altfr_opt),
                     )
@@ -819,17 +819,17 @@ fn win_config_split(
             } else {
                 altwin = win_float_find_altwin(
                     win,
-                    (win_tp != g_st().curtab.as_ptr()).then(|| unsafe { &*win_tp }),
+                    (win_tp != g_st().curtab.as_ptr()).then(|| win_tp.borrow()),
                 );
             }
-            let unflat_altfr: *mut Frame = unflat_altfr_opt.map_or(ptr::null_mut(), ptr::from_mut);
+            let unflat_altfr = crate::globals::GraphPtr::from(unflat_altfr_opt);
 
             win_remove(
                 win,
                 if win_tp == g_st().curtab.as_ptr() {
                     None
                 } else {
-                    unsafe { win_tp.as_mut() }
+                    win_tp.opt_mut()
                 },
             );
             if win_tp == g_st().curtab.as_ptr() {
@@ -858,9 +858,13 @@ fn win_config_split(
                     );
                     assert!(result);
                 }
-                to_split_ok = win_split_ins(0, flags, unsafe { win_ptr.as_mut() }, 0, unsafe {
-                    unflat_altfr.as_mut()
-                })
+                to_split_ok = win_split_ins(
+                    0,
+                    flags,
+                    unsafe { win_ptr.as_mut() },
+                    0,
+                    unflat_altfr.opt_mut(),
+                )
                 .is_some();
                 if !to_split_ok {
                     win_append(
@@ -869,7 +873,7 @@ fn win_config_split(
                         if win_tp == g_st().curtab.as_ptr() {
                             None
                         } else {
-                            unsafe { win_tp.as_mut() }
+                            win_tp.opt_mut()
                         },
                     );
                 }
@@ -879,7 +883,7 @@ fn win_config_split(
             });
             if !to_split_ok {
                 if was_split {
-                    winframe_restore(win, dir, unsafe { &mut *unflat_altfr });
+                    winframe_restore(win, dir, unflat_altfr.borrow_mut());
                 }
                 if !error_set(err) {
                     api_set_error!(
@@ -892,8 +896,8 @@ fn win_config_split(
                 break 'restore_curwin;
             }
 
-            if win_tp != parent_tp && unsafe { (*win_tp).tp_curwin } == win {
-                unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(altwin) };
+            if win_tp != parent_tp && win_tp.tp_curwin == win {
+                win_tp.tp_curwin = altwin.into();
             }
             break 'resize;
         }
@@ -924,7 +928,7 @@ fn win_config_float_tp(
     fconfig: &WinConfig,
     err: &mut Error,
 ) -> bool {
-    let mut win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut win_tp = crate::globals::GraphPtr::from(win_find_tabpage(&*win));
     let mut parent = (&raw mut *win);
     let mut parent_tp = win_tp;
     if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
@@ -932,7 +936,7 @@ fn win_config_float_tp(
         if parent.is_null() {
             return false;
         }
-        parent_tp = win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
+        parent_tp = win_find_tabpage(unsafe { &*parent }).into();
     }
 
     let mut curwin_moving_tp = false;
@@ -940,11 +944,11 @@ fn win_config_float_tp(
 
     'restore_curwin: {
         if win_tp != parent_tp {
-            if !win_can_move_tp(win, unsafe { &mut *win_tp }, err) {
+            if !win_can_move_tp(win, win_tp.borrow_mut(), err) {
                 return false;
             }
-            altwin = win_find_altwin(win, unsafe { &mut *win_tp })
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            altwin =
+                win_find_altwin(win, win_tp.borrow_mut()).map_or(ptr::null_mut(), ptr::from_mut);
             assert!(!altwin.is_null());
 
             if curwin_ptr() == (&raw mut *win) {
@@ -960,9 +964,8 @@ fn win_config_float_tp(
                     );
                     return false;
                 }
-                win_tp = win_find_tabpage(&*win).map_or(ptr::null_mut(), ptr::from_mut);
-                parent_tp =
-                    win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
+                win_tp = win_find_tabpage(&*win).into();
+                parent_tp = win_find_tabpage(unsafe { &*parent }).into();
 
                 if win_tp.is_null() || parent_tp.is_null() {
                     api_set_error!(
@@ -972,10 +975,10 @@ fn win_config_float_tp(
                     );
                     break 'restore_curwin;
                 }
-                if win_tp != parent_tp && !win_can_move_tp(win, unsafe { &mut *win_tp }, err) {
+                if win_tp != parent_tp && !win_can_move_tp(win, win_tp.borrow_mut(), err) {
                     break 'restore_curwin;
                 }
-                altwin = win_find_altwin(win, unsafe { &mut *win_tp })
+                altwin = win_find_altwin(win, win_tp.borrow_mut())
                     .map_or(ptr::null_mut(), ptr::from_mut);
                 assert!(!altwin.is_null());
             }
@@ -1001,22 +1004,22 @@ fn win_config_float_tp(
                 if win_tp == g_st().curtab.as_ptr() {
                     None
                 } else {
-                    unsafe { win_tp.as_mut() }
+                    win_tp.opt_mut()
                 },
             );
-            let append_tp = if parent_tp == g_st().curtab.as_ptr() {
-                ptr::null_mut()
+            let append_tp = if parent_tp == g_st().curtab {
+                crate::globals::TabpagePtr::NULL
             } else {
                 parent_tp
             };
             win_append(
-                Some(lastwin_nofloating(unsafe { append_tp.as_ref() })),
+                Some(lastwin_nofloating(append_tp.opt())),
                 &mut *win,
-                unsafe { append_tp.as_mut() },
+                append_tp.opt_mut(),
             );
 
-            if win_tp != g_st().curtab.as_ptr() && unsafe { (*win_tp).tp_curwin } == win {
-                unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(altwin) };
+            if win_tp != g_st().curtab.as_ptr() && win_tp.tp_curwin == win {
+                win_tp.tp_curwin = crate::globals::WinPtr::new(altwin);
             }
 
             ui_comp_remove_grid(&mut win.w_grid_alloc);

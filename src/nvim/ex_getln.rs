@@ -4045,23 +4045,16 @@ pub fn cmdline_screen_cleared() {
     }
 
     let mut prev_level = getln_st().ccline.level - 1;
-    let mut line = getln_st()
-        .ccline
-        .prev_ccline
-        .as_deref_mut()
-        .map_or(ptr::null_mut(), ptr::from_mut);
+    let mut line = crate::globals::GraphPtr::from(getln_st().ccline.prev_ccline.as_deref_mut());
     while prev_level > 0 && !line.is_null() {
-        let line_ref = unsafe { &mut *line };
+        let line_ref = line.borrow_mut();
         if line_ref.level == prev_level {
             line_ref.redraw_state = K_CMD_REDRAW_ALL;
 
             prev_level -= 1;
         }
 
-        line = line_ref
-            .prev_ccline
-            .as_deref_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        line = line_ref.prev_ccline.as_deref_mut().into();
     }
     redrawcmd();
 }
@@ -4072,9 +4065,9 @@ pub fn cmdline_ui_flush() {
         return;
     }
     let mut level = getln_st().ccline.level;
-    let mut line: *mut CmdlineInfo = &raw mut getln_st().ccline;
+    let mut line = crate::globals::GraphPtr::from(&mut getln_st().ccline);
     while level > 0 && !line.is_null() {
-        let line_ref = unsafe { &mut *line };
+        let line_ref = line.borrow_mut();
         if line_ref.level == level {
             let redraw_state = line_ref.redraw_state;
 
@@ -4090,10 +4083,7 @@ pub fn cmdline_ui_flush() {
             level -= 1;
         }
 
-        line = line_ref
-            .prev_ccline
-            .as_deref_mut()
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        line = line_ref.prev_ccline.as_deref_mut().into();
     }
 }
 

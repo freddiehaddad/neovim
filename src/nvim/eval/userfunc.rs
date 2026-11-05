@@ -1181,12 +1181,12 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
-    let fp_ptr = fp.map_or(ptr::null_mut(), ptr::from_mut);
+    let fp_ptr = crate::globals::GraphPtr::from(fp);
     let fc = Box::leak(Box::new(Funccall::new()));
     fc.fc_caller = uf_st().current_funccal;
     uf_st().current_funccal = crate::globals::GraphPtr::from(&mut *fc);
-    fc.fc_func = crate::globals::GraphPtr::from(fp_ptr);
-    func_ptr_ref(unsafe { fp_ptr.as_mut() });
+    fc.fc_func = fp_ptr;
+    func_ptr_ref(fp_ptr.opt_mut());
     fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
     &mut *fc
 }
@@ -1201,7 +1201,7 @@ pub fn call_user_func(
     lastline: Linenr,
     selfdict_in: Option<&mut TvDict>,
 ) {
-    let selfdict = selfdict_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let selfdict = crate::globals::GraphPtr::from(selfdict_in);
     let mut using_sandbox = false;
     let mut islambda = false;
     let mut numbuf = [0u8; NUMBUFLEN];
@@ -1253,11 +1253,11 @@ pub fn call_user_func(
         v.di_flags |= DI_FLAGS_RO | DI_FLAGS_FIX;
         v.di_tv.v_type = VarType::VarDict;
         v.di_tv.v_lock = VAR_UNLOCKED;
-        v.di_tv.vval =
-            crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(selfdict));
+        v.di_tv.vval = crate::eval::typval::TypvalVval::Dict(selfdict);
 
-        unsafe {
-            (*selfdict).dv_refcount += 1;
+        {
+            let mut selfdict = selfdict;
+            selfdict.dv_refcount += 1;
         }
 
         hash_add(&mut fc.fc_l_vars.dv_hashtab, &mut *v);

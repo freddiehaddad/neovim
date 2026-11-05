@@ -442,7 +442,7 @@ pub fn channel_job_start(
     env: Option<&'static mut TvDict>,
     status_out: &mut Varnumber,
 ) -> Option<&'static mut Channel> {
-    let env_ptr = env.map_or(ptr::null_mut(), ptr::from_mut);
+    let env_ptr = crate::globals::GraphPtr::from(env);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
     let chan_ptr: *mut Channel = chan;
     chan.on_data = on_stdout;
@@ -453,7 +453,7 @@ pub fn channel_job_start(
     if pty {
         if detach {
             semsg!(gettext(E_INVARG2), c"terminal/pty job cannot be detached",);
-            if let Some(env_ref) = unsafe { env_ptr.as_mut() } {
+            if let Some(env_ref) = env_ptr.opt_mut() {
                 tv_dict_free(env_ref);
             }
             drop(argv);
@@ -491,7 +491,7 @@ pub fn channel_job_start(
     ph.events = chan.events;
     ph.detach = detach;
     ph.cwd = cwd.map(CStr::to_owned);
-    ph.env = crate::globals::GraphPtr::new(env_ptr);
+    ph.env = env_ptr;
     ph.overlapped = overlapped;
 
     #[cfg(windows)]

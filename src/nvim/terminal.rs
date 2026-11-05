@@ -132,7 +132,6 @@ use crate::vterm::vterm::{
 };
 use crate::window::{Winopt, may_trigger_win_scrolled_resized, win_valid};
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::arglist::ML_EMPTY;
 use crate::cmdexpand::CTRL_N;
@@ -912,8 +911,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
     }
 
     let mut only_destroy = false;
-    let buf: *mut FileBuf =
-        handle_get_buffer(term.buf_handle).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut buf = crate::globals::GraphPtr::from(handle_get_buffer(term.buf_handle));
 
     if term.closed {
         only_destroy = true;
@@ -936,14 +934,14 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
     }
 
     let mut pos = if !buf.is_null() {
-        unsafe { (*buf).b_ml.ml_line_count - 1 }
+        buf.b_ml.ml_line_count - 1
     } else {
         0
     };
     if status == -1 || g_st().exiting {
         term.buf_handle = 0;
         if !buf.is_null() {
-            unsafe { (*buf).terminal = crate::globals::GraphPtr::NULL };
+            buf.terminal = crate::globals::GraphPtr::NULL;
         }
         if term.refcount == 0 {
             term.destroy = true;
@@ -993,7 +991,7 @@ pub fn terminal_close(term: &mut Terminal, status: i32) {
             None,
             status >= 0,
             AUGROUP_ALL,
-            unsafe { buf.as_mut() },
+            buf.opt_mut(),
             Some(crate::globals::curwin_mut()),
             None,
             Some(&data_obj),

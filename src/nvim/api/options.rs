@@ -400,25 +400,25 @@ pub fn nvim_get_option_value(
 
     let mut aco: CtxSwitch = CtxSwitch::new();
 
-    let ftbuf = do_ft_buf(filetype, &mut aco, err).map_or(ptr::null_mut(), ptr::from_mut);
+    let ftbuf = crate::globals::GraphPtr::from(do_ft_buf(filetype, &mut aco, err));
     if error_set(err) {
         ctx_restore(&mut aco);
         if !ftbuf.is_null() {
-            wipe_ft_buf(unsafe { &mut *ftbuf });
+            wipe_ft_buf(ftbuf.borrow_mut());
         }
         return OBJECT_NIL;
     }
 
     if !ftbuf.is_null() {
         assert!(matches!(from, OptTarget::Global));
-        from = OptTarget::Buf(ftbuf.into());
+        from = OptTarget::Buf(ftbuf);
     }
 
     let value = get_option_value_for(opt_idx, opt_flags, scope, from, err);
 
     ctx_restore(&mut aco);
     if !ftbuf.is_null() {
-        wipe_ft_buf(unsafe { &mut *ftbuf });
+        wipe_ft_buf(ftbuf.borrow_mut());
     }
 
     if error_set(err) {

@@ -2770,10 +2770,10 @@ pub(crate) fn fill_submatch_list(
     let static_list = unsafe { &mut *listarg.vval.v_list().cast::<StaticList10>() };
     tv_list_init_static10(static_list);
 
-    let mut li = tv_list_first(listarg.vval.v_list().opt()).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut li = crate::globals::GraphPtr::from(tv_list_first(listarg.vval.v_list().opt()));
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
-        let li_mut = unsafe { &mut *li };
+        let li_mut = li.borrow_mut();
         if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
             tv_set_string(&mut li_mut.li_tv, None);
         } else {
@@ -2784,7 +2784,7 @@ pub(crate) fn fill_submatch_list(
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
         }
 
-        li = li_mut.li_next.as_ptr();
+        li = li_mut.li_next;
     }
     argskip + 1
 }

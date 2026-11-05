@@ -9691,7 +9691,7 @@ fn ex_pclose(eap: &mut Exarg) {
 }
 
 pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&mut TabPageInfo>) {
-    let tp = tp_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let tp = crate::globals::GraphPtr::from(tp_in);
     debug_assert!(tp.is_null() || tp != g_st().curtab.as_ptr());
 
     if is_ctx_win(win) {
@@ -9727,7 +9727,7 @@ pub fn ex_win_close(forceit: bool, win: &mut WinInfoInfo, tp_in: Option<&mut Tab
         win_close(win, close_b, forceit);
     } else {
         let close_b = i32::from(!need_hide && !buf_hide(win.buf_mut()));
-        win_close_othertab(win, close_b, unsafe { &mut *tp }, forceit);
+        win_close_othertab(win, close_b, tp.borrow_mut(), forceit);
     }
 }
 
@@ -11956,11 +11956,11 @@ fn prepare_preview_window() {
 }
 
 fn back_to_current_window(curwin_save: Option<&mut WinInfoInfo>) {
-    let curwin_save = curwin_save.map_or(ptr::null_mut(), ptr::from_mut);
-    if curwin_ptr() != curwin_save && win_valid(unsafe { curwin_save.as_ref() }) {
+    let curwin_save = crate::globals::GraphPtr::from(curwin_save);
+    if curwin_ptr() != curwin_save && win_valid(curwin_save.opt()) {
         validate_cursor(curwin_mut());
         redraw_later(Some(crate::globals::curwin_mut()), UPD_VALID);
-        win_enter(unsafe { &mut *curwin_save }, true);
+        win_enter(curwin_save.borrow_mut(), true);
     }
     g_st().g_do_tagpreview = 0;
 }

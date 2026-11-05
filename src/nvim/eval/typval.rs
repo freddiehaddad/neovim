@@ -1564,12 +1564,11 @@ pub fn tv_list_assign_range(
 ) -> bool {
     let op = op_opt.map_or(ptr::null(), CStr::as_ptr);
     let mut idx1 = idx1_arg;
-    let first_li: *mut Listitem =
-        tv_list_find_index(Some(&mut *dest), &mut idx1).map_or(ptr::null_mut(), ptr::from_mut);
+    let first_li = crate::globals::GraphPtr::from(tv_list_find_index(Some(&mut *dest), &mut idx1));
     let mut src_li: *mut Listitem;
 
     let mut idx = idx1;
-    let mut dest_li = first_li;
+    let mut dest_li = first_li.as_ptr();
     src_li = tv_list_first_inline(src).map_or(ptr::null_mut(), ptr::from_mut);
     while !src_li.is_null() && !dest_li.is_null() {
         if value_check_lock(
@@ -1588,7 +1587,7 @@ pub fn tv_list_assign_range(
     }
 
     idx = idx1;
-    dest_li = first_li;
+    dest_li = first_li.as_ptr();
     src_li = tv_list_first_inline(src).map_or(ptr::null_mut(), ptr::from_mut);
     while !src_li.is_null() {
         debug_assert!(!dest_li.is_null());
@@ -1642,11 +1641,11 @@ pub fn tv_list_flatten(
         return;
     }
 
-    let first = first_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let first = crate::globals::GraphPtr::from(first_opt);
     let mut item = if first.is_null() {
         list.lv_first
     } else {
-        crate::globals::ListitemPtr::new(first)
+        first
     };
     let mut done: i64 = 0;
 
@@ -1756,27 +1755,27 @@ pub fn tv_list_extend(l1: &mut TvList, l2: Option<&TvList>, bef_opt: Option<&mut
         return;
     }
 
-    let bef = bef_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let bef = crate::globals::GraphPtr::from(bef_opt);
     let befbef = if bef.is_null() {
         ptr::null_mut()
     } else {
-        unsafe { (*bef).li_prev.as_ptr() }
+        bef.li_prev.as_ptr()
     };
     let saved_next = if befbef.is_null() {
-        ptr::null_mut()
+        crate::globals::ListitemPtr::NULL
     } else {
-        unsafe { (*befbef).li_next.as_ptr() }
+        unsafe { (*befbef).li_next }
     };
-    let mut item = tv_list_first_inline(l2).map_or(ptr::null_mut(), ptr::from_mut);
-    while let Some(item_ref) = unsafe { item.as_mut() }
+    let mut item = crate::globals::GraphPtr::from(tv_list_first_inline(l2));
+    while let Some(item_ref) = item.opt_mut()
         && todo > 0
     {
         todo -= 1;
-        tv_list_insert_tv(l1, &mut item_ref.li_tv, unsafe { bef.as_mut() });
+        tv_list_insert_tv(l1, &mut item_ref.li_tv, bef.opt_mut());
         item = if item == befbef {
             saved_next
         } else {
-            item_ref.li_next.as_ptr()
+            item_ref.li_next
         };
     }
 }

@@ -1278,17 +1278,18 @@ fn lua_convert_one_value(
                                         handled_special = true;
                                     } else {
                                         let mut all_pairs = true;
-                                        let mut li = tv_list_first(val_list.as_ref())
-                                            .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+                                        let mut li = crate::globals::GraphPtr::from(tv_list_first(
+                                            val_list.as_ref(),
+                                        ));
                                         while !li.is_null() {
-                                            if (*li).li_tv.v_type != VarType::VarList
-                                                || tv_list_len(((*li).li_tv.vval.v_list()).as_ref())
+                                            if li.li_tv.v_type != VarType::VarList
+                                                || tv_list_len((li.li_tv.vval.v_list()).as_ref())
                                                     != 2
                                             {
                                                 all_pairs = false;
                                                 break;
                                             }
-                                            li = (*li).li_next.as_ptr();
+                                            li = li.li_next;
                                         }
                                         if all_pairs {
                                             let saved_copy_id = val_list.lv_copy_id;

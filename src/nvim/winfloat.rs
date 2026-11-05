@@ -55,14 +55,14 @@ pub fn win_new_float(
         debug_assert!(!last);
         debug_assert!(!wp.w_floating);
 
-        let win_tp = win_find_tabpage(wp).map_or(ptr::null_mut(), ptr::from_mut);
+        let win_tp = crate::globals::GraphPtr::from(win_find_tabpage(wp));
         debug_assert!(!win_tp.is_null());
         if (win_tp == g_st().curtab.as_ptr()
             && g_st().firstwin == wp
             && ptr::eq(lastwin_nofloating(None), wp))
             || win_tp != g_st().curtab.as_ptr()
-                && unsafe { (*win_tp).tp_firstwin } == wp
-                && ptr::eq(lastwin_nofloating(unsafe { win_tp.as_ref() }), wp)
+                && win_tp.tp_firstwin == wp
+                && ptr::eq(lastwin_nofloating(win_tp.opt()), wp)
         {
             api_set_error!(
                 err,
@@ -71,14 +71,14 @@ pub fn win_new_float(
             );
             return None;
         }
-        let tp = if win_tp == g_st().curtab.as_ptr() {
-            ptr::null_mut()
+        let tp = if win_tp == g_st().curtab {
+            crate::globals::TabpagePtr::NULL
         } else {
             win_tp
         };
         let mut dir: i32 = 0;
 
-        winframe_remove(wp, &mut dir, unsafe { tp.as_mut() }, None);
+        winframe_remove(wp, &mut dir, tp.opt_mut(), None);
 
         if !wp.w_frame.is_null() {
             drop(unsafe { Box::from_raw(wp.w_frame.as_ptr()) });
@@ -86,14 +86,14 @@ pub fn win_new_float(
 
         wp.w_frame = crate::globals::FramePtr::NULL;
 
-        win_remove(wp, unsafe { tp.as_mut() });
+        win_remove(wp, tp.opt_mut());
 
         if win_tp == g_st().curtab.as_ptr() {
             last_status(false);
             win_comp_pos();
         }
-        let prev = lastwin_nofloating(unsafe { tp.as_ref() });
-        win_append(Some(prev), wp, unsafe { tp.as_mut() });
+        let prev = lastwin_nofloating(tp.opt());
+        win_append(Some(prev), wp, tp.opt_mut());
         wp
     } else {
         let mut tp_last: *mut WinInfoInfo = if last {

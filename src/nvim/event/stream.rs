@@ -9,7 +9,6 @@ use crate::event::r#loop::{uv_handle_size, uv_tty_init, uv_tty_set_mode};
 use crate::event::multiqueue::MultiQueue;
 use crate::log::{LOGLVL_DBG, LOGLVL_WRN, log_st, logmsg};
 use std::ffi::c_void;
-use std::ptr;
 
 pub const UV_NAMED_PIPE: i32 = 7;
 #[cfg(windows)]
@@ -180,7 +179,7 @@ pub fn stream_set_blocking(fd: i32, blocking: bool) -> i32 {
 }
 
 pub fn stream_init(loop_: Option<&mut Loop>, stream: &mut Stream, fd: i32, has_uvstream: bool) {
-    let loop_ = loop_.map_or(ptr::null_mut(), ptr::from_mut);
+    let loop_ = crate::globals::GraphPtr::from(loop_);
     assert!(if !has_uvstream {
         fd >= 0 && !loop_.is_null()
     } else {

@@ -331,14 +331,14 @@ pub fn nvim_win_hide(win: Window, err: &mut Error) {
         return;
     }
 
-    let tabpage = win_find_tabpage(w.borrow()).map_or(std::ptr::null_mut(), std::ptr::from_mut);
+    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(w.borrow()));
     try_wrap(err, || {
         if is_ctx_win(w.borrow()) {
             emsg(gettext(E_AUTOCMD_CLOSE));
         } else if tabpage == g_st().curtab.as_ptr() {
             win_close(w.borrow_mut(), false, false);
         } else {
-            win_close_othertab(w.borrow_mut(), 0, unsafe { &mut *tabpage }, false);
+            win_close_othertab(w.borrow_mut(), 0, tabpage.borrow_mut(), false);
         }
     });
 }
@@ -358,7 +358,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
         return;
     };
 
-    let tabpage = win_find_tabpage(&*w).map_or(std::ptr::null_mut(), std::ptr::from_mut);
+    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(&*w));
     try_wrap(err, || {
         ex_win_close(
             force,
@@ -366,7 +366,7 @@ pub fn nvim_win_close(win: Window, force: Boolean, err: &mut Error) {
             if tabpage == g_st().curtab.as_ptr() {
                 None
             } else {
-                unsafe { tabpage.as_mut() }
+                tabpage.opt_mut()
             },
         );
     });
@@ -390,14 +390,14 @@ pub fn nvim_win_call(win: Window, fn_ref: LuaRef, err: &mut Error) -> Object {
     if w.is_null() {
         return OBJECT_NIL;
     }
-    let tabpage = win_find_tabpage(w.borrow()).map_or(std::ptr::null_mut(), std::ptr::from_mut);
+    let tabpage = crate::globals::GraphPtr::from(win_find_tabpage(w.borrow()));
 
     try_wrap_err(err, |err| {
         let mut cs: CtxSwitch = CtxSwitch::new();
         if ctx_switch(
             &mut cs,
             w.opt_mut(),
-            unsafe { tabpage.as_mut() },
+            tabpage.opt_mut(),
             None,
             K_CTX_NO_DISPLAY | K_CTX_KEEP_CWD | K_CTX_VALIDATE,
         ) {

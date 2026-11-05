@@ -3502,9 +3502,7 @@ pub fn buflist_setfpos(
     col: Colnr,
     copy_options: bool,
 ) {
-    let win: *mut WinInfoInfo = win_opt
-        .as_deref_mut()
-        .map_or(ptr::null_mut(), ptr::from_mut);
+    let win = crate::globals::GraphPtr::from(win_opt.as_deref_mut());
     let mut wip = if let Some(i) = buf.b_wininfo.iter().position(|w| w.wi_win == win) {
         let mut wip = buf.b_wininfo.remove(i);
         if copy_options && wip.wi_optset {
@@ -3515,7 +3513,7 @@ pub fn buflist_setfpos(
         wip
     } else {
         let mut wip = WinInfo::new();
-        wip.wi_win = crate::globals::WinPtr::new(win);
+        wip.wi_win = win;
         if lnum == 0 {
             lnum = 1;
         }

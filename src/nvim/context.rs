@@ -790,9 +790,9 @@ pub fn ctx_switch(
     buf_opt: Option<&mut FileBuf>,
     flags: CtxSwitchFlags,
 ) -> bool {
-    let mut wp: *mut WinInfoInfo = wp_opt.map_or(ptr::null_mut(), ptr::from_mut);
-    let tp: *mut TabPageInfo = tp_opt.map_or(ptr::null_mut(), ptr::from_mut);
-    let buf: *mut FileBuf = buf_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let mut wp = crate::globals::GraphPtr::from(wp_opt);
+    let tp = crate::globals::GraphPtr::from(tp_opt);
+    let buf = crate::globals::GraphPtr::from(buf_opt);
     assert!((wp.is_null() != buf.is_null()) || (wp.is_null() && (flags & K_CTX_KEEP_DIRS) != 0));
     assert!(buf.is_null() || tp.is_null());
     *cs = CtxSwitch::new();
@@ -808,23 +808,23 @@ pub fn ctx_switch(
     cs.cs_did_chdir = ctx_st().ctx_did_chdir;
     ctx_st().ctx_did_chdir = false;
     if cs.cs_mode == K_CTX_SWITCH_DIRS {
-        wp = curwin_ptr().as_ptr();
+        wp = curwin_ptr();
     }
 
     if !buf.is_null() {
         if buf == g_st().curbuf.as_ptr() {
-            wp = curwin_ptr().as_ptr();
+            wp = curwin_ptr();
         } else {
             for wp2 in for_all_windows_ptr() {
                 if wp2.w_buffer == buf {
-                    wp = wp2;
+                    wp = wp2.into();
                     break;
                 }
             }
         }
     }
 
-    if let Some(wp_ref) = unsafe { wp.as_mut() } {
+    if let Some(wp_ref) = wp.opt_mut() {
         if (flags & K_CTX_VALIDATE) != 0 {
             cs.cs_target_win = wp_ref.handle;
             cs.cs_target_old_pos = wp_ref.w_cursor;
@@ -832,8 +832,8 @@ pub fn ctx_switch(
         ctx_dirs_save(
             cs,
             wp_ref,
-            unsafe { tp.as_mut() }.unwrap_or_else(curtab_mut),
-            unsafe { buf.as_mut() },
+            tp.opt_mut().unwrap_or_else(curtab_mut),
+            buf.opt_mut(),
         );
     }
 
@@ -860,21 +860,21 @@ pub fn ctx_switch(
         cs.cs_curtab = g_st().curtab;
         if (flags & K_CTX_NO_DISPLAY) != 0 {
             unuse_tabpage(curtab_mut());
-            use_tabpage(unsafe { &mut *tp });
+            use_tabpage(tp.borrow_mut());
         } else {
-            goto_tabpage_tp(unsafe { tp.as_mut() }, false, false);
+            goto_tabpage_tp(tp.opt_mut(), false, false);
         }
     }
 
-    if let Some(buf_ref) = unsafe { buf.as_mut() } {
+    if let Some(buf_ref) = buf.opt_mut() {
         if wp.is_null() {
-            wp = ctx_win_prep(cs, &mut *buf_ref);
+            wp = ctx_win_prep(cs, &mut *buf_ref).into();
             leaving_window(curwin_mut());
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
             g_st().prevwin = curwin_ptr();
         }
-        assert!(wp != curwin_ptr() || win_valid(unsafe { wp.as_ref() }));
-    } else if !win_valid(unsafe { wp.as_ref() }) {
+        assert!(wp != curwin_ptr() || win_valid(wp.opt()));
+    } else if !win_valid(wp.opt()) {
         return false;
     }
     set_curwin(wp);

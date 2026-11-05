@@ -828,7 +828,7 @@ pub fn ex_drop(eap: &mut Exarg) {
         return;
     }
 
-    let buf = buflist_findnr(curwin_arglist().ae_fnum).map_or(ptr::null_mut(), ptr::from_mut);
+    let buf = crate::globals::GraphPtr::from(buflist_findnr(curwin_arglist().ae_fnum));
 
     for tp in for_all_tabpages_ptr() {
         for wp in win_iter_ptr(first_win_in_tab(&mut *tp)) {

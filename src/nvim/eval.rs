@@ -2032,7 +2032,7 @@ fn eval_func(
         !evaluate,
         Some(&mut found_var),
     );
-    let partial: *mut TvPartial = partial_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let partial = crate::globals::GraphPtr::from(partial_opt);
     let s = deref.as_ptr();
 
     let s_cstr = cstr_from_bytes(crate::memory::cstr_slice(s, len as usize));
@@ -6184,9 +6184,8 @@ pub fn var_item_copy(
                 return ret;
             };
             if copy_id != 0 && tv_list_copyid(from_list) == copy_id {
-                let latest = tv_list_latest_copy(from_list).map_or(ptr::null_mut(), ptr::from_mut);
-                to.vval =
-                    crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(latest));
+                let latest = crate::globals::GraphPtr::from(tv_list_latest_copy(from_list));
+                to.vval = crate::eval::typval::TypvalVval::List(latest);
                 tv_list_ref(to.vval.v_list_opt());
             } else {
                 to.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::from(
@@ -6966,8 +6965,8 @@ pub fn typval_compare(typ1: &mut TypVal, typ2: &mut TypVal, expr_type: Exprtype,
             tv_clear(typ1);
             return false;
         }
-        let pt1_ptr = tv_partial(&*typ1).map_or(ptr::null_mut(), ptr::from_mut);
-        let pt2_ptr = tv_partial(&*typ2).map_or(ptr::null_mut(), ptr::from_mut);
+        let pt1_ptr = crate::globals::GraphPtr::from(tv_partial(&*typ1));
+        let pt2_ptr = crate::globals::GraphPtr::from(tv_partial(&*typ2));
         let mut eq = if (typ1.v_type == VarType::VarPartial && pt1_ptr.is_null())
             || (typ2.v_type == VarType::VarPartial && pt2_ptr.is_null())
         {

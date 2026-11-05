@@ -5549,7 +5549,7 @@ pub fn validate_and_prepare_option_value<'a>(args: &mut Optset) -> Option<&'a CS
         } else {
             get_varp_scope_from(opt, opt_flags, buf, Some(&mut *win))
         };
-        let varp_ptr = varp.as_deref_mut().map_or(ptr::null_mut(), ptr::from_mut);
+        let varp_ptr = crate::globals::GraphPtr::from(varp.as_deref_mut());
         args.os_varp = varp_ptr.cast();
         args.os_oldval = opt_from_varp(opt_idx, varp);
         let validate_err = validate_cb(args).map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));

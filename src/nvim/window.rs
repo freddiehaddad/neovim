@@ -2797,16 +2797,12 @@ pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
         win_comp_pos();
     }
 
-    let unflat_ptr: *mut Frame = unflat_altfr.map_or(ptr::null_mut(), ptr::from_mut);
-    if win_split_ins(size, flags, wp.opt_mut(), dir, unsafe {
-        unflat_ptr.as_mut()
-    })
-    .is_none()
-    {
+    let unflat_ptr = crate::globals::GraphPtr::from(unflat_altfr);
+    if win_split_ins(size, flags, wp.opt_mut(), dir, unflat_ptr.opt_mut()).is_none() {
         if !wp.borrow_mut().w_floating {
             debug_assert!(!unflat_ptr.is_null());
 
-            winframe_restore(wp.borrow_mut(), dir, unsafe { &mut *(unflat_ptr) });
+            winframe_restore(wp.borrow_mut(), dir, unflat_ptr.borrow_mut());
         }
 
         win_append(wp.w_prev.opt_mut(), wp.borrow_mut(), None);
@@ -3643,17 +3639,15 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
     let had_cmdline_ruler =
         opt_vars().p_ru && win == curwin_ptr() && win.borrow_mut().w_status_height == 0;
     let mut dir: i32 = 0;
-    let mut wp: *mut WinInfoInfo =
-        win_free_mem(win.borrow_mut(), &mut dir, None).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut wp = crate::globals::GraphPtr::from(win_free_mem(win.borrow_mut(), &mut dir, None));
 
     if help_window || quickfix_window {
-        let prev_win = get_snapshot_curwin(if help_window {
+        let prev_win = crate::globals::GraphPtr::from(get_snapshot_curwin(if help_window {
             SNAP_HELP_IDX as i32
         } else {
             SNAP_QUICKFIX_IDX as i32
-        })
-        .map_or(ptr::null_mut(), ptr::from_mut);
-        if win_valid(unsafe { prev_win.as_ref() }) {
+        }));
+        if win_valid(prev_win.opt()) {
             wp = prev_win;
         }
     }
@@ -3662,23 +3656,21 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     if win == curwin_ptr() {
         set_curwin(wp);
-        if (unsafe { &mut *(wp) }).w_onebuf_opt.wo_pvw
-            || bt_quickfix(unsafe { (*(wp)).w_buffer.opt() })
-        {
+        if (wp.borrow_mut()).w_onebuf_opt.wo_pvw || bt_quickfix(wp.w_buffer.opt()) {
             loop {
-                if (unsafe { &mut *(wp) }).w_next.is_null() {
-                    wp = g_st().firstwin.as_ptr();
+                if (wp.borrow_mut()).w_next.is_null() {
+                    wp = g_st().firstwin;
                 } else {
-                    wp = (unsafe { &mut *(wp) }).w_next.as_ptr();
+                    wp = wp.w_next;
                 }
                 if wp == curwin_ptr() {
                     break;
                 }
-                if !(unsafe { &mut *(wp) }).w_onebuf_opt.wo_pvw
-                    && !bt_quickfix(unsafe { (*(wp)).w_buffer.opt() })
-                    && !((unsafe { &mut *(wp) }).w_floating
-                        && ((unsafe { &mut *(wp) }).w_config.hide
-                            || !(unsafe { &mut *(wp) }).w_config.focusable))
+                if !(wp.borrow_mut()).w_onebuf_opt.wo_pvw
+                    && !bt_quickfix(wp.w_buffer.opt())
+                    && !((wp.borrow_mut()).w_floating
+                        && ((wp.borrow_mut()).w_config.hide
+                            || !(wp.borrow_mut()).w_config.focusable))
                 {
                     set_curwin(wp);
                     break;
@@ -3708,7 +3700,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
             win_comp_pos();
             win_fix_scroll(false);
         }
-    } else if had_cmdline_ruler && (unsafe { &mut *(wp) }).w_status_height > 0 {
+    } else if had_cmdline_ruler && (wp.borrow_mut()).w_status_height > 0 {
         g_st().redraw_cmdline = true;
     }
     if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
@@ -3718,7 +3710,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     if close_curwin {
         win_enter_ext(
-            unsafe { &mut *wp },
+            wp.borrow_mut(),
             WEE_CURWIN_INVALID | WEE_TRIGGER_ENTER_AUTOCMDS | WEE_TRIGGER_LEAVE_AUTOCMDS,
         );
         if other_buffer {
@@ -4066,10 +4058,10 @@ pub fn winframe_remove(
 ) -> Option<&'static mut WinInfoInfo> {
     let mut altfr_opt: Option<&'static mut Frame> = None;
     let wp: *mut WinInfoInfo = winframe_find_altwin(win, dirp, tp, Some(&mut altfr_opt))?;
-    let altfr: *mut Frame = altfr_opt.map_or(ptr::null_mut(), ptr::from_mut);
+    let altfr = crate::globals::GraphPtr::from(altfr_opt);
 
     let frp_close = win.frame_mut();
-    let altfr_ref = unsafe { &mut *(altfr) };
+    let altfr_ref = altfr.borrow_mut();
 
     win_st().frame_locked += 1;
 
@@ -4092,7 +4084,7 @@ pub fn winframe_remove(
             altfr_ref,
             new_h,
             frp_close.fr_next == altfr,
-            !frame_fixed_height(unsafe { &*altfr }),
+            !frame_fixed_height(altfr.borrow()),
             false,
         );
     } else {
@@ -4102,7 +4094,7 @@ pub fn winframe_remove(
             altfr_ref,
             new_w,
             frp_close.fr_next == altfr,
-            !frame_fixed_height(unsafe { &*altfr }),
+            !frame_fixed_height(altfr.borrow()),
         );
     }
 
@@ -4111,9 +4103,9 @@ pub fn winframe_remove(
     }
 
     if let Some(out) = unflat_altfr {
-        *out = unsafe { altfr.as_mut() };
+        *out = altfr.opt_mut();
     } else {
-        frame_flatten(unsafe { &mut *altfr });
+        frame_flatten(altfr.borrow_mut());
     }
 
     win_st().frame_locked -= 1;
@@ -4391,7 +4383,7 @@ pub fn frame2win(frp: &Frame) -> &'static mut WinInfoInfo {
 }
 
 fn frame_has_win(frp: &Frame, wp: Option<&WinInfoInfo>) -> bool {
-    let wp_ptr = wp.map_or(ptr::null(), ptr::from_ref);
+    let wp_ptr = crate::globals::GraphPtr::from(wp);
     if frp.fr_layout == FR_LEAF {
         return frp.fr_win == wp_ptr;
     }
@@ -5191,10 +5183,10 @@ pub fn find_tabpage(n: i32) -> Option<&'static mut TabPageInfo> {
 }
 
 pub fn tabpage_index(ftp: Option<&TabPageInfo>) -> i32 {
-    let ftp_ptr = ftp.map_or(ptr::null(), ptr::from_ref);
+    let ftp_ptr = crate::globals::GraphPtr::from(ftp);
     let mut i: i32 = 1;
     for tp in for_all_tabpages_ptr() {
-        if ptr::eq(tp, ftp_ptr) {
+        if ftp_ptr == tp {
             break;
         }
         i += 1;
@@ -6086,36 +6078,36 @@ pub fn win_append(
     wp_in: &mut WinInfoInfo,
     tp_in: Option<&mut TabPageInfo>,
 ) {
-    let after: *mut WinInfoInfo = after_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let after = crate::globals::GraphPtr::from(after_in);
     let wp: *mut WinInfoInfo = ptr::from_mut(wp_in);
-    let tp: *mut TabPageInfo = tp_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let tp = crate::globals::GraphPtr::from(tp_in);
     debug_assert!(tp.is_null() || g_st().curtab != tp);
 
     let first = if tp.is_null() {
         (&raw mut g_st().firstwin).cast::<*mut WinInfoInfo>()
     } else {
-        (&raw mut (unsafe { &mut *(tp) }).tp_firstwin).cast::<*mut WinInfoInfo>()
+        (&raw mut (tp.borrow_mut()).tp_firstwin).cast::<*mut WinInfoInfo>()
     };
     let last = if tp.is_null() {
         (&raw mut g_st().lastwin).cast::<*mut WinInfoInfo>()
     } else {
-        (&raw mut (unsafe { &mut *(tp) }).tp_lastwin).cast::<*mut WinInfoInfo>()
+        (&raw mut (tp.borrow_mut()).tp_lastwin).cast::<*mut WinInfoInfo>()
     };
 
     let before = if after.is_null() {
         *unsafe { &mut *(first) }
     } else {
-        (unsafe { &mut *(after) }).w_next.as_ptr()
+        (after.borrow_mut()).w_next.as_ptr()
     };
 
     (unsafe { &mut *(wp) }).w_next = crate::globals::WinPtr::new(before);
 
-    (unsafe { &mut *(wp) }).w_prev = crate::globals::WinPtr::new(after);
+    (unsafe { &mut *(wp) }).w_prev = after;
 
     if after.is_null() {
         *unsafe { &mut *(first) } = wp;
     } else {
-        (unsafe { &mut *(after) }).w_next = crate::globals::WinPtr::new(wp);
+        (after.borrow_mut()).w_next = crate::globals::WinPtr::new(wp);
     }
     if before.is_null() {
         *unsafe { &mut *(last) } = wp;
@@ -7589,12 +7581,12 @@ fn find_horizontally_resizable_frame(fr: &mut Frame) -> Option<&'static mut Fram
 
 fn resize_frame_for_status(fr: &mut Frame) -> bool {
     let wp = fr.win_mut();
-    let fp = find_horizontally_resizable_frame(fr).map_or(ptr::null_mut(), ptr::from_mut);
+    let fp = crate::globals::GraphPtr::from(find_horizontally_resizable_frame(fr));
 
     if fp.is_null() {
         emsg(gettext(E_NOROOM));
         false
-    } else if !ptr::eq(fp, fr) {
+    } else if fp != fr {
         let old_height = fr.fr_height;
         frame_setheight(fr, old_height + 1, false);
         if fr.fr_height == old_height {

@@ -2434,9 +2434,13 @@ fn flatten_common(argvars: &mut [TypVal], rettv: &mut TypVal, make_copy: bool) {
     }
 
     if make_copy {
-        let copied = tv_list_copy(None, list_opt.take(), false, get_copy_id())
-            .map_or(ptr::null_mut(), ptr::from_mut);
-        rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(copied));
+        let copied = crate::globals::GraphPtr::from(tv_list_copy(
+            None,
+            list_opt.take(),
+            false,
+            get_copy_id(),
+        ));
+        rettv.vval = crate::eval::typval::TypvalVval::List(copied);
         list_opt = rettv.vval.v_list_opt();
         if list_opt.is_none() {
             return;

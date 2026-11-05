@@ -681,7 +681,7 @@ pub fn searchit(
     magic: bool,
     mut extra_arg: Option<&mut SearchitArg>,
 ) -> i32 {
-    let win = win.map_or(ptr::null_mut(), ptr::from_mut);
+    let win = crate::globals::GraphPtr::from(win);
     {
         let mut found: i32;
         let mut lnum: Linenr;
@@ -791,7 +791,7 @@ pub fn searchit(
                     };
                     nmatched = vim_regexec_multi(
                         &mut regmatch,
-                        unsafe { win.as_mut() },
+                        win.opt_mut(),
                         &mut *buf,
                         lnum,
                         col,
@@ -861,7 +861,7 @@ pub fn searchit(
                                 ) || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
-                                        unsafe { win.as_mut() },
+                                        win.opt_mut(),
                                         &mut *buf,
                                         lnum,
                                         matchcol,
@@ -945,7 +945,7 @@ pub fn searchit(
                                 ) || {
                                     nmatched = vim_regexec_multi(
                                         &mut regmatch,
-                                        unsafe { win.as_mut() },
+                                        win.opt_mut(),
                                         &mut *buf,
                                         lnum + matchpos.lnum,
                                         matchcol,

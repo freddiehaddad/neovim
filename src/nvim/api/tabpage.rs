@@ -233,10 +233,10 @@ pub fn nvim_open_tabpage(
     let mut wp_opt: Option<&'static mut WinInfoInfo> = None;
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let tp = win_new_tabpage(after + 1, None, enter, Some(&mut wp_opt))
-        .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+    let tp =
+        crate::globals::GraphPtr::from(win_new_tabpage(after + 1, None, enter, Some(&mut wp_opt)));
     try_leave(&tstate, err);
-    let wp: *mut WinInfoInfo = wp_opt.map_or(std::ptr::null_mut(), std::ptr::from_mut);
+    let wp = crate::globals::GraphPtr::from(wp_opt);
 
     if tp.is_null() {
         if !error_set(err) {
@@ -248,7 +248,7 @@ pub fn nvim_open_tabpage(
         }
         return 0;
     }
-    if !valid_tabpage(unsafe { tp.as_ref() }) {
+    if !valid_tabpage(tp.opt()) {
         api_clear_error(err);
         api_set_error!(
             err,
@@ -258,20 +258,18 @@ pub fn nvim_open_tabpage(
         return 0;
     }
 
-    if tabpage_win_valid(unsafe { tp.as_ref() }, unsafe { wp.as_ref() })
-        && unsafe { (*wp).w_buffer } != (&raw mut *b)
-    {
+    if tabpage_win_valid(tp.opt(), wp.opt()) && wp.w_buffer != (&raw mut *b) {
         let au_no_enter_leave = curwin_ptr() != wp;
         if au_no_enter_leave {
             g_st().autocmd_no_enter += 1;
             g_st().autocmd_no_leave += 1;
         }
-        win_set_buf(unsafe { &mut *wp }, b, err);
+        win_set_buf(wp.borrow_mut(), b, err);
         if au_no_enter_leave {
             g_st().autocmd_no_enter -= 1;
             g_st().autocmd_no_leave -= 1;
         }
-        if !valid_tabpage(unsafe { tp.as_ref() }) {
+        if !valid_tabpage(tp.opt()) {
             api_clear_error(err);
             api_set_error!(
                 err,
@@ -282,7 +280,7 @@ pub fn nvim_open_tabpage(
         }
     }
 
-    unsafe { (*tp).handle }
+    tp.handle
 }
 
 #[cfg(test)]

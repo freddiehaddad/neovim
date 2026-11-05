@@ -165,7 +165,7 @@ fn loop_process_events_until<F: FnMut() -> bool>(
     mut cond: F,
 ) {
     let loop_: *mut Loop = loop_in;
-    let multiqueue: *mut MultiQueue = multiqueue_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let multiqueue = crate::globals::GraphPtr::from(multiqueue_in);
     let timeout_ms = timeout;
     let start = if timeout_ms >= 0 { os_hrtime() } else { 0 };
     let mut remaining = timeout_ms;
@@ -305,7 +305,7 @@ pub fn proc_close_streams(proc_: &mut Proc) {
 /// Synchronously wait for a process to finish
 pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>) -> i32 {
     let proc_: *mut Proc = proc_in;
-    let mut events: *mut MultiQueue = events_in.map_or(ptr::null_mut(), ptr::from_mut);
+    let mut events = crate::globals::GraphPtr::from(events_in);
     unsafe {
         if (*proc_).refcount == 0 {
             let status = (*proc_).status;
@@ -314,7 +314,7 @@ pub fn proc_wait(proc_in: &mut Proc, ms: i32, events_in: Option<&mut MultiQueue>
         }
 
         if events.is_null() {
-            events = (*proc_).events.as_ptr();
+            events = (*proc_).events;
         }
 
         (*proc_).refcount += 1;
