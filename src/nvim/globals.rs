@@ -1276,6 +1276,11 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
+    pub const fn cast_ptr<U>(self) -> GraphPtr<U> {
+        GraphPtr(self.0.cast())
+    }
+
+    #[inline(always)]
     pub fn as_ref<'a>(self) -> Option<&'a T> {
         self.opt()
     }

@@ -1,7 +1,6 @@
 //! MessagePack object tree parser and unparser (`src/mpack/object.c`).
 
-use std::ptr;
-
+use crate::globals::{AsGraphPtr, GraphPtr};
 use crate::mpack::mpack_core::{
     MPACK_EOF, MPACK_ERROR, MPACK_OK, MpackSintmax, MpackTokbuf, MpackToken, MpackTokenChunk,
     MpackTokenMap, MpackUint32, mpack_read, mpack_tokbuf_init, mpack_write,
@@ -16,15 +15,15 @@ pub enum MpackData {
     #[default]
     Null,
     Int(MpackSintmax),
-    LmpackUnpacker(*mut crate::mpack::lmpack::LmpackUnpacker),
-    LmpackPacker(*mut crate::mpack::lmpack::Packer),
-    Typval(*mut crate::eval::typval::TypVal),
-    List(*mut crate::eval::typval::TvList),
+    LmpackUnpacker(GraphPtr<crate::mpack::lmpack::LmpackUnpacker>),
+    LmpackPacker(GraphPtr<crate::mpack::lmpack::Packer>),
+    Typval(GraphPtr<crate::eval::typval::TypVal>),
+    List(GraphPtr<crate::eval::typval::TvList>),
     MapPairs(Vec<[crate::eval::typval::TypVal; 2]>),
     OwnedBytes(Vec<u8>),
-    Bytes(*mut u8),
-    Unpacker(*mut crate::msgpack_rpc::unpacker::Unpacker),
-    Object(*mut crate::api::private::validate::Object),
+    NvimString(crate::api::private::validate::NvimString),
+    Unpacker(GraphPtr<crate::msgpack_rpc::unpacker::Unpacker>),
+    Object(GraphPtr<crate::api::private::validate::Object>),
 }
 
 impl MpackData {
@@ -43,7 +42,7 @@ impl MpackData {
     #[inline]
     pub fn lmpack_unpacker(&self) -> &'static mut crate::mpack::lmpack::LmpackUnpacker {
         match *self {
-            Self::LmpackUnpacker(p) => unsafe { &mut *p },
+            Self::LmpackUnpacker(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -51,7 +50,7 @@ impl MpackData {
     #[inline]
     pub fn lmpack_packer(&self) -> &'static mut crate::mpack::lmpack::Packer {
         match *self {
-            Self::LmpackPacker(p) => unsafe { &mut *p },
+            Self::LmpackPacker(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -59,7 +58,7 @@ impl MpackData {
     #[inline]
     pub fn typval(&self) -> &'static mut crate::eval::typval::TypVal {
         match *self {
-            Self::Typval(p) => unsafe { &mut *p },
+            Self::Typval(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -67,7 +66,7 @@ impl MpackData {
     #[inline]
     pub fn list(&self) -> &'static mut crate::eval::typval::TvList {
         match *self {
-            Self::List(p) => unsafe { &mut *p },
+            Self::List(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -89,10 +88,10 @@ impl MpackData {
     }
 
     #[inline]
-    pub const fn bytes(&self) -> *mut u8 {
-        match *self {
-            Self::Bytes(p) => p,
-            _ => ptr::null_mut(),
+    pub fn nvim_string_mut(&mut self) -> &mut crate::api::private::validate::NvimString {
+        match self {
+            Self::NvimString(s) => s,
+            _ => unreachable!(),
         }
     }
 
@@ -115,7 +114,7 @@ impl MpackData {
     #[inline]
     pub fn unpacker(&self) -> &'static mut crate::msgpack_rpc::unpacker::Unpacker {
         match *self {
-            Self::Unpacker(p) => unsafe { &mut *p },
+            Self::Unpacker(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -123,7 +122,7 @@ impl MpackData {
     #[inline]
     pub fn object(&self) -> &'static mut crate::api::private::validate::Object {
         match *self {
-            Self::Object(p) => unsafe { &mut *p },
+            Self::Object(p) => p.borrow_mut(),
             _ => unreachable!(),
         }
     }
@@ -188,14 +187,12 @@ impl MpackParser {
 pub type MpackWalkCb = Option<fn(w: &mut MpackParser, n: &mut MpackNode)>;
 
 #[inline]
-pub fn mpack_parent_node(n: *mut MpackNode) -> *mut MpackNode {
-    unsafe {
-        let prev = n.wrapping_sub(1);
-        if (*prev).pos == usize::MAX {
-            ptr::null_mut()
-        } else {
-            prev
-        }
+pub fn mpack_parent_node(n: impl AsGraphPtr<MpackNode>) -> GraphPtr<MpackNode> {
+    let prev = n.into_graph_ptr().wrapping_sub(1);
+    if prev.pos == usize::MAX {
+        GraphPtr::NULL
+    } else {
+        prev
     }
 }
 
@@ -230,46 +227,44 @@ pub fn mpack_parse_tok(
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
 ) -> i32 {
-    unsafe {
+    if parser.status == MPACK_EXCEPTION {
+        return MPACK_EXCEPTION;
+    }
+
+    if parser.exiting == 0 {
+        if mpack_parser_full(parser) {
+            return MPACK_NOMEM;
+        }
+        let mut n = mpack_parser_push(parser);
+        n.tok = tok;
+        if let Some(cb) = enter_cb {
+            cb(parser, n.borrow_mut());
+        }
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
-
-        if parser.exiting == 0 {
-            if mpack_parser_full(parser) {
-                return MPACK_NOMEM;
-            }
-            let n = mpack_parser_push(parser);
-            (*n).tok = tok;
-            if let Some(cb) = enter_cb {
-                cb(parser, &mut *n);
-            }
-            if parser.status == MPACK_EXCEPTION {
-                return MPACK_EXCEPTION;
-            }
-            parser.exiting = 1;
-            return MPACK_EOF;
-        }
-
-        parser.exiting = 0;
-        loop {
-            let n = mpack_parser_pop(parser);
-            if n.is_null() {
-                break;
-            }
-            if let Some(cb) = exit_cb {
-                cb(parser, &mut *n);
-            }
-            if parser.status == MPACK_EXCEPTION {
-                return MPACK_EXCEPTION;
-            }
-            if parser.size == 0 {
-                return MPACK_OK;
-            }
-        }
-
-        MPACK_EOF
+        parser.exiting = 1;
+        return MPACK_EOF;
     }
+
+    parser.exiting = 0;
+    loop {
+        let n = mpack_parser_pop(parser);
+        if n.is_null() {
+            break;
+        }
+        if let Some(cb) = exit_cb {
+            cb(parser, n.borrow_mut());
+        }
+        if parser.status == MPACK_EXCEPTION {
+            return MPACK_EXCEPTION;
+        }
+        if parser.size == 0 {
+            return MPACK_OK;
+        }
+    }
+
+    MPACK_EOF
 }
 
 pub fn mpack_unparse_tok(
@@ -278,52 +273,49 @@ pub fn mpack_unparse_tok(
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
 ) -> i32 {
-    unsafe {
+    if parser.status == MPACK_EXCEPTION {
+        return MPACK_EXCEPTION;
+    }
+
+    if parser.exiting == 0 {
+        if mpack_parser_full(parser) {
+            return MPACK_NOMEM;
+        }
+        let n = mpack_parser_push(parser);
+        if let Some(cb) = enter_cb {
+            cb(parser, n.borrow_mut());
+        }
+        *tok = n.tok.clone();
         if parser.status == MPACK_EXCEPTION {
             return MPACK_EXCEPTION;
         }
-
-        if parser.exiting == 0 {
-            if mpack_parser_full(parser) {
-                return MPACK_NOMEM;
-            }
-            let n = mpack_parser_push(parser);
-            if let Some(cb) = enter_cb {
-                cb(parser, &mut *n);
-            }
-            *tok = (*n).tok;
-            if parser.status == MPACK_EXCEPTION {
-                return MPACK_EXCEPTION;
-            }
-            parser.exiting = 1;
-            return MPACK_EOF;
-        }
-
-        parser.exiting = 0;
-        loop {
-            let n = mpack_parser_pop(parser);
-            if n.is_null() {
-                break;
-            }
-            if let Some(cb) = exit_cb {
-                cb(parser, &mut *n);
-            }
-            if parser.status == MPACK_EXCEPTION {
-                return MPACK_EXCEPTION;
-            }
-            if parser.size == 0 {
-                return MPACK_OK;
-            }
-        }
-
-        MPACK_EOF
+        parser.exiting = 1;
+        return MPACK_EOF;
     }
+
+    parser.exiting = 0;
+    loop {
+        let n = mpack_parser_pop(parser);
+        if n.is_null() {
+            break;
+        }
+        if let Some(cb) = exit_cb {
+            cb(parser, n.borrow_mut());
+        }
+        if parser.status == MPACK_EXCEPTION {
+            return MPACK_EXCEPTION;
+        }
+        if parser.size == 0 {
+            return MPACK_OK;
+        }
+    }
+
+    MPACK_EOF
 }
 
 pub fn mpack_parse(
     parser: &mut MpackParser,
-    buf: &mut *const u8,
-    buflen: &mut usize,
+    buf: &mut &[u8],
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
 ) -> i32 {
@@ -332,22 +324,20 @@ pub fn mpack_parse(
         return MPACK_EXCEPTION;
     }
 
-    while *buflen != 0 && status != 0 {
+    while !buf.is_empty() && status != 0 {
         let mut tok = MpackToken::new();
         let buf_save = *buf;
-        let buflen_save = *buflen;
 
-        status = mpack_read(&mut parser.tokbuf, buf, buflen, &mut tok);
+        status = mpack_read(&mut parser.tokbuf, buf, &mut tok);
         if status == MPACK_EOF {
             continue;
         } else if status == MPACK_ERROR {
             *buf = buf_save;
-            *buflen = buflen_save;
             break;
         }
 
         loop {
-            status = mpack_parse_tok(parser, tok, enter_cb, exit_cb);
+            status = mpack_parse_tok(parser, tok.clone(), enter_cb, exit_cb);
             if parser.status == MPACK_EXCEPTION {
                 return MPACK_EXCEPTION;
             }
@@ -358,7 +348,6 @@ pub fn mpack_parse(
 
         if status == MPACK_NOMEM {
             *buf = buf_save;
-            *buflen = buflen_save;
             break;
         }
     }
@@ -368,8 +357,7 @@ pub fn mpack_parse(
 
 pub fn mpack_unparse(
     parser: &mut MpackParser,
-    buf: &mut *mut u8,
-    buflen: &mut usize,
+    buf: &mut &mut [u8],
     enter_cb: MpackWalkCb,
     exit_cb: MpackWalkCb,
 ) -> i32 {
@@ -378,7 +366,7 @@ pub fn mpack_unparse(
         return MPACK_EXCEPTION;
     }
 
-    while *buflen != 0 && status != 0 {
+    while !buf.is_empty() && status != 0 {
         let mut tok = MpackToken::new();
 
         if parser.tokbuf.plen == 0 {
@@ -395,7 +383,7 @@ pub fn mpack_unparse(
         }
 
         if parser.exiting != 0 {
-            let write_status = mpack_write(&mut parser.tokbuf, buf, buflen, &tok);
+            let write_status = mpack_write(&mut parser.tokbuf, buf, &tok);
             if write_status != 0 {
                 status = write_status;
             }
@@ -410,34 +398,29 @@ const fn mpack_parser_full(parser: &MpackParser) -> bool {
     parser.size == parser.capacity
 }
 
-fn mpack_parser_push(parser: &mut MpackParser) -> *mut MpackNode {
+fn mpack_parser_push(parser: &mut MpackParser) -> GraphPtr<MpackNode> {
     debug_assert!(parser.size < parser.capacity);
     let top_idx = (parser.size as usize) + 1;
-    let top = &raw mut parser.items[top_idx];
-    let top = unsafe { &mut *top };
-    {
-        top.data[0] = MpackData::Null;
-        top.data[1] = MpackData::Null;
-        top.pos = 0;
-        top.key_visited = 0;
-    }
+    let mut top = GraphPtr::from(&mut parser.items[top_idx]);
+    top.data[0] = MpackData::Null;
+    top.data[1] = MpackData::Null;
+    top.pos = 0;
+    top.key_visited = 0;
     parser.size += 1;
     top
 }
 
-fn mpack_parser_pop(parser: &mut MpackParser) -> *mut MpackNode {
+fn mpack_parser_pop(parser: &mut MpackParser) -> GraphPtr<MpackNode> {
     debug_assert!(parser.size != 0);
     let top_idx = parser.size as usize;
-    let top = &raw mut parser.items[top_idx];
-    let top = unsafe { &mut *top };
+    let top = GraphPtr::from(&mut parser.items[top_idx]);
 
     if top.tok.r#type > MpackTokenChunk && top.pos < (top.tok.length as usize) {
-        return ptr::null_mut();
+        return GraphPtr::NULL;
     }
 
-    let parent = mpack_parent_node(top);
+    let mut parent = mpack_parent_node(top);
     if !parent.is_null() {
-        let parent = unsafe { &mut *parent };
         if top.tok.r#type == MpackTokenChunk {
             parent.pos += top.tok.length as usize;
         } else if parent.tok.r#type == MpackTokenMap {

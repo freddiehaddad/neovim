@@ -5763,7 +5763,7 @@ fn msgpackparse_unpack_list(list: Option<&TvList>, ret_list: &mut TvList) {
     let mut cur_item = tv_initial_value();
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    parser.data = crate::mpack::object::MpackData::Typval(&raw mut cur_item);
+    parser.data = crate::mpack::object::MpackData::Typval(GraphPtr::from(&mut cur_item));
 
     let mut status = MPACK_OK;
     'end: {

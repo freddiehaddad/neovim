@@ -20,7 +20,7 @@ pub const MPACK_RPC_EMSGID: i32 = MPACK_RPC_ERROR + 3;
 pub const MPACK_RPC_ERESPID: i32 = MPACK_RPC_ERROR + 4;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct MpackRpcHeader {
     pub toks: [MpackToken; 3],
     pub index: i32,
@@ -29,7 +29,7 @@ pub struct MpackRpcHeader {
 impl MpackRpcHeader {
     pub const fn new() -> Self {
         Self {
-            toks: [MpackToken::new(); 3],
+            toks: [MpackToken::new(), MpackToken::new(), MpackToken::new()],
             index: 0,
         }
     }
@@ -184,7 +184,7 @@ pub fn mpack_rpc_request_tok(
             session.send.toks[2].r#type = MpackTokenUint;
             session.send.toks[2].data.value_mut().lo = msg.id;
             session.send.toks[2].data.value_mut().hi = 0;
-            *tok = session.send.toks[0];
+            *tok = session.send.toks[0].clone();
             let status = mpack_rpc_put(session, msg);
             if status == -1 {
                 return MPACK_NOMEM;
@@ -199,13 +199,13 @@ pub fn mpack_rpc_request_tok(
     }
 
     if session.send.index == 1 {
-        *tok = session.send.toks[1];
+        *tok = session.send.toks[1].clone();
         session.send.index += 1;
         return MPACK_EOF;
     }
 
     debug_assert_eq!(session.send.index, 2);
-    *tok = session.send.toks[2];
+    *tok = session.send.toks[2].clone();
     mpack_rpc_reset_hdr(&mut session.send);
     MPACK_OK
 }
@@ -220,19 +220,19 @@ pub fn mpack_rpc_reply_tok(
         session.send.toks[2].r#type = MpackTokenUint;
         session.send.toks[2].data.value_mut().lo = id;
         session.send.toks[2].data.value_mut().hi = 0;
-        *tok = session.send.toks[0];
+        *tok = session.send.toks[0].clone();
         session.send.index += 1;
         return MPACK_EOF;
     }
 
     if session.send.index == 1 {
-        *tok = session.send.toks[1];
+        *tok = session.send.toks[1].clone();
         session.send.index += 1;
         return MPACK_EOF;
     }
 
     debug_assert_eq!(session.send.index, 2);
-    *tok = session.send.toks[2];
+    *tok = session.send.toks[2].clone();
     mpack_rpc_reset_hdr(&mut session.send);
     MPACK_OK
 }
@@ -240,32 +240,31 @@ pub fn mpack_rpc_reply_tok(
 pub fn mpack_rpc_notify_tok(session: &mut MpackRpcSession, tok: &mut MpackToken) -> i32 {
     if session.send.index == 0 {
         session.send = mpack_rpc_notify_hdr();
-        *tok = session.send.toks[0];
+        *tok = session.send.toks[0].clone();
         session.send.index += 1;
         return MPACK_EOF;
     }
 
     debug_assert_eq!(session.send.index, 1);
-    *tok = session.send.toks[1];
+    *tok = session.send.toks[1].clone();
     mpack_rpc_reset_hdr(&mut session.send);
     MPACK_OK
 }
 
 pub fn mpack_rpc_receive(
     session: &mut MpackRpcSession,
-    buf: &mut *const u8,
-    buflen: &mut usize,
+    buf: &mut &[u8],
     msg: &mut MpackRpcMessage,
 ) -> i32 {
     let mut status: i32;
     loop {
         let mut tok = MpackToken::new();
-        status = mpack_read(&mut session.reader, buf, buflen, &mut tok);
+        status = mpack_read(&mut session.reader, buf, &mut tok);
         if status != 0 {
             break;
         }
         status = mpack_rpc_receive_tok(session, tok, msg);
-        if status >= MPACK_RPC_REQUEST || *buflen == 0 {
+        if status >= MPACK_RPC_REQUEST || buf.is_empty() {
             break;
         }
     }
@@ -274,20 +273,19 @@ pub fn mpack_rpc_receive(
 
 pub fn mpack_rpc_request(
     session: &mut MpackRpcSession,
-    buf: &mut *mut u8,
-    buflen: &mut usize,
+    buf: &mut &mut [u8],
     data: MpackData,
 ) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
-    while status != 0 && *buflen != 0 {
+    while status != 0 && !buf.is_empty() {
         if session.writer.plen == 0 {
             status = mpack_rpc_request_tok(session, &mut tok, data.clone());
         }
         if status == MPACK_NOMEM {
             break;
         }
-        let write_status = mpack_write(&mut session.writer, buf, buflen, &tok);
+        let write_status = mpack_write(&mut session.writer, buf, &tok);
         if write_status != 0 {
             status = write_status;
         }
@@ -295,19 +293,14 @@ pub fn mpack_rpc_request(
     status
 }
 
-pub fn mpack_rpc_reply(
-    session: &mut MpackRpcSession,
-    buf: &mut *mut u8,
-    buflen: &mut usize,
-    id: MpackUint32,
-) -> i32 {
+pub fn mpack_rpc_reply(session: &mut MpackRpcSession, buf: &mut &mut [u8], id: MpackUint32) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
-    while status != 0 && *buflen != 0 {
+    while status != 0 && !buf.is_empty() {
         if session.writer.plen == 0 {
             status = mpack_rpc_reply_tok(session, &mut tok, id);
         }
-        let write_status = mpack_write(&mut session.writer, buf, buflen, &tok);
+        let write_status = mpack_write(&mut session.writer, buf, &tok);
         if write_status != 0 {
             status = write_status;
         }
@@ -315,18 +308,14 @@ pub fn mpack_rpc_reply(
     status
 }
 
-pub fn mpack_rpc_notify(
-    session: &mut MpackRpcSession,
-    buf: &mut *mut u8,
-    buflen: &mut usize,
-) -> i32 {
+pub fn mpack_rpc_notify(session: &mut MpackRpcSession, buf: &mut &mut [u8]) -> i32 {
     let mut status = MPACK_EOF;
     let mut tok = MpackToken::new();
-    while status != 0 && *buflen != 0 {
+    while status != 0 && !buf.is_empty() {
         if session.writer.plen == 0 {
             status = mpack_rpc_notify_tok(session, &mut tok);
         }
-        let write_status = mpack_write(&mut session.writer, buf, buflen, &tok);
+        let write_status = mpack_write(&mut session.writer, buf, &tok);
         if write_status != 0 {
             status = write_status;
         }

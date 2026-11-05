@@ -104,18 +104,18 @@ pub fn mpack_pack_number(v: f64) -> MpackToken {
         data: MpackTokenData::Value(MpackValue { lo, hi }),
     };
 
-    if mpack_unpack_number(tok) != v {
+    if mpack_unpack_number(&tok) != v {
         return mpack_pack_float_fast(v);
     }
 
     tok
 }
 
-pub fn mpack_pack_chunk(p: *const u8, l: MpackUint32) -> MpackToken {
+pub fn mpack_pack_chunk(bytes: &[u8]) -> MpackToken {
     MpackToken {
         r#type: MpackTokenChunk,
-        length: l,
-        data: MpackTokenData::ChunkPtr(p),
+        length: bytes.len() as MpackUint32,
+        data: MpackTokenData::Chunk(bytes.to_vec()),
     }
 }
 
@@ -159,17 +159,18 @@ pub fn mpack_pack_map(l: MpackUint32) -> MpackToken {
     }
 }
 
-pub fn mpack_unpack_boolean(t: MpackToken) -> bool {
-    let val = t.data.value();
+pub fn mpack_unpack_boolean(t: impl std::borrow::Borrow<MpackToken>) -> bool {
+    let val = t.borrow().data.value();
     val.lo != 0 || val.hi != 0
 }
 
-pub fn mpack_unpack_uint(t: MpackToken) -> MpackUintmax {
-    let val = t.data.value();
+pub fn mpack_unpack_uint(t: impl std::borrow::Borrow<MpackToken>) -> MpackUintmax {
+    let val = t.borrow().data.value();
     (((val.hi as MpackUintmax) << 31) << 1) | (val.lo as MpackUintmax)
 }
 
-pub fn mpack_unpack_sint(t: MpackToken) -> MpackSintmax {
+pub fn mpack_unpack_sint(t: impl std::borrow::Borrow<MpackToken>) -> MpackSintmax {
+    let t = t.borrow();
     let val = t.data.value();
     let hi = val.hi;
     let lo = val.lo;
@@ -184,7 +185,8 @@ pub fn mpack_unpack_sint(t: MpackToken) -> MpackSintmax {
     -((rv.wrapping_sub(1)) as MpackSintmax) - 1
 }
 
-pub fn mpack_unpack_float_fast(t: MpackToken) -> f64 {
+pub fn mpack_unpack_float_fast(t: impl std::borrow::Borrow<MpackToken>) -> f64 {
+    let t = t.borrow();
     let val = t.data.value();
     if t.length == 4 {
         f64::from(f32::from_bits(val.lo))
@@ -194,7 +196,8 @@ pub fn mpack_unpack_float_fast(t: MpackToken) -> f64 {
     }
 }
 
-pub fn mpack_unpack_number(t: MpackToken) -> f64 {
+pub fn mpack_unpack_number(t: impl std::borrow::Borrow<MpackToken>) -> f64 {
+    let t = t.borrow();
     if t.r#type == MpackTokenFloat {
         return mpack_unpack_float_fast(t);
     }

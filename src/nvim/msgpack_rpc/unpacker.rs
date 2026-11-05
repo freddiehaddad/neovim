@@ -7,7 +7,7 @@ use crate::api::private::validate::{
 };
 use crate::globals::*;
 use crate::lua::converter::{Boolean, FieldHashfn, OptKeySet};
-use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
+use crate::memory::{Arena, arena_alloc, arena_allocz, arena_finish, arena_mem_free};
 use crate::mpack::mpack_core::{
     MPACK_OK, MpackTokbuf, MpackToken, MpackTokenType, mpack_read, mpack_rtoken, mpack_tokbuf_init,
 };
@@ -106,28 +106,25 @@ const fn empty_arena() -> Arena {
 }
 
 fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
-    let parser = &mut *parser;
-    let node = &mut *node;
     let p = parser.data.unpacker();
-    let mut result: *mut Object = std::ptr::null_mut();
-    let mut key_location: *mut NvimString = std::ptr::null_mut();
+    let mut result: GraphPtr<Object> = GraphPtr::NULL;
+    let mut key_location: GraphPtr<NvimString> = GraphPtr::NULL;
 
-    let parent = mpack_parent_node(&raw mut *node);
+    let mut parent = mpack_parent_node(&mut *node);
     if !parent.is_null() {
-        let parent = unsafe { &mut *parent };
         match parent.tok.r#type {
             MpackTokenType::MpackTokenArray => {
                 let obj = parent.data[0].object();
-                result = obj.data.array().items.wrapping_add(parent.pos).as_ptr();
+                result = obj.data.array().items.wrapping_add(parent.pos);
             }
             MpackTokenType::MpackTokenMap => {
                 let obj = parent.data[0].object();
                 let kv = &mut obj.data.dict()[parent.pos];
                 if parent.key_visited == 0 {
                     kv.key = NvimString::new();
-                    key_location = &mut kv.key;
+                    key_location = GraphPtr::from(&mut kv.key);
                 }
-                result = &mut kv.value;
+                result = GraphPtr::from(&mut kv.value);
             }
             MpackTokenType::MpackTokenStr
             | MpackTokenType::MpackTokenBin
@@ -137,74 +134,65 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             _ => std::process::abort(),
         }
     } else {
-        result = &mut p.result;
+        result = GraphPtr::from(&mut p.result);
     }
 
-    let tok = node.tok;
-    match tok.r#type {
-        MpackTokenType::MpackTokenNil => unsafe { *result = nil_obj() },
-        MpackTokenType::MpackTokenBoolean => unsafe {
+    match node.tok.r#type {
+        MpackTokenType::MpackTokenNil => *result = nil_obj(),
+        MpackTokenType::MpackTokenBoolean => {
             *result = Object {
                 obj_type: ObjectType::ObjectTypeBoolean,
-                data: ObjectData::Boolean(mpack_unpack_boolean(tok)),
-            }
-        },
-        MpackTokenType::MpackTokenSint => unsafe {
+                data: ObjectData::Boolean(mpack_unpack_boolean(&node.tok)),
+            };
+        }
+        MpackTokenType::MpackTokenSint => {
             *result = Object {
                 obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(mpack_unpack_sint(tok)),
-            }
-        },
-        MpackTokenType::MpackTokenUint => unsafe {
+                data: ObjectData::Integer(mpack_unpack_sint(&node.tok)),
+            };
+        }
+        MpackTokenType::MpackTokenUint => {
             *result = Object {
                 obj_type: ObjectType::ObjectTypeInteger,
-                data: ObjectData::Integer(mpack_unpack_uint(tok) as Integer),
-            }
-        },
-        MpackTokenType::MpackTokenFloat => unsafe {
+                data: ObjectData::Integer(mpack_unpack_uint(&node.tok) as Integer),
+            };
+        }
+        MpackTokenType::MpackTokenFloat => {
             *result = Object {
                 obj_type: ObjectType::ObjectTypeFloat,
-                data: ObjectData::Floating(mpack_unpack_float_fast(tok)),
-            }
-        },
+                data: ObjectData::Floating(mpack_unpack_float_fast(&node.tok)),
+            };
+        }
         MpackTokenType::MpackTokenBin | MpackTokenType::MpackTokenStr => {
-            let len = tok.length as usize;
-            let mem = arena_alloc(&mut p.arena, len + 1, false).cast::<u8>();
-
-            unsafe { *mem.wrapping_add(len) = 0 };
-
-            let s = NvimString::from_bytes(unsafe { std::slice::from_raw_parts(mem, len) });
+            let len = node.tok.length as usize;
+            let mem = arena_allocz(&mut p.arena, len);
+            let s = NvimString {
+                data: mem,
+                size: len,
+            };
             if !key_location.is_null() {
-                unsafe { *key_location = s };
+                *key_location = s;
             } else {
-                unsafe {
-                    *result = Object {
-                        obj_type: ObjectType::ObjectTypeString,
-                        data: ObjectData::String(s),
-                    }
+                *result = Object {
+                    obj_type: ObjectType::ObjectTypeString,
+                    data: ObjectData::String(s),
                 };
             }
-            node.data[0] = crate::mpack::object::MpackData::Bytes(mem);
+            node.data[0] = crate::mpack::object::MpackData::NvimString(s);
         }
         MpackTokenType::MpackTokenExt => {
             node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
         MpackTokenType::MpackTokenChunk => {
             assert!(!parent.is_null());
-            let parent = unsafe { &mut *parent };
-            let chunk_len = tok.length as usize;
+            let chunk_len = node.tok.length as usize;
             if parent.tok.r#type == MpackTokenType::MpackTokenStr
                 || parent.tok.r#type == MpackTokenType::MpackTokenBin
             {
-                let data = parent.data[0].bytes();
+                let pos = parent.pos;
+                let data = parent.data[0].nvim_string_mut().as_bytes_with_nul_mut();
                 if chunk_len > 0 {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            tok.data.chunk_ptr().cast::<u8>(),
-                            data.wrapping_add(parent.pos),
-                            chunk_len,
-                        )
-                    };
+                    data[pos..pos + chunk_len].copy_from_slice(node.tok.data.chunk_bytes());
                 }
             } else {
                 let res = parent.data[0].object();
@@ -214,21 +202,14 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     return;
                 }
                 if chunk_len > 0 {
-                    unsafe {
-                        std::ptr::copy_nonoverlapping(
-                            tok.data.chunk_ptr().cast::<u8>(),
-                            p.ext_buf.as_mut_ptr().cast::<u8>().wrapping_add(parent.pos),
-                            chunk_len,
-                        )
-                    };
+                    p.ext_buf[parent.pos..endlen].copy_from_slice(node.tok.data.chunk_bytes());
                 }
                 if endlen < (parent.tok.length as usize) {
                     return;
                 }
-                let mut buf: *const u8 = p.ext_buf.as_ptr();
-                let mut size = parent.tok.length as usize;
+                let mut buf = &p.ext_buf[..parent.tok.length as usize];
                 let mut ext_tok = MpackToken::new();
-                let status = mpack_rtoken(&mut buf, &mut size, &mut ext_tok);
+                let status = mpack_rtoken(&mut buf, &mut ext_tok);
                 if status != 0 || ext_tok.r#type != MpackTokenType::MpackTokenUint {
                     *res = nil_obj();
                     return;
@@ -238,32 +219,30 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
                     && let Some(obj_type) = ObjectType::from_raw(ext_type + EXT_OBJECT_TYPE_SHIFT)
                 {
                     res.obj_type = obj_type;
-                    res.data = ObjectData::Integer(mpack_unpack_uint(ext_tok) as i64);
+                    res.data = ObjectData::Integer(mpack_unpack_uint(&ext_tok) as i64);
                 } else {
                     *res = nil_obj();
                 }
             }
         }
         MpackTokenType::MpackTokenArray => {
-            let len = tok.length as usize;
+            let len = node.tok.length as usize;
             let items = arena_alloc(&mut p.arena, std::mem::size_of::<Object>() * len, true)
                 .cast::<Object>();
 
-            unsafe {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeArray,
-                    data: ObjectData::Array(Array {
-                        size: len,
-                        capacity: len,
-                        items: items.into(),
-                    }),
-                }
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeArray,
+                data: ObjectData::Array(Array {
+                    size: len,
+                    capacity: len,
+                    items: items.into(),
+                }),
             };
 
             node.data[0] = crate::mpack::object::MpackData::Object(result);
         }
         MpackTokenType::MpackTokenMap => {
-            let len = tok.length as usize;
+            let len = node.tok.length as usize;
             let items = arena_alloc(
                 &mut p.arena,
                 std::mem::size_of::<KeyValuePair>() * len,
@@ -271,15 +250,13 @@ fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {
             )
             .cast::<KeyValuePair>();
 
-            unsafe {
-                *result = Object {
-                    obj_type: ObjectType::ObjectTypeDict,
-                    data: ObjectData::Dict(Dict {
-                        size: len,
-                        capacity: len,
-                        items: items.into(),
-                    }),
-                }
+            *result = Object {
+                obj_type: ObjectType::ObjectTypeDict,
+                data: ObjectData::Dict(Dict {
+                    size: len,
+                    capacity: len,
+                    items: items.into(),
+                }),
             };
 
             node.data[0] = crate::mpack::object::MpackData::Object(result);
@@ -293,18 +270,15 @@ fn api_parse_exit(_parser: &mut MpackParser, _node: &mut MpackNode) {}
 fn parse_nop(_parser: &mut MpackParser, _node: &mut MpackNode) {}
 
 /// Unpack a single MessagePack value into an `Object` (`unpack`).
-pub fn unpack(bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
-    let mut data = bytes.as_ptr();
-    let mut size = bytes.len();
+pub fn unpack(mut bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
     let mut unpacker = Unpacker::new();
     mpack_parser_init(&mut unpacker.parser, 0);
-    unpacker.parser.data = crate::mpack::object::MpackData::Unpacker(&mut unpacker);
+    unpacker.parser.data = crate::mpack::object::MpackData::Unpacker(GraphPtr::from(&mut unpacker));
     unpacker.arena = *arena;
 
     let result = mpack_parse(
         &mut unpacker.parser,
-        &mut data,
-        &mut size,
+        &mut bytes,
         Some(api_parse_enter),
         Some(api_parse_exit),
     );
@@ -329,7 +303,7 @@ pub fn unpack(bytes: &[u8], arena: &mut Arena, err: &mut Error) -> Object {
             ErrorType::ErrorTypeException,
             c"invalid msgpack string",
         );
-    } else if result == MPACK_OK && size != 0 {
+    } else if result == MPACK_OK && !bytes.is_empty() {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -390,7 +364,7 @@ impl Drop for Unpacker {
 }
 
 pub fn unpacker_init(p: &mut Unpacker) {
-    let p_ptr = &raw mut *p;
+    let p_ptr = GraphPtr::from(&mut *p);
     mpack_parser_init(&mut p.parser, 0);
     p.parser.data = crate::mpack::object::MpackData::Unpacker(p_ptr);
     mpack_tokbuf_init(&mut p.reader);
@@ -402,12 +376,11 @@ pub fn unpacker_init(p: &mut Unpacker) {
 /// Parse the header of a msgpack-rpc message (`unpacker_parse_header`).
 pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
     let mut tok = MpackToken::new();
-    let mut data = p.read_buf.as_ptr();
-    let mut size = p.read_buf.len();
+    let mut buf = p.read_buf;
 
     assert_eq!(p.unpack_error.err_type, ErrorType::ErrorTypeNone);
 
-    let mut result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+    let mut result = mpack_read(&mut p.reader, &mut buf, &mut tok);
     if result == 0
         && (tok.r#type != MpackTokenType::MpackTokenArray || tok.length < 3 || tok.length > 4)
     {
@@ -415,12 +388,12 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
     }
     if result == 0 {
         let array_length = tok.length as usize;
-        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+        result = mpack_read(&mut p.reader, &mut buf, &mut tok);
         if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
             result = MPACK_ERROR;
         }
         if result == 0 {
-            let msg_type = mpack_unpack_uint(tok) as u32;
+            let msg_type = mpack_unpack_uint(&tok) as u32;
             let bad_type = if array_length == 3 {
                 msg_type != 2
             } else {
@@ -443,17 +416,17 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
             p.request_id = 0;
 
             if p.msg_type != MessageType::MessageTypeNotification {
-                result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                result = mpack_read(&mut p.reader, &mut buf, &mut tok);
                 if result == 0 && tok.r#type != MpackTokenType::MpackTokenUint {
                     result = MPACK_ERROR;
                 }
                 if result == 0 {
-                    p.request_id = mpack_unpack_uint(tok) as u32;
+                    p.request_id = mpack_unpack_uint(&tok) as u32;
                 }
             }
 
             if result == 0 && p.msg_type != MessageType::MessageTypeResponse {
-                result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                result = mpack_read(&mut p.reader, &mut buf, &mut tok);
                 if result == 0
                     && ((tok.r#type != MpackTokenType::MpackTokenStr
                         && tok.r#type != MpackTokenType::MpackTokenBin)
@@ -464,7 +437,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
                 if result == 0 {
                     p.method_name_len = tok.length as usize;
                     if p.method_name_len > 0 {
-                        result = mpack_read(&mut p.reader, &mut data, &mut size, &mut tok);
+                        result = mpack_read(&mut p.reader, &mut buf, &mut tok);
                         if result == 0 {
                             assert_eq!(tok.r#type, MpackTokenType::MpackTokenChunk);
                         }
@@ -474,12 +447,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
                     }
                     if result == 0 {
                         let name_bytes = if tok.length != 0 {
-                            unsafe {
-                                std::slice::from_raw_parts(
-                                    tok.data.chunk_ptr(),
-                                    tok.length as usize,
-                                )
-                            }
+                            tok.data.chunk_bytes()
                         } else {
                             &[]
                         };
@@ -489,8 +457,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
             }
 
             if result == 0 {
-                let consumed = p.read_buf.len() - size;
-                p.read_buf = &p.read_buf[consumed..];
+                p.read_buf = buf;
                 return true;
             }
         }
@@ -511,7 +478,7 @@ pub fn unpacker_parse_header(p: &mut Unpacker) -> bool {
 
 /// Advance the unpacker state machine (`unpacker_advance`).
 pub fn unpacker_advance(p: &mut Unpacker) -> bool {
-    p.parser.data = crate::mpack::object::MpackData::Unpacker(&raw mut *p);
+    p.parser.data = crate::mpack::object::MpackData::Unpacker(GraphPtr::from(&mut *p));
     assert!(p.state >= 0);
     p.has_grid_line_event = false;
     if p.state == 0 {
@@ -519,9 +486,12 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
             return false;
         }
         if p.msg_type == MessageType::MessageTypeNotification
-            && p.handler
-                .r#fn
-                .is_some_and(|f| f as *const () == handle_ui_client_redraw as *const ())
+            && p.handler.r#fn.is_some_and(|f| {
+                std::ptr::fn_addr_eq(
+                    f,
+                    handle_ui_client_redraw as fn(u64, Array, &mut Arena, &mut Error) -> Object,
+                )
+            })
         {
             p.msg_type = MessageType::MessageTypeRedrawEvent;
             p.state = 10;
@@ -560,17 +530,12 @@ pub fn unpacker_advance(p: &mut Unpacker) -> bool {
 
     loop {
         if need_parse {
-            let mut data = p.read_buf.as_ptr();
-            let mut size = p.read_buf.len();
             let result = mpack_parse(
                 &mut p.parser,
-                &mut data,
-                &mut size,
+                &mut p.read_buf,
                 Some(api_parse_enter),
                 Some(api_parse_exit),
             );
-            let consumed = p.read_buf.len() - size;
-            p.read_buf = &p.read_buf[consumed..];
             if result == MPACK_EOF {
                 return false;
             } else if result != MPACK_OK {
@@ -617,10 +582,7 @@ fn next_type(
     tok: &mut MpackToken,
     expected: MpackTokenType,
 ) -> bool {
-    let mut data = buf.as_ptr();
-    let mut size = buf.len();
-    let result = mpack_rtoken(&mut data, &mut size, tok);
-    *buf = unsafe { std::slice::from_raw_parts(data, size) };
+    let result = mpack_rtoken(buf, tok);
     if result == MPACK_EOF {
         return false;
     }
@@ -796,11 +758,10 @@ pub fn unpacker_parse_redraw(p: &mut Unpacker) -> bool {
 
 /// Unpack a complete msgpack string/bin token (`unpack_string`).
 pub fn unpack_string(buf: &mut &[u8]) -> NvimString {
-    let mut data2 = buf.as_ptr();
-    let mut size2 = buf.len();
+    let mut slice = *buf;
     let mut tok = MpackToken::new();
 
-    let result = mpack_rtoken(&mut data2, &mut size2, &mut tok);
+    let result = mpack_rtoken(&mut slice, &mut tok);
     if result != 0
         || (tok.r#type != MpackTokenType::MpackTokenStr
             && tok.r#type != MpackTokenType::MpackTokenBin)
@@ -808,22 +769,18 @@ pub fn unpack_string(buf: &mut &[u8]) -> NvimString {
         return NvimString::new();
     }
     let len = tok.length as usize;
-    if size2 < len {
+    if slice.len() < len {
         return NvimString::new();
     }
-    let next_ptr = data2.wrapping_add(len);
-    let next_size = size2 - len;
-    *buf = unsafe { std::slice::from_raw_parts(next_ptr, next_size) };
-    NvimString::from_bytes(unsafe { std::slice::from_raw_parts(data2, len) })
+    let str_bytes = &slice[..len];
+    *buf = &slice[len..];
+    NvimString::from_bytes(str_bytes)
 }
 
 /// Unpack a msgpack array header (`unpack_array`).
 pub fn unpack_array(buf: &mut &[u8]) -> isize {
-    let mut data = buf.as_ptr();
-    let mut size = buf.len();
     let mut tok = MpackToken::new();
-    let result = mpack_rtoken(&mut data, &mut size, &mut tok);
-    *buf = unsafe { std::slice::from_raw_parts(data, size) };
+    let result = mpack_rtoken(buf, &mut tok);
     if result != 0 || tok.r#type != MpackTokenType::MpackTokenArray {
         return -1;
     }
@@ -832,11 +789,8 @@ pub fn unpack_array(buf: &mut &[u8]) -> isize {
 
 /// Unpack a msgpack integer (`unpack_integer`).
 pub fn unpack_integer(buf: &mut &[u8], res: &mut Integer) -> bool {
-    let mut data = buf.as_ptr();
-    let mut size = buf.len();
     let mut tok = MpackToken::new();
-    let result = mpack_rtoken(&mut data, &mut size, &mut tok);
-    *buf = unsafe { std::slice::from_raw_parts(data, size) };
+    let result = mpack_rtoken(buf, &mut tok);
     if result != 0 {
         return false;
     }
@@ -846,10 +800,10 @@ pub fn unpack_integer(buf: &mut &[u8], res: &mut Integer) -> bool {
 /// Unpack a uint or sint token into `Integer` (`unpack_uint_or_sint`).
 pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
     if tok.r#type == MpackTokenType::MpackTokenUint {
-        *res = mpack_unpack_uint(tok) as Integer;
+        *res = mpack_unpack_uint(&tok) as Integer;
         true
     } else if tok.r#type == MpackTokenType::MpackTokenSint {
-        *res = mpack_unpack_sint(tok) as Integer;
+        *res = mpack_unpack_sint(&tok) as Integer;
         true
     } else {
         false
@@ -858,19 +812,9 @@ pub fn unpack_uint_or_sint(tok: MpackToken, res: &mut Integer) -> bool {
 
 /// Skip one msgpack value (`unpack_skip`).
 pub fn unpack_skip(buf: &mut &[u8]) -> i32 {
-    let mut data = buf.as_ptr();
-    let mut size = buf.len();
     let mut parser = MpackParser::new(0);
     mpack_parser_init(&mut parser, 0);
-    let ret = mpack_parse(
-        &mut parser,
-        &mut data,
-        &mut size,
-        Some(parse_nop),
-        Some(parse_nop),
-    );
-    *buf = unsafe { std::slice::from_raw_parts(data, size) };
-    ret
+    mpack_parse(&mut parser, buf, Some(parse_nop), Some(parse_nop))
 }
 
 /// Append raw msgpack key-value bytes to `AdditionalDataBuilder` (`push_additional_data`).
@@ -893,14 +837,11 @@ pub fn unpack_keydict<T>(
     buf: &mut &[u8],
     error: &mut Option<std::ffi::CString>,
 ) -> bool {
-    let retval_ptr = std::ptr::from_mut(retval).cast::<OptKeySet>();
-    let ks = unsafe { &mut *retval_ptr };
+    let retval_ptr = GraphPtr::from_ref(retval).cast_ptr::<OptKeySet>();
+    let mut ks = retval_ptr;
     let mut tok = MpackToken::new();
 
-    let mut data = buf.as_ptr();
-    let mut size = buf.len();
-    let result = mpack_rtoken(&mut data, &mut size, &mut tok);
-    *buf = unsafe { std::slice::from_raw_parts(data, size) };
+    let result = mpack_rtoken(buf, &mut tok);
     if result != 0 || tok.r#type != MpackTokenType::MpackTokenMap {
         *error = Some(c"is not a dict".to_owned());
         return false;
@@ -950,7 +891,7 @@ pub fn unpack_keydict<T>(
 
         ks.is_set_ |= flag;
 
-        let mem = retval_ptr.cast::<u8>().wrapping_add(field.ptr_off);
+        let mem = retval_ptr.cast_ptr::<u8>().wrapping_add(field.ptr_off);
         if field.key_type == (ObjectType::ObjectTypeBoolean as i32) {
             let cur_byte = buf.first().copied().unwrap_or(0);
             if buf.is_empty() || (cur_byte & 0xfe) != 0xc2 {
@@ -958,11 +899,11 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            unsafe { *mem.cast::<Boolean>() = (cur_byte & 0x01) != 0 };
+            *mem.cast_ptr::<Boolean>() = (cur_byte & 0x01) != 0;
 
             *buf = &buf[1..];
         } else if field.key_type == (ObjectType::ObjectTypeInteger as i32) {
-            if !unpack_integer(buf, unsafe { &mut *mem.cast::<Integer>() }) {
+            if !unpack_integer(buf, mem.cast_ptr::<Integer>().borrow_mut()) {
                 *error = alloc_key_error(key, b" key value which is not an integer");
                 return false;
             }
@@ -973,14 +914,14 @@ pub fn unpack_keydict<T>(
                 return false;
             }
 
-            unsafe { *mem.cast::<NvimString>() = val };
+            *mem.cast_ptr::<NvimString>() = val;
         } else if field.key_type == K_UNPACK_TYPE_STRING_ARRAY {
             let len = unpack_array(buf);
             if len < 0 {
                 *error = alloc_key_error(key, b" key with non-array value");
                 return false;
             }
-            let a = unsafe { &mut *mem.cast::<StringArray>() };
+            let a = mem.cast_ptr::<StringArray>().borrow_mut();
             a.reserve(len as usize);
             for _ in 0..(len as usize) {
                 let item = unpack_string(buf);
