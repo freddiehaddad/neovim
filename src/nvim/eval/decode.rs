@@ -146,8 +146,8 @@ fn json_decoder_pop(
     let mut val_location = *pos;
     if obj.val.v_type == last_container.container.v_type
         && std::ptr::eq(
-            obj.val.vval.v_list(),
-            last_container.container.vval.v_list(),
+            obj.val.vval.v_list().as_ptr(),
+            last_container.container.vval.v_list().as_ptr(),
         )
     {
         container_stack.pop();

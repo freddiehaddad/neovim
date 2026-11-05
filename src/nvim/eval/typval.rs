@@ -371,11 +371,11 @@ impl TypvalVval {
         self.v_string_cstr_or_empty().to_owned()
     }
 
-    #[inline]
-    pub const fn v_list(self) -> *mut TvList {
+    #[inline(always)]
+    pub const fn v_list(self) -> crate::globals::GraphPtr<TvList> {
         match self {
-            Self::List(p) => p.as_ptr(),
-            _ => ptr::null_mut(),
+            Self::List(p) => p,
+            _ => crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -395,11 +395,11 @@ impl TypvalVval {
         }
     }
 
-    #[inline]
-    pub const fn v_dict(self) -> *mut TvDict {
+    #[inline(always)]
+    pub const fn v_dict(self) -> crate::globals::GraphPtr<TvDict> {
         match self {
-            Self::Dict(p) => p.as_ptr(),
-            _ => ptr::null_mut(),
+            Self::Dict(p) => p,
+            _ => crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -419,11 +419,11 @@ impl TypvalVval {
         }
     }
 
-    #[inline]
-    pub const fn v_blob(self) -> *mut TvBlob {
+    #[inline(always)]
+    pub const fn v_blob(self) -> crate::globals::GraphPtr<TvBlob> {
         match self {
-            Self::Blob(p) => p.as_ptr(),
-            _ => ptr::null_mut(),
+            Self::Blob(p) => p,
+            _ => crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -443,11 +443,11 @@ impl TypvalVval {
         }
     }
 
-    #[inline]
-    pub const fn v_partial(self) -> *mut TvPartial {
+    #[inline(always)]
+    pub const fn v_partial(self) -> crate::globals::GraphPtr<TvPartial> {
         match self {
-            Self::Partial(p) => p.as_ptr(),
-            _ => ptr::null_mut(),
+            Self::Partial(p) => p,
+            _ => crate::globals::GraphPtr::NULL,
         }
     }
 
@@ -1658,7 +1658,7 @@ pub fn tv_list_flatten(
             return;
         }
         if item.borrow().li_tv.v_type == VarType::VarList {
-            let itemlist = crate::globals::TvListPtr::new(item.borrow().li_tv.vval.v_list());
+            let itemlist = item.borrow().li_tv.vval.v_list();
             let item_ptr = item.as_ptr();
 
             tv_list_drop_items(list, unsafe { &mut *item_ptr }, unsafe { &mut *item_ptr });
@@ -2374,7 +2374,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
         }
     } else if argvars[1].v_type == VarType::VarPartial {
-        info.item_compare_partial = crate::globals::GraphPtr::new(argvars[1].vval.v_partial());
+        info.item_compare_partial = argvars[1].vval.v_partial();
     } else {
         let mut error = false;
         let nr = tv_get_number_chk(&argvars[1], Some(&mut error)) as i32;
@@ -2422,7 +2422,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
         if !tv_check_for_dict_arg(argvars, 2) {
             return false;
         }
-        info.item_compare_selfdict = crate::globals::GraphPtr::new(argvars[2].vval.v_dict());
+        info.item_compare_selfdict = argvars[2].vval.v_dict();
     }
 
     true
@@ -3943,33 +3943,33 @@ fn nothing_convert_one_value(
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
-                    pt: pt.into(),
+                    pt,
                 },
             });
         }
         VarType::VarList => {
-            let list = tv.vval.v_list();
-            if list.is_null() || tv_list_len_inline(unsafe { list.as_ref() }) == 0 {
-                tv_list_unref(unsafe { list.as_mut() });
+            let mut list = tv.vval.v_list();
+            if list.is_null() || tv_list_len_inline(list.opt()) == 0 {
+                tv_list_unref(list.opt_mut());
                 tv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
-            let saved_copy_id = unsafe { (*list).lv_copy_id };
+            let saved_copy_id = list.lv_copy_id;
             if saved_copy_id == copy_id {
                 return true;
             }
 
-            unsafe {
-                (*list).lv_copy_id = copy_id;
+            {
+                list.lv_copy_id = copy_id;
             }
 
             let mut mpsv = MPConvStackVal {
                 tv: crate::globals::GraphPtr::from(&mut *tv),
                 saved_copy_id,
                 data: MPConvStackData::List {
-                    list: list.into(),
-                    li: unsafe { (*list).lv_first },
+                    list,
+                    li: list.lv_first,
                 },
             };
             nothing_conv_real_list_after_start(tv, &mut mpsv);
@@ -3985,38 +3985,38 @@ fn nothing_convert_one_value(
         }
         VarType::VarDict => {
             let tv_ptr = &raw mut *tv;
-            let dict = tv.vval.v_dict();
-            if dict.is_null() || unsafe { (*dict).dv_hashtab.ht_used } == 0 {
-                tv_dict_unref(unsafe { dict.as_mut() });
+            let mut dict = tv.vval.v_dict();
+            if dict.is_null() || dict.dv_hashtab.ht_used == 0 {
+                tv_dict_unref(dict.opt_mut());
                 tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
                 tv.v_lock = VAR_UNLOCKED;
                 return true;
             }
-            let saved_copy_id = unsafe { (*dict).dv_copy_id };
+            let saved_copy_id = dict.dv_copy_id;
             if saved_copy_id == copy_id {
                 return true;
             }
 
             tv.v_lock = VAR_UNLOCKED;
-            if unsafe { (*dict).dv_refcount } > 1 {
-                unsafe {
-                    (*dict).dv_refcount -= 1;
+            if dict.dv_refcount > 1 {
+                {
+                    dict.dv_refcount -= 1;
                 }
                 tv.vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::NULL);
                 return true;
             }
 
-            unsafe {
-                (*dict).dv_copy_id = copy_id;
+            {
+                dict.dv_copy_id = copy_id;
             }
 
             let mpsv = MPConvStackVal {
                 tv: crate::globals::GraphPtr::new(tv_ptr),
                 saved_copy_id,
                 data: MPConvStackData::Dict {
-                    dict: dict.into(),
-                    hi: unsafe { (*dict).dv_hashtab.array_ptr() }.into(),
-                    todo: unsafe { (*dict).dv_hashtab.ht_used },
+                    dict,
+                    hi: dict.dv_hashtab.array_ptr().into(),
+                    todo: dict.dv_hashtab.ht_used,
                 },
             };
             mpstack.push(mpsv);

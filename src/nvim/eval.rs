@@ -526,7 +526,7 @@ fn eval_expr_partial(expr: &TypVal, argv: &mut [TypVal], argc: i32, rettv: &mut 
         fe_lastline: 0,
         fe_doesrange: false,
         fe_evaluate: true,
-        fe_partial: crate::globals::GraphPtr::new(partial_ptr),
+        fe_partial: partial_ptr,
         fe_selfdict: crate::globals::GraphPtr::NULL,
         fe_basetv: crate::globals::GraphPtr::NULL,
         fe_found_var: false,
@@ -1063,11 +1063,11 @@ fn get_lval_dict_item<'a>(
     if lp.tv_mut().vval.v_dict().is_null() {
         lp.tv_mut().vval =
             crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(tv_dict_alloc()));
-        unsafe {
-            (*lp.tv_mut().vval.v_dict()).dv_refcount += 1;
+        {
+            lp.tv_mut().vval.v_dict().dv_refcount += 1;
         }
     }
-    lp.ll_dict = crate::globals::GraphPtr::new(lp.tv_mut().vval.v_dict());
+    lp.ll_dict = lp.tv_mut().vval.v_dict();
 
     lp.ll_di = tv_dict_find(
         lp.ll_dict.opt(),
@@ -1180,7 +1180,7 @@ fn get_lval_blob(
         }
     }
 
-    lp.ll_blob = crate::globals::GraphPtr::new(lp.tv_mut().vval.v_blob());
+    lp.ll_blob = lp.tv_mut().vval.v_blob();
     lp.ll_tv = crate::globals::GraphPtr::NULL;
 
     true
@@ -1201,7 +1201,7 @@ fn get_lval_list(
     }
 
     lp.ll_dict = crate::globals::GraphPtr::NULL;
-    lp.ll_list = crate::globals::TvListPtr::new(lp.tv_mut().vval.v_list());
+    lp.ll_list = lp.tv_mut().vval.v_list();
     lp.ll_li = tv_list_check_range_index_one(lp.list_opt(), &mut lp.ll_n1, quiet).map_or(
         crate::globals::ListitemPtr::NULL,
         crate::globals::ListitemPtr::from,
@@ -1612,7 +1612,7 @@ pub fn set_var_lval(
         if lp.ll_newkey.is_none() {
             lp.tv_mut().v_lock
         } else {
-            unsafe { (*lp.tv_mut().vval.v_dict()).dv_lock }
+            lp.tv_mut().vval.v_dict().dv_lock
         },
         lp.ll_name,
         TV_CSTRING,
@@ -1626,7 +1626,7 @@ pub fn set_var_lval(
 
         tv_list_assign_range(
             lp.ll_list.borrow_mut(),
-            unsafe { rettv.vval.v_list().as_ref() },
+            rettv.vval.v_list().opt(),
             lp.ll_n1,
             lp.ll_n2,
             lp.ll_empty2,
@@ -1650,17 +1650,14 @@ pub fn set_var_lval(
                 semsg!(gettext(E_DICTKEY), newkey_cstr.as_ptr());
                 return;
             }
-            if tv_dict_wrong_func_name(
-                unsafe { &mut *lp.tv_mut().vval.v_dict() },
-                rettv,
-                newkey_cstr,
-            ) != 0
+            if tv_dict_wrong_func_name(lp.tv_mut().vval.v_dict().borrow_mut(), rettv, newkey_cstr)
+                != 0
             {
                 return;
             }
 
             let di = tv_dict_item_alloc(newkey_cstr);
-            if !tv_dict_add(unsafe { &mut *lp.tv_mut().vval.v_dict() }, di) {
+            if !tv_dict_add(lp.tv_mut().vval.v_dict().borrow_mut(), di) {
                 tv_dict_item_free(di);
                 return;
             }
@@ -4860,7 +4857,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
         rettv.vval = crate::eval::typval::TypvalVval::List(crate::globals::GraphPtr::new(
             string_to_list(&res, keepempty != 0),
         ));
-        tv_list_ref(unsafe { rettv.vval.v_list().as_mut() });
+        tv_list_ref(rettv.vval.v_list().opt_mut());
         rettv.v_type = VarType::VarList;
     } else {
         for b in &mut res {
@@ -5428,8 +5425,7 @@ pub fn var2fpos(
             return None;
         }
 
-        eval_st().var2_fpos_pos.lnum =
-            tv_list_find_nr(unsafe { l.as_mut() }, 0, Some(&mut error)) as Linenr;
+        eval_st().var2_fpos_pos.lnum = tv_list_find_nr(l.opt_mut(), 0, Some(&mut error)) as Linenr;
 
         if error
             || eval_st().var2_fpos_pos.lnum <= 0
@@ -5438,8 +5434,7 @@ pub fn var2fpos(
             return None;
         }
 
-        eval_st().var2_fpos_pos.col =
-            tv_list_find_nr(unsafe { l.as_mut() }, 1, Some(&mut error)) as Colnr;
+        eval_st().var2_fpos_pos.col = tv_list_find_nr(l.opt_mut(), 1, Some(&mut error)) as Colnr;
 
         if error {
             return None;
@@ -5453,7 +5448,7 @@ pub fn var2fpos(
             ml_get_buf_len(bp.borrow_mut(), eval_st().var2_fpos_pos.lnum)
         };
 
-        if let Some(li) = tv_list_find(unsafe { l.as_mut() }, 1)
+        if let Some(li) = tv_list_find(l.opt_mut(), 1)
             && tv_list_item_tv(li).v_type == VarType::VarString
             && !tv_list_item_tv(li).vval.v_string().is_null()
             && tv_list_item_tv(li).vval.v_string_bytes() == b"$"
@@ -5466,8 +5461,7 @@ pub fn var2fpos(
         }
         eval_st().var2_fpos_pos.col -= 1;
 
-        eval_st().var2_fpos_pos.coladd =
-            tv_list_find_nr(unsafe { l.as_mut() }, 2, Some(&mut error)) as Colnr;
+        eval_st().var2_fpos_pos.coladd = tv_list_find_nr(l.opt_mut(), 2, Some(&mut error)) as Colnr;
 
         if error {
             eval_st().var2_fpos_pos.coladd = 0;
@@ -5578,8 +5572,8 @@ pub fn list2fpos(
     }
     let l = arg.vval.v_list();
     if l.is_null()
-        || tv_list_len(unsafe { l.as_ref() }) < if fnump.is_none() { 2 } else { 3 }
-        || tv_list_len(unsafe { l.as_ref() }) > if fnump.is_none() { 4 } else { 5 }
+        || tv_list_len(l.opt()) < if fnump.is_none() { 2 } else { 3 }
+        || tv_list_len(l.opt()) > if fnump.is_none() { 4 } else { 5 }
     {
         return false;
     }
@@ -5587,7 +5581,7 @@ pub fn list2fpos(
     let mut i: i32 = 0;
     let mut n: i32;
     if fnump.is_some() {
-        n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
+        n = tv_list_find_nr(l.opt_mut(), i, None) as i32;
 
         i += 1;
         if n < 0 {
@@ -5599,7 +5593,7 @@ pub fn list2fpos(
         *fnump.as_deref_mut().unwrap() = n;
     }
 
-    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
+    n = tv_list_find_nr(l.opt_mut(), i, None) as i32;
 
     i += 1;
     if n < 0 {
@@ -5607,7 +5601,7 @@ pub fn list2fpos(
     }
     posp.lnum = n;
 
-    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
+    n = tv_list_find_nr(l.opt_mut(), i, None) as i32;
 
     i += 1;
     if n < 0 {
@@ -5634,7 +5628,7 @@ pub fn list2fpos(
     }
     posp.col = n;
 
-    n = tv_list_find_nr(unsafe { l.as_mut() }, i, None) as i32;
+    n = tv_list_find_nr(l.opt_mut(), i, None) as i32;
 
     if n < 0 {
         posp.coladd = 0;
@@ -5643,7 +5637,7 @@ pub fn list2fpos(
     }
 
     if let Some(ref mut p) = curswantp {
-        **p = tv_list_find_nr(unsafe { l.as_mut() }, i + 1, None) as Colnr;
+        **p = tv_list_find_nr(l.opt_mut(), i + 1, None) as Colnr;
     }
 
     true
@@ -6099,7 +6093,7 @@ pub fn handle_subscript<'a>(
         } else {
             tv_dict_unref(unsafe { selfdict.as_mut() });
             if rettv.v_type == VarType::VarDict {
-                selfdict = rettv.vval.v_dict();
+                selfdict = rettv.vval.v_dict().as_ptr();
                 if !selfdict.is_null() {
                     unsafe {
                         (*selfdict).dv_refcount += 1;

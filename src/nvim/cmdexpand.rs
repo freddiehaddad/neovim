@@ -5532,8 +5532,8 @@ fn expand_user_lua(xp: &mut ExpandCtx, matches: &mut Vec<CString>) -> bool {
     }
 
     let retlist = rettv.vval.v_list();
-    expand_process_user_list(unsafe { retlist.as_ref() }, matches, xp);
-    tv_list_unref(unsafe { retlist.as_mut() });
+    expand_process_user_list(retlist.opt(), matches, xp);
+    tv_list_unref(retlist.opt_mut());
     true
 }
 
@@ -5997,7 +5997,7 @@ pub fn f_cmdcomplete_info(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let orig_ptr = &cmdexp().cmdline_orig;
     let orig_ref = orig_ptr.as_ref();
 
-    let retdict = unsafe { &mut *rettv.vval.v_dict() };
+    let retdict = rettv.vval.v_dict().borrow_mut();
     let mut ret = tv_dict_add_str_len(retdict, c"cmdline_orig", orig_ref.map(Vec::as_slice));
     if ret {
         ret = tv_dict_add_nr(retdict, c"pum_visible", i64::from(pum_visible()));

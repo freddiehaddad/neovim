@@ -2359,11 +2359,11 @@ unsafe extern "C-unwind" fn nlua_is_thread(lstate: *mut lua_State) -> i32 {
 }
 
 pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
-    unsafe {
+    {
         if arg.v_type == VarType::VarDict {
-            (*arg.vval.v_dict()).lua_table_ref != LUA_NOREF
+            arg.vval.v_dict().lua_table_ref != LUA_NOREF
         } else if arg.v_type == VarType::VarList {
-            (*arg.vval.v_list()).lua_table_ref != LUA_NOREF
+            arg.vval.v_list().lua_table_ref != LUA_NOREF
         } else {
             false
         }
@@ -2372,9 +2372,9 @@ pub fn nlua_is_table_from_lua(arg: &TypVal) -> bool {
 
 pub fn nlua_register_table_as_callable(arg: &TypVal) -> Option<&'static CStr> {
     let table_ref = if arg.v_type == VarType::VarDict {
-        unsafe { (*arg.vval.v_dict()).lua_table_ref }
+        arg.vval.v_dict().lua_table_ref
     } else if arg.v_type == VarType::VarList {
-        unsafe { (*arg.vval.v_list()).lua_table_ref }
+        arg.vval.v_list().lua_table_ref
     } else {
         LUA_NOREF
     };

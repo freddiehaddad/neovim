@@ -4134,7 +4134,7 @@ fn call_qftf_func(
         if callback_call(cb, 1, &mut args, &mut rettv) {
             if rettv.v_type == VarType::VarList {
                 tv_list_ref(rettv.vval.v_list_opt());
-                qftf_list = unsafe { rettv.vval.v_list().as_mut() };
+                qftf_list = rettv.vval.v_list().opt_mut();
             }
             tv_clear(&mut rettv);
         }

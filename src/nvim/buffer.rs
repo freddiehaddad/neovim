@@ -769,7 +769,7 @@ impl FileBuf {
 
     #[inline]
     pub fn b_vars(&self) -> &'static mut crate::eval::typval::TvDict {
-        unsafe { &mut *self.b_bufvar.di_tv.vval.v_dict() }
+        self.b_bufvar.di_tv.vval.v_dict().borrow_mut()
     }
 }
 

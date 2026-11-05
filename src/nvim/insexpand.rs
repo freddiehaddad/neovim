@@ -3255,10 +3255,10 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     if called {
         match rettv.v_type {
             VAR_LIST => {
-                matchlist = rettv.vval.v_list();
+                matchlist = rettv.vval.v_list().as_ptr();
             }
             VAR_DICT => {
-                matchdict = rettv.vval.v_dict();
+                matchdict = rettv.vval.v_dict().as_ptr();
             }
             _ => {
                 tv_clear(&mut rettv);
@@ -3800,7 +3800,7 @@ pub fn f_complete_info(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
             emsg(gettext(E_LISTREQ));
             return;
         }
-        what_list = argvars[0].vval.v_list();
+        what_list = argvars[0].vval.v_list().as_ptr();
     }
     get_complete_info(unsafe { what_list.as_ref() }, rettv.vval.v_dict_ref());
 }

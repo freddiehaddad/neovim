@@ -163,7 +163,7 @@ pub fn f_termopen(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncData
     let dict = arg1.vval.v_dict();
     tv_dict_add_bool(arg1.vval.v_dict_ref(), c"term", K_BOOL_VAR_TRUE as i32);
     f_jobstart(argvars, rettv, fptr);
-    if must_free && let Some(dict_ref) = unsafe { dict.as_mut() } {
+    if must_free && let Some(dict_ref) = dict.opt_mut() {
         tv_dict_free(dict_ref);
     }
 }

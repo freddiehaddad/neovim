@@ -2770,8 +2770,7 @@ pub(crate) fn fill_submatch_list(
     let static_list = unsafe { &mut *listarg.vval.v_list().cast::<StaticList10>() };
     tv_list_init_static10(static_list);
 
-    let mut li = tv_list_first(unsafe { listarg.vval.v_list().as_ref() })
-        .map_or(ptr::null_mut(), ptr::from_mut);
+    let mut li = tv_list_first(listarg.vval.v_list().opt()).map_or(ptr::null_mut(), ptr::from_mut);
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
         let li_mut = unsafe { &mut *li };
@@ -2943,8 +2942,8 @@ fn vim_regsub_both(
                     call_func(s_cstr, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 } else if expr.v_type == VarType::VarPartial {
                     let partial = expr.vval.v_partial();
-                    let s = partial_name(unsafe { partial.as_ref() });
-                    funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
+                    let s = partial_name(partial.opt());
+                    funcexe.fe_partial = partial;
                     call_func(s, -1, &mut rettv, 1, &mut argv, &mut funcexe);
                 }
                 if rettv.v_type == VarType::VarUnknown {

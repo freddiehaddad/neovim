@@ -2324,7 +2324,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
 
     let (which, is_abbr, d) = if dict_only {
         let d = argvars[0].vval.v_dict();
-        let d_opt = unsafe { d.as_ref() };
+        let d_opt = d.opt();
         let which = tv_dict_get_string(d_opt, c"mode");
         let is_abbr = tv_dict_get_bool(d_opt, c"abbr", -1) as i32;
         let Some(which) = which else {
@@ -2353,7 +2353,7 @@ pub fn f_mapset(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncData
         return;
     }
 
-    let d_opt = unsafe { d.as_ref() };
+    let d_opt = d.opt();
     let lhs = crate::eval::typval::tv_dict_get_cstring(d_opt, c"lhs");
     let lhsraw = crate::eval::typval::tv_dict_get_cstring(d_opt, c"lhsraw");
     let lhsrawalt = crate::eval::typval::tv_dict_get_cstring(d_opt, c"lhsrawalt");

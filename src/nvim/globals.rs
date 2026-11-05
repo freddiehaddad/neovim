@@ -1133,6 +1133,22 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
+    pub const fn cast<U>(self) -> *mut U {
+        self.0.cast()
+    }
+
+    #[inline(always)]
+    pub fn as_ref<'a>(self) -> Option<&'a T> {
+        self.opt()
+    }
+
+    #[allow(dead_code)]
+    #[inline(always)]
+    pub fn as_mut<'a>(self) -> Option<&'a mut T> {
+        self.opt_mut()
+    }
+
+    #[inline(always)]
     pub fn opt<'a>(self) -> Option<&'a T> {
         if (self.0 as usize) == 0 {
             None

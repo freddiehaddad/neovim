@@ -2216,7 +2216,7 @@ pub fn trans_function_name(
             *pp = crate::memory::cstr_from_ptr(end);
         } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {
             let pt = ll_tv.vval.v_partial();
-            if is_luafunc(unsafe { pt.as_ref() }) && crate::memory::cstr_first_byte(end) == b'.' {
+            if is_luafunc(pt.opt()) && crate::memory::cstr_first_byte(end) == b'.' {
                 len = check_luafunc_name(crate::memory::cstr_from_ptr(end.wrapping_add(1)), true);
                 if len == 0 {
                     semsg!(E_INVEXPR2, c"v:lua");
@@ -2229,14 +2229,12 @@ pub fn trans_function_name(
 
                 *pp = crate::memory::cstr_from_ptr(end.wrapping_add(1 + len as usize));
             } else {
-                res = Some(cstr_to_cstring(
-                    (partial_name(unsafe { pt.as_ref() })).as_ptr(),
-                ));
+                res = Some(cstr_to_cstring((partial_name(pt.opt())).as_ptr()));
 
                 *pp = crate::memory::cstr_from_ptr(end);
             }
             if let Some(ref mut partial_out) = partial {
-                **partial_out = unsafe { pt.as_mut() };
+                **partial_out = pt.opt_mut();
             }
         } else if !skip
             && (flags & TFN_QUIET) == 0
@@ -4065,7 +4063,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
     let mut error = 0;
 
     if rettv.v_type == VarType::VarPartial
-        && let Some(pt_ref) = unsafe { rettv.vval.v_partial().as_ref() }
+        && let Some(pt_ref) = rettv.vval.v_partial().opt()
         && !pt_ref.pt_func.is_null()
     {
         fp = pt_ref.pt_func.opt_mut();
@@ -4073,7 +4071,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         let fname_ptr: *const std::ffi::c_char =
             if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
                 rettv.vval.v_string()
-            } else if let Some(pt_ref) = unsafe { rettv.vval.v_partial().as_ref() } {
+            } else if let Some(pt_ref) = rettv.vval.v_partial().opt() {
                 pt_ref.pt_name.as_ref().map_or(ptr::null(), |n| n.as_ptr())
             } else {
                 ptr::null()
@@ -4104,7 +4102,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
         if rettv.v_type == VarType::VarFunc || rettv.v_type == VarType::VarString {
             pt.pt_name = crate::eval::typval::tv_take_string(rettv);
         } else {
-            let ret_pt = unsafe { &mut *rettv.vval.v_partial() };
+            let ret_pt = rettv.vval.v_partial().borrow_mut();
             if let Some(ref ret_name) = ret_pt.pt_name {
                 func_ref(Some(ret_name));
                 pt.pt_name = Some(ret_name.clone());

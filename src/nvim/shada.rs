@@ -2721,7 +2721,7 @@ fn shada_write(
                         skip = true;
                     }
                     VarType::VarDict => {
-                        let di = unsafe { &mut *vartv.vval.v_dict() };
+                        let di = vartv.vval.v_dict().borrow_mut();
                         let copy_id = get_copy_id();
                         if !set_ref_in_ht(Some(&mut di.dv_hashtab), copy_id, None)
                             && copy_id == di.dv_copy_id
@@ -2733,8 +2733,8 @@ fn shada_write(
                     VarType::VarList => {
                         let l = vartv.vval.v_list();
                         let copy_id = get_copy_id();
-                        if !set_ref_in_list_items(unsafe { l.as_mut() }, copy_id, None)
-                            && copy_id == unsafe { (*l).lv_copy_id }
+                        if !set_ref_in_list_items(l.opt_mut(), copy_id, None)
+                            && copy_id == l.lv_copy_id
                         {
                             tv_clear(&mut vartv);
                             skip = true;

@@ -821,7 +821,7 @@ pub fn eval_spell_expr(badword: &CStr, expr: &CStr) -> Option<&'static mut TvLis
         if rettv.v_type != VarType::VarList {
             tv_clear(&mut rettv);
         } else {
-            list = rettv.vval.v_list();
+            list = rettv.vval.v_list().as_ptr();
         }
     }
 
@@ -2103,7 +2103,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 0,
                 0,
             ) {
-                d = di.di_tv.vval.v_dict();
+                d = di.di_tv.vval.v_dict().as_ptr();
             }
             if d.is_null() {
                 internal_error(c"do_unlet()");
@@ -2272,7 +2272,7 @@ pub fn get_vim_var_str(idx: VimVarIndex) -> &'static CStr {
 }
 
 pub fn get_vim_var_partial(idx: VimVarIndex) -> Option<&'static mut TvPartial> {
-    unsafe { get_vim_var_tv(idx).vval.v_partial().as_mut() }
+    get_vim_var_tv(idx).vval.v_partial().opt_mut()
 }
 
 /// Function to concatenate a prefix and a variable name.

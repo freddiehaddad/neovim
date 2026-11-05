@@ -167,7 +167,7 @@ fn set_buffer_lines(
     let mut li: *mut Listitem = ptr::null_mut();
     let mut line: Option<std::ffi::CString> = None;
     if lines.v_type == VarType::VarList {
-        l = lines.vval.v_list();
+        l = lines.vval.v_list().as_ptr();
         if l.is_null() || tv_list_len(unsafe { l.as_ref() }) == 0 {
             if !is_curbuf {
                 change_other_buffer_restore(&mut cob);
@@ -441,8 +441,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         };
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
-            if !l.is_null() && tv_list_len(unsafe { l.as_ref() }) > 0 {
-                let li = tv_list_first(unsafe { l.as_ref() }).unwrap();
+            if !l.is_null() && tv_list_len(l.opt()) > 0 {
+                let li = tv_list_first(l.opt()).unwrap();
                 let str_ = tv_get_string(&li.li_tv);
                 let new_str = concat_str(crate::memory::cstr_as_bytes(text), str_.to_bytes());
                 crate::eval::typval::tv_set_string(&mut li.li_tv, Some(new_str.as_c_str()));
@@ -456,9 +456,9 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     }
 
     if g_st().did_emsg == did_emsg_before {
-        if did_concat && tv_list_len(unsafe { lines.vval.v_list().as_ref() }) > 1 {
+        if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
-            let li: *mut Listitem = tv_list_first(unsafe { l.as_ref() }).unwrap();
+            let li: *mut Listitem = tv_list_first(l.opt()).unwrap();
 
             set_buffer_lines(
                 unsafe { buf.as_mut() },
@@ -469,7 +469,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
             );
 
             if rettv.vval.v_number() == 0 {
-                tv_list_item_remove(unsafe { &mut *l }, unsafe { &mut *li });
+                tv_list_item_remove(l.borrow_mut(), unsafe { &mut *li });
 
                 set_buffer_lines(
                     unsafe { buf.as_mut() },
@@ -496,8 +496,8 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
 
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
-            if !l.is_null() && tv_list_len(unsafe { l.as_ref() }) > 0 {
-                let li = tv_list_last(unsafe { l.as_ref() }).unwrap();
+            if !l.is_null() && tv_list_len(l.opt()) > 0 {
+                let li = tv_list_last(l.opt()).unwrap();
                 let str_ = tv_get_string(&li.li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {

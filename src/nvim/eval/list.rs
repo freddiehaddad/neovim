@@ -204,7 +204,7 @@ fn filter_map_blob(
     let mut b_ret: *mut TvBlob = b;
     if filtermap == FilterMap::MapNew {
         tv_blob_copy(Some(&*b), &mut *rettv);
-        b_ret = rettv.vval.v_blob();
+        b_ret = rettv.vval.v_blob().as_ptr();
     }
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
@@ -692,13 +692,12 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
 
         let mut l1 = argvars[0].vval.v_list();
         if is_new {
-            l1 = tv_list_copy(None, l1_opt, false, get_copy_id())
-                .map_or(std::ptr::null_mut(), std::ptr::from_mut);
+            l1 = tv_list_copy(None, l1_opt, false, get_copy_id()).into();
             if l1.is_null() {
                 return;
             }
         }
-        let l1_ref = unsafe { &mut *l1 };
+        let l1_ref = l1.borrow_mut();
 
         if let Some(l2) = argvars[1].vval.v_list_opt() {
             let mut item: *mut Listitem = std::ptr::null_mut();
@@ -707,7 +706,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                 let before = tv_get_number_chk(arg2, Some(&mut error)) as i32;
                 if error {
                     if is_new {
-                        tv_list_unref(unsafe { l1.as_mut() });
+                        tv_list_unref(l1.opt_mut());
                     }
                     return;
                 }
@@ -717,7 +716,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
                     if item.is_null() {
                         semsg!(E_LIST_INDEX_OUT_OF_RANGE_NR, before as i64);
                         if is_new {
-                            tv_list_unref(unsafe { l1.as_mut() });
+                            tv_list_unref(l1.opt_mut());
                         }
                         return;
                     }
@@ -730,7 +729,7 @@ fn extend_list(argvars: &mut [TypVal], arg_errmsg: &CStr, is_new: bool, rettv: &
             *rettv = TypVal {
                 v_type: VarType::VarList,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::List(crate::globals::GraphPtr::new(l1)),
+                vval: TypvalVval::List(l1),
             };
         } else {
             tv_copy(&argvars[0], &mut *rettv);

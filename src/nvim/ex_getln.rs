@@ -5065,7 +5065,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             return;
         }
         let dict = argvars[0].vval.v_dict();
-        let dict_ref = unsafe { dict.as_ref() };
+        let dict_ref = dict.opt();
         let Some(prompt_cstr) =
             tv_dict_get_string_buf_chk(dict_ref, c"prompt", 6, &mut prompt_buf, Some(c""))
         else {
@@ -5091,12 +5091,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
             };
             xp_name = xp_cstr.as_ptr().cast();
         }
-        if !tv_dict_get_callback(
-            unsafe { dict.as_mut() },
-            c"highlight",
-            9,
-            &mut input_callback,
-        ) {
+        if !tv_dict_get_callback(dict.opt_mut(), c"highlight", 9, &mut input_callback) {
             return;
         }
     } else {

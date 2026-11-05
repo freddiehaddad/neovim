@@ -12666,7 +12666,7 @@ fn ex_terminal(eap: &mut Exarg) {
         tv_list_alloc_ret(&mut shell_tv, 0);
         for arg in argv {
             tv_list_append_string(
-                unsafe { &mut *shell_tv.vval.v_list() },
+                shell_tv.vval.v_list().borrow_mut(),
                 Some(arg.as_c_str()),
                 arg.as_bytes().len() as isize,
             );

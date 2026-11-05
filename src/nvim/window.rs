@@ -684,7 +684,7 @@ impl WinInfoInfo {
 
     #[inline]
     pub fn w_vars(&self) -> &'static mut TvDict {
-        unsafe { &mut *(self.w_winvar.di_tv.vval.v_dict()) }
+        self.w_winvar.di_tv.vval.v_dict().borrow_mut()
     }
 }
 
@@ -785,7 +785,7 @@ impl TabPageInfo {
 
     #[inline]
     pub fn tp_vars(&self) -> &'static mut TvDict {
-        unsafe { &mut *(self.tp_winvar.di_tv.vval.v_dict()) }
+        self.tp_winvar.di_tv.vval.v_dict().borrow_mut()
     }
 }
 

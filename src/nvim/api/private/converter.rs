@@ -150,7 +150,7 @@ fn convert_one_value(
                 data: ObjectData::Array(arr),
             });
             mpstack.push(ConvStackEntry::List {
-                list: list_ptr.into(),
+                list: list_ptr,
                 li: list.lv_first,
                 saved_copy_id,
                 first: true,
@@ -195,7 +195,7 @@ fn convert_one_value(
                 data: ObjectData::Dict(d_obj),
             });
             mpstack.push(ConvStackEntry::Dict {
-                dict: dict_ptr.into(),
+                dict: dict_ptr,
                 hi: dict.dv_hashtab.array_ptr().into(),
                 todo: used,
                 saved_copy_id,

@@ -877,11 +877,9 @@ pub fn ml_recover(checkext: bool) {
         let mut items_tv = TypVal::new();
         tv_list_alloc_ret(&mut items_tv, 0);
 
-        recover_names(Some(fname_cstr), true, unsafe {
-            &mut *items_tv.vval.v_list()
-        });
+        recover_names(Some(fname_cstr), true, items_tv.vval.v_list().borrow_mut());
 
-        let n_swaps = tv_list_len(unsafe { items_tv.vval.v_list().as_ref() });
+        let n_swaps = tv_list_len(items_tv.vval.v_list().opt());
 
         if n_swaps == 0 {
             tv_clear(&mut items_tv);
@@ -900,7 +898,7 @@ pub fn ml_recover(checkext: bool) {
 
             return;
         }
-        let first_str = tv_list_first(unsafe { items_tv.vval.v_list().as_ref() })
+        let first_str = tv_list_first(items_tv.vval.v_list().opt())
             .unwrap()
             .li_tv
             .vval
