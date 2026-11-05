@@ -2345,18 +2345,8 @@ fn eval3(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
     true
 }
 
-/// Handle third level expression (comparisons).
-fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
-    let mut var2 = tv_initial_value();
+fn get_compare_type(p_bytes: &[u8], len: &mut usize) -> Exprtype {
     let mut expr_type: Exprtype = EXPR_UNKNOWN;
-    let mut len: usize = 2;
-
-    if !eval5(arg, rettv, evalarg.as_deref_mut()) {
-        return false;
-    }
-
-    let p = *arg;
-    let p_bytes = p.to_bytes();
     match p_bytes.first().copied().unwrap_or(0) {
         b'=' => {
             if p_bytes.get(1) == Some(&b'=') {
@@ -2375,7 +2365,7 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
         b'>' => {
             if p_bytes.get(1) != Some(&b'=') {
                 expr_type = EXPR_GREATER;
-                len = 1;
+                *len = 1;
             } else {
                 expr_type = EXPR_GEQUAL;
             }
@@ -2383,26 +2373,40 @@ fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>)
         b'<' => {
             if p_bytes.get(1) != Some(&b'=') {
                 expr_type = EXPR_SMALLER;
-                len = 1;
+                *len = 1;
             } else {
                 expr_type = EXPR_SEQUAL;
             }
         }
         b'i' if p_bytes.get(1) == Some(&b's') => {
             if p_bytes.starts_with(b"isnot") {
-                len = 5;
+                *len = 5;
             }
             if !p_bytes
-                .get(len)
+                .get(*len)
                 .is_some_and(|&c| c.is_ascii_alphanumeric() || c == b'_')
             {
-                expr_type = if len == 2 { EXPR_IS } else { EXPR_ISNOT };
+                expr_type = if *len == 2 { EXPR_IS } else { EXPR_ISNOT };
             }
         }
         _ => {}
     }
+    expr_type
+}
+
+/// Handle third level expression (comparisons).
+fn eval4(arg: &mut &CStr, rettv: &mut TypVal, mut evalarg: Option<&mut Evalarg>) -> bool {
+    if !eval5(arg, rettv, evalarg.as_deref_mut()) {
+        return false;
+    }
+
+    let p = *arg;
+    let p_bytes = p.to_bytes();
+    let mut len: usize = 2;
+    let expr_type = get_compare_type(p_bytes, &mut len);
 
     if expr_type != EXPR_UNKNOWN {
+        let mut var2 = tv_initial_value();
         let ic: bool;
         if p_bytes.get(len) == Some(&b'?') {
             ic = true;
