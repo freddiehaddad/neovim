@@ -24,6 +24,7 @@ use crate::msgpack_rpc::packer::{
     mpack_integer, mpack_map, mpack_nil, mpack_str, mpack_uint64,
 };
 use crate::regexp::NUMBUFLEN;
+use crate::strings::ByteSliceExt;
 use crate::strings::vim_snprintf_safelen;
 use crate::testing::ga_concat_literal;
 use std::ffi::CStr;

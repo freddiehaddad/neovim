@@ -115,7 +115,7 @@ fn dict_put_c(dic: &mut Dict, key: &'static CStr, value: Object) {
     {
         *dic.next_slot_mut() = KeyValuePair {
             key: NvimString {
-                data: crate::strings::CStrCursor::from_ptr(key.as_ptr()),
+                data: Some(key.to_bytes_with_nul()),
                 size: key_bytes.len(),
             },
             value,

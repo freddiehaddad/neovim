@@ -32,7 +32,7 @@ pub type ArenaMem = crate::globals::GraphPtr<ConsumedBlk>;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Arena {
-    pub cur_blk: crate::strings::CStrCursor<std::ffi::c_char>,
+    pub cur_blk: crate::globals::GraphPtr<u8>,
     pub pos: usize,
     pub size: usize,
 }
@@ -41,7 +41,7 @@ impl Arena {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
-            cur_blk: crate::strings::CStrCursor::NULL,
+            cur_blk: crate::globals::GraphPtr::NULL,
             pos: 0,
             size: 0,
         }
@@ -256,7 +256,7 @@ pub fn free_items<T>(items: crate::globals::GraphPtr<T>) {
 }
 
 /// Allocate `data.len() + 1` bytes, copy `data`, and NUL-terminate.
-pub fn alloc_cstring_len(data: &[u8]) -> crate::strings::CStrCursor<std::ffi::c_char> {
+pub fn alloc_cstring_len(data: &[u8]) -> crate::strings::ByteSlice {
     let len = data.len();
     let Some(total_size) = len.checked_add(1) else {
         preserve_exit(Some(
@@ -264,20 +264,15 @@ pub fn alloc_cstring_len(data: &[u8]) -> crate::strings::CStrCursor<std::ffi::c_
         ));
     };
     let ret = raw_alloc(total_size).cast::<u8>();
-    if len > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(data.as_ptr(), ret, len);
-        }
-    }
-    unsafe {
-        *ret.add(len) = 0;
-    }
-    crate::strings::CStrCursor::new(ret.cast())
+    let slice = unsafe { std::slice::from_raw_parts_mut(ret, total_size) };
+    slice[..len].copy_from_slice(data);
+    slice[len] = 0;
+    Some(slice)
 }
 
 /// Duplicate a NUL-terminated C string.
 #[inline(always)]
-pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> crate::strings::CStrCursor<std::ffi::c_char> {
+pub fn alloc_cstring(str_ptr: &std::ffi::CStr) -> crate::strings::ByteSlice {
     alloc_cstring_len(str_ptr.to_bytes())
 }
 
@@ -730,15 +725,15 @@ pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
 }
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
-fn alloc_block() -> crate::strings::CStrCursor<std::ffi::c_char> {
+fn alloc_block() -> crate::globals::GraphPtr<u8> {
     if mem_st().arena_reuse_count > 0 {
-        let retval = crate::strings::CStrCursor::new(mem_st().arena_reuse_head.as_ptr().cast());
+        let retval = crate::globals::GraphPtr::new(mem_st().arena_reuse_head.as_ptr().cast());
         mem_st().arena_reuse_head = mem_st().arena_reuse_head.prev;
         mem_st().arena_reuse_count -= 1;
         retval
     } else {
         g_st().arena_alloc_count += 1;
-        crate::strings::CStrCursor::new(raw_alloc(ARENA_BLOCK_SIZE).cast())
+        crate::globals::GraphPtr::new(raw_alloc(ARENA_BLOCK_SIZE).cast())
     }
 }
 
@@ -844,60 +839,46 @@ pub fn arena_mem_free(mem: ArenaMem) {
     }
 }
 
-/// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
-pub fn arena_allocz(
-    arena: &mut Arena,
-    size: usize,
-) -> crate::strings::CStrCursor<std::ffi::c_char> {
+/// Allocate `size + 1` mutable bytes on `arena` and NUL-terminate.
+pub fn arena_allocz_mut(arena: &mut Arena, size: usize) -> &'static mut [u8] {
     let mem = arena_alloc(arena, size + 1, false).cast::<u8>();
-    unsafe {
-        *mem.add(size) = 0;
-    }
-    crate::strings::CStrCursor::new(mem.cast())
+    let slice = unsafe { std::slice::from_raw_parts_mut(mem, size + 1) };
+    slice[size] = 0;
+    slice
 }
 
-/// Allocate `size + 1` bytes on `arena` (or heap if `None`) and NUL-terminate.
+/// Allocate `size + 1` bytes on `arena` and NUL-terminate (`arena_allocz`).
+pub fn arena_allocz(arena: &mut Arena, size: usize) -> crate::strings::ByteSlice {
+    Some(arena_allocz_mut(arena, size))
+}
+
+/// Allocate `size + 1` mutable bytes on `arena` (or heap if `None`) and NUL-terminate.
 #[inline(always)]
-pub fn arena_allocz_opt(
-    arena: Option<&mut Arena>,
-    size: usize,
-) -> crate::strings::CStrCursor<std::ffi::c_char> {
+pub fn arena_allocz_opt_mut(arena: Option<&mut Arena>, size: usize) -> &'static mut [u8] {
     let mem = arena_alloc_opt(arena, size + 1, false).cast::<u8>();
-    unsafe {
-        *mem.add(size) = 0;
-    }
-    crate::strings::CStrCursor::new(mem.cast())
+    let slice = unsafe { std::slice::from_raw_parts_mut(mem, size + 1) };
+    slice[size] = 0;
+    slice
+}
+
+/// Copy `buf` into a NUL-terminated mutable buffer on `arena`.
+pub fn arena_memdupz_mut(arena: &mut Arena, buf: &[u8]) -> &'static mut [u8] {
+    let slice = arena_allocz_mut(arena, buf.len());
+    slice[..buf.len()].copy_from_slice(buf);
+    slice
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (`arena_memdupz`).
-pub fn arena_memdupz(
-    arena: &mut Arena,
-    buf: &[u8],
-) -> crate::strings::CStrCursor<std::ffi::c_char> {
-    let size = buf.len();
-    let mem = arena_allocz(arena, size).cast::<u8>();
-    if size > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), mem, size);
-        }
-    }
-    crate::strings::CStrCursor::new(mem.cast())
+pub fn arena_memdupz(arena: &mut Arena, buf: &[u8]) -> crate::strings::ByteSlice {
+    Some(arena_memdupz_mut(arena, buf))
 }
 
 /// Copy `buf` into a NUL-terminated buffer on `arena` (or heap if `None`).
 #[inline(always)]
-pub fn arena_memdupz_opt(
-    arena: Option<&mut Arena>,
-    buf: &[u8],
-) -> crate::strings::CStrCursor<std::ffi::c_char> {
-    let size = buf.len();
-    let mem = arena_allocz_opt(arena, size).cast::<u8>();
-    if size > 0 {
-        unsafe {
-            std::ptr::copy_nonoverlapping(buf.as_ptr(), mem, size);
-        }
-    }
-    crate::strings::CStrCursor::new(mem.cast())
+pub fn arena_memdupz_opt(arena: Option<&mut Arena>, buf: &[u8]) -> crate::strings::ByteSlice {
+    let slice = arena_allocz_opt_mut(arena, buf.len());
+    slice[..buf.len()].copy_from_slice(buf);
+    Some(slice)
 }
 
 /// Free everything that we allocated (`free_all_mem`).
@@ -1084,7 +1065,7 @@ mod tests {
     #[test]
     fn arena_lifecycle() {
         let mut arena = Arena {
-            cur_blk: crate::strings::CStrCursor::NULL,
+            cur_blk: crate::globals::GraphPtr::NULL,
             pos: 0,
             size: 0,
         };

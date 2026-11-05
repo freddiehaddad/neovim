@@ -426,7 +426,7 @@ pub fn nvim_call_dict_function(
             }
             let s = di.di_tv.vval.v_string();
             fn_name = NvimString {
-                data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
+                data: s,
                 size: s.len(),
             };
         }

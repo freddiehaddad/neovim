@@ -26,6 +26,7 @@ use crate::eval::vars::{NUM_MSGPACK_TYPES, eval_msgpack_type_list};
 use crate::eval::{get_copy_id, partial_name};
 use crate::hashtab::hashitem_empty;
 use crate::highlight_group::syn_check_group;
+use crate::strings::ByteSliceExt;
 
 use crate::lua::executor::{api_free_luaref, nlua_pushref, nlua_ref_global};
 use crate::memory::{Arena, arena_memdupz_opt};

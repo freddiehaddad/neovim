@@ -1823,7 +1823,7 @@ pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
             Object {
                 obj_type: ObjectType::ObjectTypeString,
                 data: ObjectData::String(NvimString {
-                    data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
+                    data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
                     size: 0,
                 }),
             },
@@ -2425,7 +2425,7 @@ pub fn validate_foldmarker(args: &mut Optset) -> Option<&CStr> {
     if p.is_null() {
         return Some(E_COMMA_REQUIRED);
     }
-    if value == p || crate::memory::cstr_len(p) <= 1 {
+    if value.as_ptr() == p || crate::memory::cstr_len(p) <= 1 {
         Some(E_INVARG)
     } else {
         None
@@ -3118,15 +3118,18 @@ pub fn did_set_titlestring(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_vartabstop(args: &mut Optset) -> Option<&CStr> {
     let value = args.os_newval.data.string().data;
     let mut cp = value;
+    let mut prev_comma = false;
     while !cp.is_empty() {
         if ascii_isdigit(cp.first_byte()) {
+            prev_comma = false;
             cp = cp.wrapping_add(1);
             continue;
         }
         if cp.first_byte() == b','
             && (cp.as_ptr() as usize) > (value.as_ptr() as usize)
-            && cp.wrapping_sub(1).first_byte() != b','
+            && !prev_comma
         {
+            prev_comma = true;
             cp = cp.wrapping_add(1);
             continue;
         }

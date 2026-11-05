@@ -742,11 +742,11 @@ fn vim_runtime_dir(vimdir: Option<&CStr>) -> Option<std::ffi::CString> {
     }
     let p_cstr = concat_fnames(
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(vimdir.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(vimdir),
             size: vimdir.to_bytes().len(),
         },
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(RUNTIME_DIRNAME.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(RUNTIME_DIRNAME),
             size: 7,
         },
         true,

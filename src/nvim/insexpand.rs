@@ -1465,7 +1465,7 @@ fn ins_compl_longest_match(match_: &mut Compl) {
     }
 
     if !p.is_empty() {
-        p.set_byte(0, 0);
+        unsafe { *p.as_ptr() = 0 };
 
         insexp().compl_leader.size =
             crate::memory::ptr_offset_from(p, insexp().compl_leader.data) as usize;
@@ -2656,7 +2656,7 @@ pub fn ins_compl_addfrommatch() {
             return;
         }
 
-        p = crate::strings::CStrCursor::NULL;
+        p = crate::strings::BYTE_SLICE_NULL;
         let mut plen: usize = 0;
         let mut cp_idx = compl_next_idx(shown_idx);
         while let Some(ci) = cp_idx
@@ -2887,7 +2887,7 @@ fn ins_compl_stop(c: i32, prev_mode: i32, mut retval: bool) -> bool {
     }
     let word = match word_owned {
         Some(ref w) => NvimString {
-            data: crate::strings::CStrCursor::from_ptr(w.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(w),
             size: w.as_bytes().len(),
         },
         None => empty_nvim_string(),
@@ -5328,7 +5328,7 @@ pub fn ins_compl_insert(move_cursor: bool, insert_prefix: bool) {
         if let Some(pref) = find_common_prefix(&mut cp_str_len, false)
             .or_else(|| find_common_prefix(&mut cp_str_len, true))
         {
-            cp_str = crate::strings::CStrCursor::from_ptr(pref.as_ptr().cast());
+            cp_str = crate::strings::ByteSlice::from_ptr(pref.as_ptr());
         } else {
             let shown = compl_opt(insexp().compl_shown_idx).unwrap();
             cp_str = shown.cp_str.data;

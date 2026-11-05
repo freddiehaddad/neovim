@@ -141,7 +141,7 @@ pub const fn luaref_obj(r: LuaRef) -> Object {
 #[inline]
 pub const fn static_cstr_as_string(s: &'static CStr) -> NvimString {
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
+        data: Some(s.to_bytes_with_nul()),
         size: s.to_bytes().len(),
     }
 }
@@ -292,7 +292,7 @@ pub const fn error_init() -> Error {
 #[inline]
 pub fn api_clear_string(s: &mut NvimString) {
     api_free_string(*s);
-    s.data = crate::strings::CStrCursor::NULL;
+    s.data = crate::strings::BYTE_SLICE_NULL;
     s.size = 0;
 }
 
@@ -735,13 +735,13 @@ pub fn cbuf_to_string(buf: &[u8]) -> NvimString {
 pub fn cstrn_as_string(str_: &[u8]) -> NvimString {
     if str_.is_empty() {
         return NvimString {
-            data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
+            data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
             size: 0,
         };
     }
     let size = str_.iter().position(|&b| b == 0).unwrap_or(str_.len());
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(str_.as_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(str_),
         size,
     }
 }
@@ -751,7 +751,7 @@ pub fn cstr_as_string(str_: Option<&CStr>) -> NvimString {
         return NvimString::new();
     };
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(str_.as_ptr()),
+        data: crate::strings::ByteSlice::from_cstr(str_),
         size: str_.to_bytes().len(),
     }
 }
@@ -865,7 +865,7 @@ pub fn buf_get_text(
     }
 
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(bufstr.wrapping_add(start_col as usize)),
+        data: crate::strings::ByteSlice::from_ptr(bufstr.wrapping_add(start_col as usize)),
         size: (end_col - start_col) as usize,
     }
 }
@@ -924,7 +924,7 @@ pub fn arena_bytes(arena: &mut Arena, bytes: &[u8]) -> NvimString {
         }
     } else {
         NvimString {
-            data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
+            data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
             size: 0,
         }
     }
@@ -4332,7 +4332,7 @@ pub fn api_metadata() -> Object {
 pub fn api_metadata_raw() -> NvimString {
     let packed = api_get_packed_metadata();
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(packed.as_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(packed),
         size: packed.len(),
     }
 }

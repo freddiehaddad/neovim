@@ -2091,9 +2091,9 @@ fn show_verbose_terminfo(tui: &mut TUIData) {
         size: 2,
         capacity: 2,
     };
-    let mut str_bytes = terminfo_info_msg(&tui.ti, tui.term.as_deref(), tui.terminfo_found_in_db);
+    let str_bytes = terminfo_info_msg(&tui.ti, tui.term.as_deref(), tui.terminfo_found_in_db);
     let str_val = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(str_bytes.as_mut_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(&str_bytes),
         size: str_bytes.len(),
     };
     let mut info_items = [string_obj(str_val)];

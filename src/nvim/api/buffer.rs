@@ -38,7 +38,7 @@ use crate::memline::{
     ML_LINE_DIRTY, ml_append_buf, ml_delete_buf, ml_find_line_or_offset, ml_get_buf_len,
     ml_replace_buf,
 };
-use crate::memory::{Arena, arena_allocz, arena_memdupz};
+use crate::memory::{Arena, arena_allocz_mut, arena_memdupz, arena_memdupz_mut};
 use crate::r#move::{changed_cline_bef_curs, invalidate_botline_win, update_topline};
 use crate::msgpack_rpc::packer::Integer;
 use crate::ops::get_region_bytecount;
@@ -443,17 +443,17 @@ pub fn nvim_buf_set_lines(
     let new_len = replacement.size;
     let old_len = (end - start) as usize;
     let mut extra: isize = 0;
-    let mut lines: Vec<crate::strings::CStrCursor<std::ffi::c_char>> = Vec::with_capacity(new_len);
+    let mut lines: Vec<crate::strings::ByteSlice> = Vec::with_capacity(new_len);
 
     for i in 0..new_len {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.as_bytes());
-        for b in p.slice_mut(l.size) {
+        let p = arena_memdupz_mut(arena, l.as_bytes());
+        for b in &mut p[..l.size] {
             if *b == 0 {
                 *b = b'\n';
             }
         }
-        lines.push(p);
+        lines.push(Some(p));
     }
 
     try_wrap_err(err, |err| 'end: {
@@ -714,17 +714,14 @@ pub fn nvim_buf_set_text(
     if replacement.size == 1 {
         firstlen += last_part_len;
     }
-    let first = arena_allocz(arena, firstlen);
-    let mut last = crate::strings::CStrCursor::NULL;
+    let first = arena_allocz_mut(arena, firstlen);
+    let mut last = crate::strings::BYTE_SLICE_NULL;
 
-    first
-        .slice_mut(start_col as usize)
-        .copy_from_slice(str_at_start.slice(start_col as usize));
+    first[..start_col as usize].copy_from_slice(str_at_start.slice(start_col as usize));
 
     if first_item.size > 0 {
-        let first_dst = first
-            .wrapping_add(start_col as usize)
-            .slice_mut(first_item.size);
+        let start_idx = start_col as usize;
+        let first_dst = &mut first[start_idx..start_idx + first_item.size];
         first_dst.copy_from_slice(first_item.as_bytes());
         for b in first_dst {
             if *b == 0 {
@@ -733,18 +730,16 @@ pub fn nvim_buf_set_text(
         }
     }
     if replacement.size == 1 {
-        first
-            .wrapping_add((start_col as usize) + first_item.size)
-            .slice_mut(last_part_len)
-            .copy_from_slice(
-                str_at_end
-                    .wrapping_add(end_col as usize)
-                    .slice(last_part_len),
-            );
+        let off = (start_col as usize) + first_item.size;
+        first[off..off + last_part_len].copy_from_slice(
+            str_at_end
+                .wrapping_add(end_col as usize)
+                .slice(last_part_len),
+        );
     } else {
-        last = arena_allocz(arena, last_item.size + last_part_len);
+        let last_buf = arena_allocz_mut(arena, last_item.size + last_part_len);
         if last_item.size > 0 {
-            let last_dst = last.slice_mut(last_item.size);
+            let last_dst = &mut last_buf[..last_item.size];
             last_dst.copy_from_slice(last_item.as_bytes());
             for b in last_dst {
                 if *b == 0 {
@@ -753,27 +748,26 @@ pub fn nvim_buf_set_text(
             }
         }
 
-        last.wrapping_add(last_item.size)
-            .slice_mut(last_part_len)
-            .copy_from_slice(
-                str_at_end
-                    .wrapping_add(end_col as usize)
-                    .slice(last_part_len),
-            );
+        last_buf[last_item.size..last_item.size + last_part_len].copy_from_slice(
+            str_at_end
+                .wrapping_add(end_col as usize)
+                .slice(last_part_len),
+        );
+        last = Some(last_buf);
     }
 
-    let mut lines: Vec<crate::strings::CStrCursor<std::ffi::c_char>> = Vec::with_capacity(new_len);
-    lines.push(first);
+    let mut lines: Vec<crate::strings::ByteSlice> = Vec::with_capacity(new_len);
+    lines.push(Some(first));
     new_byte += first_item.size as Bcount;
     for i in 1..new_len.saturating_sub(1) {
         let l = replacement[i].data.string();
-        let p = arena_memdupz(arena, l.as_bytes());
-        for b in p.slice_mut(l.size) {
+        let p = arena_memdupz_mut(arena, l.as_bytes());
+        for b in &mut p[..l.size] {
             if *b == 0 {
                 *b = b'\n';
             }
         }
-        lines.push(p);
+        lines.push(Some(p));
         new_byte += (l.size as Bcount) + 1;
     }
     if replacement.size > 1 {

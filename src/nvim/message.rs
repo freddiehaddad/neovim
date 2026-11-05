@@ -404,7 +404,7 @@ fn ui_ext_msg_set_pos(row: i32, scrolled: bool) {
         row as Integer,
         scrolled,
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(buf.as_mut_ptr().cast()),
+            data: crate::strings::ByteSlice::from_bytes(&buf),
             size,
         },
         g_st().msg_grid.zindex as Integer,
@@ -1448,7 +1448,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     let mut put_c = |key: &'static CStr, value: Object| {
         data_items[data_size] = KeyValuePair {
             key: NvimString {
-                data: crate::strings::CStrCursor::from_ptr(key.as_ptr()),
+                data: Some(key.to_bytes_with_nul()),
                 size: key.to_bytes().len(),
             },
             value,
@@ -2367,7 +2367,7 @@ pub fn str2special(
         if let Some(data) = data.as_deref_mut() {
             data.mods = 0;
             data.key = NvimString {
-                data: crate::strings::CStrCursor::from_ptr(p.as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(p),
                 size: p.to_bytes().len(),
             };
             data.key_alt = NvimString::new();
@@ -2419,26 +2419,25 @@ pub fn str2special(
         );
     }
 
-    let buf_ptr =
-        crate::strings::CStrCursor::<u8>::from_ptr((&raw mut msg_st().str2_special_buf).cast());
+    let buf_slice = crate::strings::ByteSlice::from_bytes(&msg_st().str2_special_buf);
     if data.is_some() {
         data.as_deref_mut().unwrap().mods = 0;
         if (b'A' as i32..=b'Z' as i32).contains(&c) {
             data.as_deref_mut().unwrap().key_mem = (c + 32) as u8;
             data.as_deref_mut().unwrap().key = NvimString {
-                data: crate::strings::CStrCursor::from_ptr(
-                    (&raw mut data.as_deref_mut().unwrap().key_mem).cast(),
-                ),
+                data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
+                    &data.as_deref_mut().unwrap().key_mem,
+                )),
                 size: 1,
             };
             data.as_deref_mut().unwrap().mods |= i32::from(MOD_MASK_SHIFT);
             data.as_deref_mut().unwrap().key_alt = NvimString {
-                data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
+                data: buf_slice,
                 size: 1,
             };
         } else {
             data.as_deref_mut().unwrap().key = NvimString {
-                data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
+                data: buf_slice,
                 size: 1,
             };
             data.unwrap().key_alt = NvimString::new();
@@ -3147,7 +3146,6 @@ fn inc_msg_scrolled() {
         let p = if let Some(sname) = sname {
             let tofreesize = sname.to_bytes().len() + 40;
             tofree_vec = vec![0; tofreesize];
-            let tofree = tofree_vec.as_mut_ptr();
             let size = vim_snprintf_safelen!(
                 &mut tofree_vec,
                 gettext(c"%s line %lld"),
@@ -3155,7 +3153,7 @@ fn inc_msg_scrolled() {
                 i64::from(sourcing_lnum()),
             );
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(tofree.cast()),
+                data: crate::strings::ByteSlice::from_bytes(&tofree_vec),
                 size,
             }
         } else {

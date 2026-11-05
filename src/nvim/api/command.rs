@@ -205,16 +205,16 @@ pub fn is_user_cmdidx<T: CmdIdxVal>(cmdidx: T) -> bool {
 fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
     let mut args = arena_array(arena, 2);
 
-    let lhs_start = crate::strings::CStrCursor::from_ptr(arg_str.as_ptr().cast_mut());
-    let lhs_end = crate::charset::skiptowhite_ptr(lhs_start);
-    let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
+    let lhs_start = crate::strings::ByteSlice::from_cstr(arg_str);
+    let lhs_end = lhs_start.skiptowhite();
+    let lhs_len = lhs_end.offset_from(lhs_start);
 
     add_c(
         &mut args,
         string_obj(cbuf_to_arena_str(arena, lhs_start.slice(lhs_len))),
     );
 
-    let rhs_start = crate::charset::skipwhite_ptr(lhs_end);
+    let rhs_start = lhs_end.skipwhite();
     if !rhs_start.is_empty() {
         let rhs_len = rhs_start.len();
         add_c(

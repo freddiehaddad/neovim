@@ -2556,7 +2556,7 @@ pub fn did_set_arabic(args: &mut Optset) -> Option<&CStr> {
         errmsg = set_option_value(
             K_OPT_KEYMAP,
             string_obj(NvimString {
-                data: crate::strings::CStrCursor::from_ptr(c"arabic".as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(c"arabic"),
                 size: "arabic".len(),
             }),
             OPT_LOCAL,
@@ -3570,7 +3570,7 @@ macro_rules! cstr_def_val {
         Object {
             obj_type: ObjectType::ObjectTypeString,
             data: ObjectData::String(NvimString {
-                data: crate::strings::CStrCursor::from_ptr(S.as_ptr()),
+                data: Some(S.to_bytes_with_nul()),
                 size: S.to_bytes().len(),
             }),
         }
@@ -4788,7 +4788,7 @@ pub fn optval_free_read(opt_idx: OptIndex, value: Object) {
 pub fn optval_free(o: Object) {
     match o.obj_type {
         ObjectType::ObjectTypeString => {
-            if o.data.string().data != EMPTY_STRING_OPTION.as_ptr().cast::<std::ffi::c_char>() {
+            if o.data.string().data.as_ptr() != EMPTY_STRING_OPTION.as_ptr().cast() {
                 api_free_string(o.data.string());
             }
         }

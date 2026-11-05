@@ -1173,7 +1173,7 @@ pub fn check_internal_func(fdef: &EvalFuncDef, argcount: i32) -> i32 {
         return i32::from(fdef.base_arg);
     };
 
-    let name = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(fdef.name);
+    let name = crate::strings::ByteSlice::from_opt_cstr(fdef.name);
     if res == FCERR_TOOMANY {
         semsg!(gettext(E_TOOMANYARG), name);
     } else {
@@ -1747,7 +1747,7 @@ pub fn f_col(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut buf = [0u8; NUMBUFLEN];
     let mut buf2 = [0u8; NUMBUFLEN];
-    let mut buttons = crate::strings::CStrCursor::<u8>::NULL;
+    let mut buttons = crate::strings::BYTE_SLICE_NULL;
     let mut def: i32 = 1;
     let mut type_ = VIM_GENERIC;
     let mut error = false;
@@ -1758,9 +1758,9 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
     if argvars[1].v_type != VarType::VarUnknown {
         if let Some(b) = tv_get_string_buf_chk(&argvars[1], &mut buf) {
-            buttons = crate::strings::CStrCursor::<u8>::of(b.as_ptr().cast());
+            buttons = crate::strings::ByteSlice::from_cstr(b);
         } else {
-            buttons = crate::strings::CStrCursor::NULL;
+            buttons = crate::strings::BYTE_SLICE_NULL;
             error = true;
         }
         if argvars[2].v_type != VarType::VarUnknown {
@@ -1785,7 +1785,7 @@ pub fn f_confirm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     if buttons.is_empty() {
-        buttons = crate::strings::CStrCursor::<u8>::of(gettext(c"&Ok").as_ptr().cast());
+        buttons = crate::strings::ByteSlice::from_cstr(gettext(c"&Ok"));
     }
 
     if !error && let Some(message) = message {
@@ -2192,13 +2192,13 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut n: i32 = 0;
     let p_cstr = tv_get_string(&argvars[0]);
     let p_bytes = p_cstr.to_bytes();
-    let mut p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let mut p = crate::strings::ByteSlice::from_cstr(p_cstr);
     match p_bytes.first() {
         Some(&b'$') => {
             if os_env_exists(p.wrapping_add(1).as_cstr(), false) {
                 n = 1;
             } else {
-                let exp = expand_env_save(crate::memory::cstr_from_ptr(p.cast_mut()));
+                let exp = expand_env_save(p.as_cstr());
                 if exp.to_bytes().first() != Some(&b'$') {
                     n = 1;
                 }
@@ -2207,7 +2207,7 @@ pub fn f_exists(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         Some(&b'&' | &b'+') => {
             let mut p_cstr = p.as_cstr();
             n = i32::from(eval_option(&mut p_cstr, None, true));
-            p = crate::strings::CStrCursor::of(p_cstr.as_ptr());
+            p = crate::strings::ByteSlice::from_cstr(p_cstr);
             if !crate::charset::skipwhite_slice(p.as_bytes()).is_empty() {
                 n = 0;
             }
@@ -3856,7 +3856,7 @@ fn has_wsl() -> bool {
         let cmd = c"return vim.uv.os_uname()['release']:lower():match('microsoft')";
         let o = nlua_exec(
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(cmd.as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(cmd),
                 size: cmd.to_bytes().len(),
             },
             None,
@@ -4317,8 +4317,7 @@ pub fn create_environment(
     set_nvim_addr: bool,
     pty_term_name: Option<&CStr>,
 ) -> &'static mut TvDict {
-    let pty_term_name =
-        crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(pty_term_name);
+    let pty_term_name = crate::strings::ByteSlice::from_opt_cstr(pty_term_name);
     let env = tv_dict_alloc();
 
     if !clear_env {
@@ -4383,15 +4382,11 @@ pub fn create_environment(
             if let Some(d) = job_env.di_tv.vval.v_dict_opt() {
                 for (_, var) in d.dv_hashtab.iter_items() {
                     let key_b = var.key_bytes();
-                    let mut name = crate::strings::CStrCursor::<std::ffi::c_char>::of(
-                        var.di_key.as_ptr().cast(),
-                    );
+                    let mut name = crate::strings::ByteSlice::from_bytes(&var.di_key);
                     let mut namelen = key_b.len();
                     if namelen < MAXPATHL / MB_MAXBYTES {
                         namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
-                        name = crate::strings::CStrCursor::<std::ffi::c_char>::of(
-                            g_st().name_buff.as_ptr().cast(),
-                        );
+                        name = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
                     }
                     let name_cstr = name.as_cstr();
                     if let Some(dv) = crate::eval::typval::tv_dict_find_opt(
@@ -4649,11 +4644,11 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 break 'term_done;
             }
 
-            let namebuff = crate::strings::CStrCursor::from_ptr(g_st().name_buff.as_mut_ptr());
-            let iobuff = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+            let namebuff = crate::strings::ByteSlice::from_bytes(&g_st().name_buff);
+            let iobuff = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
             vim_full_name(
                 crate::memory::cstr_as_opt_cstr(cwd),
-                unsafe { std::slice::from_raw_parts_mut(namebuff.cast(), MAXPATHL) },
+                g_st().name_buff_bytes_mut(),
                 false,
             );
             let len = home_replace(
@@ -4971,7 +4966,7 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
     let str_in = if in_type == VarType::VarString {
         argvars[2].vval.v_string()
     } else {
-        crate::strings::CStrCursor::NULL
+        crate::strings::BYTE_SLICE_NULL
     };
     let int_in = argvars[2].vval.v_number() as i32;
 
@@ -5139,7 +5134,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         let Some(pat_cstr) = tv_get_string_buf_chk(&argvars[1], &mut patbuf) else {
             break 'theend;
         };
-        let pat = crate::strings::CStrCursor::from_ptr(pat_cstr.as_ptr());
+        let pat = crate::strings::ByteSlice::from_cstr(pat_cstr);
 
         if argvars[2].v_type != VarType::VarUnknown {
             let mut error = false;
@@ -6514,7 +6509,7 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
     let Some(flags_cstr) = tv_get_string_buf_chk(varp, &mut nbuf) else {
         return 0;
     };
-    let mut flags = crate::strings::CStrCursor::from_ptr(flags_cstr.as_ptr());
+    let mut flags = crate::strings::ByteSlice::from_cstr(flags_cstr);
     while !flags.is_empty() {
         match flags.first_byte() {
             b'b' => dir = BACKWARD,
@@ -6546,7 +6541,7 @@ fn get_search_arg(varp: &TypVal, mut flagsp: Option<&mut i32>) -> i32 {
         if dir == 0 {
             break;
         }
-        flags = crate::strings::CStrCursor::of(flags.wrapping_add(1));
+        flags = flags.wrapping_add(1);
     }
     dir
 }
@@ -6618,7 +6613,7 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
         };
 
         let patlen = pat.to_bytes().len();
-        let pat_ptr = crate::strings::CStrCursor::from_ptr(pat.as_ptr().cast_mut());
+        let pat_ptr = crate::strings::ByteSlice::from_cstr(pat);
         let mut subpatnum: i32;
 
         loop {
@@ -6841,9 +6836,9 @@ fn searchpair_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>) -> 
         let (Some(spat), Some(mpat), Some(epat)) = (spat, mpat, epat) else {
             break 'theend;
         };
-        let spat = crate::strings::CStrCursor::from_ptr(spat.as_ptr());
-        let mpat = crate::strings::CStrCursor::from_ptr(mpat.as_ptr());
-        let epat = crate::strings::CStrCursor::from_ptr(epat.as_ptr());
+        let spat = crate::strings::ByteSlice::from_cstr(spat);
+        let mpat = crate::strings::ByteSlice::from_cstr(mpat);
+        let epat = crate::strings::ByteSlice::from_cstr(epat);
 
         let dir = get_search_arg(&argvars[3], Some(&mut flags));
         if dir == 0 {
@@ -7227,7 +7222,7 @@ fn set_position(argvars: &mut [TypVal], rettv: &mut TypVal, charpos: bool) {
     let Some(name_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
     };
-    let name = crate::strings::CStrCursor::from_ptr(name_cstr.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(name_cstr);
 
     let mut pos = CursorPos {
         lnum: 0,

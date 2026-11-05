@@ -232,7 +232,7 @@ pub enum TypvalVval {
     Bool(i32),
     Special(i32),
     Float(f64),
-    String(crate::strings::CStrCursor<std::ffi::c_char>),
+    String(crate::strings::ByteSlice),
     List(crate::globals::TvListPtr),
     Dict(crate::globals::GraphPtr<TvDict>),
     Blob(crate::globals::GraphPtr<TvBlob>),
@@ -240,11 +240,11 @@ pub enum TypvalVval {
 }
 
 impl TypvalVval {
-    pub const NULL_STRING: Self = Self::String(crate::strings::CStrCursor::NULL);
+    pub const NULL_STRING: Self = Self::String(crate::strings::BYTE_SLICE_NULL);
 
     #[inline]
     pub fn from_cstr(s: &CStr) -> Self {
-        Self::String(crate::strings::CStrCursor::from_ptr(s.as_ptr()))
+        Self::String(crate::strings::ByteSlice::from_cstr(s))
     }
 
     #[inline]
@@ -257,17 +257,19 @@ impl TypvalVval {
 
     #[inline]
     pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
-        Self::String(crate::strings::CStrCursor::from_opt_cstr(s))
+        Self::String(crate::strings::ByteSlice::from_opt_cstr(s))
     }
 
     #[inline]
     pub fn from_cstring(s: std::ffi::CString) -> Self {
-        Self::String(crate::strings::CStrCursor::from_ptr(s.into_raw()))
+        let len = s.as_bytes_with_nul().len();
+        let ptr = s.into_raw().cast::<u8>().cast_const();
+        Self::String(Some(unsafe { std::slice::from_raw_parts(ptr, len) }))
     }
 
     #[inline]
     pub fn from_raw_str(p: impl crate::memory::AsCStrPtr) -> Self {
-        Self::String(crate::strings::CStrCursor::from_ptr(p.into_cstr_ptr()))
+        Self::String(crate::strings::ByteSlice::from_ptr(p.into_cstr_ptr()))
     }
 
     #[inline]
@@ -329,10 +331,10 @@ impl TypvalVval {
     }
 
     #[inline(always)]
-    pub const fn v_string(self) -> crate::strings::CStrCursor<std::ffi::c_char> {
+    pub const fn v_string(self) -> crate::strings::ByteSlice {
         match self {
             Self::String(p) => p,
-            _ => crate::strings::CStrCursor::NULL,
+            _ => crate::strings::BYTE_SLICE_NULL,
         }
     }
 
@@ -353,7 +355,7 @@ impl TypvalVval {
 
     #[inline]
     pub fn v_string_opt_bytes(self) -> Option<&'static [u8]> {
-        self.v_string().as_opt_bytes()
+        self.v_string().map(crate::memory::bytes_until_nul)
     }
 
     #[inline]
@@ -1558,7 +1560,7 @@ pub fn tv_list_assign_range(
     op_opt: Option<&CStr>,
     varname: &CStr,
 ) -> bool {
-    let op = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(op_opt);
+    let op = crate::strings::ByteSlice::from_opt_cstr(op_opt);
     let mut idx1 = idx1_arg;
     let first_li = crate::globals::GraphPtr::from(tv_list_find_index(Some(&mut *dest), &mut idx1));
     let mut src_li: crate::globals::GraphPtr<Listitem>;
@@ -1714,8 +1716,7 @@ fn tv_list2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
 
 /// "items(string)" function.
 fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
-    let mut p =
-        crate::strings::CStrCursor::<std::ffi::c_char>::of(argvars[0].vval.v_string().as_ptr());
+    let mut p = argvars[0].vval.v_string();
 
     tv_list_alloc_ret(&mut *rettv, K_LIST_LEN_MAY_KNOW_CONST);
     if p.is_null() {
@@ -1732,7 +1733,7 @@ fn tv_string2items(argvars: &mut [TypVal], rettv: &mut TypVal) {
         tv_list_append_list(rettv.vval.v_list_ref(), Some(&mut *l2));
         tv_list_append_number(&mut *l2, idx);
         tv_list_append_string(&mut *l2, Some(p.as_cstr()), len as isize);
-        p = crate::strings::CStrCursor::of(p.wrapping_add(len as usize));
+        p = p.wrapping_add(len as usize);
         idx += 1;
     }
 }
@@ -4331,7 +4332,7 @@ pub fn tv_check_lock(tv: &TypVal, name: Option<&CStr>, name_len: usize) -> bool 
 
 /// Return true if variable "name" has a locked (immutable) value.
 pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_len: usize) -> bool {
-    let mut name = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(name_opt);
+    let mut name = crate::strings::ByteSlice::from_opt_cstr(name_opt);
     match lock {
         VAR_UNLOCKED => return false,
         VAR_LOCKED => {
@@ -4343,9 +4344,10 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
             if name.is_null() {
                 emsg(tr(error_message));
             } else {
+                let tr_name;
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(name.as_cstr());
-                    name = crate::strings::CStrCursor::of(tr_name.as_ptr());
+                    tr_name = tr(name.as_cstr());
+                    name = crate::strings::ByteSlice::from_cstr(tr_name);
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
                     name_len = name.len();
@@ -4362,9 +4364,10 @@ pub fn value_check_lock(lock: VarLockStatus, name_opt: Option<&CStr>, mut name_l
             if name.is_null() {
                 emsg(tr(error_message));
             } else {
+                let tr_name;
                 if name_len == TV_TRANSLATE {
-                    let tr_name = tr(name.as_cstr());
-                    name = crate::strings::CStrCursor::of(tr_name.as_ptr());
+                    tr_name = tr(name.as_cstr());
+                    name = crate::strings::ByteSlice::from_cstr(tr_name);
                     name_len = tr_name.to_bytes().len();
                 } else if name_len == TV_CSTRING {
                     name_len = name.len();
@@ -4855,17 +4858,16 @@ pub fn tv_get_string_buf_chk<'a>(
     tv: &'a TypVal,
     buf: &'a mut [u8; NUMBUFLEN],
 ) -> Option<&'a std::ffi::CStr> {
-    let buf_c = crate::strings::CStrCursor::<std::ffi::c_char>::of(buf.as_mut_ptr().cast());
     match tv.v_type {
         VarType::VarNumber => {
             use std::io::Write;
             let mut slice = &mut buf[..];
             let _ = write!(slice, "{}\0", tv.vval.v_number());
-            Some(buf_c.as_cstr())
+            Some(crate::memory::cstr_until_nul(buf))
         }
         VarType::VarFloat => {
             vim_snprintf!(buf, c"%g", tv.vval.v_float());
-            Some(buf_c.as_cstr())
+            Some(crate::memory::cstr_until_nul(buf))
         }
         VarType::VarString => {
             if !tv.vval.v_string().is_null() {
@@ -4879,14 +4881,14 @@ pub fn tv_get_string_buf_chk<'a>(
                 buf,
                 ENCODE_BOOL_VAR_NAMES[tv.vval.v_bool() as usize].to_bytes(),
             );
-            Some(buf_c.as_cstr())
+            Some(crate::memory::cstr_until_nul(buf))
         }
         VarType::VarSpecial => {
             crate::memory::copy_bytes_to_c_buf(
                 buf,
                 ENCODE_SPECIAL_VAR_NAMES[tv.vval.v_special() as usize].to_bytes(),
             );
-            Some(buf_c.as_cstr())
+            Some(crate::memory::cstr_until_nul(buf))
         }
         VarType::VarPartial
         | VarType::VarFunc

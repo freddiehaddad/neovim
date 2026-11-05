@@ -2414,16 +2414,9 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     }
 
     if insert.size > 0 {
-        let mut p = insert.data.wrapping_add(insert.size - 1);
-        while p >= insert.data {
-            if p.first_byte() == ESC as u8 {
-                insert.size = crate::memory::ptr_offset_from(p, insert.data) as usize;
-                break;
-            }
-            if p == insert.data {
-                break;
-            }
-            p = p.wrapping_sub(1);
+        let bytes = insert.as_bytes();
+        if let Some(pos) = bytes.iter().rposition(|&b| b == ESC as u8) {
+            insert.size = pos;
         }
     }
 
@@ -2461,10 +2454,11 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
 pub fn get_last_insert() -> NvimString {
     if let Some(li) = &ins_st().last_insert {
         let skip = ins_st().last_insert_skip as usize;
-        let bytes = li.as_bytes();
+        let bytes = li.as_bytes_with_nul();
+        let skip = skip.min(bytes.len() - 1);
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(li.as_ptr().wrapping_add(skip)),
-            size: bytes.len().saturating_sub(skip),
+            data: crate::strings::ByteSlice::from_bytes(&bytes[skip..]),
+            size: (bytes.len() - 1).saturating_sub(skip),
         }
     } else {
         NvimString::new()

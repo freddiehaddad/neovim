@@ -511,13 +511,13 @@ fn count_string(haystack: Option<&[u8]>, needle: Option<&[u8]>, ic: bool) -> i64
     if ic {
         let hay_cstr = crate::memory::cstr_from_bytes(hay_bytes);
         let needle_cstr = crate::memory::cstr_from_bytes(needle_bytes);
-        let mut p = crate::strings::CStrCursor::from_ptr(hay_cstr.as_ptr());
+        let mut p = crate::strings::ByteSlice::from_cstr(&hay_cstr);
         while !p.is_empty() {
             if mb_strnicmp(p.as_bytes(), needle_cstr.as_bytes(), needlelen) == 0 {
                 n += 1;
-                p = crate::strings::CStrCursor::of(p.wrapping_add(needlelen));
+                p = p.wrapping_add(needlelen);
             } else {
-                p = crate::strings::CStrCursor::of(p.wrapping_add(utf_ptr2len(p) as usize));
+                p = p.wrapping_add(utf_ptr2len(p) as usize);
             }
         }
     } else {

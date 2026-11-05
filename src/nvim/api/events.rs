@@ -5,6 +5,7 @@ use crate::api::private::validate::{Error, NvimString, Object, ObjectType, api_e
 use crate::autocmd::do_termresponse_autocmd;
 use crate::eval::vars::{VV_TERMRESPONSE, set_vim_var_bytes};
 use crate::log::{LOGLVL_ERR, logmsg};
+use crate::strings::ByteSliceExt;
 
 /// Emitted on the client channel if an async API request responds with an error.
 ///

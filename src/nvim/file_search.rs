@@ -256,7 +256,7 @@ pub fn vim_findfile_init(
 
             search_ctx.ffsc_start_dir = copy_string(
                 NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(expand_buf.as_mut_ptr().cast()),
+                    data: crate::strings::ByteSlice::from_bytes(&expand_buf),
                     size: expand_len,
                 },
                 None,
@@ -349,7 +349,7 @@ pub fn vim_findfile_init(
             expand_buf[expand_size] = NUL as u8;
             search_ctx.ffsc_wc_path = copy_string(
                 NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(expand_buf.as_mut_ptr().cast()),
+                    data: crate::strings::ByteSlice::from_bytes(&expand_buf),
                     size: expand_size,
                 },
                 None,
@@ -516,7 +516,7 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
 
     let mut file_path_vec: Vec<u8> = vec![0; MAXPATHL];
     let mut file_path = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(file_path_vec.as_mut_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(&file_path_vec),
         size: 0,
     };
     let mut path_end = if !search_ctx.ffsc_start_dir.data.is_null() {

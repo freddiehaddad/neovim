@@ -907,8 +907,8 @@ pub fn eval_one_expr_in_str<'a>(
     gap: &mut Vec<u8>,
     evaluate: bool,
 ) -> Option<&'a CStr> {
-    let p = crate::strings::CStrCursor::from_ptr(p_in.as_ptr().cast::<u8>());
-    let block_start: *mut u8 = crate::charset::skipwhite_ptr(p.wrapping_add(1)).cast_mut();
+    let p = crate::strings::ByteSlice::from_cstr(p_in);
+    let block_start: *mut u8 = p.wrapping_add(1).skipwhite().cast();
     let mut block_end = block_start;
 
     if crate::memory::cstr_is_empty(block_start) {
@@ -1178,8 +1178,7 @@ pub fn ex_let(eap: &mut Exarg) {
     ) else {
         return;
     };
-    let mut expr =
-        crate::strings::CStrCursor::from_ptr(argend_cstr.as_ptr().cast_mut()).skipwhite();
+    let mut expr = crate::strings::ByteSlice::from_cstr(argend_cstr).skipwhite();
     let expr_bytes = expr.as_bytes();
     let concat = expr_bytes.starts_with(b"..=");
     let has_assign = expr_bytes.first() == Some(&b'=')
@@ -1240,15 +1239,15 @@ pub fn ex_let(eap: &mut Exarg) {
         {
             op[0] = b0;
             if expr_bytes.starts_with(b"..") {
-                expr = crate::strings::CStrCursor::of(expr.wrapping_add(1));
+                expr = expr.wrapping_add(1);
             }
         }
-        expr = crate::strings::CStrCursor::of(expr.wrapping_add(2));
+        expr = expr.wrapping_add(2);
     } else {
-        expr = crate::strings::CStrCursor::of(expr.wrapping_add(1));
+        expr = expr.wrapping_add(1);
     }
 
-    expr = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(expr));
+    expr = expr.skipwhite();
 
     if eap.skip {
         g_st().emsg_skip += 1;
@@ -1404,7 +1403,7 @@ pub fn skip_var_list<'a>(
 
 /// Skip one (assignable) variable name, including @r, $VAR, &option, d.key, l[idx].
 fn skip_var_one(arg_in: &CStr) -> &CStr {
-    let arg = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
+    let arg = crate::strings::ByteSlice::from_cstr(arg_in);
     let arg_bytes = arg_in.to_bytes();
     if arg_bytes.first() == Some(&b'@') && arg_bytes.len() > 1 {
         return arg.wrapping_add(2).as_cstr();
@@ -1606,16 +1605,16 @@ fn ex_let_env<'a>(
         return None;
     }
 
-    let mut arg = crate::strings::CStrCursor::<u8>::of(arg_in.as_ptr().cast_mut().cast());
-    let mut arg_end = crate::strings::CStrCursor::<u8>::NULL;
-    arg = crate::strings::CStrCursor::<u8>::of(arg.wrapping_add(1));
+    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
+    let mut arg_end = crate::strings::BYTE_SLICE_NULL;
+    arg = arg.wrapping_add(1);
     let name = arg;
     let mut arg_cstr = arg.as_cstr();
     let len = get_env_len(&mut arg_cstr) as usize;
-    arg = crate::strings::CStrCursor::<u8>::of(arg_cstr.as_ptr().cast_mut().cast());
+    arg = crate::strings::ByteSlice::from_cstr(arg_cstr);
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
     if len == 0 {
-        semsg!(gettext(E_INVARG2), name.wrapping_sub(1));
+        semsg!(gettext(E_INVARG2), arg_in);
     } else if op_b != 0 && crate::strings::vim_haschr(c"+-*/%", i32::from(op_b)) {
         semsg!(gettext(E_LETWRONG), op.unwrap().as_ptr());
     } else if endchars.is_some_and(|ec| {
@@ -1643,7 +1642,7 @@ fn ex_let_env<'a>(
         }
         if !p.is_null() {
             vim_setenv_ext(&name_cstr, crate::memory::cstr_from_ptr(p));
-            arg_end = crate::strings::CStrCursor::<u8>::of(arg);
+            arg_end = arg;
         }
         drop(tofree);
     }
@@ -1793,8 +1792,8 @@ fn ex_let_register<'a>(
         return None;
     }
 
-    let mut arg = crate::strings::CStrCursor::<u8>::from_ptr(arg_in.as_ptr().cast_mut().cast());
-    let mut arg_end = crate::strings::CStrCursor::<u8>::NULL;
+    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
+    let mut arg_end = crate::strings::BYTE_SLICE_NULL;
     arg = arg.wrapping_add(1);
     let op_b = op.and_then(|s| s.to_bytes().first().copied()).unwrap_or(0);
     if op_b != 0 && crate::strings::vim_haschr(c"+-*/%", i32::from(op_b)) {
@@ -1850,7 +1849,7 @@ fn ex_let_one<'a>(
     op: Option<&CStr>,
 ) -> Option<&'a CStr> {
     let arg = arg_in.as_ptr().cast_mut().cast::<u8>();
-    let mut arg_end = crate::strings::CStrCursor::<u8>::NULL;
+    let mut arg_end = crate::strings::BYTE_SLICE_NULL;
 
     match arg_in.to_bytes().first().copied().unwrap_or(0) {
         b'$' => return ex_let_env(arg_in, tv, is_const, endchars, op),
@@ -1862,8 +1861,7 @@ fn ex_let_one<'a>(
             if let Some(p_cstr) = p_opt
                 && lv.ll_name.is_some()
             {
-                let p =
-                    crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr().cast_mut().cast::<u8>());
+                let p = crate::strings::ByteSlice::from_cstr(p_cstr);
                 if endchars.is_some_and(|ec| {
                     !crate::strings::vim_haschr(
                         ec,
@@ -1875,7 +1873,7 @@ fn ex_let_one<'a>(
                     emsg(gettext(E_LETUNEXP));
                 } else {
                     set_var_lval(&mut lv, p_cstr, tv, copy, is_const, op);
-                    arg_end = crate::strings::CStrCursor::<u8>::of(p);
+                    arg_end = p;
                 }
             }
         }
@@ -2068,7 +2066,7 @@ fn tv_list_unlet_range(
 /// unlet a variable.
 pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
     let name_cstr = cstr_from_bytes(name_slice);
-    let name = crate::strings::CStrCursor::from_ptr(name_cstr.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(&name_cstr);
     let name_len = name_slice.len();
     let mut varname_opt: Option<&CStr> = None;
     let mut dict_opt: Option<&'static mut TvDict> = None;
@@ -2078,7 +2076,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
         && let Some(varname_cstr) = varname_opt.filter(|s| !s.to_bytes().is_empty())
     {
         let mut ht = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
-        let varname = crate::strings::CStrCursor::from_ptr(varname_cstr.as_ptr());
+        let varname = crate::strings::ByteSlice::from_cstr(varname_cstr);
         let mut d = crate::globals::GraphPtr::from(get_current_funccal_dict(ht.borrow()));
         if d.is_null() {
             if ht == &vars_st().globvardict.dv_hashtab {
@@ -2663,7 +2661,7 @@ pub fn find_var_in_ht(
     varname_len: usize,
     no_autoload: i32,
 ) -> Option<&'static mut Dictitem> {
-    let varname_ptr = crate::strings::CStrCursor::from_ptr(varname.as_ptr());
+    let varname_ptr = crate::strings::ByteSlice::from_cstr(varname);
     if varname_len == 0 {
         let ptr = match htname as u8 {
             b's' => (&raw mut script_sv(g_st().current_sctx.sc_sid).sv_var).cast::<Dictitem>(),
@@ -2702,7 +2700,7 @@ fn find_var_ht_dict<'a>(
     varname: &mut Option<&'a CStr>,
     d: &mut Option<&'static mut TvDict>,
 ) -> Option<&'static mut Hashtab> {
-    let name = crate::strings::CStrCursor::<u8>::from_ptr(name_in.as_ptr().cast());
+    let name = crate::strings::ByteSlice::from_cstr(name_in);
     *d = None;
 
     if name_len == 0 {
@@ -2869,7 +2867,7 @@ fn list_one_var_a(
     string_in: &CStr,
     first: &mut i32,
 ) {
-    let mut string = crate::strings::CStrCursor::from_ptr(string_in.as_ptr());
+    let mut string = crate::strings::ByteSlice::from_cstr(string_in);
     if *first != 0 {
         msg_ext_set_kind(c"list_cmd");
         msg_start();
@@ -2891,12 +2889,12 @@ fn list_one_var_a(
     } else if v_type == VarType::VarList {
         msg_putchar(b'[' as i32);
         if string.first_byte() == b'[' {
-            string = crate::strings::CStrCursor::of(string.wrapping_add(1));
+            string = string.wrapping_add(1);
         }
     } else if v_type == VarType::VarDict {
         msg_putchar(b'{' as i32);
         if string.first_byte() == b'{' {
-            string = crate::strings::CStrCursor::of(string.wrapping_add(1));
+            string = string.wrapping_add(1);
         }
     } else {
         msg_putchar(b' ' as i32);
@@ -2987,7 +2985,7 @@ pub fn set_var(name_slice: &[u8], tv: &mut TypVal, copy: bool) {
 /// Set variable to the given value, optionally locking as const.
 pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: bool) {
     let name_cstr = cstr_from_bytes(name_slice);
-    let name = crate::strings::CStrCursor::from_ptr(name_cstr.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(&name_cstr);
     let name_len = name_slice.len();
     let mut varname_opt: Option<&CStr> = None;
     let mut dict_opt: Option<&'static mut TvDict> = None;
@@ -3003,7 +3001,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         return;
     };
     let ht = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
-    let varname = crate::strings::CStrCursor::from_ptr(varname_cstr.as_ptr());
+    let varname = crate::strings::ByteSlice::from_cstr(varname_cstr);
     let varname_len = name_len - (crate::memory::ptr_offset_from(varname, name) as usize);
     let mut di_opt = find_var_in_ht(ht.borrow_mut(), 0, varname_cstr, varname_len, 1);
 
@@ -3093,7 +3091,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
 
 /// Check whether variable is read-only (DI_FLAGS_RO, DI_FLAGS_RO_SBX).
 pub fn var_check_ro(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
-    let mut name = crate::strings::CStrCursor::from_ptr(name_in.as_ptr());
+    let mut name = crate::strings::ByteSlice::from_cstr(name_in);
     let error_message = if (flags as u8 & DI_FLAGS_RO) != 0 {
         E_CANNOT_CHANGE_READONLY_VARIABLE_STR.as_ptr()
     } else if (flags as u8 & DI_FLAGS_RO_SBX) != 0 && g_st().sandbox != 0 {
@@ -3105,9 +3103,10 @@ pub fn var_check_ro(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
     if error_message.is_null() {
         return false;
     }
+    let tr_name;
     if name_len == TV_TRANSLATE {
-        let tr_name = gettext(name.as_cstr());
-        name = crate::strings::CStrCursor::of(tr_name.as_ptr());
+        tr_name = gettext(name.as_cstr());
+        name = crate::strings::ByteSlice::from_cstr(tr_name);
         name_len = tr_name.to_bytes().len();
     } else if name_len == TV_CSTRING {
         name_len = name_in.to_bytes().len();
@@ -3127,10 +3126,11 @@ pub fn var_check_lock(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
         return false;
     }
 
-    let mut name = crate::strings::CStrCursor::from_ptr(name_in.as_ptr());
+    let mut name = crate::strings::ByteSlice::from_cstr(name_in);
+    let tr_name;
     if name_len == TV_TRANSLATE {
-        let tr_name = gettext(name.as_cstr());
-        name = crate::strings::CStrCursor::of(tr_name.as_ptr());
+        tr_name = gettext(name.as_cstr());
+        name = crate::strings::ByteSlice::from_cstr(tr_name);
         name_len = tr_name.to_bytes().len();
     } else if name_len == TV_CSTRING {
         name_len = name_in.to_bytes().len();
@@ -3147,10 +3147,11 @@ pub fn var_check_lock(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
 /// Check whether variable is fixed (DI_FLAGS_FIX).
 pub fn var_check_fixed(flags: i32, name_in: &CStr, mut name_len: usize) -> bool {
     if (flags as u8 & DI_FLAGS_FIX) != 0 {
-        let mut name = crate::strings::CStrCursor::from_ptr(name_in.as_ptr());
+        let mut name = crate::strings::ByteSlice::from_cstr(name_in);
+        let tr_name;
         if name_len == TV_TRANSLATE {
-            let tr_name = gettext(name.as_cstr());
-            name = crate::strings::CStrCursor::of(tr_name.as_ptr());
+            tr_name = gettext(name.as_cstr());
+            name = crate::strings::ByteSlice::from_cstr(tr_name);
             name_len = tr_name.to_bytes().len();
         } else if name_len == TV_CSTRING {
             name_len = name_in.to_bytes().len();
@@ -3227,7 +3228,7 @@ fn get_var_from(
         && !win.is_null()
         && (htname != b'b' as i32 || !buf.is_null())
     {
-        let varname = crate::strings::CStrCursor::from_ptr(varname_cstr.as_ptr());
+        let varname = crate::strings::ByteSlice::from_cstr(varname_cstr);
         let need_switch_win =
             !(tp == g_st().curtab.as_ptr() && win == curwin_ptr()) && !do_change_curbuf;
         let mut switchwin: CtxSwitch = CtxSwitch::new();
@@ -3808,8 +3809,8 @@ pub fn f_setbufvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     let [arg0, arg1, arg2, ..] = argvars else {
         unreachable!()
     };
-    let varname =
-        crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(tv_get_string_chk(arg1));
+    let varname_owned = tv_get_string_chk(arg1);
+    let varname = crate::strings::ByteSlice::from_opt_cstr(varname_owned);
     let Some(buf) = tv_get_buf(arg0, 0) else {
         return;
     };

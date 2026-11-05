@@ -5,7 +5,7 @@ use crate::memory::realloc_items;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct NvimString {
-    pub data: crate::strings::CStrCursor<std::ffi::c_char>,
+    pub data: crate::strings::ByteSlice,
     pub size: usize,
 }
 
@@ -13,7 +13,7 @@ impl NvimString {
     #[inline]
     pub const fn new() -> Self {
         Self {
-            data: crate::strings::CStrCursor::NULL,
+            data: crate::strings::BYTE_SLICE_NULL,
             size: 0,
         }
     }
@@ -21,11 +21,11 @@ impl NvimString {
     #[inline]
     pub const fn from_bytes(bytes: &[u8]) -> Self {
         Self {
-            data: crate::strings::CStrCursor::new(if bytes.is_empty() {
-                c"".as_ptr().cast_mut()
+            data: Some(crate::globals::GraphPtr::slice(if bytes.is_empty() {
+                b"\0"
             } else {
-                bytes.as_ptr().cast_mut().cast()
-            }),
+                bytes
+            })),
             size: bytes.len(),
         }
     }
@@ -34,41 +34,43 @@ impl NvimString {
     pub fn as_bytes(self) -> &'static [u8] {
         if self.is_empty() {
             c"".to_bytes()
+        } else if let Some(b) = self.data {
+            &b[..self.size.min(b.len())]
         } else {
-            unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) }
+            c"".to_bytes()
         }
     }
 
     #[inline]
     pub fn as_bytes_with_nul_mut(&mut self) -> &mut [u8] {
-        if self.data.is_null() {
-            &mut []
+        if let Some(b) = self.data {
+            unsafe {
+                std::slice::from_raw_parts_mut(b.as_ptr().cast_mut(), (self.size + 1).min(b.len()))
+            }
         } else {
-            unsafe { std::slice::from_raw_parts_mut(self.data.cast::<u8>(), self.size + 1) }
+            &mut []
         }
     }
 
     #[inline]
     pub const fn is_empty(&self) -> bool {
-        self.size == 0 || self.data.is_null()
+        self.size == 0 || self.data.is_none()
     }
 
     #[inline]
     pub fn cstr_bytes(self) -> &'static [u8] {
-        if self.data.is_null() {
+        if self.data.is_none() {
             c"".to_bytes()
         } else if self.size == 0 {
-            self.data.as_bytes()
+            crate::strings::ByteSliceExt::as_bytes(self.data)
         } else {
-            let bytes = unsafe { std::slice::from_raw_parts(self.data.cast::<u8>(), self.size) };
-            let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
-            &bytes[..end]
+            crate::memory::bytes_until_nul(self.as_bytes())
         }
     }
 
     #[inline]
     pub fn opt_bytes(self) -> Option<&'static [u8]> {
-        if self.data.is_null() {
+        if self.data.is_none() {
             None
         } else {
             Some(self.cstr_bytes())
@@ -82,17 +84,17 @@ impl NvimString {
 
     #[inline]
     pub fn as_cstr(self) -> &'static std::ffi::CStr {
-        self.data.as_cstr()
+        crate::strings::ByteSliceExt::as_cstr(self.data)
     }
 
     #[inline]
     pub fn as_opt_cstr(self) -> Option<&'static std::ffi::CStr> {
-        self.data.as_opt_cstr()
+        crate::strings::ByteSliceExt::as_opt_cstr(self.data)
     }
 
     #[inline]
     pub fn to_cstring(self) -> std::ffi::CString {
-        self.data.to_cstring()
+        crate::strings::ByteSliceExt::to_cstring(self.data)
     }
 }
 

@@ -12,6 +12,7 @@ use crate::eval::vars::eval_msgpack_type_list;
 use crate::mbyte::{utf_char2len, utf_char2slice, utf_slice2char, utf_slice2len};
 use crate::message::{emsg, semsg};
 use crate::mpack::object::MpackData;
+use crate::strings::ByteSliceExt;
 
 pub(crate) const K_LIST_LEN_MAY_KNOW: isize = -3;
 

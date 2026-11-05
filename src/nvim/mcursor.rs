@@ -896,7 +896,7 @@ pub fn mc_ins_cascade() {
     let mut end = INIT_POS;
     let ins_cstr = redo_keys(None);
     let ins = NvimString {
-        data: crate::strings::CStrCursor::from_opt_cstr(ins_cstr.as_deref()),
+        data: crate::strings::ByteSlice::from_opt_cstr(ins_cstr.as_deref()),
         size: ins_cstr.as_ref().map_or(0, |s| s.as_bytes().len()),
     };
 
@@ -1128,7 +1128,7 @@ pub fn mc_vsel_refresh() {
         return;
     }
     let span = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(span_cstr.as_ptr()),
+        data: crate::strings::ByteSlice::from_cstr(&span_cstr),
         size: span_cstr.to_bytes().len(),
     };
 
@@ -1226,7 +1226,7 @@ pub fn mc_ins_commit() -> bool {
 
     if ins_cascaded && let Some(ins_cstr) = redo_keys(None) {
         let ins = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(ins_cstr.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(&ins_cstr),
             size: ins_cstr.as_bytes().len(),
         };
         if ins.size > mc_st().mc_ins_span.done_len && ins.as_bytes().last() == Some(&ESC) {

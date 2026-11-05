@@ -412,9 +412,12 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             return 0;
         };
         let mut key_size: usize = 0;
-        let key_data = luaL_checklstring(lstate, 3, &raw mut key_size).cast_mut();
+        let key_data = luaL_checklstring(lstate, 3, &raw mut key_size);
         let key = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(key_data),
+            data: Some(std::slice::from_raw_parts(
+                key_data.cast::<u8>(),
+                key_size + 1,
+            )),
             size: key_size,
         };
 

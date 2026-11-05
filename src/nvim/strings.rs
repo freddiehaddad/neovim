@@ -441,11 +441,6 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline(always)]
-    pub const fn cast_cursor<U>(self) -> CStrCursor<U> {
-        CStrCursor(self.0.cast())
-    }
-
-    #[inline(always)]
     pub fn set_byte(self, idx: usize, val: u8) {
         if !self.0.is_null() {
             unsafe { *self.0.cast::<u8>().add(idx) = val };
@@ -483,25 +478,6 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline(always)]
-    pub fn skiptowhite(self) -> Self {
-        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
-    }
-
-    #[inline(always)]
-    pub const fn byte_at(self, idx: usize) -> u8 {
-        if self.0.is_null() {
-            0
-        } else {
-            unsafe { *self.0.cast::<u8>().add(idx) }
-        }
-    }
-
-    #[inline(always)]
-    pub fn as_opt_bytes(self) -> Option<&'static [u8]> {
-        crate::memory::cstr_as_opt_bytes(self.as_ptr().cast::<u8>())
-    }
-
-    #[inline(always)]
     pub const fn first_byte(self) -> u8 {
         if self.0.is_null() {
             0
@@ -526,11 +502,6 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline(always)]
-    pub fn as_mut_bytes(self) -> &'static mut [u8] {
-        crate::memory::cstr_as_mut_bytes(self.as_ptr().cast::<std::ffi::c_char>())
-    }
-
-    #[inline(always)]
     pub fn as_cstr(self) -> &'static CStr {
         crate::memory::cstr_from_ptr(self.as_ptr().cast::<u8>())
     }
@@ -548,15 +519,6 @@ impl<T> CStrCursor<T> {
     #[inline(always)]
     pub fn slice(self, len: usize) -> &'static [u8] {
         crate::memory::cstr_slice(self.as_ptr().cast::<u8>(), len)
-    }
-
-    #[inline(always)]
-    pub fn slice_mut(self, len: usize) -> &'static mut [u8] {
-        if self.0.is_null() || len == 0 {
-            &mut []
-        } else {
-            unsafe { std::slice::from_raw_parts_mut(self.0.cast::<u8>(), len) }
-        }
     }
 }
 

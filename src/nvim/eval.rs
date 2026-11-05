@@ -586,7 +586,7 @@ fn eval_expr_string(expr: &TypVal, rettv: &mut TypVal) -> bool {
         return false;
     }
 
-    let rem = crate::strings::CStrCursor::from_ptr(s.as_ptr().cast_mut()).skipwhite();
+    let rem = crate::strings::ByteSlice::from_cstr(s).skipwhite();
     if !rem.is_empty() {
         tv_clear(rettv);
         semsg!(gettext(E_INVEXPR2), rem);
@@ -1007,7 +1007,7 @@ pub fn eval_foldtext(wp: &mut WinInfoInfo) -> Object {
 /// Find the end of a variable or function name. Unlike find_name_end() this
 /// does not recognize magic braces.
 fn to_name_end(arg: &CStr, use_namespace: bool) -> &CStr {
-    let arg_ptr = crate::strings::CStrCursor::<u8>::from_ptr(arg.as_ptr().cast());
+    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
     if !eval_isnamec1(i32::from(arg_ptr.first_byte())) {
         return arg;
     }
@@ -1037,13 +1037,13 @@ fn get_lval_dict_item<'a>(
     unlet: bool,
     rettv: Option<&mut TypVal>,
 ) -> GlvStatus {
-    let mut key = crate::strings::CStrCursor::from_ptr(key_in.as_ptr());
+    let mut key = crate::strings::ByteSlice::from_cstr(key_in);
     let quiet = (flags & GLV_QUIET) != 0;
     let p_cstr = *key_end;
-    let p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
 
     if len == -1 {
-        key = crate::strings::CStrCursor::of(tv_get_string(&*var1).as_ptr());
+        key = crate::strings::ByteSlice::from_cstr(tv_get_string(&*var1));
     }
     lp.ll_list = crate::globals::TvListPtr::NULL;
 
@@ -1218,7 +1218,7 @@ fn get_lval_subscript<'a>(
     let mut empty1 = false;
 
     loop {
-        let p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+        let p = crate::strings::ByteSlice::from_cstr(p_cstr);
         let p_bytes = p_cstr.to_bytes();
         let Some(&p0) = p_bytes.first() else {
             break;
@@ -1277,9 +1277,7 @@ fn get_lval_subscript<'a>(
             }
             p_cstr = key.wrapping_add(len as usize).as_cstr();
         } else {
-            p_cstr = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(
-                p.wrapping_add(1).cast_mut(),
-            ));
+            p_cstr = p.wrapping_add(1).skipwhite().as_cstr();
             if p_cstr.to_bytes().first().copied().unwrap_or(0) == b':' {
                 empty1 = true;
             } else {
@@ -1415,7 +1413,7 @@ pub fn get_lval<'a>(
 
     let mut expr_range: Option<(usize, usize)> = None;
     let mut p_cstr = find_name_end(name_in, Some(&mut expr_range), fne_flags);
-    let p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
     if let Some((expr_start_off, expr_end_off)) = expr_range {
         if unlet
             && !ascii_iswhite(p.first_byte())
@@ -1510,16 +1508,15 @@ pub fn set_var_lval(
     is_const: bool,
     op_opt: Option<&CStr>,
 ) {
-    let endp = crate::strings::CStrCursor::<u8>::from_ptr(endp_cstr.as_ptr().cast());
-    let op = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(op_opt);
+    let endp = crate::strings::ByteSlice::from_cstr(endp_cstr);
+    let op = crate::strings::ByteSlice::from_opt_cstr(op_opt);
     let ll_name = lp.ll_name.unwrap_or(c"");
 
     if lp.ll_tv.is_null() {
         let name_cstr = if lp.ll_exp_name.is_some() {
             ll_name.to_owned()
         } else {
-            let full_len =
-                crate::memory::ptr_offset_from(endp, ll_name.as_ptr().cast::<u8>()) as usize;
+            let full_len = crate::memory::ptr_offset_from(endp, ll_name.as_ptr()) as usize;
             cstr_from_bytes(crate::memory::cstr_slice(ll_name.as_ptr(), full_len))
         };
         if let Some(blob) = lp.ll_blob.opt_mut() {
@@ -1700,7 +1697,7 @@ pub fn eval_for_line(
         return fi;
     };
 
-    let mut expr = crate::strings::CStrCursor::from_ptr(expr_cstr.as_ptr()).skipwhite();
+    let mut expr = crate::strings::ByteSlice::from_cstr(expr_cstr).skipwhite();
     let expr_bytes = expr.as_bytes();
     if !expr_bytes.starts_with(b"in")
         || expr_bytes
@@ -1714,7 +1711,7 @@ pub fn eval_for_line(
     if skip {
         g_st().emsg_skip += 1;
     }
-    expr = crate::strings::CStrCursor::of(crate::charset::skipwhite_ptr(expr.wrapping_add(2)));
+    expr = expr.wrapping_add(2).skipwhite();
     if eval0(expr.as_cstr(), &mut tv, Some(&mut *eap), &mut *evalarg) {
         *errp = false;
         if !skip {
@@ -1776,7 +1773,7 @@ pub fn next_for_item(fi: &mut Forinfo, arg: &CStr) -> bool {
             ex_let_vars(arg, &mut tv, 1, fi.fi_semicolon, fi.fi_varcount, 0, None)
         }
         ForSource::Str { text, byte_idx } => {
-            let str_ptr = crate::strings::CStrCursor::from_ptr(text.as_ptr());
+            let str_ptr = crate::strings::ByteSlice::from_cstr(text.as_c_str());
             let len = utfc_ptr2len(str_ptr.wrapping_add(*byte_idx));
             if len == 0 {
                 return false;
@@ -1998,7 +1995,7 @@ fn eval_func(
         Some(&mut found_var),
     );
     let partial = crate::globals::GraphPtr::from(partial_opt);
-    let s = crate::strings::CStrCursor::from_ptr(deref.as_ptr());
+    let s = crate::strings::ByteSlice::from_cstr(deref);
 
     let s_cstr = cstr_from_bytes(s.slice(len as usize));
 
@@ -2842,8 +2839,7 @@ fn eval7(
             } else {
                 evalarg.as_deref_mut().unwrap().eval_flags
             };
-            let next_nonwhite =
-                crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast_mut()).skipwhite();
+            let next_nonwhite = crate::strings::ByteSlice::from_cstr(arg).skipwhite();
             if next_nonwhite.first_byte() == b'(' {
                 *arg = next_nonwhite.as_cstr();
                 eval_func(
@@ -3400,7 +3396,7 @@ fn eval_index_inner(
     keylen: isize,
     verbose: bool,
 ) -> bool {
-    let mut key = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(key_opt);
+    let mut key = crate::strings::ByteSlice::from_opt_cstr(key_opt);
     let mut n1: Varnumber = 0;
     let mut n2: Varnumber = 0;
     if let Some(var1) = var1
@@ -3485,11 +3481,13 @@ fn eval_index_inner(
             }
         }
         VarType::VarDict => {
+            let k_owned;
             if key.is_null() {
                 let Some(k) = tv_get_string_chk(var1.unwrap()) else {
                     return false;
                 };
-                key = crate::strings::CStrCursor::of(k.as_ptr());
+                k_owned = k;
+                key = crate::strings::ByteSlice::from_cstr(k_owned);
             }
 
             let item = tv_dict_find_opt(rettv.vval.v_dict_opt().as_deref(), key.as_cstr(), keylen);
@@ -3574,7 +3572,7 @@ pub fn eval_option(arg: &mut &CStr, rettv: Option<&mut TypVal>, evaluate: bool) 
 /// Allocate a variable for a number constant. Also deals with "0z" for blob.
 fn eval_number(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool, want_string: bool) -> bool {
     let arg_cstr = *arg;
-    let arg_ptr = crate::strings::CStrCursor::from_ptr(arg_cstr.as_ptr());
+    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_cstr);
     let arg_bytes = arg_cstr.to_bytes();
     let mut get_float = false;
 
@@ -4464,10 +4462,10 @@ fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
     if !ascii_isalnum(i32::from(b0)) && b0 != b'_' && b0 != b'-' {
         return false;
     }
-    let start = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
-    let mut p = crate::strings::CStrCursor::of(start);
+    let start = crate::strings::ByteSlice::from_cstr(arg);
+    let mut p = start;
     while ascii_isalnum(p.first_byte()) || p.first_byte() == b'_' || p.first_byte() == b'-' {
-        p = crate::strings::CStrCursor::of(p.wrapping_add(1));
+        p = p.wrapping_add(1);
     }
     crate::eval::typval::tv_set_string_len(
         &mut *tv,
@@ -4477,7 +4475,7 @@ fn get_literal_key(arg: &mut &CStr, tv: &mut TypVal) -> bool {
         )),
     );
 
-    *arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p.cast_mut()));
+    *arg = p.skipwhite().as_cstr();
     true
 }
 
@@ -4650,8 +4648,8 @@ pub fn string2float(text: &CStr, ret_value: &mut TvFloat) -> usize {
 
 /// Get the value of an environment variable.
 fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
+    let orig_arg = *arg;
     *arg = crate::memory::CStrSubslice::advance(*arg, 1);
-    let name = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
     let len = get_env_len(arg);
 
     if evaluate != 0 {
@@ -4659,7 +4657,7 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
             return false;
         }
         let env_with_dollar = cstr_from_bytes(crate::memory::cstr_slice(
-            name.wrapping_sub(1),
+            orig_arg.as_ptr(),
             len as usize + 1,
         ));
         let env_name = unsafe {
@@ -5607,8 +5605,8 @@ pub fn get_env_len(arg: &mut &CStr) -> i32 {
 
 /// Get the length of the name of a function or internal variable.
 pub fn get_id_len(arg: &mut &CStr) -> i32 {
-    let start = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
-    let mut p = crate::strings::CStrCursor::of(start);
+    let start = crate::strings::ByteSlice::from_cstr(arg);
+    let mut p = start;
     while eval_isnamec(i32::from(p.first_byte())) {
         if p.first_byte() == b':' {
             let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
@@ -5621,14 +5619,14 @@ pub fn get_id_len(arg: &mut &CStr) -> i32 {
                 break;
             }
         }
-        p = crate::strings::CStrCursor::of(p.wrapping_add(1));
+        p = p.wrapping_add(1);
     }
     if p == start {
         return 0;
     }
 
     let len = ((p.as_ptr() as usize).wrapping_sub(start.as_ptr() as usize)) as i32;
-    *arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p.cast_mut()));
+    *arg = p.skipwhite().as_cstr();
 
     len
 }
@@ -5657,11 +5655,11 @@ pub fn get_name_len(
         Some(&mut expr_range),
         if len > 0 { 0 } else { FNE_CHECK_START },
     );
-    let p = crate::strings::CStrCursor::from_ptr(p_cstr.as_ptr());
+    let p = crate::strings::ByteSlice::from_cstr(p_cstr);
     if let Some((expr_start_off, expr_end_off)) = expr_range {
         if !evaluate {
             len += ((p.as_ptr() as usize).wrapping_sub(arg.as_ptr() as usize)) as i32;
-            *arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p.cast_mut()));
+            *arg = p.skipwhite().as_cstr();
             return len;
         }
 
@@ -5677,7 +5675,7 @@ pub fn get_name_len(
         };
         let ret_len = temp_string.as_bytes().len() as i32;
         *alias = Some(temp_string);
-        *arg = crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(p.cast_mut()));
+        *arg = p.skipwhite().as_cstr();
         return ret_len;
     }
 

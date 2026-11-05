@@ -1802,7 +1802,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     if !opt_vars().p_mousemev {
         ui_call_option_set(
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(c"mousemoveevent".as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(c"mousemoveevent"),
                 size: 14,
             },
             boolean_obj(true),
@@ -1866,7 +1866,7 @@ pub fn pum_show_popupmenu(menu: &mut Vimmenu) {
     if !opt_vars().p_mousemev {
         ui_call_option_set(
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(c"mousemoveevent".as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(c"mousemoveevent"),
                 size: 14,
             },
             boolean_obj(false),

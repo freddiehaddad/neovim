@@ -4098,7 +4098,7 @@ pub fn list_lua_version() {
     };
     let ret = nlua_exec(
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(CODE.as_ptr().cast()),
+            data: Some(CODE),
             size: CODE.len() - 1,
         },
         None,

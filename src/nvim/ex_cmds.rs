@@ -3628,8 +3628,8 @@ impl SubBuf {
             data: self
                 .vec
                 .as_ref()
-                .map_or(crate::strings::CStrCursor::NULL, |v| {
-                    crate::strings::CStrCursor::from_ptr(v.as_ptr().cast())
+                .map_or(crate::strings::BYTE_SLICE_NULL, |v| {
+                    crate::strings::ByteSlice::from_bytes(v)
                 }),
             size: self.size,
         }
@@ -3812,7 +3812,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
                 which_pat = RE_SEARCH;
             }
             pat = NvimString {
-                data: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
+                data: crate::strings::ByteSlice::from_opt_cstr(Some(c"")),
                 size: 0,
             };
             delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
@@ -3822,7 +3822,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
             which_pat = RE_LAST;
             delimiter = (crate::memory::cstr_first_byte(cmd)) as i32;
             cmd = cmd.wrapping_add(1);
-            pat.data = crate::strings::CStrCursor::from_ptr(cmd);
+            pat.data = crate::strings::ByteSlice::from_ptr(cmd);
             let cmd_len = crate::memory::cstr_len(cmd);
             let cmd_slice =
                 unsafe { std::slice::from_raw_parts_mut(cmd.cast::<u8>(), cmd_len + 1) };

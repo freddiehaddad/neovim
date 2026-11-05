@@ -8,6 +8,8 @@ use crate::event::r#loop::uv_kill;
 #[cfg(windows)]
 use crate::memory::Arena;
 #[cfg(windows)]
+use crate::strings::ByteSliceExt;
+#[cfg(windows)]
 use std::ffi::CStr;
 #[cfg(target_os = "windows")]
 use std::ffi::c_void;
@@ -290,7 +292,7 @@ pub fn os_proc_info(pid: i32, arena: &mut Arena) -> Dict {
                 let idx = dict.size;
                 dict[idx] = KeyValuePair {
                     key: NvimString {
-                        data: crate::strings::CStrCursor::from_ptr(key.as_ptr()),
+                        data: crate::strings::ByteSlice::from_cstr(key),
                         size: key.to_bytes().len(),
                     },
                     value,

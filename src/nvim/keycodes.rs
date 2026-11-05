@@ -2150,7 +2150,6 @@ pub fn get_special_key(
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
     let mut string_buf = SPECIAL_KEY_STRING.handle();
-    let string = crate::strings::CStrCursor::from_ptr(string_buf.as_mut_ptr());
     let mut is_ascii_ctrl = false;
 
     string_buf[0] = b'<';
@@ -2204,7 +2203,7 @@ pub fn get_special_key(
             if let Some(ref mut d) = data {
                 d.key_alt = NvimString::new();
                 d.key = NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(string.wrapping_add(idx).cast()),
+                    data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
                     size: 4,
                 };
             }
@@ -2224,24 +2223,22 @@ pub fn get_special_key(
                     if (b'A' as i32..=b'Z' as i32).contains(&c) {
                         d.key_mem = c as u8 + 32;
                         d.key = NvimString {
-                            data: crate::strings::CStrCursor::from_ptr((&raw mut d.key_mem).cast()),
+                            data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
+                                &d.key_mem,
+                            )),
                             size: 1,
                         };
                         if !is_ascii_ctrl {
                             d.mods |= i32::from(MOD_MASK_SHIFT);
                         }
                         d.key_alt = NvimString {
-                            data: crate::strings::CStrCursor::from_ptr(
-                                string.wrapping_add(idx).cast(),
-                            ),
+                            data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
                             size: len as usize,
                         };
                     } else {
                         d.key_alt = NvimString::new();
                         d.key = NvimString {
-                            data: crate::strings::CStrCursor::from_ptr(
-                                string.wrapping_add(idx).cast(),
-                            ),
+                            data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
                             size: len as usize,
                         };
                     }
@@ -2252,7 +2249,7 @@ pub fn get_special_key(
             } else if len > 1 {
                 if let Some(ref mut d) = data {
                     d.key = NvimString {
-                        data: crate::strings::CStrCursor::from_ptr(string.wrapping_add(idx).cast()),
+                        data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
                         size: len as usize,
                     };
                     d.key_alt = NvimString::new();
@@ -2265,11 +2262,13 @@ pub fn get_special_key(
                 if let Some(ref mut d) = data {
                     d.key_mem = c as u8;
                     d.key = NvimString {
-                        data: crate::strings::CStrCursor::from_ptr((&raw mut d.key_mem).cast()),
+                        data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(
+                            &d.key_mem,
+                        )),
                         size: 1,
                     };
                     d.key_alt = NvimString {
-                        data: crate::strings::CStrCursor::from_ptr(string.wrapping_add(idx).cast()),
+                        data: crate::strings::ByteSlice::from_bytes(&string_buf[idx..]),
                         size: tc_bytes.len(),
                     };
                 }
@@ -2283,7 +2282,7 @@ pub fn get_special_key(
         let entry = &KEY_NAMES_TABLE[table_idx as usize];
         let s_bytes = entry.name.to_bytes();
         let s_str = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(entry.name.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(entry.name),
             size: s_bytes.len(),
         };
 
@@ -2291,7 +2290,7 @@ pub fn get_special_key(
             if (0..=0x7f).contains(&c) {
                 d.key_mem = c as u8;
                 d.key = NvimString {
-                    data: crate::strings::CStrCursor::from_ptr((&raw mut d.key_mem).cast()),
+                    data: crate::strings::ByteSlice::from_bytes(std::slice::from_ref(&d.key_mem)),
                     size: 1,
                 };
                 d.key_alt = s_str;

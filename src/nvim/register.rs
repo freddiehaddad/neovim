@@ -768,11 +768,11 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
             let mut str_ = reg.y_array[i].data;
             let cont_vec: Vec<u8>;
             if colon && i > 0 {
-                let p = crate::charset::skipwhite_ptr(str_);
+                let p = str_.skipwhite();
                 let p_bytes = p.as_bytes();
                 if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(&reg.y_array, &mut i);
-                    str_ = crate::strings::CStrCursor::from_ptr(cont_vec.as_ptr().cast());
+                    str_ = crate::strings::ByteSlice::from_bytes(&cont_vec);
                 }
             }
             let escaped = vim_strsave_escape_ks(str_.as_bytes());
@@ -1538,10 +1538,10 @@ pub fn do_put(
     if reg.is_null()
         && let Some(spec) = get_spec_reg(regname, true)
     {
-        let Some(mut spec_vec) = spec else {
+        let Some(spec_vec) = spec else {
             return;
         };
-        insert_string.data = crate::strings::CStrCursor::from_ptr(spec_vec.as_mut_ptr().cast());
+        insert_string.data = crate::strings::ByteSlice::from_bytes(&spec_vec);
         insert_string_owned = Some(spec_vec);
     }
 
@@ -1562,7 +1562,7 @@ pub fn do_put(
                     .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
                 if tmp.is_null() {
                     expr_y_array.push(NvimString {
-                        data: crate::strings::CStrCursor::from_ptr(ptr_),
+                        data: crate::strings::ByteSlice::from_ptr(ptr_),
                         size: ptrlen,
                     });
                 } else {
@@ -1570,7 +1570,7 @@ pub fn do_put(
 
                     let item_size = (tmp as usize) - (ptr_ as usize);
                     expr_y_array.push(NvimString {
-                        data: crate::strings::CStrCursor::from_ptr(ptr_),
+                        data: crate::strings::ByteSlice::from_ptr(ptr_),
                         size: item_size,
                     });
                     ptrlen -= item_size + 1;

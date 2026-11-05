@@ -1298,15 +1298,11 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     if dir.to_bytes().is_empty() {
         return;
     }
-    let dir = crate::strings::CStrCursor::from_ptr(dir.as_ptr());
+    let dir = crate::strings::ByteSlice::from_cstr(dir);
 
     if path_tail(dir.as_cstr()).is_empty() {
         // Remove trailing slashes.
-        unsafe {
-            *path_tail_with_sep(crate::memory::cstr_from_ptr(dir.cast_mut()))
-                .as_ptr()
-                .cast_mut() = NUL
-        };
+        unsafe { *path_tail_with_sep(dir.as_cstr()).as_ptr().cast_mut() = NUL };
     }
 
     let mut defer = false;
@@ -1394,7 +1390,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 
 /// Evaluate "expr" (= "context") for readdir().
 pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
-    let name = crate::strings::CStrCursor::from_ptr(name.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(name);
     let tv_init = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: VAR_UNLOCKED,
@@ -1412,7 +1408,7 @@ pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_string(VV_VAL, name.as_opt_cstr(), -1);
     argv[0].v_type = VarType::VarString;
-    argv[0].vval = crate::eval::typval::TypvalVval::from_raw_str(name.cast_mut());
+    argv[0].vval = crate::eval::typval::TypvalVval::String(name);
 
     let mut rettv = tv_init;
     if eval_expr_typval(&*expr, false, &mut argv, 1, &mut rettv) {
@@ -1729,7 +1725,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         let mut limit: i32 = 100;
 
         let mut p_vec = fname.to_bytes_with_nul().to_vec();
-        let mut p = crate::strings::CStrCursor::from_ptr(p_vec.as_mut_ptr());
+        let mut p = crate::strings::ByteSlice::from_bytes(&p_vec);
         let mut p_len = p_vec.len() - 1;
 
         if p_vec.first() == Some(&b'.')
@@ -1837,21 +1833,21 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                     };
                     p_len = prefix_len + buf_len;
                     p_vec = new_p;
-                    p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
+                    p = crate::strings::ByteSlice::from_bytes(&p_vec);
                 } else {
                     let mut new_p = Vec::with_capacity(buf_len + 1);
                     new_p.extend_from_slice(&buf_vec[..buf_len]);
                     new_p.push(0);
                     p_len = buf_len;
                     p_vec = new_p;
-                    p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
+                    p = crate::strings::ByteSlice::from_bytes(&p_vec);
                 }
             }
 
             let Some(ref mut rem_v) = remain_vec else {
                 break;
             };
-            let remain = crate::strings::CStrCursor::from_ptr(rem_v.as_mut_ptr());
+            let remain = crate::strings::ByteSlice::from_bytes(rem_v);
 
             // Append the first path component of "remain" to "p".
             q = path_next_component(remain.wrapping_add(1).as_cstr())
@@ -1867,13 +1863,13 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             };
             p_len += comp_len;
             p_vec = new_p;
-            p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
+            p = crate::strings::ByteSlice::from_bytes(&p_vec);
 
             // Shorten "remain".
             if unsafe { *q } != 0 {
                 let rem_tail = unsafe { q.sub(1) };
                 let rem_len = crate::memory::cstr_len(rem_tail) + 1;
-                unsafe { ptr::copy(rem_tail, remain.as_ptr(), rem_len) };
+                unsafe { ptr::copy(rem_tail, remain.as_mut_ptr(), rem_len) };
             } else {
                 remain_vec = None;
             }
@@ -1896,7 +1892,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 unsafe { ptr::copy_nonoverlapping(p.as_ptr(), new_p.as_mut_ptr().add(2), p_len) };
                 p_len += 2;
                 p_vec = new_p;
-                p = crate::strings::CStrCursor::of(p_vec.as_mut_ptr());
+                p = crate::strings::ByteSlice::from_bytes(&p_vec);
             } else if !is_relative_to_current {
                 // Strip leading "./".
                 let mut q_idx = 0usize;
@@ -2087,7 +2083,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         let Some(flags_cstr) = tv_get_string_chk(&argvars[2]) else {
             return;
         };
-        let mut p = crate::strings::CStrCursor::from_ptr(flags_cstr.as_ptr());
+        let mut p = crate::strings::ByteSlice::from_cstr(flags_cstr);
         while !p.is_empty() {
             match p.first_byte() {
                 b'b' => binary = true,
@@ -2101,7 +2097,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     return;
                 }
             }
-            p = crate::strings::CStrCursor::of(p.wrapping_add(1));
+            p = p.wrapping_add(1);
         }
     }
 
@@ -2118,7 +2114,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     if fname.to_bytes().is_empty() {
         emsg(gettext(c"E482: Can't open file with an empty name"));
     } else {
-        let fname = crate::strings::CStrCursor::from_ptr(fname.as_ptr());
+        let fname = crate::strings::ByteSlice::from_cstr(fname);
         let open_flags = (if append {
             K_FILE_APPEND
         } else {

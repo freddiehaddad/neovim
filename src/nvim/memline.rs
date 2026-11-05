@@ -1550,13 +1550,13 @@ pub fn recover_names(fname: Option<&CStr>, skip_curbuf: bool, ret_list: &mut TvL
     let dir_cap = (opt_vars().p_dir.as_bytes().len() + 1).min(31000);
     let mut dir_name_vec: Vec<u8> = vec![0; dir_cap];
     let mut dir_name = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(dir_name_vec.as_mut_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(&dir_name_vec),
         size: 0,
     };
     let mut dirp = opt_vars().p_dir.as_bytes();
     while !dirp.is_empty() {
         dir_name.size = copy_option_part(&mut dirp, &mut dir_name_vec, c",");
-        dir_name.data = crate::strings::CStrCursor::from_ptr(dir_name_vec.as_mut_ptr().cast());
+        dir_name.data = crate::strings::ByteSlice::from_bytes(&dir_name_vec);
 
         let dir_bytes = dir_name.as_bytes();
         let mut names_vec: Vec<std::ffi::CString> = Vec::with_capacity(6);
@@ -1652,13 +1652,13 @@ pub fn make_percent_swname(dir_slice: &[u8], name: Option<&CStr>) -> Option<std:
         idx += step.max(1);
     }
     let fixed_fname = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(fname_vec[fixed_off..].as_mut_ptr().cast()),
+        data: crate::strings::ByteSlice::from_bytes(&fname_vec[fixed_off..]),
         size: idx - fixed_off,
     };
 
     Some(concat_fnames(
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(dir_slice.as_ptr().cast()),
+            data: crate::strings::ByteSlice::from_bytes(dir_slice),
             size: dir_slice.len(),
         },
         fixed_fname,
@@ -1874,7 +1874,7 @@ fn recov_file_names(names: &mut Vec<std::ffi::CString>, path: &CStr, prepend_dot
     let cur = concat_fnames(
         cstr_as_string(Some(path)),
         NvimString {
-            data: crate::strings::CStrCursor::from_ptr(c".sw?".as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(c".sw?"),
             size: 4,
         },
         false,
@@ -3312,7 +3312,7 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
         if tail_off == 0 {
             concat_fnames(
                 NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(dname.as_ptr().wrapping_add(2)),
+                    data: crate::strings::ByteSlice::from_cstr(dname).wrapping_add(2),
                     size: dname_len - 2,
                 },
                 tail,
@@ -3321,11 +3321,11 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
         } else {
             let tmp = concat_fnames(
                 NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(fname.as_ptr()),
+                    data: crate::strings::ByteSlice::from_cstr(fname),
                     size: tail_off,
                 },
                 NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(dname.as_ptr().wrapping_add(2)),
+                    data: crate::strings::ByteSlice::from_cstr(dname).wrapping_add(2),
                     size: dname_len - 2,
                 },
                 true,
@@ -3335,7 +3335,7 @@ pub fn get_file_in_dir(fname: Option<&CStr>, dname: &CStr) -> Option<std::ffi::C
     } else {
         concat_fnames(
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(dname.as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(dname),
                 size: dname_len,
             },
             tail,
@@ -3579,9 +3579,7 @@ fn findswapname(
                         msg_sb.push(0);
                         msg_multiline(
                             NvimString {
-                                data: crate::strings::CStrCursor::from_ptr(
-                                    msg_sb.as_mut_ptr().cast(),
-                                ),
+                                data: crate::strings::ByteSlice::from_bytes(&msg_sb),
                                 size: msg_len,
                             },
                             0,

@@ -338,7 +338,7 @@ fn one_function_arg<'a>(
     newargs: Option<&mut Vec<std::ffi::CString>>,
     skip: bool,
 ) -> &'a CStr {
-    let arg = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
+    let arg = crate::strings::ByteSlice::from_cstr(arg_in);
     let bytes = arg_in.to_bytes();
     let len = bytes
         .iter()
@@ -522,14 +522,13 @@ fn register_closure(fp: &mut UserFunc) {
 /// Return a name for a lambda in static memory.
 fn get_lambda_name() -> NvimString {
     uf_st().lambda_no += 1;
-    let buf_ptr = uf_st().lambda_name.as_mut_ptr();
     let size = crate::strings::vim_snprintf_safelen!(
         &mut uf_st().lambda_name,
         c"<lambda>%d",
         uf_st().lambda_no
     );
     NvimString {
-        data: crate::strings::CStrCursor::from_ptr(buf_ptr.cast()),
+        data: crate::strings::ByteSlice::from_bytes(&uf_st().lambda_name),
         size,
     }
 }
@@ -617,9 +616,9 @@ pub fn get_lambda_tv(
     }
 
     let mut arg_cstr = crate::charset::skipwhite_at(arg, 1);
-    let start = crate::strings::CStrCursor::<u8>::from_ptr(arg_cstr.as_ptr().cast());
+    let start = crate::strings::ByteSlice::from_cstr(arg_cstr);
     ret = skip_expr(&mut arg_cstr, evalarg);
-    let end = crate::strings::CStrCursor::<u8>::from_ptr(arg_cstr.as_ptr().cast());
+    let end = crate::strings::ByteSlice::from_cstr(arg_cstr);
     *arg = arg_cstr;
     if !ret {
         if evaluate {
@@ -628,9 +627,7 @@ pub fn get_lambda_tv(
         return Some(false);
     }
 
-    let arg_ptr = crate::strings::CStrCursor::<u8>::from_ptr(
-        crate::charset::skipwhite_ptr(arg_cstr.as_ptr().cast_mut()).cast(),
-    );
+    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg_cstr).skipwhite();
     *arg = arg_ptr.as_cstr();
 
     if arg_ptr.first_byte() != b'}' {
@@ -769,13 +766,11 @@ fn get_func_arguments(
     argvars: &mut [TypVal],
     argcount: &mut i32,
 ) -> bool {
-    let mut argp = crate::strings::CStrCursor::<u8>::of(arg.as_ptr().cast_mut().cast());
+    let mut argp = crate::strings::ByteSlice::from_cstr(arg);
     let mut ret = true;
 
     while *argcount < MAX_FUNC_ARGS as i32 - partial_argc {
-        argp = crate::strings::CStrCursor::<u8>::of(
-            crate::charset::skipwhite_ptr(argp.wrapping_add(1).cast::<std::ffi::c_char>()).cast(),
-        );
+        argp = argp.wrapping_add(1).skipwhite();
 
         if argp.first_byte() == b')' || argp.first_byte() == b',' || argp.is_empty() {
             break;
@@ -786,22 +781,20 @@ fn get_func_arguments(
             &mut argvars[*argcount as usize],
             evalarg.as_deref_mut(),
         ) {
-            argp = crate::strings::CStrCursor::<u8>::of(argp_cstr.as_ptr().cast_mut().cast());
+            argp = crate::strings::ByteSlice::from_cstr(argp_cstr);
             ret = false;
             break;
         }
-        argp = crate::strings::CStrCursor::<u8>::of(argp_cstr.as_ptr().cast_mut().cast());
+        argp = crate::strings::ByteSlice::from_cstr(argp_cstr);
         *argcount += 1;
         if argp.first_byte() != b',' {
             break;
         }
     }
 
-    argp = crate::strings::CStrCursor::<u8>::of(
-        crate::charset::skipwhite_ptr(argp.cast::<std::ffi::c_char>()).cast(),
-    );
+    argp = argp.skipwhite();
     if argp.first_byte() == b')' {
-        argp = crate::strings::CStrCursor::<u8>::of(argp.wrapping_add(1));
+        argp = argp.wrapping_add(1);
     } else {
         ret = false;
     }
@@ -890,7 +883,7 @@ fn fname_trans_sid<'a>(
     tofree: &'a mut Option<std::ffi::CString>,
     error: &mut i32,
 ) -> &'a CStr {
-    let name = crate::strings::CStrCursor::<u8>::from_ptr(name_in.as_ptr().cast());
+    let name = crate::strings::ByteSlice::from_cstr(name_in);
     let name_bytes = name_in.to_bytes();
     let script_off = eval_fname_script(name_bytes);
     if script_off == 0 {
@@ -1392,11 +1385,11 @@ pub fn call_user_func(
                     g_st().emsg_off += 1;
                     let tf = encode_tv2string(arg_tv, None);
                     g_st().emsg_off -= 1;
-                    let mut s = crate::strings::CStrCursor::from_ptr(tf.as_ptr().cast_mut());
+                    let mut s = crate::strings::ByteSlice::from_cstr(tf.as_c_str());
                     let mut buf = [0u8; MSG_BUF_LEN];
                     if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                         trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                        s = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
+                        s = crate::strings::ByteSlice::from_bytes(&buf);
                     }
                     msg_puts(s.as_cstr());
                 }
@@ -1499,10 +1492,10 @@ pub fn call_user_func(
             g_st().emsg_off += 1;
             let tf = encode_tv2string(fc.fc_rettv.borrow_mut(), None);
             g_st().emsg_off -= 1;
-            let mut s = crate::strings::CStrCursor::of(tf.as_ptr().cast_mut());
+            let mut s = crate::strings::ByteSlice::from_cstr(tf.as_c_str());
             if vim_strsize(tf.as_c_str()) > MSG_BUF_CLEN {
                 trunc_string(Some(tf.as_bytes()), &mut buf, MSG_BUF_CLEN);
-                s = crate::strings::CStrCursor::of(buf.as_mut_ptr().cast());
+                s = crate::strings::ByteSlice::from_bytes(&buf);
             }
             smsg!(0, gettext(c"%s returning %s"), sourcing_name(), s);
         }
@@ -2305,7 +2298,7 @@ pub fn trans_function_name(
 
     let mut sid_buflen = 0usize;
     let mut sid_buf = [0u8; 20];
-    let ll_name_ptr = crate::strings::CStrCursor::<std::ffi::c_char>::from_opt_cstr(lv.ll_name);
+    let ll_name_ptr = crate::strings::ByteSlice::from_opt_cstr(lv.ll_name);
 
     if skip {
         lead = 0;
@@ -3344,7 +3337,7 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
         flag |= TFN_NO_DEREF;
     }
     let p = trans_function_name(&mut nm, false, flag, None, None);
-    let nm_ptr = crate::strings::CStrCursor::from_ptr(nm.as_ptr().cast_mut()).skipwhite();
+    let nm_ptr = crate::strings::ByteSlice::from_cstr(nm).skipwhite();
 
     if let Some(ref p) = p
         && (nm_ptr.is_empty() || nm_ptr.first_byte() == b'(')
@@ -3382,7 +3375,7 @@ pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
             return Some(uf2hikey(&*fp));
         }
 
-        let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+        let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
         let len = cat_func_name(g_st().iobuff_bytes_mut(), &*fp);
         if xp.xp_context != EXPAND_USER_FUNC {
             crate::memory::copy_bytes_to_c_buf(&mut g_st().iobuff_bytes_mut()[len..], b"(");
@@ -3412,7 +3405,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         }
         return;
     };
-    let name = crate::strings::CStrCursor::from_ptr(name_cstr.as_ptr());
+    let name = crate::strings::ByteSlice::from_cstr(name_cstr);
     if ends_excmd(crate::memory::cstr_first_byte(p.wrapping_add(
         crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(p)),
     ))) == 0
@@ -3956,7 +3949,7 @@ pub fn get_return_cmd(rettv: Option<TypVal>) -> std::ffi::CString {
         (c"".as_ptr(), 0)
     };
 
-    let iobuff_ptr = crate::strings::CStrCursor::from_ptr(g_st().iobuff.as_mut_ptr());
+    let iobuff_ptr = crate::strings::ByteSlice::from_bytes(&g_st().iobuff);
     crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), b":return ");
     crate::memory::copy_bytes_to_c_buf(
         &mut g_st().iobuff_bytes_mut()[8..],

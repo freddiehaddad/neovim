@@ -1098,16 +1098,16 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
     let buf = crate::strings::CStrCursor::<u8>::from_ptr((&raw mut rt_st().build_rtp_buf).cast());
     let mut entry = opt_vars().p_pp.as_bytes();
     while !entry.is_empty() {
-        let cur_entry = entry.as_ptr().cast_mut().cast();
+        let cur_entry_slice = entry;
         let buflen = copy_option_part(&mut entry, &mut rt_st().build_rtp_buf[..MAXPATHL], c",");
 
         let the_entry = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(cur_entry),
+            data: crate::strings::ByteSlice::from_bytes(&cur_entry_slice[..buflen]),
             size: buflen,
         };
 
         pack_entries.push(the_entry);
-        pack_used.insert(crate::memory::cstr_slice(cur_entry, buflen).to_vec(), 0);
+        pack_used.insert(cur_entry_slice[..buflen].to_vec(), 0);
     }
 
     let mut rtp_entry = opt_vars().p_rtp.as_bytes();
@@ -1314,9 +1314,9 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 
     'block: {
         let mut fname_len = ffname_owned.as_bytes().len();
-        let mut buf_data = [0u8; MAXPATHL];
+        let buf_data = [0u8; MAXPATHL];
         let mut buf = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(buf_data.as_mut_ptr().cast()),
+            data: crate::strings::ByteSlice::from_bytes(&buf_data),
             size: 0,
         };
 
@@ -1386,7 +1386,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let ad =
             crate::path::concat_fnames_cstr(crate::memory::cstr_from_ptr(fname), c"after", true);
         let mut afterdir = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(ad.as_ptr()),
+            data: crate::strings::ByteSlice::from_cstr(&ad),
             size: ad.as_bytes().len(),
         };
         let afterdir_has_entries = if is_pack {
@@ -1439,7 +1439,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let new_rtp_size = new_rtp_vec.len();
         new_rtp_vec.push(0);
         let new_rtp = NvimString {
-            data: crate::strings::CStrCursor::from_ptr(new_rtp_vec.as_mut_ptr().cast()),
+            data: crate::strings::ByteSlice::from_bytes(&new_rtp_vec),
             size: new_rtp_size,
         };
 

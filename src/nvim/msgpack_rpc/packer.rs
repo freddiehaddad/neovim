@@ -3,6 +3,7 @@
 use crate::api::private::validate::{Array, NvimString, Object, ObjectData, ObjectType};
 use crate::lua::converter::LUA_NOREF;
 use crate::lua::executor::{api_free_luaref, nlua_funcref_str};
+use crate::strings::ByteSliceExt;
 
 pub const MPACK_ITEM_SIZE: usize = 9;
 pub(crate) const EXT_OBJECT_TYPE_SHIFT: i32 = ObjectType::ObjectTypeBuffer as i32;
@@ -373,7 +374,7 @@ pub fn mpack_object_inner(
                 api_free_luaref(cur.data.luaref());
                 cur.data = ObjectData::LuaRef(LUA_NOREF);
                 let s = NvimString {
-                    data: crate::strings::CStrCursor::from_ptr(cs.as_ptr()),
+                    data: crate::strings::ByteSlice::from_cstr(&cs),
                     size: cs.to_bytes().len(),
                 };
                 mpack_str(s, packer);
@@ -498,7 +499,7 @@ mod tests {
         let s = c"hello";
         mpack_str(
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(s.as_ptr()),
+                data: crate::strings::ByteSlice::from_cstr(s),
                 size: 5,
             },
             &mut pb,

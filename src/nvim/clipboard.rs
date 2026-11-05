@@ -13,6 +13,7 @@ use crate::register::{
     EMPTY_YANKREG, MotionType, PLUS_REGISTER, STAR_REGISTER, Yankreg, get_y_previous,
     get_y_register, update_yankreg_width,
 };
+use crate::strings::ByteSliceExt;
 use std::ffi::CStr;
 
 const K_OPT_CB_FLAG_UNNAMED: u32 = 0x01;

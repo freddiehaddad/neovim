@@ -1170,7 +1170,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
         capacity: 4,
     };
     let s = NvimString {
-        data: crate::strings::CStrCursor::from_ptr(c"return vim._cs_remote(...)".as_ptr()),
+        data: crate::strings::ByteSlice::from_cstr(c"return vim._cs_remote(...)"),
         size: 26,
     };
     let o = nlua_exec(s, None, a, K_RET_OBJECT, None, &mut err);
