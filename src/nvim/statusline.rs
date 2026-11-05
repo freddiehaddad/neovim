@@ -859,11 +859,7 @@ pub fn fillchar_status(group: &mut Hlf, wp: &mut WinInfoInfo) -> Schar {
 }
 
 fn ui_ext_tabline_update() {
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let name_buff = g_st().name_buff.as_mut_ptr();
 
     let mut n_tabs: usize = 0;

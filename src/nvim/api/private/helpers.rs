@@ -1542,7 +1542,7 @@ struct ApiMetadataState {
 impl ApiMetadataState {
     const fn new() -> Self {
         Self {
-            mem_for_metadata: ptr::null_mut(),
+            mem_for_metadata: ArenaMem::NULL,
             metadata_obj: OBJECT_NIL,
         }
     }
@@ -4310,11 +4310,7 @@ pub fn api_get_packed_metadata() -> &'static [u8] {
 
 pub fn api_metadata() -> Object {
     if api_meta_st().metadata_obj.obj_type == ObjectType::ObjectTypeNil {
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
+        let mut arena = Arena::new();
         let mut err = Error::new();
         let packed = api_get_packed_metadata();
         api_meta_st().metadata_obj = unpack(packed, &mut arena, &mut err);

@@ -595,11 +595,7 @@ pub fn ui_flush() {
         win_ui_flush(false);
     }
     if ui_state().pending_mode_info_update {
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
+        let mut arena = Arena::new();
         let style = mode_style_array(&mut arena);
         let enabled = !opt_vars().p_guicursor.is_empty();
         ui_call_mode_info_set(enabled, style);

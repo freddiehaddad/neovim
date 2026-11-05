@@ -102,11 +102,7 @@ use crate::mpack::conv::{
 
 #[inline]
 const fn empty_arena() -> Arena {
-    Arena {
-        cur_blk: std::ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    }
+    Arena::new()
 }
 
 fn api_parse_enter(parser: &mut MpackParser, node: &mut MpackNode) {

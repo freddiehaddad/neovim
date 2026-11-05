@@ -1637,11 +1637,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     let name = unsafe { luaL_checklstring(lstate, 2, &raw mut name_len) };
     let nargs = unsafe { lua_gettop(lstate) } - 2;
     let mut err = Error::new();
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
 
     let mut args = arena_array(&mut arena, nargs.max(0) as usize);
     for i in 0..nargs {
@@ -1657,7 +1653,7 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     if !error_set(&err) {
         let name_cstr = crate::memory::cstr_from_ptr(name);
         if request {
-            let mut res_mem: ArenaMem = ptr::null_mut();
+            let mut res_mem = ArenaMem::NULL;
             let mut result = rpc_send_call(chan_id, name_cstr, args, &mut res_mem, &mut err);
             if !error_set(&err) {
                 nlua_push_object(lstate, &mut result, 0);
@@ -2312,11 +2308,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
     }
 
     let mut err = Error::new();
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let prefix_len = nlua_pop_integer(lstate, &mut arena, &mut err) as isize;
     if !error_set(&err) && prefix_len <= patlen {
         let completions = nlua_pop_array(lstate, &mut arena, &mut err);

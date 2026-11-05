@@ -4976,11 +4976,7 @@ pub fn callback_call(
             name = partial_name(partial.opt()).as_ptr().cast_mut();
         }
         K_CALLBACK_LUA => {
-            let mut arena = Arena {
-                cur_blk: ptr::null_mut(),
-                pos: 0,
-                size: 0,
-            };
+            let mut arena = Arena::new();
             let mut luaargs = arena_array(&mut arena, argcount_in as usize);
             for arg_tv in argvars_in.iter_mut().take(argcount_in as usize) {
                 *luaargs.next_slot_mut() = vim_to_object(arg_tv, Some(&mut arena), false);

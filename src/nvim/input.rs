@@ -3163,11 +3163,7 @@ pub fn paste_repeat(count: i32) {
     g_st().no_mapping -= 1;
 
     let str_ = NvimString::from_bytes(&buf);
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let mut err = Error::new();
     let mut i = 0;
     while !aborted && i < count {

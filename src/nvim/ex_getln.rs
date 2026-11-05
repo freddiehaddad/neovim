@@ -3918,11 +3918,7 @@ fn draw_cmdline(start: i32, len: i32) {
 }
 
 fn ui_ext_cmdline_show(line: &mut CmdlineInfo) {
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let mut content: Array;
     if g_st().cmdline_star != 0 {
         content = arena_array(&mut arena, 1);

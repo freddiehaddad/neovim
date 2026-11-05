@@ -1292,11 +1292,7 @@ pub fn api_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
 
     for tv in argvars
         .iter_mut()
@@ -1334,11 +1330,7 @@ pub fn lua_wrapper(argvars: &mut [TypVal], rettv: &mut TypVal, fptr: EvalFuncDat
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
 
     for tv in argvars
         .iter_mut()
@@ -6763,11 +6755,7 @@ pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
 
     for tv in argvars[2..]
         .iter_mut()
@@ -6819,11 +6807,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
         size: 0,
         capacity: MAX_FUNC_ARGS,
     };
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
 
     for tv in argvars[2..]
         .iter_mut()
@@ -6862,7 +6846,7 @@ pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let method = tv_get_string(&argvars[1]);
     let method_cstr = method;
 
-    let mut res_mem: ArenaMem = ptr::null_mut();
+    let mut res_mem = ArenaMem::NULL;
     let result = rpc_send_call(chan_id, method_cstr, args, &mut res_mem, &mut err);
     arena_mem_free(arena_finish(&mut arena));
 

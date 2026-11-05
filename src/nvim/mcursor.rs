@@ -785,11 +785,7 @@ fn mc_region_mark_range(mark: u32, start: &mut CursorPos, end: &mut CursorPos) -
 }
 
 fn mc_ins_preview_replace(start: CursorPos, end: CursorPos, text: &NvimString) {
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let mut err = Error::new();
     let input = if !text.data.is_null() {
         *text

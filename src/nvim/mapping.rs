@@ -2247,11 +2247,7 @@ fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     } else if let Some(mp) = mp_opt
         && (rhs.is_some() || rhs_lua != LUA_NOREF)
     {
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
+        let mut arena = Arena::new();
         let dict = mapblock_fill_dict(
             mp,
             did_simplify.then_some(keys_simplified.as_c_str()),
@@ -2473,11 +2469,7 @@ pub fn f_maplist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
                 let mut did_simplify = false;
 
-                let mut arena = Arena {
-                    cur_blk: ptr::null_mut(),
-                    pos: 0,
-                    size: 0,
-                };
+                let mut arena = Arena::new();
                 let lhs = str2special_arena(mp.m_keys.as_bytes(), true, K_FALSE, &mut arena);
                 let keys_buf = replace_termcodes(
                     lhs.to_bytes(),

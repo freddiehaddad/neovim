@@ -9444,7 +9444,7 @@ fn ex_restart(eap: &mut Exarg) {
     };
     let mut channel = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(channel_ref);
     let chan_id = channel.id;
-    let mut result_mem: ArenaMem = ptr::null_mut();
+    let mut result_mem = ArenaMem::NULL;
 
     'fail_2: {
         let mut detach_kv = [KeyValuePair {
@@ -9479,7 +9479,7 @@ fn ex_restart(eap: &mut Exarg) {
             break 'fail_2;
         }
         arena_mem_free(result_mem);
-        result_mem = ptr::null_mut();
+        result_mem = ArenaMem::NULL;
 
         if !crate::memory::cstr_is_empty(after_cmd) {
             let mut autocmd_kv = [
@@ -9524,7 +9524,7 @@ fn ex_restart(eap: &mut Exarg) {
                 break 'fail_2;
             }
             arena_mem_free(result_mem);
-            result_mem = ptr::null_mut();
+            result_mem = ArenaMem::NULL;
         }
 
         let mut servername_items = [cstr_as_obj(Some(c"servername"))];
@@ -9549,7 +9549,7 @@ fn ex_restart(eap: &mut Exarg) {
         }
         let listen_addr = cstr_from_bytes(result.data.string().as_bytes());
         arena_mem_free(result_mem);
-        result_mem = ptr::null_mut();
+        result_mem = ArenaMem::NULL;
 
         #[cfg(windows)]
         if let Some(ref la) = listen_arg {
@@ -9584,7 +9584,7 @@ fn ex_restart(eap: &mut Exarg) {
                 break 'fail_2;
             }
             arena_mem_free(result_mem);
-            result_mem = ptr::null_mut();
+            result_mem = ArenaMem::NULL;
         }
 
         remote_ui_restart(cstr_as_string(Some(&*listen_addr)));
@@ -9628,7 +9628,7 @@ fn ex_restart(eap: &mut Exarg) {
 
     #[cfg(not(windows))]
     {
-        result_mem = ptr::null_mut();
+        result_mem = ArenaMem::NULL;
         let mut chanclose_items = [cstr_as_obj(Some(c"chanclose(v:stderr)"))];
         let chanclose_args = Array {
             items: crate::globals::GraphPtr::new(chanclose_items.as_mut_ptr()),

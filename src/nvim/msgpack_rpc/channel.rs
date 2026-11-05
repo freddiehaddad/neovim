@@ -330,7 +330,7 @@ pub fn rpc_send_call(
         returned: std::cell::Cell::new(false),
         errored: std::cell::Cell::new(false),
         result: std::cell::Cell::new(OBJECT_NIL),
-        result_mem: std::cell::Cell::new(ptr::null_mut()),
+        result_mem: std::cell::Cell::new(ArenaMem::NULL),
     });
     rpc.call_stack.push(frame.clone());
 
@@ -386,7 +386,7 @@ pub fn rpc_send_call(
         }
 
         arena_mem_free(frame.result_mem.get());
-        frame.result_mem.set(ptr::null_mut());
+        frame.result_mem.set(ArenaMem::NULL);
     }
 
     channel_decref(channel.borrow_mut());
@@ -559,11 +559,7 @@ fn handle_request(channel: &mut Channel, p: &mut Unpacker, args: Array) {
         request_id: p.request_id,
     };
 
-    p.arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    p.arena = Arena::new();
 
     channel_incref(&mut *channel);
 
@@ -1021,14 +1017,14 @@ mod tests {
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
             result: std::cell::Cell::new(OBJECT_NIL),
-            result_mem: std::cell::Cell::new(ptr::null_mut()),
+            result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         let f2 = std::rc::Rc::new(ChannelCallFrame {
             request_id: 20,
             returned: std::cell::Cell::new(false),
             errored: std::cell::Cell::new(false),
             result: std::cell::Cell::new(OBJECT_NIL),
-            result_mem: std::cell::Cell::new(ptr::null_mut()),
+            result_mem: std::cell::Cell::new(ArenaMem::NULL),
         });
         rpc.call_stack.push(f1.clone());
         rpc.call_stack.push(f2.clone());

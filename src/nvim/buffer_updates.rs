@@ -15,13 +15,8 @@ use crate::memline::ml_flush_deleted_bytes;
 use crate::memory::{Arena, arena_finish, arena_mem_free};
 use crate::msgpack_rpc::channel::rpc_send_event;
 use crate::msgpack_rpc::packer::Integer;
-use std::ptr;
 
-pub(crate) const ARENA_EMPTY: Arena = Arena {
-    cur_blk: ptr::null_mut(),
-    pos: 0,
-    size: 0,
-};
+pub(crate) const ARENA_EMPTY: Arena = Arena::new();
 
 use crate::cursor::{Colnr, Linenr};
 

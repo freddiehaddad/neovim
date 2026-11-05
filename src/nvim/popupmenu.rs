@@ -518,11 +518,7 @@ pub fn pum_display(items: &mut [Pumitem], selected: i32, array_changed: bool, cm
 
         if pum().external {
             if array_changed {
-                let mut arena = Arena {
-                    cur_blk: ptr::null_mut(),
-                    pos: 0,
-                    size: 0,
-                };
+                let mut arena = Arena::new();
                 let mut arr = arena_array(&mut arena, size as usize);
                 for elem in &items[..(size as usize)] {
                     let mut item = arena_array(&mut arena, 4);
@@ -1208,11 +1204,7 @@ fn pum_preview_set_text(
     max_width: &mut i32,
 ) {
     let mut err = Error::new();
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let mut replacement = Array {
         items: crate::globals::GraphPtr::NULL,
         size: 0,

@@ -57,7 +57,6 @@ use crate::terminal::{
 };
 use crate::ui_client::ui_client_attach_to_restarted_server;
 use std::ffi::CStr;
-use std::ptr;
 
 pub type ChannelStdinMode = i32;
 
@@ -1090,11 +1089,7 @@ pub fn channel_event(chan: &mut Channel, event: AuEvent) {
 pub fn set_info_event(chan: &mut Channel, event: AuEvent) {
     let mut save_v_event: SaveVEvent = SaveVEvent::new();
     let dict = get_v_event(&mut save_v_event);
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     let info = channel_info(chan.id, &mut arena);
     let mut retval: TypVal = TypVal::new();
     object_to_vim(

@@ -32,7 +32,6 @@ use crate::ui::{
     ui_refresh, ui_set_ext_option,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 #[cfg(windows)]
 use crate::channel::K_CHANNEL_STREAM_STDIO;
@@ -1392,11 +1391,7 @@ fn translate_firstarg(ui: &mut RemoteUI, args: Array, arena: &mut Arena) -> Arra
 
 // DLLEXPORT void remote_ui_event(RemoteUI *ui, char *name, Array args);
 pub fn remote_ui_event(ui: &mut RemoteUI, mut name: &'static CStr, args: Array) {
-    let mut arena = Arena {
-        cur_blk: ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let mut arena = Arena::new();
     if !ui.ui_ext[K_UILINEGRID] {
         if name == c"cmdline_show" {
             let new_args = translate_firstarg(ui, args, &mut arena);

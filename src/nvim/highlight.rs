@@ -29,7 +29,6 @@ use crate::strings::gettext;
 use crate::ui::ui_call_hl_attr_define;
 use crate::window::WinInfoInfo;
 use std::ffi::CStr;
-use std::ptr;
 
 pub type RgbValue = i32;
 pub type OptionalKeys = u64;
@@ -360,11 +359,7 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
         hl_st().attr_entry_ids.insert(entry, k);
 
         let id = k as i32;
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
+        let mut arena = Arena::new();
         let inspect = hl_inspect(id, &mut arena);
         ui_call_hl_attr_define(Integer::from(id), entry.attr, entry.attr, inspect);
         arena_mem_free(arena_finish(&mut arena));
@@ -375,11 +370,7 @@ fn get_attr_entry(mut entry: HlEntry) -> i32 {
 pub fn ui_send_all_hls(ui: &mut RemoteUI) {
     let len = hl_st().attr_entries.len();
     for i in 1..len {
-        let mut arena = Arena {
-            cur_blk: ptr::null_mut(),
-            pos: 0,
-            size: 0,
-        };
+        let mut arena = Arena::new();
         let inspect = hl_inspect(i as i32, &mut arena);
         let attr = hl_st().attr_entries.as_slice()[i].attr;
         remote_ui_hl_attr_define(ui, i as Integer, attr, attr, inspect);

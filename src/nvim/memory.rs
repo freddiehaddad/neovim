@@ -15,7 +15,6 @@ use crate::message::{clear_sb_text, msg_hist_clear, reset_last_sourcing, set_kee
 use crate::option::free_all_options;
 use crate::option_vars::*;
 use crate::register::set_expr_line;
-use crate::strings::RawCCharPtrMut;
 use crate::ui::ui_free_all_mem;
 use crate::ui_client::ui_client_free_all_mem;
 use std::ffi::{CStr, CString, c_void};
@@ -28,12 +27,12 @@ pub struct ConsumedBlk {
     pub prev: crate::globals::GraphPtr<ConsumedBlk>,
 }
 
-pub type ArenaMem = *mut ConsumedBlk;
+pub type ArenaMem = crate::globals::GraphPtr<ConsumedBlk>;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct Arena {
-    pub cur_blk: RawCCharPtrMut,
+    pub cur_blk: crate::strings::CStrCursor<std::ffi::c_char>,
     pub pos: usize,
     pub size: usize,
 }
@@ -42,7 +41,7 @@ impl Arena {
     #[inline(always)]
     pub const fn new() -> Self {
         Self {
-            cur_blk: std::ptr::null_mut(),
+            cur_blk: crate::strings::CStrCursor::NULL,
             pos: 0,
             size: 0,
         }
@@ -731,25 +730,21 @@ pub fn cstr_from_bytes(bytes: &[u8]) -> CString {
 
 /// Finish allocations in `arena` and return an `ArenaMem` handle (`arena_finish`).
 pub fn arena_finish(arena: &mut Arena) -> ArenaMem {
-    let res = arena.cur_blk.cast::<ConsumedBlk>();
-    *arena = Arena {
-        cur_blk: std::ptr::null_mut(),
-        pos: 0,
-        size: 0,
-    };
+    let res = crate::globals::GraphPtr::new(arena.cur_blk.cast::<ConsumedBlk>());
+    *arena = Arena::new();
     res
 }
 
 /// Allocate a `ARENA_BLOCK_SIZE` block (`alloc_block`).
-fn alloc_block() -> RawCCharPtrMut {
+fn alloc_block() -> crate::strings::CStrCursor<std::ffi::c_char> {
     if mem_st().arena_reuse_count > 0 {
-        let retval: RawCCharPtrMut = mem_st().arena_reuse_head.as_ptr().cast();
+        let retval = crate::strings::CStrCursor::new(mem_st().arena_reuse_head.as_ptr().cast());
         mem_st().arena_reuse_head = mem_st().arena_reuse_head.prev;
         mem_st().arena_reuse_count -= 1;
         retval
     } else {
         g_st().arena_alloc_count += 1;
-        raw_alloc(ARENA_BLOCK_SIZE).cast()
+        crate::strings::CStrCursor::new(raw_alloc(ARENA_BLOCK_SIZE).cast())
     }
 }
 
@@ -812,7 +807,7 @@ pub fn arena_alloc(arena: &mut Arena, size: usize, align: bool) -> *mut c_void {
         }
     }
 
-    let mem = unsafe { arena.cur_blk.add(alloc_pos).cast::<c_void>() };
+    let mem = arena.cur_blk.wrapping_add(alloc_pos).cast::<c_void>();
     arena.pos = alloc_pos + size;
     mem
 }
@@ -827,21 +822,16 @@ pub fn arena_alloc_opt(arena: Option<&mut Arena>, size: usize, align: bool) -> *
 }
 
 /// Release a `ARENA_BLOCK_SIZE` block back to the reuse pool or free it (`free_block`).
-fn free_block(block: RawCCharPtrMut) {
+fn free_block(mut block: ArenaMem) {
     if block.is_null() {
         return;
     }
-    {
-        if mem_st().arena_reuse_count < REUSE_MAX {
-            let reuse_blk = block.cast::<ConsumedBlk>();
-            unsafe {
-                (*reuse_blk).prev = mem_st().arena_reuse_head;
-            }
-            mem_st().arena_reuse_head = crate::globals::GraphPtr::new(reuse_blk);
-            mem_st().arena_reuse_count += 1;
-        } else {
-            raw_dealloc(block.cast::<c_void>());
-        }
+    if mem_st().arena_reuse_count < REUSE_MAX {
+        block.prev = mem_st().arena_reuse_head;
+        mem_st().arena_reuse_head = block;
+        mem_st().arena_reuse_count += 1;
+    } else {
+        raw_dealloc(block.cast::<c_void>());
     }
 }
 
@@ -850,11 +840,11 @@ pub fn arena_mem_free(mem: ArenaMem) {
     let mut b = mem;
     if !b.is_null() {
         let reuse_blk = b;
-        b = unsafe { (*b).prev.as_ptr() };
-        free_block(reuse_blk.cast());
+        b = b.prev;
+        free_block(reuse_blk);
     }
     while !b.is_null() {
-        let prev = unsafe { (*b).prev.as_ptr() };
+        let prev = b.prev;
         raw_dealloc(b.cast::<c_void>());
         b = prev;
     }
@@ -1100,7 +1090,7 @@ mod tests {
     #[test]
     fn arena_lifecycle() {
         let mut arena = Arena {
-            cur_blk: std::ptr::null_mut(),
+            cur_blk: crate::strings::CStrCursor::NULL,
             pos: 0,
             size: 0,
         };
