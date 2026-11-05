@@ -88,8 +88,8 @@ impl KeyDict_xdl_diff {
 pub(crate) struct HunkPriv {
     lstate: *mut lua_State,
     err: Error,
-    ma: *mut Mmfile,
-    mb: *mut Mmfile,
+    ma: crate::globals::GraphPtr<Mmfile>,
+    mb: crate::globals::GraphPtr<Mmfile>,
     linematch: i64,
     iwhite: bool,
 }
@@ -206,8 +206,8 @@ pub(crate) fn hunk_locations_cb(
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
             lstate,
-            unsafe { &*priv_ref.ma },
-            unsafe { &*priv_ref.mb },
+            priv_ref.ma.borrow(),
+            priv_ref.mb.borrow(),
             start_a,
             count_a,
             start_b,
@@ -439,8 +439,8 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     let mut priv_state = HunkPriv {
         lstate,
         err,
-        ma: &mut ma,
-        mb: &mut mb,
+        ma: crate::globals::GraphPtr::from(&mut ma),
+        mb: crate::globals::GraphPtr::from(&mut mb),
         linematch,
         iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
     };

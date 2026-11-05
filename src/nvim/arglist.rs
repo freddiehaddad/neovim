@@ -35,7 +35,7 @@ use crate::strings::gettext;
 use crate::undo::buf_is_changed_fn;
 use crate::version::list_in_columns;
 use crate::window::{
-    TabPageInfo, WSP_BELOW, WSP_ROOM, WinInfoInfo, check_can_set_curbuf_forceit, goto_tabpage_tp,
+    WSP_BELOW, WSP_ROOM, WinInfoInfo, check_can_set_curbuf_forceit, goto_tabpage_tp,
     lastwin_nofloating, tabpage_index, valid_tabpage, win_close, win_enter, win_move_after,
     win_split, win_valid,
 };
@@ -87,15 +87,15 @@ impl Aentry {
 }
 
 struct ArgAllState {
-    alist: *mut Alist,
+    alist: crate::globals::GraphPtr<Alist>,
     local_alist: Option<std::rc::Rc<std::cell::RefCell<Alist>>>,
     had_tab: i32,
     keep_tabs: bool,
     forceit: bool,
     use_firstwin: bool,
     opened: Vec<u8>,
-    new_curwin: *mut WinInfoInfo,
-    new_curtab: *mut TabPageInfo,
+    new_curwin: crate::globals::WinPtr,
+    new_curtab: crate::globals::TabpagePtr,
 }
 
 struct ArglistModuleState {
@@ -865,8 +865,8 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                 i = 0;
                 while i < opened_len {
                     let al = aall_ref.alist;
-                    if (i as usize) < unsafe { (*al).al_ga.len() } {
-                        let entry = unsafe { &(&(*al).al_ga)[i as usize] };
+                    if (i as usize) < al.al_ga.len() {
+                        let entry = &(&al.al_ga)[i as usize];
                         if entry.ae_fnum == buf.b_fnum
                             || path_equal(
                                 alist_name(entry).unwrap_or(c""),
@@ -886,16 +886,17 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
                                 aall_ref.opened[i as usize] = weight as u8;
                                 if i == 0 {
                                     if !aall_ref.new_curwin.is_null() {
-                                        unsafe { (*aall_ref.new_curwin).w_arg_idx = opened_len };
+                                        aall_ref.new_curwin.w_arg_idx = opened_len;
                                     }
-                                    aall_ref.new_curwin = wp;
-                                    aall_ref.new_curtab = g_st().curtab;
+                                    aall_ref.new_curwin = crate::globals::WinPtr::new(wp);
+                                    aall_ref.new_curtab =
+                                        crate::globals::TabpagePtr::new(g_st().curtab);
                                 }
                             } else if aall_ref.keep_tabs {
                                 i = opened_len;
                             }
 
-                            if !ptr::eq(win_alist(unsafe { &*wp }), al) {
+                            if !ptr::eq(win_alist(unsafe { &*wp }), al.as_ptr()) {
                                 unsafe { (*wp).w_alist = aall_ref.local_alist.clone() };
                             }
                             break;
@@ -975,7 +976,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
     let mut split_ret = true;
     let mut i: i32 = 0;
     while i < count && !g_st().got_int {
-        if ptr::eq(aall.alist, &raw const g_st().global_alist) && i == gargcount() - 1 {
+        if ptr::eq(aall.alist.as_ptr(), &raw const g_st().global_alist) && i == gargcount() - 1 {
             g_st().arg_had_last = true;
         }
         if aall.opened[i as usize] > 0 {
@@ -983,8 +984,8 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
                 for wp in for_all_windows_ptr() {
                     if wp.w_arg_idx == i {
                         if aall.keep_tabs {
-                            aall.new_curwin = wp;
-                            aall.new_curtab = g_st().curtab;
+                            aall.new_curwin = crate::globals::WinPtr::new(wp);
+                            aall.new_curtab = crate::globals::TabpagePtr::new(g_st().curtab);
                         } else if wp.w_floating {
                             break;
                         } else if wp.frame_mut().fr_parent != curwin_mut().frame_mut().fr_parent {
@@ -1018,12 +1019,12 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
             curwin_mut().w_arg_idx = i;
             if i == 0 {
-                aall.new_curwin = curwin_ptr();
-                aall.new_curtab = g_st().curtab;
+                aall.new_curwin = crate::globals::WinPtr::new(curwin_ptr());
+                aall.new_curtab = crate::globals::TabpagePtr::new(g_st().curtab);
             }
             do_ecmd(
                 0,
-                alist_name(unsafe { &(&(*aall.alist).al_ga)[i as usize] }),
+                alist_name(&(&aall.alist.al_ga)[i as usize]),
                 None,
                 None,
                 ECMD_ONE,
@@ -1063,15 +1064,15 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     setpcmark();
 
     let mut aall = ArgAllState {
-        alist: win_alist(curwin_mut()),
+        alist: crate::globals::GraphPtr::new(win_alist(curwin_mut())),
         local_alist: curwin_mut().w_alist.clone(),
         had_tab: g_st().cmdmod.cmod_tab,
         keep_tabs,
         forceit,
         use_firstwin: false,
         opened: vec![0u8; acount as usize],
-        new_curwin: ptr::null_mut(),
-        new_curtab: ptr::null_mut(),
+        new_curwin: crate::globals::WinPtr::NULL,
+        new_curtab: crate::globals::TabpagePtr::NULL,
     };
 
     arglist_st().arglist_locked = true;
@@ -1100,7 +1101,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
 
     g_st().autocmd_no_enter -= 1;
 
-    if last_curtab != aall.new_curtab {
+    if aall.new_curtab != last_curtab {
         if valid_tabpage(unsafe { last_curtab.as_ref() }) {
             goto_tabpage_tp(unsafe { last_curtab.as_mut() }, true, true);
         }
@@ -1108,16 +1109,16 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
             win_enter(unsafe { &mut *last_curwin }, false);
         }
     }
-    if valid_tabpage(unsafe { aall.new_curtab.as_ref() }) {
-        goto_tabpage_tp(unsafe { aall.new_curtab.as_mut() }, true, true);
+    if valid_tabpage(aall.new_curtab.opt()) {
+        goto_tabpage_tp(aall.new_curtab.opt_mut(), true, true);
     }
 
     if valid_tabpage(unsafe { new_lu_tp.as_ref() }) {
         g_st().lastused_tabpage = new_lu_tp;
     }
 
-    if win_valid(unsafe { aall.new_curwin.as_ref() }) {
-        win_enter(unsafe { &mut *aall.new_curwin }, false);
+    if win_valid(aall.new_curwin.opt()) {
+        win_enter(aall.new_curwin.borrow_mut(), false);
     }
 
     g_st().autocmd_no_leave -= 1;

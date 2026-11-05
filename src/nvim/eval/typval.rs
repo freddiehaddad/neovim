@@ -636,8 +636,8 @@ struct Sortinfo {
     item_compare_numbers: bool,
     item_compare_float: bool,
     item_compare_func: Option<std::ffi::CString>,
-    item_compare_partial: *mut TvPartial,
-    item_compare_selfdict: *mut TvDict,
+    item_compare_partial: crate::globals::GraphPtr<TvPartial>,
+    item_compare_selfdict: crate::globals::GraphPtr<TvDict>,
     item_compare_func_err: bool,
     item_compare_keys_ready: bool,
 }
@@ -651,8 +651,8 @@ impl Sortinfo {
             item_compare_numbers: false,
             item_compare_float: false,
             item_compare_func: None,
-            item_compare_partial: ptr::null_mut(),
-            item_compare_selfdict: ptr::null_mut(),
+            item_compare_partial: crate::globals::GraphPtr::NULL,
+            item_compare_selfdict: crate::globals::GraphPtr::NULL,
             item_compare_func_err: false,
             item_compare_keys_ready: false,
         }
@@ -691,7 +691,7 @@ impl ListSortKey {
 
 #[repr(C)]
 struct ListSortItem {
-    item: *mut Listitem,
+    item: crate::globals::GraphPtr<Listitem>,
     idx: i32,
     key: ListSortKey,
 }
@@ -699,7 +699,7 @@ struct ListSortItem {
 impl ListSortItem {
     #[inline]
     fn item_mut(&self) -> &'static mut Listitem {
-        unsafe { &mut *self.item }
+        self.item.borrow_mut()
     }
 }
 
@@ -2130,7 +2130,7 @@ fn item_compare2(
         return 0;
     }
 
-    let partial = info.item_compare_partial;
+    let partial = info.item_compare_partial.as_ptr();
     let func_name = if partial.is_null() {
         info.item_compare_func
             .as_ref()
@@ -2147,7 +2147,7 @@ fn item_compare2(
     let mut funcexe: Funcexe = Funcexe::new();
     funcexe.fe_evaluate = true;
     funcexe.fe_partial = crate::globals::GraphPtr::new(partial);
-    funcexe.fe_selfdict = crate::globals::GraphPtr::new(info.item_compare_selfdict);
+    funcexe.fe_selfdict = info.item_compare_selfdict;
     let ok = call_func(
         unsafe { std::ffi::CStr::from_ptr(func_name) },
         -1,
@@ -2214,7 +2214,7 @@ fn do_sort(l: &mut TvList, info: &mut Sortinfo) {
 
     for (i, li) in (0_i32..).zip(crate::eval::typval::list_iter_ptr(l.first_opt())) {
         ptrs.push(ListSortItem {
-            item: li,
+            item: crate::globals::GraphPtr::new(li),
             idx: i,
             key: ListSortKey::Int(0),
         });
@@ -2261,12 +2261,12 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
     while let Some(cur_li) = unsafe { li.as_mut() } {
         let prev_li = cur_li.li_prev;
         let prev_si = ListSortItem {
-            item: prev_li,
+            item: crate::globals::GraphPtr::new(prev_li),
             idx: 0,
             key: ListSortKey::Int(0),
         };
         let cur_si = ListSortItem {
-            item: li,
+            item: crate::globals::GraphPtr::new(li),
             idx: 0,
             key: ListSortKey::Int(0),
         };
@@ -2295,8 +2295,8 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
     info.item_compare_numbers = false;
     info.item_compare_float = false;
     info.item_compare_func = None;
-    info.item_compare_partial = ptr::null_mut();
-    info.item_compare_selfdict = ptr::null_mut();
+    info.item_compare_partial = crate::globals::GraphPtr::NULL;
+    info.item_compare_selfdict = crate::globals::GraphPtr::NULL;
     info.item_compare_keys_ready = false;
 
     if argvars[1].v_type == VarType::VarUnknown {
@@ -2309,7 +2309,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
             info.item_compare_func = Some(crate::memory::cstr_to_cstring(s));
         }
     } else if argvars[1].v_type == VarType::VarPartial {
-        info.item_compare_partial = argvars[1].vval.v_partial();
+        info.item_compare_partial = crate::globals::GraphPtr::new(argvars[1].vval.v_partial());
     } else {
         let mut error = false;
         let nr = tv_get_number_chk(&argvars[1], Some(&mut error)) as i32;
@@ -2357,7 +2357,7 @@ fn parse_sort_uniq_args(argvars: &mut [TypVal], info: &mut Sortinfo) -> bool {
         if !tv_check_for_dict_arg(argvars, 2) {
             return false;
         }
-        info.item_compare_selfdict = argvars[2].vval.v_dict();
+        info.item_compare_selfdict = crate::globals::GraphPtr::new(argvars[2].vval.v_dict());
     }
 
     true

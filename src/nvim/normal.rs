@@ -5,7 +5,7 @@ use crate::api::private::validate::{Array, Object};
 use crate::arglist::ML_EMPTY;
 use crate::autocmd::{EVENT_CURSORMOVED, EVENT_TEXTCHANGED, apply_autocmds, has_event};
 use crate::buffer::{
-    FileBuf, GETF_ALT, GETF_SETMARK, K_OPT_JOP_FLAG_VIEW, K_SHM_FILEINFO, K_UIMESSAGES, MAXLNUM,
+    GETF_ALT, GETF_SETMARK, K_OPT_JOP_FLAG_VIEW, K_SHM_FILEINFO, K_UIMESSAGES, MAXLNUM,
     buf_get_changedtick, buf_hide, buflist_getfile, fileinfo, modifiable,
 };
 use crate::change::{
@@ -403,13 +403,13 @@ struct NvCmd {
 
 struct NormalModuleState {
     visual_mode_orig: i32,
-    current_oap: *mut Oparg,
+    current_oap: crate::globals::GraphPtr<Oparg>,
     old_showcmd_buf: [u8; SHOWCMD_BUFLEN],
     showcmd_is_clear: bool,
     showcmd_visual: bool,
-    do_check_scrollbind_old_curwin: *mut WinInfoInfo,
+    do_check_scrollbind_old_curwin: crate::globals::WinPtr,
     do_check_scrollbind_old_vtopline: Linenr,
-    do_check_scrollbind_old_buf: *mut FileBuf,
+    do_check_scrollbind_old_buf: crate::globals::BufPtr,
     do_check_scrollbind_old_leftcol: Colnr,
     nv_cmd_idx: [i16; NV_CMDS_SIZE],
     nv_max_linear: i32,
@@ -419,13 +419,13 @@ impl NormalModuleState {
     const fn new() -> Self {
         Self {
             visual_mode_orig: 0,
-            current_oap: ptr::null_mut(),
+            current_oap: crate::globals::GraphPtr::NULL,
             old_showcmd_buf: [0; SHOWCMD_BUFLEN],
             showcmd_is_clear: true,
             showcmd_visual: false,
-            do_check_scrollbind_old_curwin: ptr::null_mut(),
+            do_check_scrollbind_old_curwin: crate::globals::WinPtr::NULL,
             do_check_scrollbind_old_vtopline: 0,
-            do_check_scrollbind_old_buf: ptr::null_mut(),
+            do_check_scrollbind_old_buf: crate::globals::BufPtr::NULL,
             do_check_scrollbind_old_leftcol: 0,
             nv_cmd_idx: [0; NV_CMDS_SIZE],
             nv_max_linear: 0,
@@ -1677,7 +1677,7 @@ pub fn check_text_or_curbuf_locked(mut oap: Option<&mut Oparg>) -> bool {
 
 /// Check if an operator was started but not finished yet.
 pub fn op_pending() -> bool {
-    !unsafe { norm_st().current_oap.as_ref() }.is_some_and(|oap| {
+    !norm_st().current_oap.opt().is_some_and(|oap| {
         !g_st().finish_op
             && oap.prev_opcount == 0
             && oap.prev_count0 == 0
@@ -1691,7 +1691,7 @@ pub fn normal_enter() {
     let mut state = NormalState::new();
     normal_state_init(&mut state);
     let prev_oap = norm_st().current_oap;
-    norm_st().current_oap = &raw mut state.oa;
+    norm_st().current_oap = crate::globals::GraphPtr::from(&mut state.oa);
     state.toplevel = true;
     state_enter(&mut state);
     norm_st().current_oap = prev_oap;
@@ -3080,8 +3080,8 @@ pub fn do_check_scrollbind(check: bool) {
     if check && curwin_mut().w_onebuf_opt.wo_scb {
         if g_st().did_syncbind {
             g_st().did_syncbind = false;
-        } else if ptr::eq(curwin_ptr(), norm_st().do_check_scrollbind_old_curwin) {
-            if (ptr::eq(curwin_mut().w_buffer, norm_st().do_check_scrollbind_old_buf)
+        } else if norm_st().do_check_scrollbind_old_curwin == curwin_ptr() {
+            if (norm_st().do_check_scrollbind_old_buf == curwin_mut().w_buffer
                 || curwin_mut().w_onebuf_opt.wo_diff)
                 && (vtopline != norm_st().do_check_scrollbind_old_vtopline
                     || curwin_mut().w_leftcol != norm_st().do_check_scrollbind_old_leftcol)
@@ -3097,9 +3097,9 @@ pub fn do_check_scrollbind(check: bool) {
         curwin_mut().w_scbind_pos = vtopline;
     }
 
-    norm_st().do_check_scrollbind_old_curwin = curwin_ptr();
+    norm_st().do_check_scrollbind_old_curwin = crate::globals::WinPtr::new(curwin_ptr());
     norm_st().do_check_scrollbind_old_vtopline = vtopline;
-    norm_st().do_check_scrollbind_old_buf = curwin_mut().w_buffer;
+    norm_st().do_check_scrollbind_old_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer);
     norm_st().do_check_scrollbind_old_leftcol = curwin_mut().w_leftcol;
 }
 

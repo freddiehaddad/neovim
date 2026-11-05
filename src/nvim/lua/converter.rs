@@ -204,7 +204,7 @@ struct LuaTableProps {
 
 #[derive(Clone, Copy)]
 struct TVPopStackItem {
-    tv: *mut TypVal,
+    tv: crate::globals::GraphPtr<TypVal>,
     list_len: usize,
     container: bool,
     special: bool,
@@ -213,7 +213,7 @@ struct TVPopStackItem {
 
 #[derive(Clone, Copy)]
 struct ObjPopStackItem {
-    obj: *mut Object,
+    obj: crate::globals::GraphPtr<Object>,
     container: bool,
 }
 
@@ -696,7 +696,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
         let initial_size = lua_gettop(lstate);
         let mut stack: Vec<TVPopStackItem> = Vec::with_capacity(2);
         stack.push(TVPopStackItem {
-            tv: ret_tv,
+            tv: crate::globals::GraphPtr::from(&mut *ret_tv),
             list_len: 0,
             container: false,
             special: false,
@@ -747,7 +747,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                             tv_list_append_list(&mut *cur.tv_mut().vval.v_list(), Some(kv_pair));
                             let last = tv_list_last(Some(&*kv_pair)).unwrap();
                             cur = TVPopStackItem {
-                                tv: &mut last.li_tv,
+                                tv: crate::globals::GraphPtr::from(&mut last.li_tv),
                                 list_len: 0,
                                 container: false,
                                 special: false,
@@ -760,7 +760,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                             }
                             stack.push(cur);
                             cur = TVPopStackItem {
-                                tv: &mut di.di_tv,
+                                tv: crate::globals::GraphPtr::from(&mut di.di_tv),
                                 list_len: 0,
                                 container: false,
                                 special: false,
@@ -789,7 +789,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                     stack.push(cur);
                     let last = tv_list_last(list.as_ref()).unwrap();
                     cur = TVPopStackItem {
-                        tv: &mut last.li_tv,
+                        tv: crate::globals::GraphPtr::from(&mut last.li_tv),
                         list_len: 0,
                         container: false,
                         special: false,
@@ -854,7 +854,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                     let mut found_self_ref = false;
                     for item in &stack {
                         if item.container && lua_rawequal(lstate, -1, item.idx) != 0 {
-                            tv_copy(&*item.tv, &mut *cur.tv);
+                            tv_copy(&item.tv, &mut cur.tv);
                             cur.container = false;
                             found_self_ref = true;
                             break;
@@ -887,7 +887,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                     cur.special = table_props.has_string_with_nul;
                                     if table_props.has_string_with_nul {
                                         decode_create_map_special_dict(
-                                            &mut *cur.tv,
+                                            &mut cur.tv,
                                             table_props.string_keys_num as isize,
                                         );
                                         let val_di = tv_dict_find(
@@ -896,7 +896,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                                             4,
                                         )
                                         .unwrap();
-                                        cur.tv = &mut val_di.di_tv;
+                                        cur.tv = crate::globals::GraphPtr::from(&mut val_di.di_tv);
                                         (*cur.tv_mut().vval.v_list()).lua_table_ref = table_ref;
                                         cur.list_len = table_props.string_keys_num;
                                     } else {
@@ -931,7 +931,7 @@ pub fn nlua_pop_typval(lstate: *mut lua_State, ret_tv: &mut TypVal) -> bool {
                 LUA_TFUNCTION => {
                     let func = nlua_ref_global(lstate, -1);
                     let name = register_luafunc(func);
-                    crate::eval::typval::tv_set_string(&mut *cur.tv, Some(name));
+                    crate::eval::typval::tv_set_string(&mut cur.tv, Some(name));
                     cur.tv_mut().v_type = VarType::VarFunc;
                 }
                 LUA_TUSERDATA => {
@@ -1880,7 +1880,7 @@ pub fn nlua_pop_object_opt(
         let initial_size = lua_gettop(lstate);
         let mut stack: Vec<ObjPopStackItem> = Vec::with_capacity(2);
         stack.push(ObjPopStackItem {
-            obj: &mut ret,
+            obj: crate::globals::GraphPtr::from(&mut ret),
             container: false,
         });
 
@@ -1895,8 +1895,8 @@ pub fn nlua_pop_object_opt(
                     );
                     break;
                 }
-                if (*cur.obj).obj_type == ObjectType::ObjectTypeDict {
-                    if (*cur.obj).data.dict().size == (*cur.obj).data.dict().capacity {
+                if cur.obj.obj_type == ObjectType::ObjectTypeDict {
+                    if cur.obj.data.dict().size == cur.obj.data.dict().capacity {
                         lua_pop(lstate, 2);
                         continue;
                     }
@@ -1911,16 +1911,17 @@ pub fn nlua_pop_object_opt(
                     if next_key_found {
                         let mut len = 0usize;
                         let s = lua_tolstring(lstate, -2, &mut len);
-                        let idx = (*cur.obj).data.dict().size;
-                        (*cur.obj).data.dict_mut().size += 1;
-                        let item = &mut (*cur.obj).data.dict_mut()[idx];
+                        let idx = cur.obj.data.dict().size;
+                        cur.obj.data.dict_mut().size += 1;
+                        let item = &mut cur.obj.data.dict_mut()[idx];
                         item.key = cbuf_to_arena_str_opt(
                             arena.as_deref_mut(),
                             crate::memory::cstr_slice(s, len),
                         );
+                        let item_val_ptr = &raw mut item.value;
                         stack.push(cur);
                         cur = ObjPopStackItem {
-                            obj: &raw mut item.value,
+                            obj: crate::globals::GraphPtr::new(item_val_ptr),
                             container: false,
                         };
                     } else {
@@ -1928,17 +1929,17 @@ pub fn nlua_pop_object_opt(
                         continue;
                     }
                 } else {
-                    if (*cur.obj).data.array().size == (*cur.obj).data.array().capacity {
+                    if cur.obj.data.array().size == cur.obj.data.array().capacity {
                         lua_pop(lstate, 1);
                         continue;
                     }
-                    let idx = (*cur.obj).data.array().size;
-                    (*cur.obj).data.array_mut().size += 1;
+                    let idx = cur.obj.data.array().size;
+                    cur.obj.data.array_mut().size += 1;
                     lua_rawgeti(lstate, -1, (idx as i32) + 1);
-                    let item_ptr = &raw mut (*cur.obj).data.array_mut()[idx];
+                    let item_ptr = &raw mut cur.obj.data.array_mut()[idx];
                     stack.push(cur);
                     cur = ObjPopStackItem {
-                        obj: item_ptr,
+                        obj: crate::globals::GraphPtr::new(item_ptr),
                         container: false,
                     };
                 }
@@ -1994,7 +1995,7 @@ pub fn nlua_pop_object_opt(
                                 }),
                             };
                             if table_props.maxidx != 0 {
-                                (*cur.obj).data = ObjectData::Array(arena_array_opt(
+                                cur.obj.data = ObjectData::Array(arena_array_opt(
                                     arena.as_deref_mut(),
                                     table_props.maxidx,
                                 ));
@@ -2012,7 +2013,7 @@ pub fn nlua_pop_object_opt(
                                 }),
                             };
                             if table_props.string_keys_num != 0 {
-                                (*cur.obj).data = ObjectData::Dict(arena_dict_opt(
+                                cur.obj.data = ObjectData::Dict(arena_dict_opt(
                                     arena.as_deref_mut(),
                                     table_props.string_keys_num,
                                 ));
@@ -2303,7 +2304,7 @@ pub fn nlua_push_keydict<T>(lstate: *mut lua_State, value: &T, table: &[KeySetLi
 impl TVPopStackItem {
     #[inline]
     fn tv_mut(&self) -> &'static mut TypVal {
-        unsafe { &mut *self.tv }
+        self.tv.borrow_mut()
     }
 }
 #[cfg(test)]

@@ -286,7 +286,7 @@ struct CommandLineState {
     break_ctrl_c: bool,
     xpc: ExpandCtx,
     b_im_use_insert: Option<bool>,
-    b_im_ptr_buf: *mut FileBuf,
+    b_im_ptr_buf: crate::globals::BufPtr,
     cmdline_type: i32,
     event_cmdlineleavepre_triggered: bool,
     did_hist_navigate: bool,
@@ -320,7 +320,7 @@ impl CommandLineState {
             break_ctrl_c: false,
             xpc: ExpandCtx::new(),
             b_im_use_insert: None,
-            b_im_ptr_buf: ptr::null_mut(),
+            b_im_ptr_buf: crate::globals::BufPtr::NULL,
             cmdline_type: 0,
             event_cmdlineleavepre_triggered: false,
             did_hist_navigate: false,
@@ -346,7 +346,7 @@ impl Default for CommandLineState {
 
 #[derive(Clone)]
 struct CpBufInfo {
-    buf: *mut FileBuf,
+    buf: crate::globals::BufPtr,
     save_b_p_ma: bool,
     save_b_changed: i32,
     save_b_op_start: CursorPos,
@@ -357,7 +357,7 @@ struct CpBufInfo {
 impl CpBufInfo {
     const fn new() -> Self {
         Self {
-            buf: ptr::null_mut(),
+            buf: crate::globals::BufPtr::NULL,
             save_b_p_ma: false,
             save_b_changed: 0,
             save_b_op_start: CursorPos::new(),
@@ -376,7 +376,7 @@ impl Default for CpBufInfo {
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct CpWinInfo {
-    win: *mut WinInfoInfo,
+    win: crate::globals::WinPtr,
     save_w_cursor: CursorPos,
     save_viewstate: Viewstate,
     save_w_p_cul: bool,
@@ -386,7 +386,7 @@ struct CpWinInfo {
 impl CpWinInfo {
     const fn new() -> Self {
         Self {
-            win: ptr::null_mut(),
+            win: crate::globals::WinPtr::NULL,
             save_w_cursor: CursorPos::new(),
             save_viewstate: Viewstate::new(),
             save_w_p_cul: false,
@@ -1100,7 +1100,7 @@ fn command_line_enter(
                 (false, curbuf_mut().b_p_imsearch)
             };
             s.b_im_use_insert = Some(use_insert);
-            s.b_im_ptr_buf = g_st().curbuf;
+            s.b_im_ptr_buf = crate::globals::BufPtr::new(g_st().curbuf);
             if im_val == B_IMODE_LMAP {
                 g_st().state_global |= MODE_LANGMAP;
             }
@@ -2162,7 +2162,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 /// Handle the CTRL-^ key in the command-line mode and toggle the use of the
 /// language `:lmap` mappings and/or Input Method.
 fn command_line_toggle_langmap(s: &mut CommandLineState) {
-    let use_insert_opt = if buf_valid(unsafe { s.b_im_ptr_buf.as_ref() }) {
+    let use_insert_opt = if buf_valid(s.b_im_ptr_buf.opt()) {
         s.b_im_use_insert
     } else {
         None
@@ -2175,7 +2175,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
             } else {
                 B_IMODE_NONE
             };
-            let buf = unsafe { &mut *s.b_im_ptr_buf };
+            let buf = s.b_im_ptr_buf.borrow_mut();
             if use_insert {
                 buf.b_p_iminsert = val;
             } else {
@@ -2185,7 +2185,7 @@ fn command_line_toggle_langmap(s: &mut CommandLineState) {
     }
 
     if let Some(use_insert) = use_insert_opt {
-        if use_insert && ptr::eq(s.b_im_ptr_buf, g_st().curbuf) {
+        if use_insert && s.b_im_ptr_buf == g_st().curbuf {
             set_iminsert_global(curbuf_mut());
         } else {
             set_imsearch_global(curbuf_mut());
@@ -3016,7 +3016,7 @@ fn cmdpreview_prepare() -> CpInfo {
         if buf.b_fnum != getln_st().cmdpreview_bufnr {
             if saved_bufs.insert(buf) {
                 let mut cp_bufinfo = CpBufInfo::new();
-                cp_bufinfo.buf = buf;
+                cp_bufinfo.buf = crate::globals::BufPtr::new(buf);
                 cp_bufinfo.save_b_p_ma = buf.b_p_ma;
                 cp_bufinfo.save_b_changed = buf.b_changed;
                 cp_bufinfo.save_b_op_start = buf.b_op_start;
@@ -3026,7 +3026,7 @@ fn cmdpreview_prepare() -> CpInfo {
             }
 
             let mut cp_wininfo = CpWinInfo::new();
-            cp_wininfo.win = win;
+            cp_wininfo.win = crate::globals::WinPtr::new(win);
             cp_wininfo.save_w_cursor = win.w_cursor;
             save_viewstate(&mut *win, &mut cp_wininfo.save_viewstate);
             cp_wininfo.save_w_p_cul = win.w_onebuf_opt.wo_cul;
@@ -3056,7 +3056,7 @@ fn cmdpreview_prepare() -> CpInfo {
 /// Restore the state of buffers and windows for command preview.
 fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     for mut cp_bufinfo in cpinfo.buf_info.drain(..) {
-        let buf = unsafe { &mut *cp_bufinfo.buf };
+        let buf = cp_bufinfo.buf.borrow_mut();
 
         buf.b_changed = cp_bufinfo.save_b_changed;
 
@@ -3077,7 +3077,7 @@ fn cmdpreview_restore_state(cpinfo: &mut CpInfo) {
     }
 
     for cp_wininfo in cpinfo.win_info.drain(..) {
-        let win = unsafe { &mut *cp_wininfo.win };
+        let win = cp_wininfo.win.borrow_mut();
 
         win.w_cursor = cp_wininfo.save_w_cursor;
         restore_viewstate(&mut *win, &cp_wininfo.save_viewstate);

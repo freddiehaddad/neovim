@@ -358,7 +358,7 @@ struct VarsModuleState {
     wdone: usize,
     tdone: usize,
     vidx: usize,
-    hi: *mut Hashitem,
+    hi_idx: usize,
 }
 
 impl VarsModuleState {
@@ -490,7 +490,7 @@ impl VarsModuleState {
             wdone: 0,
             tdone: 0,
             vidx: 0,
-            hi: ptr::null_mut(),
+            hi_idx: 0,
         }
     }
 }
@@ -2291,69 +2291,75 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     }
 
     if vars_st().gdone < vars_st().globvardict.dv_hashtab.ht_used {
+        let arr = get_globvar_ht().ht_array.as_slice();
         if vars_st().gdone == 0 {
-            vars_st().hi = get_globvar_ht().array_ptr();
+            vars_st().hi_idx = 0;
         } else {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+            vars_st().hi_idx += 1;
         }
         vars_st().gdone += 1;
-        while hashitem_empty(unsafe { &*vars_st().hi }) {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+        while hashitem_empty(&arr[vars_st().hi_idx]) {
+            vars_st().hi_idx += 1;
         }
-        let hi_key = unsafe { (*vars_st().hi).key_cstr() };
+        let hi_key = arr[vars_st().hi_idx].key_cstr();
         if xp.xp_pattern.as_bytes().starts_with(b"g:") {
             return Some(cat_prefix_varname(b'g' as i32, hi_key));
         }
         return hi_key;
     }
 
-    let mut ht: *const Hashtab =
-        unsafe { &raw const (*prevwin_curwin().w_buffer).b_vars().dv_hashtab };
-    if vars_st().bdone < unsafe { (*ht).ht_used } {
+    let ht = unsafe { &(*prevwin_curwin().w_buffer).b_vars().dv_hashtab };
+    if vars_st().bdone < ht.ht_used {
+        let arr = ht.ht_array.as_slice();
         if vars_st().bdone == 0 {
-            vars_st().hi = unsafe { (*ht).array_ptr() };
+            vars_st().hi_idx = 0;
         } else {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+            vars_st().hi_idx += 1;
         }
         vars_st().bdone += 1;
-        while hashitem_empty(unsafe { &*vars_st().hi }) {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+        while hashitem_empty(&arr[vars_st().hi_idx]) {
+            vars_st().hi_idx += 1;
         }
-        return Some(cat_prefix_varname(b'b' as i32, unsafe {
-            (*vars_st().hi).key_cstr()
-        }));
+        return Some(cat_prefix_varname(
+            b'b' as i32,
+            arr[vars_st().hi_idx].key_cstr(),
+        ));
     }
 
-    ht = &raw const (*prevwin_curwin()).w_vars().dv_hashtab;
-    if vars_st().wdone < unsafe { (*ht).ht_used } {
+    let ht = &prevwin_curwin().w_vars().dv_hashtab;
+    if vars_st().wdone < ht.ht_used {
+        let arr = ht.ht_array.as_slice();
         if vars_st().wdone == 0 {
-            vars_st().hi = unsafe { (*ht).array_ptr() };
+            vars_st().hi_idx = 0;
         } else {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+            vars_st().hi_idx += 1;
         }
         vars_st().wdone += 1;
-        while hashitem_empty(unsafe { &*vars_st().hi }) {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+        while hashitem_empty(&arr[vars_st().hi_idx]) {
+            vars_st().hi_idx += 1;
         }
-        return Some(cat_prefix_varname(b'w' as i32, unsafe {
-            (*vars_st().hi).key_cstr()
-        }));
+        return Some(cat_prefix_varname(
+            b'w' as i32,
+            arr[vars_st().hi_idx].key_cstr(),
+        ));
     }
 
-    ht = &raw const curtab_mut().tp_vars().dv_hashtab;
-    if vars_st().tdone < unsafe { (*ht).ht_used } {
+    let ht = &curtab_mut().tp_vars().dv_hashtab;
+    if vars_st().tdone < ht.ht_used {
+        let arr = ht.ht_array.as_slice();
         if vars_st().tdone == 0 {
-            vars_st().hi = unsafe { (*ht).array_ptr() };
+            vars_st().hi_idx = 0;
         } else {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+            vars_st().hi_idx += 1;
         }
         vars_st().tdone += 1;
-        while hashitem_empty(unsafe { &*vars_st().hi }) {
-            vars_st().hi = vars_st().hi.wrapping_add(1);
+        while hashitem_empty(&arr[vars_st().hi_idx]) {
+            vars_st().hi_idx += 1;
         }
-        return Some(cat_prefix_varname(b't' as i32, unsafe {
-            (*vars_st().hi).key_cstr()
-        }));
+        return Some(cat_prefix_varname(
+            b't' as i32,
+            arr[vars_st().hi_idx].key_cstr(),
+        ));
     }
 
     if vars_st().vidx < VV_LEN {

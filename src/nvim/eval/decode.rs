@@ -38,7 +38,7 @@ use crate::mpack::conv::{
 #[derive(Clone, Copy)]
 struct JsonContainerStackItem {
     stack_index: usize,
-    special_val: *mut TvList,
+    special_val: crate::globals::TvListPtr,
     s: usize,
     container: TypVal,
 }
@@ -46,7 +46,7 @@ struct JsonContainerStackItem {
 impl JsonContainerStackItem {
     #[inline]
     fn special_val_opt(&self) -> Option<&'static mut TvList> {
-        unsafe { self.special_val.as_mut() }
+        self.special_val.opt_mut()
     }
 }
 
@@ -860,7 +860,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         stack_index: stack.len(),
                         s: p,
                         container: tv,
-                        special_val: std::ptr::null_mut(),
+                        special_val: crate::globals::TvListPtr::NULL,
                     });
                     stack.push(ValuesStackItem {
                         is_special_string: false,
@@ -892,7 +892,7 @@ pub fn json_decode_string(buf: &[u8], rettv: &mut TypVal) -> bool {
                         stack_index: stack.len(),
                         s: p,
                         container: tv,
-                        special_val: val_list,
+                        special_val: crate::globals::TvListPtr::new(val_list),
                     });
                     stack.push(ValuesStackItem {
                         is_special_string: false,

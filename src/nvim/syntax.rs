@@ -421,9 +421,9 @@ struct SyntaxState {
     next_match_eoe_pos: Lpos,
     next_match_end_idx: i32,
     next_match_extmatch: Option<std::rc::Rc<RegExtmatch>>,
-    syn_win: *mut WinInfoInfo,
-    syn_buf: *mut FileBuf,
-    syn_block: *mut Synblock,
+    syn_win: crate::globals::WinPtr,
+    syn_buf: crate::globals::BufPtr,
+    syn_block: crate::globals::GraphPtr<Synblock>,
     syn_tm: Option<Proftime>,
     current_lnum: Linenr,
     current_col: Colnr,
@@ -442,7 +442,7 @@ struct SyntaxState {
 impl SyntaxState {
     #[inline]
     fn syn_buf_mut(&self) -> &'static mut FileBuf {
-        unsafe { &mut *self.syn_buf }
+        self.syn_buf.borrow_mut()
     }
 }
 
@@ -473,9 +473,9 @@ impl SyntaxState {
             next_match_eoe_pos: Lpos { lnum: 0, col: 0 },
             next_match_end_idx: 0,
             next_match_extmatch: None,
-            syn_win: ptr::null_mut(),
-            syn_buf: ptr::null_mut(),
-            syn_block: ptr::null_mut(),
+            syn_win: crate::globals::WinPtr::NULL,
+            syn_buf: crate::globals::BufPtr::NULL,
+            syn_block: crate::globals::GraphPtr::NULL,
             syn_tm: None,
             current_lnum: 0,
             current_col: 0,
@@ -507,7 +507,7 @@ pub fn win_s(wp: &mut WinInfoInfo) -> &'static mut Synblock {
 
 #[inline]
 fn syn_block_mut() -> &'static mut Synblock {
-    unsafe { &mut *syn_st().syn_block }
+    syn_st().syn_block.borrow_mut()
 }
 
 #[inline]
@@ -575,11 +575,11 @@ pub fn syntax_start(wp: &mut WinInfoInfo, lnum: Linenr) {
         || syn_st().changedtick_last != buf_get_changedtick(syn_st().syn_buf_mut())
     {
         invalidate_current_state();
-        syn_st().syn_buf = wp.w_buffer;
-        syn_st().syn_block = win_s(wp);
+        syn_st().syn_buf = crate::globals::BufPtr::new(wp.w_buffer);
+        syn_st().syn_block = crate::globals::GraphPtr::new(win_s(wp));
     }
     syn_st().changedtick_last = buf_get_changedtick(syn_st().syn_buf_mut());
-    syn_st().syn_win = (&raw mut *wp);
+    syn_st().syn_win = crate::globals::WinPtr::from(&mut *wp);
 
     syn_stack_alloc();
     if syn_block_mut().b_sst_max == 0 {
@@ -735,7 +735,7 @@ fn syn_sync(wp: &mut WinInfoInfo, mut start_lnum: Linenr, last_valid: Option<&Sy
         let curwin_save = curwin_ptr();
         set_curwin(&raw mut *wp);
         let curbuf_save = g_st().curbuf;
-        g_st().curbuf = syn_st().syn_buf;
+        g_st().curbuf = syn_st().syn_buf.as_ptr();
 
         while start_lnum > 1 {
             if crate::memline::ml_get_slice(start_lnum - 1).last() != Some(&b'\\') {
@@ -895,11 +895,11 @@ fn save_chartab(chartab: &mut [u64; 4]) {
     }
 
     *chartab = syn_st().syn_buf_mut().b_chartab;
-    syn_st().syn_buf_mut().b_chartab = win_s(unsafe { &mut *syn_st().syn_win }).b_syn_chartab;
+    syn_st().syn_buf_mut().b_chartab = win_s(syn_st().syn_win.borrow_mut()).b_syn_chartab;
 }
 
 fn restore_chartab(chartab: &[u64; 4]) {
-    if win_s(unsafe { &mut *syn_st().syn_win }).b_syn_isk.is_some() {
+    if win_s(syn_st().syn_win.borrow_mut()).b_syn_isk.is_some() {
         syn_st().syn_buf_mut().b_chartab = *chartab;
     }
 }
@@ -2483,7 +2483,7 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
     }
 
     rmp.rmm_maxcol = syn_st().syn_buf_mut().b_p_smc as Colnr;
-    let syn_win = unsafe { syn_st().syn_win.as_mut() };
+    let syn_win = syn_st().syn_win.opt_mut();
     let syn_buf = syn_st().syn_buf_mut();
     let r = vim_regexec_multi(
         rmp,
@@ -2506,8 +2506,8 @@ fn syn_regexec(rmp: &mut Regmmatch, lnum: Linenr, col: Colnr, st: &mut SynTime) 
             st.match_ += 1;
         }
     }
-    if timed_out != 0 && !win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow {
-        win_s(unsafe { &mut *syn_st().syn_win }).b_syn_slow = true;
+    if timed_out != 0 && !win_s(syn_st().syn_win.borrow_mut()).b_syn_slow {
+        win_s(syn_st().syn_win.borrow_mut()).b_syn_slow = true;
         msg(
             gettext(c"'redrawtime' exceeded, syntax highlighting disabled"),
             0,
@@ -5147,8 +5147,8 @@ pub fn syn_get_id(
     spellp: Option<&mut bool>,
     keep_state: i32,
 ) -> i32 {
-    if (&raw mut *wp) != syn_st().syn_win
-        || wp.w_buffer != syn_st().syn_buf
+    if syn_st().syn_win != wp
+        || syn_st().syn_buf != wp.w_buffer
         || lnum != syn_st().current_lnum
         || col < syn_st().current_col
     {

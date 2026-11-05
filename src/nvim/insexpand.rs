@@ -341,7 +341,7 @@ impl CptFuncSource {
 struct InsComplNextState {
     e_cpt_copy: Vec<u8>,
     e_cpt_idx: usize,
-    ins_buf: *mut FileBuf,
+    ins_buf: crate::globals::BufPtr,
     cur_match_forward: bool,
     prev_match_pos: CursorPos,
     set_match_pos: bool,
@@ -358,7 +358,7 @@ impl InsComplNextState {
         Self {
             e_cpt_copy: Vec::new(),
             e_cpt_idx: 0,
-            ins_buf: ptr::null_mut(),
+            ins_buf: crate::globals::BufPtr::NULL,
             cur_match_forward: false,
             prev_match_pos: CursorPos::new(),
             set_match_pos: false,
@@ -463,8 +463,8 @@ struct InsexpandState {
     compl_orig_extmarks: Vec<ExtmarkUndoObject>,
     compl_cont_mode: i32,
     compl_xp: ExpandCtx,
-    compl_curr_win: *mut WinInfoInfo,
-    compl_curr_buf: *mut FileBuf,
+    compl_curr_win: crate::globals::WinPtr,
+    compl_curr_buf: crate::globals::BufPtr,
     compl_autocomplete: bool,
     compl_autostarted: bool,
     compl_autostart_pending: bool,
@@ -483,7 +483,7 @@ struct InsexpandState {
     compl_match_array: Vec<Pumitem>,
     cpt_cb: Vec<Callback>,
     adjusted_leader: NvimString,
-    next_buf_wp: *mut WinInfoInfo,
+    next_buf_wp: crate::globals::WinPtr,
     next_state: InsComplNextState,
     next_state_cleared: bool,
     match_ref: [u8; 81],
@@ -529,8 +529,8 @@ impl InsexpandState {
             compl_orig_extmarks: Vec::new(),
             compl_cont_mode: 0,
             compl_xp: ExpandCtx::new(),
-            compl_curr_win: ptr::null_mut(),
-            compl_curr_buf: ptr::null_mut(),
+            compl_curr_win: crate::globals::WinPtr::NULL,
+            compl_curr_buf: crate::globals::BufPtr::NULL,
             compl_autocomplete: false,
             compl_autostarted: false,
             compl_autostart_pending: false,
@@ -549,7 +549,7 @@ impl InsexpandState {
             compl_match_array: Vec::new(),
             cpt_cb: Vec::new(),
             adjusted_leader: empty_nvim_string(),
-            next_buf_wp: ptr::null_mut(),
+            next_buf_wp: crate::globals::WinPtr::NULL,
             next_state: InsComplNextState::new(),
             next_state_cleared: false,
             match_ref: [0; 81],
@@ -2382,8 +2382,8 @@ pub fn ins_compl_clear() {
     insexp().compl_selected_item = -1;
     insexp().compl_ins_end_col = 0;
     insexp().compl_longest_end_col = 0;
-    insexp().compl_curr_win = ptr::null_mut();
-    insexp().compl_curr_buf = ptr::null_mut();
+    insexp().compl_curr_win = crate::globals::WinPtr::NULL;
+    insexp().compl_curr_buf = crate::globals::BufPtr::NULL;
     insexp().compl_pattern = None;
     api_clear_string(&mut insexp().compl_leader);
     g_st().edit_submode_extra = None;
@@ -2404,9 +2404,7 @@ pub fn ins_compl_active() -> bool {
 }
 
 pub fn ins_compl_win_active(wp: &mut WinInfoInfo) -> bool {
-    ins_compl_active()
-        && ptr::eq(wp, insexp().compl_curr_win)
-        && ptr::eq(wp.w_buffer, insexp().compl_curr_buf)
+    ins_compl_active() && insexp().compl_curr_win == wp && insexp().compl_curr_buf == wp.w_buffer
 }
 
 pub fn ins_compl_used_match() -> bool {
@@ -3029,19 +3027,19 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
 fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf {
     let mut buf: *mut FileBuf = buf_arg;
     if flag == b'w' as i32 {
-        if ptr::eq(buf, g_st().curbuf) || !win_valid(unsafe { insexp().next_buf_wp.as_ref() }) {
-            insexp().next_buf_wp = curwin_ptr();
+        if ptr::eq(buf, g_st().curbuf) || !win_valid(insexp().next_buf_wp.opt()) {
+            insexp().next_buf_wp = crate::globals::WinPtr::new(curwin_ptr());
         }
 
         debug_assert!(!insexp().next_buf_wp.is_null());
         loop {
             let wp = insexp().next_buf_wp;
-            let next_wp = if unsafe { !(*wp).w_next.is_null() } {
-                unsafe { (*wp).w_next }
+            let next_wp = if !wp.w_next.is_null() {
+                wp.w_next
             } else {
                 g_st().firstwin
             };
-            insexp().next_buf_wp = next_wp;
+            insexp().next_buf_wp = crate::globals::WinPtr::new(next_wp);
             if ptr::eq(next_wp, curwin_ptr())
                 || (unsafe { !(*next_wp).buf_mut().b_scanned && (*next_wp).w_config.focusable })
             {
@@ -3049,7 +3047,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             }
         }
 
-        buf = unsafe { (*insexp().next_buf_wp).w_buffer };
+        buf = insexp().next_buf_wp.w_buffer;
     } else {
         loop {
             buf = if unsafe { !(*buf).b_next.is_null() } {
@@ -3847,10 +3845,10 @@ fn process_next_cpt_value(
         && !skip_source
         && !insexp().compl_time_slice_expired
     {
-        st.ins_buf = g_st().curbuf;
+        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
         st.first_match_pos = *start_match_pos;
         if ctrl_x_mode_normal() && !fuzzy_collect && dec(&mut st.first_match_pos) < 0 {
-            st.first_match_pos.lnum = unsafe { (*st.ins_buf).b_ml.ml_line_count };
+            st.first_match_pos.lnum = st.ins_buf.b_ml.ml_line_count;
 
             st.first_match_pos.col = ml_get_len(st.first_match_pos.lnum);
         }
@@ -3861,12 +3859,14 @@ fn process_next_cpt_value(
         && !insexp().compl_time_slice_expired
         && crate::strings::vim_haschr(c"buwU", i32::from(st.e_cpt_char()))
         && {
-            st.ins_buf =
-                ins_compl_next_buf(unsafe { &mut *st.ins_buf }, i32::from(st.e_cpt_char()));
-            !ptr::eq(st.ins_buf, g_st().curbuf)
+            st.ins_buf = crate::globals::BufPtr::new(ins_compl_next_buf(
+                st.ins_buf.borrow_mut(),
+                i32::from(st.e_cpt_char()),
+            ));
+            st.ins_buf != g_st().curbuf
         }
     {
-        let ins_buf = unsafe { &*st.ins_buf };
+        let ins_buf = st.ins_buf.borrow();
         if ins_buf.b_ml.ml_mfp.is_some() {
             insexp().compl_started = true;
             st.first_match_pos.col = 0;
@@ -4454,11 +4454,11 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let in_fuzzy_collect = !compl_status_adding() && cot_fuzzy() && insexp().compl_length > 0;
     let leader_slice = ins_compl_leader_slice();
     let mut score = FUZZY_SCORE_NONE;
-    let in_curbuf = ptr::eq(st.ins_buf, g_st().curbuf);
+    let in_curbuf = st.ins_buf == g_st().curbuf;
 
     let save_p_scs = opt_vars().p_scs;
     debug_assert!(!st.ins_buf.is_null());
-    if unsafe { (*st.ins_buf).b_p_inf } {
+    if st.ins_buf.b_p_inf {
         opt_vars().p_scs = false;
     }
 
@@ -4472,7 +4472,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
     let mut found_new_match: bool;
     loop {
         let mut cont_s_ipos = false;
-        let ins_buf_ref = unsafe { &mut *st.ins_buf };
+        let ins_buf_ref = st.ins_buf.borrow_mut();
 
         g_st().msg_silent += 1;
 
@@ -4556,7 +4556,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
 
         if !in_fuzzy_collect {
             matched_slice = ins_compl_get_next_word_or_line(
-                unsafe { &mut *st.ins_buf },
+                st.ins_buf.borrow_mut(),
                 &mut *st.cur_match_pos_ptr(),
                 &mut len,
                 &mut cont_s_ipos,
@@ -4582,7 +4582,7 @@ fn get_next_default_completion(st: &mut InsComplNextState, start_pos: &mut Curso
             if in_curbuf {
                 None
             } else {
-                unsafe { (*st.ins_buf).sfname_opt() }
+                st.ins_buf.sfname_opt()
             },
             0,
             cont_s_ipos,
@@ -4776,7 +4776,7 @@ fn get_next_completion_match(type_: i32, st: &mut InsComplNextState, ini: &mut C
         }
         _ => {
             found_new_match = get_next_default_completion(st, ini);
-            if !found_new_match && ptr::eq(st.ins_buf, g_st().curbuf) {
+            if !found_new_match && st.ins_buf == g_st().curbuf {
                 st.found_all = true;
             }
         }
@@ -4921,7 +4921,7 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             insexp().next_state_cleared = true;
         }
         st.found_all = false;
-        st.ins_buf = g_st().curbuf;
+        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
         let mut e_cpt_copy: Vec<u8> = if (insexp().compl_cont_status & CONT_LOCAL) != 0 {
             c".".to_owned().into_bytes_with_nul()
         } else {
@@ -4937,8 +4937,8 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
         }
         st.first_match_pos = start_pos;
         st.last_match_pos = start_pos;
-    } else if !ptr::eq(st.ins_buf, g_st().curbuf) && !buf_valid(unsafe { st.ins_buf.as_ref() }) {
-        st.ins_buf = g_st().curbuf;
+    } else if st.ins_buf != g_st().curbuf && !buf_valid(st.ins_buf.opt()) {
+        st.ins_buf = crate::globals::BufPtr::new(g_st().curbuf);
     }
     debug_assert!(!st.ins_buf.is_null());
 
@@ -5032,12 +5032,8 @@ fn ins_compl_get_exp(ini: &mut CursorPos) -> i32 {
             }
             insexp().compl_started = !insexp().compl_time_slice_expired;
         } else {
-            if buf_valid(unsafe { st.ins_buf.as_ref() })
-                && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS)
-            {
-                unsafe {
-                    (*st.ins_buf).b_scanned = true;
-                }
+            if buf_valid(st.ins_buf.opt()) && (type_ == 0 || type_ == CTRL_X_PATH_PATTERNS) {
+                st.ins_buf.b_scanned = true;
             }
 
             insexp().compl_started = false;
@@ -6436,8 +6432,8 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
         return false;
     }
 
-    insexp().compl_curr_win = curwin_ptr();
-    insexp().compl_curr_buf = curwin_mut().w_buffer;
+    insexp().compl_curr_win = crate::globals::WinPtr::new(curwin_ptr());
+    insexp().compl_curr_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer);
     insexp().compl_shown_idx = insexp().compl_curr_idx;
     insexp().compl_shows_dir = insexp().compl_direction;
     insexp().compl_num_bests = 0;

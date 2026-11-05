@@ -38,14 +38,13 @@ use crate::path::path_with_url;
 use crate::sign::{buf_has_signs, get_buffer_signs};
 use crate::strings::concat_str;
 use crate::undo::{buf_is_changed_fn, u_clearallandblockfree, u_save, u_savesub, u_sync};
-use crate::window::WinInfoInfo;
 use std::ptr;
 
 pub(crate) const SEA_READONLY: i32 = 4;
 
 #[repr(C)]
 struct Cob {
-    cob_curwin_save: *mut WinInfoInfo,
+    cob_curwin_save: crate::globals::WinPtr,
     cob_aco: CtxSwitch,
     cob_using_aco: i32,
     cob_save_visual_active: bool,
@@ -54,7 +53,7 @@ struct Cob {
 impl Cob {
     const fn new() -> Self {
         Self {
-            cob_curwin_save: ptr::null_mut(),
+            cob_curwin_save: crate::globals::WinPtr::NULL,
             cob_aco: CtxSwitch::new(),
             cob_using_aco: 0,
             cob_save_visual_active: false,
@@ -110,7 +109,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
 
     cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
-    cob.cob_curwin_save = curwin_ptr();
+    cob.cob_curwin_save = crate::globals::WinPtr::new(curwin_ptr());
     g_st().curbuf = buf_ptr;
     find_win_for_curbuf();
 
@@ -125,7 +124,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
     if cob.cob_using_aco != 0 {
         ctx_restore(&mut cob.cob_aco);
     } else {
-        set_curwin(cob.cob_curwin_save);
+        set_curwin(cob.cob_curwin_save.as_ptr());
         g_st().curbuf = curwin_mut().w_buffer;
     }
     g_st().visual_global.active = cob.cob_save_visual_active;

@@ -244,10 +244,10 @@ struct RetainedFunccall(Box<Funccall>);
 struct UserfuncState {
     func_hashtab: FuncHashtab,
     func_hashtab_changed: i32,
-    funcargs: Vec<*mut TypVal>,
-    current_funccal: *mut Funccall,
+    funcargs: Vec<crate::globals::GraphPtr<TypVal>>,
+    current_funccal: crate::globals::GraphPtr<Funccall>,
     previous_funccal: Vec<RetainedFunccall>,
-    funccal_stack: Vec<*mut Funccall>,
+    funccal_stack: Vec<crate::globals::GraphPtr<Funccall>>,
     lambda_name: [u8; 8 + NUMBUFLEN],
     lambda_no: i32,
     made_copy: i32,
@@ -255,7 +255,7 @@ struct UserfuncState {
     func_nr: i32,
     get_uf_done: usize,
     get_uf_changed: i32,
-    get_uf_items: Vec<*mut UserFunc>,
+    get_uf_items: Vec<crate::globals::GraphPtr<UserFunc>>,
 }
 
 impl UserfuncState {
@@ -264,7 +264,7 @@ impl UserfuncState {
             func_hashtab: std::collections::BTreeMap::new(),
             func_hashtab_changed: 0,
             funcargs: Vec::new(),
-            current_funccal: ptr::null_mut(),
+            current_funccal: crate::globals::GraphPtr::NULL,
             previous_funccal: Vec::new(),
             funccal_stack: Vec::new(),
             lambda_name: [0; 8 + NUMBUFLEN],
@@ -512,7 +512,7 @@ fn register_closure(fp: &mut UserFunc) {
         return;
     }
     funccal_unref(fp.uf_scoped.opt_mut(), fp, false);
-    fp.uf_scoped = crate::globals::GraphPtr::new(uf_st().current_funccal);
+    fp.uf_scoped = uf_st().current_funccal;
     cur_funccal_mut().fc_refcount += 1;
     cur_funccal_mut()
         .fc_ufuncs
@@ -845,7 +845,9 @@ pub fn get_func_tv(
 
         if get_vim_var_nr(VV_TESTING) != 0 {
             while (i as i32) < argcount {
-                uf_st().funcargs.push(&raw mut argvars[i]);
+                uf_st()
+                    .funcargs
+                    .push(crate::globals::GraphPtr::from(&mut argvars[i]));
                 i += 1;
             }
         }
@@ -1036,7 +1038,7 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
-    uf_st().current_funccal = fc.fc_caller.as_ptr();
+    uf_st().current_funccal = fc.fc_caller;
 
     if may_free_fc && fc.fc_l_vars.dv_refcount == DO_NOT_FREE_CNT {
         vars_clear(&mut fc.fc_l_vars.dv_hashtab);
@@ -1181,8 +1183,8 @@ fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
 pub fn create_funccal(fp: Option<&mut UserFunc>, rettv: &mut TypVal) -> &'static mut Funccall {
     let fp_ptr = fp.map_or(ptr::null_mut(), ptr::from_mut);
     let fc = Box::leak(Box::new(Funccall::new()));
-    fc.fc_caller = crate::globals::GraphPtr::from(uf_st().current_funccal);
-    uf_st().current_funccal = fc;
+    fc.fc_caller = uf_st().current_funccal;
+    uf_st().current_funccal = crate::globals::GraphPtr::from(&mut *fc);
     fc.fc_func = crate::globals::GraphPtr::from(fp_ptr);
     func_ptr_ref(unsafe { fp_ptr.as_mut() });
     fc.fc_rettv = crate::globals::GraphPtr::from(rettv);
@@ -1456,7 +1458,7 @@ pub fn call_user_func(
         );
     }
 
-    handle_defer_one(unsafe { &mut *uf_st().current_funccal });
+    handle_defer_one(uf_st().current_funccal.borrow_mut());
 
     g_st().redrawing_disabled -= 1;
 
@@ -1617,7 +1619,7 @@ fn call_user_func_check(
 /// Save the current function call pointer, and set it to NULL.
 pub fn save_funccal() {
     uf_st().funccal_stack.push(uf_st().current_funccal);
-    uf_st().current_funccal = ptr::null_mut();
+    uf_st().current_funccal = crate::globals::GraphPtr::NULL;
 }
 
 pub fn restore_funccal() {
@@ -1629,17 +1631,17 @@ pub fn restore_funccal() {
 }
 
 pub fn get_current_funccal() -> Option<&'static mut Funccall> {
-    unsafe { uf_st().current_funccal.as_mut() }
+    uf_st().current_funccal.opt_mut()
 }
 
 pub fn set_current_funccal(fc: Option<&mut Funccall>) {
-    uf_st().current_funccal = fc.map_or(ptr::null_mut(), ptr::from_mut);
+    uf_st().current_funccal = crate::globals::GraphPtr::from(fc);
 }
 
 pub fn free_all_functions() {
     while !uf_st().current_funccal.is_null() {
         tv_clear(cur_funccal_mut().rettv_mut());
-        cleanup_function_call(unsafe { &mut *uf_st().current_funccal });
+        cleanup_function_call(uf_st().current_funccal.borrow_mut());
         if uf_st().current_funccal.is_null() && !uf_st().funccal_stack.is_empty() {
             restore_funccal();
         }
@@ -3373,13 +3375,18 @@ pub fn function_exists(name: &CStr, no_deref: bool) -> bool {
 pub fn get_user_func_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if idx == 0 {
         uf_st().get_uf_done = 0;
-        uf_st().get_uf_items = uf_st().func_hashtab.values().copied().collect();
+        uf_st().get_uf_items = uf_st()
+            .func_hashtab
+            .values()
+            .copied()
+            .map(crate::globals::GraphPtr::new)
+            .collect();
         uf_st().get_uf_changed = uf_st().func_hashtab_changed;
     }
     if uf_st().get_uf_changed == uf_st().func_hashtab_changed
         && uf_st().get_uf_done < uf_st().get_uf_items.len()
     {
-        let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done];
+        let fp = uf_st().get_uf_items.as_slice()[uf_st().get_uf_done].as_ptr();
         let fp = unsafe { &mut *fp };
         uf_st().get_uf_done += 1;
 
@@ -3794,32 +3801,28 @@ fn handle_defer_one(funccal: &mut Funccall) {
     funccal.fc_defer.clear();
 }
 
-pub struct FunccalCallerMutIter(*mut Funccall);
+pub struct FunccalCallerMutIter(crate::globals::GraphPtr<Funccall>);
 
 impl Iterator for FunccalCallerMutIter {
     type Item = &'static mut Funccall;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = self.0;
-        if cur.is_null() {
-            None
-        } else {
-            self.0 = unsafe { (*cur).fc_caller.as_ptr() };
-            Some(unsafe { &mut *cur })
-        }
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.fc_caller;
+        Some(cur)
     }
 }
 
-pub struct FunccalScopedMutIter(*mut Funccall);
+pub struct FunccalScopedMutIter(crate::globals::GraphPtr<Funccall>);
 
 impl Iterator for FunccalScopedMutIter {
     type Item = &'static mut Funccall;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        let cur = unsafe { self.0.as_mut()? };
-        self.0 = cur.fc_func.uf_scoped.as_ptr();
+        let cur = self.0.opt_mut()?;
+        self.0 = cur.fc_func.uf_scoped;
         Some(cur)
     }
 }
@@ -4169,7 +4172,7 @@ pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
 }
 
 pub fn get_funccal() -> Option<&'static mut Funccall> {
-    let mut funccal = uf_st().current_funccal;
+    let mut funccal = uf_st().current_funccal.as_ptr();
     if g_st().debug_backtrace_level > 0 {
         for i in 0..g_st().debug_backtrace_level {
             if let Some(temp_funccal) = unsafe { funccal.as_ref() }.and_then(|fc| fc.caller_opt()) {
@@ -4249,7 +4252,7 @@ pub fn find_hi_in_scoped_ht(
     let namelen = name.to_bytes().len();
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
+    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped;
     while !uf_st().current_funccal.is_null() {
         let ht = find_var_ht(name, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
@@ -4271,7 +4274,7 @@ pub fn find_hi_in_scoped_ht(
         if uf_st().current_funccal == next_scoped {
             break;
         }
-        uf_st().current_funccal = next_scoped;
+        uf_st().current_funccal = crate::globals::GraphPtr::new(next_scoped);
     }
     uf_st().current_funccal = old_current_funccal;
 
@@ -4289,7 +4292,7 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
     let old_current_funccal = uf_st().current_funccal;
     let mut varname_opt: Option<&CStr> = None;
 
-    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped.as_ptr();
+    uf_st().current_funccal = cur_funccal_mut().fc_func.uf_scoped;
     while !uf_st().current_funccal.is_null() {
         let ht = find_var_ht(&name_cstr, namelen, &mut varname_opt);
         if let Some(ht_ref) = ht
@@ -4311,7 +4314,7 @@ pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'st
         if uf_st().current_funccal == next_scoped {
             break;
         }
-        uf_st().current_funccal = next_scoped;
+        uf_st().current_funccal = crate::globals::GraphPtr::new(next_scoped);
     }
     uf_st().current_funccal = old_current_funccal;
 
@@ -4395,7 +4398,7 @@ pub fn set_ref_in_functions(copy_id: i32) -> bool {
 
 pub fn set_ref_in_func_args(copy_id: i32) -> bool {
     for &tv in &uf_st().funcargs {
-        if set_ref_in_item(unsafe { &mut *tv }, copy_id, None, None) {
+        if set_ref_in_item(tv.borrow_mut(), copy_id, None, None) {
             return true;
         }
     }
@@ -4419,7 +4422,7 @@ pub fn set_ref_in_func(name: Option<&CStr>, fp_in: Option<&mut UserFunc>, copy_i
         fp = find_func(Some(fname));
     }
     if let Some(fp_ref) = fp {
-        for fc in FunccalScopedMutIter(fp_ref.uf_scoped.as_ptr()) {
+        for fc in FunccalScopedMutIter(fp_ref.uf_scoped) {
             abort = abort || set_ref_in_funccal(fc, copy_id);
         }
     }
@@ -4446,7 +4449,7 @@ pub fn register_luafunc(ref_: LuaRef) -> &'static std::ffi::CStr {
 
 #[inline]
 pub fn cur_funccal_mut() -> &'static mut Funccall {
-    unsafe { &mut *uf_st().current_funccal }
+    uf_st().current_funccal.borrow_mut()
 }
 #[cfg(test)]
 mod tests {
