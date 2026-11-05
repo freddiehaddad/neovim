@@ -2089,9 +2089,7 @@ pub fn f_getenv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 pub fn f_eval(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut s = tv_get_string_chk(&argvars[0]).map_or(ptr::null_mut(), |c| c.as_ptr().cast_mut());
     if !s.is_null() {
-        s = s.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            s.cast(),
-        )));
+        s = crate::charset::skipwhite_ptr(s);
     }
     let expr_start = s;
     let mut s_cstr = if s.is_null() {
@@ -8249,12 +8247,7 @@ pub fn f_str2float(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
     let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
     let isneg = crate::memory::cstr_first_byte(p) == b'-';
     if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = {
-            let _sw_p = p.wrapping_add(1);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
     }
     string2float(unsafe { CStr::from_ptr(p) }, rettv.vval.v_float_mut());
     if isneg {

@@ -2220,13 +2220,7 @@ pub fn readfile(
                                     if unsafe { *p } < 0x80 {
                                         u8c = u32::from(unsafe { *p });
                                     } else {
-                                        let len = {
-                                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                                ptr.cast(),
-                                                p.cast(),
-                                            );
-                                            crate::mbyte::utf_head_off(_b, _i)
-                                        };
+                                        let len = crate::mbyte::utf_head_off_ptr(ptr, p);
                                         p = p.wrapping_offset(-(len as isize));
                                         u8c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()))
                                             as u32;
@@ -3517,13 +3511,10 @@ pub fn modname(
             ptr_idx += 1;
             break;
         }
-        let head_off = {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                retval_vec.as_ptr().cast(),
-                retval_vec[(ptr_idx - 1)..].as_ptr().cast(),
-            );
-            crate::mbyte::utf_head_off(_b, _i)
-        } as usize;
+        let head_off = crate::mbyte::utf_head_off_ptr(
+            retval_vec.as_ptr(),
+            retval_vec[(ptr_idx - 1)..].as_ptr(),
+        ) as usize;
         ptr_idx -= head_off + 1;
     }
 

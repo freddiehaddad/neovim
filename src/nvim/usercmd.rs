@@ -1138,9 +1138,7 @@ pub fn ex_command(eap: &mut Exarg) {
 
     while crate::memory::cstr_first_byte(p) == b'-' {
         p = p.wrapping_add(1);
-        let end = p.wrapping_add(crate::charset::skiptowhite_len(
-            crate::memory::cstr_as_bytes(p.cast()),
-        ));
+        let end = crate::charset::skiptowhite_ptr(p);
         let attr_len = crate::memory::ptr_offset_from(end, p) as usize;
         if !uc_scan_attr(
             crate::memory::cstr_slice(p, attr_len),
@@ -1153,9 +1151,7 @@ pub fn ex_command(eap: &mut Exarg) {
         ) {
             return;
         }
-        p = end.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            end.cast(),
-        )));
+        p = crate::charset::skipwhite_ptr(end);
     }
 
     let name = p;
@@ -1166,9 +1162,7 @@ pub fn ex_command(eap: &mut Exarg) {
     let end = name.wrapping_add(name_len);
     let name_slice = crate::memory::cstr_slice(name, name_len);
 
-    p = end.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        end.cast(),
-    )));
+    p = crate::charset::skipwhite_ptr(end);
     if !has_attr && ends_excmd(i32::from(crate::memory::cstr_first_byte(p))) != 0 {
         uc_list(name_slice);
     } else if !ascii_isupper(crate::memory::cstr_first_byte(name)) {
@@ -1222,12 +1216,7 @@ pub fn ex_delcommand(eap: &mut Exarg) {
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         buffer_only = true;
-        arg = {
-            let _sw_p = arg.wrapping_add(7);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7));
     }
 
     let mut is_global = false;

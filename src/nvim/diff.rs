@@ -2471,21 +2471,11 @@ fn diff_find_change_simple(
                         && (ascii_iswhite(c_org) || ascii_iswhite(c_new)))
                 {
                     si_org = crate::memory::ptr_offset_from(
-                        {
-                            let _sw_p = line_org.wrapping_add(si_org as usize);
-                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                crate::memory::cstr_as_bytes(_sw_p.cast()),
-                            ))
-                        },
+                        crate::charset::skipwhite_ptr(line_org.wrapping_add(si_org as usize)),
                         line_org,
                     ) as i32;
                     si_new = crate::memory::ptr_offset_from(
-                        {
-                            let _sw_p = line_new.wrapping_add(si_new as usize);
-                            _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                crate::memory::cstr_as_bytes(_sw_p.cast()),
-                            ))
-                        },
+                        crate::charset::skipwhite_ptr(line_new.wrapping_add(si_new as usize)),
                         line_new,
                     ) as i32;
                 } else {
@@ -2501,20 +2491,10 @@ fn diff_find_change_simple(
                     si_new += l;
                 }
             }
-            si_org -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (line_org).cast(),
-                    (line_org.wrapping_add(si_org as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
-            si_new -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (line_new).cast(),
-                    (line_new.wrapping_add(si_new as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            si_org -=
+                crate::mbyte::utf_head_off_ptr(line_org, line_org.wrapping_add(si_org as usize));
+            si_new -=
+                crate::mbyte::utf_head_off_ptr(line_new, line_new.wrapping_add(si_new as usize));
             *startp = (*startp).min(si_org);
             if org_bytes.get(si_org as usize).copied().unwrap_or(0) != 0
                 || new_bytes.get(si_new as usize).copied().unwrap_or(0) != 0
@@ -2807,9 +2787,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     if ascii_iswhite(crate::memory::cstr_first_byte(s)) {
                         if (diff_st().diff_flags & DIFF_IWHITEALL) != 0 {
                             in_keyword = false;
-                            s = s.wrapping_add(crate::charset::skipwhite_len(
-                                crate::memory::cstr_as_bytes(s.cast()),
-                            ));
+                            s = crate::charset::skipwhite_ptr(s);
                             continue;
                         } else if ((diff_st().diff_flags & DIFF_IWHITEEOL) != 0
                             || (diff_st().diff_flags & DIFF_IWHITE) != 0)
@@ -2836,12 +2814,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                         if ascii_iswhite(crate::memory::cstr_first_byte(s))
                             && (diff_st().diff_flags & DIFF_IWHITE) != 0
                         {
-                            char_len = crate::memory::ptr_offset_from(
-                                s.wrapping_add(crate::charset::skipwhite_len(
-                                    crate::memory::cstr_as_bytes(s.cast()),
-                                )),
-                                s,
-                            ) as i32;
+                            char_len =
+                                crate::memory::ptr_offset_from(crate::charset::skipwhite_ptr(s), s)
+                                    as i32;
                         }
                         if (diff_st().diff_flags & DIFF_ICASE) != 0 {
                             let mut c = utf_ptr2char(crate::memory::cstr_char_bytes((s).cast()));

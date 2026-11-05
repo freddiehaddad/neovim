@@ -2691,37 +2691,15 @@ pub fn f_foldtext(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
             lnum += 1;
         }
 
-        let mut s = {
-            let _sw_p = ml_get(lnum).as_ptr().cast_mut();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        let mut s = crate::charset::skipwhite_ptr(ml_get(lnum).as_ptr().cast_mut());
         let s_bytes = crate::memory::cstr_as_bytes(s);
         if s_bytes.starts_with(b"/*") || s_bytes.starts_with(b"//") {
-            s = {
-                let _sw_p = s.wrapping_add(2);
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
-            if crate::memory::cstr_is_empty(s.wrapping_add(crate::charset::skipwhite_len(
-                crate::memory::cstr_as_bytes(s.cast()),
-            ))) && lnum + 1 < foldend
+            s = crate::charset::skipwhite_ptr(s.wrapping_add(2));
+            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(s)) && lnum + 1 < foldend
             {
-                s = {
-                    let _sw_p = ml_get(lnum + 1).as_ptr().cast_mut();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                s = crate::charset::skipwhite_ptr(ml_get(lnum + 1).as_ptr().cast_mut());
                 if crate::memory::cstr_first_byte(s) == b'*' {
-                    s = {
-                        let _sw_p = s.wrapping_add(1);
-                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                            crate::memory::cstr_as_bytes(_sw_p.cast()),
-                        ))
-                    };
+                    s = crate::charset::skipwhite_ptr(s.wrapping_add(1));
                 }
             }
         }

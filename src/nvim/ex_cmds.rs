@@ -568,9 +568,7 @@ fn linelen(has_tab: Option<&mut i32>) -> i32 {
     if crate::memory::cstr_is_empty(line) {
         return 0;
     }
-    let first = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        line.cast(),
-    )));
+    let first = crate::charset::skipwhite_ptr(line);
 
     let mut last = first.wrapping_add(crate::memory::cstr_len(first));
     while last > first && ascii_iswhite(crate::memory::cstr_first_byte(last.wrapping_sub(1))) {
@@ -1459,9 +1457,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
 
     let mut ins_prevcmd = forceit;
 
-    let mut trailarg = arg.wrapping_add(crate::charset::skipwhite_len(
-        crate::memory::cstr_as_bytes(arg.cast()),
-    ));
+    let mut trailarg = crate::charset::skipwhite_ptr(arg);
     loop {
         let mut t: Vec<u8> = Vec::new();
         if !newcmd.is_empty() {
@@ -3984,9 +3980,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
     let save_do_all = excmds_st().subflags.do_all;
     let save_do_ask = excmds_st().subflags.do_ask;
 
-    cmd = cmd.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        cmd.cast(),
-    )));
+    cmd = crate::charset::skipwhite_ptr(cmd);
     if ascii_isdigit(crate::memory::cstr_first_byte(cmd)) {
         let count_arg = cmd;
         let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
@@ -4009,9 +4003,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         eap.line2 = eap.line2.min(curbuf_mut().b_ml.ml_line_count);
     }
 
-    cmd = cmd.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        cmd.cast(),
-    )));
+    cmd = crate::charset::skipwhite_ptr(cmd);
     if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
         eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
             crate::memory::cstr_from_ptr(cmd),

@@ -2819,12 +2819,9 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
     spin.si_msg_count = 999999;
 
     if vim_fgets(&mut line, &fd)
-        || !ascii_isdigit(crate::memory::cstr_first_byte({
-            let _sw_p = line.as_ptr().cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }))
+        || !ascii_isdigit(crate::memory::cstr_first_byte(
+            crate::charset::skipwhite_ptr(line.as_ptr().cast::<std::ffi::c_char>()),
+        ))
     {
         semsg!(gettext(c"E760: No word count in %s"), fname);
     }
@@ -4459,12 +4456,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 
     if crate::memory::cstr_as_bytes(arg).starts_with(b"-ascii") {
         ascii = true;
-        arg = {
-            let _sw_p = arg.wrapping_add(6);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
     }
 
     if !get_arglist_exp(crate::memory::cstr_as_bytes(arg), &mut fnames, false) {

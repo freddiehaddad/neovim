@@ -13,8 +13,8 @@ use crate::buffer_updates::{buf_free_callbacks, buf_updates_unload};
 use crate::change::{changed, deleted_lines_mark, file_ff_differs, save_file_ff, unchanged};
 use crate::channel::channel_job_running;
 use crate::charset::{
-    ascii_isdigit, ascii_isspace, buf_init_isk_chartab, getdigits_int, skiptowhite_esc_len,
-    trans_characters, try_getdigits, vim_strsize,
+    ascii_isdigit, ascii_isspace, buf_init_isk_chartab, getdigits_int, trans_characters,
+    try_getdigits, vim_strsize,
 };
 use crate::cmdexpand::{
     BUF_DIFF_FILTER, Cmdidx, WILD_BUFLASTUSED, WILD_HOME_REPLACE, cmdline_fuzzy_complete,
@@ -2051,15 +2051,12 @@ pub fn do_bufdel(
                     break;
                 }
             } else {
-                arg = arg.wrapping_add(crate::charset::skipwhite_len(
-                    crate::memory::cstr_as_bytes(arg.cast()),
-                ));
+                arg = crate::charset::skipwhite_ptr(arg);
                 if crate::memory::cstr_is_empty(arg) {
                     break;
                 }
                 if !ascii_isdigit(crate::memory::cstr_first_byte(arg)) {
-                    let p =
-                        arg.wrapping_add(skiptowhite_esc_len(crate::memory::cstr_as_bytes(arg)));
+                    let p = crate::charset::skiptowhite_esc_ptr(arg);
                     bnr = buflist_findpat(
                         crate::memory::cstr_slice(
                             arg,

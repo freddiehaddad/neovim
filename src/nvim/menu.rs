@@ -235,31 +235,16 @@ pub fn ex_menu(eap: &mut Exarg) {
         let arg_bytes = crate::memory::cstr_as_bytes(arg);
         if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
-            arg = {
-                let _sw_p = arg.wrapping_add(8);
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
+            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8));
             continue;
         }
         if arg_bytes.starts_with(b"<silent>") {
             silent = true;
-            arg = {
-                let _sw_p = arg.wrapping_add(8);
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
+            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8));
             continue;
         }
         if arg_bytes.starts_with(b"<special>") {
-            arg = {
-                let _sw_p = arg.wrapping_add(9);
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
+            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(9));
             continue;
         }
         break;
@@ -313,9 +298,7 @@ pub fn ex_menu(eap: &mut Exarg) {
             i += 1;
         }
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        arg = arg.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            arg.cast(),
-        )));
+        arg = crate::charset::skipwhite_ptr(arg);
     } else if eap.addr_count != 0 && eap.line2 != 0 {
         pri_tab[0] = eap.line2;
         i = 1;
@@ -335,24 +318,14 @@ pub fn ex_menu(eap: &mut Exarg) {
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_TRUE;
-        arg = {
-            let _sw_p = arg.wrapping_add(6);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
     } else if arg_bytes.starts_with(b"disable")
         && arg_bytes
             .get(7)
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_FALSE;
-        arg = {
-            let _sw_p = arg.wrapping_add(7);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7));
     }
 
     if crate::memory::cstr_is_empty(arg) {
@@ -1690,12 +1663,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
                 return;
             }
         }
-        arg = {
-            let _sw_p = arg.wrapping_add(2);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(2));
     }
 
     let Some(menu) = menu_getbyname(crate::memory::cstr_from_ptr(arg)) else {
@@ -1751,12 +1719,9 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
     let menutrans = &mut menu_st().menutrans_ga;
 
     if crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"clear")
-        && ends_excmd(i32::from(crate::memory::cstr_first_byte({
-            let _sw_p = arg.wrapping_add(5).cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }))) != 0
+        && ends_excmd(i32::from(crate::memory::cstr_first_byte(
+            crate::charset::skipwhite_ptr(arg.wrapping_add(5).cast::<std::ffi::c_char>()),
+        ))) != 0
     {
         menutrans.clear();
         del_menutrans_vars();
@@ -1764,13 +1729,7 @@ pub fn ex_menutranslate(eap: &mut Exarg) {
         let from_arg = arg;
         let part1_len = menu_skip_part(crate::memory::cstr_as_bytes(from_arg.cast()));
         arg = from_arg.wrapping_add(part1_len);
-        let to_arg = {
-            let _sw_p = arg.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }
-        .cast::<u8>();
+        let to_arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast::<u8>();
 
         unsafe { *arg = 0 };
 

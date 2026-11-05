@@ -665,27 +665,19 @@ pub fn ex_language(eap: &mut Exarg) {
     {
         if mb_strnicmp(eap.arg.as_bytes(), (c"messages").to_bytes(), arg_len) == 0 {
             what = VIM_LC_MESSAGES;
-            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            name = crate::charset::skipwhite_ptr(p);
             whatstr = c"messages ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"ctype").to_bytes(), arg_len) == 0 {
             what = LC_CTYPE;
-            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            name = crate::charset::skipwhite_ptr(p);
             whatstr = c"ctype ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"time").to_bytes(), arg_len) == 0 {
             what = LC_TIME;
-            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            name = crate::charset::skipwhite_ptr(p);
             whatstr = c"time ";
         } else if mb_strnicmp(eap.arg.as_bytes(), (c"collate").to_bytes(), arg_len) == 0 {
             what = LC_COLLATE;
-            name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            name = crate::charset::skipwhite_ptr(p);
             whatstr = c"collate ";
         }
     }

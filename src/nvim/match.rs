@@ -1233,9 +1233,7 @@ pub fn ex_match(eap: &mut Exarg) {
         } {
             end = arg.wrapping_add(4);
         } else {
-            let mut p = arg.wrapping_add(crate::charset::skiptowhite_len(
-                crate::memory::cstr_as_bytes(arg.cast()),
-            ));
+            let mut p = crate::charset::skiptowhite_ptr(arg);
             if !eap.skip {
                 g = Some(
                     std::ffi::CString::new(crate::memory::cstr_slice(
@@ -1245,9 +1243,7 @@ pub fn ex_match(eap: &mut Exarg) {
                     .unwrap_or_default(),
                 );
             }
-            p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            p = crate::charset::skipwhite_ptr(p);
             if crate::memory::cstr_is_empty(p) {
                 semsg!(gettext(E_INVARG2), arg);
                 return;
@@ -1261,12 +1257,9 @@ pub fn ex_match(eap: &mut Exarg) {
             .cast_mut();
             if !eap.skip {
                 if !crate::memory::cstr_is_empty(end)
-                    && ends_excmd(crate::memory::cstr_first_byte({
-                        let _sw_p = end.wrapping_add(1);
-                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                            crate::memory::cstr_as_bytes(_sw_p.cast()),
-                        ))
-                    })) == 0
+                    && ends_excmd(crate::memory::cstr_first_byte(
+                        crate::charset::skipwhite_ptr(end.wrapping_add(1)),
+                    )) == 0
                 {
                     eap.errmsg = Some(ex_errmsg(E_TRAILING_ARG, crate::memory::cstr_from_ptr(end)));
                     return;

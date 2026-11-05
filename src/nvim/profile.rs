@@ -380,13 +380,9 @@ pub fn profile_reset() {
 /// `":profile cmd args"` (`ex_profile`).
 pub fn ex_profile(eap: &mut Exarg) {
     let arg = eap.arg.as_ptr();
-    let mut e = arg.wrapping_add(crate::charset::skiptowhite_len(
-        crate::memory::cstr_as_bytes(arg.cast()),
-    ));
+    let mut e = crate::charset::skiptowhite_ptr(arg);
     let len = (e as usize) - (arg as usize);
-    e = e.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        e.cast(),
-    )));
+    e = crate::charset::skipwhite_ptr(e);
 
     let arg_bytes = crate::memory::cstr_as_bytes(arg);
     if len == 5 && &arg_bytes[..5] == b"start" && !crate::memory::cstr_is_empty(e) {
@@ -442,9 +438,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
     prof_st().pexpand_what = PEXP_SUBCMD;
     xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_slice.as_ptr());
 
-    let end_subcmd = arg.wrapping_add(crate::charset::skiptowhite_len(
-        crate::memory::cstr_as_bytes(arg.cast()),
-    ));
+    let end_subcmd = crate::charset::skiptowhite_ptr(arg);
     if crate::memory::cstr_is_empty(end_subcmd) {
         return;
     }

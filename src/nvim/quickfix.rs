@@ -5286,9 +5286,7 @@ fn vgr_process_args(eap: &mut Exarg, args: &mut VgrArgs) -> bool {
         return false;
     }
 
-    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        p.cast(),
-    )));
+    p = crate::charset::skipwhite_ptr(p);
     if crate::memory::cstr_is_empty(p) {
         emsg(gettext(c"E683: File name missing or invalid pattern"));
         return false;

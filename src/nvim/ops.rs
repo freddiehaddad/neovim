@@ -728,13 +728,7 @@ fn block_insert(oap: &mut Oparg, s_slice: &[u8], b_insert: bool, bdp: &mut Block
             }
 
             if spaces > 0 {
-                offset -= {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (oldp).cast(),
-                        (oldp.wrapping_add(offset as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                };
+                offset -= crate::mbyte::utf_head_off_ptr(oldp, oldp.wrapping_add(offset as usize));
             }
             spaces = spaces.max(0);
 
@@ -859,9 +853,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
         if !crate::memory::cstr_is_empty(ptr_line) {
             ptr_line = ptr_line.wrapping_add(usize::from(oap.inclusive));
         }
-        ptr_line = ptr_line.wrapping_add(crate::charset::skipwhite_len(
-            crate::memory::cstr_as_bytes(ptr_line.cast()),
-        ));
+        ptr_line = crate::charset::skipwhite_ptr(ptr_line);
         if crate::memory::cstr_is_empty(ptr_line) && inindent(0) {
             oap.motion_type = MT_LINE_WISE;
         }
@@ -1146,10 +1138,7 @@ fn mb_adjust_opend(oap: &mut Oparg) {
     let line = ml_get(oap.end.lnum).as_ptr().cast_mut();
     let mut ptr_line = line.wrapping_add(oap.end.col as usize);
     if !crate::memory::cstr_is_empty(ptr_line) {
-        ptr_line = ptr_line.wrapping_sub({
-            let (_b, _i) = crate::memory::cstr_span_to_char((line).cast(), (ptr_line).cast());
-            crate::mbyte::utf_head_off(_b, _i)
-        } as usize);
+        ptr_line = ptr_line.wrapping_sub(crate::mbyte::utf_head_off_ptr(line, ptr_line) as usize);
         ptr_line = ptr_line.wrapping_add(
             (utfc_ptr2len(crate::memory::cstr_cluster_bytes((ptr_line).cast())) - 1) as usize,
         );
@@ -2386,11 +2375,9 @@ pub fn getregionpos_line(
                         let _l = line;
                         let _p: *mut std::ffi::c_char = bd.textstart.as_ptr().cast_mut();
                         if (_p as usize) > (_l as usize) {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                _l.cast(),
-                                _p.wrapping_sub(1).cast(),
-                            );
-                            _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                            _p.wrapping_sub(
+                                1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                            )
                         } else {
                             _p
                         }
@@ -2413,9 +2400,9 @@ pub fn getregionpos_line(
                     let _l = line;
                     let _p: *mut std::ffi::c_char = bd.textstart.as_ptr().cast_mut();
                     if (_p as usize) > (_l as usize) {
-                        let (_b, _i) =
-                            crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                        _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                        _p.wrapping_sub(
+                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                        )
                     } else {
                         _p
                     }
@@ -2509,13 +2496,8 @@ pub fn charwise_block_prep(
                 0,
             );
             if crate::memory::cstr_is_empty(p.wrapping_add(endcol as usize))
-                || (cs + end.coladd < ce && {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (p).cast(),
-                        (p.wrapping_add(endcol as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } == 0)
+                || (cs + end.coladd < ce
+                    && crate::mbyte::utf_head_off_ptr(p, p.wrapping_add(endcol as usize)) == 0)
             {
                 if start.lnum == end.lnum && start.col == end.col {
                     bdp.is_one_char = true;
@@ -2688,26 +2670,16 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
         if do_bin {
             while col > 0 && ascii_isbdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -= {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (ptr_line).cast(),
-                        (ptr_line.wrapping_add(col as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                };
+                col -=
+                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
             }
         }
 
         if do_hex {
             while col > 0 && ascii_isxdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -= {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (ptr_line).cast(),
-                        (ptr_line.wrapping_add(col as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                };
+                col -=
+                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
             }
         }
         if do_bin
@@ -2715,26 +2687,18 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && !(col > 0
                 && matches!(line_bytes[col as usize], b'X' | b'x')
                 && line_bytes[(col - 1) as usize] == b'0'
-                && {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (ptr_line).cast(),
-                        (ptr_line.wrapping_add((col - 1) as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } == 0
+                && crate::mbyte::utf_head_off_ptr(
+                    ptr_line,
+                    ptr_line.wrapping_add((col - 1) as usize),
+                ) == 0
                 && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
         {
             col = curwin_mut().w_cursor.col;
 
             while col > 0 && ascii_isdigit(i32::from(line_bytes[col as usize])) {
                 col -= 1;
-                col -= {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (ptr_line).cast(),
-                        (ptr_line.wrapping_add(col as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                };
+                col -=
+                    crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
             }
         }
 
@@ -2742,35 +2706,21 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
             && col > 0
             && matches!(line_bytes[col as usize], b'X' | b'x')
             && line_bytes[(col - 1) as usize] == b'0'
-            && {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (ptr_line).cast(),
-                    (ptr_line.wrapping_add((col - 1) as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            } == 0
+            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
+                == 0
             && ascii_isxdigit(i32::from(line_bytes[(col + 1) as usize])))
             || (do_bin
                 && col > 0
                 && matches!(line_bytes[col as usize], b'B' | b'b')
                 && line_bytes[(col - 1) as usize] == b'0'
-                && {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (ptr_line).cast(),
-                        (ptr_line.wrapping_add((col - 1) as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } == 0
+                && crate::mbyte::utf_head_off_ptr(
+                    ptr_line,
+                    ptr_line.wrapping_add((col - 1) as usize),
+                ) == 0
                 && ascii_isbdigit(i32::from(line_bytes[(col + 1) as usize])))
         {
             col -= 1;
-            col -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (ptr_line).cast(),
-                    (ptr_line.wrapping_add(col as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            col -= crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add(col as usize));
         } else {
             col = pos.col;
 
@@ -2810,13 +2760,8 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
 
         if col > pos.col
             && line_bytes[(col - 1) as usize] == b'-'
-            && {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (ptr_line).cast(),
-                    (ptr_line.wrapping_add((col - 1) as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            } == 0
+            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
+                == 0
             && !do_unsigned
         {
             if do_blank && col >= 2 && !ascii_iswhite(i32::from(line_bytes[(col - 2) as usize])) {
@@ -2869,13 +2814,8 @@ pub fn do_addsub(op_type: i32, pos: &mut CursorPos, mut length: i32, prenum1: Li
     } else {
         if col > 0
             && line_bytes[(col - 1) as usize] == b'-'
-            && {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (ptr_line).cast(),
-                    (ptr_line.wrapping_add((col - 1) as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            } == 0
+            && crate::mbyte::utf_head_off_ptr(ptr_line, ptr_line.wrapping_add((col - 1) as usize))
+                == 0
             && !visual
             && !do_unsigned
         {

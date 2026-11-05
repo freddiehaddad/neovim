@@ -2671,11 +2671,7 @@ pub fn win_line(
                     if spv.spv_has_spell && v1 >= word_end && v1 > cur_checked_col {
                         spell_attr = 0;
                         if mb_schar != 0
-                            && unsafe {
-                                *prev_ptr.wrapping_add(crate::charset::skipwhite_len(
-                                    crate::memory::cstr_as_bytes(prev_ptr.cast()),
-                                ))
-                            } != NUL
+                            && unsafe { *crate::charset::skipwhite_ptr(prev_ptr) } != NUL
                             && can_spell
                         {
                             let mut spell_hlf: Hlf = HLF_COUNT;
@@ -2784,13 +2780,7 @@ pub fn win_line(
                         && lbr_char < 128
                         && vim_isbreak(lbr_char)
                     {
-                        let mb_off = {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                (line).cast(),
-                                (ptr.wrapping_sub(1)).cast(),
-                            );
-                            crate::mbyte::utf_head_off(_b, _i)
-                        };
+                        let mb_off = crate::mbyte::utf_head_off_ptr(line, ptr.wrapping_sub(1));
                         let p = ptr.wrapping_sub((mb_off + 1) as usize);
 
                         let has_conceal = !conceal_spans.is_empty();
@@ -3962,13 +3952,7 @@ fn invoke_range_next(wp: &mut WinInfoInfo, lnum: i32, begin_col: Colnr, mut col_
 
     if col_off <= line_len - begin_col {
         let mut end_col = begin_col + col_off;
-        end_col += {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                (line).cast(),
-                (line.wrapping_add(end_col as usize)).cast(),
-            );
-            crate::mbyte::mb_off_next(_b, _i)
-        };
+        end_col += crate::mbyte::mb_off_next_ptr(line, line.wrapping_add(end_col as usize));
         decor_providers_invoke_range(wp, lnum - 1, begin_col, lnum - 1, end_col);
         validate_virtcol(wp);
         end_col

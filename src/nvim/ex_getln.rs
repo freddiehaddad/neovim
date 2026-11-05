@@ -535,9 +535,7 @@ pub fn parse_pattern_and_range(
         .take_while(|b| b.is_ascii_alphabetic())
         .count();
     let mut p = cmd.wrapping_add(cmd_len);
-    if crate::memory::cstr_is_empty(p.wrapping_add(crate::charset::skipwhite_len(
-        crate::memory::cstr_as_bytes(p.cast()),
-    ))) {
+    if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(p)) {
         return false;
     }
 
@@ -555,17 +553,10 @@ pub fn parse_pattern_and_range(
     } else if cmd_len >= 3 && (b"sort".starts_with(cmd_name) || b"uniq".starts_with(cmd_name)) {
         // skip over ! and flags
         if crate::memory::cstr_first_byte(p) == b'!' {
-            p = {
-                let _sw_p = p.wrapping_add(1);
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
+            p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
         }
         loop {
-            p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            p = crate::charset::skipwhite_ptr(p);
             if !ascii_isalpha(crate::memory::cstr_first_byte(p)) {
                 break;
             }
@@ -583,9 +574,7 @@ pub fn parse_pattern_and_range(
         // skip optional "!"
         if crate::memory::cstr_first_byte(p) == b'!' {
             p = p.wrapping_add(1);
-            if crate::memory::cstr_is_empty(p.wrapping_add(crate::charset::skipwhite_len(
-                crate::memory::cstr_as_bytes(p.cast()),
-            ))) {
+            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(p)) {
                 return false;
             }
         }
@@ -596,9 +585,7 @@ pub fn parse_pattern_and_range(
         return false;
     }
 
-    p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        p.cast(),
-    )));
+    p = crate::charset::skipwhite_ptr(p);
     let delim = if delim_optional && vim_is_idc((crate::memory::cstr_first_byte(p)) as i32) {
         b' ' as i32
     } else {
@@ -2090,17 +2077,13 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
         getln_st().ccline.cmdpos += 1;
     }
     if s.c == K_DEL {
-        getln_st().ccline.cmdpos += {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                getln_st().ccline.cmdbuff().cast(),
-                getln_st()
-                    .ccline
-                    .cmdbuff()
-                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                    .cast(),
-            );
-            crate::mbyte::mb_off_next(_b, _i)
-        };
+        getln_st().ccline.cmdpos += crate::mbyte::mb_off_next_ptr(
+            getln_st().ccline.cmdbuff(),
+            getln_st()
+                .ccline
+                .cmdbuff()
+                .wrapping_add(getln_st().ccline.cmdpos as usize),
+        );
     }
 
     if getln_st().ccline.cmdpos > 0 {
@@ -2109,9 +2092,7 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
             let _l = getln_st().ccline.cmdbuff();
             let _p = getln_st().ccline.cmdbuff().wrapping_add(j as usize);
             if (_p as usize) > (_l as usize) {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
             } else {
                 _p
             }
@@ -2125,9 +2106,9 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                     let _l = getln_st().ccline.cmdbuff();
                     let _p = p;
                     if (_p as usize) > (_l as usize) {
-                        let (_b, _i) =
-                            crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                        _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                        _p.wrapping_sub(
+                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                        )
                     } else {
                         _p
                     }
@@ -2142,9 +2123,9 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
                     let _l = getln_st().ccline.cmdbuff();
                     let _p = p;
                     if (_p as usize) > (_l as usize) {
-                        let (_b, _i) =
-                            crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                        _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                        _p.wrapping_sub(
+                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                        )
                     } else {
                         _p
                     }
@@ -2595,17 +2576,13 @@ fn command_line_handle_key(s: &mut CommandLineState) -> i32 {
                     }
                     loop {
                         getln_st().ccline.cmdpos -= 1;
-                        getln_st().ccline.cmdpos -= {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                getln_st().ccline.cmdbuff().cast(),
-                                getln_st()
-                                    .ccline
-                                    .cmdbuff()
-                                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                                    .cast(),
-                            );
-                            crate::mbyte::utf_head_off(_b, _i)
-                        };
+                        getln_st().ccline.cmdpos -= crate::mbyte::utf_head_off_ptr(
+                            getln_st().ccline.cmdbuff(),
+                            getln_st()
+                                .ccline
+                                .cmdbuff()
+                                .wrapping_add(getln_st().ccline.cmdpos as usize),
+                        );
                         getln_st().ccline.cmdspos -= cmdline_charsize(getln_st().ccline.cmdpos);
 
                         if !(getln_st().ccline.cmdpos > 0
@@ -4294,17 +4271,13 @@ pub fn put_on_cmdline(str_bytes: &[u8], mut len: i32, redraw: bool) {
     getln_st().ccline.cmdbuff_vec[new_cmdlen] = 0;
 
     if getln_st().ccline.cmdpos > 0 && getln_st().ccline.cmdbuff_vec[cmdpos_usize] >= 0x80 {
-        let i = {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                getln_st().ccline.cmdbuff().cast(),
-                getln_st()
-                    .ccline
-                    .cmdbuff()
-                    .wrapping_add(getln_st().ccline.cmdpos as usize)
-                    .cast(),
-            );
-            crate::mbyte::utf_head_off(_b, _i)
-        };
+        let i = crate::mbyte::utf_head_off_ptr(
+            getln_st().ccline.cmdbuff(),
+            getln_st()
+                .ccline
+                .cmdbuff()
+                .wrapping_add(getln_st().ccline.cmdpos as usize),
+        );
         if i != 0 {
             getln_st().ccline.cmdpos -= i;
             len += i;
@@ -4406,13 +4379,9 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
                 .cmdbuff()
                 .wrapping_add(getln_st().ccline.cmdpos as usize);
             while w > getln_st().ccline.cmdbuff() {
-                let len = {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        getln_st().ccline.cmdbuff().cast(),
-                        w.wrapping_sub(1).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } + 1;
+                let len =
+                    crate::mbyte::utf_head_off_ptr(getln_st().ccline.cmdbuff(), w.wrapping_sub(1))
+                        + 1;
                 if !vim_iswordc(utf_ptr2char(crate::memory::cstr_char_bytes(
                     w.wrapping_sub(len as usize).cast(),
                 ))) {

@@ -884,13 +884,10 @@ pub fn del_bytes(mut count: Colnr, fixpos_arg: bool, use_delcombine: bool) -> bo
         {
             curwin_mut().w_cursor.col -= 1;
             curwin_mut().w_cursor.coladd = 0;
-            curwin_mut().w_cursor.col -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (oldp).cast(),
-                    (oldp.wrapping_add(curwin_mut().w_cursor.col as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            curwin_mut().w_cursor.col -= crate::mbyte::utf_head_off_ptr(
+                oldp,
+                oldp.wrapping_add(curwin_mut().w_cursor.col as usize),
+            );
         }
         count = oldlen - col;
         movelen = 1;
@@ -983,12 +980,7 @@ pub fn open_line(
         let col_u = curwin_mut().w_cursor.col as usize;
         p_extra = saved_line.wrapping_add(col_u);
         if do_si {
-            let p = {
-                let _sw_p = p_extra.cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            };
+            let p = crate::charset::skipwhite_ptr(p_extra.cast::<std::ffi::c_char>());
             first_char = i32::from(crate::memory::cstr_first_byte(p));
         }
         extra_len = crate::memory::cstr_len(p_extra.cast()) as i32;
@@ -1267,13 +1259,8 @@ pub fn open_line(
             }
             if p_byte == COM_END {
                 if dir == FORWARD {
-                    comment_end = {
-                        let _sw_p = saved_line.cast::<std::ffi::c_char>();
-                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                            crate::memory::cstr_as_bytes(_sw_p.cast()),
-                        ))
-                    }
-                    .cast();
+                    comment_end =
+                        crate::charset::skipwhite_ptr(saved_line.cast::<std::ffi::c_char>()).cast();
                     lead_len = 0;
                     break;
                 }
@@ -1390,13 +1377,7 @@ pub fn open_line(
 
                         while old_size < repl_size && p > leader {
                             p = p.wrapping_sub(
-                                {
-                                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                                        leader.cast(),
-                                        p.wrapping_sub(1).cast(),
-                                    );
-                                    crate::mbyte::utf_head_off(_b, _i)
-                                } as usize
+                                crate::mbyte::utf_head_off_ptr(leader, p.wrapping_sub(1)) as usize
                                     + 1,
                             );
                             old_size += ptr2cells(crate::memory::cstr_cluster_bytes(p.cast()));
@@ -1429,11 +1410,7 @@ pub fn open_line(
                         p = p.wrapping_sub(1);
                         p >= leader
                     } {
-                        let mut l = {
-                            let (_b, _i) =
-                                crate::memory::cstr_span_to_char(leader.cast(), p.cast());
-                            crate::mbyte::utf_head_off(_b, _i)
-                        };
+                        let mut l = crate::mbyte::utf_head_off_ptr(leader, p);
                         if l > 1 {
                             p = p.wrapping_sub(l as usize);
                             if ptr2cells(crate::memory::cstr_cluster_bytes(p.cast())) > 1 {
@@ -1461,13 +1438,8 @@ pub fn open_line(
                         }
                     }
                 } else {
-                    let mut p = {
-                        let _sw_p = leader.cast::<std::ffi::c_char>();
-                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                            crate::memory::cstr_as_bytes(_sw_p.cast()),
-                        ))
-                    }
-                    .cast::<u8>();
+                    let mut p = crate::charset::skipwhite_ptr(leader.cast::<std::ffi::c_char>())
+                        .cast::<u8>();
                     {
                         let repl_size = vim_strnsize(
                             crate::memory::cstr_slice(
@@ -1580,15 +1552,7 @@ pub fn open_line(
 
                 while off > 0 && lead_len > 0 && allocated_vec[(lead_len - 1) as usize] == b' ' {
                     if crate::strings::vim_haschr(
-                        {
-                            let _sw_p = leader.cast::<std::ffi::c_char>();
-                            crate::memory::cstr_from_ptr(
-                                (_sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                    crate::memory::cstr_as_bytes(_sw_p.cast()),
-                                )))
-                                .cast(),
-                            )
-                        },
+                        crate::memory::cstr_from_ptr(crate::charset::skipwhite_ptr(leader).cast()),
                         b'\t' as i32,
                     ) {
                         break;

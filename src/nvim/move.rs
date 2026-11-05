@@ -1215,14 +1215,7 @@ fn virtcol2col(wp: &mut WinInfoInfo, lnum: Linenr, vcol: i32) -> i32 {
         if p == line {
             return 0;
         }
-        p = p.wrapping_sub(
-            {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char((line).cast(), (p.wrapping_sub(1)).cast());
-                crate::mbyte::utf_head_off(_b, _i)
-            } as usize
-                + 1,
-        );
+        p = p.wrapping_sub(crate::mbyte::utf_head_off_ptr(line, p.wrapping_sub(1)) as usize + 1);
     }
     crate::memory::ptr_offset_from(p, line) as i32 + 1
 }

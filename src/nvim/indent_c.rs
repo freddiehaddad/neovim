@@ -2860,20 +2860,13 @@ pub fn in_cinkeys(keytyped: i32, when: i32, line_is_empty: bool) -> bool {
                     let line = get_cursor_line_ptr().as_ptr().cast_mut();
                     let mut s = line.wrapping_add(curwin_mut().w_cursor.col as usize);
                     while s > line {
-                        let n = {
-                            let _l = line;
-                            let _p = s;
-                            if (_p as usize) > (_l as usize) {
-                                let (_b, _i) = crate::memory::cstr_span_to_char(
-                                    _l.cast(),
-                                    _p.wrapping_sub(1).cast(),
-                                );
-                                _p.wrapping_sub(
-                                    1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize,
-                                )
-                            } else {
-                                _p
-                            }
+                        let n = if (s as usize) > (line as usize) {
+                            s.wrapping_sub(
+                                1 + crate::mbyte::utf_head_off_ptr(line, s.wrapping_sub(1))
+                                    as usize,
+                            )
+                        } else {
+                            s
                         };
                         if !vim_iswordp(crate::memory::cstr_as_bytes(n)) {
                             break;

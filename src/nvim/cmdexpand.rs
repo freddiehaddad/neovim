@@ -3340,15 +3340,7 @@ fn set_context_for_wildcard_arg(
     let mut bow: *const u8 = ptr::null();
     let mut len: usize;
 
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
-        {
-            let _sw_p = arg.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p,
-            )))
-        }
-        .cast(),
-    );
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(crate::charset::skipwhite_ptr(arg));
     let mut p: *const u8 = xp.xp_pattern.as_ptr();
     while !crate::memory::cstr_is_empty(p.cast()) {
         let mut c = utf_ptr2char(crate::memory::cstr_char_bytes(p.cast()));
@@ -3400,14 +3392,7 @@ fn set_context_for_wildcard_arg(
         {
             xp.xp_shell = true;
         }
-        if xp.xp_pattern.cast_const() == {
-            let _sw_p = arg.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p,
-            )))
-        }
-        .cast()
-        {
+        if xp.xp_pattern.cast_const() == crate::charset::skipwhite_ptr(arg) {
             xp.xp_context = EXPAND_SHELLCMD;
         }
     }
@@ -3469,14 +3454,7 @@ fn set_context_in_filter_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'
         xp.xp_context = EXPAND_NOTHING;
         return None;
     }
-    Some(unsafe {
-        CStr::from_ptr({
-            let _sw_p = p_cstr.as_ptr();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        })
-    })
+    Some(crate::charset::skipwhite(p_cstr))
 }
 
 /// Set the completion context for the :match command.
@@ -3484,18 +3462,7 @@ fn set_context_in_match_cmd<'a>(xp: &mut ExpandCtx, arg: &'a CStr) -> Option<&'a
     let mut p: *const u8 = arg.as_ptr().cast();
     if arg.to_bytes().is_empty() || ends_excmd(arg.to_bytes()[0]) == 0 {
         set_context_in_echohl_cmd(xp, arg);
-        p = {
-            let _sw_p = {
-                let _sw_p = p.cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skiptowhite_len(
-                    crate::memory::cstr_as_bytes(_sw_p.cast()),
-                ))
-            };
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }
-        .cast();
+        p = crate::charset::skipwhite_ptr(crate::charset::skiptowhite_ptr(p));
         if !crate::memory::cstr_is_empty(p.cast()) {
             xp.xp_context = EXPAND_NOTHING;
             p = skip_regexp(
@@ -3694,14 +3661,9 @@ fn set_context_in_scriptnames_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_NOTHING;
     xp.xp_pattern = crate::strings::CStrCursor::NULL;
 
-    let p: *mut u8 = {
-        let _sw_p = arg.as_ptr();
-        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            _sw_p,
-        )))
-    }
-    .cast_mut()
-    .cast();
+    let p: *mut u8 = crate::charset::skipwhite_ptr(arg.as_ptr())
+        .cast_mut()
+        .cast();
     if ascii_isdigit(crate::memory::cstr_first_byte(p.cast())) {
         return;
     }
@@ -3717,14 +3679,9 @@ fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr);
     cmdexp().filetype_expand_what = FiletypeExpandWhat::All;
 
-    let mut p: *mut u8 = {
-        let _sw_p = arg.as_ptr();
-        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            _sw_p,
-        )))
-    }
-    .cast_mut()
-    .cast();
+    let mut p: *mut u8 = crate::charset::skipwhite_ptr(arg.as_ptr())
+        .cast_mut()
+        .cast();
     if crate::memory::cstr_is_empty(p.cast()) {
         return;
     }
@@ -3737,26 +3694,14 @@ fn set_context_in_filetype_cmd(xp: &mut ExpandCtx, arg: &CStr) {
             && p_bytes.get(6).is_some_and(|&b| ascii_iswhite(i32::from(b)))
         {
             val |= EXPAND_FILETYPECMD_PLUGIN;
-            p = {
-                let _sw_p = p.wrapping_add(6).cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            }
-            .cast();
+            p = crate::charset::skipwhite_ptr(p.wrapping_add(6).cast::<std::ffi::c_char>()).cast();
             continue;
         }
         if p_bytes.starts_with(b"indent")
             && p_bytes.get(6).is_some_and(|&b| ascii_iswhite(i32::from(b)))
         {
             val |= EXPAND_FILETYPECMD_INDENT;
-            p = {
-                let _sw_p = p.wrapping_add(6).cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            }
-            .cast();
+            p = crate::charset::skipwhite_ptr(p.wrapping_add(6).cast::<std::ffi::c_char>()).cast();
             continue;
         }
         break;
@@ -4262,13 +4207,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         ea.argt = excmd_get_argt(ea.cmdidx);
     }
 
-    let mut arg: *const u8 = {
-        let _sw_p = p.cast::<std::ffi::c_char>();
-        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            _sw_p.cast(),
-        )))
-    }
-    .cast();
+    let mut arg: *const u8 = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
 
     if (ea.argt & EX_ARGOPT) != 0 {
         while crate::memory::cstr_as_bytes(arg.cast()).starts_with(b"++") {
@@ -4286,13 +4225,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
                 return None;
             }
 
-            arg = {
-                let _sw_p = p.cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            }
-            .cast();
+            arg = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
         }
     }
 
@@ -4302,13 +4235,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             if crate::memory::cstr_first_byte(arg.cast()) == b'>' {
                 arg = arg.wrapping_add(1);
             }
-            arg = {
-                let _sw_p = arg.cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            }
-            .cast();
+            arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
         } else if crate::memory::cstr_first_byte(arg.cast()) == b'!'
             && ea.cmdidx == Cmdidx::CmdWrite
         {
@@ -4330,13 +4257,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
         while crate::memory::cstr_first_byte(arg.cast()) == cmd_first {
             arg = arg.wrapping_add(1);
         }
-        arg = {
-            let _sw_p = arg.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }
-        .cast();
+        arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
     }
 
     if (ea.argt & EX_CMDARG) != 0
@@ -4352,13 +4273,7 @@ fn set_one_cmd_context<'a>(xp: &mut ExpandCtx, buff_cstr: &'a CStr) -> Option<&'
             return Some(unsafe { CStr::from_ptr(p.cast()) });
         }
 
-        arg = {
-            let _sw_p = arg.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }
-        .cast();
+        arg = crate::charset::skipwhite_ptr(arg.cast::<std::ffi::c_char>()).cast();
     }
 
     if (ea.argt & EX_TRLBAR) != 0 && !usefilter {
@@ -5811,13 +5726,10 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j -= 1;
             j > i
         } {
-            j -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    cclp.cmdbuff().cast(),
-                    cclp.cmdbuff().wrapping_add(j as usize).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            j -= crate::mbyte::utf_head_off_ptr(
+                cclp.cmdbuff(),
+                cclp.cmdbuff().wrapping_add(j as usize),
+            );
             if vim_ispathsep(cmd_slice[j as usize]) {
                 found = true;
                 break;
@@ -5841,13 +5753,10 @@ fn wildmenu_process_key_filenames(cclp: &mut CmdlineInfo, mut key: i32, xp: &mut
             j -= 1;
             j > i
         } {
-            j -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    cclp.cmdbuff().cast(),
-                    cclp.cmdbuff().wrapping_add(j as usize).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            j -= crate::mbyte::utf_head_off_ptr(
+                cclp.cmdbuff(),
+                cclp.cmdbuff().wrapping_add(j as usize),
+            );
             #[cfg(windows)]
             let is_sep = vim_ispathsep(cmd_slice[j as usize])
                 && !b" *?[{`$%#".contains(&cmd_slice[(j + 1) as usize]);

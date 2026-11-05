@@ -275,9 +275,7 @@ pub fn do_debug(cmd: &CStr) {
             g_st().cmdline_row = g_st().msg_row;
             msg_starthere();
             if !cmdline.is_null() {
-                let mut p = cmdline.wrapping_add(crate::charset::skipwhite_len(
-                    crate::memory::cstr_as_bytes(cmdline.cast()),
-                ));
+                let mut p = crate::charset::skipwhite_ptr(cmdline);
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if let Some(&b0) = p_bytes.first() {
                     let b1 = p_bytes.get(1).copied().unwrap_or(0);
@@ -357,9 +355,7 @@ pub fn do_debug(cmd: &CStr) {
                             if crate::memory::cstr_is_empty(p) {
                                 do_showbacktrace(cmd);
                             } else {
-                                p = p.wrapping_add(crate::charset::skipwhite_len(
-                                    crate::memory::cstr_as_bytes(p.cast()),
-                                ));
+                                p = crate::charset::skipwhite_ptr(p);
                                 do_setdebugtracelevel(crate::memory::cstr_as_bytes(p));
                             }
                             continue;
@@ -508,12 +504,7 @@ fn dbg_parsearg(arg: &CStr, is_prof: bool) -> Option<Debuggy> {
             semsg!(E_INVARG2, p);
             return None;
         }
-        p = {
-            let _sw_p = p.wrapping_add(4);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        p = crate::charset::skipwhite_ptr(p.wrapping_add(4));
 
         if here {
             bp.dbg_lnum = curwin_mut().w_cursor.lnum;

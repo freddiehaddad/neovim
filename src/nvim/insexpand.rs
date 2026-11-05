@@ -3019,11 +3019,7 @@ fn ins_compl_fix_redo_buf_for_leader(ptr_arg: Option<&CStr>) {
             .take_while(|&(a, b)| a == b)
             .count();
         if len > 0 {
-            len -= {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char((p).cast(), (p.wrapping_add(len)).cast());
-                crate::mbyte::utf_head_off(_b, _i)
-            } as usize;
+            len -= crate::mbyte::utf_head_off_ptr(p, p.wrapping_add(len)) as usize;
         }
         let mut rem = &orig_bytes[len..];
         while !rem.is_empty() {
@@ -5847,9 +5843,9 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                 let _l = line;
                 let _p = line.wrapping_add(insexp().compl_col as usize);
                 if (_p as usize) > (_l as usize) {
-                    let (_b, _i) =
-                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                    _p.wrapping_sub(
+                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                    )
                 } else {
                     _p
                 }
@@ -5875,9 +5871,9 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                 let _l = line;
                 let _p = line.wrapping_add((startcol + 1) as usize);
                 if (_p as usize) > (_l as usize) {
-                    let (_b, _i) =
-                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                    _p.wrapping_sub(
+                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                    )
                 } else {
                     _p
                 }
@@ -5888,13 +5884,7 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
             insexp().compl_length = 0;
             insexp().compl_from_nonkeyword = true;
         } else {
-            startcol -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (line).cast(),
-                    (line.wrapping_add(startcol as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            startcol -= crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
             let base_class = mb_get_class(crate::memory::cstr_as_bytes(
                 line.wrapping_add(startcol as usize),
             ));
@@ -5902,13 +5892,8 @@ fn get_normal_compl_info(line_cstr: &CStr, mut startcol: i32, curs_col: Colnr) -
                 startcol -= 1;
                 startcol >= 0
             } {
-                let head_off = {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (line).cast(),
-                        (line.wrapping_add(startcol as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                };
+                let head_off =
+                    crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(startcol as usize));
                 if base_class
                     != mb_get_class(crate::memory::cstr_as_bytes(
                         line.wrapping_add((startcol - head_off) as usize),
@@ -6223,14 +6208,10 @@ fn ins_compl_continue_search(line_cstr: &CStr) {
         } else {
             if (insexp().compl_cont_status & CONT_S_IPOS) != 0 {
                 insexp().compl_cont_status |= CONT_SOL;
-                let p = {
-                    let _sw_p = line.wrapping_add(
+                let p =
+                    crate::charset::skipwhite_ptr(line.wrapping_add(
                         (insexp().compl_length + insexp().compl_startpos.col) as usize,
-                    );
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                    ));
                 insexp().compl_startpos.col = crate::memory::ptr_offset_from(p, line) as Colnr;
             }
             insexp().compl_col = insexp().compl_startpos.col;

@@ -771,9 +771,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
             let mut str_ = reg.y_array[i].data;
             let cont_vec: Vec<u8>;
             if colon && i > 0 {
-                let p = str_.wrapping_add(crate::charset::skipwhite_len(
-                    crate::memory::cstr_as_bytes(str_.cast()),
-                ));
+                let p = crate::charset::skipwhite_ptr(str_);
                 let p_bytes = crate::memory::cstr_as_bytes(p);
                 if p_bytes.first() == Some(&b'\\') || p_bytes.starts_with(b"\"\\ ") {
                     cont_vec = execreg_line_continuation(&reg.y_array, &mut i);
@@ -1020,14 +1018,9 @@ fn yank_copy_line(
                 text_ptr.wrapping_add((s - 1) as usize),
             ))
         {
-            s =
-                s - {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        text_ptr,
-                        text_ptr.wrapping_add((s - 1) as usize),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } - 1;
+            s = s
+                - crate::mbyte::utf_head_off_ptr(text_ptr, text_ptr.wrapping_add((s - 1) as usize))
+                - 1;
             out_size -= 1;
         }
     }
@@ -1891,13 +1884,10 @@ pub fn do_put(
                     bd.startspaces = incr - bd.endspaces;
                     bd.textcol -= 1;
                     delcount = 1;
-                    bd.textcol -= {
-                        let (_b, _i) = crate::memory::cstr_span_to_char(
-                            (oldp).cast(),
-                            (oldp.wrapping_add(bd.textcol as usize)).cast(),
-                        );
-                        crate::mbyte::utf_head_off(_b, _i)
-                    };
+                    bd.textcol -= crate::mbyte::utf_head_off_ptr(
+                        oldp,
+                        oldp.wrapping_add(bd.textcol as usize),
+                    );
                     if crate::memory::cstr_first_byte(oldp.wrapping_add(bd.textcol as usize))
                         != TAB as u8
                     {
@@ -2116,13 +2106,7 @@ pub fn do_put(
 
                         ml_replace(lnum, crate::memory::cstr_as_bytes(newp.cast()), true);
 
-                        first_byte_off = {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                newp.cast(),
-                                ptr_.wrapping_sub(1).cast(),
-                            );
-                            crate::mbyte::utf_head_off(_b, _i)
-                        };
+                        first_byte_off = crate::mbyte::utf_head_off_ptr(newp, ptr_.wrapping_sub(1));
                         drop(newp_vec);
 
                         if lnum == curwin_mut().w_cursor.lnum {
@@ -2347,13 +2331,10 @@ pub fn do_put(
                 if col > 1 {
                     curbuf_mut().b_op_end.col = col - 1;
                     if last_item.size > 0 {
-                        curbuf_mut().b_op_end.col -= {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                (last_item.data).cast(),
-                                (last_item.data.wrapping_add(last_item.size - 1)).cast(),
-                            );
-                            crate::mbyte::utf_head_off(_b, _i)
-                        };
+                        curbuf_mut().b_op_end.col -= crate::mbyte::utf_head_off_ptr(
+                            last_item.data,
+                            last_item.data.wrapping_add(last_item.size - 1),
+                        );
                     }
                 } else {
                     curbuf_mut().b_op_end.col = 0;

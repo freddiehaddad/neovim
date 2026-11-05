@@ -558,14 +558,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
         endidxcnt -= 1;
         arridx = endidx[endidxcnt];
         wlen = endlen[endidxcnt];
-        if {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                ptr.cast(),
-                ptr.wrapping_add(wlen as usize).cast(),
-            );
-            crate::mbyte::utf_head_off(_b, _i)
-        } > 0
-        {
+        if crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(wlen as usize)) > 0 {
             continue;
         }
         let word_ends = if spell_iswordp(
@@ -2214,12 +2207,9 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
                 .as_ptr()
                 .cast_mut()
                 .cast();
-            if crate::memory::cstr_is_empty({
-                let _sw_p = line.cast::<std::ffi::c_char>();
-                _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                    _sw_p.cast(),
-                )))
-            }) {
+            if crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
+                line.cast::<std::ffi::c_char>(),
+            )) {
                 need_cap = true;
             } else {
                 line_copy = Some(concat_str(crate::memory::cstr_as_bytes(line.cast()), b" "));
@@ -2238,11 +2228,8 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
         regmatch.rm_ic = false;
         let mut p = line.wrapping_add(endcol as usize);
         loop {
-            {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char((line).cast(), (p).wrapping_sub(1).cast());
-                p = (p).wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize);
-            };
+            p = p
+                .wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(line, p.wrapping_sub(1)) as usize);
             if p == line || spell_iswordp_nmw(crate::memory::cstr_as_bytes(p.cast()), wp) {
                 break;
             }

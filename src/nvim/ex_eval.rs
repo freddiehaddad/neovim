@@ -1153,12 +1153,9 @@ pub fn ex_catch(eap: &mut Exarg) {
             && (cstack.cs_flags[u_idx] & CSF_CAUGHT) == 0
         {
             if !crate::memory::cstr_is_empty(end)
-                && ends_excmd(i32::from(crate::memory::cstr_first_byte({
-                    let _sw_p = end.wrapping_add(1);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }))) == 0
+                && ends_excmd(i32::from(crate::memory::cstr_first_byte(
+                    crate::charset::skipwhite_ptr(end.wrapping_add(1)),
+                ))) == 0
             {
                 semsg!(gettext(E_TRAILING_ARG), end);
                 return;

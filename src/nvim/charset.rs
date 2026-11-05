@@ -845,6 +845,105 @@ pub fn skipwhite(p: &CStr) -> &CStr {
     unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(bytes.len() - rem.len())) }
 }
 
+pub fn skipwhite_at(p: &CStr, offset: usize) -> &CStr {
+    let bytes = p.to_bytes();
+    let off = offset.min(bytes.len());
+    let rem = skipwhite_slice(&bytes[off..]);
+    unsafe { CStr::from_ptr(p.as_ptr().wrapping_add(bytes.len() - rem.len())) }
+}
+
+pub trait CStrPtrSkip: Copy {
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char;
+    fn advance_bytes(self, n: usize) -> Self;
+}
+
+impl CStrPtrSkip for *const i8 {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+impl CStrPtrSkip for *mut i8 {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+impl CStrPtrSkip for *const u8 {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+impl CStrPtrSkip for *mut u8 {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+impl<T> CStrPtrSkip for crate::strings::CStrCursor<T> {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.as_ptr().cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+impl CStrPtrSkip for crate::regexp::RegLinePtr {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.as_ptr().cast()
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.wrapping_add(n)
+    }
+}
+
+#[inline]
+pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
+    p.advance_bytes(skipwhite_len(crate::memory::cstr_as_bytes(
+        p.as_c_char_ptr(),
+    )))
+}
+
+#[inline]
+pub fn skiptowhite_ptr<P: CStrPtrSkip>(p: P) -> P {
+    p.advance_bytes(skiptowhite_len(crate::memory::cstr_as_bytes(
+        p.as_c_char_ptr(),
+    )))
+}
+
+#[inline]
+pub fn skiptowhite_esc_ptr<P: CStrPtrSkip>(p: P) -> P {
+    p.advance_bytes(skiptowhite_esc_len(crate::memory::cstr_as_bytes(
+        p.as_c_char_ptr(),
+    )))
+}
+
 #[inline]
 pub fn skipwhite_len(bytes: &[u8]) -> usize {
     let b = crate::memory::bytes_until_nul(bytes);

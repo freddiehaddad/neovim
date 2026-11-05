@@ -575,9 +575,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
     if (flags & SIN_INSERT) != 0 {
         p = oldline;
     } else {
-        p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            p.cast(),
-        )));
+        p = crate::charset::skipwhite_ptr(p);
         line_len -= crate::memory::ptr_offset_from(p, oldline) as i32;
     }
 
@@ -645,9 +643,7 @@ pub fn set_indent(size: i32, flags: i32) -> bool {
                 todo -= tab_pad;
                 ind_done += tab_pad;
             }
-            p = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                p.cast(),
-            )));
+            p = crate::charset::skipwhite_ptr(p);
         }
 
         loop {
@@ -1360,12 +1356,7 @@ pub fn ex_retab(eap: &mut Exarg) {
         && ascii_iswhite_or_nul(i32::from(ptr_bytes.get(11).copied().unwrap_or(0)))
     {
         is_indent_only = true;
-        ptr = {
-            let _sw_p = ptr.wrapping_add(11);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        ptr = crate::charset::skipwhite_ptr(ptr.wrapping_add(11));
     }
 
     let ts_start = ptr;

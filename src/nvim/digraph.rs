@@ -2115,21 +2115,13 @@ pub fn ex_loadkeymap(eap: &mut Exarg) {
 
     while let Some(line_cstr) = fgetline.call(0, 0, true) {
         let line = line_cstr.as_ptr();
-        let mut p = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            line.cast(),
-        )));
+        let mut p = crate::charset::skipwhite_ptr(line);
         if crate::memory::cstr_first_byte(p) != b'"' && !crate::memory::cstr_is_empty(p) {
-            let mut s = p.wrapping_add(crate::charset::skiptowhite_len(
-                crate::memory::cstr_as_bytes(p.cast()),
-            ));
+            let mut s = crate::charset::skiptowhite_ptr(p);
             let from_len = crate::memory::ptr_offset_from(s, p) as usize;
             let from_slice = crate::memory::cstr_slice(p, from_len);
-            p = s.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                s.cast(),
-            )));
-            s = p.wrapping_add(crate::charset::skiptowhite_len(
-                crate::memory::cstr_as_bytes(p.cast()),
-            ));
+            p = crate::charset::skipwhite_ptr(s);
+            s = crate::charset::skiptowhite_ptr(p);
             let to_len = crate::memory::ptr_offset_from(s, p) as usize;
             let to_slice = crate::memory::cstr_slice(p, to_len);
 

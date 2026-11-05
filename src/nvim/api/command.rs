@@ -209,9 +209,7 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
     let mut args = arena_array(arena, 2);
 
     let lhs_start = arg_str.as_ptr().cast_mut();
-    let lhs_end = lhs_start.wrapping_add(crate::charset::skiptowhite_len(
-        crate::memory::cstr_as_bytes(lhs_start.cast()),
-    ));
+    let lhs_end = crate::charset::skiptowhite_ptr(lhs_start);
     let lhs_len = crate::memory::ptr_offset_from(lhs_end, lhs_start) as usize;
 
     add_c(
@@ -222,9 +220,7 @@ fn parse_map_cmd(arg_str: &CStr, arena: &mut Arena) -> Array {
         )),
     );
 
-    let rhs_start = lhs_end.wrapping_add(crate::charset::skipwhite_len(
-        crate::memory::cstr_as_bytes(lhs_end.cast()),
-    ));
+    let rhs_start = crate::charset::skipwhite_ptr(lhs_end);
     if !crate::memory::cstr_is_empty(rhs_start) {
         let rhs_len = crate::memory::cstr_len(rhs_start);
         add_c(

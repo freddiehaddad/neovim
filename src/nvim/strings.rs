@@ -2473,12 +2473,7 @@ pub fn f_str2nr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut p = crate::charset::skipwhite(tv_get_string(&argvars[0])).as_ptr();
     let isneg = crate::memory::cstr_first_byte(p) == b'-';
     if crate::memory::cstr_first_byte(p) == b'+' || crate::memory::cstr_first_byte(p) == b'-' {
-        p = {
-            let _sw_p = p.wrapping_add(1);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        p = crate::charset::skipwhite_ptr(p.wrapping_add(1));
     }
     match base {
         2 => what |= STR2NR_BIN | STR2NR_FORCE,

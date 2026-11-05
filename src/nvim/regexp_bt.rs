@@ -3714,27 +3714,22 @@ fn regmatch(
                             } else {
                                 let line =
                                     reg_getline(rp_pos.lnum).map_or(ptr::null(), |s| s.as_ptr());
-                                rp.rs_un.regsave_mut().rs_u.pos_mut().col -= {
-                                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                                        (line).cast(),
-                                        (line.wrapping_add(rp_pos.col as usize - 1)).cast(),
-                                    );
-                                    crate::mbyte::utf_head_off(_b, _i)
-                                } + 1;
+                                rp.rs_un.regsave_mut().rs_u.pos_mut().col -=
+                                    crate::mbyte::utf_head_off_ptr(
+                                        line,
+                                        line.wrapping_add(rp_pos.col as usize - 1),
+                                    ) + 1;
                             }
                         } else if rp.rs_un.regsave().rs_u.ptr == re_st().rex.line {
                             no = false;
                         } else {
                             let mut p = rp.rs_un.regsave().rs_u.ptr;
-                            {
-                                let (_b, _i) = crate::memory::cstr_span_to_char(
-                                    (re_st().rex.line).cast(),
-                                    (p).wrapping_sub(1).cast(),
-                                );
-                                p = (p).wrapping_sub(
-                                    1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize,
-                                );
-                            };
+                            p = p.wrapping_sub(
+                                1 + crate::mbyte::utf_head_off_ptr(
+                                    re_st().rex.line,
+                                    p.wrapping_sub(1),
+                                ) as usize,
+                            );
                             rp.rs_un.regsave_mut().rs_u.ptr = p;
 
                             if limit > 0
@@ -3808,16 +3803,13 @@ fn regmatch(
                                                 );
                                         reg_breakcheck();
                                     } else {
-                                        {
-                                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                                (re_st().rex.line).cast(),
-                                                (re_st().rex.input).wrapping_sub(1).cast(),
-                                            );
-                                            re_st().rex.input = (re_st().rex.input).wrapping_sub(
-                                                1 + crate::mbyte::utf_head_off_slice(_b, _i)
-                                                    as usize,
-                                            );
-                                        };
+                                        re_st().rex.input = re_st().rex.input.wrapping_sub(
+                                            1 + crate::mbyte::utf_head_off_ptr(
+                                                re_st().rex.line,
+                                                re_st().rex.input.wrapping_sub(1),
+                                            )
+                                                as usize,
+                                        );
                                     }
                                 } else {
                                     if rst.count == rst.minval

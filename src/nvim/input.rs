@@ -2507,15 +2507,12 @@ fn vgetorpeek(advance: bool) -> i32 {
                         let mut col: Colnr = 0;
                         if curwin_mut().w_wcol > 0 {
                             if g_st().ins_global.did_ai
-                                && crate::memory::cstr_is_empty({
-                                    let _sw_p = get_cursor_line_ptr()
+                                && crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
+                                    get_cursor_line_ptr()
                                         .as_ptr()
                                         .cast_mut()
-                                        .wrapping_add(curwin_mut().w_cursor.col as usize);
-                                    _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                        crate::memory::cstr_as_bytes(_sw_p.cast()),
-                                    ))
-                                })
+                                        .wrapping_add(curwin_mut().w_cursor.col as usize),
+                                ))
                             {
                                 curwin_mut().w_wcol = 0;
                                 let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
@@ -2565,13 +2562,8 @@ fn vgetorpeek(advance: bool) -> i32 {
                         }
                         if col > 0 && curwin_mut().w_wcol > 0 {
                             let ptr = get_cursor_line_ptr().as_ptr().cast_mut();
-                            col -= {
-                                let (_b, _i) = crate::memory::cstr_span_to_char(
-                                    (ptr).cast(),
-                                    (ptr.wrapping_add(col as usize)).cast(),
-                                );
-                                crate::mbyte::utf_head_off(_b, _i)
-                            };
+                            col -=
+                                crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add(col as usize));
                             if utf_ptr2cells(crate::memory::cstr_cluster_bytes(
                                 (ptr.wrapping_add(col as usize)).cast(),
                             )) > 1

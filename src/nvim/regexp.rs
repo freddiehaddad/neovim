@@ -2288,10 +2288,8 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 pub(super) fn reg_prev_class() -> i32 {
     if re_st().rex.input > re_st().rex.line {
         let prev = re_st().rex.input.wrapping_sub(1);
-        let head = prev.wrapping_sub({
-            let (_b, _i) = crate::memory::cstr_span_to_char(re_st().rex.line.cast(), prev.cast());
-            crate::mbyte::utf_head_off(_b, _i)
-        } as usize);
+        let head =
+            prev.wrapping_sub(crate::mbyte::utf_head_off_ptr(re_st().rex.line, prev) as usize);
         return mb_get_class_tab(
             crate::memory::cstr_as_bytes(head.cast()),
             &re_st().rex.buf_mut().b_chartab,

@@ -472,12 +472,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let arg_bytes = eap.arg.as_bytes();
     if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(arg_bytes[3]) {
         add_help_tags = true;
-        eap.arg = {
-            let _sw_p = eap.arg.wrapping_add(3);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        eap.arg = crate::charset::skipwhite_ptr(eap.arg.wrapping_add(3));
     }
 
     let mut tv_args = [

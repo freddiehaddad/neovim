@@ -264,13 +264,10 @@ pub fn findpar(pincl: &mut bool, dir: i32, mut count: i32, what: i32, both: bool
         curwin_mut().w_cursor.col = ml_get_len(curr);
         if curwin_mut().w_cursor.col != 0 {
             curwin_mut().w_cursor.col -= 1;
-            curwin_mut().w_cursor.col -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (line).cast(),
-                    (line.wrapping_add(curwin_mut().w_cursor.col as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            curwin_mut().w_cursor.col -= crate::mbyte::utf_head_off_ptr(
+                line,
+                line.wrapping_add(curwin_mut().w_cursor.col as usize),
+            );
             *pincl = true;
         }
     } else {
@@ -720,18 +717,14 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
     }
 
     let line = ml_get(curwin_mut().w_cursor.lnum).as_ptr().cast_mut();
-    let start = line.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-        line.cast(),
-    )));
+    let start = crate::charset::skipwhite_ptr(line);
     let mut end = line.wrapping_add(crate::memory::cstr_len(line));
     while end > start {
         let prev = {
             let _l = line;
             let _p = end;
             if (_p as usize) > (_l as usize) {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
             } else {
                 _p
             }
@@ -755,9 +748,7 @@ pub fn current_line(oap: &mut Oparg, include: bool) -> bool {
             let _l = line;
             let _p = end;
             if (_p as usize) > (_l as usize) {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
             } else {
                 _p
             }
@@ -1087,14 +1078,7 @@ fn in_html_tag(end_tag: bool) -> bool {
         if line_bytes[idx] == b'<' {
             break;
         }
-        let off = {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                (line).cast(),
-                (line.wrapping_add(idx - 1)).cast(),
-            );
-            crate::mbyte::utf_head_off(_b, _i)
-        } as usize
-            + 1;
+        let off = crate::mbyte::utf_head_off_ptr(line, line.wrapping_add(idx - 1)) as usize + 1;
         idx = idx.saturating_sub(off);
         if line_bytes[idx] == b'>' {
             break;
@@ -1526,13 +1510,8 @@ fn find_prev_quote(
     };
     while col_start > 0 {
         col_start -= 1;
-        col_start -= {
-            let (_b, _i) = crate::memory::cstr_span_to_char(
-                (line_ptr).cast(),
-                (line_ptr.wrapping_add(col_start as usize)).cast(),
-            );
-            crate::mbyte::utf_head_off(_b, _i)
-        };
+        col_start -=
+            crate::mbyte::utf_head_off_ptr(line_ptr, line_ptr.wrapping_add(col_start as usize));
         let mut n = 0;
         if let Some(esc) = escape {
             while col_start - n > 0 && esc.contains(&line_bytes[(col_start - n - 1) as usize]) {

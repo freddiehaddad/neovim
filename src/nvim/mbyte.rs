@@ -2435,6 +2435,24 @@ pub fn utf_head_off(base: &[u8], idx: usize) -> i32 {
     utf_head_off_slice(base, idx)
 }
 
+#[inline]
+pub fn utf_head_off_ptr(
+    base: impl crate::charset::CStrPtrSkip,
+    p: impl crate::charset::CStrPtrSkip,
+) -> i32 {
+    let (b, i) = crate::memory::cstr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
+    utf_head_off_slice(b, i)
+}
+
+#[inline]
+pub fn mb_off_next_ptr(
+    base: impl crate::charset::CStrPtrSkip,
+    p: impl crate::charset::CStrPtrSkip,
+) -> i32 {
+    let (b, i) = crate::memory::cstr_span_to_char(base.as_c_char_ptr(), p.as_c_char_ptr());
+    mb_off_next(b, i)
+}
+
 pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInfo {
     let mut cells = basechar_cells_impl(base.chr);
     let first_compose = utf_iscomposing_first(base.chr.value);

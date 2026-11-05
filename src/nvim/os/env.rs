@@ -1056,13 +1056,7 @@ pub fn home_replace(
     };
 
     if !one {
-        src = {
-            let _sw_p = src.cast::<std::ffi::c_char>();
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        }
-        .cast();
+        src = crate::charset::skipwhite_ptr(src.cast::<std::ffi::c_char>()).cast();
     }
     let src_bytes = crate::memory::cstr_as_bytes(src.cast());
     let mut src_idx = 0usize;

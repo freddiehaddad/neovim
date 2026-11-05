@@ -312,14 +312,7 @@ pub fn modify_fname(
                     && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) != 0
                 {
                     tail = tail.wrapping_sub(
-                        {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                fname.cast(),
-                                tail.wrapping_sub(1).cast(),
-                            );
-                            crate::mbyte::utf_head_off(_b, _i)
-                        } as usize
-                            + 1,
+                        crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize + 1,
                     );
                 }
                 *fnamelen = if (tail as usize) <= (s as usize) {
@@ -339,13 +332,7 @@ pub fn modify_fname(
                         && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) == 0
                     {
                         tail = tail.wrapping_sub(
-                            {
-                                let (_b, _i) = crate::memory::cstr_span_to_char(
-                                    fname.cast(),
-                                    tail.wrapping_sub(1).cast(),
-                                );
-                                crate::mbyte::utf_head_off(_b, _i)
-                            } as usize
+                            crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize
                                 + 1,
                         );
                     }

@@ -566,80 +566,43 @@ fn set_maparg_rhs(
 fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) -> i32 {
     let strargs = strargs.as_ptr();
     {
-        let mut to_parse = strargs.wrapping_add(crate::charset::skipwhite_len(
-            crate::memory::cstr_as_bytes(strargs.cast()),
-        ));
+        let mut to_parse = crate::charset::skipwhite_ptr(strargs);
         *mapargs = MapArguments::new();
         mapargs.rhs_lua = 0;
 
         loop {
             let bytes = crate::memory::cstr_as_bytes(to_parse);
             if bytes.starts_with(b"<buffer>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(8);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.buffer = true;
                 continue;
             }
             if bytes.starts_with(b"<nowait>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(8);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.nowait = true;
                 continue;
             }
             if bytes.starts_with(b"<silent>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(8);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.silent = true;
                 continue;
             }
             if bytes.starts_with(b"<special>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(9);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(9));
                 continue;
             }
             if bytes.starts_with(b"<script>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(8);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.script = true;
                 continue;
             }
             if bytes.starts_with(b"<expr>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(6);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(6));
                 mapargs.expr = true;
                 continue;
             }
             if bytes.starts_with(b"<unique>") {
-                to_parse = {
-                    let _sw_p = to_parse.wrapping_add(8);
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                };
+                to_parse = crate::charset::skipwhite_ptr(to_parse.wrapping_add(8));
                 mapargs.unique = true;
                 continue;
             }
@@ -663,9 +626,7 @@ fn str_to_mapargs(strargs: &CStr, is_unmap: bool, mapargs: &mut MapArguments) ->
         }
 
         let lhs_end = to_parse.wrapping_add(orig_lhs_len);
-        let rhs_start = lhs_end.wrapping_add(crate::charset::skipwhite_len(
-            crate::memory::cstr_as_bytes(lhs_end.cast()),
-        ));
+        let rhs_start = crate::charset::skipwhite_ptr(lhs_end);
 
         if orig_lhs_len >= 256 {
             return 1;
@@ -983,14 +944,12 @@ fn buf_do_map(
                                         && (!is_abbrev
                                             || round != 0
                                             || n > len
-                                            || !crate::memory::cstr_is_empty({
-                                                let _sw_p = lhs
-                                                    .wrapping_add(n as usize)
-                                                    .cast::<std::ffi::c_char>();
-                                                _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                                                    crate::memory::cstr_as_bytes(_sw_p.cast()),
-                                                ))
-                                            }))
+                                            || !crate::memory::cstr_is_empty(
+                                                crate::charset::skipwhite_ptr(
+                                                    lhs.wrapping_add(n as usize)
+                                                        .cast::<std::ffi::c_char>(),
+                                                ),
+                                            ))
                                     {
                                         idx += 1;
                                         continue;
@@ -1374,73 +1333,38 @@ pub fn set_context_in_map_cmd(
             let bytes = crate::memory::cstr_as_bytes(arg.cast());
             if bytes.starts_with(b"<buffer>") {
                 map_st().expand_buffer = true;
-                arg = {
-                    let _sw_p = arg.wrapping_add(8).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<unique>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(8).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<nowait>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(8).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<silent>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(8).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<special>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(9).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(9).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<script>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(8).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             if bytes.starts_with(b"<expr>") {
-                arg = {
-                    let _sw_p = arg.wrapping_add(6).cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6).cast::<std::ffi::c_char>())
+                    .cast();
                 continue;
             }
             break;
@@ -1582,9 +1506,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
             let _l = ptr_arg;
             let _p = ptr_arg.wrapping_add(col as usize);
             if (_p as usize) > (_l as usize) {
-                let (_b, _i) =
-                    crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
             } else {
                 _p
             }
@@ -1598,11 +1520,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                         let _l = ptr_arg;
                         let _p = p;
                         if (_p as usize) > (_l as usize) {
-                            let (_b, _i) = crate::memory::cstr_span_to_char(
-                                _l.cast(),
-                                _p.wrapping_sub(1).cast(),
-                            );
-                            _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                            _p.wrapping_sub(
+                                1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                            )
                         } else {
                             _p
                         }
@@ -1619,9 +1539,9 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
                 let _l = ptr_arg;
                 let _p = p;
                 if (_p as usize) > (_l as usize) {
-                    let (_b, _i) =
-                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                    _p.wrapping_sub(
+                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                    )
                 } else {
                     _p
                 }

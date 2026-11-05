@@ -576,12 +576,9 @@ fn fmt_check_par(
         is_com_end = flags_bytes.get(idx) == Some(&COM_END);
     }
 
-    crate::memory::cstr_is_empty({
-        let _sw_p = ptr.wrapping_add(*leader_len as usize);
-        _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-            _sw_p.cast(),
-        )))
-    }) || (*leader_len > 0 && is_com_end)
+    crate::memory::cstr_is_empty(crate::charset::skipwhite_ptr(
+        ptr.wrapping_add(*leader_len as usize),
+    )) || (*leader_len > 0 && is_com_end)
         || start_ps(lnum, 0, false)
 }
 

@@ -996,13 +996,10 @@ pub fn searchit(
                                 pos.col -= 1;
                                 if pos.lnum <= buf.b_ml.ml_line_count {
                                     ptr_line = ml_get_buf(buf, pos.lnum).as_ptr().cast_mut();
-                                    pos.col -= {
-                                        let (_b, _i) = crate::memory::cstr_span_to_char(
-                                            (ptr_line).cast(),
-                                            (ptr_line.wrapping_add(pos.col as usize)).cast(),
-                                        );
-                                        crate::mbyte::utf_head_off(_b, _i)
-                                    };
+                                    pos.col -= crate::mbyte::utf_head_off_ptr(
+                                        ptr_line,
+                                        ptr_line.wrapping_add(pos.col as usize),
+                                    );
                                 }
                             }
                             if let Some(end_pos) = end_pos.as_deref_mut() {
@@ -1795,13 +1792,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
                 if col == 0 {
                     return false;
                 }
-                col -= {
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        (p).cast(),
-                        (p.wrapping_add((col - 1) as usize)).cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } + 1;
+                col -= crate::mbyte::utf_head_off_ptr(p, p.wrapping_add((col - 1) as usize)) + 1;
             }
             if srch().lastc_bytelen <= 1 {
                 if i32::from(crate::memory::cstr_first_byte(p.wrapping_add(col as usize))) == c
@@ -1824,13 +1815,7 @@ pub fn searchc(cap: &mut Cmdarg, mut t_cmd: bool) -> bool {
         if dir < 0 {
             col += srch().lastc_bytelen - 1;
         } else {
-            col -= {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (p).cast(),
-                    (p.wrapping_add(col as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            col -= crate::mbyte::utf_head_off_ptr(p, p.wrapping_add(col as usize));
         }
     }
     curwin_mut().w_cursor.col = col;
@@ -3455,9 +3440,7 @@ pub fn find_pattern_in_path(
 
                     if def_regmatch.regprog.is_null() || define_matched {
                         if define_matched || compl_status_sol() {
-                            startp = p.wrapping_add(crate::charset::skipwhite_len(
-                                crate::memory::cstr_as_bytes(p.cast()),
-                            ));
+                            startp = crate::charset::skipwhite_ptr(p);
                             let start_bytes = crate::memory::cstr_as_bytes(startp);
                             if opt_vars().p_ic {
                                 matched = mb_strnicmp(
@@ -3592,9 +3575,7 @@ pub fn find_pattern_in_path(
                                     }
 
                                     if !skip_add {
-                                        p = line.wrapping_add(crate::charset::skipwhite_len(
-                                            crate::memory::cstr_as_bytes(line.cast()),
-                                        ));
+                                        p = crate::charset::skipwhite_ptr(line);
                                         aux = p;
                                         already = p;
                                         p = find_word_start(crate::memory::cstr_as_bytes(p))

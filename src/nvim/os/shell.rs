@@ -410,13 +410,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 while *p != b' ' && *p != b'\n' {
                     p = p.add(1);
                 }
-                p = {
-                    let _sw_p = p.cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
                 count += 1;
             }
         } else if shell_style == STYLE_BT
@@ -432,13 +426,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                 if *p != 0 {
                     p = p.add(1);
                 }
-                p = {
-                    let _sw_p = p.cast::<std::ffi::c_char>();
-                    _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                        _sw_p.cast(),
-                    )))
-                }
-                .cast();
+                p = crate::charset::skipwhite_ptr(p.cast::<std::ffi::c_char>()).cast();
                 count += 1;
             }
         } else {
@@ -495,13 +483,7 @@ pub fn os_expand_wildcards(pat: &[&CStr], file: &mut Vec<std::ffi::CString>, fla
                     *p = 0;
                 } else {
                     *p = 0;
-                    p = {
-                        let _sw_p = p.add(1).cast::<std::ffi::c_char>();
-                        _sw_p.wrapping_add(crate::charset::skipwhite_len(
-                            crate::memory::cstr_as_bytes(_sw_p.cast()),
-                        ))
-                    }
-                    .cast();
+                    p = crate::charset::skipwhite_ptr(p.add(1).cast::<std::ffi::c_char>()).cast();
                 }
             } else {
                 while *p != 0 && (p as usize) < (buffer.add(len) as usize) {
@@ -1059,12 +1041,7 @@ fn tokenize(str_in: Option<&CStr>, argv: &mut Vec<std::ffi::CString>) {
     while !crate::memory::cstr_is_empty(p) {
         let len = word_length(crate::memory::cstr_from_ptr(p));
         argv.push(vim_strnsave_unquoted(crate::memory::cstr_slice(p, len)));
-        p = {
-            let _sw_p = p.wrapping_add(len);
-            _sw_p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                _sw_p.cast(),
-            )))
-        };
+        p = crate::charset::skipwhite_ptr(p.wrapping_add(len));
     }
 }
 

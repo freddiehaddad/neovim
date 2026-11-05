@@ -3337,13 +3337,13 @@ fn recursive_regmatch(
             }
             if re_st().rex.input_col() >= st.val {
                 re_st().rex.input = re_st().rex.input.wrapping_sub(st.val as usize);
-                re_st().rex.input = re_st().rex.input.wrapping_sub({
-                    let (_b, _i) = crate::memory::cstr_span_to_char(
-                        re_st().rex.line.cast(),
-                        re_st().rex.input.cast(),
-                    );
-                    crate::mbyte::utf_head_off(_b, _i)
-                } as usize);
+                re_st().rex.input = re_st()
+                    .rex
+                    .input
+                    .wrapping_sub(crate::mbyte::utf_head_off_ptr(
+                        re_st().rex.line,
+                        re_st().rex.input,
+                    ) as usize);
             } else {
                 re_st().rex.input = re_st().rex.line;
             }

@@ -2619,13 +2619,8 @@ pub fn find_ident_at_pos(
             this_class = mb_get_class(&line_bytes[col as usize..]);
         }
         while col > 0 && this_class != 0 {
-            prevcol = col - 1 - {
-                let (_b, _i) = crate::memory::cstr_span_to_char(
-                    (ptr).cast(),
-                    (ptr.wrapping_add((col - 1) as usize)).cast(),
-                );
-                crate::mbyte::utf_head_off(_b, _i)
-            };
+            prevcol =
+                col - 1 - crate::mbyte::utf_head_off_ptr(ptr, ptr.wrapping_add((col - 1) as usize));
             prev_class = mb_get_class(&line_bytes[prevcol as usize..]);
             if this_class != prev_class
                 && (i == 0 || prev_class == 0 || (find_type & FIND_IDENT) != 0)
@@ -4441,9 +4436,9 @@ fn nv_ident(cap: &mut Cmdarg) {
                 let _l = get_cursor_line_ptr().as_ptr().cast_mut();
                 let _p: *mut std::ffi::c_char = ptr.cast_mut().cast();
                 if (_p as usize) > (_l as usize) {
-                    let (_b, _i) =
-                        crate::memory::cstr_span_to_char(_l.cast(), _p.wrapping_sub(1).cast());
-                    _p.wrapping_sub(1 + crate::mbyte::utf_head_off_slice(_b, _i) as usize)
+                    _p.wrapping_sub(
+                        1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
+                    )
                 } else {
                     _p
                 }
