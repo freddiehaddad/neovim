@@ -1852,7 +1852,7 @@ pub fn do_put(
                 );
                 let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(oldp));
                 vcol = 0;
-                while vcol < col && !crate::memory::cstr_is_empty(ci.ptr) {
+                while vcol < col && !ci.ptr.is_empty() {
                     let cli = utf_cluster_info(ci);
                     incr =
                         win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
@@ -1894,7 +1894,7 @@ pub fn do_put(
 
                     ci = utf_ptr2_str_char_info(y_data);
 
-                    while !crate::memory::cstr_is_empty(ci.ptr) {
+                    while !ci.ptr.is_empty() {
                         let cli = utf_cluster_info(ci);
                         spaces -=
                             win_charsize(cstype, 0, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)

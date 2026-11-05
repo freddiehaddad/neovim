@@ -531,7 +531,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             total += incr;
             vcol += incr;
         }
-        bd.textstart = crate::memory::cstr_from_ptr(ci.ptr);
+        bd.textstart = ci.ptr.as_cstr();
         bd.start_vcol = vcol;
 
         let mut tabs: i32 = 0;
@@ -2190,7 +2190,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
     );
     let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
     let mut vcol = bdp.start_vcol;
-    while vcol < oap.start_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
+    while vcol < oap.start_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells).width;
         vcol += incr;
@@ -2245,8 +2245,8 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(pend));
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
-            while vcol <= oap.end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
-                prev_pend = ci.ptr;
+            while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
+                prev_pend = ci.ptr.cast_const();
                 let cli = utf_cluster_info(ci);
                 incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
                     .width;
@@ -2254,7 +2254,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 ci = cli.next;
             }
             bdp.end_vcol = vcol;
-            pend = ci.ptr;
+            pend = ci.ptr.cast_const();
 
             if bdp.end_vcol <= oap.end_vcol
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)

@@ -206,7 +206,7 @@ fn coladvance2(
         );
         let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
         col = 0;
-        while col <= wcol && !crate::memory::cstr_is_empty(ci.ptr) {
+        while col <= wcol && !ci.ptr.is_empty() {
             let cli = utf_cluster_info(ci);
             let cs: CharSize =
                 win_charsize(cstype, col, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);

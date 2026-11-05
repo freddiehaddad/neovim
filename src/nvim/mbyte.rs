@@ -50,7 +50,7 @@ pub struct CharInfo {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StrCharInfo<P = crate::strings::RawCCharPtr> {
+pub struct StrCharInfo<P = crate::strings::CStrCursor<crate::strings::RawCChar>> {
     pub ptr: P,
     pub chr: CharInfo,
 }
@@ -58,17 +58,13 @@ pub struct StrCharInfo<P = crate::strings::RawCCharPtr> {
 impl StrCharInfo {
     #[inline]
     pub fn cstr(&self) -> &'static [u8] {
-        if self.ptr.is_null() {
-            &[]
-        } else {
-            unsafe { std::slice::from_raw_parts(self.ptr.cast::<u8>(), 1) }
-        }
+        self.ptr.slice(1)
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct ClusterInfo<P = crate::strings::RawCCharPtr> {
+pub struct ClusterInfo<P = crate::strings::CStrCursor<crate::strings::RawCChar>> {
     pub next: StrCharInfo<P>,
     pub cells: i32,
     pub first_compose: bool,
@@ -1065,7 +1061,7 @@ pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
 
 #[inline]
 pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo {
-    let ptr = s.as_ptr();
+    let ptr = crate::strings::CStrCursor::from_ptr(s.as_ptr());
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info(ptr),
@@ -1197,11 +1193,11 @@ pub fn utf_slice2len(bytes: &[u8]) -> usize {
 
 #[inline]
 pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
-    let ptr = if bytes.is_empty() {
+    let ptr = crate::strings::CStrCursor::from_ptr(if bytes.is_empty() {
         c"".as_ptr()
     } else {
         bytes.as_ptr().cast()
-    };
+    });
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info_len(bytes, size),
@@ -1210,7 +1206,7 @@ pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
 
 #[inline]
 pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
-    if crate::memory::cstr_is_empty(cur.ptr) {
+    if cur.ptr.is_empty() {
         return ClusterInfo {
             next: cur,
             cells: opt_vars().dy_escape_width,
@@ -1218,7 +1214,7 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
         };
     }
     let next = cur.ptr.wrapping_add(cur.chr.len as usize);
-    let next_b = unsafe { *next.cast::<u8>() };
+    let next_b = next.first_byte();
     if next_b < 0x80 {
         return ClusterInfo {
             next: StrCharInfo {
@@ -1243,7 +1239,7 @@ pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
     let nextval = if *size == 0 {
         -1
     } else {
-        i32::from(unsafe { *nextptr.cast::<u8>() })
+        i32::from(nextptr.first_byte())
     };
     if nextval < 0x80 {
         return ClusterInfo {
@@ -2578,7 +2574,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
     let mut cells = basechar_cells_impl(base.chr);
     let first_compose = utf_iscomposing_first(base.chr.value);
     let mut prev_code = base.chr.value;
-    let mut next = base.ptr.wrapping_add(base.chr.len as usize).cast::<u8>();
+    let mut next = base.ptr.wrapping_add(base.chr.len as usize);
     let mut state: GraphemeState = GRAPHEME_STATE_INIT;
     assert!(*max_len > 0);
     let mut cluster_len = base.chr.len;
@@ -2591,7 +2587,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if *max_len <= 0 {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast(),
+                    ptr: next,
                     chr: CharInfo { value: -1, len: 1 },
                 },
                 cells,
@@ -2599,14 +2595,14 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
             };
         }
         let chunk = crate::memory::cstr_prefix_bytes(
-            next.cast(),
+            next.as_ptr().cast(),
             (*max_len as usize).min(MB_MAXCHAR as usize),
         );
         let b0 = chunk.first().copied().unwrap_or(0);
         if b0 < 0x80 {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast(),
+                    ptr: next,
                     chr: CharInfo {
                         value: i32::from(b0),
                         len: 1,
@@ -2621,7 +2617,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if i32::from(next_len) > *max_len {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast(),
+                    ptr: next,
                     chr: CharInfo { value: -1, len: 1 },
                 },
                 cells,
@@ -2637,7 +2633,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         if next_code < 0 || !utf_iscomposing(prev_code, next_code, &mut state) {
             return ClusterInfo {
                 next: StrCharInfo {
-                    ptr: next.cast(),
+                    ptr: next,
                     chr: CharInfo {
                         value: next_code,
                         len: if next_code < 0 {

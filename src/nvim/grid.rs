@@ -522,7 +522,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
     let start_col = col;
     let max_col = grid_st().grid_line_maxcol;
     let mut ci = utf_ptr2_str_char_info_len(text_bytes, len);
-    while col < max_col && len > 0 && !crate::memory::cstr_is_empty(ci.ptr) {
+    while col < max_col && len > 0 && !ci.ptr.is_empty() {
         let cli = utf_cluster_info_len(ci, &mut len);
         let mut mbyte_cells = cli.cells;
         let mut schar = if mbyte_cells > 2 || ci.chr.value < 0x20 {
@@ -537,7 +537,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
             mbyte_cells = 1;
         }
 
-        if ptr::eq(ci.ptr, text_ptr)
+        if ci.ptr == text_ptr
             && col > grid_st().grid_line_first
             && col < grid_st().grid_line_last
             && g_st().linebuf_char[col as usize] == 0

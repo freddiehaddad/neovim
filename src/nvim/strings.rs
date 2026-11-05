@@ -176,6 +176,11 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline(always)]
+    pub const fn cast_mut(self) -> *mut T {
+        self.0
+    }
+
+    #[inline(always)]
     pub const fn wrapping_add(self, n: usize) -> Self {
         Self(self.0.wrapping_add(n))
     }
@@ -275,6 +280,20 @@ impl<T> PartialOrd for CStrCursor<T> {
     #[inline(always)]
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
+    }
+}
+
+impl<T> PartialOrd<*const T> for CStrCursor<T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &*const T) -> Option<std::cmp::Ordering> {
+        self.0.cast_const().partial_cmp(other)
+    }
+}
+
+impl<T> PartialOrd<*mut T> for CStrCursor<T> {
+    #[inline(always)]
+    fn partial_cmp(&self, other: &*mut T) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(other)
     }
 }
 

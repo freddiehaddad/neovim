@@ -668,7 +668,7 @@ pub fn vim_strnsize(s: &[u8], mut len: i32) -> i32 {
     let cstr = crate::memory::cstr_from_bytes(slice);
     let mut size: i32 = 0;
     let mut ci = utf_ptr2_str_char_info(&cstr);
-    while !crate::memory::cstr_is_empty(ci.ptr) && len > 0 {
+    while !ci.ptr.is_empty() && len > 0 {
         let cli = utf_cluster_info(ci);
         size += cli.cells;
         len -= crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;

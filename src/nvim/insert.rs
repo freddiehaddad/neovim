@@ -3863,7 +3863,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     );
     let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
     let mut vcol: i32 = 0;
-    while vcol < end_vcol && !crate::memory::cstr_is_empty(ci.ptr) {
+    while vcol < end_vcol && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         vcol += win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells).width;
         if vcol > end_vcol {
@@ -3873,7 +3873,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     }
 
     let c = if ci.chr.value < 0 {
-        crate::memory::cstr_first_byte(ci.ptr) as i32
+        ci.ptr.first_byte() as i32
     } else {
         ci.chr.value
     };

@@ -1168,7 +1168,7 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                 }
                 vcol = next_vcol;
                 ci = cli.next;
-                if crate::memory::cstr_is_empty(ci.ptr) {
+                if ci.ptr.is_empty() {
                     break;
                 }
             }
@@ -1669,7 +1669,7 @@ pub fn get_lisp_indent() -> i32 {
 
             let mut sci: StrCharInfo = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
             amount = 0;
-            while !crate::memory::cstr_is_empty(sci.ptr) && col > 0 {
+            while !sci.ptr.is_empty() && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);
                 amount += win_charsize(
                     cstype,

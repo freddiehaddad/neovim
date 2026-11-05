@@ -450,13 +450,13 @@ fn draw_virt_text_item(
         .is_some_and(|s| s.as_bytes().is_empty());
 
     let mut ci = StrCharInfo {
-        ptr: c"".as_ptr(),
+        ptr: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
         chr: CharInfo { value: -1, len: 0 },
     };
 
     while col < max_col {
         debug_assert!(skip_cells >= 0);
-        while crate::memory::cstr_is_empty(ci.ptr) {
+        while ci.ptr.is_empty() {
             if virt_pos >= vt.len() {
                 if eol_hl {
                     ci = utf_ptr2_str_char_info(c" ");
@@ -471,7 +471,7 @@ fn draw_virt_text_item(
                 ci = utf_ptr2_str_char_info(next);
             }
         }
-        if crate::memory::cstr_is_empty(ci.ptr) {
+        if ci.ptr.is_empty() {
             break;
         }
 
@@ -1326,14 +1326,14 @@ fn win_line_skip_columns(
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
-        prev_ptr = ci.ptr;
+        prev_ptr = ci.ptr.cast_const();
         if crate::memory::cstr_is_empty(prev_ptr) {
             break;
         }
         ci = cli.next;
         if wp.w_onebuf_opt.wo_list {
             *in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
-                && (crate::memory::cstr_first_byte(ci.ptr) == b' '
+                && (ci.ptr.first_byte() == b' '
                     || (prev_ptr > line.cast_const()
                         && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1)) == b' '));
             if !*in_multispace {
@@ -1357,7 +1357,7 @@ fn win_line_skip_columns(
     }
     wlv.vcol = vcol - csarg.extconceal_off;
     wlv.extconceal_off = csarg.extconceal_off;
-    ptr = ci.ptr;
+    ptr = ci.ptr.cast_const();
     let charsize = cs.width - cs.hidden;
     let head = cs.head;
 
