@@ -2518,9 +2518,11 @@ fn vgetorpeek(advance: bool) -> i32 {
                                     curwin_mut().w_cursor.lnum,
                                     ptr.as_cstr(),
                                 );
-                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr.as_cstr());
+                                let ptr_cstr = ptr.as_cstr();
+                                let end_off = crate::memory::ptr_offset_from(endptr, ptr) as usize;
+                                let mut ci: StrCharInfo = utf_ptr2_str_char_info(ptr_cstr);
                                 let mut vcol: i32 = 0;
-                                while ci.ptr < endptr.cast_const() {
+                                while ci.offset_from(ptr_cstr) < end_off {
                                     if !ascii_iswhite(ci.chr.value) {
                                         curwin_mut().w_wcol = vcol;
                                     }

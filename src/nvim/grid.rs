@@ -515,13 +515,13 @@ pub fn grid_line_put_schar(col: i32, schar: Schar, attr: i32) {
 
 pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i32) -> i32 {
     let text_bytes = text.to_bytes();
-    let text_ptr = text.as_ptr();
     assert!(!grid_st().grid_line_grid.is_null());
     let mut len = if textlen >= 0 { textlen } else { i32::MAX };
 
     let start_col = col;
     let max_col = grid_st().grid_line_maxcol;
     let mut ci = utf_ptr2_str_char_info_len(text_bytes, len);
+    let init_ptr_len = ci.ptr.len();
     while col < max_col && len > 0 && !ci.ptr.is_empty() {
         let cli = utf_cluster_info_len(ci, &mut len);
         let mut mbyte_cells = cli.cells;
@@ -537,7 +537,7 @@ pub fn grid_line_puts(mut col: i32, text: &std::ffi::CStr, textlen: i32, attr: i
             mbyte_cells = 1;
         }
 
-        if ci.ptr == text_ptr
+        if ci.ptr.len() == init_ptr_len
             && col > grid_st().grid_line_first
             && col < grid_st().grid_line_last
             && g_st().linebuf_char[col as usize] == 0
@@ -1424,18 +1424,16 @@ pub fn schar_from_cluster_impl(buf: &[u8], first_compose: bool) -> Schar {
 #[inline]
 pub fn schar_from_cluster(ci: StrCharInfo, cli: ClusterInfo) -> Schar {
     assert!(ci.chr.value >= 0);
-    let len = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as usize;
+    let len = ci.ptr.len() - cli.next.ptr.len();
     if len == 1 {
         return schar_from_ascii(ci.chr.value as u8);
     }
     if cli.first_compose || len > 4 {
-        return schar_from_cluster_impl(ci.ptr.slice(len), cli.first_compose);
+        return schar_from_cluster_impl(&ci.ptr[..len], cli.first_compose);
     }
-    let mut sc: Schar = 0;
-
-    unsafe { ptr::copy_nonoverlapping(ci.ptr.cast::<u8>(), (&raw mut sc).cast::<u8>(), len) };
-
-    sc
+    let mut bytes = [0u8; 4];
+    bytes[..len].copy_from_slice(&ci.ptr[..len]);
+    u32::from_ne_bytes(bytes)
 }
 
 #[cfg(test)]

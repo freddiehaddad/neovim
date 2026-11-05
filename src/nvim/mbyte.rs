@@ -50,22 +50,45 @@ pub struct CharInfo {
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct StrCharInfo<P = crate::strings::CStrCursor<crate::strings::RawCChar>> {
-    pub ptr: P,
+pub struct StrCharInfo {
+    pub ptr: &'static [u8],
     pub chr: CharInfo,
 }
 
 impl StrCharInfo {
     #[inline]
-    pub fn cstr(&self) -> &'static [u8] {
-        self.ptr.slice(1)
+    pub const fn cstr(&self) -> &'static [u8] {
+        self.ptr
+    }
+
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.ptr.is_empty()
+    }
+
+    #[inline]
+    pub const fn first_byte(&self) -> u8 {
+        match self.ptr.first() {
+            Some(&b) => b,
+            None => 0,
+        }
+    }
+
+    #[inline]
+    pub fn as_cstr(&self) -> &'static CStr {
+        crate::memory::cstr_from_ptr(self.ptr.as_ptr())
+    }
+
+    #[inline]
+    pub const fn offset_from(&self, base: &CStr) -> usize {
+        base.to_bytes().len().saturating_sub(self.ptr.len())
     }
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct ClusterInfo<P = crate::strings::CStrCursor<crate::strings::RawCChar>> {
-    pub next: StrCharInfo<P>,
+pub struct ClusterInfo {
+    pub next: StrCharInfo,
     pub cells: i32,
     pub first_compose: bool,
 }
@@ -1038,14 +1061,20 @@ impl<T> AsMbyteSlice for crate::strings::CStrCursor<T> {
     }
 }
 
-impl AsMbyteSlice for crate::regexp::RegLinePtr {
+impl AsMbyteSlice for Option<&[u8]> {
     #[inline]
     fn as_char_bytes(&self) -> &[u8] {
-        crate::memory::cstr_char_bytes(self.as_ptr().cast())
+        match *self {
+            Some(b) if !b.is_empty() => &b[..b.len().saturating_sub(1).min(MB_MAXCHAR as usize)],
+            _ => &[],
+        }
     }
     #[inline]
     fn as_cluster_bytes(&self) -> &[u8] {
-        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
+        match *self {
+            Some(b) if !b.is_empty() => &b[..b.len().saturating_sub(1).min(64)],
+            _ => &[],
+        }
     }
 }
 
@@ -1061,7 +1090,7 @@ pub fn utf_ptr2_char_info(bytes: impl AsMbyteSlice) -> CharInfo {
 
 #[inline]
 pub fn utf_ptr2_str_char_info(s: &CStr) -> StrCharInfo {
-    let ptr = crate::strings::CStrCursor::from_ptr(s.as_ptr());
+    let ptr = crate::globals::GraphPtr::slice(s.to_bytes());
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info(ptr),
@@ -1193,11 +1222,8 @@ pub fn utf_slice2len(bytes: &[u8]) -> usize {
 
 #[inline]
 pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
-    let ptr = crate::strings::CStrCursor::from_ptr(if bytes.is_empty() {
-        c"".as_ptr()
-    } else {
-        bytes.as_ptr().cast()
-    });
+    let n = (size.max(0) as usize).min(bytes.len());
+    let ptr = crate::globals::GraphPtr::slice(&bytes[..n]);
     StrCharInfo {
         ptr,
         chr: utf_ptr2_char_info_len(bytes, size),
@@ -1206,15 +1232,16 @@ pub fn utf_ptr2_str_char_info_len(bytes: &[u8], size: i32) -> StrCharInfo {
 
 #[inline]
 pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
-    if cur.ptr.is_empty() {
+    if cur.is_empty() {
         return ClusterInfo {
             next: cur,
             cells: opt_vars().dy_escape_width,
             first_compose: false,
         };
     }
-    let next = cur.ptr.wrapping_add(cur.chr.len as usize);
-    let next_b = next.first_byte();
+    let adv = (cur.chr.len.max(0) as usize).min(cur.ptr.len());
+    let next = &cur.ptr[adv..];
+    let next_b = next.first().copied().unwrap_or(0);
     if next_b < 0x80 {
         return ClusterInfo {
             next: StrCharInfo {
@@ -1235,11 +1262,12 @@ pub fn utf_cluster_info(cur: StrCharInfo) -> ClusterInfo {
 #[inline]
 pub fn utf_cluster_info_len(cur: StrCharInfo, size: &mut i32) -> ClusterInfo {
     *size -= cur.chr.len;
-    let nextptr = cur.ptr.wrapping_add(cur.chr.len as usize);
+    let adv = (cur.chr.len.max(0) as usize).min(cur.ptr.len());
+    let nextptr = &cur.ptr[adv..];
     let nextval = if *size == 0 {
         -1
     } else {
-        i32::from(nextptr.first_byte())
+        i32::from(nextptr.first().copied().unwrap_or(0))
     };
     if nextval < 0x80 {
         return ClusterInfo {
@@ -2574,7 +2602,8 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
     let mut cells = basechar_cells_impl(base.chr);
     let first_compose = utf_iscomposing_first(base.chr.value);
     let mut prev_code = base.chr.value;
-    let mut next = base.ptr.wrapping_add(base.chr.len as usize);
+    let adv = (base.chr.len.max(0) as usize).min(base.ptr.len());
+    let mut next = &base.ptr[adv..];
     let mut state: GraphemeState = GRAPHEME_STATE_INIT;
     assert!(*max_len > 0);
     let mut cluster_len = base.chr.len;
@@ -2594,10 +2623,8 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
                 first_compose,
             };
         }
-        let chunk = crate::memory::cstr_prefix_bytes(
-            next.as_ptr().cast(),
-            (*max_len as usize).min(MB_MAXCHAR as usize),
-        );
+        let max_chunk = (*max_len as usize).min(MB_MAXCHAR as usize).min(next.len());
+        let chunk = crate::memory::bytes_until_nul(&next[..max_chunk]);
         let b0 = chunk.first().copied().unwrap_or(0);
         if b0 < 0x80 {
             return ClusterInfo {
@@ -2666,7 +2693,7 @@ pub fn utf_cluster_info_impl(base: StrCharInfo, max_len: &mut i32) -> ClusterInf
         }
 
         prev_code = next_code;
-        next = next.wrapping_add(usize::from(next_len));
+        next = &next[usize::from(next_len).min(next.len())..];
         *max_len -= i32::from(next_len);
     }
 }

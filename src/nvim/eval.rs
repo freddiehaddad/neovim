@@ -6423,7 +6423,8 @@ pub fn do_string_sub(
     expr: Option<&TypVal>,
     flags: &CStr,
 ) -> std::ffi::CString {
-    let str_ = crate::strings::CStrCursor::from_ptr(str_cstr.as_ptr().cast_mut());
+    let str_bytes = str_cstr.to_bytes();
+    let len = len.min(str_bytes.len());
     let mut regmatch: Regmatch = Regmatch::new();
     let mut out: Option<Vec<u8>> = None;
 
@@ -6432,27 +6433,24 @@ pub fn do_string_sub(
     regmatch.rm_ic = opt_vars().p_ic;
     regmatch.set_prog(vim_regcomp(pat, RE_MAGIC + RE_STRING));
     if !regmatch.regprog.is_null() {
-        let mut tail = crate::strings::CStrCursor::of(str_);
-        let end = crate::strings::CStrCursor::of(str_.wrapping_add(len));
+        let mut tail_off: usize = 0;
         let do_all = flags.to_bytes().first() == Some(&b'g');
-        let mut zero_width = crate::regexp::RegLinePtr::NULL;
+        let mut zero_width: Option<usize> = None;
         let str_opt = Some(str_cstr);
 
-        while vim_regexec_nl(
-            &mut regmatch,
-            str_opt,
-            ((tail.as_ptr() as usize).wrapping_sub(str_.as_ptr() as usize)) as Colnr,
-        ) {
-            if regmatch.startp[0] == regmatch.endp[0] {
-                if zero_width == regmatch.startp[0] {
-                    let i = utfc_ptr2len(tail) as usize;
+        while vim_regexec_nl(&mut regmatch, str_opt, tail_off as Colnr) {
+            let start_off = regmatch.start_offset(0, str_cstr);
+            let end_off = regmatch.end_offset(0, str_cstr);
+            if start_off == end_off {
+                if zero_width == Some(start_off) {
+                    let i = crate::mbyte::utfc_slice2len(&str_bytes[tail_off..]);
                     if let Some(buf) = &mut out {
-                        buf.extend_from_slice(tail.slice(i));
+                        buf.extend_from_slice(&str_bytes[tail_off..(tail_off + i).min(len)]);
                     }
-                    tail = crate::strings::CStrCursor::of(tail.wrapping_add(i));
+                    tail_off = (tail_off + i).min(len);
                     continue;
                 }
-                zero_width = regmatch.startp[0];
+                zero_width = Some(start_off);
             }
 
             let sublen = vim_regsub(&mut regmatch, sub_cstr, expr, &mut [], REGSUB_MAGIC);
@@ -6462,9 +6460,9 @@ pub fn do_string_sub(
             }
             let buf = out.get_or_insert_with(|| Vec::with_capacity(200));
 
-            let i = (regmatch.startp[0].as_ptr() as usize).wrapping_sub(tail.as_ptr() as usize);
+            let i = start_off.saturating_sub(tail_off);
             if i > 0 {
-                buf.extend_from_slice(tail.slice(i));
+                buf.extend_from_slice(&str_bytes[tail_off..tail_off + i]);
             }
             let cur_len = buf.len();
             buf.resize(cur_len + (sublen as usize), 0);
@@ -6476,8 +6474,8 @@ pub fn do_string_sub(
                 REGSUB_COPY | REGSUB_MAGIC,
             );
             buf.truncate(cur_len + (sublen as usize) - 1);
-            tail = crate::strings::CStrCursor::of(regmatch.endp[0].cast());
-            if tail.is_empty() {
+            tail_off = end_off.min(len);
+            if tail_off >= len {
                 break;
             }
             if !do_all {
@@ -6485,11 +6483,10 @@ pub fn do_string_sub(
             }
         }
 
-        if let Some(buf) = &mut out {
-            let rem = (end.as_ptr() as usize).wrapping_sub(tail.as_ptr() as usize);
-            if rem > 0 {
-                buf.extend_from_slice(tail.slice(rem));
-            }
+        if let Some(buf) = &mut out
+            && tail_off < len
+        {
+            buf.extend_from_slice(&str_bytes[tail_off..len]);
         }
 
         regmatch.free_prog();
@@ -6498,7 +6495,7 @@ pub fn do_string_sub(
     let ret = if let Some(buf) = &out {
         cstr_from_bytes(buf)
     } else {
-        cstr_from_bytes(str_.slice(len))
+        cstr_from_bytes(&str_bytes[..len])
     };
     drop(out);
     if opt_vars().p_cpo.is_null() {

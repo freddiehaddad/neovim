@@ -287,157 +287,101 @@ impl Default for Regmmatch {
     }
 }
 
-#[repr(transparent)]
-#[derive(Clone, Copy)]
-pub struct RegLinePtr(*mut u8);
+pub type RegLineSlice = Option<&'static [u8]>;
+pub const REG_LINE_NULL: RegLineSlice = None;
 
-impl Default for RegLinePtr {
-    #[inline(always)]
-    fn default() -> Self {
-        Self::NULL
-    }
+#[inline(always)]
+pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
+    Some(crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
 }
 
-impl RegLinePtr {
-    pub const NULL: Self = Self(ptr::null_mut());
+#[inline(always)]
+pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
+    s.and_then(reg_line_from_cstr)
+}
 
+pub trait RegLineExt: Copy {
+    fn is_null(self) -> bool;
+    fn addr(self) -> usize;
+    fn first_byte(self) -> u8;
+    fn is_empty(self) -> bool;
+    fn as_bytes(self) -> &'static [u8];
+    fn as_cstr(self) -> &'static std::ffi::CStr;
+    fn slice(self, len: usize) -> &'static [u8];
+    fn wrapping_add(self, n: usize) -> Self;
+    fn offset_in(self, base: Self, d: isize) -> Self;
+    fn offset_from(self, base: Self) -> usize;
+    fn span_to(self, end: Self) -> &'static [u8];
+    fn before(self, other: Self) -> bool;
+}
+
+impl RegLineExt for RegLineSlice {
     #[inline(always)]
-    pub const fn from_ptr(p: *const u8) -> Self {
-        Self(p.cast_mut())
+    fn is_null(self) -> bool {
+        self.is_none()
     }
 
     #[inline(always)]
-    pub const fn from_opt_cstr(s: Option<&std::ffi::CStr>) -> Self {
-        match s {
-            Some(c) => Self(c.as_ptr().cast_mut().cast()),
-            None => Self::NULL,
-        }
+    fn addr(self) -> usize {
+        self.map_or(0, |b| b.as_ptr() as usize)
     }
 
     #[inline(always)]
-    pub const fn from_cstr(s: &std::ffi::CStr) -> Self {
-        Self(s.as_ptr().cast_mut().cast())
+    fn first_byte(self) -> u8 {
+        self.and_then(|b| b.first().copied()).unwrap_or(0)
     }
 
     #[inline(always)]
-    pub const fn is_null(self) -> bool {
-        self.0.is_null()
-    }
-
-    #[inline(always)]
-    pub const fn as_ptr(self) -> *mut u8 {
-        self.0
-    }
-
-    #[inline(always)]
-    pub const fn cast<T>(self) -> *mut T {
-        self.as_ptr().cast()
-    }
-
-    #[inline(always)]
-    pub const fn cast_const(self) -> *const u8 {
-        self.as_ptr().cast_const()
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_add(self, n: usize) -> Self {
-        let p = self.as_ptr();
-        if p.is_null() {
-            Self::NULL
-        } else {
-            Self::from_ptr(p.wrapping_add(n))
-        }
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_sub(self, n: usize) -> Self {
-        let p = self.as_ptr();
-        if p.is_null() {
-            Self::NULL
-        } else {
-            Self::from_ptr(p.wrapping_sub(n))
-        }
-    }
-
-    #[inline(always)]
-    pub const fn wrapping_offset(self, d: isize) -> Self {
-        let p = self.as_ptr();
-        if p.is_null() {
-            Self::NULL
-        } else {
-            Self::from_ptr(p.wrapping_offset(d))
-        }
-    }
-
-    #[inline(always)]
-    pub fn head_off_to(self, p: Self) -> i32 {
-        let len = (p.as_ptr() as usize).saturating_sub(self.as_ptr() as usize);
-        crate::mbyte::utf_head_off_slice(self.as_bytes(), len)
-    }
-
-    #[inline(always)]
-    pub const fn first_byte(self) -> u8 {
-        let p = self.as_ptr();
-        if p.is_null() { 0 } else { unsafe { *p } }
-    }
-
-    #[inline(always)]
-    pub const fn is_empty(self) -> bool {
+    fn is_empty(self) -> bool {
         self.first_byte() == 0
     }
 
     #[inline(always)]
-    pub fn as_bytes(self) -> &'static [u8] {
-        crate::memory::cstr_as_bytes(self.as_ptr())
+    fn as_bytes(self) -> &'static [u8] {
+        self.map_or(&[], crate::memory::bytes_until_nul)
     }
 
     #[inline(always)]
-    pub fn as_cstr(self) -> &'static std::ffi::CStr {
-        crate::memory::cstr_from_ptr(self.as_ptr())
+    fn as_cstr(self) -> &'static std::ffi::CStr {
+        self.map_or(c"", crate::memory::cstr_until_nul)
     }
 
     #[inline(always)]
-    pub fn slice(self, len: usize) -> &'static [u8] {
-        crate::memory::cstr_slice(self.as_ptr(), len)
+    fn slice(self, len: usize) -> &'static [u8] {
+        match self {
+            Some(b) => &b[..len.min(b.len().saturating_sub(1))],
+            None => &[],
+        }
     }
-}
 
-impl PartialEq for RegLinePtr {
     #[inline(always)]
-    fn eq(&self, other: &Self) -> bool {
-        self.as_ptr() == other.as_ptr()
+    fn wrapping_add(self, n: usize) -> Self {
+        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
     }
-}
 
-impl Eq for RegLinePtr {}
-
-impl PartialOrd for RegLinePtr {
     #[inline(always)]
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
+    fn offset_in(self, base: Self, d: isize) -> Self {
+        if d >= 0 {
+            self.wrapping_add(d as usize)
+        } else {
+            let off = self.offset_from(base).saturating_sub((-d) as usize);
+            base.wrapping_add(off)
+        }
     }
-}
 
-impl Ord for RegLinePtr {
     #[inline(always)]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
+    fn offset_from(self, base: Self) -> usize {
+        self.addr().saturating_sub(base.addr())
     }
-}
 
-impl crate::memory::IntoConstPtr for RegLinePtr {
-    type Target = u8;
     #[inline(always)]
-    fn into_const_ptr(self) -> *const u8 {
-        self.as_ptr().cast_const()
+    fn span_to(self, end: Self) -> &'static [u8] {
+        self.slice(end.offset_from(self))
     }
-}
 
-impl crate::memory::IntoMutPtr for RegLinePtr {
-    type Target = u8;
     #[inline(always)]
-    fn into_mut_ptr(self) -> *mut u8 {
-        self.as_ptr()
+    fn before(self, other: Self) -> bool {
+        self.addr() < other.addr()
     }
 }
 
@@ -445,8 +389,8 @@ impl crate::memory::IntoMutPtr for RegLinePtr {
 #[derive(Clone, Copy)]
 pub struct Regmatch {
     pub regprog: crate::globals::GraphPtr<Regprog>,
-    pub startp: [RegLinePtr; NSUBEXP],
-    pub endp: [RegLinePtr; NSUBEXP],
+    pub startp: [RegLineSlice; NSUBEXP],
+    pub endp: [RegLineSlice; NSUBEXP],
     pub rm_matchcol: Colnr,
     pub rm_ic: bool,
 }
@@ -455,11 +399,31 @@ impl Regmatch {
     pub const fn new() -> Self {
         Self {
             regprog: crate::globals::GraphPtr::NULL,
-            startp: [RegLinePtr::NULL; NSUBEXP],
-            endp: [RegLinePtr::NULL; NSUBEXP],
+            startp: [REG_LINE_NULL; NSUBEXP],
+            endp: [REG_LINE_NULL; NSUBEXP],
             rm_matchcol: 0,
             rm_ic: false,
         }
+    }
+
+    #[inline(always)]
+    pub fn span_len(&self, idx: usize) -> usize {
+        self.endp[idx].offset_from(self.startp[idx])
+    }
+
+    #[inline(always)]
+    pub fn span_bytes(&self, idx: usize) -> &'static [u8] {
+        self.startp[idx].span_to(self.endp[idx])
+    }
+
+    #[inline(always)]
+    pub fn start_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
+        self.startp[idx].offset_from(reg_line_from_cstr(base))
+    }
+
+    #[inline(always)]
+    pub fn end_offset(&self, idx: usize, base: &std::ffi::CStr) -> usize {
+        self.endp[idx].offset_from(reg_line_from_cstr(base))
     }
 
     #[inline(always)]
@@ -576,14 +540,14 @@ pub(super) struct NfaRegprog {
 
 #[derive(Clone, Copy)]
 pub(super) struct RegPos {
-    pub ptr: RegLinePtr,
+    pub ptr: RegLineSlice,
     pub pos: Lpos,
 }
 
 impl RegPos {
     pub(super) const fn new() -> Self {
         Self {
-            ptr: RegLinePtr::NULL,
+            ptr: REG_LINE_NULL,
             pos: Lpos::new(),
         }
     }
@@ -591,7 +555,7 @@ impl RegPos {
     #[inline(always)]
     pub(super) const fn from_pos(pos: Lpos) -> Self {
         Self {
-            ptr: RegLinePtr::NULL,
+            ptr: REG_LINE_NULL,
             pos,
         }
     }
@@ -794,15 +758,15 @@ impl MultiPos {
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub(super) struct LinePos {
-    pub start: RegLinePtr,
-    pub end: RegLinePtr,
+    pub start: RegLineSlice,
+    pub end: RegLineSlice,
 }
 
 impl LinePos {
     pub(super) const fn new() -> Self {
         Self {
-            start: RegLinePtr::NULL,
-            end: RegLinePtr::NULL,
+            start: REG_LINE_NULL,
+            end: REG_LINE_NULL,
         }
     }
 }
@@ -1031,8 +995,8 @@ pub(super) struct Regexec {
     pub reg_maxline: Linenr,
     pub reg_line_lbr: bool,
     pub lnum: Linenr,
-    pub line: RegLinePtr,
-    pub input: RegLinePtr,
+    pub line: RegLineSlice,
+    pub input: RegLineSlice,
     pub need_clear_subexpr: bool,
     pub need_clear_zsubexpr: bool,
     pub reg_ic: bool,
@@ -1060,8 +1024,8 @@ impl Regexec {
             reg_maxline: 0,
             reg_line_lbr: false,
             lnum: 0,
-            line: RegLinePtr::NULL,
-            input: RegLinePtr::NULL,
+            line: REG_LINE_NULL,
+            input: REG_LINE_NULL,
             need_clear_subexpr: false,
             need_clear_zsubexpr: false,
             reg_ic: false,
@@ -1392,8 +1356,8 @@ pub(super) struct RegexpState {
     pub(super) rex_in_use: bool,
     pub(super) can_f_submatch: bool,
     pub(super) rsm: Regsubmatch,
-    pub(super) reg_startzp: [RegLinePtr; NSUBEXP],
-    pub(super) reg_endzp: [RegLinePtr; NSUBEXP],
+    pub(super) reg_startzp: [RegLineSlice; NSUBEXP],
+    pub(super) reg_endzp: [RegLineSlice; NSUBEXP],
     pub(super) reg_startzpos: [Lpos; NSUBEXP],
     pub(super) reg_endzpos: [Lpos; NSUBEXP],
     pub(super) eval_result: [Option<std::ffi::CString>; MAX_REGSUB_NESTING],
@@ -1458,8 +1422,8 @@ impl RegexpState {
                 reg_maxline: 0,
                 reg_line_lbr: false,
                 lnum: 0,
-                line: RegLinePtr::NULL,
-                input: RegLinePtr::NULL,
+                line: REG_LINE_NULL,
+                input: REG_LINE_NULL,
                 need_clear_subexpr: false,
                 need_clear_zsubexpr: false,
                 reg_ic: false,
@@ -1482,8 +1446,8 @@ impl RegexpState {
                 sm_maxline: 0,
                 sm_line_lbr: 0,
             },
-            reg_startzp: [RegLinePtr::NULL; NSUBEXP],
-            reg_endzp: [RegLinePtr::NULL; NSUBEXP],
+            reg_startzp: [REG_LINE_NULL; NSUBEXP],
+            reg_endzp: [REG_LINE_NULL; NSUBEXP],
             reg_startzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
             reg_endzpos: [Lpos { lnum: 0, col: 0 }; NSUBEXP],
             eval_result: [const { None }; MAX_REGSUB_NESTING],
@@ -2302,10 +2266,12 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 }
 
 pub(super) fn reg_prev_class() -> i32 {
-    if re_st().rex.input > re_st().rex.line {
-        let prev = re_st().rex.input.wrapping_sub(1);
-        let head = prev.wrapping_sub(re_st().rex.line.head_off_to(prev) as usize);
-        return mb_get_class_tab(head.as_bytes(), &re_st().rex.buf_mut().b_chartab);
+    let off = re_st().rex.input_off();
+    if off > 0 {
+        let line_bytes = re_st().rex.line.as_bytes();
+        let prev_off = off - 1;
+        let head_off = prev_off - crate::mbyte::utf_head_off_slice(line_bytes, prev_off) as usize;
+        return mb_get_class_tab(&line_bytes[head_off..], &re_st().rex.buf_mut().b_chartab);
     }
     -1
 }
@@ -2435,8 +2401,8 @@ pub(super) fn cleanup_subexpr() {
         re_st().rex.endpos_slice_mut().fill(uninit_pos);
     } else {
         let m = re_st().rex.match_mut();
-        m.startp.fill(RegLinePtr::NULL);
-        m.endp.fill(RegLinePtr::NULL);
+        m.startp.fill(REG_LINE_NULL);
+        m.endp.fill(REG_LINE_NULL);
     }
     re_st().rex.need_clear_subexpr = false;
 }
@@ -2450,8 +2416,8 @@ pub(super) fn cleanup_zsubexpr() {
         re_st().reg_startzpos = [uninit_pos; NSUBEXP];
         re_st().reg_endzpos = [uninit_pos; NSUBEXP];
     } else {
-        re_st().reg_startzp = [RegLinePtr::NULL; NSUBEXP];
-        re_st().reg_endzp = [RegLinePtr::NULL; NSUBEXP];
+        re_st().reg_startzp = [REG_LINE_NULL; NSUBEXP];
+        re_st().reg_endzp = [REG_LINE_NULL; NSUBEXP];
     }
     re_st().rex.need_clear_zsubexpr = false;
 }
@@ -2477,7 +2443,7 @@ pub(super) fn match_with_backref(
     *bytelen = 0;
     loop {
         if re_st().reg_tofree.is_empty()
-            || re_st().rex.line.as_ptr() != re_st().reg_tofree.as_mut_ptr()
+            || re_st().rex.line.addr() != re_st().reg_tofree.as_ptr() as usize
         {
             let line_bytes = re_st().rex.line.as_cstr().to_bytes_with_nul();
             let len = line_bytes.len() - 1 + 51;
@@ -2487,7 +2453,7 @@ pub(super) fn match_with_backref(
             }
             re_st().reg_tofree[..line_bytes.len()].copy_from_slice(line_bytes);
             re_st().rex.line =
-                RegLinePtr::from_cstr(crate::memory::cstr_until_nul(&re_st().reg_tofree));
+                reg_line_from_cstr(crate::memory::cstr_until_nul(&re_st().reg_tofree));
             re_st().rex.input = re_st().rex.line.wrapping_add(off);
         }
 
@@ -2773,12 +2739,12 @@ pub(crate) fn fill_submatch_list(
     let mut li = crate::globals::GraphPtr::from(tv_list_first(listarg.vval.v_list().opt()));
     for i in 0..10 {
         let s = re_st().rsm.match_mut().startp[i];
+        let e = re_st().rsm.match_mut().endp[i];
         let li_mut = li.borrow_mut();
-        if s.is_null() || re_st().rsm.match_mut().endp[i].is_null() {
+        if s.is_null() || e.is_null() {
             tv_set_string(&mut li_mut.li_tv, None);
         } else {
-            let len = crate::memory::ptr_offset_from(re_st().rsm.match_mut().endp[i], s) as usize;
-            let bytes = s.slice(len);
+            let bytes = s.span_to(e);
             let cs = cstring_from_bytes(bytes).unwrap_or_default();
 
             tv_set_string(&mut li_mut.li_tv, Some(cs.as_c_str()));
@@ -3151,14 +3117,13 @@ fn vim_regsub_both(
                         }
                     }
                 } else {
-                    s = re_st().rex.match_mut().startp[no as usize].as_ptr();
-                    if re_st().rex.match_mut().endp[no as usize].is_null() {
+                    let start_no = re_st().rex.match_mut().startp[no as usize];
+                    let end_no = re_st().rex.match_mut().endp[no as usize];
+                    if start_no.is_null() || end_no.is_null() {
                         s = ptr::null_mut();
                     } else {
-                        len = crate::memory::ptr_offset_from(
-                            re_st().rex.match_mut().endp[no as usize],
-                            s,
-                        ) as i32;
+                        s = start_no.unwrap().as_ptr().cast_mut();
+                        len = end_no.offset_from(start_no) as i32;
                     }
                 }
                 if !s.is_null() {
@@ -3298,8 +3263,7 @@ pub fn reg_submatch(no: i32) -> Option<std::ffi::CString> {
         if s.is_null() || e.is_null() {
             None
         } else {
-            let len = crate::memory::ptr_offset_from(e, s) as usize;
-            cstring_from_bytes(s.slice(len))
+            cstring_from_bytes(s.span_to(e))
         }
     }
 }
@@ -3350,11 +3314,7 @@ pub fn reg_submatch_list(no: i32) -> Option<&'static mut TvList> {
             return None;
         }
         list = tv_list_alloc(1);
-        tv_list_append_string(
-            list,
-            Some(s.as_cstr()),
-            crate::memory::ptr_offset_from(e, s),
-        );
+        tv_list_append_string(list, Some(s.as_cstr()), e.offset_from(s) as isize);
     }
 
     tv_list_ref(Some(list));
@@ -3793,15 +3753,15 @@ impl Regexec {
     }
     #[inline(always)]
     pub fn load_line(&mut self, lnum: Linenr) {
-        self.line = RegLinePtr::from_opt_cstr(reg_getline(lnum));
+        self.line = reg_line_from_opt_cstr(reg_getline(lnum));
     }
     #[inline(always)]
     pub fn input_col(&self) -> Colnr {
-        crate::memory::ptr_offset_from(self.input, self.line) as Colnr
+        self.input_off() as Colnr
     }
     #[inline(always)]
     pub fn input_off(&self) -> usize {
-        crate::memory::ptr_offset_from(self.input, self.line) as usize
+        self.input.offset_from(self.line)
     }
     #[inline(always)]
     pub fn startpos_slice_mut(&self) -> &'static mut [Lpos] {

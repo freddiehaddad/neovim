@@ -2270,7 +2270,7 @@ fn regrepeat(prog: &[u8], p: usize, maxcount: i64) -> i32 {
     let op = op_fn(prog, Some(p));
 
     let do_class =
-        |mask: i16, testval: i16, scan: &mut crate::regexp::RegLinePtr, count: &mut i64| {
+        |mask: i16, testval: i16, scan: &mut crate::regexp::RegLineSlice, count: &mut i64| {
             while *count < maxcount {
                 let b0 = (*scan).first_byte();
                 if b0 == NUL {
@@ -2755,9 +2755,7 @@ fn regmatch(
                         if re_st().rex.reg_win.is_null()
                             || (re_st().rex.lnum + re_st().rex.reg_firstlnum
                                 != re_st().rex.win_mut().w_cursor.lnum)
-                            || (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
-                                as Colnr
-                                != re_st().rex.win_mut().w_cursor.col)
+                            || (re_st().rex.input_col() != re_st().rex.win_mut().w_cursor.col)
                         {
                             status = RegAction::NoMatch;
                         }
@@ -2767,8 +2765,7 @@ fn regmatch(
                         let mark = i32::from(prog[opnd]);
                         let cmp = i32::from(prog[opnd + 1]);
                         let col = if reg_multi() {
-                            crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
-                                as usize
+                            re_st().rex.input_off()
                         } else {
                             0
                         };
@@ -2796,9 +2793,7 @@ fn regmatch(
                             } else {
                                 pos.col
                             };
-                            let cur_col =
-                                crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
-                                    as Colnr;
+                            let cur_col = re_st().rex.input_col();
                             let nomatch =
                                 if pos.lnum == re_st().rex.lnum + re_st().rex.reg_firstlnum {
                                     if pos_col == cur_col {
@@ -2835,12 +2830,7 @@ fn regmatch(
                         }
                     }
                     RE_COL => {
-                        if !re_num_cmp(
-                            (crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
-                                + 1) as u32,
-                            prog,
-                            scan_idx,
-                        ) {
+                        if !re_num_cmp((re_st().rex.input_off() + 1) as u32, prog, scan_idx) {
                             status = RegAction::NoMatch;
                         }
                     }
@@ -2862,8 +2852,7 @@ fn regmatch(
                             wp,
                             lnum,
                             re_st().rex.line.as_cstr(),
-                            crate::memory::ptr_offset_from(re_st().rex.input, re_st().rex.line)
-                                as Colnr,
+                            re_st().rex.input_col(),
                         );
                         if !re_num_cmp((vcol as u32).wrapping_add(1), prog, scan_idx) {
                             status = RegAction::NoMatch;
@@ -3265,7 +3254,7 @@ fn regmatch(
                             let start_no = re_st().rex.match_mut().startp[no];
                             let end_no = re_st().rex.match_mut().endp[no];
                             if !start_no.is_null() && !end_no.is_null() {
-                                len = crate::memory::ptr_offset_from(end_no, start_no) as i32;
+                                len = end_no.offset_from(start_no) as i32;
 
                                 if cstrncmp(
                                     (start_no).as_bytes(),
@@ -3478,12 +3467,7 @@ fn regmatch(
                     BHPOS => {
                         if reg_multi() {
                             let bpos = re_st().behind_pos.rs_u.pos();
-                            if bpos.col
-                                != crate::memory::ptr_offset_from(
-                                    re_st().rex.input,
-                                    re_st().rex.line,
-                                ) as Colnr
-                                || bpos.lnum != re_st().rex.lnum
+                            if bpos.col != re_st().rex.input_col() || bpos.lnum != re_st().rex.lnum
                             {
                                 status = RegAction::NoMatch;
                             }
@@ -3700,17 +3684,22 @@ fn regmatch(
                         } else if rp.rs_un.regsave().rs_u.ptr == re_st().rex.line {
                             no = false;
                         } else {
-                            let mut p = rp.rs_un.regsave().rs_u.ptr;
-                            p = p.wrapping_sub(
-                                1 + re_st().rex.line.head_off_to(p.wrapping_sub(1)) as usize,
-                            );
+                            let line = re_st().rex.line;
+                            let p_off = rp.rs_un.regsave().rs_u.ptr.offset_from(line);
+                            let prev_off = p_off
+                                - 1
+                                - crate::mbyte::utf_head_off_slice(line.as_bytes(), p_off - 1)
+                                    as usize;
+                            let p = line.wrapping_add(prev_off);
                             rp.rs_un.regsave_mut().rs_u.ptr = p;
 
                             if limit > 0
-                                && crate::memory::ptr_offset_from(
-                                    re_st().behind_pos.rs_u.ptr,
-                                    rp.rs_un.regsave().rs_u.ptr,
-                                ) > limit as isize
+                                && re_st()
+                                    .behind_pos
+                                    .rs_u
+                                    .ptr
+                                    .offset_from(rp.rs_un.regsave().rs_u.ptr)
+                                    > limit as usize
                             {
                                 no = false;
                             }
@@ -3777,13 +3766,16 @@ fn regmatch(
                                                 );
                                         reg_breakcheck();
                                     } else {
-                                        re_st().rex.input = re_st().rex.input.wrapping_sub(
-                                            1 + re_st()
-                                                .rex
-                                                .line
-                                                .head_off_to(re_st().rex.input.wrapping_sub(1))
-                                                as usize,
-                                        );
+                                        let line = re_st().rex.line;
+                                        let inp_off = re_st().rex.input_off();
+                                        let prev_off = inp_off
+                                            - 1
+                                            - crate::mbyte::utf_head_off_slice(
+                                                line.as_bytes(),
+                                                inp_off - 1,
+                                            )
+                                                as usize;
+                                        re_st().rex.input = line.wrapping_add(prev_off);
                                     }
                                 } else {
                                     if rst.count == rst.minval
@@ -3912,9 +3904,7 @@ fn regtry(
                 let szp = re_st().reg_startzp[i];
                 let ezp = re_st().reg_endzp[i];
                 if !szp.is_null() && !ezp.is_null() {
-                    extmatch.matches[i] = cstring_from_bytes(
-                        szp.slice(crate::memory::ptr_offset_from(ezp, szp) as usize),
-                    );
+                    extmatch.matches[i] = cstring_from_bytes(szp.span_to(ezp));
                 }
             }
         }
@@ -3929,7 +3919,7 @@ fn bt_regexec_both(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> i32 {
-    let mut line = RegLinePtr::from_opt_cstr(line_opt);
+    let mut line = reg_line_from_opt_cstr(line_opt);
     let mut col = startcol;
     let mut retval: i32 = 0;
 
@@ -3943,7 +3933,7 @@ fn bt_regexec_both(
 
     let prog: *mut BtRegprog = if reg_multi() {
         let p = re_st().rex.mmatch_mut().prog_mut().bt_mut();
-        line = RegLinePtr::from_opt_cstr(reg_getline(0));
+        line = reg_line_from_opt_cstr(reg_getline(0));
         re_st().rex.reg_startpos =
             crate::globals::GraphPtr::from(&mut re_st().rex.mmatch_mut().startpos);
         re_st().rex.reg_endpos =
@@ -3979,7 +3969,12 @@ fn bt_regexec_both(
     if let Some(off) = prog.regmust_off {
         let regmust_slice = crate::memory::bytes_until_nul(&prog.program[off..]);
         let c = crate::mbyte::utf_slice2char(regmust_slice);
-        let mut s = line.as_ptr().wrapping_add(col as usize);
+        let mut s = line
+            .as_cstr()
+            .as_ptr()
+            .cast_mut()
+            .cast::<u8>()
+            .wrapping_add(col as usize);
         if !re_st().rex.reg_ic {
             loop {
                 s = vim_strchr(crate::memory::cstr_from_ptr(s), c)
@@ -4112,7 +4107,7 @@ fn finish_bt_regexec(retval: i32, col: Colnr) -> i32 {
             }
             re_st().rex.mmatch_mut().rmm_matchcol = col;
         } else {
-            if re_st().rex.match_mut().endp[0] < re_st().rex.match_mut().startp[0] {
+            if re_st().rex.match_mut().endp[0].before(re_st().rex.match_mut().startp[0]) {
                 re_st().rex.match_mut().endp[0] = re_st().rex.match_mut().startp[0];
             }
             re_st().rex.match_mut().rm_matchcol = col;

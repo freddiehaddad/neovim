@@ -2044,7 +2044,7 @@ pub fn vcol2col(
     if let Some(coladdp) = coladdp {
         *coladdp = vcol - cur_vcol;
     }
-    crate::memory::ptr_offset_from(ci.ptr, line.cast_const()) as Colnr
+    ci.offset_from(crate::memory::cstr_from_ptr(line)) as Colnr
 }
 
 /// Set UI mouse depending on current mode and 'mouse'.

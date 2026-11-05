@@ -96,7 +96,6 @@ fn regex_check(lstate: *mut lua_State) -> &'static mut LuaRegex {
 }
 
 fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32 {
-    let str_ptr = str_.as_ptr();
     let mut rm: Regmatch = Regmatch::new();
     rm.regprog = regex.prog;
     rm.rm_ic = false;
@@ -104,18 +103,8 @@ fn regex_match(lstate: *mut lua_State, regex: &mut LuaRegex, str_: &CStr) -> i32
     regex.prog = rm.regprog;
 
     if matched {
-        unsafe {
-            lua_pushinteger(
-                lstate,
-                ((rm.startp[0].as_ptr() as isize) - (str_ptr as isize)) as lua_Integer,
-            )
-        };
-        unsafe {
-            lua_pushinteger(
-                lstate,
-                ((rm.endp[0].as_ptr() as isize) - (str_ptr as isize)) as lua_Integer,
-            )
-        };
+        unsafe { lua_pushinteger(lstate, rm.start_offset(0, str_) as lua_Integer) };
+        unsafe { lua_pushinteger(lstate, rm.end_offset(0, str_) as lua_Integer) };
         return 2;
     }
     0

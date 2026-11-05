@@ -528,7 +528,7 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             total += incr;
             vcol += incr;
         }
-        bd.textstart = ci.ptr.as_cstr();
+        bd.textstart = ci.as_cstr();
         bd.start_vcol = vcol;
 
         let mut tabs: i32 = 0;
@@ -631,7 +631,8 @@ fn shift_block(oap: &mut Oparg, amount: i32) {
             verbatim_copy_width += incr;
             ci = cli.next;
         }
-        verbatim_copy_end = crate::strings::CStrCursor::<std::ffi::c_char>::of(ci.ptr.cast_mut());
+        verbatim_copy_end =
+            crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(ci.ptr.as_ptr().cast());
 
         debug_assert!(destination_col - verbatim_copy_width >= 0);
         let fill = destination_col - verbatim_copy_width;
@@ -2194,11 +2195,11 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             bdp.pre_whitesp = 0;
             bdp.pre_whitesp_c = 0;
         }
-        prev_pstart = ci.ptr.cast_mut();
+        prev_pstart = ci.ptr.as_ptr().cast_mut().cast();
         ci = cli.next;
     }
     bdp.start_vcol = vcol;
-    let mut pstart = ci.ptr.cast_mut();
+    let mut pstart: *mut std::ffi::c_char = ci.ptr.as_ptr().cast_mut().cast();
 
     bdp.start_char_vcols = incr;
     if bdp.start_vcol < oap.start_vcol {
@@ -2239,7 +2240,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
             vcol = bdp.end_vcol;
             let mut prev_pend = pend;
             while vcol <= oap.end_vcol && !ci.ptr.is_empty() {
-                prev_pend = ci.ptr.cast_const();
+                prev_pend = ci.ptr.as_ptr().cast();
                 let cli = utf_cluster_info(ci);
                 incr = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells)
                     .width;
@@ -2247,7 +2248,7 @@ pub fn block_prep(oap: &mut Oparg, bdp: &mut BlockDef, lnum: Linenr, is_del: boo
                 ci = cli.next;
             }
             bdp.end_vcol = vcol;
-            pend = ci.ptr.cast_const();
+            pend = ci.ptr.as_ptr().cast();
 
             if bdp.end_vcol <= oap.end_vcol
                 && (!is_del || oap.op_type == OP_APPEND || oap.op_type == OP_REPLACE)

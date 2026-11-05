@@ -423,7 +423,10 @@ pub fn charsize_regular(
     mb_width: i32,
 ) -> CharSize {
     let cur: *const std::ffi::c_char = if cur.is_empty() {
-        c"".as_ptr()
+        csarg
+            .line
+            .as_ptr()
+            .wrapping_add(csarg.line.to_bytes().len())
     } else {
         cur.as_ptr().cast()
     };
@@ -896,7 +899,6 @@ fn extconceal_vcol_map(
     if spans.is_empty() {
         return target;
     }
-    let line = csarg.line.as_ptr();
 
     let mut rawarg = CharsizeArg::new();
     init_charsize_arg(&mut rawarg, wp, lnum, csarg.line);
@@ -944,8 +946,7 @@ fn extconceal_vcol_map(
 
         let tab_end = ci.chr.value == TAB
             && csarg.use_tabstop
-            && conceal_span_at(&spans, crate::memory::ptr_offset_from(ci.ptr, line) as i32)
-                .is_none();
+            && conceal_span_at(&spans, ci.offset_from(csarg.line) as i32).is_none();
         let own_raw = raw.body - rawarg.cur_text_width_left - rawarg.cur_text_width_right;
         let own_cs = cs.body - csarg.cur_text_width_left - csarg.cur_text_width_right;
         let raw_parts = [raw.width - raw.tail - own_raw, own_raw, raw.tail];
@@ -986,11 +987,10 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
     let mut vcol = i64::from(vcol_arg);
     let mut raw_vcol = i64::from(vcol_arg);
 
-    let line = csarg.line.as_ptr().cast::<u8>();
+    let line_cstr = csarg.line;
 
-    let mut ci = utf_ptr2_str_char_info(csarg.line);
-    while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len && !ci.ptr.is_empty()
-    {
+    let mut ci = utf_ptr2_str_char_info(line_cstr);
+    while (ci.offset_from(line_cstr) as Colnr) < len && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         let cs = charsize_regular(
             &mut *csarg,
@@ -1026,12 +1026,11 @@ pub fn linesize_regular(csarg: &mut CharsizeArg, mut vcol_arg: i32, len: Colnr) 
 
 pub fn linesize_fast(csarg: &CharsizeArg, mut vcol_arg: i32, len: Colnr) -> i32 {
     let use_tabstop = csarg.use_tabstop;
-    let line = csarg.line.as_ptr().cast::<u8>();
+    let line_cstr = csarg.line;
     let mut vcol = i64::from(vcol_arg);
 
-    let mut ci = utf_ptr2_str_char_info(csarg.line);
-    while (crate::memory::ptr_offset_from(ci.ptr.cast(), line) as Colnr) < len && !ci.ptr.is_empty()
-    {
+    let mut ci = utf_ptr2_str_char_info(line_cstr);
+    while (ci.offset_from(line_cstr) as Colnr) < len && !ci.ptr.is_empty() {
         let cli = utf_cluster_info(ci);
         vcol += i64::from(
             charsize_fast_impl(
@@ -1086,7 +1085,6 @@ pub fn getvcol(
         init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_ptr)
     };
     csarg.max_head_vcol = -1;
-    let line = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(csarg.line.as_ptr());
 
     let mut vcol: Colnr = 0;
     let mut off: i32 = 0;
@@ -1109,7 +1107,7 @@ pub fn getvcol(
             let cli = utf_cluster_info(ci);
             char_size = charsize_fast_impl(&mut *wp, use_tabstop, vcol, ci.chr.value, cli.cells);
             let next = cli.next;
-            if (crate::memory::ptr_offset_from(next.ptr, line) as Colnr) > end_col {
+            if (next.offset_from(csarg.line) as Colnr) > end_col {
                 break;
             }
             ci = next;
@@ -1127,21 +1125,18 @@ pub fn getvcol(
                 break;
             }
             let next = cli.next;
-            if (crate::memory::ptr_offset_from(next.ptr, line) as Colnr) > end_col {
+            if (next.offset_from(csarg.line) as Colnr) > end_col {
                 break;
             }
             ci = next;
             vcol += char_size.width;
         }
     }
-    let concealed =
-        conceal_span_at(&spans, crate::memory::ptr_offset_from(ci.ptr, line) as i32).is_some();
+    let ci_col = ci.offset_from(csarg.line) as Colnr;
+    let concealed = conceal_span_at(&spans, ci_col).is_some();
 
-    if ci.ptr.is_empty()
-        && end_col < MAXCOL
-        && end_col > (crate::memory::ptr_offset_from(ci.ptr, line) as Colnr)
-    {
-        pos.col = crate::memory::ptr_offset_from(ci.ptr, line) as Colnr;
+    if ci.ptr.is_empty() && end_col < MAXCOL && end_col > ci_col {
+        pos.col = ci_col;
     }
 
     let incr = char_size.width;
@@ -1351,22 +1346,22 @@ pub fn plines_win_col(wp: &mut WinInfoInfo, lnum: Linenr, column: i64) -> i32 {
     let mut csarg = CharsizeArg::new();
     let mut spans = ConcealSpans::new();
     let cstype = init_charsize_arg_extconceal(&mut csarg, &mut *wp, lnum, &mut spans);
-    let line = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(csarg.line.as_ptr());
+    let line_cstr = csarg.line;
 
     let mut vcol: Colnr = 0;
     let mut raw_vcol: Colnr = 0;
-    let mut ci = utf_ptr2_str_char_info(csarg.line);
-    let limit_ptr = line.wrapping_add(column as usize);
+    let mut ci = utf_ptr2_str_char_info(line_cstr);
+    let limit_col = column as usize;
     if cstype == K_CHARSIZE_FAST {
         let use_tabstop = csarg.use_tabstop;
-        while !ci.ptr.is_empty() && ci.ptr < limit_ptr {
+        while !ci.ptr.is_empty() && ci.offset_from(line_cstr) < limit_col {
             let cli = utf_cluster_info(ci);
             vcol += charsize_fast_impl(&mut *wp, use_tabstop, vcol, ci.chr.value, cli.cells).width;
             ci = cli.next;
         }
         raw_vcol = vcol;
     } else {
-        while !ci.ptr.is_empty() && ci.ptr < limit_ptr {
+        while !ci.ptr.is_empty() && ci.offset_from(line_cstr) < limit_col {
             let cli = utf_cluster_info(ci);
             let cs = charsize_regular(&mut csarg, ci.cstr(), raw_vcol, ci.chr.value, cli.cells);
             let hidden = cs.hidden;

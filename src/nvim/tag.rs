@@ -1903,10 +1903,7 @@ fn findtags_match_tag(
         let tagname_cstr = std::ffi::CString::new(tagpp.tagname).unwrap_or_default();
         match_ = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);
         if match_ {
-            margs.matchoff = crate::memory::ptr_offset_from(
-                st.orgpat.regmatch.startp[0],
-                tagname_cstr.as_ptr().cast(),
-            ) as i32;
+            margs.matchoff = st.orgpat.regmatch.start_offset(0, &tagname_cstr) as i32;
             if st.orgpat.regmatch.rm_ic {
                 st.orgpat.regmatch.rm_ic = false;
                 margs.match_no_ic = vim_regexec(&mut st.orgpat.regmatch, &tagname_cstr, 0);

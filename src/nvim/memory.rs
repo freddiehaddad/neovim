@@ -353,13 +353,6 @@ impl<T> AsCStrPtr for crate::strings::CStrCursor<T> {
     }
 }
 
-impl AsCStrPtr for crate::regexp::RegLinePtr {
-    #[inline(always)]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-}
-
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline(always)]
 pub fn cstr_len(s: impl AsCStrPtr) -> usize {
@@ -560,24 +553,6 @@ pub fn cstr_as_bytes<'a>(s: impl AsCStrPtr) -> &'a [u8] {
     } else {
         unsafe { CStr::from_ptr(s).to_bytes() }
     }
-}
-
-/// View up to `max_size` bytes of a NUL-terminated C string as a byte slice (without full `strlen`).
-#[inline(always)]
-pub fn cstr_prefix_bytes<'a>(
-    p: impl IntoConstPtr<Target = std::ffi::c_char>,
-    max_size: usize,
-) -> &'a [u8] {
-    let p = p.into_const_ptr();
-    if p.is_null() || max_size == 0 {
-        return &[];
-    }
-    let p = p.cast::<u8>();
-    let mut n = 0usize;
-    while n < max_size && unsafe { *p.wrapping_add(n) } != 0 {
-        n += 1;
-    }
-    unsafe { std::slice::from_raw_parts(p, n) }
 }
 
 /// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.

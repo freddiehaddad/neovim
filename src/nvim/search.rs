@@ -3206,17 +3206,14 @@ pub fn find_pattern_in_path(
 
                 let mut new_fname_cstr = if find_substr(inc_opt_cstr, b"\\zs") {
                     find_file_name_in_path(
-                        incl_regmatch.startp[0].slice(crate::memory::ptr_offset_from(
-                            incl_regmatch.endp[0],
-                            incl_regmatch.startp[0],
-                        ) as usize),
+                        incl_regmatch.span_bytes(0),
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
                         p_fname_opt,
                     )
                 } else {
                     file_name_in_line(
-                        (incl_regmatch.endp[0]).as_bytes(),
+                        crate::regexp::RegLineExt::as_bytes(incl_regmatch.endp[0]),
                         0,
                         FNAME_EXP | FNAME_INCL | FNAME_REL,
                         1,
@@ -3294,14 +3291,12 @@ pub fn find_pattern_in_path(
                         if let Some(ref nf) = new_fname_cstr {
                             msg_outtrans(nf, HLF_D, false);
                         } else {
+                            let line_cstr = crate::memory::cstr_from_ptr(line);
                             if find_substr(inc_opt_cstr, b"\\zs") {
-                                p = incl_regmatch.startp[0].cast();
-                                i = crate::memory::ptr_offset_from(
-                                    incl_regmatch.endp[0],
-                                    incl_regmatch.startp[0],
-                                ) as i32;
+                                p = line.wrapping_add(incl_regmatch.start_offset(0, line_cstr));
+                                i = incl_regmatch.span_len(0) as i32;
                             } else {
-                                p = incl_regmatch.endp[0].cast();
+                                p = line.wrapping_add(incl_regmatch.end_offset(0, line_cstr));
                                 let p_bytes = crate::memory::cstr_as_bytes(p);
                                 let skip_n = p_bytes
                                     .iter()
@@ -3315,7 +3310,7 @@ pub fn find_pattern_in_path(
                             }
 
                             if i == 0 {
-                                p = incl_regmatch.endp[0].cast();
+                                p = line.wrapping_add(incl_regmatch.end_offset(0, line_cstr));
                                 i = crate::memory::cstr_len(p) as i32;
                             } else if p > line {
                                 let prev_b = unsafe { *p.cast::<u8>().wrapping_sub(1) };
@@ -3401,10 +3396,11 @@ pub fn find_pattern_in_path(
                 p = line;
                 loop {
                     define_matched = false;
+                    let line_cstr = crate::memory::cstr_from_ptr(line);
                     if !def_regmatch.regprog.is_null()
-                        && vim_regexec(&mut def_regmatch, crate::memory::cstr_from_ptr(line), 0)
+                        && vim_regexec(&mut def_regmatch, line_cstr, 0)
                     {
-                        p = def_regmatch.endp[0].cast();
+                        p = line.wrapping_add(def_regmatch.end_offset(0, line_cstr));
                         let p_bytes = crate::memory::cstr_as_bytes(p);
                         let skip_n = p_bytes
                             .iter()
@@ -3439,12 +3435,12 @@ pub fn find_pattern_in_path(
                         } else if !regmatch.regprog.is_null()
                             && vim_regexec(
                                 &mut regmatch,
-                                crate::memory::cstr_from_ptr(line),
+                                line_cstr,
                                 crate::memory::ptr_offset_from(p, line) as Colnr,
                             )
                         {
                             matched = true;
-                            startp = regmatch.startp[0].cast();
+                            startp = line.wrapping_add(regmatch.start_offset(0, line_cstr));
                             if skip_comments {
                                 let line_bytes = crate::memory::cstr_as_bytes(line);
                                 if (line_bytes.first() != Some(&b'#')

@@ -778,15 +778,13 @@ pub fn ex_sort(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null()
-                && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(s), 0)
-            {
+            let s_cstr = crate::memory::cstr_from_ptr(s);
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
                 if excmds_st().sort_rx {
-                    start_col =
-                        crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
-                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = regmatch.start_offset(0, s_cstr) as Colnr;
+                    end_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 } else {
-                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;
@@ -1072,15 +1070,13 @@ pub fn ex_uniq(eap: &mut Exarg) {
 
             let mut start_col: Colnr = 0;
             let mut end_col: Colnr = len;
-            if !regmatch.regprog.is_null()
-                && vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(s), 0)
-            {
+            let s_cstr = crate::memory::cstr_from_ptr(s);
+            if !regmatch.regprog.is_null() && vim_regexec(&mut regmatch, s_cstr, 0) {
                 if excmds_st().sort_rx {
-                    start_col =
-                        crate::memory::ptr_offset_from(regmatch.startp[0], s.cast()) as Colnr;
-                    end_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = regmatch.start_offset(0, s_cstr) as Colnr;
+                    end_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 } else {
-                    start_col = crate::memory::ptr_offset_from(regmatch.endp[0], s.cast()) as Colnr;
+                    start_col = regmatch.end_offset(0, s_cstr) as Colnr;
                 }
             } else if !regmatch.regprog.is_null() {
                 end_col = 0;

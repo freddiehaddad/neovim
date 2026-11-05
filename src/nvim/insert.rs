@@ -3125,19 +3125,16 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
             *inserted_space_p = 0;
 
             let use_ts = !curwin_mut().w_onebuf_opt.wo_list || curwin_mut().w_p_lcs_chars.tab1 != 0;
-            let line =
-                crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
-            let cursor_ptr = line
-                .wrapping_offset(curwin_mut().w_cursor.col as isize)
-                .cast_const();
+            let line_cstr = get_cursor_line_ptr();
+            let cursor_col = curwin_mut().w_cursor.col as usize;
 
             let mut vcol: Colnr = 0;
             let mut space_vcol: Colnr = 0;
-            let mut sci = utf_ptr2_str_char_info(line.as_cstr());
+            let mut sci = utf_ptr2_str_char_info(line_cstr);
             let mut space_sci = sci;
             let mut prev_space = false;
 
-            while sci.ptr < cursor_ptr {
+            while sci.offset_from(line_cstr) < cursor_col {
                 let cur_space = ascii_iswhite(sci.chr.value);
                 if !prev_space && cur_space {
                     space_sci = sci;
@@ -3171,8 +3168,7 @@ fn ins_bs(c: i32, mut mode: i32, inserted_space_p: &mut i32) -> bool {
                 space_vcol += size;
                 space_sci = cli.next;
             }
-            let want_col =
-                crate::memory::ptr_offset_from(space_sci.ptr, line.cast_const()) as Colnr;
+            let want_col = space_sci.offset_from(line_cstr) as Colnr;
 
             while curwin_mut().w_cursor.col > want_col {
                 dec_cursor();
@@ -3867,7 +3863,7 @@ pub fn ins_copychar(lnum: Linenr) -> i32 {
     }
 
     let c = if ci.chr.value < 0 {
-        ci.ptr.first_byte() as i32
+        i32::from(ci.first_byte())
     } else {
         ci.chr.value
     };

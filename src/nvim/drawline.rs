@@ -450,13 +450,13 @@ fn draw_virt_text_item(
         .is_some_and(|s| s.as_bytes().is_empty());
 
     let mut ci = StrCharInfo {
-        ptr: crate::strings::CStrCursor::from_opt_cstr(Some(c"")),
+        ptr: b"",
         chr: CharInfo { value: -1, len: 0 },
     };
 
     while col < max_col {
         debug_assert!(skip_cells >= 0);
-        while ci.ptr.is_empty() {
+        while ci.is_empty() {
             if virt_pos >= vt.len() {
                 if eol_hl {
                     ci = utf_ptr2_str_char_info(c" ");
@@ -471,7 +471,7 @@ fn draw_virt_text_item(
                 ci = utf_ptr2_str_char_info(next);
             }
         }
-        if ci.ptr.is_empty() {
+        if ci.is_empty() {
             break;
         }
 
@@ -553,11 +553,10 @@ fn draw_col_buf(
     mut fold_vcol: Option<&[Colnr]>,
     inc_vcol: bool,
 ) {
-    let text = crate::strings::CStrCursor::<std::ffi::c_char>::from_ptr(text_buf.as_ptr().cast());
+    let text_cstr = crate::memory::cstr_until_nul(text_buf);
     {
-        let mut ci = utf_ptr2_str_char_info(text.as_cstr());
-        let end = text.wrapping_add(len);
-        while ci.ptr < end && wlv.off < wp.w_view_width {
+        let mut ci = utf_ptr2_str_char_info(text_cstr);
+        while ci.offset_from(text_cstr) < len && wlv.off < wp.w_view_width {
             let cli = utf_cluster_info(ci);
             let maxcells = wp.w_view_width - wlv.off;
             debug_assert!(cli.cells <= 2 && ci.chr.value >= 0x20);
@@ -1320,28 +1319,25 @@ fn win_line_skip_columns(
         let cli = utf_cluster_info(ci);
         cs = win_charsize(cstype, vcol, ci.cstr(), ci.chr.value, &mut csarg, cli.cells);
         vcol += cs.width;
-        prev_ptr = ci.ptr.cast_const();
-        if crate::memory::cstr_is_empty(prev_ptr) {
+        prev_ptr = ci.ptr.as_ptr().cast();
+        if ci.is_empty() {
             break;
         }
         ci = cli.next;
         if wp.w_onebuf_opt.wo_list {
+            let ci_off = ci.offset_from(csarg.line);
             *in_multispace = crate::memory::cstr_first_byte(prev_ptr) == b' '
-                && (ci.ptr.first_byte() == b' '
+                && (ci.first_byte() == b' '
                     || (prev_ptr > line.cast_const()
                         && crate::memory::cstr_first_byte(prev_ptr.wrapping_sub(1)) == b' '));
             if !*in_multispace {
                 *multispace_pos = 0;
-            } else if ci.ptr >= line.cast_const().wrapping_add(leadcol as usize)
-                && !wp.w_p_lcs_chars.multispace.is_empty()
-            {
+            } else if ci_off >= leadcol as usize && !wp.w_p_lcs_chars.multispace.is_empty() {
                 *multispace_pos += 1;
                 if *multispace_pos >= wp.w_p_lcs_chars.multispace.len() {
                     *multispace_pos = 0;
                 }
-            } else if ci.ptr < line.cast_const().wrapping_add(leadcol as usize)
-                && !wp.w_p_lcs_chars.leadmultispace.is_empty()
-            {
+            } else if ci_off < leadcol as usize && !wp.w_p_lcs_chars.leadmultispace.is_empty() {
                 *multispace_pos += 1;
                 if *multispace_pos >= wp.w_p_lcs_chars.leadmultispace.len() {
                     *multispace_pos = 0;
@@ -1351,7 +1347,7 @@ fn win_line_skip_columns(
     }
     wlv.vcol = vcol - csarg.extconceal_off;
     wlv.extconceal_off = csarg.extconceal_off;
-    ptr = ci.ptr.cast_const();
+    ptr = ci.ptr.as_ptr().cast();
     let charsize = cs.width - cs.hidden;
     let head = cs.head;
 
@@ -2409,7 +2405,7 @@ pub fn win_line(
                     debug_assert!(wlv.p_extra.is_some());
                     let ci = utf_ptr2_str_char_info(wlv.p_extra.unwrap_or(c""));
                     let cli = utf_cluster_info(ci);
-                    let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
+                    let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                     mb_schar = schar_from_cluster(ci, cli);
                     mb_schar_width = cli.cells;
                     if mb_l > wlv.n_extra || mb_l == 0 {
@@ -2495,7 +2491,7 @@ pub fn win_line(
 
                 let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(ptr));
                 let cli = utf_cluster_info(ci);
-                let mut mb_l = crate::memory::ptr_offset_from(cli.next.ptr, ci.ptr) as i32;
+                let mut mb_l = (ci.ptr.len() - cli.next.ptr.len()) as i32;
                 let mb_c = ci.chr.value;
                 let mut unprintable_ascii = false;
 

@@ -3501,7 +3501,7 @@ fn get_encoded_char_adv(p: &mut &CStr) -> Schar {
 
     let ci = utf_ptr2_str_char_info(s.as_cstr());
     let cli = utf_cluster_info(ci);
-    *p = cli.next.ptr.as_cstr();
+    *p = cli.next.as_cstr();
     if cli.cells > 1 {
         0
     } else {

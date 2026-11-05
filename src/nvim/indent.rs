@@ -732,10 +732,7 @@ pub fn get_number_indent(lnum: Linenr) -> i32 {
             0,
         ) {
             pos.lnum = lnum;
-            pos.col = crate::memory::ptr_offset_from(
-                regmatch.endp[0],
-                ml_get(lnum).as_ptr().cast_mut().cast(),
-            ) as Colnr;
+            pos.col = regmatch.end_offset(0, ml_get(lnum)) as Colnr;
             pos.coladd = 0;
         }
         regmatch.free_prog();
@@ -837,12 +834,12 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
                     if wp.w_briopt_list > 0 {
                         ind_st().prev_list += wp.w_briopt_list;
                     } else {
-                        let mut ptr_cur = regmatch.startp[0];
-                        let end_ptr = regmatch.endp[0];
+                        let mut span = regmatch.span_bytes(0);
                         let mut indent: i32 = 0;
-                        while ptr_cur < end_ptr {
-                            indent += win_chartabsize(wp, (ptr_cur).as_bytes(), indent);
-                            ptr_cur = ptr_cur.wrapping_add(utfc_ptr2len(ptr_cur) as usize);
+                        while !span.is_empty() {
+                            indent += win_chartabsize(wp, span, indent);
+                            let step = crate::mbyte::utfc_slice2len(span);
+                            span = &span[step.min(span.len())..];
                         }
                         ind_st().prev_indent = indent;
                     }
@@ -1149,9 +1146,10 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
         let line = crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
         vcol = 0;
         if !line.is_empty() {
+            let line_cstr = line.as_cstr();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line.as_cstr());
-            let mut ci: StrCharInfo = utf_ptr2_str_char_info(line.as_cstr());
+            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), 0, line_cstr);
+            let mut ci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
             loop {
                 let cli: ClusterInfo = utf_cluster_info(ci);
                 let next_vcol = vcol
@@ -1162,11 +1160,11 @@ pub fn change_indent(type_: i32, amount: i32, round: i32, call_changed_bytes: bo
                 }
                 vcol = next_vcol;
                 ci = cli.next;
-                if ci.ptr.is_empty() {
+                if ci.is_empty() {
                     break;
                 }
             }
-            new_cursor_col = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
+            new_cursor_col = ci.offset_from(line_cstr) as i32;
         }
 
         if vcol != curwin_mut().w_virtcol {
@@ -1648,15 +1646,13 @@ pub fn get_lisp_indent() -> i32 {
             curwin_mut().w_cursor.col = pos.col;
             let mut col = pos.col;
 
-            let line =
-                crate::strings::CStrCursor::from_ptr(get_cursor_line_ptr().as_ptr().cast_mut());
+            let line_cstr = get_cursor_line_ptr();
             let mut csarg = CharsizeArg::new();
-            let cstype: CSType =
-                init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line.as_cstr());
+            let cstype: CSType = init_charsize_arg(&mut csarg, curwin_mut(), pos.lnum, line_cstr);
 
-            let mut sci: StrCharInfo = utf_ptr2_str_char_info(line.as_cstr());
+            let mut sci: StrCharInfo = utf_ptr2_str_char_info(line_cstr);
             amount = 0;
-            while !sci.ptr.is_empty() && col > 0 {
+            while !sci.is_empty() && col > 0 {
                 let cli: ClusterInfo = utf_cluster_info(sci);
                 amount += win_charsize(
                     cstype,
@@ -1672,32 +1668,34 @@ pub fn get_lisp_indent() -> i32 {
             }
             let mut that = sci.ptr;
 
-            if (that.first_byte() == b'(' || that.first_byte() == b'[')
-                && lisp_match(that.wrapping_add(1).as_bytes())
+            let that_b0 = that.first().copied().unwrap_or(0);
+            if (that_b0 == b'(' || that_b0 == b'[')
+                && lisp_match(crate::memory::bytes_until_nul(&that[1..]))
             {
                 amount += 2;
             } else {
-                if !that.is_empty() {
-                    that = that.wrapping_add(1);
+                if that.first().copied().unwrap_or(0) != 0 {
+                    that = &that[1..];
                     amount += 1;
                 }
                 let mut firsttry: Colnr = amount;
 
-                while ascii_iswhite(that.first_byte()) {
+                while ascii_iswhite(i32::from(that.first().copied().unwrap_or(0))) {
                     amount += win_charsize(
                         cstype,
                         amount,
-                        that.slice(1),
-                        i32::from(that.first_byte()),
+                        &that[..1],
+                        i32::from(that[0]),
                         &mut csarg,
                         1,
                     )
                     .width;
-                    that = that.wrapping_add(1);
+                    that = &that[1..];
                 }
 
-                if !that.is_empty() && that.first_byte() != b';' {
-                    if that.first_byte() != b'(' && that.first_byte() != b'[' {
+                let b0 = that.first().copied().unwrap_or(0);
+                if b0 != 0 && b0 != b';' {
+                    if b0 != b'(' && b0 != b'[' {
                         firsttry += 1;
                     }
 
@@ -1710,7 +1708,7 @@ pub fn get_lisp_indent() -> i32 {
                         && !(b'0' as i32..=b'9' as i32).contains(&ci.value)
                     {
                         let mut quotecount = false;
-                        while !that.is_empty()
+                        while that.first().copied().unwrap_or(0) != 0
                             && (!ascii_iswhite(ci.value) || quotecount || parencount != 0)
                         {
                             if ci.value == b'"' as i32 {
@@ -1722,12 +1720,12 @@ pub fn get_lisp_indent() -> i32 {
                             if (ci.value == b')' as i32 || ci.value == b']' as i32) && !quotecount {
                                 parencount -= 1;
                             }
-                            if ci.value == b'\\' as i32 && that.len() > 1 {
+                            if ci.value == b'\\' as i32 && that.get(1).copied().unwrap_or(0) != 0 {
                                 let cli = utf_cluster_info(StrCharInfo { ptr: that, chr: ci });
                                 amount += win_charsize(
                                     cstype,
                                     amount,
-                                    that.slice(1),
+                                    &that[..1],
                                     ci.value,
                                     &mut csarg,
                                     cli.cells,
@@ -1741,7 +1739,7 @@ pub fn get_lisp_indent() -> i32 {
                             amount += win_charsize(
                                 cstype,
                                 amount,
-                                that.slice(1),
+                                &that[..1.min(that.len())],
                                 ci.value,
                                 &mut csarg,
                                 cli.cells,
@@ -1752,20 +1750,21 @@ pub fn get_lisp_indent() -> i32 {
                         }
                     }
 
-                    while ascii_iswhite(that.first_byte()) {
+                    while ascii_iswhite(i32::from(that.first().copied().unwrap_or(0))) {
                         amount += win_charsize(
                             cstype,
                             amount,
-                            that.slice(1),
-                            i32::from(that.first_byte()),
+                            &that[..1],
+                            i32::from(that[0]),
                             &mut csarg,
                             1,
                         )
                         .width;
-                        that = that.wrapping_add(1);
+                        that = &that[1..];
                     }
 
-                    if that.is_empty() || that.first_byte() == b';' {
+                    let b_end = that.first().copied().unwrap_or(0);
+                    if b_end == 0 || b_end == b';' {
                         amount = firsttry;
                     }
                 }

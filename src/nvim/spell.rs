@@ -364,7 +364,7 @@ pub fn spell_check(
                 regmatch.rm_ic = false;
                 let r = vim_regexec(&mut regmatch, ptr_cstr, 0);
                 if r {
-                    *capcol = crate::memory::ptr_offset_from(regmatch.endp[0], ptr.cast()) as i32;
+                    *capcol = regmatch.end_offset(0, ptr_cstr) as i32;
                 }
             }
             return utfc_ptr2len(ptr_bytes) as usize;
@@ -2204,8 +2204,10 @@ pub fn check_need_cap(wp: &mut WinInfoInfo, lnum: Linenr, col: Colnr) -> bool {
             if p == line || spell_iswordp_nmw(crate::memory::cstr_as_bytes(p), wp) {
                 break;
             }
-            if vim_regexec(&mut regmatch, crate::memory::cstr_from_ptr(p), 0)
-                && regmatch.endp[0].as_ptr() == line.wrapping_add(endcol as usize).cast()
+            let p_cstr = crate::memory::cstr_from_ptr(p);
+            let p_off = crate::memory::ptr_offset_from(p, line) as usize;
+            if vim_regexec(&mut regmatch, p_cstr, 0)
+                && p_off + regmatch.end_offset(0, p_cstr) == endcol as usize
             {
                 need_cap = true;
                 break;

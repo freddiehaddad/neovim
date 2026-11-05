@@ -198,13 +198,9 @@ fn coladvance2(
         let line = ml_get_buf(wp.buf_mut(), pos.lnum).as_ptr().cast_mut();
         let linelen = ml_get_buf_len(wp.buf_mut(), pos.lnum);
         let mut csarg = CharsizeArg::new();
-        let cstype: CSType = init_charsize_arg(
-            &mut csarg,
-            &mut *wp,
-            pos.lnum,
-            crate::memory::cstr_from_ptr(line),
-        );
-        let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(line));
+        let line_cstr = crate::memory::cstr_from_ptr(line);
+        let cstype: CSType = init_charsize_arg(&mut csarg, &mut *wp, pos.lnum, line_cstr);
+        let mut ci = utf_ptr2_str_char_info(line_cstr);
         col = 0;
         while col <= wcol && !ci.ptr.is_empty() {
             let cli = utf_cluster_info(ci);
@@ -215,7 +211,7 @@ fn coladvance2(
             col += cs.width;
             ci = cli.next;
         }
-        idx = crate::memory::ptr_offset_from(ci.ptr, line) as i32;
+        idx = ci.offset_from(line_cstr) as i32;
 
         if col > wcol || (!virtual_active(&mut *wp) && one_more == 0) {
             idx -= 1;

@@ -1842,7 +1842,8 @@ pub fn do_put(
                     curwin_mut().w_cursor.lnum,
                     crate::memory::cstr_from_ptr(oldp),
                 );
-                let mut ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(oldp));
+                let oldp_cstr = crate::memory::cstr_from_ptr(oldp);
+                let mut ci = utf_ptr2_str_char_info(oldp_cstr);
                 vcol = 0;
                 while vcol < col && !ci.ptr.is_empty() {
                     let cli = utf_cluster_info(ci);
@@ -1852,8 +1853,8 @@ pub fn do_put(
                     vcol += incr;
                     ci = cli.next;
                 }
-                let mut ptr_ = ci.ptr.cast_mut();
-                bd.textcol = ((ptr_ as usize) - (oldp as usize)) as Colnr;
+                let mut ptr_ = oldp.wrapping_add(ci.offset_from(oldp_cstr));
+                bd.textcol = ci.offset_from(oldp_cstr) as Colnr;
 
                 let shortline = (vcol < col) || (vcol == col && crate::memory::cstr_is_empty(ptr_));
 
