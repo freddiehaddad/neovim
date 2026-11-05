@@ -167,6 +167,11 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline]
+    pub fn as_mut_bytes(self) -> &'static mut [u8] {
+        crate::memory::cstr_as_mut_bytes(self.as_ptr().cast::<std::ffi::c_char>())
+    }
+
+    #[inline]
     pub fn as_cstr(self) -> &'static CStr {
         crate::memory::cstr_from_ptr(self.as_ptr().cast::<u8>())
     }

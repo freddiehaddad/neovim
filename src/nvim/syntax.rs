@@ -3691,7 +3691,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         }
     } else {
         #[cfg(windows)]
-        path_to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
+        path_to_slash(eap.arg.as_mut_bytes());
     }
 
     if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {

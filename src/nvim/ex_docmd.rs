@@ -8321,7 +8321,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
         let mut escaped = false;
         let arg_off = (p as usize) - (eap.arg.as_ptr() as usize);
         let repl_owned = eval_vars(
-            crate::memory::cstr_buf_as_mut_bytes(eap.arg.as_ptr(), 0),
+            eap.arg.as_mut_bytes(),
             arg_off,
             &mut srclen,
             Some(&mut eap.do_ecmd_lnum),
@@ -8443,7 +8443,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
             };
             repl_cmdline(eap, 0, eap.arg.len(), &expanded);
         } else {
-            to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
+            to_slash(eap.arg.as_mut_bytes());
         }
     }
     true

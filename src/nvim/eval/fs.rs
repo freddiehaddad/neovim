@@ -174,9 +174,9 @@ pub fn modify_fname(
                     unsafe {
                         ptr::copy_nonoverlapping(fname, v.as_mut_ptr(), cur_len + 1);
                     }
+                    add_pathsep(&mut v);
                     *fbuf = v;
                     fname = fbuf.as_mut_ptr();
-                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(fname.cast(), 2));
                 }
             }
 
@@ -1784,8 +1784,8 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 // Ensure that the result will have a trailing path separator
                 // if the argument has one.
                 if remain_vec.is_none() && has_trailing_pathsep {
-                    add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.cast(), 2));
-                    buf_len = crate::memory::cstr_len(buf);
+                    add_pathsep(&mut buf_vec);
+                    buf_len = crate::memory::bytes_until_nul(&buf_vec).len();
                 }
 
                 // Separate the first path component in the link value and
@@ -1935,9 +1935,12 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         );
     }
 
-    simplify_filename(crate::memory::cstr_as_mut_bytes(
-        rettv.vval.v_string().cast(),
-    ));
+    if let Some(mut s) = crate::eval::typval::tv_take_string(rettv) {
+        crate::memory::cstring_modify(&mut s, |b| {
+            simplify_filename(b);
+        });
+        rettv.vval = crate::eval::typval::TypvalVval::from_cstring(s);
+    }
 }
 
 /// "simplify()" function

@@ -2981,8 +2981,8 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                     crate::strings::CStrCursor::from_opt_cstr(script_item(eap.line2).name_cstr());
             } else {
                 expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
+                to_slash(g_st().name_buff_bytes_mut());
                 eap.arg = crate::strings::CStrCursor::from_ptr(namebuff);
-                to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
             }
             do_exedit(eap, None);
         }

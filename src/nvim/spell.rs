@@ -3160,7 +3160,7 @@ pub fn valid_spellfile(val: &std::ffi::CStr) -> bool {
         }
         #[cfg(windows)]
         {
-            path_to_slash(crate::memory::cstr_as_mut_bytes(spf_ptr.cast()));
+            path_to_slash(&mut spf_name);
         }
         let s = spf_ptr;
         for &s_byte in crate::memory::cstr_as_bytes(s) {

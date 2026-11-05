@@ -5974,14 +5974,9 @@ pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Ev
     let pat = tv_get_string(&argvars[0]);
     let mut xpc: ExpandCtx = ExpandCtx::new();
 
-    let cmdline_len = pat.to_bytes().len() as i32;
-    set_cmd_context(
-        &mut xpc,
-        crate::memory::cstr_as_mut_bytes(pat.as_ptr().cast_mut()),
-        cmdline_len,
-        cmdline_len,
-        false,
-    );
+    let mut pat_bytes = pat.to_bytes_with_nul().to_vec();
+    let cmdline_len = (pat_bytes.len() - 1) as i32;
+    set_cmd_context(&mut xpc, &mut pat_bytes, cmdline_len, cmdline_len, false);
     crate::eval::typval::tv_set_string(
         rettv,
         cmdcomplete_type_to_str(xpc.xp_context, xpc.xp_arg.map(CStr::to_bytes)).as_deref(),
