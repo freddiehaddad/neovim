@@ -1573,7 +1573,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
 
     let c = &wp.w_config;
     if !c.external {
-        let mut grid: *mut ScreenGrid = &raw mut g_st().default_grid;
+        let mut grid = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().default_grid);
         let mut row = c.row;
         let mut col = c.col;
         if c.relative == K_FLOAT_RELATIVE_WINDOW {
@@ -1589,7 +1589,11 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                 let mut row_off: i32 = 0;
                 let mut col_off: i32 = 0;
                 win_grid_alloc(&mut *win);
-                grid = ptr::from_mut(grid_adjust(&mut win.w_grid, &mut row_off, &mut col_off));
+                grid = crate::globals::GraphPtr::<ScreenGrid>::of(ptr::from_mut(grid_adjust(
+                    &mut win.w_grid,
+                    &mut row_off,
+                    &mut col_off,
+                )));
                 row += f64::from(row_off);
                 col += f64::from(col_off);
                 if c.bufpos.lnum >= 0 {
@@ -1639,8 +1643,8 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
         } else {
             0
         };
-        comp_row += (unsafe { &mut *(grid) }).comp_row;
-        comp_col += (unsafe { &mut *(grid) }).comp_col;
+        comp_row += (grid.borrow_mut()).comp_row;
+        comp_col += (grid.borrow_mut()).comp_col;
         comp_row = comp_row
             .min(g_st().rows_global - wp.w_height_outer - above_ch)
             .max(0);
@@ -1673,7 +1677,7 @@ pub fn ui_ext_win_position(wp: &mut WinInfoInfo, validate: bool) {
                     Integer::from(wp.w_grid_alloc.handle),
                     wp.handle,
                     anchor,
-                    Integer::from((unsafe { &mut *(grid) }).handle),
+                    Integer::from((grid.borrow_mut()).handle),
                     row,
                     col,
                     c.mouse,
@@ -4049,7 +4053,12 @@ pub fn winframe_remove(
     unflat_altfr: Option<&mut Option<&'static mut Frame>>,
 ) -> Option<&'static mut WinInfoInfo> {
     let mut altfr_opt: Option<&'static mut Frame> = None;
-    let wp: *mut WinInfoInfo = winframe_find_altwin(win, dirp, tp, Some(&mut altfr_opt))?;
+    let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(winframe_find_altwin(
+        win,
+        dirp,
+        tp,
+        Some(&mut altfr_opt),
+    )?);
     let altfr = crate::globals::GraphPtr::from(altfr_opt);
 
     let frp_close = win.frame_mut();
@@ -4102,7 +4111,7 @@ pub fn winframe_remove(
 
     win_st().frame_locked -= 1;
 
-    unsafe { wp.as_mut() }
+    wp.opt_mut()
 }
 
 pub fn winframe_find_altwin(
@@ -4119,20 +4128,18 @@ pub fn winframe_find_altwin(
 
     let frp_close = win.w_frame;
     let frp_close = frp_close.borrow_mut();
-    let mut frp2: *mut Frame = win_altframe(win, tp);
-    let mut wp: *mut WinInfoInfo = frame2win(unsafe { &*frp2 });
+    let mut frp2 = crate::globals::GraphPtr::<Frame>::of(win_altframe(win, tp));
+    let mut wp: *mut WinInfoInfo = frame2win(frp2.borrow());
 
     if frp_close.fr_parent.fr_layout == FR_COL {
-        if !(unsafe { &mut *(frp2) }).fr_win.is_null()
-            && unsafe { &mut *((*(frp2)).fr_win) }.w_onebuf_opt.wo_wfh
-        {
+        if !frp2.fr_win.is_null() && frp2.fr_win.w_onebuf_opt.wo_wfh {
             let mut frp = frp_close.fr_prev;
             let mut frp3 = frp_close.fr_next;
             while !frp.is_null() || !frp3.is_null() {
                 if !frp.is_null() {
                     if !frame_fixed_height(&frp) {
-                        frp2 = frp.as_ptr();
-                        wp = frame2win(unsafe { &*frp2 });
+                        frp2 = crate::globals::GraphPtr::<Frame>::of(frp);
+                        wp = frame2win(frp2.borrow());
                         break;
                     }
 
@@ -4140,7 +4147,7 @@ pub fn winframe_find_altwin(
                 }
                 if !frp3.is_null() {
                     if !frp3.fr_win.is_null() && !frp3.fr_win.w_onebuf_opt.wo_wfh {
-                        frp2 = frp3.as_ptr();
+                        frp2 = crate::globals::GraphPtr::<Frame>::of(frp3);
 
                         wp = frp3.fr_win.as_ptr();
 
@@ -4153,16 +4160,14 @@ pub fn winframe_find_altwin(
         }
         *dirp = b'v' as i32;
     } else {
-        if !(unsafe { &mut *(frp2) }).fr_win.is_null()
-            && unsafe { &mut *((*(frp2)).fr_win) }.w_onebuf_opt.wo_wfw
-        {
+        if !frp2.fr_win.is_null() && frp2.fr_win.w_onebuf_opt.wo_wfw {
             let mut frp = frp_close.fr_prev;
             let mut frp3 = frp_close.fr_next;
             while !frp.is_null() || !frp3.is_null() {
                 if !frp.is_null() {
                     if !frame_fixed_width(&frp) {
-                        frp2 = frp.as_ptr();
-                        wp = frame2win(unsafe { &*frp2 });
+                        frp2 = crate::globals::GraphPtr::<Frame>::of(frp);
+                        wp = frame2win(frp2.borrow());
                         break;
                     }
 
@@ -4170,7 +4175,7 @@ pub fn winframe_find_altwin(
                 }
                 if !frp3.is_null() {
                     if !frp3.fr_win.is_null() && !frp3.fr_win.w_onebuf_opt.wo_wfw {
-                        frp2 = frp3.as_ptr();
+                        frp2 = crate::globals::GraphPtr::<Frame>::of(frp3);
 
                         wp = frp3.fr_win.as_ptr();
 
@@ -4184,9 +4189,9 @@ pub fn winframe_find_altwin(
         *dirp = b'h' as i32;
     }
 
-    debug_assert!(!ptr::eq(wp, (&raw mut *win)) && !ptr::eq(frp2, frp_close));
+    debug_assert!(!ptr::eq(wp, (&raw mut *win)) && frp2 != frp_close);
     if let Some(out) = altfr {
-        *out = unsafe { frp2.as_mut() };
+        *out = frp2.opt_mut();
     }
 
     unsafe { wp.as_mut() }

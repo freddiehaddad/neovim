@@ -5223,11 +5223,11 @@ pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     }));
 
     {
-        let timer_ptr: *mut VimTimer = timer;
+        let timer_ptr = crate::globals::GraphPtr::<VimTimer>::from_ref(timer);
         time_watcher_init(
             &mut g_st().main_loop,
             &mut timer.watcher,
-            TimeWatcherData::EvalTimer(timer_ptr.into()),
+            TimeWatcherData::EvalTimer(timer_ptr),
         );
         timer.watcher.events = crate::globals::GraphPtr::from(multiqueue_new_child(
             loop_queues(&mut g_st().main_loop).events.borrow_mut(),

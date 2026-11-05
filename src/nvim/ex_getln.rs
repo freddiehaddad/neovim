@@ -5037,7 +5037,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
 
     let prompt: *const u8;
     let mut defstr: *const u8 = c"".as_ptr().cast();
-    let mut cancelreturn: *mut TypVal = ptr::null_mut();
+    let mut cancelreturn = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut cancelreturn_strarg2 = TypVal {
         v_type: VarType::VarUnknown,
         v_lock: 0,
@@ -5069,7 +5069,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
         };
         defstr = defstr_cstr.as_ptr().cast();
         if let Some(cancelreturn_di) = tv_dict_find(dict_ref, c"cancelreturn", 12) {
-            cancelreturn = &raw mut cancelreturn_di.di_tv;
+            cancelreturn = crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_di.di_tv);
         }
         if tv_dict_find(dict_ref, c"completion", 10).is_none() {
             xp_name = ptr::null();
@@ -5102,7 +5102,8 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 if inputdialog {
                     cancelreturn_strarg2.v_type = VarType::VarString;
                     cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::from_cstr(strarg2);
-                    cancelreturn = &raw mut cancelreturn_strarg2;
+                    cancelreturn =
+                        crate::globals::GraphPtr::<TypVal>::from_ref(&cancelreturn_strarg2);
                 } else {
                     xp_name = strarg2.as_ptr().cast();
                 }
@@ -5169,7 +5170,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
     if let Some(res_cstr) = res {
         crate::eval::typval::tv_set_string_len(&mut *rettv, Some(res_cstr.as_bytes()));
     } else if !cancelreturn.is_null() {
-        tv_copy(unsafe { &*cancelreturn }, &mut *rettv);
+        tv_copy(cancelreturn.borrow(), &mut *rettv);
     }
 
     g_st().need_wait_return = false;

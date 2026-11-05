@@ -1077,7 +1077,7 @@ pub fn decor_range_add_virt(
 ) {
     let is_lines = (vt.flags & K_VTIS_LINES) != 0;
     let priority = vt.priority;
-    let vt_ptr: *mut DecorVirtText = vt;
+    let vt_ptr = crate::globals::GraphPtr::<DecorVirtText>::from_ref(vt);
     let range = DecorRange {
         start_row,
         start_col,
@@ -1087,9 +1087,9 @@ pub fn decor_range_add_virt(
         priority_internal: DecorPriorityInternal::from(priority) << 16,
         owned,
         data: if is_lines {
-            DecorRangeData::VirtLines(vt_ptr.into())
+            DecorRangeData::VirtLines(vt_ptr)
         } else {
-            DecorRangeData::Vt(vt_ptr.into())
+            DecorRangeData::Vt(vt_ptr)
         },
         attr_id: 0,
         draw_col: -10,

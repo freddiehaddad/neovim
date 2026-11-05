@@ -483,13 +483,13 @@ pub fn nvim_set_hl(
 
     let update =
         (val.is_set_highlight & (1u64 << KEYSET_OPTIDX_HIGHLIGHT_UPDATE)) != 0 && val.update;
-    let mut base: *mut HlAttrs = ptr::null_mut();
+    let mut base = crate::globals::GraphPtr::<HlAttrs>::NULL;
     let mut base_attrs = HlAttrs::default();
     if update && hl_ns_get_attrs(ns_id as i32, hl_id, None, &mut base_attrs) {
-        base = &mut base_attrs;
+        base = crate::globals::GraphPtr::<HlAttrs>::of(&mut base_attrs);
     }
 
-    let attrs = dict2hlattrs(val, true, Some(&mut link_id), unsafe { base.as_ref() }, err);
+    let attrs = dict2hlattrs(val, true, Some(&mut link_id), base.opt(), err);
     if !error_set(err) {
         let save_current_sctx = api_set_sctx(channel_id);
         ns_hl_def(ns_id as NS, hl_id, attrs, link_id, Some(val));
@@ -1578,11 +1578,11 @@ pub fn nvim_open_term(buf: Buffer, opts: &mut KeyDict_open_term, err: &mut Error
     };
 
     let chan = channel_alloc(K_CHANNEL_STREAM_INTERNAL);
-    let chan_ptr: *mut crate::channel::Channel = chan;
+    let chan_ptr = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(chan);
     chan.internal.cb = cb;
     chan.internal.closed = false;
     let topts = TerminalOptions {
-        data: crate::globals::GraphPtr::new(chan_ptr),
+        data: chan_ptr,
         width: (curwin_mut().w_view_width - win_col_off(curwin_mut())).max(0) as u16,
         height: curwin_mut().w_view_height as u16,
         force_crlf,
@@ -2549,9 +2549,9 @@ pub fn nvim_inspect_cell(
     err: &mut Error,
 ) -> Array {
     let mut ret = Array::new();
-    let mut g: *mut ScreenGrid = &raw mut g_st().default_grid;
+    let mut g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().default_grid);
     if grid == Integer::from(g_st().pum_grid.handle) {
-        g = &raw mut g_st().pum_grid;
+        g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&g_st().pum_grid);
     } else if grid > 1 {
         let wp = get_win_by_grid_handle(grid as ObjHandle);
         if !validate_int(
@@ -2564,10 +2564,10 @@ pub fn nvim_inspect_cell(
             return ret;
         }
 
-        g = &raw mut wp.unwrap().w_grid_alloc;
+        g = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&wp.unwrap().w_grid_alloc);
     }
 
-    let g = unsafe { &*g };
+    let g = g.borrow();
     if row < 0 || row >= Integer::from(g.rows) || col < 0 || col >= Integer::from(g.cols) {
         return ret;
     }

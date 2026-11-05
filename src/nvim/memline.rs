@@ -2404,11 +2404,11 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
             let Some(hp_cur) = mf_get(&mut *mfp, ip.ip_bnum, 1) else {
                 return false;
             };
-            let mut hp_ptr: *mut Bhdr = hp_cur;
-            let mut pp = hp_ptr_block(unsafe { &mut *hp_ptr });
+            let mut hp_ptr = crate::globals::GraphPtr::<Bhdr>::from_ref(hp_cur);
+            let mut pp = hp_ptr_block(hp_ptr.borrow_mut());
             if pp.pb_id != PTR_ID {
                 iemsg(tr(E_POINTER_BLOCK_ID_WRONG_THREE));
-                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, false, false);
+                mf_put(&mut *mfp, hp_ptr.borrow_mut(), false, false);
                 return false;
             }
             if pp.pb_count < pp.pb_count_max {
@@ -2438,7 +2438,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                     pe_next.pe_old_lnum = lnum_right;
                 }
 
-                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
+                mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
                 buf.b_ml.ml_stack_top = stack_idx + 1;
 
                 if lineadd != 0 {
@@ -2457,7 +2457,7 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 hp_new_ptr = ml_new_ptr(&mut *mfp);
                 pp_new = hp_ptr_block(unsafe { &mut *hp_new_ptr });
 
-                if unsafe { (*hp_ptr).bh_bnum } != 1 {
+                if hp_ptr.bh_bnum != 1 {
                     break;
                 }
 
@@ -2474,8 +2474,8 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 pe0.pe_line_count = buf.b_ml.ml_line_count;
                 pe0.pe_old_lnum = 1;
                 pe0.pe_page_count = 1;
-                mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
-                hp_ptr = hp_new_ptr;
+                mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
+                hp_ptr = crate::globals::GraphPtr::<Bhdr>::of(hp_new_ptr);
                 pp = pp_new;
                 buf.b_ml.ml_stack[stack_idx as usize].ip_index = 0;
                 stack_idx += 1;
@@ -2526,11 +2526,11 @@ fn ml_append_int(buf: &mut FileBuf, lnum: Linenr, line: &[u8], len_arg: Colnr, f
                 line_count_left += pb_ptr(&mut *pp, i).pe_line_count;
             }
 
-            bnum_left = unsafe { (*hp_ptr).bh_bnum };
+            bnum_left = hp_ptr.bh_bnum;
             bnum_right = unsafe { (*hp_new_ptr).bh_bnum };
             page_count_left = 1;
             page_count_right = 1;
-            mf_put(&mut *mfp, unsafe { &mut *hp_ptr }, true, false);
+            mf_put(&mut *mfp, hp_ptr.borrow_mut(), true, false);
             mf_put(&mut *mfp, unsafe { &mut *hp_new_ptr }, true, false);
 
             stack_idx -= 1;
@@ -3094,7 +3094,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
         let Some(hp_ref) = mf_get(mfp, bnum, page_count as u32) else {
             return ml_find_line_error_noblock(buf, action);
         };
-        let hp: *mut Bhdr = hp_ref;
+        let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(hp_ref);
 
         if action == ML_INSERT {
             high += 1;
@@ -3102,20 +3102,20 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             high -= 1;
         }
 
-        let dp = hp_data_block(unsafe { &mut *hp });
+        let dp = hp_data_block(hp.borrow_mut());
         if dp.db_id == DATA_ID {
             buf.b_ml.ml_locked = crate::globals::GraphPtr::new(hp.cast());
             buf.b_ml.ml_locked_low = low;
             buf.b_ml.ml_locked_high = high;
             buf.b_ml.ml_locked_lineadd = 0;
             buf.b_ml.ml_flags &= !(ML_LOCKED_DIRTY | ML_LOCKED_POS);
-            return Some(unsafe { &mut *hp });
+            return Some(hp.borrow_mut());
         }
 
-        let pp = hp_ptr_block(unsafe { &mut *hp });
+        let pp = hp_ptr_block(hp.borrow_mut());
         if pp.pb_id != PTR_ID {
             iemsg(tr(E_POINTER_BLOCK_ID_WRONG));
-            mf_put(mfp, unsafe { &mut *hp }, false, false);
+            mf_put(mfp, hp.borrow_mut(), false, false);
             return ml_find_line_error_noblock(buf, action);
         }
 
@@ -3160,7 +3160,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             } else {
                 siemsg!(tr(E_LINE_COUNT_WRONG_IN_BLOCK_NR), bnum);
             }
-            mf_put(mfp, unsafe { &mut *hp }, false, false);
+            mf_put(mfp, hp.borrow_mut(), false, false);
             return ml_find_line_error_noblock(buf, action);
         }
         if action == ML_DELETE {
@@ -3170,7 +3170,7 @@ fn ml_find_line(buf: &mut FileBuf, lnum: Linenr, action: i32) -> Option<&'static
             pb_ptr(pp, idx as usize).pe_line_count += 1;
             dirty = true;
         }
-        mf_put(mfp, unsafe { &mut *hp }, dirty, false);
+        mf_put(mfp, hp.borrow_mut(), dirty, false);
     }
 }
 

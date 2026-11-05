@@ -2251,7 +2251,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
     let mut prev_token = LexExprToken::new();
     prev_token.r#type = K_EXPR_LEX_MISSING;
     let mut highlighted_prev_spacing = false;
-    let mut lambda_node: *mut ExprASTNode = std::ptr::null_mut();
+    let mut lambda_node = crate::globals::GraphPtr::<ExprASTNode>::NULL;
     let mut asgn_level: usize = 0;
 
     'parse_loop: loop {
@@ -2354,7 +2354,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 && !cur_token.data.var().autoload)
                             && tok_type != K_EXPR_LEX_ARROW)
                     {
-                        let lnode = unsafe { &mut *lambda_node };
+                        let lnode = lambda_node.borrow_mut();
                         lnode.data.fig_mut().type_guesses.allow_lambda = false;
 
                         if lnode
@@ -2370,7 +2370,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                                 cur_token.start,
                             );
                         } else {
-                            lambda_node = std::ptr::null_mut();
+                            lambda_node = crate::globals::GraphPtr::NULL;
                             pt_stack.pop();
                         }
                     }
@@ -2825,7 +2825,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                     if cur_pt == ExprASTParseType::LambdaArguments {
                         debug_assert!(!lambda_node.is_null());
 
-                        let lnode = unsafe { &mut *lambda_node };
+                        let lnode = lambda_node.borrow_mut();
                         lnode.r#type = K_EXPR_NODE_LAMBDA;
 
                         if let Some(colors) = &mut pstate.colors {
@@ -3411,7 +3411,8 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             let node_ref = (*top_node_p).as_deref_mut().unwrap();
                             ast_stack.push(&raw mut node_ref.children);
                             pt_stack.push(ExprASTParseType::LambdaArguments);
-                            lambda_node = &raw mut *node_ref;
+                            lambda_node =
+                                crate::globals::GraphPtr::<ExprASTNode>::from_ref(&*node_ref);
                         } else {
                             if prev_token.r#type == K_EXPR_LEX_SPACING {
                                 op_missing!();
@@ -3486,12 +3487,12 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             ast_stack.pop();
                         }
 
-                        debug_assert!(std::ptr::eq(
-                            unsafe { &**ast_stack.last().unwrap() }.as_deref().unwrap(),
+                        debug_assert!(
                             lambda_node
-                        ));
+                                == unsafe { &**ast_stack.last().unwrap() }.as_deref().unwrap()
+                        );
 
-                        let lnode = unsafe { &mut *lambda_node };
+                        let lnode = lambda_node.borrow_mut();
                         lnode.r#type = K_EXPR_NODE_LAMBDA;
 
                         if let Some(colors) = &mut pstate.colors {
@@ -3516,7 +3517,7 @@ pub fn viml_pexpr_parse(pstate: &mut ParserState<'_>, flags: i32) -> ExprAST {
                             ast_stack.push(next_slot);
                             ast_stack.push(&raw mut arrow_ref.children);
                         }
-                        lambda_node = std::ptr::null_mut();
+                        lambda_node = crate::globals::GraphPtr::NULL;
                     } else {
                         is_invalid = true;
                         if want_node == ExprASTWantedNode::Value {

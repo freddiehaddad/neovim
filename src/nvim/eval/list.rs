@@ -201,10 +201,10 @@ fn filter_map_blob(
         return;
     }
 
-    let mut b_ret: *mut TvBlob = b;
+    let mut b_ret = crate::globals::GraphPtr::<TvBlob>::from_ref(b);
     if filtermap == FilterMap::MapNew {
         tv_blob_copy(Some(&*b), &mut *rettv);
-        b_ret = rettv.vval.v_blob().as_ptr();
+        b_ret = crate::globals::GraphPtr::<TvBlob>::of(rettv.vval.v_blob());
     }
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
@@ -241,7 +241,7 @@ fn filter_map_blob(
             }
             if filtermap != FilterMap::Filter {
                 if newtv.vval.v_number() != val {
-                    tv_blob_set(unsafe { &mut *b_ret }, i, newtv.vval.v_number() as u8);
+                    tv_blob_set(b_ret.borrow_mut(), i, newtv.vval.v_number() as u8);
                 }
             } else if rem {
                 b.bv_ga.remove(i as usize);

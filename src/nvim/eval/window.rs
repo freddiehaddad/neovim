@@ -692,9 +692,8 @@ pub fn f_win_screenpos(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 
 /// `win_splitmove()` function (`f_win_splitmove`).
 pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let wp: *mut WinInfoInfo = find_win_by_nr_or_id(&argvars[0]).map_or(ptr::null_mut(), |w| w);
-    let targetwin: *mut WinInfoInfo =
-        find_win_by_nr_or_id(&argvars[1]).map_or(ptr::null_mut(), |w| w);
+    let wp = crate::globals::GraphPtr::<WinInfoInfo>::of(find_win_by_nr_or_id(&argvars[0]));
+    let targetwin = crate::globals::GraphPtr::<WinInfoInfo>::of(find_win_by_nr_or_id(&argvars[1]));
     let oldwin = curwin_ptr();
 
     rettv.vval = crate::eval::typval::TypvalVval::Number(-1);
@@ -702,9 +701,9 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
     if wp.is_null()
         || targetwin.is_null()
         || wp == targetwin
-        || !win_valid(unsafe { wp.as_ref() })
-        || !win_valid(unsafe { targetwin.as_ref() })
-        || unsafe { (*targetwin).w_floating }
+        || !win_valid(wp.opt())
+        || !win_valid(targetwin.opt())
+        || targetwin.w_floating
     {
         emsg(gettext(E_INVALWINDOW));
         return;
@@ -732,19 +731,16 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         size = tv_dict_get_number(d.as_deref(), c"size") as i32;
     }
 
-    if is_ctx_win(unsafe { &*wp })
-        || text_or_buf_locked()
-        || !check_split_disallowed(unsafe { wp.as_ref() })
-    {
+    if is_ctx_win(wp.borrow()) || text_or_buf_locked() || !check_split_disallowed(wp.opt()) {
         return;
     }
 
     if curwin_ptr() != targetwin {
-        win_goto(unsafe { &mut *targetwin });
+        win_goto(targetwin.borrow_mut());
     }
 
-    if curwin_ptr() == targetwin && win_valid(unsafe { wp.as_ref() }) {
-        if win_splitmove(unsafe { &mut *wp }, size, flags) {
+    if curwin_ptr() == targetwin && win_valid(wp.opt()) {
+        if win_splitmove(wp.borrow_mut(), size, flags) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(0);
         }
     } else {

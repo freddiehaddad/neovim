@@ -1404,8 +1404,7 @@ pub fn win_line(
     spv: &mut Spellvars,
     foldinfo: Foldinfo,
 ) -> i32 {
-    let grid: *mut GridView = &raw mut wp.w_grid;
-    let grid = unsafe { &mut *grid };
+    let grid = crate::globals::GraphPtr::<GridView>::from_ref(&wp.w_grid);
     let view_width = wp.w_view_width;
     let view_height = wp.w_view_height;
 
@@ -3756,7 +3755,7 @@ pub fn win_line(
             if wrap {
                 let mut current_row = wlv.row;
                 let mut dummy_col: i32 = 0;
-                let current_grid = grid_adjust(&mut *grid, &mut current_row, &mut dummy_col);
+                let current_grid = grid_adjust(grid.borrow_mut(), &mut current_row, &mut dummy_col);
 
                 let next_row_off = current_grid.line_offset[(current_row + 1) as usize];
                 current_grid.attrs[next_row_off] = -1;
@@ -3824,8 +3823,7 @@ fn wlv_put_linebuf(
     bg_attr: i32,
     mut flags: i32,
 ) {
-    let grid: *mut GridView = &raw mut wp.w_grid;
-    let grid = unsafe { &mut *grid };
+    let grid = crate::globals::GraphPtr::<GridView>::from_ref(&wp.w_grid);
 
     let mut startcol: i32 = 0;
     let mut clear_width = if clear_end { wp.w_view_width } else { endcol };
@@ -3870,7 +3868,7 @@ fn wlv_put_linebuf(
 
     let mut row = wlv.row;
     let mut coloff: i32 = 0;
-    let g = grid_adjust(&mut *grid, &mut row, &mut coloff);
+    let g = grid_adjust(grid.borrow_mut(), &mut row, &mut coloff);
     grid_put_linebuf(
         g,
         row,

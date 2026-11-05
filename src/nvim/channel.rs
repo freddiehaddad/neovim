@@ -444,7 +444,7 @@ pub fn channel_job_start(
 ) -> Option<&'static mut Channel> {
     let env_ptr = crate::globals::GraphPtr::from(env);
     let chan = channel_alloc(K_CHANNEL_STREAM_PROC);
-    let chan_ptr: *mut Channel = chan;
+    let chan_ptr = crate::globals::GraphPtr::<Channel>::from_ref(chan);
     chan.on_data = on_stdout;
     chan.on_stderr = on_stderr;
     chan.on_exit = on_exit;
@@ -464,7 +464,7 @@ pub fn channel_job_start(
             return None;
         }
         chan.uv.proc_.r#type = K_PROC_TYPE_PTY;
-        chan.uv.proc_.data = crate::globals::GraphPtr::new(chan_ptr);
+        chan.uv.proc_.data = chan_ptr;
         chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
@@ -477,7 +477,7 @@ pub fn channel_job_start(
         }
     } else {
         chan.uv.proc_.r#type = K_PROC_TYPE_UV;
-        chan.uv.proc_.data = crate::globals::GraphPtr::new(chan_ptr);
+        chan.uv.proc_.data = chan_ptr;
         chan.uv.proc_.loop_ = crate::globals::GraphPtr::new((&raw mut g_st().main_loop).cast());
         chan.uv.proc_.status = -1;
         chan.uv.proc_.out.s.fd = STDOUT_FILENO;
@@ -565,7 +565,7 @@ pub fn channel_job_start(
 
         rstream_start(
             unsafe { &mut (*proc_ptr).out },
-            StreamCbData::ChannelData(chan_ptr.into()),
+            StreamCbData::ChannelData(chan_ptr),
         );
     }
 
@@ -575,7 +575,7 @@ pub fn channel_job_start(
 
         rstream_start(
             unsafe { &mut (*proc_ptr).err },
-            StreamCbData::ChannelStderr(chan_ptr.into()),
+            StreamCbData::ChannelStderr(chan_ptr),
         );
     }
 
@@ -603,7 +603,7 @@ pub fn channel_connect(
     }
 
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel_ptr: *mut Channel = channel;
+    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
     let connected = socket_connect(
         &mut g_st().main_loop,
         &mut channel.socket,
@@ -618,7 +618,7 @@ pub fn channel_connect(
         return 0;
     }
 
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr.into());
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
 
@@ -627,10 +627,7 @@ pub fn channel_connect(
     } else {
         channel.on_data = on_output;
         callback_reader_start(&mut channel.on_data, c"data");
-        rstream_start(
-            &mut channel.socket,
-            StreamCbData::ChannelData(channel_ptr.into()),
-        );
+        rstream_start(&mut channel.socket, StreamCbData::ChannelData(channel_ptr));
     }
 
     channel.rpc.trust = trust;
@@ -641,13 +638,13 @@ pub fn channel_connect(
 /// Creates an RPC channel from a tcp/pipe socket connection.
 pub fn channel_from_connection(watcher: &mut SocketWatcher) {
     let channel = channel_alloc(K_CHANNEL_STREAM_SOCKET);
-    let channel_ptr: *mut Channel = channel;
+    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
     let result = socket_watcher_accept(watcher, &mut channel.socket);
     if result != 0 {
         channel_destroy_early(&mut *channel);
         return;
     }
-    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr.into());
+    channel.socket.s.internal_data = StreamInternalData::Channel(channel_ptr);
     wstream_init(&mut channel.socket.s, 0);
     rstream_init(&mut channel.socket);
     rpc_start(&mut *channel);
@@ -672,7 +669,7 @@ pub fn channel_from_stdio(
     chan_st().did_stdio = true;
 
     let channel = channel_alloc(K_CHANNEL_STREAM_STDIO);
-    let channel_ptr: *mut Channel = channel;
+    let channel_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
     let mut stdin_dup_fd = STDIN_FILENO;
     let mut stdout_dup_fd = STDOUT_FILENO;
 
@@ -706,7 +703,7 @@ pub fn channel_from_stdio(
         callback_reader_start(&mut channel.on_data, c"stdin");
         rstream_start(
             &mut channel.stdio_in,
-            StreamCbData::ChannelData(channel_ptr.into()),
+            StreamCbData::ChannelData(channel_ptr),
         );
     }
 

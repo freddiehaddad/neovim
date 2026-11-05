@@ -2087,16 +2087,16 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
     if let Some(ht_ref) = ht_opt
         && let Some(varname_cstr) = varname_opt.filter(|s| !s.to_bytes().is_empty())
     {
-        let mut ht: *mut Hashtab = ht_ref;
+        let mut ht = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
         let varname = varname_cstr.as_ptr();
-        let mut d = crate::globals::GraphPtr::from(get_current_funccal_dict(unsafe { &*ht }));
+        let mut d = crate::globals::GraphPtr::from(get_current_funccal_dict(ht.borrow()));
         if d.is_null() {
-            if ptr::eq(ht, &raw mut vars_st().globvardict.dv_hashtab) {
+            if ht == &vars_st().globvardict.dv_hashtab {
                 d = (&mut vars_st().globvardict).into();
-            } else if ptr::eq(ht, &raw mut vars_st().compat_hashtab) {
+            } else if ht == &vars_st().compat_hashtab {
                 d = (&mut vars_st().vimvardict).into();
             } else if let Some(di) = find_var_in_ht(
-                unsafe { &mut *ht },
+                ht.borrow_mut(),
                 crate::memory::cstr_first_byte(name) as i32,
                 c"",
                 0,
@@ -2110,14 +2110,13 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
             }
         }
 
-        let mut hi: *mut Hashitem =
-            hash_find(unsafe { &*ht }, crate::memory::cstr_from_ptr(varname));
+        let mut hi: *mut Hashitem = hash_find(ht.borrow(), crate::memory::cstr_from_ptr(varname));
         if hashitem_empty(unsafe { &*hi }) {
-            let mut ht_opt: Option<&'static mut Hashtab> = Some(unsafe { &mut *ht });
+            let mut ht_opt: Option<&'static mut Hashtab> = Some(ht.borrow_mut());
             hi = find_hi_in_scoped_ht(crate::memory::cstr_from_ptr(name), &mut ht_opt)
                 .map_or(ptr::null_mut(), ptr::from_mut);
             if let Some(h) = ht_opt {
-                ht = h;
+                ht = crate::globals::GraphPtr::<Hashtab>::of(h);
             }
         }
         if !hi.is_null() && !hashitem_empty(unsafe { &*hi }) {
@@ -2141,7 +2140,7 @@ pub fn do_unlet(name_slice: &[u8], forceit: bool) -> bool {
                 tv_copy(&di.di_tv, &mut oldtv);
             }
 
-            delete_var(unsafe { &mut *ht }, unsafe { &mut *hi });
+            delete_var(ht.borrow_mut(), unsafe { &mut *hi });
 
             if watched {
                 tv_dict_watcher_notify(dict_opt.unwrap(), varname_cstr, None, Some(&oldtv));
@@ -2581,10 +2580,10 @@ pub fn eval_variable(
     let mut tv: Option<&mut TypVal> = None;
 
     if let Some(v) = find_var(name, len as usize, None, i32::from(no_autoload)) {
-        let v_ptr: *mut Dictitem = v;
-        tv = Some(unsafe { &mut (*v_ptr).di_tv });
+        let v_ptr = crate::globals::GraphPtr::<Dictitem>::from_ref(v);
+        tv = Some(&mut (v_ptr.borrow_mut().di_tv));
         if let Some(dip) = dip {
-            *dip = Some(unsafe { &mut *v_ptr });
+            *dip = Some(v_ptr.borrow_mut());
         }
     }
 
@@ -2695,19 +2694,19 @@ pub fn find_var_in_ht(
     }
 
     let varname_slice = crate::memory::cstr_slice(varname_ptr, varname_len);
-    let mut hi: *mut Hashitem = hash_find_len(ht, varname_slice);
-    if hashitem_empty(unsafe { &*hi }) {
+    let mut hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht, varname_slice));
+    if hashitem_empty(hi.borrow()) {
         if (&raw mut *ht) == get_globvar_ht() && no_autoload == 0 {
             if !script_autoload(varname_slice, false) || aborting() {
                 return None;
             }
-            hi = hash_find_len(ht, varname_slice);
+            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(ht, varname_slice));
         }
-        if hashitem_empty(unsafe { &*hi }) {
+        if hashitem_empty(hi.borrow()) {
             return None;
         }
     }
-    Some(tv_dict_hi2di(unsafe { &*hi }))
+    Some(tv_dict_hi2di(hi.borrow()))
 }
 
 /// Finds the dict (g:, l:, s:, …) and hashtable used for a variable.
@@ -2741,9 +2740,9 @@ fn find_var_ht_dict<'a>(
             return Some(&mut (local_d_ptr.borrow_mut().dv_hashtab));
         }
 
-        let glob_d: *mut TvDict = get_globvar_dict();
-        *d = Some(unsafe { &mut *glob_d });
-        return Some(unsafe { &mut (*glob_d).dv_hashtab });
+        let glob_d = crate::globals::GraphPtr::<TvDict>::of(get_globvar_dict());
+        *d = Some(glob_d.borrow_mut());
+        return Some(&mut (glob_d.borrow_mut().dv_hashtab));
     }
 
     *varname = Some(crate::memory::cstr_from_ptr(name.wrapping_add(2)));
@@ -3017,10 +3016,10 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         semsg!(gettext(E_ILLVAR), name);
         return;
     };
-    let ht: *mut Hashtab = ht_ref;
+    let ht = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
     let varname = varname_cstr.as_ptr();
     let varname_len = name_len - (crate::memory::ptr_offset_from(varname, name) as usize);
-    let mut di_opt = find_var_in_ht(unsafe { &mut *ht }, 0, varname_cstr, varname_len, 1);
+    let mut di_opt = find_var_in_ht(ht.borrow_mut(), 0, varname_cstr, varname_len, 1);
 
     if di_opt.is_none() {
         di_opt = find_var_in_scoped_ht(crate::memory::cstr_slice(name, name_len), 1);
@@ -3045,7 +3044,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         }
 
         let mut type_error = false;
-        if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
+        if ht == &vars_st().vimvardict.dv_hashtab
             && !before_set_vvar(varname_cstr, di, tv, copy, watched, &mut type_error)
         {
             if type_error {
@@ -3060,8 +3059,8 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
         tv_clear(&mut di.di_tv);
         di
     } else {
-        if ptr::eq(ht, &raw mut vars_st().vimvardict.dv_hashtab)
-            || get_funccal_args_ht().is_some_and(|aht| ptr::eq(ht, aht))
+        if ht == &vars_st().vimvardict.dv_hashtab
+            || get_funccal_args_ht().is_some_and(|aht| ht == aht)
         {
             semsg!(gettext(E_ILLVAR), name);
             return;
@@ -3077,7 +3076,7 @@ pub fn set_var_const(name_slice: &[u8], tv: &mut TypVal, copy: bool, is_const: b
             varname,
             varname_len,
         ));
-        if !hash_add(unsafe { &mut *ht }, new_di) {
+        if !hash_add(ht.borrow_mut(), new_di) {
             crate::eval::typval::tv_dict_item_free(new_di);
             return;
         }
@@ -3666,7 +3665,7 @@ pub fn var_redir_str(value: &[u8]) {
 pub fn var_redir_stop() {
     let rl = &raw mut vars_st().redir_lval;
     if let Some(ref mut lval) = *unsafe { &mut (*rl) } {
-        let lval_ptr: *mut Lval = lval;
+        let lval_ptr = crate::globals::GraphPtr::<Lval>::from_ref(lval);
         if vars_st().redir_endp.is_some() {
             vars_st().redir_buf.push(0);
             let mut tv = TypVal {
@@ -3683,7 +3682,7 @@ pub fn var_redir_stop() {
             vars_st().redir_endp = get_lval(
                 vn_cstr,
                 None,
-                unsafe { &mut *lval_ptr },
+                lval_ptr.borrow_mut(),
                 false,
                 false,
                 0,
@@ -3692,10 +3691,10 @@ pub fn var_redir_stop() {
             .map(|s| unsafe { &*(s as *const std::ffi::CStr) });
 
             if let Some(endp) = vars_st().redir_endp
-                && unsafe { (*lval_ptr).ll_name.is_some() }
+                && lval_ptr.ll_name.is_some()
             {
                 set_var_lval(
-                    unsafe { &mut *lval_ptr },
+                    lval_ptr.borrow_mut(),
                     endp,
                     &mut tv,
                     false,

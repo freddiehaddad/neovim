@@ -512,14 +512,14 @@ fn syn_block_mut() -> &'static mut Synblock {
 
 #[inline]
 fn syn_items(block: &mut Synblock, idx: isize) -> &'static mut Synpat {
-    let ptr: *mut Synpat = &raw mut block.b_syn_patterns[idx as usize];
-    unsafe { &mut *ptr }
+    let ptr = crate::globals::GraphPtr::<Synpat>::from_ref(&block.b_syn_patterns[idx as usize]);
+    ptr.borrow_mut()
 }
 
 #[inline]
 fn syn_clstr(block: &mut Synblock, idx: isize) -> &'static mut SynCluster {
-    let ptr: *mut SynCluster = &raw mut block.b_syn_clusters[idx as usize];
-    unsafe { &mut *ptr }
+    let ptr = crate::globals::GraphPtr::<SynCluster>::from_ref(&block.b_syn_clusters[idx as usize]);
+    ptr.borrow_mut()
 }
 
 #[inline]
@@ -1454,7 +1454,7 @@ fn syn_current_attr(
     let mut eoe_pos = Lpos { lnum: 0, col: 0 };
     let mut end_idx: i32;
     let mut cur_si: *mut Stateitem;
-    let mut sip: *mut Stateitem = ptr::null_mut();
+    let mut sip = crate::globals::GraphPtr::<Stateitem>::NULL;
     let mut startcol: i32;
     let mut endcol: i32 = 0;
     let mut flags: i32 = 0;
@@ -1795,8 +1795,8 @@ fn syn_current_attr(
     if !cur_si.is_null() {
         let mut idx = cur_state_len() - 1;
         while idx >= 0 {
-            sip = cur_state_at(idx);
-            let sip = unsafe { &mut *sip };
+            sip = crate::globals::GraphPtr::<Stateitem>::of(cur_state_at(idx));
+            let sip = sip.borrow_mut();
             if (syn_st().current_lnum > sip.si_h_startpos.lnum
                 || (syn_st().current_lnum == sip.si_h_startpos.lnum
                     && syn_st().current_col >= sip.si_h_startpos.col))
@@ -1829,34 +1829,19 @@ fn syn_current_attr(
                 } else {
                     sps.id = syn_block_mut().b_nospell_cluster_id as i16;
 
-                    *can_spell = in_id_list(
-                        unsafe { sip.as_ref() },
-                        unsafe { &(*sip).si_cont_list },
-                        &mut sps,
-                        0,
-                    ) == 0;
+                    *can_spell =
+                        in_id_list(sip.opt(), &(sip.borrow().si_cont_list), &mut sps, 0) == 0;
                 }
             } else if syn_st().current_trans_id == 0 {
                 *can_spell = syn_block_mut().b_syn_spell == SYNSPL_TOP;
             } else {
                 sps.id = syn_block_mut().b_spell_cluster_id as i16;
 
-                *can_spell = in_id_list(
-                    unsafe { sip.as_ref() },
-                    unsafe { &(*sip).si_cont_list },
-                    &mut sps,
-                    0,
-                ) != 0;
+                *can_spell = in_id_list(sip.opt(), &(sip.borrow().si_cont_list), &mut sps, 0) != 0;
 
                 if syn_block_mut().b_nospell_cluster_id != 0 {
                     sps.id = syn_block_mut().b_nospell_cluster_id as i16;
-                    if in_id_list(
-                        unsafe { sip.as_ref() },
-                        unsafe { &(*sip).si_cont_list },
-                        &mut sps,
-                        0,
-                    ) != 0
-                    {
+                    if in_id_list(sip.opt(), &(sip.borrow().si_cont_list), &mut sps, 0) != 0 {
                         *can_spell = false;
                     }
                 }

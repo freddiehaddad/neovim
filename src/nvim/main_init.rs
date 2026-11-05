@@ -905,14 +905,18 @@ pub fn getout(mut exitval: i32) -> ! {
                     continue;
                 }
                 let buf = wp.buf_mut();
-                let buf_ptr: *mut crate::buffer::FileBuf = buf;
+                let buf_ptr = crate::globals::GraphPtr::<crate::buffer::FileBuf>::from_ref(buf);
                 if buf_get_changedtick(buf) != -1 {
                     let mut bufref: Bufref = Bufref::new();
-                    set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
+                    set_bufref(&mut bufref, buf_ptr.opt_mut());
                     let b_fname = buf.fname_opt();
-                    apply_autocmds(EVENT_BUFWINLEAVE, b_fname, b_fname, false, unsafe {
-                        buf_ptr.as_mut()
-                    });
+                    apply_autocmds(
+                        EVENT_BUFWINLEAVE,
+                        b_fname,
+                        b_fname,
+                        false,
+                        buf_ptr.opt_mut(),
+                    );
                     if let Some(buf_now) = bufref.buf_opt().filter(|_| bufref_valid(Some(&bufref)))
                     {
                         buf_set_changedtick(buf_now, -1);
@@ -1907,13 +1911,13 @@ fn read_stdin() {
             semsg!(c"Failed to create buffer for stdin");
             return;
         };
-        let stdin_buf: *mut crate::buffer::FileBuf = stdin_buf_ref;
+        let stdin_buf = crate::globals::GraphPtr::<crate::buffer::FileBuf>::from_ref(stdin_buf_ref);
 
         let initial_buf_handle: ObjHandle = curbuf_mut().b_fnum;
-        set_curbuf(unsafe { &mut *stdin_buf }, 0, false);
+        set_curbuf(stdin_buf.borrow_mut(), 0, false);
         readfile(None, None, 0, 0, MAXLNUM, None, READ_NEW + READ_STDIN, true);
 
-        let stdin_buf_handle: ObjHandle = unsafe { (*stdin_buf).b_fnum };
+        let stdin_buf_handle: ObjHandle = stdin_buf.b_fnum;
         let stdin_buf_empty = buf_is_empty(curbuf_mut());
 
         let mut buf = [0u8; 100];

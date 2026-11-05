@@ -2712,7 +2712,7 @@ pub fn f_garbagecollect(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: Eval
 
 /// "get()" function
 pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let mut tv: *mut TypVal = ptr::null_mut();
+    let mut tv = crate::globals::GraphPtr::<TypVal>::NULL;
     let mut what_is_dict = false;
 
     if argvars[0].v_type == VarType::VarBlob {
@@ -2732,7 +2732,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                     idx,
                 )));
 
-                tv = rettv;
+                tv = crate::globals::GraphPtr::<TypVal>::from_ref(rettv);
             }
         }
     } else if argvars[0].v_type == VarType::VarList {
@@ -2744,7 +2744,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 tv_get_number_chk(&argvars[1], Some(&mut error)) as i32,
             );
             if !error && let Some(li) = li {
-                tv = &raw mut li.li_tv;
+                tv = crate::globals::GraphPtr::<TypVal>::from_ref(&li.li_tv);
             }
         }
     } else if argvars[0].v_type == VarType::VarDict {
@@ -2752,7 +2752,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         if !d.is_null()
             && let Some(di) = tv_dict_find(d.opt(), tv_get_string(&argvars[1]), -1)
         {
-            tv = &raw mut di.di_tv;
+            tv = crate::globals::GraphPtr::<TypVal>::from_ref(&di.di_tv);
         }
     } else if tv_is_func(&argvars[0]) {
         let mut fref_pt = std::mem::ManuallyDrop::new(TvPartial::default());
@@ -2842,7 +2842,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             tv_copy(&argvars[2], rettv);
         }
     } else {
-        tv_copy(unsafe { &*tv }, rettv);
+        tv_copy(tv.borrow(), rettv);
     }
 }
 
@@ -2907,7 +2907,7 @@ pub fn f_getchangelist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 }
 
 fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, charcol: bool) {
-    let mut fp: *mut CursorPos = ptr::null_mut();
+    let mut fp = crate::globals::GraphPtr::<CursorPos>::NULL;
     let mut pos: CursorPos;
     let mut wp = curwin_ptr();
     let mut fnum: i32 = -1;
@@ -2915,24 +2915,29 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     if getcurpos {
         if argvars[0].v_type != VarType::VarUnknown {
             if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
-                fp = (&raw mut found.w_cursor).cast();
+                fp = crate::globals::GraphPtr::<CursorPos>::of((&raw mut found.w_cursor).cast());
                 wp = found.into();
             } else {
                 wp = crate::globals::WinPtr::NULL;
             }
         } else {
-            fp = (&raw mut curwin_mut().w_cursor).cast();
+            fp = crate::globals::GraphPtr::<CursorPos>::of((&raw mut curwin_mut().w_cursor).cast());
         }
         if !fp.is_null() && charcol {
-            pos = unsafe { *fp };
+            pos = *fp;
 
             pos.col = buf_byteidx_to_charidx(wp.w_buffer.opt_mut(), pos.lnum, pos.col);
 
-            fp = &raw mut pos;
+            fp = crate::globals::GraphPtr::<CursorPos>::from_ref(&pos);
         }
     } else {
-        fp = var2fpos(&argvars[0], true, &mut fnum, charcol, curwin_mut())
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        fp = crate::globals::GraphPtr::from(var2fpos(
+            &argvars[0],
+            true,
+            &mut fnum,
+            charcol,
+            curwin_mut(),
+        ));
     }
 
     let l = tv_list_alloc_ret(&mut *rettv, 4 + isize::from(getcurpos));
@@ -2940,14 +2945,14 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     tv_list_append_number(
         &mut *l,
         if !fp.is_null() {
-            Varnumber::from(unsafe { (*fp).lnum })
+            Varnumber::from(fp.lnum)
         } else {
             0
         },
     );
     tv_list_append_number(
         &mut *l,
-        if let Some(fp) = unsafe { fp.as_mut() } {
+        if let Some(fp) = fp.opt_mut() {
             if fp.col == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
@@ -2960,7 +2965,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
     tv_list_append_number(
         &mut *l,
         if !fp.is_null() {
-            Varnumber::from(unsafe { (*fp).coladd })
+            Varnumber::from(fp.coladd)
         } else {
             0
         },
@@ -4466,7 +4471,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let mut on_stderr = CallbackReader::none();
     let mut on_exit = Callback::NONE;
     let mut cwd = ptr::null();
-    let mut job_env: *mut Dictitem = ptr::null_mut();
+    let mut job_env = crate::globals::GraphPtr::<Dictitem>::NULL;
 
     if argvars[1].v_type == VarType::VarDict {
         job_opts = crate::globals::GraphPtr::<TvDict>::of(argvars[1].vval.v_dict());
@@ -4528,9 +4533,9 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
 
-        job_env = tv_dict_find(job_opts_ref, c"env", 3).map_or(ptr::null_mut(), ptr::from_mut);
+        job_env = crate::globals::GraphPtr::from(tv_dict_find(job_opts_ref, c"env", 3));
 
-        if !job_env.is_null() && unsafe { (*job_env).di_tv.v_type } != VarType::VarDict {
+        if !job_env.is_null() && job_env.di_tv.v_type != VarType::VarDict {
             semsg!(gettext(E_INVARG2), c"env");
             return;
         }
@@ -4598,7 +4603,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     }
 
     let env = create_environment(
-        unsafe { job_env.as_ref() },
+        job_env.opt(),
         clear_env,
         pty,
         true,
@@ -4624,36 +4629,35 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     let Some(chan_ref) = chan else {
         return;
     };
-    let chan: *mut crate::channel::Channel = chan_ref;
+    let mut chan = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(chan_ref);
     if !term {
-        channel_create_event(unsafe { &mut *chan });
+        channel_create_event(chan.borrow_mut());
     } else {
         if rettv.vval.v_number() <= 0 {
             return;
         }
 
-        let pid = unsafe { (*chan).uv.proc_.pid };
+        let pid = chan.uv.proc_.pid;
         let buf = g_st().curbuf.borrow_mut();
 
         buf.b_p_swf = false;
         if buf.b_ml.ml_mfp.is_none() && !ml_open(&mut *buf) {
-            proc_stop(unsafe { &mut (*chan).uv.proc_ });
+            proc_stop(&mut chan.uv.proc_);
 
-            channel_decref(unsafe { &mut *chan });
+            channel_decref(chan.borrow_mut());
 
             return;
         }
 
-        channel_incref(unsafe { &mut *chan });
+        channel_incref(chan.borrow_mut());
 
-        channel_terminal_alloc(&mut *buf, unsafe { &mut *chan });
+        channel_terminal_alloc(&mut *buf, chan.borrow_mut());
 
         let ct = chan;
         'term_done: {
             apply_autocmds(EVENT_BUFFILEPRE, None, None, false, Some(&mut *buf));
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
-            {
+            if ct.term.is_null() || terminal_buf(ct.term.borrow()) == 0 {
                 break 'term_done;
             }
 
@@ -4695,8 +4699,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             );
             apply_autocmds(EVENT_BUFFILEPOST, None, None, false, Some(&mut *buf));
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
-            {
+            if ct.term.is_null() || terminal_buf(ct.term.borrow()) == 0 {
                 break 'term_done;
             }
 
@@ -4705,11 +4708,11 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             let cp = chan;
 
             dict_set_var(
-                &mut *(*buf).b_vars(),
+                buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_id")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
-                    data: ObjectData::Integer(unsafe { (*cp).id } as Integer),
+                    data: ObjectData::Integer(cp.id as Integer),
                 },
                 false,
                 false,
@@ -4719,7 +4722,7 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 
             api_clear_error(&mut err);
             dict_set_var(
-                &mut *(*buf).b_vars(),
+                buf.b_vars(),
                 cstr_as_string(Some(c"terminal_job_pid")),
                 Object {
                     obj_type: ObjectType::ObjectTypeInteger,
@@ -4733,17 +4736,16 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             api_clear_error(&mut err);
             buf.b_locked -= 1;
 
-            if unsafe { (*ct).term }.is_null() || terminal_buf(unsafe { (*ct).term.borrow() }) == 0
-            {
+            if ct.term.is_null() || terminal_buf(ct.term.borrow()) == 0 {
                 break 'term_done;
             }
 
-            terminal_open(unsafe { (*ct).term.borrow_mut() }, &mut *buf);
+            terminal_open(ct.term.borrow_mut(), buf);
         }
 
-        channel_create_event(unsafe { &mut *chan });
+        channel_create_event(chan.borrow_mut());
 
-        channel_decref(unsafe { &mut *chan });
+        channel_decref(chan.borrow_mut());
     }
 }
 
@@ -4793,8 +4795,8 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let args = argvars[0].vval.v_list();
     let len = tv_list_len(args.opt()) as usize;
     let mut jobs: Vec<*mut Channel> = vec![ptr::null_mut(); len];
-    let main_loop_ptr: *mut Loop = &raw mut g_st().main_loop;
-    let waiting_jobs = multiqueue_new(Some(unsafe { &mut *main_loop_ptr }));
+    let main_loop_ptr = crate::globals::GraphPtr::<Loop>::from_ref(&g_st().main_loop);
+    let waiting_jobs = multiqueue_new(Some(main_loop_ptr.borrow_mut()));
 
     for (i, arg) in crate::eval::typval::list_iter_ptr(tv_list_first(args.opt())).enumerate() {
         let tv = &arg.li_tv;
@@ -4870,9 +4872,10 @@ pub fn f_jobwait(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 
         multiqueue_process_events(events.borrow_mut());
 
-        multiqueue_replace_parent(events.borrow_mut(), unsafe {
-            loop_queues(&mut *main_loop_ptr).events.borrow_mut()
-        });
+        multiqueue_replace_parent(
+            events.borrow_mut(),
+            loop_queues(main_loop_ptr.borrow_mut()).events.borrow_mut(),
+        );
 
         let status = unsafe { (*job).uv.proc_.status };
         tv_list_append_number(&mut *rv, Varnumber::from(status));
@@ -5029,7 +5032,7 @@ pub fn f_libcallnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 /// "line(string, [winid])" function
 pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut lnum: Linenr = 0;
-    let mut fp: *mut CursorPos = ptr::null_mut();
+    let mut fp = crate::globals::GraphPtr::<CursorPos>::NULL;
     let mut fnum: i32 = 0;
 
     if argvars[1].v_type != VarType::VarUnknown {
@@ -5044,16 +5047,26 @@ pub fn f_line(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
                 g_st().skip_update_topline = true;
             }
             check_cursor(wp_ref);
-            fp = var2fpos(&argvars[0], true, &mut fnum, false, wp_ref)
-                .map_or(ptr::null_mut(), ptr::from_mut);
+            fp = crate::globals::GraphPtr::from(var2fpos(
+                &argvars[0],
+                true,
+                &mut fnum,
+                false,
+                wp_ref,
+            ));
             g_st().skip_update_topline = false;
         }
     } else {
-        fp = var2fpos(&argvars[0], true, &mut fnum, false, curwin_mut())
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        fp = crate::globals::GraphPtr::from(var2fpos(
+            &argvars[0],
+            true,
+            &mut fnum,
+            false,
+            curwin_mut(),
+        ));
     }
 
-    if let Some(fp_ref) = unsafe { fp.as_ref() } {
+    if let Some(fp_ref) = fp.opt() {
         lnum = fp_ref.lnum;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(lnum));
@@ -8365,9 +8378,9 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     let flg =
         tv_get_string_buf_chk(arg3, &mut flagsbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
 
-    let mut expr: *mut TypVal = ptr::null_mut();
+    let mut expr = crate::globals::GraphPtr::<TypVal>::NULL;
     if tv_is_func(arg2) {
-        expr = &raw mut *arg2;
+        expr = crate::globals::GraphPtr::<TypVal>::from_ref(&*arg2);
     } else {
         sub = tv_get_string_buf_chk(arg2, &mut subbuf).map_or(ptr::null(), std::ffi::CStr::as_ptr);
     }
@@ -8389,7 +8402,7 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
             } else {
                 crate::memory::cstr_from_ptr(sub)
             },
-            unsafe { expr.as_ref() },
+            expr.opt(),
             crate::memory::cstr_from_ptr(flg),
         );
         crate::eval::typval::tv_set_string_len(rettv, Some(sub_res.as_bytes()));

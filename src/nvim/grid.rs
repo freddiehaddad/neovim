@@ -1013,9 +1013,9 @@ pub fn grid_free_all_mem() {
 }
 
 pub fn win_grid_alloc(wp: &mut WinInfoInfo) {
-    let grid_allocated_ptr: *mut ScreenGrid = &raw mut wp.w_grid_alloc;
+    let grid_allocated_ptr = crate::globals::GraphPtr::<ScreenGrid>::from_ref(&wp.w_grid_alloc);
     let grid = &mut wp.w_grid;
-    let grid_allocated = unsafe { &mut *grid_allocated_ptr };
+    let grid_allocated = grid_allocated_ptr.borrow_mut();
 
     let total_rows = wp.w_height_outer;
     let total_cols = wp.w_width_outer;

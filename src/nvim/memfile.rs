@@ -234,11 +234,11 @@ pub fn mf_new(mfp: &mut Memfile, negative: bool, page_count: u32) -> &'static mu
         b
     };
 
-    let mut boxed = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
-    let hp: *mut Bhdr = &raw mut *boxed;
+    let boxed = mf_alloc_bhdr(mfp, bnum, page_count, BH_LOCKED | BH_DIRTY);
+    let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
     mfp.mf_dirty = MF_DIRTY_YES;
     mfp.mf_hash.insert(bnum, boxed);
-    unsafe { &mut *hp }
+    hp.borrow_mut()
 }
 
 /// Get existing block `nr` with `page_count` pages.
@@ -260,10 +260,10 @@ pub fn mf_get(mfp: &mut Memfile, nr: Blocknr, page_count: u32) -> Option<&'stati
     if !mf_read(mfp, &mut boxed) {
         return None;
     }
-    let hp: *mut Bhdr = &raw mut *boxed;
+    let hp = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
     mfp.mf_hash.insert(nr, boxed);
 
-    Some(unsafe { &mut *hp })
+    Some(hp.borrow_mut())
 }
 
 /// Release the block `*hp`.
@@ -645,13 +645,13 @@ mod tests {
         assert_eq!(mfp.mf_page_size, 4096);
 
         let hp1 = mf_new(mfp, true, 1);
-        let hp1_ptr: *mut Bhdr = hp1;
+        let hp1_ptr = crate::globals::GraphPtr::<Bhdr>::from_ref(hp1);
         assert_eq!(hp1.bh_bnum, -1);
         mf_put(&mut *mfp, hp1, true, true);
         assert_eq!(mf_trans_del(mfp, -1), 0);
 
         let hp2 = mf_get(mfp, 0, 1).expect("mf_get failed");
-        assert!(ptr::eq(hp2, hp1_ptr));
+        assert!(hp1_ptr == hp2);
         mf_put(&mut *mfp, hp2, false, false);
         mf_free(mfp, hp2);
 
@@ -675,36 +675,38 @@ mod tests {
                 let key = index_to_key(i);
                 assert!(pmap_get_bhdr(&ht, key).is_none());
 
-                let mut boxed = Box::new(Bhdr {
+                let boxed = Box::new(Bhdr {
                     bh_bnum: key,
                     bh_data: Vec::new(),
                     bh_page_count: 1,
                     bh_flags: 0,
                 });
-                let item: *mut Bhdr = &raw mut *boxed;
+                let item = crate::globals::GraphPtr::<Bhdr>::from_ref(&*boxed);
                 ht.insert(key, boxed);
-                assert!(ptr::eq(pmap_get_bhdr(&ht, key).unwrap(), item));
-                items.push(item);
+                assert!(item == pmap_get_bhdr(&ht, key).unwrap());
+                items.push(item.as_ptr());
             }
 
             for i in 0..TEST_COUNT {
                 let key = index_to_key(i);
-                let item = pmap_get_bhdr(&ht, key).unwrap();
+                let item = crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
                 assert_eq!(item.bh_bnum, key);
             }
 
             for i in 0..TEST_COUNT {
                 if i % 100 < 70 {
                     let key = index_to_key(i);
-                    let item_ptr: *mut Bhdr = pmap_get_bhdr(&ht, key).unwrap();
-                    let item = pmap_get_bhdr(&ht, key).unwrap();
+                    let item_ptr =
+                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
+                    let item =
+                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
                     assert_eq!(item.bh_bnum, key);
 
                     let removed = ht.remove(&key).unwrap();
                     assert!(pmap_get_bhdr(&ht, key).is_none());
 
                     ht.insert(key, removed);
-                    assert!(ptr::eq(pmap_get_bhdr(&ht, key).unwrap(), item_ptr));
+                    assert!(item_ptr == pmap_get_bhdr(&ht, key).unwrap());
 
                     ht.remove(&key);
                     assert!(pmap_get_bhdr(&ht, key).is_none());
@@ -716,7 +718,8 @@ mod tests {
                 if i % 100 < 70 {
                     assert!(pmap_get_bhdr(&ht, key).is_none());
                 } else {
-                    let item = pmap_get_bhdr(&ht, key).unwrap();
+                    let item =
+                        crate::globals::GraphPtr::<Bhdr>::of(pmap_get_bhdr(&ht, key).unwrap());
                     assert_eq!(item.bh_bnum, key);
                 }
             }

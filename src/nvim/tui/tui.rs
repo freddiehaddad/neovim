@@ -333,8 +333,8 @@ use crate::os::signal::SIGWINCH;
 
 #[inline]
 fn tui_input(tui: &mut TUIData) -> &'static mut TermInput {
-    let ptr: *mut TermInput = &raw mut tui.input;
-    unsafe { &mut *ptr }
+    let ptr = crate::globals::GraphPtr::<TermInput>::from_ref(&tui.input);
+    ptr.borrow_mut()
 }
 
 #[inline]
@@ -354,8 +354,8 @@ fn tui_output_handle(tui: &mut TUIData) -> &'static mut uv_handle_t {
 
 #[inline]
 fn tui_winch_handle(tui: &mut TUIData) -> &'static mut SignalWatcher {
-    let ptr: *mut SignalWatcher = &raw mut tui.winch_handle;
-    unsafe { &mut *ptr }
+    let ptr = crate::globals::GraphPtr::<SignalWatcher>::from_ref(&tui.winch_handle);
+    ptr.borrow_mut()
 }
 
 #[inline]
@@ -383,18 +383,18 @@ pub fn tui_start(
         tui.grid.cells.clear();
         tui_terminal_start(tui);
 
-        let tui_ptr: *mut TUIData = &raw mut *tui;
+        let tui_ptr = crate::globals::GraphPtr::<TUIData>::from_ref(&*tui);
         let loop_ptr = tui.loop_.as_ptr().cast();
         let timer: *mut uv_timer_t = tui_startup_delay_timer(tui);
         uv_timer_init(loop_ptr, timer);
-        *timer.cast::<*mut TUIData>() = tui_ptr;
+        *timer.cast::<*mut TUIData>() = tui_ptr.as_ptr();
         uv_timer_start(timer, Some(after_startup_cb), 100, 0);
 
         loop_poll_events(&mut g_st().main_loop, 1);
-        *width = (*tui_ptr).width;
-        *height = (*tui_ptr).height;
-        *term = (*tui_ptr).term.clone();
-        *rgb = (*tui_ptr).rgb;
+        *width = tui_ptr.width;
+        *height = tui_ptr.height;
+        *term = tui_ptr.term.clone();
+        *rgb = tui_ptr.rgb;
     }
 }
 

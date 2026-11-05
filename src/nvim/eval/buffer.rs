@@ -457,18 +457,18 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
     if g_st().did_emsg == did_emsg_before {
         if did_concat && tv_list_len(lines.vval.v_list().opt()) > 1 {
             let l = lines.vval.v_list();
-            let li: *mut Listitem = tv_list_first(l.opt()).unwrap();
+            let li = crate::globals::GraphPtr::<Listitem>::of(tv_list_first(l.opt()).unwrap());
 
             set_buffer_lines(
                 buf.opt_mut(),
                 lnum,
                 false,
-                unsafe { &mut (*li).li_tv },
+                &mut (li.borrow_mut().li_tv),
                 &mut *rettv,
             );
 
             if rettv.vval.v_number() == 0 {
-                tv_list_item_remove(l.borrow_mut(), unsafe { &mut *li });
+                tv_list_item_remove(l.borrow_mut(), li.borrow_mut());
 
                 set_buffer_lines(buf.opt_mut(), lnum, true, &mut *lines, &mut *rettv);
             }
@@ -484,7 +484,7 @@ pub fn f_prompt_appendbuf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: Eva
         if lines.v_type == VarType::VarList {
             let l = lines.vval.v_list();
             if !l.is_null() && tv_list_len(l.opt()) > 0 {
-                let li = tv_list_last(l.opt()).unwrap();
+                let li = crate::globals::GraphPtr::<Listitem>::of(tv_list_last(l.opt()).unwrap());
                 let str_ = tv_get_string(&li.li_tv);
                 let bytes = str_.to_bytes();
                 if bytes.last() == Some(&b'\n') {

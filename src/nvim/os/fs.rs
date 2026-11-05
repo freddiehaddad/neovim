@@ -1781,7 +1781,7 @@ pub fn os_scandir(dir: &mut Directory, path: &CStr) -> bool {
 
 /// Increments the directory pointer.
 pub fn os_scandir_next(dir_in: &mut Directory) -> Option<&'static CStr> {
-    let dir: *mut Directory = dir_in;
+    let dir = crate::globals::GraphPtr::<Directory>::from_ref(dir_in);
     let req = dir.cast::<uv_fs_buf_t>();
     let ent = dir
         .cast::<u8>()

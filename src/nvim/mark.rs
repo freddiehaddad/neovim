@@ -593,8 +593,8 @@ pub fn get_changelist(
     let cur_fnum = curbuf_mut().b_fnum;
     let fm = &mut buf.b_changelist[n as usize];
     fm.fnum = cur_fnum;
-    let fmp: *mut Fmark = fm;
-    Some(unsafe { &mut *fmp })
+    let fmp = crate::globals::GraphPtr::<Fmark>::from_ref(fm);
+    Some(fmp.borrow_mut())
 }
 
 /// Get a named mark (`mark_get`).
@@ -629,8 +629,8 @@ pub fn mark_get(
         && let Some(ref fm_ref) = fm
     {
         *fmp = (*fm_ref).clone();
-        let ptr: *mut Fmark = fmp;
-        return Some(unsafe { &mut *ptr });
+        let ptr = crate::globals::GraphPtr::<Fmark>::from_ref(fmp);
+        return Some(ptr.borrow_mut());
     }
     fm
 }

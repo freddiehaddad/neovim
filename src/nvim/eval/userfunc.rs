@@ -1099,25 +1099,23 @@ fn funccal_unref(fc_opt: Option<&mut Funccall>, fp: &mut UserFunc, force: bool) 
     let Some(fc_ref) = fc_opt else {
         return;
     };
-    let fc: *mut Funccall = fc_ref;
+    let mut fc = crate::globals::GraphPtr::<Funccall>::from_ref(fc_ref);
 
-    unsafe {
-        (*fc).fc_refcount -= 1;
-    }
+    fc.fc_refcount -= 1;
 
     if (if force {
-        unsafe { (*fc).fc_refcount <= 0 }
+        fc.fc_refcount <= 0
     } else {
-        !fc_referenced(unsafe { &*fc })
+        !fc_referenced(fc.borrow())
     }) && let Some(pos) = uf_st()
         .previous_funccal
         .iter()
-        .position(|item| ptr::eq(&raw const *item.0, fc))
+        .position(|item| fc == &raw const *item.0)
     {
         uf_st().previous_funccal.remove(pos);
         return;
     }
-    for slot in unsafe { &mut (*fc).fc_ufuncs } {
+    for slot in &mut (fc.borrow_mut().fc_ufuncs) {
         if *slot == fp {
             *slot = crate::globals::GraphPtr::NULL;
         }
@@ -1232,8 +1230,8 @@ pub fn call_user_func(
     fp.uf_calls += 1;
     line_breakcheck();
 
-    let fp_ptr: *mut UserFunc = fp;
-    let fc = create_funccal(Some(unsafe { &mut *fp_ptr }), rettv);
+    let fp_ptr = crate::globals::GraphPtr::<UserFunc>::from_ref(fp);
+    let fc = create_funccal(Some(fp_ptr.borrow_mut()), rettv);
     fc.fc_level = g_st().ex_nesting_level;
     fc.fc_breakpoint = dbg_find_breakpoint(false, uf2hikey(&*fp), 0);
     fc.fc_dbg_tick = g_st().debug_tick;
@@ -4243,7 +4241,7 @@ pub fn find_hi_in_scoped_ht(
     }
 
     let old_current_funccal = uf_st().current_funccal;
-    let mut hi: *mut Hashitem = ptr::null_mut();
+    let mut hi = crate::globals::GraphPtr::<Hashitem>::NULL;
     let namelen = name.to_bytes().len();
     let mut varname_opt: Option<&CStr> = None;
 
@@ -4253,15 +4251,15 @@ pub fn find_hi_in_scoped_ht(
         if let Some(ht_ref) = ht
             && let Some(varname) = varname_opt.filter(|s| !s.to_bytes().is_empty())
         {
-            let ht_ptr: *mut Hashtab = ht_ref;
+            let ht_ptr = crate::globals::GraphPtr::<Hashtab>::from_ref(ht_ref);
             let len =
                 namelen - crate::memory::ptr_offset_from(varname.as_ptr(), name.as_ptr()) as usize;
-            hi = hash_find_len(
-                unsafe { &*ht_ptr },
+            hi = crate::globals::GraphPtr::<Hashitem>::of(hash_find_len(
+                ht_ptr.borrow(),
                 crate::memory::cstr_slice(varname.as_ptr(), len),
-            );
-            if !hashitem_empty(unsafe { &*hi }) {
-                *pht = Some(unsafe { &mut *ht_ptr });
+            ));
+            if !hashitem_empty(hi.borrow()) {
+                *pht = Some(ht_ptr.borrow_mut());
                 break;
             }
         }
@@ -4273,7 +4271,7 @@ pub fn find_hi_in_scoped_ht(
     }
     uf_st().current_funccal = old_current_funccal;
 
-    unsafe { hi.as_mut() }
+    hi.opt_mut()
 }
 
 pub fn find_var_in_scoped_ht(name_slice: &[u8], no_autoload: i32) -> Option<&'static mut Dictitem> {

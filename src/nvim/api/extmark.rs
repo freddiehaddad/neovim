@@ -1205,15 +1205,17 @@ pub fn nvim_buf_set_extmark(
             }
 
             let mut decor_flags: u32 = 0;
-            let mut decor_alloc: *mut DecorVirtText = ptr::null_mut();
+            let mut decor_alloc = crate::globals::GraphPtr::<DecorVirtText>::NULL;
             if !virt_text.data.virt_text().is_empty() {
                 if virt_text.pos == K_VPOS_INLINE {
                     decor_flags |= MT_FLAG_DECOR_VIRT_TEXT_INLINE;
                 }
-                decor_alloc = decor_put_vt(virt_text, unsafe { decor_alloc.as_mut() });
+                decor_alloc =
+                    crate::globals::GraphPtr::from(decor_put_vt(virt_text, decor_alloc.opt_mut()));
             }
             if !virt_lines.data.virt_lines().is_empty() {
-                decor_alloc = decor_put_vt(virt_lines, unsafe { decor_alloc.as_mut() });
+                decor_alloc =
+                    crate::globals::GraphPtr::from(decor_put_vt(virt_lines, decor_alloc.opt_mut()));
                 decor_flags |= MT_FLAG_DECOR_VIRT_LINES;
             }
 

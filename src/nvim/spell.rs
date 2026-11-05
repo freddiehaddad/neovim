@@ -3020,9 +3020,9 @@ fn dump_prefixes(
         has_word_up = true;
     }
     if !slang.sl_pbyts.is_empty() {
-        let slang_ptr: *mut Slang = slang;
-        let byts: &[u8] = unsafe { &(*slang_ptr).sl_pbyts };
-        let idxs: &[Idx] = unsafe { &(*slang_ptr).sl_pidxs };
+        let slang_ptr = crate::globals::GraphPtr::<Slang>::from_ref(slang);
+        let byts: &[u8] = &(slang_ptr.borrow().sl_pbyts);
+        let idxs: &[Idx] = &(slang_ptr.borrow().sl_pidxs);
         let mut depth: isize = 0;
         arridx[0] = 0;
         curi[0] = 1;

@@ -1434,7 +1434,7 @@ pub fn do_put(
     mut count: i32,
     flags: i32,
 ) {
-    let mut reg: *mut Yankreg = reg_in.map_or(ptr::null_mut(), |r| &raw mut *r);
+    let mut reg = crate::globals::GraphPtr::<Yankreg>::of(reg_in);
     let mut totlen: usize = 0;
     let mut lnum: Linenr;
     let mut y_type: MotionType;
@@ -1615,18 +1615,24 @@ pub fn do_put(
         if has_event(EVENT_TEXTPUTPRE) {
             let save_reg = reg;
             if reg.is_null() {
-                reg = get_yank_register(regname, YankRegMode::Paste);
+                reg = crate::globals::GraphPtr::<Yankreg>::of(get_yank_register(
+                    regname,
+                    YankRegMode::Paste,
+                ));
             }
 
-            put_do_autocmd(regname, unsafe { reg.as_ref() }, None, false, dir);
+            put_do_autocmd(regname, reg.opt(), None, false, dir);
 
-            reg = save_reg;
+            reg = crate::globals::GraphPtr::<Yankreg>::of(save_reg);
         }
         if reg.is_null() {
-            reg = get_yank_register(regname, YankRegMode::Paste);
+            reg = crate::globals::GraphPtr::<Yankreg>::of(get_yank_register(
+                regname,
+                YankRegMode::Paste,
+            ));
         }
 
-        let reg_ref = unsafe { &mut *reg };
+        let reg_ref = reg.borrow_mut();
         y_type = reg_ref.y_type;
         y_width = reg_ref.y_width;
         y_size = reg_ref.y_array.len();
@@ -2380,7 +2386,7 @@ pub fn do_put(
 
     if has_event(EVENT_TEXTPUTPOST) {
         if insert_string.data.is_null() {
-            put_do_autocmd(regname, unsafe { reg.as_ref() }, None, true, dir);
+            put_do_autocmd(regname, reg.opt(), None, true, dir);
         } else {
             put_do_autocmd(regname, None, Some(&insert_string), true, dir);
         }

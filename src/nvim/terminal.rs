@@ -904,8 +904,8 @@ pub fn terminal_open(term: &mut Terminal, buf: &mut FileBuf) {
 }
 
 pub fn terminal_close(term: &mut Terminal, status: i32) {
-    let term_ptr: *mut Terminal = term;
-    let term = unsafe { &mut *term_ptr };
+    let term_ptr = crate::globals::GraphPtr::<Terminal>::from_ref(term);
+    let term = term_ptr.borrow_mut();
     if term.destroy {
         return;
     }
@@ -1095,7 +1095,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
     debug_assert!(s.save_curwin_handle != 0);
 
     if let Some(wp) = handle_get_window_opt(s.save_curwin_handle) {
-        let wp_ptr: *mut crate::window::WinInfoInfo = wp;
+        let wp_ptr = crate::globals::GraphPtr::<crate::window::WinInfoInfo>::from_ref(wp);
         let mut winopts: Option<&mut Winopt> = None;
         if wp.buf_mut().b_fnum != s.term_mut().buf_handle {
             if let Some(buf) = handle_get_buffer_opt(s.term_mut().buf_handle) {
@@ -1107,7 +1107,7 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
                 }
             }
         } else {
-            if win_valid(unsafe { wp_ptr.as_ref() }) {
+            if win_valid(wp_ptr.opt()) {
                 if s.save_w_p_cuc != wp.w_onebuf_opt.wo_cuc {
                     redraw_later(Some(&mut *wp), UPD_SOME_VALID);
                 } else if s.save_w_p_cul != (wp.w_onebuf_opt.wo_cul)

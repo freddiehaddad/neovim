@@ -1036,7 +1036,7 @@ fn convert_one_value(
     objname: &CStr,
 ) -> bool {
     backend.check_before();
-    let tv: *mut TypVal = tv_ref;
+    let tv = crate::globals::GraphPtr::<TypVal>::from_ref(tv_ref);
     match tv_ref.v_type {
         VarType::VarString => {
             let s = tv_ref.vval.v_string_opt_bytes();
@@ -1083,7 +1083,7 @@ fn convert_one_value(
                 return false;
             }
             mpstack.push(MPConvStackVal {
-                tv: crate::globals::GraphPtr::new(tv),
+                tv,
                 saved_copy_id: copy_id - 1,
                 data: MPConvStackData::Partial {
                     stage: MPConvPartialStage::Args,
@@ -1110,7 +1110,7 @@ fn convert_one_value(
                 backend.conv_list_start(tv_list_len(list.opt()));
 
                 mpstack.push(MPConvStackVal {
-                    tv: crate::globals::GraphPtr::new(tv),
+                    tv,
                     saved_copy_id,
                     data: MPConvStackData::List {
                         list,
@@ -1229,7 +1229,7 @@ fn convert_one_value(
                                 backend.conv_list_start(tv_list_len(val_list.opt()));
 
                                 mpstack.push(MPConvStackVal {
-                                    tv: crate::globals::GraphPtr::new(tv),
+                                    tv,
                                     saved_copy_id,
                                     data: MPConvStackData::List {
                                         list: val_list,
@@ -1277,7 +1277,7 @@ fn convert_one_value(
                                             .conv_dict_start(tv_list_len(val_list.opt()) as usize);
 
                                         mpstack.push(MPConvStackVal {
-                                            tv: crate::globals::GraphPtr::new(tv),
+                                            tv,
                                             saved_copy_id,
                                             data: MPConvStackData::Pairs {
                                                 list: val_list,
@@ -1329,7 +1329,7 @@ fn convert_one_value(
                 backend.conv_dict_start(dict.dv_hashtab.ht_used);
 
                 mpstack.push(MPConvStackVal {
-                    tv: crate::globals::GraphPtr::new(tv),
+                    tv,
                     saved_copy_id,
                     data: MPConvStackData::Dict {
                         dict,

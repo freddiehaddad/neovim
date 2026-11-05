@@ -3081,14 +3081,14 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         return false;
     }
 
-    let mut fm: *mut Fmark = ptr::null_mut();
+    let mut fm = crate::globals::GraphPtr::<Fmark>::NULL;
     let col: Colnr;
     let mut restore_view = false;
     if lnum == 0 {
         let fm_ref = buflist_findfmark(buf_ref);
         lnum = fm_ref.mark.lnum;
         col = fm_ref.mark.col;
-        fm = fm_ref;
+        fm = crate::globals::GraphPtr::<Fmark>::of(fm_ref);
         restore_view = true;
     } else {
         col = 0;
@@ -3140,7 +3140,7 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
             curwin_mut().w_set_curswant = true;
         }
         if (opt_vars().jop_flags & K_OPT_JOP_FLAG_VIEW) != 0 && restore_view {
-            mark_view_restore(unsafe { fm.as_ref() });
+            mark_view_restore(fm.opt());
         }
         return true;
     }
@@ -3576,8 +3576,8 @@ fn find_wininfo(
                 (!buf.b_wininfo.is_empty()).then_some(0)
             }
         })?;
-    let wip_ptr: *mut WinInfo = &mut buf.b_wininfo[pos];
-    Some(unsafe { &mut *wip_ptr })
+    let wip_ptr = crate::globals::GraphPtr::<WinInfo>::of(&mut buf.b_wininfo[pos]);
+    Some(wip_ptr.borrow_mut())
 }
 
 /// Reset the local window options to the values last used in this window.

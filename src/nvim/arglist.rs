@@ -188,10 +188,10 @@ fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
         return;
     }
 
-    let al_ptr: *mut Alist = al;
-    alist_clear(unsafe { &mut *al_ptr });
+    let mut al_ptr = crate::globals::GraphPtr::<Alist>::from_ref(al);
+    alist_clear(al_ptr.borrow_mut());
 
-    unsafe { (*al_ptr).al_ga.reserve(files.len()) };
+    al_ptr.al_ga.reserve(files.len());
 
     for fname in files {
         if g_st().got_int {
@@ -200,7 +200,7 @@ fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
 
         if !fname.as_bytes().is_empty() {
             alist_add(
-                unsafe { &mut *al_ptr },
+                al_ptr.borrow_mut(),
                 fname,
                 if use_curbuf != 0 { 2 } else { 1 },
             );
@@ -208,7 +208,7 @@ fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
         os_breakcheck();
     }
 
-    if ptr::eq(al_ptr, &raw const g_st().global_alist) {
+    if al_ptr == &g_st().global_alist {
         g_st().arg_had_last = false;
     }
 }
@@ -313,7 +313,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
         let mut wp = curwin_ptr();
-        let al: *mut Alist = win_alist(wp.borrow());
+        let mut al = crate::globals::GraphPtr::<Alist>::of(win_alist(wp.borrow()));
         after = after.clamp(0, old_argcount);
         arglist_st().arglist_locked = true;
 
@@ -329,7 +329,7 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         }
         let pos = after as usize;
 
-        unsafe { (*al).al_ga.splice(pos..pos, new_entries) };
+        al.al_ga.splice(pos..pos, new_entries);
 
         arglist_st().arglist_locked = false;
         {

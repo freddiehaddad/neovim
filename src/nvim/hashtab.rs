@@ -166,9 +166,9 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
         return unsafe { &mut *hi };
     }
 
-    let mut freeitem: *mut Hashitem = std::ptr::null_mut();
+    let mut freeitem = crate::globals::GraphPtr::<Hashitem>::NULL;
     if hi_ref.hi_removed {
-        freeitem = hi;
+        freeitem = crate::globals::GraphPtr::<Hashitem>::of(hi);
     } else if hi_ref.hi_hash == hash && key_matches(hi_ref.key_cstr(), key) {
         return unsafe { &mut *hi };
     }
@@ -180,7 +180,13 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
         let item = unsafe { &*hi };
 
         if item.is_null_slot() {
-            return unsafe { &mut *(if freeitem.is_null() { hi } else { freeitem }) };
+            return unsafe {
+                &mut *(if freeitem.is_null() {
+                    hi
+                } else {
+                    freeitem.as_ptr()
+                })
+            };
         }
 
         if item.hi_hash == hash && !item.hi_removed && key_matches(item.key_cstr(), key) {
@@ -188,7 +194,7 @@ pub fn hash_lookup(ht: &Hashtab, key: &[u8], hash: HashVal) -> &'static mut Hash
         }
 
         if item.hi_removed && freeitem.is_null() {
-            freeitem = hi;
+            freeitem = crate::globals::GraphPtr::<Hashitem>::of(hi);
         }
 
         perturb >>= PERTURB_SHIFT;

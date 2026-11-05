@@ -9452,8 +9452,8 @@ fn ex_restart(eap: &mut Exarg) {
         }
         return;
     };
-    let channel: *mut crate::channel::Channel = channel_ref;
-    let chan_id = unsafe { (*channel).id };
+    let mut channel = crate::globals::GraphPtr::<crate::channel::Channel>::from_ref(channel_ref);
+    let chan_id = channel.id;
     let mut result_mem: ArenaMem = ptr::null_mut();
 
     'fail_2: {
@@ -9656,7 +9656,7 @@ fn ex_restart(eap: &mut Exarg) {
         arena_mem_free(result_mem);
     }
 
-    let proc_ptr = unsafe { &raw mut (*channel).uv.proc_ };
+    let proc_ptr = &raw mut channel.uv.proc_;
     proc_stop(unsafe { &mut *proc_ptr });
     if proc_wait(unsafe { &mut *proc_ptr }, -1, None) < 0 {
         let _ = emsg(c"killing new nvim server failed");

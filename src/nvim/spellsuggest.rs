@@ -918,8 +918,8 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
     let mut p: Option<&CStr> = None;
     let list_opt = eval_spell_expr(crate::memory::cstr_until_nul(&su.su_badword), expr);
     if let Some(list) = list_opt {
-        let list_ptr: *mut crate::eval::typval::TvList = list;
-        for li in crate::eval::typval::list_iter_mut(unsafe { (*list_ptr).first_opt() }) {
+        let list_ptr = crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(list);
+        for li in crate::eval::typval::list_iter_mut(list_ptr.first_opt()) {
             if li.li_tv.v_type == VarType::VarList
                 && let Some(sublist) = li.li_tv.vval.v_list_opt()
             {
@@ -939,7 +939,7 @@ fn spell_suggest_expr(su: &mut Suginfo, expr: &CStr) {
                 }
             }
         }
-        tv_list_unref(unsafe { list_ptr.as_mut() });
+        tv_list_unref(list_ptr.opt_mut());
     }
     check_suggestions(su, false);
     cleanup_suggestions(&mut su.su_ga, su.su_maxscore, su.su_maxcount);
@@ -2650,7 +2650,7 @@ fn add_suggestion(
     slang: Option<&mut Slang>,
     maxsf: bool,
 ) {
-    let slang_ptr: *mut Slang = slang.map_or(ptr::null_mut(), |s| &raw mut *s);
+    let slang_ptr = crate::globals::GraphPtr::<Slang>::of(slang);
     let goodword_bytes = crate::memory::bytes_until_nul(goodword);
     let bad_slice = crate::memory::cstr_slice(su.su_badptr.as_ptr(), badlenarg.max(0) as usize);
     let mut pgood_idx = goodword_bytes.len();
@@ -2689,7 +2689,7 @@ fn add_suggestion(
             && &st_b[..(goodlen as usize).min(st_b.len())] == gw_slice
         {
             if stp.st_slang.is_null() {
-                stp.st_slang = crate::globals::GraphPtr::new(slang_ptr);
+                stp.st_slang = slang_ptr;
             }
             let mut new_sug = Suggest {
                 st_word: std::ffi::CString::default(),
@@ -2730,7 +2730,7 @@ fn add_suggestion(
             st_salscore: false,
             st_had_bonus: had_bonus,
             st_orglen: badlen,
-            st_slang: crate::globals::GraphPtr::new(slang_ptr),
+            st_slang: slang_ptr,
         });
         if (gap.len() as i32) > sug_max_count(su) {
             if maxsf {

@@ -2563,7 +2563,7 @@ fn do_source_ext(
     let mut firstline: Option<std::ffi::CString> = None;
     let mut retval = false;
     let save_debug_break_level = g_st().debug_break_level;
-    let mut si: *mut Scriptitem = ptr::null_mut();
+    let mut si = crate::globals::GraphPtr::<Scriptitem>::NULL;
     let mut wait_start: Proftime = 0;
     let mut trigger_source_post = false;
 
@@ -2736,12 +2736,13 @@ fn do_source_ext(
         g_st().current_sctx.sc_seq = rt_st().last_current_sid_seq;
 
         if sid > 0 {
-            si = script_item(sid);
+            si = crate::globals::GraphPtr::<Scriptitem>::of(script_item(sid));
         } else if str_opt.is_none() {
-            si = new_script_item(Some(fname_exp_owned.clone()), &mut sid);
-            unsafe {
-                (*si).sn_lua = path_with_extension(crate::memory::cstr_from_ptr(fname_exp), c"lua")
-            };
+            si = crate::globals::GraphPtr::<Scriptitem>::of(new_script_item(
+                Some(fname_exp_owned.clone()),
+                &mut sid,
+            ));
+            si.sn_lua = path_with_extension(crate::memory::cstr_from_ptr(fname_exp), c"lua");
             if let Some(ref mut ret_sid_ref) = ret_sid {
                 **ret_sid_ref = sid;
             }
@@ -2756,7 +2757,7 @@ fn do_source_ext(
         estack_push(
             ETYPE_SCRIPT,
             if !si.is_null() {
-                unsafe { (*si).name_cstr() }
+                si.name_cstr()
             } else {
                 Some(&fname_exp_owned)
             },
@@ -2764,7 +2765,7 @@ fn do_source_ext(
         );
 
         if l_do_profiling == PROF_YES && !si.is_null() {
-            let si_mut = unsafe { &mut *si };
+            let si_mut = si.borrow_mut();
             let mut forceit = false;
             if !si_mut.sn_prof_on
                 && has_profiling(true, si_mut.name_cstr().unwrap_or(c""), Some(&mut forceit))
@@ -2827,7 +2828,7 @@ fn do_source_ext(
                     .is_some_and(|f| path_with_extension(f, c"lua")))
         {
             nlua_exec_lines(&cookie.buflines, &fname_exp_owned);
-        } else if !si.is_null() && unsafe { (*si).sn_lua } {
+        } else if !si.is_null() && si.sn_lua {
             nlua_exec_file(&fname_exp_owned);
         } else {
             firstline = getsourceline(0, &mut cookie, 0, true);

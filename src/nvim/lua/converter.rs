@@ -1053,7 +1053,7 @@ fn lua_convert_one_value(
     tv: &mut TypVal,
     copy_id: i32,
 ) -> bool {
-    let tv_ptr: *mut TypVal = &raw mut *tv;
+    let tv_ptr = crate::globals::GraphPtr::<TypVal>::from_ref(&*tv);
     unsafe {
         if lua_checkstack(lstate, 3) == 0 {
             semsg!(
@@ -1135,7 +1135,7 @@ fn lua_convert_one_value(
                     }
                     lua_conv_list_start(lstate, tv_list_len(list.as_ref()));
                     mpstack.push(MPConvStackVal {
-                        tv: crate::globals::GraphPtr::new(tv_ptr),
+                        tv: tv_ptr,
                         saved_copy_id,
                         data: MPConvStackData::List {
                             list,
@@ -1260,7 +1260,7 @@ fn lua_convert_one_value(
                                     }
                                     lua_conv_list_start(lstate, tv_list_len(val_list.as_ref()));
                                     mpstack.push(MPConvStackVal {
-                                        tv: crate::globals::GraphPtr::new(tv_ptr),
+                                        tv: tv_ptr,
                                         saved_copy_id,
                                         data: MPConvStackData::List {
                                             list: val_list,
@@ -1307,7 +1307,7 @@ fn lua_convert_one_value(
                                                 tv_list_len(val_list.as_ref()) as usize,
                                             );
                                             mpstack.push(MPConvStackVal {
-                                                tv: crate::globals::GraphPtr::new(tv_ptr),
+                                                tv: tv_ptr,
                                                 saved_copy_id,
                                                 data: MPConvStackData::Pairs {
                                                     list: val_list,
@@ -1353,7 +1353,7 @@ fn lua_convert_one_value(
                     }
                     lua_conv_dict_start(lstate, dict.dv_hashtab.ht_used);
                     mpstack.push(MPConvStackVal {
-                        tv: crate::globals::GraphPtr::new(tv_ptr),
+                        tv: tv_ptr,
                         saved_copy_id,
                         data: MPConvStackData::Dict {
                             dict,

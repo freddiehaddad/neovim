@@ -2489,10 +2489,11 @@ pub fn nlua_set_sctx(current: &mut Sctx) {
     {
         let mut sid = find_script_by_name(source_path.as_c_str());
         if sid <= 0 {
-            let si: *mut Scriptitem = new_script_item(Some(source_path), &mut sid);
-            unsafe {
-                (*si).sn_lua = true;
-            }
+            let mut si = crate::globals::GraphPtr::<Scriptitem>::of(new_script_item(
+                Some(source_path),
+                &mut sid,
+            ));
+            si.sn_lua = true;
         }
         current.sc_sid = sid;
         current.sc_seq = -1;

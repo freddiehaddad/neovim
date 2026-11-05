@@ -133,7 +133,7 @@ fn match_add(
     pos_list: Option<&TvList>,
     conceal_char: Option<&std::ffi::CStr>,
 ) -> i32 {
-    let mut regprog: *mut Regprog = ptr::null_mut();
+    let mut regprog = crate::globals::GraphPtr::<Regprog>::NULL;
     let mut rtype = UPD_SOME_VALID;
 
     let Some(grp) = grp.filter(|s| !s.is_empty()) else {
@@ -172,7 +172,7 @@ fn match_add(
             semsg!(gettext(E_INVARG2), pat.as_ptr());
             return -1;
         };
-        regprog = Box::into_raw(prog_box);
+        regprog = crate::globals::GraphPtr::<Regprog>::of(Box::into_raw(prog_box));
     }
 
     let pos_len = tv_list_len(pos_list);
@@ -181,7 +181,7 @@ fn match_add(
         mit_priority: prio,
         mit_pattern: pat.map(std::ffi::CStr::to_owned),
         mit_match: Regmmatch {
-            regprog: crate::globals::GraphPtr::new(regprog),
+            regprog,
             startpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             endpos: [crate::cursor::Lpos { lnum: 0, col: 0 }; 10],
             rmm_matchcol: 0,

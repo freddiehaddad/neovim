@@ -1360,9 +1360,10 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
     let mut oldfiles_set: std::collections::HashSet<PathKey> = std::collections::HashSet::new();
     if get_old_files && (oldfiles_list.is_none() || force) {
         let new_list = tv_list_alloc(K_LIST_LEN_UNKNOWN_CONST);
-        let new_list_ptr: *mut crate::eval::typval::TvList = new_list;
+        let new_list_ptr =
+            crate::globals::GraphPtr::<crate::eval::typval::TvList>::from_ref(new_list);
         set_vim_var_list(VV_OLDFILES, Some(new_list));
-        oldfiles_list = Some(unsafe { &mut *new_list_ptr });
+        oldfiles_list = Some(new_list_ptr.borrow_mut());
     }
 
     loop {

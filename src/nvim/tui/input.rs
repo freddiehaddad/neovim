@@ -245,8 +245,8 @@ pub fn tinput_init(input: &mut TermInput, loop_: &mut Loop, ti: &TerminfoEntry) 
         TERMKEY_FLAG_UTF8 | TERMKEY_FLAG_NOSTART | TERMKEY_FLAG_KEEPC0,
     );
     termkey_set_buffer_size(input.tk_mut(), INPUT_BUFFER_SIZE);
-    let tk_ptr: *mut TermKey = input.tk_mut();
-    termkey_start(unsafe { &mut *tk_ptr }, Some(ti), Some(&mut *input));
+    let tk_ptr = crate::globals::GraphPtr::<TermKey>::of(input.tk_mut());
+    termkey_start(tk_ptr.borrow_mut(), Some(ti), Some(&mut *input));
 
     let curflags = termkey_get_canonflags(input.tk_mut());
     termkey_set_canonflags(input.tk_mut(), curflags | TERMKEY_CANON_DELBS);

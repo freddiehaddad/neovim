@@ -1132,7 +1132,7 @@ pub fn nvim_exec_autocmds(
 ) {
     let mut au_group = AUGROUP_ALL;
     let mut b = g_st().curbuf.as_ptr();
-    let mut data: *mut Object = std::ptr::null_mut();
+    let mut data = crate::globals::GraphPtr::<Object>::NULL;
 
     let event_array = unpack_string_or_array(event, c"event", true, arena, err);
     if error_set(err) {
@@ -1200,7 +1200,7 @@ pub fn nvim_exec_autocmds(
     }
 
     if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_DATA) {
-        data = &mut opts.data;
+        data = crate::globals::GraphPtr::<Object>::of(&mut opts.data);
     }
 
     let modeline = if has_key(mask, KEYSET_OPTIDX_EXEC_AUTOCMDS_MODELINE) {
@@ -1231,7 +1231,7 @@ pub fn nvim_exec_autocmds(
                 unsafe { b.as_mut() },
                 Some(crate::globals::curwin_mut()),
                 None,
-                unsafe { data.as_ref() },
+                data.opt(),
                 has_buf,
             );
         }

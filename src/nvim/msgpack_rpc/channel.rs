@@ -187,8 +187,8 @@ impl Channel {
 
     #[inline]
     pub fn unpacker_mut(&mut self) -> &'static mut Unpacker {
-        let p: *mut Unpacker = self.rpc.unpacker.as_deref_mut().unwrap();
-        unsafe { &mut *p }
+        let p = crate::globals::GraphPtr::<Unpacker>::of(self.rpc.unpacker.as_deref_mut().unwrap());
+        p.borrow_mut()
     }
 }
 
@@ -269,10 +269,10 @@ pub fn rpc_start(channel: &mut Channel) {
     rpc.call_stack.clear();
 
     if channel.streamtype != K_CHANNEL_STREAM_INTERNAL {
-        let ch_ptr: *mut Channel = channel;
+        let ch_ptr = crate::globals::GraphPtr::<Channel>::from_ref(channel);
         rstream_start(
             channel_outstream_mut(channel),
-            StreamCbData::ChannelRpc(ch_ptr.into()),
+            StreamCbData::ChannelRpc(ch_ptr),
         );
     }
 }
@@ -315,11 +315,11 @@ pub fn rpc_send_call(
         );
         return OBJECT_NIL;
     };
-    let channel: *mut Channel = chan_ref;
+    let channel = crate::globals::GraphPtr::<Channel>::from_ref(chan_ref);
 
-    channel_incref(unsafe { &mut *channel });
+    channel_incref(channel.borrow_mut());
 
-    let rpc = unsafe { &mut (*channel).rpc };
+    let rpc = &mut (channel.borrow_mut().rpc);
     let request_id = rpc.next_request_id;
     rpc.next_request_id += 1;
 
@@ -335,7 +335,7 @@ pub fn rpc_send_call(
     rpc.call_stack.push(frame.clone());
 
     while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } {
-        let ev_ptr = unsafe { (*channel).events };
+        let ev_ptr = channel.events;
         if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
             multiqueue_process_events(ev_ptr.borrow_mut());
         } else {
@@ -353,7 +353,7 @@ pub fn rpc_send_call(
             id,
         );
 
-        channel_decref(unsafe { &mut *channel });
+        channel_decref(channel.borrow_mut());
         return OBJECT_NIL;
     }
 
@@ -389,7 +389,7 @@ pub fn rpc_send_call(
         frame.result_mem.set(ptr::null_mut());
     }
 
-    channel_decref(unsafe { &mut *channel });
+    channel_decref(channel.borrow_mut());
 
     *result_mem = frame.result_mem.get();
 
@@ -437,10 +437,11 @@ fn find_call_frame(rpc: &RpcState, request_id: u32) -> Option<std::rc::Rc<Channe
 }
 
 fn parse_msgpack(channel: &mut Channel) {
-    let p_ptr: *mut Unpacker = channel.rpc.unpacker.as_deref_mut().unwrap();
+    let p_ptr =
+        crate::globals::GraphPtr::<Unpacker>::of(channel.rpc.unpacker.as_deref_mut().unwrap());
 
-    while unpacker_advance(unsafe { &mut *p_ptr }) {
-        let p = unsafe { &mut *p_ptr };
+    while unpacker_advance(p_ptr.borrow_mut()) {
+        let p = p_ptr.borrow_mut();
         if p.msg_type == MessageType::MessageTypeRedrawEvent {
             if g_st().ui_client_attached {
                 if p.has_grid_line_event {
@@ -505,7 +506,7 @@ fn parse_msgpack(channel: &mut Channel) {
         }
     }
 
-    let p = unsafe { &mut *p_ptr };
+    let p = p_ptr.borrow_mut();
     if unpacker_closed(p) {
         let msg_cstr = p.unpack_error.msg_cstr().unwrap_or(c"");
         chan_close_on_err(channel, msg_cstr, LOGLVL_INF);

@@ -5211,13 +5211,17 @@ fn nv_brackets(cap: &mut Cmdarg) {
     } else if cap.nchar == b'p' as i32 || cap.nchar == b'P' as i32 {
         nv_put_opt(cap, true);
     } else if cap.nchar == b'\'' as i32 || cap.nchar == b'`' as i32 {
-        let mut fm: *mut Fmark = pos_to_mark(curbuf_mut(), None, curwin_mut().w_cursor);
+        let mut fm = crate::globals::GraphPtr::<Fmark>::of(pos_to_mark(
+            curbuf_mut(),
+            None,
+            curwin_mut().w_cursor,
+        ));
         let mut prev_fm = fm;
         let mut n = cap.count1;
         while n > 0 {
             prev_fm = fm;
             fm = getnextmark(
-                unsafe { &mut (*fm).mark },
+                &mut (fm.borrow_mut().mark),
                 if cap.cmdchar == b'[' as i32 {
                     BACKWARD
                 } else {
@@ -5225,20 +5229,20 @@ fn nv_brackets(cap: &mut Cmdarg) {
                 },
                 i32::from(cap.nchar == b'\'' as i32),
             )
-            .map_or(ptr::null_mut(), ptr::from_mut);
+            .into();
             if fm.is_null() {
                 break;
             }
             n -= 1;
         }
         if fm.is_null() {
-            fm = prev_fm;
+            fm = crate::globals::GraphPtr::<Fmark>::of(prev_fm);
         }
         let mut flags = K_MARK_CONTEXT;
         if cap.nchar == b'\'' as i32 {
             flags |= K_MARK_BEGIN_LINE;
         }
-        nv_mark_move_to(cap, flags, unsafe { fm.as_mut() });
+        nv_mark_move_to(cap, flags, fm.opt_mut());
     } else if cap.nchar >= K_RIGHTRELEASE && cap.nchar <= K_LEFTMOUSE {
         do_mouse(
             Some(cap.oap_mut()),

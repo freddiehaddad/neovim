@@ -492,7 +492,7 @@ pub fn spell_load_file(
         verbose_leave();
     }
 
-    let old_lp_ptr: *mut Slang = old_lp.map_or(ptr::null_mut(), |lp| &raw mut *lp);
+    let old_lp_ptr = crate::globals::GraphPtr::<Slang>::of(old_lp);
     let mut owned_lp = if old_lp_ptr.is_null() {
         let lang_cstr = lang
             .as_deref()
@@ -507,8 +507,12 @@ pub fn spell_load_file(
     } else {
         None
     };
-    let mut lp_ptr: *mut Slang = owned_lp.as_deref_mut().map_or(old_lp_ptr, |b| &raw mut *b);
-    let lp = unsafe { &mut *lp_ptr };
+    let mut lp_ptr = crate::globals::GraphPtr::<Slang>::of(
+        owned_lp
+            .as_deref_mut()
+            .map_or(old_lp_ptr, crate::globals::GraphPtr::from),
+    );
+    let lp = lp_ptr.borrow_mut();
 
     estack_push(ETYPE_SPELL, Some(fname_cstr), 0);
     let did_estack_push = true;
@@ -703,7 +707,9 @@ pub fn spell_load_file(
             spell_priv_st()
                 .first_lang
                 .push(crate::spell::OwnedSlang(boxed_lp));
-            lp_ptr = &raw mut **spell_priv_st().first_lang.last_mut().unwrap();
+            lp_ptr = crate::globals::GraphPtr::<Slang>::from_ref(
+                &**spell_priv_st().first_lang.last_mut().unwrap(),
+            );
         }
     } else {
         if let Some(lang) = lang
@@ -712,7 +718,7 @@ pub fn spell_load_file(
             lang[0] = 0;
         }
         drop(owned_lp);
-        lp_ptr = ptr::null_mut();
+        lp_ptr = crate::globals::GraphPtr::NULL;
     }
 
     spell_close(fd);
@@ -720,7 +726,7 @@ pub fn spell_load_file(
         estack_pop();
     }
 
-    unsafe { lp_ptr.as_mut() }
+    lp_ptr.opt_mut()
 }
 
 fn tree_count_words(byts: &[u8], idxs: &mut [Idx]) {
@@ -1583,8 +1589,10 @@ fn spell_reload_one(fname_cstr: &std::ffi::CStr, added_word: bool) {
 
     let len = spell_priv_st().first_lang.len();
     for i in (0..len).rev() {
-        let slang_ptr: *mut Slang = &raw mut *spell_priv_st().first_lang.as_mut_slice()[i];
-        let slang = unsafe { &mut *slang_ptr };
+        let slang_ptr = crate::globals::GraphPtr::<Slang>::from_ref(
+            &*spell_priv_st().first_lang.as_mut_slice()[i],
+        );
+        let slang = slang_ptr.borrow_mut();
         if slang
             .sl_fname
             .as_ref()
@@ -1650,7 +1658,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
     let mut pc_vec: Vec<u8>;
     let mut items = [c""; MAXITEMCNT];
     let mut lnum: i32 = 0;
-    let mut cur_aff: *mut Affheader = ptr::null_mut();
+    let mut cur_aff = crate::globals::GraphPtr::<Affheader>::NULL;
     let mut did_postpone_prefix = false;
     let mut aff_todo: i32 = 0;
     let mut has_low = false;
@@ -2023,10 +2031,8 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 crate::memory::copy_bytes_to_c_buf(&mut key, items[1].to_bytes());
                 let key_bytes = crate::memory::bytes_until_nul(&key);
                 if let Some(existing_aff) = tp.get_mut(key_bytes) {
-                    cur_aff = &raw mut *existing_aff;
-                    if unsafe { (*cur_aff).ah_combine }
-                        != i32::from(item2_bytes.first() == Some(&b'Y'))
-                    {
+                    cur_aff = crate::globals::GraphPtr::<Affheader>::from_ref(&*existing_aff);
+                    if cur_aff.ah_combine != i32::from(item2_bytes.first() == Some(&b'Y')) {
                         smsg!(
                             0,
                             gettext(
@@ -2037,7 +2043,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             items[1].as_ptr(),
                         );
                     }
-                    if unsafe { (*cur_aff).ah_follows } == 0 {
+                    if cur_aff.ah_follows == 0 {
                         smsg!(
                             0,
                             gettext(c"Duplicate affix in %s line %d: %s"),
@@ -2079,14 +2085,16 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                         ah_entries: Vec::new(),
                     };
                     new_ah.ah_key[..key_bytes.len()].copy_from_slice(key_bytes);
-                    cur_aff = &raw mut *tp.entry(key_bytes.to_vec()).or_insert(new_ah);
+                    cur_aff = crate::globals::GraphPtr::<Affheader>::from_ref(
+                        &*tp.entry(key_bytes.to_vec()).or_insert(new_ah),
+                    );
                 }
 
                 if itemcnt > lasti && items[lasti].to_bytes() == b"S" {
                     lasti += 1;
-                    unsafe { (*cur_aff).ah_follows = 1 };
+                    cur_aff.ah_follows = 1;
                 } else {
-                    unsafe { (*cur_aff).ah_follows = 0 };
+                    cur_aff.ah_follows = 0;
                 }
 
                 if itemcnt > lasti
@@ -2113,10 +2121,10 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 }
 
                 if item0_bytes[0] == b'P' && aff.af_pfxpostpone != 0 {
-                    if unsafe { (*cur_aff).ah_new_id } == 0 {
+                    if cur_aff.ah_new_id == 0 {
                         check_renumber(spin);
                         spin.si_newpref_id += 1;
-                        unsafe { (*cur_aff).ah_new_id = spin.si_newpref_id };
+                        cur_aff.ah_new_id = spin.si_newpref_id;
                         did_postpone_prefix = false;
                     } else {
                         did_postpone_prefix = true;
@@ -2126,7 +2134,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                 aff_todo = crate::charset::parse_i64_prefix(items[3].to_bytes()) as i32;
             } else if (item0_bytes == b"PFX" || item0_bytes == b"SFX")
                 && aff_todo > 0
-                && (crate::memory::bytes_until_nul(unsafe { &(*cur_aff).ah_key })
+                && (crate::memory::bytes_until_nul(&(cur_aff.borrow().ah_key))
                     == items[1].to_bytes())
                 && itemcnt >= 5
             {
@@ -2180,7 +2188,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
                             .add_cstr()
                             .is_none_or(|s| s.to_bytes().is_ascii()))
                 {
-                    let cur_aff_mut = unsafe { &mut *cur_aff };
+                    let cur_aff_mut = cur_aff.borrow_mut();
                     cur_aff_mut.ah_entries.insert(0, aff_entry_val);
                     let aff_entry = &mut cur_aff_mut.ah_entries[0];
 
@@ -4523,9 +4531,11 @@ fn sug_filltree(spin: &mut Spellinfo, slang: &mut Slang) -> bool {
         return false;
     }
     let fbyts_len = slang.sl_fbyts.len() as i32;
-    let slang_ptr: *mut Slang = slang;
-    let (byts, idxs): (&[u8], &mut [Idx]) =
-        unsafe { (&(*slang_ptr).sl_fbyts, &mut (*slang_ptr).sl_fidxs) };
+    let slang_ptr = crate::globals::GraphPtr::<Slang>::from_ref(slang);
+    let (byts, idxs): (&[u8], &mut [Idx]) = (
+        &slang_ptr.borrow().sl_fbyts,
+        &mut slang_ptr.borrow_mut().sl_fidxs,
+    );
 
     arridx[0] = 0;
     curi[0] = 1;

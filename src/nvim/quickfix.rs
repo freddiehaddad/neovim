@@ -1846,8 +1846,8 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
         let Some(qfprev_ref) = qfl.qf_items.last_mut() else {
             return QfStatus::Fail;
         };
-        let qfprev: *mut Qfline = qfprev_ref;
-        let qfprev = unsafe { &mut *qfprev };
+        let qfprev = crate::globals::GraphPtr::<Qfline>::from_ref(qfprev_ref);
+        let qfprev = qfprev.borrow_mut();
         let errmsg_bytes = crate::memory::bytes_until_nul(&fields.errmsg);
         if !errmsg_bytes.is_empty() {
             let mut bytes = qfprev.qf_text.as_bytes().to_vec();
