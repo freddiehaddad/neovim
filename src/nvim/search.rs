@@ -316,8 +316,8 @@ const fn empty_pos(a: CursorPos) -> bool {
 }
 
 #[inline]
-const fn getfile_success(x: i32) -> bool {
-    x <= 0
+const fn getfile_success(x: crate::buffer::GetFileResult) -> bool {
+    x.is_success()
 }
 
 fn find_substr(haystack: &CStr, needle: &[u8]) -> bool {
@@ -4069,9 +4069,9 @@ mod tests {
         assert!(!empty_pos(p));
         clearpos(&mut p);
         assert!(empty_pos(p));
-        assert!(getfile_success(0));
-        assert!(getfile_success(-1));
-        assert!(!getfile_success(1));
+        assert!(getfile_success(crate::buffer::GetFileResult::SameFile));
+        assert!(getfile_success(crate::buffer::GetFileResult::OpenOther));
+        assert!(!getfile_success(crate::buffer::GetFileResult::Error));
     }
 
     #[test]

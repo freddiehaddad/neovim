@@ -132,7 +132,7 @@ use crate::plines::{
 use crate::popupmenu::{pum_check_clear, pum_visible};
 use crate::regexp::{CTRL_H_CONST, CTRL_V_CONST, MAXCOL};
 use crate::register::{
-    PUT_CURSEND, PUT_FIXINDENT, YREG_PASTE, do_put, get_expr_register, get_yank_register,
+    PUT_CURSEND, PUT_FIXINDENT, YankRegMode, do_put, get_expr_register, get_yank_register,
     insert_reg, is_literal_register, valid_yank_reg,
 };
 use crate::search::{BACKWARD, FORWARD};
@@ -2669,7 +2669,7 @@ fn ins_reg() {
         vim_beep(K_OPT_BO_FLAG_REGISTER);
         need_redraw = true;
     } else {
-        let reg = get_yank_register(regname, YREG_PASTE);
+        let reg = get_yank_register(regname, YankRegMode::Paste);
 
         if literally == CTRL_O || literally == CTRL_P {
             redo_append_char(CTRL_R_CONST);

@@ -3200,7 +3200,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
             mpos.end_lnum,
             mpos.end_col,
             &mut *bytelen,
-        ) == RA_MATCH
+        ) == RegAction::Match
         {
             return true;
         }

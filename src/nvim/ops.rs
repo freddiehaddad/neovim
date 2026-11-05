@@ -75,7 +75,7 @@ use crate::plines::{
     CSType, CharsizeArg, getvcol, getvcols, getvvcol, init_charsize_arg, win_charsize,
 };
 use crate::register::{
-    BlockDef, YREG_YANK, Yankreg, do_autocmd_textyankpost, get_y_register, get_yank_register,
+    BlockDef, YankRegMode, Yankreg, do_autocmd_textyankpost, get_y_register, get_yank_register,
     is_append_register, op_yank, op_yank_reg, shift_delete_registers, valid_yank_reg,
 };
 use crate::state::{MODE_INSERT, MODE_REPLACE, VREPLACE_FLAG, virtual_active};
@@ -892,7 +892,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
                     beep_flush();
                     return true;
                 }
-                let r = get_yank_register(oap.regname, YREG_YANK);
+                let r = get_yank_register(oap.regname, YankRegMode::Yank);
                 op_yank_reg(oap, false, r, is_append_register(oap.regname));
                 reg = Some(r);
                 did_yank = true;
@@ -907,7 +907,7 @@ pub fn op_delete(oap: &mut Oparg) -> bool {
             }
 
             if oap.regname == 0 && oap.motion_type != MT_LINE_WISE && oap.line_count == 1 {
-                let r = get_yank_register(b'-' as i32, YREG_YANK);
+                let r = get_yank_register(b'-' as i32, YankRegMode::Yank);
                 op_yank_reg(oap, false, r, false);
                 reg = Some(r);
                 did_yank = true;

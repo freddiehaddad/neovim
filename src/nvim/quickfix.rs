@@ -126,13 +126,16 @@ const FMT_PATTERN_R: usize = 9;
 const QF_WINHEIGHT: i32 = 10;
 const LINE_MAXLEN: usize = 4096;
 
-const QF_FAIL: i32 = 0;
-const QF_OK: i32 = 1;
-const QF_END_OF_INPUT: i32 = 2;
-const QF_NOMEM: i32 = 3;
-const QF_IGNORE_LINE: i32 = 4;
-const QF_MULTISCAN: i32 = 5;
-const QF_ABORT: i32 = 6;
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum QfStatus {
+    Fail,
+    Ok,
+    EndOfInput,
+    NoMem,
+    IgnoreLine,
+    MultiScan,
+    Abort,
+}
 
 const QF_GETLIST_NONE: i32 = 0x0;
 const QF_GETLIST_TITLE: i32 = 0x1;
@@ -710,15 +713,15 @@ fn qf_init_process_nextline(
     fmt_first: &[Efm],
     state: &mut Qfstate,
     fields: &mut Qffields,
-) -> i32 {
+) -> QfStatus {
     let mut status = qf_get_nextline(state);
-    if status != QF_OK {
+    if status != QfStatus::Ok {
         return status;
     }
 
     let line_slice = &state.linebuf_slice()[..state.linelen];
     status = qf_parse_line(qfl, line_slice, fmt_first, fields);
-    if status != QF_OK {
+    if status != QfStatus::Ok {
         return status;
     }
 
@@ -1007,11 +1010,11 @@ fn qf_grow_linebuf(state: &mut Qfstate, newsz: usize) {
     state.use_growbuf = true;
 }
 
-fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> i32 {
+fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> QfStatus {
     let p_str = p_str_in.as_ptr();
     let p_bytes = p_str_in.to_bytes();
     if p_bytes.is_empty() {
-        return QF_END_OF_INPUT;
+        return QfStatus::EndOfInput;
     }
 
     let len = p_bytes
@@ -1032,10 +1035,10 @@ fn qf_get_next_str_line(state: &mut Qfstate, p_str_in: &CStr) -> i32 {
 
     state.source = QfInputSource::Str(p_str.wrapping_add(len).cast_mut().cast());
 
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> i32 {
+fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> QfStatus {
     while let Some(li) = p_li {
         if li.li_tv.v_type == VarType::VarString && !li.li_tv.vval.v_string().is_null() {
             break;
@@ -1045,7 +1048,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> i3
 
     let Some(li) = p_li else {
         state.source = QfInputSource::List(ptr::null_mut());
-        return QF_END_OF_INPUT;
+        return QfStatus::EndOfInput;
     };
 
     let s = li.li_tv.vval.v_string();
@@ -1061,7 +1064,7 @@ fn qf_get_next_list_line(state: &mut Qfstate, mut p_li: Option<&Listitem>) -> i3
 
     state.source = QfInputSource::List(li.li_next);
 
-    QF_OK
+    QfStatus::Ok
 }
 
 fn qf_get_next_buf_line(
@@ -1069,9 +1072,9 @@ fn qf_get_next_buf_line(
     buf: &mut FileBuf,
     buflnum: Linenr,
     lnumlast: Linenr,
-) -> i32 {
+) -> QfStatus {
     if buflnum > lnumlast {
-        return QF_END_OF_INPUT;
+        return QfStatus::EndOfInput;
     }
     let buf_ptr = ptr::from_mut(buf);
     let p_buf = ml_get_buf(buf, buflnum).as_ptr().cast_mut();
@@ -1092,12 +1095,12 @@ fn qf_get_next_buf_line(
         state.linebuf_slice_mut(),
         crate::memory::cstr_as_bytes(p_buf),
     );
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
+fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
     let QfInputSource::File(ref fd) = state.source else {
-        return QF_FAIL;
+        return QfStatus::Fail;
     };
     let iobuff_ptr = g_st().iobuff.as_mut_ptr();
     loop {
@@ -1106,7 +1109,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
             if os_errno() == EINTR {
                 continue;
             }
-            return QF_END_OF_INPUT;
+            return QfStatus::EndOfInput;
         }
         break;
     }
@@ -1194,12 +1197,12 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> i32 {
             }
         }
     }
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_get_nextline(state: &mut Qfstate) -> i32 {
+fn qf_get_nextline(state: &mut Qfstate) -> QfStatus {
     let status = match state.source {
-        QfInputSource::None => QF_FAIL,
+        QfInputSource::None => QfStatus::Fail,
         QfInputSource::File(_) => qf_get_next_file_line(state),
         QfInputSource::Str(p_str) => {
             qf_get_next_str_line(state, crate::memory::cstr_from_ptr(p_str.cast()))
@@ -1212,7 +1215,7 @@ fn qf_get_nextline(state: &mut Qfstate) -> i32 {
         } => qf_get_next_buf_line(state, unsafe { &mut *buf }, buflnum, lnumlast),
     };
 
-    if status != QF_OK {
+    if status != QfStatus::Ok {
         return status;
     }
 
@@ -1228,7 +1231,7 @@ fn qf_get_nextline(state: &mut Qfstate) -> i32 {
 
     remove_bom(linebuf);
 
-    QF_OK
+    QfStatus::Ok
 }
 
 #[inline]
@@ -1256,7 +1259,7 @@ fn qf_parse_line(
     mut line: &[u8],
     fmt_first: &[Efm],
     fields: &mut Qffields,
-) -> i32 {
+) -> QfStatus {
     let fmt_len = fmt_first.len();
     loop {
         let start_idx = qf_st().fmt_start_idx;
@@ -1280,10 +1283,10 @@ fn qf_parse_line(
                 i32::from(qfl.qf_multiscan),
                 &mut tail_off,
             );
-            if status == QF_NOMEM {
+            if status == QfStatus::NoMem {
                 return status;
             }
-            if status == QF_OK {
+            if status == QfStatus::Ok {
                 fmt_opt = Some(cur_fmt);
                 break;
             }
@@ -1294,12 +1297,12 @@ fn qf_parse_line(
         if fmt_opt.is_none() || idx == i32::from(b'D') || idx == i32::from(b'X') {
             if fmt_opt.is_some() {
                 status = qf_parse_dir_pfx(idx, fields, qfl);
-                if status != QF_OK {
+                if status != QfStatus::Ok {
                     return status;
                 }
             }
             status = qf_parse_line_nomatch(line, fields);
-            if status != QF_OK {
+            if status != QfStatus::Ok {
                 return status;
             }
 
@@ -1317,17 +1320,17 @@ fn qf_parse_line(
                 qfl.qf_multiignore = false;
             } else if crate::strings::vim_haschr(c"CZ", idx) {
                 status = qf_parse_multiline_pfx(idx, qfl, fields);
-                if status != QF_OK {
+                if status != QfStatus::Ok {
                     return status;
                 }
             } else if crate::strings::vim_haschr(c"OPQ", idx) {
                 let tail_slice = tail_off.and_then(|off| line.get(off..));
                 status = qf_parse_file_pfx(idx, fields, qfl, tail_slice);
-                if status == QF_MULTISCAN {
+                if status == QfStatus::MultiScan {
                     let s = crate::charset::skipwhite_slice(tail_slice.unwrap_or(&[]));
                     let new_linelen = crate::memory::bytes_until_nul(s).len();
                     if new_linelen >= line.len() {
-                        return QF_IGNORE_LINE;
+                        return QfStatus::IgnoreLine;
                     }
                     line = &s[..new_linelen];
                     continue;
@@ -1337,11 +1340,11 @@ fn qf_parse_line(
                 if qfl.qf_multiline {
                     qfl.qf_multiignore = true;
                 }
-                return QF_IGNORE_LINE;
+                return QfStatus::IgnoreLine;
             }
         }
 
-        return QF_OK;
+        return QfStatus::Ok;
     }
 }
 
@@ -1478,10 +1481,10 @@ fn qf_init_ext(
                 &mut state,
                 &mut fields,
             );
-            if status == QF_END_OF_INPUT {
+            if status == QfStatus::EndOfInput {
                 break;
             }
-            if status == QF_FAIL {
+            if status == QfStatus::Fail {
                 ok = false;
                 break;
             }
@@ -1578,9 +1581,9 @@ fn qf_new_list(qi: &mut QfInfo, qf_title: Option<&CStr>) {
     qfl.qf_has_user_data = false;
 }
 
-fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix: i32) -> i32 {
+fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix: i32) -> QfStatus {
     if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
 
     let match_len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
@@ -1594,96 +1597,96 @@ fn qf_parse_fmt_f(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields, prefix
     if crate::strings::vim_haschr(c"OPQ", prefix)
         && !os_path_exists(crate::memory::cstr_until_nul(&fields.namebuf))
     {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
 
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_b(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     let bnr =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
     if buflist_findnr(bnr).is_none() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.bnr = bnr;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_n(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.enr =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_l(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.lnum =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as Linenr;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_e(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.end_lnum =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as Linenr;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_c(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.col =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_k(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.end_col =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_t(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.type_ = crate::memory::cstr_first_byte(rmp.startp[midx].cast());
-    QF_OK
+    QfStatus::Ok
 }
 
-fn copy_nonerror_line(line: &[u8], fields: &mut Qffields) -> i32 {
+fn copy_nonerror_line(line: &[u8], fields: &mut Qffields) -> QfStatus {
     let linelen = line.len();
     if linelen >= fields.errmsg.len() {
         fields.errmsg.resize(linelen + 1, 0);
     }
     crate::memory::copy_bytes_to_c_buf(&mut fields.errmsg[..linelen + 1], line);
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
     if len >= fields.errmsg.len() {
@@ -1693,7 +1696,7 @@ fn qf_parse_fmt_m(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         &mut fields.errmsg[..len + 1],
         crate::memory::cstr_slice(rmp.startp[midx].cast(), len),
     );
-    QF_OK
+    QfStatus::Ok
 }
 
 fn qf_parse_fmt_r(
@@ -1701,17 +1704,17 @@ fn qf_parse_fmt_r(
     midx: usize,
     line_base: usize,
     tail_off: &mut Option<usize>,
-) -> i32 {
+) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     *tail_off = Some((rmp.startp[midx].as_ptr() as usize).saturating_sub(line_base));
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.col = 0;
     let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
@@ -1724,23 +1727,23 @@ fn qf_parse_fmt_p(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     }
     fields.col += 1;
     fields.use_viscol = true;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_v(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     fields.col =
         crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(rmp.startp[midx].cast()))
             as i32;
     fields.use_viscol = true;
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     let len = (crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize)
         .min(CMDBUFFSIZE - 5);
@@ -1748,12 +1751,12 @@ fn qf_parse_fmt_s(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
     fields.pattern[3..3 + len]
         .copy_from_slice(crate::memory::cstr_slice(rmp.startp[midx].cast(), len));
     fields.pattern[len + 3..len + 6].copy_from_slice(b"\\$\0");
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32 {
+fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> QfStatus {
     if rmp.startp[midx].is_null() || rmp.endp[midx].is_null() {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     let len = crate::memory::ptr_offset_from(rmp.endp[midx], rmp.startp[midx]) as usize;
     let dsize = (crate::memory::bytes_until_nul(&fields.module).len() + len + 1).min(CMDBUFFSIZE);
@@ -1761,7 +1764,7 @@ fn qf_parse_fmt_o(rmp: &mut Regmatch, midx: usize, fields: &mut Qffields) -> i32
         &mut fields.module[..dsize],
         crate::memory::cstr_slice(rmp.startp[midx].cast(), len),
     );
-    QF_OK
+    QfStatus::Ok
 }
 
 fn qf_parse_match(
@@ -1773,11 +1776,11 @@ fn qf_parse_match(
     qf_multiline: i32,
     qf_multiscan: i32,
     tail_off: &mut Option<usize>,
-) -> i32 {
+) -> QfStatus {
     let idx = fmt_ptr.prefix;
 
     if (idx == b'C' || idx == b'Z') && qf_multiline == 0 {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
     if crate::strings::vim_haschr(c"EWIN", i32::from(idx)) {
         fields.type_ = idx;
@@ -1786,7 +1789,7 @@ fn qf_parse_match(
     }
 
     for i in 0..FMT_PATTERNS {
-        let mut status = QF_OK;
+        let mut status = QfStatus::Ok;
         let midx = fmt_ptr.addr[i] as isize;
         if i == 0 && midx > 0 {
             status = qf_parse_fmt_f(regmatch, midx as usize, fields, i32::from(idx));
@@ -1813,16 +1816,16 @@ fn qf_parse_match(
                 11 => qf_parse_fmt_v(regmatch, m, fields),
                 12 => qf_parse_fmt_s(regmatch, m, fields),
                 13 => qf_parse_fmt_o(regmatch, m, fields),
-                _ => QF_OK,
+                _ => QfStatus::Ok,
             };
         }
 
-        if status != QF_OK {
+        if status != QfStatus::Ok {
             return status;
         }
     }
 
-    QF_OK
+    QfStatus::Ok
 }
 
 fn qf_parse_get_fields(
@@ -1832,9 +1835,9 @@ fn qf_parse_get_fields(
     qf_multiline: i32,
     qf_multiscan: i32,
     tail_off: &mut Option<usize>,
-) -> i32 {
+) -> QfStatus {
     if qf_multiscan != 0 && !crate::strings::vim_haschr(c"OPQ", i32::from(fmt_ptr.prefix)) {
-        return QF_FAIL;
+        return QfStatus::Fail;
     }
 
     fields.namebuf[0] = 0;
@@ -1859,7 +1862,7 @@ fn qf_parse_get_fields(
     let line_cstr = crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(line));
     let line_base = line_cstr.as_ptr() as usize;
     let r = vim_regexec(&mut regmatch, &line_cstr, 0);
-    let mut status = QF_FAIL;
+    let mut status = QfStatus::Fail;
     if r {
         status = qf_parse_match(
             line,
@@ -1876,19 +1879,19 @@ fn qf_parse_get_fields(
     status
 }
 
-fn qf_parse_dir_pfx(idx: i32, fields: &mut Qffields, qfl: &mut QfList) -> i32 {
+fn qf_parse_dir_pfx(idx: i32, fields: &mut Qffields, qfl: &mut QfList) -> QfStatus {
     if idx == i32::from(b'D') {
         let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
         if namebuf_cstr.to_bytes().is_empty() {
             emsg(gettext(c"E379: Missing or empty directory name"));
-            return QF_FAIL;
+            return QfStatus::Fail;
         }
         qf_push_dir(namebuf_cstr, &mut qfl.qf_dir_stack, false);
     } else if idx == i32::from(b'X') {
         qf_pop_dir(&mut qfl.qf_dir_stack);
     }
 
-    QF_OK
+    QfStatus::Ok
 }
 
 fn qf_parse_file_pfx(
@@ -1896,7 +1899,7 @@ fn qf_parse_file_pfx(
     fields: &mut Qffields,
     qfl: &mut QfList,
     tail: Option<&[u8]>,
-) -> i32 {
+) -> QfStatus {
     fields.valid = false;
     let namebuf_cstr = crate::memory::cstr_until_nul(&fields.namebuf);
     if namebuf_cstr.to_bytes().is_empty() || os_path_exists(namebuf_cstr) {
@@ -1908,14 +1911,14 @@ fn qf_parse_file_pfx(
         fields.namebuf[0] = 0;
         if tail.is_some_and(|t| !crate::memory::bytes_until_nul(t).is_empty()) {
             qfl.qf_multiscan = true;
-            return QF_MULTISCAN;
+            return QfStatus::MultiScan;
         }
     }
 
-    QF_OK
+    QfStatus::Ok
 }
 
-fn qf_parse_line_nomatch(line: &[u8], fields: &mut Qffields) -> i32 {
+fn qf_parse_line_nomatch(line: &[u8], fields: &mut Qffields) -> QfStatus {
     fields.namebuf[0] = 0;
     fields.lnum = 0;
     fields.valid = false;
@@ -1923,10 +1926,10 @@ fn qf_parse_line_nomatch(line: &[u8], fields: &mut Qffields) -> i32 {
     copy_nonerror_line(line, fields)
 }
 
-fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> i32 {
+fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> QfStatus {
     if !qfl.qf_multiignore {
         let Some(qfprev_ref) = qfl.qf_items.last_mut() else {
-            return QF_FAIL;
+            return QfStatus::Fail;
         };
         let qfprev: *mut Qfline = qfprev_ref;
         let qfprev = unsafe { &mut *qfprev };
@@ -1978,7 +1981,7 @@ fn qf_parse_multiline_pfx(idx: i32, qfl: &mut QfList, fields: &mut Qffields) -> 
     }
     line_breakcheck();
 
-    QF_IGNORE_LINE
+    QfStatus::IgnoreLine
 }
 
 fn locstack_queue_delreq(qi: &mut QfInfo) {
@@ -2086,7 +2089,7 @@ fn qf_add_entry(
     mut type_: u8,
     user_data: Option<&TypVal>,
     valid: u8,
-) -> i32 {
+) -> QfStatus {
     let mut qfp = Qfline::new();
 
     let buf = if bufnum != 0 {
@@ -2151,7 +2154,7 @@ fn qf_add_entry(
         qfl.qf_index = qfl.count();
     }
 
-    QF_OK
+    QfStatus::Ok
 }
 
 pub fn qf_resize_stack(n: i32) {
@@ -2292,7 +2295,7 @@ fn copy_loclist_entries(from_qfl: &QfList, to_qfl: &mut QfList) -> bool {
             0,
             Some(&from_qfp.qf_user_data),
             from_qfp.qf_valid,
-        ) == QF_FAIL
+        ) == QfStatus::Fail
         {
             return false;
         }
@@ -2857,13 +2860,13 @@ fn qf_jump_edit_buffer(
     forceit: i32,
     prev_winid: i32,
     opened_window: &mut bool,
-) -> i32 {
+) -> QfStatus {
     let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
     let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
     let old_changetick = unsafe { (*qfl).qf_changedtick };
     let old_qf_curlist = unsafe { (*qi).qf_curlist };
     let qfl_type = unsafe { (*qfl).qfl_type };
-    let mut retval = QF_OK;
+    let mut retval = QfStatus::Ok;
     let save_qfid = unsafe { (*qfl).qf_id };
     let (qf_type, fnum) = {
         let qfp = &unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize];
@@ -2873,7 +2876,7 @@ fn qf_jump_edit_buffer(
     if qf_type == 1 {
         if !can_abandon(curbuf_mut(), forceit != 0) {
             no_write_message();
-            return QF_FAIL;
+            return QfStatus::Fail;
         }
         retval = if do_ecmd(
             fnum,
@@ -2884,15 +2887,15 @@ fn qf_jump_edit_buffer(
             ECMD_HIDE + ECMD_SET_HELP,
             (prev_winid == curwin_mut().handle).then(curwin_mut),
         ) {
-            QF_OK
+            QfStatus::Ok
         } else {
-            QF_FAIL
+            QfStatus::Fail
         };
     } else {
         if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb && curbuf_mut().b_fnum != fnum {
             if unsafe { (*qi).qfl_type } == QFLT_LOCATION {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
-                return QF_FAIL;
+                return QfStatus::Fail;
             }
 
             if win_valid(unsafe { g_st().prevwin.as_ref() })
@@ -2907,16 +2910,16 @@ fn qf_jump_edit_buffer(
                 }
                 if curwin_mut().w_onebuf_opt.wo_wfb {
                     emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
-                    retval = QF_FAIL;
+                    retval = QfStatus::Fail;
                 }
             }
         }
 
-        if retval == QF_OK {
+        if retval == QfStatus::Ok {
             retval = if buflist_getfile(fnum, 1, GETF_SETMARK | GETF_SWITCH, forceit) {
-                QF_OK
+                QfStatus::Ok
             } else {
-                QF_FAIL
+                QfStatus::Fail
             };
         }
     }
@@ -2926,13 +2929,13 @@ fn qf_jump_edit_buffer(
         if wp.is_none() && curwin_mut().w_llist != qi {
             emsg(gettext(c"E924: Current window was closed"));
             *opened_window = false;
-            return QF_ABORT;
+            return QfStatus::Abort;
         }
     }
 
     if qfl_type == QFLT_QUICKFIX && !qflist_valid(None, save_qfid) {
         emsg(gettext(E_CURRENT_QUICKFIX_LIST_WAS_CHANGED));
-        return QF_ABORT;
+        return QfStatus::Abort;
     }
 
     if old_qf_curlist != unsafe { (*qi).qf_curlist }
@@ -2944,7 +2947,7 @@ fn qf_jump_edit_buffer(
         } else {
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
         }
-        return QF_ABORT;
+        return QfStatus::Abort;
     }
 
     retval
@@ -3065,7 +3068,7 @@ fn qf_jump_open_window(
     qf_index: i32,
     newwin: bool,
     opened_window: &mut bool,
-) -> Option<i32> {
+) -> Option<QfStatus> {
     let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
     let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
     let old_changetick = unsafe { (*qfl).qf_changedtick };
@@ -3077,7 +3080,7 @@ fn qf_jump_open_window(
         && (!bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0)
         && !jump_to_help_window(unsafe { &mut *qi }, newwin, opened_window)
     {
-        return Some(QF_FAIL);
+        return Some(QfStatus::Fail);
     }
     if old_qf_curlist != unsafe { (*qi).qf_curlist }
         || old_changetick != unsafe { (*qfl).qf_changedtick }
@@ -3088,7 +3091,7 @@ fn qf_jump_open_window(
         } else {
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
         }
-        return Some(QF_ABORT);
+        return Some(QfStatus::Abort);
     }
 
     let qf_fnum = unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum;
@@ -3098,7 +3101,7 @@ fn qf_jump_open_window(
         }
 
         if !qf_jump_to_usable_window(qf_fnum, newwin, opened_window) {
-            return Some(QF_FAIL);
+            return Some(QfStatus::Fail);
         }
     }
     if old_qf_curlist != unsafe { (*qi).qf_curlist }
@@ -3110,10 +3113,10 @@ fn qf_jump_open_window(
         } else {
             emsg(gettext(E_CURRENT_LOCATION_LIST_WAS_CHANGED));
         }
-        return Some(QF_ABORT);
+        return Some(QfStatus::Abort);
     }
 
-    Some(QF_OK)
+    Some(QfStatus::Ok)
 }
 
 fn qf_jump_to_buffer(
@@ -3124,7 +3127,7 @@ fn qf_jump_to_buffer(
     opened_window: &mut bool,
     openfold: i32,
     print_message: bool,
-) -> i32 {
+) -> QfStatus {
     let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
     let old_curbuf = g_st().curbuf;
     let old_lnum = curwin_mut().w_cursor.lnum;
@@ -3139,11 +3142,11 @@ fn qf_jump_to_buffer(
             prev_winid,
             opened_window,
         );
-        if retval != QF_OK {
+        if retval != QfStatus::Ok {
             return retval;
         }
     } else {
-        retval = QF_OK;
+        retval = QfStatus::Ok;
     }
 
     if g_st().curbuf == old_curbuf {
@@ -3216,9 +3219,9 @@ fn qf_jump_newwin(
         let prev_winid = curwin_mut().handle;
         let mut opened_window = false;
         let retval = qf_jump_open_window(unsafe { &mut *qi }, qf_index, newwin, &mut opened_window);
-        if retval == Some(QF_FAIL) {
+        if retval == Some(QfStatus::Fail) {
             qf_index = old_qf_index;
-        } else if retval == Some(QF_ABORT) {
+        } else if retval == Some(QfStatus::Abort) {
             qi = ptr::null_mut();
         } else if retval.is_some() {
             let retval = qf_jump_to_buffer(
@@ -3230,10 +3233,10 @@ fn qf_jump_newwin(
                 i32::from(old_key_typed),
                 print_message,
             );
-            if retval == QF_ABORT {
+            if retval == QfStatus::Abort {
                 qi = ptr::null_mut();
             }
-            if retval != QF_OK {
+            if retval != QfStatus::Ok {
                 if opened_window {
                     win_close(curwin_mut(), true, false);
                 }
@@ -5226,7 +5229,7 @@ fn vgr_match_buflines(
                     0,
                     None,
                     1,
-                ) == QF_FAIL
+                ) == QfStatus::Fail
                 {
                     g_st().got_int = true;
                     break;
@@ -5274,7 +5277,7 @@ fn vgr_match_buflines(
                     0,
                     None,
                     1,
-                ) == QF_FAIL
+                ) == QfStatus::Fail
                 {
                     g_st().got_int = true;
                     break;
@@ -6203,7 +6206,7 @@ fn qf_add_entry_from_dict(
     d: &mut TvDict,
     first_entry: bool,
     valid_entry: &mut bool,
-) -> i32 {
+) -> QfStatus {
     if first_entry {
         qf_st().did_bufnr_emsg = false;
     }
@@ -6344,9 +6347,9 @@ fn qf_add_entries(
     list: Option<&TvList>,
     title: Option<&CStr>,
     action: i32,
-) -> i32 {
+) -> QfStatus {
     let mut qfl = qf_get_list(&mut *qi, qf_idx);
-    let mut retval = QF_OK;
+    let mut retval = QfStatus::Ok;
     let mut valid_entry = false;
 
     let mut old_count: usize = 0;
@@ -6391,7 +6394,7 @@ fn qf_add_entries(
             && let Some(d) = li.li_tv.vval.v_dict_opt()
         {
             retval = qf_add_entry_from_dict(qfl, d, i == 0, &mut valid_entry);
-            if retval == QF_FAIL {
+            if retval == QfStatus::Fail {
                 break;
             }
 
@@ -6503,7 +6506,7 @@ fn qf_setprop_items(qi: &mut QfInfo, qf_idx: i32, di: &mut Dictitem, action: i32
         } else {
             action
         },
-    ) == QF_OK
+    ) == QfStatus::Ok
 }
 
 fn qf_setprop_items_from_lines(
@@ -6716,10 +6719,10 @@ pub fn set_errorlist(
     } else {
         let curlist = qi_mut.qf_curlist;
         let r = qf_add_entries(qi_mut, curlist, list, title, action);
-        if r == QF_OK {
+        if r == QfStatus::Ok {
             qf_list_changed(qf_get_curlist(qi_mut));
         }
-        r == QF_OK
+        r == QfStatus::Ok
     };
 
     decr_quickfix_busy();
@@ -7087,7 +7090,7 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
                 1,
                 None,
                 1,
-            ) == QF_FAIL
+            ) == QfStatus::Fail
             {
                 g_st().got_int = true;
                 break;

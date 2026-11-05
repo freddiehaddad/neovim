@@ -12,14 +12,13 @@ use crate::autocmd::{
 };
 use crate::buffer::{
     BCO_ENTER, BF_CHECK_RO, BF_NEVERLOADED, BF_NEW, BF_NOTEDITED, BF_READERR, BFA_KEEP_UNDO,
-    BLN_CURBUF, BLN_LISTED, BLN_NOCURWIN, Bufref, DOBUF_UNLOAD, FileBuf, GETFILE_ERROR,
-    GETFILE_NOT_WRITTEN, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, K_CD_CAUSE_BUFFER, K_SHM_FILEINFO,
-    K_UIMESSAGES, KEYMAP_INIT, MAXLNUM, SEA_DIALOG, SEA_QUIT, bt_dontwrite, bt_nofilename,
-    buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide, buf_name_changed, buflist_altfpos,
-    buflist_findfmark, buflist_findname, buflist_findnr, buflist_new, bufref_valid, close_buffer,
-    do_autochdir, do_modelines, fileinfo, fname_expand, get_winopts, handle_swap_exists, maketitle,
-    modifiable, no_write_message, no_write_message_buf, open_buffer, otherfile, set_buflisted,
-    set_bufref, setaltfname, setfname,
+    BLN_CURBUF, BLN_LISTED, BLN_NOCURWIN, Bufref, DOBUF_UNLOAD, FileBuf, GetFileResult,
+    K_CD_CAUSE_BUFFER, K_SHM_FILEINFO, K_UIMESSAGES, KEYMAP_INIT, MAXLNUM, SEA_DIALOG, SEA_QUIT,
+    bt_dontwrite, bt_nofilename, buf_clear_file, buf_ensure_loaded, buf_freeall, buf_hide,
+    buf_name_changed, buflist_altfpos, buflist_findfmark, buflist_findname, buflist_findnr,
+    buflist_new, bufref_valid, close_buffer, do_autochdir, do_modelines, fileinfo, fname_expand,
+    get_winopts, handle_swap_exists, maketitle, modifiable, no_write_message, no_write_message_buf,
+    open_buffer, otherfile, set_buflisted, set_bufref, setaltfname, setfname,
 };
 use crate::buffer_updates::buf_updates_send_changes;
 use crate::bufwrite::buf_write;
@@ -2567,20 +2566,20 @@ pub fn getfile(
     setpm: bool,
     lnum: Linenr,
     forceit: bool,
-) -> i32 {
+) -> GetFileResult {
     if !check_can_set_curbuf_forceit(forceit) {
-        return GETFILE_ERROR;
+        return GetFileResult::Error;
     }
 
     let other: bool;
-    let retval: i32;
+    let retval: GetFileResult;
     let expanded: Option<(std::ffi::CString, std::ffi::CString)>;
 
     if text_locked() {
-        return GETFILE_ERROR;
+        return GetFileResult::Error;
     }
     if curbuf_locked() {
-        return GETFILE_ERROR;
+        return GetFileResult::Error;
     }
 
     if fnum == 0 {
@@ -2608,7 +2607,7 @@ pub fn getfile(
             if curbuf_is_changed_fn() {
                 g_st().no_wait_return -= 1;
                 no_write_message();
-                retval = GETFILE_NOT_WRITTEN;
+                retval = GetFileResult::NotWritten;
                 break 'theend;
             }
         }
@@ -2624,7 +2623,7 @@ pub fn getfile(
             }
             check_cursor_lnum(curwin_mut());
             beginline(BL_SOL | BL_FIX);
-            retval = GETFILE_SAME_FILE;
+            retval = GetFileResult::SameFile;
         } else if do_ecmd(
             fnum,
             expanded.as_ref().map(|(ff, _)| ff.as_c_str()),
@@ -2635,9 +2634,9 @@ pub fn getfile(
                 + (if forceit { ECMD_FORCEIT } else { 0 }),
             Some(curwin_mut()),
         ) {
-            retval = GETFILE_OPEN_OTHER;
+            retval = GetFileResult::OpenOther;
         } else {
-            retval = GETFILE_ERROR;
+            retval = GetFileResult::Error;
         }
     }
 

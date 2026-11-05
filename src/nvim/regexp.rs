@@ -89,11 +89,14 @@ pub(super) const NOT_MULTI: i32 = 0;
 pub(super) const MULTI_ONE: i32 = 1;
 pub(super) const MULTI_MULT: i32 = 2;
 
-pub(super) const RA_FAIL: i32 = 1;
-pub(super) const RA_CONT: i32 = 2;
-pub(super) const RA_BREAK: i32 = 3;
-pub(super) const RA_MATCH: i32 = 4;
-pub(super) const RA_NOMATCH: i32 = 5;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum RegAction {
+    Fail,
+    Cont,
+    Break,
+    Match,
+    NoMatch,
+}
 
 pub(super) const CLASS_ALNUM: i32 = 0;
 pub(super) const CLASS_ALPHA: i32 = 1;
@@ -2414,7 +2417,7 @@ pub(super) fn match_with_backref(
     end_lnum: Linenr,
     end_col: Colnr,
     bytelen: &mut i32,
-) -> i32 {
+) -> RegAction {
     let mut clnum = start_lnum;
     let mut ccol = start_col;
 
@@ -2456,14 +2459,14 @@ pub(super) fn match_with_backref(
                     len as usize,
                 ) != 0)
         {
-            return RA_NOMATCH;
+            return RegAction::NoMatch;
         }
         *bytelen += len;
         if clnum == end_lnum {
             break;
         }
         if re_st().rex.lnum >= re_st().rex.reg_maxline {
-            return RA_NOMATCH;
+            return RegAction::NoMatch;
         }
 
         reg_nextline();
@@ -2471,10 +2474,10 @@ pub(super) fn match_with_backref(
         clnum += 1;
         ccol = 0;
         if g_st().got_int {
-            return RA_FAIL;
+            return RegAction::Fail;
         }
     }
-    RA_MATCH
+    RegAction::Match
 }
 
 pub(super) fn re_mult_next(what: &std::ffi::CStr) -> bool {

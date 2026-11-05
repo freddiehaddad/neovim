@@ -777,11 +777,20 @@ pub const GETF_SETMARK: i32 = 0x01;
 pub const GETF_ALT: i32 = 0x02;
 pub const GETF_SWITCH: i32 = 0x04;
 
-pub const GETFILE_ERROR: i32 = 1;
-pub const GETFILE_NOT_WRITTEN: i32 = 2;
-pub const GETFILE_SAME_FILE: i32 = 0;
-pub const GETFILE_OPEN_OTHER: i32 = -1;
-pub const GETFILE_UNUSED: i32 = 8;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum GetFileResult {
+    Error,
+    NotWritten,
+    SameFile,
+    OpenOther,
+    Unused,
+}
+
+impl GetFileResult {
+    pub const fn is_success(self) -> bool {
+        matches!(self, Self::SameFile | Self::OpenOther)
+    }
+}
 
 pub const BLN_CURBUF: i32 = 1;
 pub const BLN_LISTED: i32 = 2;
@@ -3140,7 +3149,8 @@ pub fn buflist_getfile(n: i32, mut lnum: Linenr, options: i32, forceit: i32) -> 
         (options & GETF_SETMARK) != 0,
         lnum,
         forceit != 0,
-    ) <= 0
+    )
+    .is_success()
     {
         g_st().redrawing_disabled -= 1;
 

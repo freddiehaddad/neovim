@@ -128,9 +128,12 @@ pub const NUM_REGISTERS: usize = 39;
 pub const K_GREG_NO_EXPR: i32 = 1;
 pub const K_GREG_EXPR_SRC: i32 = 2;
 
-pub const YREG_PASTE: i32 = 0;
-pub const YREG_YANK: i32 = 1;
-pub const YREG_PUT: i32 = 2;
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum YankRegMode {
+    Paste,
+    Yank,
+    Put,
+}
 
 const K_CPO_REGAPPEND: i32 = b'>' as i32;
 
@@ -469,14 +472,17 @@ pub fn update_yankreg_width(reg: &mut Yankreg) {
     }
 }
 
-pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
+pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankreg {
     let mut reg: Option<&'static mut Yankreg> = None;
 
-    if (mode == YREG_PASTE || mode == YREG_PUT) && get_clipboard(regname, &mut reg, false) {
+    if (mode == YankRegMode::Paste || mode == YankRegMode::Put)
+        && get_clipboard(regname, &mut reg, false)
+    {
         return reg.unwrap();
-    } else if mode == YREG_PUT && (regname == i32::from(b'*') || regname == i32::from(b'+')) {
+    } else if mode == YankRegMode::Put && (regname == i32::from(b'*') || regname == i32::from(b'+'))
+    {
         return &mut reg_st().empty_reg;
-    } else if mode != YREG_YANK
+    } else if mode != YankRegMode::Yank
         && (regname == 0
             || regname == i32::from(b'"')
             || regname == i32::from(b'*')
@@ -491,7 +497,7 @@ pub fn get_yank_register(regname: i32, mode: i32) -> &'static mut Yankreg {
         i = 0;
     }
     let idx = i as usize;
-    if mode == YREG_YANK {
+    if mode == YankRegMode::Yank {
         reg_st().y_previous = &raw mut reg_st().y_regs[idx];
     }
     &mut reg_st().y_regs[idx]
@@ -505,14 +511,14 @@ pub fn yank_register_mline(regname: i32, reg: &mut Option<&'static mut Yankreg>)
     if regname == i32::from(b'_') {
         return false;
     }
-    let r = get_yank_register(regname, YREG_PASTE);
+    let r = get_yank_register(regname, YankRegMode::Paste);
     let is_mline = r.y_type == MotionType::MtLineWise;
     *reg = Some(r);
     is_mline
 }
 
 pub fn copy_register(name: i32) -> Yankreg {
-    let reg = &*get_yank_register(name, YREG_PASTE);
+    let reg = &*get_yank_register(name, YankRegMode::Paste);
     let y_array = reg.y_array.iter().map(|&s| copy_string_global(s)).collect();
     Yankreg {
         y_array,
@@ -534,7 +540,7 @@ fn stuff_yank(regname: i32, p: &[u8]) -> bool {
 
     let p_bytes = crate::memory::bytes_until_nul(p);
     let plen = p_bytes.len();
-    let reg = &mut *get_yank_register(regname, YREG_YANK);
+    let reg = &mut *get_yank_register(regname, YankRegMode::Yank);
     if is_append_register(regname) && reg.y_allocated && !reg.y_array.is_empty() {
         let pp = reg.y_array.last_mut().unwrap();
         let tmplen = pp.size + plen;
@@ -744,7 +750,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
         };
         retval = put_in_typebuf(&p, false, colon, silent);
     } else {
-        let reg = &*get_yank_register(regname, YREG_PASTE);
+        let reg = &*get_yank_register(regname, YankRegMode::Paste);
         if !reg.y_allocated {
             return false;
         }
@@ -818,7 +824,7 @@ pub fn insert_reg(regname: i32, reg: Option<&Yankreg>, literally_arg: bool) -> b
         let reg_ref: &Yankreg = if let Some(r) = reg {
             r
         } else {
-            get_yank_register(regname, YREG_PASTE)
+            get_yank_register(regname, YankRegMode::Paste)
         };
         if !reg_ref.y_allocated {
             retval = false;
@@ -949,7 +955,7 @@ pub fn get_spec_reg(regname: i32, errmsg: bool) -> Option<Option<Vec<u8>>> {
 pub fn cmdline_paste_reg(regname: i32, literally_arg: bool, remcr: bool) -> bool {
     let literally = literally_arg || is_literal_register(regname);
 
-    let reg = &*get_yank_register(regname, YREG_PASTE);
+    let reg = &*get_yank_register(regname, YankRegMode::Paste);
     if !reg.y_allocated {
         return false;
     }
@@ -1422,7 +1428,7 @@ pub fn op_yank(oap: &mut Oparg, message: bool) -> bool {
         return true;
     }
 
-    let reg = get_yank_register(oap.regname, YREG_YANK);
+    let reg = get_yank_register(oap.regname, YankRegMode::Yank);
     op_yank_reg(oap, message, reg, is_append_register(oap.regname));
     set_clipboard(oap.regname, &*reg);
     do_autocmd_textyankpost(oap, &mut *reg);
@@ -1620,7 +1626,7 @@ pub fn do_put(
         if has_event(EVENT_TEXTPUTPRE) {
             let save_reg = reg;
             if reg.is_null() {
-                reg = get_yank_register(regname, YREG_PASTE);
+                reg = get_yank_register(regname, YankRegMode::Paste);
             }
 
             put_do_autocmd(regname, unsafe { reg.as_ref() }, None, false, dir);
@@ -1628,7 +1634,7 @@ pub fn do_put(
             reg = save_reg;
         }
         if reg.is_null() {
-            reg = get_yank_register(regname, YREG_PASTE);
+            reg = get_yank_register(regname, YankRegMode::Paste);
         }
 
         let reg_ref = unsafe { &mut *reg };
@@ -2650,7 +2656,7 @@ pub fn get_reg_type(regname: i32, reg_width: Option<&mut Colnr>) -> MotionType {
         return MotionType::MtUnknown;
     }
 
-    let reg = &*get_yank_register(regname, YREG_PASTE);
+    let reg = &*get_yank_register(regname, YankRegMode::Paste);
     if reg.y_allocated {
         if reg.y_type == MotionType::MtBlockWise
             && let Some(reg_width) = reg_width
@@ -2693,7 +2699,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
         return Some(crate::memory::cstr_until_nul(&retval).to_owned());
     }
 
-    let reg = &*get_yank_register(regname, YREG_PUT);
+    let reg = &*get_yank_register(regname, YankRegMode::Put);
     if !reg.y_allocated {
         return None;
     }
@@ -2743,7 +2749,7 @@ pub fn get_reg_contents_list(mut regname: i32, flags: i32) -> Option<&'static mu
         return get_reg_wrap_one_line_list(Some(crate::memory::cstr_until_nul(&retval).to_owned()));
     }
 
-    let reg = &*get_yank_register(regname, YREG_PUT);
+    let reg = &*get_yank_register(regname, YankRegMode::Put);
     if !reg.y_allocated {
         return None;
     }
@@ -2761,7 +2767,7 @@ fn init_write_reg(name: i32, must_append: bool) -> Option<&'static mut Yankreg> 
         return None;
     }
 
-    let reg = get_yank_register(name, YREG_YANK);
+    let reg = get_yank_register(name, YankRegMode::Yank);
     if !is_append_register(name) && !must_append {
         *reg = EMPTY_YANKREG;
     }

@@ -77,11 +77,16 @@ pub(crate) const WFP_RARE: i32 = 0x01;
 pub(crate) const WFP_NC: i32 = 0x02;
 pub(crate) const WF_RAREPFX: i32 = WFP_RARE << 24;
 const WF_PFX_NC: i32 = WFP_NC << 24;
-const SP_BANNED: i32 = -1;
-const SP_RARE: i32 = 0;
-const SP_OK: i32 = 1;
-const SP_LOCAL: i32 = 2;
-const SP_BAD: i32 = 3;
+#[repr(i32)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+enum SpellResult {
+    Banned = -1,
+    #[default]
+    Rare = 0,
+    Ok = 1,
+    Local = 2,
+    Bad = 3,
+}
 const FIND_FOLDWORD: i32 = 0;
 const FIND_KEEPWORD: i32 = 1;
 const FIND_PREFIX: i32 = 2;
@@ -112,10 +117,10 @@ struct Matchinf {
     mi_compflags: [u8; MAXWLEN],
     mi_complen: i32,
     mi_compextra: i32,
-    mi_result: i32,
+    mi_result: SpellResult,
     mi_capflags: i32,
     mi_win: *mut WinInfoInfo,
-    mi_result2: i32,
+    mi_result2: SpellResult,
     mi_end2: usize,
 }
 
@@ -137,10 +142,10 @@ impl Matchinf {
             mi_compflags: [0; MAXWLEN],
             mi_complen: 0,
             mi_compextra: 0,
-            mi_result: 0,
+            mi_result: SpellResult::Rare,
             mi_capflags: 0,
             mi_win: ptr::null_mut(),
-            mi_result2: 0,
+            mi_result2: SpellResult::Rare,
             mi_end2: 0,
         }
     }
@@ -324,8 +329,8 @@ pub fn spell_check(
     if is_camel_case && mi.mi_fwordlen > 0 {
         mi.mi_fword[mi.mi_fwordlen as usize - 1] = b' ';
     }
-    mi.mi_result = SP_BAD;
-    mi.mi_result2 = SP_BAD;
+    mi.mi_result = SpellResult::Bad;
+    mi.mi_result2 = SpellResult::Bad;
     for lpi in 0..w_s.b_langp.len() {
         mi.mi_lp = (&w_s.b_langp)[lpi];
         if mi.mi_lp.slang_mut().sl_fidxs.is_empty() {
@@ -334,18 +339,21 @@ pub fn spell_check(
         find_word(&mut mi, FIND_FOLDWORD);
         find_word(&mut mi, FIND_KEEPWORD);
         find_prefix(&mut mi, FIND_FOLDWORD);
-        if mi.mi_lp.slang_mut().sl_nobreak && mi.mi_result == SP_BAD && mi.mi_result2 != SP_BAD {
+        if mi.mi_lp.slang_mut().sl_nobreak
+            && mi.mi_result == SpellResult::Bad
+            && mi.mi_result2 != SpellResult::Bad
+        {
             mi.mi_result = mi.mi_result2;
             mi.mi_end = mi.mi_end2;
         }
-        if count_word && mi.mi_result == SP_OK {
+        if count_word && mi.mi_result == SpellResult::Ok {
             count_common_word(mi.mi_lp.slang_mut(), ptr_bytes, mi.mi_end as i32, 1);
             count_word = false;
         }
     }
-    if mi.mi_result != SP_OK {
+    if mi.mi_result != SpellResult::Ok {
         if nrlen > 0 {
-            if mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED {
+            if mi.mi_result == SpellResult::Bad || mi.mi_result == SpellResult::Banned {
                 return nrlen;
             }
         } else if !spell_iswordp_nmw(ptr_bytes, wp) {
@@ -363,7 +371,7 @@ pub fn spell_check(
             return utfc_ptr2len(ptr_bytes) as usize;
         } else if mi.mi_end == 0 {
             mi.mi_end += crate::mbyte::utfc_ptr2len(&ptr_bytes[mi.mi_end..]) as usize;
-        } else if mi.mi_result == SP_BAD && (&w_s.b_langp)[0].slang_mut().sl_nobreak {
+        } else if mi.mi_result == SpellResult::Bad && (&w_s.b_langp)[0].slang_mut().sl_nobreak {
             let save_result = mi.mi_result;
             mi.mi_lp = (&w_s.b_langp)[0];
             if !mi.mi_lp.slang_mut().sl_fidxs.is_empty() {
@@ -377,7 +385,7 @@ pub fn spell_check(
                     }
                     mi.mi_compoff = fp_off as i32;
                     find_word(&mut mi, FIND_COMPOUND);
-                    if mi.mi_result != SP_BAD {
+                    if mi.mi_result != SpellResult::Bad {
                         mi.mi_end = p_off;
                         break;
                     }
@@ -385,15 +393,15 @@ pub fn spell_check(
                 mi.mi_result = save_result;
             }
         }
-        if mi.mi_result == SP_BAD || mi.mi_result == SP_BANNED {
+        if mi.mi_result == SpellResult::Bad || mi.mi_result == SpellResult::Banned {
             *attrp = HLF_SPB;
-        } else if mi.mi_result == SP_RARE {
+        } else if mi.mi_result == SpellResult::Rare {
             *attrp = HLF_SPR;
         } else {
             *attrp = HLF_SPL;
         }
     }
-    if wrongcaplen > 0 && (mi.mi_result == SP_OK || mi.mi_result == SP_RARE) {
+    if wrongcaplen > 0 && (mi.mi_result == SpellResult::Ok || mi.mi_result == SpellResult::Rare) {
         *attrp = HLF_SPC;
         return wrongcaplen;
     }
@@ -621,7 +629,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                 if (mode == FIND_COMPOUND || mode == FIND_KEEPCOMPOUND)
                     && (flags & WF_BANNED as u32) == 0
                 {
-                    mip.mi_result = SP_OK;
+                    mip.mi_result = SpellResult::Ok;
                     break;
                 }
             } else if mode == FIND_COMPOUND || mode == FIND_KEEPCOMPOUND || !word_ends {
@@ -725,13 +733,13 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
             } else if (flags & WF_NEEDCOMP as u32) != 0 {
                 continue;
             }
-            let mut nobreak_result = SP_OK;
+            let mut nobreak_result = SpellResult::Ok;
             if !word_ends {
                 let save_result = mip.mi_result;
                 let save_end = mip.mi_end;
                 let save_lp = mip.mi_lp;
                 if slang.sl_nobreak {
-                    mip.mi_result = SP_BAD;
+                    mip.mi_result = SpellResult::Bad;
                 }
                 mip.mi_compoff = endlen[endidxcnt];
                 if mode == FIND_KEEPWORD {
@@ -778,7 +786,7 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                         }
                     }
                     find_word(mip, FIND_COMPOUND);
-                    if !slang.sl_nobreak || mip.mi_result == SP_BAD {
+                    if !slang.sl_nobreak || mip.mi_result == SpellResult::Bad {
                         mip.mi_compoff = wlen;
                         find_word(mip, FIND_KEEPCOMPOUND);
                     }
@@ -796,27 +804,27 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
                     mip.mi_result = save_result;
                     mip.mi_end = save_end;
                 } else {
-                    if mip.mi_result == SP_OK {
+                    if mip.mi_result == SpellResult::Ok {
                         break;
                     }
                     continue;
                 }
             }
             let res = if (flags & WF_BANNED as u32) != 0 {
-                SP_BANNED
+                SpellResult::Banned
             } else if (flags & WF_REGION as u32) != 0 {
                 if ((mip.mi_lp.lp_region as u32) & (flags >> 16)) != 0 {
-                    SP_OK
+                    SpellResult::Ok
                 } else {
-                    SP_LOCAL
+                    SpellResult::Local
                 }
             } else if (flags & WF_RARE as u32) != 0 {
-                SP_RARE
+                SpellResult::Rare
             } else {
-                SP_OK
+                SpellResult::Ok
             };
             let new_end = wlen as usize;
-            if nobreak_result == SP_BAD {
+            if nobreak_result == SpellResult::Bad {
                 if mip.mi_result2 > res {
                     mip.mi_result2 = res;
                     mip.mi_end2 = new_end;
@@ -829,11 +837,11 @@ fn find_word(mip: &mut Matchinf, mode: i32) {
             } else if mip.mi_result == res && mip.mi_end < new_end {
                 mip.mi_end = new_end;
             }
-            if mip.mi_result == SP_OK {
+            if mip.mi_result == SpellResult::Ok {
                 break;
             }
         }
-        if mip.mi_result == SP_OK {
+        if mip.mi_result == SpellResult::Ok {
             break;
         }
     }

@@ -22,7 +22,7 @@ use crate::eval::{do_string_sub, eval_expr_typval};
 use crate::event::r#loop::uv_strerror;
 use crate::ex_cmds::check_secure;
 use crate::ex_docmd::{do_chdir, vim_mkdir_emsg};
-use crate::file_search::{FINDFILE_DIR, FINDFILE_FILE, FfSearchCtx, find_file_in_path_option};
+use crate::file_search::{FfSearchCtx, FindFileWhat, find_file_in_path_option};
 #[cfg(not(windows))]
 use crate::fileio::readlink;
 use crate::fileio::{
@@ -702,7 +702,7 @@ pub fn f_filewritable(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         crate::eval::typval::TypvalVval::Number(Varnumber::from(os_file_is_writable(filename)));
 }
 
-fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
+fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileWhat) {
     let mut fresult: Option<std::ffi::CString> = None;
     let mut path = if curbuf_mut().b_p_path.is_empty() {
         opt_vars().p_path.as_cstr()
@@ -749,7 +749,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
                 path,
                 find_what,
                 curbuf_mut().ffname_opt(),
-                if find_what == FINDFILE_DIR {
+                if find_what == FindFileWhat::Dir {
                     c""
                 } else {
                     curbuf_mut().b_p_sua.as_cstr()
@@ -782,12 +782,12 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: i32) {
 
 /// "finddir({fname}[, {path}[, {count}]])" function
 pub fn f_finddir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    findfilendir(argvars, rettv, FINDFILE_DIR);
+    findfilendir(argvars, rettv, FindFileWhat::Dir);
 }
 
 /// "findfile({fname}[, {path}[, {count}]])" function
 pub fn f_findfile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    findfilendir(argvars, rettv, FINDFILE_FILE);
+    findfilendir(argvars, rettv, FindFileWhat::File);
 }
 
 /// "fnamemodify({fname}, {mods})" function

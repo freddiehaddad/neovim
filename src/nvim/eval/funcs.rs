@@ -183,7 +183,7 @@ use crate::regexp::{
     vim_regcomp, vim_regexec_nl,
 };
 use crate::register::{
-    BlockDef, K_GREG_EXPR_SRC, YREG_YANK, format_reg_type, get_reg_contents_list,
+    BlockDef, K_GREG_EXPR_SRC, YankRegMode, format_reg_type, get_reg_contents_list,
     get_reg_contents_str, get_reg_type, get_register_name, get_unname_register, get_yank_register,
     op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
@@ -7764,7 +7764,7 @@ pub fn f_setreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         );
     }
     if pointreg != 0 {
-        get_yank_register(i32::from(pointreg), YREG_YANK);
+        get_yank_register(i32::from(pointreg), YankRegMode::Yank);
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
 

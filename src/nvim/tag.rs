@@ -2,9 +2,8 @@
 
 use crate::autocmd::{EVENT_BUFREADCMD, has_autocmd};
 use crate::buffer::{
-    GETF_SETMARK, GETFILE_OPEN_OTHER, GETFILE_SAME_FILE, GETFILE_UNUSED, K_OPT_JOP_FLAG_VIEW,
-    K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT, MAXLNUM, VAR_FIXED, bt_help,
-    buflist_findname_exp, buflist_findnr, buflist_getfile,
+    GETF_SETMARK, GetFileResult, K_OPT_JOP_FLAG_VIEW, K_OPT_SWB_FLAG_NEWTAB, K_OPT_SWB_FLAG_VSPLIT,
+    MAXLNUM, VAR_FIXED, bt_help, buflist_findname_exp, buflist_findnr, buflist_getfile,
 };
 use crate::charset::{ascii_islower, ascii_iswhite, vim_isblankline};
 use crate::cmdexpand::{
@@ -27,7 +26,7 @@ use crate::ex_docmd::{
     DT_FIRST, DT_JUMP, DT_LAST, DT_LTAG, DT_NEXT, DT_POP, DT_PREV, DT_SELECT, DT_TAG, Exarg,
     do_cmdline_cmd, set_no_hlsearch,
 };
-use crate::file_search::{FINDFILE_FILE, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
+use crate::file_search::{FindFileWhat, vim_findfile, vim_findfile_init, vim_findfile_stopdir};
 use crate::fileio::{Off, vim_fgets};
 use crate::fold::fold_open_cursor;
 use crate::globals::*;
@@ -2504,7 +2503,7 @@ pub fn get_tagfname(tnp: &mut Tagname, first: i32, buf: &mut [u8]) -> bool {
                 stopdirs_cstr.as_deref(),
                 100,
                 false,
-                FINDFILE_FILE,
+                FindFileWhat::File,
                 tnp.tn_search_ctx.take(),
                 1,
                 curbuf_mut().ffname_opt(),
@@ -2657,7 +2656,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
     let mut tofree_fname: Option<std::ffi::CString> = None;
     let mut tagp = Tagptrs::default();
     let mut retval = Some(false);
-    let mut getfile_result = GETFILE_UNUSED;
+    let mut getfile_result = GetFileResult::Unused;
     let mut curwin_save: *mut WinInfoInfo = ptr::null_mut();
     let mut full_fname: Option<std::ffi::CString> = None;
     let old_key_typed = g_st().key_typed;
@@ -2738,9 +2737,9 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 buflist_findname_exp(crate::memory::cstr_as_opt_cstr(fname.cast()))
             && swbuf_goto_win_with_buf(Some(existing_buf)).is_some()
         {
-            getfile_result = GETFILE_SAME_FILE;
+            getfile_result = GetFileResult::SameFile;
         }
-        if getfile_result == GETFILE_UNUSED
+        if getfile_result == GetFileResult::Unused
             && (g_st().postponed_split != 0 || g_st().cmdmod.cmod_tab != 0)
         {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_VSPLIT) != 0 {
@@ -2772,7 +2771,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
             }
         }
 
-        if getfile_result == GETFILE_UNUSED {
+        if getfile_result == GetFileResult::Unused {
             getfile_result = getfile(
                 0,
                 crate::memory::cstr_as_opt_cstr(fname.cast()),
@@ -2784,7 +2783,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
         }
         g_st().keep_help_flag = false;
 
-        if getfile_result <= 0 {
+        if getfile_result.is_success() {
             curwin_mut().w_set_curswant = true;
             g_st().postponed_split = 0;
 
@@ -2938,7 +2937,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
                 set_no_hlsearch(save_no_hlsearch);
             }
 
-            if getfile_result == GETFILE_OPEN_OTHER {
+            if getfile_result == GetFileResult::OpenOther {
                 retval = Some(true);
             }
 

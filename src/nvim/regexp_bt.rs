@@ -2697,7 +2697,7 @@ fn regmatch(
     tm: Option<Proftime>,
     mut timed_out: Option<&mut i32>,
 ) -> bool {
-    let mut status: i32;
+    let mut status: RegAction;
     let mut tm_count: i32 = 0;
 
     re_st().regstack.clear();
@@ -2708,11 +2708,11 @@ fn regmatch(
 
         loop {
             let Some(scan_idx) = scan else {
-                status = RA_FAIL;
+                status = RegAction::Fail;
                 break;
             };
             if g_st().got_int {
-                status = RA_FAIL;
+                status = RegAction::Fail;
                 break;
             }
             if let Some(tm_val) = tm {
@@ -2723,12 +2723,12 @@ fn regmatch(
                         if let Some(ref mut p) = timed_out {
                             **p = 1;
                         }
-                        status = RA_FAIL;
+                        status = RegAction::Fail;
                         break;
                     }
                 }
             }
-            status = RA_CONT;
+            status = RegAction::Cont;
 
             let mut next = regnext(prog, scan);
             let mut op = op_fn(prog, scan);
@@ -2750,12 +2750,12 @@ fn regmatch(
                 match op {
                     BOL => {
                         if re_st().rex.input != re_st().rex.line {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     EOL => {
                         if c != NUL as i32 {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_BOF => {
@@ -2763,12 +2763,12 @@ fn regmatch(
                             || re_st().rex.input != re_st().rex.line
                             || (reg_multi() && re_st().rex.reg_firstlnum > 1)
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_EOF => {
                         if re_st().rex.lnum != re_st().rex.reg_maxline || c != NUL as i32 {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     CURSOR => {
@@ -2779,7 +2779,7 @@ fn regmatch(
                                 as Colnr
                                 != re_st().rex.win_mut().w_cursor.col)
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_MARK => {
@@ -2805,7 +2805,7 @@ fn regmatch(
                             re_st().rex.input = re_st().rex.line.wrapping_add(col);
                         }
                         if fm.as_ref().is_none_or(|f| f.mark.lnum <= 0) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             let pos = fm.unwrap().mark;
                             let pos_col = if pos.lnum
@@ -2834,13 +2834,13 @@ fn regmatch(
                                     cmp != b'<' as i32
                                 };
                             if nomatch {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
                         }
                     }
                     RE_VISUAL => {
                         if !reg_match_visual() {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_LNUM => {
@@ -2851,7 +2851,7 @@ fn regmatch(
                                 scan_idx,
                             )
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_COL => {
@@ -2861,7 +2861,7 @@ fn regmatch(
                             prog,
                             scan_idx,
                         ) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     RE_VCOL => {
@@ -2886,25 +2886,25 @@ fn regmatch(
                                 as Colnr,
                         );
                         if !re_num_cmp((vcol as u32).wrapping_add(1), prog, scan_idx) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     BOW => {
                         if c == NUL as i32 {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             let this_class = mb_get_class_tab(
                                 crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                 &re_st().rex.buf_mut().b_chartab,
                             );
                             if this_class <= 1 || reg_prev_class() == this_class {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
                         }
                     }
                     EOW => {
                         if re_st().rex.input == re_st().rex.line {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             let this_class = mb_get_class_tab(
                                 crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
@@ -2912,27 +2912,27 @@ fn regmatch(
                             );
                             let prev_class = reg_prev_class();
                             if this_class == prev_class || prev_class == 0 || prev_class == 1 {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
                         }
                     }
                     ANY => {
                         if c == NUL as i32 {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     IDENT => {
                         if !vim_is_idc(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     SIDENT => {
                         if ascii_isdigit(input_byte() as i32) || !vim_is_idc(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
@@ -2942,7 +2942,7 @@ fn regmatch(
                             crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                             re_st().rex.buf_mut(),
                         ) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
@@ -2954,21 +2954,21 @@ fn regmatch(
                                 re_st().rex.buf_mut(),
                             )
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     FNAME => {
                         if !vim_isfilec(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     SFNAME => {
                         if ascii_isdigit(input_byte() as i32) || !vim_isfilec(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
@@ -2977,7 +2977,7 @@ fn regmatch(
                         if !vim_isprintc(utf_ptr2char(crate::memory::cstr_char_bytes(
                             re_st().rex.input.cast(),
                         ))) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
@@ -2988,133 +2988,133 @@ fn regmatch(
                                 re_st().rex.input.cast(),
                             )))
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     WHITE => {
                         if !ascii_iswhite(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NWHITE => {
                         if c == NUL as i32 || ascii_iswhite(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     DIGIT => {
                         if !ri_digit(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NDIGIT => {
                         if c == NUL as i32 || ri_digit(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     HEX => {
                         if !ri_hex(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NHEX => {
                         if c == NUL as i32 || ri_hex(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     OCTAL => {
                         if !ri_octal(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NOCTAL => {
                         if c == NUL as i32 || ri_octal(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     WORD => {
                         if !ri_word(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NWORD => {
                         if c == NUL as i32 || ri_word(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     HEAD => {
                         if !ri_head(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NHEAD => {
                         if c == NUL as i32 || ri_head(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     ALPHA => {
                         if !ri_alpha(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NALPHA => {
                         if c == NUL as i32 || ri_alpha(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     LOWER => {
                         if !ri_lower(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NLOWER => {
                         if c == NUL as i32 || ri_lower(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     UPPER => {
                         if !ri_upper(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
                     }
                     NUPPER => {
                         if c == NUL as i32 || ri_upper(c) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             advance_reginput();
                         }
@@ -3123,7 +3123,7 @@ fn regmatch(
                         let opnd = &prog[operand_idx(scan_idx)..];
                         let opnd_bytes = crate::memory::bytes_until_nul(opnd);
                         if opnd[0] != input_byte() && !re_st().rex.reg_ic {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else if !opnd_bytes.is_empty() {
                             let len = if opnd_bytes.len() == 1 && !re_st().rex.reg_ic {
                                 1
@@ -3135,11 +3135,11 @@ fn regmatch(
                                     &mut l,
                                 ) != 0
                                 {
-                                    status = RA_NOMATCH;
+                                    status = RegAction::NoMatch;
                                 }
                                 l
                             };
-                            if status != RA_NOMATCH
+                            if status != RegAction::NoMatch
                                 && utf_composinglike(
                                     crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
                                     crate::memory::cstr_as_bytes(
@@ -3150,9 +3150,9 @@ fn regmatch(
                                 && !re_st().rex.reg_icombine
                                 && op_fn(prog, next) != RE_COMPOSING
                             {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
-                            if status != RA_NOMATCH {
+                            if status != RegAction::NoMatch {
                                 re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                             }
                         }
@@ -3162,7 +3162,7 @@ fn regmatch(
                         let q_cstr = crate::memory::cstr_until_nul(q_slice);
                         let matched = cstrchr(q_cstr, c);
                         if c == NUL as i32 || (matched.is_none() == (op == ANYOF)) {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             let q_utfc = crate::mbyte::utfc_slice2len(q_slice);
                             let q_utf = crate::mbyte::utf_slice2len(q_slice);
@@ -3178,7 +3178,7 @@ fn regmatch(
                                 let inp_comp =
                                     crate::memory::cstr_slice(re_st().rex.input.cast(), len);
                                 if q_comp != inp_comp {
-                                    status = RA_NOMATCH;
+                                    status = RegAction::NoMatch;
                                 }
                                 re_st().rex.input = re_st().rex.input.wrapping_add(len);
                             }
@@ -3188,11 +3188,11 @@ fn regmatch(
                         let opnd = &prog[operand_idx(scan_idx)..];
                         let mut len = crate::mbyte::utfc_slice2len(opnd) as i32;
                         if len < 2 {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else {
                             let opndc = crate::mbyte::utf_slice2char(opnd);
                             if utf_iscomposing_legacy(opndc) {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                                 let mut i: usize = 0;
                                 while crate::memory::cstr_first_byte(
                                     re_st().rex.input.wrapping_add(i).cast(),
@@ -3213,12 +3213,12 @@ fn regmatch(
                                             + utfc_ptr2len(crate::memory::cstr_cluster_bytes(
                                                 re_st().rex.input.wrapping_add(i).cast(),
                                             ));
-                                        status = RA_MATCH;
+                                        status = RegAction::Match;
                                         break;
                                     }
                                     i += step;
                                 }
-                                if status != RA_NOMATCH {
+                                if status != RegAction::NoMatch {
                                     re_st().rex.input =
                                         re_st().rex.input.wrapping_add(len as usize);
                                 }
@@ -3228,7 +3228,7 @@ fn regmatch(
                                 &mut len,
                             ) != 0
                             {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             } else {
                                 re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                             }
@@ -3253,7 +3253,7 @@ fn regmatch(
                             bp.iter().position(|item| item.bp_scan == scan_idx)
                         {
                             if reg_save_equal(&bp.as_slice()[pos].bp_pos) {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
                             pos
                         } else {
@@ -3264,7 +3264,7 @@ fn regmatch(
                             });
                             pos
                         };
-                        if status != RA_NOMATCH {
+                        if status != RegAction::NoMatch {
                             let pos_ptr = &mut bp.as_mut_slice()[idx].bp_pos;
                             reg_save(pos_ptr);
                         }
@@ -3276,12 +3276,12 @@ fn regmatch(
                             rp.rs_no = no as i16;
                             save_se_m(rp.rs_un.sesave_mut(), no, false);
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     NOPEN | NCLOSE => {
                         if regstack_push(RS_NOPEN, scan).is_none() {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     x if (ZOPEN + 1..=ZOPEN + 9).contains(&x) => {
@@ -3291,7 +3291,7 @@ fn regmatch(
                             rp.rs_no = no as i16;
                             save_se_z(rp.rs_un.sesave_mut(), no, false);
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     x if (MCLOSE..=MCLOSE + 9).contains(&x) => {
@@ -3301,7 +3301,7 @@ fn regmatch(
                             rp.rs_no = no as i16;
                             save_se_m(rp.rs_un.sesave_mut(), no, true);
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     x if (ZCLOSE + 1..=ZCLOSE + 9).contains(&x) => {
@@ -3311,7 +3311,7 @@ fn regmatch(
                             rp.rs_no = no as i16;
                             save_se_z(rp.rs_un.sesave_mut(), no, true);
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     x if (BACKREF + 1..=BACKREF + 9).contains(&x) => {
@@ -3330,7 +3330,7 @@ fn regmatch(
                                     &mut len,
                                 ) != 0
                                 {
-                                    status = RA_NOMATCH;
+                                    status = RegAction::NoMatch;
                                 }
                             }
                         } else {
@@ -3347,13 +3347,13 @@ fn regmatch(
                                         &mut len,
                                     ) != 0
                                     {
-                                        status = RA_NOMATCH;
+                                        status = RegAction::NoMatch;
                                     }
                                 } else {
                                     let r = match_with_backref(
                                         spos.lnum, spos.col, epos.lnum, epos.col, &mut len,
                                     );
-                                    if r != RA_MATCH {
+                                    if r != RegAction::Match {
                                         status = r;
                                     }
                                 }
@@ -3375,7 +3375,7 @@ fn regmatch(
                                 &mut len,
                             ) != 0
                             {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             } else {
                                 re_st().rex.input = re_st().rex.input.wrapping_add(len as usize);
                             }
@@ -3385,9 +3385,9 @@ fn regmatch(
                         if op_fn(prog, next) != BRANCH {
                             next = Some(operand_idx(scan_idx));
                         } else if regstack_push(RS_BRANCH, scan).is_some() {
-                            status = RA_BREAK;
+                            status = RegAction::Break;
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     BRACE_LIMITS => {
@@ -3403,7 +3403,7 @@ fn regmatch(
                             re_st().brace_count[no] = 0;
                         } else {
                             internal_error(c"BRACE_LIMITS");
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     x if (BRACE_COMPLEX..=BRACE_COMPLEX + 9).contains(&x) => {
@@ -3419,7 +3419,7 @@ fn regmatch(
                                 reg_save(rp.rs_un.regsave_mut());
                                 next = Some(operand_idx(scan_idx));
                             } else {
-                                status = RA_FAIL;
+                                status = RegAction::Fail;
                             }
                         } else if bmin <= bmax {
                             if i64::from(bcount) <= bmax {
@@ -3428,14 +3428,14 @@ fn regmatch(
                                     reg_save(rp.rs_un.regsave_mut());
                                     next = Some(operand_idx(scan_idx));
                                 } else {
-                                    status = RA_FAIL;
+                                    status = RegAction::Fail;
                                 }
                             }
                         } else if i64::from(bcount) <= bmin {
                             if let Some(rp) = regstack_push(RS_BRCPLX_SHORT, scan) {
                                 reg_save(rp.rs_un.regsave_mut());
                             } else {
-                                status = RA_FAIL;
+                                status = RegAction::Fail;
                             }
                         }
                     }
@@ -3469,7 +3469,7 @@ fn regmatch(
 
                         rst.count = i64::from(regrepeat(prog, operand_idx(scan_idx), rst.maxval));
                         if g_st().got_int {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                             break;
                         }
                         if if rst.minval <= rst.maxval {
@@ -3481,7 +3481,7 @@ fn regmatch(
                                 >= opt_vars().p_mmp
                             {
                                 emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
-                                status = RA_FAIL;
+                                status = RegAction::Fail;
                             } else {
                                 re_st()
                                     .regstack
@@ -3497,13 +3497,13 @@ fn regmatch(
                                     unsafe {
                                         *ptr::from_mut(rp).cast::<Regstar>().wrapping_sub(1) = rst;
                                     }
-                                    status = RA_BREAK;
+                                    status = RegAction::Break;
                                 } else {
-                                    status = RA_FAIL;
+                                    status = RegAction::Fail;
                                 }
                             }
                         } else {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     NOMATCH | MATCH | SUBPAT => {
@@ -3512,7 +3512,7 @@ fn regmatch(
                             reg_save(rp.rs_un.regsave_mut());
                             next = Some(operand_idx(scan_idx));
                         } else {
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         }
                     }
                     BEHIND | NOBEHIND => {
@@ -3520,7 +3520,7 @@ fn regmatch(
                             >= opt_vars().p_mmp
                         {
                             emsg(tr(E_PATTERN_USES_MORE_MEMORY_THAN_MAXMEMPATTERN));
-                            status = RA_FAIL;
+                            status = RegAction::Fail;
                         } else {
                             re_st()
                                 .regstack
@@ -3533,7 +3533,7 @@ fn regmatch(
                                 rp.rs_no = op as i16;
                                 reg_save(rp.rs_un.regsave_mut());
                             } else {
-                                status = RA_FAIL;
+                                status = RegAction::Fail;
                             }
                         }
                     }
@@ -3547,10 +3547,10 @@ fn regmatch(
                                 ) as Colnr
                                 || bpos.lnum != re_st().rex.lnum
                             {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
                         } else if re_st().behind_pos.rs_u.ptr != re_st().rex.input {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                     NEWL => {
@@ -3560,7 +3560,7 @@ fn regmatch(
                             || re_st().rex.reg_line_lbr)
                             && (c != b'\n' as i32 || !re_st().rex.reg_line_lbr)
                         {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         } else if re_st().rex.reg_line_lbr {
                             advance_reginput();
                         } else {
@@ -3568,22 +3568,22 @@ fn regmatch(
                         }
                     }
                     END => {
-                        status = RA_MATCH;
+                        status = RegAction::Match;
                     }
                     _ => {
                         iemsg(tr(E_RE_CORR));
-                        status = RA_FAIL;
+                        status = RegAction::Fail;
                     }
                 }
             }
 
-            if status != RA_CONT {
+            if status != RegAction::Cont {
                 break;
             }
             scan = next;
         }
 
-        while !re_st().regstack.is_empty() && status != RA_FAIL {
+        while !re_st().regstack.is_empty() && status != RegAction::Fail {
             let rp_ptr = re_st()
                 .regstack
                 .as_mut_ptr()
@@ -3596,43 +3596,43 @@ fn regmatch(
                     regstack_pop(&mut scan);
                 }
                 RS_MOPEN => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         let no = rp.rs_no as usize;
                         restore_se_m(rp.rs_un.sesave(), no, false);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_ZOPEN => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         let no = rp.rs_no as usize;
                         restore_se_z(rp.rs_un.sesave(), no, false);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_MCLOSE => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         let no = rp.rs_no as usize;
                         restore_se_m(rp.rs_un.sesave(), no, true);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_ZCLOSE => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         let no = rp.rs_no as usize;
                         restore_se_z(rp.rs_un.sesave(), no, true);
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_BRANCH => {
-                    if status == RA_MATCH {
+                    if status == RegAction::Match {
                         regstack_pop(&mut scan);
                     } else {
-                        if status != RA_BREAK {
+                        if status != RegAction::Break {
                             reg_restore(rp.rs_un.regsave_mut());
                             scan = rp.rs_scan;
                         }
                         if scan.is_none() || op_fn(prog, scan) != BRANCH {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                             regstack_pop(&mut scan);
                         } else {
                             rp.rs_scan = regnext(prog, scan);
@@ -3642,55 +3642,55 @@ fn regmatch(
                     }
                 }
                 RS_BRCPLX_MORE => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         reg_restore(rp.rs_un.regsave_mut());
                         re_st().brace_count[rp.rs_no as usize] -= 1;
                     }
                     regstack_pop(&mut scan);
                 }
                 RS_BRCPLX_LONG => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         reg_restore(rp.rs_un.regsave_mut());
                         re_st().brace_count[rp.rs_no as usize] -= 1;
-                        status = RA_CONT;
+                        status = RegAction::Cont;
                     }
                     regstack_pop(&mut scan);
-                    if status == RA_CONT {
+                    if status == RegAction::Cont {
                         scan = regnext(prog, scan);
                     }
                 }
                 RS_BRCPLX_SHORT => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         reg_restore(rp.rs_un.regsave_mut());
                     }
                     regstack_pop(&mut scan);
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         scan = scan.map(operand_idx);
-                        status = RA_CONT;
+                        status = RegAction::Cont;
                     }
                 }
                 RS_NOMATCH => {
                     if status
                         == if rp.rs_no == NOMATCH as i16 {
-                            RA_MATCH
+                            RegAction::Match
                         } else {
-                            RA_NOMATCH
+                            RegAction::NoMatch
                         }
                     {
-                        status = RA_NOMATCH;
+                        status = RegAction::NoMatch;
                     } else {
-                        status = RA_CONT;
+                        status = RegAction::Cont;
                         if rp.rs_no != SUBPAT as i16 {
                             reg_restore(rp.rs_un.regsave_mut());
                         }
                     }
                     regstack_pop(&mut scan);
-                    if status == RA_CONT {
+                    if status == RegAction::Cont {
                         scan = regnext(prog, scan);
                     }
                 }
                 RS_BEHIND1 => {
-                    if status == RA_NOMATCH {
+                    if status == RegAction::NoMatch {
                         regstack_pop(&mut scan);
                         re_st()
                             .regstack
@@ -3709,12 +3709,12 @@ fn regmatch(
                 }
                 RS_BEHIND2 => {
                     let bp = unsafe { &mut *rp_ptr.cast::<Regbehind>().wrapping_sub(1) };
-                    if status == RA_MATCH && reg_save_equal(&re_st().behind_pos) {
+                    if status == RegAction::Match && reg_save_equal(&re_st().behind_pos) {
                         re_st().behind_pos = bp.save_behind;
                         if rp.rs_no == BEHIND as i16 {
                             reg_restore(&mut bp.save_after);
                         } else {
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                             restore_subexpr(&mut *bp);
                         }
                         regstack_pop(&mut scan);
@@ -3787,17 +3787,17 @@ fn regmatch(
                             reg_restore(rp.rs_un.regsave_mut());
                             scan = rp.rs_scan.map(|idx| operand_idx(idx) + 4);
 
-                            if status == RA_MATCH {
-                                status = RA_NOMATCH;
+                            if status == RegAction::Match {
+                                status = RegAction::NoMatch;
                                 restore_subexpr(&mut *bp);
                             }
                         } else {
                             re_st().behind_pos = bp.save_behind;
                             if rp.rs_no == NOBEHIND as i16 {
                                 reg_restore(&mut bp.save_after);
-                                status = RA_MATCH;
-                            } else if status == RA_MATCH {
-                                status = RA_NOMATCH;
+                                status = RegAction::Match;
+                            } else if status == RegAction::Match {
+                                status = RegAction::NoMatch;
                                 restore_subexpr(&mut *bp);
                             }
                             regstack_pop(&mut scan);
@@ -3809,17 +3809,17 @@ fn regmatch(
                 }
                 RS_STAR_LONG | RS_STAR_SHORT => {
                     let rst = unsafe { &mut *rp_ptr.cast::<Regstar>().wrapping_sub(1) };
-                    if status == RA_MATCH {
+                    if status == RegAction::Match {
                         regstack_pop(&mut scan);
                         re_st()
                             .regstack
                             .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
                     } else {
-                        if status != RA_BREAK {
+                        if status != RegAction::Break {
                             reg_restore(rp.rs_un.regsave_mut());
                         }
                         loop {
-                            if status != RA_BREAK {
+                            if status != RegAction::Break {
                                 if rp.rs_state == RS_STAR_LONG {
                                     rst.count -= 1;
                                     if rst.count < rst.minval {
@@ -3827,7 +3827,7 @@ fn regmatch(
                                     }
                                     if re_st().rex.input == re_st().rex.line {
                                         if re_st().rex.lnum == 0 {
-                                            status = RA_NOMATCH;
+                                            status = RegAction::NoMatch;
                                             break;
                                         }
                                         re_st().rex.lnum -= 1;
@@ -3868,7 +3868,7 @@ fn regmatch(
                                     break;
                                 }
                             } else {
-                                status = RA_NOMATCH;
+                                status = RegAction::NoMatch;
                             }
 
                             if rst.nextb == NUL as i32
@@ -3877,16 +3877,16 @@ fn regmatch(
                             {
                                 reg_save(rp.rs_un.regsave_mut());
                                 scan = regnext(prog, rp.rs_scan);
-                                status = RA_CONT;
+                                status = RegAction::Cont;
                                 break;
                             }
                         }
-                        if status != RA_CONT {
+                        if status != RegAction::Cont {
                             regstack_pop(&mut scan);
                             re_st()
                                 .regstack
                                 .truncate(re_st().regstack.len() - size_of::<Regstar>() / 8);
-                            status = RA_NOMATCH;
+                            status = RegAction::NoMatch;
                         }
                     }
                 }
@@ -3899,20 +3899,20 @@ fn regmatch(
                 .wrapping_add(re_st().regstack.len())
                 .cast::<Regitem>()
                 .wrapping_sub(1);
-            if status == RA_CONT || rp_ptr == top {
+            if status == RegAction::Cont || rp_ptr == top {
                 break;
             }
         }
 
-        if status == RA_CONT {
+        if status == RegAction::Cont {
             continue;
         }
 
-        if re_st().regstack.is_empty() || status == RA_FAIL {
+        if re_st().regstack.is_empty() || status == RegAction::Fail {
             if scan.is_none() {
                 iemsg(tr(E_RE_CORR));
             }
-            return status == RA_MATCH;
+            return status == RegAction::Match;
         }
     }
 }

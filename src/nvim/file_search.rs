@@ -42,9 +42,13 @@ use std::ptr;
 use crate::ex_docmd::{CdScope, K_CD_CAUSE_MANUAL};
 use crate::optionstr::OptIndex;
 
-pub const FINDFILE_FILE: i32 = 0;
-pub const FINDFILE_DIR: i32 = 1;
-pub const FINDFILE_BOTH: i32 = 2;
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+pub enum FindFileWhat {
+    #[default]
+    File,
+    Dir,
+    Both,
+}
 
 pub const FNAME_MESS: i32 = 1;
 pub const FNAME_EXP: i32 = 2;
@@ -120,7 +124,7 @@ pub struct FfSearchCtx {
     pub ffsc_wc_path: NvimString,
     pub ffsc_level: i32,
     pub ffsc_stopdirs_v: Vec<std::ffi::CString>,
-    pub ffsc_find_what: i32,
+    pub ffsc_find_what: FindFileWhat,
     pub ffsc_tagfile: i32,
 }
 
@@ -138,7 +142,7 @@ impl FfSearchCtx {
             ffsc_wc_path: NULL_STRING,
             ffsc_level: 0,
             ffsc_stopdirs_v: Vec::new(),
-            ffsc_find_what: 0,
+            ffsc_find_what: FindFileWhat::File,
             ffsc_tagfile: 0,
         }
     }
@@ -163,7 +167,7 @@ pub fn vim_findfile_init(
     stopdirs: Option<&std::ffi::CStr>,
     level: i32,
     free_visited: bool,
-    find_what: i32,
+    find_what: FindFileWhat,
     search_ctx_arg: Option<FfSearchCtx>,
     tagfile: i32,
     rel_fname: Option<&std::ffi::CStr>,
@@ -786,8 +790,8 @@ pub fn vim_findfile(search_ctx: Option<&mut FfSearchCtx>) -> Option<std::ffi::CS
                                 (file_path.data).cast(),
                             )) || (os_path_exists(crate::memory::cstr_from_ptr(
                                 (file_path.data).cast(),
-                            )) && (search_ctx.ffsc_find_what == FINDFILE_BOTH
-                                || ((search_ctx.ffsc_find_what == FINDFILE_DIR)
+                            )) && (search_ctx.ffsc_find_what == FindFileWhat::Both
+                                || ((search_ctx.ffsc_find_what == FindFileWhat::Dir)
                                     == os_isdir(crate::memory::cstr_from_ptr(
                                         (file_path.data).cast(),
                                     ))))))
@@ -1172,7 +1176,7 @@ pub fn find_file_in_path(
         } else {
             curbuf_mut().b_p_path.as_cstr()
         },
-        FINDFILE_BOTH,
+        FindFileWhat::Both,
         rel_fname,
         curbuf_mut().b_p_sua.as_cstr(),
         file_to_find,
@@ -1195,7 +1199,7 @@ pub fn find_directory_in_path(
         options,
         true,
         opt_vars().p_cdpath.as_cstr(),
-        FINDFILE_DIR,
+        FindFileWhat::Dir,
         rel_fname,
         EMPTY_C,
         file_to_find,
@@ -1208,7 +1212,7 @@ pub fn find_file_in_path_option(
     options: i32,
     first: bool,
     path_option_cstr: &std::ffi::CStr,
-    find_what: i32,
+    find_what: FindFileWhat,
     mut rel_fname_opt: Option<&std::ffi::CStr>,
     suffixes_cstr: &std::ffi::CStr,
     file_to_find: &mut Option<std::ffi::CString>,
@@ -1337,8 +1341,8 @@ pub fn find_file_in_path_option(
                     let mut suffix = suffixes;
                     loop {
                         if os_path_exists(crate::memory::cstr_from_ptr((name_buff).cast()))
-                            && (find_what == FINDFILE_BOTH
-                                || ((find_what == FINDFILE_DIR)
+                            && (find_what == FindFileWhat::Both
+                                || ((find_what == FindFileWhat::Dir)
                                     == os_isdir(crate::memory::cstr_from_ptr((name_buff).cast()))))
                         {
                             let slen = simplify_filename(crate::memory::cstr_as_mut_bytes(
@@ -1415,12 +1419,12 @@ pub fn find_file_in_path_option(
 
         if file_name.is_none() && (options & FNAME_MESS) != 0 {
             if first {
-                if find_what == FINDFILE_DIR {
+                if find_what == FindFileWhat::Dir {
                     semsg!(tr(E_CANT_FIND_DIRECTORY_STR_IN_CDPATH), ftf);
                 } else {
                     semsg!(tr(E_CANT_FIND_FILE_STR_IN_PATH), ftf);
                 }
-            } else if find_what == FINDFILE_DIR {
+            } else if find_what == FindFileWhat::Dir {
                 semsg!(tr(E_NO_MORE_DIRECTORY_STR_FOUND_IN_CDPATH), ftf);
             } else {
                 semsg!(tr(E_NO_MORE_FILE_STR_FOUND_IN_PATH), ftf);
