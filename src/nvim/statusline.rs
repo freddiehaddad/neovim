@@ -219,11 +219,6 @@ impl StlItem {
     }
 
     #[inline]
-    pub fn start(&self, base: *mut u8) -> *mut u8 {
-        base.wrapping_add(self.start_off)
-    }
-
-    #[inline]
     pub fn set_start(
         &mut self,
         base: impl crate::memory::IntoConstPtr<Target = u8>,
@@ -1262,11 +1257,11 @@ fn stl_truncate(
     if startitem == *curitem {
         trunc_p = start_p;
     } else {
-        trunc_p = stl_items[item_idx as usize].start(base_ptr);
+        trunc_p = base_ptr.wrapping_add(stl_items[item_idx as usize].start_off);
 
         for i in startitem..*curitem {
             if stl_items[i as usize].type_ == StlItemType::Trunc {
-                trunc_p = stl_items[i as usize].start(base_ptr);
+                trunc_p = base_ptr.wrapping_add(stl_items[i as usize].start_off);
                 item_idx = i;
                 break;
             }
@@ -1288,7 +1283,7 @@ fn stl_truncate(
         }
 
         for i in startitem..*curitem {
-            if stl_items[i as usize].start(base_ptr) > trunc_p {
+            if base_ptr.wrapping_add(stl_items[i as usize].start_off) > trunc_p {
                 for j in i..*curitem {
                     if stl_items[j as usize].type_ == StlItemType::ClickFunc {
                         stl_items[j as usize].cmd = None;
@@ -1332,7 +1327,7 @@ fn stl_truncate(
 
         let item_offset = (trunc_len - 1) as isize;
         for item in &mut stl_items[(item_idx as usize)..(*curitem as usize)] {
-            if item.start(base_ptr) >= trunc_end_p {
+            if base_ptr.wrapping_add(item.start_off) >= trunc_end_p {
                 item.start_off = item.start_off.wrapping_add_signed(-item_offset);
             } else {
                 item.set_start(base_ptr, trunc_p);
@@ -1404,7 +1399,7 @@ fn stl_expand(
                 dislocation *= fillchar_bytes;
                 cumulated_dislocation += dislocation as isize;
 
-                let start = item.start(base_ptr);
+                let start = base_ptr.wrapping_add(item.start_off);
                 let seploc = start.wrapping_add(dislocation as usize);
                 let len = crate::memory::cstr_len(start.cast()) + 1;
 
@@ -1656,7 +1651,7 @@ pub extern "C" fn build_stl_str_hl(
                 continue;
             }
 
-            let t = stl_items!()[gidx as usize].start(out_data);
+            let t = out_data.wrapping_add(stl_items!()[gidx as usize].start_off);
 
             unsafe {
                 *out_p = 0;
@@ -2489,7 +2484,7 @@ pub extern "C" fn build_stl_str_hl(
                 if foldsignitem >= 0 {
                     let offset = crate::memory::ptr_offset_from(
                         out_p,
-                        stl_items!()[foldsignitem as usize].start(out_data),
+                        out_data.wrapping_add(stl_items!()[foldsignitem as usize].start_off),
                     );
                     for item in
                         &mut stl_items!()[(foldsignitem as usize)..(stl_st().curitem as usize)]
@@ -2681,8 +2676,9 @@ pub extern "C" fn build_stl_str_hl(
                     | StlItemType::HighlightFold
                     | StlItemType::HighlightSign
             ) {
-                stl_hltab!()[sp_idx].start =
-                    Some(unsafe { std::ffi::CStr::from_ptr(item.start(out_data).cast()) });
+                stl_hltab!()[sp_idx].start = Some(unsafe {
+                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
+                });
                 stl_hltab!()[sp_idx].userhl = item.minwid;
                 stl_hltab!()[sp_idx].item = match item.type_ {
                     StlItemType::HighlightSign => i32::from(STL_SIGNCOL),
@@ -2713,7 +2709,9 @@ pub extern "C" fn build_stl_str_hl(
         for item in &mut stl_items!()[(evalstart as usize)..(stl_st().curitem as usize)] {
             if item.type_ == StlItemType::TabPage {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(unsafe { std::ffi::CStr::from_ptr(item.start(out_data).cast()) });
+                rec.start = Some(unsafe {
+                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
+                });
                 if item.minwid == 0 {
                     rec.def.type_ = K_STL_CLICK_DISABLED;
                     rec.def.tabnr = 0;
@@ -2731,7 +2729,9 @@ pub extern "C" fn build_stl_str_hl(
                 tab_idx += 1;
             } else if item.type_ == StlItemType::ClickFunc {
                 let rec = &mut stl_tabtab!()[tab_idx];
-                rec.start = Some(unsafe { std::ffi::CStr::from_ptr(item.start(out_data).cast()) });
+                rec.start = Some(unsafe {
+                    std::ffi::CStr::from_ptr(out_data.wrapping_add(item.start_off).cast())
+                });
                 rec.def.type_ = K_STL_CLICK_FUNC_RUN;
                 rec.def.tabnr = item.minwid;
                 rec.def.func = item.cmd.take();

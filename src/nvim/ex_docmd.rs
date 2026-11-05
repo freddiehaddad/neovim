@@ -409,11 +409,11 @@ impl Exarg {
     }
 
     #[inline]
-    pub fn cmdline_ptr(&self) -> RawCCharPtrMut {
+    pub fn cmdline_ptr(&self) -> crate::strings::CStrCursor<std::ffi::c_char> {
         if self.cmdline_buf.is_null() || unsafe { (*self.cmdline_buf).is_empty() } {
-            ptr::null_mut()
+            crate::strings::CStrCursor::NULL
         } else {
-            unsafe { (*self.cmdline_buf).as_mut_ptr().cast() }
+            crate::strings::CStrCursor::from_ptr(unsafe { (*self.cmdline_buf).as_mut_ptr().cast() })
         }
     }
 
@@ -5931,7 +5931,7 @@ pub fn parse_cmdline(
     eap.line1 = 1;
     eap.line2 = 1;
     eap.cmdline_buf = cmdline_buf;
-    eap.cmd = crate::strings::CStrCursor::from_ptr(eap.cmdline_ptr());
+    eap.cmd = eap.cmdline_ptr();
 
     let orig_cmd = eap.cmd;
     let result = if skipmods {
@@ -5966,7 +5966,7 @@ pub fn parse_cmdline(
         }
         if crate::memory::cstr_is_empty(eap.cmd)
             && eap.addr_count == 0
-            && after_modifier.as_ptr() == eap.cmdline_ptr()
+            && after_modifier == eap.cmdline_ptr()
         {
             break 'end;
         }
@@ -5989,7 +5989,7 @@ pub fn parse_cmdline(
                 gettext(E_NOT_AN_EDITOR_COMMAND).to_bytes(),
             );
             let cmdname = if !after_modifier.is_null() {
-                after_modifier.as_ptr()
+                after_modifier
             } else {
                 eap.cmdline_ptr()
             };
@@ -5999,10 +5999,9 @@ pub fn parse_cmdline(
         }
 
         eap.forceit = parse_bang(eap, &mut p_cstr);
-        let p = crate::strings::CStrCursor::from_ptr(
-            eap.cmdline_ptr()
-                .wrapping_add((p_cstr.as_ptr() as usize) - (eap.cmdline_ptr() as usize)),
-        );
+        let p = eap
+            .cmdline_ptr()
+            .wrapping_add((p_cstr.as_ptr() as usize) - (eap.cmdline_ptr().as_ptr() as usize));
 
         if !eap.cmdidx.is_user() {
             eap.argt = CMDNAMES[eap.cmdidx as usize].cmd_argt;
@@ -6626,7 +6625,8 @@ fn do_one_cmd(
         let p_cstr = replace_makeprg(&mut ea, crate::memory::cstr_from_ptr(p));
         p = ea
             .cmdline_ptr()
-            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr() as usize));
+            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr().as_ptr() as usize))
+            .as_ptr();
 
         ea.arg = crate::strings::CStrCursor::from_ptr(if ea.cmdidx == Cmdidx::CmdBang {
             p
@@ -8380,7 +8380,7 @@ pub fn replace_makeprg(eap: &mut Exarg, arg_in: &CStr) -> &'static CStr {
         msg_make(crate::memory::cstr_from_ptr(arg));
 
         eap.set_cmdline_vec(new_buf);
-        arg = eap.cmdline_ptr();
+        arg = eap.cmdline_ptr().as_ptr();
     }
     crate::memory::cstr_from_ptr(arg)
 }
@@ -8558,7 +8558,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
 
 fn repl_cmdline(eap: &mut Exarg, arg_off: usize, srclen: usize, repl: &CStr) -> usize {
     let src = eap.arg.as_ptr().wrapping_add(arg_off);
-    let old_cmdline = eap.cmdline_ptr();
+    let old_cmdline = eap.cmdline_ptr().as_ptr();
     let len = repl.to_bytes().len();
     let offset = (src as usize) - (old_cmdline as usize);
     let tail_len = crate::memory::cstr_len(src.wrapping_add(srclen));
@@ -9016,7 +9016,7 @@ fn get_tabpage_arg(eap: &mut Exarg) -> i32 {
                     let mut cmdp = eap.cmd.as_ptr();
                     while {
                         cmdp = cmdp.wrapping_sub(1);
-                        cmdp > eap.cmdline_ptr()
+                        cmdp > eap.cmdline_ptr().as_ptr()
                             && (ascii_iswhite(unsafe { *cmdp }) || ascii_isdigit(unsafe { *cmdp }))
                     } {}
                     if crate::memory::cstr_first_byte(cmdp) == b'-' {

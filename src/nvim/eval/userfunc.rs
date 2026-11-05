@@ -2797,9 +2797,7 @@ fn get_function_body(
                             let off = (nextcmd as usize) - (ltf.as_ptr() as usize);
                             let new_buf: Vec<u8> = ltf.as_bytes_with_nul().to_vec();
                             eap.set_cmdline_vec(new_buf);
-                            eap.nextcmd = crate::strings::CStrCursor::from_ptr(
-                                eap.cmdline_ptr().wrapping_add(off),
-                            );
+                            eap.nextcmd = eap.cmdline_ptr().wrapping_add(off);
                         } else {
                             eap.nextcmd = crate::strings::CStrCursor::from_ptr(nextcmd);
                         }
