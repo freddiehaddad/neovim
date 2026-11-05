@@ -94,12 +94,12 @@ functions can be called interactively (requires `pip install pynvim` or
     >>> nvim = attach('socket', path='[address]')
     >>> nvim.command('echo "hello world!"')
 <
-You can also embed Nvim via |jobstart()|, and communicate using |rpcrequest()|
-and |rpcnotify()|:
->vim
-    let nvim = jobstart(['nvim', '--embed'], {'rpc': v:true})
-    echo rpcrequest(nvim, 'nvim_eval', '"Hello " . "world!"')
-    call jobstop(nvim)
+You can also embed Nvim via |jobstart()|, and communicate using
+|vim.rpcrequest()| and |vim.rpcnotify()|: >lua
+
+    local nvim = vim.fn.jobstart({ 'nvim', '--embed' }, { rpc = true })
+    print(vim.rpcrequest(nvim, 'nvim_eval', '"Hello " . "world!"'))
+    vim.fn.jobstop(nvim)
 <
 
 ==============================================================================
@@ -756,9 +756,8 @@ nvim_eval_statusline({str}, {opts})                   *nvim_eval_statusline()*
     Parameters: ~
       • {str}   (`string`) Statusline string (see 'statusline').
       • {opts}  (`vim.api.keyset.eval_statusline?`) Optional parameters.
-                • fillchar: (string) Character to fill blank spaces in the
-                  statusline (see 'fillchars'). Treated as single-width even
-                  if it isn't.
+                • fillchar: (string) Single-width character to fill blank
+                  spaces in the statusline (see 'fillchars').
                 • highlights: (boolean) Return highlight information.
                 • maxwidth: (number) Maximum width of statusline.
                 • use_statuscol_lnum: (number) Evaluate statuscolumn for this

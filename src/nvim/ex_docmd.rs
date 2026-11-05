@@ -9465,6 +9465,7 @@ fn ex_restart(eap: &mut Exarg) {
             chan_id,
             c"nvim_chan_set",
             detach_args,
+            -1,
             &mut result_mem,
             &mut err,
         );
@@ -9510,6 +9511,7 @@ fn ex_restart(eap: &mut Exarg) {
                 chan_id,
                 c"nvim_create_autocmd",
                 autocmd_args,
+                -1,
                 &mut result_mem,
                 &mut err,
             );
@@ -9530,6 +9532,7 @@ fn ex_restart(eap: &mut Exarg) {
             chan_id,
             c"nvim_get_vvar",
             servername_args,
+            -1,
             &mut result_mem,
             &mut err,
         );
@@ -9570,6 +9573,7 @@ fn ex_restart(eap: &mut Exarg) {
                 chan_id,
                 c"nvim_exec_lua",
                 lua_args,
+                -1,
                 &mut result_mem,
                 &mut err,
             );
@@ -9632,6 +9636,7 @@ fn ex_restart(eap: &mut Exarg) {
             chan_id,
             c"nvim_eval",
             chanclose_args,
+            -1,
             &mut result_mem,
             &mut err,
         );

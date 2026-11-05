@@ -303,6 +303,7 @@ pub fn rpc_send_call(
     id: u64,
     method_name: &CStr,
     args: Array,
+    timeout: i32,
     result_mem: &mut ArenaMem,
     err: &mut Error,
 ) -> Object {
@@ -334,24 +335,47 @@ pub fn rpc_send_call(
     });
     rpc.call_stack.push(frame.clone());
 
-    while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } {
+    let timeout_ms = i64::from(timeout);
+    let start = if timeout_ms >= 0 {
+        crate::os::time::os_hrtime()
+    } else {
+        0
+    };
+    let mut remaining = timeout_ms;
+    let mut expired = false;
+    while !frame.returned.get() && !unsafe { ptr::read_volatile(&raw const rpc.closed) } && !expired
+    {
         let ev_ptr = channel.events;
         if !ev_ptr.is_null() && !multiqueue_empty(ev_ptr.borrow()) {
             multiqueue_process_events(ev_ptr.borrow_mut());
         } else {
-            loop_poll_events(&mut g_st().main_loop, -1);
+            loop_poll_events(&mut g_st().main_loop, remaining);
+        }
+        if timeout_ms >= 0 {
+            remaining = timeout_ms - ((crate::os::time::os_hrtime() - start) / 1_000_000) as i64;
+            expired = remaining <= 0;
         }
     }
 
     rpc.call_stack.pop();
 
     if !frame.returned.get() {
-        api_set_error!(
-            err,
-            ErrorType::ErrorTypeException,
-            c"Invalid channel: %llu",
-            id,
-        );
+        if unsafe { ptr::read_volatile(&raw const rpc.closed) } {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Invalid channel: %llu",
+                id,
+            );
+        } else {
+            api_set_error!(
+                err,
+                ErrorType::ErrorTypeException,
+                c"Request timed out after %d ms: %s",
+                timeout,
+                method_name.as_ptr(),
+            );
+        }
 
         channel_decref(channel.borrow_mut());
         return OBJECT_NIL;
@@ -456,30 +480,38 @@ fn parse_msgpack(channel: &mut Channel) {
 
             arena_mem_free(arena_finish(&mut p.arena));
         } else if p.msg_type == MessageType::MessageTypeResponse {
-            let frame_opt = if channel.rpc.client_type == K_CLIENT_TYPE_MSGPACK_RPC {
-                find_call_frame(&channel.rpc, p.request_id)
-            } else {
-                channel.rpc.call_stack.last().cloned()
-            };
-
-            let Some(frame) = frame_opt else {
-                let msg = format!(
-                    "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                    channel.id, channel.rpc.client_type as u32, p.request_id
+            let frame_opt = find_call_frame(&channel.rpc, p.request_id);
+            if frame_opt.is_none() && p.request_id < channel.rpc.next_request_id {
+                logmsg!(
+                    crate::log::LOGLVL_DBG,
+                    None,
+                    Some(c"parse_msgpack"),
+                    line!() as i32,
+                    true,
+                    c"ch %llu: discarding response id=%u",
+                    channel.id,
+                    p.request_id,
                 );
-                let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
-                chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
-                return;
-            };
-            if p.request_id != frame.request_id {
-                let msg = format!(
-                    "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
-                    channel.id, channel.rpc.client_type as u32, p.request_id
-                );
-                let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
-                chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
-                return;
+                arena_mem_free(arena_finish(&mut p.arena));
+                continue;
             }
+            let is_not_last = channel.rpc.client_type != K_CLIENT_TYPE_MSGPACK_RPC
+                && frame_opt.as_ref().is_none_or(|f| {
+                    channel
+                        .rpc
+                        .call_stack
+                        .last()
+                        .is_none_or(|last| !std::rc::Rc::ptr_eq(f, last))
+                });
+            let Some(frame) = frame_opt.filter(|_| !is_not_last) else {
+                let msg = format!(
+                    "ch {} (type={}) returned a response with an unknown request id {}. Ensure the client is properly synchronized\0",
+                    channel.id, channel.rpc.client_type as u32, p.request_id
+                );
+                let msg_cstr = std::ffi::CStr::from_bytes_with_nul(msg.as_bytes()).unwrap();
+                chan_close_on_err(channel, msg_cstr, LOGLVL_ERR);
+                return;
+            };
 
             let errored = p.error.obj_type != ObjectType::ObjectTypeNil;
             frame.returned.set(true);

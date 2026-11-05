@@ -2709,8 +2709,8 @@ pub fn nvim_get_mark(
 ///
 /// @param str Statusline string (see 'statusline').
 /// @param opts Optional parameters.
-///           - fillchar: (string) Character to fill blank spaces in the statusline (see
-///                                'fillchars'). Treated as single-width even if it isn't.
+///           - fillchar: (string) Single-width character to fill blank spaces in the statusline
+///                                (see 'fillchars').
 ///           - highlights: (boolean) Return highlight information.
 ///           - maxwidth: (number) Maximum width of statusline.
 ///           - use_statuscol_lnum: (number) Evaluate statuscolumn for this line number instead of statusline.

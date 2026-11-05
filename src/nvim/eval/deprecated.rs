@@ -1,17 +1,24 @@
 //! Deprecated Vimscript evaluation functions (`src/nvim/eval/deprecated.c`).
 
-use crate::api::private::converter::K_BOOL_VAR_TRUE;
+use crate::api::private::converter::{K_BOOL_VAR_TRUE, object_to_vim, vim_to_object};
+use crate::api::private::helpers::api_clear_error;
+use crate::api::private::validate::{Array, Error, ErrorType, Object, ObjectData, ObjectType};
 use crate::channel::{CallbackReader, channel_close, channel_create_event, channel_job_start};
 use crate::errors::{E_API_SPAWN_FAILED, E_INVARG, E_INVARG2};
 use crate::eval::find_job;
-use crate::eval::funcs::{f_jobstart, f_jobstop};
+use crate::eval::funcs::{MAX_FUNC_ARGS, f_jobstart, f_jobstop};
 use crate::eval::typval::{
     Callback, EvalFuncData, TypVal, VarType, tv_dict_add_bool, tv_dict_alloc, tv_dict_free,
     tv_get_string,
 };
+use crate::eval::userfunc::{restore_funccal, save_funccal, set_current_funccal};
 use crate::ex_cmds::check_secure;
 use crate::globals::*;
-use crate::message::{emsg, semsg};
+use crate::memory::{Arena, ArenaMem, arena_finish, arena_mem_free};
+use crate::message::{emsg, semsg, semsg_multiline};
+use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
+use crate::runtime::{Sctx, rt_st};
+use crate::strings::gettext;
 
 const K_CHANNEL_PART_RPC: i32 = 3;
 const K_CHANNEL_STDIN_PIPE: i32 = 0;
@@ -24,6 +31,168 @@ const fn callback_none() -> Callback {
 #[inline]
 const fn callback_reader_init() -> CallbackReader {
     CallbackReader::none()
+}
+
+/// "rpcnotify()" function (DEPRECATED)
+pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    rettv.v_type = VarType::VarNumber;
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+
+    if check_secure() {
+        return;
+    }
+    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() < 0 {
+        semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
+        return;
+    }
+    if argvars[1].v_type != VarType::VarString {
+        semsg!(gettext(E_INVARG2), c"Event type must be a string",);
+        return;
+    }
+
+    let mut args_storage = [Object {
+        obj_type: ObjectType::ObjectTypeNil,
+        data: ObjectData::Boolean(false),
+    }; MAX_FUNC_ARGS];
+    let mut args = Array {
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
+        size: 0,
+        capacity: MAX_FUNC_ARGS,
+    };
+    let mut arena = Arena::new();
+
+    for tv in argvars[2..]
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
+        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
+        args.size += 1;
+    }
+
+    let ok = rpc_send_event(
+        argvars[0].vval.v_number() as u64,
+        tv_get_string(&argvars[1]),
+        args,
+    );
+
+    arena_mem_free(arena_finish(&mut arena));
+
+    if !ok {
+        semsg!(gettext(E_INVARG2), c"Channel doesn't exist",);
+        return;
+    }
+    rettv.vval = crate::eval::typval::TypvalVval::Number(1);
+}
+
+/// "rpcrequest()" function (DEPRECATED)
+pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
+    rettv.v_type = VarType::VarNumber;
+    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
+    let l_provider_call_nesting = g_st().provider_call_nesting;
+
+    if check_secure() {
+        return;
+    }
+    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() <= 0 {
+        semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
+        return;
+    }
+    if argvars[1].v_type != VarType::VarString {
+        semsg!(gettext(E_INVARG2), c"Method name must be a string",);
+        return;
+    }
+
+    let mut args_storage = [Object {
+        obj_type: ObjectType::ObjectTypeNil,
+        data: ObjectData::Boolean(false),
+    }; MAX_FUNC_ARGS];
+    let mut args = Array {
+        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
+        size: 0,
+        capacity: MAX_FUNC_ARGS,
+    };
+    let mut arena = Arena::new();
+
+    for tv in argvars[2..]
+        .iter_mut()
+        .take_while(|tv| tv.v_type != VarType::VarUnknown)
+    {
+        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
+        args.size += 1;
+    }
+
+    let mut save_current_sctx = Sctx::new();
+    let mut save_autocmd_fname: Option<std::ffi::CString> = None;
+    let mut save_autocmd_match: Option<std::ffi::CString> = None;
+    let mut save_autocmd_fname_full = false;
+    let mut save_autocmd_bufnr: i32 = 0;
+
+    if l_provider_call_nesting != 0 {
+        save_current_sctx = g_st().current_sctx;
+        save_autocmd_fname = g_st().autocmd_fname.take();
+        save_autocmd_match = g_st().autocmd_match.take();
+        save_autocmd_fname_full = g_st().autocmd_fname_full;
+        save_autocmd_bufnr = g_st().autocmd_bufnr;
+        save_funccal();
+
+        g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
+        let es_entry = g_st().provider_caller_scope.es_entry.clone();
+        rt_st().exestack.push(es_entry);
+        g_st().autocmd_fname = g_st().provider_caller_scope.autocmd_fname.clone();
+        g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
+        g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
+        g_st().autocmd_bufnr = g_st().provider_caller_scope.autocmd_bufnr;
+        set_current_funccal(g_st().provider_caller_scope.funccalp.opt_mut());
+    }
+
+    let mut err = Error::new();
+    let chan_id = argvars[0].vval.v_number() as u64;
+    let method = tv_get_string(&argvars[1]);
+    let method_cstr = method;
+
+    let mut res_mem = ArenaMem::NULL;
+    let result = rpc_send_call(chan_id, method_cstr, args, -1, &mut res_mem, &mut err);
+    arena_mem_free(arena_finish(&mut arena));
+
+    if l_provider_call_nesting != 0 {
+        g_st().current_sctx = save_current_sctx;
+        rt_st().exestack.pop();
+        g_st().autocmd_fname = save_autocmd_fname;
+        g_st().autocmd_match = save_autocmd_match;
+        g_st().autocmd_fname_full = save_autocmd_fname_full;
+        g_st().autocmd_bufnr = save_autocmd_bufnr;
+        restore_funccal();
+    }
+
+    if err.err_type != ErrorType::ErrorTypeNone {
+        let mut name: Option<&std::ffi::CStr> = None;
+        if let Some(chan) = find_channel(chan_id) {
+            name = get_client_info(chan, c"name");
+        }
+        if let Some(name) = name {
+            semsg_multiline!(
+                c"rpc_error",
+                c"Invoking '%s' on channel %llu (%s):\n%s",
+                method,
+                chan_id,
+                name.as_ptr(),
+                err.msg_cstr(),
+            );
+        } else {
+            semsg_multiline!(
+                c"rpc_error",
+                c"Invoking '%s' on channel %llu:\n%s",
+                method,
+                chan_id,
+                err.msg_cstr(),
+            );
+        }
+    } else {
+        object_to_vim(result, &mut *rettv, &mut err);
+    }
+
+    arena_mem_free(res_mem);
+    api_clear_error(&mut err);
 }
 
 /// `"rpcstart()"` function (`f_rpcstart`).

@@ -34,19 +34,20 @@ use crate::keycodes::{special_to_buf, vim_unescape_ks};
 use crate::log::log_get_stderr;
 use crate::lua::converter::{
     K_NLUA_PUSH_SPECIAL, LUA_ERRMEM, LUA_ERRRUN, LUA_MULTRET, LUA_REGISTRYINDEX, LUA_TBOOLEAN,
-    LUA_TFUNCTION, LUA_TSTRING, LUA_TTABLE, LuaRef, NluaRefState, lua_CFunction, lua_Integer,
-    lua_State, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable, lua_error,
-    lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert, lua_isboolean,
-    lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring, lua_istable,
-    lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean, lua_pushcclosure,
-    lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring, lua_pushnil,
-    lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti, lua_remove,
-    lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop, lua_toboolean,
-    lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata, lua_type,
-    lua_upvalueindex, luaL_checkinteger, luaL_checklstring, luaL_checktype, luaL_error,
-    luaL_loadbuffer, luaL_newstate, luaL_openlibs, luaL_ref, luaL_unref, luaL_where,
-    nlua_init_types, nlua_pop_array, nlua_pop_array_opt, nlua_pop_integer, nlua_pop_object,
-    nlua_pop_object_opt, nlua_pop_typval, nlua_push_array, nlua_push_object, nlua_push_typval,
+    LUA_TFUNCTION, LUA_TNUMBER, LUA_TSTRING, LUA_TTABLE, LuaRef, NluaRefState, lua_CFunction,
+    lua_Integer, lua_State, lua_call, lua_checkstack, lua_close, lua_concat, lua_createtable,
+    lua_error, lua_getfield, lua_getglobal, lua_getmetatable, lua_gettop, lua_insert,
+    lua_isboolean, lua_iscfunction, lua_isfunction, lua_isnil, lua_isnumber, lua_isstring,
+    lua_istable, lua_newtable, lua_newuserdata, lua_next, lua_pcall, lua_pop, lua_pushboolean,
+    lua_pushcclosure, lua_pushcfunction, lua_pushinteger, lua_pushlightuserdata, lua_pushlstring,
+    lua_pushnil, lua_pushnumber, lua_pushstring, lua_pushvalue, lua_rawgeti, lua_rawseti,
+    lua_remove, lua_replace, lua_setfield, lua_setglobal, lua_setmetatable, lua_settop,
+    lua_toboolean, lua_tocfunction, lua_tointeger, lua_tolstring, lua_tostring, lua_touserdata,
+    lua_type, lua_upvalueindex, luaL_argerror, luaL_checkinteger, luaL_checklstring,
+    luaL_checkstring, luaL_checktype, luaL_error, luaL_loadbuffer, luaL_newstate, luaL_openlibs,
+    luaL_ref, luaL_unref, luaL_where, nlua_init_types, nlua_pop_array, nlua_pop_array_opt,
+    nlua_pop_integer, nlua_pop_object, nlua_pop_object_opt, nlua_pop_typval, nlua_push_array,
+    nlua_push_object, nlua_push_typval,
 };
 use crate::lua::stdlib::nlua_state_add_stdlib;
 use crate::lua::treesitter::nlua_treesitter_init;
@@ -1632,16 +1633,30 @@ unsafe extern "C-unwind" fn nlua_rpcnotify(lstate: *mut lua_State) -> i32 {
 }
 
 fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
-    let mut name_len: usize = 0;
     let chan_id = unsafe { luaL_checkinteger(lstate, 1) } as u64;
-    let name = unsafe { luaL_checklstring(lstate, 2, &raw mut name_len) };
-    let nargs = unsafe { lua_gettop(lstate) } - 2;
+
+    let has_opts = request && (lua_isnil(lstate, 2) || lua_istable(lstate, 2));
+    let name_idx = if has_opts { 3 } else { 2 };
+    let mut timeout: i32 = -1;
+    if has_opts && lua_istable(lstate, 2) {
+        lua_getfield(lstate, 2, c"timeout");
+        if !lua_isnil(lstate, -1) {
+            if unsafe { lua_type(lstate, -1) } != LUA_TNUMBER {
+                return luaL_argerror(lstate, 2, c"timeout: expected integer");
+            }
+            timeout = unsafe { lua_tointeger(lstate, -1) } as i32;
+        }
+        lua_pop(lstate, 1);
+    }
+
+    let name_cstr = luaL_checkstring(lstate, name_idx);
+    let nargs = unsafe { lua_gettop(lstate) } - name_idx;
     let mut err = Error::new();
     let mut arena = Arena::new();
 
     let mut args = arena_array(&mut arena, nargs.max(0) as usize);
     for i in 0..nargs {
-        unsafe { lua_pushvalue(lstate, i + 3) };
+        unsafe { lua_pushvalue(lstate, name_idx + 1 + i) };
         let obj = nlua_pop_object(lstate, false, &mut arena, &mut err);
         *args.next_slot_mut() = obj;
         args.size += 1;
@@ -1651,10 +1666,10 @@ fn nlua_rpc(lstate: *mut lua_State, request: bool) -> i32 {
     }
 
     if !error_set(&err) {
-        let name_cstr = crate::memory::cstr_from_ptr(name);
         if request {
             let mut res_mem = ArenaMem::NULL;
-            let mut result = rpc_send_call(chan_id, name_cstr, args, &mut res_mem, &mut err);
+            let mut result =
+                rpc_send_call(chan_id, name_cstr, args, timeout, &mut res_mem, &mut err);
             if !error_set(&err) {
                 nlua_push_object(lstate, &mut result, 0);
                 arena_mem_free(res_mem);

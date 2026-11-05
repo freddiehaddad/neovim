@@ -37,6 +37,7 @@ use crate::eval::buffer::find_buffer;
 use crate::eval::decode::{
     json_decode_string, mpack_parse_typval, typval_parser_error_free, unpack_typval,
 };
+use crate::eval::deprecated::{f_rpcnotify, f_rpcrequest};
 use crate::eval::encode::{
     ListReaderState, encode_init_lrstate, encode_list_write, encode_read_from_list, encode_tv2echo,
     encode_tv2json, encode_vim_list_to_buf, encode_vim_to_msgpack,
@@ -68,8 +69,7 @@ use crate::eval::userfunc::{
     EvalFuncDef, FCERR_NONE, FCERR_NOTMETHOD, FCERR_TOOFEW, FCERR_TOOMANY, FCERR_UNKNOWN,
     emsg_funcname, find_func, func_call, func_ptr_ref, func_ref, func_unref, function_exists,
     get_func_arity, get_scriptlocal_funcname, get_user_func_name, printable_func_name,
-    restore_funccal, save_funccal, save_function_name, set_current_funccal, trans_function_name,
-    translated_function_exists,
+    save_function_name, trans_function_name, translated_function_exists,
 };
 use crate::eval::vars::{
     Lval, VV_KEY, VV_REG, VV_SEND_SERVER, VV_SHELL_ERROR, VV_VAL, cat_prefix_varname,
@@ -137,8 +137,7 @@ use crate::memline::{
     recover_names, swapfile_dict,
 };
 use crate::memory::{
-    ARENA_BLOCK_SIZE, Arena, ArenaMem, arena_finish, arena_mem_free, cstr_from_bytes,
-    cstr_to_cstring,
+    ARENA_BLOCK_SIZE, Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring,
 };
 use crate::menu::{get_menu_cmd_modes, menu_get};
 use crate::message::{
@@ -148,7 +147,7 @@ use crate::message::{
 use crate::r#move::{update_curswant, win_col_off};
 use crate::mpack::mpack_core::MPACK_OK;
 use crate::mpack::object::MpackParser;
-use crate::msgpack_rpc::channel::{find_channel, get_client_info, rpc_send_call, rpc_send_event};
+use crate::msgpack_rpc::channel::find_channel;
 use crate::msgpack_rpc::packer::{Integer, PackerBuffer, packer_string_buffer, packer_take_string};
 use crate::msgpack_rpc::server::{
     server_address_list, server_address_new, server_start, server_stop,
@@ -187,7 +186,6 @@ use crate::register::{
     get_reg_contents_str, get_reg_type, get_register_name, get_unname_register, get_yank_register,
     op_reg_set_previous, write_reg_contents_ex, write_reg_contents_lst,
 };
-use crate::runtime::{Sctx, rt_st};
 use crate::search::{
     BACKWARD, SearchitArg, last_csearch, last_csearch_forward, last_csearch_until, searchit,
     set_csearch_direction, set_csearch_until, set_last_csearch,
@@ -6720,168 +6718,6 @@ fn search_cmn(argvars: &mut [TypVal], match_pos: Option<&mut CursorPos>, flagsp:
     }
     opt_vars().p_ws = save_p_ws;
     retval
-}
-
-/// "rpcnotify()" function
-pub fn f_rpcnotify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-
-    if check_secure() {
-        return;
-    }
-    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() < 0 {
-        semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
-        return;
-    }
-    if argvars[1].v_type != VarType::VarString {
-        semsg!(gettext(E_INVARG2), c"Event type must be a string",);
-        return;
-    }
-
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
-    }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
-    let mut arena = Arena::new();
-
-    for tv in argvars[2..]
-        .iter_mut()
-        .take_while(|tv| tv.v_type != VarType::VarUnknown)
-    {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
-        args.size += 1;
-    }
-
-    let ok = rpc_send_event(
-        argvars[0].vval.v_number() as u64,
-        tv_get_string(&argvars[1]),
-        args,
-    );
-
-    arena_mem_free(arena_finish(&mut arena));
-
-    if !ok {
-        semsg!(gettext(E_INVARG2), c"Channel doesn't exist",);
-        return;
-    }
-    rettv.vval = crate::eval::typval::TypvalVval::Number(1);
-}
-
-/// "rpcrequest()" function
-pub fn f_rpcrequest(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.v_type = VarType::VarNumber;
-    rettv.vval = crate::eval::typval::TypvalVval::Number(0);
-    let l_provider_call_nesting = g_st().provider_call_nesting;
-
-    if check_secure() {
-        return;
-    }
-    if argvars[0].v_type != VarType::VarNumber || argvars[0].vval.v_number() <= 0 {
-        semsg!(gettext(E_INVARG2), c"Channel id must be a positive integer",);
-        return;
-    }
-    if argvars[1].v_type != VarType::VarString {
-        semsg!(gettext(E_INVARG2), c"Method name must be a string",);
-        return;
-    }
-
-    let mut args_storage = [Object {
-        obj_type: ObjectType::ObjectTypeNil,
-        data: ObjectData::Boolean(false),
-    }; MAX_FUNC_ARGS];
-    let mut args = Array {
-        items: crate::globals::GraphPtr::new(args_storage.as_mut_ptr()),
-        size: 0,
-        capacity: MAX_FUNC_ARGS,
-    };
-    let mut arena = Arena::new();
-
-    for tv in argvars[2..]
-        .iter_mut()
-        .take_while(|tv| tv.v_type != VarType::VarUnknown)
-    {
-        *args.next_slot_mut() = vim_to_object(tv, Some(&mut arena), true);
-        args.size += 1;
-    }
-
-    let mut save_current_sctx = Sctx::new();
-    let mut save_autocmd_fname: Option<std::ffi::CString> = None;
-    let mut save_autocmd_match: Option<std::ffi::CString> = None;
-    let mut save_autocmd_fname_full = false;
-    let mut save_autocmd_bufnr: i32 = 0;
-
-    if l_provider_call_nesting != 0 {
-        save_current_sctx = g_st().current_sctx;
-        save_autocmd_fname = g_st().autocmd_fname.take();
-        save_autocmd_match = g_st().autocmd_match.take();
-        save_autocmd_fname_full = g_st().autocmd_fname_full;
-        save_autocmd_bufnr = g_st().autocmd_bufnr;
-        save_funccal();
-
-        g_st().current_sctx = g_st().provider_caller_scope.script_ctx;
-        let es_entry = g_st().provider_caller_scope.es_entry.clone();
-        rt_st().exestack.push(es_entry);
-        g_st().autocmd_fname = g_st().provider_caller_scope.autocmd_fname.clone();
-        g_st().autocmd_match = g_st().provider_caller_scope.autocmd_match.clone();
-        g_st().autocmd_fname_full = g_st().provider_caller_scope.autocmd_fname_full;
-        g_st().autocmd_bufnr = g_st().provider_caller_scope.autocmd_bufnr;
-        set_current_funccal(g_st().provider_caller_scope.funccalp.opt_mut());
-    }
-
-    let mut err = Error::new();
-    let chan_id = argvars[0].vval.v_number() as u64;
-    let method = tv_get_string(&argvars[1]);
-    let method_cstr = method;
-
-    let mut res_mem = ArenaMem::NULL;
-    let result = rpc_send_call(chan_id, method_cstr, args, &mut res_mem, &mut err);
-    arena_mem_free(arena_finish(&mut arena));
-
-    if l_provider_call_nesting != 0 {
-        g_st().current_sctx = save_current_sctx;
-        rt_st().exestack.pop();
-        g_st().autocmd_fname = save_autocmd_fname;
-        g_st().autocmd_match = save_autocmd_match;
-        g_st().autocmd_fname_full = save_autocmd_fname_full;
-        g_st().autocmd_bufnr = save_autocmd_bufnr;
-        restore_funccal();
-    }
-
-    if err.err_type != ErrorType::ErrorTypeNone {
-        let mut name: Option<&std::ffi::CStr> = None;
-        if let Some(chan) = find_channel(chan_id) {
-            name = get_client_info(chan, c"name");
-        }
-        if let Some(name) = name {
-            semsg_multiline!(
-                c"rpc_error",
-                c"Invoking '%s' on channel %llu (%s):\n%s",
-                method,
-                chan_id,
-                name.as_ptr(),
-                err.msg_cstr(),
-            );
-        } else {
-            semsg_multiline!(
-                c"rpc_error",
-                c"Invoking '%s' on channel %llu:\n%s",
-                method,
-                chan_id,
-                err.msg_cstr(),
-            );
-        }
-    } else {
-        object_to_vim(result, &mut *rettv, &mut err);
-    }
-
-    arena_mem_free(res_mem);
-    api_clear_error(&mut err);
 }
 
 fn screenchar_adjust(row: &mut i32, col: &mut i32) -> &'static ScreenGrid {
