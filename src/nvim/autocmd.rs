@@ -3155,9 +3155,7 @@ fn aucmd_next(apc: &mut AutoPatCmd) {
                 continue;
             }
             let matches = if ap.buflocal_nr == 0 {
-                let tail_cstr = apc.fname.as_deref().map_or(c"", |f| {
-                    crate::memory::cstr_from_ptr((path_tail(f)).as_ptr())
-                });
+                let tail_cstr = apc.fname.as_deref().map_or(c"", |f| path_tail(f));
                 match_file_pat(
                     None,
                     ap.reg_prog.as_deref(),

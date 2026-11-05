@@ -174,12 +174,7 @@ pub fn linetabsize_col(startvcol: i32, s: &std::ffi::CStr) -> i32 {
 }
 
 pub fn linetabsize(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
-    win_linetabsize(
-        wp,
-        lnum,
-        crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), lnum)).as_ptr()),
-        MAXCOL,
-    )
+    win_linetabsize(wp, lnum, ml_get_buf(wp.buf_mut(), lnum), MAXCOL)
 }
 
 pub fn linetabsize_eol(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
@@ -265,7 +260,7 @@ pub fn init_charsize_arg_extconceal(
         let len = ml_get_buf_len(wp.buf_mut(), lnum);
         conceal_spans_collect(wp, lnum - 1, len, spans);
     }
-    let line = crate::memory::cstr_from_ptr((ml_get_buf(wp.buf_mut(), lnum)).as_ptr());
+    let line = ml_get_buf(wp.buf_mut(), lnum);
     let cstype = init_charsize_arg(csarg, wp, lnum, line);
     if spans.is_empty() {
         return cstype;

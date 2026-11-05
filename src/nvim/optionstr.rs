@@ -2561,7 +2561,7 @@ pub fn validate_shada(args: &mut Optset) -> Option<&CStr> {
                     return opt_error(
                         errbuf,
                         c"E526: Missing number after <%s>",
-                        crate::memory::cstr_from_ptr((transchar_byte(i32::from(b0))).as_ptr()),
+                        transchar_byte(i32::from(b0)),
                     );
                 } else {
                     return Some(c"");

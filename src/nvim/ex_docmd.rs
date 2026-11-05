@@ -9317,10 +9317,10 @@ fn ex_restart(eap: &mut Exarg) {
     while !li.is_null() {
         let arg = tv_get_string(unsafe { &(*li).li_tv });
         let i = argv_vec.len();
-        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--")) {
+        if i > 0 && (Some(arg.to_bytes()) == Some(b"--")) {
             break;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-S")) {
+        if i > 0 && (Some(arg.to_bytes()) == Some(b"-S")) {
             let next_li = unsafe { (*li).li_next.as_ptr() };
             if !next_li.is_null() {
                 let next_arg = tv_get_string(unsafe { &(*next_li).li_tv });
@@ -9333,7 +9333,7 @@ fn ex_restart(eap: &mut Exarg) {
 
             continue;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-s")) {
+        if i > 0 && (Some(arg.to_bytes()) == Some(b"-s")) {
             li = unsafe { (*li).li_next.as_ptr() };
 
             if !li.is_null() {
@@ -9341,7 +9341,7 @@ fn ex_restart(eap: &mut Exarg) {
             }
             continue;
         }
-        if i > 0 && (crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--listen")) {
+        if i > 0 && (Some(arg.to_bytes()) == Some(b"--listen")) {
             let next_li = unsafe { (*li).li_next.as_ptr() };
             if let Some(next_li) = unsafe { next_li.as_mut() } {
                 let addr = tv_get_string(&next_li.li_tv);
@@ -9360,9 +9360,9 @@ fn ex_restart(eap: &mut Exarg) {
             }
         }
         if i == 0
-            || (!(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--embed"))
-                && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"--headless"))
-                && !(crate::memory::cstr_as_opt_bytes((arg).as_ptr()) == Some(b"-")))
+            || (!(Some(arg.to_bytes()) == Some(b"--embed"))
+                && !(Some(arg.to_bytes()) == Some(b"--headless"))
+                && !(Some(arg.to_bytes()) == Some(b"-")))
         {
             argv_vec.push((*arg).to_owned());
             if argv_vec.len() == 1 {

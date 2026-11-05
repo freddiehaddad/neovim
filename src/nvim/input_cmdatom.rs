@@ -29,7 +29,7 @@ use crate::mcursor::{
     mc_buf_has_cursors, mc_clock_edge, mc_following, mc_ins_cascade_start, mc_ins_cascaded,
     mc_ins_commit, mc_mark_at, mc_replaying, mc_vsel_clear, mc_vsel_refresh,
 };
-use crate::memory::{cstr_from_bytes, cstr_to_cstring};
+use crate::memory::cstr_from_bytes;
 use crate::normal::{
     NV_JUMP, NV_LANG, NV_MOTION, NV_NCH_ARG, REPLACE_CR_NCHAR, VisualState, nv_is,
 };
@@ -627,7 +627,7 @@ fn atom_key_name(c: i32) -> std::ffi::CString {
         return std::ffi::CString::default();
     }
     if is_special(c) || c < b' ' as i32 {
-        return cstr_to_cstring((get_special_key_name(c, 0)).as_ptr());
+        return get_special_key_name(c, 0).to_owned();
     }
     if c == DEL {
         return c"<Del>".to_owned();

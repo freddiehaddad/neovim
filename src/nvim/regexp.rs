@@ -154,7 +154,7 @@ pub(super) const CLASS_UNDERSCORE: i32 = 0x01;
 
 pub(super) const REGEXP_INRANGE: &CStr = c"]^-n\\";
 pub(super) const REGEXP_ABBR: &CStr = c"nrtebdoxuU";
-pub(super) const CLASSCHARS: &[u8; 28] = b".iIkKfFpPsSdDxXoOwWhHaAlLuU\0";
+pub(super) const CLASSCHARS: &CStr = c".iIkKfFpPsSdDxXoOwWhHaAlLuU";
 
 pub(super) const E_INVALID_CHARACTER_AFTER_STR_AT: &CStr = c"E59: Invalid character after %s@";
 pub(super) const E_INVALID_USE_OF_UNDERSCORE: &CStr = c"E63: Invalid use of \\_";

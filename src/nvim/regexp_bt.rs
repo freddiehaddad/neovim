@@ -872,12 +872,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
             goto_collection = true;
         } else {
             // fallthrough to character classes
-            let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
-                no_magic(c),
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .cast::<u8>();
+            let p = vim_strchr(CLASSCHARS, no_magic(c))
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                 g_st().rc_did_emsg = true;
@@ -887,7 +884,8 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
+                let idx =
+                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;
@@ -926,12 +924,9 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 || x == magic_fn(b'u' as i32)
                 || x == magic_fn(b'U' as i32)
         ) {
-            let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
-                no_magic(c),
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .cast::<u8>();
+            let p = vim_strchr(CLASSCHARS, no_magic(c))
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             if p.is_null() {
                 emsg(tr(E_INVALID_USE_OF_UNDERSCORE));
                 g_st().rc_did_emsg = true;
@@ -941,7 +936,8 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
+                let idx =
+                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
                 ret = regnode(CLASSCODES[idx] + extra);
                 *flagp |= HASWIDTH | SIMPLE;
                 return ret;

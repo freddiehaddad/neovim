@@ -1113,9 +1113,7 @@ unsafe extern "C-unwind" fn nlua_ui_attach(lstate: *mut lua_State) -> i32 {
             matched = true;
         } else {
             for (i, slot) in ext_widgets.iter_mut().enumerate() {
-                if crate::memory::cstr_as_opt_bytes(s)
-                    == crate::memory::cstr_as_opt_bytes(UI_EXT_NAMES[i].as_ptr())
-                {
+                if crate::memory::cstr_as_opt_bytes(s) == Some(UI_EXT_NAMES[i].to_bytes()) {
                     if val {
                         tbl_has_true_val = true;
                     }

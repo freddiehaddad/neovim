@@ -2539,7 +2539,7 @@ pub fn name_to_color(name: &CStr, idx: &mut i32) -> RgbValue {
         let m = (lo + hi) / 2;
         let cmp = mb_stricmp(
             crate::memory::cstr_from_ptr(name.as_ptr()),
-            crate::memory::cstr_from_ptr(COLOR_NAME_TABLE[m].name.as_ptr()),
+            COLOR_NAME_TABLE[m].name,
         );
         if cmp < 0 {
             hi = m;

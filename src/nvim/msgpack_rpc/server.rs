@@ -302,10 +302,7 @@ pub fn server_stop(endpoint: &CStr, keep_vservername: bool) -> bool {
 
     socket_watcher_close(watcher.borrow_mut());
 
-    if !keep_vservername
-        && Some(addr_bytes)
-            == crate::memory::cstr_as_opt_bytes((get_vim_var_str(VV_SEND_SERVER)).as_ptr())
-    {
+    if !keep_vservername && Some(addr_bytes) == Some(get_vim_var_str(VV_SEND_SERVER).to_bytes()) {
         set_vservername();
     }
 

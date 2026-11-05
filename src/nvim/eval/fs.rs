@@ -1696,7 +1696,7 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         let mut buf = [0u8; NUMBUFLEN];
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
             tv_get_string(&argvars[0]),
-            crate::memory::cstr_from_ptr((tv_get_string_buf(&argvars[1], &mut buf)).as_ptr()),
+            tv_get_string_buf(&argvars[1], &mut buf),
         )));
     }
 }

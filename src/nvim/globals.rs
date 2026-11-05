@@ -1619,10 +1619,7 @@ mod tests {
             assert_eq!({ g_st().state_global }, 0x01);
             assert_eq!({ g_st().visual_global.mode }, b'v' as i32);
             assert_eq!({ g_st().search_global.last_line }, 0x7fffffff);
-            assert_eq!(
-                crate::memory::cstr_as_bytes(NO_LINES_MSG.as_ptr()),
-                b"--No lines in buffer--"
-            );
+            assert_eq!(NO_LINES_MSG.to_bytes(), b"--No lines in buffer--");
         }
     }
 }

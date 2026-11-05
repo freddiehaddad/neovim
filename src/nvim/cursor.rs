@@ -524,7 +524,7 @@ pub fn pchar_cursor(c: u8) {
 /// Return the cursor line as a CStr (`get_cursor_line_ptr`).
 pub fn get_cursor_line_ptr() -> &'static std::ffi::CStr {
     let lnum = curwin_mut().w_cursor.lnum;
-    crate::memory::cstr_from_ptr((ml_get_buf(crate::globals::curbuf_mut(), lnum)).as_ptr())
+    ml_get_buf(crate::globals::curbuf_mut(), lnum)
 }
 
 /// Return the cursor position suffix as a CStr (`get_cursor_pos_ptr`).

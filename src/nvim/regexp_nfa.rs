@@ -853,12 +853,9 @@ fn nfa_regatom() -> bool {
         if c == b'[' as i32 {
             goto_collection = true;
         } else {
-            let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
-                no_magic(c),
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .cast::<u8>();
+            let p = vim_strchr(CLASSCHARS, no_magic(c))
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             if p.is_null() {
                 if extra == NFA_ADD_NL {
                     semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
@@ -873,7 +870,8 @@ fn nfa_regatom() -> bool {
                 c = getchr();
                 goto_multibyte = true;
             } else {
-                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
+                let idx =
+                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
@@ -916,12 +914,9 @@ fn nfa_regatom() -> bool {
                 || x == magic_fn(b'u' as i32)
                 || x == magic_fn(b'U' as i32)
         ) {
-            let p = vim_strchr(
-                crate::memory::cstr_from_ptr(CLASSCHARS.as_ptr()),
-                no_magic(c),
-            )
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
-            .cast::<u8>();
+            let p = vim_strchr(CLASSCHARS, no_magic(c))
+                .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut())
+                .cast::<u8>();
             if p.is_null() {
                 if extra == NFA_ADD_NL {
                     semsg!(tr(E_ILL_CHAR_CLASS), i64::from(c));
@@ -935,7 +930,8 @@ fn nfa_regatom() -> bool {
                 old_regparse_off = re_st().regparse_off;
                 c = getchr();
             } else {
-                let idx = crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr()) as usize;
+                let idx =
+                    crate::memory::ptr_offset_from(p, CLASSCHARS.as_ptr().cast::<u8>()) as usize;
                 emit_fn(NFA_CLASSCODES[idx]);
                 if extra == NFA_ADD_NL {
                     emit_fn(NFA_NEWL);
