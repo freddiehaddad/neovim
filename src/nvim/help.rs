@@ -49,7 +49,7 @@ pub fn ex_help(eap: &mut Exarg) {
     let mut arg_cstr: &CStr = c"";
     if !eap.arg.is_null() {
         let full_len = eap.arg.len();
-        let slice = unsafe { std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), full_len + 1) };
+        let slice = eap.arg_cstr_buf_mut();
         for i in 0..full_len {
             let b = slice[i];
             if b == b'\n' || b == b'\r' || (b == b'|' && slice[i + 1] != 0 && slice[i + 1] != b'|')

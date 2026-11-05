@@ -1101,10 +1101,10 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     let (pat, end) = if ends_excmd(i32::from(eap.arg.first_byte())) != 0 {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
         (c".*".as_ptr().cast_mut(), ptr::null_mut())
     } else {
-        let pat = eap.arg.wrapping_add(1).as_ptr();
+        let pat: *mut std::ffi::c_char = eap.arg.wrapping_add(1).cast();
         let end_opt = skip_regexp_err(
             crate::memory::cstr_from_ptr(pat),
             i32::from(eap.arg.first_byte()),
@@ -1203,7 +1203,7 @@ pub fn ex_catch(eap: &mut Exarg) {
     }
 
     if !end.is_null() {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(
             crate::memory::cstr_from_ptr(end),
         ));
     }

@@ -1642,12 +1642,12 @@ fn expand_set_opt_listflag(
 }
 
 fn completing_value_for_subopt(args: &mut Optexpand, name_suffix: &std::ffi::CStr) -> bool {
-    let colon = args.xp_mut().xp_pattern.wrapping_sub(1);
+    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
+    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
     let suffix_bytes = name_suffix.to_bytes();
     let len = suffix_bytes.len();
 
-    crate::memory::ptr_offset_from(colon, args.oe_set_arg.as_ptr().cast()) >= (len as isize)
-        && (colon.wrapping_sub(len)).slice(len) == suffix_bytes
+    pat_off > len && set_arg.wrapping_add(pat_off - 1 - len).slice(len) == suffix_bytes
 }
 
 /// The 'ambiwidth' option is changed.
@@ -2246,11 +2246,10 @@ pub fn did_set_diffopt(_args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    let xp_pat = args.xp_mut().xp_pattern;
+    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
+    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
 
-    if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
-        && (xp_pat.wrapping_sub(1).first_byte()) == b':'
-    {
+    if pat_off > 0 && set_arg.byte_at(pat_off - 1) == b':' {
         if completing_value_for_subopt(args, c"algorithm") {
             return expand_set_opt_string(args, &OPT_DIP_ALGORITHM_VALUES, matches);
         }
@@ -4117,11 +4116,10 @@ pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
-    let xp_pat = args.xp_mut().xp_pattern;
+    let set_arg = crate::strings::ByteSlice::from_cstr(args.oe_set_arg);
+    let pat_off = args.xp_mut().xp_pattern.offset_from(set_arg);
 
-    if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
-        && (xp_pat.wrapping_sub(1).first_byte()) == b':'
-    {
+    if pat_off > 0 && set_arg.byte_at(pat_off - 1) == b':' {
         if completing_value_for_subopt(args, c"border") {
             return expand_set_opt_string(args, &OPT_PVP_BORDER_VALUES, matches);
         }

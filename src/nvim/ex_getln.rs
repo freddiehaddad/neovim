@@ -90,7 +90,7 @@ use crate::mapping::{REMAP_NONE, check_abbr, map_to_exists_mode};
 use crate::mark::setpcmark;
 use crate::mbyte::{
     UTF8LEN_TAB_ZERO, mb_cptr2char_adv, mb_get_class, mb_tolower, ptr2cells, utf_char2bytes,
-    utf_char2len, utf_iscomposing_first, utf_ptr2cells, utf_ptr2char, utfc_ptr2len,
+    utf_char2len, utf_iscomposing_first, utf_ptr2cells, utfc_ptr2len,
 };
 use crate::memline::{decl, incl};
 use crate::memory::{Arena, arena_alloc, arena_finish, arena_mem_free};
@@ -508,7 +508,7 @@ pub fn parse_pattern_and_range(
     let mut ea: Exarg = Exarg::new();
     ea.line1 = 1;
     ea.line2 = 1;
-    ea.cmd = crate::strings::CStrCursor::from_ptr(getln_st().ccline.cmdbuff().cast());
+    ea.cmd = getln_st().ccline.cmdbuff();
     ea.addr_type = ADDR_LINES;
 
     let mut dummy_cmdmod: Cmdmod = Cmdmod::new();
@@ -2067,54 +2067,37 @@ fn command_line_erase_chars(s: &mut CommandLineState) -> i32 {
 
     if getln_st().ccline.cmdpos > 0 {
         let j = getln_st().ccline.cmdpos;
-        let mut p = {
-            let _l = getln_st().ccline.cmdbuff();
-            let _p = getln_st().ccline.cmdbuff().wrapping_add(j as usize);
-            if _p > _l {
-                _p.wrapping_sub(1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize)
-            } else {
-                _p
-            }
-        };
+        let mut p_idx = j as usize;
+        crate::mbyte::mb_idx_back(&getln_st().ccline.cmdbuff_vec, &mut p_idx);
 
         if s.c == CTRL_W_CONST {
-            while p > getln_st().ccline.cmdbuff() && ascii_isspace(p.first_byte()) {
-                p = {
-                    let _l = getln_st().ccline.cmdbuff();
-                    let _p = p;
-                    if _p > _l {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                };
+            while p_idx > 0 && ascii_isspace(getln_st().ccline.cmdbuff_vec[p_idx]) {
+                crate::mbyte::mb_idx_back(&getln_st().ccline.cmdbuff_vec, &mut p_idx);
             }
 
-            let cls = mb_get_class(p.as_bytes());
-            while p > getln_st().ccline.cmdbuff() && mb_get_class(p.as_bytes()) == cls {
-                p = {
-                    let _l = getln_st().ccline.cmdbuff();
-                    let _p = p;
-                    if _p > _l {
-                        _p.wrapping_sub(
-                            1 + crate::mbyte::utf_head_off_ptr(_l, _p.wrapping_sub(1)) as usize,
-                        )
-                    } else {
-                        _p
-                    }
-                };
+            let cls = mb_get_class(crate::memory::bytes_until_nul(
+                &getln_st().ccline.cmdbuff_vec[p_idx..],
+            ));
+            while p_idx > 0
+                && mb_get_class(crate::memory::bytes_until_nul(
+                    &getln_st().ccline.cmdbuff_vec[p_idx..],
+                )) == cls
+            {
+                crate::mbyte::mb_idx_back(&getln_st().ccline.cmdbuff_vec, &mut p_idx);
             }
 
-            if mb_get_class(p.as_bytes()) != cls {
-                p = p.wrapping_add(utfc_ptr2len(p) as usize);
+            if mb_get_class(crate::memory::bytes_until_nul(
+                &getln_st().ccline.cmdbuff_vec[p_idx..],
+            )) != cls
+            {
+                p_idx += crate::mbyte::utfc_slice2len(crate::memory::bytes_until_nul(
+                    &getln_st().ccline.cmdbuff_vec[p_idx..],
+                ));
             }
         }
 
         let old_cmdlen = getln_st().ccline.cmdlen as usize;
-        getln_st().ccline.cmdpos =
-            crate::memory::ptr_offset_from(p, getln_st().ccline.cmdbuff()) as i32;
+        getln_st().ccline.cmdpos = p_idx as i32;
         let new_cmdpos = getln_st().ccline.cmdpos as usize;
         getln_st().ccline.cmdlen -= j - getln_st().ccline.cmdpos;
         let new_cmdlen = getln_st().ccline.cmdlen as usize;
@@ -4280,27 +4263,17 @@ fn cmdline_paste(regname: i32, literally: bool, remcr: bool) -> bool {
 
         let mut p = arg;
         if opt_vars().p_is && regname == CTRL_W_CONST {
-            let mut w = getln_st()
-                .ccline
-                .cmdbuff()
-                .wrapping_add(getln_st().ccline.cmdpos as usize);
-            while w > getln_st().ccline.cmdbuff() {
-                let len =
-                    crate::mbyte::utf_head_off_ptr(getln_st().ccline.cmdbuff(), w.wrapping_sub(1))
-                        + 1;
-                if !vim_iswordc(utf_ptr2char(w.wrapping_sub(len as usize))) {
+            let cmd_bytes = &getln_st().ccline.cmdbuff_vec[..getln_st().ccline.cmdpos as usize];
+            let mut w_idx = cmd_bytes.len();
+            while w_idx > 0 {
+                let step = (crate::mbyte::utf_head_off_slice(cmd_bytes, w_idx - 1) + 1) as usize;
+                if !vim_iswordc(crate::mbyte::utf_slice2char(&cmd_bytes[w_idx - step..])) {
                     break;
                 }
-                w = w.wrapping_sub(len as usize);
+                w_idx -= step;
             }
-            let len = crate::memory::ptr_offset_from(
-                getln_st()
-                    .ccline
-                    .cmdbuff()
-                    .wrapping_add(getln_st().ccline.cmdpos as usize),
-                w,
-            ) as usize;
-            let w_slice = w.slice(len);
+            let len = cmd_bytes.len() - w_idx;
+            let w_slice = &cmd_bytes[w_idx..];
             let arg_b = arg.as_bytes();
             let arg_prefix = &arg_b[..len.min(arg_b.len())];
             let matches = if opt_vars().p_ic {

@@ -5222,7 +5222,7 @@ fn vgr_jump_to_match(
         && let Some(target_dir) = target_dir
     {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::CStrCursor::from_ptr(target_dir.as_ptr());
+        ea.arg = crate::strings::ByteSlice::from_cstr(target_dir);
         ea.cmdidx = Cmdidx::CmdLcd;
         ex_cd(&mut ea);
     }
@@ -5524,7 +5524,7 @@ fn restore_start_dir(dirname_start: &CStr) {
     os_dirname(&mut dirname_now);
     if dirname_start.to_bytes() != crate::memory::bytes_until_nul(&dirname_now) {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::CStrCursor::from_ptr(dirname_start.as_ptr());
+        ea.arg = crate::strings::ByteSlice::from_cstr(dirname_start);
         ea.cmdidx = if curwin_mut().w_localdir.is_none() {
             Cmdidx::CmdCd
         } else {

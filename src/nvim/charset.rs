@@ -913,6 +913,17 @@ impl<T> CStrPtrSkip for crate::strings::CStrCursor<T> {
     }
 }
 
+impl CStrPtrSkip for Option<&'static [u8]> {
+    #[inline]
+    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
+        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
+    }
+    #[inline]
+    fn advance_bytes(self, n: usize) -> Self {
+        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
+    }
+}
+
 #[inline]
 pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
     p.advance_bytes(skipwhite_len(crate::memory::cstr_as_bytes(

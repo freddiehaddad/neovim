@@ -128,7 +128,7 @@ use crate::spell::parse_spelllang;
 use crate::state::{MODE_CMDLINE, MODE_INSERT, MODE_LANGMAP};
 use crate::strings::{
     concat_str, gettext, ngettext, strcoll, vim_snprintf, vim_snprintf_add, vim_snprintf_safelen,
-    vim_strchr, vim_strsave_escaped,
+    vim_strsave_escaped,
 };
 use crate::terminal::{terminal_check_size, terminal_running};
 use crate::ui::{ui_cursor_goto, ui_cursor_shape, ui_has};
@@ -721,7 +721,7 @@ pub fn ex_sort(eap: &mut Exarg) {
             } else if crate::memory::cstr_first_byte(p) == b'"' {
                 break;
             } else if let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p)) {
-                eap.nextcmd = crate::strings::CStrCursor::from_ptr(nc.as_ptr());
+                eap.nextcmd = crate::strings::ByteSlice::from_cstr(nc);
                 break;
             } else if !ascii_isalpha(crate::memory::cstr_first_byte(p))
                 && regmatch.regprog.is_null()
@@ -1004,7 +1004,7 @@ pub fn ex_uniq(eap: &mut Exarg) {
             } else if eap.nextcmd.is_null()
                 && let Some(nc) = check_nextcmd(crate::memory::cstr_from_ptr(p))
             {
-                eap.nextcmd = crate::strings::CStrCursor::from_ptr(nc.as_ptr());
+                eap.nextcmd = crate::strings::ByteSlice::from_cstr(nc);
                 break;
             } else if !b0.is_ascii_alphabetic() && regmatch.regprog.is_null() {
                 let Some(s_cstr) = skip_regexp_err(
@@ -3178,8 +3178,8 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
     if eap.arg.first_byte() == b'|' {
         let theline = eap.arg.wrapping_add(1).to_cstring().into_bytes_with_nul();
 
-        unsafe {
-            *eap.arg.as_ptr() = NUL;
+        if let Some(b) = eap.arg_cstr_buf_mut().first_mut() {
+            *b = NUL as u8;
         }
 
         Some(theline)
@@ -3187,20 +3187,18 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         if eap.nextcmd.is_null() {
             return None;
         }
-        let mut p = vim_strchr(eap.nextcmd.as_cstr(), NL)
-            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
-        if p.is_null() {
-            p = eap.nextcmd.as_ptr().wrapping_add(eap.nextcmd.len());
-        }
-        let len = crate::memory::ptr_offset_from(p, eap.nextcmd) as usize;
+        let next_bytes = eap.nextcmd.as_bytes();
+        let len = next_bytes
+            .iter()
+            .position(|&b| b == NL as u8)
+            .unwrap_or(next_bytes.len());
         let mut theline = eap.nextcmd.slice(len).to_vec();
         theline.push(0);
-        if !crate::memory::cstr_is_empty(p) {
-            p = p.wrapping_add(1);
+        if len < next_bytes.len() {
+            eap.nextcmd = eap.nextcmd.wrapping_add(len + 1);
         } else {
-            p = ptr::null_mut();
+            eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
         }
-        eap.nextcmd = crate::strings::CStrCursor::from_ptr(p);
         Some(theline)
     } else {
         let getline_state = g_st().state_global;
@@ -3925,7 +3923,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
 
     cmd = crate::charset::skipwhite_ptr(cmd);
     if !crate::memory::cstr_is_empty(cmd) && crate::memory::cstr_first_byte(cmd) != b'"' {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
             crate::memory::cstr_from_ptr(cmd),
         ));
         if eap.nextcmd.is_null() {

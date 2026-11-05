@@ -1268,5 +1268,5 @@ pub fn ex_match(eap: &mut Exarg) {
         }
     }
     eap.nextcmd =
-        crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(crate::memory::cstr_from_ptr(end)));
+        crate::strings::ByteSlice::from_opt_cstr(find_nextcmd(crate::memory::cstr_from_ptr(end)));
 }

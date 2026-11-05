@@ -340,12 +340,11 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
         if p_rem.is_empty() {
             let Some(eq_idx) = rem.iter().position(|&b| b == b'=') else {
                 xp.xp_context = EXPAND_USER_CMD_FLAGS;
-                xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
+                xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr);
                 return None;
             };
             let attr = &rem[..eq_idx];
-            let pat_ptr =
-                crate::strings::CStrCursor::from_ptr(arg_ptr.wrapping_add(eq_idx + 1).cast());
+            let pat_ptr = crate::strings::ByteSlice::from_ptr(arg_ptr.wrapping_add(eq_idx + 1));
             if attr.len() <= 8 && attr.eq_ignore_ascii_case(&b"complete"[..attr.len()]) {
                 xp.xp_context = EXPAND_USER_COMPLETE;
                 xp.xp_pattern = pat_ptr;
@@ -365,7 +364,7 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
     let p_rem = crate::charset::skiptowhite_slice(rem);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_USER_COMMANDS;
-        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
+        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr);
         return None;
     }
 
@@ -384,7 +383,7 @@ pub fn set_context_in_user_cmdarg<'a>(
     xp: &mut ExpandCtx,
     forceit: bool,
 ) -> Option<&'a CStr> {
-    let mut arg = crate::strings::CStrCursor::from_ptr(arg_in.as_ptr().cast::<u8>());
+    let mut arg = crate::strings::ByteSlice::from_cstr(arg_in);
     if context == EXPAND_NOTHING || (argt & EX_XFILE) != 0 {
         return None;
     }
@@ -413,9 +412,7 @@ pub fn set_context_in_user_cmdarg<'a>(
         let mut rem = full_bytes;
         while !rem.is_empty() {
             if rem[0] == b' ' {
-                arg = crate::strings::CStrCursor::of(
-                    arg_base.wrapping_add(full_bytes.len() - rem.len() + 1),
-                );
+                arg = arg_base.wrapping_add(full_bytes.len() - rem.len() + 1);
             } else if rem[0] == b'\\' && rem.len() >= 2 {
                 rem = &rem[1..];
             }

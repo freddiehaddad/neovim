@@ -1833,7 +1833,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         {
             let mut p = arg.wrapping_add(crate::memory::cstr_len(arg));
             while (p as usize) >= (arg as usize) {
-                xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p);
+                xp.xp_pattern = crate::strings::ByteSlice::from_ptr(p);
                 p = p.wrapping_offset(
                     -((crate::mbyte::utf_head_off_ptr(arg, p.wrapping_sub(1)) + 1) as isize),
                 );
@@ -1856,8 +1856,8 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         xp.xp_pattern = crate::memory::cstr_as_bytes(arg)
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(crate::strings::CStrCursor::NULL, |i| {
-                crate::strings::CStrCursor::from_ptr(arg.wrapping_add(i))
+            .map_or(crate::strings::BYTE_SLICE_NULL, |i| {
+                crate::strings::ByteSlice::from_ptr(arg.wrapping_add(i))
             });
         !xp.xp_pattern.is_null()
     } {
@@ -1925,7 +1925,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else {
             xp.xp_context = EXPAND_EXPRESSION;
         }
-        arg = xp.xp_pattern.as_ptr();
+        arg = xp.xp_pattern.cast();
         if !crate::memory::cstr_is_empty(arg) {
             loop {
                 arg = arg.wrapping_add(1);
@@ -1951,7 +1951,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         }
     }
 
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
+    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
 }
 
 /// Does not use 'cpo' and always uses 'magic'.
@@ -2070,14 +2070,13 @@ pub fn eval0(
             && let Some(nextcmd) = check_nextcmd(p)
             && nextcmd.to_bytes().first() != Some(&b'|')
         {
-            eap.as_deref_mut().unwrap().nextcmd =
-                crate::strings::CStrCursor::from_ptr(nextcmd.as_ptr());
+            eap.as_deref_mut().unwrap().nextcmd = crate::strings::ByteSlice::from_cstr(nextcmd);
         }
         return false;
     }
 
     if let Some(eap) = eap {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(p));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(p));
     }
 
     ret
@@ -6243,7 +6242,7 @@ pub fn ex_echo(eap: &mut Exarg) {
         tv_clear(&mut rettv);
         arg = crate::charset::skipwhite(arg);
     }
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
     msg_ext_set_append(false);
 
     if eap.skip {
@@ -6345,7 +6344,7 @@ pub fn ex_execute(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     }
 
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
 }
 
 /// Skip over the name of an option variable: "&option", "&g:option" or "&l:option".

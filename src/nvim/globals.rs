@@ -1325,6 +1325,11 @@ impl<T> GraphPtr<T> {
     }
 
     #[inline(always)]
+    pub const fn slice_mut<'a>(s: &mut [T]) -> &'a mut [T] {
+        unsafe { &mut *(s as *mut [T]) }
+    }
+
+    #[inline(always)]
     pub const fn wrapping_add(self, count: usize) -> Self {
         Self::new(self.as_ptr().wrapping_add(count))
     }
@@ -1335,6 +1340,7 @@ impl<T> GraphPtr<T> {
     }
 }
 
+pub use crate::strings::ByteSliceExt;
 pub type WinPtr = GraphPtr<WinInfoInfo>;
 pub type BufPtr = GraphPtr<FileBuf>;
 pub type TabpagePtr = GraphPtr<TabPageInfo>;

@@ -353,6 +353,13 @@ impl<T> AsCStrPtr for crate::strings::CStrCursor<T> {
     }
 }
 
+impl AsCStrPtr for Option<&[u8]> {
+    #[inline(always)]
+    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
+        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
+    }
+}
+
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline(always)]
 pub fn cstr_len(s: impl AsCStrPtr) -> usize {
@@ -456,12 +463,30 @@ impl<T> IntoConstPtr for &mut T {
     }
 }
 
+impl IntoConstPtr for &[u8] {
+    type Target = std::ffi::c_char;
+    #[inline(always)]
+    fn into_const_ptr(self) -> *const std::ffi::c_char {
+        self.as_ptr().cast()
+    }
+}
+
+impl IntoConstPtr for Option<&[u8]> {
+    type Target = std::ffi::c_char;
+    #[inline(always)]
+    fn into_const_ptr(self) -> *const std::ffi::c_char {
+        self.map_or(std::ptr::null(), |b| b.as_ptr().cast())
+    }
+}
+
 #[inline(always)]
 pub fn ptr_offset_from<P: IntoConstPtr>(
     p: P,
     origin: impl IntoConstPtr<Target = P::Target>,
 ) -> isize {
-    unsafe { p.into_const_ptr().offset_from(origin.into_const_ptr()) }
+    let elem_size = std::mem::size_of::<P::Target>().max(1) as isize;
+    ((p.into_const_ptr() as usize as isize) - (origin.into_const_ptr() as usize as isize))
+        / elem_size
 }
 
 /// Safe O(1) sub-slicing of a `&CStr`.

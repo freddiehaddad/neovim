@@ -67,6 +67,244 @@ pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 
+pub type ByteSlice = Option<&'static [u8]>;
+pub const BYTE_SLICE_NULL: ByteSlice = None;
+
+pub trait AsByteSlice {
+    fn into_byte_slice(self) -> ByteSlice;
+}
+
+impl AsByteSlice for ByteSlice {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self
+    }
+}
+
+impl AsByteSlice for &[u8] {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self))
+    }
+}
+
+impl<const N: usize> AsByteSlice for &[u8; N] {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self))
+    }
+}
+
+impl<const N: usize> AsByteSlice for &mut [u8; N] {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self))
+    }
+}
+
+impl AsByteSlice for &CStr {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        Some(crate::globals::GraphPtr::slice(self.to_bytes_with_nul()))
+    }
+}
+
+impl AsByteSlice for Option<&CStr> {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.map(|s| crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+    }
+}
+
+impl<T> AsByteSlice for *const T {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        let p = self.cast::<u8>();
+        if p.is_null() {
+            None
+        } else {
+            crate::memory::cstr_from_ptr(p).into_byte_slice()
+        }
+    }
+}
+
+impl<T> AsByteSlice for *mut T {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.cast_const().into_byte_slice()
+    }
+}
+
+impl<T> AsByteSlice for CStrCursor<T> {
+    #[inline(always)]
+    fn into_byte_slice(self) -> ByteSlice {
+        self.as_ptr().cast::<u8>().into_byte_slice()
+    }
+}
+
+pub trait ByteSliceExt: Copy {
+    fn from_cstr(s: &CStr) -> Self;
+    fn from_opt_cstr(s: Option<&CStr>) -> Self;
+    fn from_bytes(b: &[u8]) -> Self;
+    fn from_ptr(p: impl AsByteSlice) -> Self;
+    fn is_null(self) -> bool;
+    fn addr(self) -> usize;
+    fn as_ptr(self) -> *mut c_char;
+    fn cast<U>(self) -> *mut U;
+    fn cast_const(self) -> *const c_char;
+    fn first_byte(self) -> u8;
+    fn byte_at(self, idx: usize) -> u8;
+    fn is_empty(self) -> bool;
+    fn len(self) -> usize;
+    fn as_bytes(self) -> &'static [u8];
+    fn as_cstr(self) -> &'static CStr;
+    fn as_opt_cstr(self) -> Option<&'static CStr>;
+    fn to_cstring(self) -> std::ffi::CString;
+    fn slice(self, len: usize) -> &'static [u8];
+    fn wrapping_add(self, n: usize) -> Self;
+    fn skipwhite(self) -> Self;
+    fn skiptowhite(self) -> Self;
+    fn offset_in(self, base: Self, d: isize) -> Self;
+    fn offset_from(self, base: Self) -> usize;
+    fn span_to(self, end: Self) -> &'static [u8];
+    fn before(self, other: Self) -> bool;
+}
+
+impl ByteSliceExt for ByteSlice {
+    #[inline(always)]
+    fn from_cstr(s: &CStr) -> Self {
+        Some(crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+    }
+
+    #[inline(always)]
+    fn from_opt_cstr(s: Option<&CStr>) -> Self {
+        s.and_then(Self::from_cstr)
+    }
+
+    #[inline(always)]
+    fn from_bytes(b: &[u8]) -> Self {
+        Some(crate::globals::GraphPtr::slice(b))
+    }
+
+    #[inline(always)]
+    fn from_ptr(p: impl AsByteSlice) -> Self {
+        p.into_byte_slice()
+    }
+
+    #[inline(always)]
+    fn is_null(self) -> bool {
+        self.is_none()
+    }
+
+    #[inline(always)]
+    fn addr(self) -> usize {
+        self.map_or(0, |b| b.as_ptr() as usize)
+    }
+
+    #[inline(always)]
+    fn as_ptr(self) -> *mut c_char {
+        self.map_or(ptr::null_mut(), |b| b.as_ptr().cast_mut().cast())
+    }
+
+    #[inline(always)]
+    fn cast<U>(self) -> *mut U {
+        self.as_ptr().cast()
+    }
+
+    #[inline(always)]
+    fn cast_const(self) -> *const c_char {
+        self.map_or(ptr::null(), |b| b.as_ptr().cast())
+    }
+
+    #[inline(always)]
+    fn first_byte(self) -> u8 {
+        self.and_then(|b| b.first().copied()).unwrap_or(0)
+    }
+
+    #[inline(always)]
+    fn byte_at(self, idx: usize) -> u8 {
+        self.and_then(|b| b.get(idx).copied()).unwrap_or(0)
+    }
+
+    #[inline(always)]
+    fn is_empty(self) -> bool {
+        self.first_byte() == 0
+    }
+
+    #[inline(always)]
+    fn len(self) -> usize {
+        self.as_bytes().len()
+    }
+
+    #[inline(always)]
+    fn as_bytes(self) -> &'static [u8] {
+        self.map_or(&[], crate::memory::bytes_until_nul)
+    }
+
+    #[inline(always)]
+    fn as_cstr(self) -> &'static CStr {
+        self.map_or(c"", crate::memory::cstr_until_nul)
+    }
+
+    #[inline(always)]
+    fn as_opt_cstr(self) -> Option<&'static CStr> {
+        self.map(crate::memory::cstr_until_nul)
+    }
+
+    #[inline(always)]
+    fn to_cstring(self) -> std::ffi::CString {
+        self.as_cstr().to_owned()
+    }
+
+    #[inline(always)]
+    fn slice(self, len: usize) -> &'static [u8] {
+        match self {
+            Some(b) => &b[..len.min(b.len())],
+            None => &[],
+        }
+    }
+
+    #[inline(always)]
+    fn wrapping_add(self, n: usize) -> Self {
+        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
+    }
+
+    #[inline(always)]
+    fn skipwhite(self) -> Self {
+        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
+    }
+
+    #[inline(always)]
+    fn skiptowhite(self) -> Self {
+        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
+    }
+
+    #[inline(always)]
+    fn offset_in(self, base: Self, d: isize) -> Self {
+        if d >= 0 {
+            self.wrapping_add(d as usize)
+        } else {
+            let off = self.offset_from(base).saturating_sub((-d) as usize);
+            base.wrapping_add(off)
+        }
+    }
+
+    #[inline(always)]
+    fn offset_from(self, base: Self) -> usize {
+        self.addr().saturating_sub(base.addr())
+    }
+
+    #[inline(always)]
+    fn span_to(self, end: Self) -> &'static [u8] {
+        self.slice(end.offset_from(self))
+    }
+
+    #[inline(always)]
+    fn before(self, other: Self) -> bool {
+        self.addr() < other.addr()
+    }
+}
+
 #[repr(transparent)]
 pub struct CStrCursor<T = u8>(*mut T);
 
@@ -1528,6 +1766,20 @@ impl<'a> IntoFmtVal<'a> for Option<&'a std::ffi::CString> {
     #[inline(always)]
     fn into_fmt_val(self) -> FmtVal<'a> {
         FmtVal::CStr(self.map(std::ffi::CString::as_c_str))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for &'a [u8] {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(Some(crate::memory::cstr_until_nul(self)))
+    }
+}
+
+impl<'a> IntoFmtVal<'a> for Option<&'a [u8]> {
+    #[inline(always)]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::CStr(self.map(crate::memory::cstr_until_nul))
     }
 }
 

@@ -2406,7 +2406,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
     let mut arg = arg_in.as_ptr();
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
-        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
+        xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
         g_st().include_link = 2;
         g_st().include_default = 1;
 
@@ -2423,7 +2423,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         let dlen = p as usize - arg as usize;
         if crate::memory::cstr_slice(arg, dlen) == &b"default"[..dlen.min(7)] {
             arg = crate::charset::skipwhite_ptr(p);
-            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
+            xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg);
             p = crate::charset::skiptowhite_ptr(arg);
         }
         if crate::memory::cstr_is_empty(p) {
@@ -2437,13 +2437,12 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         let len = p as usize - arg as usize;
         let arg_word = crate::memory::cstr_slice(arg, len);
         if arg_word == &b"link"[..len.min(4)] || arg_word == &b"clear"[..len.min(5)] {
-            xp.xp_pattern =
-                crate::strings::CStrCursor::from_ptr(crate::charset::skipwhite_ptr(p).cast());
+            xp.xp_pattern = crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(p));
             p = crate::charset::skiptowhite_ptr(xp.xp_pattern.cast::<std::ffi::c_char>())
                 .cast_const();
             if !crate::memory::cstr_is_empty(p) {
                 xp.xp_pattern =
-                    crate::strings::CStrCursor::from_ptr(crate::charset::skipwhite_ptr(p).cast());
+                    crate::strings::ByteSlice::from_ptr(crate::charset::skipwhite_ptr(p));
                 p = crate::charset::skiptowhite_ptr(xp.xp_pattern.cast::<std::ffi::c_char>())
                     .cast_const();
             }

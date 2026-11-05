@@ -2495,7 +2495,7 @@ fn list_one_function(
         return None;
     }
 
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::CStrCursor::NULL, |s| {
+    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::BYTE_SLICE_NULL, |s| {
         eap.arg
             .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
     });
@@ -2712,7 +2712,7 @@ fn get_function_body(
                             eap.set_cmdline_vec(new_buf);
                             eap.nextcmd = eap.cmdline_ptr().wrapping_add(off);
                         } else {
-                            eap.nextcmd = crate::strings::CStrCursor::from_ptr(nextcmd);
+                            eap.nextcmd = crate::strings::ByteSlice::from_ptr(nextcmd);
                         }
                     }
                     break;
@@ -2923,13 +2923,13 @@ pub fn ex_function(eap: &mut Exarg) {
         if !eap.skip {
             list_functions(None);
         }
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
         return;
     }
 
     if eap.arg.first_byte() == b'/' {
         let p = list_functions_matching_pat(eap);
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(p));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(p));
         return;
     }
 
@@ -3420,7 +3420,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
         semsg!(gettext(E_TRAILING_ARG), p);
         return;
     }
-    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::CStrCursor::NULL, |s| {
+    eap.nextcmd = check_nextcmd(p_cstr).map_or(crate::strings::BYTE_SLICE_NULL, |s| {
         eap.arg
             .wrapping_add((s.as_ptr() as usize) - (eap.arg.as_ptr() as usize))
     });
@@ -3567,7 +3567,7 @@ pub fn ex_return(eap: &mut Exarg) {
         g_st().emsg_skip += 1;
     }
 
-    eap.nextcmd = crate::strings::CStrCursor::NULL;
+    eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
     if (!(arg).is_empty() && (arg).first_byte() != b'|' && (arg).first_byte() != b'\n')
         && eval0((arg).as_cstr(), &mut rettv, Some(&mut *eap), &mut evalarg)
     {
@@ -3585,9 +3585,9 @@ pub fn ex_return(eap: &mut Exarg) {
     }
 
     if returning {
-        eap.nextcmd = crate::strings::CStrCursor::NULL;
+        eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
     } else if eap.nextcmd.is_null() {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((arg).as_cstr()));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd((arg).as_cstr()));
     }
 
     if eap.skip {
@@ -3897,7 +3897,7 @@ pub fn ex_call(eap: &mut Exarg) {
                 semsg!(gettext(E_TRAILING_ARG), arg.as_ptr());
             }
         } else {
-            eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(arg));
+            eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(arg));
         }
     }
 

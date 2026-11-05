@@ -2012,7 +2012,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
     let mut nested = false;
     let mut once = false;
     let group = if arg.to_bytes().first() == Some(&b'|') {
-        eap.nextcmd = crate::strings::CStrCursor::from_ptr(arg.as_ptr().wrapping_add(1));
+        eap.nextcmd = crate::strings::ByteSlice::from_cstr(arg).wrapping_add(1);
         arg = c"";
         AUGROUP_ALL
     } else {
@@ -2026,7 +2026,7 @@ pub fn do_autocmd(eap: &mut Exarg, arg_in: &CStr, forceit: bool) {
     let mut pat = crate::charset::skipwhite(pat_after_ev);
     'run: {
         if pat.to_bytes().first() == Some(&b'|') {
-            eap.nextcmd = crate::strings::CStrCursor::from_ptr(pat.as_ptr().wrapping_add(1));
+            eap.nextcmd = crate::strings::ByteSlice::from_cstr(pat).wrapping_add(1);
             pat = c"";
             cmd = c"";
         } else {
@@ -3427,7 +3427,7 @@ pub fn aucmd_set_expand_context<'a>(
             au_st().autocmd_include_groups = true;
         }
         xp.xp_context = EXPAND_EVENTS;
-        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast());
+        xp.xp_pattern = crate::strings::ByteSlice::from_cstr(arg);
         return None;
     }
 

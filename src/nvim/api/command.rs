@@ -643,7 +643,7 @@ pub fn nvim_cmd(
         }
 
         let cmdname = arena_string(arena, cmd.cmd).data;
-        ea.cmd = cmdname.cast_cursor();
+        ea.cmd = crate::strings::ByteSlice::from_ptr(cmdname.as_ptr());
 
         let mut p_opt = find_ex_command(&mut ea, None);
 
@@ -684,8 +684,6 @@ pub fn nvim_cmd(
             );
             break 'end;
         }
-
-        let mut p: *mut crate::strings::RawCChar;
 
         if !(range_only || !is_cmd_ni(ea.cmdidx)) {
             api_set_error!(
@@ -869,12 +867,12 @@ pub fn nvim_cmd(
         if args.size > 0 {
             ea.args.reserve_exact(args.size);
             ea.arglens.reserve_exact(args.size);
-            p = ea.arg.as_ptr();
+            let mut arg_cur = ea.arg;
             for i in 0..args.size {
-                ea.args.push(crate::strings::CStrCursor::from_ptr(p));
+                ea.args.push(arg_cur);
                 let arglen = args[i].data.string().size;
                 ea.arglens.push(arglen);
-                p = p.wrapping_add(arglen + 1);
+                arg_cur = arg_cur.wrapping_add(arglen + 1);
             }
         }
 
@@ -1111,12 +1109,11 @@ pub fn nvim_cmd(
 
         let ea_arg = ea.arg.as_cstr();
         let p_cstr = replace_makeprg(&mut ea, ea_arg);
-        p = ea
+        let new_arg = ea
             .cmdline_ptr()
-            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr().as_ptr() as usize))
-            .as_ptr();
-        if p != ea.arg.as_ptr() {
-            ea.arg = crate::strings::CStrCursor::from_ptr(p);
+            .wrapping_add((p_cstr.as_ptr() as usize) - (ea.cmdline_ptr().as_ptr() as usize));
+        if new_arg.addr() != ea.arg.addr() {
+            ea.arg = new_arg;
             ea.args.clear();
             ea.arglens.clear();
         }

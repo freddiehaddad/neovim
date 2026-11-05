@@ -2361,14 +2361,14 @@ pub fn f_expandcmd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
     let mut cmdline_buf: Vec<u8> = arg_str.to_bytes_with_nul().to_vec();
-    let cmdstr = crate::strings::CStrCursor::from_ptr(cmdline_buf.as_mut_ptr().cast());
+    let cmdstr = crate::strings::ByteSlice::from_bytes(&cmdline_buf);
 
     let mut eap: Exarg = Exarg::new();
     eap.cmd = cmdstr;
     eap.arg = cmdstr;
     eap.cmdline_buf = crate::globals::GraphPtr::from(&mut cmdline_buf);
     eap.usefilter = false;
-    eap.nextcmd = crate::strings::CStrCursor::NULL;
+    eap.nextcmd = crate::strings::BYTE_SLICE_NULL;
     eap.cmdidx = Cmdidx::CmdUser;
     eap.argt |= EX_NOSPC;
 

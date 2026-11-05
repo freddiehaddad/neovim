@@ -1148,7 +1148,7 @@ pub fn heredoc_get(
         }
     }
     if heredoc_in_string {
-        eap.nextcmd = crate::strings::CStrCursor::from_ptr(line_arg.cast());
+        eap.nextcmd = crate::strings::ByteSlice::from_ptr(line_arg);
     }
     drop(theline_owned);
     drop(text_indent);
@@ -1203,7 +1203,7 @@ pub fn ex_let(eap: &mut Exarg) {
             list_func_vars(&mut first);
             list_vim_vars(&mut first);
         }
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(
             crate::memory::cstr_from_ptr(arg),
         ));
         return;
@@ -1984,7 +1984,7 @@ fn ex_unletlock(
     }
 
     eap.nextcmd =
-        crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(crate::memory::cstr_from_ptr(arg)));
+        crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(crate::memory::cstr_from_ptr(arg)));
 }
 
 /// Unlet a variable indicated by `lp`.

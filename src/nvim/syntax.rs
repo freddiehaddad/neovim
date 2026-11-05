@@ -2588,7 +2588,7 @@ fn match_keyword<'a>(
 
 fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -2615,7 +2615,7 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -2642,7 +2642,7 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -2682,7 +2682,7 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
 
 fn syn_cmd_spell(eap: &mut Exarg, _syncing: i32) {
     let arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -2829,7 +2829,7 @@ fn syn_remove_pattern(block: &mut Synblock, idx: i32) {
 
 fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -2901,7 +2901,7 @@ fn syn_cmd_on(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_reset(eap: &mut Exarg, _syncing: i32) {
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
     if !eap.skip {
         init_highlight(true, true);
     }
@@ -2916,7 +2916,7 @@ fn syn_cmd_off(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
     if !eap.skip {
         syn_st().did_syntax_onoff = true;
         let mut buf = [0u8; 100];
@@ -2929,7 +2929,7 @@ fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
 pub fn syn_maybe_enable() {
     if !syn_st().did_syntax_onoff {
         let mut ea: Exarg = Exarg::new();
-        ea.arg = crate::strings::CStrCursor::from_ptr(c"".as_ptr());
+        ea.arg = crate::strings::ByteSlice::from_cstr(c"");
         ea.skip = false;
         syn_cmd_on(&mut ea, 0);
     }
@@ -2937,7 +2937,7 @@ pub fn syn_maybe_enable() {
 
 fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
     let mut arg = eap.arg;
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -3021,7 +3021,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
             arg = arg_end.skipwhite();
         }
     }
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd((arg).as_cstr()));
 }
 
 fn syn_lines_msg() {
@@ -3635,7 +3635,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     let mut errormsg = None;
     let mut source = false;
 
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -3651,7 +3651,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         if sgl_id == 0 {
             return;
         }
-        eap.arg = crate::strings::CStrCursor::from_ptr(rest.as_ptr());
+        eap.arg = crate::strings::ByteSlice::from_cstr(rest);
     }
 
     eap.argt |= EX_XFILE | EX_NOSPC;
@@ -3669,7 +3669,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
         }
     } else {
         #[cfg(windows)]
-        path_to_slash(eap.arg.as_mut_bytes());
+        path_to_slash(eap.arg_mut_bytes());
     }
 
     if syn_st().running_syn_inc_tag >= MAX_SYN_INC_TAG {
@@ -3817,7 +3817,7 @@ fn syn_cmd_keyword(eap: &mut Exarg, _syncing: i32) {
     }
 
     if let Some(rest_cstr) = rest_opt {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(rest_cstr));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(rest_cstr));
     } else {
         semsg!(gettext(E_INVARG2), arg);
     }
@@ -3853,7 +3853,7 @@ fn syn_cmd_match(eap: &mut Exarg, syncing: i32) {
     rest = get_syn_options(rest, &mut syn_opt_arg, &mut conceal_char, eap.skip);
 
     if let Some(rest_cstr) = rest {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(rest_cstr));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(rest_cstr));
         if ends_excmd(rest_cstr.to_bytes().first().copied().unwrap_or(0)) == 0 || eap.skip {
             rest = None;
         } else {
@@ -4027,7 +4027,7 @@ fn syn_cmd_region(eap: &mut Exarg, syncing: i32) {
     }
 
     if !rest.is_null() {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(rest.as_cstr()));
+        eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(check_nextcmd(rest.as_cstr()));
         if ends_excmd(rest.first_byte()) == 0 || eap.skip {
             rest = crate::strings::CStrCursor::NULL;
         } else {
@@ -4201,7 +4201,7 @@ fn syn_cmd_cluster(eap: &mut Exarg, _syncing: i32) {
     let mut group_name_len = 0usize;
     let mut got_clstr = false;
 
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd((arg).as_cstr()));
+    eap.nextcmd = crate::strings::ByteSlice::from_opt_cstr(find_nextcmd((arg).as_cstr()));
     if eap.skip {
         return;
     }
@@ -4458,14 +4458,11 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 finished = true;
                 break;
             }
-            arg_end = crate::strings::CStrCursor::from_ptr(
-                skip_regexp(
-                    next_arg.wrapping_add(1).as_cstr(),
-                    i32::from((next_arg).first_byte()),
-                    1,
-                )
-                .as_ptr(),
-            );
+            arg_end = crate::strings::ByteSlice::from_cstr(skip_regexp(
+                next_arg.wrapping_add(1).as_cstr(),
+                i32::from((next_arg).first_byte()),
+                1,
+            ));
             if (arg_end).first_byte() != (next_arg).first_byte() {
                 illegal = true;
                 break;
@@ -4512,7 +4509,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
         semsg!(gettext(c"E404: Illegal arguments: %s"), arg_start);
     } else if !finished {
         eap.nextcmd =
-            crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((arg_start).as_cstr()));
+            crate::strings::ByteSlice::from_opt_cstr(check_nextcmd((arg_start).as_cstr()));
         redraw_curbuf_later(UPD_SOME_VALID);
         syn_stack_free_all(win_s(curwin_mut()));
     }
@@ -4981,15 +4978,15 @@ pub fn reset_expand_highlight() {
 
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_HIGHLIGHT;
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast());
+    xp.xp_pattern = crate::strings::ByteSlice::from_cstr(arg);
     g_st().include_none = 1;
 }
 
 pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
-    let arg_ptr = crate::strings::CStrCursor::from_ptr(arg.as_ptr());
+    let arg_ptr = crate::strings::ByteSlice::from_cstr(arg);
     xp.xp_context = EXPAND_SYNTAX;
     syn_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
+    xp.xp_pattern = arg_ptr;
     g_st().include_link = 0;
     g_st().include_default = 0;
 
@@ -5004,9 +5001,7 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     }
 
     let pat_rem = crate::charset::skipwhite_slice(p_rem);
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
-        arg_ptr.wrapping_add(bytes.len() - pat_rem.len()).cast(),
-    );
+    xp.xp_pattern = arg_ptr.wrapping_add(bytes.len() - pat_rem.len());
     if !crate::charset::skiptowhite_slice(pat_rem).is_empty() {
         xp.xp_context = EXPAND_NOTHING;
     } else {

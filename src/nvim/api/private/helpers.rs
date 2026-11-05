@@ -326,6 +326,13 @@ impl<T> IntoDictKey for crate::strings::CStrCursor<T> {
     }
 }
 
+impl IntoDictKey for Option<&[u8]> {
+    #[inline]
+    fn into_dict_key(self) -> NvimString {
+        cstr_as_string(self.map(crate::memory::cstr_until_nul))
+    }
+}
+
 impl IntoDictKey for &'static CStr {
     #[inline]
     fn into_dict_key(self) -> NvimString {

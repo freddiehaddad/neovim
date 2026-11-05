@@ -287,102 +287,18 @@ impl Default for Regmmatch {
     }
 }
 
-pub type RegLineSlice = Option<&'static [u8]>;
-pub const REG_LINE_NULL: RegLineSlice = None;
+pub type RegLineSlice = crate::strings::ByteSlice;
+pub const REG_LINE_NULL: RegLineSlice = crate::strings::BYTE_SLICE_NULL;
+pub use crate::strings::ByteSliceExt as RegLineExt;
 
 #[inline(always)]
 pub fn reg_line_from_cstr(s: &std::ffi::CStr) -> RegLineSlice {
-    Some(crate::globals::GraphPtr::slice(s.to_bytes_with_nul()))
+    RegLineSlice::from_cstr(s)
 }
 
 #[inline(always)]
 pub fn reg_line_from_opt_cstr(s: Option<&std::ffi::CStr>) -> RegLineSlice {
-    s.and_then(reg_line_from_cstr)
-}
-
-pub trait RegLineExt: Copy {
-    fn is_null(self) -> bool;
-    fn addr(self) -> usize;
-    fn first_byte(self) -> u8;
-    fn is_empty(self) -> bool;
-    fn as_bytes(self) -> &'static [u8];
-    fn as_cstr(self) -> &'static std::ffi::CStr;
-    fn slice(self, len: usize) -> &'static [u8];
-    fn wrapping_add(self, n: usize) -> Self;
-    fn offset_in(self, base: Self, d: isize) -> Self;
-    fn offset_from(self, base: Self) -> usize;
-    fn span_to(self, end: Self) -> &'static [u8];
-    fn before(self, other: Self) -> bool;
-}
-
-impl RegLineExt for RegLineSlice {
-    #[inline(always)]
-    fn is_null(self) -> bool {
-        self.is_none()
-    }
-
-    #[inline(always)]
-    fn addr(self) -> usize {
-        self.map_or(0, |b| b.as_ptr() as usize)
-    }
-
-    #[inline(always)]
-    fn first_byte(self) -> u8 {
-        self.and_then(|b| b.first().copied()).unwrap_or(0)
-    }
-
-    #[inline(always)]
-    fn is_empty(self) -> bool {
-        self.first_byte() == 0
-    }
-
-    #[inline(always)]
-    fn as_bytes(self) -> &'static [u8] {
-        self.map_or(&[], crate::memory::bytes_until_nul)
-    }
-
-    #[inline(always)]
-    fn as_cstr(self) -> &'static std::ffi::CStr {
-        self.map_or(c"", crate::memory::cstr_until_nul)
-    }
-
-    #[inline(always)]
-    fn slice(self, len: usize) -> &'static [u8] {
-        match self {
-            Some(b) => &b[..len.min(b.len().saturating_sub(1))],
-            None => &[],
-        }
-    }
-
-    #[inline(always)]
-    fn wrapping_add(self, n: usize) -> Self {
-        self.map(|b| &b[n.min(b.len().saturating_sub(1))..])
-    }
-
-    #[inline(always)]
-    fn offset_in(self, base: Self, d: isize) -> Self {
-        if d >= 0 {
-            self.wrapping_add(d as usize)
-        } else {
-            let off = self.offset_from(base).saturating_sub((-d) as usize);
-            base.wrapping_add(off)
-        }
-    }
-
-    #[inline(always)]
-    fn offset_from(self, base: Self) -> usize {
-        self.addr().saturating_sub(base.addr())
-    }
-
-    #[inline(always)]
-    fn span_to(self, end: Self) -> &'static [u8] {
-        self.slice(end.offset_from(self))
-    }
-
-    #[inline(always)]
-    fn before(self, other: Self) -> bool {
-        self.addr() < other.addr()
-    }
+    RegLineSlice::from_opt_cstr(s)
 }
 
 #[repr(C)]

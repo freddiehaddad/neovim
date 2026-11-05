@@ -600,7 +600,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
         arg_ptr = crate::charset::skipwhite_ptr(p);
     }
     xp.xp_context = EXPAND_RUNTIME;
-    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
+    xp.xp_pattern = crate::strings::ByteSlice::from_ptr(arg_ptr);
 }
 
 fn source_callback_vim_lua(
@@ -2945,11 +2945,11 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
         } else {
             if eap.addr_count > 0 {
                 eap.arg =
-                    crate::strings::CStrCursor::from_opt_cstr(script_item(eap.line2).name_cstr());
+                    crate::strings::ByteSlice::from_opt_cstr(script_item(eap.line2).name_cstr());
             } else {
                 expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
                 to_slash(g_st().name_buff_bytes_mut());
-                eap.arg = crate::strings::CStrCursor::from_ptr(namebuff.cast());
+                eap.arg = crate::strings::ByteSlice::from_bytes(g_st().name_buff_bytes_mut());
             }
             do_exedit(eap, None);
         }

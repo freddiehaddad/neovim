@@ -2300,8 +2300,8 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
 
     let pat = xp.xp_pattern;
     let line_end = xp.xp_line.wrapping_add(xp.xp_col as usize);
-    assert!(line_end >= pat);
-    let patlen = crate::memory::ptr_offset_from(line_end, pat);
+    assert!(line_end.addr() >= pat.addr());
+    let patlen = line_end.offset_from(pat) as isize;
     unsafe { lua_pushlstring(lstate, pat.cast(), patlen as usize) };
 
     if nlua_pcall(lstate, 1, 2) != 0 {
@@ -2330,7 +2330,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
             }
 
             if all_strings {
-                xp.xp_pattern = xp.xp_pattern.wrapping_offset(prefix_len);
+                xp.xp_pattern = xp.xp_pattern.offset_in(xp.xp_line, prefix_len);
                 status = true;
             }
         }
