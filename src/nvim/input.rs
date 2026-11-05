@@ -2668,7 +2668,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                     }
 
                     if (g_st().state_global & MODE_CMDLINE) != 0
-                        && !get_cmdline_info().cmdbuff.is_null()
+                        && !get_cmdline_info().cmdbuff().is_null()
                         && g_st().cmdline_star == 0
                     {
                         let last_idx = (g_st().typebuf.tb_off + g_st().typebuf.tb_len - 1) as usize;
@@ -2716,7 +2716,7 @@ fn vgetorpeek(advance: bool) -> i32 {
                         edit_unputchar();
                     }
                     if (g_st().state_global & MODE_CMDLINE) != 0
-                        && !get_cmdline_info().cmdbuff.is_null()
+                        && !get_cmdline_info().cmdbuff().is_null()
                     {
                         unputcmdline();
                     } else {

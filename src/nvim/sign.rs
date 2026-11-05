@@ -1285,7 +1285,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     let arg = arg_cstr.as_ptr().cast_mut();
     xp.xp_context = EXPAND_SIGN;
     sign_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = arg.cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
 
     let end_subcmd = arg.wrapping_add(crate::charset::skiptowhite_len(
         crate::memory::cstr_as_bytes(arg.cast()),
@@ -1320,7 +1320,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
     p = vim_strchr(crate::memory::cstr_from_ptr((last).cast()), b'=' as i32)
         .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
     if p.is_null() {
-        xp.xp_pattern = last.cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(last.cast());
         match cmd_idx {
             SIGNCMD_DEFINE => sign_st().expand_what = EXP_DEFINE,
             SIGNCMD_PLACE => {
@@ -1335,7 +1335,7 @@ pub fn set_context_in_sign_cmd(xp: &mut ExpandCtx, arg_cstr: &CStr) {
             _ => xp.xp_context = EXPAND_NOTHING,
         }
     } else {
-        xp.xp_pattern = p.wrapping_add(1).cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.wrapping_add(1).cast());
         let last_bytes = crate::memory::cstr_as_bytes(last);
         match cmd_idx {
             SIGNCMD_DEFINE => {

@@ -1445,7 +1445,7 @@ pub fn set_context_in_map_cmd(
             }
             break;
         }
-        xp.xp_pattern = arg.cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
     }
 
     None

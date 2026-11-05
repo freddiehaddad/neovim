@@ -637,7 +637,7 @@ pub fn set_context_in_runtime_cmd(xp: &mut ExpandCtx, mut arg: &CStr) {
         )));
     }
     xp.xp_context = EXPAND_RUNTIME;
-    xp.xp_pattern = arg_ptr.cast_mut().cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
 }
 
 fn source_callback_vim_lua(

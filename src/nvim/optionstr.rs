@@ -2074,7 +2074,7 @@ pub fn did_set_diffopt(_args: &mut Optset) -> Option<&CStr> {
 pub fn expand_set_diffopt(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
     let xp_pat = args.xp_mut().xp_pattern;
 
-    if (xp_pat as usize) > (args.oe_set_arg.as_ptr() as usize)
+    if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
         && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
     {
         if completing_value_for_subopt(args, c"algorithm") {
@@ -3992,7 +3992,7 @@ pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
 pub fn expand_set_popupoption(args: &mut Optexpand, matches: &mut Vec<std::ffi::CString>) -> bool {
     let xp_pat = args.xp_mut().xp_pattern;
 
-    if (xp_pat as usize) > (args.oe_set_arg.as_ptr() as usize)
+    if (xp_pat.as_ptr() as usize) > (args.oe_set_arg.as_ptr() as usize)
         && crate::memory::cstr_first_byte(xp_pat.wrapping_sub(1).cast()) == b':'
     {
         if completing_value_for_subopt(args, c"border") {

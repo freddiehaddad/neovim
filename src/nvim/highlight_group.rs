@@ -2447,7 +2447,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
     let mut arg = arg_in.as_ptr();
     {
         xp.xp_context = EXPAND_HIGHLIGHT;
-        xp.xp_pattern = arg.cast_mut().cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
         g_st().include_link = 2;
         g_st().include_default = 1;
 
@@ -2468,7 +2468,7 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
             arg = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
-            xp.xp_pattern = arg.cast_mut().cast();
+            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
             p = arg.wrapping_add(crate::charset::skiptowhite_len(
                 crate::memory::cstr_as_bytes(arg.cast()),
             ));
@@ -2484,12 +2484,12 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
         let len = p as usize - arg as usize;
         let arg_word = crate::memory::cstr_slice(arg, len);
         if arg_word == &b"link"[..len.min(4)] || arg_word == &b"clear"[..len.min(5)] {
-            xp.xp_pattern = p
-                .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+            xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
+                p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                     p.cast(),
                 )))
-                .cast_mut()
-                .cast();
+                .cast(),
+            );
             p = {
                 let _sw_p = xp.xp_pattern.cast::<std::ffi::c_char>();
                 _sw_p.wrapping_add(crate::charset::skiptowhite_len(
@@ -2498,12 +2498,12 @@ pub fn set_context_in_highlight_cmd(xp: &mut ExpandCtx, arg_in: &CStr) {
             }
             .cast_const();
             if !crate::memory::cstr_is_empty(p) {
-                xp.xp_pattern = p
-                    .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
+                    p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                         p.cast(),
                     )))
-                    .cast_mut()
-                    .cast();
+                    .cast(),
+                );
                 p = {
                     let _sw_p = xp.xp_pattern.cast::<std::ffi::c_char>();
                     _sw_p.wrapping_add(crate::charset::skiptowhite_len(

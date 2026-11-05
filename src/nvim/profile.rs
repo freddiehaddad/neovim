@@ -440,7 +440,7 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
     let arg: *const std::ffi::c_char = arg_slice.as_ptr().cast();
     xp.xp_context = EXPAND_PROFILE;
     prof_st().pexpand_what = PEXP_SUBCMD;
-    xp.xp_pattern = arg_slice.as_ptr().cast_mut();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_slice.as_ptr());
 
     let end_subcmd = arg.wrapping_add(crate::charset::skiptowhite_len(
         crate::memory::cstr_as_bytes(arg.cast()),
@@ -453,20 +453,22 @@ pub fn set_context_in_profile_cmd(xp: &mut ExpandCtx, arg_slice: &[u8]) {
     let sub_bytes = &arg_slice[..len.min(arg_slice.len())];
     if sub_bytes == b"start" || sub_bytes == b"file" {
         xp.xp_context = EXPAND_FILES;
-        xp.xp_pattern = end_subcmd
-            .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                end_subcmd.cast(),
-            )))
-            .cast_mut()
-            .cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
+            end_subcmd
+                .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    end_subcmd.cast(),
+                )))
+                .cast(),
+        );
     } else if sub_bytes == b"func" {
         xp.xp_context = EXPAND_USER_FUNC;
-        xp.xp_pattern = end_subcmd
-            .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
-                end_subcmd.cast(),
-            )))
-            .cast_mut()
-            .cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
+            end_subcmd
+                .wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
+                    end_subcmd.cast(),
+                )))
+                .cast(),
+        );
     } else {
         xp.xp_context = EXPAND_NOTHING;
     }

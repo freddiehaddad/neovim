@@ -1111,7 +1111,8 @@ pub fn set_context_in_menu_cmd(xp: &mut ExpandCtx, cmd: &CStr, arg_in: &CStr, fo
         } else {
             EXPAND_MENUS
         };
-        xp.xp_pattern = arg_ptr.wrapping_add(after_dot_idx).cast();
+        xp.xp_pattern =
+            crate::strings::CStrCursor::from_ptr(arg_ptr.wrapping_add(after_dot_idx).cast());
         menu_st().expand_menu = menu_list;
     } else {
         xp.xp_context = EXPAND_NOTHING;

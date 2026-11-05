@@ -67,6 +67,105 @@ pub type RawCChar = c_char;
 pub type RawCCharPtr = *const c_char;
 pub type RawCCharPtrMut = *mut c_char;
 
+#[repr(transparent)]
+pub struct CStrCursor<T = u8>(Option<std::ptr::NonNull<T>>);
+
+impl<T> Clone for CStrCursor<T> {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for CStrCursor<T> {}
+
+impl<T> PartialEq for CStrCursor<T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Eq for CStrCursor<T> {}
+
+impl<T> CStrCursor<T> {
+    pub const NULL: Self = Self(None);
+
+    #[inline]
+    pub fn from_ptr(p: *const T) -> Self {
+        Self(std::ptr::NonNull::new(p.cast_mut()))
+    }
+
+    #[inline]
+    pub const fn is_null(self) -> bool {
+        self.0.is_none()
+    }
+
+    #[inline]
+    pub fn as_ptr(self) -> *mut T {
+        self.0.map_or(ptr::null_mut(), std::ptr::NonNull::as_ptr)
+    }
+
+    #[inline]
+    pub fn cast<U>(self) -> *mut U {
+        self.as_ptr().cast()
+    }
+
+    #[inline]
+    pub fn cast_const(self) -> *const T {
+        self.as_ptr().cast_const()
+    }
+
+    #[inline]
+    pub fn wrapping_add(self, n: usize) -> Self {
+        Self::from_ptr(self.as_ptr().wrapping_add(n))
+    }
+
+    #[inline]
+    pub fn wrapping_sub(self, n: usize) -> Self {
+        Self::from_ptr(self.as_ptr().wrapping_sub(n))
+    }
+
+    #[inline]
+    pub fn wrapping_offset(self, d: isize) -> Self {
+        Self::from_ptr(self.as_ptr().wrapping_offset(d))
+    }
+
+    #[inline]
+    pub fn first_byte(self) -> u8 {
+        crate::memory::cstr_first_byte(self.as_ptr().cast())
+    }
+}
+
+impl<T> Default for CStrCursor<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::NULL
+    }
+}
+
+impl<T> PartialOrd for CStrCursor<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<T> Ord for CStrCursor<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (self.as_ptr() as usize).cmp(&(other.as_ptr() as usize))
+    }
+}
+
+impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
+    type Target = T;
+    #[inline]
+    fn into_const_ptr(self) -> *const T {
+        self.as_ptr().cast_const()
+    }
+}
+
 #[inline]
 pub fn tr(s: &CStr) -> &'static CStr {
     gettext(s)
@@ -1063,6 +1162,13 @@ impl<'a> FmtVal<'a> {
 
 pub trait IntoFmtVal<'a> {
     fn into_fmt_val(self) -> FmtVal<'a>;
+}
+
+impl<'a, T> IntoFmtVal<'a> for CStrCursor<T> {
+    #[inline]
+    fn into_fmt_val(self) -> FmtVal<'a> {
+        FmtVal::Addr(self.as_ptr() as usize)
+    }
 }
 
 impl<'a> IntoFmtVal<'a> for &'a crate::option_vars::OptString {

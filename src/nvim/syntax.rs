@@ -5140,7 +5140,7 @@ pub fn reset_expand_highlight() {
 
 pub fn set_context_in_echohl_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     xp.xp_context = EXPAND_HIGHLIGHT;
-    xp.xp_pattern = arg.as_ptr().cast_mut().cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast());
     g_st().include_none = 1;
 }
 
@@ -5148,7 +5148,7 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     let arg_ptr = arg.as_ptr();
     xp.xp_context = EXPAND_SYNTAX;
     syn_st().expand_what = EXP_SUBCMD;
-    xp.xp_pattern = arg_ptr.cast_mut().cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
     g_st().include_link = 0;
     g_st().include_default = 0;
 
@@ -5163,10 +5163,9 @@ pub fn set_context_in_syntax_cmd(xp: &mut ExpandCtx, arg: &CStr) {
     }
 
     let pat_rem = crate::charset::skipwhite_slice(p_rem);
-    xp.xp_pattern = arg_ptr
-        .wrapping_add(bytes.len() - pat_rem.len())
-        .cast_mut()
-        .cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(
+        arg_ptr.wrapping_add(bytes.len() - pat_rem.len()).cast(),
+    );
     if !crate::charset::skiptowhite_slice(pat_rem).is_empty() {
         xp.xp_context = EXPAND_NOTHING;
     } else {

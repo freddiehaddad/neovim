@@ -290,7 +290,8 @@ pub fn xstrnlen(s: RawCCharPtr, n: usize) -> usize {
 
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
-pub fn cstr_len(s: *const std::ffi::c_char) -> usize {
+pub fn cstr_len(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> usize {
+    let s = s.into_const_ptr();
     if s.is_null() {
         0
     } else {
@@ -300,19 +301,22 @@ pub fn cstr_len(s: *const std::ffi::c_char) -> usize {
 
 /// Return true if `s` is null or starts with a NUL byte (`*s == NUL`).
 #[inline]
-pub fn cstr_is_empty(s: *const std::ffi::c_char) -> bool {
+pub fn cstr_is_empty(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> bool {
+    let s = s.into_const_ptr();
     s.is_null() || unsafe { *s == 0 }
 }
 
 /// Return the first byte of `s` (or `0` if `s` is null).
 #[inline]
-pub fn cstr_first_byte(s: *const std::ffi::c_char) -> u8 {
+pub fn cstr_first_byte(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> u8 {
+    let s = s.into_const_ptr();
     if s.is_null() { 0 } else { unsafe { *s as u8 } }
 }
 
 /// View `len` bytes starting at `s` as a byte slice (`&[u8]`).
 #[inline]
-pub fn cstr_slice<'a>(s: *const std::ffi::c_char, len: usize) -> &'a [u8] {
+pub fn cstr_slice<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>, len: usize) -> &'a [u8] {
+    let s = s.into_const_ptr();
     if s.is_null() {
         c"".to_bytes()
     } else {
@@ -378,7 +382,8 @@ pub fn ptr_offset_from<P: IntoConstPtr>(
 
 /// View a NUL-terminated C string as a `&CStr`, returning `c""` if null.
 #[inline]
-pub fn cstr_from_ptr<'a>(s: *const std::ffi::c_char) -> &'a CStr {
+pub fn cstr_from_ptr<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a CStr {
+    let s = s.into_const_ptr();
     if s.is_null() {
         c""
     } else {
@@ -409,7 +414,8 @@ pub fn cstring_until_nul(bytes: &[u8]) -> CString {
 
 /// View a NUL-terminated C string as an `Option<&CStr>`, returning `None` if null.
 #[inline]
-pub fn cstr_as_opt_cstr<'a>(s: *const std::ffi::c_char) -> Option<&'a CStr> {
+pub fn cstr_as_opt_cstr<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> Option<&'a CStr> {
+    let s = s.into_const_ptr();
     if s.is_null() {
         None
     } else {
@@ -419,7 +425,8 @@ pub fn cstr_as_opt_cstr<'a>(s: *const std::ffi::c_char) -> Option<&'a CStr> {
 
 /// View a NUL-terminated C string as a byte slice, returning `b""` if null.
 #[inline]
-pub fn cstr_as_bytes<'a>(s: *const std::ffi::c_char) -> &'a [u8] {
+pub fn cstr_as_bytes<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
+    let s = s.into_const_ptr();
     if s.is_null() {
         c"".to_bytes()
     } else {
@@ -429,7 +436,11 @@ pub fn cstr_as_bytes<'a>(s: *const std::ffi::c_char) -> &'a [u8] {
 
 /// View up to `max_size` bytes of a NUL-terminated C string as a byte slice (without full `strlen`).
 #[inline]
-pub fn cstr_prefix_bytes<'a>(p: *const std::ffi::c_char, max_size: usize) -> &'a [u8] {
+pub fn cstr_prefix_bytes<'a>(
+    p: impl IntoConstPtr<Target = std::ffi::c_char>,
+    max_size: usize,
+) -> &'a [u8] {
+    let p = p.into_const_ptr();
     if p.is_null() || max_size == 0 {
         return &[];
     }
@@ -443,7 +454,8 @@ pub fn cstr_prefix_bytes<'a>(p: *const std::ffi::c_char, max_size: usize) -> &'a
 
 /// View up to 1 UTF-8 codepoint (at most 6 bytes before NUL) starting at `p`.
 #[inline]
-pub fn cstr_char_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
+pub fn cstr_char_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
+    let p = p.into_const_ptr();
     if p.is_null() {
         return &[];
     }
@@ -464,7 +476,8 @@ pub fn cstr_char_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
 
 /// View up to 1 UTF-8 grapheme cluster (at most 64 bytes before NUL) starting at `p`.
 #[inline]
-pub fn cstr_cluster_bytes<'a>(p: *const std::ffi::c_char) -> &'a [u8] {
+pub fn cstr_cluster_bytes<'a>(p: impl IntoConstPtr<Target = std::ffi::c_char>) -> &'a [u8] {
+    let p = p.into_const_ptr();
     if p.is_null() {
         return &[];
     }
@@ -535,7 +548,8 @@ pub fn cstr_buf_as_mut_bytes<'a>(s: *mut std::ffi::c_char, extra: usize) -> &'a 
 
 /// View a nullable NUL-terminated C string as `Option<&[u8]>`.
 #[inline]
-pub fn cstr_as_opt_bytes<'a>(s: *const std::ffi::c_char) -> Option<&'a [u8]> {
+pub fn cstr_as_opt_bytes<'a>(s: impl IntoConstPtr<Target = std::ffi::c_char>) -> Option<&'a [u8]> {
+    let s = s.into_const_ptr();
     (!s.is_null()).then(|| unsafe { CStr::from_ptr(s).to_bytes() })
 }
 
@@ -566,7 +580,8 @@ pub fn append_bytes_to_c_buf(dst: &mut [u8], src: &[u8]) -> usize {
 }
 
 /// Copy a NUL-terminated C string (or NULL) into an owned `CString`.
-pub fn cstr_to_cstring(ptr: *const std::ffi::c_char) -> CString {
+pub fn cstr_to_cstring(ptr: impl IntoConstPtr<Target = std::ffi::c_char>) -> CString {
+    let ptr = ptr.into_const_ptr();
     if ptr.is_null() {
         CString::default()
     } else {

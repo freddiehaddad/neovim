@@ -3078,7 +3078,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
             let skip_buffer = if flag == b'U' as i32 {
                 unsafe { (*buf).b_p_bl }
             } else {
-                !unsafe { (*buf).b_p_bl || (*buf).b_ml.ml_mfp.is_none() != (flag == b'u' as i32) }
+                unsafe { !(*buf).b_p_bl || (*buf).b_ml.ml_mfp.is_none() != (flag == b'u' as i32) }
             };
 
             if !skip_buffer && unsafe { !(*buf).b_scanned } {

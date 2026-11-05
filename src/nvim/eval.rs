@@ -1932,7 +1932,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         {
             let mut p = arg.wrapping_add(crate::memory::cstr_len(arg.cast()));
             while (p as usize) >= (arg as usize) {
-                xp.xp_pattern = p;
+                xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p);
                 p = p.wrapping_offset(
                     -(({
                         let (_b, _i) =
@@ -1959,7 +1959,9 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         xp.xp_pattern = crate::memory::cstr_as_bytes(arg.cast())
             .iter()
             .position(|b| b"\"'+-*/%.=!?~|&$([<>,#".contains(b))
-            .map_or(ptr::null_mut(), |i| arg.wrapping_add(i));
+            .map_or(crate::strings::CStrCursor::NULL, |i| {
+                crate::strings::CStrCursor::from_ptr(arg.wrapping_add(i))
+            });
         !xp.xp_pattern.is_null()
     } {
         let pat_bytes = crate::memory::cstr_as_bytes(xp.xp_pattern.cast());
@@ -2030,7 +2032,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else {
             xp.xp_context = EXPAND_EXPRESSION;
         }
-        arg = xp.xp_pattern;
+        arg = xp.xp_pattern.as_ptr();
         if !crate::memory::cstr_is_empty(arg.cast()) {
             loop {
                 arg = arg.wrapping_add(1);
@@ -2071,7 +2073,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         }
     }
 
-    xp.xp_pattern = arg;
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
 }
 
 /// Does not use 'cpo' and always uses 'magic'.

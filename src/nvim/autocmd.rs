@@ -3483,7 +3483,7 @@ pub fn aucmd_set_expand_context<'a>(
             au_st().autocmd_include_groups = true;
         }
         xp.xp_context = EXPAND_EVENTS;
-        xp.xp_pattern = arg.as_ptr().cast_mut().cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.as_ptr().cast());
         return None;
     }
 

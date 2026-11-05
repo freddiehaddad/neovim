@@ -8903,10 +8903,10 @@ pub fn expand_argopt(
     rmp: &mut Regmatch,
     matches: &mut Vec<std::ffi::CString>,
 ) -> bool {
-    if xp.xp_pattern > xp.xp_line && unsafe { *xp.xp_pattern.wrapping_sub(1) } == b'=' {
+    if xp.xp_pattern > xp.xp_line && xp.xp_pattern.wrapping_sub(1).first_byte() == b'=' {
         let mut cb: CompleteListItemGetter = None;
         let name_end = xp.xp_pattern.wrapping_sub(1);
-        let diff = (name_end as usize) - (xp.xp_line as usize);
+        let diff = (name_end.as_ptr() as usize) - (xp.xp_line.as_ptr() as usize);
         let name_slice = crate::memory::cstr_slice(xp.xp_line.cast(), diff);
         if name_slice.ends_with(b"ff") || name_slice.ends_with(b"fileformat") {
             cb = Some(get_fileformat_name);

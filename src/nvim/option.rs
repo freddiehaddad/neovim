@@ -7408,13 +7408,13 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     xp.xp_context = EXPAND_SETTINGS;
     let arg_bytes = arg_cstr.to_bytes();
     if arg_bytes.is_empty() {
-        xp.xp_pattern = arg.cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.cast());
         return;
     }
     let argend = arg.wrapping_add(arg_bytes.len());
     let mut p_idx = arg_bytes.len() - 1;
     if arg_bytes[p_idx] == b' ' && (p_idx == 0 || arg_bytes[p_idx - 1] != b'\\') {
-        xp.xp_pattern = arg.wrapping_add(p_idx + 1).cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg.wrapping_add(p_idx + 1).cast());
         return;
     }
     while p_idx > 0 {
@@ -7440,7 +7440,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         p_idx += 3;
     }
     let mut p = arg.wrapping_add(p_idx);
-    xp.xp_pattern = p.cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.cast());
     let p_bytes = &arg_bytes[p_idx..];
     arg = p;
 
@@ -7519,7 +7519,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         opt_st().expand_option_idx = opt_idx;
     }
 
-    xp.xp_pattern = p.wrapping_add(1).cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.wrapping_add(1).cast());
     opt_st().expand_option_start_col =
         crate::memory::ptr_offset_from(p.wrapping_add(1), xp.xp_line.cast()) as i32;
 
@@ -7593,13 +7593,13 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
         || (flags & K_OPT_FLAG_COLON) != 0
     {
         p = argend.wrapping_offset(-1);
-        while p.cast::<u8>() > xp.xp_pattern {
+        while p.cast::<u8>() > xp.xp_pattern.as_ptr() {
             if crate::memory::cstr_first_byte(p) == b' '
                 || crate::memory::cstr_first_byte(p) == b','
                 || (crate::memory::cstr_first_byte(p) == b':' && (flags & K_OPT_FLAG_COLON) != 0)
             {
                 let mut s = p;
-                while s.cast::<u8>() > xp.xp_pattern
+                while s.cast::<u8>() > xp.xp_pattern.as_ptr()
                     && crate::memory::cstr_first_byte(s.wrapping_offset(-1)) == b'\\'
                 {
                     s = s.wrapping_offset(-1);
@@ -7615,7 +7615,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
                     || (crate::memory::cstr_first_byte(p) == b':'
                         && (flags & K_OPT_FLAG_COLON) != 0)
                 {
-                    xp.xp_pattern = p.wrapping_add(1).cast();
+                    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(p.wrapping_add(1).cast());
                     break;
                 }
             }
@@ -7624,7 +7624,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     if (flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        xp.xp_pattern = argend.cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(argend.cast());
     }
 
     if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {

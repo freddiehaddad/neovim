@@ -340,11 +340,12 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
         if p_rem.is_empty() {
             let Some(eq_idx) = rem.iter().position(|&b| b == b'=') else {
                 xp.xp_context = EXPAND_USER_CMD_FLAGS;
-                xp.xp_pattern = arg_ptr.cast_mut().cast();
+                xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
                 return None;
             };
             let attr = &rem[..eq_idx];
-            let pat_ptr = arg_ptr.wrapping_add(eq_idx + 1).cast_mut().cast();
+            let pat_ptr =
+                crate::strings::CStrCursor::from_ptr(arg_ptr.wrapping_add(eq_idx + 1).cast());
             if attr.len() <= 8 && attr.eq_ignore_ascii_case(&b"complete"[..attr.len()]) {
                 xp.xp_context = EXPAND_USER_COMPLETE;
                 xp.xp_pattern = pat_ptr;
@@ -364,7 +365,7 @@ pub fn set_context_in_user_cmd<'a>(xp: &mut ExpandCtx, arg_in: &'a CStr) -> Opti
     let p_rem = crate::charset::skiptowhite_slice(rem);
     if p_rem.is_empty() {
         xp.xp_context = EXPAND_USER_COMMANDS;
-        xp.xp_pattern = arg_ptr.cast_mut().cast();
+        xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg_ptr.cast());
         return None;
     }
 
@@ -418,7 +419,7 @@ pub fn set_context_in_user_cmdarg<'a>(
             rem = &rem[clen..];
         }
     }
-    xp.xp_pattern = arg.cast_mut().cast();
+    xp.xp_pattern = crate::strings::CStrCursor::from_ptr(arg);
     xp.xp_context = context;
 
     None
