@@ -3829,7 +3829,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
         fio_st().already_warned = false;
         let mut buf_opt = g_st().firstbuf.opt_mut();
         while let Some(buf) = buf_opt {
-            let next_ptr = buf.b_next.as_ptr();
+            let next_ptr = buf.b_next;
             if buf.b_nwindows > 0 {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf));
@@ -3840,7 +3840,7 @@ pub fn check_timestamps(focus: i32) -> i32 {
                     continue;
                 }
             }
-            buf_opt = unsafe { next_ptr.as_mut() };
+            buf_opt = next_ptr.opt_mut();
         }
         g_st().no_wait_return -= 1;
         g_st().need_check_timestamps = false;

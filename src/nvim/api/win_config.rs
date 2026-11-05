@@ -352,7 +352,7 @@ pub fn nvim_open_win(
 
     'cleanup: {
         let mut wp = crate::globals::GraphPtr::<WinInfoInfo>::NULL;
-        let mut tp = g_st().curtab.as_ptr();
+        let mut tp = g_st().curtab;
         assert!(!(curwin_ptr()).is_null());
         let mut parent = if config.win == 0 {
             curwin_ptr().as_ptr()
@@ -371,7 +371,7 @@ pub fn nvim_open_win(
                 );
                 break 'cleanup;
             }
-            tp = win_find_tabpage(unsafe { &*parent }).map_or(ptr::null_mut(), ptr::from_mut);
+            tp = crate::globals::GraphPtr::from(win_find_tabpage(unsafe { &*parent }));
         }
         if is_split {
             if !check_split_disallowed_err(
@@ -420,7 +420,7 @@ pub fn nvim_open_win(
                     let result = ctx_switch(
                         &mut switchwin,
                         unsafe { parent.as_mut() },
-                        unsafe { tp.as_mut() },
+                        tp.opt_mut(),
                         None,
                         K_CTX_NO_EVENTS | K_CTX_NO_DISPLAY,
                     );
@@ -477,19 +477,19 @@ pub fn nvim_open_win(
             let result = ctx_switch(
                 &mut switchwin,
                 wp.opt_mut(),
-                unsafe { tp.as_mut() },
+                tp.opt_mut(),
                 None,
                 K_CTX_NO_DISPLAY,
             );
             assert!(result);
             if apply_autocmds_win(EVENT_WINNEW, None, None, false, curbuf_opt_mut(), wp.opt()) {
-                tp = win_find_tabpage(wp.borrow()).map_or(ptr::null_mut(), ptr::from_mut);
+                tp = crate::globals::GraphPtr::from(win_find_tabpage(wp.borrow()));
             }
             ctx_restore(&mut switchwin);
         }
         if !tp.is_null() && enter {
-            goto_tabpage_win(unsafe { &mut *tp }, wp.borrow_mut());
-            tp = win_find_tabpage(wp.borrow()).map_or(ptr::null_mut(), ptr::from_mut);
+            goto_tabpage_win(tp.borrow_mut(), wp.borrow_mut());
+            tp = crate::globals::GraphPtr::from(win_find_tabpage(wp.borrow()));
         }
         if !tp.is_null() && bufref_valid(Some(&bufref)) && (&raw mut *b) != wp.w_buffer.as_ptr() {
             let au_no_enter_leave = curwin_ptr() != wp && !fconfig.noautocmd;
@@ -499,7 +499,7 @@ pub fn nvim_open_win(
             }
             win_set_buf(wp.borrow_mut(), b, err);
             if !fconfig.noautocmd {
-                tp = win_find_tabpage(wp.borrow()).map_or(ptr::null_mut(), ptr::from_mut);
+                tp = crate::globals::GraphPtr::from(win_find_tabpage(wp.borrow()));
             }
             if au_no_enter_leave {
                 g_st().autocmd_no_enter -= 1;

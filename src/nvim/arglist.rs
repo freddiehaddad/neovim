@@ -832,7 +832,7 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
 
     g_st().tabpage_move_disallowed += 1;
     loop {
-        let mut tpnext = curtab_mut().tp_next.as_ptr();
+        let mut tpnext = curtab_mut().tp_next;
         let mut wp = if lastwin_mut().w_floating {
             g_st().lastwin.as_ptr()
         } else {
@@ -954,10 +954,10 @@ fn arg_all_close_unused_windows(aall: &mut ArgAllState) {
             break;
         }
 
-        if !valid_tabpage(unsafe { tpnext.as_ref() }) {
-            tpnext = g_st().first_tabpage.as_ptr();
+        if !valid_tabpage(tpnext.opt()) {
+            tpnext = crate::globals::GraphPtr::of(g_st().first_tabpage);
         }
-        goto_tabpage_tp(unsafe { tpnext.as_mut() }, true, true);
+        goto_tabpage_tp(tpnext.opt_mut(), true, true);
     }
     g_st().tabpage_move_disallowed -= 1;
 }
@@ -1080,7 +1080,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
 
     arglist_st().arglist_locked = true;
 
-    let new_lu_tp = g_st().curtab.as_ptr();
+    let new_lu_tp = g_st().curtab;
 
     reset_visual_and_resel();
 
@@ -1094,7 +1094,7 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     g_st().autocmd_no_enter += 1;
     g_st().autocmd_no_leave += 1;
     let last_curwin = curwin_ptr();
-    let last_curtab = g_st().curtab.as_ptr();
+    let last_curtab = g_st().curtab;
     win_enter(lastwin_nofloating(None), false);
 
     arg_all_open_windows(&mut aall, count);
@@ -1105,8 +1105,8 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
     g_st().autocmd_no_enter -= 1;
 
     if aall.new_curtab != last_curtab {
-        if valid_tabpage(unsafe { last_curtab.as_ref() }) {
-            goto_tabpage_tp(unsafe { last_curtab.as_mut() }, true, true);
+        if valid_tabpage(last_curtab.opt()) {
+            goto_tabpage_tp(last_curtab.opt_mut(), true, true);
         }
         if win_valid(last_curwin.opt()) {
             win_enter(last_curwin.borrow_mut(), false);
@@ -1116,8 +1116,8 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
         goto_tabpage_tp(aall.new_curtab.opt_mut(), true, true);
     }
 
-    if valid_tabpage(unsafe { new_lu_tp.as_ref() }) {
-        g_st().lastused_tabpage = crate::globals::TabpagePtr::new(new_lu_tp);
+    if valid_tabpage(new_lu_tp.opt()) {
+        g_st().lastused_tabpage = new_lu_tp;
     }
 
     if win_valid(aall.new_curwin.opt()) {

@@ -46,7 +46,6 @@ use crate::window::{
     goto_tabpage_tp, goto_tabpage_win, valid_tabpage, win_goto, win_split, win_valid,
 };
 use std::ffi::CStr;
-use std::ptr;
 
 use crate::cursor::Linenr;
 use crate::eval::funcs::VIM_QUESTION;
@@ -133,8 +132,8 @@ pub fn autowrite_all() {
         return;
     }
 
-    let mut buf = g_st().firstbuf.as_ptr();
-    while let Some(buf_ref) = unsafe { buf.as_mut() } {
+    let mut buf = g_st().firstbuf;
+    while let Some(buf_ref) = buf.opt_mut() {
         if buf_is_changed_fn(buf_ref) && !buf_ref.b_p_ro && !bt_dontwrite(Some(&*buf_ref)) {
             let mut bufref: Bufref = Bufref::new();
             set_bufref(&mut bufref, Some(&mut *buf_ref));
@@ -142,12 +141,12 @@ pub fn autowrite_all() {
             buf_write_all(buf_ref, false);
 
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf.as_ptr();
+                buf = crate::globals::GraphPtr::of(g_st().firstbuf);
                 continue;
             }
         }
 
-        buf = unsafe { (*buf).b_next.as_ptr() };
+        buf = buf.b_next;
     }
 }
 
@@ -230,8 +229,8 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
     } else if ret == VIM_NO {
         unchanged(buf, true, false);
     } else if ret == VIM_ALL {
-        let mut buf2 = g_st().firstbuf.as_ptr();
-        while let Some(buf2_ref) = unsafe { buf2.as_mut() } {
+        let mut buf2 = g_st().firstbuf;
+        while let Some(buf2_ref) = buf2.opt_mut() {
             if buf_is_changed_fn(buf2_ref) && buf2_ref.b_ffname.is_some() && !buf2_ref.b_p_ro {
                 let mut bufref: Bufref = Bufref::new();
                 set_bufref(&mut bufref, Some(&mut *buf2_ref));
@@ -240,15 +239,15 @@ pub fn dialog_changed(buf: &mut FileBuf, checkall: bool) {
                 let b_ffname = buf2_ref.ffname_opt();
                 if b_fname.is_some() && check_overwrite(&mut ea, buf2_ref, b_fname, b_ffname, false)
                 {
-                    buf_write_all(unsafe { &mut *buf2 }, false);
+                    buf_write_all(buf2.borrow_mut(), false);
                 }
                 if !bufref_valid(Some(&bufref)) {
-                    buf2 = g_st().firstbuf.as_ptr();
+                    buf2 = crate::globals::GraphPtr::of(g_st().firstbuf);
                     continue;
                 }
             }
 
-            buf2 = unsafe { (*buf2).b_next.as_ptr() };
+            buf2 = buf2.b_next;
         }
     } else if ret == VIM_DISCARDALL {
         for buf2 in for_all_buffers_ptr() {
@@ -376,8 +375,8 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
         let mut wiped = false;
         if buf != g_st().curbuf.as_ptr() {
             let mut found = false;
-            let mut tp = g_st().first_tabpage.as_ptr();
-            while let Some(tp_ref) = unsafe { tp.as_mut() }
+            let mut tp = g_st().first_tabpage;
+            while let Some(tp_ref) = tp.opt_mut()
                 && !found
             {
                 for wp in win_iter_ptr(first_win_in_tab(tp_ref)) {
@@ -385,7 +384,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                         let mut bufref: Bufref = Bufref::new();
                         set_bufref(&mut bufref, buf.opt_mut());
 
-                        goto_tabpage_win(unsafe { &mut *tp }, wp);
+                        goto_tabpage_win(tp.borrow_mut(), wp);
 
                         if !bufref_valid(Some(&bufref)) {
                             wiped = true;
@@ -395,7 +394,7 @@ pub fn check_changed_any(hidden: bool, unload: bool) -> bool {
                     }
                 }
 
-                tp = unsafe { (*tp).tp_next.as_ptr() };
+                tp = tp.tp_next;
             }
         }
 
@@ -422,7 +421,7 @@ pub fn check_fname() -> bool {
 
 /// Flush the contents of a buffer, unless it has no file name (`buf_write_all`).
 pub fn buf_write_all(buf: &mut FileBuf, forceit: bool) -> bool {
-    let old_curbuf = g_st().curbuf.as_ptr();
+    let old_curbuf = g_st().curbuf;
     let retval = buf_write(
         buf,
         buf.ffname_opt(),
@@ -490,21 +489,21 @@ pub fn ex_listdo(eap: &mut Exarg) {
     {
         let mut next_fnum: i32 = 0;
         let mut i: i32 = 0;
-        let mut wp = g_st().firstwin.as_ptr();
-        let mut tp = g_st().first_tabpage.as_ptr();
+        let mut wp = g_st().firstwin;
+        let mut tp = g_st().first_tabpage;
         match eap.cmdidx {
             Cmdidx::CmdWindo => {
                 while !wp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    wp = unsafe { (*wp).w_next.as_ptr() };
+                    wp = wp.w_next;
                 }
             }
             Cmdidx::CmdTabdo => {
                 while !tp.is_null() && i + 1 < eap.line1 {
                     i += 1;
 
-                    tp = unsafe { (*tp).tp_next.as_ptr() };
+                    tp = tp.tp_next;
                 }
             }
             Cmdidx::CmdArgdo => {
@@ -513,22 +512,22 @@ pub fn ex_listdo(eap: &mut Exarg) {
             _ => {}
         }
 
-        let mut buf = g_st().curbuf.as_ptr();
+        let mut buf = g_st().curbuf;
         let mut qf_size: usize = 0;
 
         if eap.cmdidx == Cmdidx::CmdBufdo {
-            buf = g_st().firstbuf.as_ptr();
-            while let Some(buf_ref) = unsafe { buf.as_ref() }
+            buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+            while let Some(buf_ref) = buf.opt()
                 && (buf_ref.b_fnum < eap.line1 || !buf_ref.b_p_bl)
             {
                 if buf_ref.b_fnum > eap.line2 {
-                    buf = ptr::null_mut();
+                    buf = crate::globals::GraphPtr::NULL;
                     break;
                 }
 
-                buf = buf_ref.b_next.as_ptr();
+                buf = crate::globals::GraphPtr::of(buf_ref.b_next);
             }
-            if let Some(buf_ref) = unsafe { buf.as_ref() } {
+            if let Some(buf_ref) = buf.opt() {
                 goto_buffer(eap, DOBUF_FIRST, FORWARD, buf_ref.b_fnum);
             }
         } else if eap.cmdidx == Cmdidx::CmdCdo
@@ -539,11 +538,11 @@ pub fn ex_listdo(eap: &mut Exarg) {
             qf_size = qf_get_valid_size(eap);
             debug_assert!(eap.line1 >= 0);
             if qf_size == 0 || (eap.line1 as usize) > qf_size {
-                buf = ptr::null_mut();
+                buf = crate::globals::GraphPtr::NULL;
             } else {
                 ex_cc(eap);
 
-                buf = g_st().curbuf.as_ptr();
+                buf = crate::globals::GraphPtr::of(g_st().curbuf);
                 i = eap.line1 - 1;
                 if eap.addr_count <= 0 {
                     debug_assert!(qf_size < MAXLNUM);
@@ -568,31 +567,31 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     break;
                 }
             } else if eap.cmdidx == Cmdidx::CmdWindo {
-                if !win_valid(unsafe { wp.as_ref() }) {
+                if !win_valid(wp.opt()) {
                     break;
                 }
                 debug_assert!(!wp.is_null());
 
-                let wp_ref = unsafe { &*wp };
+                let wp_ref = wp.borrow();
                 execute =
                     !wp_ref.w_floating || (!wp_ref.w_config.hide && wp_ref.w_config.focusable);
 
                 if execute {
-                    win_goto(unsafe { &mut *wp });
+                    win_goto(wp.borrow_mut());
                     if curwin_ptr() != wp {
                         break;
                     }
                 }
 
-                wp = unsafe { (*wp).w_next.as_ptr() };
+                wp = wp.w_next;
             } else if eap.cmdidx == Cmdidx::CmdTabdo {
-                if !valid_tabpage(unsafe { tp.as_ref() }) {
+                if !valid_tabpage(tp.opt()) {
                     break;
                 }
                 debug_assert!(!tp.is_null());
-                goto_tabpage_tp(unsafe { tp.as_mut() }, true, true);
+                goto_tabpage_tp(tp.opt_mut(), true, true);
 
-                tp = unsafe { (*tp).tp_next.as_ptr() };
+                tp = tp.tp_next;
             } else if eap.cmdidx == Cmdidx::CmdBufdo {
                 next_fnum = -1;
                 for bp in buf_iter_mut(curbuf_mut().b_next.as_ptr()) {
@@ -676,9 +675,9 @@ pub fn ex_listdo(eap: &mut Exarg) {
 
         au_event_restore(save_ei);
 
-        let mut buf = g_st().firstbuf.as_ptr();
-        while let Some(buf_ref) = unsafe { buf.as_mut() } {
-            let mut bnext = buf_ref.b_next.as_ptr();
+        let mut buf = crate::globals::GraphPtr::of(g_st().firstbuf);
+        while let Some(buf_ref) = buf.opt_mut() {
+            let mut bnext = buf_ref.b_next;
             if buf_ref.b_nwindows > 0 && (buf_ref.b_flags & BF_SYN_SET) != 0 {
                 buf_ref.b_flags &= !BF_SYN_SET;
 
@@ -695,16 +694,14 @@ pub fn ex_listdo(eap: &mut Exarg) {
                     let b_fname = buf_ref.fname_opt();
                     ctx_switch(&mut aco, None, None, Some(buf_ref), 0);
 
-                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, unsafe {
-                        buf.as_mut()
-                    });
+                    apply_autocmds(EVENT_SYNTAX, b_p_syn, b_fname, true, buf.opt_mut());
 
                     ctx_restore(&mut aco);
                 }
 
-                bnext = g_st().firstbuf.as_ptr();
+                bnext = crate::globals::GraphPtr::of(g_st().firstbuf);
             }
-            buf = bnext;
+            buf = crate::globals::GraphPtr::of(crate::globals::GraphPtr::of(bnext));
         }
     }
 }

@@ -1134,13 +1134,13 @@ pub fn tv_list_item_remove(
     item_in: &mut Listitem,
 ) -> Option<&'static mut Listitem> {
     let item = crate::globals::GraphPtr::from(item_in);
-    let next_item = item.li_next.as_ptr();
+    let next_item = item.li_next;
 
     tv_list_drop_items(l, item.borrow_mut(), item.borrow_mut());
 
     drop(unsafe { Box::from_raw(item.as_ptr()) });
 
-    unsafe { next_item.as_mut() }
+    next_item.opt_mut()
 }
 
 /// Add a watcher to a list.
@@ -2317,9 +2317,9 @@ fn do_uniq(mut l: Option<&mut TvList>, info: &mut Sortinfo) {
         .and_then(|l| l.first_opt())
         .map_or(ptr::null_mut(), |first| first.li_next.as_ptr());
     while let Some(cur_li) = unsafe { li.as_mut() } {
-        let prev_li = cur_li.li_prev.as_ptr();
+        let prev_li = cur_li.li_prev;
         let prev_si = ListSortItem {
-            item: crate::globals::GraphPtr::new(prev_li),
+            item: prev_li,
             idx: 0,
             key: ListSortKey::Int(0),
         };
@@ -5056,9 +5056,9 @@ mod tests {
             assert_eq!(tv_list_len_inline(Some(&*l2)), 6);
 
             // remove_items range
-            let first_item = l2.lv_first.as_ptr();
-            let second_item = unsafe { (*first_item).li_next.as_ptr() };
-            tv_list_remove_items(&mut *l2, unsafe { &mut *first_item }, unsafe {
+            let first_item = l2.lv_first;
+            let second_item = first_item.li_next.as_ptr();
+            tv_list_remove_items(&mut *l2, first_item.borrow_mut(), unsafe {
                 &mut *second_item
             });
             assert_eq!(tv_list_len_inline(Some(&*l2)), 4);

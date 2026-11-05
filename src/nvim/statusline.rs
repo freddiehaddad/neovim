@@ -867,16 +867,16 @@ fn ui_ext_tabline_update() {
     let name_buff = g_st().name_buff.as_mut_ptr();
 
     let mut n_tabs: usize = 0;
-    let mut tp = g_st().first_tabpage.as_ptr();
+    let mut tp = g_st().first_tabpage;
     while !tp.is_null() {
         n_tabs += 1;
-        tp = unsafe { (*tp).tp_next.as_ptr() };
+        tp = tp.tp_next;
     }
 
     let mut tabs = arena_array(&mut arena, n_tabs);
-    tp = g_st().first_tabpage.as_ptr();
+    tp = crate::globals::GraphPtr::of(g_st().first_tabpage);
     while !tp.is_null() {
-        let tp_ref = unsafe { &*tp };
+        let tp_ref = tp.borrow();
         let mut tab_info = arena_dict(&mut arena, 2);
 
         put_c(
@@ -916,22 +916,22 @@ fn ui_ext_tabline_update() {
             },
         );
 
-        tp = tp_ref.tp_next.as_ptr();
+        tp = crate::globals::GraphPtr::of(tp_ref.tp_next);
     }
 
     let mut n_buffers: usize = 0;
-    let mut buf = g_st().firstbuf.as_ptr();
+    let mut buf = g_st().firstbuf;
     while !buf.is_null() {
-        if unsafe { (*buf).b_p_bl } {
+        if buf.b_p_bl {
             n_buffers += 1;
         }
-        buf = unsafe { (*buf).b_next.as_ptr() };
+        buf = buf.b_next;
     }
 
     let mut buffers = arena_array(&mut arena, n_buffers);
-    buf = g_st().firstbuf.as_ptr();
+    buf = crate::globals::GraphPtr::of(g_st().firstbuf);
     while !buf.is_null() {
-        let b = unsafe { &mut *buf };
+        let b = buf.borrow_mut();
         if b.b_p_bl {
             let mut buffer_info = arena_dict(&mut arena, 2);
 
@@ -967,7 +967,7 @@ fn ui_ext_tabline_update() {
             );
         }
 
-        buf = b.b_next.as_ptr();
+        buf = crate::globals::GraphPtr::of(b.b_next);
     }
 
     ui_call_tabline_update(curtab_mut().handle, tabs, curbuf_mut().b_fnum, buffers);
@@ -1004,10 +1004,10 @@ pub fn draw_tabline() {
         let mut tabcount: i32 = 0;
         let mut col: i32 = 0;
         grid_line_start(&mut g_st().default_gridview, 0);
-        let mut tp = g_st().first_tabpage.as_ptr();
+        let mut tp = g_st().first_tabpage;
         while !tp.is_null() {
             tabcount += 1;
-            tp = unsafe { (*tp).tp_next.as_ptr() };
+            tp = tp.tp_next;
         }
 
         let tabwidth = (if tabcount > 0 {
@@ -1020,13 +1020,13 @@ pub fn draw_tabline() {
         let mut attr = attr_nosel;
         tabcount = 0;
 
-        tp = g_st().first_tabpage.as_ptr();
+        tp = crate::globals::GraphPtr::of(g_st().first_tabpage);
         while !tp.is_null() {
             if col >= g_st().columns_global - 4 {
                 break;
             }
 
-            let tp_ref = unsafe { &*tp };
+            let tp_ref = tp.borrow();
             let mut scol = col;
             let (cwp, mut wp) = if g_st().curtab == tp {
                 (curwin_ptr().as_ptr(), g_st().firstwin.as_ptr())
@@ -1117,7 +1117,7 @@ pub fn draw_tabline() {
                 scol += 1;
             }
 
-            tp = tp_ref.tp_next.as_ptr();
+            tp = crate::globals::GraphPtr::of(tp_ref.tp_next);
         }
 
         for scol in col..g_st().columns_global {

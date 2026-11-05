@@ -1854,15 +1854,15 @@ fn getchar_common(argvars: &mut [TypVal], rettv: &mut TypVal, mut allow_number: 
 
                 mouse_comp_pos(win, &mut row, &mut col, &mut lnum);
 
-                let mut wp = g_st().firstwin.as_ptr();
+                let mut wp = g_st().firstwin;
                 while wp != win_ptr {
                     winnr += 1;
 
-                    wp = unsafe { (*wp).w_next.as_ptr() };
+                    wp = wp.w_next;
                 }
                 set_vim_var_nr(VV_MOUSE_WIN, Varnumber::from(winnr));
 
-                set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from(unsafe { (*wp).handle }));
+                set_vim_var_nr(VV_MOUSE_WINID, Varnumber::from(wp.handle));
 
                 set_vim_var_nr(VV_MOUSE_LNUM, Varnumber::from(lnum));
                 set_vim_var_nr(VV_MOUSE_COL, Varnumber::from(col + 1));

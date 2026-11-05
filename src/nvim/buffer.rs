@@ -1597,7 +1597,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     let is_curbuf = g_st().curbuf == buf;
     let is_curwin = !(curwin_ptr()).is_null() && curwin_mut().w_buffer == (&raw mut *buf);
     let the_curwin = curwin_ptr();
-    let the_curtab = g_st().curtab.as_ptr();
+    let the_curtab = g_st().curtab;
 
     buf.b_locked += 1;
     buf.b_locked_split += 1;
@@ -1641,7 +1641,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
         block_autocmds();
-        goto_tabpage_win(unsafe { &mut *the_curtab }, the_curwin.borrow_mut());
+        goto_tabpage_win(the_curtab.borrow_mut(), the_curwin.borrow_mut());
         unblock_autocmds();
     }
     if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -2128,7 +2128,7 @@ pub fn do_bufdel(
 }
 
 fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
-    let buf = g_st().curbuf.as_ptr();
+    let buf = g_st().curbuf;
 
     if action == DOBUF_UNLOAD {
         emsg(gettext(c"E90: Cannot unload last buffer"));
@@ -2136,7 +2136,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
     }
 
     let mut bufref: Bufref = Bufref::new();
-    set_bufref(&mut bufref, unsafe { buf.as_mut() });
+    set_bufref(&mut bufref, buf.opt_mut());
 
     if close_others {
         let mut can_close_all_others = true;
@@ -2152,7 +2152,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
                 }
             }
         }
-        close_windows(unsafe { buf.as_mut() }, can_close_all_others);
+        close_windows(buf.opt_mut(), can_close_all_others);
     }
 
     setpcmark();
@@ -2170,7 +2170,7 @@ fn empty_curbuf(close_others: bool, forceit: i32, action: i32) -> bool {
         && bufref_valid(Some(&bufref))
         && bufref.buf_opt().is_some_and(|b| b.b_nwindows == 0)
     {
-        close_buffer(None, unsafe { buf.as_mut() }, action, false, false, false);
+        close_buffer(None, buf.opt_mut(), action, false, false, false);
     }
 
     if !close_others {
@@ -2607,10 +2607,10 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
 
     g_st().visual_global.reselect = 0;
 
-    let prevbuf = g_st().curbuf.as_ptr();
+    let prevbuf = g_st().curbuf;
     let mut newbufref: Bufref = Bufref::new();
     let mut prevbufref: Bufref = Bufref::new();
-    set_bufref(&mut prevbufref, unsafe { prevbuf.as_mut() });
+    set_bufref(&mut prevbufref, prevbuf.opt_mut());
     set_bufref(&mut newbufref, buf.opt_mut());
 
     if !apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut())
@@ -2620,7 +2620,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
             reset_synblock(curwin_mut());
         }
         if unload {
-            close_windows(unsafe { prevbuf.as_mut() }, false);
+            close_windows(prevbuf.opt_mut(), false);
         }
         if bufref_valid(Some(&prevbufref)) && !aborting() {
             if g_st().curbuf == prevbuf
@@ -2630,7 +2630,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
             }
             close_buffer(
                 curwin_ptr().opt_mut(),
-                unsafe { prevbuf.as_mut() },
+                prevbuf.opt_mut(),
                 if unload {
                     action
                 } else if action == DOBUF_GOTO
@@ -4456,7 +4456,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         goto_tabpage_tp(g_st().first_tabpage.opt_mut(), true, true);
     }
     loop {
-        let mut tpnext = curtab_mut().tp_next.as_ptr();
+        let mut tpnext = curtab_mut().tp_next;
         let mut wp = crate::globals::WinPtr::new(if lastwin_mut().w_floating {
             g_st().lastwin.as_ptr()
         } else {
@@ -4500,7 +4500,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
                 } else {
                     g_st().firstwin.as_ptr()
                 });
-                tpnext = g_st().first_tabpage.as_ptr();
+                tpnext = crate::globals::GraphPtr::of(g_st().first_tabpage);
                 open_wins = 0;
             } else {
                 open_wins += 1;
@@ -4511,7 +4511,7 @@ pub fn ex_buffer_all(eap: &mut Exarg) {
         if had_tab == 0 || tpnext.is_null() {
             break;
         }
-        goto_tabpage_tp(unsafe { tpnext.as_mut() }, true, true);
+        goto_tabpage_tp(tpnext.opt_mut(), true, true);
     }
 
     g_st().autocmd_no_enter += 1;

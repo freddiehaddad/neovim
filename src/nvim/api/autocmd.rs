@@ -1124,7 +1124,7 @@ pub fn nvim_exec_autocmds(
     err: &mut Error,
 ) {
     let mut au_group = AUGROUP_ALL;
-    let mut b = g_st().curbuf.as_ptr();
+    let mut b = g_st().curbuf;
     let mut data = crate::globals::GraphPtr::<Object>::NULL;
 
     let event_array = unpack_string_or_array(event, c"event", true, arena, err);
@@ -1181,7 +1181,7 @@ pub fn nvim_exec_autocmds(
             api_err_con(err, c"pattern", c"buf");
             return;
         }
-        b = find_buffer_by_handle(buf, err).map_or(std::ptr::null_mut(), std::ptr::from_mut);
+        b = crate::globals::GraphPtr::from(find_buffer_by_handle(buf, err));
         if error_set(err) {
             return;
         }
@@ -1221,7 +1221,7 @@ pub fn nvim_exec_autocmds(
                 None,
                 true,
                 au_group,
-                unsafe { b.as_mut() },
+                b.opt_mut(),
                 Some(crate::globals::curwin_mut()),
                 None,
                 data.opt(),

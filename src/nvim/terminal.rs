@@ -1136,13 +1136,13 @@ fn unset_terminal_winopts(s: &mut TerminalState) {
 }
 
 pub fn terminal_enter() -> bool {
-    let buf = g_st().curbuf.as_ptr();
+    let buf = g_st().curbuf;
 
-    debug_assert!(!unsafe { (*buf).terminal.is_null() });
+    debug_assert!(!buf.terminal.is_null());
 
     let mut s = TerminalState::new();
 
-    s.term = unsafe { (*buf).terminal };
+    s.term = buf.terminal;
 
     s.cursor_visible = true;
     g_st().ins_global.stop_insert_mode = false;
@@ -1160,7 +1160,7 @@ pub fn terminal_enter() -> bool {
 
     s.term_mut().pending.cursor = true;
 
-    adjust_topline_cursor(s.term_mut(), unsafe { &mut *buf }, 0);
+    adjust_topline_cursor(s.term_mut(), buf.borrow_mut(), 0);
 
     showmode();
     ui_cursor_shape();

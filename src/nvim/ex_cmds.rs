@@ -2046,7 +2046,7 @@ pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
 
 pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
     let new_fname_ptr = new_fname.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
-    let mut buf = g_st().curbuf.as_ptr();
+    let mut buf = g_st().curbuf;
     apply_autocmds(EVENT_BUFFILEPRE, None, None, false, curbuf_opt_mut());
     if g_st().curbuf != buf {
         return false;
@@ -2071,9 +2071,13 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
         crate::buffer::BufFname::Full => fname_cstr.as_deref(),
     };
     if xfname.is_some_and(|s| !s.to_bytes().is_empty()) {
-        buf = buflist_new(fname_cstr.as_deref(), xfname, curwin_mut().w_cursor.lnum, 0)
-            .map_or(ptr::null_mut(), ptr::from_mut);
-        if let Some(b) = unsafe { buf.as_ref() }
+        buf = crate::globals::GraphPtr::from(buflist_new(
+            fname_cstr.as_deref(),
+            xfname,
+            curwin_mut().w_cursor.lnum,
+            0,
+        ));
+        if let Some(b) = buf.opt()
             && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
         {
             curwin_mut().w_alt_fnum = b.b_fnum;
@@ -2432,9 +2436,9 @@ pub fn do_wqall(eap: &mut Exarg) {
         g_st().exiting = true;
     }
 
-    let mut buf = g_st().firstbuf.as_ptr();
+    let mut buf = g_st().firstbuf;
     while !buf.is_null() {
-        let b = unsafe { &mut *buf };
+        let b = buf.borrow_mut();
         if g_st().exiting
             && !eap.forceit
             && !b.terminal.is_null()
@@ -2442,10 +2446,10 @@ pub fn do_wqall(eap: &mut Exarg) {
         {
             no_write_message_buf(b);
             error += 1;
-            buf = b.b_next.as_ptr();
+            buf = crate::globals::GraphPtr::of(b.b_next);
             continue;
         } else if !buf_is_changed_fn(b) || bt_dontwrite(Some(&*b)) {
-            buf = b.b_next.as_ptr();
+            buf = crate::globals::GraphPtr::of(b.b_next);
             continue;
         }
 
@@ -2465,21 +2469,21 @@ pub fn do_wqall(eap: &mut Exarg) {
             error += 1;
         } else {
             let mut bufref: Bufref = Bufref::new();
-            set_bufref(&mut bufref, unsafe { buf.as_mut() });
+            set_bufref(&mut bufref, buf.opt_mut());
             if !handle_mkdir_p_arg(eap, b.fname_opt()) || !buf_write_all(b, eap.forceit) {
                 error += 1;
             }
             if !bufref_valid(Some(&bufref)) {
-                buf = g_st().firstbuf.as_ptr();
+                buf = crate::globals::GraphPtr::of(g_st().firstbuf);
                 eap.forceit = save_forceit;
                 if !buf.is_null() {
-                    buf = unsafe { (*buf).b_next.as_ptr() };
+                    buf = buf.b_next;
                 }
                 continue;
             }
         }
         eap.forceit = save_forceit;
-        buf = unsafe { (*buf).b_next.as_ptr() };
+        buf = buf.b_next;
     }
     if g_st().exiting {
         if error == 0 {

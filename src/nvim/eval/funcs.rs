@@ -2168,11 +2168,9 @@ pub fn execute_common(argvars: &mut [TypVal], rettv: &mut TypVal, arg_off: i32) 
         do_cmdline_cmd(tv_get_string(&argvars[off]));
     } else if let Some(list) = argvars[off].vval.v_list_opt() {
         let list_ptr = crate::globals::GraphPtr::<TvList>::from_ref(list);
-        let first_li = list.lv_first.as_ptr();
+        let first_li = list.lv_first;
         tv_list_ref(Some(list));
-        let mut cookie = GetListLineCookie {
-            li: crate::globals::ListitemPtr::new(first_li),
-        };
+        let mut cookie = GetListLineCookie { li: first_li };
         do_cmdline(
             None,
             crate::cmdexpand::LineGetter::List((&mut cookie).into()),
@@ -2736,11 +2734,11 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             }
         }
     } else if argvars[0].v_type == VarType::VarList {
-        let l = argvars[0].vval.v_list().as_ptr();
+        let l = argvars[0].vval.v_list();
         if !l.is_null() {
             let mut error = false;
             let li = tv_list_find(
-                unsafe { l.as_mut() },
+                l.opt_mut(),
                 tv_get_number_chk(&argvars[1], Some(&mut error)) as i32,
             );
             if !error && let Some(li) = li {
@@ -3949,7 +3947,7 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         return;
     };
 
-    let mut item = l.lv_first.as_ptr();
+    let mut item = l.lv_first;
     if argvars[2].v_type != VarType::VarUnknown {
         let mut error = false;
         idx = tv_list_uidx(
@@ -3957,20 +3955,20 @@ pub fn f_index(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
             tv_get_number_chk(&argvars[2], Some(&mut error)) as i32,
         );
         if error || idx == -1 {
-            item = ptr::null_mut();
+            item = crate::globals::GraphPtr::NULL;
         } else {
-            item = tv_list_find(Some(l), idx).map_or(ptr::null_mut(), ptr::from_mut);
+            item = crate::globals::GraphPtr::from(tv_list_find(Some(l), idx));
             debug_assert!(!item.is_null());
         }
         if argvars[3].v_type != VarType::VarUnknown {
             ic = tv_get_bool_chk(&argvars[3], Some(&mut error)) != 0;
             if error {
-                item = ptr::null_mut();
+                item = crate::globals::GraphPtr::NULL;
             }
         }
     }
 
-    for cur in crate::eval::typval::list_iter_ptr(unsafe { item.as_mut() }) {
+    for cur in crate::eval::typval::list_iter_ptr(item.opt_mut()) {
         if tv_equal(&cur.li_tv, &argvars[1], ic) {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(idx));
             break;
@@ -5548,7 +5546,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
         return;
     }
 
-    let l = argvars[0].vval.v_list().as_ptr();
+    let l = argvars[0].vval.v_list();
     if l.is_null() {
         return;
     }
@@ -5579,9 +5577,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
             }
 
             for (idx, li) in
-                (0_i32..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(unsafe {
-                    l.as_ref()
-                })))
+                (0_i32..).zip(crate::eval::typval::list_iter_ptr(tv_list_first(l.opt())))
             {
                 let li_tv = &li.li_tv;
                 if li_tv.v_type == VarType::VarString && !li_tv.vval.v_string().is_null() {

@@ -2295,14 +2295,14 @@ pub fn autocmd_register(
         if (event == EVENT_WINSCROLLED || event == EVENT_WINRESIZED)
             && !(has_event(EVENT_WINSCROLLED) || has_event(EVENT_WINRESIZED))
         {
-            let save_curtab = g_st().curtab.as_ptr();
+            let save_curtab = g_st().curtab;
             for tp in for_all_tabpages_ptr() {
                 unuse_tabpage(curtab_mut());
                 use_tabpage(tp);
                 snapshot_windows_scroll_size();
             }
             unuse_tabpage(curtab_mut());
-            use_tabpage(unsafe { &mut *save_curtab });
+            use_tabpage(save_curtab.borrow_mut());
         }
 
         std::rc::Rc::new(AutoPat {

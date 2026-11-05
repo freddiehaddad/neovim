@@ -1393,7 +1393,7 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
             && !((cur_cot_flags & K_OPT_COT_FLAG_PREVIEW) != 0 && !g_st().cmdwin_buf.is_null())
         {
             let curwin_save = curwin_ptr();
-            let curtab_save = g_st().curtab.as_ptr();
+            let curtab_save = g_st().curtab;
 
             if use_float {
                 block_autocmds();
@@ -1486,13 +1486,10 @@ fn pum_set_selected(n: i32, repeat: i32) -> bool {
                     }
 
                     if (curwin_ptr() != curwin_save && win_valid(curwin_save.opt()))
-                        || (g_st().curtab != curtab_save
-                            && valid_tabpage(unsafe { curtab_save.as_ref() }))
+                        || (g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()))
                     {
-                        if g_st().curtab != curtab_save
-                            && valid_tabpage(unsafe { curtab_save.as_ref() })
-                        {
-                            goto_tabpage_tp(unsafe { curtab_save.as_mut() }, false, false);
+                        if g_st().curtab != curtab_save && valid_tabpage(curtab_save.opt()) {
+                            goto_tabpage_tp(curtab_save.opt_mut(), false, false);
                         }
 
                         if ins_compl_active() && !resized {

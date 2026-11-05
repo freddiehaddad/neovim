@@ -3787,14 +3787,14 @@ pub fn f_settabvar(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalFuncD
     tabvarname.push(b':');
     tabvarname.extend_from_slice(varname.to_bytes_with_nul());
 
-    let save_curtab = g_st().curtab.as_ptr();
+    let save_curtab = g_st().curtab;
     let save_lu_tp = g_st().lastused_tabpage.as_ptr();
     goto_tabpage_tp(Some(tp_ref), false, false);
 
     set_var(&tabvarname[..varname_len + 2], arg2, true);
 
-    if valid_tabpage(unsafe { save_curtab.as_ref() }) {
-        goto_tabpage_tp(unsafe { save_curtab.as_mut() }, false, false);
+    if valid_tabpage(save_curtab.opt()) {
+        goto_tabpage_tp(save_curtab.opt_mut(), false, false);
         if valid_tabpage(unsafe { save_lu_tp.as_ref() }) {
             g_st().lastused_tabpage = crate::globals::TabpagePtr::new(save_lu_tp);
         }

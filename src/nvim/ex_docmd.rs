@@ -5560,55 +5560,49 @@ fn store_loop_line(lines: &mut Vec<Wcmd>, line: &CStr) {
 
 fn compute_buffer_local_count(addr_type: CmdAddr, lnum: Linenr, offset: i32) -> i32 {
     let mut count = offset;
-    let mut buf = g_st().firstbuf.as_ptr();
-    while unsafe { !(*buf).b_next.is_null() && (*buf).b_fnum < lnum } {
-        buf = unsafe { (*buf).b_next.as_ptr() };
+    let mut buf = g_st().firstbuf;
+    while !buf.b_next.is_null() && buf.b_fnum < lnum {
+        buf = buf.b_next;
     }
     while count != 0 {
         count += if count < 0 { 1 } else { -1 };
-        let mut nextbuf = unsafe {
-            if offset < 0 {
-                (*buf).b_prev.as_ptr()
-            } else {
-                (*buf).b_next.as_ptr()
-            }
+        let mut nextbuf = if offset < 0 {
+            buf.b_prev.as_ptr()
+        } else {
+            buf.b_next.as_ptr()
         };
         if nextbuf.is_null() {
             break;
         }
-        buf = nextbuf;
+        buf = crate::globals::GraphPtr::of(nextbuf);
         if addr_type == ADDR_LOADED_BUFFERS {
-            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-                nextbuf = unsafe {
-                    if offset < 0 {
-                        (*buf).b_prev.as_ptr()
-                    } else {
-                        (*buf).b_next.as_ptr()
-                    }
+            while buf.b_ml.ml_mfp.is_none() {
+                nextbuf = if offset < 0 {
+                    buf.b_prev.as_ptr()
+                } else {
+                    buf.b_next.as_ptr()
                 };
                 if nextbuf.is_null() {
                     break;
                 }
-                buf = nextbuf;
+                buf = crate::globals::GraphPtr::of(nextbuf);
             }
         }
     }
     if addr_type == ADDR_LOADED_BUFFERS {
-        while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-            let nextbuf = unsafe {
-                if offset >= 0 {
-                    (*buf).b_prev.as_ptr()
-                } else {
-                    (*buf).b_next.as_ptr()
-                }
+        while buf.b_ml.ml_mfp.is_none() {
+            let nextbuf = if offset >= 0 {
+                buf.b_prev.as_ptr()
+            } else {
+                buf.b_next.as_ptr()
             };
             if nextbuf.is_null() {
                 break;
             }
-            buf = nextbuf;
+            buf = crate::globals::GraphPtr::of(nextbuf);
         }
     }
-    unsafe { (*buf).b_fnum }
+    buf.b_fnum
 }
 
 fn current_win_nr(win: Option<&WinInfoInfo>, cmdarg: Option<&Exarg>) -> i32 {
@@ -5722,19 +5716,19 @@ pub fn set_cmd_dflall_range(eap: &mut Exarg) {
             eap.line2 = curbuf_mut().b_ml.ml_line_count;
         }
         ADDR_LOADED_BUFFERS => {
-            let mut buf = g_st().firstbuf.as_ptr();
-            while unsafe { !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
-                buf = unsafe { (*buf).b_next.as_ptr() };
+            let mut buf = g_st().firstbuf;
+            while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
+                buf = buf.b_next;
             }
 
-            eap.line1 = unsafe { (*buf).b_fnum };
+            eap.line1 = buf.b_fnum;
 
-            buf = g_st().lastbuf.as_ptr();
-            while unsafe { !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none() } {
-                buf = unsafe { (*buf).b_prev.as_ptr() };
+            buf = crate::globals::GraphPtr::of(g_st().lastbuf);
+            while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
+                buf = buf.b_prev;
             }
 
-            eap.line2 = unsafe { (*buf).b_fnum };
+            eap.line2 = buf.b_fnum;
         }
         ADDR_BUFFERS => {
             eap.line1 = g_st().firstbuf.b_fnum;
@@ -7278,23 +7272,19 @@ pub fn parse_cmd_address(
                             eap.line2 = curbuf_mut().b_ml.ml_line_count;
                         }
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().firstbuf.as_ptr();
-                            while unsafe {
-                                !(*buf).b_next.is_null() && (*buf).b_ml.ml_mfp.is_none()
-                            } {
-                                buf = unsafe { (*buf).b_next.as_ptr() };
+                            let mut buf = g_st().firstbuf;
+                            while !buf.b_next.is_null() && buf.b_ml.ml_mfp.is_none() {
+                                buf = buf.b_next;
                             }
 
-                            eap.line1 = unsafe { (*buf).b_fnum };
+                            eap.line1 = buf.b_fnum;
 
-                            buf = g_st().lastbuf.as_ptr();
-                            while unsafe {
-                                !(*buf).b_prev.is_null() && (*buf).b_ml.ml_mfp.is_none()
-                            } {
-                                buf = unsafe { (*buf).b_prev.as_ptr() };
+                            buf = crate::globals::GraphPtr::of(g_st().lastbuf);
+                            while !buf.b_prev.is_null() && buf.b_ml.ml_mfp.is_none() {
+                                buf = buf.b_prev;
                             }
 
-                            eap.line2 = unsafe { (*buf).b_fnum };
+                            eap.line2 = buf.b_fnum;
                         }
                         ADDR_BUFFERS => {
                             eap.line1 = g_st().firstbuf.b_fnum;
@@ -7823,16 +7813,16 @@ pub fn get_address(
                         ADDR_WINDOWS => lnum = current_win_nr(None, eap.as_deref()),
                         ADDR_ARGUMENTS => lnum = argcount(),
                         ADDR_LOADED_BUFFERS => {
-                            let mut buf = g_st().lastbuf.as_ptr();
-                            while unsafe { (*buf).b_ml.ml_mfp.is_none() } {
-                                if unsafe { (*buf).b_prev.is_null() } {
+                            let mut buf = g_st().lastbuf;
+                            while buf.b_ml.ml_mfp.is_none() {
+                                if buf.b_prev.is_null() {
                                     break;
                                 }
 
-                                buf = unsafe { (*buf).b_prev.as_ptr() };
+                                buf = buf.b_prev;
                             }
 
-                            lnum = unsafe { (*buf).b_fnum };
+                            lnum = buf.b_fnum;
                         }
                         ADDR_BUFFERS => lnum = g_st().lastbuf.b_fnum,
                         ADDR_TABS => lnum = current_tab_nr(None),
@@ -9849,14 +9839,14 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
             c"%i",
             tabpage_index(tp.opt()),
         );
-        let wp = tp.tp_lastwin.as_ptr();
+        let wp = tp.tp_lastwin;
 
         if g_st().curtab == tp {
             done = 1000;
             break;
         }
 
-        ex_win_close(forceit, unsafe { &mut *wp }, Some(tp.borrow_mut()));
+        ex_win_close(forceit, wp.borrow_mut(), Some(tp.borrow_mut()));
 
         if !valid_tabpage(tp.opt()) {
             break;

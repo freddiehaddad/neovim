@@ -1027,32 +1027,23 @@ pub fn free_all_mem() {
         free_all_options();
 
         opt_vars().p_acd = false;
-        let mut buf = g_st().firstbuf.as_ptr();
+        let mut buf = g_st().firstbuf;
         while !buf.is_null() {
             let mut bufref = Bufref {
                 br_buf: crate::globals::BufPtr::NULL,
                 br_fnum: 0,
                 br_buf_free_count: 0,
             };
-            set_bufref(&mut bufref, unsafe { buf.as_mut() });
-            let nextbuf = unsafe { (*buf).b_next.as_ptr() };
-            unsafe {
-                (*buf).b_nwindows = 0;
-            }
+            set_bufref(&mut bufref, buf.opt_mut());
+            let nextbuf = buf.b_next;
+            buf.b_nwindows = 0;
 
-            buf_free_callbacks(unsafe { &mut *buf });
-            close_buffer(
-                None,
-                unsafe { buf.as_mut() },
-                DOBUF_WIPE,
-                false,
-                false,
-                false,
-            );
+            buf_free_callbacks(buf.borrow_mut());
+            close_buffer(None, buf.opt_mut(), DOBUF_WIPE, false, false, false);
             buf = if bufref_valid(Some(&bufref)) {
                 nextbuf
             } else {
-                g_st().firstbuf.as_ptr()
+                g_st().firstbuf
             };
         }
 
