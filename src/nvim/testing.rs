@@ -668,15 +668,12 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 }
             } else if error_found_index == 4 {
                 actual_tv.v_type = VarType::VarString;
-                actual_tv.vval = crate::eval::typval::TypvalVval::String(
-                    g_st()
-                        .emsg_assert_fails_context
-                        .as_ref()
-                        .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
+                actual_tv.vval = crate::eval::typval::TypvalVval::from_opt_cstr(
+                    g_st().emsg_assert_fails_context.as_deref(),
                 );
             } else {
                 actual_tv.v_type = VarType::VarString;
-                actual_tv.vval = crate::eval::typval::TypvalVval::String(actual);
+                actual_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(actual);
             }
             let (first, rest) = argvars.split_at_mut(3);
             let exp_ref = if error_found_index < 3 {

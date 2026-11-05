@@ -262,7 +262,7 @@ fn filter_map_string(
     rettv: &mut TypVal,
 ) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     set_vim_var_type(VV_KEY, VarType::VarNumber);
 
@@ -883,7 +883,7 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             let rev = reverse_text(s_bytes);
             crate::eval::typval::tv_set_string(rettv, Some(rev.as_c_str()));
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(std::ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else if arg0.v_type == VarType::VarList {
         let mut l = arg0.vval.v_list_opt();

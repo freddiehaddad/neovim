@@ -7178,16 +7178,12 @@ fn nv_q(cap: &mut Cmdarg) {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(fc.as_mut_ptr().cast()),
+                vval: TypvalVval::from_raw_str(fc.as_mut_ptr().cast()),
             },
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(if insert_range {
-                    c"'<,'>".as_ptr().cast_mut()
-                } else {
-                    c"".as_ptr().cast_mut()
-                }),
+                vval: TypvalVval::from_cstr(if insert_range { c"'<,'>" } else { c"" }),
             },
             TypVal {
                 v_type: VarType::VarNumber,

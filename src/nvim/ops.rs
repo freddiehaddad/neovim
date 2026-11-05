@@ -3450,12 +3450,12 @@ fn op_function(oap: &Oparg) {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(mode_str.cast_mut()),
+                vval: TypvalVval::from_raw_str(mode_str.cast_mut()),
             },
             TypVal {
                 v_type: VarType::VarUnknown,
                 v_lock: 0,
-                vval: TypvalVval::String(ptr::null_mut()),
+                vval: TypvalVval::NULL_STRING,
             },
         ];
 

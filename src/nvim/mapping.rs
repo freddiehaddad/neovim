@@ -2150,7 +2150,7 @@ fn mapblock_fill_dict(
 
 fn get_maparg(argvars: &mut [TypVal], rettv: &mut TypVal, exact: i32) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let keys = tv_get_string(&argvars[0]);
     if keys.to_bytes().is_empty() {

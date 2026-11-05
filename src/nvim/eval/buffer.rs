@@ -825,7 +825,7 @@ fn get_buffer_lines(
     } else {
         VarType::VarString
     };
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if buf.is_none()
         || buf.as_deref_mut().unwrap().b_ml.ml_mfp.is_none()
@@ -860,7 +860,7 @@ fn get_buffer_lines(
         );
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 

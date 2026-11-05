@@ -2900,7 +2900,7 @@ fn vim_regsub_both(
                 let mut rettv: TypVal = TypVal::new();
                 let mut match_list = StaticList10::new();
                 rettv.v_type = VarType::VarString;
-                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                 argv[0].v_type = VarType::VarList;
                 argv[0].vval = crate::eval::typval::TypvalVval::List(
                     crate::globals::GraphPtr::new(&raw mut match_list.sl_list),

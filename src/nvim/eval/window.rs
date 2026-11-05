@@ -565,7 +565,7 @@ pub fn f_tabpagewinnr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// `win_execute(win_id, command)` function (`f_win_execute`).
 pub fn f_win_execute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let id = tv_get_number(&argvars[0]) as i32;
     let mut tp: Option<&'static mut TabPageInfo> = None;

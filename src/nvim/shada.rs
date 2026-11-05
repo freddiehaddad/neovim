@@ -667,7 +667,7 @@ fn sd_default_value(t: ShadaEntryType) -> ShadaEntry {
                 value: TypVal {
                     v_type: VarType::VarUnknown,
                     v_lock: 0,
-                    vval: TypvalVval::String(ptr::null_mut()),
+                    vval: TypvalVval::NULL_STRING,
                 },
             }),
             additional_data: None,

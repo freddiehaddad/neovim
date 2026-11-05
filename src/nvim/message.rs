@@ -3364,7 +3364,7 @@ fn msg_puts_printf(str_: &[u8], maxlen: isize) {
             let mut argv = [TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(cstr.as_ptr().cast_mut()),
+                vval: TypvalVval::from_cstr(&cstr),
             }];
             let mut rettv = TypVal {
                 v_type: VarType::VarUnknown,

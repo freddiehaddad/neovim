@@ -7655,7 +7655,7 @@ pub fn f_fullcommand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mut name = tv_get_string(&argvars[0]).as_ptr().cast_mut();
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     while crate::memory::cstr_first_byte(name) == b':' {
         name = name.wrapping_add(1);
@@ -10011,7 +10011,7 @@ fn call_findfunc(pat: &CStr, cmdcomplete: BoolVarValue) -> Option<&'static mut T
         TypVal {
             v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::String(pat.as_ptr().cast_mut()),
+            vval: TypvalVval::from_cstr(pat),
         },
         TypVal {
             v_type: VarType::VarBool,
@@ -10428,7 +10428,7 @@ fn ex_connect(eap: &mut Exarg) {
             TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(addr),
+                vval: TypvalVval::from_raw_str(addr),
             },
             TypVal {
                 v_type: VarType::VarNumber,

@@ -3638,7 +3638,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
     let mut arg = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::String(colored_ccline.cmdbuff().cast()),
+        vval: TypvalVval::from_raw_str(colored_ccline.cmdbuff().cast()),
     };
     let mut tv = TypVal {
         v_type: VarType::VarUnknown,
@@ -3695,7 +3695,7 @@ fn color_cmdline(colored_ccline: &mut CmdlineInfo) -> bool {
                     colored_ccline.cmdlen as usize,
                 ))
                 .unwrap_or_default();
-                arg.vval = crate::eval::typval::TypvalVval::String(cstr.as_ptr().cast_mut());
+                arg.vval = crate::eval::typval::TypvalVval::from_cstr(&cstr);
                 arg_owned = Some(cstr);
             }
 
@@ -4723,7 +4723,7 @@ pub fn f_getcmdline(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         crate::eval::typval::tv_set_string_len(rettv, Some(s.as_bytes()));
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -4930,12 +4930,12 @@ fn cmdwin_invoke(action: &CStr, firstc: i32, content: Option<&CStr>, pos: i32) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::String(fc.as_mut_ptr().cast()),
+            vval: TypvalVval::from_raw_str(fc.as_mut_ptr().cast()),
         },
         TypVal {
             v_type: VarType::VarString,
             v_lock: 0,
-            vval: TypvalVval::String(content.unwrap_or(c"").as_ptr().cast_mut()),
+            vval: TypvalVval::from_cstr(content.unwrap_or(c"")),
         },
         TypVal {
             v_type: VarType::VarNumber,
@@ -5055,7 +5055,7 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
 /// Used by `f_input()` and `f_inputdialog()` functions.
 pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool, secret: bool) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if g_st().cmdpreview {
         return;
@@ -5132,8 +5132,7 @@ pub fn get_user_input(argvars: &[TypVal], rettv: &mut TypVal, inputdialog: bool,
                 };
                 if inputdialog {
                     cancelreturn_strarg2.v_type = VarType::VarString;
-                    cancelreturn_strarg2.vval =
-                        crate::eval::typval::TypvalVval::String(strarg2.as_ptr().cast_mut());
+                    cancelreturn_strarg2.vval = crate::eval::typval::TypvalVval::from_cstr(strarg2);
                     cancelreturn = &raw mut cancelreturn_strarg2;
                 } else {
                     xp_name = strarg2.as_ptr().cast();

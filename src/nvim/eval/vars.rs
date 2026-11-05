@@ -715,7 +715,7 @@ pub fn set_internal_string_var(name: &std::ffi::CStr, value: &CStr) {
     let mut tv = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::String(value.as_ptr().cast_mut()),
+        vval: TypvalVval::from_cstr(value),
     };
 
     set_var(name.to_bytes(), &mut tv, true);
@@ -854,7 +854,7 @@ pub fn get_spellword<'a>(list: &'a mut TvList, ret_word: &mut Option<&'a CStr>) 
 pub fn prepare_vimvar(idx: i32, save_tv: &mut TypVal) {
     let p = &mut vars_st().vimvars[idx as usize];
     *save_tv = p.vv_di.di_tv;
-    p.vv_di.di_tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    p.vv_di.di_tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if p.vv_di.di_tv.v_type == VarType::VarUnknown {
         hash_add(&mut vars_st().vimvardict.dv_hashtab, &mut p.vv_di);
     }
@@ -2419,7 +2419,7 @@ pub fn set_vim_var_string(idx: VimVarIndex, val: Option<&CStr>, len: isize) {
     let Some(val) = val else {
         tv_clear(tv);
         tv.v_type = VarType::VarString;
-        tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
     if len == -1 {
@@ -2494,9 +2494,7 @@ pub fn set_cmdarg(
     let oldval = crate::eval::typval::tv_take_string(tv);
     if eap.is_none() {
         tv.v_type = VarType::VarString;
-        tv.vval = crate::eval::typval::TypvalVval::String(
-            oldarg.map_or(ptr::null_mut(), std::ffi::CString::into_raw),
-        );
+        tv.vval = crate::eval::typval::TypvalVval::from_opt_cstring(oldarg);
         return None;
     }
 
@@ -2949,8 +2947,8 @@ pub fn before_set_vvar(
             crate::eval::typval::tv_set_string(&mut di.di_tv, Some(val));
         } else {
             di.di_tv.v_type = VarType::VarString;
-            di.di_tv.vval = crate::eval::typval::TypvalVval::String(tv.vval.v_string());
-            tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            di.di_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(tv.vval.v_string());
+            tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
         if watched {
             tv_dict_watcher_notify(
@@ -3236,7 +3234,7 @@ fn get_var_from(
     g_st().emsg_off += 1;
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if let Some(varname_cstr) = varname_opt
         && !tp.is_null()
@@ -3438,7 +3436,7 @@ pub fn opt_to_tv(value: Object, numbool: bool) -> TypVal {
                 );
             } else {
                 rettv.v_type = VarType::VarString;
-                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
             }
         }
         ObjectType::ObjectTypeLuaRef => {
@@ -3618,7 +3616,7 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
     let mut tv = TypVal {
         v_type: VarType::VarString,
         v_lock: 0,
-        vval: TypvalVval::String(c"".as_ptr().cast_mut()),
+        vval: TypvalVval::from_cstr(c""),
     };
     let endp_cstr = vars_st().redir_endp.unwrap_or(c"");
     if append {
@@ -3673,7 +3671,7 @@ pub fn var_redir_stop() {
             let mut tv = TypVal {
                 v_type: VarType::VarString,
                 v_lock: 0,
-                vval: TypvalVval::String(vars_st().redir_buf.as_mut_ptr().cast()),
+                vval: TypvalVval::from_raw_str(vars_st().redir_buf.as_mut_ptr().cast()),
             };
             let vn_cstr = vars_st().redir_varname.as_deref().unwrap_or(c"");
 

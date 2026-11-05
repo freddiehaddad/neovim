@@ -3202,7 +3202,7 @@ fn iconv_string(
 
 pub fn f_iconv(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let str_ = tv_get_string(&argvars[0]);
     let mut buf1 = [0u8; NUMBUFLEN];

@@ -3240,7 +3240,7 @@ fn expand_by_function(type_: i32, base: Option<&CStr>, cb_opt: Option<&mut Callb
     args[1].v_type = VAR_STRING;
     args[2].v_type = VAR_UNKNOWN;
     args[0].vval = crate::eval::typval::TypvalVval::Number(0);
-    args[1].vval = crate::eval::typval::TypvalVval::String(base.unwrap_or(c"").as_ptr().cast_mut());
+    args[1].vval = crate::eval::typval::TypvalVval::from_cstr(base.unwrap_or(c""));
 
     let pos = curwin_mut().w_cursor;
     g_st().textlock += 1;
@@ -6064,7 +6064,7 @@ fn get_userdefined_compl_info(
     args[1].v_type = VAR_STRING;
     args[2].v_type = VAR_UNKNOWN;
     args[0].vval = crate::eval::typval::TypvalVval::Number(1);
-    args[1].vval = crate::eval::typval::TypvalVval::String(c"".as_ptr().cast_mut());
+    args[1].vval = crate::eval::typval::TypvalVval::from_cstr(c"");
 
     let pos = curwin_mut().w_cursor;
     g_st().textlock += 1;

@@ -1976,7 +1976,7 @@ fn digraph_set_common(argchars: &TypVal, argdigraph: &TypVal) -> bool {
 /// `digraph_get()` function (`f_digraph_get`).
 pub fn f_digraph_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     let Some(digraphs) = tv_get_string_chk(&argvars[0]) else {
         return;
     };

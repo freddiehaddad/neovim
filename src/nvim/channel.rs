@@ -935,17 +935,13 @@ fn channel_callback_call(chan: &mut Channel, is_stderr: Option<bool>) {
         argv[1].vval = TypvalVval::List(crate::globals::GraphPtr::new(l));
         tv_list_ref(Some(&mut *l));
         reader.buffer = Vec::new();
-        argv[2].vval = TypvalVval::String(
-            reader
-                .reader_type
-                .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-        );
+        argv[2].vval = TypvalVval::from_opt_cstr(reader.reader_type);
         &raw mut reader.cb
     } else {
         argv[1].v_type = VarType::VarNumber;
         argv[1].v_lock = VAR_UNLOCKED;
         argv[1].vval = TypvalVval::Number(Varnumber::from(chan.exit_status));
-        argv[2].vval = TypvalVval::String(c"exit".as_ptr().cast_mut());
+        argv[2].vval = TypvalVval::from_cstr(c"exit");
         &raw mut chan.on_exit
     };
 

@@ -4080,7 +4080,7 @@ pub fn make_partial(selfdict: &mut TvDict, rettv: &mut TypVal) {
             };
         if fname_ptr.is_null() {
             rettv.v_type = VarType::VarFunc;
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         } else {
             let mut tofree: Option<std::ffi::CString> = None;
             let fname = fname_trans_sid(

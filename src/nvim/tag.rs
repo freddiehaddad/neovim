@@ -1268,9 +1268,9 @@ fn find_tagfunc_tags(
     }
 
     args[0].v_type = VarType::VarString;
-    args[0].vval = crate::eval::typval::TypvalVval::String(pat);
+    args[0].vval = crate::eval::typval::TypvalVval::from_raw_str(pat);
     args[1].v_type = VarType::VarString;
-    args[1].vval = crate::eval::typval::TypvalVval::String(flag_string.as_mut_ptr().cast());
+    args[1].vval = crate::eval::typval::TypvalVval::from_raw_str(flag_string.as_mut_ptr().cast());
 
     let d = tv_dict_alloc_lock(VAR_FIXED);
     if (flags & TAG_INS_COMP) == 0

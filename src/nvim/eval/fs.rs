@@ -506,7 +506,7 @@ pub fn modify_fname(
 /// "chdir(dir)" function
 pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if check_secure() {
         return;
@@ -557,7 +557,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         // Directory change failed
         tv_clear(rettv);
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -639,7 +639,7 @@ pub fn f_exepath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             crate::eval::typval::tv_set_string(rettv, Some(p.as_c_str()));
         }
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -695,7 +695,7 @@ fn findfilendir(argvars: &mut [TypVal], rettv: &mut TypVal, find_what: FindFileW
     let mut first = true;
     let mut error = false;
 
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     rettv.v_type = VarType::VarString;
 
     let fname = tv_get_string(&argvars[0]);
@@ -780,7 +780,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
     let mods_cstr = tv_get_string_buf_chk(&argvars[1], &mut buf);
     let (Some(fname_cstr), Some(mods_cstr)) = (fname_cstr, mods_cstr) else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
 
@@ -805,7 +805,7 @@ pub fn f_fnamemodify(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         ) == -1
         {
             rettv.v_type = VarType::VarString;
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
             return;
         }
     }
@@ -942,7 +942,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     let mut buf: Option<&'static mut FileBuf> = None;
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     // Without arguments (K_CD_SCOPE_INVALID), the effective working directory is returned.
     if !getcwd_scope_args(
@@ -1025,7 +1025,7 @@ pub fn f_getfperm(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::eval::typval::tv_set_string_len(rettv, Some(&perm));
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -1091,7 +1091,7 @@ pub fn f_getftype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         crate::eval::typval::tv_set_string(rettv, Some(t));
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -1134,7 +1134,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             ) {
                 crate::eval::typval::tv_set_string(rettv, Some(exp.as_c_str()));
             } else {
-                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
             }
         } else {
             expand_one(
@@ -1154,7 +1154,7 @@ pub fn f_glob(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
             }
         }
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -1206,7 +1206,7 @@ pub fn f_globpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
             }
         }
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -1383,7 +1383,7 @@ pub fn f_pathshorten(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
         );
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -1407,7 +1407,7 @@ pub(crate) fn readdir_checkitem(expr: &mut TypVal, name: &CStr) -> Varnumber {
     prepare_vimvar(VV_VAL, &mut save_val);
     set_vim_var_string(VV_VAL, crate::memory::cstr_as_opt_cstr(name), -1);
     argv[0].v_type = VarType::VarString;
-    argv[0].vval = crate::eval::typval::TypvalVval::String(name.cast_mut());
+    argv[0].vval = crate::eval::typval::TypvalVval::from_raw_str(name.cast_mut());
 
     let mut rettv = tv_init;
     if eval_expr_typval(&*expr, false, &mut argv, 1, &mut rettv) {
@@ -1779,7 +1779,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
                 limit -= 1;
                 if old_limit == 0 {
                     emsg(gettext(c"E655: Too many symbolic links (cycle?)"));
-                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                     return;
                 }
 
@@ -1959,7 +1959,7 @@ pub fn f_tempname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         crate::eval::typval::tv_set_string(rettv, Some(tn.as_c_str()));
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
@@ -2182,7 +2182,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
 
 /// "browse(save, title, initdir, default)" function
 pub fn f_browse(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     rettv.v_type = VarType::VarString;
 }
 

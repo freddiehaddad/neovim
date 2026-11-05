@@ -2295,7 +2295,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         } else if let Some(ref r) = result {
             crate::eval::typval::tv_set_string(rettv, Some(r.as_c_str()));
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else {
         if argvars[1].v_type != VarType::VarUnknown
@@ -2319,7 +2319,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 ) {
                     crate::eval::typval::tv_set_string(rettv, Some(exp.as_c_str()));
                 } else {
-                    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
                 }
             } else {
                 expand_one(
@@ -2339,7 +2339,7 @@ pub fn f_expand(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
                 }
             }
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     }
 }
@@ -3017,7 +3017,7 @@ pub fn f_getcharsearch(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalF
 /// "getfontname()" function
 pub fn f_getfontname(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 }
 
 /// "getjumplist()" function
@@ -3510,7 +3510,7 @@ pub fn f_getreg(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
 /// "getregtype()" function
 pub fn f_getregtype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let regname = getreg_get_regname(argvars);
     if regname == 0 {
@@ -4979,7 +4979,7 @@ pub fn f_len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
 fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType) {
     rettv.v_type = out_type;
     if out_type != VarType::VarNumber {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 
     if check_secure() {
@@ -5019,7 +5019,7 @@ fn libcall_common(argvars: &mut [TypVal], rettv: &mut TypVal, out_type: VarType)
         if let Some(s) = str_out {
             crate::eval::typval::tv_set_string(&mut *rettv, Some(s.as_c_str()));
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else if out_type == VarType::VarNumber {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(int_out));
@@ -5129,7 +5129,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
         }
         SomeMatchType::SomeMatchStr => {
             rettv.v_type = VarType::VarString;
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
         SomeMatchType::SomeMatch | SomeMatchType::SomeMatchEnd => {}
     }
@@ -5713,7 +5713,7 @@ pub fn f_state(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if len == 0 {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     } else {
         crate::eval::typval::tv_set_bytes(rettv, &buf[..len]);
     }
@@ -5952,7 +5952,7 @@ pub fn f_prevnonblank(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
 /// "printf()" function
 pub fn f_printf(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let saved_did_emsg = g_st().did_emsg;
     g_st().did_emsg = 0;
@@ -6293,7 +6293,7 @@ pub fn f_reltime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
 pub fn f_reltimestr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut tm: Proftime = 0;
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if list2proftime(&mut argvars[0], &mut tm) {
         crate::eval::typval::tv_set_string(rettv, Some(profile_msg(tm)));
     }
@@ -6351,7 +6351,7 @@ fn repeat_blob(blob_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
 
 fn repeat_string(str_tv: &mut TypVal, n: Varnumber, rettv: &mut TypVal) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if n <= 0 {
         return;
     }
@@ -6997,7 +6997,7 @@ pub fn f_screenrow(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
 /// "screenstring()" function
 pub fn f_screenstring(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     rettv.v_type = VarType::VarString;
 
     let mut row = (tv_get_number_chk(&argvars[0], None) as i32) - 1;
@@ -7392,7 +7392,7 @@ pub fn f_serverlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 /// "serverstart()" function
 pub fn f_serverstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if check_secure() {
         return;
@@ -7786,7 +7786,7 @@ pub fn f_settagstack(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFunc
 /// "sha256({expr})" function
 pub fn f_sha256(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if argvars[0].v_type == VarType::VarBlob {
         let blob = argvars[0].vval.v_blob_opt();
@@ -8169,7 +8169,7 @@ fn get_xdg_var_list(xdg: XDGVarType, rettv: &mut TypVal) {
 /// "stdpath(type)" function
 pub fn f_stdpath(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     let Some(p_cstr) = tv_get_string_chk(&argvars[0]) else {
         return;
@@ -8296,7 +8296,7 @@ pub fn f_strftime(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 Some(crate::memory::cstr_until_nul(&conv_bytes)),
             );
         } else {
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     } else {
         crate::eval::typval::tv_set_string(rettv, Some(crate::memory::cstr_until_nul(&result_buf)));
@@ -8397,11 +8397,11 @@ pub fn f_substitute(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
 
     rettv.v_type = VarType::VarString;
     let Some(str_) = str_ else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
     if pat.is_null() || (sub.is_null() && expr.is_null()) || flg.is_null() {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     } else {
         let sub_res = do_string_sub(
             str_,
@@ -8434,13 +8434,13 @@ pub fn f_swapinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_swapname(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
     let Some(buf) = tv_get_buf(&mut argvars[0], 0) else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         return;
     };
     if let Some(mf_fname) = buf.b_ml.mfp_opt().and_then(|mfp| mfp.mf_fname.as_ref()) {
         crate::eval::typval::tv_set_string(rettv, Some(mf_fname.as_c_str()));
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 

@@ -2061,7 +2061,7 @@ fn eval_func(
     let mut ret = get_func_tv(&s_cstr, len, &mut *rettv, arg, evalarg, &mut funcexe);
 
     if rettv.v_type == VarType::VarUnknown && !evaluate && arg.to_bytes().first() == Some(&b'(') {
-        rettv.vval = crate::eval::typval::TypvalVval::String(TV_EMPTY_STRING.cast_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::from_raw_str(TV_EMPTY_STRING.cast_mut());
         rettv.v_type = VarType::VarFunc;
     }
 
@@ -3500,7 +3500,7 @@ fn eval_index_inner(
                 crate::eval::typval::tv_set_string(rettv, Some(c.as_c_str()));
             } else {
                 rettv.v_type = VarType::VarString;
-                rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+                rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
             }
         }
         VarType::VarBlob => {
@@ -3987,7 +3987,7 @@ pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -
         crate::eval::typval::tv_set_string_len(rettv, Some(&buf));
     } else {
         rettv.v_type = VarType::VarString;
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
     true
 }
@@ -4720,7 +4720,7 @@ fn eval_env_var(arg: &mut &CStr, rettv: &mut TypVal, evaluate: i32) -> bool {
             crate::eval::typval::tv_set_string(rettv, Some(s.as_c_str()));
         } else {
             rettv.v_type = VarType::VarString;
-            rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+            rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
         }
     }
 
@@ -4807,7 +4807,7 @@ fn get_system_output_as_rettv(argvars: &mut [TypVal], rettv: &mut TypVal, retlis
     let profiling = g_st().do_profiling == PROF_YES;
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if check_secure() {
         return;
@@ -6706,7 +6706,7 @@ pub fn eval_call_provider(
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::String(method.as_ptr().cast_mut()),
+            vval: TypvalVval::from_cstr(method),
         },
         TypVal {
             v_type: VarType::VarList,

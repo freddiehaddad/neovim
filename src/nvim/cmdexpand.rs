@@ -5358,8 +5358,8 @@ where
     args[1].v_type = VarType::VarString;
     args[2].v_type = VarType::VarNumber;
     args[3].v_type = VarType::VarUnknown;
-    args[0].vval = crate::eval::typval::TypvalVval::String(pat.as_ptr().cast_mut());
-    args[1].vval = crate::eval::typval::TypvalVval::String(xp.xp_line.cast());
+    args[0].vval = crate::eval::typval::TypvalVval::from_cstr(&pat);
+    args[1].vval = crate::eval::typval::TypvalVval::from_raw_str(xp.xp_line.cast());
     args[2].vval = crate::eval::typval::TypvalVval::Number(i64::from(xp.xp_col));
 
     g_st().current_sctx = xp.xp_script_ctx;
@@ -5966,7 +5966,7 @@ pub fn f_getcompletion(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
 /// "getcompletiontype()" function.
 pub fn f_getcompletiontype(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
 
     if !tv_check_for_string_arg(argvars, 0) {
         return;

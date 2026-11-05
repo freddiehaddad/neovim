@@ -329,11 +329,7 @@ fn conv_error(msg: &CStr, mpstack: &[MPConvStackVal], objname: &CStr) -> bool {
                 let mut key_tv = TypVal {
                     v_type: VarType::VarString,
                     v_lock: VAR_UNLOCKED,
-                    vval: TypvalVval::String(
-                        unsafe { &*hi_ptr }
-                            .key_cstr()
-                            .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut()),
-                    ),
+                    vval: TypvalVval::from_opt_cstr(unsafe { &*hi_ptr }.key_cstr()),
                 };
                 let key = encode_tv2string(&mut key_tv, None);
                 ga_concat_literal(&mut msg_ga, b"key ");
@@ -1674,7 +1670,7 @@ mod tests {
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(c"c".as_ptr().cast_mut()),
+                vval: TypvalVval::from_cstr(c"c"),
             },
         };
         let mut li1 = Listitem {
@@ -1683,7 +1679,7 @@ mod tests {
             li_tv: TypVal {
                 v_type: VarType::VarString,
                 v_lock: VAR_UNLOCKED,
-                vval: TypvalVval::String(c"a\nb".as_ptr().cast_mut()),
+                vval: TypvalVval::from_cstr(c"a\nb"),
             },
         };
         li2.li_prev = crate::globals::ListitemPtr::from(&mut li1);

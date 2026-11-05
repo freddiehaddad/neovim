@@ -232,7 +232,7 @@ pub enum TypvalVval {
     Bool(i32),
     Special(i32),
     Float(f64),
-    String(RawCCharPtrMut),
+    String(crate::strings::CStrCursor<std::ffi::c_char>),
     List(crate::globals::TvListPtr),
     Dict(crate::globals::GraphPtr<TvDict>),
     Blob(crate::globals::GraphPtr<TvBlob>),
@@ -240,6 +240,36 @@ pub enum TypvalVval {
 }
 
 impl TypvalVval {
+    pub const NULL_STRING: Self = Self::String(crate::strings::CStrCursor::NULL);
+
+    #[inline]
+    pub fn from_cstr(s: &CStr) -> Self {
+        Self::String(crate::strings::CStrCursor::from_ptr(s.as_ptr()))
+    }
+
+    #[inline]
+    pub fn from_opt_cstring(s: Option<std::ffi::CString>) -> Self {
+        match s {
+            Some(cs) => Self::from_cstring(cs),
+            None => Self::NULL_STRING,
+        }
+    }
+
+    #[inline]
+    pub fn from_opt_cstr(s: Option<&CStr>) -> Self {
+        Self::String(crate::strings::CStrCursor::from_opt_cstr(s))
+    }
+
+    #[inline]
+    pub fn from_cstring(s: std::ffi::CString) -> Self {
+        Self::String(crate::strings::CStrCursor::from_ptr(s.into_raw()))
+    }
+
+    #[inline]
+    pub fn from_raw_str(p: *const std::ffi::c_char) -> Self {
+        Self::String(crate::strings::CStrCursor::from_ptr(p))
+    }
+
     #[inline]
     pub const fn v_number(self) -> i64 {
         match self {
@@ -299,9 +329,9 @@ impl TypvalVval {
     }
 
     #[inline]
-    pub const fn v_string(self) -> RawCCharPtrMut {
+    pub fn v_string(self) -> RawCCharPtrMut {
         match self {
-            Self::String(p) => p,
+            Self::String(p) => p.as_ptr(),
             _ => ptr::null_mut(),
         }
     }
@@ -432,7 +462,7 @@ impl TypvalVval {
     #[inline]
     pub fn v_any_addr(self) -> usize {
         match self {
-            Self::String(p) => p as usize,
+            Self::String(p) => p.as_ptr() as usize,
             Self::List(p) => p.as_ptr() as usize,
             Self::Dict(p) => p.as_ptr() as usize,
             Self::Blob(p) => p.as_ptr() as usize,
@@ -834,7 +864,7 @@ pub fn tv_list_set_ret(tv: &mut TypVal, l: Option<&mut TvList>) {
 #[inline]
 pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
     let p = tv.vval.v_string();
-    tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if p.is_null() {
         None
     } else {
@@ -845,22 +875,19 @@ pub fn tv_take_string(tv: &mut TypVal) -> Option<std::ffi::CString> {
 #[inline]
 pub fn tv_set_string(tv: &mut TypVal, s: Option<&CStr>) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::String(
-        s.map_or(ptr::null_mut(), |c| c.to_owned().into_raw()),
-    );
+    tv.vval = crate::eval::typval::TypvalVval::from_opt_cstring(s.map(CStr::to_owned));
 }
 
 #[inline]
 pub fn tv_set_bytes(tv: &mut TypVal, bytes: &[u8]) {
     tv.v_type = VarType::VarString;
-    tv.vval =
-        crate::eval::typval::TypvalVval::String(crate::memory::cstr_from_bytes(bytes).into_raw());
+    tv.vval = crate::eval::typval::TypvalVval::from_cstring(crate::memory::cstr_from_bytes(bytes));
 }
 
 #[inline]
 pub fn tv_set_string_len(tv: &mut TypVal, s: Option<&[u8]>) {
     tv.v_type = VarType::VarString;
-    tv.vval = crate::eval::typval::TypvalVval::String(s.map_or(ptr::null_mut(), |bytes| {
+    tv.vval = crate::eval::typval::TypvalVval::from_raw_str(s.map_or(ptr::null_mut(), |bytes| {
         crate::memory::cstr_from_bytes(bytes).into_raw()
     }));
 }
@@ -1415,7 +1442,7 @@ pub fn tv_list_append_bytes(l: &mut TvList, bytes: &[u8]) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::String(crate::memory::cstr_from_bytes(bytes).into_raw()),
+            vval: TypvalVval::from_cstring(crate::memory::cstr_from_bytes(bytes)),
         },
     );
 }
@@ -1434,7 +1461,7 @@ pub fn tv_list_append_string(l: &mut TvList, str_: Option<&CStr>, len: isize) {
         TypVal {
             v_type: VarType::VarString,
             v_lock: VAR_UNLOCKED,
-            vval: TypvalVval::String(v_string),
+            vval: TypvalVval::from_raw_str(v_string),
         },
     );
 }
@@ -1930,14 +1957,14 @@ pub fn f_join(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         tv_list_join(&mut out, argvars[0].vval.v_list_opt(), sep);
         tv_set_string_len(rettv, Some(&out));
     } else {
-        rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
 }
 
 /// "list2str()" function.
 pub fn f_list2str(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     if argvars[0].v_type != VarType::VarList {
         emsg(tr(E_INVARG));
         return;
@@ -3232,7 +3259,7 @@ pub fn tv_dict_add_str_len(d: &mut TvDict, key: &CStr, val: Option<&[u8]>) -> bo
     });
     let item = tv_dict_item_alloc_len(key.to_bytes());
     item.di_tv.v_type = VarType::VarString;
-    item.di_tv.vval = crate::eval::typval::TypvalVval::String(s);
+    item.di_tv.vval = crate::eval::typval::TypvalVval::from_raw_str(s);
     if !tv_dict_add(d, item) {
         tv_dict_item_free(item);
         return false;
@@ -3848,7 +3875,7 @@ fn nothing_conv_func_start(tv: &mut TypVal) -> bool {
         if !fun.is_null() && !ptr::eq(fun.cast_const(), TV_EMPTY_STRING) {
             drop(unsafe { std::ffi::CString::from_raw(fun) });
         }
-        tv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+        tv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     }
     false
 }
@@ -4198,8 +4225,7 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
         VarType::VarNumber | VarType::VarFloat | VarType::VarBool | VarType::VarSpecial => {}
         VarType::VarString | VarType::VarFunc => {
             if !from.vval.v_string().is_null() {
-                to.vval =
-                    crate::eval::typval::TypvalVval::String(from.vval.v_string_owned().into_raw());
+                to.vval = crate::eval::typval::TypvalVval::from_cstring(from.vval.v_string_owned());
                 if from.v_type == VarType::VarFunc {
                     let s = to.vval.v_string();
                     func_ref(crate::memory::cstr_as_opt_cstr(s));

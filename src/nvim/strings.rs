@@ -2929,7 +2929,7 @@ pub fn f_tr(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let tostr = tv_get_string_buf_chk(&argvars[2], &mut buf2);
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     let (Some(fromstr), Some(tostr)) = (fromstr, tostr) else {
         return;
     };
@@ -3001,7 +3001,7 @@ pub fn f_trim(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     let mut dir: i32 = 0;
 
     rettv.v_type = VarType::VarString;
-    rettv.vval = crate::eval::typval::TypvalVval::String(ptr::null_mut());
+    rettv.vval = crate::eval::typval::TypvalVval::NULL_STRING;
     let Some(head_cstr) = head_opt else {
         return;
     };

@@ -122,7 +122,7 @@ pub fn decode_string(s: &[u8], force_blob: bool) -> TypVal {
     let mut tv = TypVal {
         v_type: VarType::VarString,
         v_lock: VAR_UNLOCKED,
-        vval: TypvalVval::String(std::ptr::null_mut()),
+        vval: TypvalVval::NULL_STRING,
     };
     crate::eval::typval::tv_set_bytes(&mut tv, s);
     tv
