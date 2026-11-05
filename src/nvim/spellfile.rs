@@ -4438,7 +4438,7 @@ pub fn ex_mkspell(eap: &mut Exarg) {
 
     if (arg).as_bytes().starts_with(b"-ascii") {
         ascii = true;
-        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
+        arg = arg.wrapping_add(6).skipwhite();
     }
 
     if !get_arglist_exp((arg).as_bytes(), &mut fnames, false) {

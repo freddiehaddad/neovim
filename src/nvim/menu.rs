@@ -235,16 +235,16 @@ pub fn ex_menu(eap: &mut Exarg) {
         let arg_bytes = (arg).as_bytes();
         if arg_bytes.starts_with(b"<script>") {
             noremap = REMAP_SCRIPT;
-            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8));
+            arg = arg.wrapping_add(8).skipwhite();
             continue;
         }
         if arg_bytes.starts_with(b"<silent>") {
             silent = true;
-            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(8));
+            arg = arg.wrapping_add(8).skipwhite();
             continue;
         }
         if arg_bytes.starts_with(b"<special>") {
-            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(9));
+            arg = arg.wrapping_add(9).skipwhite();
             continue;
         }
         break;
@@ -296,7 +296,7 @@ pub fn ex_menu(eap: &mut Exarg) {
             i += 1;
         }
         arg = arg.wrapping_add(arg_bytes.len() - rem.len());
-        arg = crate::charset::skipwhite_ptr(arg);
+        arg = arg.skipwhite();
     } else if eap.addr_count != 0 && eap.line2 != 0 {
         pri_tab[0] = eap.line2;
         i = 1;
@@ -316,14 +316,14 @@ pub fn ex_menu(eap: &mut Exarg) {
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_TRUE;
-        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
+        arg = arg.wrapping_add(6).skipwhite();
     } else if arg_bytes.starts_with(b"disable")
         && arg_bytes
             .get(7)
             .is_some_and(|&b| ascii_iswhite(i32::from(b)))
     {
         enable = K_FALSE;
-        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(7));
+        arg = arg.wrapping_add(7).skipwhite();
     }
 
     if (arg).is_empty() {
@@ -1662,7 +1662,7 @@ pub fn ex_emenu(eap: &mut Exarg) {
                 return;
             }
         }
-        arg = crate::charset::skipwhite_ptr(arg.wrapping_add(2));
+        arg = arg.wrapping_add(2).skipwhite();
     }
 
     let Some(menu) = menu_getbyname((arg).as_cstr()) else {

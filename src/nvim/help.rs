@@ -464,7 +464,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
     let arg_bytes = eap.arg.as_bytes();
     if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(arg_bytes[3]) {
         add_help_tags = true;
-        eap.arg = crate::charset::skipwhite_ptr(eap.arg.wrapping_add(3));
+        eap.arg = eap.arg.wrapping_add(3).skipwhite();
     }
 
     let mut tv_args = [

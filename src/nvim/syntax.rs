@@ -2608,7 +2608,7 @@ fn syn_cmd_conceal(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    let next = crate::charset::skiptowhite_ptr(arg);
+    let next = arg.skiptowhite();
     if (arg).is_empty() {
         if win_s(curwin_mut()).b_syn_conceal != 0 {
             msg(c"syntax conceal on", 0);
@@ -2635,7 +2635,7 @@ fn syn_cmd_case(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    let next = crate::charset::skiptowhite_ptr(arg);
+    let next = arg.skiptowhite();
     if (arg).is_empty() {
         if win_s(curwin_mut()).b_syn_ic {
             msg(c"syntax case ignore", 0);
@@ -2675,7 +2675,7 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    let arg_end = crate::charset::skiptowhite_ptr(arg);
+    let arg_end = arg.skiptowhite();
     if crate::memory::ptr_offset_from(arg_end, arg) == 5
         && (arg).slice(5).eq_ignore_ascii_case(b"start")
     {
@@ -2689,7 +2689,7 @@ fn syn_cmd_foldlevel(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    arg = crate::charset::skipwhite_ptr(arg_end);
+    arg = arg_end.skipwhite();
     if !(arg).is_empty() {
         semsg!(gettext(E_ILLEGAL_ARG), arg);
     }
@@ -2702,7 +2702,7 @@ fn syn_cmd_spell(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    let next = crate::charset::skiptowhite_ptr(arg);
+    let next = arg.skiptowhite();
     if (arg).is_empty() {
         if win_s(curwin_mut()).b_syn_spell == SYNSPL_TOP {
             msg(c"syntax spell toplevel", 0);
@@ -2737,7 +2737,7 @@ fn syn_cmd_iskeyword(eap: &mut Exarg, _syncing: i32) {
         return;
     }
 
-    arg = crate::charset::skipwhite_ptr(arg);
+    arg = arg.skipwhite();
     if (arg).is_empty() {
         msg_puts(c"\n");
         if let Some(ref isk) = win_s(curwin_mut()).b_syn_isk {
@@ -2865,7 +2865,7 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
         }
     } else {
         while ends_excmd((arg).first_byte()) == 0 {
-            let arg_end = crate::charset::skiptowhite_ptr(arg);
+            let arg_end = arg.skiptowhite();
             if (arg).first_byte() == b'@' {
                 let id = syn_scl_namen2id(
                     arg.wrapping_add(1)
@@ -2888,7 +2888,7 @@ fn syn_cmd_clear(eap: &mut Exarg, syncing: i32) {
                 }
                 syn_clear_one(id, syncing != 0);
             }
-            arg = crate::charset::skipwhite_ptr(arg_end);
+            arg = arg_end.skipwhite();
         }
     }
     redraw_curbuf_later(UPD_SOME_VALID);
@@ -3017,7 +3017,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
         }
     } else {
         while ends_excmd((arg).first_byte()) == 0 && !g_st().got_int {
-            let arg_end = crate::charset::skiptowhite_ptr(arg);
+            let arg_end = arg.skiptowhite();
             if (arg).first_byte() == b'@' {
                 let id = syn_scl_namen2id(
                     arg.wrapping_add(1)
@@ -3038,7 +3038,7 @@ fn syn_cmd_list(eap: &mut Exarg, syncing: i32) {
                     syn_list_one(id, false, true);
                 }
             }
-            arg = crate::charset::skipwhite_ptr(arg_end);
+            arg = arg_end.skipwhite();
         }
     }
     eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((arg).as_cstr()));
@@ -4416,8 +4416,8 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
     }
 
     while ends_excmd((arg_start).first_byte()) == 0 {
-        let mut arg_end = crate::charset::skiptowhite_ptr(arg_start);
-        let mut next_arg = crate::charset::skipwhite_ptr(arg_end);
+        let mut arg_end = arg_start.skiptowhite();
+        let mut next_arg = arg_end.skipwhite();
         key_owned = Some(crate::memory::cstr_from_bytes(
             &arg_start
                 .slice(crate::memory::ptr_offset_from(arg_end, arg_start) as usize)
@@ -4429,13 +4429,13 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 win_s(curwin_mut()).b_syn_sync_flags |= SF_CCOMMENT;
             }
             if ends_excmd((next_arg).first_byte()) == 0 {
-                arg_end = crate::charset::skiptowhite_ptr(next_arg);
+                arg_end = next_arg.skiptowhite();
                 if !eap.skip {
                     win_s(curwin_mut()).b_syn_sync_id = syn_check_group(
                         next_arg.slice(crate::memory::ptr_offset_from(arg_end, next_arg) as usize),
                     ) as i16;
                 }
-                next_arg = crate::charset::skipwhite_ptr(arg_end);
+                next_arg = arg_end.skipwhite();
             } else if !eap.skip {
                 win_s(curwin_mut()).b_syn_sync_id = syn_name2id(c"Comment") as i16;
             }
@@ -4521,7 +4521,7 @@ fn syn_cmd_sync(eap: &mut Exarg, _syncing: i32) {
                 }
                 win_s(curwin_mut()).b_syn_linecont_pat = Some(pat_cstr);
             }
-            next_arg = crate::charset::skipwhite_ptr(arg_end.wrapping_add(1));
+            next_arg = arg_end.wrapping_add(1).skipwhite();
         } else {
             eap.arg = next_arg;
             if key.to_bytes() == b"MATCH" {
@@ -4941,7 +4941,7 @@ pub fn ex_syntax(eap: &mut Exarg) {
     let mut found = false;
     for &(name, func) in &SUBCOMMANDS {
         if subcmd_slice == name.to_bytes() {
-            eap.arg = crate::charset::skipwhite_ptr(subcmd_end);
+            eap.arg = subcmd_end.skipwhite();
             func(eap, 0);
             found = true;
             break;

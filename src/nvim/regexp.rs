@@ -359,6 +359,12 @@ impl RegLinePtr {
     }
 
     #[inline]
+    pub fn head_off_to(self, p: Self) -> i32 {
+        let len = (p.as_ptr() as usize).saturating_sub(self.as_ptr() as usize);
+        crate::mbyte::utf_head_off(self.slice(len), len)
+    }
+
+    #[inline]
     pub fn first_byte(self) -> u8 {
         crate::memory::cstr_first_byte(self.as_ptr())
     }
@@ -2286,8 +2292,7 @@ pub(super) fn reg_getline_len(lnum: Linenr) -> Colnr {
 pub(super) fn reg_prev_class() -> i32 {
     if re_st().rex.input > re_st().rex.line {
         let prev = re_st().rex.input.wrapping_sub(1);
-        let head =
-            prev.wrapping_sub(crate::mbyte::utf_head_off_ptr(re_st().rex.line, prev) as usize);
+        let head = prev.wrapping_sub(re_st().rex.line.head_off_to(prev) as usize);
         return mb_get_class_tab(head.as_bytes(), &re_st().rex.buf_mut().b_chartab);
     }
     -1

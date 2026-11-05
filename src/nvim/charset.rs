@@ -901,28 +901,6 @@ impl CStrPtrSkip for *mut u8 {
     }
 }
 
-impl<T> CStrPtrSkip for crate::strings::CStrCursor<T> {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
-impl CStrPtrSkip for crate::regexp::RegLinePtr {
-    #[inline]
-    fn as_c_char_ptr(self) -> *const std::ffi::c_char {
-        self.as_ptr().cast()
-    }
-    #[inline]
-    fn advance_bytes(self, n: usize) -> Self {
-        self.wrapping_add(n)
-    }
-}
-
 #[inline]
 pub fn skipwhite_ptr<P: CStrPtrSkip>(p: P) -> P {
     p.advance_bytes(skipwhite_len(crate::memory::cstr_as_bytes(

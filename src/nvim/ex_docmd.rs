@@ -5992,7 +5992,7 @@ pub fn parse_cmdline(
             eap.arg = if eap.cmdidx == Cmdidx::CmdBang {
                 p
             } else {
-                crate::charset::skipwhite_ptr(p)
+                p.skipwhite()
             };
         }
 
@@ -6121,7 +6121,7 @@ fn execute_cmd0(
                 false,
             );
             eap.addr_count = 1;
-            eap.arg = crate::charset::skipwhite_ptr(p);
+            eap.arg = p.skipwhite();
         } else {
             let arg0 = eap.args.as_slice()[0];
             let arglen0 = eap.arglens.as_slice()[0];
@@ -6621,7 +6621,7 @@ fn do_one_cmd(
                     errormsg = Some(gettext(c"E494: Use w or w>>"));
                     break 'doend;
                 }
-                ea.arg = crate::charset::skipwhite_ptr(ea.arg.wrapping_add(1));
+                ea.arg = ea.arg.wrapping_add(1).skipwhite();
                 ea.append = true;
             } else if ea.arg.first_byte() == b'!' && ea.cmdidx == Cmdidx::CmdWrite {
                 ea.arg = ea.arg.wrapping_add(1);
@@ -6811,7 +6811,7 @@ pub fn parse_command_modifiers(
     *cmod = Cmdmod::new();
 
     if eap.cmd.as_bytes().starts_with(b"'<,'>") {
-        let p = crate::charset::skipwhite_ptr(eap.cmd.wrapping_add(5));
+        let p = eap.cmd.wrapping_add(5).skipwhite();
         let p0 = (p).first_byte();
         if p0 != 0 && p0 != b'|' {
             eap.cmd = eap.cmd.wrapping_add(5);
@@ -7049,7 +7049,7 @@ pub fn parse_command_modifiers(
                 if eap.cmd.first_byte() == b'!'
                     && !ascii_iswhite(eap.cmd.wrapping_sub(1).first_byte())
                 {
-                    eap.cmd = crate::charset::skipwhite_ptr(eap.cmd.wrapping_add(1));
+                    eap.cmd = eap.cmd.wrapping_add(1).skipwhite();
                     cmod.cmod_flags |= CMOD_ERRSILENT;
                 }
                 continue;
@@ -8127,7 +8127,7 @@ fn get_flags(eap: &mut Exarg) {
         } else {
             eap.flags |= EXFLAG_NR;
         }
-        eap.arg = crate::charset::skipwhite_ptr(eap.arg.wrapping_add(1));
+        eap.arg = eap.arg.wrapping_add(1).skipwhite();
     }
 }
 
@@ -8685,19 +8685,19 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
         {
             return false;
         }
-        eap.arg = crate::charset::skipwhite_ptr(arg);
+        eap.arg = arg.skipwhite();
         return true;
     }
 
     if arg_bytes.starts_with(b"edit") && !arg_bytes.get(4).is_some_and(u8::is_ascii_alphabetic) {
         eap.read_edit = true;
-        eap.arg = crate::charset::skipwhite_ptr(arg.wrapping_add(4));
+        eap.arg = arg.wrapping_add(4).skipwhite();
         return true;
     }
 
     if arg_bytes.first() == Some(&b'p') && !arg_bytes.get(1).is_some_and(u8::is_ascii_alphabetic) {
         eap.mkdir_p = true;
-        eap.arg = crate::charset::skipwhite_ptr(arg.wrapping_add(1));
+        eap.arg = arg.wrapping_add(1).skipwhite();
         return true;
     }
 
@@ -8730,7 +8730,7 @@ pub fn getargopt(eap: &mut Exarg) -> bool {
 
     let after_cstr = skip_cmd_arg((arg).as_cstr(), false);
     arg = arg.wrapping_add((after_cstr.as_ptr() as usize) - (arg.as_ptr() as usize));
-    eap.arg = crate::charset::skipwhite_ptr(arg);
+    eap.arg = arg.skipwhite();
 
     unsafe {
         *arg.as_ptr() = NUL;
@@ -11137,7 +11137,7 @@ fn ex_wincmd(eap: &mut Exarg) {
     }
 
     eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd((p).as_cstr()));
-    p = crate::charset::skipwhite_ptr(p);
+    p = p.skipwhite();
     if !(p).is_empty() && (p).first_byte() != b'"' && eap.nextcmd.is_null() {
         let _ = emsg(gettext(E_INVARG));
     } else if !eap.skip {
@@ -12459,12 +12459,12 @@ fn ex_filetype(eap: &mut Exarg) {
         let arg_bytes = (arg).as_bytes();
         if arg_bytes.starts_with(b"plugin") {
             plugin = true;
-            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
+            arg = arg.wrapping_add(6).skipwhite();
             continue;
         }
         if arg_bytes.starts_with(b"indent") {
             indent = true;
-            arg = crate::charset::skipwhite_ptr(arg.wrapping_add(6));
+            arg = arg.wrapping_add(6).skipwhite();
             continue;
         }
         break;

@@ -137,6 +137,16 @@ impl<T> CStrCursor<T> {
     }
 
     #[inline]
+    pub fn skipwhite(self) -> Self {
+        self.wrapping_add(crate::charset::skipwhite_len(self.as_bytes()))
+    }
+
+    #[inline]
+    pub fn skiptowhite(self) -> Self {
+        self.wrapping_add(crate::charset::skiptowhite_len(self.as_bytes()))
+    }
+
+    #[inline]
     pub fn first_byte(self) -> u8 {
         crate::memory::cstr_first_byte(self.as_ptr().cast::<u8>())
     }

@@ -1142,7 +1142,7 @@ pub fn ex_command(eap: &mut Exarg) {
 
     while (p).first_byte() == b'-' {
         p = p.wrapping_add(1);
-        let end = crate::charset::skiptowhite_ptr(p);
+        let end = p.skiptowhite();
         let attr_len = crate::memory::ptr_offset_from(end, p) as usize;
         if !uc_scan_attr(
             (p).slice(attr_len),
@@ -1155,7 +1155,7 @@ pub fn ex_command(eap: &mut Exarg) {
         ) {
             return;
         }
-        p = crate::charset::skipwhite_ptr(end);
+        p = end.skipwhite();
     }
 
     let name = p;
@@ -1166,7 +1166,7 @@ pub fn ex_command(eap: &mut Exarg) {
     let end = name.wrapping_add(name_len);
     let name_slice = (name).slice(name_len);
 
-    p = crate::charset::skipwhite_ptr(end);
+    p = end.skipwhite();
     if !has_attr && ends_excmd(i32::from((p).first_byte())) != 0 {
         uc_list(name_slice);
     } else if !ascii_isupper((name).first_byte()) {

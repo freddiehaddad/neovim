@@ -3333,10 +3333,7 @@ fn recursive_regmatch(
                 re_st().rex.input = re_st()
                     .rex
                     .input
-                    .wrapping_sub(crate::mbyte::utf_head_off_ptr(
-                        re_st().rex.line,
-                        re_st().rex.input,
-                    ) as usize);
+                    .wrapping_sub(re_st().rex.line.head_off_to(re_st().rex.input) as usize);
             } else {
                 re_st().rex.input = re_st().rex.line;
             }

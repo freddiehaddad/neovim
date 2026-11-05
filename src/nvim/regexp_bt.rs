@@ -3700,10 +3700,7 @@ fn regmatch(
                         } else {
                             let mut p = rp.rs_un.regsave().rs_u.ptr;
                             p = p.wrapping_sub(
-                                1 + crate::mbyte::utf_head_off_ptr(
-                                    re_st().rex.line,
-                                    p.wrapping_sub(1),
-                                ) as usize,
+                                1 + re_st().rex.line.head_off_to(p.wrapping_sub(1)) as usize,
                             );
                             rp.rs_un.regsave_mut().rs_u.ptr = p;
 
@@ -3779,10 +3776,10 @@ fn regmatch(
                                         reg_breakcheck();
                                     } else {
                                         re_st().rex.input = re_st().rex.input.wrapping_sub(
-                                            1 + crate::mbyte::utf_head_off_ptr(
-                                                re_st().rex.line,
-                                                re_st().rex.input.wrapping_sub(1),
-                                            )
+                                            1 + re_st()
+                                                .rex
+                                                .line
+                                                .head_off_to(re_st().rex.input.wrapping_sub(1))
                                                 as usize,
                                         );
                                     }
