@@ -3027,7 +3027,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
     let mut buf: *mut FileBuf = buf_arg;
     if flag == b'w' as i32 {
         if g_st().curbuf == buf || !win_valid(insexp().next_buf_wp.opt()) {
-            insexp().next_buf_wp = crate::globals::WinPtr::new(curwin_ptr());
+            insexp().next_buf_wp = crate::globals::curwin_ptr();
         }
 
         debug_assert!(!insexp().next_buf_wp.is_null());
@@ -3039,7 +3039,7 @@ fn ins_compl_next_buf(buf_arg: &mut FileBuf, flag: i32) -> &'static mut FileBuf 
                 g_st().firstwin.as_ptr()
             };
             insexp().next_buf_wp = crate::globals::WinPtr::new(next_wp);
-            if ptr::eq(next_wp, curwin_ptr())
+            if next_wp == curwin_ptr()
                 || (unsafe { !(*next_wp).buf_mut().b_scanned && (*next_wp).w_config.focusable })
             {
                 break;
@@ -6432,7 +6432,7 @@ pub fn ins_complete(c: i32, enable_pum: bool) -> bool {
         return false;
     }
 
-    insexp().compl_curr_win = crate::globals::WinPtr::new(curwin_ptr());
+    insexp().compl_curr_win = crate::globals::curwin_ptr();
     insexp().compl_curr_buf = crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
     insexp().compl_shown_idx = insexp().compl_curr_idx;
     insexp().compl_shows_dir = insexp().compl_direction;

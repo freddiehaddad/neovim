@@ -390,7 +390,7 @@ fn nlua_get_var_scope(lstate: *mut lua_State) -> Option<&'static mut TvDict> {
             b"w" => {
                 let win = find_window_by_handle(handle, &mut err);
                 if !win.is_null() {
-                    dict = (*win).w_vars();
+                    dict = win.w_vars();
                 }
             }
             b"t" => {

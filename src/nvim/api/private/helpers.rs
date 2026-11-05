@@ -625,7 +625,7 @@ pub fn find_buffer_by_handle(buffer: Buffer, err: &mut Error) -> Option<&'static
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut WinInfoInfo {
+pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> WinPtr {
     if window == 0 {
         return curwin_ptr();
     }
@@ -641,9 +641,9 @@ pub extern "C" fn find_window_by_handle(window: Window, err: &mut Error) -> *mut
             c"Invalid window id: %lld",
             i64::from(window),
         );
-        return ptr::null_mut();
+        return WinPtr::NULL;
     }
-    rv.as_ptr()
+    rv
 }
 
 pub fn find_tab_by_handle(tabpage: Tabpage, err: &mut Error) -> Option<&'static mut TabPageInfo> {
@@ -678,7 +678,7 @@ pub fn find_window_by_handle_mut(
     err: &mut Error,
 ) -> Option<&'static mut WinInfoInfo> {
     let w = find_window_by_handle(window, err);
-    unsafe { w.as_mut() }
+    w.opt_mut()
 }
 
 #[inline]
@@ -1511,7 +1511,7 @@ pub fn get_default_stl_hl(
     let Some(wp) = wp else {
         return c"TabLineFill";
     };
-    let is_curwin = ptr::eq(wp, curwin_ptr());
+    let is_curwin = wp == curwin_ptr();
     if use_winbar {
         if is_curwin { c"WinBar" } else { c"WinBarNC" }
     } else if stc_hl_id > 0 {

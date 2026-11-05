@@ -9889,7 +9889,7 @@ fn ex_only(eap: &mut Exarg) {
             };
             wp = next;
         }
-        if !ptr::eq(wp, curwin_ptr()) {
+        if wp != curwin_ptr() {
             win_goto(wp);
         }
     }
@@ -9902,7 +9902,7 @@ fn ex_hide(eap: &mut Exarg) {
     }
 
     let win: *mut WinInfoInfo = if eap.addr_count == 0 {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     } else {
         win_find_nr(eap.line2, Some(curtab_mut())).map_or(g_st().lastwin.as_ptr(), |w| w)
     };
@@ -10123,7 +10123,7 @@ fn set_browse_edit_arg(eap: &mut Exarg) {
 
 pub fn ex_splitview(eap: &mut Exarg) {
     set_browse_edit_arg(eap);
-    let old_curwin = curwin_ptr();
+    let mut old_curwin = curwin_ptr();
     let mut fname: Option<std::ffi::CString> = None;
     let use_tab = eap.cmdidx == Cmdidx::CmdTabedit
         || eap.cmdidx == Cmdidx::CmdTabfind
@@ -10172,16 +10172,16 @@ pub fn ex_splitview(eap: &mut Exarg) {
                 eap.line2 + 1
             };
             if win_new_tabpage(after, eap.arg.as_opt_cstr(), true, None).is_some() {
-                do_exedit(eap, unsafe { old_curwin.as_mut() });
+                do_exedit(eap, old_curwin.opt_mut());
                 apply_autocmds(EVENT_TABNEWENTERED, None, None, false, curbuf_opt_mut());
 
                 if curwin_ptr() != old_curwin
-                    && win_valid(unsafe { old_curwin.as_ref() })
-                    && unsafe { (*old_curwin).w_buffer } != g_st().curbuf
+                    && win_valid(old_curwin.opt())
+                    && old_curwin.w_buffer != g_st().curbuf
                     && (g_st().cmdmod.cmod_flags & CMOD_KEEPALT) == 0
                 {
-                    unsafe {
-                        (*old_curwin).w_alt_fnum = curbuf_mut().b_fnum;
+                    {
+                        old_curwin.w_alt_fnum = curbuf_mut().b_fnum;
                     }
                 }
             }
@@ -10199,7 +10199,7 @@ pub fn ex_splitview(eap: &mut Exarg) {
             } else {
                 do_check_scrollbind(false);
             }
-            do_exedit(eap, unsafe { old_curwin.as_mut() });
+            do_exedit(eap, old_curwin.opt_mut());
         }
     }
 
@@ -10299,7 +10299,7 @@ fn ex_tabs(_eap: &mut Exarg) {
             }
 
             msg_putchar(b'\n' as i32);
-            msg_putchar(if std::ptr::eq(wp, curwin_ptr()) {
+            msg_putchar(if wp == curwin_ptr() {
                 b'>' as i32
             } else if std::ptr::eq(wp, lastused_win) {
                 b'#' as i32
@@ -11940,14 +11940,14 @@ fn ex_pedit(eap: &mut Exarg) {
     let curwin_save = curwin_ptr();
     prepare_preview_window();
     do_exedit(eap, None);
-    back_to_current_window(unsafe { curwin_save.as_mut() });
+    back_to_current_window(curwin_save.opt_mut());
 }
 
 fn ex_pbuffer(eap: &mut Exarg) {
     let curwin_save = curwin_ptr();
     prepare_preview_window();
     do_exbuffer(eap);
-    back_to_current_window(unsafe { curwin_save.as_mut() });
+    back_to_current_window(curwin_save.opt_mut());
 }
 
 fn prepare_preview_window() {

@@ -950,13 +950,13 @@ pub fn curwin_mut() -> &'static mut WinInfoInfo {
 }
 
 #[inline(always)]
-pub fn curwin_ptr() -> *mut WinInfoInfo {
-    curwin.get().as_ptr()
+pub fn curwin_ptr() -> WinPtr {
+    curwin.get()
 }
 
 #[inline(always)]
-pub fn set_curwin(wp: *mut WinInfoInfo) {
-    curwin.set(WinPtr::new(wp));
+pub fn set_curwin(wp: impl Into<WinPtr>) {
+    curwin.set(wp.into());
 }
 
 #[inline(always)]
@@ -1048,6 +1048,39 @@ impl<T> PartialEq<&mut T> for GraphPtr<T> {
         ptr::eq(self.as_ptr(), *other)
     }
 }
+
+macro_rules! impl_sym_graph_eq {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl PartialEq<GraphPtr<$t>> for *mut $t {
+                #[inline(always)]
+                fn eq(&self, other: &GraphPtr<$t>) -> bool {
+                    *self == other.as_ptr()
+                }
+            }
+            impl PartialEq<GraphPtr<$t>> for *const $t {
+                #[inline(always)]
+                fn eq(&self, other: &GraphPtr<$t>) -> bool {
+                    *self == other.as_ptr().cast_const()
+                }
+            }
+            impl PartialEq<GraphPtr<$t>> for &$t {
+                #[inline(always)]
+                fn eq(&self, other: &GraphPtr<$t>) -> bool {
+                    ptr::eq(*self, other.as_ptr())
+                }
+            }
+            impl PartialEq<GraphPtr<$t>> for &mut $t {
+                #[inline(always)]
+                fn eq(&self, other: &GraphPtr<$t>) -> bool {
+                    ptr::eq(*self, other.as_ptr())
+                }
+            }
+        )*
+    };
+}
+
+impl_sym_graph_eq!(WinInfoInfo, FileBuf, TabPageInfo, Frame);
 
 impl<T> Eq for GraphPtr<T> {}
 
@@ -1196,7 +1229,7 @@ pub type ListitemPtr = GraphPtr<crate::eval::typval::Listitem>;
 
 #[inline(always)]
 pub fn curwin_handle() -> WinPtr {
-    WinPtr::new(curwin_ptr())
+    curwin.get()
 }
 
 #[inline(always)]

@@ -808,12 +808,12 @@ pub fn ctx_switch(
     cs.cs_did_chdir = ctx_st().ctx_did_chdir;
     ctx_st().ctx_did_chdir = false;
     if cs.cs_mode == K_CTX_SWITCH_DIRS {
-        wp = curwin_ptr();
+        wp = curwin_ptr().as_ptr();
     }
 
     if !buf.is_null() {
         if buf == g_st().curbuf.as_ptr() {
-            wp = curwin_ptr();
+            wp = curwin_ptr().as_ptr();
         } else {
             for wp2 in for_all_windows_ptr() {
                 if wp2.w_buffer == buf {
@@ -838,7 +838,7 @@ pub fn ctx_switch(
     }
 
     cs.cs_curwin = curwin_mut().handle;
-    cs.cs_curwin_xtab = !win_valid(unsafe { curwin_ptr().as_ref() });
+    cs.cs_curwin_xtab = !win_valid(curwin_ptr().opt());
     cs.cs_prevwin = if g_st().prevwin.is_null() {
         0
     } else {
@@ -871,9 +871,9 @@ pub fn ctx_switch(
             wp = ctx_win_prep(cs, &mut *buf_ref);
             leaving_window(curwin_mut());
             buf_copy_options(&mut *buf_ref, BCO_ENTER | BCO_NOHELP);
-            g_st().prevwin = (curwin_ptr()).into();
+            g_st().prevwin = curwin_ptr();
         }
-        assert!(wp == curwin_ptr() || win_valid(unsafe { wp.as_ref() }));
+        assert!(wp != curwin_ptr() || win_valid(unsafe { wp.as_ref() }));
     } else if !win_valid(unsafe { wp.as_ref() }) {
         return false;
     }

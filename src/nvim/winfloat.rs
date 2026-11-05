@@ -107,7 +107,7 @@ pub fn win_new_float(
             if parent_wp.is_null() {
                 return None;
             }
-            let tp_ref = win_find_tabpage(unsafe { &*parent_wp })?;
+            let tp_ref = win_find_tabpage(parent_wp.borrow())?;
             let tp: *mut TabPageInfo = tp_ref;
             tp_last = lastwin_nofloating(if tp == g_st().curtab.as_ptr() {
                 None
@@ -281,7 +281,7 @@ pub fn win_config_float(wp: &mut WinInfoInfo, mut fconfig: WinConfig) {
         let mut col = wp.w_config.col as i32;
         let mut dummy = error_init();
         let parent = find_window_by_handle(wp.w_config.window, &mut dummy);
-        if let Some(parent) = unsafe { parent.as_mut() } {
+        if let Some(parent) = parent.opt_mut() {
             row += parent.w_winrow;
             col += parent.w_wincol;
             let _ = crate::grid::grid_adjust_opt(&mut parent.w_grid, &mut row, &mut col);

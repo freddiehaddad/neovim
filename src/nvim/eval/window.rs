@@ -71,7 +71,7 @@ impl Viewstate {
 
 pub fn win_has_winnr(wp: &mut WinInfoInfo, tp: &mut TabPageInfo) -> bool {
     let cur = if g_st().curtab == (&raw mut *tp) {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     } else {
         tp.tp_curwin.as_ptr()
     };
@@ -300,7 +300,7 @@ fn get_winnr(tp: &mut TabPageInfo, argvar: &mut TypVal) -> i32 {
     let mut nr: i32 = 1;
 
     let mut twin = if g_st().curtab == tp {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     } else {
         tp.tp_curwin.as_ptr()
     };
@@ -750,8 +750,8 @@ pub fn f_win_splitmove(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFu
         emsg(gettext(E_AUABORT));
     }
 
-    if oldwin != curwin_ptr() && win_valid(unsafe { oldwin.as_ref() }) {
-        win_goto(unsafe { &mut *oldwin });
+    if oldwin != curwin_ptr() && win_valid(oldwin.opt()) {
+        win_goto(oldwin.borrow_mut());
     }
 }
 

@@ -1587,7 +1587,7 @@ pub fn mark_adjust_buf(
                     || (if by_term {
                         win.w_cursor.lnum < buf.b_ml.ml_line_count
                     } else {
-                        !std::ptr::eq(win, curwin_ptr())
+                        win != curwin_ptr()
                     })
                 {
                     if win.w_topline >= line1 && win.w_topline <= line2 {
@@ -1610,7 +1610,7 @@ pub fn mark_adjust_buf(
                     && (if by_term {
                         win.w_cursor.lnum < buf.b_ml.ml_line_count
                     } else {
-                        !std::ptr::eq(win, curwin_ptr())
+                        win != curwin_ptr()
                     })
                 {
                     one_adjust_cursor(&mut win.w_cursor, line1, line2, amount, amount_after);
@@ -1811,7 +1811,7 @@ pub fn mark_col_adjust(
                 }
             }
 
-            if !std::ptr::eq(win, curwin_ptr()) {
+            if win != curwin_ptr() {
                 col_adjust(
                     &mut win.w_cursor,
                     lnum,

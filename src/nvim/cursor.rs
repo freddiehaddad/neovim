@@ -21,7 +21,6 @@ use crate::plines::{
 use crate::regexp::MAXCOL;
 use crate::state::{MODE_INSERT, MODE_TERMINAL, virtual_active};
 use crate::window::WinInfoInfo;
-use std::ptr;
 
 pub type Colnr = i32;
 pub type Linenr = i32;
@@ -153,7 +152,7 @@ fn coladvance2(
     finetune: bool,
     wcol_arg: Colnr,
 ) -> bool {
-    debug_assert!(ptr::eq(wp, curwin_ptr()) || !addspaces);
+    debug_assert!(wp != curwin_ptr() || !addspaces);
     let mut wcol = wcol_arg;
     let mut idx: i32;
     let mut col: Colnr;

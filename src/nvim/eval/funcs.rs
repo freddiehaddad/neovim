@@ -1691,13 +1691,13 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         }
 
         check_cursor(wp_ref);
-        wp = wp_ref;
+        wp = wp_ref.into();
     }
 
-    let bp = unsafe { &mut *(*wp).w_buffer };
+    let bp = wp.w_buffer.borrow_mut();
     let mut col: Colnr = 0;
     let mut fnum = bp.b_fnum;
-    let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, unsafe { &mut *wp });
+    let fp = var2fpos(&argvars[0], false, &mut fnum, charcol, wp.borrow_mut());
     if let Some(fp_ref) = fp
         && fnum == bp.b_fnum
     {
@@ -1710,10 +1710,8 @@ fn get_col(argvars: &mut [TypVal], rettv: &mut TypVal, charcol: bool) {
         } else {
             col = fp_ref.col + 1;
 
-            if virtual_active(unsafe { &mut *wp })
-                && ptr::eq(fp_ref, &raw const unsafe { &*wp }.w_cursor)
-            {
-                let wp_ref = unsafe { &mut *wp };
+            if virtual_active(wp.borrow_mut()) && ptr::eq(fp_ref, &raw const wp.borrow().w_cursor) {
+                let wp_ref = wp.borrow_mut();
                 let p = ml_get_buf(&mut *bp, wp_ref.w_cursor.lnum)
                     .as_ptr()
                     .cast_mut()
@@ -2918,9 +2916,9 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if argvars[0].v_type != VarType::VarUnknown {
             if let Some(found) = find_win_by_nr_or_id(&argvars[0]) {
                 fp = (&raw mut found.w_cursor).cast();
-                wp = found;
+                wp = found.into();
             } else {
-                wp = ptr::null_mut();
+                wp = crate::globals::WinPtr::NULL;
             }
         } else {
             fp = (&raw mut curwin_mut().w_cursor).cast();
@@ -2928,8 +2926,7 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
         if !fp.is_null() && charcol {
             pos = unsafe { *fp };
 
-            pos.col =
-                buf_byteidx_to_charidx(unsafe { (*wp).w_buffer.opt_mut() }, pos.lnum, pos.col);
+            pos.col = buf_byteidx_to_charidx(wp.w_buffer.opt_mut(), pos.lnum, pos.col);
 
             fp = &raw mut pos;
         }
@@ -2980,10 +2977,10 @@ fn getpos_both(argvars: &mut [TypVal], rettv: &mut TypVal, getcurpos: bool, char
             &mut *l,
             if wp.is_null() {
                 0
-            } else if unsafe { (*wp).w_curswant } == MAXCOL {
+            } else if wp.w_curswant == MAXCOL {
                 Varnumber::from(MAXCOL)
             } else {
-                Varnumber::from(unsafe { (*wp).w_curswant }) + 1
+                Varnumber::from(wp.w_curswant) + 1
             },
         );
 
@@ -8790,11 +8787,11 @@ pub fn f_virtcol(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             if tp.is_none() {
                 break 'theend;
             }
-            wp = wp_ref;
+            wp = wp_ref.into();
             check_cursor(wp_ref);
         }
 
-        let wp_ref = unsafe { &mut *wp };
+        let wp_ref = wp.borrow_mut();
         let bp = wp_ref.buf_mut();
         let mut fnum = bp.b_fnum;
         let fp = var2fpos(&argvars[0], false, &mut fnum, false, wp_ref);

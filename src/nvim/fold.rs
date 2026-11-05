@@ -416,8 +416,7 @@ pub fn new_fold_level() {
 
     if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
         for wp in for_all_windows_ptr() {
-            if !ptr::eq(wp, curwin_ptr()) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb
-            {
+            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
                 wp.w_onebuf_opt.wo_fdl = curwin_mut().w_onebuf_opt.wo_fdl;
                 new_fold_level_win(&mut *wp);
             }
@@ -965,8 +964,7 @@ fn set_manual_fold(
 ) -> Linenr {
     if foldmethod_is_diff(curwin_mut()) && curwin_mut().w_onebuf_opt.wo_scb {
         for wp in for_all_windows_ptr() {
-            if !ptr::eq(wp, curwin_ptr()) && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb
-            {
+            if wp != curwin_ptr() && foldmethod_is_diff(&mut *wp) && wp.w_onebuf_opt.wo_scb {
                 let dlnum = diff_lnum_win(curwin_mut().w_cursor.lnum, &mut *wp);
                 if dlnum != 0 {
                     set_manual_fold_win(&mut *wp, dlnum, opening, recurse, None);
@@ -1058,7 +1056,7 @@ fn set_manual_fold_win(
             changed_window_setting(&mut *wp);
         }
         done |= DONE_FOLD;
-    } else if donep.is_none() && ptr::eq(wp, curwin_ptr()) {
+    } else if donep.is_none() && wp == curwin_ptr() {
         emsg(gettext(E_NOFOLD));
     }
 
@@ -2395,7 +2393,7 @@ fn foldlevel_expr(flp: &mut Fline) {
     let lnum = flp.lnum + flp.off;
 
     let win = curwin_ptr();
-    set_curwin(flp.wp.as_ptr());
+    set_curwin(flp.wp);
     g_st().curbuf = flp.wp_mut().w_buffer;
     set_vim_var_nr(VV_LNUM, Varnumber::from(lnum));
 

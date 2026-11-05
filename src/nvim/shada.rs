@@ -1600,7 +1600,7 @@ fn shada_read(sd_reader: &mut FileDescriptor, flags: i32) {
                         };
                         let lnum = buf.b_last_cursor.mark.lnum;
                         let col = buf.b_last_cursor.mark.col;
-                        buflist_setfpos(buf, unsafe { curwin_ptr().as_mut() }, lnum, col, false);
+                        buflist_setfpos(buf, curwin_ptr().opt_mut(), lnum, col, false);
                         buf.additional_data = item.additional_data.take();
                     }
                 }

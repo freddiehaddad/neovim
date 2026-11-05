@@ -3704,7 +3704,7 @@ pub fn find_pattern_in_path(
                                 did_show = true;
                             } else {
                                 if l_g_do_tagpreview != 0 {
-                                    curwin_save = curwin_ptr();
+                                    curwin_save = curwin_ptr().as_ptr();
                                     prepare_tagpreview(true, !opt_vars().p_pvp.is_empty());
                                 }
                                 if action == ACTION_SPLIT {

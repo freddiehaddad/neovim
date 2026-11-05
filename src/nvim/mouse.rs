@@ -434,7 +434,7 @@ fn get_fpos_of_mouse(
         return IN_SEP_LINE;
     }
 
-    if (wpp_is_none && !std::ptr::eq(wp, curwin_ptr())) || below_buffer {
+    if (wpp_is_none && wp != curwin_ptr()) || below_buffer {
         return IN_UNKNOWN;
     }
 
@@ -1176,7 +1176,7 @@ pub fn ins_mouse(c: i32) {
     if do_mouse(None, c, BACKWARD, 1, false) {
         let new_curwin = curwin_ptr();
 
-        if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
+        if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
             set_curwin(old_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
             if bt_prompt(Some(crate::globals::curbuf_mut())) {
@@ -1192,7 +1192,7 @@ pub fn ins_mouse(c: i32) {
             true,
             0,
         );
-        if curwin_ptr() != new_curwin && win_valid(unsafe { new_curwin.as_ref() }) {
+        if curwin_ptr() != new_curwin && win_valid(new_curwin.opt()) {
             set_curwin(new_curwin);
             g_st().curbuf = curwin_mut().w_buffer;
         }
@@ -1256,7 +1256,7 @@ pub fn ins_mousescroll(dir: i32) {
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
-        set_curwin(wp);
+        set_curwin(&mut *wp);
         g_st().curbuf = curwin_mut().w_buffer;
     }
 
@@ -1317,7 +1317,7 @@ pub fn cmdline_mousescroll(dir: i32) -> bool {
 
     let old_curwin = curwin_ptr();
 
-    set_curwin(wp);
+    set_curwin(&mut *wp);
     g_st().curbuf = wp.w_buffer;
     do_mousescroll(&mut cap);
     set_curwin(old_curwin);
@@ -1752,7 +1752,7 @@ pub fn nv_mousescroll(cap: &mut Cmdarg) {
         let Some(wp) = mouse_find_win_inner(&mut grid, &mut row, &mut col) else {
             return;
         };
-        set_curwin(wp);
+        set_curwin(&mut *wp);
         g_st().curbuf = curwin_mut().w_buffer;
     }
 

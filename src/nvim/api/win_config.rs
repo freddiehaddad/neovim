@@ -355,12 +355,12 @@ pub fn nvim_open_win(
         let mut tp = g_st().curtab.as_ptr();
         assert!(!(curwin_ptr()).is_null());
         let mut parent = if config.win == 0 {
-            curwin_ptr()
+            curwin_ptr().as_ptr()
         } else {
             ptr::null_mut()
         };
         if config.win > 0 {
-            parent = find_window_by_handle(fconfig.window, err);
+            parent = find_window_by_handle(fconfig.window, err).as_ptr();
             if parent.is_null() {
                 break 'cleanup;
             } else if is_split && unsafe { (*parent).w_floating } {
@@ -379,7 +379,7 @@ pub fn nvim_open_win(
                     (if !parent.is_null() {
                         parent
                     } else {
-                        curwin_ptr()
+                        curwin_ptr().as_ptr()
                     })
                     .as_ref()
                 },
@@ -670,10 +670,10 @@ fn win_config_split(
         let mut parent: *mut WinInfoInfo = ptr::null_mut();
         let mut parent_tp: *mut TabPageInfo = ptr::null_mut();
         if config.win == 0 {
-            parent = curwin_ptr();
+            parent = curwin_ptr().as_ptr();
             parent_tp = g_st().curtab.as_ptr();
         } else if config.win > 0 {
-            parent = find_window_by_handle(fconfig.window, err);
+            parent = find_window_by_handle(fconfig.window, err).as_ptr();
             if parent.is_null() {
                 return false;
             }
@@ -928,7 +928,7 @@ fn win_config_float_tp(
     let mut parent = (&raw mut *win);
     let mut parent_tp = win_tp;
     if has_key(config.is_set_win_config, KEYSET_OPTIDX_WIN_CONFIG_WIN) {
-        parent = find_window_by_handle(fconfig.window, err);
+        parent = find_window_by_handle(fconfig.window, err).as_ptr();
         if parent.is_null() {
             return false;
         }

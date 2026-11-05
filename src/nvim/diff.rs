@@ -644,19 +644,19 @@ pub fn diff_redraw(dofold: bool) {
             continue;
         }
         redraw_later(Some(&mut *wp), UPD_SOME_VALID);
-        if !std::ptr::eq(wp, curwin_ptr()) {
+        if wp != curwin_ptr() {
             wp_other = wp;
         }
         if dofold && foldmethod_is_diff(&mut *wp) {
             fold_update_all(&mut *wp);
         }
         let n = diff_check_fill(wp, wp.w_topline);
-        if (!std::ptr::eq(wp, curwin_ptr()) && wp.w_topfill > 0) || n > 0 {
+        if (wp != curwin_ptr() && wp.w_topfill > 0) || n > 0 {
             if wp.w_topfill > n {
                 wp.w_topfill = n.max(0);
             } else if n > 0 && n > wp.w_topfill {
                 wp.w_topfill = n;
-                if std::ptr::eq(wp, curwin_ptr()) {
+                if wp == curwin_ptr() {
                     used_max_fill_curwin = true;
                 } else if !wp_other.is_null() {
                     used_max_fill_other = true;
@@ -1319,10 +1319,10 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             ) {
                 eap.cmdidx = Cmdidx::CmdSplit;
                 eap.arg = crate::strings::CStrCursor::from_ptr(tmp_new);
-                do_exedit(eap, unsafe { old_curwin.as_mut() });
-                if curwin_ptr() != old_curwin && win_valid(unsafe { old_curwin.as_ref() }) {
+                do_exedit(eap, old_curwin.opt_mut());
+                if curwin_ptr() != old_curwin && win_valid(old_curwin.opt()) {
                     diff_win_options(curwin_mut(), true);
-                    diff_win_options(unsafe { &mut *old_curwin }, true);
+                    diff_win_options(old_curwin.borrow_mut(), true);
                     if !newname_vec.is_empty() {
                         eap.arg =
                             crate::strings::CStrCursor::from_ptr(newname_vec.as_mut_ptr().cast());
@@ -1365,13 +1365,13 @@ pub fn ex_diffsplit(eap: &mut Exarg) {
     }
     eap.cmdidx = Cmdidx::CmdSplit;
     curwin_mut().w_onebuf_opt.wo_diff = true;
-    do_exedit(eap, unsafe { old_curwin.as_mut() });
+    do_exedit(eap, old_curwin.opt_mut());
     if curwin_ptr() == old_curwin {
         return;
     }
     diff_win_options(curwin_mut(), true);
-    if win_valid(unsafe { old_curwin.as_ref() }) {
-        let old_curwin = unsafe { &mut *old_curwin };
+    if win_valid(old_curwin.opt()) {
+        let old_curwin = old_curwin.borrow_mut();
         diff_win_options(old_curwin, true);
         if bufref_valid(Some(&old_curbuf))
             && let Some(old_buf) = old_curbuf.buf_opt()
@@ -1459,7 +1459,7 @@ pub fn ex_diffoff(eap: &mut Exarg) {
         let cond = if eap.forceit {
             wp.w_onebuf_opt.wo_diff
         } else {
-            std::ptr::eq(wp, curwin_ptr())
+            wp == curwin_ptr()
         };
         if cond {
             set_diff_option(wp, false);
@@ -2195,7 +2195,7 @@ fn parse_diffanchors(
     let orig_curbuf = g_st().curbuf;
     let orig_curwin = curwin_ptr();
     let bufwin: *mut WinInfoInfo = if check_only {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     } else {
         let mut found_bw: *mut WinInfoInfo = ptr::null_mut();
         for bw in crate::globals::win_iter_ptr(firstwin_mut()) {

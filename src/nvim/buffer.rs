@@ -1078,7 +1078,7 @@ pub fn open_buffer(read_stdin: bool, eap: Option<&Exarg>, flags_arg: i32) -> boo
 
     if !ml_open(curbuf_mut()) {
         close_buffer(
-            unsafe { curwin_ptr().as_mut() },
+            curwin_ptr().opt_mut(),
             g_st().curbuf.opt_mut(),
             0,
             false,
@@ -1639,10 +1639,9 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
     buf_ptr.b_locked -= 1;
     buf_ptr.b_locked_split -= 1;
 
-    if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(unsafe { the_curwin.as_ref() })
-    {
+    if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(the_curwin.opt()) {
         block_autocmds();
-        goto_tabpage_win(unsafe { &mut *the_curtab }, unsafe { &mut *the_curwin });
+        goto_tabpage_win(unsafe { &mut *the_curtab }, the_curwin.borrow_mut());
         unblock_autocmds();
     }
     if (flags & BFA_IGNORE_ABORT) == 0 && aborting() {
@@ -1957,7 +1956,7 @@ pub fn handle_swap_exists(mut old_curbuf: Option<&mut Bufref>) {
         g_st().swap_exists_action = SEA_NONE;
         g_st().swap_exists_did_quit = true;
         close_buffer(
-            unsafe { curwin_ptr().as_mut() },
+            curwin_ptr().opt_mut(),
             g_st().curbuf.opt_mut(),
             DOBUF_UNLOAD,
             false,
@@ -2630,7 +2629,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
                 u_sync(false);
             }
             close_buffer(
-                unsafe { curwin_ptr().as_mut() },
+                curwin_ptr().opt_mut(),
                 unsafe { prevbuf.as_mut() },
                 if unload {
                     action
@@ -2832,7 +2831,7 @@ pub fn buflist_new(
                 if (flags & BLN_NOCURWIN) != 0 {
                     None
                 } else {
-                    unsafe { curwin_ptr().as_mut() }
+                    curwin_ptr().opt_mut()
                 },
                 lnum,
                 0,
@@ -2927,7 +2926,7 @@ pub fn buflist_new(
     let curwin_info = &mut buf_ref.b_wininfo[0];
     curwin_info.wi_mark = INIT_FMARK;
     curwin_info.wi_mark.mark.lnum = lnum;
-    curwin_info.wi_win = crate::globals::WinPtr::new(curwin_ptr());
+    curwin_info.wi_win = crate::globals::curwin_ptr();
 
     buf_ref.b_fname = BufFname::Short;
     if !file_id_valid {

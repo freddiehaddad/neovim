@@ -2979,8 +2979,8 @@ fn cmdpreview_open_win(cmdpreview_buf: &mut FileBuf) -> Option<&'static mut WinI
     curwin_mut().w_onebuf_opt.wo_spell = false;
     curwin_mut().w_onebuf_opt.wo_fen = false;
 
-    win_enter(unsafe { &mut *save_curwin }, false);
-    unsafe { preview_win.as_mut() }
+    win_enter(save_curwin.borrow_mut(), false);
+    preview_win.opt_mut()
 }
 
 /// Closes any open command preview windows.

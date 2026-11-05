@@ -756,7 +756,7 @@ pub fn update_ns_hl(ns_id: i32) {
 
 pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
     if g_st().ns_hl_fast < 0 {
-        let local = if ptr::eq(wp, curwin_ptr()) {
+        let local = if wp == curwin_ptr() {
             wp.w_hl_attr_normal
         } else {
             wp.w_hl_attr_normalnc
@@ -766,7 +766,7 @@ pub fn win_bg_attr(wp: &mut WinInfoInfo) -> i32 {
         }
     }
 
-    if ptr::eq(wp, curwin_ptr()) || hl_attr(HLF_INACTIVE as i32) == 0 {
+    if wp == curwin_ptr() || hl_attr(HLF_INACTIVE as i32) == 0 {
         hl_attr(HLF_NONE as i32)
     } else {
         hl_attr(HLF_INACTIVE as i32)

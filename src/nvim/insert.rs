@@ -1392,7 +1392,7 @@ pub fn ins_redraw(ready: bool) {
         }
         update_curswant();
         ins_apply_autocmds(EVENT_CURSORMOVEDI);
-        g_st().last_cursormoved_win = crate::globals::WinPtr::new(curwin_ptr());
+        g_st().last_cursormoved_win = crate::globals::curwin_ptr();
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
 

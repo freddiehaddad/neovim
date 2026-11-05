@@ -126,7 +126,7 @@ fn validate_option_value_args(
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
             *scope = K_OPT_SCOPE_WIN;
-            *from = OptTarget::Win(find_window_by_handle(opts.win, err).into());
+            *from = OptTarget::Win(find_window_by_handle(opts.win, err));
             if error_set(err) {
                 return false;
             }

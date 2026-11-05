@@ -1438,7 +1438,7 @@ pub fn decor_conceal_line(wp: &mut WinInfoInfo, row: i32, check_cursor: bool) ->
         || row >= wp.buf_mut().b_ml.ml_line_count
         || wp.w_onebuf_opt.wo_cole < 2
         || (!check_cursor
-            && ptr::eq(wp, curwin_ptr())
+            && wp == curwin_ptr()
             && row + 1 == wp.w_cursor.lnum
             && !conceal_cursor_line(&*wp))
     {

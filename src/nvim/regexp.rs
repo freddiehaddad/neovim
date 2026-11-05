@@ -2312,7 +2312,7 @@ pub(super) fn reg_prev_class() -> i32 {
 
 pub(super) fn reg_match_visual() -> bool {
     let wp = if re_st().rex.reg_win.is_null() {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     } else {
         re_st().rex.reg_win.as_ptr()
     };

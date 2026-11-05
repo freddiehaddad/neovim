@@ -215,13 +215,13 @@ fn alist_set(al: &mut Alist, files: Vec<CString>, use_curbuf: i32) {
 
 /// Add file `fname` to argument list `al` (`alist_add`).
 pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
-    let wp = curwin_ptr();
+    let mut wp = curwin_ptr();
     if !check_arglist_locked() {
         return;
     }
     arglist_st().arglist_locked = true;
 
-    unsafe { (*wp).w_locked += 1 };
+    wp.w_locked += 1;
 
     let ae_fnum = if set_fnum > 0 {
         buflist_add(
@@ -238,7 +238,7 @@ pub fn alist_add(al: &mut Alist, ae_fname: CString, set_fnum: i32) {
 
     arglist_st().arglist_locked = false;
 
-    unsafe { (*wp).w_locked -= 1 };
+    wp.w_locked -= 1;
 }
 
 /// Isolate one argument, taking backticks (`do_one_arg`).
@@ -312,12 +312,12 @@ fn alist_check_arg_idx() {
 fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
     let old_argcount = argcount();
     if check_arglist_locked() {
-        let wp = curwin_ptr();
-        let al: *mut Alist = win_alist(unsafe { &*wp });
+        let mut wp = curwin_ptr();
+        let al: *mut Alist = win_alist(wp.borrow());
         after = after.clamp(0, old_argcount);
         arglist_st().arglist_locked = true;
 
-        unsafe { (*wp).w_locked += 1 };
+        wp.w_locked += 1;
 
         let count = files.len() as i32;
         let mut new_entries = Vec::with_capacity(files.len());
@@ -332,10 +332,10 @@ fn alist_add_list(files: Vec<CString>, mut after: i32, will_edit: bool) {
         unsafe { (*al).al_ga.splice(pos..pos, new_entries) };
 
         arglist_st().arglist_locked = false;
-        unsafe {
-            (*wp).w_locked -= 1;
-            if old_argcount > 0 && (*wp).w_arg_idx >= after {
-                (*wp).w_arg_idx += count;
+        {
+            wp.w_locked -= 1;
+            if old_argcount > 0 && wp.w_arg_idx >= after {
+                wp.w_arg_idx += count;
             }
         }
     }
@@ -1022,7 +1022,7 @@ fn arg_all_open_windows(aall: &mut ArgAllState, count: i32) {
 
             curwin_mut().w_arg_idx = i;
             if i == 0 {
-                aall.new_curwin = crate::globals::WinPtr::new(curwin_ptr());
+                aall.new_curwin = crate::globals::curwin_ptr();
                 aall.new_curtab = g_st().curtab;
             }
             do_ecmd(
@@ -1108,8 +1108,8 @@ fn do_arg_all(mut count: i32, forceit: bool, keep_tabs: bool) {
         if valid_tabpage(unsafe { last_curtab.as_ref() }) {
             goto_tabpage_tp(unsafe { last_curtab.as_mut() }, true, true);
         }
-        if win_valid(unsafe { last_curwin.as_ref() }) {
-            win_enter(unsafe { &mut *last_curwin }, false);
+        if win_valid(last_curwin.opt()) {
+            win_enter(last_curwin.borrow_mut(), false);
         }
     }
     if valid_tabpage(aall.new_curtab.opt()) {

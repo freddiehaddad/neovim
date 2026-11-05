@@ -96,7 +96,7 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
 fn find_win_for_curbuf() {
     for wip in &curbuf_mut().b_wininfo {
         if wip.win_opt().is_some_and(|w| w.w_buffer == g_st().curbuf) {
-            set_curwin(wip.wi_win.as_ptr());
+            set_curwin(wip.wi_win);
             break;
         }
     }
@@ -109,7 +109,7 @@ fn change_other_buffer_prepare(cob: &mut Cob, buf: &mut FileBuf) {
 
     cob.cob_save_visual_active = g_st().visual_global.active;
     g_st().visual_global.active = false;
-    cob.cob_curwin_save = crate::globals::WinPtr::new(curwin_ptr());
+    cob.cob_curwin_save = crate::globals::curwin_ptr();
     g_st().curbuf = (buf_ptr).into();
     find_win_for_curbuf();
 
@@ -124,7 +124,7 @@ fn change_other_buffer_restore(cob: &mut Cob) {
     if cob.cob_using_aco != 0 {
         ctx_restore(&mut cob.cob_aco);
     } else {
-        set_curwin(cob.cob_curwin_save.as_ptr());
+        set_curwin(cob.cob_curwin_save);
         g_st().curbuf = curwin_mut().w_buffer;
     }
     g_st().visual_global.active = cob.cob_save_visual_active;
@@ -245,7 +245,7 @@ fn set_buffer_lines(
         for tp in for_all_tabpages_mut() {
             for wp in win_iter_mut(first_win_in_tab(tp)) {
                 if wp.w_buffer == buf_ptr
-                    && (wp.w_buffer != g_st().curbuf || std::ptr::eq(wp, curwin_ptr()))
+                    && (wp.w_buffer != g_st().curbuf || wp == curwin_ptr())
                     && wp.w_cursor.lnum > append_lnum
                 {
                     wp.w_cursor.lnum += added as Linenr;
@@ -793,7 +793,7 @@ pub fn f_getbufinfo(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     }
 
     for buf in for_all_buffers_ptr() {
-        if !argbuf.is_null() && argbuf != buf {
+        if !argbuf.is_null() && !ptr::eq(argbuf, buf) {
             continue;
         }
         if filtered

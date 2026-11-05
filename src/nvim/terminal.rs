@@ -2155,7 +2155,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
 
         if c == K_MOUSEUP || c == K_MOUSEDOWN || c == K_MOUSELEFT || c == K_MOUSERIGHT {
             let save_curwin = curwin_ptr();
-            set_curwin(mouse_win);
+            set_curwin(&mut *mouse_win);
             g_st().curbuf = curwin_mut().w_buffer;
 
             let mut cap = Cmdarg::new();
@@ -2177,7 +2177,7 @@ fn send_mouse_event(term: &mut Terminal, mut c: i32) -> bool {
             g_st().curbuf = curwin_mut().w_buffer;
             redraw_later(Some(&mut *mouse_win), UPD_NOT_VALID);
             invalidate_terminal(term, -1, -1);
-            return std::ptr::eq(mouse_win, curwin_ptr());
+            return mouse_win == curwin_ptr();
         }
     }
 
@@ -2509,7 +2509,7 @@ fn adjust_topline_cursor(term: &mut Terminal, buf: &mut FileBuf, added: i32) {
     for tp in for_all_tabpages_ptr() {
         for wp in for_all_windows_in_tab_ptr(&*tp) {
             if wp.w_buffer == buf {
-                if std::ptr::eq(wp, curwin_ptr()) && is_focused(term) {
+                if wp == curwin_ptr() && is_focused(term) {
                     terminal_check_cursor();
                     continue;
                 }

@@ -154,7 +154,7 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if wp.is_null() {
         return;
     }
-    if !tabpage_win_valid(Some(&*tp), unsafe { wp.as_ref() }) {
+    if !tabpage_win_valid(Some(&*tp), wp.opt()) {
         api_set_error!(
             err,
             ErrorType::ErrorTypeException,
@@ -166,11 +166,11 @@ pub fn nvim_tabpage_set_win(tabpage: Tabpage, win: Window, err: &mut Error) {
     if (&raw mut *tp) == g_st().curtab.as_ptr() {
         let mut tstate = TryState::new();
         try_enter(&mut tstate);
-        win_goto(unsafe { &mut *wp });
+        win_goto(wp.borrow_mut());
         try_leave(&tstate, err);
     } else if tp.tp_curwin != wp {
         tp.tp_prevwin = tp.tp_curwin;
-        tp.tp_curwin = crate::globals::WinPtr::new(wp);
+        tp.tp_curwin = wp;
     }
 }
 

@@ -5481,7 +5481,7 @@ pub fn var2fpos(
             coladd: wp.w_cursor.coladd,
         };
     } else if name_bytes == b"v" {
-        if g_st().visual_global.active && ptr::eq(wp, curwin_ptr()) {
+        if g_st().visual_global.active && wp == curwin_ptr() {
             eval_st().var2_fpos_pos = CursorPos {
                 lnum: g_st().visual_global.start.lnum,
                 col: g_st().visual_global.start.col,

@@ -2288,7 +2288,7 @@ pub fn autocmd_register(
         if (event == EVENT_CURSORMOVED && !has_event(EVENT_CURSORMOVED))
             || (event == EVENT_CURSORMOVEDI && !has_event(EVENT_CURSORMOVEDI))
         {
-            g_st().last_cursormoved_win = crate::globals::WinPtr::new(curwin_ptr());
+            g_st().last_cursormoved_win = crate::globals::curwin_ptr();
             g_st().last_cursormoved = curwin_mut().w_cursor;
         }
 
@@ -2529,7 +2529,7 @@ pub fn deferred_event(mut e: AutoCmdEvent) {
             false,
             group,
             unsafe { buf_ptr.as_mut() },
-            unsafe { win.as_ref() },
+            win.opt(),
             None,
             data.as_ref(),
             false,

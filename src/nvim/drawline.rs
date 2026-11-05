@@ -1409,7 +1409,7 @@ pub fn win_line(
     let view_width = wp.w_view_width;
     let view_height = wp.w_view_height;
 
-    let in_curline = ptr::eq(wp, curwin_ptr()) && lnum == curwin_mut().w_cursor.lnum;
+    let in_curline = wp == curwin_ptr() && lnum == curwin_mut().w_cursor.lnum;
     let has_fold = foldinfo.fi_level != 0 && foldinfo.fi_lines > 0;
     let has_foldtext = has_fold && wp.w_onebuf_opt.wo_fdt.cb_type() != K_CALLBACK_NONE_CONST;
 
@@ -1648,7 +1648,7 @@ pub fn win_line(
                 vi_attr = win_hl_attr(&mut *wp, HLF_V);
             }
         } else if g_st().search_global.hl_match
-            && ptr::eq(wp, curwin_ptr())
+            && wp == curwin_ptr()
             && !has_foldtext
             && lnum >= curwin_mut().w_cursor.lnum
             && lnum <= curwin_mut().w_cursor.lnum + g_st().search_global.match_lines
@@ -1747,7 +1747,7 @@ pub fn win_line(
     if wp.w_onebuf_opt.wo_cul
         && wp.w_p_culopt_flags != K_OPT_CULOPT_FLAG_NUMBER
         && lnum == wp.w_cursorline
-        && !(ptr::eq(wp, curwin_ptr()) && g_st().visual_global.active)
+        && (wp != curwin_ptr() && g_st().visual_global.active)
     {
         cul_screenline = is_wrapped && (wp.w_p_culopt_flags & K_OPT_CULOPT_FLAG_SCREENLINE) != 0;
         if !cul_screenline {

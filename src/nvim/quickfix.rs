@@ -2667,7 +2667,7 @@ fn qf_goto_win_with_ll_file(
             }
         }
         if win.is_null() {
-            win = curwin_ptr();
+            win = curwin_ptr().as_ptr();
             loop {
                 if bt_normal(unsafe { (*win).w_buffer.opt() }) {
                     break;
@@ -2696,41 +2696,41 @@ fn qf_goto_win_with_qfl_file(qf_fnum: i32) {
     let mut win = curwin_ptr();
     let mut altwin: *mut WinInfoInfo = ptr::null_mut();
     loop {
-        if unsafe { (*win).buf_mut().b_fnum } == qf_fnum {
+        if win.buf_mut().b_fnum == qf_fnum {
             break;
         }
-        if unsafe { (*win).w_prev.is_null() } {
-            win = g_st().lastwin.as_ptr();
+        if win.w_prev.is_null() {
+            win = g_st().lastwin;
         } else {
-            win = unsafe { (*win).w_prev.as_ptr() };
+            win = win.w_prev;
         }
 
-        if is_qf_window(unsafe { &*win }) {
+        if is_qf_window(win.borrow()) {
             if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USELAST) != 0
                 && win_valid(g_st().prevwin.opt())
                 && !crate::globals::prevwin_mut().w_onebuf_opt.wo_wfb
             {
-                win = g_st().prevwin.as_ptr();
+                win = g_st().prevwin;
             } else if !altwin.is_null() {
-                win = altwin;
+                win = altwin.into();
             } else if !curwin_mut().w_prev.is_null() {
-                win = curwin_mut().w_prev.as_ptr();
+                win = curwin_mut().w_prev;
             } else {
-                win = curwin_mut().w_next.as_ptr();
+                win = curwin_mut().w_next;
             }
             break;
         }
 
         if altwin.is_null()
-            && !unsafe { (*win).w_onebuf_opt.wo_pvw }
-            && !unsafe { (*win).w_onebuf_opt.wo_wfb }
-            && bt_normal(unsafe { (*win).w_buffer.opt() })
+            && !win.w_onebuf_opt.wo_pvw
+            && !win.w_onebuf_opt.wo_wfb
+            && bt_normal(win.w_buffer.opt())
         {
-            altwin = win;
+            altwin = win.as_ptr();
         }
     }
 
-    win_goto(unsafe { &mut *win });
+    win_goto(win.borrow_mut());
 }
 
 fn qf_jump_to_usable_window(qf_fnum: i32, newwin: bool, opened_window: &mut bool) -> bool {
@@ -3686,7 +3686,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     let mut flags: i32 = 0;
 
     let qf_buf_fnum = qf_find_buf(qi).map(|b| b.b_fnum);
-    let win = curwin_ptr();
+    let win = curwin_ptr().as_ptr();
 
     if g_st().cmdmod.cmod_split == 0 {
         flags = if is_qf_stack(&*qi) {
@@ -3712,7 +3712,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
     }
 
     if oldwin != curwin_ptr() {
-        oldwin = ptr::null_mut();
+        oldwin = crate::globals::WinPtr::NULL;
     }
     if let Some(fnum) = qf_buf_fnum {
         if !do_ecmd(
@@ -3722,7 +3722,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
             None,
             ECMD_ONE,
             ECMD_HIDE + ECMD_OLDBUF + ECMD_NOWINENTER,
-            unsafe { oldwin.as_mut() },
+            oldwin.opt_mut(),
         ) {
             return false;
         }
@@ -3734,7 +3734,7 @@ fn qf_open_new_cwindow(qi: &mut QfInfo, height: i32) -> bool {
             None,
             ECMD_ONE,
             ECMD_HIDE + ECMD_NOWINENTER,
-            unsafe { oldwin.as_mut() },
+            oldwin.opt_mut(),
         ) {
             return false;
         }
@@ -3804,9 +3804,9 @@ pub fn ex_copen(eap: &mut Exarg) {
 }
 
 fn qf_win_goto(win: &mut WinInfoInfo, lnum: Linenr) {
-    let old_curwin = curwin_ptr();
+    let old_curwin = curwin_ptr().as_ptr();
 
-    set_curwin(win);
+    set_curwin(&mut *win);
     g_st().curbuf = win.w_buffer;
     curwin_mut().w_cursor.lnum = lnum;
     curwin_mut().w_cursor.col = 0;
@@ -3899,12 +3899,12 @@ fn qf_find_buf(qi: &mut QfInfo) -> Option<&'static mut FileBuf> {
 
 fn qf_update_win_titlevar(qi: &mut QfInfo) {
     let qfl = qf_get_curlist(&mut *qi);
-    let save_curwin = curwin_ptr();
+    let save_curwin = curwin_ptr().as_ptr();
 
     for tp in for_all_tabpages_mut() {
         for win in win_iter_ptr(tab_firstwin(tp)) {
             if is_qf_win(&*win, &*qi) {
-                set_curwin(win);
+                set_curwin(&mut *win);
                 qf_set_title_var(qfl);
             }
         }
@@ -4386,7 +4386,7 @@ pub fn ex_make(eap: &mut Exarg) {
 
     let mut wp: *mut WinInfoInfo = ptr::null_mut();
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr();
+        wp = curwin_ptr().as_ptr();
     }
 
     autowrite_all();
@@ -4967,7 +4967,7 @@ pub fn ex_cfile(eap: &mut Exarg) {
     };
 
     if is_loclist_cmd(eap.cmdidx) {
-        wp = curwin_ptr();
+        wp = curwin_ptr().as_ptr();
     }
 
     incr_quickfix_busy();

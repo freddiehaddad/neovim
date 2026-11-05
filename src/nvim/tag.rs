@@ -2720,7 +2720,7 @@ fn jumpto_tag(lbuf_arg: &[u8], forceit: bool, keep_help: bool) -> Option<bool> {
 
         if l_g_do_tagpreview != 0 {
             g_st().postponed_split = 0;
-            curwin_save = curwin_ptr();
+            curwin_save = curwin_ptr().as_ptr();
 
             if !curwin_mut().w_onebuf_opt.wo_pvw {
                 full_fname = FullName_save(crate::memory::cstr_as_opt_cstr(fname), false);

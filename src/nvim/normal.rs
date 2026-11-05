@@ -2347,7 +2347,7 @@ fn normal_check_cursor_moved(_s: &mut NormalState) {
             || !equalpos(g_st().last_cursormoved, curwin_mut().w_cursor))
     {
         apply_autocmds(EVENT_CURSORMOVED, None, None, false, curbuf_opt_mut());
-        g_st().last_cursormoved_win = crate::globals::WinPtr::new(curwin_ptr());
+        g_st().last_cursormoved_win = crate::globals::curwin_ptr();
         g_st().last_cursormoved = curwin_mut().w_cursor;
     }
 }
@@ -3097,7 +3097,7 @@ pub fn do_check_scrollbind(check: bool) {
         curwin_mut().w_scbind_pos = vtopline;
     }
 
-    norm_st().do_check_scrollbind_old_curwin = crate::globals::WinPtr::new(curwin_ptr());
+    norm_st().do_check_scrollbind_old_curwin = crate::globals::curwin_ptr();
     norm_st().do_check_scrollbind_old_vtopline = vtopline;
     norm_st().do_check_scrollbind_old_buf =
         crate::globals::BufPtr::new(curwin_mut().w_buffer.as_ptr());
@@ -3122,7 +3122,7 @@ pub fn check_scrollbind(vtopline_diff: Linenr, leftcol_diff: i32) {
     for wp in for_all_windows_ptr() {
         set_curwin(wp);
         g_st().curbuf = curwin_mut().w_buffer;
-        if !ptr::eq(curwin_ptr(), old_curwin) && curwin_mut().w_onebuf_opt.wo_scb {
+        if curwin_ptr() != old_curwin && curwin_mut().w_onebuf_opt.wo_scb {
             if want_ver {
                 if old_curwin.w_onebuf_opt.wo_diff && curwin_mut().w_onebuf_opt.wo_diff {
                     diff_set_topline(old_curwin, curwin_mut());

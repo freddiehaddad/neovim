@@ -224,7 +224,7 @@ pub struct EvalFuncDef {
 }
 
 #[repr(C)]
-pub(crate) struct DeferCall {
+pub struct DeferCall {
     pub(crate) dr_name: Option<std::ffi::CString>,
     pub(crate) dr_argvars: Vec<TypVal>,
 }

@@ -2796,7 +2796,7 @@ pub fn nvim_eval_statusline(
     if wp.is_null() {
         return result;
     }
-    let wp = unsafe { &mut *wp };
+    let wp = wp.borrow_mut();
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_USE_STATUSCOL_LNUM))
         != 0
@@ -2896,7 +2896,7 @@ pub fn nvim_eval_statusline(
     wp.w_onebuf_opt.wo_crb = false;
 
     let width = build_stl_str_hl(
-        wp,
+        wp.into(),
         buf,
         str_.data.cast(),
         -1,
@@ -3086,7 +3086,7 @@ fn redraw_status(wp: &mut WinInfoInfo, opts: &mut KeyDict_redraw) {
 ///               - winbar: Redraw the 'winbar' in `buf`, `win` or all windows.
 // DLLEXPORT void nvim__redraw(Dict(redraw) *opts, Error *err) FUNC_API_SINCE(12);
 pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
-    let mut win: *mut WinInfoInfo = ptr::null_mut();
+    let mut win = crate::globals::WinPtr::NULL;
     let mut buf: *mut FileBuf = ptr::null_mut();
 
     if (opts.is_set_redraw & (1u64 << KEYSET_OPTIDX_REDRAW_WIN)) != 0 {
@@ -3130,7 +3130,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     if has_valid {
         let rtype = if opts.valid { UPD_VALID } else { UPD_NOT_VALID };
         if !win.is_null() {
-            redraw_later(unsafe { win.as_mut() }, rtype);
+            redraw_later(win.opt_mut(), rtype);
         } else if !buf.is_null() {
             redraw_buf_later(unsafe { &*buf }, rtype);
         } else {
@@ -3158,7 +3158,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
         let end_raw = r[1].data.integer();
 
         let rbuf = if !win.is_null() {
-            unsafe { (*win).w_buffer.as_ptr() }
+            win.w_buffer.as_ptr()
         } else if !buf.is_null() {
             buf
         } else {
@@ -3203,13 +3203,13 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
                 }
             }
         } else {
-            redraw_status(unsafe { &mut *win }, opts);
+            redraw_status(win.borrow_mut(), opts);
         }
         flush_ui = true;
     }
 
     let cwin = if !win.is_null() { win } else { curwin_ptr() };
-    if opts.cursor && unsafe { (*cwin).w_grid.target.opt() }.is_none_or(|g| !g.valid) {
+    if opts.cursor && cwin.w_grid.target.opt().is_none_or(|g| !g.valid) {
         opts.flush = true;
     }
 
@@ -3220,7 +3220,7 @@ pub fn nvim_redraw(opts: &mut KeyDict_redraw, err: &mut Error) {
     }
 
     if opts.cursor {
-        setcursor_mayforce(unsafe { &mut *cwin }, true);
+        setcursor_mayforce(cwin.borrow_mut(), true);
 
         flush_ui = true;
     }

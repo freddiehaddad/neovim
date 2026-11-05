@@ -2885,10 +2885,10 @@ pub fn do_ecmd(
                 if buf == g_st().curbuf.as_ptr() {
                     auto_buf = true;
                 } else {
-                    let the_curwin = curwin_ptr();
+                    let mut the_curwin = curwin_ptr();
 
                     unsafe {
-                        (*the_curwin).w_locked += 1;
+                        the_curwin.w_locked += 1;
                         (*buf).b_locked += 1;
                     }
 
@@ -2898,7 +2898,7 @@ pub fn do_ecmd(
 
                     u_sync(false);
                     close_buffer(
-                        unsafe { curwin_ptr().as_mut() },
+                        curwin_ptr().opt_mut(),
                         g_st().curbuf.opt_mut(),
                         if (flags & ECMD_HIDE) != 0
                             || (!curbuf_mut().terminal.is_null()
@@ -2913,9 +2913,9 @@ pub fn do_ecmd(
                         !oldwin.is_null(),
                     );
 
-                    if win_valid(unsafe { the_curwin.as_ref() }) {
-                        unsafe {
-                            (*the_curwin).w_locked -= 1;
+                    if win_valid(the_curwin.opt()) {
+                        {
+                            the_curwin.w_locked -= 1;
                         }
                     }
                     unsafe {

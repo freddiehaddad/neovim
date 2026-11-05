@@ -354,8 +354,8 @@ pub fn win_redr_status(wp: &mut WinInfoInfo) {
     stl_st().redr_status_busy = true;
     wp.w_redr_status = false;
 
-    let stl_curwin = ctx_saved_curwin().map_or_else(curwin_ptr, ptr::from_mut);
-    let is_stl_curwin = ptr::eq(wp, stl_curwin);
+    let stl_curwin = ctx_saved_curwin().map_or_else(curwin_ptr, crate::globals::WinPtr::from);
+    let is_stl_curwin = stl_curwin == wp;
 
     if wp.w_status_height == 0 && !(is_stl_global && is_stl_curwin) {
         g_st().redraw_cmdline = true;
@@ -521,7 +521,7 @@ fn win_redr_stl_expr(
     let restore_curwin = if save_curwin.is_some() {
         curwin_ptr()
     } else {
-        ptr::null_mut()
+        crate::globals::WinPtr::NULL
     };
     if let Some(save_curwin) = save_curwin {
         set_curwin(save_curwin);
@@ -559,13 +559,13 @@ fn win_redr_stl_expr(
             stl_st().stl_expr_entered = false;
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf = unsafe { (*restore_curwin).w_buffer };
+                g_st().curbuf = restore_curwin.w_buffer;
             }
             return;
         }
 
         fillchar = wp.w_p_fcs_chars.wbr;
-        group = if std::ptr::eq(wp, curwin_ptr()) {
+        group = if wp == curwin_ptr() {
             HLF_WBR
         } else {
             HLF_WBRNC
@@ -630,7 +630,7 @@ fn win_redr_stl_expr(
             stl_st().stl_expr_entered = false;
             if !restore_curwin.is_null() {
                 set_curwin(restore_curwin);
-                g_st().curbuf = unsafe { (*restore_curwin).w_buffer };
+                g_st().curbuf = restore_curwin.w_buffer;
             }
             return;
         } else if wp_ref.w_floating {
@@ -651,7 +651,7 @@ fn win_redr_stl_expr(
 
     if maxwidth > 0 {
         let ewp = if wp.is_null() {
-            curwin_ptr()
+            curwin_ptr().as_ptr()
         } else {
             wp.as_ptr()
         };
@@ -663,7 +663,7 @@ fn win_redr_stl_expr(
 
         let mut tabtab: *mut StlClickRecord = ptr::null_mut();
         build_stl_str_hl(
-            ewp,
+            ewp.into(),
             CharBuf::from_slice(&mut buf),
             stl_cstr.as_ptr().cast_mut().cast(),
             opt_idx,
@@ -798,7 +798,7 @@ fn win_redr_stl_expr(
 
     if !restore_curwin.is_null() {
         set_curwin(restore_curwin);
-        g_st().curbuf = unsafe { (*restore_curwin).w_buffer };
+        g_st().curbuf = restore_curwin.w_buffer;
     }
 }
 pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
@@ -889,7 +889,7 @@ fn ui_ext_tabline_update() {
         );
 
         let cwp = if g_st().curtab == tp {
-            curwin_ptr()
+            curwin_ptr().as_ptr()
         } else {
             tp_ref.tp_curwin.as_ptr()
         };
@@ -1029,7 +1029,7 @@ pub fn draw_tabline() {
             let tp_ref = unsafe { &*tp };
             let mut scol = col;
             let (cwp, mut wp) = if g_st().curtab == tp {
-                (curwin_ptr(), g_st().firstwin.as_ptr())
+                (curwin_ptr().as_ptr(), g_st().firstwin.as_ptr())
             } else {
                 (tp_ref.tp_curwin.as_ptr(), tp_ref.tp_firstwin.as_ptr())
             };
@@ -1185,7 +1185,7 @@ pub fn build_statuscol_str(
     let mut hlrec_ptr: *mut StlHlrec = ptr::null_mut();
     let stc = wp.w_onebuf_opt.wo_stc.to_owned();
     let width = build_stl_str_hl(
-        wp,
+        wp.into(),
         CharBuf::from_slice(buf),
         stc.as_ptr().cast_mut().cast(),
         K_OPT_STATUSCOLUMN,
@@ -1446,7 +1446,7 @@ fn stl_expand(
 /// Build a string from the status line items in `fmt`.
 #[unsafe(no_mangle)]
 pub extern "C" fn build_stl_str_hl(
-    wp_ptr: *mut WinInfoInfo,
+    wp_ptr: crate::globals::WinPtr,
     out: CharBuf,
     fmt: *mut u8,
     opt_idx: OptIndex,
@@ -1458,7 +1458,7 @@ pub extern "C" fn build_stl_str_hl(
     tabtab: *mut *mut StlClickRecord,
     stcp: *mut Statuscol,
 ) -> i32 {
-    let wp = unsafe { &mut *wp_ptr };
+    let wp = wp_ptr.borrow_mut();
     let mut buf_tmp: [u8; TMPLEN] = [0; TMPLEN];
     let mut owned_usefmt: Option<std::ffi::CString> = None;
     let mut usefmt = fmt;
@@ -2026,7 +2026,7 @@ pub extern "C" fn build_stl_str_hl(
                     let save_curwin = curwin_ptr();
                     #[allow(non_snake_case)]
                     let save_VIsual_active = g_st().visual_global.active;
-                    set_curwin(wp);
+                    set_curwin(&mut *wp);
                     g_st().curbuf = wp.w_buffer;
                     if curwin_ptr() != save_curwin {
                         g_st().visual_global.active = false;

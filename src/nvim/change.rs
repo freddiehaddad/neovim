@@ -409,7 +409,7 @@ fn changed_common(buf: &mut FileBuf, mut lnum: Linenr, col: Colnr, lnume: Linenr
             }
         }
 
-        if std::ptr::eq(wp, curwin_ptr()) && xtra != 0 && g_st().search_hl_has_cursor_lnum >= lnum {
+        if wp == curwin_ptr() && xtra != 0 && g_st().search_hl_has_cursor_lnum >= lnum {
             g_st().search_hl_has_cursor_lnum += xtra;
         }
     });
@@ -439,7 +439,7 @@ pub fn changed_bytes(lnum: Linenr, col: Colnr) {
 
     if curwin_mut().w_onebuf_opt.wo_diff {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff && !std::ptr::eq(wp, curwin_ptr()) {
+            if wp.w_onebuf_opt.wo_diff && wp != curwin_ptr() {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {
@@ -547,7 +547,7 @@ pub fn changed_lines(
         && diff_internal() == 0
     {
         for wp in for_all_windows_ptr() {
-            if wp.w_onebuf_opt.wo_diff && !std::ptr::eq(wp, curwin_ptr()) {
+            if wp.w_onebuf_opt.wo_diff && wp != curwin_ptr() {
                 redraw_later(Some(&mut *wp), UPD_VALID);
                 let wlnum = diff_lnum_win(lnum, &mut *wp);
                 if wlnum > 0 {

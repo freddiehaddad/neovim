@@ -3187,7 +3187,7 @@ pub fn did_set_undofile(args: &mut Optset) -> Option<&CStr> {
     let mut hash = [0u8; UNDO_HASH_SIZE];
 
     for bp in for_all_buffers_ptr() {
-        if (buf == bp || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
+        if (ptr::eq(buf, bp) || (args.os_flags & OPT_GLOBAL) != 0 || args.os_flags == 0)
             && !buf_is_changed_fn(&mut *bp)
             && bp.b_ml.ml_mfp.is_some()
         {
@@ -5584,7 +5584,7 @@ fn set_option<'a>(
         os_value_changed: false,
         os_restore_chartab: false,
         os_errbuf: errbuf,
-        os_win: crate::globals::WinPtr::new(curwin_ptr()),
+        os_win: crate::globals::curwin_ptr(),
         os_buf: g_st().curbuf,
     };
 
@@ -5712,7 +5712,7 @@ fn set_option<'a>(
     args.os_oldval = old_value;
     args.os_newval = value;
     args.os_buf = g_st().curbuf;
-    args.os_win = crate::globals::WinPtr::new(curwin_ptr());
+    args.os_win = crate::globals::curwin_ptr();
     errmsg = did_set_option(&mut args, set_sid, direct, value_replaced, value_untrusted)
         .map(|s| crate::memory::cstr_from_ptr(s.as_ptr()));
     args.os_prep = crate::optionstr::OptSetPrep::None;
@@ -5776,7 +5776,7 @@ pub fn set_option_direct_for(
     match target {
         OptTarget::Global => {}
         OptTarget::Win(win) => {
-            set_curwin(win.as_ptr());
+            set_curwin(win);
             g_st().curbuf = curwin_mut().w_buffer;
         }
         OptTarget::Buf(buf) => {

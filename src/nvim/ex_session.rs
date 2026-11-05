@@ -396,7 +396,7 @@ fn put_view(
     }
 
     let save_curwin = curwin_ptr();
-    set_curwin(wp);
+    set_curwin(&mut *wp);
     g_st().curbuf = curwin_mut().w_buffer;
     let f = if (*flagp & (K_OPT_SSOP_FLAG_OPTIONS | K_OPT_SSOP_FLAG_LOCALOPTIONS)) != 0 {
         makeset(
@@ -798,7 +798,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
                 } else if !wp_ref.w_floating {
                     restore_size = false;
                 }
-                if ptr::eq(curwin_ptr(), wp) {
+                if curwin_ptr() == wp {
                     cnr = nr;
                 }
                 wp = wp_ref.w_next.as_ptr();

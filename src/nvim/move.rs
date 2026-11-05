@@ -2548,7 +2548,7 @@ pub fn do_check_cursorbind() {
     {
         return;
     }
-    move_cb_st().prev_curwin = crate::globals::WinPtr::new(curwin_ptr());
+    move_cb_st().prev_curwin = crate::globals::curwin_ptr();
     move_cb_st().prev_curbuf = g_st().curbuf;
     move_cb_st().prev_changedtick = buf_get_changedtick(curbuf_mut());
     move_cb_st().prev_cursor = curwin_mut().w_cursor;

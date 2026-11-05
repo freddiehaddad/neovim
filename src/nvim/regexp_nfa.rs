@@ -4289,7 +4289,7 @@ fn nfa_regmatch(
                     if !(op != 1 && col > t_st.val * MB_MAXBYTES) {
                         let mut matched = false;
                         let wp = if re_st().rex.reg_win.is_null() {
-                            crate::globals::curwin_ptr()
+                            crate::globals::curwin_ptr().as_ptr()
                         } else {
                             re_st().rex.reg_win.as_ptr()
                         };

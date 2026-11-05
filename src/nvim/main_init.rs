@@ -2038,7 +2038,7 @@ fn create_windows(parmp: &mut Mparm) {
         }
         if parmp.window_layout == WIN_TABS {
             goto_tabpage(1);
-        } else if parmp.window_count > 1 || !win_valid(unsafe { startup_curwin.as_ref() }) {
+        } else if parmp.window_count > 1 || !win_valid(startup_curwin.opt()) {
             set_curwin(g_st().firstwin.as_ptr());
         } else {
             set_curwin(startup_curwin);
@@ -2152,7 +2152,7 @@ fn edit_buffers(parmp: &mut Mparm) {
     let mut win = if parmp.window_count > 1 {
         g_st().firstwin.as_ptr()
     } else {
-        curwin_ptr()
+        curwin_ptr().as_ptr()
     };
     while unsafe { (*win).w_onebuf_opt.wo_pvw } {
         win = unsafe { (*win).w_next.as_ptr() };

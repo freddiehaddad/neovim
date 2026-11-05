@@ -1127,7 +1127,7 @@ pub fn spell_move_to(
             }
             if capcol == 0 {
                 capcol = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
-            } else if curline && ptr::eq(wp, curwin_ptr()) {
+            } else if curline && wp == curwin_ptr() {
                 let col = getwhitecols(crate::memory::cstr_as_bytes(line)) as Colnr;
                 if check_need_cap(curwin_mut(), lnum, col) {
                     capcol = col;

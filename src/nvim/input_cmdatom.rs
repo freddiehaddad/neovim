@@ -472,7 +472,7 @@ pub fn atom_cmd_spec(cap: &Cmdarg) -> CmdSpec {
 
 fn atom_origin() -> CmdOrigin {
     let mut origin = CmdOrigin {
-        win: crate::globals::WinPtr::new(curwin_ptr()),
+        win: crate::globals::curwin_ptr(),
         pos: curwin_mut().w_cursor,
         tick: buf_get_changedtick(curbuf_mut()),
         maptick: g_st().maptick,
