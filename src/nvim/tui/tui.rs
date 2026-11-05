@@ -2233,7 +2233,7 @@ pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
 }
 
 pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
-    if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"mousemoveevent") {
+    if name.opt_bytes() == Some(b"mousemoveevent") {
         if tui.mouse_move_enabled != value.data.boolean() {
             if tui.mouse_enabled {
                 tui_mouse_off(tui);
@@ -2243,7 +2243,7 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
                 tui.mouse_move_enabled = value.data.boolean();
             }
         }
-    } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"termguicolors") {
+    } else if name.opt_bytes() == Some(b"termguicolors") {
         tui.rgb = value.data.boolean();
         tui.print_attr_id = -1;
         invalidate(tui, 0, tui.grid.height, 0, tui.grid.width);
@@ -2257,13 +2257,13 @@ pub fn tui_option_set(tui: &mut TUIData, name: NvimString, value: Object) {
             };
             rpc_send_event(g_st().ui_client_channel_id, c"nvim_ui_set_option", args);
         }
-    } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"ttimeout") {
+    } else if name.opt_bytes() == Some(b"ttimeout") {
         tui.input.ttimeout = value.data.boolean();
-    } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"ttimeoutlen") {
+    } else if name.opt_bytes() == Some(b"ttimeoutlen") {
         tui.input.ttimeoutlen = value.data.integer() as OptInt;
-    } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"verbose") {
+    } else if name.opt_bytes() == Some(b"verbose") {
         tui.verbose = value.data.integer();
-    } else if crate::memory::cstr_as_opt_bytes(name.data) == Some(b"termsync") {
+    } else if name.opt_bytes() == Some(b"termsync") {
         tui.sync_output = value.data.boolean();
     }
 }

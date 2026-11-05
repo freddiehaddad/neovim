@@ -312,6 +312,36 @@ impl TypvalVval {
     }
 
     #[inline]
+    pub fn v_string_cstr_or_empty(self) -> &'static CStr {
+        crate::memory::cstr_from_ptr(self.v_string())
+    }
+
+    #[inline]
+    pub fn v_string_bytes(self) -> &'static [u8] {
+        crate::memory::cstr_as_bytes(self.v_string())
+    }
+
+    #[inline]
+    pub fn v_string_opt_bytes(self) -> Option<&'static [u8]> {
+        crate::memory::cstr_as_opt_bytes(self.v_string())
+    }
+
+    #[inline]
+    pub fn v_string_is_empty(self) -> bool {
+        self.v_string_bytes().is_empty()
+    }
+
+    #[inline]
+    pub fn v_string_first_byte(self) -> u8 {
+        self.v_string_bytes().first().copied().unwrap_or(0)
+    }
+
+    #[inline]
+    pub fn v_string_owned(self) -> std::ffi::CString {
+        self.v_string_cstr_or_empty().to_owned()
+    }
+
+    #[inline]
     pub const fn v_list(self) -> *mut TvList {
         match self {
             Self::List(p) => p,
@@ -4150,9 +4180,8 @@ pub fn tv_copy(from: &TypVal, to: &mut TypVal) {
         VarType::VarNumber | VarType::VarFloat | VarType::VarBool | VarType::VarSpecial => {}
         VarType::VarString | VarType::VarFunc => {
             if !from.vval.v_string().is_null() {
-                to.vval = crate::eval::typval::TypvalVval::String(
-                    crate::memory::cstr_to_cstring(from.vval.v_string()).into_raw(),
-                );
+                to.vval =
+                    crate::eval::typval::TypvalVval::String(from.vval.v_string_owned().into_raw());
                 if from.v_type == VarType::VarFunc {
                     let s = to.vval.v_string();
                     func_ref(crate::memory::cstr_as_opt_cstr(s));
@@ -4532,7 +4561,7 @@ pub fn tv_get_number_chk(tv: &TypVal, mut ret_error: Option<&mut bool>) -> Varnu
             let mut n: Varnumber = 0;
             if !tv.vval.v_string().is_null() {
                 vim_str2nr(
-                    crate::memory::cstr_as_bytes(tv.vval.v_string()),
+                    tv.vval.v_string_bytes(),
                     None,
                     None,
                     STR2NR_ALL,
@@ -4583,7 +4612,7 @@ pub fn tv_get_lnum(tv: &TypVal) -> Linenr {
 pub fn tv_get_lnum_buf(tv: &TypVal, buf: Option<&FileBuf>) -> Linenr {
     if tv.v_type == VarType::VarString
         && !tv.vval.v_string().is_null()
-        && crate::memory::cstr_as_bytes(tv.vval.v_string()) == b"$"
+        && tv.vval.v_string_bytes() == b"$"
         && let Some(buf) = buf
     {
         return buf.b_ml.ml_line_count;
@@ -4831,7 +4860,7 @@ pub fn tv_get_string_buf_chk<'a>(
         }
         VarType::VarString => {
             if !tv.vval.v_string().is_null() {
-                Some(crate::memory::cstr_from_ptr(tv.vval.v_string()))
+                Some(tv.vval.v_string_cstr_or_empty())
             } else {
                 Some(c"")
             }
@@ -4884,7 +4913,7 @@ pub fn tv2bool(tv: &TypVal) -> bool {
         VarType::VarFloat => tv.vval.v_float() != 0.0,
         VarType::VarPartial => !tv.vval.v_partial().is_null(),
         VarType::VarFunc | VarType::VarString => {
-            !tv.vval.v_string().is_null() && !crate::memory::cstr_is_empty(tv.vval.v_string())
+            !tv.vval.v_string().is_null() && !tv.vval.v_string_is_empty()
         }
         VarType::VarList => tv.vval.v_list_opt().is_some_and(|l| l.lv_len > 0),
         VarType::VarDict => tv

@@ -147,7 +147,7 @@ use crate::mark::{
 use crate::r#match::ex_match;
 use crate::mbyte::{get_encoding_name, utf_head_off_slice, utfc_ptr2len, utfc_slice2len};
 use crate::memline::{goto_byte, ml_clearmarked, ml_preserve, ml_recover, ml_setmarked};
-use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
+use crate::memory::{ArenaMem, arena_mem_free, cstr_from_bytes};
 use crate::menu::{SaveState, ex_emenu, ex_menu, ex_menutranslate};
 use crate::message::{
     emsg, emsg_multiline, ex_messages, iemsg, msg, msg_ext_set_kind, msg_make, msg_outtrans,
@@ -10092,7 +10092,7 @@ fn findfunc_find_file(findarg: &[u8], count: i32) -> Option<std::ffi::CString> {
     {
         let tv = &li.li_tv;
         if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
-            ret_fname = Some(cstr_to_cstring(tv.vval.v_string()));
+            ret_fname = Some(tv.vval.v_string_owned());
         } else if tv.v_type == VarType::VarDict
             && let Some(dict) = tv.vval.v_dict_opt()
         {

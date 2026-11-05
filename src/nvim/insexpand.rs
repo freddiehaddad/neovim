@@ -1810,8 +1810,7 @@ fn ins_compl_build_pum() -> i32 {
         .as_deref()
         .is_some_and(match_at_original_text);
 
-    if (crate::memory::cstr_as_opt_bytes(insexp().compl_leader.data)
-        == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data))
+    if (insexp().compl_leader.opt_bytes() == insexp().compl_orig_text.opt_bytes())
         && !shown_match_ok
     {
         insexp().compl_shown_idx = if compl_no_select {
@@ -5634,10 +5633,9 @@ fn ins_compl_next(allow_get_expansion: bool, count: i32, insert_match: bool) -> 
             let skip = (get_compl_len().max(0) as usize).min(lead_b.len());
             ins_compl_insert_bytes(&lead_b[skip..], -1);
         }
-        if compl_opt(insexp().compl_shown_idx).is_some_and(|shown| {
-            crate::memory::cstr_as_opt_bytes(shown.cp_str.data)
-                == crate::memory::cstr_as_opt_bytes(insexp().compl_orig_text.data)
-        }) {
+        if compl_opt(insexp().compl_shown_idx)
+            .is_some_and(|shown| shown.cp_str.opt_bytes() == insexp().compl_orig_text.opt_bytes())
+        {
             restore_orig_extmarks();
         }
     } else {

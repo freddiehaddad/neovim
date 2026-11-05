@@ -55,7 +55,7 @@ use crate::lua::executor::{
 use crate::mapping::{expand_mappings, set_context_in_map_cmd};
 use crate::mbyte::{mb_tolower, utf_ptr2char, utfc_ptr2len};
 use crate::memline::{ml_get, ml_get_len};
-use crate::memory::{cstr_from_bytes, cstr_to_cstring};
+use crate::memory::cstr_from_bytes;
 use crate::menu::{get_menu_name, get_menu_names, menu_is_separator, set_context_in_menu_cmd};
 use crate::message::{
     emsg, msg_advance, msg_clr_eos, msg_ext_set_kind, msg_outtrans, msg_outtrans_long, msg_putchar,
@@ -4582,7 +4582,7 @@ fn get_healthcheck_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr>
     {
         let item = cmdexp().healthcheck_names.data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(crate::memory::cstr_from_ptr(item.data.string().data));
+            return Some(item.data.string().as_cstr());
         }
     }
     None
@@ -4636,7 +4636,7 @@ fn get_arg1_from_lua(lua: &std::ffi::CStr, xp: &mut ExpandCtx, idx: i32) -> Opti
     {
         let item = cmdexp().arg1_lua_names.data.array()[idx as usize];
         if item.obj_type == ObjectType::ObjectTypeString && !item.data.string().data.is_null() {
-            return Some(crate::memory::cstr_from_ptr(item.data.string().data));
+            return Some(item.data.string().as_cstr());
         }
     }
     None
@@ -5466,7 +5466,7 @@ pub fn expand_process_user_list(
                 if tv.vval.v_string().is_null() {
                     continue;
                 }
-                p = cstr_to_cstring(tv.vval.v_string());
+                p = tv.vval.v_string_owned();
             } else if tv.v_type == VarType::VarDict && !tv.vval.v_dict().is_null() {
                 let d = tv.vval.v_dict_ref();
                 let Some(word) = tv_dict_get_string(Some(d), c"word") else {

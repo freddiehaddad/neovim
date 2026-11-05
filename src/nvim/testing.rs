@@ -639,7 +639,7 @@ pub fn f_assert_fails(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                     valid_args = false;
                 } else if !arg4.vval.v_string().is_null()
                     && pattern_match(
-                        crate::memory::cstr_from_ptr(arg4.vval.v_string()),
+                        arg4.vval.v_string_cstr_or_empty(),
                         g_st().emsg_assert_fails_context.as_deref(),
                         false,
                     ) == 0

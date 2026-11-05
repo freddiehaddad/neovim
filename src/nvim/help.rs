@@ -105,7 +105,7 @@ pub fn ex_help(eap: &mut Exarg) {
         );
         if rettv.v_type == VarType::VarString
             && !rettv.vval.v_string().is_null()
-            && !crate::memory::cstr_is_empty(rettv.vval.v_string())
+            && !rettv.vval.v_string_is_empty()
         {
             allocated_arg = crate::eval::typval::tv_take_string(&mut rettv);
             arg_cstr = allocated_arg.as_deref().unwrap();
@@ -330,10 +330,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
         tv_clear(&mut rettv);
         return false;
     }
-    crate::memory::copy_bytes_to_c_buf(
-        g_st().iobuff_bytes_mut(),
-        crate::memory::cstr_as_bytes(rettv.vval.v_string()),
-    );
+    crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), rettv.vval.v_string_bytes());
     tv_clear(&mut rettv);
 
     matches.clear();

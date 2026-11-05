@@ -52,7 +52,7 @@ fn filter_map_one(
 
     newtv.v_type = VarType::VarUnknown;
     if filtermap == FilterMap::ForEach && expr.v_type == VarType::VarString {
-        do_cmdline_cmd(crate::memory::cstr_from_ptr(expr.vval.v_string()));
+        do_cmdline_cmd(expr.vval.v_string_cstr_or_empty());
         if g_st().did_emsg == 0 {
             retval = true;
         }
@@ -293,10 +293,10 @@ fn filter_map_string(
                 emsg(E_STRING_REQUIRED);
                 break;
             } else if !newtv.vval.v_string().is_null() {
-                out.extend_from_slice(crate::memory::cstr_as_bytes(newtv.vval.v_string()));
+                out.extend_from_slice(newtv.vval.v_string_bytes());
             }
         } else if (filtermap == FilterMap::ForEach || !rem) && !tv.vval.v_string().is_null() {
-            out.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
+            out.extend_from_slice(tv.vval.v_string_bytes());
         }
 
         tv_clear(&mut newtv);
@@ -590,7 +590,7 @@ pub fn f_count(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
 
     if !error && arg0.v_type == VarType::VarString {
         n = count_string(
-            crate::memory::cstr_as_opt_bytes(arg0.vval.v_string()),
+            arg0.vval.v_string_opt_bytes(),
             tv_get_string_chk(arg1).map(CStr::to_bytes),
             ic,
         );
@@ -879,7 +879,7 @@ pub fn f_reverse(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     } else if arg0.v_type == VarType::VarString {
         rettv.v_type = VarType::VarString;
         if !arg0.vval.v_string().is_null() {
-            let s_bytes = crate::memory::cstr_as_bytes(arg0.vval.v_string());
+            let s_bytes = arg0.vval.v_string_bytes();
             let rev = reverse_text(s_bytes);
             crate::eval::typval::tv_set_string(rettv, Some(rev.as_c_str()));
         } else {

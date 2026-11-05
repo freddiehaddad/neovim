@@ -135,7 +135,7 @@ pub fn encode_list_write(mut list: Option<&mut TvList>, buf: &[u8]) {
         line_end_idx = buf.iter().position(|&b| b == b'\n').unwrap_or(len);
         if line_end_idx != 0 {
             let line_length = line_end_idx;
-            let str_slice = crate::memory::cstr_as_bytes(li.li_tv.vval.v_string());
+            let str_slice = li.li_tv.vval.v_string_bytes();
             let li_len = str_slice.len();
             let mut combined = vec![0u8; li_len + line_length];
             combined[..li_len].copy_from_slice(str_slice);
@@ -1045,7 +1045,7 @@ fn convert_one_value(
     let tv: *mut TypVal = tv_ref;
     match tv_ref.v_type {
         VarType::VarString => {
-            let s = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+            let s = tv_ref.vval.v_string_opt_bytes();
             if !backend.conv_string(s) {
                 return false;
             }
@@ -1065,7 +1065,7 @@ fn convert_one_value(
             backend.conv_blob(blob_opt, tv_blob_len(blob_opt));
         }
         VarType::VarFunc => {
-            let fun = crate::memory::cstr_as_opt_bytes(tv_ref.vval.v_string());
+            let fun = tv_ref.vval.v_string_opt_bytes();
             if !backend.conv_func_start(fun, b"", mpstack, objname) {
                 return false;
             }
@@ -1632,7 +1632,7 @@ pub fn encode_tv2echo(tv: &mut TypVal, len: Option<&mut usize>) -> std::ffi::CSt
     let mut ga: Vec<u8> = Vec::with_capacity(80);
     if tv.v_type == VarType::VarString || tv.v_type == VarType::VarFunc {
         if !tv.vval.v_string().is_null() {
-            ga.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
+            ga.extend_from_slice(tv.vval.v_string_bytes());
         }
     } else {
         let eve_ret = encode_vim_to_echo(&mut ga, tv, c":echo argument");

@@ -721,7 +721,7 @@ pub fn deref_func_name<'a>(
             *lenp = 0;
             return c"";
         }
-        let s = crate::memory::cstr_from_ptr(tv.vval.v_string());
+        let s = tv.vval.v_string_cstr_or_empty();
         *lenp = s.to_bytes().len() as i32;
         return s;
     }
@@ -2208,7 +2208,7 @@ pub fn trans_function_name(
         }
         let mut res: Option<std::ffi::CString> = None;
         if ll_tv.v_type == VarType::VarFunc && !ll_tv.vval.v_string().is_null() {
-            res = Some(cstr_to_cstring(ll_tv.vval.v_string()));
+            res = Some(ll_tv.vval.v_string_owned());
 
             *pp = crate::memory::cstr_from_ptr(end);
         } else if ll_tv.v_type == VarType::VarPartial && !ll_tv.vval.v_partial().is_null() {

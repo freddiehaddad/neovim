@@ -5784,7 +5784,7 @@ fn qf_get_list_from_lines(what: &mut TvDict, di: &mut Dictitem, retdict: &mut Tv
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }
-        errorformat = crate::memory::cstr_from_ptr(efm_di.di_tv.vval.v_string());
+        errorformat = efm_di.di_tv.vval.v_string_cstr_or_empty();
     }
 
     let l = tv_list_alloc(K_LIST_LEN_MAY_KNOW_CONST);
@@ -5898,7 +5898,7 @@ fn qf_getprop_qfidx(qi: &mut QfInfo, what: &mut TvDict) -> i32 {
                 }
             }
         } else if di.di_tv.v_type == VarType::VarString
-            && (crate::memory::cstr_as_opt_bytes(di.di_tv.vval.v_string()) == Some(b"$"))
+            && (di.di_tv.vval.v_string_opt_bytes() == Some(b"$"))
         {
             qf_idx = qi.qf_listcount - 1;
         } else {
@@ -6371,7 +6371,7 @@ fn qf_setprop_get_qfidx(qi: &QfInfo, what: &TvDict, action: i32, newlist: &mut b
                 *newlist = false;
             }
         } else if di.di_tv.v_type == VarType::VarString
-            && (crate::memory::cstr_as_opt_bytes(di.di_tv.vval.v_string()) == Some(b"$"))
+            && (di.di_tv.vval.v_string_opt_bytes() == Some(b"$"))
         {
             if !qf_stack_empty(Some(qi)) {
                 qf_idx = qi.qf_listcount - 1;
@@ -6442,7 +6442,7 @@ fn qf_setprop_items_from_lines(
         if efm_di.di_tv.v_type != VarType::VarString || efm_di.di_tv.vval.v_string().is_null() {
             return false;
         }
-        errorformat = crate::memory::cstr_from_ptr(efm_di.di_tv.vval.v_string());
+        errorformat = efm_di.di_tv.vval.v_string_cstr_or_empty();
     }
 
     if di.di_tv.v_type != VarType::VarList || di.di_tv.vval.v_list().is_null() {
@@ -6488,7 +6488,7 @@ fn qf_setprop_curidx(qi: &mut QfInfo, qfl: &mut QfList, di: &Dictitem) -> bool {
 
     if di.di_tv.v_type == VarType::VarString
         && !di.di_tv.vval.v_string().is_null()
-        && (crate::memory::cstr_as_bytes(di.di_tv.vval.v_string()) == b"$")
+        && (di.di_tv.vval.v_string_bytes() == b"$")
     {
         newidx = qfl.count();
     } else {

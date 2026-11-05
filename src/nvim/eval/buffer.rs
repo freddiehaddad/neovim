@@ -74,10 +74,10 @@ pub fn find_buffer(avar: &mut TypVal) -> Option<&'static mut FileBuf> {
     if avar.v_type == VarType::VarNumber {
         buf = buflist_findnr(avar.vval.v_number() as i32).map_or(ptr::null_mut(), ptr::from_mut);
     } else if avar.v_type == VarType::VarString && !avar.vval.v_string().is_null() {
-        buf = buflist_findname_exp(crate::memory::cstr_as_opt_cstr(avar.vval.v_string()))
-            .map_or(ptr::null_mut(), ptr::from_mut);
+        buf =
+            buflist_findname_exp(avar.vval.v_string_cstr()).map_or(ptr::null_mut(), ptr::from_mut);
         if buf.is_null() {
-            let target = crate::memory::cstr_as_bytes(avar.vval.v_string());
+            let target = avar.vval.v_string_bytes();
             for bp in for_all_buffers_mut() {
                 if bp.fname_opt().is_some()
                     && (path_with_url(bp.fname_bytes()) || bt_nofilename(Some(&*bp)))

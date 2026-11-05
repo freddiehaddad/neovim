@@ -553,10 +553,7 @@ pub fn f_chdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
         scope = K_CD_SCOPE_TABPAGE;
     }
 
-    if !do_chdir(
-        crate::memory::cstr_as_opt_cstr(argvars[0].vval.v_string()),
-        scope,
-    ) {
+    if !do_chdir(argvars[0].vval.v_string_cstr(), scope) {
         // Directory change failed
         tv_clear(rettv);
         rettv.v_type = VarType::VarString;
@@ -2164,10 +2161,7 @@ pub fn f_writefile(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
                     .v_blob_opt()
                     .is_none_or(|b| write_blob(&mut fp, b))
             } else if argvars[0].v_type == VarType::VarString {
-                write_string(
-                    &mut fp,
-                    crate::memory::cstr_as_bytes(argvars[0].vval.v_string()),
-                )
+                write_string(&mut fp, argvars[0].vval.v_string_bytes())
             } else {
                 write_list(&mut fp, argvars[0].vval.v_list_opt().as_deref(), binary)
             };

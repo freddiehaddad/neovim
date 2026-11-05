@@ -68,6 +68,15 @@ impl NvimString {
     }
 
     #[inline]
+    pub fn opt_bytes(self) -> Option<&'static [u8]> {
+        if self.data.is_null() {
+            None
+        } else {
+            Some(self.cstr_bytes())
+        }
+    }
+
+    #[inline]
     pub fn first_byte(self) -> u8 {
         self.cstr_bytes().first().copied().unwrap_or(0)
     }

@@ -128,7 +128,7 @@ use crate::mbyte::{
     Vimconv, mb_charlen, mb_copy_char, mb_strcmp_ic, string_convert, utf_char2bytes, utfc_ptr2len,
 };
 use crate::memline::ml_get_buf_len;
-use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes, cstr_to_cstring};
+use crate::memory::{Arena, arena_finish, arena_mem_free, cstr_from_bytes};
 use crate::msgpack_rpc::channel::find_channel;
 use crate::ops::set_ref_in_opfunc;
 use crate::optionstr::OptIndex;
@@ -505,7 +505,7 @@ fn eval1_emsg(arg: &mut &CStr, rettv: &mut TypVal, eap: Option<&mut Exarg>) -> b
 pub fn eval_expr_valid_arg(tv: &TypVal) -> bool {
     tv.v_type != VarType::VarUnknown
         && (tv.v_type != VarType::VarString
-            || (!tv.vval.v_string().is_null() && !crate::memory::cstr_is_empty(tv.vval.v_string())))
+            || (!tv.vval.v_string().is_null() && !tv.vval.v_string_is_empty()))
 }
 
 /// Evaluate a partial.
@@ -1781,7 +1781,7 @@ pub fn eval_for_line(
                 let text = if tv.vval.v_string().is_null() {
                     std::ffi::CString::default()
                 } else {
-                    crate::memory::cstr_to_cstring(tv.vval.v_string())
+                    tv.vval.v_string_owned()
                 };
                 fi.fi_source = ForSource::Str { text, byte_idx: 0 };
                 tv_clear(&mut tv);
@@ -2517,7 +2517,7 @@ pub fn grow_string_tv(tv1: &mut TypVal, s2: &[u8]) -> bool {
         return false;
     }
 
-    let joined = concat_str(crate::memory::cstr_as_bytes(tv1.vval.v_string()), s2);
+    let joined = concat_str(tv1.vval.v_string_bytes(), s2);
     crate::eval::typval::tv_set_string(tv1, Some(joined.as_c_str()));
     true
 }
@@ -3961,7 +3961,7 @@ pub fn eval_interp_string(arg: &mut &CStr, rettv: &mut TypVal, evaluate: bool) -
         }
         if evaluate {
             if !tv.vval.v_string().is_null() {
-                let len = crate::memory::cstr_len(tv.vval.v_string());
+                let len = tv.vval.v_string_bytes().len();
                 if len > 0 {
                     buf.extend_from_slice(unsafe {
                         std::slice::from_raw_parts(tv.vval.v_string().cast::<u8>(), len)
@@ -4912,7 +4912,7 @@ pub fn callback_from_typval(callback: &mut Callback, arg: &TypVal) -> bool {
         pt.pt_refcount += 1;
     } else if arg.v_type == VarType::VarString
         && !arg.vval.v_string().is_null()
-        && ascii_isdigit(crate::memory::cstr_first_byte(arg.vval.v_string()))
+        && ascii_isdigit(arg.vval.v_string_first_byte())
     {
         r = false;
     } else if arg.v_type == VarType::VarFunc || arg.v_type == VarType::VarString {
@@ -5466,7 +5466,7 @@ pub fn var2fpos(
         if let Some(li) = tv_list_find(unsafe { l.as_mut() }, 1)
             && tv_list_item_tv(li).v_type == VarType::VarString
             && !tv_list_item_tv(li).vval.v_string().is_null()
-            && crate::memory::cstr_as_bytes(tv_list_item_tv(li).vval.v_string()) == b"$"
+            && tv_list_item_tv(li).vval.v_string_bytes() == b"$"
         {
             eval_st().var2_fpos_pos.col = len + 1;
         }
@@ -6180,20 +6180,13 @@ pub fn var_item_copy(
             if from.vval.v_string().is_null() {
                 tv_copy(&*from, &mut *to);
             } else {
-                if let Some(conv_bytes) = string_convert(
-                    conv,
-                    crate::memory::cstr_as_bytes(from.vval.v_string()),
-                    None,
-                ) {
+                if let Some(conv_bytes) = string_convert(conv, from.vval.v_string_bytes(), None) {
                     crate::eval::typval::tv_set_string(
                         &mut *to,
                         Some(crate::memory::cstr_until_nul(&conv_bytes)),
                     );
                 } else {
-                    crate::eval::typval::tv_set_string(
-                        &mut *to,
-                        crate::memory::cstr_as_opt_cstr(from.vval.v_string()),
-                    );
+                    crate::eval::typval::tv_set_string(&mut *to, from.vval.v_string_cstr());
                 }
                 to.v_lock = VAR_UNLOCKED;
             }
@@ -6658,11 +6651,7 @@ pub fn script_host_eval(name: &std::ffi::CStr, argvars: &mut [TypVal], rettv: &m
     }
 
     let args = tv_list_alloc(1);
-    tv_list_append_string(
-        &mut *args,
-        crate::memory::cstr_as_opt_cstr(argvars[0].vval.v_string()),
-        -1,
-    );
+    tv_list_append_string(&mut *args, argvars[0].vval.v_string_cstr(), -1);
     *rettv = eval_call_provider(name, c"eval", &mut *args, false);
 }
 
@@ -7082,7 +7071,7 @@ pub fn typval_tostring(arg: Option<&mut TypVal>, quotes: bool) -> std::ffi::CStr
         return c"(does not exist)".to_owned();
     };
     if !quotes && arg.v_type == VarType::VarString {
-        return cstr_to_cstring(arg.vval.v_string());
+        return arg.vval.v_string_owned();
     }
     encode_tv2string(&mut *arg, None)
 }

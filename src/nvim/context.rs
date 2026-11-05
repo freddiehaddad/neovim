@@ -562,19 +562,19 @@ pub fn ctx_from_dict(dict: Dict, ctx: &mut Context, err: &mut Error) -> CtxState
         if item.value.obj_type != ObjectType::ObjectTypeArray {
             continue;
         }
-        if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"regs") {
+        if item.key.opt_bytes() == Some(b"regs") {
             types |= K_CTX_REGS;
             ctx.regs = array_to_string(item.value.data.array(), err);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"jumps") {
+        } else if item.key.opt_bytes() == Some(b"jumps") {
             types |= K_CTX_JUMPS;
             ctx.jumps = array_to_string(item.value.data.array(), err);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"bufs") {
+        } else if item.key.opt_bytes() == Some(b"bufs") {
             types |= K_CTX_BUFS;
             ctx.bufs = array_to_string(item.value.data.array(), err);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"gvars") {
+        } else if item.key.opt_bytes() == Some(b"gvars") {
             types |= K_CTX_GVARS;
             ctx.gvars = array_to_string(item.value.data.array(), err);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"funcs") {
+        } else if item.key.opt_bytes() == Some(b"funcs") {
             types |= K_CTX_FUNCS;
             ctx.funcs = copy_object(item.value, None).data.array();
         }

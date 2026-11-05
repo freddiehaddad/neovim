@@ -2465,9 +2465,7 @@ pub fn set_reg_var(c: i32) {
         regname[0] = c as u8;
     }
     let tv = get_vim_var_tv(VV_REG);
-    if tv.vval.v_string().is_null()
-        || i32::from(crate::memory::cstr_first_byte(tv.vval.v_string())) != c
-    {
+    if tv.vval.v_string().is_null() || i32::from(tv.vval.v_string_first_byte()) != c {
         set_vim_var_bytes(VV_REG, &regname[..1]);
     }
 }
@@ -3360,7 +3358,7 @@ fn opt_from_tv(tv: &mut TypVal, opt_idx: OptIndex, option: &CStr, error: &mut bo
             tv_get_bool_chk(&*tv, Some(&mut err))
         };
         if !err && tv.v_type == VarType::VarString && n == 0 {
-            let s_bytes = crate::memory::cstr_as_bytes(tv.vval.v_string());
+            let s_bytes = tv.vval.v_string_bytes();
             if s_bytes.is_empty() || !s_bytes.iter().all(|&b| b == b'0') {
                 err = true;
                 semsg!(

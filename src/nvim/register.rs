@@ -2189,7 +2189,7 @@ pub fn do_put(
                             if y_type != MotionType::MtCharWise || i < y_size - 1 {
                                 if !ml_append(
                                     lnum,
-                                    unsafe { crate::memory::cstr_as_bytes((*y_array.add(i)).data) },
+                                    unsafe { (*y_array.add(i)).cstr_bytes() },
                                     0,
                                     false,
                                 ) {

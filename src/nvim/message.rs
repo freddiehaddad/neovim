@@ -597,21 +597,13 @@ fn format_progress_message(
         let mut hl_id = 0;
         if msg_data.as_deref_mut().unwrap().status.data.is_null() {
             hl_id = 0;
-        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-            == Some(b"success")
-        {
+        } else if msg_data.as_deref_mut().unwrap().status.opt_bytes() == Some(b"success") {
             hl_id = syn_check_group(b"OkMsg");
-        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-            == Some(b"failed")
-        {
+        } else if msg_data.as_deref_mut().unwrap().status.opt_bytes() == Some(b"failed") {
             hl_id = syn_check_group(b"ErrorMsg");
-        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-            == Some(b"running")
-        {
+        } else if msg_data.as_deref_mut().unwrap().status.opt_bytes() == Some(b"running") {
             hl_id = syn_check_group(b"MoreMsg");
-        } else if crate::memory::cstr_as_opt_bytes(msg_data.as_deref_mut().unwrap().status.data)
-            == Some(b"cancel")
-        {
+        } else if msg_data.as_deref_mut().unwrap().status.opt_bytes() == Some(b"cancel") {
             hl_id = syn_check_group(b"WarningMsg");
         }
         updated_msg.push(HlMessageChunk {

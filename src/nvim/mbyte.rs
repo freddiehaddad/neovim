@@ -3534,7 +3534,7 @@ pub fn f_charclass(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDa
         return;
     }
     rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(mb_get_class(
-        crate::memory::cstr_as_bytes(argvars[0].vval.v_string()),
+        argvars[0].vval.v_string_bytes(),
     )));
 }
 

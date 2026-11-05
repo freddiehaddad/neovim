@@ -1258,7 +1258,7 @@ fn non_zero_arg(argvars: &TypVal) -> bool {
         || (argvars.v_type == VarType::VarBool && argvars.vval.v_bool() == K_BOOL_VAR_TRUE_CONST)
         || (argvars.v_type == VarType::VarString
             && !argvars.vval.v_string().is_null()
-            && !crate::memory::cstr_is_empty(argvars.vval.v_string()))
+            && !argvars.vval.v_string_is_empty())
 }
 
 /// Apply a floating point C function on a typval with one `TvFloat`.
@@ -2031,8 +2031,7 @@ pub fn f_empty(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     let mut n = true;
     match argvars[0].v_type {
         VarType::VarString | VarType::VarFunc => {
-            n = argvars[0].vval.v_string().is_null()
-                || crate::memory::cstr_is_empty(argvars[0].vval.v_string());
+            n = argvars[0].vval.v_string().is_null() || argvars[0].vval.v_string_is_empty();
         }
         VarType::VarPartial => {
             n = argvars[0].vval.v_partial().is_null();
@@ -2764,7 +2763,7 @@ pub fn f_get(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
         let pt: *mut TvPartial = if argvars[0].v_type == VarType::VarPartial {
             argvars[0].vval.v_partial()
         } else {
-            fref_pt.pt_name = Some(cstr_to_cstring(argvars[0].vval.v_string()));
+            fref_pt.pt_name = Some(argvars[0].vval.v_string_owned());
             &raw mut *fref_pt
         };
 
@@ -4079,8 +4078,7 @@ pub fn f_indexof(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     }
 
     if (argvars[1].v_type == VarType::VarString
-        && (argvars[1].vval.v_string().is_null()
-            || crate::memory::cstr_is_empty(argvars[1].vval.v_string())))
+        && (argvars[1].vval.v_string().is_null() || argvars[1].vval.v_string_is_empty()))
         || (argvars[1].v_type == VarType::VarFunc && argvars[1].vval.v_string().is_null())
     {
         return;
@@ -4936,7 +4934,7 @@ pub fn f_keytrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
     if !tv_check_for_string_arg(argvars, 0) || argvars[0].vval.v_string().is_null() {
         return;
     }
-    let escaped = vim_strsave_escape_ks(crate::memory::cstr_as_bytes(argvars[0].vval.v_string()));
+    let escaped = vim_strsave_escape_ks(argvars[0].vval.v_string_bytes());
     let special = str2special_save(escaped.as_bytes(), true, 1);
     crate::eval::typval::tv_set_string(rettv, Some(special.as_c_str()));
 }
@@ -5583,7 +5581,7 @@ pub fn f_matchstrlist(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFun
                 let li_tv = &li.li_tv;
                 if li_tv.v_type == VarType::VarString && !li_tv.vval.v_string().is_null() {
                     get_matches_in_str(
-                        crate::memory::cstr_from_ptr(li_tv.vval.v_string()),
+                        li_tv.vval.v_string_cstr_or_empty(),
                         &mut regmatch,
                         unsafe { &mut *retlist },
                         idx,
@@ -7440,10 +7438,7 @@ pub fn f_serverstop(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncD
     rettv.v_type = VarType::VarNumber;
     rettv.vval = crate::eval::typval::TypvalVval::Number(0);
     if !argvars[0].vval.v_string().is_null() {
-        let rv = server_stop(
-            crate::memory::cstr_from_ptr(argvars[0].vval.v_string()),
-            false,
-        );
+        let rv = server_stop(argvars[0].vval.v_string_cstr_or_empty(), false);
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(rv));
     }
 }

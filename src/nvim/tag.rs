@@ -1354,7 +1354,7 @@ fn find_tagfunc_tags(
                 let tv = &di.di_tv;
 
                 if tv.v_type == VarType::VarString && !tv.vval.v_string().is_null() {
-                    len += crate::memory::cstr_len(tv.vval.v_string()) + 1;
+                    len += tv.vval.v_string_bytes().len() + 1;
                     if crate::memory::cstr_as_bytes(
                         (dict_key).map_or(std::ptr::null(), std::ffi::CStr::as_ptr),
                     ) == b"name"
@@ -1442,7 +1442,7 @@ fn find_tagfunc_tags(
                             v.push(TAB);
                             v.extend_from_slice(key_bytes);
                             v.push(b':');
-                            v.extend_from_slice(crate::memory::cstr_as_bytes(tv.vval.v_string()));
+                            v.extend_from_slice(tv.vval.v_string_bytes());
                         }
                     }
                 }

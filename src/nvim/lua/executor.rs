@@ -1487,8 +1487,8 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
 
             if input.v_type != VarType::VarString
                 || input.vval.v_string().is_null()
-                || crate::memory::cstr_is_empty(input.vval.v_string())
-                || crate::memory::cstr_as_bytes(input.vval.v_string()) == b"cont"
+                || input.vval.v_string_is_empty()
+                || input.vval.v_string_bytes() == b"cont"
             {
                 tv_clear(&mut input);
                 if ui_has(K_UICMDLINE) {
@@ -1497,7 +1497,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
                 return 0;
             }
 
-            let input_bytes = crate::memory::cstr_as_bytes(input.vval.v_string());
+            let input_bytes = input.vval.v_string_bytes();
             if luaL_loadbuffer(lstate, input_bytes, c"=(debug command)") != 0 {
                 nlua_error(lstate, gettext(c"E5115: Loading Lua debug string: %.*s"));
             } else if nlua_pcall(lstate, 0, 0) != 0 {

@@ -1198,7 +1198,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
 
     for i in 0..dict.size {
         let item = &dict[i];
-        if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"errmsg") {
+        if item.key.opt_bytes() == Some(b"errmsg") {
             if item.value.obj_type != ObjectType::ObjectTypeString {
                 fprintf!(
                     stderr,
@@ -1208,7 +1208,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             }
             fprintf!(stderr, c"%s\n", item.value.data.string().data);
             os_exit(2);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"result") {
+        } else if item.key.opt_bytes() == Some(b"result") {
             if item.value.obj_type != ObjectType::ObjectTypeString {
                 fprintf!(
                     stderr,
@@ -1217,7 +1217,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
                 os_exit(2);
             }
             printf!(c"%s", item.value.data.string().data);
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"tabbed") {
+        } else if item.key.opt_bytes() == Some(b"tabbed") {
             if item.value.obj_type != ObjectType::ObjectTypeBoolean {
                 fprintf!(
                     stderr,
@@ -1230,7 +1230,7 @@ fn remote_request(params: &mut Mparm, remote_args: i32, server_addr: Option<&CSt
             } else {
                 K_FALSE
             };
-        } else if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"should_exit") {
+        } else if item.key.opt_bytes() == Some(b"should_exit") {
             if item.value.obj_type != ObjectType::ObjectTypeBoolean {
                 fprintf!(
                     stderr,

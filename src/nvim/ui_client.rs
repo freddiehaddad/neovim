@@ -197,7 +197,7 @@ pub fn ui_client_attach(width: i32, height: i32, term: Option<&std::ffi::CStr>, 
     debug_assert!(m.data.dict().size > 0);
     for i in 0..m.data.dict().size {
         let item = m.data.dict()[i];
-        if crate::memory::cstr_as_opt_bytes(item.key.data) == Some(b"version") {
+        if item.key.opt_bytes() == Some(b"version") {
             version = item.value.data.dict();
             break;
         } else if i + 1 == m.data.dict().size {

@@ -186,7 +186,7 @@ fn json_decoder_pop(
             tv_list_append_owned_tv(&mut *kv_pair, obj.val);
         } else {
             assert!(!(key.is_special_string || key.val.vval.v_string().is_null()));
-            let obj_di = tv_dict_item_alloc(crate::memory::cstr_from_ptr(key.val.vval.v_string()));
+            let obj_di = tv_dict_item_alloc(key.val.vval.v_string_cstr_or_empty());
             tv_clear(&mut key.val);
             let dict = last_container.container.vval.v_dict_ref();
             if !tv_dict_add(dict, obj_di) {
@@ -216,12 +216,8 @@ fn json_decoder_pop(
         if last_container.special_val.is_null()
             && (obj.is_special_string
                 || obj.val.vval.v_string().is_null()
-                || tv_dict_find(
-                    dict.as_deref(),
-                    crate::memory::cstr_from_ptr(obj.val.vval.v_string()),
-                    -1,
-                )
-                .is_some())
+                || tv_dict_find(dict.as_deref(), obj.val.vval.v_string_cstr_or_empty(), -1)
+                    .is_some())
         {
             let mut v = obj.val;
             tv_clear(&mut v);
@@ -1121,8 +1117,7 @@ fn typval_parse_exit(_parser: &mut MpackParser, node: &mut MpackNode) {
             let len = node.tok.length as usize;
             let mut can_be_dict = items[..len].iter().all(|pair| {
                 let key = &pair[0];
-                key.v_type == VarType::VarString
-                    && !crate::memory::cstr_is_empty(key.vval.v_string())
+                key.v_type == VarType::VarString && !key.vval.v_string_is_empty()
             });
 
             if can_be_dict {
@@ -1208,12 +1203,7 @@ mod tests {
     fn decode_string_copies_ascii() {
         let mut tv = decode_string(b"hello", false);
         assert_eq!(tv.v_type, VarType::VarString);
-        assert_eq!(
-            crate::memory::cstr_from_ptr(tv.vval.v_string())
-                .to_str()
-                .unwrap(),
-            "hello"
-        );
+        assert_eq!(tv.vval.v_string_cstr_or_empty().to_str().unwrap(), "hello");
         tv_clear(&mut tv);
     }
 
