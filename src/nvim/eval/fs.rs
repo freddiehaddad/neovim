@@ -308,7 +308,10 @@ pub fn modify_fname(
                 valid |= VALID_HEAD;
                 *usedlen += 2;
                 while (tail as usize) > (s as usize)
-                    && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) != 0
+                    && after_pathsep(crate::memory::cstr_slice(
+                        s,
+                        (tail as usize).saturating_sub(s as usize),
+                    )) != 0
                 {
                     tail = tail.wrapping_sub(
                         crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize + 1,
@@ -328,7 +331,10 @@ pub fn modify_fname(
                     *fnamelen = 1;
                 } else {
                     while (tail as usize) > (s as usize)
-                        && after_pathsep(crate::memory::ptr_span_bytes(s.cast(), tail.cast())) == 0
+                        && after_pathsep(crate::memory::cstr_slice(
+                            s,
+                            (tail as usize).saturating_sub(s as usize),
+                        )) == 0
                     {
                         tail = tail.wrapping_sub(
                             crate::mbyte::utf_head_off_ptr(fname, tail.wrapping_sub(1)) as usize
@@ -1735,12 +1741,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
             is_relative_to_current = true;
         }
 
-        if p_len > 1
-            && after_pathsep(crate::memory::ptr_span_bytes(
-                p.cast(),
-                unsafe { p.add(p_len) }.cast(),
-            )) != 0
-        {
+        if p_len > 1 && after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
             has_trailing_pathsep = true;
             p_len -= 1;
             p_vec[p_len] = 0; // The trailing slash breaks readlink().
@@ -1921,7 +1922,7 @@ pub fn f_resolve(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
         // if the argument had none.  But keep "/" or "//".
         if !has_trailing_pathsep {
             q = unsafe { p.add(p_len) };
-            if after_pathsep(crate::memory::ptr_span_bytes(p.cast(), q.cast())) != 0 {
+            if after_pathsep(crate::memory::cstr_slice(p, p_len)) != 0 {
                 unsafe {
                     *path_tail_with_sep(crate::memory::cstr_from_ptr(p))
                         .as_ptr()

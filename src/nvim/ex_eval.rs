@@ -503,7 +503,7 @@ fn discard_exception(excp: Option<std::rc::Rc<Except>>, was_finished: bool) {
 
     if opt_vars().p_verbose >= 13 || g_st().debug_break_level > 0 {
         let save_msg_silent = g_st().msg_silent;
-        let saved_iobuff = crate::memory::cstr_to_cstring(ptr::addr_of!(g_st().iobuff));
+        let saved_iobuff = g_st().iobuff_cstr().to_owned();
         if g_st().debug_break_level > 0 {
             g_st().msg_silent = 0;
         } else {

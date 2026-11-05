@@ -2042,10 +2042,7 @@ fn compute_double_env_sep_len(
         let mut dir: &[u8] = &[];
         iter = vim_env_iter(ENV_SEPCHAR, val_bytes, iter, &mut dir);
         if !dir.is_empty() {
-            let has_trailing_sep = after_pathsep(crate::memory::ptr_span_bytes(
-                dir.as_ptr().cast(),
-                dir.as_ptr().wrapping_add(dir.len()).cast(),
-            )) != 0;
+            let has_trailing_sep = after_pathsep(dir) != 0;
             ret += (dir.len()
                 + dir.iter().filter(|&&b| b == b',').count()
                 + common_suf_len
@@ -2213,12 +2210,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + 1
                 + SITE_SIZE
                 + 1
-                + usize::from(
-                    after_pathsep(crate::memory::ptr_span_bytes(
-                        (data_home).cast(),
-                        (data_home.wrapping_add(data_len)).cast(),
-                    )) == 0,
-                ))
+                + usize::from(after_pathsep(crate::memory::cstr_slice(data_home, data_len)) == 0))
                 * 2
                 + AFTER_SIZE
                 + 1;
@@ -2232,10 +2224,7 @@ pub fn runtimepath_default(clean_arg: bool) -> Option<std::ffi::CString> {
                 + appname_len
                 + 1
                 + usize::from(
-                    after_pathsep(crate::memory::ptr_span_bytes(
-                        (config_home).cast(),
-                        (config_home.wrapping_add(config_len)).cast(),
-                    )) == 0,
+                    after_pathsep(crate::memory::cstr_slice(config_home, config_len)) == 0,
                 ))
                 * 2
                 + AFTER_SIZE

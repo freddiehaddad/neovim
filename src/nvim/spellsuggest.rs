@@ -962,8 +962,8 @@ fn spell_suggest_file(su: &mut Suginfo, fname: &CStr) {
         };
         line[slash_pos] = 0;
         if mb_stricmp(
-            crate::memory::cstr_from_ptr(&raw const su.su_badword),
-            crate::memory::cstr_from_ptr(&raw const line),
+            crate::memory::cstr_until_nul(&su.su_badword),
+            crate::memory::cstr_until_nul(&line),
         ) == 0
         {
             let len = crate::memory::cstr_until_nul(&line[slash_pos + 1..])

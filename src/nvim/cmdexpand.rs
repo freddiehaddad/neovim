@@ -5295,7 +5295,11 @@ fn expand_shellcmd(filepat: &CStr, matches: &mut Vec<CString>, flagsarg: i32) {
                 flags &= !EW_DIR;
             }
 
-            seplen = if after_pathsep(crate::memory::ptr_span_bytes(s.cast(), e.cast())) == 0 {
+            seplen = if after_pathsep(crate::memory::cstr_slice(
+                s,
+                (e as usize).saturating_sub(s as usize),
+            )) == 0
+            {
                 PATHSEPSTR.len()
             } else {
                 0
@@ -5556,12 +5560,7 @@ pub fn globpath(
     let mut path_bytes = crate::memory::cstr_as_bytes(path);
     while !path_bytes.is_empty() {
         let mut pathlen = copy_option_part(&mut path_bytes, &mut buf_vec[..MAXPATHL], c",");
-        let seplen = if buf_vec[0] != 0
-            && after_pathsep(crate::memory::ptr_span_bytes(
-                buf_vec.as_ptr().cast(),
-                buf_vec.as_ptr().wrapping_add(pathlen).cast(),
-            )) == 0
-        {
+        let seplen = if buf_vec[0] != 0 && after_pathsep(&buf_vec[..pathlen]) == 0 {
             PATHSEPSTR.len()
         } else {
             0

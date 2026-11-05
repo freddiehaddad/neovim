@@ -513,7 +513,6 @@ pub fn expand_env_esc(
     one: bool,
     prefix: Option<&CStr>,
 ) -> usize {
-    let dst = dst_slice.as_mut_ptr();
     let esc_chars = esc_chars.map_or(ptr::null(), CStr::as_ptr);
     let prefix = prefix.map_or(ptr::null(), CStr::as_ptr);
     let srcp = srcp_in.as_ptr();
@@ -685,11 +684,7 @@ pub fn expand_env_esc(
                 if c + tail_bytes.len() + 1 < (dst_rem as usize) {
                     dst_slice[dst_idx..dst_idx + c + 1].copy_from_slice(var_bytes_with_nul);
                     dst_rem -= c as i32;
-                    let cur_dst = dst.wrapping_add(dst_idx);
-                    let ends_with_sep = after_pathsep(crate::memory::ptr_span_bytes(
-                        cur_dst.cast(),
-                        cur_dst.wrapping_add(c).cast(),
-                    )) != 0;
+                    let ends_with_sep = after_pathsep(&dst_slice[dst_idx..dst_idx + c]) != 0;
                     #[cfg(windows)]
                     let not_colon = dst_slice[dst_idx + c - 1] != b':';
                     #[cfg(not(windows))]
@@ -778,7 +773,10 @@ fn remove_tail(path_slice: &[u8], pend_off: usize, dirname: &[u8]) -> usize {
             len,
         ) == 0
             && (new_tail == path
-                || after_pathsep(crate::memory::ptr_span_bytes(path.cast(), new_tail.cast())) != 0)
+                || after_pathsep(crate::memory::cstr_slice(
+                    path,
+                    (new_tail as usize).saturating_sub(path as usize),
+                )) != 0)
         {
             return pend_off - (len + 1);
         }
@@ -914,10 +912,7 @@ pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
                         end_off = remove_tail(vim_path_slice, end_off, RUNTIME_DIRNAME.to_bytes());
                     }
                     if end_off > 0
-                        && after_pathsep(crate::memory::ptr_span_bytes(
-                            vim_path.cast(),
-                            vim_path.wrapping_add(end_off).cast(),
-                        )) != 0
+                        && after_pathsep(crate::memory::cstr_slice(vim_path, end_off)) != 0
                     {
                         end_off -= 1;
                     }

@@ -2879,7 +2879,7 @@ pub fn spell_dump_compl(
                         if depth <= patlen
                             && let Some(pat_cstr) = pat
                             && mb_strnicmp(
-                                crate::memory::cstr_as_bytes(&raw const word),
+                                crate::memory::bytes_until_nul(&word),
                                 pat_cstr.to_bytes(),
                                 depth as usize,
                             ) != 0

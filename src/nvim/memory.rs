@@ -338,34 +338,6 @@ impl AsCStrPtr for *mut c_void {
     }
 }
 
-impl<const N: usize> AsCStrPtr for *const [u8; N] {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl<const N: usize> AsCStrPtr for *mut [u8; N] {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl<const N: usize> AsCStrPtr for *const [i8; N] {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
-impl<const N: usize> AsCStrPtr for *mut [i8; N] {
-    #[inline]
-    fn into_cstr_ptr(self) -> *const std::ffi::c_char {
-        self.cast()
-    }
-}
-
 /// Length in bytes of a NUL-terminated C string (0 if null).
 #[inline]
 pub fn cstr_len(s: impl AsCStrPtr) -> usize {
@@ -652,20 +624,6 @@ pub fn cstr_span_to_char<'a>(
         unsafe { std::slice::from_raw_parts(base_u8, idx + tail_len) },
         idx,
     )
-}
-
-/// View the byte span `[b .. p)` between two pointers into the same buffer.
-#[inline]
-pub fn ptr_span_bytes<'a>(
-    b: impl IntoConstPtr<Target = std::ffi::c_char>,
-    p: impl IntoConstPtr<Target = std::ffi::c_char>,
-) -> &'a [u8] {
-    let b = b.into_const_ptr();
-    let p = p.into_const_ptr();
-    if b.is_null() || p.is_null() || (p as usize) <= (b as usize) {
-        return &[];
-    }
-    unsafe { std::slice::from_raw_parts(b.cast::<u8>(), (p as usize) - (b as usize)) }
 }
 
 /// View a NUL-terminated C string buffer (including the trailing NUL byte) as a mutable byte slice.

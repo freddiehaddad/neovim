@@ -826,7 +826,6 @@ pub fn buf_get_backup_name(
     let old_len = dirp_bytes.len();
     let dir_len = copy_option_part(&mut dirp_bytes, g_st().iobuff_bytes_mut(), c",");
     *dirp = crate::memory::CStrSubslice::advance(*dirp, old_len - dirp_bytes.len());
-    let p = iobuf.wrapping_add(dir_len);
     if dirp.to_bytes().is_empty() && !os_isdir(crate::memory::cstr_from_ptr(iobuf)) {
         let mut failed_dir: Option<std::ffi::CString> = None;
         let ret = os_mkdir_recurse(
@@ -844,7 +843,7 @@ pub fn buf_get_backup_name(
         }
     }
     if dir_len > 1
-        && after_pathsep(crate::memory::ptr_span_bytes((iobuf).cast(), (p).cast())) != 0
+        && after_pathsep(&g_st().iobuff_bytes_mut()[..dir_len]) != 0
         && g_st().iobuff[dir_len - 1] == g_st().iobuff[dir_len - 2]
         && let Some(swname) = make_percent_swname(
             &g_st().iobuff_bytes_mut()[..dir_len - 1],

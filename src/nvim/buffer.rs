@@ -4428,10 +4428,7 @@ pub fn fname_expand(
         let name: RawCCharPtrMut = name_vec.as_mut_ptr().cast();
         let name_len = name_vec.len() - 1;
         if name_len > 0
-            && after_pathsep(crate::memory::ptr_span_bytes(
-                (name).cast(),
-                (name.wrapping_add(name_len)).cast(),
-            )) != 0
+            && after_pathsep(crate::memory::cstr_slice(name, name_len)) != 0
             && (name.wrapping_add(name_len) as usize)
                 > (get_past_head(crate::memory::cstr_from_ptr(name)).as_ptr() as usize)
         {

@@ -844,11 +844,7 @@ fn set_init_default_backupskip() {
 
             if plen == 0 {
                 plen = crate::memory::cstr_len(p);
-                if after_pathsep(crate::memory::ptr_span_bytes(
-                    (p).cast(),
-                    (p.wrapping_add(plen)).cast(),
-                )) != 0
-                {
+                if after_pathsep(crate::memory::cstr_slice(p, plen)) != 0 {
                     has_trailing_path_sep = true;
                 }
             }

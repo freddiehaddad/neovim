@@ -1169,11 +1169,7 @@ pub fn readfile(
                     break 'theend;
                 }
 
-                if after_pathsep(crate::memory::ptr_span_bytes(
-                    fname.cast(),
-                    fname.wrapping_add(fnamelen).cast(),
-                )) != 0
-                {
+                if after_pathsep(crate::memory::cstr_slice(fname, fnamelen)) != 0 {
                     if !silent {
                         filemess(
                             g_st().curbuf.opt(),
@@ -4322,11 +4318,7 @@ fn vim_mktempdir() {
             continue;
         }
 
-        if after_pathsep(crate::memory::ptr_span_bytes(
-            tmp.as_ptr().cast(),
-            tmp.as_ptr().wrapping_add(tmplen).cast(),
-        )) == 0
-        {
+        if after_pathsep(&tmp[..tmplen]) == 0 {
             tmplen += vim_snprintf!(
                 tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
                 tmp.len() - tmplen,
@@ -4352,11 +4344,7 @@ fn vim_mktempdir() {
         #[cfg(not(unix))]
         let valid = isdir && owned;
         if valid {
-            if after_pathsep(crate::memory::ptr_span_bytes(
-                tmp.as_ptr().cast(),
-                tmp.as_ptr().wrapping_add(tmplen).cast(),
-            )) == 0
-            {
+            if after_pathsep(&tmp[..tmplen]) == 0 {
                 tmplen += vim_snprintf!(
                     tmp.as_mut_ptr().wrapping_add(tmplen).cast(),
                     tmp.len() - tmplen,
@@ -4597,11 +4585,7 @@ fn vim_settempdir(tempdir: &CStr) -> bool {
     );
 
     let mut buflen = crate::memory::bytes_until_nul(&buf_vec).len();
-    if after_pathsep(crate::memory::ptr_span_bytes(
-        buf_vec.as_ptr().cast(),
-        buf_vec[buflen..].as_ptr().cast(),
-    )) == 0
-    {
+    if after_pathsep(&buf_vec[..buflen]) == 0 {
         let sep_bytes = PATHSEPSTR.to_bytes_with_nul();
         buf_vec[buflen..(buflen + sep_bytes.len())].copy_from_slice(sep_bytes);
         buflen += sep_bytes.len() - 1;
