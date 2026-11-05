@@ -777,12 +777,7 @@ pub fn ex_eval(eap: &mut Exarg) {
 
     fill_evalarg_from_eap(&mut evalarg, eap.skip);
 
-    if eval0(
-        crate::memory::cstr_from_ptr(eap.arg),
-        &mut tv,
-        Some(&mut *eap),
-        &mut evalarg,
-    ) {
+    if eval0(eap.arg.as_cstr(), &mut tv, Some(&mut *eap), &mut evalarg) {
         tv_clear(&mut tv);
     }
 }
@@ -799,13 +794,7 @@ pub fn ex_if(eap: &mut Exarg) {
 
         let skip = check_skip(&*cstack);
         let mut error = false;
-        let result = eval_to_bool(
-            crate::memory::cstr_from_ptr(eap.arg),
-            &mut error,
-            eap,
-            skip,
-            false,
-        );
+        let result = eval_to_bool(eap.arg.as_cstr(), &mut error, eap, skip, false);
 
         if !skip && !error {
             if result {
@@ -872,19 +861,11 @@ pub fn ex_else(eap: &mut Exarg) {
     if eap.cmdidx == Cmdidx::CmdElseif {
         let mut result = false;
         let mut error = false;
-        if skip
-            && crate::memory::cstr_first_byte(eap.arg) != b'"'
-            && ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0
+        if skip && eap.arg.first_byte() != b'"' && ends_excmd(i32::from(eap.arg.first_byte())) != 0
         {
             semsg!(gettext(E_INVEXPR2), eap.arg);
         } else {
-            result = eval_to_bool(
-                crate::memory::cstr_from_ptr(eap.arg),
-                &mut error,
-                eap,
-                skip,
-                false,
-            );
+            result = eval_to_bool(eap.arg.as_cstr(), &mut error, eap, skip, false);
         }
 
         if !skip && !error {
@@ -922,31 +903,20 @@ pub fn ex_while(eap: &mut Exarg) {
 
         let skip = check_skip(&*cstack);
         let result = if eap.cmdidx == Cmdidx::CmdWhile {
-            eval_to_bool(
-                crate::memory::cstr_from_ptr(eap.arg),
-                &mut error,
-                eap,
-                skip,
-                false,
-            )
+            eval_to_bool(eap.arg.as_cstr(), &mut error, eap, skip, false)
         } else {
             let mut evalarg = Evalarg::new();
             fill_evalarg_from_eap(&mut evalarg, skip);
             if (cstack.cs_lflags & CSL_HAD_LOOP) != 0 {
                 error = false;
             } else {
-                let fi = eval_for_line(
-                    crate::memory::cstr_from_ptr(eap.arg),
-                    &mut error,
-                    eap,
-                    &mut evalarg,
-                );
+                let fi = eval_for_line(eap.arg.as_cstr(), &mut error, eap, &mut evalarg);
                 (&mut cstack.cs_forinfo)[idx] = Some(fi);
             }
 
             let res = if !error && !skip {
                 if let Some(fi) = (&mut cstack.cs_forinfo)[idx].as_deref_mut() {
-                    next_for_item(fi, crate::memory::cstr_from_ptr(eap.arg))
+                    next_for_item(fi, eap.arg.as_cstr())
                 } else {
                     false
                 }
@@ -1152,16 +1122,14 @@ pub fn ex_catch(eap: &mut Exarg) {
         }
     }
 
-    let (pat, end) = if ends_excmd(i32::from(crate::memory::cstr_first_byte(eap.arg))) != 0 {
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(
-            crate::memory::cstr_from_ptr(eap.arg),
-        ));
+    let (pat, end) = if ends_excmd(i32::from(eap.arg.first_byte())) != 0 {
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(find_nextcmd(eap.arg.as_cstr()));
         (c".*".as_ptr().cast_mut(), ptr::null_mut())
     } else {
         let pat = eap.arg.wrapping_add(1).as_ptr();
         let end_opt = skip_regexp_err(
             unsafe { CStr::from_ptr(pat) },
-            i32::from(crate::memory::cstr_first_byte(eap.arg)),
+            i32::from(eap.arg.first_byte()),
             1,
         );
         if end_opt.is_none() {
@@ -1603,12 +1571,12 @@ pub fn cleanup_conditionals(cstack: &mut Cstack, searched_cond: i32, inclusive: 
 fn get_end_emsg(cstack: &Cstack) -> &'static CStr {
     let fl = cstack.cs_flags[cstack.cs_idx as usize];
     if (fl & CSF_WHILE) != 0 {
-        return crate::memory::cstr_from_ptr((gettext(E_ENDWHILE)).as_ptr());
+        return gettext(E_ENDWHILE);
     }
     if (fl & CSF_FOR) != 0 {
-        return crate::memory::cstr_from_ptr((gettext(E_ENDFOR)).as_ptr());
+        return gettext(E_ENDFOR);
     }
-    crate::memory::cstr_from_ptr((gettext(E_ENDIF)).as_ptr())
+    gettext(E_ENDIF)
 }
 
 pub fn rewind_conditionals(cstack: &mut Cstack, idx: i32, cond_type: i32, cond_level: &mut i32) {

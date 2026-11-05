@@ -1482,8 +1482,7 @@ pub fn get_foldtext(
                 }
                 api_clear_error(&mut err);
             } else if obj.obj_type == ObjectType::ObjectTypeString {
-                text = (!obj.data.string().data.is_null())
-                    .then(|| crate::memory::cstr_to_cstring(obj.data.string().data));
+                text = (!obj.data.string().data.is_null()).then(|| obj.data.string().to_cstring());
             }
             api_free_object(obj);
 

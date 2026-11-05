@@ -608,7 +608,7 @@ pub fn ex_listdo(eap: &mut Exarg) {
             i += 1;
             if execute {
                 do_cmdline(
-                    crate::memory::cstr_as_opt_cstr(eap.arg),
+                    eap.arg.as_opt_cstr(),
                     eap.ea_getline,
                     DOCMD_VERBOSE + DOCMD_NOWAIT,
                 );
@@ -715,13 +715,13 @@ pub fn ex_listdo(eap: &mut Exarg) {
 pub fn ex_compiler(eap: &mut Exarg) {
     let mut old_cur_comp: Option<std::ffi::CString> = None;
 
-    if crate::memory::cstr_is_empty(eap.arg) {
+    if eap.arg.is_empty() {
         do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.vim')");
         do_cmdline_cmd(c"echo globpath(&rtp, 'compiler/*.lua')");
         return;
     }
 
-    let arg_len = crate::memory::cstr_len(eap.arg);
+    let arg_len = eap.arg.len();
     let bufsize = arg_len + 14;
     let mut buf = vec![0u8; bufsize];
 
@@ -786,7 +786,7 @@ fn script_host_execute_file(name: &std::ffi::CStr, eap: &mut Exarg) {
     if !eap.skip {
         let mut buffer = [0u8; MAXPATHL];
         vim_full_name(
-            crate::memory::cstr_as_opt_cstr((eap.arg).cast()),
+            eap.arg.as_opt_cstr(),
             unsafe { std::slice::from_raw_parts_mut(buffer.as_mut_ptr().cast(), MAXPATHL) },
             false,
         );
@@ -808,7 +808,7 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
         let args = tv_list_alloc(3);
         tv_list_append_number(&mut *args, eap.line1 as Varnumber);
         tv_list_append_number(&mut *args, eap.line2 as Varnumber);
-        tv_list_append_string(&mut *args, crate::memory::cstr_as_opt_cstr(eap.arg), -1);
+        tv_list_append_string(&mut *args, eap.arg.as_opt_cstr(), -1);
         eval_call_provider(name, c"do_range", &mut *args, true);
     }
 }
@@ -817,7 +817,7 @@ fn script_host_do_range(name: &std::ffi::CStr, eap: &mut Exarg) {
 pub fn ex_drop(eap: &mut Exarg) {
     let mut split = false;
 
-    set_arglist(crate::memory::cstr_from_ptr(eap.arg));
+    set_arglist(eap.arg.as_cstr());
 
     if curwin_argcount() == 0 {
         return;

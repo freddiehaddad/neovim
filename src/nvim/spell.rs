@@ -1836,9 +1836,7 @@ pub fn parse_spelllang(wp: &mut WinInfoInfo) -> Option<&'static std::ffi::CStr> 
                 if cur_round == 0 {
                     lang[..18].copy_from_slice(b"internal wordlist\0");
                 } else {
-                    let tail = crate::memory::cstr_as_bytes(
-                        (path_tail(crate::memory::cstr_from_ptr(spf_ptr.cast()))).as_ptr(),
-                    );
+                    let tail = path_tail(crate::memory::cstr_from_ptr(spf_ptr.cast())).to_bytes();
                     let dot_pos = tail.iter().position(|&b| b == b'.').unwrap_or(tail.len());
                     crate::memory::copy_bytes_to_c_buf(&mut lang, &tail[..dot_pos]);
                 }

@@ -1935,7 +1935,7 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
         g_st().swap_exists_action = SEA_DIALOG;
     }
     let _ = do_buffer_ext(
-        if crate::memory::cstr_first_byte(eap.cmd) == b's' {
+        if eap.cmd.first_byte() == b's' {
             DOBUF_SPLIT
         } else {
             DOBUF_GOTO
@@ -1947,7 +1947,7 @@ pub fn goto_buffer(eap: &mut Exarg, start: i32, dir: i32, count: i32) {
             | (if skip_help_buf { DOBUF_SKIPHELP } else { 0 }),
     );
 
-    if g_st().swap_exists_action == SEA_QUIT && crate::memory::cstr_first_byte(eap.cmd) == b's' {
+    if g_st().swap_exists_action == SEA_QUIT && eap.cmd.first_byte() == b's' {
         let mut cs: ExCleanup = ExCleanup::new();
         enter_cleanup(&mut cs);
         win_close(curwin_mut(), true, false);
@@ -3676,9 +3676,7 @@ pub fn buflist_list(eap: &mut Exarg) {
     let mut buflist: Vec<*mut FileBuf> = for_all_buffers_ptr().map(|b| &raw mut *b).collect();
 
     msg_ext_set_kind(c"list_cmd");
-    if crate::strings::vim_haschr(crate::memory::cstr_from_ptr((eap.arg).cast()), b't' as i32)
-        && buflist.len() > 1
-    {
+    if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buflist.len() > 1 {
         buflist.sort_unstable_by(|&a, &b| buf_time_compare(unsafe { &*a }, unsafe { &*b }));
     }
 
@@ -3692,54 +3690,26 @@ pub fn buflist_list(eap: &mut Exarg) {
 
         if (!buf.b_p_bl
             && !eap.forceit
-            && !crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'u' as i32,
-            ))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'u' as i32,
-            ) && buf.b_p_bl)
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'+' as i32,
-            ) && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'a' as i32,
-            ) && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'h' as i32,
-            ) && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'R' as i32,
-            ) && (!is_terminal || !job_running))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'F' as i32,
-            ) && (!is_terminal || job_running))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'-' as i32,
-            ) && buf.b_p_ma)
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'=' as i32,
-            ) && !buf.b_p_ro)
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'x' as i32,
-            ) && (buf.b_flags & BF_READERR) == 0)
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'%' as i32,
-            ) && !std::ptr::eq(buf, g_st().curbuf))
-            || (crate::strings::vim_haschr(
-                crate::memory::cstr_from_ptr((eap.arg).cast()),
-                b'#' as i32,
-            ) && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
+            && !crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'u' as i32) && buf.b_p_bl)
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'+' as i32)
+                && ((buf.b_flags & BF_READERR) != 0 || !buf_is_changed(&mut *buf)))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'a' as i32)
+                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows == 0))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'h' as i32)
+                && (buf.b_ml.ml_mfp.is_none() || buf.b_nwindows != 0))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'R' as i32)
+                && (!is_terminal || !job_running))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'F' as i32)
+                && (!is_terminal || job_running))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'-' as i32) && buf.b_p_ma)
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'=' as i32) && !buf.b_p_ro)
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'x' as i32)
+                && (buf.b_flags & BF_READERR) == 0)
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'%' as i32)
+                && !std::ptr::eq(buf, g_st().curbuf))
+            || (crate::strings::vim_haschr(eap.arg.as_cstr(), b'#' as i32)
+                && (std::ptr::eq(buf, g_st().curbuf) || curwin_mut().w_alt_fnum != buf.b_fnum))
         {
             continue;
         }
@@ -3821,9 +3791,7 @@ pub fn buflist_list(eap: &mut Exarg) {
                 break;
             }
         }
-        if crate::strings::vim_haschr(crate::memory::cstr_from_ptr((eap.arg).cast()), b't' as i32)
-            && buf.b_last_used != 0
-        {
+        if crate::strings::vim_haschr(eap.arg.as_cstr(), b't' as i32) && buf.b_last_used != 0 {
             undo_fmt_time(&mut g_st().iobuff_bytes_mut()[len..IOSIZE], buf.b_last_used);
         } else {
             vim_snprintf!(

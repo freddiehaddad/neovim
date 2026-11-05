@@ -451,7 +451,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             if watched {
                 tv_dict_watcher_notify(
                     dict,
-                    crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                    key.as_opt_cstr().unwrap_or(c""),
                     None,
                     Some(&di.di_tv),
                 );
@@ -470,14 +470,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             let di = if let Some(di) = di_opt {
                 let mut type_error = false;
                 if ptr::eq(dict, get_vimvar_dict())
-                    && !before_set_vvar(
-                        crate::memory::cstr_from_ptr(key.data),
-                        di,
-                        &mut tv,
-                        true,
-                        watched,
-                        &mut type_error,
-                    )
+                    && !before_set_vvar(key.as_cstr(), di, &mut tv, true, watched, &mut type_error)
                 {
                     tv_clear(&mut tv);
                     if type_error {
@@ -505,7 +498,7 @@ pub unsafe extern "C-unwind" fn nlua_setvar(lstate: *mut lua_State) -> i32 {
             if watched {
                 tv_dict_watcher_notify(
                     dict,
-                    crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                    key.as_opt_cstr().unwrap_or(c""),
                     Some(&tv),
                     Some(&oldtv),
                 );

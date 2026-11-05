@@ -1015,10 +1015,7 @@ pub fn set_hl_group(id: i32, attrs: HlAttrs, dict: &KeyDict_highlight, link_id: 
             if val < 0 {
                 *dest_ref = K_COLOR_IDX_NONE;
             } else if name.obj_type == ObjectType::ObjectTypeString && name.data.string().size > 0 {
-                name_to_color(
-                    crate::memory::cstr_from_ptr(name.data.string().data),
-                    dest_ref,
-                );
+                name_to_color(name.data.string().as_cstr(), dest_ref);
             } else {
                 *dest_ref = K_COLOR_IDX_HEX;
             }
@@ -1842,7 +1839,7 @@ pub fn ns_get_hl_defs(
         } else {
             true
         };
-        let name_slice = crate::memory::cstr_slice(opts.name.data, opts.name.size);
+        let name_slice = opts.name.as_bytes();
         id = if create {
             syn_check_group(name_slice)
         } else {

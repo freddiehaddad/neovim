@@ -698,7 +698,7 @@ fn apply_termdefs(tui: &mut TUIData) {
         let key_bytes = if kv.key.data.is_null() {
             &[][..]
         } else {
-            crate::memory::cstr_as_bytes(kv.key.data)
+            kv.key.cstr_bytes()
         };
         let key_str = String::from_utf8_lossy(key_bytes);
 
@@ -739,14 +739,10 @@ fn apply_termdefs(tui: &mut TUIData) {
                 tui.ti.columns = val.data.integer() as i32;
             }
             TermdefFieldTarget::Def(idx) => {
-                tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(crate::memory::cstr_to_cstring(
-                    val.data.string().data,
-                )));
+                tui.ti.defs[idx] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
             }
             TermdefFieldTarget::KeyStr(idx) => {
-                tui.ti.keys[idx][0] = Some(std::borrow::Cow::Owned(
-                    crate::memory::cstr_to_cstring(val.data.string().data),
-                ));
+                tui.ti.keys[idx][0] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
             }
             TermdefFieldTarget::KeyArr(idx) => {
                 let arr = val.data.array();
@@ -771,14 +767,12 @@ fn apply_termdefs(tui: &mut TUIData) {
                         continue;
                     }
                     tui.ti.keys[idx][key_map_idx] = Some(std::borrow::Cow::Owned(
-                        crate::memory::cstr_to_cstring(key_mapping.data.string().data),
+                        key_mapping.data.string().to_cstring(),
                     ));
                 }
             }
             TermdefFieldTarget::FKey(idx) => {
-                tui.ti.f_keys[idx] = Some(std::borrow::Cow::Owned(crate::memory::cstr_to_cstring(
-                    val.data.string().data,
-                )));
+                tui.ti.f_keys[idx] = Some(std::borrow::Cow::Owned(val.data.string().to_cstring()));
             }
         }
     }
@@ -1999,11 +1993,11 @@ pub fn tui_default_colors_set(
 
 pub fn tui_ui_send(tui: &mut TUIData, content: NvimString) {
     if !tui.invalid_regions.is_empty() || tui.bufpos > 0 {
-        out(tui, crate::memory::cstr_slice(content.data, content.size));
+        out(tui, content.as_bytes());
         return;
     }
     let mut req = [0u64; 64];
-    let buf = uv_buf_t::from_slice(crate::memory::cstr_slice(content.data, content.size));
+    let buf = uv_buf_t::from_slice(content.as_bytes());
     let ret = unsafe {
         uv_write(
             req.as_mut_ptr().cast(),
@@ -2199,7 +2193,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
             flush_buf(tui, FlushBufFinish::FlushBufFinal);
         }
         terminfo_out(tui, K_TERM_TO_STATUS_LINE);
-        out(tui, crate::memory::cstr_slice(title.data, title.size));
+        out(tui, title.as_bytes());
         terminfo_out(tui, K_TERM_FROM_STATUS_LINE);
     } else if tui.title_enabled {
         out(tui, b"\x1b[23;0t");
@@ -2210,9 +2204,7 @@ pub fn tui_set_title(tui: &mut TUIData, title: NvimString) {
 pub fn tui_set_icon(_tui: &mut TUIData, _icon: NvimString) {}
 
 pub fn tui_screenshot(tui: &mut TUIData, path: NvimString) {
-    let Some(f) =
-        crate::os::fs::CFile::open_libc(crate::memory::cstr_from_ptr((path.data).cast()), c"w")
-    else {
+    let Some(f) = crate::os::fs::CFile::open_libc(path.as_cstr(), c"w") else {
         return;
     };
 

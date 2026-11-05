@@ -494,10 +494,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
 
     if use_builtin_ui && !remote_ui {
         g_st().ui_client_forward_stdin = !g_st().stdin_isatty;
-        let rv = ui_client_start_server(
-            crate::memory::cstr_from_ptr((get_vim_var_str(VV_PROGPATH)).as_ptr()),
-            &params.argv,
-        );
+        let rv = ui_client_start_server(get_vim_var_str(VV_PROGPATH), &params.argv);
         if rv == 0 {
             fprintf!(log_get_stderr(), c"Failed to start Nvim server!\n");
             os_exit(1);
@@ -516,11 +513,7 @@ fn nvim_main_inner(mut argv: Vec<std::ffi::CString>) -> i32 {
             unsafe { dup2(startup_stderr_fd, STDERR_FILENO) };
             unsafe { close(startup_stderr_fd) };
         }
-        mainerr(
-            crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()),
-            None,
-            None,
-        );
+        mainerr(g_st().iobuff_cstr(), None, None);
     }
 
     #[cfg(windows)]
@@ -890,7 +883,7 @@ pub fn getout(mut exitval: i32) -> ! {
     set_vim_var_type(VV_EXITING, crate::eval::typval::VarType::VarNumber);
     set_vim_var_nr(VV_EXITING, Varnumber::from(exitval));
 
-    if crate::memory::cstr_is_empty((get_vim_var_str(VV_EXITREASON)).as_ptr()) {
+    if get_vim_var_str(VV_EXITREASON).is_empty() {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
 
@@ -1837,9 +1830,7 @@ fn init_path(exename: &CStr) {
     );
     set_vim_var_string(
         VV_PROGNAME,
-        crate::memory::cstr_as_opt_cstr(
-            (path_tail(crate::memory::cstr_from_ptr((exename).cast()))).as_ptr(),
-        ),
+        Some(path_tail(crate::memory::cstr_from_ptr((exename).cast()))),
         -1,
     );
 

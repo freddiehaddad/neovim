@@ -607,7 +607,7 @@ fn ui_set_option(ui: &mut RemoteUI, init: bool, name: NvimString, value: Object,
             if value.obj_type != ObjectType::ObjectTypeBoolean {
                 api_err_exp(
                     err,
-                    crate::memory::cstr_from_ptr(name.data),
+                    name.as_cstr(),
                     c"Boolean",
                     Some(api_typename(value.obj_type)),
                 );

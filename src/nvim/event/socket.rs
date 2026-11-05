@@ -492,9 +492,7 @@ pub fn socket_connect(
                     .iter()
                     .rposition(|&b| b == b':')
                 else {
-                    *error = Some(crate::memory::cstr_from_ptr(
-                        (gettext(c"tcp address must be host:port")).as_ptr(),
-                    ));
+                    *error = Some(gettext(c"tcp address must be host:port"));
                     break 'cleanup;
                 };
                 addr_buf[colon_idx] = 0;
@@ -520,9 +518,7 @@ pub fn socket_connect(
                     &raw const hints,
                 );
                 if retval != 0 {
-                    *error = Some(crate::memory::cstr_from_ptr(
-                        (gettext(c"failed to lookup host or port")).as_ptr(),
-                    ));
+                    *error = Some(gettext(c"failed to lookup host or port"));
                     break 'cleanup;
                 }
                 cur_addrinfo = getaddrinfo_req_addrinfo(&mut addr_req)
@@ -557,9 +553,7 @@ pub fn socket_connect(
                         cur_addrinfo = (*cur_addrinfo).ai_next;
                         continue;
                     } else {
-                        *error = Some(crate::memory::cstr_from_ptr(
-                            (gettext(c"connection refused")).as_ptr(),
-                        ));
+                        *error = Some(gettext(c"connection refused"));
                         break;
                     }
                 }

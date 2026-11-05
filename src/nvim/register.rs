@@ -297,7 +297,7 @@ fn copy_string_global(s: NvimString) -> NvimString {
             size: 0,
         }
     } else {
-        cbuf_to_string(crate::memory::cstr_slice(s.data, s.size))
+        cbuf_to_string(s.as_bytes())
     }
 }
 
@@ -545,7 +545,7 @@ fn stuff_yank(regname: i32, p: &[u8]) -> bool {
         let pp = reg.y_array.last_mut().unwrap();
         let tmplen = pp.size + plen;
         let mut tmp = vec![0u8; tmplen + 1];
-        tmp[..pp.size].copy_from_slice(crate::memory::cstr_slice(pp.data, pp.size));
+        tmp[..pp.size].copy_from_slice(pp.as_bytes());
         tmp[pp.size..tmplen].copy_from_slice(p_bytes);
         api_clear_string(pp);
         *pp = cbuf_to_string(&tmp[..tmplen]);
@@ -1580,7 +1580,7 @@ pub fn do_put(
     }
 
     if !insert_string.data.is_null() {
-        insert_string.size = crate::memory::cstr_len(insert_string.data);
+        insert_string.size = insert_string.cstr_bytes().len();
         y_type = MotionType::MtCharWise;
         if regname == i32::from(b'=') {
             let mut ptr_ = insert_string.data;
@@ -2506,7 +2506,7 @@ pub fn ex_display(eap: &mut Exarg) {
         if yb_ref.y_allocated {
             let mut do_show = false;
             for item in &yb_ref.y_array {
-                if !message_filtered(crate::memory::cstr_from_ptr(item.data)) {
+                if !message_filtered(item.as_cstr()) {
                     do_show = true;
                     break;
                 }
@@ -2715,7 +2715,7 @@ pub fn get_reg_contents_str(mut regname: i32, flags: i32) -> Option<std::ffi::CS
     let mut out: Vec<u8> = Vec::with_capacity(len);
     for (i, &item) in reg.y_array.iter().enumerate() {
         if item.size > 0 {
-            out.extend_from_slice(crate::memory::cstr_slice(item.data, item.size));
+            out.extend_from_slice(item.as_bytes());
         }
         if reg.y_type == MotionType::MtLineWise || i < reg.y_array.len() - 1 {
             out.push(b'\n');
@@ -3010,7 +3010,7 @@ pub fn write_reg_contents_ex(
 
 pub fn prepare_yankreg_from_object(reg: &mut Yankreg, regtype: NvimString, _lines: usize) -> bool {
     let type_ch = if !regtype.data.is_null() {
-        crate::memory::cstr_first_byte(regtype.data)
+        regtype.first_byte()
     } else {
         0
     };

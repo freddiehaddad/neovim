@@ -266,7 +266,7 @@ pub fn server_start(addr: Option<&CStr>) -> i32 {
 
     w.push(watcher);
 
-    if crate::memory::cstr_as_bytes((get_vim_var_str(VV_SEND_SERVER)).as_ptr()).is_empty() {
+    if get_vim_var_str(VV_SEND_SERVER).to_bytes().is_empty() {
         set_vservername();
     }
 

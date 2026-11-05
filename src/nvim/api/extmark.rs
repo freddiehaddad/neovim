@@ -506,7 +506,7 @@ pub fn nvim_buf_get_extmarks(
                     err,
                     c"type",
                     c"sign, virt_text, virt_lines or highlight",
-                    crate::memory::cstr_as_opt_cstr(opts.type_.data),
+                    opts.type_.as_opt_cstr(),
                 );
                 return rv;
             }
@@ -861,9 +861,7 @@ pub fn nvim_buf_set_extmark(
                 let conceal_str = opts.conceal.data.string();
                 hl.flags |= K_SHCONCEAL;
                 if conceal_str.size > 0 {
-                    let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr(
-                        (conceal_str.data).cast(),
-                    ));
+                    let ci = utf_ptr2_str_char_info(conceal_str.as_cstr());
                     let cli = utf_cluster_info(ci);
                     if ci.chr.value < 0x20 || cli.cells > 2 {
                         api_set_error!(
@@ -927,13 +925,7 @@ pub fn nvim_buf_set_extmark(
                 b"eol_right_align" => virt_text.pos = K_VPOS_END_OF_LINE_RIGHT_ALIGN,
                 b"inline" => virt_text.pos = K_VPOS_INLINE,
                 _ => {
-                    api_err_invalid(
-                        err,
-                        c"virt_text_pos",
-                        crate::memory::cstr_as_opt_cstr(str_val.data),
-                        0,
-                        true,
-                    );
+                    api_err_invalid(err, c"virt_text_pos", str_val.as_opt_cstr(), 0, true);
                     break 'error;
                 }
             }
@@ -970,13 +962,7 @@ pub fn nvim_buf_set_extmark(
                     virt_text.hl_mode = K_HL_MODE_BLEND;
                 }
                 _ => {
-                    api_err_invalid(
-                        err,
-                        c"hl_mode",
-                        crate::memory::cstr_as_opt_cstr(str_val.data),
-                        0,
-                        true,
-                    );
+                    api_err_invalid(err, c"hl_mode", str_val.as_opt_cstr(), 0, true);
                     break 'error;
                 }
             }
@@ -996,13 +982,7 @@ pub fn nvim_buf_set_extmark(
                 b"auto" => virt_lines_overflow = K_VLOVERFLOW_AUTO,
                 b"trunc" => {}
                 _ => {
-                    api_err_invalid(
-                        err,
-                        c"virt_lines_overflow",
-                        crate::memory::cstr_as_opt_cstr(str_val.data),
-                        0,
-                        true,
-                    );
+                    api_err_invalid(err, c"virt_lines_overflow", str_val.as_opt_cstr(), 0, true);
                     break 'error;
                 }
             }
@@ -1658,7 +1638,7 @@ pub fn parse_virt_text(
 
             let text_cstr = transstr(
                 if str_val.size > 0 {
-                    crate::memory::cstr_as_bytes(str_val.data)
+                    str_val.cstr_bytes()
                 } else {
                     b""
                 },

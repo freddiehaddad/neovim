@@ -520,9 +520,7 @@ pub fn parse_pattern_and_range(
     parse_command_modifiers(&mut ea, &mut dummy, &mut dummy_cmdmod, true);
 
     // Skip over the range to find the command.
-    let cmd = skip_range(crate::memory::cstr_from_ptr(ea.cmd), None)
-        .as_ptr()
-        .cast_mut();
+    let cmd = skip_range(ea.cmd.as_cstr(), None).as_ptr().cast_mut();
     let cmd_bytes = crate::memory::cstr_as_bytes(cmd);
     let Some(&first_b) = cmd_bytes.first() else {
         return false;
@@ -5113,11 +5111,11 @@ pub fn script_get(eap: &mut Exarg, lenp: &mut usize) -> Option<std::ffi::CString
     let mut cmd = eap.arg;
 
     if !crate::memory::cstr_as_bytes(cmd).starts_with(b"<<") || eap.ea_getline.is_none() {
-        *lenp = crate::memory::cstr_len(eap.arg);
+        *lenp = eap.arg.len();
         return if eap.skip {
             None
         } else {
-            Some(crate::memory::cstr_to_cstring(eap.arg))
+            Some(eap.arg.to_cstring())
         };
     }
     cmd = cmd.wrapping_add(2);

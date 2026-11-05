@@ -1558,7 +1558,7 @@ pub fn file_name_in_line(
             if p_bytes.starts_with(english) {
                 p_bytes = &p_bytes[english.len()..];
             } else {
-                let loc_msg = crate::memory::cstr_as_bytes((tr(LINE_MSG)).as_ptr());
+                let loc_msg = tr(LINE_MSG).to_bytes();
                 if p_bytes.starts_with(loc_msg) {
                     p_bytes = &p_bytes[loc_msg.len()..];
                 } else {

@@ -2937,9 +2937,7 @@ fn syn_cmd_on(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_reset(eap: &mut Exarg, _syncing: i32) {
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
-        crate::memory::cstr_from_ptr(eap.arg),
-    ));
+    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
     if !eap.skip {
         init_highlight(true, true);
     }
@@ -2954,9 +2952,7 @@ fn syn_cmd_off(eap: &mut Exarg, _syncing: i32) {
 }
 
 fn syn_cmd_onoff(eap: &mut Exarg, name: &std::ffi::CStr) {
-    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
-        crate::memory::cstr_from_ptr(eap.arg),
-    ));
+    eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
     if !eap.skip {
         syn_st().did_syntax_onoff = true;
         let mut buf = [0u8; 100];
@@ -3385,7 +3381,7 @@ fn syn_list_keywords(
                 {
                     force_newline = true;
                 } else {
-                    outlen = crate::memory::cstr_len((ke2hikey(kp)).as_ptr()) as i32;
+                    outlen = ke2hikey(kp).to_bytes().len() as i32;
                 }
                 if syn_list_header(did_header, outlen, id, force_newline) {
                     prev_contained = 0;
@@ -3744,9 +3740,9 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
 
     eap.argt |= EX_XFILE | EX_NOSPC;
     separate_nextcmd(&mut *eap);
-    if crate::memory::cstr_first_byte(eap.arg) == b'<'
-        || crate::memory::cstr_first_byte(eap.arg) == b'$'
-        || path_is_absolute(crate::memory::cstr_as_bytes((eap.arg).cast()))
+    if eap.arg.first_byte() == b'<'
+        || eap.arg.first_byte() == b'$'
+        || path_is_absolute(eap.arg.as_bytes())
     {
         source = true;
         if !expand_filename(eap, &mut errormsg) {
@@ -3769,7 +3765,7 @@ fn syn_cmd_include(eap: &mut Exarg, _syncing: i32) {
     syn_st().current_syn_inc_tag = syn_st().running_syn_inc_tag;
     let prev_toplvl_grp = win_s(curwin_mut()).b_syn_topgrp;
     win_s(curwin_mut()).b_syn_topgrp = sgl_id;
-    let arg_cstr = crate::memory::cstr_from_ptr(eap.arg);
+    let arg_cstr = eap.arg.as_cstr();
     let res = if source {
         do_source(arg_cstr, false, DOSO_NONE, None)
     } else {
@@ -5111,7 +5107,7 @@ pub fn ex_ownsyntax(eap: &mut Exarg) {
 
     apply_autocmds(
         EVENT_SYNTAX,
-        crate::memory::cstr_as_opt_cstr(eap.arg),
+        eap.arg.as_opt_cstr(),
         curbuf_mut().fname_opt(),
         true,
         curbuf_opt_mut(),
@@ -5341,13 +5337,13 @@ pub fn syn_get_foldlevel(wp: &mut WinInfoInfo, lnum: Linenr) -> i32 {
 
 /// ":syntime".
 pub fn ex_syntime(eap: &mut Exarg) {
-    if crate::memory::cstr_as_bytes(eap.arg) == b"on" {
+    if eap.arg.as_bytes() == b"on" {
         syn_st().syn_time_on = true;
-    } else if crate::memory::cstr_as_bytes(eap.arg) == b"off" {
+    } else if eap.arg.as_bytes() == b"off" {
         syn_st().syn_time_on = false;
-    } else if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
+    } else if eap.arg.as_bytes() == b"clear" {
         syntime_clear();
-    } else if crate::memory::cstr_as_bytes(eap.arg) == b"report" {
+    } else if eap.arg.as_bytes() == b"report" {
         syntime_report();
     } else {
         semsg!(gettext(E_INVARG2), eap.arg);

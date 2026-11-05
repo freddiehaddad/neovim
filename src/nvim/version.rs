@@ -3998,7 +3998,7 @@ pub fn has_vim_patch(n: i32, major_minor_version: i32) -> bool {
 }
 
 pub fn ex_version(eap: &mut Exarg) {
-    if crate::memory::cstr_is_empty(eap.arg) {
+    if eap.arg.is_empty() {
         if !ui_has(K_UIMESSAGES) {
             msg_putchar(b'\n' as i32);
         }
@@ -4110,7 +4110,7 @@ pub fn list_lua_version() {
     );
     debug_assert!(err.err_type == ErrorType::ErrorTypeNone);
     debug_assert!(ret.obj_type == ObjectType::ObjectTypeString);
-    msg_puts(crate::memory::cstr_from_ptr(ret.data.string().data));
+    msg_puts(ret.data.string().as_cstr());
     api_free_object(ret);
 }
 
@@ -4139,24 +4139,18 @@ pub fn list_version() {
         }
         version_msg(c"\n\n");
 
-        version_msg(crate::memory::cstr_from_ptr(
-            (gettext(c"   system vimrc file: \"")).as_ptr(),
-        ));
+        version_msg(gettext(c"   system vimrc file: \""));
         version_msg(c"$VIM/sysinit.vim");
         version_msg(c"\"\n");
 
         if !default_vim_dir().to_bytes().is_empty() {
-            version_msg(crate::memory::cstr_from_ptr(
-                (gettext(c"  fall-back for $VIM: \"")).as_ptr(),
-            ));
+            version_msg(gettext(c"  fall-back for $VIM: \""));
             version_msg(default_vim_dir());
             version_msg(c"\"\n");
         }
 
         if !default_vimruntime_dir().to_bytes().is_empty() {
-            version_msg(crate::memory::cstr_from_ptr(
-                (gettext(c" f-b for $VIMRUNTIME: \"")).as_ptr(),
-            ));
+            version_msg(gettext(c" f-b for $VIMRUNTIME: \""));
             version_msg(default_vimruntime_dir());
             version_msg(c"\"\n");
         }
@@ -4234,7 +4228,7 @@ pub fn intro_message(colon: bool) {
                 formatted_cstr = CString::new(formatted).ok();
                 formatted_cstr.as_deref().unwrap_or(c"")
             } else if !p.to_bytes().is_empty() {
-                crate::memory::cstr_from_ptr((gettext(p)).as_ptr())
+                gettext(p)
             } else {
                 c""
             };

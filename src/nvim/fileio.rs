@@ -1608,9 +1608,9 @@ pub fn readfile(
             if let Some(eap) = eap
                 && eap.force_enc != 0
             {
-                fenc_owned = Some(enc_canonize(crate::memory::cstr_from_ptr(
-                    (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
-                )));
+                fenc_owned = Some(enc_canonize(
+                    eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr(),
+                ));
                 fenc = fenc_owned.as_ref().unwrap().as_ptr().cast_mut().cast();
                 keep_dest_enc = true;
             } else if curbuf_mut().b_p_bin {
@@ -3118,9 +3118,7 @@ pub fn set_forced_fenc(eap: &Exarg) {
         return;
     }
 
-    let fenc = enc_canonize(crate::memory::cstr_from_ptr(
-        (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
-    ));
+    let fenc = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr());
     set_option_direct(
         K_OPT_FILEENCODING,
         cstr_as_obj(crate::memory::cstr_as_opt_cstr(fenc.as_ptr())),
@@ -3762,11 +3760,8 @@ pub fn vim_rename(from: &CStr, to: &CStr) -> i32 {
         K_PATH_CMP_LITERAL,
     ) {
         if opt_vars().p_fic
-            && crate::memory::cstr_from_ptr(
-                (path_tail(crate::memory::cstr_from_ptr((from_ptr).cast()))).as_ptr(),
-            ) != crate::memory::cstr_from_ptr(
-                (path_tail(crate::memory::cstr_from_ptr((to_ptr).cast()))).as_ptr(),
-            )
+            && path_tail(crate::memory::cstr_from_ptr((from_ptr).cast()))
+                != path_tail(crate::memory::cstr_from_ptr((to_ptr).cast()))
         {
             use_tmp_file = true;
         } else {
@@ -4012,7 +4007,7 @@ pub fn buf_check_timestamp(buf: &mut FileBuf) -> i32 {
                 if !bufref_valid(Some(&bufref)) {
                     emsg(tr(c"E246: FileChangedShell autocommand deleted buffer"));
                 }
-                let s = crate::memory::cstr_from_ptr((get_vim_var_str(VV_FCS_CHOICE)).as_ptr());
+                let s = get_vim_var_str(VV_FCS_CHOICE);
                 if s == c"reload" && crate::memory::cstr_first_byte((reason).as_ptr()) != b'd' {
                     reload = RELOAD_NORMAL;
                 } else if s == c"edit" {

@@ -1239,7 +1239,7 @@ pub fn ex_let(eap: &mut Exarg) {
                 op[0] = b'=';
                 op[1] = 0;
                 ex_let_vars(
-                    crate::memory::cstr_from_ptr(eap.arg),
+                    eap.arg.as_cstr(),
                     &mut rettv,
                     0,
                     semicolon,
@@ -1292,7 +1292,7 @@ pub fn ex_let(eap: &mut Exarg) {
 
     if !eap.skip && eval_res {
         ex_let_vars(
-            crate::memory::cstr_from_ptr(eap.arg),
+            eap.arg.as_cstr(),
             &mut rettv,
             0,
             semicolon,
@@ -1973,7 +1973,7 @@ fn ex_let_one<'a>(
 
 /// ":unlet[!] var1 ... " command.
 pub fn ex_unlet(eap: &mut Exarg) {
-    let arg = crate::memory::cstr_from_ptr(eap.arg);
+    let arg = eap.arg.as_cstr();
     let forceit = eap.forceit;
     ex_unletlock(
         eap,
@@ -2388,7 +2388,7 @@ pub fn get_user_var_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
             vars_st().hi = vars_st().hi.wrapping_add(1);
         }
         let hi_key = unsafe { (*vars_st().hi).key_cstr() };
-        if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:") {
+        if xp.xp_pattern.as_bytes().starts_with(b"g:") {
             return Some(cat_prefix_varname(b'g' as i32, hi_key));
         }
         return hi_key;

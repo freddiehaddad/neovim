@@ -210,7 +210,7 @@ pub fn nvim_buf_add_highlight(
     }
 
     let hl_id = if hl_group.size > 0 {
-        syn_check_group(crate::memory::cstr_slice(hl_group.data, hl_group.size))
+        syn_check_group(hl_group.as_bytes())
     } else {
         return ns_id;
     };
@@ -377,15 +377,9 @@ pub fn nvim_get_hl_by_name(
     err: &mut Error,
 ) -> Dict {
     let result = Dict::new();
-    let id = syn_name2id(crate::memory::cstr_from_ptr(name.data));
+    let id = syn_name2id(name.as_cstr());
     if id == 0 {
-        api_err_invalid(
-            err,
-            c"highlight name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"highlight name", name.as_opt_cstr(), 0, true);
         return result;
     }
     nvim_get_hl_by_id(i64::from(id), rgb, arena, err)
@@ -929,24 +923,12 @@ fn get_option_from(from: OptTarget, scope: OptScope, name: NvimString, err: &mut
 
     let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
-        api_err_invalid(
-            err,
-            c"option name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"option name", name.as_opt_cstr(), 0, true);
         return OBJECT_NIL;
     }
 
     if !option_has_scope(opt_idx, scope) {
-        api_err_invalid(
-            err,
-            c"option name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"option name", name.as_opt_cstr(), 0, true);
         return OBJECT_NIL;
     }
 
@@ -983,13 +965,7 @@ fn set_option_to(
 
     let opt_idx = find_option(name.as_bytes());
     if opt_idx == K_OPT_INVALID {
-        api_err_invalid(
-            err,
-            c"option name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"option name", name.as_opt_cstr(), 0, true);
         return;
     }
 

@@ -494,7 +494,7 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
     nlua_push_cmdmod(lstate, cmod);
     lua_setfield(lstate, -2, c"smods");
 
-    crate::lua::converter::lua_pushstring_opt(lstate, crate::memory::cstr_as_opt_cstr(eap.arg));
+    crate::lua::converter::lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
     lua_setfield(lstate, -2, c"args");
 
     unsafe { lua_pushboolean(lstate, i32::from(eap.forceit)) };
@@ -525,14 +525,14 @@ fn nlua_push_eap(lstate: *mut lua_State, eap: &Exarg, cmod: &Cmdmod) {
         lua_setfield(lstate, -2, c"fargs");
     } else {
         lua_newtable(lstate);
-        let length = crate::memory::cstr_len(eap.arg);
+        let length = eap.arg.len();
         if length > 0 {
             let mut end: usize = 0;
             let mut len: usize = 0;
             let mut i: i32 = 1;
             let mut buf = vec![0u8; length];
             let mut done = false;
-            let arg_slice = crate::memory::cstr_slice(eap.arg, length);
+            let arg_slice = eap.arg.slice(length);
             while !done {
                 done = uc_split_args_iter(arg_slice, &mut end, &mut buf, &mut len);
                 if len > 0 {
@@ -1443,10 +1443,7 @@ unsafe extern "C-unwind" fn nlua_require(lstate: *mut lua_State) -> i32 {
     let status = unsafe { lua_pcall(lstate, 1, 1, 0) };
     if status == 0 {
         vim_snprintf!(g_st().iobuff.as_mut_ptr(), IOSIZE, c"require('%s')", name,);
-        time_msg(
-            crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()),
-            Some(&start_time),
-        );
+        time_msg(g_st().iobuff_cstr(), Some(&start_time));
     }
     time_pop(rel_time);
 
@@ -1483,10 +1480,7 @@ unsafe extern "C-unwind" fn nlua_debug(lstate: *mut lua_State) -> i32 {
                     c"lua_debug> %s",
                     input.vval.v_string(),
                 );
-                ui_ext_cmdline_block_append(
-                    0,
-                    crate::memory::cstr_as_bytes(g_st().iobuff.as_ptr()),
-                );
+                ui_ext_cmdline_block_append(0, g_st().iobuff_cstr().to_bytes());
             } else {
                 msg_putchar(b'\n' as i32);
             }
@@ -1788,7 +1782,7 @@ fn nlua_exec_typval_fmt(
 }
 
 pub fn nlua_call_luaeval(str_: NvimString, arg: &mut TypVal, ret_tv: &mut TypVal) {
-    let body = crate::memory::cstr_slice(str_.data, str_.size);
+    let body = str_.as_bytes();
     nlua_exec_typval_fmt(
         b"local _A=select(1,...) return (",
         body,
@@ -1808,14 +1802,8 @@ pub fn nlua_call_user_expand_func(xp: &mut ExpandCtx, ret_tv: &mut TypVal) {
     let lstate = nlua_st().global_lstate;
 
     nlua_pushref(lstate, xp.xp_luaref);
-    crate::lua::converter::lua_pushstring_opt(
-        lstate,
-        crate::memory::cstr_as_opt_cstr(xp.xp_pattern.cast()),
-    );
-    crate::lua::converter::lua_pushstring_opt(
-        lstate,
-        crate::memory::cstr_as_opt_cstr(xp.xp_line.cast()),
-    );
+    crate::lua::converter::lua_pushstring_opt(lstate, xp.xp_pattern.as_opt_cstr());
+    crate::lua::converter::lua_pushstring_opt(lstate, xp.xp_line.as_opt_cstr());
     unsafe { lua_pushinteger(lstate, xp.xp_col as lua_Integer) };
 
     if nlua_pcall(lstate, 3, 1) != 0 {
@@ -1904,7 +1892,7 @@ pub fn nlua_exec(
         Some(cn) if !cn.to_bytes().is_empty() => cn,
         _ => c"<nvim>",
     };
-    let str_slice = crate::memory::cstr_slice(str_.data, str_.size);
+    let str_slice = str_.as_bytes();
     if luaL_loadbuffer(lstate, str_slice, name) != 0 {
         let mut len: usize = 0;
         let errstr = unsafe { lua_tolstring(lstate, -1, &raw mut len) };
@@ -2134,7 +2122,7 @@ pub fn nlua_is_deferred_safe() -> bool {
 }
 
 pub fn ex_lua(eap: &mut Exarg) {
-    if crate::memory::cstr_is_empty(eap.arg) {
+    if eap.arg.is_empty() {
         if eap.addr_count > 0 {
             cmd_source_buffer(Some(eap), true);
         } else {
@@ -2171,7 +2159,7 @@ pub fn ex_luado(eap: &mut Exarg) {
         emsg(gettext(c"cannot save undo information"));
         return;
     }
-    let cmd_bytes = crate::memory::cstr_as_bytes(eap.arg);
+    let cmd_bytes = eap.arg.as_bytes();
     let lstate = nlua_st().global_lstate;
 
     const DOSTART: &[u8] = b"return function(line, linenr) ";
@@ -2243,7 +2231,7 @@ pub fn ex_luado(eap: &mut Exarg) {
 }
 
 pub fn ex_luafile(eap: &mut Exarg) {
-    let _ = nlua_exec_file(crate::memory::cstr_from_ptr(eap.arg));
+    let _ = nlua_exec_file(eap.arg.as_cstr());
 }
 
 pub fn nlua_exec_file(path: &CStr) -> bool {
@@ -2348,10 +2336,7 @@ pub fn nlua_expand_pat(xp: &mut ExpandCtx) {
                 }
                 nlua_st()
                     .expand_result_array
-                    .push(crate::memory::cstr_from_bytes(crate::memory::cstr_slice(
-                        v.data.string().data,
-                        v.data.string().size,
-                    )));
+                    .push(crate::memory::cstr_from_bytes(v.data.string().as_bytes()));
             }
 
             if all_strings {
@@ -2544,11 +2529,8 @@ pub fn nlua_do_ucmd(cmd: &mut Ucmd, eap: &mut Exarg, preview: bool) -> i32 {
 
     if (cmd.uc_argt & EX_NOSPC) != 0 {
         unsafe { lua_createtable(lstate, 1, 0) };
-        if (cmd.uc_argt & EX_NEEDARG) != 0 || !crate::memory::cstr_is_empty(eap.arg) {
-            crate::lua::converter::lua_pushstring_opt(
-                lstate,
-                crate::memory::cstr_as_opt_cstr(eap.arg),
-            );
+        if (cmd.uc_argt & EX_NEEDARG) != 0 || !eap.arg.is_empty() {
+            crate::lua::converter::lua_pushstring_opt(lstate, eap.arg.as_opt_cstr());
             unsafe { lua_rawseti(lstate, -2, 1) };
         }
         lua_setfield(lstate, -2, c"fargs");

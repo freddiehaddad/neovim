@@ -620,10 +620,7 @@ pub fn init_locale() {
     let _ = unsafe { setlocale(LC_NUMERIC, c"C".as_ptr().cast()) };
 
     let mut localepath = [0u8; MAXPATHL];
-    crate::memory::copy_bytes_to_c_buf(
-        &mut localepath,
-        crate::memory::cstr_as_bytes((get_vim_var_str(VV_PROGPATH)).as_ptr()),
-    );
+    crate::memory::copy_bytes_to_c_buf(&mut localepath, get_vim_var_str(VV_PROGPATH).to_bytes());
     let mut tail = path_tail_with_sep(crate::memory::cstr_from_ptr(localepath.as_mut_ptr().cast()))
         .as_ptr()
         .cast_mut()
@@ -660,53 +657,31 @@ pub fn ex_language(eap: &mut Exarg) {
     let p = eap
         .arg
         .as_ptr()
-        .wrapping_add(crate::charset::skiptowhite_len(
-            crate::memory::cstr_as_bytes(eap.arg.cast()),
-        ));
+        .wrapping_add(crate::charset::skiptowhite_len(eap.arg.as_bytes()));
     let arg_len = (p as usize) - (eap.arg.as_ptr() as usize);
     if (crate::memory::cstr_is_empty(p)
         || matches!(crate::memory::cstr_first_byte(p), b' ' | b'\t'))
         && arg_len >= 3
     {
-        if mb_strnicmp(
-            crate::memory::cstr_as_bytes((eap.arg).cast()),
-            (c"messages").to_bytes(),
-            arg_len,
-        ) == 0
-        {
+        if mb_strnicmp(eap.arg.as_bytes(), (c"messages").to_bytes(), arg_len) == 0 {
             what = VIM_LC_MESSAGES;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"messages ";
-        } else if mb_strnicmp(
-            crate::memory::cstr_as_bytes((eap.arg).cast()),
-            (c"ctype").to_bytes(),
-            arg_len,
-        ) == 0
-        {
+        } else if mb_strnicmp(eap.arg.as_bytes(), (c"ctype").to_bytes(), arg_len) == 0 {
             what = LC_CTYPE;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"ctype ";
-        } else if mb_strnicmp(
-            crate::memory::cstr_as_bytes((eap.arg).cast()),
-            (c"time").to_bytes(),
-            arg_len,
-        ) == 0
-        {
+        } else if mb_strnicmp(eap.arg.as_bytes(), (c"time").to_bytes(), arg_len) == 0 {
             what = LC_TIME;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),
             )));
             whatstr = c"time ";
-        } else if mb_strnicmp(
-            crate::memory::cstr_as_bytes((eap.arg).cast()),
-            (c"collate").to_bytes(),
-            arg_len,
-        ) == 0
-        {
+        } else if mb_strnicmp(eap.arg.as_bytes(), (c"collate").to_bytes(), arg_len) == 0 {
             what = LC_COLLATE;
             name = p.wrapping_add(crate::charset::skipwhite_len(crate::memory::cstr_as_bytes(
                 p.cast(),

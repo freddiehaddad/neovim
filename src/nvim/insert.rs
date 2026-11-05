@@ -2439,8 +2439,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
         let p = insert.data.wrapping_add(insert.size - 1);
         let b = crate::memory::cstr_first_byte(p);
         if (b == b'0' || b == b'^')
-            && (no_esc != 0
-                || (crate::memory::cstr_first_byte(insert.data) == CTRL_D_CONST as u8 && count > 1))
+            && (no_esc != 0 || (insert.first_byte() == CTRL_D_CONST as u8 && count > 1))
         {
             last = b;
             insert.size -= 1;
@@ -2448,7 +2447,7 @@ pub fn stuff_inserted(c: i32, mut count: i32, no_esc: i32) -> bool {
     }
 
     loop {
-        stuff_readbuff_len(crate::memory::cstr_slice(insert.data, insert.size));
+        stuff_readbuff_len(insert.as_bytes());
         if last == b'0' {
             stuff_readbuff_len(b"\x16048");
         } else if last == b'^' {
@@ -2493,7 +2492,7 @@ pub fn get_last_insert_save() -> Option<std::ffi::CString> {
     {
         insert.size -= 1;
     }
-    let slice = crate::memory::cstr_slice(insert.data, insert.size);
+    let slice = insert.as_bytes();
     Some(std::ffi::CString::new(slice).unwrap_or_default())
 }
 

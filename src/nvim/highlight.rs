@@ -1711,18 +1711,12 @@ pub fn object_to_color(val: Object, key: &std::ffi::CStr, rgb: bool, err: &mut E
         }
         let color = if rgb {
             let mut dummy: i32 = 0;
-            name_to_color(crate::memory::cstr_from_ptr(str_.data), &mut dummy)
+            name_to_color(str_.as_cstr(), &mut dummy)
         } else {
-            name_to_ctermcolor(crate::memory::cstr_from_ptr(str_.data))
+            name_to_ctermcolor(str_.as_cstr())
         };
         if color < 0 {
-            api_err_invalid(
-                err,
-                c"highlight color",
-                crate::memory::cstr_as_opt_cstr(str_.data),
-                0,
-                true,
-            );
+            api_err_invalid(err, c"highlight color", str_.as_opt_cstr(), 0, true);
             return color;
         }
         color

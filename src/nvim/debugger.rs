@@ -414,7 +414,7 @@ pub fn do_debug(cmd: &CStr) {
 pub fn ex_debug(eap: &mut Exarg) {
     let save = g_st().debug_break_level;
     g_st().debug_break_level = 9999;
-    do_cmdline_cmd(crate::memory::cstr_from_ptr(eap.arg));
+    do_cmdline_cmd(eap.arg.as_cstr());
     g_st().debug_break_level = save;
 }
 
@@ -438,14 +438,14 @@ pub fn dbg_check_breakpoint(eap: &mut Exarg) {
                 rest,
                 i64::from(lnum)
             );
-            do_debug(crate::memory::cstr_from_ptr(eap.cmd));
+            do_debug(eap.cmd.as_cstr());
         } else {
             dbg_st().debug_skipped = true;
             dbg_st().debug_skipped_name = Some(bp_name_cstr);
         }
     } else if g_st().ex_nesting_level <= g_st().debug_break_level {
         if !eap.skip {
-            do_debug(crate::memory::cstr_from_ptr(eap.cmd));
+            do_debug(eap.cmd.as_cstr());
         } else {
             dbg_st().debug_skipped = true;
             dbg_st().debug_skipped_name = None;
@@ -568,7 +568,7 @@ pub fn ex_breakadd(eap: &mut Exarg) {
     let is_prof = eap.cmdidx == Cmdidx::CmdProfile;
     let gap = dbg_vec_mut(is_prof);
 
-    let Some(mut bp) = dbg_parsearg(crate::memory::cstr_from_ptr(eap.arg), is_prof) else {
+    let Some(mut bp) = dbg_parsearg(eap.arg.as_cstr(), is_prof) else {
         return;
     };
 
@@ -620,9 +620,9 @@ pub fn ex_breakdel(eap: &mut Exarg) {
     let is_prof = eap.cmdidx == Cmdidx::CmdProfdel;
     let gap = dbg_vec_mut(is_prof);
 
-    let first_byte = crate::memory::cstr_first_byte(eap.arg);
+    let first_byte = eap.arg.first_byte();
     if first_byte.is_ascii_digit() {
-        let nr = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
+        let nr = crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32;
         if let Some(idx) = gap.iter().position(|bp| bp.dbg_nr == nr) {
             todel = idx as isize;
         }
@@ -630,7 +630,7 @@ pub fn ex_breakdel(eap: &mut Exarg) {
         todel = 0;
         del_all = true;
     } else {
-        let Some(bp) = dbg_parsearg(crate::memory::cstr_from_ptr(eap.arg), is_prof) else {
+        let Some(bp) = dbg_parsearg(eap.arg.as_cstr(), is_prof) else {
             return;
         };
         for (i, bpi) in gap.iter().enumerate() {

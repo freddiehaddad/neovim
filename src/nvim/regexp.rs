@@ -353,6 +353,41 @@ impl RegLinePtr {
             off: self.off.wrapping_add_signed(d),
         }
     }
+
+    #[inline]
+    pub fn first_byte(self) -> u8 {
+        crate::memory::cstr_first_byte(self.as_ptr().cast())
+    }
+
+    #[inline]
+    pub fn is_empty(self) -> bool {
+        crate::memory::cstr_is_empty(self.as_ptr().cast())
+    }
+
+    #[inline]
+    pub fn as_bytes(self) -> &'static [u8] {
+        crate::memory::cstr_as_bytes(self.as_ptr().cast())
+    }
+
+    #[inline]
+    pub fn as_cstr(self) -> &'static std::ffi::CStr {
+        crate::memory::cstr_from_ptr(self.as_ptr().cast())
+    }
+
+    #[inline]
+    pub fn slice(self, len: usize) -> &'static [u8] {
+        crate::memory::cstr_slice(self.as_ptr().cast(), len)
+    }
+
+    #[inline]
+    pub fn char_bytes(self) -> &'static [u8] {
+        crate::memory::cstr_char_bytes(self.as_ptr().cast())
+    }
+
+    #[inline]
+    pub fn cluster_bytes(self) -> &'static [u8] {
+        crate::memory::cstr_cluster_bytes(self.as_ptr().cast())
+    }
 }
 
 impl PartialEq for RegLinePtr {
@@ -2354,7 +2389,7 @@ pub(super) fn reg_match_visual() -> bool {
         let cols = win_linetabsize(
             &mut *wp,
             re_st().rex.reg_firstlnum + re_st().rex.lnum,
-            crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
+            re_st().rex.line.as_cstr(),
             col,
         );
         if cols < start || cols > end - Colnr::from(opt_vars().p_sel.first_byte() == b'e') {
@@ -2434,8 +2469,7 @@ pub(super) fn match_with_backref(
         if re_st().reg_tofree.is_empty()
             || re_st().rex.line.as_ptr() != re_st().reg_tofree.as_mut_ptr()
         {
-            let line_bytes =
-                crate::memory::cstr_from_ptr(re_st().rex.line.cast()).to_bytes_with_nul();
+            let line_bytes = re_st().rex.line.as_cstr().to_bytes_with_nul();
             let len = line_bytes.len() - 1 + 51;
             let off = re_st().rex.input_off();
             if re_st().reg_tofree.len() < len {
@@ -2456,14 +2490,14 @@ pub(super) fn match_with_backref(
             reg_getline_len(clnum) - ccol
         };
 
-        let input_bytes = crate::memory::cstr_as_bytes(re_st().rex.input.cast());
+        let input_bytes = re_st().rex.input.as_bytes();
         if (!re_st().rex.reg_ic && cstrncmp(&p_bytes[ccol as usize..], input_bytes, &mut len) != 0)
             || (re_st().rex.reg_ic
                 && mb_strnicmp(
                     crate::memory::cstr_as_bytes(
                         (p_cstr.as_ptr().wrapping_add(ccol as usize)).cast(),
                     ),
-                    crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                    re_st().rex.input.as_bytes(),
                     len as usize,
                 ) != 0)
         {

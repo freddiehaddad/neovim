@@ -710,12 +710,7 @@ pub fn msg_multihl(
     for chunk in active_msg {
         msg_st().is_multihl += 1;
         if err {
-            emsg_multiline(
-                crate::memory::cstr_from_ptr(chunk.text.data),
-                kind.unwrap_or(c""),
-                chunk.hl_id,
-                true,
-            );
+            emsg_multiline(chunk.text.as_cstr(), kind.unwrap_or(c""), chunk.hl_id, true);
         } else {
             msg_multiline(chunk.text, chunk.hl_id, true, false, &mut need_clear);
         }
@@ -780,8 +775,7 @@ pub fn msg_keep(s_in: &std::ffi::CStr, hl_id: i32, keep: bool, multiline: bool) 
             && (s.as_ptr() != keep_msg_ptr
                 || (s.to_bytes().first().copied().unwrap_or(0) != b'<'
                     && msg_st().msg_hist.back().is_some_and(|last| {
-                        s.to_bytes()
-                            != crate::memory::cstr_as_bytes(last.msg.as_slice()[0].text.data)
+                        s.to_bytes() != last.msg.as_slice()[0].text.cstr_bytes()
                     })))
         {
             msg_hist_add(s.to_bytes(), -1, hl_id);
@@ -1546,7 +1540,7 @@ pub fn do_autocmd_progress(msg_id: MsgID, msg: &HlMessage, mut msg_data: Option<
     let fname = if let Some(ref d) = msg_data
         && d.source.size > 0
     {
-        crate::memory::cstr_from_ptr(d.source.data)
+        d.source.as_cstr()
     } else {
         c""
     };
@@ -1623,10 +1617,8 @@ pub fn msg_hist_clear_temp() {
 
 /// Check the 'messagesopt' fields after schema validation.
 pub fn validate_messagesopt(args: &mut Optset) -> Option<&'static CStr> {
-    let v: &OptKeyDict_mopt = opt_keyset(
-        crate::memory::cstr_as_bytes(args.os_newval.data.string().data),
-        K_OPT_MESSAGESOPT,
-    );
+    let v: &OptKeyDict_mopt =
+        opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MESSAGESOPT);
 
     let has_wait = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_WAIT)) != 0;
     let has_history = (v.is_set_mopt & (1 << KEYSET_OPTIDX_MOPT_HISTORY)) != 0;
@@ -1660,12 +1652,12 @@ pub fn did_set_messagesopt(_args: &mut Optset) -> Option<&'static CStr> {
 
 /// :messages command implementation
 pub fn ex_messages(eap: &mut Exarg) {
-    if crate::memory::cstr_as_bytes(eap.arg) == b"clear" {
+    if eap.arg.as_bytes() == b"clear" {
         msg_hist_clear(if eap.addr_count != 0 { eap.line2 } else { 0 });
         return;
     }
 
-    if !crate::memory::cstr_is_empty(eap.arg) {
+    if !eap.arg.is_empty() {
         emsg(gettext(E_INVARG));
         return;
     }
@@ -3180,7 +3172,7 @@ pub fn msg_ui_flush() {
 
 /// Increment "msg_scrolled".
 fn inc_msg_scrolled() {
-    if crate::memory::cstr_is_empty((get_vim_var_str(VV_SCROLLSTART)).as_ptr()) {
+    if get_vim_var_str(VV_SCROLLSTART).is_empty() {
         let sname = sourcing_name();
         let mut tofree_vec: Vec<u8>;
 
@@ -3199,11 +3191,7 @@ fn inc_msg_scrolled() {
         } else {
             cstr_as_string(Some(gettext(c"Unknown")))
         };
-        set_vim_var_string(
-            VV_SCROLLSTART,
-            crate::memory::cstr_as_opt_cstr(p.data),
-            p.size as isize,
-        );
+        set_vim_var_string(VV_SCROLLSTART, p.as_opt_cstr(), p.size as isize);
     }
     g_st().msg_scrolled += 1;
     set_must_redraw(UPD_VALID);

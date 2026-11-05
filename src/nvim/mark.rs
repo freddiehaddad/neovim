@@ -918,12 +918,7 @@ fn fname2fnum(fm: &Xfmark) {
         crate::memory::cstr_from_ptr(g_st().iobuff.as_mut_ptr().cast()),
     );
 
-    let _ = buflist_new(
-        crate::memory::cstr_as_opt_cstr(g_st().name_buff.as_ptr()),
-        p,
-        1,
-        0,
-    );
+    let _ = buflist_new(Some(g_st().name_buff_cstr()), p, 1, 0);
 }
 
 /// Check all file marks for a name that matches the file name in `buf` (`fmarks_check_names`).
@@ -958,11 +953,11 @@ fn fmarks_check_one(fm: &mut Xfmark, name: &CStr, buf: &mut FileBuf) {
 /// Check the position in `fm` is valid (`mark_check`).
 pub fn mark_check(mut fm: Option<&mut Fmark>, errormsg: &mut Option<&'static CStr>) -> bool {
     if fm.is_none() {
-        *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_UMARK)).as_ptr());
+        *errormsg = Some(gettext(E_UMARK));
         return false;
     } else if fm.as_deref_mut().unwrap().mark.lnum <= 0 {
         if fm.as_deref_mut().unwrap().mark.lnum == 0 {
-            *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_MARKNOTSET)).as_ptr());
+            *errormsg = Some(gettext(E_MARKNOTSET));
         }
         return false;
     }
@@ -983,7 +978,7 @@ pub fn mark_check_line_bounds(
     if let Some(buf) = buf
         && fm.mark.lnum > buf.b_ml.ml_line_count
     {
-        *errormsg = crate::memory::cstr_as_opt_cstr((gettext(E_MARKINVAL)).as_ptr());
+        *errormsg = Some(gettext(E_MARKINVAL));
         return false;
     }
     true
@@ -1055,7 +1050,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
         coladd: 0,
     };
 
-    if crate::memory::cstr_is_empty(eap.arg) && eap.forceit {
+    if eap.arg.is_empty() && eap.forceit {
         for i in 0..NMARKS {
             if curbuf_mut().b_namedm[i].mark.lnum != 0 {
                 do_markset_autocmd(i as u8 + b'a', &pos, curbuf_mut());
@@ -1079,7 +1074,7 @@ pub fn ex_delmarks(eap: &mut Exarg) {
         clrallmarks(curbuf_mut(), os_time());
     } else if eap.forceit {
         emsg(gettext(E_INVARG));
-    } else if crate::memory::cstr_is_empty(eap.arg) {
+    } else if eap.arg.is_empty() {
         emsg(gettext(E_ARGREQ));
     } else {
         let timestamp = os_time();

@@ -178,10 +178,7 @@ fn cstr_to_arena_str(arena: &mut Arena, str_ptr: Option<&CStr>) -> NvimString {
             data: ptr::null_mut(),
             size: 0,
         },
-        Some(s) => cbuf_to_arena_str(
-            arena,
-            crate::memory::cstr_slice(s.as_ptr(), s.to_bytes().len()),
-        ),
+        Some(s) => cbuf_to_arena_str(arena, s.to_bytes()),
     }
 }
 
@@ -310,7 +307,8 @@ pub fn nvim_parse_cmd(
     let mut result = KeyDict_cmd::default();
     let mut ea: Exarg = Exarg::new();
     let mut cmod: Cmdmod = Cmdmod::new();
-    let mut cmdline_buf: Vec<u8> = crate::memory::cstr_slice(str_val.data, str_val.size)
+    let mut cmdline_buf: Vec<u8> = str_val
+        .as_bytes()
         .iter()
         .copied()
         .chain(std::iter::once(0))
@@ -333,22 +331,16 @@ pub fn nvim_parse_cmd(
     }
 
     let mut args = Array::new();
-    let length = crate::memory::cstr_len(ea.arg);
+    let length = ea.arg.len();
 
-    if ea.cmdidx != Cmdidx::CmdSize
-        && is_map_cmd(ea.cmdidx)
-        && !crate::memory::cstr_is_empty(ea.arg)
-    {
-        args = parse_map_cmd(crate::memory::cstr_from_ptr(ea.arg), arena);
+    if ea.cmdidx != Cmdidx::CmdSize && is_map_cmd(ea.cmdidx) && !ea.arg.is_empty() {
+        args = parse_map_cmd(ea.arg.as_cstr(), arena);
     } else if (ea.argt & EX_NOSPC) != 0 {
-        if !crate::memory::cstr_is_empty(ea.arg) {
+        if !ea.arg.is_empty() {
             args = arena_array(arena, 1);
             add_c(
                 &mut args,
-                string_obj(cbuf_to_arena_str(
-                    arena,
-                    crate::memory::cstr_slice(ea.arg, length),
-                )),
+                string_obj(cbuf_to_arena_str(arena, ea.arg.slice(length))),
             );
         }
     } else {
@@ -357,7 +349,7 @@ pub fn nvim_parse_cmd(
         let mut buf = arena_alloc(arena, length + 1, false);
         let mut buf_rem = length + 1;
         let mut done = false;
-        let arg_slice = crate::memory::cstr_slice(ea.arg, length);
+        let arg_slice = ea.arg.slice(length);
         args = arena_array(arena, uc_nargs_upper_bound(arg_slice));
 
         while !done {
@@ -471,7 +463,7 @@ pub fn nvim_parse_cmd(
     result.nextcmd = if ea.nextcmd.is_null() {
         cstr_as_string(None)
     } else {
-        cstr_to_arena_str(arena, crate::memory::cstr_as_opt_cstr(ea.nextcmd))
+        cstr_to_arena_str(arena, ea.nextcmd.as_opt_cstr())
     };
 
     let mut mods = arena_dict(arena, 20);
@@ -659,7 +651,7 @@ pub fn nvim_cmd(
             break 'end;
         }
 
-        if crate::memory::cstr_is_empty(cmd.cmd.data)
+        if cmd.cmd.cstr_bytes().is_empty()
             && !((has_key(mask, KEYSET_OPTIDX_CMD_RANGE) && cmd.range.size > 0)
                 || has_key(mask, KEYSET_OPTIDX_CMD_MODS))
         {
@@ -674,7 +666,7 @@ pub fn nvim_cmd(
 
         if p_opt.is_some()
             && ea.cmdidx == Cmdidx::CmdSize
-            && ascii_isupper(crate::memory::cstr_first_byte(ea.cmd))
+            && ascii_isupper(ea.cmd.first_byte())
             && has_event(EVENT_CMDUNDEFINED)
         {
             let p_raw = arena_string(arena, cmd.cmd).data;
@@ -683,17 +675,17 @@ pub fn nvim_cmd(
             p_opt = if ret && !aborting() {
                 find_ex_command(&mut ea, None)
             } else {
-                crate::memory::cstr_as_opt_cstr(ea.cmd)
+                ea.cmd.as_opt_cstr()
             };
         }
 
         let range_only = ea.cmdidx == Cmdidx::CmdSize
-            && crate::memory::cstr_is_empty(cmd.cmd.data)
+            && cmd.cmd.cstr_bytes().is_empty()
             && has_key(mask, KEYSET_OPTIDX_CMD_RANGE)
             && cmd.range.size > 0;
 
         if ea.cmdidx == Cmdidx::CmdSize
-            && crate::memory::cstr_is_empty(cmd.cmd.data)
+            && cmd.cmd.cstr_bytes().is_empty()
             && (!has_key(mask, KEYSET_OPTIDX_CMD_RANGE) || cmd.range.size == 0)
             && has_key(mask, KEYSET_OPTIDX_CMD_MODS)
         {
@@ -942,12 +934,7 @@ pub fn nvim_cmd(
                 break 'end;
             }
             if cmd.reg.size != 1 {
-                api_err_exp(
-                    err,
-                    c"reg",
-                    c"single character",
-                    crate::memory::cstr_as_opt_cstr(cmd.reg.data),
-                );
+                api_err_exp(err, c"reg", c"single character", cmd.reg.as_opt_cstr());
                 break 'end;
             }
             let regname = unsafe { *cmd.reg.data.cast::<u8>() };
@@ -1139,7 +1126,7 @@ pub fn nvim_cmd(
             }
         }
 
-        let ea_arg = crate::memory::cstr_from_ptr(ea.arg);
+        let ea_arg = ea.arg.as_cstr();
         let p_cstr = replace_makeprg(&mut ea, ea_arg);
         p = ea
             .cmdline_ptr()
@@ -1152,7 +1139,7 @@ pub fn nvim_cmd(
         }
 
         if (ea.argt & EX_ARGOPT) != 0 {
-            while crate::memory::cstr_as_bytes(ea.arg).starts_with(b"++") {
+            while ea.arg.as_bytes().starts_with(b"++") {
                 let orig_arg = ea.arg;
                 let result = getargopt(&mut ea);
                 if !result && !is_cmd_ni(ea.cmdidx) {
@@ -1232,7 +1219,7 @@ fn build_cmdline_str(cmdline_buf: &mut Vec<u8>, eap: &mut Exarg, args: Array) {
         }
     }
 
-    cmdline_buf.extend_from_slice(crate::memory::cstr_as_bytes(eap.cmd));
+    cmdline_buf.extend_from_slice(eap.cmd.as_bytes());
 
     for i in 0..args.size {
         let s = args[i].data.string();
@@ -1354,7 +1341,7 @@ pub fn nvim_buf_del_user_command(buf: Buffer, name: NvimString, err: &mut Error)
         &mut b.b_ucmds
     };
 
-    let name_bytes = crate::memory::cstr_as_bytes(name.data);
+    let name_bytes = name.cstr_bytes();
     if let Some(i) = gap
         .iter()
         .position(|cmd| cmd.uc_name.as_bytes() == name_bytes)
@@ -1393,20 +1380,14 @@ pub fn create_user_command(
 
     'err: {
         if uc_validate_name(name.as_bytes()).is_none() {
-            api_err_invalid(
-                err,
-                c"command name",
-                crate::memory::cstr_as_opt_cstr(name.data),
-                0,
-                true,
-            );
+            api_err_invalid(err, c"command name", name.as_opt_cstr(), 0, true);
             break 'err;
         }
-        if mb_islower(i32::from(crate::memory::cstr_first_byte(name.data))) {
+        if mb_islower(i32::from(name.first_byte())) {
             api_err_invalid(
                 err,
                 c"command name (must start with uppercase)",
-                crate::memory::cstr_as_opt_cstr(name.data),
+                name.as_opt_cstr(),
                 0,
                 true,
             );
@@ -1441,13 +1422,13 @@ pub fn create_user_command(
                 api_err_invalid(
                     err,
                     c"nargs",
-                    crate::memory::cstr_as_opt_cstr(opts.nargs.data.string().data),
+                    opts.nargs.data.string().as_opt_cstr(),
                     0,
                     true,
                 );
                 break 'err;
             }
-            match crate::memory::cstr_first_byte(opts.nargs.data.string().data) {
+            match opts.nargs.data.string().first_byte() {
                 b'*' => argt |= EX_EXTRA,
                 b'?' => argt |= EX_EXTRA | EX_NOSPC,
                 b'+' => argt |= EX_EXTRA | EX_NEEDARG,
@@ -1456,7 +1437,7 @@ pub fn create_user_command(
                     api_err_invalid(
                         err,
                         c"nargs",
-                        crate::memory::cstr_as_opt_cstr(opts.nargs.data.string().data),
+                        opts.nargs.data.string().as_opt_cstr(),
                         0,
                         true,
                     );
@@ -1484,7 +1465,7 @@ pub fn create_user_command(
                 addr_type_arg = ADDR_LINES;
             }
         } else if opts.range.obj_type == ObjectType::ObjectTypeString {
-            if !(crate::memory::cstr_first_byte(opts.range.data.string().data) == b'%'
+            if !(opts.range.data.string().first_byte() == b'%'
                 && opts.range.data.string().size == 1)
             {
                 api_err_invalid(err, c"range", Some(c""), 0, true);
@@ -1527,13 +1508,7 @@ pub fn create_user_command(
                 break 'err;
             }
             if !parse_addr_type_arg(opts.addr.data.string().as_bytes(), &mut addr_type_arg) {
-                api_err_invalid(
-                    err,
-                    c"addr",
-                    crate::memory::cstr_as_opt_cstr(opts.addr.data.string().data),
-                    0,
-                    true,
-                );
+                api_err_invalid(err, c"addr", opts.addr.data.string().as_opt_cstr(), 0, true);
                 break 'err;
             }
             argt |= EX_RANGE;
@@ -1578,7 +1553,7 @@ pub fn create_user_command(
                 api_err_invalid(
                     err,
                     c"complete",
-                    crate::memory::cstr_as_opt_cstr(opts.complete.data.string().data),
+                    opts.complete.data.string().as_opt_cstr(),
                     0,
                     true,
                 );
@@ -1615,7 +1590,7 @@ pub fn create_user_command(
                 );
                 break 'err;
             }
-            desc = crate::memory::cstr_as_opt_cstr(opts.desc.data.string().data);
+            desc = opts.desc.data.string().as_opt_cstr();
         }
 
         match cmd.obj_type {
@@ -1624,7 +1599,7 @@ pub fn create_user_command(
                 rep = c"";
             }
             ObjectType::ObjectTypeString => {
-                rep = crate::memory::cstr_from_ptr(cmd.data.string().data);
+                rep = cmd.data.string().as_cstr();
             }
             _ => {
                 api_err_exp(err, c"command", c"Function or String", None);

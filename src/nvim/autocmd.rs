@@ -2438,7 +2438,7 @@ pub fn do_doautocmd(arg_start: &CStr, do_msg: bool, mut did_something: Option<&m
 pub fn ex_doautoall(eap: &mut Exarg) {
     let mut retval = true;
     let mut aco: CtxSwitch = CtxSwitch::new();
-    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
+    let mut arg = eap.arg.as_cstr();
     let call_do_modelines = check_nomodeline(&mut arg);
     let mut bufref: Bufref = Bufref::new();
     let mut did_aucmd = false;
@@ -2581,7 +2581,7 @@ pub fn deferred_optionset_modified(bufnr: i32, new_val: bool) {
 pub fn aucmd_defer_modified(buf: &mut FileBuf, new_val: bool) {
     if !has_event(EVENT_OPTIONSET)
         || (bt_nofile(Some(buf)) && !buf.b_p_bl)
-        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_OPTION_TYPE)).as_ptr())
+        || !get_vim_var_str(VV_OPTION_TYPE).is_empty()
     {
         return;
     }
@@ -3144,9 +3144,7 @@ pub extern "C" fn unblock_autocmds() {
     au_st().autocmd_blocked -= 1;
 
     if !is_autocmd_blocked() && au_st().termresponse_changed && has_event(EVENT_TERMRESPONSE) {
-        let sequence = cstr_to_string(crate::memory::cstr_as_opt_cstr(
-            (get_vim_var_str(VV_TERMRESPONSE)).as_ptr(),
-        ));
+        let sequence = cstr_to_string(Some(get_vim_var_str(VV_TERMRESPONSE)));
         do_termresponse_autocmd(sequence, au_st().termresponse_chan_id);
         api_free_string(sequence);
     }

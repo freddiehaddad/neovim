@@ -713,8 +713,7 @@ pub fn ui_comp_msg_set_pos(
     if scrolled && row > 0 {
         comp().msg_sep_row = (row as i32) - 1;
         if !sep_char.data.is_null() {
-            comp().msg_sep_char =
-                schar_from_buf(crate::memory::cstr_slice(sep_char.data, sep_char.size));
+            comp().msg_sep_char = schar_from_buf(sep_char.as_bytes());
         }
     } else {
         comp().msg_sep_row = -1;

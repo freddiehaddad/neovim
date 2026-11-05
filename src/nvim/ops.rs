@@ -3975,9 +3975,7 @@ pub fn do_pending_operator(cap: &mut Cmdarg, old_col: i32, gui_yank: bool) {
                     }
                 }
 
-                if oap.op_type == OP_INDENT
-                    && crate::memory::cstr_is_empty((get_equalprg()).as_ptr())
-                {
+                if oap.op_type == OP_INDENT && get_equalprg().is_empty() {
                     if curbuf_mut().b_p_lisp {
                         if use_indentexpr_for_lisp() {
                             op_reindent(oap, get_expr_indent);

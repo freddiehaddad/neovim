@@ -940,10 +940,7 @@ fn set_init_expand_env() {
                 p = Some(tr(cstr));
             }
         } else if (opt.flags & K_OPT_FLAG_EXPAND) != 0 {
-            p = option_expand(
-                opt_idx,
-                crate::memory::cstr_as_opt_cstr(opt.def_val.data.string().data),
-            );
+            p = option_expand(opt_idx, opt.def_val.data.string().as_opt_cstr());
         }
         if let Some(p) = p {
             let ov = cstr_to_obj(crate::memory::cstr_as_opt_cstr((p).as_ptr()));
@@ -1053,10 +1050,7 @@ pub fn get_option_default(opt_idx: OptIndex, opt_flags: i32) -> Object {
     let mut def_val = opt.def_val;
     if option_has_type(opt_idx, ObjectType::ObjectTypeString)
         && (opt.flags & K_OPT_FLAG_NO_DEF_EXP) == 0
-        && let Some(s) = option_expand(
-            opt_idx,
-            crate::memory::cstr_as_opt_cstr(def_val.data.string().data),
-        )
+        && let Some(s) = option_expand(opt_idx, def_val.data.string().as_opt_cstr())
     {
         def_val = cstr_as_obj(crate::memory::cstr_as_opt_cstr((s).as_ptr()));
     }
@@ -1287,7 +1281,7 @@ pub fn ex_set(eap: &mut Exarg) {
     if eap.forceit {
         flags |= OPT_ONECOLUMN;
     }
-    do_set(crate::memory::cstr_from_ptr(eap.arg), flags);
+    do_set(eap.arg.as_cstr(), flags);
 }
 
 /// Copy the new string value into allocated memory for the option.
@@ -1906,7 +1900,7 @@ pub fn get_option_newval(
             newval = integer_obj(newval_num);
         }
         ObjectType::ObjectTypeString => {
-            let oldval_str = crate::memory::cstr_as_opt_cstr(oldval.data.string().data);
+            let oldval_str = oldval.data.string().as_opt_cstr();
             let newval_str = stropt_get_newval(opt_idx, argp, varp, oldval_str, &mut op);
             newval = cstr_to_obj(crate::memory::cstr_as_opt_cstr(newval_str.as_ptr()));
         }
@@ -2542,9 +2536,7 @@ pub fn apply_optionset_autocmd_now(
     oldval_l: Object,
     newval: Object,
 ) {
-    if starting_val() != 0
-        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_OPTION_TYPE)).as_ptr())
-    {
+    if starting_val() != 0 || !get_vim_var_str(VV_OPTION_TYPE).is_empty() {
         return;
     }
 
@@ -5046,9 +5038,7 @@ pub fn opt_from_varp(opt_idx: OptIndex, varp: Option<&mut u8>) -> Object {
     let opt = get_option(opt_idx);
     if opt.immutable {
         return if opt.opt_type == ObjectType::ObjectTypeString {
-            string_obj(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                opt.def_val.data.string().data,
-            )))
+            string_obj(cstr_as_string(opt.def_val.data.string().as_opt_cstr()))
         } else {
             opt.def_val
         };
@@ -5140,7 +5130,7 @@ fn optval_to_cstr(o: Object, quote: bool) -> std::ffi::CString {
             let slice = if o.data.string().data.is_null() || o.data.string().size == 0 {
                 &[][..]
             } else {
-                crate::memory::cstr_slice(o.data.string().data, o.data.string().size)
+                o.data.string().as_bytes()
             };
             if !quote {
                 return crate::memory::cstr_from_bytes(slice);
@@ -5194,7 +5184,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
     }
 
     let mut str_cstr: std::ffi::CString = if o.obj_type == ObjectType::ObjectTypeString {
-        crate::memory::cstr_to_cstring(o.data.string().data)
+        o.data.string().to_cstring()
     } else if o.obj_type == ObjectType::ObjectTypeArray {
         let mut items: Vec<std::ffi::CString> = Vec::with_capacity(o.data.array().size);
         for ai in 0..o.data.array().size {
@@ -5203,7 +5193,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                 *error = true;
                 return nil_obj();
             }
-            let s_cstr = crate::memory::cstr_from_ptr(item.data.string().data);
+            let s_cstr = item.data.string().as_cstr();
             if !allow_dup && items.iter().any(|existing| existing.as_c_str() == s_cstr) {
                 continue;
             }
@@ -5220,18 +5210,18 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                 if !(v.obj_type == ObjectType::ObjectTypeNil
                     || (v.obj_type == ObjectType::ObjectTypeBoolean && !v.data.boolean()))
                 {
-                    items.push(crate::memory::cstr_to_cstring(k.data));
+                    items.push(k.to_cstring());
                 }
             } else if v.obj_type == ObjectType::ObjectTypeString {
-                let k_bytes = crate::memory::cstr_as_bytes(k.data);
-                let v_bytes = crate::memory::cstr_as_bytes(v.data.string().data);
+                let k_bytes = k.cstr_bytes();
+                let v_bytes = v.data.string().cstr_bytes();
                 let mut kv = Vec::with_capacity(k_bytes.len() + 1 + v_bytes.len());
                 kv.extend_from_slice(k_bytes);
                 kv.push(b':');
                 kv.extend_from_slice(v_bytes);
                 items.push(crate::memory::cstr_from_bytes(&kv));
             } else if v.obj_type == ObjectType::ObjectTypeInteger {
-                let k_bytes = crate::memory::cstr_as_bytes(k.data);
+                let k_bytes = k.cstr_bytes();
                 let num_s = format!(":{}", v.data.integer());
                 let mut kv = Vec::with_capacity(k_bytes.len() + num_s.len());
                 kv.extend_from_slice(k_bytes);
@@ -5241,7 +5231,7 @@ pub fn optval_from_obj(opt_idx: OptIndex, o: Object, op: SetOp, error: &mut bool
                 || v.obj_type == ObjectType::ObjectTypeNil
             {
                 if v.obj_type == ObjectType::ObjectTypeBoolean && v.data.boolean() {
-                    items.push(crate::memory::cstr_to_cstring(k.data));
+                    items.push(k.to_cstring());
                 }
             } else {
                 *error = true;
@@ -7546,7 +7536,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
             .is_some()
     {
         xp.xp_context = EXPAND_STRING_SETTING;
-    } else if crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
+    } else if xp.xp_pattern.is_empty() {
         xp.xp_context = EXPAND_OLD_SETTING;
         return;
     } else {
@@ -7628,7 +7618,7 @@ pub fn set_context_in_set_cmd(xp: &mut ExpandCtx, arg_cstr: &std::ffi::CStr, opt
     }
 
     if get_option(opt_idx).var == (&raw mut opt_vars().p_sps).cast() {
-        if crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"file:") {
+        if xp.xp_pattern.as_bytes().starts_with(b"file:") {
             xp.xp_pattern = xp.xp_pattern.wrapping_add(5);
         } else if get_option(opt_st().expand_option_idx)
             .opt_expand_cb
@@ -7891,7 +7881,7 @@ pub fn expand_setting_subtract(
 
         return true;
     } else if (option_flags & K_OPT_FLAG_FLAG_LIST) != 0 {
-        if !crate::memory::cstr_is_empty(xp.xp_pattern.cast()) {
+        if !xp.xp_pattern.is_empty() {
             return false;
         }
 
@@ -7935,7 +7925,7 @@ fn optval_fmt(opt_idx: OptIndex, opt_flags: i32) {
     if wc != 0 {
         crate::memory::copy_bytes_to_c_buf(
             g_st().name_buff_bytes_mut(),
-            crate::memory::cstr_as_bytes((transchar(wc as i32)).as_ptr()),
+            transchar(wc as i32).to_bytes(),
         );
         return;
     }
@@ -8289,7 +8279,8 @@ pub fn option_next_keyval<'a>(p: &mut &'a [u8]) -> Option<(&'a [u8], Option<&'a 
 /// Return true when 'shell' has "csh" in the tail.
 pub fn csh_like_shell() -> i32 {
     i32::from(
-        crate::memory::cstr_as_bytes((path_tail(opt_vars().p_sh.as_cstr())).as_ptr())
+        path_tail(opt_vars().p_sh.as_cstr())
+            .to_bytes()
             .windows(3)
             .any(|w| w == b"csh"),
     )
@@ -8297,7 +8288,8 @@ pub fn csh_like_shell() -> i32 {
 
 /// Return true when 'shell' has "fish" in the tail.
 pub fn fish_like_shell() -> bool {
-    crate::memory::cstr_as_bytes((path_tail(opt_vars().p_sh.as_cstr())).as_ptr())
+    path_tail(opt_vars().p_sh.as_cstr())
+        .to_bytes()
         .windows(4)
         .any(|w| w == b"fish")
 }
@@ -8491,9 +8483,9 @@ fn option_info_dict(
     put_c(
         &mut dict,
         c"type",
-        cstr_as_obj(crate::memory::cstr_as_opt_cstr(
-            (optval_type_name(get_option(get_opt_idx(opt)).opt_type)).as_ptr(),
-        )),
+        cstr_as_obj(Some(optval_type_name(
+            get_option(get_opt_idx(opt)).opt_type,
+        ))),
     );
     put_c(&mut dict, c"default", opt.def_val);
     put_c(

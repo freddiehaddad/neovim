@@ -1430,9 +1430,7 @@ pub fn buf_write(
                 let fenc = if let Some(eap) = eap
                     && eap.force_enc != 0
                 {
-                    let e = enc_canonize(crate::memory::cstr_from_ptr(
-                        (eap.cmd.wrapping_add(eap.force_enc as usize)).cast(),
-                    ));
+                    let e = enc_canonize(eap.cmd.wrapping_add(eap.force_enc as usize).as_cstr());
                     let ptr = e.as_ptr().cast_mut();
                     fenc_tofree = Some(e);
                     ptr

@@ -499,11 +499,10 @@ pub fn spell_load_file(
             .map(|b| crate::memory::cstr_from_bytes(crate::memory::bytes_until_nul(b)));
         let mut new_lp = slang_alloc(lang_cstr.as_deref());
         new_lp.sl_fname = Some(fname_cstr.to_owned());
-        new_lp.sl_add = crate::memory::cstr_as_bytes(
-            (path_tail(crate::memory::cstr_from_ptr((fname).cast()))).as_ptr(),
-        )
-        .windows(SPL_FNAME_ADD.len())
-        .any(|w| w == SPL_FNAME_ADD);
+        new_lp.sl_add = path_tail(crate::memory::cstr_from_ptr((fname).cast()))
+            .to_bytes()
+            .windows(SPL_FNAME_ADD.len())
+            .any(|w| w == SPL_FNAME_ADD);
         Some(new_lp)
     } else {
         None
@@ -1681,7 +1680,7 @@ fn spell_read_aff(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> Option<A
         gettext(c"Reading affix file %s..."),
         fname,
     );
-    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+    spell_message(&*spin, g_st().iobuff_cstr());
 
     let do_rep = spin.si_rep.is_empty();
     let do_repsal = spin.si_repsal.is_empty();
@@ -2815,7 +2814,7 @@ fn spell_read_dic(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr, affile: &Af
         gettext(c"Reading dictionary file %s..."),
         fname,
     );
-    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+    spell_message(&*spin, g_st().iobuff_cstr());
 
     spin.si_msg_count = 999999;
 
@@ -3420,7 +3419,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
             gettext(c"Reading word file %s..."),
             fname,
         );
-        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+        spell_message(&*spin, g_st().iobuff_cstr());
 
         while !vim_fgets(&mut rline, &fd) && !g_st().got_int {
             line_breakcheck();
@@ -3612,7 +3611,7 @@ fn spell_read_wordfile(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) -> boo
                 gettext(c"Ignored %d words with non-ASCII characters"),
                 non_ascii,
             );
-            spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+            spell_message(&*spin, g_st().iobuff_cstr());
         }
 
         retval
@@ -3921,7 +3920,7 @@ fn wordtree_compress(spin: &mut Spellinfo, root: Option<usize>, name: &std::ffi:
             tot - n,
             perc,
         );
-        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+        spell_message(&*spin, g_st().iobuff_cstr());
     }
 }
 
@@ -4496,11 +4495,10 @@ fn spell_make_sugfile(spin: &mut Spellinfo, wfname_cstr: &std::ffi::CStr) {
         spell_message(&*spin, gettext(c"Reading back spell file..."));
         let mut new_lp = slang_alloc(None::<&std::ffi::CStr>);
         new_lp.sl_fname = Some(wfname_cstr.to_owned());
-        new_lp.sl_add = crate::memory::cstr_as_bytes(
-            (path_tail(crate::memory::cstr_from_ptr((wfname).cast()))).as_ptr(),
-        )
-        .windows(SPL_FNAME_ADD.len())
-        .any(|w| w == SPL_FNAME_ADD);
+        new_lp.sl_add = path_tail(crate::memory::cstr_from_ptr((wfname).cast()))
+            .to_bytes()
+            .windows(SPL_FNAME_ADD.len())
+            .any(|w| w == SPL_FNAME_ADD);
         slang = spell_load_file(wfname_cstr, None, Some(&mut *new_lp), false)
             .map_or(ptr::null_mut(), |lp| &raw mut *lp);
         if slang.is_null() {
@@ -4739,7 +4737,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
         gettext(c"Writing suggestion file %s..."),
         fname,
     );
-    spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+    spell_message(&*spin, g_st().iobuff_cstr());
 
     if spell_write(&VIMSUGMAGIC[..VIMSUGMAGICL], &fd) != 1 {
         emsg(gettext(E_WRITE));
@@ -4791,7 +4789,7 @@ fn sug_write(spin: &mut Spellinfo, fname_cstr: &std::ffi::CStr) {
             gettext(c"Estimated runtime memory use: %d bytes"),
             spin.si_memtot,
         );
-        spell_message(&*spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+        spell_message(&*spin, g_st().iobuff_cstr());
     }
 
     spell_close(fd);
@@ -4848,19 +4846,17 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
             );
         }
 
-        if crate::memory::cstr_as_bytes(
-            (path_tail(crate::memory::cstr_from_ptr(wfname.cast()))).as_ptr(),
-        )
-        .windows(SPL_FNAME_ASCII.len())
-        .any(|w| w == SPL_FNAME_ASCII)
+        if path_tail(crate::memory::cstr_from_ptr(wfname.cast()))
+            .to_bytes()
+            .windows(SPL_FNAME_ASCII.len())
+            .any(|w| w == SPL_FNAME_ASCII)
         {
             spin.si_ascii = true;
         }
-        if crate::memory::cstr_as_bytes(
-            (path_tail(crate::memory::cstr_from_ptr(wfname.cast()))).as_ptr(),
-        )
-        .windows(SPL_FNAME_ADD.len())
-        .any(|w| w == SPL_FNAME_ADD)
+        if path_tail(crate::memory::cstr_from_ptr(wfname.cast()))
+            .to_bytes()
+            .windows(SPL_FNAME_ADD.len())
+            .any(|w| w == SPL_FNAME_ADD)
         {
             spin.si_add = 1;
         }
@@ -4896,9 +4892,10 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                 let in_i = innames[i].as_ptr();
                 let in_bytes = innames[i].as_bytes();
                 let len = in_bytes.len();
-                if crate::memory::cstr_len(
-                    (path_tail(crate::memory::cstr_from_ptr((in_i).cast()))).as_ptr(),
-                ) < 5
+                if path_tail(crate::memory::cstr_from_ptr((in_i).cast()))
+                    .to_bytes()
+                    .len()
+                    < 5
                     || in_bytes[len - 3] != b'_'
                 {
                     semsg!(gettext(c"E755: Invalid region in %s"), in_i);
@@ -4973,7 +4970,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Writing spell file %s..."),
                     wfname.cast::<std::ffi::c_void>(),
                 );
-                spell_message(&spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+                spell_message(&spin, g_st().iobuff_cstr());
 
                 error = !write_vim_spell(&mut spin, crate::memory::cstr_until_nul(&wfname_buf));
 
@@ -4984,7 +4981,7 @@ fn mkspell(fnames: &[std::ffi::CString], ascii: bool, over_write: bool, added_wo
                     gettext(c"Estimated runtime memory use: %d bytes"),
                     spin.si_memtot,
                 );
-                spell_message(&spin, crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()));
+                spell_message(&spin, g_st().iobuff_cstr());
 
                 if !error {
                     spell_reload_one(crate::memory::cstr_until_nul(&wfname_buf), added_word);
@@ -5032,7 +5029,7 @@ pub fn ex_spell(eap: &mut Exarg) {
         SPELL_ADD_GOOD
     };
     spell_add_word(
-        crate::memory::cstr_as_bytes(eap.arg),
+        eap.arg.as_bytes(),
         what,
         if eap.forceit { 0 } else { eap.line2 },
         eap.cmdidx == Cmdidx::CmdSpellundo,
@@ -5298,11 +5295,10 @@ fn init_spellfile() {
         .as_ref()
         .map_or(ptr::null(), |s| s.as_ptr());
     let enc_suffix = if !fname.is_null()
-        && crate::memory::cstr_as_bytes(
-            (path_tail(crate::memory::cstr_from_ptr((fname).cast()))).as_ptr(),
-        )
-        .windows(7)
-        .any(|w| w == b".ascii.")
+        && path_tail(crate::memory::cstr_from_ptr((fname).cast()))
+            .to_bytes()
+            .windows(7)
+            .any(|w| w == b".ascii.")
     {
         c"ascii"
     } else {

@@ -45,7 +45,7 @@ pub fn nvim_error_event(channel_id: u64, _type: i64, msg: NvimString) {
 // DLLEXPORT void nvim_ui_term_event(uint64_t channel_id, String event, Object value,
 //                                   Error *err) FUNC_API_SINCE(12) FUNC_API_REMOTE_ONLY;
 pub fn nvim_ui_term_event(channel_id: u64, event: NvimString, value: Object, err: &mut Error) {
-    if !event.data.is_null() && crate::memory::cstr_as_bytes(event.data) == b"termresponse" {
+    if !event.data.is_null() && event.cstr_bytes() == b"termresponse" {
         if value.obj_type != ObjectType::ObjectTypeString {
             api_err_exp(
                 err,

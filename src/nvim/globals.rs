@@ -892,8 +892,18 @@ impl EditorState {
     }
 
     #[inline]
+    pub fn iobuff_cstr(&self) -> &'static std::ffi::CStr {
+        crate::memory::cstr_from_ptr(self.iobuff.as_ptr())
+    }
+
+    #[inline]
     pub fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
         unsafe { &mut *(&raw mut self.name_buff).cast::<[u8; MAXPATHL]>() }
+    }
+
+    #[inline]
+    pub fn name_buff_cstr(&self) -> &'static std::ffi::CStr {
+        crate::memory::cstr_from_ptr(self.name_buff.as_ptr())
     }
 
     #[cfg(windows)]

@@ -48,7 +48,7 @@ pub fn ex_help(eap: &mut Exarg) {
     let mut lang: Option<std::ffi::CString> = None;
     let mut arg_cstr: &CStr = c"";
     if !eap.arg.is_null() {
-        let full_len = crate::memory::cstr_len(eap.arg);
+        let full_len = eap.arg.len();
         let slice = unsafe { std::slice::from_raw_parts_mut(eap.arg.cast::<u8>(), full_len + 1) };
         for i in 0..full_len {
             let b = slice[i];
@@ -343,7 +343,7 @@ pub fn find_help_tags(arg: &CStr, matches: &mut Vec<std::ffi::CString>, keep_lan
     }
     let mut raw_matches: Vec<Vec<u8>> = Vec::new();
     if find_tags(
-        crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()),
+        g_st().iobuff_cstr(),
         &mut raw_matches,
         flags,
         crate::regexp::MAXCOL,
@@ -469,7 +469,7 @@ pub fn ex_viusage(_eap: &mut Exarg) {
 pub fn ex_helptags(eap: &mut Exarg) {
     let mut add_help_tags = false;
 
-    let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+    let arg_bytes = eap.arg.as_bytes();
     if arg_bytes.len() > 3 && &arg_bytes[..3] == b"++t" && ascii_iswhite(arg_bytes[3]) {
         add_help_tags = true;
         eap.arg = {
@@ -481,7 +481,7 @@ pub fn ex_helptags(eap: &mut Exarg) {
     }
 
     let mut tv_args = [
-        if crate::memory::cstr_as_bytes(eap.arg) == b"ALL" {
+        if eap.arg.as_bytes() == b"ALL" {
             TypVal {
                 v_type: VarType::VarSpecial,
                 v_lock: 0,

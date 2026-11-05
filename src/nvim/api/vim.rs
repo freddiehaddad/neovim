@@ -375,7 +375,7 @@ pub const fn is_internal_call(channel_id: u64) -> bool {
 pub fn nvim_get_hl_id_by_name(name: NvimString, err: &mut Error) -> Integer {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let ret = syn_check_group(crate::memory::cstr_slice(name.data, name.size));
+    let ret = syn_check_group(name.as_bytes());
     try_leave(&tstate, err);
     Integer::from(ret)
 }
@@ -469,7 +469,7 @@ pub fn nvim_set_hl(
 ) {
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let hl_id = syn_check_group(crate::memory::cstr_slice(name.data, name.size));
+    let hl_id = syn_check_group(name.as_bytes());
     try_leave(&tstate, err);
     if error_set(err) || hl_id == 0 {
         return;
@@ -597,9 +597,7 @@ pub fn nvim_feedkeys(keys: NvimString, mode: NvimString, escape_ks: Boolean) {
     } else {
         None
     };
-    let keys_cstr = owned_keys_esc
-        .as_deref()
-        .unwrap_or_else(|| crate::memory::cstr_from_ptr(keys.data));
+    let keys_cstr = owned_keys_esc.as_deref().unwrap_or_else(|| keys.as_cstr());
     if lowlevel {
         input_enqueue_raw(keys_cstr.to_bytes());
     } else {
@@ -930,11 +928,7 @@ pub fn nvim_get_runtime_file(
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
     do_in_runtimepath(
-        if name.size != 0 {
-            crate::memory::cstr_from_ptr(name.data)
-        } else {
-            c""
-        },
+        if name.size != 0 { name.as_cstr() } else { c"" },
         flags,
         &mut RuntimeCallback::FindRuntime(&mut files),
     );
@@ -991,12 +985,7 @@ pub fn nvim_get_runtime(
     if opts.do_source {
         for i in 0..res.size {
             let name = res[i].data.string();
-            do_source(
-                crate::memory::cstr_from_ptr(name.data),
-                false,
-                DOSO_NONE,
-                None,
-            );
+            do_source(name.as_cstr(), false, DOSO_NONE, None);
         }
     }
     res
@@ -1018,7 +1007,7 @@ pub fn nvim_set_current_dir(dir: NvimString, err: &mut Error) {
     }
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    do_chdir(crate::memory::cstr_as_opt_cstr(dir.data), K_CD_SCOPE_GLOBAL);
+    do_chdir(dir.as_opt_cstr(), K_CD_SCOPE_GLOBAL);
     try_leave(&tstate, err);
 }
 
@@ -1072,7 +1061,7 @@ pub fn nvim_del_current_line(arena: &mut Arena, err: &mut Error) {
 /// @return Variable value
 // DLLEXPORT Object nvim_get_var(String name, Arena *arena, Error *err) FUNC_API_SINCE(1);
 pub fn nvim_get_var(name: NvimString, arena: &mut Arena, err: &mut Error) -> Object {
-    let name_cstr = crate::memory::cstr_as_opt_cstr(name.data).unwrap_or(c"");
+    let name_cstr = name.as_opt_cstr().unwrap_or(c"");
     let mut di = tv_dict_find(Some(&*get_globvar_dict()), name_cstr, name.size as isize);
     if di.is_none() {
         let found = script_autoload(name.as_bytes(), false) && !aborting();
@@ -1257,7 +1246,7 @@ pub fn nvim_echo(
                 err,
                 c"status",
                 c"success|failed|running|cancel",
-                crate::memory::cstr_as_opt_cstr(opts.status.data),
+                opts.status.as_opt_cstr(),
             );
             break 'validate false;
         }
@@ -1277,7 +1266,7 @@ pub fn nvim_echo(
         if !validate_s(
             !is_progress || opts.source.cstr_bytes() != b"nvim",
             c"source",
-            crate::memory::cstr_as_opt_cstr(opts.source.data),
+            opts.source.as_opt_cstr(),
             err,
         ) {
             break 'validate false;
@@ -1828,7 +1817,7 @@ pub fn nvim_put(
     if !validate_s(
         prepare_yankreg_from_object(&mut reg, reg_type, lines.size),
         c"type",
-        crate::memory::cstr_as_opt_cstr(reg_type.data),
+        reg_type.as_opt_cstr(),
         err,
     ) {
         return;
@@ -1895,10 +1884,7 @@ pub fn nvim_put(
 // DLLEXPORT Integer nvim_get_color_by_name(String name) FUNC_API_SINCE(1);
 pub fn nvim_get_color_by_name(name: NvimString) -> Integer {
     let mut dummy: i32 = 0;
-    Integer::from(name_to_color(
-        crate::memory::cstr_from_ptr(name.data),
-        &mut dummy,
-    ))
+    Integer::from(name_to_color(name.as_cstr(), &mut dummy))
 }
 
 /// Returns a map of color names and RGB values.
@@ -1956,12 +1942,7 @@ pub fn nvim_get_context(opts: &mut KeyDict_context, arena: &mut Arena, err: &mut
                     b"sfuncs" => int_types |= K_CTX_SFUNCS,
                     b"funcs" => int_types |= K_CTX_FUNCS,
                     _ => {
-                        let _ = validate_s(
-                            false,
-                            c"type",
-                            crate::memory::cstr_as_opt_cstr(s.data),
-                            err,
-                        );
+                        let _ = validate_s(false, c"type", s.as_opt_cstr(), err);
                         return Dict::new();
                     }
                 }
@@ -2262,7 +2243,7 @@ pub fn nvim_cmdwin_set(type_str: NvimString, buf: Buffer, err: &mut Error) {
     let Some(b) = find_buffer_by_handle(buf, err) else {
         return;
     };
-    g_st().cmdwin_type = i32::from(crate::memory::cstr_first_byte(type_str.data));
+    g_st().cmdwin_type = i32::from(type_str.first_byte());
     g_st().cmdwin_buf = b;
 }
 
@@ -2644,16 +2625,16 @@ pub fn nvim_del_mark(name: NvimString, err: &mut Error) -> Boolean {
     if !validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
-        crate::memory::cstr_as_opt_cstr(name.data),
+        name.as_opt_cstr(),
         err,
     ) {
         return false;
     }
-    let ch = crate::memory::cstr_first_byte(name.data);
+    let ch = name.first_byte();
     if !validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
-        crate::memory::cstr_as_opt_cstr(name.data),
+        name.as_opt_cstr(),
         err,
     ) {
         return false;
@@ -2687,22 +2668,22 @@ pub fn nvim_get_mark(
     if !validate_s(
         name.size == 1,
         c"mark name (must be a single char)",
-        crate::memory::cstr_as_opt_cstr(name.data),
+        name.as_opt_cstr(),
         err,
     ) {
         return rv;
     }
-    let ch = crate::memory::cstr_first_byte(name.data);
+    let ch = name.first_byte();
     if !validate_s(
         ch.is_ascii_uppercase() || ch.is_ascii_digit(),
         c"mark name (must be file/uppercase)",
-        crate::memory::cstr_as_opt_cstr(name.data),
+        name.as_opt_cstr(),
         err,
     ) {
         return rv;
     }
 
-    let mark = mark_get_global(false, i32::from(crate::memory::cstr_first_byte(name.data)));
+    let mark = mark_get_global(false, i32::from(name.first_byte()));
     let pos = mark.fmark.mark;
     let mut bufnr: i32;
 
@@ -2793,7 +2774,7 @@ pub fn nvim_eval_statusline(
     let window = opts.winid;
 
     if (opts.is_set_eval_statusline & (1u64 << KEYSET_OPTIDX_EVAL_STATUSLINE_FILLCHAR)) != 0 {
-        let ci = utf_ptr2_str_char_info(crate::memory::cstr_from_ptr((opts.fillchar.data).cast()));
+        let ci = utf_ptr2_str_char_info(opts.fillchar.as_cstr());
         let cli = utf_cluster_info(ci);
         if crate::memory::cstr_is_empty(ci.ptr)
             || !crate::memory::cstr_is_empty(cli.next.ptr)

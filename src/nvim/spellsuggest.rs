@@ -750,8 +750,7 @@ pub fn spell_suggest(count: i32) {
                     sug.su_badlen - stp.st_orglen,
                     tail_cstr.as_ptr(),
                 );
-                spell_priv_st().repl_to =
-                    Some(crate::memory::cstr_to_cstring(g_st().iobuff.as_ptr()));
+                spell_priv_st().repl_to = Some(g_st().iobuff_cstr().to_owned());
             } else {
                 spell_priv_st().repl_from = Some(crate::memory::cstr_from_bytes(
                     crate::memory::cstr_slice(sug.su_badptr.as_ptr(), stp.st_orglen as usize),

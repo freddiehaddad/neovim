@@ -456,7 +456,7 @@ pub fn dict_get_value(
     arena: Option<&mut Arena>,
     err: &mut Error,
 ) -> Object {
-    let key_cstr = crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c"");
+    let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let Some(di) = crate::eval::typval::tv_dict_find_opt(dict, key_cstr, key.size as isize) else {
         api_set_error!(
             err,
@@ -475,7 +475,7 @@ pub fn dict_check_writable(
     del: bool,
     err: &mut Error,
 ) -> Option<&'static mut Dictitem> {
-    let key_cstr = crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c"");
+    let key_cstr = key.as_opt_cstr().unwrap_or(c"");
     let di = tv_dict_find_opt(Some(dict), key_cstr, key.size as isize);
     if let Some(ref di) = di {
         if (di.di_flags & DI_FLAGS_RO) != 0 {
@@ -540,7 +540,7 @@ pub fn dict_set_var(
         if watched {
             tv_dict_watcher_notify(
                 dict,
-                crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                key.as_opt_cstr().unwrap_or(c""),
                 None,
                 Some(&di.di_tv),
             );
@@ -561,14 +561,7 @@ pub fn dict_set_var(
             }
             let mut type_error = false;
             if ptr::eq(dict, get_vimvar_dict())
-                && !before_set_vvar(
-                    crate::memory::cstr_from_ptr(key.data),
-                    di,
-                    &mut tv,
-                    true,
-                    watched,
-                    &mut type_error,
-                )
+                && !before_set_vvar(key.as_cstr(), di, &mut tv, true, watched, &mut type_error)
             {
                 tv_clear(&mut tv);
                 if type_error {
@@ -598,7 +591,7 @@ pub fn dict_set_var(
         if watched {
             tv_dict_watcher_notify(
                 dict,
-                crate::memory::cstr_as_opt_cstr(key.data).unwrap_or(c""),
+                key.as_opt_cstr().unwrap_or(c""),
                 Some(&tv),
                 Some(&oldtv),
             );
@@ -1033,7 +1026,7 @@ pub fn copy_dict(dict: Dict, mut arena: Option<&mut Arena>) -> Dict {
         let item = dict[i];
         let k_copy = copy_string(item.key, arena.as_deref_mut());
         rv[i] = KeyValuePair {
-            key: cstr_as_string(crate::memory::cstr_as_opt_cstr(k_copy.data)),
+            key: cstr_as_string(k_copy.as_opt_cstr()),
             value: copy_object(item.value, arena.as_deref_mut()),
         };
     }
@@ -1087,7 +1080,7 @@ pub fn object_to_hl_id(obj: Object, what: &CStr, err: &mut Error) -> i32 {
         ObjectType::ObjectTypeString => {
             let str_ = obj.data.string();
             if str_.size != 0 {
-                syn_check_group(crate::memory::cstr_slice(str_.data, str_.size))
+                syn_check_group(str_.as_bytes())
             } else {
                 0
             }
@@ -1206,7 +1199,7 @@ pub fn api_dict_to_keydict<T>(
                 if field.is_hlgroup {
                     let mut hl_id: i32 = 0;
                     if value.obj_type != ObjectType::ObjectTypeNil {
-                        hl_id = object_to_hl_id(*value, crate::memory::cstr_from_ptr(k.data), err);
+                        hl_id = object_to_hl_id(*value, k.as_cstr(), err);
                         if error_set(err) {
                             return false;
                         }

@@ -121,7 +121,7 @@ fn validate_option_value_args(
         if let Some(ft_out) = filetype
             && has_key(mask, KEYSET_OPTIDX_OPTION_FILETYPE)
         {
-            *ft_out = crate::memory::cstr_as_opt_cstr(opts.filetype.data);
+            *ft_out = opts.filetype.as_opt_cstr();
         }
 
         if has_key(mask, KEYSET_OPTIDX_OPTION_WIN) {
@@ -191,11 +191,7 @@ fn validate_option_value_args(
                 || option_has_type(*opt_idxp, ObjectType::ObjectTypeString)
                 || option_has_type(*opt_idxp, ObjectType::ObjectTypeInteger))
             {
-                api_err_conflict(
-                    err,
-                    crate::memory::cstr_from_ptr(opts.operation.data),
-                    c"boolean options",
-                );
+                api_err_conflict(err, opts.operation.as_cstr(), c"boolean options");
                 return false;
             }
         }
@@ -399,7 +395,7 @@ pub fn nvim_get_option_value(
 
     if !validate_option_value_args(
         opts,
-        crate::memory::cstr_from_ptr(name.data),
+        name.as_cstr(),
         true,
         &mut opt_idx,
         &mut opt_flags,
@@ -588,7 +584,7 @@ pub fn nvim_set_option_value(
 
     if !validate_option_value_args(
         opts,
-        crate::memory::cstr_from_ptr(name.data),
+        name.as_cstr(),
         true,
         &mut opt_idx,
         &mut opt_flags,
@@ -662,7 +658,7 @@ pub fn nvim_set_option_value(
         if error {
             api_err_exp(
                 err,
-                crate::memory::cstr_from_ptr(name.data),
+                name.as_cstr(),
                 c"a valid type",
                 Some(api_typename(value.obj_type)),
             );
@@ -833,7 +829,7 @@ pub fn nvim_get_option_info2(
 
     if !validate_option_value_args(
         opts,
-        crate::memory::cstr_from_ptr(name.data),
+        name.as_cstr(),
         false,
         &mut opt_idx,
         &mut opt_flags,

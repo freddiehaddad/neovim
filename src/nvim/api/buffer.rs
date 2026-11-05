@@ -1337,7 +1337,7 @@ pub fn nvim_buf_set_name(buf: Buffer, name: NvimString, err: &mut Error) {
 
         let mut aco: CtxSwitch = CtxSwitch::new();
         ctx_switch(&mut aco, None, None, Some(b), 0);
-        ren_ret = rename_buffer(crate::memory::cstr_as_opt_cstr(name.data));
+        ren_ret = rename_buffer(name.as_opt_cstr());
         ctx_restore(&mut aco);
 
         if !is_curbuf {
@@ -1450,7 +1450,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            crate::memory::cstr_as_opt_cstr(name.data),
+            name.as_opt_cstr(),
             0,
             true,
         );
@@ -1464,13 +1464,7 @@ pub fn nvim_buf_del_mark(buf: Buffer, name: NvimString, err: &mut Error) -> Bool
         K_MARK_ALL_NO_RESOLVE,
         i32::from(unsafe { *name.data.cast::<u8>() }),
     ) else {
-        api_err_invalid(
-            err,
-            c"mark name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"mark name", name.as_opt_cstr(), 0, true);
         return res;
     };
 
@@ -1515,7 +1509,7 @@ pub fn nvim_buf_set_mark(
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            crate::memory::cstr_as_opt_cstr(name.data),
+            name.as_opt_cstr(),
             0,
             true,
         );
@@ -1555,7 +1549,7 @@ pub fn nvim_buf_get_mark(
         api_err_invalid(
             err,
             c"mark name (must be a single char)",
-            crate::memory::cstr_as_opt_cstr(name.data),
+            name.as_opt_cstr(),
             0,
             true,
         );
@@ -1564,13 +1558,7 @@ pub fn nvim_buf_get_mark(
 
     let mark = i32::from(unsafe { *name.data.cast::<u8>() });
     let Some(fm) = mark_get(b, curwin_mut(), None, K_MARK_ALL_NO_RESOLVE, mark) else {
-        api_err_invalid(
-            err,
-            c"mark name",
-            crate::memory::cstr_as_opt_cstr(name.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"mark name", name.as_opt_cstr(), 0, true);
         return rv;
     };
 

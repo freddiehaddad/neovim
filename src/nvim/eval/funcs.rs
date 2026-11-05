@@ -453,7 +453,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     {
         if !name.is_empty()
             && name.to_bytes()[0] != b'<'
-            && crate::memory::cstr_as_bytes(xp.xp_pattern.cast()).starts_with(b"g:")
+            && xp.xp_pattern.as_bytes().starts_with(b"g:")
         {
             return Some(cat_prefix_varname(b'g' as i32, Some(name)));
         }
@@ -474,7 +474,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     } else {
         iobuff[key_len + 1] = 0;
     }
-    Some(crate::memory::cstr_from_ptr(g_st().iobuff.as_ptr()))
+    Some(g_st().iobuff_cstr())
 }
 
 /// Function given to `ExpandGeneric()` to obtain the list of internal or
@@ -4956,9 +4956,9 @@ pub fn f_keytrans(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
 pub fn f_len(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
     match argvars[0].v_type {
         VarType::VarString | VarType::VarNumber => {
-            rettv.vval = crate::eval::typval::TypvalVval::Number(crate::memory::cstr_len(
-                (tv_get_string(&argvars[0])).as_ptr(),
-            ) as Varnumber);
+            rettv.vval = crate::eval::typval::TypvalVval::Number(
+                tv_get_string(&argvars[0]).to_bytes().len() as Varnumber,
+            );
         }
         VarType::VarBlob => {
             rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(tv_blob_len(
@@ -5254,12 +5254,13 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
 
                     idx += 1;
                 } else {
-                    startcol = (crate::memory::ptr_offset_from(
-                        regmatch.startp[0].wrapping_add(utfc_ptr2len(
-                            crate::memory::cstr_cluster_bytes(regmatch.startp[0].cast()),
-                        ) as usize),
-                        str_.cast(),
-                    )) as Colnr;
+                    startcol =
+                        (crate::memory::ptr_offset_from(
+                            regmatch.startp[0].wrapping_add(utfc_ptr2len(
+                                regmatch.startp[0].cluster_bytes(),
+                            ) as usize),
+                            str_.cast(),
+                        )) as Colnr;
                     if i64::from(startcol) > len
                         || str_.wrapping_add(startcol as usize).cast::<u8>()
                             <= regmatch.startp[0].as_ptr()
@@ -5285,7 +5286,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                                 as usize;
                         crate::eval::typval::tv_set_string_len(
                             &mut li1.li_tv,
-                            Some(crate::memory::cstr_slice(regmatch.startp[0].cast(), rd)),
+                            Some(regmatch.startp[0].slice(rd)),
                         );
 
                         unsafe {
@@ -5335,7 +5336,7 @@ fn find_some_match(argvars: &mut [TypVal], rettv: &mut TypVal, type_: SomeMatchT
                             ) as usize;
                             crate::eval::typval::tv_set_string_len(
                                 &mut *rettv,
-                                Some(crate::memory::cstr_slice(regmatch.startp[0].cast(), rd)),
+                                Some(regmatch.startp[0].slice(rd)),
                             );
                         }
                     }
@@ -5410,11 +5411,7 @@ fn get_matches_in_str(
         );
 
         let text_len = crate::memory::ptr_offset_from(rmp.endp[0], rmp.startp[0]) as usize;
-        tv_dict_add_str_len(
-            &mut *d,
-            c"text",
-            Some(crate::memory::cstr_slice(rmp.startp[0].cast(), text_len)),
-        );
+        tv_dict_add_str_len(&mut *d, c"text", Some(rmp.startp[0].slice(text_len)));
 
         if submatches {
             let sml = tv_list_alloc((NSUBEXP - 1) as isize);
@@ -8163,7 +8160,7 @@ pub fn f_split(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
                 if regmatch.endp[0].cast_const().cast() > str_ {
                     col = 0;
                 } else {
-                    col = utfc_ptr2len(crate::memory::cstr_cluster_bytes(regmatch.endp[0].cast()));
+                    col = utfc_ptr2len(regmatch.endp[0].cluster_bytes());
                 }
                 str_ = regmatch.endp[0].cast();
             }

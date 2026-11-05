@@ -244,7 +244,7 @@ pub fn find_ucmd(
 
     let mut is_global = false;
     let mut gap: &[Ucmd] = &prevwin_curwin().buf_mut().b_ucmds;
-    let cmd_all = crate::memory::cstr_as_bytes(eap.cmd);
+    let cmd_all = eap.cmd.as_bytes();
     let cmd_bytes = &cmd_all[..(len.max(0) as usize).min(cmd_all.len())];
     loop {
         let mut j: i32 = 0;
@@ -1132,7 +1132,7 @@ pub fn ex_command(eap: &mut Exarg) {
     let mut context: i32 = EXPAND_NOTHING;
     let mut compl_arg: Option<CString> = None;
     let mut addr_type_arg: CmdAddr = ADDR_NONE;
-    let has_attr = crate::memory::cstr_first_byte(eap.arg) == b'-';
+    let has_attr = eap.arg.first_byte() == b'-';
 
     let mut p = eap.arg;
 
@@ -1337,7 +1337,7 @@ fn uc_split_args(eap: &Exarg, lenp: &mut usize) -> CString {
     buf_vec.push(b'"');
 
     if eap.args.is_empty() {
-        let mut rem = crate::memory::cstr_as_bytes(eap.arg);
+        let mut rem = eap.arg.as_bytes();
         while !rem.is_empty() {
             if rem.starts_with(b"\\\\") {
                 buf_vec.extend_from_slice(b"\\\\");
@@ -1550,7 +1550,7 @@ fn uc_check_code(
 
     match type_ {
         CodeType::Args => {
-            if crate::memory::cstr_is_empty(eap.arg) {
+            if eap.arg.is_empty() {
                 if quote == 1 {
                     result = 2;
                     out.extend_from_slice(b"''");
@@ -1564,12 +1564,12 @@ fn uc_check_code(
 
                 match quote {
                     0 => {
-                        let bytes = crate::memory::cstr_as_bytes(eap.arg);
+                        let bytes = eap.arg.as_bytes();
                         result = bytes.len();
                         out.extend_from_slice(bytes);
                     }
                     1 => {
-                        let bytes = crate::memory::cstr_as_bytes(eap.arg);
+                        let bytes = eap.arg.as_bytes();
                         let start_len = out.len();
                         out.push(b'"');
                         for &scan_byte in bytes {

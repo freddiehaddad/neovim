@@ -2649,9 +2649,7 @@ fn shada_write(
             key: static_cstr_as_string(c"version"),
             value: Object {
                 obj_type: ObjectType::ObjectTypeString,
-                data: ObjectData::String(cstr_as_string(crate::memory::cstr_as_opt_cstr(
-                    (long_version()).as_ptr(),
-                ))),
+                data: ObjectData::String(cstr_as_string(Some(long_version()))),
             },
         },
         KeyValuePair {
@@ -3683,7 +3681,7 @@ fn shada_read_next_item(
                         fm.mark.col = it.c as Colnr;
                     }
                     if (it.is_set_shada_mark & (1u64 << KEYSET_OPTIDX_SHADA_MARK_F)) != 0 {
-                        let mut bytes = crate::memory::cstr_slice(it.f.data, it.f.size).to_vec();
+                        let mut bytes = it.f.as_bytes().to_vec();
                         bytes.push(0);
                         #[cfg(windows)]
                         path_to_slash(crate::memory::cstr_as_mut_bytes(bytes.as_mut_ptr().cast()));
@@ -3805,7 +3803,7 @@ fn shada_read_next_item(
                             );
                         break 'parse_item false;
                     }
-                    let item_slice = crate::memory::cstr_slice(item.data, item.size);
+                    let item_slice = item.as_bytes();
                     if item_slice.contains(&0) {
                         semsg!(
                                 gettext(

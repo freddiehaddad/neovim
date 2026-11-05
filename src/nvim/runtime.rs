@@ -596,7 +596,7 @@ fn get_runtime_cmd_flags(argp: &mut &CStr, where_len: usize) -> i32 {
 
 /// ":runtime [where] {name}"
 pub fn ex_runtime(eap: &mut Exarg) {
-    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
+    let mut arg = eap.arg.as_cstr();
     let mut flags = if eap.forceit { DIP_ALL } else { 0 };
     let p = {
         let _sw_p = arg.as_ptr();
@@ -1194,7 +1194,7 @@ fn runtime_search_path_build() -> RuntimeSearchPath {
         ((rtp_entry.as_ptr() as usize) - (opt_vars().p_rtp.as_ptr() as usize)).saturating_sub(1);
 
     for item in pack_entries {
-        let item_bytes = crate::memory::cstr_slice(item.data, item.size);
+        let item_bytes = item.as_bytes();
         let h = pack_used.get(item_bytes).copied().unwrap_or(0);
         if h == 0 {
             expand_pack_entry(
@@ -1389,7 +1389,8 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
                 buf.size
             };
 
-            let is_after = crate::memory::cstr_as_bytes(buf.data)
+            let is_after = buf
+                .cstr_bytes()
                 .windows(5)
                 .position(|w| w == b"after")
                 .is_some_and(|i| {
@@ -1410,9 +1411,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
 
             if insp.is_null() {
                 add_pathsep(crate::memory::cstr_buf_as_mut_bytes(buf.data.cast(), 2));
-                let Some(rtp_ffname) =
-                    fix_fname(crate::memory::cstr_as_opt_cstr((buf.data).cast()))
-                else {
+                let Some(rtp_ffname) = fix_fname(buf.as_opt_cstr()) else {
                     break 'block;
                 };
                 if path_cmp(
@@ -1445,7 +1444,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
         let afterdir_has_entries = if is_pack {
             pack_has_entries(&ad)
         } else {
-            os_isdir(crate::memory::cstr_from_ptr((afterdir.data).cast()))
+            os_isdir(afterdir.as_cstr())
         };
         afterdir_cstr = Some(ad);
         if !afterdir_has_entries {
@@ -1537,7 +1536,7 @@ fn add_pack_dir_to_rtp(fname_cstr: &std::ffi::CStr, is_pack: bool) -> bool {
                 for item in &mut rsp[idx2..] {
                     item.pos_in_rtp += afterdir.size + 1;
                 }
-                let after_bytes = crate::memory::cstr_slice(afterdir.data, afterdir.size);
+                let after_bytes = afterdir.as_bytes();
                 let after_end = after_bytes
                     .iter()
                     .position(|&b| b == 0)
@@ -1751,7 +1750,7 @@ pub fn load_plugins() {
 /// ":packadd[!] {name}"
 pub fn ex_packadd(eap: &mut Exarg) {
     let mut res = true;
-    let len = 11 + crate::memory::cstr_len(eap.arg) + 5;
+    let len = 11 + eap.arg.len() + 5;
     let mut pat_vec = vec![0u8; len];
     let pat = pat_vec.as_mut_ptr();
     let action = if eap.forceit {
@@ -2423,7 +2422,7 @@ fn cmd_source(fname: &std::ffi::CStr, mut eap: Option<&mut Exarg>) {
 
 /// ":source [{fname}]"
 pub fn ex_source(eap: &mut Exarg) {
-    cmd_source(crate::memory::cstr_from_ptr(eap.arg), Some(&mut *eap));
+    cmd_source(eap.arg.as_cstr(), Some(&mut *eap));
 }
 
 /// ":options"
@@ -3027,7 +3026,7 @@ pub fn find_script_by_name(name: &std::ffi::CStr) -> i32 {
 pub fn ex_scriptnames(eap: &mut Exarg) {
     let namebuff = g_st().name_buff.as_mut_ptr();
     let iobuff = g_st().iobuff.as_mut_ptr();
-    if eap.addr_count > 0 || !crate::memory::cstr_is_empty(eap.arg) {
+    if eap.addr_count > 0 || !eap.arg.is_empty() {
         if eap.addr_count > 0 && !script_id_valid(eap.line2) {
             emsg(gettext(E_INVARG));
         } else {
@@ -3035,10 +3034,7 @@ pub fn ex_scriptnames(eap: &mut Exarg) {
                 eap.arg =
                     crate::strings::CStrCursor::from_opt_cstr(script_item(eap.line2).name_cstr());
             } else {
-                expand_env(
-                    crate::memory::cstr_from_ptr(eap.arg),
-                    g_st().name_buff_bytes_mut(),
-                );
+                expand_env(eap.arg.as_cstr(), g_st().name_buff_bytes_mut());
                 eap.arg = crate::strings::CStrCursor::from_ptr(namebuff);
                 to_slash(crate::memory::cstr_as_mut_bytes(eap.arg.cast()));
             }
@@ -3444,8 +3440,8 @@ pub fn ex_scriptencoding(eap: &mut Exarg) {
     };
 
     let name_owned: Option<std::ffi::CString>;
-    let name = if !crate::memory::cstr_is_empty(eap.arg) {
-        name_owned = Some(enc_canonize(crate::memory::cstr_from_ptr((eap.arg).cast())));
+    let name = if !eap.arg.is_empty() {
+        name_owned = Some(enc_canonize(eap.arg.as_cstr()));
         name_owned.as_ref().unwrap().as_ptr().cast_mut()
     } else {
         eap.arg.as_ptr()

@@ -1387,10 +1387,7 @@ pub fn parse_bordertext(
             *is_present = false;
             return;
         }
-        let text_cstr = transstr(
-            crate::memory::cstr_as_bytes(bordertext.data.string().data),
-            true,
-        );
+        let text_cstr = transstr(bordertext.data.string().cstr_bytes(), true);
         *width = mb_string2cells(text_cstr.as_bytes()) as i32;
         chunks.clear();
         chunks.push(VirtTextChunk {
@@ -1439,7 +1436,7 @@ fn parse_bordertext_pos(
                 } else {
                     c"footer_pos".as_ptr()
                 }),
-                crate::memory::cstr_as_opt_cstr(bordertext_pos.data),
+                bordertext_pos.as_opt_cstr(),
                 0,
                 true,
             );
@@ -1561,13 +1558,7 @@ pub fn parse_border_style(style: Object, fconfig: Option<&mut WinConfig>, err: &
                 return;
             }
         }
-        api_err_invalid(
-            err,
-            c"border",
-            crate::memory::cstr_as_opt_cstr(str_val.data),
-            0,
-            true,
-        );
+        api_err_invalid(err, c"border", str_val.as_opt_cstr(), 0, true);
     }
 }
 
@@ -1631,13 +1622,7 @@ fn parse_win_config(
     'fail: {
         if config.relative.size > 0 {
             if !parse_float_relative(config.relative, &mut fconfig.relative) {
-                api_err_invalid(
-                    err,
-                    c"relative",
-                    crate::memory::cstr_as_opt_cstr(config.relative.data),
-                    0,
-                    true,
-                );
+                api_err_invalid(err, c"relative", config.relative.as_opt_cstr(), 0, true);
                 break 'fail;
             }
 
@@ -1683,13 +1668,7 @@ fn parse_win_config(
                 break 'fail;
             }
             if !parse_config_split(config.split, &mut fconfig.split) {
-                api_err_invalid(
-                    err,
-                    c"split",
-                    crate::memory::cstr_as_opt_cstr(config.split.data),
-                    0,
-                    true,
-                );
+                api_err_invalid(err, c"split", config.split.as_opt_cstr(), 0, true);
                 break 'fail;
             }
         }
@@ -1697,13 +1676,7 @@ fn parse_win_config(
         if has_key(mask, KEYSET_OPTIDX_WIN_CONFIG_ANCHOR)
             && !parse_float_anchor(config.anchor, &mut fconfig.anchor)
         {
-            api_err_invalid(
-                err,
-                c"anchor",
-                crate::memory::cstr_as_opt_cstr(config.anchor.data),
-                0,
-                true,
-            );
+            api_err_invalid(err, c"anchor", config.anchor.as_opt_cstr(), 0, true);
             break 'fail;
         }
 
@@ -1922,13 +1895,7 @@ fn parse_win_config(
             } else if style_bytes.eq_ignore_ascii_case(b"minimal") {
                 fconfig.style = K_WIN_STYLE_MINIMAL;
             } else {
-                api_err_invalid(
-                    err,
-                    c"style",
-                    crate::memory::cstr_as_opt_cstr(config.style.data),
-                    0,
-                    true,
-                );
+                api_err_invalid(err, c"style", config.style.as_opt_cstr(), 0, true);
                 break 'fail;
             }
         }

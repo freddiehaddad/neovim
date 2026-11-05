@@ -493,7 +493,7 @@ pub fn ex_align(eap: &mut Exarg) {
         }
     }
 
-    let mut width = crate::charset::parse_i64_prefix(crate::memory::cstr_as_bytes(eap.arg)) as i32;
+    let mut width = crate::charset::parse_i64_prefix(eap.arg.as_bytes()) as i32;
     let save_curpos = curwin_mut().w_cursor;
     if eap.cmdidx == Cmdidx::CmdLeft {
         if width >= 0 {
@@ -2023,7 +2023,7 @@ pub fn print_line_no_prefix(lnum: Linenr, use_number: bool, list: bool) {
 pub fn print_line(lnum: Linenr, use_number: bool, list: bool, first: bool) {
     let save_silent = g_st().silent_mode;
 
-    if message_filtered(crate::memory::cstr_from_ptr((ml_get(lnum)).as_ptr())) {
+    if message_filtered(ml_get(lnum)) {
         return;
     }
 
@@ -2088,21 +2088,19 @@ pub fn rename_buffer(new_fname: Option<&CStr>) -> bool {
 
 /// `":file[!] [fname]"`.
 pub fn ex_file(eap: &mut Exarg) {
-    if eap.addr_count > 0
-        && (!crate::memory::cstr_is_empty(eap.arg) || eap.line2 > 0 || eap.addr_count > 1)
-    {
+    if eap.addr_count > 0 && (!eap.arg.is_empty() || eap.line2 > 0 || eap.addr_count > 1) {
         emsg(gettext(E_INVARG));
         return;
     }
 
-    if !crate::memory::cstr_is_empty(eap.arg) || eap.addr_count == 1 {
-        if !rename_buffer(crate::memory::cstr_as_opt_cstr(eap.arg)) {
+    if !eap.arg.is_empty() || eap.addr_count == 1 {
+        if !rename_buffer(eap.arg.as_opt_cstr()) {
             return;
         }
         g_st().redraw_tabline = true;
     }
 
-    if crate::memory::cstr_is_empty(eap.arg) || !shortmess(K_SHM_FILEINFO) {
+    if eap.arg.is_empty() || !shortmess(K_SHM_FILEINFO) {
         fileinfo(0, 0, eap.forceit);
     }
 }
@@ -2415,7 +2413,7 @@ pub fn check_overwrite(
 
 /// Handle `":wnext"`, `":wNext"` and `":wprevious"` commands.
 pub fn ex_wnext(eap: &mut Exarg) {
-    let i = if crate::memory::cstr_as_bytes(eap.cmd).get(1) == Some(&b'n') {
+    let i = if eap.cmd.as_bytes().get(1) == Some(&b'n') {
         curwin_mut().w_arg_idx + eap.line2
     } else {
         curwin_mut().w_arg_idx - eap.line2
@@ -2646,9 +2644,7 @@ pub fn getfile(
 
 /// Set `v:swapcommand` for the `SwapExists` autocommands.
 pub fn set_swapcommand(command: Option<&CStr>, newlnum: Linenr) -> bool {
-    if (command.is_none() && newlnum <= 0)
-        || !crate::memory::cstr_is_empty((get_vim_var_str(VV_SWAPCOMMAND)).as_ptr())
-    {
+    if (command.is_none() && newlnum <= 0) || !get_vim_var_str(VV_SWAPCOMMAND).is_empty() {
         return false;
     }
     let valsize = if let Some(cmd) = command {
@@ -3254,8 +3250,8 @@ fn delbuf_msg(name: Option<std::ffi::CString>) {
 
 /// Get the next line of text for `":append"`, `":insert"` and `":change"`.
 fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
-    if crate::memory::cstr_first_byte(eap.arg) == b'|' {
-        let theline = cstr_to_cstring(eap.arg.wrapping_add(1)).into_bytes_with_nul();
+    if eap.arg.first_byte() == b'|' {
+        let theline = eap.arg.wrapping_add(1).to_cstring().into_bytes_with_nul();
 
         unsafe {
             *eap.arg.as_ptr() = NUL;
@@ -3266,16 +3262,13 @@ fn get_append_line(eap: &mut Exarg, indent: i32) -> Option<Vec<u8>> {
         if eap.nextcmd.is_null() {
             return None;
         }
-        let mut p = vim_strchr(crate::memory::cstr_from_ptr((eap.nextcmd).cast()), NL)
+        let mut p = vim_strchr(eap.nextcmd.as_cstr(), NL)
             .map_or(std::ptr::null_mut(), |s| s.as_ptr().cast_mut());
         if p.is_null() {
-            p = eap
-                .nextcmd
-                .as_ptr()
-                .wrapping_add(crate::memory::cstr_len(eap.nextcmd));
+            p = eap.nextcmd.as_ptr().wrapping_add(eap.nextcmd.len());
         }
         let len = crate::memory::ptr_offset_from(p, eap.nextcmd) as usize;
-        let mut theline = crate::memory::cstr_slice(eap.nextcmd, len).to_vec();
+        let mut theline = eap.nextcmd.slice(len).to_vec();
         theline.push(0);
         if !crate::memory::cstr_is_empty(p) {
             p = p.wrapping_add(1);
@@ -3483,7 +3476,7 @@ pub fn ex_z(eap: &mut Exarg) {
     }
     bigness = bigness.max(1);
 
-    let kind_bytes = crate::memory::cstr_as_bytes(eap.arg);
+    let kind_bytes = eap.arg.as_bytes();
     let kind_b = kind_bytes.first().copied().unwrap_or(0);
     let mut rem = kind_bytes;
     if matches!(kind_b, b'-' | b'+' | b'=' | b'^' | b'.') {
@@ -3654,17 +3647,12 @@ fn sub_joining_lines(
             if !keeppatterns {
                 save_re_pat(
                     RE_SUBST,
-                    crate::memory::cstr_from_ptr(pat.data),
+                    pat.as_cstr(),
                     pat.size,
                     i32::from(opt_vars().p_magic),
                 );
             }
-            add_to_history(
-                HIST_SEARCH,
-                crate::memory::cstr_slice(pat.data, pat.size),
-                true,
-                NUL as i32,
-            );
+            add_to_history(HIST_SEARCH, pat.as_bytes(), true, NUL as i32);
         }
 
         return true;
@@ -3885,7 +3873,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         which_pat = RE_SUBST;
     }
 
-    if crate::memory::cstr_first_byte(eap.cmd) == b's'
+    if eap.cmd.first_byte() == b's'
         && !crate::memory::cstr_is_empty(cmd)
         && !ascii_iswhite(crate::memory::cstr_first_byte(cmd))
         && !crate::strings::vim_haschr(
@@ -4051,7 +4039,7 @@ fn do_sub(eap: &mut Exarg, tm: Proftime, cmdpreview_ns: i32, cmdpreview_bufnr: O
         opt_vars().p_magic
     };
     if !search_regcomp(
-        crate::memory::cstr_from_ptr(pat.data),
+        pat.as_cstr(),
         pat.size,
         None,
         RE_SUBST,
@@ -4948,7 +4936,7 @@ pub fn ex_global(eap: &mut Exarg) {
     let type_char: i32 = if eap.forceit {
         b'v' as i32
     } else {
-        (crate::memory::cstr_first_byte(eap.cmd)) as i32
+        (eap.cmd.first_byte()) as i32
     };
     cmd = eap.arg.cast();
     let mut which_pat = RE_LAST;
@@ -5326,9 +5314,7 @@ pub fn ex_substitute_preview(
     cmdpreview_ns: i32,
     cmdpreview_bufnr: ObjHandle,
 ) -> i32 {
-    if !crate::memory::cstr_is_empty(eap.arg)
-        && !ascii_isalnum(crate::memory::cstr_first_byte(eap.arg))
-    {
+    if !eap.arg.is_empty() && !ascii_isalnum(eap.arg.first_byte()) {
         let save_eap = eap.arg;
         let retv = do_sub(
             eap,

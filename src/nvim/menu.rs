@@ -224,7 +224,7 @@ pub fn ex_menu(eap: &mut Exarg) {
     let mut enable: i32 = K_NONE;
 
     let modes = get_menu_cmd_modes(
-        crate::memory::cstr_from_ptr(eap.cmd),
+        eap.cmd.as_cstr(),
         eap.forceit,
         Some(&mut noremap),
         Some(&mut unmenu),

@@ -663,16 +663,12 @@ pub fn channel_from_stdio(
     error: &mut Option<&'static CStr>,
 ) -> u64 {
     if !g_st().headless_mode && !g_st().embedded_mode {
-        *error = Some(crate::memory::cstr_from_ptr(
-            (gettext(c"can only be opened in headless mode")).as_ptr(),
-        ));
+        *error = Some(gettext(c"can only be opened in headless mode"));
         return 0;
     }
 
     if chan_st().did_stdio {
-        *error = Some(crate::memory::cstr_from_ptr(
-            (gettext(c"channel was already open")).as_ptr(),
-        ));
+        *error = Some(gettext(c"channel was already open"));
         return 0;
     }
     chan_st().did_stdio = true;
@@ -722,15 +718,13 @@ pub fn channel_from_stdio(
 pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -> usize {
     let len = data.len();
     let Some(chan) = find_channel_opt(id) else {
-        *error = Some(crate::memory::cstr_from_ptr((gettext(E_INVCHAN)).as_ptr()));
+        *error = Some(gettext(E_INVCHAN));
         return 0;
     };
 
     if chan.streamtype == K_CHANNEL_STREAM_STDERR {
         if chan.err_closed {
-            *error = Some(crate::memory::cstr_from_ptr(
-                (gettext(c"Can't send data to closed stream")).as_ptr(),
-            ));
+            *error = Some(gettext(c"Can't send data to closed stream"));
             return 0;
         }
         let wres = os_write(STDERR_FILENO, &data, false);
@@ -739,15 +733,11 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
 
     if chan.streamtype == K_CHANNEL_STREAM_INTERNAL {
         if chan.is_rpc {
-            *error = Some(crate::memory::cstr_from_ptr(
-                (gettext(c"Can't send raw data to rpc channel")).as_ptr(),
-            ));
+            *error = Some(gettext(c"Can't send raw data to rpc channel"));
             return 0;
         }
         if chan.term.is_null() || chan.internal.closed {
-            *error = Some(crate::memory::cstr_from_ptr(
-                (gettext(c"Can't send data to closed stream")).as_ptr(),
-            ));
+            *error = Some(gettext(c"Can't send data to closed stream"));
             return 0;
         }
         terminal_receive(chan.term_mut(), &data);
@@ -756,16 +746,12 @@ pub fn channel_send(id: u64, data: Vec<u8>, error: &mut Option<&'static CStr>) -
 
     let in_stream = channel_instream_mut(&mut *chan);
     if in_stream.closed {
-        *error = Some(crate::memory::cstr_from_ptr(
-            (gettext(c"Can't send data to closed stream")).as_ptr(),
-        ));
+        *error = Some(gettext(c"Can't send data to closed stream"));
         return 0;
     }
 
     if chan.is_rpc {
-        *error = Some(crate::memory::cstr_from_ptr(
-            (gettext(c"Can't send raw data to rpc channel")).as_ptr(),
-        ));
+        *error = Some(gettext(c"Can't send raw data to rpc channel"));
         return 0;
     }
 

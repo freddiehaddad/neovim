@@ -3183,7 +3183,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
                         .wrapping_add(mpos.start_col as usize)
                         .cast(),
                 ),
-                crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                re_st().rex.input.as_bytes(),
                 &mut len,
             ) == 0
             {
@@ -3209,7 +3209,7 @@ fn match_backref(sub: &mut Regsub, subidx: i32, bytelen: &mut i32) -> bool {
         let mut len = crate::memory::ptr_offset_from(lpos.end, lpos.start) as i32;
         if cstrncmp(
             crate::memory::cstr_as_bytes(lpos.start.cast()),
-            crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+            re_st().rex.input.as_bytes(),
             &mut len,
         ) == 0
         {
@@ -3232,12 +3232,7 @@ fn match_zref(subidx: i32, bytelen: &mut i32) -> bool {
         return true;
     };
     let mut len = m_cstr.as_bytes().len() as i32;
-    if cstrncmp(
-        m_cstr.to_bytes(),
-        crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
-        &mut len,
-    ) == 0
-    {
+    if cstrncmp(m_cstr.to_bytes(), re_st().rex.input.as_bytes(), &mut len) == 0 {
         *bytelen = len;
         return true;
     }
@@ -3455,9 +3450,7 @@ fn find_match_text(startcol: &mut Colnr, regstart: i32, match_text: &[u8]) -> i3
     loop {
         let mut matched = true;
         let mut s1 = match_text;
-        let regstart_len2 = utf_ptr2len(crate::memory::cstr_char_bytes(
-            re_st().rex.line.wrapping_add(col as usize).cast(),
-        ));
+        let regstart_len2 = utf_ptr2len(re_st().rex.line.wrapping_add(col as usize).char_bytes());
         let mut s2 = re_st()
             .rex
             .line
@@ -3527,9 +3520,7 @@ fn match_composing(states: &[NfaState], mut sta: Option<usize>, curc: i32, clen:
     }
 
     while len < clen {
-        mc = utf_ptr2char(crate::memory::cstr_char_bytes(
-            re_st().rex.input.wrapping_add(len as usize).cast(),
-        ));
+        mc = utf_ptr2char(re_st().rex.input.wrapping_add(len as usize).char_bytes());
         cchars[ccount] = mc;
         ccount += 1;
         len += utf_char2len(mc);
@@ -3921,7 +3912,7 @@ fn nfa_regmatch(
                 NFA_BOW => {
                     if curc != NUL as i32 {
                         let this_class = mb_get_class_tab(
-                            crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                            re_st().rex.input.as_bytes(),
                             &re_st().rex.buf_mut().b_chartab,
                         );
                         if this_class > 1 && reg_prev_class() != this_class {
@@ -3933,7 +3924,7 @@ fn nfa_regmatch(
                 NFA_EOW => {
                     if re_st().rex.input != re_st().rex.line {
                         let this_class = mb_get_class_tab(
-                            crate::memory::cstr_as_bytes(re_st().rex.input.cast()),
+                            re_st().rex.input.as_bytes(),
                             &re_st().rex.buf_mut().b_chartab,
                         );
                         let prev_class = reg_prev_class();
@@ -4334,12 +4325,8 @@ fn nfa_regmatch(
                             {
                                 lnum = 1;
                             }
-                            let vcol = win_linetabsize(
-                                wp_mut,
-                                lnum,
-                                crate::memory::cstr_from_ptr(re_st().rex.line.cast()),
-                                col,
-                            );
+                            let vcol =
+                                win_linetabsize(wp_mut, lnum, re_st().rex.line.as_cstr(), col);
                             matched =
                                 nfa_re_num_cmp(t_st.val as u64, op, (vcol as u64).wrapping_add(1));
                         }
@@ -4429,8 +4416,7 @@ fn nfa_regmatch(
                         matched = utf_fold(c) == utf_fold(curc);
                     }
                     if matched && !re_st().rex.reg_icombine {
-                        clen =
-                            utf_ptr2len(crate::memory::cstr_char_bytes(re_st().rex.input.cast()));
+                        clen = utf_ptr2len(re_st().rex.input.char_bytes());
                     }
                     if matched {
                         add_state = t_st.out;
@@ -4575,9 +4561,9 @@ fn nfa_regmatch(
                         }
                         re_st().rex.input = re_st().rex.line.wrapping_add((col - clen) as usize);
                     } else {
-                        let c = utf_ptr2char(crate::memory::cstr_char_bytes(
-                            re_st().rex.input.wrapping_add(clen as usize).cast(),
-                        ));
+                        let c = utf_ptr2char(
+                            re_st().rex.input.wrapping_add(clen as usize).char_bytes(),
+                        );
                         if c != prog.regstart
                             && (!re_st().rex.reg_ic || utf_fold(c) != utf_fold(prog.regstart))
                         {

@@ -981,11 +981,7 @@ fn illegal_char<'a>(errbuf: Option<CharBuf>, c: i32) -> Option<&'a CStr> {
     if errbuf.is_none() {
         return Some(c"");
     }
-    opt_error(
-        errbuf,
-        c"E539: Illegal character <%s>",
-        crate::memory::cstr_from_ptr((transchar(c)).as_ptr()),
-    )
+    opt_error(errbuf, c"E539: Illegal character <%s>", transchar(c))
 }
 
 /// Check string options in a buffer for NULL value.
@@ -1327,7 +1323,7 @@ pub fn did_set_str_generic(args: &mut Optset) -> Option<&CStr> {
 /// Validate named string values without updating derived flags.
 pub fn validate_str_generic(args: &mut Optset) -> Option<&CStr> {
     let opt = get_option(args.os_idx);
-    let value = crate::memory::cstr_from_ptr(args.os_newval.data.string().data);
+    let value = args.os_newval.data.string().as_cstr();
     opt_strings_flags(
         value,
         opt_values(args.os_idx),
@@ -1477,9 +1473,7 @@ pub fn did_set_emoji(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'background' option is changed.
 pub fn did_set_background(args: &mut Optset) -> Option<&CStr> {
-    if crate::memory::cstr_first_byte(args.os_oldval.data.string().data)
-        == opt_vars().p_bg.first_byte()
-    {
+    if args.os_oldval.data.string().first_byte() == opt_vars().p_bg.first_byte() {
         return None;
     }
 
@@ -1521,7 +1515,7 @@ pub fn validate_backspace(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_backupcopy(args: &mut Optset) -> Option<&CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        args.os_newval.data.string().as_cstr(),
         &OPT_BKC_VALUES,
         Some(&mut flags),
         true,
@@ -1672,7 +1666,7 @@ pub fn did_set_buftype(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_chars_option(args: &mut Optset) -> Option<&CStr> {
     set_chars_option(
         args.win_mut(),
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        args.os_newval.data.string().as_cstr(),
         if args.os_idx == K_OPT_LISTCHARS {
             CharsOption::Listchars
         } else {
@@ -1787,10 +1781,7 @@ pub fn did_set_cinoptions(args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn validate_colorcolumn(args: &mut Optset) -> Option<&CStr> {
-    check_colorcolumn(
-        crate::memory::cstr_as_opt_cstr(args.os_newval.data.string().data),
-        None,
-    )
+    check_colorcolumn(args.os_newval.data.string().as_opt_cstr(), None)
 }
 
 /// The 'colorcolumn' option is changed.
@@ -2103,17 +2094,12 @@ pub fn validate_encoding(args: &mut Optset) -> Option<&CStr> {
             return Some(E_MODIFIABLE);
         }
 
-        if crate::strings::vim_haschr(
-            crate::memory::cstr_from_ptr((args.os_newval.data.string().data).cast()),
-            b',' as i32,
-        ) {
+        if crate::strings::vim_haschr(args.os_newval.data.string().as_cstr(), b',' as i32) {
             return Some(E_INVARG);
         }
     }
 
-    let value_cstr = enc_canonize(crate::memory::cstr_from_ptr(
-        (args.os_newval.data.string().data).cast(),
-    ));
+    let value_cstr = enc_canonize(args.os_newval.data.string().as_cstr());
     let is_not_utf8 = value_cstr.as_bytes() != b"utf-8";
     args.os_prep = OptSetPrep::Encoding(value_cstr);
     if args.os_idx == K_OPT_ENCODING && is_not_utf8 {
@@ -2146,7 +2132,7 @@ pub fn expand_set_encoding(args: &mut Optexpand, matches: &mut Vec<std::ffi::CSt
 /// Validate the 'eventignore'/'eventignorewin' option.
 pub fn validate_eventignore(args: &mut Optset) -> Option<&CStr> {
     if !check_ei(
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        args.os_newval.data.string().as_cstr(),
         args.os_idx == K_OPT_EVENTIGNOREWIN,
     ) {
         return Some(E_INVARG);
@@ -2155,7 +2141,7 @@ pub fn validate_eventignore(args: &mut Optset) -> Option<&CStr> {
 }
 
 fn get_eventignore_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
-    let subtract = crate::memory::cstr_first_byte(xp.xp_pattern.cast()) == b'-';
+    let subtract = xp.xp_pattern.first_byte() == b'-';
     if !subtract && idx == 0 {
         return Some(c"all");
     }
@@ -2220,8 +2206,7 @@ pub fn validate_filetype(args: &mut Optset) -> Option<&CStr> {
 
 /// The 'filetype' or the 'syntax' option is changed.
 pub fn did_set_filetype_or_syntax(args: &mut Optset) -> Option<&CStr> {
-    args.os_value_changed = crate::memory::cstr_as_bytes(args.os_oldval.data.string().data)
-        != args.var_cstr().to_bytes();
+    args.os_value_changed = args.os_oldval.data.string().cstr_bytes() != args.var_cstr().to_bytes();
     args.os_value_checked = true;
     None
 }
@@ -2334,7 +2319,7 @@ pub fn validate_helplang(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'highlight' option.
 pub fn validate_highlight(args: &mut Optset) -> Option<&CStr> {
-    if crate::memory::cstr_as_bytes(args.os_newval.data.string().data)
+    if args.os_newval.data.string().cstr_bytes()
         != crate::memory::cstr_as_bytes(HIGHLIGHT_INIT.as_ptr())
     {
         return Some(E_UNSUPPORTEDOPTION);
@@ -2493,10 +2478,8 @@ pub fn expand_set_mouse(args: &mut Optexpand, matches: &mut Vec<std::ffi::CStrin
 
 /// Validate the 'mousescroll' option.
 pub fn validate_mousescroll(args: &mut Optset) -> Option<&CStr> {
-    let v: &OptKeyDict_mousescroll = opt_keyset(
-        crate::memory::cstr_as_bytes(args.os_newval.data.string().data),
-        K_OPT_MOUSESCROLL,
-    );
+    let v: &OptKeyDict_mousescroll =
+        opt_keyset(args.os_newval.data.string().cstr_bytes(), K_OPT_MOUSESCROLL);
     let has_hor = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_HOR)) != 0;
     let has_ver = (v.is_set_mousescroll & (1 << KEYSET_OPTIDX_MOUSESCROLL_VER)) != 0;
     if has_hor || has_ver {
@@ -2542,7 +2525,7 @@ pub fn did_set_selection(_args: &mut Optset) -> Option<&CStr> {
 pub fn validate_sessionoptions(args: &mut Optset) -> Option<&CStr> {
     let mut flags: u32 = 0;
     let errmsg = opt_strings_flags(
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
+        args.os_newval.data.string().as_cstr(),
         &OPT_SSOP_VALUES,
         Some(&mut flags),
         true,
@@ -2678,10 +2661,7 @@ pub fn did_set_showcmdloc(_args: &mut Optset) -> Option<&CStr> {
 }
 
 pub fn validate_signcolumn(args: &mut Optset) -> Option<&CStr> {
-    if check_signcolumn(
-        crate::memory::cstr_as_opt_cstr(args.os_newval.data.string().data),
-        None,
-    ) {
+    if check_signcolumn(args.os_newval.data.string().as_opt_cstr(), None) {
         None
     } else {
         Some(E_INVARG)
@@ -2714,10 +2694,7 @@ pub fn validate_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 
     let mut tstate = TryState::new();
     try_enter(&mut tstate);
-    let errmsg = compile_cap_prog(
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
-        &mut prog,
-    );
+    let errmsg = compile_cap_prog(args.os_newval.data.string().as_cstr(), &mut prog);
     try_leave(&tstate, &mut err);
 
     g_st().emsg_silent = save_emsg_silent;
@@ -2749,9 +2726,7 @@ pub fn did_set_spellcapcheck(args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'spellfile' option.
 pub fn validate_spellfile(args: &mut Optset) -> Option<&CStr> {
-    if valid_spellfile(crate::memory::cstr_from_ptr(
-        args.os_newval.data.string().data,
-    )) {
+    if valid_spellfile(args.os_newval.data.string().as_cstr()) {
         None
     } else {
         Some(E_INVARG)
@@ -2765,9 +2740,7 @@ pub fn did_set_spellfile(_args: &mut Optset) -> Option<&CStr> {
 
 /// Validate the 'spelllang' option.
 pub fn validate_spelllang(args: &mut Optset) -> Option<&CStr> {
-    if valid_spelllang(crate::memory::cstr_from_ptr(
-        args.os_newval.data.string().data,
-    )) {
+    if valid_spelllang(args.os_newval.data.string().as_cstr()) {
         None
     } else {
         Some(E_INVARG)
@@ -2782,7 +2755,7 @@ pub fn did_set_spelllang(_args: &mut Optset) -> Option<&CStr> {
 /// The 'spelloptions' option is changed.
 pub fn did_set_spelloptions(args: &mut Optset) -> Option<&CStr> {
     let opt_flags = args.os_flags;
-    let val = crate::memory::cstr_from_ptr(args.os_newval.data.string().data);
+    let val = args.os_newval.data.string().as_cstr();
 
     if (opt_flags & OPT_LOCAL) == 0 {
         let errmsg = opt_strings_flags(
@@ -2816,11 +2789,7 @@ pub fn did_set_spelloptions(args: &mut Optset) -> Option<&CStr> {
 pub fn validate_spellsuggest(args: &mut Optset) -> Option<&CStr> {
     let mut sps: [i32; 2] = [0, 0];
     let [s0, s1] = &mut sps;
-    if !spell_check_sps(
-        crate::memory::cstr_from_ptr(args.os_newval.data.string().data),
-        s0,
-        s1,
-    ) {
+    if !spell_check_sps(args.os_newval.data.string().as_cstr(), s0, s1) {
         return Some(E_INVARG);
     }
     args.os_prep = OptSetPrep::Spellsuggest(sps);
@@ -2883,7 +2852,7 @@ fn did_set_statustabline_rulerformat<'a>(
         && args.var_cstr().to_bytes().is_empty()
     {
         let def = get_option_default(args.os_idx, args.os_flags);
-        args.set_var_cstr(crate::memory::cstr_from_ptr(def.data.string().data));
+        args.set_var_cstr(def.data.string().as_cstr());
         optval_free_read(args.os_idx, def);
     }
     let s = args.var_cstr().as_ptr();
@@ -3974,7 +3943,7 @@ pub fn check_chars_options() -> Option<&'static CStr> {
 
 pub fn validate_previewpopup(args: &mut Optset) -> Option<&CStr> {
     let mut fconfig = WIN_CONFIG_INIT;
-    let cstr = crate::memory::cstr_from_ptr(args.os_newval.data.string().data);
+    let cstr = args.os_newval.data.string().as_cstr();
     if !win_previewpopup_config(cstr, &mut fconfig) {
         return Some(E_INVARG);
     }

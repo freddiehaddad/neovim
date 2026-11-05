@@ -3060,23 +3060,21 @@ pub fn ex_function(eap: &mut Exarg) {
     let mut fudi = Funcdict::new();
     let mut show_block = false;
 
-    if ends_excmd(crate::memory::cstr_first_byte(eap.arg)) != 0 {
+    if ends_excmd(eap.arg.first_byte()) != 0 {
         if !eap.skip {
             list_functions(None);
         }
-        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(
-            crate::memory::cstr_from_ptr(eap.arg),
-        ));
+        eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(eap.arg.as_cstr()));
         return;
     }
 
-    if crate::memory::cstr_first_byte(eap.arg) == b'/' {
+    if eap.arg.first_byte() == b'/' {
         let p = list_functions_matching_pat(eap);
         eap.nextcmd = crate::strings::CStrCursor::from_opt_cstr(check_nextcmd(p));
         return;
     }
 
-    let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
+    let mut p_cstr = eap.arg.as_cstr();
     let mut name_owned =
         save_function_name(&mut p_cstr, eap.skip, TFN_NO_AUTOLOAD, Some(&mut fudi));
     let mut p = p_cstr.as_ptr().cast_mut();
@@ -3215,7 +3213,7 @@ pub fn ex_function(eap: &mut Exarg) {
 
     if g_st().key_typed && ui_has(K_UICMDLINE) {
         show_block = true;
-        ui_ext_cmdline_block_append(0, crate::memory::cstr_as_bytes(eap.cmd));
+        ui_ext_cmdline_block_append(0, eap.cmd.as_bytes());
     }
 
     loop {
@@ -3352,14 +3350,14 @@ pub fn ex_function(eap: &mut Exarg) {
         if fudi.fd_di.is_null() {
             if value_check_lock(
                 unsafe { (*fudi.fd_dict).dv_lock },
-                Some(crate::memory::cstr_from_ptr(eap.arg)),
+                Some(eap.arg.as_cstr()),
                 TV_CSTRING,
             ) {
                 erret!();
             }
         } else if value_check_lock(
             unsafe { (*fudi.fd_di).di_tv.v_lock },
-            Some(crate::memory::cstr_from_ptr(eap.arg)),
+            Some(eap.arg.as_cstr()),
             TV_CSTRING,
         ) {
             erret!();
@@ -3568,7 +3566,7 @@ pub fn ex_delfunction(eap: &mut Exarg) {
     let mut fp: Option<&'static mut UserFunc> = None;
     let mut fudi = Funcdict::new();
 
-    let mut p_cstr = crate::memory::cstr_from_ptr(eap.arg);
+    let mut p_cstr = eap.arg.as_cstr();
     let name_owned = trans_function_name(&mut p_cstr, eap.skip, 0, Some(&mut fudi), None);
     let p = eap
         .arg
@@ -4001,7 +3999,7 @@ pub fn invoke_all_defer() {
 
 /// `:1,25call func(arg1, arg2)` or `:defer func(arg1, arg2)`.
 pub fn ex_call(eap: &mut Exarg) {
-    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
+    let mut arg = eap.arg.as_cstr();
     let mut fudi = Funcdict::new();
     let mut partial_opt: Option<&'static mut TvPartial> = None;
     let mut evalarg = Evalarg::new();

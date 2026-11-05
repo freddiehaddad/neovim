@@ -435,7 +435,7 @@ pub fn ui_client_event_connect(args: Array) {
     let bytes = if s.size == 0 || s.data.is_null() {
         &[][..]
     } else {
-        crate::memory::cstr_slice(s.data, s.size)
+        s.as_bytes()
     };
     let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
     let server_addr = std::ffi::CString::new(&bytes[..end]).unwrap();

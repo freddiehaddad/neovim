@@ -505,7 +505,7 @@ pub fn ex_args(eap: &mut Exarg) {
         }
     }
 
-    if !crate::memory::cstr_is_empty(eap.arg) {
+    if !eap.arg.is_empty() {
         if !check_arglist_locked() {
             return;
         }
@@ -578,7 +578,7 @@ pub fn ex_argument(eap: &mut Exarg) {
 
 /// Edit file `argn` of the argument lists (`do_argfile`).
 pub fn do_argfile(eap: &mut Exarg, argn: i32) {
-    let is_split_cmd = crate::memory::cstr_first_byte(eap.cmd) == b's';
+    let is_split_cmd = eap.cmd.first_byte() == b's';
     let old_arg_idx = curwin_mut().w_arg_idx;
     let count = argcount();
 
@@ -660,8 +660,8 @@ pub fn ex_next(eap: &mut Exarg) {
             CCGD_AW | (if eap.forceit { CCGD_FORCEIT } else { 0 }) | CCGD_EXCMD,
         )
     {
-        let i = if !crate::memory::cstr_is_empty(eap.arg) {
-            if !do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_SET, 0, true) {
+        let i = if !eap.arg.is_empty() {
+            if !do_arglist(eap.arg.as_cstr(), AL_SET, 0, true) {
                 return;
             }
             0
@@ -720,7 +720,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
     };
     let curbuf_is_reusable = curbuf_reusable();
 
-    if !do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_ADD, i, true) {
+    if !do_arglist(eap.arg.as_cstr(), AL_ADD, i, true) {
         return;
     }
     maketitle();
@@ -739,7 +739,7 @@ pub fn ex_argedit(eap: &mut Exarg) {
 /// `:argadd` (`ex_argadd`).
 pub fn ex_argadd(eap: &mut Exarg) {
     do_arglist(
-        crate::memory::cstr_from_ptr(eap.arg),
+        eap.arg.as_cstr(),
         AL_ADD,
         if eap.addr_count > 0 {
             eap.line2
@@ -757,7 +757,7 @@ pub fn ex_argdelete(eap: &mut Exarg) {
         return;
     }
 
-    if eap.addr_count > 0 || crate::memory::cstr_is_empty(eap.arg) {
+    if eap.addr_count > 0 || eap.arg.is_empty() {
         if eap.addr_count == 0 {
             if curwin_mut().w_arg_idx >= argcount() {
                 emsg(gettext(c"E610: No argument to delete"));
@@ -769,7 +769,7 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             eap.line2 = argcount();
         }
         let n = eap.line2 - eap.line1 + 1;
-        if !crate::memory::cstr_is_empty(eap.arg) {
+        if !eap.arg.is_empty() {
             emsg(gettext(E_INVARG));
             return;
         }
@@ -789,7 +789,7 @@ pub fn ex_argdelete(eap: &mut Exarg) {
             curwin_mut().w_arg_idx = eap.line1;
         }
     } else {
-        do_arglist(crate::memory::cstr_from_ptr(eap.arg), AL_DEL, 0, false);
+        do_arglist(eap.arg.as_cstr(), AL_DEL, 0, false);
     }
 
     let new_len = argcount();

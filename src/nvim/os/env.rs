@@ -827,10 +827,7 @@ pub fn vim_env_iter_rev<'a>(
 }
 
 pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
-    crate::memory::copy_bytes_to_c_buf(
-        exe_name,
-        crate::memory::cstr_as_bytes((get_vim_var_str(VV_PROGPATH)).as_ptr()),
-    );
+    crate::memory::copy_bytes_to_c_buf(exe_name, get_vim_var_str(VV_PROGPATH).to_bytes());
     let ptr = exe_name.as_mut_ptr();
     let path_end: *mut u8 = path_tail_with_sep(crate::memory::cstr_from_ptr(ptr.cast()))
         .as_ptr()
@@ -852,9 +849,7 @@ pub fn vim_get_prefix_from_exepath(exe_name: &mut [u8]) {
 pub fn vim_getenv(name: &CStr) -> Option<std::ffi::CString> {
     let name_bytes = name.to_bytes();
     {
-        assert!(!crate::memory::cstr_is_empty(
-            (get_vim_var_str(VV_PROGPATH)).as_ptr()
-        ));
+        assert!(!get_vim_var_str(VV_PROGPATH).is_empty());
 
         #[cfg(windows)]
         if name_bytes == b"HOME" {
@@ -990,9 +985,7 @@ pub fn home_replace(
     if buf.is_some() && buf.unwrap().b_help {
         let dlen = crate::memory::copy_bytes_to_c_buf(
             dst_slice,
-            crate::memory::cstr_as_bytes(
-                (path_tail(crate::memory::cstr_from_ptr(src.cast()))).as_ptr(),
-            ),
+            path_tail(crate::memory::cstr_from_ptr(src.cast())).to_bytes(),
         );
         return dlen.min(dstlen - 1);
     }
@@ -1213,13 +1206,14 @@ pub fn os_shell_is_cmdexe(sh: &CStr) -> bool {
         let Some(comspec) = os_getenv_buf(c"COMSPEC", &mut buf) else {
             return false;
         };
-        return crate::memory::cstr_as_bytes((path_tail(comspec)).as_ptr())
+        return path_tail(comspec)
+            .to_bytes()
             .eq_ignore_ascii_case(b"cmd.exe");
     }
     if sh_bytes.eq_ignore_ascii_case(b"cmd.exe") || sh_bytes.eq_ignore_ascii_case(b"cmd") {
         return true;
     }
-    crate::memory::cstr_as_bytes((path_tail(sh)).as_ptr()).eq_ignore_ascii_case(b"cmd.exe")
+    path_tail(sh).to_bytes().eq_ignore_ascii_case(b"cmd.exe")
 }
 
 /// Removes environment variable `var` and takes care of side effects.

@@ -243,7 +243,7 @@ pub fn init_charsize_arg(
         || (wp.w_onebuf_opt.wo_wrap
             && (wp.w_onebuf_opt.wo_lbr
                 || wp.w_onebuf_opt.wo_bri
-                || !crate::memory::cstr_is_empty((get_showbreak_value(wp)).as_ptr())))
+                || !get_showbreak_value(wp).is_empty()))
     {
         K_CHARSIZE_REGULAR
     } else {

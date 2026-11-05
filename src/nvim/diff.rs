@@ -1219,22 +1219,18 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         }
         #[cfg(unix)]
         {
-            fullname = crate::path::FullName_save(crate::memory::cstr_as_opt_cstr(eap.arg), false);
+            fullname = crate::path::FullName_save(eap.arg.as_opt_cstr(), false);
             esc_name = Some(vim_strsave_shellescape(
                 fullname
                     .as_ref()
-                    .map_or_else(|| crate::memory::cstr_as_bytes(eap.arg), |s| s.as_bytes()),
+                    .map_or_else(|| eap.arg.as_bytes(), |s| s.as_bytes()),
                 true,
                 true,
             ));
         }
         #[cfg(not(unix))]
         {
-            esc_name = Some(vim_strsave_shellescape(
-                crate::memory::cstr_as_bytes(eap.arg),
-                true,
-                true,
-            ));
+            esc_name = Some(vim_strsave_shellescape(eap.arg.as_bytes(), true, true));
         }
         let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
         let buflen = crate::memory::cstr_len(tmp_orig)
@@ -1261,15 +1257,13 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
             #[cfg(unix)]
             eval_patch(
                 crate::memory::cstr_from_ptr(tmp_orig),
-                fullname
-                    .as_deref()
-                    .unwrap_or_else(|| crate::memory::cstr_from_ptr(eap.arg)),
+                fullname.as_deref().unwrap_or_else(|| eap.arg.as_cstr()),
                 crate::memory::cstr_from_ptr(tmp_new),
             );
             #[cfg(not(unix))]
             eval_patch(
                 crate::memory::cstr_from_ptr(tmp_orig),
-                crate::memory::cstr_from_ptr(eap.arg),
+                eap.arg.as_cstr(),
                 crate::memory::cstr_from_ptr(tmp_new),
             );
         } else {
@@ -3146,7 +3140,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         return;
     }
     let idx_cur = idx_cur_i as usize;
-    if crate::memory::cstr_is_empty(eap.arg) {
+    if eap.arg.is_empty() {
         let mut found_not_ma = false;
         let mut idx = 0;
         while idx < DB_COUNT {
@@ -3181,7 +3175,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
             }
         }
     } else {
-        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+        let arg_bytes = eap.arg.as_bytes();
         let mut p_idx = arg_bytes.len();
         while p_idx > 0 && ascii_iswhite(arg_bytes[p_idx - 1] as i32) {
             p_idx -= 1;
@@ -3189,12 +3183,7 @@ pub fn ex_diffgetput(eap: &mut Exarg) {
         let bufnr = if arg_bytes[..p_idx].iter().all(u8::is_ascii_digit) {
             crate::charset::parse_i64_prefix(arg_bytes) as i32
         } else {
-            let nr = buflist_findpat(
-                crate::memory::cstr_slice(eap.arg, p_idx),
-                false,
-                true,
-                false,
-            );
+            let nr = buflist_findpat(eap.arg.slice(p_idx), false, true, false);
             if nr < 0 {
                 return;
             }

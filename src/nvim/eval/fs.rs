@@ -679,8 +679,8 @@ pub fn f_filecopy(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
         && (s_isreg(from_info.stat.st_mode) || s_islnk(from_info.stat.st_mode))
     {
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_copyfile(
-            crate::memory::cstr_from_ptr((tv_get_string(&argvars[0])).as_ptr()),
-            crate::memory::cstr_from_ptr((tv_get_string(&argvars[1])).as_ptr()),
+            tv_get_string(&argvars[0]),
+            tv_get_string(&argvars[1]),
         )));
     }
 }
@@ -1310,9 +1310,7 @@ pub fn f_mkdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) 
     }
     let dir = dir.as_ptr();
 
-    if crate::memory::cstr_is_empty(
-        (path_tail(crate::memory::cstr_from_ptr((dir).cast()))).as_ptr(),
-    ) {
+    if path_tail(crate::memory::cstr_from_ptr((dir).cast())).is_empty() {
         // Remove trailing slashes.
         unsafe {
             *path_tail_with_sep(crate::memory::cstr_from_ptr((dir.cast_mut()).cast()))
@@ -1454,7 +1452,7 @@ pub fn f_readdir(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData
     let [arg0, arg1, ..] = argvars else {
         unreachable!()
     };
-    let path = crate::memory::cstr_from_ptr((tv_get_string(arg0)).as_ptr());
+    let path = tv_get_string(arg0);
     let mut entries: Vec<std::ffi::CString> = Vec::new();
     let ret = readdir_core(&mut entries, path, Some(arg1));
     if ret {
@@ -1715,7 +1713,7 @@ pub fn f_rename(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
     } else {
         let mut buf = [0u8; NUMBUFLEN];
         rettv.vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(vim_rename(
-            crate::memory::cstr_from_ptr((tv_get_string(&argvars[0])).as_ptr()),
+            tv_get_string(&argvars[0]),
             crate::memory::cstr_from_ptr((tv_get_string_buf(&argvars[1], &mut buf)).as_ptr()),
         )));
     }

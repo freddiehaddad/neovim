@@ -927,7 +927,7 @@ fn makeopens(fd: &CFile, dirnow: &CStr) -> bool {
 }
 
 pub fn ex_loadview(eap: &mut Exarg) {
-    let Some(fname) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
+    let Some(fname) = get_view_file(eap.arg.first_byte()) else {
         return;
     };
 
@@ -949,18 +949,18 @@ pub fn ex_mkrc(eap: &mut Exarg) {
 
     let fname: &CStr;
     if eap.cmdidx == Cmdidx::CmdMkview && {
-        let arg_bytes = crate::memory::cstr_as_bytes(eap.arg);
+        let arg_bytes = eap.arg.as_bytes();
         arg_bytes.is_empty() || (arg_bytes.len() == 1 && arg_bytes[0].is_ascii_digit())
     } {
         eap.forceit = true;
-        let Some(vf) = get_view_file(crate::memory::cstr_first_byte(eap.arg)) else {
+        let Some(vf) = get_view_file(eap.arg.first_byte()) else {
             return;
         };
         view_file = Some(vf);
         fname = view_file.as_deref().unwrap();
         using_vdir = true;
-    } else if !crate::memory::cstr_is_empty(eap.arg) {
-        fname = crate::memory::cstr_from_ptr(eap.arg);
+    } else if !eap.arg.is_empty() {
+        fname = eap.arg.as_cstr();
     } else if eap.cmdidx == Cmdidx::CmdMkvimrc {
         fname = c".nvimrc";
     } else if eap.cmdidx == Cmdidx::CmdMksession {

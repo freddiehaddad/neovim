@@ -2721,7 +2721,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
                 return opt_error(
                     args.os_errbuf,
                     c"E357: 'langmap': Matching character missing for %s",
-                    crate::memory::cstr_from_ptr((transchar(from)).as_ptr()),
+                    transchar(from),
                 );
             }
 
@@ -2767,7 +2767,7 @@ pub fn did_set_langmap(args: &mut Optset) -> Option<&'static CStr> {
 }
 
 fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
-    let mut cmd_bytes = crate::memory::cstr_as_bytes(eap.cmd);
+    let mut cmd_bytes = eap.cmd.as_bytes();
     let mode = get_map_mode(&mut cmd_bytes, eap.forceit || isabbrev);
 
     let maptype = if cmd_bytes.first() == Some(&b'n') {
@@ -2779,7 +2779,7 @@ fn do_exmap(eap: &mut Exarg, isabbrev: bool) {
     };
     let mut parsed_args = MapArguments::new();
     let result = str_to_mapargs(
-        crate::memory::cstr_from_ptr(eap.arg),
+        eap.arg.as_cstr(),
         maptype == MAPTYPE_UNMAP,
         &mut parsed_args,
     );
@@ -2835,7 +2835,7 @@ pub fn ex_abbreviate(eap: &mut Exarg) {
 pub fn ex_map(eap: &mut Exarg) {
     if g_st().secure != 0 {
         g_st().secure = 2;
-        msg_outtrans(crate::memory::cstr_from_ptr(eap.cmd), 0, false);
+        msg_outtrans(eap.cmd.as_cstr(), 0, false);
         msg_putchar(b'\n' as i32);
     }
     do_exmap(eap, false);
@@ -2848,22 +2848,12 @@ pub fn ex_unmap(eap: &mut Exarg) {
 
 /// ":mapclear" and friends.
 pub fn ex_mapclear(eap: &mut Exarg) {
-    do_mapclear(
-        crate::memory::cstr_from_ptr(eap.cmd),
-        crate::memory::cstr_from_ptr(eap.arg),
-        eap.forceit,
-        false,
-    );
+    do_mapclear(eap.cmd.as_cstr(), eap.arg.as_cstr(), eap.forceit, false);
 }
 
 /// ":abclear" and friends.
 pub fn ex_abclear(eap: &mut Exarg) {
-    do_mapclear(
-        crate::memory::cstr_from_ptr(eap.cmd),
-        crate::memory::cstr_from_ptr(eap.arg),
-        true,
-        true,
-    );
+    do_mapclear(eap.cmd.as_cstr(), eap.arg.as_cstr(), true, true);
 }
 
 /// Set, tweak, or remove a mapping in a mode.

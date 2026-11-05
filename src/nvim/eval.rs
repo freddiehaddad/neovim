@@ -1964,7 +1964,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             });
         !xp.xp_pattern.is_null()
     } {
-        let pat_bytes = crate::memory::cstr_as_bytes(xp.xp_pattern.cast());
+        let pat_bytes = xp.xp_pattern.as_bytes();
         let mut c = i32::from(pat_bytes.first().copied().unwrap_or(0));
         if c == b'&' as i32 {
             c = i32::from(pat_bytes.get(1).copied().unwrap_or(0));
@@ -1989,18 +1989,14 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
         } else if (c == b'#' as i32 && xp.xp_context == EXPAND_EXPRESSION)
             || ((c == b'<' as i32 || c == b'#' as i32)
                 && xp.xp_context == EXPAND_FUNCTIONS
-                && vim_strchr(
-                    crate::memory::cstr_from_ptr(xp.xp_pattern.cast()),
-                    b'(' as i32,
-                )
-                .is_none())
+                && vim_strchr(xp.xp_pattern.as_cstr(), b'(' as i32).is_none())
         {
             break;
         } else if cmdidx != Cmdidx::CmdLet || got_eq {
             if c == b'"' as i32 {
                 loop {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
-                    let p_bytes = crate::memory::cstr_as_bytes(xp.xp_pattern.cast());
+                    let p_bytes = xp.xp_pattern.as_bytes();
                     c = i32::from(p_bytes.first().copied().unwrap_or(0));
                     if c == NUL as i32 || c == b'"' as i32 {
                         break;
@@ -2013,7 +2009,7 @@ pub fn set_context_for_expression(xp: &mut ExpandCtx, arg_in: &CStr, cmdidx: Cmd
             } else if c == b'\'' as i32 {
                 loop {
                     xp.xp_pattern = xp.xp_pattern.wrapping_add(1);
-                    c = i32::from(crate::memory::cstr_first_byte(xp.xp_pattern.cast()));
+                    c = i32::from(xp.xp_pattern.first_byte());
                     if c == NUL as i32 || c == b'\'' as i32 {
                         break;
                     }
@@ -6559,7 +6555,7 @@ pub fn var_item_copy(
 
 /// ":echo expr1 ..." and ":echon expr1 ..."
 pub fn ex_echo(eap: &mut Exarg) {
-    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
+    let mut arg = eap.arg.as_cstr();
     let mut rettv = tv_initial_value();
     let mut atstart = true;
     let mut need_clear = true;
@@ -6635,9 +6631,7 @@ pub fn ex_echo(eap: &mut Exarg) {
         g_st().emsg_skip -= 1;
     } else {
         if ui_has(K_UIMESSAGES)
-            && (crate::memory::cstr_is_empty(eap.arg)
-                || crate::memory::cstr_first_byte(eap.arg) == b'|'
-                || crate::memory::cstr_first_byte(eap.arg) == b'\n')
+            && (eap.arg.is_empty() || eap.arg.first_byte() == b'|' || eap.arg.first_byte() == b'\n')
         {
             msg_puts_len(b"", 0, 0, false);
         } else if need_clear {
@@ -6651,7 +6645,7 @@ pub fn ex_echo(eap: &mut Exarg) {
 
 /// ":echohl {name}".
 pub fn ex_echohl(eap: &mut Exarg) {
-    eval_st().echo_hl_id = syn_name2id(crate::memory::cstr_from_ptr(eap.arg));
+    eval_st().echo_hl_id = syn_name2id(eap.arg.as_cstr());
 }
 
 /// Returns the :echo highlight id.
@@ -6661,7 +6655,7 @@ pub fn get_echo_hl_id() -> i32 {
 
 /// ":execute", ":echomsg", ":echoerr"
 pub fn ex_execute(eap: &mut Exarg) {
-    let mut arg = crate::memory::cstr_from_ptr(eap.arg);
+    let mut arg = eap.arg.as_cstr();
     let mut rettv = tv_initial_value();
     let mut ret = true;
     let mut buf: Vec<u8> = Vec::with_capacity(80);
