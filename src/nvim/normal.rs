@@ -3279,7 +3279,7 @@ pub fn find_decl(ptr_bytes: &[u8], locally: bool, thisblock: bool, flags_arg: i3
 
         let patsize = len + 7;
         let mut pat_vec = vec![0u8; patsize];
-        let pat = crate::strings::CStrCursor::from_ptr(pat_vec.as_mut_ptr().cast());
+        let pat = crate::strings::CStrCursor::from_ptr(pat_vec.as_mut_ptr());
 
         assert!(patsize <= i32::MAX as usize);
         let patlen = vim_snprintf!(
@@ -4189,7 +4189,7 @@ fn nv_k_getcmd(
         return true;
     }
 
-    let buf = crate::strings::CStrCursor::from_ptr(buf_slice.as_mut_ptr().cast());
+    let buf = crate::strings::CStrCursor::from_ptr(buf_slice.as_mut_ptr());
     if kp_ex {
         *buflen = vim_snprintf!(buf, bufsize, c"%s ", kp_ptr) as usize;
         if cap.count0 != 0 {

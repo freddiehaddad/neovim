@@ -230,11 +230,10 @@ macro_rules! smsg {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::vim_snprintf!(
-                $crate::globals::g_st().iobuff.as_mut_ptr(),
-                1025,
-                $fmt
-                $(, $arg)*
+            $crate::strings::vim_snprintf_fmt(
+                $crate::globals::g_st().iobuff_bytes_mut(),
+                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg(
                 $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
@@ -250,11 +249,10 @@ macro_rules! smsg_keep {
     ($hl_id:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl = $hl_id;
         {
-            $crate::strings::vim_snprintf!(
-                $crate::globals::g_st().iobuff.as_mut_ptr(),
-                1025,
-                $fmt
-                $(, $arg)*
+            $crate::strings::vim_snprintf_fmt(
+                $crate::globals::g_st().iobuff_bytes_mut(),
+                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_keep(
                 $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
@@ -326,11 +324,10 @@ pub use siemsg;
 macro_rules! msg_schedule_semsg {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::vim_snprintf!(
-                $crate::globals::g_st().iobuff.as_mut_ptr(),
-                1025,
-                $fmt
-                $(, $arg)*
+            $crate::strings::vim_snprintf_fmt(
+                $crate::globals::g_st().iobuff_bytes_mut(),
+                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_schedule_semsg_cstr(
                 $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
@@ -344,11 +341,10 @@ pub use msg_schedule_semsg;
 macro_rules! msg_schedule_semsg_multiline {
     ($fmt:expr $(, $arg:expr)* $(,)?) => {{
         {
-            $crate::strings::vim_snprintf!(
-                $crate::globals::g_st().iobuff.as_mut_ptr(),
-                1025,
-                $fmt
-                $(, $arg)*
+            $crate::strings::vim_snprintf_fmt(
+                $crate::globals::g_st().iobuff_bytes_mut(),
+                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::msg_schedule_semsg_multiline_cstr(
                 $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
@@ -363,11 +359,10 @@ macro_rules! swmsg {
     ($hl:expr, $fmt:expr $(, $arg:expr)* $(,)?) => {{
         let hl_val: bool = $hl;
         {
-            $crate::strings::vim_snprintf!(
-                $crate::globals::g_st().iobuff.as_mut_ptr(),
-                1025,
-                $fmt
-                $(, $arg)*
+            $crate::strings::vim_snprintf_fmt(
+                $crate::globals::g_st().iobuff_bytes_mut(),
+                $crate::strings::IntoFmtVal::into_fmt_val($fmt).as_cstr(),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),*],
             );
             $crate::message::give_warning(
                 $crate::memory::cstr_until_nul($crate::globals::g_st().iobuff_bytes()),
@@ -3161,7 +3156,7 @@ fn inc_msg_scrolled() {
         let p = if let Some(sname) = sname {
             let tofreesize = sname.to_bytes().len() + 40;
             tofree_vec = vec![0; tofreesize];
-            let tofree: *mut _ = tofree_vec.as_mut_ptr().cast();
+            let tofree = tofree_vec.as_mut_ptr();
             let size = vim_snprintf_safelen!(
                 tofree,
                 tofreesize,
@@ -3170,7 +3165,7 @@ fn inc_msg_scrolled() {
                 i64::from(sourcing_lnum()),
             );
             NvimString {
-                data: crate::strings::CStrCursor::from_ptr(tofree),
+                data: crate::strings::CStrCursor::from_ptr(tofree.cast()),
                 size,
             }
         } else {

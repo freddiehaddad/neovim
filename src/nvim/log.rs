@@ -113,20 +113,18 @@ macro_rules! logmsg {
             let ctx_opt: Option<&::std::ffi::CStr> = $context;
             let fn_opt: Option<&::std::ffi::CStr> = $func_name;
             let mut stack_buf = [0u8; 1024];
-            let len = $crate::strings::vim_snprintf!(
-                stack_buf.as_mut_ptr().cast(),
-                stack_buf.len(),
-                fmt_cstr.as_ptr(),
-                $($arg),+
+            let len = $crate::strings::vim_snprintf_fmt(
+                &mut stack_buf,
+                Some(fmt_cstr),
+                &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
             );
             if len >= stack_buf.len() as i32 {
                 let cap = (len as usize) + 1;
                 let mut heap_buf = vec![0u8; cap];
-                $crate::strings::vim_snprintf!(
-                    heap_buf.as_mut_ptr().cast(),
-                    cap,
-                    fmt_cstr.as_ptr(),
-                    $($arg),+
+                $crate::strings::vim_snprintf_fmt(
+                    &mut heap_buf,
+                    Some(fmt_cstr),
+                    &[$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+],
                 );
                 let msg_cstr = ::std::ffi::CStr::from_bytes_until_nul(&heap_buf).unwrap_or(c"");
                 $crate::log::logmsg_str(

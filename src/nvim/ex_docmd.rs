@@ -6724,7 +6724,7 @@ fn do_one_cmd(
         && g_st().did_emsg == 0
     {
         if (flags & DOCMD_VERBOSE) != 0 {
-            let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr();
+            let iobuf_ptr: RawCCharPtr = g_st().iobuff.as_ptr().cast();
             if !ptr::eq(msg.as_ptr(), iobuf_ptr) {
                 crate::memory::copy_bytes_to_c_buf(g_st().iobuff_bytes_mut(), msg.to_bytes());
             }
@@ -8383,7 +8383,7 @@ pub fn expand_filename(eap: &mut Exarg, errormsgp: &mut Option<&'static std::ffi
                     None,
                 );
                 has_wildcards = path_has_wildcard(g_st().name_buff_cstr().to_bytes(), true);
-                p = g_st().name_buff.as_mut_ptr();
+                p = g_st().name_buff.as_mut_ptr().cast();
             } else {
                 p = ptr::null_mut();
             }
@@ -10908,7 +10908,7 @@ pub fn do_chdir(new_dir: Option<&CStr>, scope: CdScope) -> bool {
 
     if new_dir.is_empty() && opt_vars().p_cdh {
         expand_env(c"$HOME", g_st().name_buff_bytes_mut());
-        new_dir = crate::strings::CStrCursor::of(g_st().name_buff.as_mut_ptr());
+        new_dir = crate::strings::CStrCursor::of(g_st().name_buff.as_mut_ptr().cast());
     }
 
     let new_dir_owned = to_slash_save(new_dir.as_opt_cstr()).unwrap_or_default();

@@ -3541,9 +3541,9 @@ pub fn find_pattern_in_path(
                                         .iter()
                                         .enumerate()
                                     {
-                                        g_st().iobuff[idx] = b as _;
+                                        g_st().iobuff[idx] = b;
                                     }
-                                    g_st().iobuff[i as usize] = NUL;
+                                    g_st().iobuff[i as usize] = 0;
 
                                     if depth < 0 {
                                         if lnum >= end_lnum {
@@ -3577,19 +3577,19 @@ pub fn find_pattern_in_path(
                                             .cast();
                                         if p > aux {
                                             if crate::memory::cstr_first_byte(aux) != b')'
-                                                && g_st().iobuff[(i - 1) as usize] as u8 != TAB
+                                                && g_st().iobuff[(i - 1) as usize] != TAB
                                             {
-                                                if g_st().iobuff[(i - 1) as usize] as u8 != b' ' {
-                                                    g_st().iobuff[i as usize] = b' ' as _;
+                                                if g_st().iobuff[(i - 1) as usize] != b' ' {
+                                                    g_st().iobuff[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                                 if opt_vars().p_js
                                                     && matches!(
-                                                        g_st().iobuff[(i - 2) as usize] as u8,
+                                                        g_st().iobuff[(i - 2) as usize],
                                                         b'.' | b'?' | b'!'
                                                     )
                                                 {
-                                                    g_st().iobuff[i as usize] = b' ' as _;
+                                                    g_st().iobuff[i as usize] = b' ';
                                                     i += 1;
                                                 }
                                             }
@@ -3603,13 +3603,13 @@ pub fn find_pattern_in_path(
                                                     .iter()
                                                     .enumerate()
                                             {
-                                                g_st().iobuff[i as usize + idx] = b as _;
+                                                g_st().iobuff[i as usize + idx] = b;
                                             }
                                             i += copy_len as i32;
                                             cont_s_ipos = true;
                                         }
-                                        g_st().iobuff[i as usize] = NUL;
-                                        aux = g_st().iobuff.as_mut_ptr();
+                                        g_st().iobuff[i as usize] = 0;
+                                        aux = g_st().iobuff.as_mut_ptr().cast();
 
                                         if i == ins_compl_len() {
                                             skip_add = true;

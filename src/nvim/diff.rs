@@ -1117,7 +1117,7 @@ fn diff_file(dio: &mut Diffio) -> bool {
         + opt_vars().p_srr.as_bytes().len()
         + 27;
     let mut cmd_vec: Vec<u8> = vec![0; len];
-    let cmd = crate::strings::CStrCursor::from_ptr(cmd_vec.as_mut_ptr().cast());
+    let cmd = crate::strings::CStrCursor::from_ptr(cmd_vec.as_mut_ptr());
     if os_env_exists(c"DIFF_OPTIONS", true) {
         let _ = os_unsetenv(c"DIFF_OPTIONS");
     }
@@ -1220,7 +1220,7 @@ pub fn ex_diffpatch(eap: &mut Exarg) {
         let esc_ptr = esc_name.as_ref().map_or(c"".as_ptr(), |s| s.as_ptr());
         let buflen = tmp_orig.len() + crate::memory::cstr_len(esc_ptr) + tmp_new.len() + 16;
         buf_vec = vec![0; buflen];
-        let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr().cast());
+        let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr());
         #[cfg(unix)]
         let mut dirbuf: [u8; MAXPATHL] = [0; MAXPATHL];
         #[cfg(unix)]

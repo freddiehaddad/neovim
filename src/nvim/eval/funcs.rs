@@ -4337,7 +4337,7 @@ pub fn create_environment(
                     let name_b = crate::memory::cstr_as_bytes(name);
                     if name_b.len() < MAXPATHL / MB_MAXBYTES {
                         mb_strup_buf(name_b, g_st().name_buff_bytes_mut());
-                        name = g_st().name_buff.as_ptr();
+                        name = g_st().name_buff.as_ptr().cast();
                     }
                 }
                 tv_dict_add_str(
@@ -4391,7 +4391,7 @@ pub fn create_environment(
                     if namelen < MAXPATHL / MB_MAXBYTES {
                         namelen = mb_strup_buf(key_b, g_st().name_buff_bytes_mut());
                         name = crate::strings::CStrCursor::<std::ffi::c_char>::of(
-                            g_st().name_buff.as_ptr(),
+                            g_st().name_buff.as_ptr().cast(),
                         );
                     }
                     let name_cstr = name.as_cstr();
@@ -4663,12 +4663,12 @@ pub fn f_jobstart(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncDat
                 g_st().iobuff_bytes_mut(),
                 true,
             );
-            if len > 1 && matches!(g_st().iobuff[len - 1] as u8, b'\\' | b'/') {
-                g_st().iobuff[len - 1] = NUL;
+            if len > 1 && matches!(g_st().iobuff[len - 1], b'\\' | b'/') {
+                g_st().iobuff[len - 1] = 0;
             }
             if len == 1 && iobuff.first_byte() == b'/' {
-                g_st().iobuff[1] = b'.' as std::ffi::c_char;
-                g_st().iobuff[2] = NUL;
+                g_st().iobuff[1] = b'.';
+                g_st().iobuff[2] = 0;
             }
 
             vim_snprintf!(
@@ -8692,7 +8692,6 @@ use crate::api::buffer::VIML_INTERNAL_CALL;
 use crate::api::ui::{K_CHANNEL_PART_ALL, MAX_SCHAR_SIZE};
 use crate::arglist::{f_argc, f_argidx, f_arglistid, f_argv};
 use crate::change::MB_MAXCHAR;
-use crate::charset::NUL;
 #[cfg(windows)]
 use crate::cmdexpand::MB_MAXBYTES;
 use crate::cmdexpand::{f_cmdcomplete_info, f_getcompletion, f_getcompletiontype};

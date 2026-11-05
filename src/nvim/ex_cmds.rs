@@ -4807,7 +4807,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
                 gettext(c"(Interrupted) ").to_bytes(),
             );
         } else {
-            g_st().msg_buf[0] = NUL;
+            g_st().msg_buf[0] = 0;
         }
 
         let msg_single = if count_only {

@@ -3675,9 +3675,9 @@ fn rename_with_tmp(from: &CStr, to: &CStr) -> i32 {
     for n in 123..99999 {
         let tail = path_tail(crate::memory::cstr_until_nul(&tempname))
             .as_ptr()
-            .cast_mut();
-        let rem = (MAXPATHL + 1)
-            - crate::memory::ptr_offset_from(tail, tempname.as_ptr().cast()) as usize;
+            .cast_mut()
+            .cast::<u8>();
+        let rem = (MAXPATHL + 1) - crate::memory::ptr_offset_from(tail, tempname.as_ptr()) as usize;
         vim_snprintf!(tail, rem, c"%d", n);
 
         let temp_cstr = crate::memory::cstr_until_nul(&tempname);

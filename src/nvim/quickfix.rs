@@ -15,7 +15,7 @@ use crate::buffer::{
     set_bufref, setfname, wipe_buffer,
 };
 use crate::change::{TAB, changed_lines};
-use crate::charset::{NL, NUL, ascii_iswhite, skipdigits_slice, skipwhite_slice, vim_isprintc};
+use crate::charset::{ascii_iswhite, skipdigits_slice, skipwhite_slice, vim_isprintc};
 use crate::cmdexpand::Cmdidx;
 use crate::context::{CtxSwitch, ctx_restore, ctx_switch};
 use crate::cursor::{Colnr, CursorPos, Linenr, check_cursor, get_cursor_line_ptr};
@@ -1058,7 +1058,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
 
     let mut discard = false;
     state.linelen = iobuff_ptr.len();
-    if state.linelen == IOSIZE - 1 && g_st().iobuff[state.linelen - 1] != NL {
+    if state.linelen == IOSIZE - 1 && g_st().iobuff[state.linelen - 1] != b'\n' {
         if state.growbuf.len() < 2 * (IOSIZE - 1) {
             state.growbuf.resize(2 * (IOSIZE - 1), 0);
         }
@@ -1101,7 +1101,7 @@ fn qf_get_next_file_line(state: &mut Qfstate) -> QfStatus {
                     }
                     break;
                 }
-                if iobuff_ptr.len() < IOSIZE - 1 || g_st().iobuff[IOSIZE - 2] == NL {
+                if iobuff_ptr.len() < IOSIZE - 1 || g_st().iobuff[IOSIZE - 2] == b'\n' {
                     break;
                 }
             }
@@ -6789,7 +6789,7 @@ pub fn ex_cbuffer(eap: &mut Exarg) {
     if let Some(buf_sfname) = buf.sfname_opt() {
         let iobuff_ptr = g_st().iobuff.as_mut_ptr();
         vim_snprintf!(iobuff_ptr, IOSIZE, c"%s (%s)", qf_title, buf_sfname,);
-        qf_title = crate::strings::CStrCursor::of(iobuff_ptr);
+        qf_title = crate::strings::CStrCursor::of(iobuff_ptr.cast());
     }
 
     incr_quickfix_busy();
@@ -6966,9 +6966,9 @@ fn hgr_search_file(qfl: &mut QfList, fname: &CStr, p_regmatch: &mut Regmatch) {
 
         if vim_regexec(p_regmatch, crate::memory::cstr_from_ptr(line), 0) {
             let mut l = crate::memory::cstr_len(line);
-            while l > 0 && (g_st().iobuff[l - 1] as u8) <= b' ' {
+            while l > 0 && g_st().iobuff[l - 1] <= b' ' {
                 l -= 1;
-                g_st().iobuff[l] = NUL;
+                g_st().iobuff[l] = 0;
             }
 
             if qf_add_entry(

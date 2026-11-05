@@ -365,14 +365,6 @@ impl<T> crate::memory::IntoConstPtr for CStrCursor<T> {
     }
 }
 
-impl<T> crate::memory::IntoMutPtr for CStrCursor<T> {
-    type Target = T;
-    #[inline(always)]
-    fn into_mut_ptr(self) -> *mut T {
-        self.as_ptr()
-    }
-}
-
 #[inline(always)]
 pub fn tr(s: &CStr) -> &'static CStr {
     gettext(s)

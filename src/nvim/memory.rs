@@ -396,17 +396,46 @@ pub fn cstr_slice<'a>(s: impl AsCStrPtr, len: usize) -> &'a [u8] {
     }
 }
 
+pub trait SnprintfDest {
+    fn into_snprintf_ptr(self) -> *mut u8;
+}
+
+impl SnprintfDest for *mut u8 {
+    #[inline(always)]
+    fn into_snprintf_ptr(self) -> *mut u8 {
+        self
+    }
+}
+
+impl SnprintfDest for &mut [u8] {
+    #[inline(always)]
+    fn into_snprintf_ptr(self) -> *mut u8 {
+        self.as_mut_ptr()
+    }
+}
+
+impl<const N: usize> SnprintfDest for &mut [u8; N] {
+    #[inline(always)]
+    fn into_snprintf_ptr(self) -> *mut u8 {
+        self.as_mut_ptr()
+    }
+}
+
+impl<T> SnprintfDest for crate::strings::CStrCursor<T> {
+    #[inline(always)]
+    fn into_snprintf_ptr(self) -> *mut u8 {
+        self.as_ptr().cast()
+    }
+}
+
 /// View `len` bytes starting at `s` as a mutable byte slice (`&mut [u8]`).
 #[inline(always)]
-pub fn cstr_mut_slice<'a>(
-    s: impl IntoMutPtr<Target = std::ffi::c_char>,
-    len: usize,
-) -> &'a mut [u8] {
-    let s = s.into_mut_ptr();
+pub fn cstr_mut_slice<'a>(s: impl SnprintfDest, len: usize) -> &'a mut [u8] {
+    let s = s.into_snprintf_ptr();
     if s.is_null() || len == 0 {
         &mut []
     } else {
-        unsafe { std::slice::from_raw_parts_mut(s.cast::<u8>(), len) }
+        unsafe { std::slice::from_raw_parts_mut(s, len) }
     }
 }
 
@@ -428,6 +457,14 @@ impl<T> IntoMutPtr for &mut T {
     #[inline(always)]
     fn into_mut_ptr(self) -> *mut T {
         std::ptr::from_mut(self)
+    }
+}
+
+impl<T> IntoMutPtr for crate::strings::CStrCursor<T> {
+    type Target = T;
+    #[inline(always)]
+    fn into_mut_ptr(self) -> *mut T {
+        self.as_ptr()
     }
 }
 

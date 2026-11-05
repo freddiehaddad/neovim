@@ -371,7 +371,7 @@ pub fn vim_findfile_init(
             return None;
         }
 
-        let expand_ptr: crate::strings::RawCCharPtrMut = expand_buf.as_mut_ptr().cast();
+        let expand_ptr = expand_buf.as_mut_ptr();
         let mut add_sep = after_pathsep(search_ctx.ffsc_start_dir.cstr_bytes()) == 0;
         expand_size = vim_snprintf!(
             expand_ptr,
@@ -388,7 +388,7 @@ pub fn vim_findfile_init(
         {
             let bufsize = expand_size + search_ctx.ffsc_fix_path.size + 1;
             let mut buf_vec = vec![0u8; bufsize];
-            let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr().cast());
+            let buf = crate::strings::CStrCursor::from_ptr(buf_vec.as_mut_ptr());
 
             vim_snprintf!(
                 buf,
@@ -1714,7 +1714,7 @@ pub fn vim_chdirfile(fname: &std::ffi::CStr, cause: CdCause) -> bool {
         dir[tail_off] = NUL as u8;
 
         if !os_dirname(g_st().name_buff_bytes_mut()) {
-            g_st().name_buff[0] = NUL;
+            g_st().name_buff[0] = 0;
         }
 
         if path_equal(

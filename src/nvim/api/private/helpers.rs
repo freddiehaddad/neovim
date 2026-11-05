@@ -221,13 +221,13 @@ macro_rules! api_set_error {
         let err_ref: &mut $crate::api::private::validate::Error = $err;
         let et: $crate::api::private::validate::ErrorType = $err_type;
         let fmt_cstr: &::std::ffi::CStr = $fmt;
-        let fmt_ptr: $crate::strings::RawCCharPtr = fmt_cstr.as_ptr();
+        let fmt_args = [$($crate::strings::IntoFmtVal::into_fmt_val($arg)),+];
         {
-            let len = $crate::strings::vim_snprintf!(std::ptr::null_mut(), 0, fmt_ptr, $($arg),+);
+            let len = $crate::strings::vim_snprintf_fmt(&mut [], Some(fmt_cstr), &fmt_args);
             let bufsize = ((len.max(0) as usize) + 1).min(1024 * 1024);
             let mut buf = vec![0u8; bufsize];
-            $crate::strings::vim_snprintf!(buf.as_mut_ptr().cast(), bufsize, fmt_ptr, $($arg),+);
-            err_ref.msg = Some($crate::memory::cstr_to_cstring(buf.as_ptr()));
+            $crate::strings::vim_snprintf_fmt(&mut buf, Some(fmt_cstr), &fmt_args);
+            err_ref.msg = Some($crate::memory::cstring_until_nul(&buf));
             err_ref.err_type = et;
         }
     }};

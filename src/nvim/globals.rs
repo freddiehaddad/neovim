@@ -1,7 +1,7 @@
 //! Global variables (`src/nvim/globals.h`).
 
 use crate::highlight::{HLF_COUNT, RgbValue};
-use crate::strings::RawCChar;
+
 use std::ptr;
 
 use crate::decoration::{DecorSignHighlight, DecorState, NS};
@@ -255,10 +255,10 @@ pub struct EditorState {
     pub in_assert_fails: bool,
     pub swap_exists_action: i32,
     pub swap_exists_did_quit: bool,
-    pub iobuff: [RawCChar; IOSIZE],
-    pub name_buff: [RawCChar; MAXPATHL],
-    pub msg_buf: [RawCChar; MSG_BUF_LEN],
-    pub os_buf: [RawCChar; MAXPATHL],
+    pub iobuff: [u8; IOSIZE],
+    pub name_buff: [u8; MAXPATHL],
+    pub msg_buf: [u8; MSG_BUF_LEN],
+    pub os_buf: [u8; MAXPATHL],
     pub redrawing_disabled: i32,
     pub readonlymode: bool,
     pub recoverymode: bool,
@@ -897,13 +897,13 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub fn iobuff_bytes(&self) -> &[u8; IOSIZE] {
-        unsafe { &*(&raw const self.iobuff).cast::<[u8; IOSIZE]>() }
+    pub const fn iobuff_bytes(&self) -> &[u8; IOSIZE] {
+        &self.iobuff
     }
 
     #[inline(always)]
-    pub fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
-        unsafe { &mut *(&raw mut self.iobuff).cast::<[u8; IOSIZE]>() }
+    pub const fn iobuff_bytes_mut(&mut self) -> &mut [u8; IOSIZE] {
+        &mut self.iobuff
     }
 
     #[inline(always)]
@@ -912,8 +912,8 @@ impl EditorState {
     }
 
     #[inline(always)]
-    pub fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
-        unsafe { &mut *(&raw mut self.name_buff).cast::<[u8; MAXPATHL]>() }
+    pub const fn name_buff_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
+        &mut self.name_buff
     }
 
     #[inline(always)]
@@ -923,13 +923,13 @@ impl EditorState {
 
     #[cfg(windows)]
     #[inline(always)]
-    pub fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
-        unsafe { &mut *(&raw mut self.os_buf).cast::<[u8; MAXPATHL]>() }
+    pub const fn os_buf_bytes_mut(&mut self) -> &mut [u8; MAXPATHL] {
+        &mut self.os_buf
     }
 
     #[inline(always)]
-    pub fn msg_buf_bytes_mut(&mut self) -> &mut [u8; MSG_BUF_LEN] {
-        unsafe { &mut *(&raw mut self.msg_buf).cast::<[u8; MSG_BUF_LEN]>() }
+    pub const fn msg_buf_bytes_mut(&mut self) -> &mut [u8; MSG_BUF_LEN] {
+        &mut self.msg_buf
     }
 }
 

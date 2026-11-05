@@ -436,7 +436,7 @@ pub fn init_homedir() {
                 let p = var.wrapping_add(1 + pos);
                 let buf = (&raw mut g_st().os_buf).cast::<u8>();
                 for (i, &b) in rest[..pos].iter().enumerate() {
-                    g_st().os_buf[i] = b as crate::strings::RawCChar;
+                    g_st().os_buf[i] = b;
                 }
                 g_st().os_buf[pos] = 0;
                 var = ptr::null_mut();
@@ -1133,7 +1133,7 @@ pub fn os_setenv_append_path(fname_cstr: &CStr) -> bool {
         let dirlen = (tail as usize) - (fname.as_ptr() as usize);
         assert!((tail as usize) >= (fname.as_ptr() as usize) && dirlen + 1 < MAXPATHL);
         for (i, &b) in fname.slice(dirlen).iter().enumerate() {
-            g_st().os_buf[i] = b as crate::strings::RawCChar;
+            g_st().os_buf[i] = b;
         }
         g_st().os_buf[dirlen] = 0;
         let path_cstr = os_getenv_cstr(c"PATH");
