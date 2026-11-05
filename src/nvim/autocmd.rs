@@ -1310,8 +1310,8 @@ impl AutocmdState {
 static AU_STATE: GlobalState<AutocmdState> = GlobalState::new(AutocmdState::new());
 
 #[inline]
-fn au_st() -> &'static mut AutocmdState {
-    AU_STATE.as_mut()
+fn au_st() -> crate::globals::GraphPtr<AutocmdState> {
+    AU_STATE.handle()
 }
 
 fn map_put_name_to_id(name: &CStr, val: i32) {
@@ -1326,6 +1326,7 @@ fn map_put_name_to_id(name: &CStr, val: i32) {
 
 fn map_get_id_to_name(key: i32) -> Option<&'static CStr> {
     au_st()
+        .borrow_mut()
         .map_augroup_id_to_name
         .get(&key)
         .map(CString::as_c_str)
@@ -1681,7 +1682,7 @@ fn au_cleanup() {
 }
 
 pub fn au_get_autocmds_for_event(event: AuEvent) -> &'static mut AutoCmdVec {
-    &mut au_st().autocmds[event as usize]
+    &mut au_st().borrow_mut().autocmds[event as usize]
 }
 
 pub fn aubuflocal_remove(buf: &mut FileBuf) {
@@ -3134,7 +3135,7 @@ pub fn is_autocmd_blocked() -> bool {
 }
 
 fn aucmd_next(apc: &mut AutoPatCmd) {
-    let entry = rt_st().exestack.last_mut().unwrap();
+    let entry = rt_st().borrow_mut().exestack.last_mut().unwrap();
 
     let acs = &mut au_st().autocmds[apc.event as usize];
     assert!(apc.ausize <= acs.len());

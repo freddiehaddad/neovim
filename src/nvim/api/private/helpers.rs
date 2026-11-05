@@ -1549,8 +1549,8 @@ static API_META_STATE: crate::globals::GlobalState<ApiMetadataState> =
     crate::globals::GlobalState::new(ApiMetadataState::new());
 
 #[inline]
-fn api_meta_st() -> &'static mut ApiMetadataState {
-    API_META_STATE.as_mut()
+fn api_meta_st() -> crate::globals::GraphPtr<ApiMetadataState> {
+    API_META_STATE.handle()
 }
 
 struct ApiFunctionMeta {

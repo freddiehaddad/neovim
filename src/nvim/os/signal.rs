@@ -86,8 +86,8 @@ static SIG_STATE: crate::globals::GlobalState<SignalModuleState> =
     crate::globals::GlobalState::new(SignalModuleState::new());
 
 #[inline]
-fn sig_st() -> &'static mut SignalModuleState {
-    SIG_STATE.as_mut()
+fn sig_st() -> crate::globals::GraphPtr<SignalModuleState> {
+    SIG_STATE.handle()
 }
 
 unsafe extern "C" {

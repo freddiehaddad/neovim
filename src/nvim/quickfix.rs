@@ -349,7 +349,7 @@ impl Qfstate {
             &self.growbuf[..(len + 1).min(cap)]
         } else {
             let n = (len + 1).min(IOSIZE);
-            &g_st().iobuff_bytes()[..n]
+            &g_st().borrow_mut().iobuff_bytes()[..n]
         }
     }
 
@@ -361,7 +361,7 @@ impl Qfstate {
             &mut self.growbuf[..(len + 1).min(cap)]
         } else {
             let n = (len + 1).min(IOSIZE);
-            &mut g_st().iobuff_bytes_mut()[..n]
+            &mut g_st().borrow_mut().iobuff_bytes_mut()[..n]
         }
     }
 }
@@ -574,13 +574,13 @@ impl QuickfixState {
 static QF_STATE: GlobalState<QuickfixState> = GlobalState::new(QuickfixState::new());
 
 #[inline]
-fn qf_st() -> &'static mut QuickfixState {
-    QF_STATE.as_mut()
+fn qf_st() -> crate::globals::GraphPtr<QuickfixState> {
+    QF_STATE.handle()
 }
 
 #[inline]
 fn ql_info_mut() -> &'static mut QfInfo {
-    &mut qf_st().ql_info_actual
+    &mut qf_st().borrow_mut().ql_info_actual
 }
 
 #[inline]
@@ -632,7 +632,7 @@ fn qfga_get() -> &'static mut Vec<u8> {
         qf_st().qfga.reserve(256);
     }
     qf_st().qfga.clear();
-    &mut qf_st().qfga
+    &mut qf_st().borrow_mut().qfga
 }
 
 fn qfga_clear() {

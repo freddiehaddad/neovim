@@ -201,8 +201,8 @@ static EXEVAL_STATE: crate::globals::GlobalState<ExEvalModuleState> =
     crate::globals::GlobalState::new(ExEvalModuleState::new());
 
 #[inline]
-fn exeval_st() -> &'static mut ExEvalModuleState {
-    EXEVAL_STATE.as_mut()
+fn exeval_st() -> crate::globals::GraphPtr<ExEvalModuleState> {
+    EXEVAL_STATE.handle()
 }
 
 #[inline]
@@ -1182,7 +1182,13 @@ pub fn ex_catch(eap: &mut Exarg) {
                 } else {
                     let prev_got_int = g_st().got_int;
                     g_st().got_int = false;
-                    let val_cstr = g_st().current_exception.as_ref().unwrap().value.as_c_str();
+                    let val_cstr = g_st()
+                        .borrow_mut()
+                        .current_exception
+                        .as_ref()
+                        .unwrap()
+                        .value
+                        .as_c_str();
                     caught = vim_regexec_nl(&mut regmatch, Some(val_cstr), 0);
                     g_st().got_int |= prev_got_int;
                     regmatch.free_prog();

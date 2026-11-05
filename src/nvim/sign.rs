@@ -107,8 +107,8 @@ static SIGN_STATE: crate::globals::GlobalState<SignModuleState> =
     crate::globals::GlobalState::new(SignModuleState::new());
 
 #[inline]
-fn sign_st() -> &'static mut SignModuleState {
-    SIGN_STATE.as_mut()
+fn sign_st() -> crate::globals::GraphPtr<SignModuleState> {
+    SIGN_STATE.handle()
 }
 
 const CMDS: [&CStr; 6] = [
@@ -127,6 +127,7 @@ fn pmap_get_sign(name: &[u8]) -> Option<&'static mut Sign> {
         return None;
     }
     sign_st()
+        .borrow_mut()
         .sign_map
         .iter_mut()
         .find(|sp| sp.sn_name.as_bytes() == name_bytes)
@@ -522,7 +523,7 @@ fn sign_define_by_name(
             sn_num_hl: 0,
             sn_priority: 0,
         });
-        sign_st().sign_map.last_mut().unwrap()
+        sign_st().borrow_mut().sign_map.last_mut().unwrap()
     };
 
     if let Some(icon_cstr) = icon {
@@ -1202,6 +1203,7 @@ pub fn free_signs() {
 fn get_nth_sign_name(idx: i32) -> Option<&'static CStr> {
     let idx_usize = usize::try_from(idx).ok()?;
     sign_st()
+        .borrow_mut()
         .sign_map
         .as_slice()
         .get(idx_usize)
@@ -1210,7 +1212,7 @@ fn get_nth_sign_name(idx: i32) -> Option<&'static CStr> {
 
 fn get_nth_sign_group_name(idx: i32) -> Option<&'static CStr> {
     let idx_usize = usize::try_from(idx).ok()?;
-    let ns_slice = sign_st().sign_ns.as_slice();
+    let ns_slice = sign_st().borrow_mut().sign_ns.as_slice();
     ns_slice
         .get(idx_usize)
         .map(|&ns| describe_ns(ns as NS, c""))

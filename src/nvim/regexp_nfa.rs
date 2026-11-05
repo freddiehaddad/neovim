@@ -198,8 +198,8 @@ impl RegexpNfaState {
 static NFA_STATE: GlobalState<RegexpNfaState> = GlobalState::new(RegexpNfaState::new());
 
 #[inline]
-fn nfa_st() -> &'static mut RegexpNfaState {
-    NFA_STATE.as_mut()
+fn nfa_st() -> crate::globals::GraphPtr<RegexpNfaState> {
+    NFA_STATE.handle()
 }
 
 #[inline]

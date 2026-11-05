@@ -184,8 +184,8 @@ static CHARSET_STATE: crate::globals::GlobalState<CharsetModuleState> =
     crate::globals::GlobalState::new(CharsetModuleState::new());
 
 #[inline]
-fn charset_st() -> &'static mut CharsetModuleState {
-    CHARSET_STATE.as_mut()
+fn charset_st() -> crate::globals::GraphPtr<CharsetModuleState> {
+    CHARSET_STATE.handle()
 }
 
 #[inline]
@@ -579,7 +579,8 @@ pub fn transchar_buf(buf: Option<&FileBuf>, mut c: i32) -> &'static std::ffi::CS
     } else {
         transchar_hex(&mut charbuf[i..], c);
     }
-    std::ffi::CStr::from_bytes_until_nul(&charset_st().transchar_charbuf).unwrap_or(c"")
+    std::ffi::CStr::from_bytes_until_nul(&charset_st().borrow_mut().transchar_charbuf)
+        .unwrap_or(c"")
 }
 
 pub fn transchar_byte<C: AsciiInt>(c: C) -> &'static std::ffi::CStr {
@@ -590,7 +591,7 @@ pub fn transchar_byte_buf(buf: Option<&FileBuf>, c: i32) -> &'static std::ffi::C
     if c >= 0x80 {
         let charbuf = &mut charset_st().transchar_charbuf;
         transchar_nonprint(buf, charbuf, c);
-        return std::ffi::CStr::from_bytes_until_nul(&charset_st().transchar_charbuf)
+        return std::ffi::CStr::from_bytes_until_nul(&charset_st().borrow_mut().transchar_charbuf)
             .unwrap_or(c"");
     }
     transchar_buf(buf, c)

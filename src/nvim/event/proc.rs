@@ -132,8 +132,8 @@ static PROC_STATE: crate::globals::GlobalState<ProcModuleState> =
     crate::globals::GlobalState::new(ProcModuleState::new());
 
 #[inline]
-fn proc_st() -> &'static mut ProcModuleState {
-    PROC_STATE.as_mut()
+fn proc_st() -> crate::globals::GraphPtr<ProcModuleState> {
+    PROC_STATE.handle()
 }
 
 use crate::event::r#loop::{uv_recv_buffer_size, uv_unref};

@@ -239,7 +239,7 @@ pub fn nvim_get_namespaces(arena: &mut Arena) -> Dict {
 
 // DLLEXPORT const char *describe_ns(NS ns_id, const char *unknown);
 pub fn describe_ns(ns_id: NS, unknown: &std::ffi::CStr) -> &std::ffi::CStr {
-    for (name, id) in &g_st().namespace_ids {
+    for (name, id) in &g_st().borrow_mut().namespace_ids {
         if *id == ns_id && !name.as_bytes().is_empty() {
             return name.as_c_str();
         }

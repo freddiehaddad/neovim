@@ -221,8 +221,8 @@ impl MessageState {
 static MSG_STATE: GlobalState<MessageState> = GlobalState::new(MessageState::new());
 
 #[inline]
-fn msg_st() -> &'static mut MessageState {
-    MSG_STATE.as_mut()
+fn msg_st() -> crate::globals::GraphPtr<MessageState> {
+    MSG_STATE.handle()
 }
 
 #[macro_export]
@@ -2025,7 +2025,7 @@ pub fn msgmore(n: i32) {
                 gettext(c" (Interrupted)").to_bytes(),
             );
         }
-        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
+        let msg_cstr = crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
             msg_st().keep_msg_more = true;
@@ -2470,7 +2470,7 @@ pub fn str2special(
 
     msg_st().str2_special_buf[0] = c as u8;
     msg_st().str2_special_buf[1] = 0;
-    unsafe { CStr::from_bytes_with_nul_unchecked(&msg_st().str2_special_buf[..2]) }
+    unsafe { CStr::from_bytes_with_nul_unchecked(&msg_st().borrow_mut().str2_special_buf[..2]) }
 }
 
 /// print line for :print or :list command
@@ -2898,7 +2898,9 @@ fn msg_puts_display(str_in: &[u8], maxlen: i32, hl_id: i32, recurse: i32) {
                         && !g_st().msg_no_more
                     {
                         if do_more_prompt(NUL as i32) {
-                            s_slice = crate::memory::bytes_until_nul(&dlg_st().confirm_buttons);
+                            s_slice = crate::memory::bytes_until_nul(
+                                &dlg_st().borrow_mut().confirm_buttons,
+                            );
                             sb_slice = s_slice;
                         }
                         if g_st().quit_more {
@@ -3253,7 +3255,7 @@ pub fn sb_text_start_cmdline() {
 pub fn sb_text_restart_cmdline() {
     msg_st().do_clear_sb_text = SbClear::SbClearCmdlineBusy;
 
-    let Some(last) = msg_st().msgchunks.last() else {
+    let Some(last) = msg_st().borrow_mut().msgchunks.last() else {
         return;
     };
     if last.sb_eol {
@@ -3321,7 +3323,7 @@ fn disp_sb_line(row: i32, smp: usize) -> Option<usize> {
     loop {
         g_st().msg_row = row;
         let (sb_msg_col, hl_id, eol, text) = {
-            let chunk = &msg_st().msgchunks.as_slice()[idx];
+            let chunk = &msg_st().borrow_mut().msgchunks.as_slice()[idx];
             (
                 chunk.sb_msg_col,
                 chunk.sb_hl_id,

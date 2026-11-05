@@ -342,8 +342,8 @@ impl LuaExecutorState {
 static NLUA_STATE: GlobalState<LuaExecutorState> = GlobalState::new(LuaExecutorState::new());
 
 #[inline]
-pub(crate) fn nlua_st() -> &'static mut LuaExecutorState {
-    NLUA_STATE.as_mut()
+pub(crate) fn nlua_st() -> crate::globals::GraphPtr<LuaExecutorState> {
+    NLUA_STATE.handle()
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;

@@ -138,8 +138,8 @@ static PATH_STATE: crate::globals::GlobalState<PathModuleState> =
     crate::globals::GlobalState::new(PathModuleState::new());
 
 #[inline]
-fn path_st() -> &'static mut PathModuleState {
-    PATH_STATE.as_mut()
+fn path_st() -> crate::globals::GraphPtr<PathModuleState> {
+    PATH_STATE.handle()
 }
 
 #[cfg(windows)]
@@ -2112,7 +2112,8 @@ pub fn path_guess_exepath(argv0: &CStr, buf_slice: &mut [u8]) {
                 crate::memory::copy_bytes_to_c_buf(g_st().name_buff_bytes_mut(), dir);
                 crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), PATHSEPSTR);
                 crate::memory::append_bytes_to_c_buf(g_st().name_buff_bytes_mut(), argv0_bytes);
-                let nb_cstr = crate::memory::cstr_until_nul(g_st().name_buff_bytes_mut());
+                let nb_cstr =
+                    crate::memory::cstr_until_nul(g_st().borrow_mut().name_buff_bytes_mut());
                 if os_can_exe(nb_cstr, None, false) {
                     crate::memory::copy_bytes_to_c_buf(buf_slice, nb_cstr.to_bytes());
                     to_slash(buf_slice);

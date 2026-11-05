@@ -164,8 +164,8 @@ static LUACONV_STATE: crate::globals::GlobalState<LuaConverterState> =
     crate::globals::GlobalState::new(LuaConverterState::new());
 
 #[inline]
-fn luaconv_st() -> &'static mut LuaConverterState {
-    LUACONV_STATE.as_mut()
+fn luaconv_st() -> crate::globals::GraphPtr<LuaConverterState> {
+    LUACONV_STATE.handle()
 }
 
 #[repr(C)]

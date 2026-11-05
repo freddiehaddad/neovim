@@ -306,8 +306,8 @@ impl SearchModuleState {
 static SEARCH_STATE: GlobalState<SearchModuleState> = GlobalState::new(SearchModuleState::new());
 
 #[inline]
-fn srch() -> &'static mut SearchModuleState {
-    SEARCH_STATE.as_mut()
+fn srch() -> crate::globals::GraphPtr<SearchModuleState> {
+    SEARCH_STATE.handle()
 }
 
 #[inline]
@@ -407,7 +407,7 @@ pub fn search_regcomp(
 
 /// Get search pattern used by `search_regcomp()`.
 pub fn get_search_pat() -> Option<&'static CStr> {
-    srch().mr_pattern.as_deref()
+    srch().borrow_mut().mr_pattern.as_deref()
 }
 
 pub fn save_re_pat(idx: i32, pat_cstr: &CStr, patlen: usize, magic: i32) {
@@ -576,7 +576,7 @@ pub fn pat_has_uppercase(pat: &CStr) -> bool {
 }
 
 pub fn last_csearch() -> &'static CStr {
-    CStr::from_bytes_until_nul(&srch().lastc_bytes).unwrap_or(c"")
+    CStr::from_bytes_until_nul(&srch().borrow_mut().lastc_bytes).unwrap_or(c"")
 }
 
 pub fn last_csearch_forward() -> i32 {
@@ -607,7 +607,7 @@ pub fn set_csearch_until(t_cmd: i32) {
 }
 
 pub fn last_search_pat() -> Option<&'static CStr> {
-    srch().spats[srch().last_idx as usize].pat_ptr()
+    srch().borrow_mut().spats[srch().borrow_mut().last_idx as usize].pat_ptr()
 }
 
 pub fn reset_search_dir() {
@@ -3959,7 +3959,7 @@ pub fn get_substitute_pattern(pat: &mut SearchPattern) {
 }
 
 pub fn get_search_pattern_ptr(substitute: bool) -> Option<&'static CStr> {
-    srch().spats[if substitute {
+    srch().borrow_mut().spats[if substitute {
         RE_SUBST as usize
     } else {
         RE_SEARCH as usize

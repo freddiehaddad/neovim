@@ -56,8 +56,8 @@ impl ProfileModuleState {
 static PROF_STATE: GlobalState<ProfileModuleState> = GlobalState::new(ProfileModuleState::new());
 
 #[inline]
-fn prof_st() -> &'static mut ProfileModuleState {
-    PROF_STATE.as_mut()
+fn prof_st() -> crate::globals::GraphPtr<ProfileModuleState> {
+    PROF_STATE.handle()
 }
 
 const PEXPAND_CMDS: [&CStr; 7] = [
@@ -234,7 +234,7 @@ pub fn profile_msg(tm: Proftime) -> &'static CStr {
     let formatted = format!("{secs:10.6}");
     let bytes = formatted.as_bytes();
     {
-        let buf = &mut prof_st().profile_msg_buf;
+        let buf = &mut prof_st().borrow_mut().profile_msg_buf;
         let copy_len = bytes.len().min(buf.len() - 1);
         buf[..copy_len].copy_from_slice(&bytes[..copy_len]);
         buf[copy_len] = 0;

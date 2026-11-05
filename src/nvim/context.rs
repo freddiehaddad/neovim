@@ -237,8 +237,8 @@ impl ContextModuleState {
 static CTX_STATE: GlobalState<ContextModuleState> = GlobalState::new(ContextModuleState::new());
 
 #[inline]
-fn ctx_st() -> &'static mut ContextModuleState {
-    CTX_STATE.as_mut()
+fn ctx_st() -> crate::globals::GraphPtr<ContextModuleState> {
+    CTX_STATE.handle()
 }
 
 #[inline]

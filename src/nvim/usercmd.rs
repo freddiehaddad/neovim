@@ -117,7 +117,7 @@ static UCMDS_STATE: GlobalState<Vec<Ucmd>> = GlobalState::new(Vec::new());
 
 #[inline]
 pub(crate) fn ucmds_mut() -> &'static mut Vec<Ucmd> {
-    UCMDS_STATE.as_mut()
+    UCMDS_STATE.handle().borrow_mut()
 }
 
 const COMMAND_COMPLETE_LEN: usize = 64;
@@ -638,7 +638,7 @@ fn uc_list(name_prefix: &[u8]) {
 
                 let over = (len as i64) - 22;
                 len = 0;
-                let iobuff = g_st().iobuff_bytes_mut();
+                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
 
                 match a & (EX_EXTRA | EX_NOSPC | EX_NEEDARG | EX_ARGSPACE) {
                     0 => {

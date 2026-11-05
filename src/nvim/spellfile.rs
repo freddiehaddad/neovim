@@ -177,8 +177,8 @@ static SPELLFILE_STATE: crate::globals::GlobalState<SpellfileModuleState> =
     crate::globals::GlobalState::new(SpellfileModuleState::new());
 
 #[inline]
-fn spellfile_st() -> &'static mut SpellfileModuleState {
-    SPELLFILE_STATE.as_mut()
+fn spellfile_st() -> crate::globals::GraphPtr<SpellfileModuleState> {
+    SPELLFILE_STATE.handle()
 }
 
 #[repr(C)]

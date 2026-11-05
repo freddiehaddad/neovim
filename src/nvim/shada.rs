@@ -744,8 +744,8 @@ static SHADA_STATE: crate::globals::GlobalState<ShadaModuleState> =
     crate::globals::GlobalState::new(ShadaModuleState::new());
 
 #[inline]
-fn shada_st() -> &'static mut ShadaModuleState {
-    SHADA_STATE.as_mut()
+fn shada_st() -> crate::globals::GraphPtr<ShadaModuleState> {
+    SHADA_STATE.handle()
 }
 
 use crate::api::private::dispatch::{
@@ -1690,7 +1690,11 @@ fn shada_get_default_file() -> &'static CStr {
         let shada_dir = stdpaths_user_state_subpath(c"shada", 0, false);
         shada_st().default_shada_file = Some(concat_fnames_cstr(&shada_dir, c"main.shada", true));
     }
-    shada_st().default_shada_file.as_deref().unwrap_or(c"")
+    shada_st()
+        .borrow_mut()
+        .default_shada_file
+        .as_deref()
+        .unwrap_or(c"")
 }
 
 fn shada_filename(mut file: Option<&CStr>) -> Option<std::ffi::CString> {

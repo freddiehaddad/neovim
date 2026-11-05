@@ -58,8 +58,8 @@ static API_VIMS_STATE: crate::globals::GlobalState<ApiVimscriptState> =
     crate::globals::GlobalState::new(ApiVimscriptState::new());
 
 #[inline]
-fn api_vims_st() -> &'static mut ApiVimscriptState {
-    API_VIMS_STATE.as_mut()
+fn api_vims_st() -> crate::globals::GraphPtr<ApiVimscriptState> {
+    API_VIMS_STATE.handle()
 }
 
 use crate::api::private::helpers::cstr_to_string;

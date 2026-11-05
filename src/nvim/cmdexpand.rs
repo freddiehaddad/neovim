@@ -1809,8 +1809,8 @@ impl CmdexpandState {
 static CMDEXP_STATE: GlobalState<CmdexpandState> = GlobalState::new(CmdexpandState::new());
 
 #[inline]
-fn cmdexp() -> &'static mut CmdexpandState {
-    CMDEXP_STATE.as_mut()
+fn cmdexp() -> crate::globals::GraphPtr<CmdexpandState> {
+    CMDEXP_STATE.handle()
 }
 
 use crate::mbyte::utfc_slice2len;
@@ -2423,10 +2423,10 @@ fn redraw_wildmenu(xp: &ExpandCtx, matches: &[CString], mut match_idx: i32, show
         }
 
         grid_line_start(
-            if g_st().wild_menu_showing == WM_SCROLLED {
-                &mut g_st().msg_grid_adj
+            if g_st().borrow_mut().wild_menu_showing == WM_SCROLLED {
+                &mut g_st().borrow_mut().msg_grid_adj
             } else {
-                &mut g_st().default_gridview
+                &mut g_st().borrow_mut().default_gridview
             },
             row,
         );

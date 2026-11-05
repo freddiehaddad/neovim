@@ -263,8 +263,8 @@ impl EvalModuleState {
 static EVAL_STATE: GlobalState<EvalModuleState> = GlobalState::new(EvalModuleState::new());
 
 #[inline]
-pub(crate) fn eval_st() -> &'static mut EvalModuleState {
-    EVAL_STATE.as_mut()
+pub(crate) fn eval_st() -> crate::globals::GraphPtr<EvalModuleState> {
+    EVAL_STATE.handle()
 }
 
 enum ForSource {
@@ -5486,7 +5486,7 @@ pub fn var2fpos(
             eval_st().var2_fpos_pos.coladd = 0;
         }
 
-        return Some(&mut eval_st().var2_fpos_pos);
+        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
     }
 
     let name_cstr = tv_get_string_chk(tv)?;
@@ -5535,7 +5535,7 @@ pub fn var2fpos(
                 eval_st().var2_fpos_pos.col,
             );
         }
-        return Some(&mut eval_st().var2_fpos_pos);
+        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
     }
 
     eval_st().var2_fpos_pos.coladd = 0;
@@ -5547,7 +5547,7 @@ pub fn var2fpos(
         if name_bytes.get(1) == Some(&b'0') {
             update_topline(wp);
             eval_st().var2_fpos_pos.lnum = if wp.w_topline > 0 { wp.w_topline } else { 1 };
-            return Some(&mut eval_st().var2_fpos_pos);
+            return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
         } else if name_bytes.get(1) == Some(&b'$') {
             validate_botline_win(&mut *wp);
             eval_st().var2_fpos_pos.lnum = if wp.w_botline > 0 {
@@ -5555,7 +5555,7 @@ pub fn var2fpos(
             } else {
                 0
             };
-            return Some(&mut eval_st().var2_fpos_pos);
+            return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
         }
     } else if name_bytes.first() == Some(&b'$') {
         if dollar_lnum {
@@ -5573,7 +5573,7 @@ pub fn var2fpos(
                 ml_get_buf_len(bp.borrow_mut(), wp.w_cursor.lnum)
             };
         }
-        return Some(&mut eval_st().var2_fpos_pos);
+        return Some(&mut eval_st().borrow_mut().var2_fpos_pos);
     }
     None
 }

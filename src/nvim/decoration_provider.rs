@@ -63,13 +63,13 @@ static DECOR_PROV_STATE: crate::globals::GlobalState<DecorProviderState> =
     crate::globals::GlobalState::new(DecorProviderState::new());
 
 #[inline]
-fn decor_prov_st() -> &'static mut DecorProviderState {
-    DECOR_PROV_STATE.as_mut()
+fn decor_prov_st() -> crate::globals::GraphPtr<DecorProviderState> {
+    DECOR_PROV_STATE.handle()
 }
 
 #[inline]
 fn providers_mut() -> &'static mut Vec<DecorProvider> {
-    &mut decor_prov_st().decor_providers
+    &mut decor_prov_st().borrow_mut().decor_providers
 }
 
 #[inline]

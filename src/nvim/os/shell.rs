@@ -117,8 +117,8 @@ static SH_STATE: crate::globals::GlobalState<ShellModuleState> =
     crate::globals::GlobalState::new(ShellModuleState::new());
 
 #[inline]
-fn sh_st() -> &'static mut ShellModuleState {
-    SH_STATE.as_mut()
+fn sh_st() -> crate::globals::GraphPtr<ShellModuleState> {
+    SH_STATE.handle()
 }
 
 #[cfg(windows)]

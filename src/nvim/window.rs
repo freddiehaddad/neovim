@@ -883,8 +883,8 @@ impl WindowModuleState {
 static WIN_STATE: GlobalState<WindowModuleState> = GlobalState::new(WindowModuleState::new());
 
 #[inline]
-fn win_st() -> &'static mut WindowModuleState {
-    WIN_STATE.as_mut()
+fn win_st() -> crate::globals::GraphPtr<WindowModuleState> {
+    WIN_STATE.handle()
 }
 
 const ERROR_INIT: Error = Error::new();

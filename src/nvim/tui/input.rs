@@ -137,8 +137,8 @@ static TUI_INP_STATE: crate::globals::GlobalState<TuiInputModuleState> =
     crate::globals::GlobalState::new(TuiInputModuleState::new());
 
 #[inline]
-fn tui_inp_st() -> &'static mut TuiInputModuleState {
-    TUI_INP_STATE.as_mut()
+fn tui_inp_st() -> crate::globals::GraphPtr<TuiInputModuleState> {
+    TUI_INP_STATE.handle()
 }
 
 use crate::event::r#loop::uv_timer_get_due_in;

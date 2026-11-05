@@ -628,8 +628,8 @@ impl ExDocmdState {
 static DOCMD_STATE: GlobalState<ExDocmdState> = GlobalState::new(ExDocmdState::new());
 
 #[inline]
-fn docmd_st() -> &'static mut ExDocmdState {
-    DOCMD_STATE.as_mut()
+fn docmd_st() -> crate::globals::GraphPtr<ExDocmdState> {
+    DOCMD_STATE.handle()
 }
 
 struct Wcmd {
@@ -4863,7 +4863,7 @@ const CMDIDXS2: [[u8; 26]; 26] = [
 
 #[inline]
 fn sourcing_lnum_ptr() -> &'static mut Linenr {
-    &mut rt_st().exestack.last_mut().unwrap().es_lnum
+    &mut rt_st().borrow_mut().exestack.last_mut().unwrap().es_lnum
 }
 
 fn save_dbg_stuff(dsp: &mut DbgStuff) {
@@ -7415,7 +7415,7 @@ pub fn checkforcmd(p_bytes: &[u8], cmd_bytes: &[u8], len: usize) -> Option<usize
 }
 
 fn append_command(cmd: &CStr) {
-    let iobuf = g_st().iobuff_bytes_mut();
+    let iobuf = g_st().borrow_mut().iobuff_bytes_mut();
     let mut d = iobuf.iter().position(|&b| b == 0).unwrap_or(IOSIZE);
     if d > IOSIZE - 100 {
         d = IOSIZE - 100;
@@ -9427,7 +9427,7 @@ fn ex_restart(eap: &mut Exarg) {
     let on_exit = Callback::NONE;
     let mut exit_status: Varnumber = 0;
 
-    let globaldir_opt = g_st().globaldir.as_deref();
+    let globaldir_opt = g_st().borrow_mut().globaldir.as_deref();
     let channel = channel_job_start(
         argv_vec,
         Some(exepath),
@@ -10838,7 +10838,7 @@ fn get_prevdir(scope: CdScope) -> &'static mut Option<std::ffi::CString> {
         K_CD_SCOPE_TABPAGE => &mut curtab_mut().tp_prevdir,
         K_CD_SCOPE_BUFFER => &mut curbuf_mut().b_prevdir,
         K_CD_SCOPE_WINDOW => &mut curwin_mut().w_prevdir,
-        _ => &mut docmd_st().prev_dir,
+        _ => &mut docmd_st().borrow_mut().prev_dir,
     }
 }
 

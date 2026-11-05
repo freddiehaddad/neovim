@@ -100,8 +100,8 @@ static WINCON_STATE: crate::globals::GlobalState<WinConsoleState> =
 
 #[cfg(windows)]
 #[inline]
-fn wincon_st() -> &'static mut WinConsoleState {
-    WINCON_STATE.as_mut()
+fn wincon_st() -> crate::globals::GraphPtr<WinConsoleState> {
+    WINCON_STATE.handle()
 }
 
 #[cfg(windows)]

@@ -130,8 +130,8 @@ impl GridModuleState {
 static GRID_STATE: GlobalState<GridModuleState> = GlobalState::new(GridModuleState::new());
 
 #[inline]
-fn grid_st() -> &'static mut GridModuleState {
-    GRID_STATE.as_mut()
+fn grid_st() -> crate::globals::GraphPtr<GridModuleState> {
+    GRID_STATE.handle()
 }
 
 #[inline]

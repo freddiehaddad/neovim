@@ -242,8 +242,8 @@ static TS_STATE: crate::globals::GlobalState<TreesitterModuleState> =
     crate::globals::GlobalState::new(TreesitterModuleState::new());
 
 #[inline]
-fn ts_st() -> &'static mut TreesitterModuleState {
-    TS_STATE.as_mut()
+fn ts_st() -> crate::globals::GraphPtr<TreesitterModuleState> {
+    TS_STATE.handle()
 }
 
 static PARSER_META: [luaL_Reg; 9] = [

@@ -93,8 +93,8 @@ static STATE_MOD_STATE: crate::globals::GlobalState<StateModuleState> =
     crate::globals::GlobalState::new(StateModuleState::new());
 
 #[inline]
-fn state_mod_st() -> &'static mut StateModuleState {
-    STATE_MOD_STATE.as_mut()
+fn state_mod_st() -> crate::globals::GraphPtr<StateModuleState> {
+    STATE_MOD_STATE.handle()
 }
 
 pub fn state_enter<S: EditorState>(s: &mut S) {

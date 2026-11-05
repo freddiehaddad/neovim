@@ -29,8 +29,8 @@ static USERS_STATE: crate::globals::GlobalState<OsUsersState> =
     crate::globals::GlobalState::new(OsUsersState::new());
 
 #[inline]
-fn users_st() -> &'static mut OsUsersState {
-    USERS_STATE.as_mut()
+fn users_st() -> crate::globals::GraphPtr<OsUsersState> {
+    USERS_STATE.handle()
 }
 
 #[cfg(all(
@@ -257,7 +257,7 @@ fn init_users() {
 pub fn get_users(_xp: &mut crate::os::env::ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let i = usize::try_from(idx).ok()?;
     init_users();
-    users_st().users.get(i).map(CString::as_c_str)
+    users_st().borrow_mut().users.get(i).map(CString::as_c_str)
 }
 
 /// Check whether `name` matches a cached username (`match_user`).

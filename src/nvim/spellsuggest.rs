@@ -377,8 +377,8 @@ impl SpellSuggestState {
 static SPS_STATE: GlobalState<SpellSuggestState> = GlobalState::new(SpellSuggestState::new());
 
 #[inline]
-fn sps_st() -> &'static mut SpellSuggestState {
-    SPS_STATE.as_mut()
+fn sps_st() -> crate::globals::GraphPtr<SpellSuggestState> {
+    SPS_STATE.handle()
 }
 #[inline]
 const fn rescore(word_score: i32, sound_score: i32) -> i32 {

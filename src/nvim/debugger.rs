@@ -71,16 +71,16 @@ impl DebuggerState {
 static DBG_STATE: GlobalState<DebuggerState> = GlobalState::new(DebuggerState::new());
 
 #[inline]
-fn dbg_st() -> &'static mut DebuggerState {
-    DBG_STATE.as_mut()
+fn dbg_st() -> crate::globals::GraphPtr<DebuggerState> {
+    DBG_STATE.handle()
 }
 
 #[inline]
 fn dbg_vec_mut(is_prof: bool) -> &'static mut Vec<Debuggy> {
     if is_prof {
-        &mut dbg_st().prof_ga
+        &mut dbg_st().borrow_mut().prof_ga
     } else {
-        &mut dbg_st().dbg_breakp
+        &mut dbg_st().borrow_mut().dbg_breakp
     }
 }
 

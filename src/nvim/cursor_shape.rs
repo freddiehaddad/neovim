@@ -105,7 +105,7 @@ static SHAPE_TABLE: GlobalState<[Cursorentry; SHAPE_IDX_COUNT]> = GlobalState::n
 
 #[inline]
 pub fn shape_table_mut() -> &'static mut [Cursorentry; SHAPE_IDX_COUNT] {
-    SHAPE_TABLE.as_mut()
+    SHAPE_TABLE.handle().borrow_mut()
 }
 
 #[inline]

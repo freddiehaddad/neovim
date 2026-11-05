@@ -328,8 +328,8 @@ impl ExCmdsState {
 static EXCMDS_STATE: GlobalState<ExCmdsState> = GlobalState::new(ExCmdsState::new());
 
 #[inline]
-fn excmds_st() -> &'static mut ExCmdsState {
-    EXCMDS_STATE.as_mut()
+fn excmds_st() -> crate::globals::GraphPtr<ExCmdsState> {
+    EXCMDS_STATE.handle()
 }
 
 use crate::buffer::bt_dontwrite_msg;
@@ -1507,7 +1507,12 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
                 break 'theend;
             }
 
-            let prev_bytes = excmds_st().prevcmd.as_ref().unwrap().as_bytes();
+            let prev_bytes = excmds_st()
+                .borrow_mut()
+                .prevcmd
+                .as_ref()
+                .unwrap()
+                .as_bytes();
             let cmd = vim_strsave_escaped(prev_bytes, b"%#");
             redo_append_lit(cmd.to_bytes());
             redo_append_str(b"\n");
@@ -1515,6 +1520,7 @@ pub fn do_bang(addr_count: i32, eap: &mut Exarg, forceit: bool, do_in: bool, do_
         }
         if !opt_vars().p_shq.is_empty() {
             let prev_bytes = excmds_st()
+                .borrow_mut()
                 .prevcmd
                 .as_ref()
                 .map_or(&[][..], |s| s.to_bytes());
@@ -1753,8 +1759,9 @@ fn do_filter(line1: Linenr, line2: Linenr, eap: &mut Exarg, cmd: &CStr, do_in: b
                             gettext(c"%lld lines filtered"),
                             linecount as i64,
                         );
-                        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
-                        if msg(msg_cstr, 0) && g_st().msg_scroll == 0 {
+                        let msg_cstr =
+                            crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
+                        if msg(msg_cstr, 0) && g_st().borrow_mut().msg_scroll == 0 {
                             set_keep_msg(Some(msg_cstr), 0);
                         }
                     } else {
@@ -4865,7 +4872,7 @@ pub fn do_sub_msg(count_only: bool) -> bool {
             g_st().sub_nsubs as i64,
             g_st().sub_nlines as i64,
         );
-        let msg_cstr = crate::memory::cstr_until_nul(g_st().msg_buf_bytes_mut());
+        let msg_cstr = crate::memory::cstr_until_nul(g_st().borrow_mut().msg_buf_bytes_mut());
         if msg(msg_cstr, 0) {
             set_keep_msg(Some(msg_cstr), 0);
         }

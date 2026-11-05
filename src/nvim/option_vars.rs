@@ -1028,8 +1028,8 @@ impl OptionVars {
 pub static OPT_VARS: GlobalState<OptionVars> = GlobalState::new(OptionVars::new());
 
 #[inline]
-pub fn opt_vars() -> &'static mut OptionVars {
-    OPT_VARS.as_mut()
+pub fn opt_vars() -> crate::globals::GraphPtr<OptionVars> {
+    OPT_VARS.handle()
 }
 
 pub static BUF_OPT_IDX: [OptIndex; 93] = [

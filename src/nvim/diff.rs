@@ -237,8 +237,8 @@ impl DiffState {
 static DIFF_STATE: GlobalState<DiffState> = GlobalState::new(DiffState::new());
 
 #[inline]
-fn diff_st() -> &'static mut DiffState {
-    DIFF_STATE.as_mut()
+fn diff_st() -> crate::globals::GraphPtr<DiffState> {
+    DIFF_STATE.handle()
 }
 #[inline]
 const fn has_dip_key(v: &OptKeyDict_dip, idx: u64) -> bool {

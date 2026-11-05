@@ -2536,8 +2536,8 @@ pub fn do_check_cursorbind() {
         GlobalState::new(MoveCursorbindState::new());
 
     #[inline]
-    fn move_cb_st() -> &'static mut MoveCursorbindState {
-        MOVE_CB_STATE.as_mut()
+    fn move_cb_st() -> crate::globals::GraphPtr<MoveCursorbindState> {
+        MOVE_CB_STATE.handle()
     }
 
     debug_assert!(!(curwin_ptr()).is_null() && !g_st().curbuf.is_null());

@@ -282,8 +282,8 @@ impl UserfuncState {
 static UF_STATE: GlobalState<UserfuncState> = GlobalState::new(UserfuncState::new());
 
 #[inline]
-fn uf_st() -> &'static mut UserfuncState {
-    UF_STATE.as_mut()
+fn uf_st() -> crate::globals::GraphPtr<UserfuncState> {
+    UF_STATE.handle()
 }
 
 const E_FUNCEXTS: &CStr = c"E122: Function %s already exists, add ! to replace it";
@@ -327,7 +327,7 @@ fn funcarg(fp: &UserFunc, j: i32) -> &std::ffi::CStr {
 
 /// Return the function hash table.
 pub fn func_tbl_get() -> &'static mut FuncHashtab {
-    &mut uf_st().func_hashtab
+    &mut uf_st().borrow_mut().func_hashtab
 }
 
 /// Get one function argument.
@@ -4153,7 +4153,7 @@ pub fn free_unref_funccal(copy_id: i32, testing: i32) -> bool {
 
     let mut i = 0usize;
     while i < uf_st().previous_funccal.len() {
-        let fc = &*uf_st().previous_funccal.as_slice()[i].0;
+        let fc = &*uf_st().borrow_mut().previous_funccal.as_slice()[i].0;
         if can_free_funccal(fc, copy_id) {
             uf_st().previous_funccal.remove(i);
             did_free = true;

@@ -146,8 +146,8 @@ static CHAN_STATE: crate::globals::GlobalState<ChannelModuleState> =
     crate::globals::GlobalState::new(ChannelModuleState::new());
 
 #[inline]
-fn chan_st() -> &'static mut ChannelModuleState {
-    CHAN_STATE.as_mut()
+fn chan_st() -> crate::globals::GraphPtr<ChannelModuleState> {
+    CHAN_STATE.handle()
 }
 
 #[repr(C)]

@@ -42,8 +42,8 @@ static TOBJ_STATE: crate::globals::GlobalState<TextobjectState> =
     crate::globals::GlobalState::new(TextobjectState::new());
 
 #[inline]
-fn tobj_st() -> &'static mut TextobjectState {
-    TOBJ_STATE.as_mut()
+fn tobj_st() -> crate::globals::GraphPtr<TextobjectState> {
+    TOBJ_STATE.handle()
 }
 
 /// Find the start of the next sentence, searching in the direction specified

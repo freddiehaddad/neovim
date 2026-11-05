@@ -114,8 +114,8 @@ static LANG_STATE: crate::globals::GlobalState<LangModuleState> =
     crate::globals::GlobalState::new(LangModuleState::new());
 
 #[inline]
-fn lang_st() -> &'static mut LangModuleState {
-    LANG_STATE.as_mut()
+fn lang_st() -> crate::globals::GraphPtr<LangModuleState> {
+    LANG_STATE.handle()
 }
 
 fn eval_plural_expr(expr: &[u8], n: u64) -> usize {
@@ -472,7 +472,7 @@ fn current_message_locale() -> Option<String> {
 }
 
 fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
-    let catalogs = &mut lang_st().catalogs;
+    let catalogs = &mut lang_st().borrow_mut().catalogs;
     if !lang_st().catalog_valid {
         lang_st().catalog_valid = true;
         lang_st().active_catalog = None;
@@ -499,7 +499,10 @@ fn ensure_catalog_loaded() -> Option<&'static MoCatalog> {
             }
         }
     }
-    lang_st().active_catalog.and_then(|idx| catalogs.get(idx))
+    lang_st()
+        .borrow_mut()
+        .active_catalog
+        .and_then(|idx| catalogs.get(idx))
 }
 
 pub(crate) fn c_gettext(msgid: Option<&CStr>) -> Option<&'static CStr> {
@@ -778,7 +781,7 @@ pub fn get_lang_arg(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
 pub fn get_locales(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     let i = usize::try_from(idx).ok()?;
     init_locales();
-    lang_st().locales.get(i).map(CString::as_c_str)
+    lang_st().borrow_mut().locales.get(i).map(CString::as_c_str)
 }
 
 pub fn lang_init() {

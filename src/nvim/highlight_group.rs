@@ -190,8 +190,8 @@ impl HighlightGroupState {
 static HLG_STATE: GlobalState<HighlightGroupState> = GlobalState::new(HighlightGroupState::new());
 
 #[inline]
-fn hlg_st() -> &'static mut HighlightGroupState {
-    HLG_STATE.as_mut()
+fn hlg_st() -> crate::globals::GraphPtr<HighlightGroupState> {
+    HLG_STATE.handle()
 }
 
 const HL_NAME_TABLE: [&CStr; 18] = [
@@ -334,7 +334,7 @@ fn write_dec(buf: &mut [u8], val: i32) {
 
 #[inline]
 fn hl_table_at(idx: usize) -> &'static mut HlGroup {
-    &mut hlg_st().highlight_ga[idx]
+    &mut hlg_st().borrow_mut().highlight_ga[idx]
 }
 
 #[inline]
@@ -1972,13 +1972,13 @@ pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<&'stati
             if !(0..=0xffffff).contains(&n) {
                 return None;
             }
-            let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
+            let hex_arr: &mut [u8; 8] = (&mut hlg_st().borrow_mut().highlight_color_name[..8])
                 .try_into()
                 .unwrap();
             write_hex6(hex_arr, n);
-            return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
+            return CStr::from_bytes_until_nul(&hlg_st().borrow_mut().highlight_color_name).ok();
         }
-        let hex_arr: &mut [u8; 8] = (&mut hlg_st().highlight_color_name[..8])
+        let hex_arr: &mut [u8; 8] = (&mut hlg_st().borrow_mut().highlight_color_name[..8])
             .try_into()
             .unwrap();
         if fg {
@@ -2002,7 +2002,7 @@ pub fn highlight_color(id: i32, what_bytes: &[u8], modec: i32) -> Option<&'stati
             return None;
         }
         write_dec(&mut hlg_st().highlight_color_name, n);
-        return CStr::from_bytes_until_nul(&hlg_st().highlight_color_name).ok();
+        return CStr::from_bytes_until_nul(&hlg_st().borrow_mut().highlight_color_name).ok();
     }
     None
 }

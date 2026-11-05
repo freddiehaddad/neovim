@@ -149,8 +149,8 @@ impl RegexpBtState {
 static BT_STATE: GlobalState<RegexpBtState> = GlobalState::new(RegexpBtState::new());
 
 #[inline]
-fn bt_st() -> &'static mut RegexpBtState {
-    BT_STATE.as_mut()
+fn bt_st() -> crate::globals::GraphPtr<RegexpBtState> {
+    BT_STATE.handle()
 }
 
 #[inline]
@@ -1327,7 +1327,7 @@ fn regatom(flagp: &mut i32) -> Option<usize> {
                             if ret == Some(JUST_CALC_SIZE) {
                                 re_st().regsize += 5;
                             } else {
-                                let st = bt_st();
+                                let st = bt_st().borrow_mut();
                                 let idx = re_put_uint32(&mut st.reg_program, st.regcode_idx, n);
                                 st.reg_program[idx] = cmp as u8;
                                 st.regcode_idx = idx + 1;

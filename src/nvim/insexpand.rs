@@ -560,8 +560,8 @@ impl InsexpandState {
 static INSEXPAND: GlobalState<InsexpandState> = GlobalState::new(InsexpandState::new());
 
 #[inline]
-fn insexp() -> &'static mut InsexpandState {
-    INSEXPAND.as_mut()
+fn insexp() -> crate::globals::GraphPtr<InsexpandState> {
+    INSEXPAND.handle()
 }
 
 #[inline]
@@ -590,7 +590,7 @@ fn compl_prev_idx(idx: usize) -> Option<usize> {
 
 #[inline]
 fn compl_list_mut() -> &'static mut Vec<Compl> {
-    &mut insexp().compl_list
+    &mut insexp().borrow_mut().compl_list
 }
 
 #[inline]
@@ -605,7 +605,7 @@ fn compl_opt(idx: Option<usize>) -> Option<&'static mut Compl> {
 
 #[inline]
 fn compl_pattern_cstr() -> Option<&'static CStr> {
-    insexp().compl_pattern.as_deref()
+    insexp().borrow_mut().compl_pattern.as_deref()
 }
 
 #[inline]
@@ -1009,7 +1009,7 @@ fn ins_compl_infercase_gettext<'a>(
     }
 
     // Generate encoding specific output from wide character array.
-    let iobuff = g_st().iobuff_bytes_mut();
+    let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
     let mut p_idx = 0usize;
     let mut i: i32 = 0;
     let mut gap: Vec<u8> = Vec::new();
@@ -3205,7 +3205,7 @@ fn get_insert_callback(type_: i32) -> &'static mut Callback {
     if curbuf_mut().b_p_tsrfu.cb_type() != K_CALLBACK_NONE_CONST {
         &mut curbuf_mut().b_p_tsrfu
     } else {
-        &mut opt_vars().p_tsrfu
+        &mut opt_vars().borrow_mut().p_tsrfu
     }
 }
 
@@ -4398,7 +4398,7 @@ fn ins_compl_get_next_word_or_line(
 
         if compl_status_adding() && len == insexp().compl_length {
             if cur_match_pos.lnum < ins_buf.b_ml.ml_line_count {
-                let iobuff = g_st().iobuff_bytes_mut();
+                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
                 {
                     let len_usize = len as usize;
                     let n = len_usize.min(res_slice.len());
@@ -5685,7 +5685,7 @@ pub fn ins_compl_check_keys(frequency: i32, in_compl_func: bool) {
         COUNT.store(0, std::sync::atomic::Ordering::Relaxed);
 
         let mut c = vpeekc_any();
-        if c != NUL as i32 && !*test_disable_char_avail.as_mut() {
+        if c != NUL as i32 && !test_disable_char_avail.get() {
             if vim_is_ctrl_x_key(c) && c != CTRL_X_CONST && c != CTRL_R_CONST {
                 c = safe_vgetc();
                 insexp().compl_shows_dir = ins_compl_key2dir(c);

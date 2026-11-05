@@ -158,13 +158,13 @@ impl UiState {
 static UI_STATE: GlobalState<UiState> = GlobalState::new(UiState::new());
 
 #[inline]
-fn ui_state() -> &'static mut UiState {
-    UI_STATE.as_mut()
+fn ui_state() -> crate::globals::GraphPtr<UiState> {
+    UI_STATE.handle()
 }
 
 #[inline]
 fn ui_iter_mut() -> impl Iterator<Item = &'static mut RemoteUI> {
-    ui_state().uis.iter().map(|&p| p.borrow_mut())
+    ui_state().borrow_mut().uis.iter().map(|&p| p.borrow_mut())
 }
 
 pub fn ui_init() {

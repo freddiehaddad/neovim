@@ -354,8 +354,8 @@ impl TagModuleState {
 static TAG_STATE: GlobalState<TagModuleState> = GlobalState::new(TagModuleState::new());
 
 #[inline]
-fn tag_st() -> &'static mut TagModuleState {
-    TAG_STATE.as_mut()
+fn tag_st() -> crate::globals::GraphPtr<TagModuleState> {
+    TAG_STATE.handle()
 }
 
 use crate::charset::toupper_asc;
@@ -798,7 +798,8 @@ pub fn do_tag(
                         smsg!(0, gettext(c"File \"%s\" does not exist"), nf.as_ptr(),);
                     }
 
-                    let cur_match_slice = &tag_st().do_tag_matches.as_slice()[cur_match as usize];
+                    let cur_match_slice =
+                        &tag_st().borrow_mut().do_tag_matches.as_slice()[cur_match as usize];
                     let ic = ((cur_match_slice[0] as usize) & MT_IC_OFF) != 0;
                     if type_ != DT_TAG
                         && type_ != DT_SELECT
@@ -826,7 +827,8 @@ pub fn do_tag(
                                 gettext(c"  Using tag with different case!").to_bytes(),
                             );
                         }
-                        let iobuf_cstr = crate::memory::cstr_until_nul(g_st().iobuff_bytes());
+                        let iobuf_cstr =
+                            crate::memory::cstr_until_nul(g_st().borrow_mut().iobuff_bytes());
                         if (do_tag_num_matches > prev_num_matches || new_tag)
                             && do_tag_num_matches > 1
                         {
@@ -3079,6 +3081,7 @@ pub fn tagstack_clear_entry(item: &mut Taggy) {
 
 pub fn tag_listfiles_extra(idx: usize) -> Option<(&'static CStr, &'static CStr)> {
     tag_st()
+        .borrow_mut()
         .tag_listfiles_extra
         .as_slice()
         .get(idx)

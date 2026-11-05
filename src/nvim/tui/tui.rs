@@ -310,8 +310,8 @@ impl TuiModuleState {
 static TUI_MOD_STATE: GlobalState<TuiModuleState> = GlobalState::new(TuiModuleState::new());
 
 #[inline]
-fn tui_st() -> &'static mut TuiModuleState {
-    TUI_MOD_STATE.as_mut()
+fn tui_st() -> crate::globals::GraphPtr<TuiModuleState> {
+    TUI_MOD_STATE.handle()
 }
 
 #[cfg(unix)]
@@ -1388,7 +1388,8 @@ fn update_attrs(tui: &mut TUIData, attr_id: i32) {
 
     if tui.url != attrs.url {
         if attrs.url >= 0 {
-            let url_str = tui_st().urls.as_slice()[attrs.url as usize].to_string_lossy();
+            let url_str =
+                tui_st().borrow_mut().urls.as_slice()[attrs.url as usize].to_string_lossy();
             let id: u64 = 0xE1EA_0000u64 + u64::from(attrs.url as u32);
             let formatted = format!("\x1b]8;id={id};{url_str}\x1b\\");
             out(tui, formatted.as_bytes());
@@ -3029,7 +3030,7 @@ pub(crate) fn tui_tk_ti_getstr<'a>(
             );
         }
         if erase_byte != 0 {
-            return Some(&tui_st().stty_erase_buf[..1]);
+            return Some(&tui_st().borrow_mut().stty_erase_buf[..1]);
         }
     } else if name == "key_dc" {
         if log_st().g_min_log_level <= LOGLVL_DBG {

@@ -89,8 +89,8 @@ impl OsInputState {
 static OSI_STATE: GlobalState<OsInputState> = GlobalState::new(OsInputState::new());
 
 #[inline]
-fn osi_st() -> &'static mut OsInputState {
-    OSI_STATE.as_mut()
+fn osi_st() -> crate::globals::GraphPtr<OsInputState> {
+    OSI_STATE.handle()
 }
 
 fn parse_mouse_coords(s: &[u8]) -> Option<(i32, i32, usize)> {
@@ -331,7 +331,7 @@ fn input_space() -> usize {
 }
 
 pub fn input_enqueue_raw(data: &[u8]) {
-    let st = osi_st();
+    let st = osi_st().borrow_mut();
     if st.input_read_pos > 0 {
         let available = st.input_write_pos.saturating_sub(st.input_read_pos);
         st.input_buffer
@@ -634,7 +634,7 @@ fn process_ctrl_c() {
         return;
     }
 
-    let st = osi_st();
+    let st = osi_st().borrow_mut();
     let rpos = st.input_read_pos;
     let wpos = st.input_write_pos;
     let available = wpos.saturating_sub(rpos);

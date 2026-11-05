@@ -993,7 +993,7 @@ pub fn f_getcwd(argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData)
         }
     }
     if cur_scope == K_CD_SCOPE_GLOBAL {
-        if let Some(ref gdir) = g_st().globaldir {
+        if let Some(ref gdir) = g_st().borrow_mut().globaldir {
             from = Some(gdir.as_c_str());
         } else {
             cur_scope = K_CD_SCOPE_INVALID;

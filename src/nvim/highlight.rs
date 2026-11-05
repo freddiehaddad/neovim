@@ -256,8 +256,8 @@ impl HighlightModuleState {
 static HL_STATE: GlobalState<HighlightModuleState> = GlobalState::new(HighlightModuleState::new());
 
 #[inline]
-fn hl_st() -> &'static mut HighlightModuleState {
-    HL_STATE.as_mut()
+fn hl_st() -> crate::globals::GraphPtr<HighlightModuleState> {
+    HL_STATE.handle()
 }
 
 #[inline]
@@ -808,7 +808,7 @@ pub fn hl_add_url(attr: i32, url: &CStr) -> i32 {
 }
 
 pub fn hl_get_url(index: u32) -> &'static CStr {
-    hl_st().urls.as_slice()[index as usize].as_c_str()
+    hl_st().borrow_mut().urls.as_slice()[index as usize].as_c_str()
 }
 
 pub fn hl_add_font_idx(font_name: Option<&[u8]>) -> i32 {
@@ -836,7 +836,7 @@ pub fn hl_get_font(index: i32) -> Option<&'static CStr> {
     if index < 0 || (index as usize) >= hl_st().fonts.len() {
         return None;
     }
-    Some(hl_st().fonts.as_slice()[index as usize].as_c_str())
+    Some(hl_st().borrow_mut().fonts.as_slice()[index as usize].as_c_str())
 }
 
 pub fn hl_get_term_attr(aep: &mut HlAttrs) -> i32 {

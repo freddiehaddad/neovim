@@ -76,13 +76,13 @@ impl UiClientState {
 static UIC_STATE: GlobalState<UiClientState> = GlobalState::new(UiClientState::new());
 
 #[inline]
-fn uic_st() -> &'static mut UiClientState {
-    UIC_STATE.as_mut()
+fn uic_st() -> crate::globals::GraphPtr<UiClientState> {
+    UIC_STATE.handle()
 }
 
 #[inline]
 fn tui_ptr() -> &'static mut TUIData {
-    uic_st().tui.as_deref_mut().unwrap()
+    uic_st().borrow_mut().tui.as_deref_mut().unwrap()
 }
 
 use crate::event::r#loop::uv_os_getpid;

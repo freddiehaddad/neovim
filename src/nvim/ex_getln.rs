@@ -448,8 +448,8 @@ impl ExGetlnState {
 static GETLN_STATE: GlobalState<ExGetlnState> = GlobalState::new(ExGetlnState::new());
 
 #[inline]
-fn getln_st() -> &'static mut ExGetlnState {
-    GETLN_STATE.as_mut()
+fn getln_st() -> crate::globals::GraphPtr<ExGetlnState> {
+    GETLN_STATE.handle()
 }
 
 use crate::api::private::helpers::array_add;
@@ -4610,7 +4610,7 @@ pub fn tilde_replace(orig_pat: &[u8], files: &mut [std::ffi::CString]) {
 
 /// Get a pointer to the current command line info.
 pub fn get_cmdline_info() -> &'static mut CmdlineInfo {
-    &mut getln_st().ccline
+    &mut getln_st().borrow_mut().ccline
 }
 
 pub fn get_cmdline_last_prompt_id() -> u32 {
@@ -4622,8 +4622,8 @@ fn get_ccline_opt() -> Option<&'static mut CmdlineInfo> {
     if (g_st().state_global & MODE_CMDLINE) == 0 {
         None
     } else if !getln_st().ccline.cmdbuff().is_null() {
-        Some(&mut getln_st().ccline)
-    } else if let Some(ref mut prev) = getln_st().ccline.prev_ccline
+        Some(&mut getln_st().borrow_mut().ccline)
+    } else if let Some(ref mut prev) = getln_st().borrow_mut().ccline.prev_ccline
         && !prev.cmdbuff().is_null()
     {
         Some(&mut **prev)

@@ -471,8 +471,8 @@ static DECOR_MOD_STATE: GlobalState<DecorationModuleState> =
     GlobalState::new(DecorationModuleState::new());
 
 #[inline]
-fn decor_st() -> &'static mut DecorationModuleState {
-    DECOR_MOD_STATE.as_mut()
+fn decor_st() -> crate::globals::GraphPtr<DecorationModuleState> {
+    DECOR_MOD_STATE.handle()
 }
 
 #[inline]
@@ -555,7 +555,7 @@ pub fn decor_redraw(buf: &mut FileBuf, row1: i32, row2: i32, col1: i32, decor: D
 
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &g_st().decor_items.as_slice()[idx as usize];
+            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
             let next = sh.next;
             decor_redraw_sh(buf, row1, row2, sh.clone());
             idx = next;
@@ -1577,7 +1577,7 @@ pub fn decor_find_sign(decor: DecorInline) -> Option<&'static DecorSignHighlight
         if decor_id == DECOR_ID_INVALID {
             return None;
         }
-        let sh = &(&g_st().decor_items)[decor_id as usize];
+        let sh = &(&g_st().borrow_mut().decor_items)[decor_id as usize];
         if (sh.flags & K_SHIS_SIGN) != 0 {
             return Some(sh);
         }
@@ -1838,7 +1838,7 @@ pub fn decor_to_dict_legacy(dict: &mut Dict, decor: DecorInline, hl_name: bool, 
 
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &g_st().decor_items.as_slice()[idx as usize];
+            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
             let next = sh.next;
             if (sh.flags & K_SHIS_SIGN) != 0 {
                 sh_sign = sh;
@@ -2001,7 +2001,7 @@ pub fn decor_type_flags(decor: DecorInline) -> u16 {
         }
         let mut idx = decor.data.ext().sh_idx;
         while idx != DECOR_ID_INVALID {
-            let sh = &g_st().decor_items.as_slice()[idx as usize];
+            let sh = &g_st().borrow_mut().decor_items.as_slice()[idx as usize];
             type_flags |= if (sh.flags & K_SHIS_SIGN) != 0 {
                 K_EXTMARK_SIGN
             } else {

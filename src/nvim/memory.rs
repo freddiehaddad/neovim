@@ -81,8 +81,8 @@ static MEM_STATE: crate::globals::GlobalState<MemoryModuleState> =
     crate::globals::GlobalState::new(MemoryModuleState::new());
 
 #[inline]
-pub(crate) fn mem_st() -> &'static mut MemoryModuleState {
-    MEM_STATE.as_mut()
+pub(crate) fn mem_st() -> crate::globals::GraphPtr<MemoryModuleState> {
+    MEM_STATE.handle()
 }
 
 #[inline]

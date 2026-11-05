@@ -55,8 +55,8 @@ static LOG_STATE: crate::globals::GlobalState<LogModuleState> =
     crate::globals::GlobalState::new(LogModuleState::new());
 
 #[inline]
-pub(crate) fn log_st() -> &'static mut LogModuleState {
-    LOG_STATE.as_mut()
+pub(crate) fn log_st() -> crate::globals::GraphPtr<LogModuleState> {
+    LOG_STATE.handle()
 }
 
 use crate::event::r#loop::{
@@ -161,7 +161,7 @@ fn log_try_create(fname: &CStr) -> bool {
 fn log_path_init() {
     let size = MAXPATHL + 1;
     expand_env(c"$NVIM_LOG_FILE", &mut log_st().log_file_path[..size - 1]);
-    let path_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
+    let path_cstr = CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
     let user_set = path_cstr.to_bytes() != b"$NVIM_LOG_FILE";
 
     if !user_set
@@ -187,14 +187,16 @@ fn log_path_init() {
             crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, defaultpath.as_bytes());
         drop(defaultpath);
 
-        let cur_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
+        let cur_cstr =
+            CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {
             if !user_set {
                 os_setenv(c"__NVIM_LOG_FILE_WANT", cur_cstr, 1);
             }
             len = crate::memory::copy_bytes_to_c_buf(&mut log_st().log_file_path, b"nvim.log");
         }
-        let cur_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
+        let cur_cstr =
+            CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
         if len >= size || !log_try_create(cur_cstr) {
             log_st().log_file_path[0] = 0;
             return;
@@ -317,7 +319,7 @@ pub fn log_uv_handles(loop_: &mut crate::event::r#loop::uv_loop_t) {
 ///
 /// @return Log file, or `stderr` on failure
 pub fn open_log_file() -> CFile {
-    let path_cstr = CStr::from_bytes_until_nul(&log_st().log_file_path).unwrap_or(c"");
+    let path_cstr = CStr::from_bytes_until_nul(&log_st().borrow_mut().log_file_path).unwrap_or(c"");
     let mut errnum: i32 = 0;
     if !path_cstr.to_bytes().is_empty() {
         if let Some(f) = CFile::open_libc(path_cstr, c"a") {

@@ -210,8 +210,8 @@ static CONPTY_STATE: crate::globals::GlobalState<ConptyModuleState> =
 
 #[cfg(windows)]
 #[inline]
-fn conpty_st() -> &'static mut ConptyModuleState {
-    CONPTY_STATE.as_mut()
+fn conpty_st() -> crate::globals::GraphPtr<ConptyModuleState> {
+    CONPTY_STATE.handle()
 }
 
 #[cfg(windows)]

@@ -498,20 +498,20 @@ impl VarsModuleState {
 static VARS_STATE: GlobalState<VarsModuleState> = GlobalState::new(VarsModuleState::new());
 
 #[inline]
-fn vars_st() -> &'static mut VarsModuleState {
-    VARS_STATE.as_mut()
+fn vars_st() -> crate::globals::GraphPtr<VarsModuleState> {
+    VARS_STATE.handle()
 }
 
 const MSGPACK_TYPE_NAMES: [&CStr; NUM_MSGPACK_TYPES] = [
     c"nil", c"boolean", c"integer", c"float", c"string", c"array", c"map", c"ext",
 ];
 
-static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[*const TvList; NUM_MSGPACK_TYPES]> =
-    GlobalState::new([ptr::null(); NUM_MSGPACK_TYPES]);
+static EVAL_MSGPACK_TYPE_LISTS: GlobalState<[crate::globals::TvListPtr; NUM_MSGPACK_TYPES]> =
+    GlobalState::new([crate::globals::TvListPtr::NULL; NUM_MSGPACK_TYPES]);
 
 #[inline]
 pub(crate) fn eval_msgpack_type_list(idx: usize) -> Option<&'static mut TvList> {
-    unsafe { EVAL_MSGPACK_TYPE_LISTS.as_mut()[idx].cast_mut().as_mut() }
+    EVAL_MSGPACK_TYPE_LISTS.handle()[idx].opt_mut()
 }
 
 #[inline]
@@ -602,7 +602,7 @@ pub fn evalvars_init() {
             v_lock: 0,
             vval: TypvalVval::List(crate::globals::GraphPtr::new(type_list)),
         };
-        EVAL_MSGPACK_TYPE_LISTS.as_mut()[i] = type_list;
+        EVAL_MSGPACK_TYPE_LISTS.handle()[i] = crate::globals::TvListPtr::new(type_list);
         if !tv_dict_add(&mut *msgpack_types_dict, di) {
             std::process::abort();
         }
@@ -2230,15 +2230,15 @@ pub fn del_menutrans_vars() {
 }
 
 pub fn get_globvar_dict() -> &'static mut TvDict {
-    &mut vars_st().globvardict
+    &mut vars_st().borrow_mut().globvardict
 }
 
 pub fn get_globvar_ht() -> &'static mut Hashtab {
-    &mut vars_st().globvardict.dv_hashtab
+    &mut vars_st().borrow_mut().globvardict.dv_hashtab
 }
 
 pub fn get_vimvar_dict() -> &'static mut TvDict {
-    &mut vars_st().vimvardict
+    &mut vars_st().borrow_mut().vimvardict
 }
 
 pub fn set_vim_var_tv(idx: VimVarIndex, tv: &mut TypVal) {
@@ -2252,7 +2252,7 @@ pub fn get_vim_var_name(idx: VimVarIndex) -> &'static std::ffi::CStr {
 }
 
 pub fn get_vim_var_tv(idx: VimVarIndex) -> &'static mut TypVal {
-    &mut vars_st().vimvars[idx as usize].vv_di.di_tv
+    &mut vars_st().borrow_mut().vimvars[idx as usize].vv_di.di_tv
 }
 
 pub fn get_vim_var_nr(idx: VimVarIndex) -> Varnumber {
@@ -2283,7 +2283,7 @@ pub fn cat_prefix_varname(prefix: i32, name: Option<&CStr>) -> &'static CStr {
     vars_st().varnamebuf.push(prefix as u8);
     vars_st().varnamebuf.push(b':');
     vars_st().varnamebuf.extend_from_slice(name_bytes);
-    crate::memory::cstr_until_nul(&vars_st().varnamebuf)
+    crate::memory::cstr_until_nul(&vars_st().borrow_mut().varnamebuf)
 }
 
 /// Function given to ExpandGeneric() to obtain the list of user defined variable names.
@@ -2733,7 +2733,7 @@ fn find_var_ht_dict<'a>(
 
         let hi = hash_find_len(&vars_st().compat_hashtab, name_slice);
         if !hashitem_empty(hi) {
-            return Some(&mut vars_st().compat_hashtab);
+            return Some(&mut vars_st().borrow_mut().compat_hashtab);
         }
 
         if let Some(local_d) = get_funccal_local_dict() {
@@ -3585,8 +3585,8 @@ pub fn var_redir_start(name: &CStr, append: bool) -> bool {
 
     vars_st().redir_buf.clear();
 
-    let vn_cstr = vars_st().redir_varname.as_deref().unwrap();
-    vars_st().redir_endp = get_lval(
+    let vn_cstr = vars_st().borrow_mut().redir_varname.as_deref().unwrap();
+    vars_st().borrow_mut().redir_endp = get_lval(
         vn_cstr,
         None,
         unsafe { &mut *lval_ptr },
@@ -3673,7 +3673,11 @@ pub fn var_redir_stop() {
                 v_lock: 0,
                 vval: TypvalVval::from_raw_str(vars_st().redir_buf.as_mut_ptr().cast()),
             };
-            let vn_cstr = vars_st().redir_varname.as_deref().unwrap_or(c"");
+            let vn_cstr = vars_st()
+                .borrow_mut()
+                .redir_varname
+                .as_deref()
+                .unwrap_or(c"");
 
             vars_st().redir_endp = get_lval(
                 vn_cstr,

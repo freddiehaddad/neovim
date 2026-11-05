@@ -236,8 +236,8 @@ impl FileioModuleState {
 static FIO_STATE: GlobalState<FileioModuleState> = GlobalState::new(FileioModuleState::new());
 
 #[inline]
-fn fio_st() -> &'static mut FileioModuleState {
-    FIO_STATE.as_mut()
+fn fio_st() -> crate::globals::GraphPtr<FileioModuleState> {
+    FIO_STATE.handle()
 }
 
 use crate::arglist::ML_EMPTY;
@@ -934,7 +934,7 @@ fn filemess(buf: Option<&FileBuf>, name: Option<&CStr>, s: &CStr, msg_id: Option
             false,
         );
     } else {
-        let trunc = msg_may_trunc(false, g_st().iobuff_bytes_mut());
+        let trunc = msg_may_trunc(false, g_st().borrow_mut().iobuff_bytes_mut());
         msg_outtrans(trunc, 0, false);
     }
     msg_clr_eos();
@@ -4568,7 +4568,7 @@ pub fn vim_gettempdir() -> Option<&'static CStr> {
         }
         vim_mktempdir();
     }
-    fio_st().vim_tempdir.as_deref()
+    fio_st().borrow_mut().vim_tempdir.as_deref()
 }
 
 /// Sets Nvim's own temporary directory name to `tempdir`.

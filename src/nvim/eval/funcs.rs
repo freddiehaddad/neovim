@@ -345,8 +345,8 @@ impl EvalFuncsState {
 static FUNCS_STATE: GlobalState<EvalFuncsState> = GlobalState::new(EvalFuncsState::new());
 
 #[inline]
-fn funcs_st() -> &'static mut EvalFuncsState {
-    FUNCS_STATE.as_mut()
+fn funcs_st() -> crate::globals::GraphPtr<EvalFuncsState> {
+    FUNCS_STATE.handle()
 }
 
 const PTY_IGNORED_ENV_VARS: &[&CStr] = &[
@@ -465,7 +465,7 @@ pub fn get_function_name(xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> 
     let key_cstr = fdef.name?;
     let key_bytes = key_cstr.to_bytes();
     let key_len = key_bytes.len();
-    let iobuff = g_st().iobuff_bytes_mut();
+    let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
     iobuff[..key_len].copy_from_slice(key_bytes);
     iobuff[key_len] = b'(';
     if fdef.max_argc == 0 {

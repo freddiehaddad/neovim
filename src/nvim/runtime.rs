@@ -321,8 +321,8 @@ impl RuntimeModuleState {
 static RT_STATE: GlobalState<RuntimeModuleState> = GlobalState::new(RuntimeModuleState::new());
 
 #[inline]
-pub(crate) fn rt_st() -> &'static mut RuntimeModuleState {
-    RT_STATE.as_mut()
+pub(crate) fn rt_st() -> crate::globals::GraphPtr<RuntimeModuleState> {
+    RT_STATE.handle()
 }
 
 use crate::buffer::{SID_MODELINE, VAR_FIXED};
@@ -333,7 +333,7 @@ use crate::viml::parser::parser::CONV_NONE;
 
 #[inline]
 pub fn script_item(id: Scid) -> &'static mut Scriptitem {
-    &mut rt_st().script_items[(id - 1) as usize]
+    &mut rt_st().borrow_mut().script_items[(id - 1) as usize]
 }
 
 #[inline]
@@ -348,7 +348,7 @@ pub fn script_id_valid(id: Scid) -> bool {
 
 #[inline]
 pub fn sourcing_name() -> Option<&'static CStr> {
-    rt_st().exestack.last().unwrap().name_cstr()
+    rt_st().borrow_mut().exestack.last().unwrap().name_cstr()
 }
 
 #[inline]
@@ -380,7 +380,7 @@ pub fn estack_push(type_: Etype, name: Option<&CStr>, lnum: Linenr) -> &'static 
         es_lnum: lnum,
         es_info: crate::profile::EStackInfo::None,
     });
-    rt_st().exestack.last_mut().unwrap()
+    rt_st().borrow_mut().exestack.last_mut().unwrap()
 }
 
 /// Add a user function to the execution stack.
@@ -403,7 +403,7 @@ pub fn estack_pop() {
 
 /// Get the current value for <sfile> as an owned `CString`.
 pub fn estack_sfile(which: EstackArg) -> Option<std::ffi::CString> {
-    let last_entry = rt_st().exestack.last().unwrap();
+    let last_entry = rt_st().borrow_mut().exestack.last().unwrap();
     if which == ESTACK_SFILE && last_entry.es_type != ETYPE_UFUNC {
         return last_entry.es_name.clone();
     }
@@ -1087,7 +1087,7 @@ fn expand_pack_entry(
             &mut rt_st().pack_entry_buf[pack_entry_len..],
             pat.to_bytes(),
         );
-        let entry_cstr = crate::memory::cstr_until_nul(&rt_st().pack_entry_buf);
+        let entry_cstr = crate::memory::cstr_until_nul(&rt_st().borrow_mut().pack_entry_buf);
         expand_rtp_entry(search_path, rtp_used, entry_cstr, false, pos_in_rtp);
         let mut after_bytes = Vec::from(entry_cstr.to_bytes());
         after_bytes.extend_from_slice(b"/after");
@@ -1624,7 +1624,7 @@ fn add_pack_start_dir(fnames: &[std::ffi::CString], all: bool) -> bool {
             }
             crate::memory::copy_bytes_to_c_buf(&mut rt_st().pack_start_buf, fname_cstr.as_bytes());
             crate::memory::append_bytes_to_c_buf(&mut rt_st().pack_start_buf, pat.to_bytes());
-            let buf_cstr = crate::memory::cstr_until_nul(&rt_st().pack_start_buf);
+            let buf_cstr = crate::memory::cstr_until_nul(&rt_st().borrow_mut().pack_start_buf);
             if pack_has_entries(buf_cstr) {
                 add_pack_dir_to_rtp(buf_cstr, true);
             }

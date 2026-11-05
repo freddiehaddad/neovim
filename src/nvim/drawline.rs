@@ -217,8 +217,8 @@ impl DrawlineState {
 static DL_STATE: GlobalState<DrawlineState> = GlobalState::new(DrawlineState::new());
 
 #[inline]
-fn dl_st() -> &'static mut DrawlineState {
-    DL_STATE.as_mut()
+fn dl_st() -> crate::globals::GraphPtr<DrawlineState> {
+    DL_STATE.handle()
 }
 
 #[inline]
@@ -239,7 +239,7 @@ const fn vcol_hlc(wlv: &Winlinevars) -> i32 {
 
 fn get_extra_buf(mut size: usize) -> &'static mut [u8] {
     size = size.max(64);
-    let buf = &mut dl_st().extra_buf;
+    let buf = &mut dl_st().borrow_mut().extra_buf;
     if buf.len() < size {
         buf.resize(size, 0);
     }
@@ -337,8 +337,8 @@ fn draw_virt_text(
 
     for i in 0..end {
         let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
-        let item = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
-        if !(item.start_row == g_st().decor_state.row && decor_virt_pos(&*item)) {
+        let item = (&mut g_st().borrow_mut().decor_state.slots)[slot_idx].range_mut();
+        if !(item.start_row == g_st().borrow_mut().decor_state.row && decor_virt_pos(&*item)) {
             continue;
         }
 
@@ -352,9 +352,10 @@ fn draw_virt_text(
                 if total_width_of_eol_right_aligned_virt_text == 0 {
                     for j in i..end {
                         let lookahead_idx = (&g_st().decor_state.ranges_i)[j as usize] as usize;
-                        let lookahead_item = (&g_st().decor_state.slots)[lookahead_idx].range();
+                        let lookahead_item =
+                            (&g_st().borrow_mut().decor_state.slots)[lookahead_idx].range();
 
-                        if lookahead_item.start_row != g_st().decor_state.row
+                        if lookahead_item.start_row != g_st().borrow_mut().decor_state.row
                             || !decor_virt_pos(lookahead_item)
                             || lookahead_item.draw_col != -1
                         {
@@ -1135,8 +1136,8 @@ fn has_more_inline_virt(wlv: &Winlinevars, v: isize) -> bool {
     for pos_i in 0..2 {
         for i in beg_pos[pos_i]..end_pos[pos_i] {
             let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
-            let item = (&g_st().decor_state.slots)[slot_idx].range();
-            if item.start_row != g_st().decor_state.row
+            let item = (&g_st().borrow_mut().decor_state.slots)[slot_idx].range();
+            if item.start_row != g_st().borrow_mut().decor_state.row
                 || !item.data.is_vt()
                 || item
                     .data
@@ -1162,7 +1163,7 @@ fn handle_inline_virtual_text(wlv: &mut Winlinevars, v: isize, selected: bool) {
 
             for i in 0..end {
                 let slot_idx = (&g_st().decor_state.ranges_i)[i as usize] as usize;
-                let item = (&mut g_st().decor_state.slots)[slot_idx].range_mut();
+                let item = (&mut g_st().borrow_mut().decor_state.slots)[slot_idx].range_mut();
                 if item.draw_col == -3 {
                     decor_init_draw_col(wlv.off, selected, &mut *item);
                 }

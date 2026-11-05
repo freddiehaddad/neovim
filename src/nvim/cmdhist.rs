@@ -54,8 +54,8 @@ static HIST_STATE: crate::globals::GlobalState<CmdhistState> =
     crate::globals::GlobalState::new(CmdhistState::new());
 
 #[inline]
-fn hist_st() -> &'static mut CmdhistState {
-    HIST_STATE.as_mut()
+fn hist_st() -> crate::globals::GraphPtr<CmdhistState> {
+    HIST_STATE.handle()
 }
 
 const HISTORY_NAMES: [&CStr; HIST_COUNT] = [c"cmd", c"search", c"expr", c"input", c"debug"];
@@ -119,7 +119,7 @@ pub fn get_hislen() -> i32 {
 
 /// Return a slice of a specified history table (`get_histentry`).
 pub fn get_histentry(hist_type: i32) -> &'static [Histentry] {
-    hist_st().history[hist_type as usize].as_slice()
+    hist_st().borrow_mut().history[hist_type as usize].as_slice()
 }
 
 /// Return the current index for `hist_type` (`get_hisidx`).
@@ -352,7 +352,7 @@ fn calc_hist_idx(histype: i32, num: i32) -> i32 {
         return -1;
     }
 
-    let hist = hist_st().history[histype as usize].as_slice();
+    let hist = hist_st().borrow_mut().history[histype as usize].as_slice();
     if num > 0 {
         let mut wrapped = false;
         while hist[i as usize].hisnum > num {
@@ -623,7 +623,7 @@ pub fn ex_history(eap: &mut Exarg) {
         msg_puts_title(crate::memory::cstr_until_nul(title.as_bytes()));
 
         let idx = hist_st().hisidx[histype1 as usize];
-        let hist = hist_st().history[histype1 as usize].as_slice();
+        let hist = hist_st().borrow_mut().history[histype1 as usize].as_slice();
         let mut j = hisidx1;
         let mut k = hisidx2;
         if j < 0 {
@@ -700,7 +700,7 @@ pub fn hist_iter(
     }
     let hislen = hist_st().hislen as usize;
     let last_idx = last as usize;
-    let history = hist_st().history[htype].as_mut_slice();
+    let history = hist_st().borrow_mut().history[htype].as_mut_slice();
 
     let hiter = if let Some(idx) = iter {
         idx
@@ -736,9 +736,9 @@ pub fn hist_get_array(
     init_history();
     let htype = history_type as usize;
     (
-        hist_st().history[htype].as_mut_slice(),
-        &mut hist_st().hisidx[htype],
-        &mut hist_st().hisnum[htype],
+        hist_st().borrow_mut().history[htype].as_mut_slice(),
+        &mut hist_st().borrow_mut().hisidx[htype],
+        &mut hist_st().borrow_mut().hisnum[htype],
     )
 }
 

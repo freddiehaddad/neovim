@@ -312,13 +312,13 @@ impl InsertModuleState {
 static INS_MOD_STATE: GlobalState<InsertModuleState> = GlobalState::new(InsertModuleState::new());
 
 #[inline]
-fn ins_st() -> &'static mut InsertModuleState {
-    INS_MOD_STATE.as_mut()
+fn ins_st() -> crate::globals::GraphPtr<InsertModuleState> {
+    INS_MOD_STATE.handle()
 }
 
 #[inline]
 fn replace_stack_mut() -> &'static mut Vec<u8> {
-    &mut INS_MOD_STATE.as_mut().replace_stack
+    &mut INS_MOD_STATE.handle().borrow_mut().replace_stack
 }
 
 #[inline]
@@ -1913,7 +1913,7 @@ pub fn insertchar(mut c: i32, flags: i32, second_indent: i32) {
     if !is_special_ins(c)
         && utf_char2len(c) == 1
         && !has_event(EVENT_INSERTCHARPRE)
-        && !*test_disable_char_avail.as_mut()
+        && !test_disable_char_avail.get()
         && vpeekc() != NUL as i32
         && (g_st().state_global & REPLACE_FLAG) == 0
         && !cindent_on()

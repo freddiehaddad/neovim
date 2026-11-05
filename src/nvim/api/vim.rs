@@ -287,8 +287,8 @@ static API_VIM_STATE: crate::globals::GlobalState<ApiVimState> =
     crate::globals::GlobalState::new(ApiVimState::new());
 
 #[inline]
-fn api_vim_st() -> &'static mut ApiVimState {
-    API_VIM_STATE.as_mut()
+fn api_vim_st() -> crate::globals::GraphPtr<ApiVimState> {
+    API_VIM_STATE.handle()
 }
 
 #[inline]

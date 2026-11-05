@@ -496,8 +496,8 @@ impl SyntaxState {
 static SYN_STATE: GlobalState<SyntaxState> = GlobalState::new(SyntaxState::new());
 
 #[inline]
-fn syn_st() -> &'static mut SyntaxState {
-    SYN_STATE.as_mut()
+fn syn_st() -> crate::globals::GraphPtr<SyntaxState> {
+    SYN_STATE.handle()
 }
 
 #[inline]
@@ -534,7 +534,7 @@ fn cur_state_empty() -> bool {
 
 #[inline]
 fn cur_state_at(idx: i32) -> &'static mut Stateitem {
-    &mut syn_st().current_state[idx as usize]
+    &mut syn_st().borrow_mut().current_state[idx as usize]
 }
 
 #[inline]

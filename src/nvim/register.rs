@@ -226,8 +226,8 @@ impl RegisterModuleState {
 static REG_STATE: GlobalState<RegisterModuleState> = GlobalState::new(RegisterModuleState::new());
 
 #[inline]
-fn reg_st() -> &'static mut RegisterModuleState {
-    REG_STATE.as_mut()
+fn reg_st() -> crate::globals::GraphPtr<RegisterModuleState> {
+    REG_STATE.handle()
 }
 
 #[inline]
@@ -313,7 +313,7 @@ pub fn get_unname_register() -> i32 {
 }
 
 pub fn get_y_register(reg: i32) -> &'static mut Yankreg {
-    &mut reg_st().y_regs[reg as usize]
+    &mut reg_st().borrow_mut().y_regs[reg as usize]
 }
 
 pub fn get_y_previous() -> &'static mut Yankreg {
@@ -401,7 +401,7 @@ pub fn op_global_reg_iter(
     reg: &mut Option<&'static Yankreg>,
     is_unnamed: &mut bool,
 ) -> Option<usize> {
-    op_reg_iter(iter, &reg_st().y_regs, name, reg, is_unnamed)
+    op_reg_iter(iter, &reg_st().borrow_mut().y_regs, name, reg, is_unnamed)
 }
 
 pub fn reg_max_ts(clipboard: bool) -> Timestamp {
@@ -448,7 +448,7 @@ pub fn op_reg_get(name: u8) -> Option<&'static Yankreg> {
     if i == -1 {
         return None;
     }
-    Some(&reg_st().y_regs[i as usize])
+    Some(&reg_st().borrow_mut().y_regs[i as usize])
 }
 
 pub fn op_reg_set_previous(name: u8) -> bool {
@@ -481,7 +481,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
         return reg.unwrap();
     } else if mode == YankRegMode::Put && (regname == i32::from(b'*') || regname == i32::from(b'+'))
     {
-        return &mut reg_st().empty_reg;
+        return &mut reg_st().borrow_mut().empty_reg;
     } else if mode != YankRegMode::Yank
         && (regname == 0
             || regname == i32::from(b'"')
@@ -500,7 +500,7 @@ pub fn get_yank_register(regname: i32, mode: YankRegMode) -> &'static mut Yankre
     if mode == YankRegMode::Yank {
         reg_st().y_previous = crate::globals::GraphPtr::from(&mut reg_st().y_regs[idx]);
     }
-    &mut reg_st().y_regs[idx]
+    &mut reg_st().borrow_mut().y_regs[idx]
 }
 
 pub fn yank_register_mline(regname: i32, reg: &mut Option<&'static mut Yankreg>) -> bool {
@@ -717,7 +717,7 @@ pub fn do_execreg(mut regname: i32, colon: bool, addcr: bool, silent: bool) -> b
     }
 
     if regname == i32::from(b':') {
-        let Some(last_cmd) = g_st().last_cmdline.as_ref() else {
+        let Some(last_cmd) = g_st().borrow_mut().last_cmdline.as_ref() else {
             emsg(gettext(E_NOLASTCMD));
             return false;
         };

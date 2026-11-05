@@ -112,8 +112,8 @@ impl DigraphModuleState {
 static DIGR_STATE: GlobalState<DigraphModuleState> = GlobalState::new(DigraphModuleState::new());
 
 #[inline]
-fn digr_st() -> &'static mut DigraphModuleState {
-    DIGR_STATE.as_mut()
+fn digr_st() -> crate::globals::GraphPtr<DigraphModuleState> {
+    DIGR_STATE.handle()
 }
 
 const fn dg(c1: u8, c2: u8, res: DigrResult) -> DigraphEntry {
@@ -1634,7 +1634,7 @@ pub fn get_digraph_for_char(val: i32) -> Option<&'static CStr> {
             digr_st().digraph_for_char_buf[0] = dp.char1;
             digr_st().digraph_for_char_buf[1] = dp.char2;
             digr_st().digraph_for_char_buf[2] = 0;
-            return CStr::from_bytes_until_nul(&digr_st().digraph_for_char_buf).ok();
+            return CStr::from_bytes_until_nul(&digr_st().borrow_mut().digraph_for_char_buf).ok();
         }
     }
     None
@@ -1681,7 +1681,7 @@ fn getexactdigraph(char1: i32, char2: i32, meta_char: bool) -> i32 {
         return char2;
     }
 
-    let user_slice = digr_st().user_digraphs.as_slice();
+    let user_slice = digr_st().borrow_mut().user_digraphs.as_slice();
     for dp in user_slice.iter().chain(DIGRAPHDEFAULT.iter()) {
         if i32::from(dp.char1) == char1 && i32::from(dp.char2) == char2 {
             if dp.result != 0 {
@@ -1836,7 +1836,7 @@ fn digraph_getlist_appendpair(dp: &DigraphEntry, l: &mut TvList) {
 }
 
 pub fn digraph_getlist_common(list_all: bool, rettv: &mut TypVal) {
-    let user_slice = digr_st().user_digraphs.as_slice();
+    let user_slice = digr_st().borrow_mut().user_digraphs.as_slice();
     let cap = (DIGRAPHDEFAULT.len() + user_slice.len()) as isize;
     tv_list_alloc_ret(&mut *rettv, cap);
 

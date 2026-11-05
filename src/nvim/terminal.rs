@@ -376,8 +376,8 @@ static TERM_MOD_STATE: crate::globals::GlobalState<TerminalModuleState> =
     crate::globals::GlobalState::new(TerminalModuleState::new());
 
 #[inline]
-fn term_st() -> &'static mut TerminalModuleState {
-    TERM_MOD_STATE.as_mut()
+fn term_st() -> crate::globals::GraphPtr<TerminalModuleState> {
+    TERM_MOD_STATE.handle()
 }
 
 static VTERM_SCREEN_CALLBACKS: VTermScreenCallbacks = VTermScreenCallbacks {
@@ -424,7 +424,7 @@ const fn vterm_key_function(n: i32) -> VTermKey {
 
 #[inline]
 fn refresh_timer_ptr() -> &'static mut TimeWatcher {
-    &mut term_st().refresh_timer
+    &mut term_st().borrow_mut().refresh_timer
 }
 
 #[inline]

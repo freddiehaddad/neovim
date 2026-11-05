@@ -1952,7 +1952,7 @@ pub fn buf_write(
                     }
                     let keep = if progress >= 0 {
                         msg_progress(
-                            Some(g_st().iobuff_bytes_mut()),
+                            Some(g_st().borrow_mut().iobuff_bytes_mut()),
                             crate::memory::cstr_until_nul(&msg_id),
                             c"success",
                             -1,
@@ -1963,7 +1963,7 @@ pub fn buf_write(
                         )
                     } else {
                         msg_with_id(
-                            Some(g_st().iobuff_bytes_mut()),
+                            Some(g_st().borrow_mut().iobuff_bytes_mut()),
                             crate::memory::cstr_until_nul(&msg_id),
                             c"bufwrite",
                             None,

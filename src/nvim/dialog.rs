@@ -51,8 +51,8 @@ impl DialogModuleState {
 static DLG_STATE: GlobalState<DialogModuleState> = GlobalState::new(DialogModuleState::new());
 
 #[inline]
-pub(crate) fn dlg_st() -> &'static mut DialogModuleState {
-    DLG_STATE.as_mut()
+pub(crate) fn dlg_st() -> crate::globals::GraphPtr<DialogModuleState> {
+    DLG_STATE.handle()
 }
 
 fn copy_char(from: &[u8], to: &mut [u8], lowercase: bool) -> usize {
@@ -349,7 +349,8 @@ pub fn do_dialog(
             break;
         }
 
-        let btn_cstr = CStr::from_bytes_until_nul(&dlg_st().confirm_buttons).unwrap_or(c"");
+        let btn_cstr =
+            CStr::from_bytes_until_nul(&dlg_st().borrow_mut().confirm_buttons).unwrap_or(c"");
         let mut c = prompt_for_input(Some(btn_cstr), HLF_M, true, None);
         match c {
             CAR | 0 => {

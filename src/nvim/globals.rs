@@ -63,9 +63,24 @@ impl<T> GlobalState<T> {
     }
 
     #[inline]
-    #[allow(clippy::mut_from_ref)]
-    pub fn as_mut(&'static self) -> &'static mut T {
-        unsafe { &mut *self.0.get() }
+    pub const fn handle(&'static self) -> GraphPtr<T> {
+        unsafe { GraphPtr(Some(std::ptr::NonNull::new_unchecked(self.0.get()))) }
+    }
+
+    #[inline]
+    pub fn get(&self) -> T
+    where
+        T: Copy,
+    {
+        unsafe { *self.0.get() }
+    }
+
+    #[inline]
+    pub fn set(&self, val: T)
+    where
+        T: Copy,
+    {
+        unsafe { *self.0.get() = val }
     }
 }
 
@@ -921,29 +936,27 @@ impl EditorState {
 pub static EDITOR_STATE: GlobalState<EditorState> = GlobalState::new(EditorState::new());
 
 #[inline]
-pub fn g_st() -> &'static mut EditorState {
-    unsafe { &mut *EDITOR_STATE.as_ptr() }
+pub fn g_st() -> GraphPtr<EditorState> {
+    EDITOR_STATE.handle()
 }
 
 #[allow(non_upper_case_globals)]
 #[unsafe(no_mangle)]
-pub static curwin: GlobalState<*mut WinInfoInfo> = GlobalState::new(ptr::null_mut());
+pub static curwin: GlobalState<WinPtr> = GlobalState::new(WinPtr::NULL);
 
 #[inline]
 pub fn curwin_mut() -> &'static mut WinInfoInfo {
-    unsafe { &mut **curwin.as_ptr() }
+    curwin.get().borrow_mut()
 }
 
 #[inline]
 pub fn curwin_ptr() -> *mut WinInfoInfo {
-    unsafe { *curwin.as_ptr() }
+    curwin.get().as_ptr()
 }
 
 #[inline]
 pub fn set_curwin(wp: *mut WinInfoInfo) {
-    unsafe {
-        *curwin.as_ptr() = wp;
-    }
+    curwin.set(WinPtr::new(wp));
 }
 
 #[inline]
@@ -1427,14 +1440,12 @@ pub static starting: GlobalState<i32> = GlobalState::new(NO_SCREEN);
 
 #[inline]
 pub fn starting_val() -> i32 {
-    unsafe { *starting.as_ptr() }
+    starting.get()
 }
 
 #[inline]
 pub fn set_starting(v: i32) {
-    unsafe {
-        *starting.as_ptr() = v;
-    }
+    starting.set(v);
 }
 
 pub const ESCAPE_CHARS: &std::ffi::CStr = c" \t\\\"|";
@@ -1445,14 +1456,12 @@ pub static display_tick: GlobalState<Disptick> = GlobalState::new(0);
 
 #[inline]
 pub fn display_tick_val() -> Disptick {
-    unsafe { *display_tick.as_ptr() }
+    display_tick.get()
 }
 
 #[inline]
 pub fn inc_display_tick() {
-    unsafe {
-        *display_tick.as_ptr() += 1;
-    }
+    display_tick.set(display_tick.get() + 1);
 }
 #[inline]
 pub fn has_time_fd() -> bool {
@@ -1632,7 +1641,7 @@ mod tests {
             assert_eq!({ g_st().columns_global }, 80);
             assert_eq!({ g_st().dollar_vcol }, -1);
             assert_eq!({ g_st().t_colors }, 256);
-            assert_eq!({ unsafe { *starting.as_ptr() } }, 2);
+            assert_eq!(starting.get(), 2);
             assert_eq!({ g_st().state_global }, 0x01);
             assert_eq!({ g_st().visual_global.mode }, b'v' as i32);
             assert_eq!({ g_st().search_global.last_line }, 0x7fffffff);

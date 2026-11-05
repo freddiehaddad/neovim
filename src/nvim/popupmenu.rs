@@ -226,8 +226,8 @@ impl PopupmenuState {
 static PUM: GlobalState<PopupmenuState> = GlobalState::new(PopupmenuState::new());
 
 #[inline]
-fn pum() -> &'static mut PopupmenuState {
-    PUM.as_mut()
+fn pum() -> crate::globals::GraphPtr<PopupmenuState> {
+    PUM.handle()
 }
 
 use crate::api::private::helpers::cstr_to_string;

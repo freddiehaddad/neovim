@@ -82,18 +82,18 @@ impl UiCompositorState {
 static COMP_STATE: GlobalState<UiCompositorState> = GlobalState::new(UiCompositorState::new());
 
 #[inline]
-fn comp() -> &'static mut UiCompositorState {
-    COMP_STATE.as_mut()
+fn comp() -> crate::globals::GraphPtr<UiCompositorState> {
+    COMP_STATE.handle()
 }
 
 #[inline]
 fn linebuf_mut() -> &'static mut Vec<Schar> {
-    &mut comp().linebuf
+    &mut comp().borrow_mut().linebuf
 }
 
 #[inline]
 fn attrbuf_mut() -> &'static mut Vec<Sattr> {
-    &mut comp().attrbuf
+    &mut comp().borrow_mut().attrbuf
 }
 
 #[inline]
@@ -395,7 +395,7 @@ pub fn ui_comp_get_grid_at_coord(row: i32, col: i32) -> &'static mut ScreenGrid 
             return grid;
         }
     }
-    &mut g_st().default_grid
+    &mut g_st().borrow_mut().default_grid
 }
 
 fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut flags: LineFlags) {
@@ -448,7 +448,7 @@ fn compose_line(row: Integer, mut startcol: Integer, mut endcol: Integer, mut fl
         if row == (comp().msg_sep_row as Integer)
             && grid.unwrap().comp_index <= g_st().msg_grid.comp_index
         {
-            grid = Some(&g_st().msg_grid);
+            grid = Some(&g_st().borrow_mut().msg_grid);
             let msg_sep_attr = crate::highlight::hl_attr(HLF_MSGSEP as i32) as Sattr;
             for i in col..until {
                 let idx = (i - startcol as i32) as usize;

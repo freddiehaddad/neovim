@@ -467,8 +467,8 @@ impl OptionStrState {
 static OPTSTR_STATE: GlobalState<OptionStrState> = GlobalState::new(OptionStrState::new());
 
 #[inline]
-fn optstr_st() -> &'static mut OptionStrState {
-    OPTSTR_STATE.as_mut()
+fn optstr_st() -> crate::globals::GraphPtr<OptionStrState> {
+    OPTSTR_STATE.handle()
 }
 
 static BRIOPT_TABLE: [KeySetLink; 6] = [

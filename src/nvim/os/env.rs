@@ -68,8 +68,8 @@ static ENV_STATE: crate::globals::GlobalState<EnvModuleState> =
     crate::globals::GlobalState::new(EnvModuleState::new());
 
 #[inline]
-fn env_st() -> &'static mut EnvModuleState {
-    ENV_STATE.as_mut()
+fn env_st() -> crate::globals::GraphPtr<EnvModuleState> {
+    ENV_STATE.handle()
 }
 
 use crate::version::{default_vim_dir, default_vimruntime_dir};
@@ -374,7 +374,7 @@ pub fn os_get_hostname(hostname: &mut [u8]) {
 /// Gets the "real", resolved user home directory as determined by `init_homedir`.
 #[cfg(windows)]
 pub fn os_homedir() -> Option<&'static CStr> {
-    let Some(ref hd) = env_st().homedir else {
+    let Some(ref hd) = env_st().borrow_mut().homedir else {
         emsg(c"os_homedir failed: homedir not initialized");
         return None;
     };

@@ -1503,13 +1503,13 @@ impl RegexpState {
 pub(super) static RE_STATE: GlobalState<RegexpState> = GlobalState::new(RegexpState::new());
 
 #[inline]
-pub(super) fn re_st() -> &'static mut RegexpState {
-    RE_STATE.as_mut()
+pub(super) fn re_st() -> crate::globals::GraphPtr<RegexpState> {
+    RE_STATE.handle()
 }
 
 #[inline]
 pub(super) fn reg_prev_sub_ref() -> Option<&'static CStr> {
-    re_st().reg_prev_sub.as_deref()
+    re_st().borrow_mut().reg_prev_sub.as_deref()
 }
 
 use crate::eval::partial_name;

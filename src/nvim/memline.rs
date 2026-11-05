@@ -332,8 +332,8 @@ impl MemlineModuleState {
 static ML_STATE: GlobalState<MemlineModuleState> = GlobalState::new(MemlineModuleState::new());
 
 #[inline]
-fn ml_st() -> &'static mut MemlineModuleState {
-    ML_STATE.as_mut()
+fn ml_st() -> crate::globals::GraphPtr<MemlineModuleState> {
+    ML_STATE.handle()
 }
 
 static E_ML_GET_INVALID_LNUM_NR: &CStr = c"E315: ml_get: Invalid lnum: %lld";
@@ -2163,7 +2163,7 @@ fn ml_get_errorret(buf: &mut FileBuf, lnum: Linenr) -> &'static CStr {
     ml_st().ml_get_questions = *b"???\0";
     buf.b_ml.ml_line_textlen = 4;
     buf.b_ml.ml_line_lnum = lnum;
-    crate::memory::cstr_until_nul(&ml_st().ml_get_questions)
+    crate::memory::cstr_until_nul(&ml_st().borrow_mut().ml_get_questions)
 }
 
 /// Check if a line that was just obtained by `ml_get` is in allocated memory.

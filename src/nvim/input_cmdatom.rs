@@ -401,8 +401,8 @@ impl CmdAtomModuleState {
 static ATOM_STATE: GlobalState<CmdAtomModuleState> = GlobalState::new(CmdAtomModuleState::new());
 
 #[inline]
-pub(crate) fn atom_st() -> &'static mut CmdAtomModuleState {
-    ATOM_STATE.as_mut()
+pub(crate) fn atom_st() -> crate::globals::GraphPtr<CmdAtomModuleState> {
+    ATOM_STATE.handle()
 }
 
 #[inline]
@@ -422,18 +422,18 @@ use crate::api::private::helpers::array_add;
 
 #[inline]
 fn cur_frame_opt() -> Option<&'static mut CmdFrame> {
-    atom_st().cmd_frames.last_mut()
+    atom_st().borrow_mut().cmd_frames.last_mut()
 }
 
 #[inline]
 fn cur_frame() -> &'static mut CmdFrame {
-    atom_st().cmd_frames.last_mut().unwrap()
+    atom_st().borrow_mut().cmd_frames.last_mut().unwrap()
 }
 
 #[inline]
 fn root_frame() -> &'static mut CmdFrame {
     assert!(!atom_st().cmd_frames.is_empty());
-    &mut atom_st().cmd_frames[0]
+    &mut atom_st().borrow_mut().cmd_frames[0]
 }
 
 #[inline]
@@ -441,8 +441,8 @@ fn is_child_frame() -> bool {
     if atom_st().cmd_frames.len() <= 1 {
         return false;
     }
-    let root = &atom_st().cmd_frames.as_slice()[0];
-    let cur = atom_st().cmd_frames.last().unwrap();
+    let root = &atom_st().borrow_mut().cmd_frames.as_slice()[0];
+    let cur = atom_st().borrow_mut().cmd_frames.last().unwrap();
     let fed = cur.ex_normal > root.ex_normal;
     fed && (root.keyclass & K_KEY_SYNTHETIC) == 0
 }
@@ -850,7 +850,8 @@ fn atom_stage_flush(frame: &mut CmdFrame) {
 fn atom_composite_lhs() -> std::ffi::CString {
     let mut keys: Vec<u8> = Vec::new();
     sb_concat(&mut keys, &atom_st().composite.lhs);
-    let tail = &atom_st().typed.keys.as_slice()[atom_st().typed.map_start..];
+    let tail =
+        &atom_st().borrow_mut().typed.keys.as_slice()[atom_st().borrow_mut().typed.map_start..];
     keys.extend_from_slice(tail);
     cstr_from_bytes(&keys)
 }

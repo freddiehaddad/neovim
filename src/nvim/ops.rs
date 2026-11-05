@@ -188,8 +188,8 @@ static OPS_STATE: crate::globals::GlobalState<OpsModuleState> =
     crate::globals::GlobalState::new(OpsModuleState::new());
 
 #[inline]
-fn ops_st() -> &'static mut OpsModuleState {
-    OPS_STATE.as_mut()
+fn ops_st() -> crate::globals::GraphPtr<OpsModuleState> {
+    OPS_STATE.handle()
 }
 
 #[inline]

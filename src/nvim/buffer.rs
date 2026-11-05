@@ -923,8 +923,8 @@ impl BufferModuleState {
 static BUF_STATE: GlobalState<BufferModuleState> = GlobalState::new(BufferModuleState::new());
 
 #[inline]
-fn buf_st() -> &'static mut BufferModuleState {
-    BUF_STATE.as_mut()
+fn buf_st() -> crate::globals::GraphPtr<BufferModuleState> {
+    BUF_STATE.handle()
 }
 
 const E_ATTEMPT_TO_DELETE_BUFFER_THAT_IS_IN_USE_STR: &CStr =
@@ -3654,7 +3654,7 @@ pub fn buflist_findfmark(buf: &mut FileBuf) -> &'static mut Fmark {
     if let Some(wip) = find_wininfo(buf, false, false) {
         &mut wip.wi_mark
     } else {
-        &mut buf_st().no_position
+        &mut buf_st().borrow_mut().no_position
     }
 }
 

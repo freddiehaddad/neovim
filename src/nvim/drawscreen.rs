@@ -205,8 +205,8 @@ impl DrawscreenState {
 static DS_STATE: GlobalState<DrawscreenState> = GlobalState::new(DrawscreenState::new());
 
 #[inline]
-fn ds_st() -> &'static mut DrawscreenState {
-    DS_STATE.as_mut()
+fn ds_st() -> crate::globals::GraphPtr<DrawscreenState> {
+    DS_STATE.handle()
 }
 
 #[inline]
@@ -1457,12 +1457,12 @@ fn win_update(wp: &mut WinInfoInfo) {
                 });
         }
         decor_range_add_virt(
-            &mut g_st().decor_state,
+            &mut g_st().borrow_mut().decor_state,
             buf.b_ml.ml_line_count - 1,
             0,
             buf.b_ml.ml_line_count - 1,
             0,
-            &mut ds_st().suspended_virt_text,
+            &mut ds_st().borrow_mut().suspended_virt_text,
             false,
         );
     }

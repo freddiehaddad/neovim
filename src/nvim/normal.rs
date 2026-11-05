@@ -436,8 +436,8 @@ impl NormalModuleState {
 static NORM_STATE: GlobalState<NormalModuleState> = GlobalState::new(NormalModuleState::new());
 
 #[inline]
-fn norm_st() -> &'static mut NormalModuleState {
-    NORM_STATE.as_mut()
+fn norm_st() -> crate::globals::GraphPtr<NormalModuleState> {
+    NORM_STATE.handle()
 }
 
 #[inline]
@@ -6891,11 +6891,16 @@ pub fn unadjust_for_sel() -> bool {
     if opt_vars().p_sel.first_byte() == b'e'
         && !equalpos(g_st().visual_global.start, curwin_mut().w_cursor)
     {
-        return unadjust_for_sel_inner(if lt(g_st().visual_global.start, curwin_mut().w_cursor) {
-            &mut curwin_mut().w_cursor
-        } else {
-            &mut g_st().visual_global.start
-        });
+        return unadjust_for_sel_inner(
+            if lt(
+                g_st().borrow_mut().visual_global.start,
+                curwin_mut().w_cursor,
+            ) {
+                &mut curwin_mut().w_cursor
+            } else {
+                &mut g_st().borrow_mut().visual_global.start
+            },
+        );
     }
     false
 }

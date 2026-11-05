@@ -811,8 +811,8 @@ static TV_STATE: crate::globals::GlobalState<TypvalModuleState> =
     crate::globals::GlobalState::new(TypvalModuleState::new());
 
 #[inline]
-pub(crate) fn tv_st() -> &'static mut TypvalModuleState {
-    TV_STATE.as_mut()
+pub(crate) fn tv_st() -> crate::globals::GraphPtr<TypvalModuleState> {
+    TV_STATE.handle()
 }
 
 static E_VARIABLE_NESTED_TOO_DEEP_FOR_UNLOCK: &CStr =
@@ -3094,7 +3094,7 @@ pub fn tv_dict_get_cstring(d: Option<&TvDict>, key: &std::ffi::CStr) -> Option<s
 
 /// Get a string item from a dictionary.
 pub fn tv_dict_get_string<'a>(d: Option<&'a TvDict>, key: &CStr) -> Option<&'a std::ffi::CStr> {
-    tv_dict_get_string_buf(d, key, &mut tv_st().dict_numbuf)
+    tv_dict_get_string_buf(d, key, &mut tv_st().borrow_mut().dict_numbuf)
 }
 
 /// Get a string item from a dictionary.
@@ -4937,12 +4937,12 @@ pub fn tv_get_string_buf_chk<'a>(
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string_chk(tv: &TypVal) -> Option<&std::ffi::CStr> {
-    tv_get_string_buf_chk(tv, &mut tv_st().mybuf_chk)
+    tv_get_string_buf_chk(tv, &mut tv_st().borrow_mut().mybuf_chk)
 }
 
 /// Get the string value of a "stringish" Vimscript object.
 pub fn tv_get_string(tv: &TypVal) -> &std::ffi::CStr {
-    tv_get_string_buf(tv, &mut tv_st().mybuf)
+    tv_get_string_buf(tv, &mut tv_st().borrow_mut().mybuf)
 }
 
 /// Get the string value of a "stringish" Vimscript object.

@@ -65,8 +65,8 @@ static EXSES_STATE: crate::globals::GlobalState<ExSessionState> =
     crate::globals::GlobalState::new(ExSessionState::new());
 
 #[inline]
-fn exses_st() -> &'static mut ExSessionState {
-    EXSES_STATE.as_mut()
+fn exses_st() -> crate::globals::GraphPtr<ExSessionState> {
+    EXSES_STATE.handle()
 }
 
 #[inline]

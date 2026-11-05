@@ -167,8 +167,8 @@ static TF_STATE: crate::globals::GlobalState<TextformatState> =
     crate::globals::GlobalState::new(TextformatState::new());
 
 #[inline]
-fn tf_st() -> &'static mut TextformatState {
-    TF_STATE.as_mut()
+fn tf_st() -> crate::globals::GraphPtr<TextformatState> {
+    TF_STATE.handle()
 }
 
 #[inline]

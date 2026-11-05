@@ -118,8 +118,8 @@ impl IndentModuleState {
 static INDENT_STATE: GlobalState<IndentModuleState> = GlobalState::new(IndentModuleState::new());
 
 #[inline]
-fn ind_st() -> &'static mut IndentModuleState {
-    INDENT_STATE.as_mut()
+fn ind_st() -> crate::globals::GraphPtr<IndentModuleState> {
+    INDENT_STATE.handle()
 }
 
 #[inline]
@@ -825,8 +825,8 @@ pub fn get_breakindent_win(wp: &mut WinInfoInfo, line: &[u8]) -> i32 {
         ind_st().prev_flp = Some(flp_val.to_owned());
 
         if wp.w_briopt_list != 0 && wp.w_briopt_vcol == 0 {
-            let flp_cstr = ind_st().prev_flp.as_deref().unwrap();
-            let line_cstr = ind_st().prev_line.as_deref().unwrap();
+            let flp_cstr = ind_st().borrow_mut().prev_flp.as_deref().unwrap();
+            let line_cstr = ind_st().borrow_mut().prev_line.as_deref().unwrap();
             let mut regmatch = Regmatch::new();
             regmatch.set_prog(vim_regcomp(
                 flp_cstr,
@@ -916,7 +916,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
                 let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
                 let bytes = msg_str.as_bytes();
                 let copy_len = bytes.len().min(IOSIZE - 1);
-                let iobuff = g_st().iobuff_bytes_mut();
+                let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
                 iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
                 iobuff[copy_len] = 0;
 
@@ -981,7 +981,7 @@ pub fn op_reindent(oap: &mut Oparg, how: Indenter) {
         let msg_str = fmt_str.replacen("%ld", &i.to_string(), 1);
         let bytes = msg_str.as_bytes();
         let copy_len = bytes.len().min(IOSIZE - 1);
-        let iobuff = g_st().iobuff_bytes_mut();
+        let iobuff = g_st().borrow_mut().iobuff_bytes_mut();
         iobuff[..copy_len].copy_from_slice(&bytes[..copy_len]);
         iobuff[copy_len] = 0;
         msg_progress(

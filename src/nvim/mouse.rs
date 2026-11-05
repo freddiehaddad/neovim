@@ -193,8 +193,8 @@ impl MouseModuleState {
 static MOUSE_STATE: GlobalState<MouseModuleState> = GlobalState::new(MouseModuleState::new());
 
 #[inline]
-fn mouse_st() -> &'static mut MouseModuleState {
-    MOUSE_STATE.as_mut()
+fn mouse_st() -> crate::globals::GraphPtr<MouseModuleState> {
+    MOUSE_STATE.handle()
 }
 
 /// Get class of a character for selection: same class means same word.

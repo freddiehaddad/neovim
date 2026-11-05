@@ -191,8 +191,8 @@ impl MenuModuleState {
 static MENU_STATE: GlobalState<MenuModuleState> = GlobalState::new(MenuModuleState::new());
 
 #[inline]
-fn menu_st() -> &'static mut MenuModuleState {
-    MENU_STATE.as_mut()
+fn menu_st() -> crate::globals::GraphPtr<MenuModuleState> {
+    MENU_STATE.handle()
 }
 
 use crate::eval::typval::tv_dict_len;
@@ -203,7 +203,7 @@ fn menu_is_winbar(name: &[u8]) -> bool {
 }
 
 fn get_root_menu() -> &'static mut Vec<Vimmenu> {
-    &mut g_st().root_menu
+    &mut g_st().borrow_mut().root_menu
 }
 
 /// If `menus_locked` is set then give an error and return true (`is_menus_locked`).
@@ -968,7 +968,7 @@ fn show_menus_recursive(mut menu: Option<&mut Vimmenu>, modes: i32, mut depth: i
             menu.children.as_mut_slice()
         } else {
             depth -= 1;
-            g_st().root_menu.as_mut_slice()
+            g_st().borrow_mut().root_menu.as_mut_slice()
         };
 
         for child in children {
@@ -1099,7 +1099,7 @@ pub fn get_menu_name(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = menu_st().expand_menu.as_slice();
+    let menus = menu_st().borrow_mut().expand_menu.as_slice();
 
     while menu_st().get_menu_name_idx < menus.len() {
         let menu = &menus[menu_st().get_menu_name_idx];
@@ -1149,7 +1149,7 @@ pub fn get_menu_names(_xp: &mut ExpandCtx, idx: i32) -> Option<&'static CStr> {
     if menu_st().expand_menu.is_null() {
         return None;
     }
-    let menus = menu_st().expand_menu.as_slice();
+    let menus = menu_st().borrow_mut().expand_menu.as_slice();
 
     while menu_st().get_menu_names_idx < menus.len() && {
         let dname_bytes = menus[menu_st().get_menu_names_idx].dname.as_bytes();
@@ -1774,7 +1774,7 @@ fn menu_skip_part(p: &[u8]) -> usize {
 
 /// Lookup part of a menu name in the translations (`menutrans_lookup`).
 fn menutrans_lookup(name_slice: &[u8]) -> Option<&'static CStr> {
-    let menutrans = &menu_st().menutrans_ga;
+    let menutrans = &menu_st().borrow_mut().menutrans_ga;
     let u_len = name_slice.len();
 
     for entry in menutrans {

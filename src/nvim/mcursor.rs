@@ -200,28 +200,28 @@ impl McursorState {
 static MC_STATE: GlobalState<McursorState> = GlobalState::new(McursorState::new());
 
 #[inline]
-fn mc_st() -> &'static mut McursorState {
-    MC_STATE.as_mut()
+fn mc_st() -> crate::globals::GraphPtr<McursorState> {
+    MC_STATE.handle()
 }
 
 #[inline]
 fn cursors() -> &'static [Context] {
-    &mc_st().mc_cursors
+    &mc_st().borrow_mut().mc_cursors
 }
 
 #[inline]
 fn cursors_mut() -> &'static mut Vec<Context> {
-    &mut mc_st().mc_cursors
+    &mut mc_st().borrow_mut().mc_cursors
 }
 
 #[inline]
 fn ins_regions() -> &'static [u32] {
-    &mc_st().mc_ins_span.regions
+    &mc_st().borrow_mut().mc_ins_span.regions
 }
 
 #[inline]
 fn ins_regions_mut() -> &'static mut Vec<u32> {
-    &mut mc_st().mc_ins_span.regions
+    &mut mc_st().borrow_mut().mc_ins_span.regions
 }
 
 pub fn mc_init() {
@@ -375,7 +375,7 @@ fn mc_sandbox_leave(sb: &mut McSandbox) {
 fn mc_execute(cursoridx: usize, atomidx: usize) {
     let mut ctx = cursors()[cursoridx].clone();
     let (atom_keys, atom_type, atom_cmd, atom_cmd2, atom_remap) = {
-        let a = &atom_st().g_atoms.as_slice()[atomidx];
+        let a = &atom_st().borrow_mut().g_atoms.as_slice()[atomidx];
         (
             a.keys.as_ref().map_or(ptr::null(), |k| k.as_ptr()),
             a.r#type,

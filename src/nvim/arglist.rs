@@ -114,8 +114,8 @@ static ARGLIST_STATE: crate::globals::GlobalState<ArglistModuleState> =
     crate::globals::GlobalState::new(ArglistModuleState::new());
 
 #[inline]
-fn arglist_st() -> &'static mut ArglistModuleState {
-    ARGLIST_STATE.as_mut()
+fn arglist_st() -> crate::globals::GraphPtr<ArglistModuleState> {
+    ARGLIST_STATE.handle()
 }
 
 #[inline]
@@ -149,7 +149,7 @@ pub fn argcount() -> i32 {
 
 #[inline]
 pub fn garglist_slice() -> &'static [Aentry] {
-    &g_st().global_alist.al_ga
+    &g_st().borrow_mut().global_alist.al_ga
 }
 
 #[inline]

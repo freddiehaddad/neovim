@@ -253,8 +253,8 @@ impl MappingModuleState {
 static MAP_STATE: GlobalState<MappingModuleState> = GlobalState::new(MappingModuleState::new());
 
 #[inline]
-fn map_st() -> &'static mut MappingModuleState {
-    MAP_STATE.as_mut()
+fn map_st() -> crate::globals::GraphPtr<MappingModuleState> {
+    MAP_STATE.handle()
 }
 
 static E_GLOBAL_ABBREVIATION_ALREADY_EXISTS_FOR_STR: &CStr =
@@ -280,7 +280,7 @@ use crate::keycodes::{k_second, k_third};
 
 /// Get the start of the hashed map list for "state" and first character "c".
 pub fn get_maphash_list(state: i32, c: i32) -> &'static [Mapblock] {
-    map_st().maphash[map_hash(state, c as u8)].as_slice()
+    map_st().borrow_mut().maphash[map_hash(state, c as u8)].as_slice()
 }
 
 /// Get the buffer-local hashed map list for "state" and first character "c".
@@ -299,12 +299,12 @@ fn map_bucket_mut(
         if local {
             &mut buf.b_first_abbr
         } else {
-            &mut map_st().first_abbr
+            &mut map_st().borrow_mut().first_abbr
         }
     } else if local {
         &mut buf.b_maphash[hash]
     } else {
-        &mut map_st().maphash[hash]
+        &mut map_st().borrow_mut().maphash[hash]
     }
 }
 
@@ -314,12 +314,12 @@ fn get_map_buckets(buf: Option<&FileBuf>, is_abbrev: bool) -> &[Vec<Mapblock>] {
         if let Some(buf) = buf {
             std::slice::from_ref(&buf.b_first_abbr)
         } else {
-            std::slice::from_ref(&map_st().first_abbr)
+            std::slice::from_ref(&map_st().borrow_mut().first_abbr)
         }
     } else if let Some(buf) = buf {
         &buf.b_maphash
     } else {
-        &map_st().maphash
+        &map_st().borrow_mut().maphash
     }
 }
 
@@ -1557,7 +1557,7 @@ pub fn check_abbr(mut c: i32, line_cstr: &CStr, col: i32, mincol: i32) -> bool {
         ptr_arg = ptr_arg.wrapping_add(scol as usize);
         let mut len = col - scol;
         let mut mp_opt: Option<&Mapblock> = None;
-        let first_abbr_slice = map_st().first_abbr.as_slice();
+        let first_abbr_slice = map_st().borrow_mut().first_abbr.as_slice();
         for cand in curbuf_mut().b_first_abbr.iter().chain(first_abbr_slice) {
             let mut qlen = cand.m_keylen;
             let mut q_vec: Vec<u8>;
@@ -2552,7 +2552,7 @@ fn langmap_set_entry(from: i32, to: i32) {
 
 /// Apply 'langmap' to multi-byte character "c" and return the result.
 pub fn langmap_adjust_mb(c: i32) -> i32 {
-    let entries = map_st().langmap_mapga.as_slice();
+    let entries = map_st().borrow_mut().langmap_mapga.as_slice();
     entries
         .binary_search_by_key(&c, |e| e.from)
         .map_or(c, |idx| entries[idx].to)

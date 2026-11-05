@@ -547,8 +547,8 @@ impl OptionModuleState {
 static OPT_STATE: GlobalState<OptionModuleState> = GlobalState::new(OptionModuleState::new());
 
 #[inline]
-fn opt_st() -> &'static mut OptionModuleState {
-    OPT_STATE.as_mut()
+fn opt_st() -> crate::globals::GraphPtr<OptionModuleState> {
+    OPT_STATE.handle()
 }
 
 const P_BIN_DEP_OPTS: &[i32] = &[
@@ -2097,7 +2097,7 @@ pub fn do_set(arg: &std::ffi::CStr, opt_flags: i32) -> bool {
                 }
 
                 if let Some(errmsg) = errmsg {
-                    let iobuf = g_st().iobuff_bytes_mut();
+                    let iobuf = g_st().borrow_mut().iobuff_bytes_mut();
                     let msg_bytes = tr(errmsg).to_bytes();
                     let mut pos = msg_bytes.len().min(IOSIZE - 1);
                     iobuf[..pos].copy_from_slice(&msg_bytes[..pos]);
@@ -4127,7 +4127,7 @@ static OPTIONS: GlobalState<[Vimoption; 379]> = GlobalState::new([
 /// Return information for option at `opt_idx` (`get_option`).
 pub fn get_option(opt_idx: OptIndex) -> &'static mut Vimoption {
     assert!(opt_idx != K_OPT_INVALID);
-    &mut (*OPTIONS.as_mut())[opt_idx as usize]
+    &mut OPTIONS.handle().borrow_mut()[opt_idx as usize]
 }
 
 const OPTION_NAME_MAP: &[(&[u8], OptIndex)] = &[
@@ -6920,7 +6920,7 @@ pub fn get_findfunc() -> &'static mut Callback {
     if curbuf_mut().b_p_ffu.cb_type() != K_CALLBACK_NONE_CONST {
         &mut curbuf_mut().b_p_ffu
     } else {
-        &mut opt_vars().p_ffu
+        &mut opt_vars().borrow_mut().p_ffu
     }
 }
 
@@ -7757,7 +7757,7 @@ pub fn expand_old_setting(matches: &mut Vec<std::ffi::CString>) -> bool {
             return true;
         }
         optval_fmt(opt_st().expand_option_idx, opt_st().expand_option_flags);
-        crate::memory::bytes_until_nul(g_st().name_buff_bytes_mut())
+        crate::memory::bytes_until_nul(g_st().borrow_mut().name_buff_bytes_mut())
     } else {
         b""
     };

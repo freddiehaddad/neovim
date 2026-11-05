@@ -2149,7 +2149,7 @@ pub fn get_special_key(
     mut modifiers: i32,
     mut data: Option<&mut KeyChord>,
 ) -> &'static CStr {
-    let string_buf = SPECIAL_KEY_STRING.as_mut();
+    let mut string_buf = SPECIAL_KEY_STRING.handle();
     let string = string_buf.as_mut_ptr();
     let mut is_ascii_ctrl = false;
 
@@ -2318,7 +2318,7 @@ pub fn get_special_key(
     idx += 1;
     string_buf[idx] = 0;
 
-    CStr::from_bytes_until_nul(string_buf).unwrap_or(c"")
+    CStr::from_bytes_until_nul(string_buf.borrow()).unwrap_or(c"")
 }
 
 /// Return string representing the key "chord" (key + modifiers) (`get_special_key_name`).

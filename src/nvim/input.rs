@@ -297,8 +297,8 @@ impl InputModuleState {
 static INP_STATE: GlobalState<InputModuleState> = GlobalState::new(InputModuleState::new());
 
 #[inline]
-fn inp_st() -> &'static mut InputModuleState {
-    INP_STATE.as_mut()
+fn inp_st() -> crate::globals::GraphPtr<InputModuleState> {
+    INP_STATE.handle()
 }
 
 use crate::api::buffer::LUA_INTERNAL_CALL;
@@ -1711,7 +1711,7 @@ pub fn vpeekc_any() -> i32 {
 
 /// Call `vpeekc()` without causing anything to be mapped.
 pub fn char_avail() -> bool {
-    if *test_disable_char_avail.as_mut() {
+    if test_disable_char_avail.get() {
         return false;
     }
     g_st().no_mapping += 1;
@@ -2819,7 +2819,8 @@ fn inchar(tb_idx: usize, maxlen: i32, wait_time: i64) -> i32 {
 
         let max_read = (maxlen / 3).max(0) as usize;
         len = input_get(
-            (max_read > 0).then(|| &mut g_st().typebuf.tb_buf[tb_idx..tb_idx + max_read]),
+            (max_read > 0)
+                .then(|| &mut g_st().borrow_mut().typebuf.tb_buf[tb_idx..tb_idx + max_read]),
             wait_time as i32,
             tb_change_cnt,
             None,

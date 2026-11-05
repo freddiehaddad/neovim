@@ -42,8 +42,8 @@ static CLIP_STATE: crate::globals::GlobalState<ClipboardModuleState> =
     crate::globals::GlobalState::new(ClipboardModuleState::new());
 
 #[inline]
-fn clip_st() -> &'static mut ClipboardModuleState {
-    CLIP_STATE.as_mut()
+fn clip_st() -> crate::globals::GraphPtr<ClipboardModuleState> {
+    CLIP_STATE.handle()
 }
 
 const MSG_NO_CLIP: &CStr = c"clipboard: No provider. Try \":checkhealth\" or \":h clipboard\".";

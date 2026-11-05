@@ -46,8 +46,8 @@ static SERVER_STATE: crate::globals::GlobalState<RpcServerState> =
     crate::globals::GlobalState::new(RpcServerState::new());
 
 #[inline]
-fn srv_st() -> &'static mut RpcServerState {
-    SERVER_STATE.as_mut()
+fn srv_st() -> crate::globals::GraphPtr<RpcServerState> {
+    SERVER_STATE.handle()
 }
 
 pub fn server_init(listen_addr: Option<&CStr>) -> bool {

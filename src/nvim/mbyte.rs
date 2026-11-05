@@ -869,8 +869,8 @@ static MBYTE_STATE: crate::globals::GlobalState<MbyteModuleState> =
     crate::globals::GlobalState::new(MbyteModuleState::new());
 
 #[inline]
-fn mbyte_st() -> &'static mut MbyteModuleState {
-    MBYTE_STATE.as_mut()
+fn mbyte_st() -> crate::globals::GraphPtr<MbyteModuleState> {
+    MBYTE_STATE.handle()
 }
 
 unsafe extern "C" {
@@ -2977,7 +2977,7 @@ pub fn mb_unescape(s: &mut &[u8]) -> Option<&'static CStr> {
 
         if utf_slice2len(&mbyte_st().mb_unescape_buf[..buf_idx]) > 1 {
             *s = &bytes[str_idx + 1..];
-            return CStr::from_bytes_until_nul(&mbyte_st().mb_unescape_buf).ok();
+            return CStr::from_bytes_until_nul(&mbyte_st().borrow_mut().mb_unescape_buf).ok();
         }
 
         if mbyte_st().mb_unescape_buf[0] < 128 {
@@ -3419,7 +3419,7 @@ pub fn string_convert_ext(
 }
 
 fn cw_value(c: i32) -> i32 {
-    let table = mbyte_st().cw_table.as_slice();
+    let table = mbyte_st().borrow_mut().cw_table.as_slice();
     let c64 = i64::from(c);
     table
         .binary_search_by(|entry| {
@@ -3518,7 +3518,7 @@ pub fn f_setcellwidths(argvars: &mut [TypVal], _rettv: &mut TypVal, _fptr: EvalF
 }
 
 pub fn f_getcellwidths(_argvars: &mut [TypVal], rettv: &mut TypVal, _fptr: EvalFuncData) {
-    let table = mbyte_st().cw_table.as_slice();
+    let table = mbyte_st().borrow_mut().cw_table.as_slice();
     tv_list_alloc_ret(rettv, table.len() as isize);
     for &entry_data in table {
         let entry = tv_list_alloc(3);

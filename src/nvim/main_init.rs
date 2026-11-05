@@ -255,8 +255,8 @@ static MAIN_INIT_STATE: crate::globals::GlobalState<MainInitState> =
     crate::globals::GlobalState::new(MainInitState::new());
 
 #[inline]
-fn main_init_st() -> &'static mut MainInitState {
-    MAIN_INIT_STATE.as_mut()
+fn main_init_st() -> crate::globals::GraphPtr<MainInitState> {
+    MAIN_INIT_STATE.handle()
 }
 
 use crate::extmark::{K_FALSE, K_NONE, K_TRUE};
@@ -2417,7 +2417,7 @@ fn mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) -> ! {
 }
 
 fn print_mainerr(msg1: &CStr, msg2: Option<&CStr>, msg3: Option<&CStr>) {
-    let prgname = path_tail(main_init_st().argv0.as_deref().unwrap_or(c""));
+    let prgname = path_tail(main_init_st().borrow_mut().argv0.as_deref().unwrap_or(c""));
     signal_stop();
 
     let stderr = log_get_stderr();

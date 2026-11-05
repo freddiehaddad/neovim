@@ -88,8 +88,8 @@ static API_UI_STATE: crate::globals::GlobalState<ApiUiState> =
     crate::globals::GlobalState::new(ApiUiState::new());
 
 #[inline]
-fn api_ui_st() -> &'static mut ApiUiState {
-    API_UI_STATE.as_mut()
+fn api_ui_st() -> crate::globals::GraphPtr<ApiUiState> {
+    API_UI_STATE.handle()
 }
 
 use crate::msgpack_rpc::packer::{mpack_w2, mpack_w2_at};
@@ -101,6 +101,7 @@ fn buf_pos(ui: &RemoteUI) -> usize {
 
 fn get_ui_or_err(chan_id: u64, err: &mut Error) -> Option<&'static mut RemoteUI> {
     let ui = api_ui_st()
+        .borrow_mut()
         .connected_uis
         .get_mut(&chan_id)
         .map(|b| &mut **b);
@@ -332,7 +333,11 @@ pub fn nvim_ui_attach(
     ui.hl_id = 0;
     ui.client_col = -1;
     api_ui_st().connected_uis.insert(channel_id, ui_box);
-    let ui: &mut RemoteUI = api_ui_st().connected_uis.get_mut(&channel_id).unwrap();
+    let ui: &mut RemoteUI = api_ui_st()
+        .borrow_mut()
+        .connected_uis
+        .get_mut(&channel_id)
+        .unwrap();
     ui.packer = PackerBuffer {
         anydata: crate::msgpack_rpc::packer::PackerData::Ui(channel_id),
         ..PackerBuffer::new()

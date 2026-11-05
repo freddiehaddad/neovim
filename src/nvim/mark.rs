@@ -215,8 +215,8 @@ static MARK_STATE: crate::globals::GlobalState<MarkModuleState> =
     crate::globals::GlobalState::new(MarkModuleState::new());
 
 #[inline]
-fn mark_st() -> &'static mut MarkModuleState {
-    MARK_STATE.as_mut()
+fn mark_st() -> crate::globals::GraphPtr<MarkModuleState> {
+    MARK_STATE.handle()
 }
 
 #[inline]
@@ -648,7 +648,7 @@ pub fn mark_get_global(resolve: bool, mut name: i32) -> &'static mut Xfmark {
     if resolve && g_st().namedfm[idx].fmark.fnum == 0 {
         fname2fnum(&g_st().namedfm[idx]);
     }
-    &mut g_st().namedfm[idx]
+    &mut g_st().borrow_mut().namedfm[idx]
 }
 
 /// Get a local mark (`mark_get_local`).
@@ -753,7 +753,7 @@ pub fn mark_get_visual(buf: &mut FileBuf, name: i32) -> Option<&'static mut Fmar
 
 /// Wrap a `CursorPos` into an `Fmark` (`pos_to_mark`).
 pub fn pos_to_mark<'a>(buf: &FileBuf, fmp: Option<&'a mut Fmark>, pos: CursorPos) -> &'a mut Fmark {
-    let fm = fmp.unwrap_or(&mut mark_st().pos_to_mark_fms);
+    let fm = fmp.unwrap_or(&mut mark_st().borrow_mut().pos_to_mark_fms);
     fm.fnum = buf.b_fnum;
     fm.mark = pos;
     fm

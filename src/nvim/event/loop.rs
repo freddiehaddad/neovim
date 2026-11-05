@@ -517,7 +517,7 @@ pub fn loop_queues(loop_: &mut Loop) -> &'static mut Loop {
 
 #[inline]
 pub fn main_loop_ptr() -> &'static mut Loop {
-    &mut crate::globals::g_st().main_loop
+    &mut crate::globals::g_st().borrow_mut().main_loop
 }
 
 #[inline]

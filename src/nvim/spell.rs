@@ -226,8 +226,8 @@ static SPELL_PRIV_STATE: crate::globals::GlobalState<SpellPrivateState> =
     crate::globals::GlobalState::new(SpellPrivateState::new());
 
 #[inline]
-pub(crate) fn spell_priv_st() -> &'static mut SpellPrivateState {
-    SPELL_PRIV_STATE.as_mut()
+pub(crate) fn spell_priv_st() -> crate::globals::GraphPtr<SpellPrivateState> {
+    SPELL_PRIV_STATE.handle()
 }
 #[inline]
 pub fn spell_isupper(c: i32) -> bool {
@@ -2235,8 +2235,8 @@ pub fn ex_spellrepall(_eap: &mut Exarg) {
     let save_ws = opt_vars().p_ws;
     let mut prev_lnum: Linenr = 0;
     let (Some(repl_from_cstr), Some(repl_to_cstr)) = (
-        spell_priv_st().repl_from.as_ref(),
-        spell_priv_st().repl_to.as_ref(),
+        spell_priv_st().borrow_mut().repl_from.as_ref(),
+        spell_priv_st().borrow_mut().repl_to.as_ref(),
     ) else {
         emsg(gettext(c"E752: No previous spell replacement"));
         return;

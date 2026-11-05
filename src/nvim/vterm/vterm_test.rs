@@ -120,8 +120,8 @@ static VT_TEST_STATE: crate::globals::GlobalState<VTermTestState> =
     crate::globals::GlobalState::new(VTermTestState::new());
 
 #[inline]
-fn vtt_st() -> &'static mut VTermTestState {
-    VT_TEST_STATE.as_mut()
+fn vtt_st() -> crate::globals::GraphPtr<VTermTestState> {
+    VT_TEST_STATE.handle()
 }
 
 static TEST_OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());

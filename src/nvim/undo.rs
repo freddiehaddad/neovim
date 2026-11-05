@@ -256,8 +256,8 @@ impl UndoModuleState {
 static UNDO_STATE: GlobalState<UndoModuleState> = GlobalState::new(UndoModuleState::new());
 
 #[inline]
-fn undo_st() -> &'static mut UndoModuleState {
-    UNDO_STATE.as_mut()
+fn undo_st() -> crate::globals::GraphPtr<UndoModuleState> {
+    UNDO_STATE.handle()
 }
 
 /// Save the current line for both the `"u"` and `"U"` command.
