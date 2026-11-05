@@ -1,7 +1,5 @@
 //! XDiff utility functions (`src/xdiff/xutils.c`).
 
-use std::ptr;
-
 use crate::xdiff::xdiffi::xdl_do_diff;
 use crate::xdiff::{
     Mmbuffer, Mmfile, XDF_IGNORE_CR_AT_EOL, XDF_IGNORE_WHITESPACE, XDF_IGNORE_WHITESPACE_AT_EOL,
@@ -17,27 +15,14 @@ pub fn xdl_bogosqrt(mut n: i64) -> i64 {
     i
 }
 
-pub fn xdl_emit_diffrec(
-    rec: *const u8,
-    size: i64,
-    pre: *const u8,
-    psize: i64,
-    ecb: &mut Xdemitcb,
-) -> i32 {
+pub fn xdl_emit_diffrec(rec: &[u8], pre: &[u8], ecb: &mut Xdemitcb<'_>) -> i32 {
     let mut i: usize = 2;
-    let mut mb = [Mmbuffer {
-        ptr: ptr::null_mut(),
-        size: 0,
-    }; 3];
+    let mut mb = [Mmbuffer::default(); 3];
 
-    mb[0].ptr = pre.cast_mut();
-    mb[0].size = psize as i32;
-    mb[1].ptr = rec.cast_mut();
-    mb[1].size = size as i32;
-    if size > 0 && unsafe { *rec.wrapping_offset((size - 1) as isize) } != b'\n' {
-        const NO_NL: &[u8] = b"\n\\ No newline at end of file\n\0";
-        mb[2].ptr = NO_NL.as_ptr().cast_mut();
-        mb[2].size = (NO_NL.len() - 1) as i32;
+    mb[0].slice = pre;
+    mb[1].slice = rec;
+    if !rec.is_empty() && rec[rec.len() - 1] != b'\n' {
+        mb[2].slice = b"\n\\ No newline at end of file\n";
         i += 1;
     }
     if ecb.out_line(&mb[..i]) < 0 {
@@ -47,38 +32,22 @@ pub fn xdl_emit_diffrec(
     0
 }
 
-pub fn xdl_mmfile_first(mmf: &Mmfile, size: &mut i64) -> *mut u8 {
-    *size = mmf.size as i64;
-    mmf.ptr
-}
-
-pub fn xdl_mmfile_size(mmf: &Mmfile) -> i64 {
-    mmf.size as i64
-}
-
-pub fn xdl_guess_lines(mf: &Mmfile, sample: i64) -> i64 {
+pub fn xdl_guess_lines(mf: &Mmfile<'_>, sample: i64) -> i64 {
     let mut nl: i64 = 0;
-    let mut size: i64 = 0;
-    let mut tsize: i64 = 0;
-
-    let data = xdl_mmfile_first(mf, &mut size);
-    let mut cur = data;
-    if !cur.is_null() {
-        let top = data.wrapping_offset(size as isize);
-        while nl < sample && cur < top {
-            nl += 1;
-            let rem = unsafe { std::slice::from_raw_parts(cur, top.offset_from(cur) as usize) };
-            if let Some(pos) = rem.iter().position(|&b| b == b'\n') {
-                cur = cur.wrapping_add(pos + 1);
-            } else {
-                cur = top;
-            }
+    let data = mf.slice;
+    let mut cur = 0usize;
+    while nl < sample && cur < data.len() {
+        nl += 1;
+        if let Some(pos) = data[cur..].iter().position(|&b| b == b'\n') {
+            cur += pos + 1;
+        } else {
+            cur = data.len();
         }
-        tsize += unsafe { cur.offset_from(data) } as i64;
     }
+    let tsize = cur as i64;
 
     if nl != 0 && tsize != 0 {
-        nl = xdl_mmfile_size(mf) / (tsize / nl);
+        nl = (data.len() as i64) / (tsize / nl);
     }
 
     nl + 1
@@ -95,11 +64,6 @@ pub fn xdl_blankline_slice(line: &[u8], flags: u64) -> i32 {
     }
 
     i32::from(i == line.len())
-}
-
-pub fn xdl_blankline(line: *const u8, size: i64, flags: i64) -> i32 {
-    let slice = unsafe { std::slice::from_raw_parts(line, size.max(0) as usize) };
-    xdl_blankline_slice(slice, flags as u64)
 }
 
 fn ends_with_optional_cr_slice(l: &[u8], i: usize) -> bool {
@@ -204,75 +168,64 @@ pub fn xdl_recmatch_slice(b1: &[u8], b2: &[u8], uflags: u64) -> i32 {
     1
 }
 
-pub fn xdl_recmatch(l1: *const u8, s1: i64, l2: *const u8, s2: i64, flags: i64) -> i32 {
-    let b1 = unsafe { std::slice::from_raw_parts(l1, s1.max(0) as usize) };
-    let b2 = unsafe { std::slice::from_raw_parts(l2, s2.max(0) as usize) };
-    xdl_recmatch_slice(b1, b2, flags as u64)
-}
-
-fn xdl_hash_record_with_whitespace(data: &mut *const u8, top: *const u8, flags: i64) -> u64 {
+fn xdl_hash_record_with_whitespace(blk: &[u8], cur: &mut usize, uflags: u64) -> u64 {
     let mut ha: u64 = 5381;
-    let mut ptr = *data;
-    let uflags = flags as u64;
+    let mut idx = *cur;
+    let top = blk.len();
     let cr_at_eol_only = (uflags & XDF_WHITESPACE_FLAGS) == XDF_IGNORE_CR_AT_EOL;
 
-    while ptr < top && unsafe { *ptr } != b'\n' {
+    while idx < top && blk[idx] != b'\n' {
         if cr_at_eol_only {
-            if unsafe { *ptr } == b'\r'
-                && unsafe { ptr.wrapping_add(1) < top && *ptr.wrapping_add(1) == b'\n' }
-            {
-                ptr = ptr.wrapping_add(1);
+            if blk[idx] == b'\r' && idx + 1 < top && blk[idx + 1] == b'\n' {
+                idx += 1;
                 continue;
             }
-        } else if xdl_isspace(unsafe { *ptr }) {
-            let mut ptr2 = ptr;
-            while unsafe {
-                ptr.wrapping_add(1) < top
-                    && xdl_isspace(*ptr.wrapping_add(1))
-                    && *ptr.wrapping_add(1) != b'\n'
-            } {
-                ptr = ptr.wrapping_add(1);
+        } else if xdl_isspace(blk[idx]) {
+            let mut idx2 = idx;
+            while idx + 1 < top && xdl_isspace(blk[idx + 1]) && blk[idx + 1] != b'\n' {
+                idx += 1;
             }
-            let at_eol = unsafe { top <= ptr.wrapping_add(1) || *ptr.wrapping_add(1) == b'\n' };
+            let at_eol = top <= idx + 1 || blk[idx + 1] == b'\n';
             if (uflags & XDF_IGNORE_WHITESPACE) != 0 {
                 // already handled
             } else if (uflags & XDF_IGNORE_WHITESPACE_CHANGE) != 0 && !at_eol {
                 ha = ha.wrapping_add(ha << 5);
                 ha ^= b' ' as u64;
             } else if (uflags & XDF_IGNORE_WHITESPACE_AT_EOL) != 0 && !at_eol {
-                let end = ptr.wrapping_add(1);
-                while ptr2 != end {
+                let end = idx + 1;
+                while idx2 != end {
                     ha = ha.wrapping_add(ha << 5);
-                    ha ^= unsafe { *ptr2 as i8 } as u64;
-                    ptr2 = ptr2.wrapping_add(1);
+                    ha ^= (blk[idx2] as i8) as u64;
+                    idx2 += 1;
                 }
             }
-            ptr = ptr.wrapping_add(1);
+            idx += 1;
             continue;
         }
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr as i8 } as u64;
-        ptr = ptr.wrapping_add(1);
+        ha ^= (blk[idx] as i8) as u64;
+        idx += 1;
     }
-    *data = if ptr < top { ptr.wrapping_add(1) } else { ptr };
+    *cur = if idx < top { idx + 1 } else { idx };
 
     ha
 }
 
-pub fn xdl_hash_record(data: &mut *const u8, top: *const u8, flags: i64) -> u64 {
-    if ((flags as u64) & XDF_WHITESPACE_FLAGS) != 0 {
-        return xdl_hash_record_with_whitespace(data, top, flags);
+pub fn xdl_hash_record(blk: &[u8], cur: &mut usize, uflags: u64) -> u64 {
+    if (uflags & XDF_WHITESPACE_FLAGS) != 0 {
+        return xdl_hash_record_with_whitespace(blk, cur, uflags);
     }
 
     let mut ha: u64 = 5381;
-    let mut ptr = *data;
+    let mut idx = *cur;
+    let top = blk.len();
 
-    while ptr < top && unsafe { *ptr } != b'\n' {
+    while idx < top && blk[idx] != b'\n' {
         ha = ha.wrapping_add(ha << 5);
-        ha ^= unsafe { *ptr as i8 } as u64;
-        ptr = ptr.wrapping_add(1);
+        ha ^= (blk[idx] as i8) as u64;
+        idx += 1;
     }
-    *data = if ptr < top { ptr.wrapping_add(1) } else { ptr };
+    *cur = if idx < top { idx + 1 } else { idx };
 
     ha
 }
@@ -289,7 +242,7 @@ pub fn xdl_hashbits(size: u32) -> u32 {
     if bits != 0 { bits } else { 1 }
 }
 
-fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> i32 {
+fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_>) -> i32 {
     use std::io::Write as _;
     let mut buf = [0u8; 128];
     let mut cursor = std::io::Cursor::new(&mut buf[..]);
@@ -302,67 +255,53 @@ fn xdl_format_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -
         let _ = write!(cursor, ",{c2}");
     }
     let _ = writeln!(cursor, " @@");
-    let nb = cursor.position() as i32;
+    let nb = cursor.position() as usize;
 
-    let mb = [Mmbuffer {
-        ptr: buf.as_mut_ptr(),
-        size: nb,
-    }];
+    let mb = [Mmbuffer { slice: &buf[..nb] }];
     if ecb.out_line(&mb) < 0 {
         return -1;
     }
     0
 }
 
-pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb) -> i32 {
+pub fn xdl_emit_hunk_hdr(s1: i64, c1: i64, s2: i64, c2: i64, ecb: &mut Xdemitcb<'_>) -> i32 {
     xdl_format_hunk_hdr(s1, c1, s2, c2, ecb)
 }
 
 pub fn xdl_fall_back_diff(
-    diff_env: &mut Xdfenv,
+    diff_env: &mut Xdfenv<'_>,
     xpp: &Xpparam,
     line1: i32,
     count1: i32,
     line2: i32,
     count2: i32,
 ) -> i32 {
-    unsafe {
-        let mut subfile1 = Mmfile {
-            ptr: diff_env.xdf1.recs[(line1 - 1) as usize].ptr.cast_mut(),
-            size: 0,
-        };
-        let end_rec1 = &diff_env.xdf1.recs[(line1 + count1 - 2) as usize];
-        subfile1.size = end_rec1
-            .ptr
-            .wrapping_offset(end_rec1.size as isize)
-            .offset_from(subfile1.ptr) as i32;
+    let start1 = diff_env.xdf1.recs[(line1 - 1) as usize].offset;
+    let end_rec1 = &diff_env.xdf1.recs[(line1 + count1 - 2) as usize];
+    let end1 = end_rec1.offset + end_rec1.slice.len();
+    let mut subfile1 = Mmfile {
+        slice: &diff_env.xdf1.file_slice[start1..end1],
+    };
 
-        let mut subfile2 = Mmfile {
-            ptr: diff_env.xdf2.recs[(line2 - 1) as usize].ptr.cast_mut(),
-            size: 0,
-        };
-        let end_rec2 = &diff_env.xdf2.recs[(line2 + count2 - 2) as usize];
-        subfile2.size = end_rec2
-            .ptr
-            .wrapping_offset(end_rec2.size as isize)
-            .offset_from(subfile2.ptr) as i32;
+    let start2 = diff_env.xdf2.recs[(line2 - 1) as usize].offset;
+    let end_rec2 = &diff_env.xdf2.recs[(line2 + count2 - 2) as usize];
+    let end2 = end_rec2.offset + end_rec2.slice.len();
+    let mut subfile2 = Mmfile {
+        slice: &diff_env.xdf2.file_slice[start2..end2],
+    };
 
-        let mut env = Xdfenv::new();
-        if xdl_do_diff(&mut subfile1, &mut subfile2, xpp, &mut env) < 0 {
-            return -1;
-        }
-
-        ptr::copy_nonoverlapping(
-            env.xdf1.rchg,
-            diff_env.xdf1.rchg.wrapping_offset((line1 - 1) as isize),
-            count1 as usize,
-        );
-        ptr::copy_nonoverlapping(
-            env.xdf2.rchg,
-            diff_env.xdf2.rchg.wrapping_offset((line2 - 1) as isize),
-            count2 as usize,
-        );
+    let mut env = Xdfenv::new();
+    if xdl_do_diff(&mut subfile1, &mut subfile2, xpp, &mut env) < 0 {
+        return -1;
     }
+
+    let l1 = line1 as usize;
+    let c1 = count1 as usize;
+    diff_env.xdf1.rchg_vec[l1..l1 + c1].copy_from_slice(&env.xdf1.rchg_vec[1..1 + c1]);
+
+    let l2 = line2 as usize;
+    let c2 = count2 as usize;
+    diff_env.xdf2.rchg_vec[l2..l2 + c2].copy_from_slice(&env.xdf2.rchg_vec[1..1 + c2]);
 
     0
 }

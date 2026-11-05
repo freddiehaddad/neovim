@@ -1,7 +1,7 @@
 //! Histogram diff algorithm (`src/xdiff/xhistogram.c`).
 
 use crate::xdiff::xprepare::xdl_prepare_env;
-use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch};
+use crate::xdiff::xutils::{xdl_fall_back_diff, xdl_hashbits, xdl_recmatch_slice};
 use crate::xdiff::{Mmfile, XDF_DIFF_ALGORITHM_MASK, Xdfenv, Xpparam, Xrecord, xdl_hashlong};
 
 const MAX_PTR: u32 = i32::MAX as u32;
@@ -25,8 +25,6 @@ struct HistIndex {
     ptr_shift: u32,
     cnt: u32,
     has_common: u32,
-    env: *mut Xdfenv,
-    xpp: *const Xpparam,
 }
 
 #[repr(C)]
@@ -39,7 +37,7 @@ struct Region {
 }
 
 #[inline]
-fn get_rec(env: &Xdfenv, side: i32, line: u32) -> Xrecord {
+fn get_rec<'a>(env: &Xdfenv<'a>, side: i32, line: u32) -> Xrecord<'a> {
     if side == 1 {
         env.xdf1.recs[(line as usize) - 1]
     } else {
@@ -48,22 +46,20 @@ fn get_rec(env: &Xdfenv, side: i32, line: u32) -> Xrecord {
 }
 
 #[inline]
-fn cmp_recs(xpp: &Xpparam, r1: &Xrecord, r2: &Xrecord) -> bool {
-    r1.ha == r2.ha && xdl_recmatch(r1.ptr, r1.size, r2.ptr, r2.size, xpp.flags as i64) != 0
+fn cmp_recs(xpp: &Xpparam, r1: &Xrecord<'_>, r2: &Xrecord<'_>) -> bool {
+    r1.ha == r2.ha && xdl_recmatch_slice(r1.slice, r2.slice, xpp.flags) != 0
 }
 
 #[inline]
-fn cmp_index(index: &HistIndex, s1: i32, l1: u32, s2: i32, l2: u32) -> bool {
-    let env = unsafe { &*index.env };
-    let xpp = unsafe { &*index.xpp };
+fn cmp_index(env: &Xdfenv<'_>, xpp: &Xpparam, s1: i32, l1: u32, s2: i32, l2: u32) -> bool {
     let r1 = get_rec(env, s1, l1);
     let r2 = get_rec(env, s2, l2);
     cmp_recs(xpp, &r1, &r2)
 }
 
 #[inline]
-fn table_hash(index: &HistIndex, side: i32, line: u32) -> usize {
-    let rec = get_rec(unsafe { &*index.env }, side, line);
+fn table_hash(index: &HistIndex, env: &Xdfenv<'_>, side: i32, line: u32) -> usize {
+    let rec = get_rec(env, side, line);
     xdl_hashlong(rec.ha, index.table_bits) as usize
 }
 
@@ -72,18 +68,18 @@ fn line_map_idx(index: &HistIndex, ptr: u32) -> usize {
     (ptr - index.ptr_shift) as usize
 }
 
-fn scan_a(index: &mut HistIndex, line1: i32, count1: i32) -> i32 {
+fn scan_a(index: &mut HistIndex, env: &Xdfenv<'_>, xpp: &Xpparam, line1: i32, count1: i32) -> i32 {
     let mut ptr = line1 + count1 - 1;
     while line1 <= ptr {
         let uptr = ptr as u32;
-        let tbl_idx = table_hash(index, 1, uptr);
+        let tbl_idx = table_hash(index, env, 1, uptr);
         let mut rec_idx = index.records[tbl_idx];
 
         let mut chain_len: u32 = 0;
         let mut matched = false;
         while let Some(ri) = rec_idx {
             let r_ptr = index.rcha[ri].ptr;
-            if cmp_index(index, 1, r_ptr, 1, uptr) {
+            if cmp_index(env, xpp, 1, r_ptr, 1, uptr) {
                 let lm_idx = line_map_idx(index, uptr);
                 index.next_ptrs[lm_idx] = r_ptr;
                 let rec = &mut index.rcha[ri];
@@ -120,6 +116,8 @@ fn scan_a(index: &mut HistIndex, line1: i32, count1: i32) -> i32 {
 
 fn try_lcs(
     index: &mut HistIndex,
+    env: &Xdfenv<'_>,
+    xpp: &Xpparam,
     lcs: &mut Region,
     b_ptr: i32,
     line1: i32,
@@ -132,19 +130,19 @@ fn try_lcs(
     let line_end1 = line1 + count1 - 1;
     let line_end2 = line2 + count2 - 1;
 
-    let mut rec_idx = index.records[table_hash(index, 2, ub_ptr)];
+    let mut rec_idx = index.records[table_hash(index, env, 2, ub_ptr)];
     while let Some(ri) = rec_idx {
         let rec = index.rcha[ri];
         if rec.cnt > index.cnt {
             if index.has_common == 0 {
-                index.has_common = u32::from(cmp_index(index, 1, rec.ptr, 2, ub_ptr));
+                index.has_common = u32::from(cmp_index(env, xpp, 1, rec.ptr, 2, ub_ptr));
             }
             rec_idx = rec.next;
             continue;
         }
 
         let mut as_ = rec.ptr;
-        if !cmp_index(index, 1, as_, 2, ub_ptr) {
+        if !cmp_index(env, xpp, 1, as_, 2, ub_ptr) {
             rec_idx = rec.next;
             continue;
         }
@@ -160,7 +158,7 @@ fn try_lcs(
 
             while line1 < (as_ as i32)
                 && line2 < (bs as i32)
-                && cmp_index(index, 1, as_ - 1, 2, bs - 1)
+                && cmp_index(env, xpp, 1, as_ - 1, 2, bs - 1)
             {
                 as_ -= 1;
                 bs -= 1;
@@ -171,7 +169,7 @@ fn try_lcs(
             }
             while (ae as i32) < line_end1
                 && (be as i32) < line_end2
-                && cmp_index(index, 1, ae + 1, 2, be + 1)
+                && cmp_index(env, xpp, 1, ae + 1, 2, be + 1)
             {
                 ae += 1;
                 be += 1;
@@ -219,7 +217,7 @@ fn try_lcs(
 
 fn fall_back_to_classic_diff(
     xpp: &Xpparam,
-    env: &mut Xdfenv,
+    env: &mut Xdfenv<'_>,
     line1: i32,
     count1: i32,
     line2: i32,
@@ -233,7 +231,7 @@ fn fall_back_to_classic_diff(
 
 fn find_lcs(
     xpp: &Xpparam,
-    env: &mut Xdfenv,
+    env: &Xdfenv<'_>,
     lcs: &mut Region,
     line1: i32,
     count1: i32,
@@ -253,18 +251,18 @@ fn find_lcs(
         ptr_shift: line1 as u32,
         cnt: 65,
         has_common: 0,
-        env,
-        xpp,
     };
 
-    if scan_a(&mut index, line1, count1) != 0 {
+    if scan_a(&mut index, env, xpp, line1, count1) != 0 {
         return -1;
     }
 
     let mut b_ptr = line2;
     let line_end2 = line2 + count2 - 1;
     while b_ptr <= line_end2 {
-        b_ptr = try_lcs(&mut index, lcs, b_ptr, line1, count1, line2, count2);
+        b_ptr = try_lcs(
+            &mut index, env, xpp, lcs, b_ptr, line1, count1, line2, count2,
+        );
     }
 
     if index.has_common != 0 && index.max_chain_length < index.cnt {
@@ -276,93 +274,84 @@ fn find_lcs(
 
 fn histogram_diff(
     xpp: &Xpparam,
-    env: &mut Xdfenv,
+    env: &mut Xdfenv<'_>,
     mut line1: i32,
     mut count1: i32,
     mut line2: i32,
     mut count2: i32,
 ) -> i32 {
-    unsafe {
-        loop {
-            if count1 <= 0 && count2 <= 0 {
-                return 0;
-            }
+    loop {
+        if count1 <= 0 && count2 <= 0 {
+            return 0;
+        }
 
-            if ((line1 + count1 - 1) as u32) >= MAX_PTR {
-                return -1;
-            }
+        if ((line1 + count1 - 1) as u32) >= MAX_PTR {
+            return -1;
+        }
 
-            if count1 == 0 {
-                while count2 > 0 {
-                    count2 -= 1;
-                    *env.xdf2.rchg.wrapping_offset((line2 - 1) as isize) = 1;
-                    line2 += 1;
-                }
-                return 0;
-            } else if count2 == 0 {
-                while count1 > 0 {
-                    count1 -= 1;
-                    *env.xdf1.rchg.wrapping_offset((line1 - 1) as isize) = 1;
-                    line1 += 1;
-                }
-                return 0;
+        if count1 == 0 {
+            while count2 > 0 {
+                count2 -= 1;
+                env.xdf2.set_rchg(i64::from(line2 - 1), 1);
+                line2 += 1;
             }
+            return 0;
+        } else if count2 == 0 {
+            while count1 > 0 {
+                count1 -= 1;
+                env.xdf1.set_rchg(i64::from(line1 - 1), 1);
+                line1 += 1;
+            }
+            return 0;
+        }
 
-            let mut lcs = Region::default();
-            let lcs_found = find_lcs(xpp, env, &mut lcs, line1, count1, line2, count2);
-            if lcs_found < 0 {
-                return -1;
-            } else if lcs_found != 0 {
-                return fall_back_to_classic_diff(xpp, env, line1, count1, line2, count2);
-            } else if lcs.begin1 == 0 && lcs.begin2 == 0 {
-                while count1 > 0 {
-                    count1 -= 1;
-                    *env.xdf1.rchg.wrapping_offset((line1 - 1) as isize) = 1;
-                    line1 += 1;
-                }
-                while count2 > 0 {
-                    count2 -= 1;
-                    *env.xdf2.rchg.wrapping_offset((line2 - 1) as isize) = 1;
-                    line2 += 1;
-                }
-                return 0;
-            } else {
-                let res = histogram_diff(
-                    xpp,
-                    env,
-                    line1,
-                    (lcs.begin1 as i32) - line1,
-                    line2,
-                    (lcs.begin2 as i32) - line2,
-                );
-                if res != 0 {
-                    return res;
-                }
-                count1 = (line1 + count1 - 1) - (lcs.end1 as i32);
-                line1 = (lcs.end1 as i32) + 1;
-                count2 = (line2 + count2 - 1) - (lcs.end2 as i32);
-                line2 = (lcs.end2 as i32) + 1;
+        let mut lcs = Region::default();
+        let lcs_found = find_lcs(xpp, env, &mut lcs, line1, count1, line2, count2);
+        if lcs_found < 0 {
+            return -1;
+        } else if lcs_found != 0 {
+            return fall_back_to_classic_diff(xpp, env, line1, count1, line2, count2);
+        } else if lcs.begin1 == 0 && lcs.begin2 == 0 {
+            while count1 > 0 {
+                count1 -= 1;
+                env.xdf1.set_rchg(i64::from(line1 - 1), 1);
+                line1 += 1;
             }
+            while count2 > 0 {
+                count2 -= 1;
+                env.xdf2.set_rchg(i64::from(line2 - 1), 1);
+                line2 += 1;
+            }
+            return 0;
+        } else {
+            let res = histogram_diff(
+                xpp,
+                env,
+                line1,
+                (lcs.begin1 as i32) - line1,
+                line2,
+                (lcs.begin2 as i32) - line2,
+            );
+            if res != 0 {
+                return res;
+            }
+            count1 = (line1 + count1 - 1) - (lcs.end1 as i32);
+            line1 = (lcs.end1 as i32) + 1;
+            count2 = (line2 + count2 - 1) - (lcs.end2 as i32);
+            line2 = (lcs.end2 as i32) + 1;
         }
     }
 }
 
-pub fn xdl_do_histogram_diff(
-    file1: &mut Mmfile,
-    file2: &mut Mmfile,
+pub fn xdl_do_histogram_diff<'a>(
+    file1: &mut Mmfile<'a>,
+    file2: &mut Mmfile<'a>,
     xpp: &Xpparam,
-    env: &mut Xdfenv,
+    env: &mut Xdfenv<'a>,
 ) -> i32 {
     if xdl_prepare_env(file1, file2, xpp, env) < 0 {
         return -1;
     }
 
-    histogram_diff(
-        xpp,
-        env,
-        (env.xdf1.dstart + 1) as i32,
-        (env.xdf1.dend - env.xdf1.dstart + 1) as i32,
-        (env.xdf2.dstart + 1) as i32,
-        (env.xdf2.dend - env.xdf2.dstart + 1) as i32,
-    )
+    histogram_diff(xpp, env, 1, env.xdf1.nrec as i32, 1, env.xdf2.nrec as i32)
 }

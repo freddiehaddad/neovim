@@ -79,11 +79,11 @@ impl KeyDict_xdl_diff {
     }
 }
 
-pub(crate) struct HunkPriv {
+pub(crate) struct HunkPriv<'a> {
     lstate: *mut lua_State,
     err: Error,
-    ma: crate::globals::GraphPtr<Mmfile>,
-    mb: crate::globals::GraphPtr<Mmfile>,
+    ma: Mmfile<'a>,
+    mb: Mmfile<'a>,
     linematch: i64,
     iwhite: bool,
 }
@@ -125,8 +125,8 @@ fn lua_pushhunk(
 
 fn get_linematch_results(
     lstate: *mut lua_State,
-    ma: &Mmfile,
-    mb: &Mmfile,
+    ma: &Mmfile<'_>,
+    mb: &Mmfile<'_>,
     start_a: i32,
     count_a: i32,
     start_b: i32,
@@ -178,11 +178,10 @@ fn get_linematch_results(
     );
 }
 
-pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer]) -> i32 {
+pub(crate) fn write_string(out: &mut Vec<u8>, mb: &[Mmbuffer<'_>]) -> i32 {
     for chunk in mb {
-        if chunk.size > 0 && !chunk.ptr.is_null() {
-            let slice = unsafe { std::slice::from_raw_parts(chunk.ptr, chunk.size as usize) };
-            out.extend_from_slice(slice);
+        if !chunk.slice.is_empty() {
+            out.extend_from_slice(chunk.slice);
         }
     }
     0
@@ -193,15 +192,15 @@ pub(crate) fn hunk_locations_cb(
     count_a: i32,
     start_b: i32,
     count_b: i32,
-    cb_data: &mut HunkPriv,
+    cb_data: &mut HunkPriv<'_>,
 ) -> i32 {
     let priv_ref = cb_data;
     let lstate = priv_ref.lstate;
     if priv_ref.linematch > 0 && i64::from(count_a) + i64::from(count_b) <= priv_ref.linematch {
         get_linematch_results(
             lstate,
-            priv_ref.ma.borrow(),
-            priv_ref.mb.borrow(),
+            &priv_ref.ma,
+            &priv_ref.mb,
             start_a,
             count_a,
             start_b,
@@ -225,7 +224,7 @@ pub(crate) fn call_on_hunk_cb(
     count_a: i32,
     mut start_b: i32,
     count_b: i32,
-    cb_data: &mut HunkPriv,
+    cb_data: &mut HunkPriv<'_>,
 ) -> i32 {
     if count_a > 0 {
         start_a += 1;
@@ -261,21 +260,21 @@ pub(crate) fn call_on_hunk_cb(
     }
 }
 
-fn get_string_arg(lstate: *mut lua_State, idx: i32) -> Mmfile {
+fn get_string_arg<'a>(lstate: *mut lua_State, idx: i32) -> Mmfile<'a> {
     if unsafe { lua_type(lstate, idx) } != LUA_TSTRING {
         luaL_argerror(lstate, idx, c"expected string");
     }
     let mut size: usize = 0;
-    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }
-        .cast::<u8>()
-        .cast_mut();
+    let ptr = unsafe { lua_tolstring(lstate, idx, &mut size) }.cast::<u8>();
     if size > (i32::MAX as usize) {
         luaL_argerror(lstate, idx, c"string too long");
     }
-    Mmfile {
-        ptr,
-        size: size as i32,
-    }
+    let slice = if ptr.is_null() || size == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(ptr, size) }
+    };
+    Mmfile { slice }
 }
 
 fn process_xdl_diff_opts(
@@ -433,19 +432,23 @@ pub unsafe extern "C-unwind" fn nlua_xdl_diff(lstate: *mut lua_State) -> i32 {
     let mut priv_state = HunkPriv {
         lstate,
         err,
-        ma: crate::globals::GraphPtr::from(&mut ma),
-        mb: crate::globals::GraphPtr::from(&mut mb),
+        ma,
+        mb,
         linematch,
         iwhite: (params.flags & XDF_IGNORE_WHITESPACE) != 0,
     };
 
     if priv_state.err.err_type == ErrorType::ErrorTypeNone {
         let mut ecb = match mode {
-            NluaXdiffMode::Unified => Xdemitcb::Unified(&raw mut unified_buf),
-            NluaXdiffMode::OnHunkCb => Xdemitcb::OnHunk(&raw mut priv_state),
+            NluaXdiffMode::Unified => {
+                Xdemitcb::Unified(crate::globals::GraphPtr::from(&mut unified_buf))
+            }
+            NluaXdiffMode::OnHunkCb => {
+                Xdemitcb::OnHunk(crate::globals::GraphPtr::from(&mut priv_state))
+            }
             NluaXdiffMode::Locations => {
                 unsafe { lua_createtable(lstate, 0, 0) };
-                Xdemitcb::Locations(&raw mut priv_state)
+                Xdemitcb::Locations(crate::globals::GraphPtr::from(&mut priv_state))
             }
         };
 

@@ -137,7 +137,6 @@ pub struct Diffline {
 #[repr(C)]
 struct Diffin {
     din_fname: Option<CString>,
-    din_mmfile: Mmfile,
     din_buf: Vec<u8>,
 }
 #[repr(C)]
@@ -680,8 +679,6 @@ fn clear_diffin(din: &mut Diffin) {
         let _ = os_remove(fname);
     } else {
         din.din_buf = Vec::new();
-        din.din_mmfile.ptr = ptr::null_mut();
-        din.din_mmfile.size = 0;
     }
 }
 fn clear_diffout(dout: &mut Diffout) {
@@ -693,7 +690,6 @@ fn clear_diffout(dout: &mut Diffout) {
 }
 fn diff_write_buffer(
     buf: &mut FileBuf,
-    m: &mut Mmfile,
     backing: &mut Vec<u8>,
     start: Linenr,
     mut end: Linenr,
@@ -703,8 +699,6 @@ fn diff_write_buffer(
     }
     if (buf.b_ml.ml_flags & ML_EMPTY) != 0 || end < start {
         *backing = Vec::new();
-        m.ptr = ptr::null_mut();
-        m.size = 0;
         return true;
     }
     let mut len: usize = 0;
@@ -712,9 +706,6 @@ fn diff_write_buffer(
         len += ml_get_buf_len(buf, lnum) as usize + 1;
     }
     *backing = vec![0u8; len];
-    let ptr = backing.as_mut_ptr();
-    m.ptr = ptr;
-    m.size = len as i32;
     len = 0;
     for lnum in start..=end {
         let mut s = ml_get_buf(buf, lnum).as_ptr().cast_mut();
@@ -762,7 +753,7 @@ fn diff_write_buffer(
 }
 fn diff_write(buf: &mut FileBuf, din: &mut Diffin, start: Linenr, mut end: Linenr) -> bool {
     let Some(ref din_fname) = din.din_fname else {
-        return diff_write_buffer(buf, &mut din.din_mmfile, &mut din.din_buf, start, end);
+        return diff_write_buffer(buf, &mut din.din_buf, start, end);
     };
     if frames_locked() {
         return false;
@@ -960,18 +951,10 @@ pub fn ex_diffupdate(eap: &mut Exarg) {
         let mut diffio = Diffio {
             dio_orig: Diffin {
                 din_fname: None,
-                din_mmfile: Mmfile {
-                    ptr: ptr::null_mut(),
-                    size: 0,
-                },
                 din_buf: Vec::new(),
             },
             dio_new: Diffin {
                 din_fname: None,
-                din_mmfile: Mmfile {
-                    ptr: ptr::null_mut(),
-                    size: 0,
-                },
                 din_buf: Vec::new(),
             },
             dio_diff: Diffout {
@@ -1070,7 +1053,7 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
         interhunkctxlen: 0,
         flags: 0,
     };
-    let mut emit_cb = Xdemitcb::Diff(&raw mut diffio.dio_diff);
+    let mut emit_cb = Xdemitcb::Diff(crate::globals::GraphPtr::from(&mut diffio.dio_diff));
     if (diff_st().diff_flags & DIFF_IWHITE) != 0 {
         param.flags |= XDF_IGNORE_WHITESPACE_CHANGE;
     }
@@ -1083,20 +1066,19 @@ fn diff_file_internal(diffio: &mut Diffio) -> bool {
     if (diff_st().diff_flags & DIFF_IBLANK) != 0 {
         param.flags |= XDF_IGNORE_BLANK_LINES;
     }
-    if diffio.dio_orig.din_mmfile.size > MAX_XDIFF_SIZE
-        || diffio.dio_new.din_mmfile.size > MAX_XDIFF_SIZE
+    if diffio.dio_orig.din_buf.len() > MAX_XDIFF_SIZE as usize
+        || diffio.dio_new.din_buf.len() > MAX_XDIFF_SIZE as usize
     {
         emsg(gettext(E_PROBLEM_CREATING_INTERNAL_DIFF));
         return false;
     }
-    if xdl_diff(
-        &mut diffio.dio_orig.din_mmfile,
-        &mut diffio.dio_new.din_mmfile,
-        &param,
-        &emit_cfg,
-        &mut emit_cb,
-    ) < 0
-    {
+    let mut mf1 = Mmfile {
+        slice: &diffio.dio_orig.din_buf,
+    };
+    let mut mf2 = Mmfile {
+        slice: &diffio.dio_new.din_buf,
+    };
+    if xdl_diff(&mut mf1, &mut mf2, &param, &emit_cfg, &mut emit_cb) < 0 {
         emsg(gettext(E_PROBLEM_CREATING_INTERNAL_DIFF));
         return false;
     }
@@ -1879,10 +1861,6 @@ fn apply_linematch_results(dp_idx: usize, decisions: &[i32]) {
     (&mut curtab_mut().tp_diffs)[dp_idx].is_linematched = true;
 }
 fn run_linematch_algorithm(dp_idx: usize) {
-    let mut diffbufs_mm: [Mmfile; DB_COUNT] = [Mmfile {
-        ptr: ptr::null_mut(),
-        size: 0,
-    }; DB_COUNT];
     let mut diffbufs_vec: [Vec<u8>; DB_COUNT] = [const { Vec::new() }; DB_COUNT];
     let mut diff_length: [i32; DB_COUNT] = [0; DB_COUNT];
     let mut ndiffs: usize = 0;
@@ -1893,20 +1871,19 @@ fn run_linematch_algorithm(dp_idx: usize) {
             if dp_count[i] > 0 {
                 diff_write_buffer(
                     buf,
-                    &mut diffbufs_mm[ndiffs],
                     &mut diffbufs_vec[ndiffs],
                     dp_lnum[i],
                     dp_lnum[i] + dp_count[i] - 1,
                 );
-            } else {
-                diffbufs_mm[ndiffs].size = 0;
-                diffbufs_mm[ndiffs].ptr = ptr::null_mut();
             }
             diff_length[ndiffs] = dp_count[i];
             ndiffs += 1;
         }
     }
-    let diffbuf_refs: Vec<&Mmfile> = diffbufs_mm[..ndiffs].iter().collect();
+    let diffbufs_mm: [Mmfile<'_>; DB_COUNT] = std::array::from_fn(|i| Mmfile {
+        slice: &diffbufs_vec[i],
+    });
+    let diffbuf_refs: Vec<&Mmfile<'_>> = diffbufs_mm[..ndiffs].iter().collect();
     let iwhite = (diff_st().diff_flags & (DIFF_IWHITEALL | DIFF_IWHITE)) != 0;
     let decisions = linematch_nbuffers(&diffbuf_refs, &diff_length[..ndiffs], iwhite);
     drop(diffbufs_vec);
@@ -2695,18 +2672,10 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
     let mut dio = Diffio {
         dio_orig: Diffin {
             din_fname: None,
-            din_mmfile: Mmfile {
-                ptr: ptr::null_mut(),
-                size: 0,
-            },
             din_buf: Vec::new(),
         },
         dio_new: Diffin {
             din_fname: None,
-            din_mmfile: Mmfile {
-                ptr: ptr::null_mut(),
-                size: 0,
-            },
             din_buf: Vec::new(),
         },
         dio_diff: Diffout {
@@ -2721,8 +2690,6 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
     let orig_diff = std::mem::take(&mut curtab_mut().tp_diffs);
     let orig_diffbuf = curtab_mut().tp_diffbuf;
     let mut linemap: [Vec<LinemapEntry>; DB_COUNT] = std::array::from_fn(|_| Vec::new());
-    let mut file1_str: Vec<u8> = Vec::new();
-    let mut file2_str: Vec<u8> = Vec::new();
     let mut changes: Vec<DifflineChange> = Vec::new();
     'done: {
         let mut file1_idx: isize = -1;
@@ -2742,9 +2709,9 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                 file1_idx = i as isize;
             }
             let curstr: &mut Vec<u8> = if file1_idx != i as isize {
-                &mut file2_str
+                &mut dio.dio_new.din_buf
             } else {
-                &mut file1_str
+                &mut dio.dio_orig.din_buf
             };
             let mut numlines: Linenr = 0;
             curstr.clear();
@@ -2860,18 +2827,7 @@ fn diff_find_change_inline_diff(dp_idx: usize) {
                     });
                 }
             }
-            let ptr = if curstr.is_empty() {
-                ptr::null_mut()
-            } else {
-                curstr.as_mut_ptr()
-            };
-            if file1_idx != i as isize {
-                dio.dio_new.din_mmfile.ptr = ptr;
-                dio.dio_new.din_mmfile.size = curstr.len() as i32;
-            } else {
-                dio.dio_orig.din_mmfile.ptr = ptr;
-                dio.dio_orig.din_mmfile.size = curstr.len() as i32;
-            }
+
             if file1_idx != i as isize {
                 let diff_status = diff_file_internal(&mut dio);
                 if !diff_status {

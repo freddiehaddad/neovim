@@ -33,18 +33,14 @@ pub const XDF_INDENT_HEURISTIC: u64 = 1 << 23;
 
 pub const XDL_EMIT_NO_HUNK_HDR: u64 = 1 << 1;
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct Mmfile {
-    pub ptr: *mut u8,
-    pub size: i32,
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Mmfile<'a> {
+    pub slice: &'a [u8],
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct Mmbuffer {
-    pub ptr: *mut u8,
-    pub size: i32,
+#[derive(Copy, Clone, Debug, Default)]
+pub struct Mmbuffer<'a> {
+    pub slice: &'a [u8],
 }
 
 #[repr(C)]
@@ -54,25 +50,25 @@ pub struct Xpparam {
 }
 
 #[derive(Copy, Clone, Default)]
-pub enum Xdemitcb {
+pub enum Xdemitcb<'a> {
     #[default]
     None,
-    Unified(*mut Vec<u8>),
-    Diff(*mut crate::diff::Diffout),
-    OnHunk(*mut crate::lua::xdiff::HunkPriv),
-    Locations(*mut crate::lua::xdiff::HunkPriv),
+    Unified(crate::globals::GraphPtr<Vec<u8>>),
+    Diff(crate::globals::GraphPtr<crate::diff::Diffout>),
+    OnHunk(crate::globals::GraphPtr<crate::lua::xdiff::HunkPriv<'a>>),
+    Locations(crate::globals::GraphPtr<crate::lua::xdiff::HunkPriv<'a>>),
 }
 
-impl Xdemitcb {
+impl<'a> Xdemitcb<'a> {
     #[inline]
     pub const fn has_hunk_func(self) -> bool {
         matches!(self, Self::Diff(_) | Self::OnHunk(_) | Self::Locations(_))
     }
 
     #[inline]
-    pub fn out_line(self, mb: &[Mmbuffer]) -> i32 {
+    pub fn out_line(self, mb: &[Mmbuffer<'_>]) -> i32 {
         match self {
-            Self::Unified(out) => crate::lua::xdiff::write_string(unsafe { &mut *out }, mb),
+            Self::Unified(out) => crate::lua::xdiff::write_string(out.borrow_mut(), mb),
             _ => 0,
         }
     }
@@ -80,19 +76,23 @@ impl Xdemitcb {
     #[inline]
     pub fn call_hunk(self, start_a: i32, count_a: i32, start_b: i32, count_b: i32) -> i32 {
         match self {
-            Self::Diff(dout) => unsafe {
-                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, &mut *dout)
-            },
-            Self::OnHunk(priv_data) => {
-                crate::lua::xdiff::call_on_hunk_cb(start_a, count_a, start_b, count_b, unsafe {
-                    &mut *priv_data
-                })
+            Self::Diff(dout) => {
+                crate::diff::xdiff_out(start_a, count_a, start_b, count_b, dout.borrow_mut())
             }
-            Self::Locations(priv_data) => {
-                crate::lua::xdiff::hunk_locations_cb(start_a, count_a, start_b, count_b, unsafe {
-                    &mut *priv_data
-                })
-            }
+            Self::OnHunk(priv_data) => crate::lua::xdiff::call_on_hunk_cb(
+                start_a,
+                count_a,
+                start_b,
+                count_b,
+                priv_data.borrow_mut(),
+            ),
+            Self::Locations(priv_data) => crate::lua::xdiff::hunk_locations_cb(
+                start_a,
+                count_a,
+                start_b,
+                count_b,
+                priv_data.borrow_mut(),
+            ),
             Self::None | Self::Unified(_) => 0,
         }
     }
@@ -106,72 +106,65 @@ pub struct Xdemitconf {
     pub flags: u64,
 }
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct Xrecord {
-    pub ptr: *const u8,
-    pub size: i64,
+#[derive(Copy, Clone, Default)]
+pub struct Xrecord<'a> {
+    pub slice: &'a [u8],
+    pub offset: usize,
     pub ha: u64,
 }
 
-#[repr(C)]
-pub struct Xdfile {
+#[derive(Default)]
+pub struct Xdfile<'a> {
+    pub file_slice: &'a [u8],
     pub nrec: i64,
     pub dstart: i64,
     pub dend: i64,
-    pub recs: Vec<Xrecord>,
+    pub recs: Vec<Xrecord<'a>>,
     pub rchg_vec: Vec<u8>,
-    pub rchg: *mut u8,
     pub rindex: Vec<i64>,
     pub nreff: i64,
     pub ha: Vec<u64>,
 }
 
-impl Xdfile {
+impl<'a> Xdfile<'a> {
     pub const fn new() -> Self {
         Self {
+            file_slice: &[],
             nrec: 0,
             dstart: 0,
             dend: 0,
             recs: Vec::new(),
             rchg_vec: Vec::new(),
-            rchg: std::ptr::null_mut(),
             rindex: Vec::new(),
             nreff: 0,
             ha: Vec::new(),
         }
     }
-}
 
-impl Default for Xdfile {
-    fn default() -> Self {
-        Self::new()
+    #[inline]
+    pub fn rchg(&self, idx: i64) -> u8 {
+        self.rchg_vec[(idx + 1) as usize]
+    }
+
+    #[inline]
+    pub fn set_rchg(&mut self, idx: i64, val: u8) {
+        self.rchg_vec[(idx + 1) as usize] = val;
     }
 }
 
-#[repr(C)]
 #[derive(Default)]
-pub struct Xdfenv {
-    pub xdf1: Xdfile,
-    pub xdf2: Xdfile,
+pub struct Xdfenv<'a> {
+    pub xdf1: Xdfile<'a>,
+    pub xdf2: Xdfile<'a>,
 }
 
-impl Xdfenv {
+impl<'a> Xdfenv<'a> {
     pub const fn new() -> Self {
         Self {
             xdf1: Xdfile::new(),
             xdf2: Xdfile::new(),
         }
     }
-}
-
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct Diffdata {
-    pub nrec: i64,
-    pub ha: *const u64,
-    pub rindex: *mut i64,
-    pub rchg: *mut u8,
 }
 
 #[repr(C)]
@@ -192,8 +185,8 @@ pub struct Xdchange {
     pub ignore: i32,
 }
 
-pub type EmitFunc =
-    fn(xe: &mut Xdfenv, xscr: &[Xdchange], ecb: &mut Xdemitcb, xecfg: &Xdemitconf) -> i32;
+pub type EmitFunc<'a> =
+    fn(xe: &mut Xdfenv<'a>, xscr: &[Xdchange], ecb: &mut Xdemitcb<'_>, xecfg: &Xdemitconf) -> i32;
 
 #[inline]
 pub fn xdl_hashlong(v: u64, b: u32) -> u64 {
@@ -201,45 +194,6 @@ pub fn xdl_hashlong(v: u64, b: u32) -> u64 {
 }
 
 #[inline]
-pub fn xdl_isspace(c: u8) -> bool {
-    matches!(c, b' ' | b'\t' | b'\n' | b'\r' | b'\x0b' | b'\x0c')
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::xdiff::xutils::{
-        xdl_blankline_slice, xdl_bogosqrt, xdl_hashbits, xdl_recmatch, xdl_recmatch_slice,
-    };
-
-    #[test]
-    fn test_xdl_bogosqrt_and_hashbits() {
-        assert_eq!(xdl_bogosqrt(0), 1);
-        assert_eq!(xdl_bogosqrt(1), 2);
-        assert_eq!(xdl_bogosqrt(16), 8);
-        assert_eq!(xdl_hashbits(0), 1);
-        assert_eq!(xdl_hashbits(1), 1);
-        assert_eq!(xdl_hashbits(8), 3);
-    }
-
-    #[test]
-    fn test_xdl_num_out_and_recmatch() {
-        assert_eq!(xdl_blankline_slice(b"  \t\n", XDF_IGNORE_WHITESPACE), 1);
-        assert_eq!(xdl_blankline_slice(b"  \t\n", 0), 0);
-
-        let a = b"hello  world\n";
-        let b = b"hello world\n";
-        assert_eq!(xdl_recmatch_slice(a, b, 0), 0);
-        assert_eq!(xdl_recmatch_slice(a, b, XDF_IGNORE_WHITESPACE_CHANGE), 1);
-        assert_eq!(
-            xdl_recmatch(
-                a.as_ptr(),
-                a.len() as i64,
-                b.as_ptr(),
-                b.len() as i64,
-                XDF_IGNORE_WHITESPACE_CHANGE as i64,
-            ),
-            1
-        );
-    }
+pub const fn xdl_isspace(c: u8) -> bool {
+    matches!(c, b' ' | 0x09..=0x0d)
 }

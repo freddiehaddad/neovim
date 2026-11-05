@@ -1,22 +1,11 @@
 //! Diff hunk emission (`src/xdiff/xemit.c`).
 
-use std::ptr;
-
 use crate::xdiff::xutils::{xdl_emit_diffrec, xdl_emit_hunk_hdr};
 use crate::xdiff::{XDL_EMIT_NO_HUNK_HDR, Xdchange, Xdemitcb, Xdemitconf, Xdfenv, Xdfile};
 
-fn xdl_get_rec(xdf: &Xdfile, ri: i64, rec: &mut *const u8) -> i64 {
-    let r = &xdf.recs[ri as usize];
-    *rec = r.ptr;
-    r.size
-}
-
-fn xdl_emit_record(xdf: &Xdfile, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb) -> i32 {
-    let pre_bytes = pre.to_bytes();
-    let psize = pre_bytes.len() as i64;
-    let mut rec: *const u8 = ptr::null();
-    let size = xdl_get_rec(xdf, ri, &mut rec);
-    if xdl_emit_diffrec(rec, size, pre_bytes.as_ptr(), psize, ecb) < 0 {
+fn xdl_emit_record(xdf: &Xdfile<'_>, ri: i64, pre: &std::ffi::CStr, ecb: &mut Xdemitcb<'_>) -> i32 {
+    let rec = xdf.recs[ri as usize].slice;
+    if xdl_emit_diffrec(rec, pre.to_bytes(), ecb) < 0 {
         return -1;
     }
     0
@@ -73,9 +62,9 @@ pub fn xdl_get_hunk(xscr: &[Xdchange], idx: &mut usize, xecfg: &Xdemitconf) -> O
 }
 
 pub fn xdl_emit_diff(
-    xe: &mut Xdfenv,
+    xe: &mut Xdfenv<'_>,
     xscr: &[Xdchange],
-    ecb: &mut Xdemitcb,
+    ecb: &mut Xdemitcb<'_>,
     xecfg: &Xdemitconf,
 ) -> i32 {
     let mut idx = 0;

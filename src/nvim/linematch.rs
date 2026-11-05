@@ -35,11 +35,8 @@ impl DiffCmpPath {
 }
 
 #[inline]
-fn line_slice<'a>(m: &Mmfile) -> &'a [u8] {
-    if m.ptr.is_null() || m.size <= 0 {
-        return &[];
-    }
-    let raw = unsafe { std::slice::from_raw_parts(m.ptr, m.size as usize) };
+fn line_slice<'a>(m: &Mmfile<'a>) -> &'a [u8] {
+    let raw = m.slice;
     let len = raw.iter().position(|&b| b == b'\n').unwrap_or(raw.len());
     &raw[..len.min(MATCH_CHAR_MAX_LEN - 1)]
 }
@@ -77,7 +74,7 @@ fn matching_chars_slice(s1: &[u8], s2: &[u8]) -> i32 {
     matrix[icur][s2len]
 }
 
-fn matching_chars_iwhite(s1: &Mmfile, s2: &Mmfile) -> i32 {
+fn matching_chars_iwhite(s1: &Mmfile<'_>, s2: &Mmfile<'_>) -> i32 {
     let b1 = line_slice(s1);
     let b2 = line_slice(s2);
 
@@ -102,20 +99,20 @@ fn matching_chars_iwhite(s1: &Mmfile, s2: &Mmfile) -> i32 {
     matching_chars_slice(&p1[..len1], &p2[..len2])
 }
 
-fn matching_chars(m1: &Mmfile, m2: &Mmfile) -> i32 {
+fn matching_chars(m1: &Mmfile<'_>, m2: &Mmfile<'_>) -> i32 {
     let b1 = line_slice(m1);
     let b2 = line_slice(m2);
     matching_chars_slice(b1, b2)
 }
 
-fn count_n_matched_chars(sp: &[Mmfile], iwhite: bool) -> i32 {
+fn count_n_matched_chars(sp: &[Mmfile<'_>], iwhite: bool) -> i32 {
     let mut matched_chars: i32 = 0;
     let mut matched: i32 = 0;
     let n = sp.len();
 
     for i in 0..n {
         for j in (i + 1)..n {
-            if !sp[i].ptr.is_null() && !sp[j].ptr.is_null() {
+            if !sp[i].slice.is_empty() && !sp[j].slice.is_empty() {
                 matched += 1;
                 matched_chars += if iwhite {
                     matching_chars_iwhite(&sp[i], &sp[j])
@@ -134,23 +131,12 @@ fn count_n_matched_chars(sp: &[Mmfile], iwhite: bool) -> i32 {
 }
 
 /// Advance `s` to line `lnum` (1-based) (`fastforward_buf_to_lnum`).
-///
-/// # Safety
-/// If `s.ptr` is non-null and `s.size > 0`, `s.ptr` must be valid for `s.size` bytes.
-pub fn fastforward_buf_to_lnum(mut s: Mmfile, lnum: Linenr) -> Mmfile {
+pub fn fastforward_buf_to_lnum<'a>(mut s: Mmfile<'a>, lnum: Linenr) -> Mmfile<'a> {
     for _ in 0..(lnum - 1) {
-        if s.ptr.is_null() || s.size <= 0 {
-            s.ptr = std::ptr::null_mut();
-            s.size = 0;
-            break;
-        }
-        let slice = unsafe { std::slice::from_raw_parts(s.ptr, s.size as usize) };
-        if let Some(pos) = slice.iter().position(|&b| b == b'\n') {
-            s.ptr = s.ptr.wrapping_add(pos + 1);
-            s.size -= (pos as i32) + 1;
+        if let Some(pos) = s.slice.iter().position(|&b| b == b'\n') {
+            s.slice = &s.slice[pos + 1..];
         } else {
-            s.ptr = std::ptr::null_mut();
-            s.size = 0;
+            s.slice = &[];
             break;
         }
     }
@@ -178,17 +164,14 @@ fn try_possible_paths(
     choice: &mut i32,
     diffcmppath: &mut [DiffCmpPath],
     diff_len: &[i32],
-    diff_blk: &[Mmfile],
+    diff_blk: &[Mmfile<'_>],
     iwhite: bool,
 ) {
     let ndiffs = diff_len.len();
     if path_idx == paths.len() {
         if *choice > 0 {
             let mut from_vals = [0_i32; LN_MAX_BUFS];
-            let mut mm = [Mmfile {
-                ptr: std::ptr::null_mut(),
-                size: 0,
-            }; LN_MAX_BUFS];
+            let mut mm = [Mmfile::default(); LN_MAX_BUFS];
 
             for k in 0..ndiffs {
                 from_vals[k] = df_iters[k];
@@ -249,7 +232,7 @@ fn populate_tensor(
     ch_dim: usize,
     diffcmppath: &mut [DiffCmpPath],
     diff_len: &[i32],
-    diff_blk: &[Mmfile],
+    diff_blk: &[Mmfile<'_>],
     iwhite: bool,
 ) {
     let ndiffs = diff_len.len();
@@ -325,15 +308,12 @@ fn test_charmatch_paths(
 /// # Safety
 /// Each `Mmfile` in `diff_blk` with a non-null `ptr` and `size > 0` must be valid for `size`
 /// bytes.
-pub fn linematch_nbuffers(diff_blk: &[&Mmfile], diff_len: &[i32], iwhite: bool) -> Vec<i32> {
+pub fn linematch_nbuffers(diff_blk: &[&Mmfile<'_>], diff_len: &[i32], iwhite: bool) -> Vec<i32> {
     let ndiffs = diff_blk.len();
     assert_eq!(ndiffs, diff_len.len());
     assert!(ndiffs <= LN_MAX_BUFS);
 
-    let mut blks = [Mmfile {
-        ptr: std::ptr::null_mut(),
-        size: 0,
-    }; LN_MAX_BUFS];
+    let mut blks = [Mmfile::default(); LN_MAX_BUFS];
     let mut memsize = 1usize;
     let mut memsize_decisions = 0usize;
 
@@ -381,17 +361,11 @@ mod tests {
         let buf1 = b"alpha\nbeta_modified\ngamma\n";
         let buf2 = b"unrelated\nbeta_mod\ngamma\n";
 
-        let mm1 = Mmfile {
-            ptr: buf1.as_ptr().cast_mut(),
-            size: buf1.len() as i32,
-        };
-        let mm2 = Mmfile {
-            ptr: buf2.as_ptr().cast_mut(),
-            size: buf2.len() as i32,
-        };
+        let mm1 = Mmfile { slice: buf1 };
+        let mm2 = Mmfile { slice: buf2 };
 
         let line2 = fastforward_buf_to_lnum(mm1, 2);
-        assert!(!line2.ptr.is_null());
+        assert!(!line2.slice.is_empty());
         assert_eq!(line_slice(&line2), b"beta_modified");
 
         let decisions = linematch_nbuffers(&[&mm1, &mm2], &[3, 3], false);
