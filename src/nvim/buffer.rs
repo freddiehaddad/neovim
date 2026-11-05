@@ -1618,38 +1618,33 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
 
     buf_updates_unload(buf, false);
 
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
-    if unsafe { (*buf_ptr).b_ml.ml_mfp.is_some() } {
-        let b_fname = unsafe { (*buf_ptr).fname_opt() };
-        if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, unsafe {
-            buf_ptr.as_mut()
-        }) && !bufref_valid(Some(&bufref))
+    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
+    if buf_ptr.b_ml.ml_mfp.is_some() {
+        let b_fname = buf_ptr.borrow().fname_opt();
+        if apply_autocmds(EVENT_BUFUNLOAD, b_fname, b_fname, false, buf_ptr.opt_mut())
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
     }
-    if (flags & BFA_DEL) != 0 && unsafe { (*buf_ptr).b_p_bl } {
-        let b_fname = unsafe { (*buf_ptr).fname_opt() };
-        if apply_autocmds(EVENT_BUFDELETE, b_fname, b_fname, false, unsafe {
-            buf_ptr.as_mut()
-        }) && !bufref_valid(Some(&bufref))
+    if (flags & BFA_DEL) != 0 && buf_ptr.b_p_bl {
+        let b_fname = buf_ptr.borrow().fname_opt();
+        if apply_autocmds(EVENT_BUFDELETE, b_fname, b_fname, false, buf_ptr.opt_mut())
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
     }
     if (flags & BFA_WIPE) != 0 {
-        let b_fname = unsafe { (*buf_ptr).fname_opt() };
-        if apply_autocmds(EVENT_BUFWIPEOUT, b_fname, b_fname, false, unsafe {
-            buf_ptr.as_mut()
-        }) && !bufref_valid(Some(&bufref))
+        let b_fname = buf_ptr.borrow().fname_opt();
+        if apply_autocmds(EVENT_BUFWIPEOUT, b_fname, b_fname, false, buf_ptr.opt_mut())
+            && !bufref_valid(Some(&bufref))
         {
             return false;
         }
     }
-    unsafe {
-        (*buf_ptr).b_locked -= 1;
-        (*buf_ptr).b_locked_split -= 1;
-    }
+    buf_ptr.b_locked -= 1;
+    buf_ptr.b_locked_split -= 1;
 
     if is_curwin && curwin_ptr() != the_curwin && win_valid_any_tab(unsafe { the_curwin.as_ref() })
     {
@@ -1661,7 +1656,7 @@ pub fn buf_freeall(buf: &mut FileBuf, flags: i32) -> bool {
         return false;
     }
 
-    let buf = unsafe { &mut *buf_ptr };
+    let buf = buf_ptr.borrow_mut();
 
     if (&raw mut *buf) == g_st().curbuf.as_ptr() && !is_curbuf {
         return false;
@@ -1840,7 +1835,6 @@ impl Drop for FileBuf {
         self.b_changelistlen = 0;
     }
 }
-
 fn free_buffer(buf: &mut FileBuf) {
     let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
     let buf_ref = unsafe { &mut *buf_ptr };
@@ -2606,7 +2600,7 @@ pub fn do_buffer(action: i32, start: i32, dir: i32, count: i32, forceit: i32) ->
 
 /// Set current buffer to `buf`. Executes autocommands and closes current buffer.
 pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
-    let buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_in));
+    let buf = crate::globals::GraphPtr::from(buf_in);
     let unload = action == DOBUF_UNLOAD || action == DOBUF_DEL || action == DOBUF_WIPE;
     let old_tw = curbuf_mut().b_p_tw;
 
@@ -2625,7 +2619,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
     let mut newbufref: Bufref = Bufref::new();
     let mut prevbufref: Bufref = Bufref::new();
     set_bufref(&mut prevbufref, unsafe { prevbuf.as_mut() });
-    set_bufref(&mut newbufref, unsafe { buf.as_mut() });
+    set_bufref(&mut newbufref, buf.opt_mut());
 
     if !apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut())
         || (bufref_valid(Some(&prevbufref)) && bufref_valid(Some(&newbufref)) && !aborting())
@@ -2663,10 +2657,10 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
         }
     }
 
-    let valid = buf_valid_handle(crate::globals::BufPtr::new(buf));
-    if (valid && buf != g_st().curbuf.as_ptr() && !aborting()) || curwin_mut().w_buffer.is_null() {
-        let target = if valid { buf } else { g_st().lastbuf.as_ptr() };
-        enter_buffer(unsafe { &mut *target });
+    let valid = buf_valid_handle(buf);
+    if (valid && g_st().curbuf != buf && !aborting()) || curwin_mut().w_buffer.is_null() {
+        let target = if valid { buf } else { g_st().lastbuf };
+        enter_buffer(target.borrow_mut());
         if old_tw != curbuf_mut().b_p_tw {
             check_colorcolumn(None::<&CStr>, Some(crate::globals::curwin_mut()));
         }
@@ -2683,7 +2677,7 @@ pub fn set_curbuf(buf_in: &mut FileBuf, action: i32, update_jumplist: bool) {
 
 /// Enter a new current buffer.
 fn enter_buffer(buf_in: &mut FileBuf) {
-    let buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_in));
+    let buf = crate::globals::GraphPtr::from(buf_in);
     if g_st().visual_global.active && !mem_st().entered_free_all_mem {
         end_visual_mode();
     }
@@ -2692,8 +2686,8 @@ fn enter_buffer(buf_in: &mut FileBuf) {
         curwin_mut().buf_mut().b_nwindows -= 1;
     }
 
-    curwin_mut().w_buffer = (buf).into();
-    g_st().curbuf = (buf).into();
+    curwin_mut().w_buffer = buf;
+    g_st().curbuf = buf;
     curbuf_mut().b_nwindows += 1;
 
     buf_copy_options(curbuf_mut(), BCO_ENTER | BCO_NOHELP);
@@ -4978,18 +4972,11 @@ pub fn buf_contents_changed(buf: &mut FileBuf) -> bool {
 
 /// Wipe out a (typically temporary) buffer.
 pub fn wipe_buffer(buf: &mut FileBuf, aucmd: bool) {
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
+    let buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
     if !aucmd {
         block_autocmds();
     }
-    close_buffer(
-        None,
-        unsafe { buf_ptr.as_mut() },
-        DOBUF_WIPE,
-        false,
-        true,
-        false,
-    );
+    close_buffer(None, buf_ptr.opt_mut(), DOBUF_WIPE, false, true, false);
     if !aucmd {
         unblock_autocmds();
     }

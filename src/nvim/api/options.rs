@@ -332,7 +332,7 @@ fn do_ft_buf(
 }
 
 fn wipe_ft_buf(buf: &mut FileBuf) {
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
+    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
     block_autocmds();
 
     let mut bufref = Bufref {
@@ -340,19 +340,14 @@ fn wipe_ft_buf(buf: &mut FileBuf) {
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    set_bufref(&mut bufref, unsafe { buf_ptr.as_mut() });
+    set_bufref(&mut bufref, buf_ptr.opt_mut());
 
-    close_windows(unsafe { buf_ptr.as_mut() }, false);
-    if bufref_valid(Some(&bufref))
-        && g_st().curbuf != buf_ptr
-        && unsafe { (*buf_ptr).b_nwindows } == 0
-    {
-        wipe_buffer(unsafe { &mut *buf_ptr }, false);
+    close_windows(buf_ptr.opt_mut(), false);
+    if bufref_valid(Some(&bufref)) && g_st().curbuf != buf_ptr && buf_ptr.b_nwindows == 0 {
+        wipe_buffer(buf_ptr.borrow_mut(), false);
     }
     if bufref_valid(Some(&bufref)) {
-        unsafe {
-            (*buf_ptr).b_flags &= !BF_DUMMY;
-        }
+        buf_ptr.b_flags &= !BF_DUMMY;
     }
 
     unblock_autocmds();

@@ -126,23 +126,13 @@ fn for_all_tab_windows(mut f: impl FnMut(&'static mut WinInfoInfo)) {
 pub fn change_warning(buf: &mut FileBuf, col: i32) {
     const W_READONLY: &CStr = c"W10: Warning: Changing a readonly file";
 
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
-    if !unsafe { (*buf_ptr).b_did_warn }
-        && !curbuf_is_changed_fn()
-        && !g_st().autocmd_busy
-        && unsafe { (*buf_ptr).b_p_ro }
-    {
-        unsafe {
-            (*buf_ptr).b_ro_locked += 1;
-        }
-        apply_autocmds(EVENT_FILECHANGEDRO, None, None, false, unsafe {
-            buf_ptr.as_mut()
-        });
-        unsafe {
-            (*buf_ptr).b_ro_locked -= 1;
-            if !(*buf_ptr).b_p_ro {
-                return;
-            }
+    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
+    if !buf_ptr.b_did_warn && !curbuf_is_changed_fn() && !g_st().autocmd_busy && buf_ptr.b_p_ro {
+        buf_ptr.b_ro_locked += 1;
+        apply_autocmds(EVENT_FILECHANGEDRO, None, None, false, buf_ptr.opt_mut());
+        buf_ptr.b_ro_locked -= 1;
+        if !buf_ptr.b_p_ro {
+            return;
         }
         msg_start();
         if g_st().msg_row == g_st().rows_global - 1 {

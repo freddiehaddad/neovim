@@ -1127,21 +1127,21 @@ pub fn buf_write(
     reset_changed: bool,
     filtering: bool,
 ) -> bool {
-    let mut buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_arg));
+    let mut buf = crate::globals::GraphPtr::from(buf_arg);
     let mut fname = fname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut sfname = sfname_arg.map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut retval = true;
     let msg_save = g_st().msg_scroll;
     let mut prev_got_int = g_st().got_int;
-    let whole = start == 1 && end == unsafe { (*buf).b_ml.ml_line_count };
+    let whole = start == 1 && end == buf.b_ml.ml_line_count;
     let mut write_undo_file = false;
     let mut sha_ctx = ContextSha256::new();
-    let bkc = get_bkc_flags(unsafe { &mut *buf });
+    let bkc = get_bkc_flags(buf.borrow_mut());
 
     if crate::memory::cstr_is_empty(fname) {
         return false;
     }
-    if unsafe { (*buf).b_ml.ml_mfp.is_none() } {
+    if buf.b_ml.ml_mfp.is_none() {
         emsg(gettext(E_EMPTY_BUFFER));
         return false;
     }
@@ -1166,11 +1166,11 @@ pub fn buf_write(
         bw_iconv_fd: -1,
     };
 
-    if unsafe { (*buf).b_ffname.is_none() }
+    if buf.b_ffname.is_none()
         && reset_changed
         && whole
         && buf == g_st().curbuf.as_ptr()
-        && !bt_nofilename(unsafe { buf.as_ref() })
+        && !bt_nofilename(buf.opt())
         && !filtering
         && (!append || crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEAPP))
         && crate::strings::vim_haschr(opt_vars().p_cpo.as_cstr(), K_CPO_FNAMEW)
@@ -1181,7 +1181,7 @@ pub fn buf_write(
         ) {
             return false;
         }
-        buf = g_st().curbuf.as_ptr();
+        buf = g_st().curbuf;
     }
     if sfname.is_null() {
         sfname = fname;
@@ -1193,39 +1193,31 @@ pub fn buf_write(
         fname = sfname;
     }
 
-    let overwriting = unsafe {
-        (*buf).ffname_opt().is_some_and(|bf| {
-            path_equal(crate::memory::cstr_from_ptr(ffname), bf, K_PATH_CMP_LITERAL)
-        })
-    };
+    let overwriting = buf
+        .ffname_opt()
+        .is_some_and(|bf| path_equal(crate::memory::cstr_from_ptr(ffname), bf, K_PATH_CMP_LITERAL));
 
     g_st().no_wait_return += 1;
 
-    let orig_start = unsafe { (*buf).b_op_start };
-    let orig_end = unsafe { (*buf).b_op_end };
+    let orig_start = buf.b_op_start;
+    let orig_end = buf.b_op_end;
 
-    unsafe {
-        (*buf).b_op_start.lnum = start;
-        (*buf).b_op_start.col = 0;
-        (*buf).b_op_end.lnum = end;
-        (*buf).b_op_end.col = 0;
-    }
+    buf.b_op_start.lnum = start;
+    buf.b_op_start.col = 0;
+    buf.b_op_end.lnum = end;
+    buf.b_op_end.col = 0;
 
     let mut bufref = Bufref {
-        br_buf: crate::globals::BufPtr::new(buf),
+        br_buf: buf,
         br_fnum: 0,
         br_buf_free_count: 0,
     };
-    let buf_ffname_ptr = unsafe {
-        (*buf)
-            .ffname_opt()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-    };
-    let buf_sfname_ptr = unsafe {
-        (*buf)
-            .sfname_opt()
-            .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut())
-    };
+    let buf_ffname_ptr = buf
+        .ffname_opt()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
+    let buf_sfname_ptr = buf
+        .sfname_opt()
+        .map_or(ptr::null_mut(), |s| s.as_ptr().cast_mut());
     let mut names = BufWriteNames {
         fname: (!fname.is_null()).then(|| crate::memory::cstr_to_cstring(fname)),
         sfname: (!sfname.is_null()).then(|| crate::memory::cstr_to_cstring(sfname)),

@@ -2784,10 +2784,10 @@ fn qf_jump_edit_buffer(
     prev_winid: i32,
     opened_window: &mut bool,
 ) -> QfStatus {
-    let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qi = crate::globals::GraphPtr::from(qi_ref);
+    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
     let old_changetick = unsafe { (*qfl).qf_changedtick };
-    let old_qf_curlist = unsafe { (*qi).qf_curlist };
+    let old_qf_curlist = qi.qf_curlist;
     let qfl_type = unsafe { (*qfl).qfl_type };
     let mut retval = QfStatus::Ok;
     let save_qfid = unsafe { (*qfl).qf_id };
@@ -2816,7 +2816,7 @@ fn qf_jump_edit_buffer(
         };
     } else {
         if forceit == 0 && curwin_mut().w_onebuf_opt.wo_wfb && curbuf_mut().b_fnum != fnum {
-            if unsafe { (*qi).qfl_type } == QFLT_LOCATION {
+            if qi.qfl_type == QFLT_LOCATION {
                 emsg(gettext(E_WINFIXBUF_CANNOT_GO_TO_BUFFER));
                 return QfStatus::Fail;
             }
@@ -2861,7 +2861,7 @@ fn qf_jump_edit_buffer(
         return QfStatus::Abort;
     }
 
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
+    if old_qf_curlist != qi.qf_curlist
         || old_changetick != unsafe { (*qfl).qf_changedtick }
         || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
     {
@@ -2875,7 +2875,6 @@ fn qf_jump_edit_buffer(
 
     retval
 }
-
 fn qf_screen_col_to_idx(vcol: Colnr) -> i32 {
     let line = get_cursor_line_ptr().as_ptr();
     let mut p = line;
@@ -2992,20 +2991,20 @@ fn qf_jump_open_window(
     newwin: bool,
     opened_window: &mut bool,
 ) -> Option<QfStatus> {
-    let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qi = crate::globals::GraphPtr::from(qi_ref);
+    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
     let old_changetick = unsafe { (*qfl).qf_changedtick };
-    let old_qf_curlist = unsafe { (*qi).qf_curlist };
+    let old_qf_curlist = qi.qf_curlist;
     let qfl_type = unsafe { (*qfl).qfl_type };
     let qf_type = unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_type;
 
     if qf_type == 1
         && (!bt_help(curwin_mut().buf_opt()) || g_st().cmdmod.cmod_tab != 0)
-        && !jump_to_help_window(unsafe { &mut *qi }, newwin, opened_window)
+        && !jump_to_help_window(qi.borrow_mut(), newwin, opened_window)
     {
         return Some(QfStatus::Fail);
     }
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
+    if old_qf_curlist != qi.qf_curlist
         || old_changetick != unsafe { (*qfl).qf_changedtick }
         || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
     {
@@ -3027,7 +3026,7 @@ fn qf_jump_open_window(
             return Some(QfStatus::Fail);
         }
     }
-    if old_qf_curlist != unsafe { (*qi).qf_curlist }
+    if old_qf_curlist != qi.qf_curlist
         || old_changetick != unsafe { (*qfl).qf_changedtick }
         || !is_qf_entry_present(unsafe { &*qfl }, qf_index)
     {
@@ -3051,15 +3050,15 @@ fn qf_jump_to_buffer(
     openfold: i32,
     print_message: bool,
 ) -> QfStatus {
-    let qi: *mut QfInfo = std::hint::black_box(ptr::from_mut(qi_ref));
+    let qi = crate::globals::GraphPtr::from(qi_ref);
     let old_curbuf = g_st().curbuf;
     let old_lnum = curwin_mut().w_cursor.lnum;
     let retval;
-    let qfl: *mut QfList = qf_get_curlist(unsafe { &mut *qi });
+    let qfl: *mut QfList = qf_get_curlist(qi.borrow_mut());
 
     if unsafe { &(*qfl).qf_items }[(qf_index - 1) as usize].qf_fnum != 0 {
         retval = qf_jump_edit_buffer(
-            unsafe { &mut *qi },
+            qi.borrow_mut(),
             qf_index,
             forceit,
             prev_winid,
@@ -3089,7 +3088,7 @@ fn qf_jump_to_buffer(
     }
     if print_message {
         qf_jump_print_msg(
-            unsafe { &mut *qi },
+            qi.borrow_mut(),
             qf_index,
             qfp,
             g_st().curbuf == old_curbuf,
@@ -5317,9 +5316,9 @@ fn vgr_process_files(
     target_dir: &mut Option<std::ffi::CString>,
 ) -> bool {
     let wp = wp_in.map_or(ptr::null(), ptr::from_ref);
-    let qi = std::hint::black_box(ptr::from_mut(qi_in));
+    let qi = crate::globals::GraphPtr::from(qi_in);
     let mut status = false;
-    let mut save_qfid = qf_get_curlist(unsafe { &mut *qi }).qf_id;
+    let mut save_qfid = qf_get_curlist(qi.borrow_mut()).qf_id;
     let mut duplicate_name = false;
 
     let mut dirname_start = vec![0u8; MAXPATHL];
@@ -5356,7 +5355,7 @@ fn vgr_process_files(
 
         if !vgr_qflist_valid(
             unsafe { wp.as_ref() },
-            unsafe { &mut *qi },
+            qi.borrow_mut(),
             save_qfid,
             cmd_args.qf_title.as_deref(),
         ) {
@@ -5364,7 +5363,7 @@ fn vgr_process_files(
             break;
         }
 
-        save_qfid = qf_get_curlist(unsafe { &mut *qi }).qf_id;
+        save_qfid = qf_get_curlist(qi.borrow_mut()).qf_id;
 
         if buf.is_null() {
             if !g_st().got_int {
@@ -5372,7 +5371,7 @@ fn vgr_process_files(
             }
         } else {
             let found_match = vgr_match_buflines(
-                qf_get_curlist(unsafe { &mut *qi }),
+                qf_get_curlist(qi.borrow_mut()),
                 fname,
                 unsafe { &mut *buf },
                 cmd_args.spat.as_deref(),
@@ -6562,20 +6561,20 @@ fn qf_set_properties(qi: &mut QfInfo, what: &TvDict, action: i32, title: Option<
 
 fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
     let mut wp = wp_in.map_or(ptr::null_mut(), ptr::from_mut);
-    let qi = std::hint::black_box(ptr::from_mut(qi_in));
-    let qfwin = qf_find_win(unsafe { &*qi }).map_or(ptr::null_mut(), ptr::from_mut);
+    let mut qi = crate::globals::GraphPtr::from(qi_in);
+    let qfwin = qf_find_win(qi.borrow()).map_or(ptr::null_mut(), ptr::from_mut);
 
     if !qfwin.is_null() {
-        if unsafe { (*qi).qf_curlist < (*qi).qf_listcount } {
-            qf_free(qf_get_curlist(unsafe { &mut *qi }));
+        if qi.qf_curlist < qi.qf_listcount {
+            qf_free(qf_get_curlist(qi.borrow_mut()));
         }
 
-        qf_update_buffer(unsafe { &mut *qi }, 0);
+        qf_update_buffer(qi.borrow_mut(), 0);
     }
 
     if !wp.is_null()
         && is_ll_window(unsafe { &*wp })
-        && let Some(llwin) = qf_find_win_with_loclist(unsafe { &*qi })
+        && let Some(llwin) = qf_find_win_with_loclist(qi.borrow())
     {
         wp = ptr::from_mut(llwin);
     }
@@ -6583,10 +6582,8 @@ fn qf_free_stack(wp_in: Option<&mut WinInfoInfo>, qi_in: &mut QfInfo) {
     qf_free_all(unsafe { wp.as_mut() });
 
     if wp.is_null() {
-        unsafe {
-            (*qi).qf_curlist = 0;
-            (*qi).qf_listcount = 0;
-        }
+        qi.qf_curlist = 0;
+        qi.qf_listcount = 0;
     } else if !qfwin.is_null() {
         let new_ll = qf_alloc_stack(QFLT_LOCATION, unsafe { (*wp).w_onebuf_opt.wo_lhi } as i32);
 

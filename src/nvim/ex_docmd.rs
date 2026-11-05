@@ -9110,7 +9110,7 @@ pub fn not_exiting(save_exiting: bool) {
 }
 
 pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bool) -> bool {
-    let wp = std::hint::black_box(ptr::from_mut(wp_in));
+    let wp = crate::globals::GraphPtr::from(wp_in);
     if get_vim_var_str(VV_EXITREASON).is_empty() {
         set_vim_var_string(VV_EXITREASON, Some(c"quit"), 4);
     }
@@ -9120,13 +9120,13 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
         None,
         None,
         false,
-        unsafe { (*wp).w_buffer.opt_mut() },
-        unsafe { wp.as_ref() },
+        wp.w_buffer.opt_mut(),
+        wp.opt(),
     );
 
-    if !win_valid(unsafe { wp.as_ref() })
+    if !win_valid(wp.opt())
         || curbuf_locked()
-        || unsafe { (*wp).buf_mut().b_nwindows == 1 && (*wp).buf_mut().b_locked > 0 }
+        || (wp.buf_mut().b_nwindows == 1 && wp.buf_mut().b_locked > 0)
     {
         set_vim_var_string(VV_EXITREASON, None, -1);
         return true;
@@ -9134,7 +9134,7 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
 
     if quit_all || (check_more(false, forceit) && only_one_window()) {
         apply_autocmds(EVENT_EXITPRE, None, None, false, curbuf_opt_mut());
-        if !win_valid(unsafe { wp.as_ref() })
+        if !win_valid(wp.opt())
             || curbuf_locked()
             || (curbuf_mut().b_nwindows == 1 && curbuf_mut().b_locked > 0)
         {
@@ -9145,7 +9145,6 @@ pub fn before_quit_autocmds(wp_in: &mut WinInfoInfo, quit_all: bool, forceit: bo
 
     false
 }
-
 fn ex_quit(eap: &mut Exarg) {
     if text_locked() {
         text_locked_msg();
@@ -9826,7 +9825,7 @@ pub fn tabpage_close(forceit: bool) {
 }
 
 pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
-    let tp = std::hint::black_box(ptr::from_mut(tp_in));
+    let mut tp = crate::globals::GraphPtr::from(tp_in);
     let mut done: i32 = 0;
     let mut prev_idx = [0u8; NUMBUFLEN];
 
@@ -9836,11 +9835,9 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
         return;
     }
 
-    trigger_tabclosedpre(unsafe { &mut *tp });
+    trigger_tabclosedpre(tp.borrow_mut());
 
-    unsafe {
-        (*tp).tp_did_tabclosedpre = true;
-    }
+    tp.tp_did_tabclosedpre = true;
 
     while {
         done += 1;
@@ -9850,30 +9847,28 @@ pub fn tabpage_close_other(tp_in: &mut TabPageInfo, forceit: bool) {
             prev_idx.as_mut_ptr().cast(),
             NUMBUFLEN,
             c"%i",
-            tabpage_index(unsafe { tp.as_ref() }),
+            tabpage_index(tp.opt()),
         );
-        let wp = unsafe { (*tp).tp_lastwin.as_ptr() };
+        let wp = tp.tp_lastwin.as_ptr();
 
         if g_st().curtab == tp {
             done = 1000;
             break;
         }
 
-        ex_win_close(forceit, unsafe { &mut *wp }, Some(unsafe { &mut *tp }));
+        ex_win_close(forceit, unsafe { &mut *wp }, Some(tp.borrow_mut()));
 
-        if !valid_tabpage(unsafe { tp.as_ref() }) {
+        if !valid_tabpage(tp.opt()) {
             break;
         }
 
-        if unsafe { (*tp).tp_lastwin } == wp {
+        if tp.tp_lastwin == wp {
             done = 1000;
             break;
         }
     }
-    if done >= 1000 && valid_tabpage(unsafe { tp.as_ref() }) {
-        unsafe {
-            (*tp).tp_did_tabclosedpre = false;
-        }
+    if done >= 1000 && valid_tabpage(tp.opt()) {
+        tp.tp_did_tabclosedpre = false;
     }
 }
 

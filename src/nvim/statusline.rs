@@ -801,7 +801,6 @@ fn win_redr_stl_expr(
         g_st().curbuf = unsafe { (*restore_curwin).w_buffer };
     }
 }
-
 pub fn win_redr_winbar(wp: &mut WinInfoInfo) {
     if stl_st().winbar_entered {
         return;

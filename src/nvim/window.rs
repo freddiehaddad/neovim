@@ -998,15 +998,15 @@ pub fn prevwin_curwin() -> &'static mut WinInfoInfo {
 /// Returns the pointer to the window that was jumped to or NULL.
 pub fn swbuf_goto_win_with_buf(buf: Option<&mut FileBuf>) -> Option<&'static mut WinInfoInfo> {
     let buf_ref = buf?;
-    let buf_ptr: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_ref));
+    let buf_ptr = crate::globals::GraphPtr::from(buf_ref);
     let mut wp: Option<&'static mut WinInfoInfo> = None;
 
     if (opt_vars().swb_flags & K_OPT_SWB_FLAG_USEOPEN) != 0 {
-        wp = buf_jump_open_win(unsafe { &mut *buf_ptr });
+        wp = buf_jump_open_win(buf_ptr.borrow_mut());
     }
 
     if wp.is_none() && (opt_vars().swb_flags & K_OPT_SWB_FLAG_USETAB) != 0 {
-        wp = buf_jump_open_tab(unsafe { &mut *buf_ptr });
+        wp = buf_jump_open_tab(buf_ptr.borrow_mut());
     }
 
     wp
@@ -1245,7 +1245,7 @@ pub fn do_window(mut nchar: i32, mut prenum: i32, mut xchar: i32) {
                 {
                     let newtab = g_st().curtab;
                     goto_tabpage_tp(unsafe { oldtab.as_mut() }, true, true);
-                    if ptr::eq(curwin_ptr(), wp) {
+                    if ptr::eq(wp, curwin_ptr()) {
                         win_close(curwin_mut(), false, false);
                     }
                     if valid_tabpage(newtab.opt()) {
@@ -2410,7 +2410,6 @@ pub fn win_split_ins(
 
     unsafe { wp_ptr.as_mut() }
 }
-
 pub fn win_init(newp: &mut WinInfoInfo, oldp: &mut WinInfoInfo, flags: i32) {
     newp.w_buffer = oldp.w_buffer;
     newp.w_s_owned = None;
@@ -2777,64 +2776,55 @@ fn win_rotate(upwards: bool, mut count: i32) {
 }
 
 pub fn win_splitmove(wp_in: &mut WinInfoInfo, size: i32, flags: i32) -> bool {
-    let wp: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(wp_in));
+    let wp = crate::globals::GraphPtr::from(wp_in);
     let mut dir: i32 = 0;
-    let height = (unsafe { &mut *(wp) }).w_height;
+    let height = wp.borrow_mut().w_height;
 
-    if one_window(unsafe { &mut *(wp) }, None) {
+    if one_window(wp.borrow_mut(), None) {
         return true;
     }
-    if is_ctx_win(unsafe { &*wp }) || !check_split_disallowed(unsafe { wp.as_ref() }) {
+    if is_ctx_win(wp.borrow()) || !check_split_disallowed(wp.opt()) {
         return false;
     }
 
     let mut unflat_altfr: Option<&'static mut Frame> = None;
-    if (unsafe { &mut *(wp) }).w_floating {
-        win_remove(unsafe { &mut *(wp) }, None);
+    if wp.borrow_mut().w_floating {
+        win_remove(wp.borrow_mut(), None);
     } else {
-        winframe_remove(
-            unsafe { &mut *(wp) },
-            &mut dir,
-            None,
-            Some(&mut unflat_altfr),
-        );
+        winframe_remove(wp.borrow_mut(), &mut dir, None, Some(&mut unflat_altfr));
 
         debug_assert!(unflat_altfr.is_some());
 
-        win_remove(unsafe { &mut *(wp) }, None);
+        win_remove(wp.borrow_mut(), None);
 
         last_status(false);
         win_comp_pos();
     }
 
     let unflat_ptr: *mut Frame = unflat_altfr.map_or(ptr::null_mut(), ptr::from_mut);
-    if win_split_ins(size, flags, unsafe { wp.as_mut() }, dir, unsafe {
+    if win_split_ins(size, flags, wp.opt_mut(), dir, unsafe {
         unflat_ptr.as_mut()
     })
     .is_none()
     {
-        if !(unsafe { &mut *(wp) }).w_floating {
+        if !wp.borrow_mut().w_floating {
             debug_assert!(!unflat_ptr.is_null());
 
-            winframe_restore(unsafe { &mut *(wp) }, dir, unsafe { &mut *(unflat_ptr) });
+            winframe_restore(wp.borrow_mut(), dir, unsafe { &mut *(unflat_ptr) });
         }
 
-        win_append(unsafe { (*wp).w_prev.opt_mut() }, unsafe { &mut *wp }, None);
+        win_append(wp.w_prev.opt_mut(), wp.borrow_mut(), None);
 
         return false;
     }
 
-    if size == 0
-        && (flags & WSP_VERT) == 0
-        && win_valid(unsafe { wp.as_ref() })
-        && !(unsafe { &mut *(wp) }).w_floating
-    {
-        win_setheight_win(height, unsafe { &mut *(wp) }, true);
+    if size == 0 && (flags & WSP_VERT) == 0 && win_valid(wp.opt()) && !wp.borrow_mut().w_floating {
+        win_setheight_win(height, wp.borrow_mut(), true);
 
         if opt_vars().p_ea {
             win_equal(
                 unsafe { curwin_ptr().as_ref() },
-                ptr::eq(curwin_ptr(), wp),
+                wp == curwin_ptr(),
                 b'v' as i32,
             );
         }
@@ -3358,8 +3348,8 @@ fn close_last_window_tabpage(
     mut free_buf: bool,
     prev_curtab_in: &mut TabPageInfo,
 ) -> bool {
-    let win: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(win_in));
-    let prev_curtab: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(prev_curtab_in));
+    let win = crate::globals::GraphPtr::from(win_in);
+    let prev_curtab = crate::globals::GraphPtr::from(prev_curtab_in);
     if !one_window_macro() {
         return false;
     }
@@ -3367,8 +3357,8 @@ fn close_last_window_tabpage(
     let old_curbuf = g_st().curbuf;
     let save_lastused = g_st().lastused_tabpage.as_ptr();
 
-    let term = if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        (unsafe { &mut *(win) }).buf_mut().terminal.as_ptr()
+    let term = if !win.borrow_mut().w_buffer.is_null() {
+        win.borrow_mut().buf_mut().terminal.as_ptr()
     } else {
         ptr::null_mut()
     };
@@ -3376,20 +3366,16 @@ fn close_last_window_tabpage(
         free_buf = false;
     }
 
-    goto_tabpage_tp(
-        alt_tabpage(),
-        false,
-        !(unsafe { &mut *(win) }).w_buffer.is_null(),
-    );
+    goto_tabpage_tp(alt_tabpage(), false, !win.borrow_mut().w_buffer.is_null());
 
     if g_st().curtab != prev_curtab
-        && valid_tabpage(unsafe { prev_curtab.as_ref() })
-        && (unsafe { &mut *(prev_curtab) }).tp_firstwin == win
+        && valid_tabpage(prev_curtab.opt())
+        && prev_curtab.borrow_mut().tp_firstwin == win
     {
         win_close_othertab(
-            unsafe { &mut *win },
+            win.borrow_mut(),
             i32::from(free_buf),
-            unsafe { &mut *prev_curtab },
+            prev_curtab.borrow_mut(),
             false,
         );
     }
@@ -3408,36 +3394,36 @@ fn close_last_window_tabpage(
 }
 
 fn win_close_buffer(win_in: &mut WinInfoInfo, action: i32, abort_if_last: bool) -> bool {
-    let win: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(win_in));
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        reset_synblock(unsafe { &mut *(win) });
+    let win = crate::globals::GraphPtr::from(win_in);
+    if !win.borrow_mut().w_buffer.is_null() {
+        reset_synblock(win.borrow_mut());
     }
 
-    if !(unsafe { &mut *(win) }).w_buffer.is_null()
-        && bt_quickfix(unsafe { (*(win)).w_buffer.opt() })
-        && (unsafe { &mut *(win) }).buf_mut().b_nwindows == 1
+    if !win.borrow_mut().w_buffer.is_null()
+        && bt_quickfix(win.w_buffer.opt())
+        && win.borrow_mut().buf_mut().b_nwindows == 1
     {
-        (unsafe { &mut *(win) }).buf_mut().b_p_bl = false;
+        win.borrow_mut().buf_mut().b_p_bl = false;
     }
 
     let mut retval = false;
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.is_null() {
         let mut bufref: Bufref = Bufref::new();
         set_bufref(&mut bufref, g_st().curbuf.opt_mut());
 
-        (unsafe { &mut *(win) }).w_locked += 1;
+        win.borrow_mut().w_locked += 1;
 
         retval = close_buffer(
-            unsafe { win.as_mut() },
-            unsafe { (*(win)).w_buffer.opt_mut() },
+            win.opt_mut(),
+            win.w_buffer.opt_mut(),
             action,
             abort_if_last,
             true,
             true,
         );
 
-        if win_valid_any_tab(unsafe { win.as_ref() }) {
-            (unsafe { &mut *(win) }).w_locked -= 1;
+        if win_valid_any_tab(win.opt()) {
+            win.borrow_mut().w_locked -= 1;
         }
 
         if !bufref_valid(Some(&bufref)) {
@@ -3460,34 +3446,33 @@ fn win_unclose_buffer(win: &mut WinInfoInfo, _bufref: &mut Bufref) {
 }
 
 pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool {
-    let win: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(win_in));
+    let win = crate::globals::GraphPtr::from(win_in);
     let prev_curtab = g_st().curtab.as_ptr();
-    let win_frame = if (unsafe { &mut *(win) }).w_floating {
+    let win_frame = if win.borrow_mut().w_floating {
         ptr::null_mut()
     } else {
-        (unsafe { &mut *(win) }).frame_mut().fr_parent.as_ptr()
+        win.borrow_mut().frame_mut().fr_parent.as_ptr()
     };
-    let had_diffmode = (unsafe { &mut *(win) }).w_onebuf_opt.wo_diff;
+    let had_diffmode = win.borrow_mut().w_onebuf_opt.wo_diff;
 
-    if last_window(unsafe { &mut *(win) }) {
+    if last_window(win.borrow_mut()) {
         emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
         return false;
     }
-    if !(unsafe { &mut *(win) }).w_floating && window_layout_locked(Cmdidx::CmdClose) {
+    if !win.borrow_mut().w_floating && window_layout_locked(Cmdidx::CmdClose) {
         return false;
     }
 
-    if win_locked(unsafe { &mut *(win) }) != 0
-        || !(unsafe { &mut *(win) }).w_buffer.is_null()
-            && (unsafe { &mut *(win) }).buf_mut().b_locked > 0
+    if win_locked(win.borrow_mut()) != 0
+        || !win.borrow_mut().w_buffer.is_null() && win.borrow_mut().buf_mut().b_locked > 0
     {
         return false;
     }
-    if is_ctx_win(unsafe { &*win }) {
+    if is_ctx_win(win.borrow()) {
         emsg(gettext(E_AUTOCMD_CLOSE));
         return false;
     }
-    if lastwin_mut().w_floating && one_window(unsafe { &mut *(win) }, None) {
+    if lastwin_mut().w_floating && one_window(win.borrow_mut(), None) {
         if is_ctx_win(lastwin_mut()) {
             emsg(gettext(
                 c"E814: Cannot close window, only autocmd window would remain",
@@ -3501,10 +3486,10 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
                     return false;
                 }
             }
-            if !win_valid_any_tab(unsafe { win.as_ref() }) {
+            if !win_valid_any_tab(win.opt()) {
                 return false;
             }
-            if last_window(unsafe { &mut *(win) }) {
+            if last_window(win.borrow_mut()) {
                 emsg(gettext(E_CANNOT_CLOSE_LAST_WINDOW));
                 return false;
             }
@@ -3514,20 +3499,20 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         }
     }
 
-    if close_last_window_tabpage(unsafe { &mut *win }, free_buf, unsafe { &mut *prev_curtab }) {
+    if close_last_window_tabpage(win.borrow_mut(), free_buf, unsafe { &mut *prev_curtab }) {
         return false;
     }
 
     let mut help_window = false;
     let mut quickfix_window = false;
 
-    if bt_help(unsafe { (*(win)).w_buffer.opt() }) {
+    if bt_help(win.w_buffer.opt()) {
         help_window = true;
     } else {
         clear_snapshot(curtab_mut(), SNAP_HELP_IDX as i32);
     }
 
-    if bt_quickfix(unsafe { (*(win)).w_buffer.opt() }) {
+    if bt_quickfix(win.w_buffer.opt()) {
         quickfix_window = true;
     } else {
         clear_snapshot(curtab_mut(), SNAP_QUICKFIX_IDX as i32);
@@ -3535,13 +3520,13 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     let mut other_buffer = false;
 
-    if ptr::eq(win, curwin_ptr()) {
+    if win == curwin_ptr() {
         leaving_window(curwin_mut());
 
-        let wp: *mut WinInfoInfo = if (unsafe { &mut *(win) }).w_floating {
-            win_float_find_altwin(unsafe { &*(win) }, None)
+        let wp: *mut WinInfoInfo = if win.borrow_mut().w_floating {
+            win_float_find_altwin(win.borrow(), None)
         } else {
-            frame2win(win_altframe(unsafe { &mut *(win) }, None))
+            frame2win(win_altframe(win.borrow_mut(), None))
         };
 
         if !ptr::eq(
@@ -3551,34 +3536,34 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
             reset_visual_and_resel();
 
             other_buffer = true;
-            if !win_valid(unsafe { win.as_ref() }) {
+            if !win_valid(win.opt()) {
                 return false;
             }
 
-            (unsafe { &mut *(win) }).w_locked += 1;
+            win.borrow_mut().w_locked += 1;
 
             apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
-            if !win_valid(unsafe { win.as_ref() }) {
+            if !win_valid(win.opt()) {
                 return false;
             }
 
-            (unsafe { &mut *(win) }).w_locked -= 1;
+            win.borrow_mut().w_locked -= 1;
 
-            if last_window(unsafe { &mut *(win) }) {
+            if last_window(win.borrow_mut()) {
                 return false;
             }
         }
 
-        (unsafe { &mut *(win) }).w_locked += 1;
+        win.borrow_mut().w_locked += 1;
 
         apply_autocmds(EVENT_WINLEAVE, None, None, false, curbuf_opt_mut());
-        if !win_valid(unsafe { win.as_ref() }) {
+        if !win_valid(win.opt()) {
             return false;
         }
 
-        (unsafe { &mut *(win) }).w_locked -= 1;
+        win.borrow_mut().w_locked -= 1;
 
-        if last_window(unsafe { &mut *(win) }) {
+        if last_window(win.borrow_mut()) {
             return false;
         }
         if aborting() {
@@ -3586,26 +3571,26 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         }
     }
 
-    do_autocmd_winclosed(unsafe { &mut *(win) });
+    do_autocmd_winclosed(win.borrow_mut());
 
-    if !win_valid_any_tab(unsafe { win.as_ref() }) {
+    if !win_valid_any_tab(win.opt()) {
         return true;
     }
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, unsafe { (*(win)).w_buffer.opt_mut() });
+    set_bufref(&mut bufref, win.w_buffer.opt_mut());
 
     win_close_buffer(
-        unsafe { &mut *win },
+        win.borrow_mut(),
         if free_buf { DOBUF_UNLOAD } else { 0 },
         true,
     );
 
-    if win_valid(unsafe { win.as_ref() })
-        && (unsafe { &mut *(win) }).w_buffer.is_null()
-        && !(unsafe { &mut *(win) }).w_floating
-        && last_window(unsafe { &mut *(win) })
+    if win_valid(win.opt())
+        && win.borrow_mut().w_buffer.is_null()
+        && !win.borrow_mut().w_floating
+        && last_window(win.borrow_mut())
     {
         if curwin_mut().w_buffer.is_null() {
             curwin_mut().w_buffer = g_st().curbuf;
@@ -3613,43 +3598,43 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         getout(0);
     }
     if g_st().curtab != prev_curtab
-        && win_valid_any_tab(unsafe { win.as_ref() })
-        && (unsafe { &mut *(win) }).w_buffer.is_null()
+        && win_valid_any_tab(win.opt())
+        && win.borrow_mut().w_buffer.is_null()
     {
-        win_close_othertab(unsafe { &mut *win }, 0, unsafe { &mut *prev_curtab }, force);
+        win_close_othertab(win.borrow_mut(), 0, unsafe { &mut *prev_curtab }, force);
         return false;
     }
 
-    if !win_valid(unsafe { win.as_ref() }) {
+    if !win_valid(win.opt()) {
         return false;
     }
-    if one_window(unsafe { &mut *(win) }, None)
+    if one_window(win.borrow_mut(), None)
         && (crate::globals::first_tabpage_mut().tp_next.is_null() || lastwin_mut().w_floating)
     {
         if !crate::globals::first_tabpage_mut().tp_next.is_null() {
             emsg(E_FLOATONLY);
         }
 
-        win_unclose_buffer(unsafe { &mut *(win) }, &mut bufref);
+        win_unclose_buffer(win.borrow_mut(), &mut bufref);
 
         return false;
     }
-    if close_last_window_tabpage(unsafe { &mut *win }, free_buf, unsafe { &mut *prev_curtab }) {
+    if close_last_window_tabpage(win.borrow_mut(), free_buf, unsafe { &mut *prev_curtab }) {
         return false;
     }
 
     win_st().split_disallowed += 1;
 
-    let was_floating = (unsafe { &mut *(win) }).w_floating;
+    let was_floating = win.borrow_mut().w_floating;
     if ui_has(K_UIMULTIGRID) {
-        ui_call_win_close(Integer::from((unsafe { &mut *(win) }).w_grid_alloc.handle));
+        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle));
     }
 
-    if (unsafe { &mut *(win) }).w_floating {
-        ui_comp_remove_grid(&mut (unsafe { &mut *(win) }).w_grid_alloc);
+    if win.borrow_mut().w_floating {
+        ui_comp_remove_grid(&mut win.borrow_mut().w_grid_alloc);
 
         debug_assert!(!g_st().first_tabpage.is_null());
-        if (unsafe { &mut *(win) }).w_config.external {
+        if win.borrow_mut().w_config.external {
             for tp in for_all_tabpages_ptr() {
                 if g_st().curtab != tp && tp.tp_curwin == win {
                     tp.tp_curwin = tp.tp_firstwin;
@@ -3658,18 +3643,17 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
         }
     }
 
-    set_bufref(&mut bufref, unsafe { (*(win)).w_buffer.opt_mut() });
+    set_bufref(&mut bufref, win.w_buffer.opt_mut());
 
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        (unsafe { &mut *(win) }).buf_mut().b_nwindows -= 1;
+    if !win.borrow_mut().w_buffer.is_null() {
+        win.borrow_mut().buf_mut().b_nwindows -= 1;
     }
 
-    let had_cmdline_ruler = opt_vars().p_ru
-        && ptr::eq(win, curwin_ptr())
-        && (unsafe { &mut *(win) }).w_status_height == 0;
+    let had_cmdline_ruler =
+        opt_vars().p_ru && win == curwin_ptr() && win.borrow_mut().w_status_height == 0;
     let mut dir: i32 = 0;
     let mut wp: *mut WinInfoInfo =
-        win_free_mem(unsafe { &mut *(win) }, &mut dir, None).map_or(ptr::null_mut(), ptr::from_mut);
+        win_free_mem(win.borrow_mut(), &mut dir, None).map_or(ptr::null_mut(), ptr::from_mut);
 
     if help_window || quickfix_window {
         let prev_win = get_snapshot_curwin(if help_window {
@@ -3685,7 +3669,7 @@ pub fn win_close(win_in: &mut WinInfoInfo, free_buf: bool, force: bool) -> bool 
 
     let mut close_curwin = false;
 
-    if ptr::eq(win, curwin_ptr()) {
+    if win == curwin_ptr() {
         set_curwin(wp);
         if (unsafe { &mut *(wp) }).w_onebuf_opt.wo_pvw
             || bt_quickfix(unsafe { (*(wp)).w_buffer.opt() })
@@ -3817,15 +3801,15 @@ fn do_autocmd_winclosed(win: &mut WinInfoInfo) {
 }
 
 pub fn trigger_tabclosedpre(tp_in: &mut TabPageInfo) {
-    let tp: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(tp_in));
+    let tp = crate::globals::GraphPtr::from(tp_in);
     let ptp = g_st().curtab;
 
     if !has_event(EVENT_TABCLOSEDPRE) || win_st().tabclosedpre_recursive {
         return;
     }
 
-    if valid_tabpage(unsafe { tp.as_ref() }) {
-        goto_tabpage_tp(unsafe { tp.as_mut() }, false, false);
+    if valid_tabpage(tp.opt()) {
+        goto_tabpage_tp(tp.opt_mut(), false, false);
     }
     win_st().tabclosedpre_recursive = true;
     window_layout_lock();
@@ -3845,39 +3829,36 @@ pub fn win_close_othertab(
     tp_in: &mut TabPageInfo,
     force: bool,
 ) -> bool {
-    let win: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(win_in));
-    let tp: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(tp_in));
+    let win = crate::globals::GraphPtr::from(win_in);
+    let tp = crate::globals::GraphPtr::from(tp_in);
     debug_assert!(g_st().curtab != tp);
 
     if window_layout_locked(Cmdidx::CmdSize) {
         return false;
     }
-    if win_locked(unsafe { &mut *(win) }) != 0
-        || !(unsafe { &mut *(win) }).w_buffer.is_null()
-            && (unsafe { &mut *(win) }).buf_mut().b_locked > 0
+    if win_locked(win.borrow_mut()) != 0
+        || !win.borrow_mut().w_buffer.is_null() && win.borrow_mut().buf_mut().b_locked > 0
     {
         return false;
     }
-    if is_ctx_win(unsafe { &*win }) {
+    if is_ctx_win(win.borrow()) {
         emsg(gettext(E_AUTOCMD_CLOSE));
         return false;
     }
 
-    if unsafe { (*tp).tp_lastwin.borrow().w_floating }
-        && one_window(unsafe { &mut *(win) }, unsafe { tp.as_ref() })
-    {
-        if force || can_close_floating_windows(unsafe { tp.as_ref() }) {
+    if tp.tp_lastwin.borrow().w_floating && one_window(win.borrow_mut(), tp.opt()) {
+        if force || can_close_floating_windows(tp.opt()) {
             loop {
-                if !unsafe { (*tp).tp_lastwin.borrow().w_floating } {
+                if !tp.tp_lastwin.borrow().w_floating {
                     break;
                 }
-                let last_w = unsafe { (*tp).tp_lastwin.borrow_mut() };
+                let last_w = tp.tp_lastwin.borrow_mut();
                 let free_b = i32::from(!buf_hide(&last_w.w_buffer));
-                if !win_close_othertab(last_w, free_b, unsafe { &mut *tp }, true) {
+                if !win_close_othertab(last_w, free_b, tp.borrow_mut(), true) {
                     return false;
                 }
             }
-            if !win_valid_any_tab(unsafe { win.as_ref() }) {
+            if !win_valid_any_tab(win.opt()) {
                 return false;
             }
         } else {
@@ -3886,34 +3867,34 @@ pub fn win_close_othertab(
         }
     }
 
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        do_autocmd_winclosed(unsafe { &mut *(win) });
+    if !win.borrow_mut().w_buffer.is_null() {
+        do_autocmd_winclosed(win.borrow_mut());
 
-        if !win_valid_any_tab(unsafe { win.as_ref() }) {
+        if !win_valid_any_tab(win.opt()) {
             return false;
         }
     }
 
     if ptr::eq(
-        (unsafe { &mut *(tp) }).tp_firstwin.as_ptr(),
-        (unsafe { &mut *(tp) }).tp_lastwin.as_ptr(),
-    ) && !(unsafe { &mut *(tp) }).tp_did_tabclosedpre
+        tp.borrow_mut().tp_firstwin.as_ptr(),
+        tp.borrow_mut().tp_lastwin.as_ptr(),
+    ) && !tp.borrow_mut().tp_did_tabclosedpre
     {
-        trigger_tabclosedpre(unsafe { &mut *(tp) });
+        trigger_tabclosedpre(tp.borrow_mut());
 
-        if !win_valid_any_tab(unsafe { win.as_ref() }) {
+        if !win_valid_any_tab(win.opt()) {
             return false;
         }
     }
 
     let mut bufref: Bufref = Bufref::new();
 
-    set_bufref(&mut bufref, unsafe { (*(win)).w_buffer.opt_mut() });
+    set_bufref(&mut bufref, win.w_buffer.opt_mut());
 
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
+    if !win.borrow_mut().w_buffer.is_null() {
         close_buffer(
-            unsafe { win.as_mut() },
-            unsafe { (*(win)).w_buffer.opt_mut() },
+            win.opt_mut(),
+            win.w_buffer.opt_mut(),
             if free_buf != 0 { DOBUF_UNLOAD } else { 0 },
             false,
             true,
@@ -3921,21 +3902,16 @@ pub fn win_close_othertab(
         );
     }
 
-    if !valid_tabpage(unsafe { tp.as_ref() })
-        || g_st().curtab == tp
-        || !tabpage_win_valid(unsafe { tp.as_ref() }, unsafe { win.as_ref() })
-    {
-        if win_valid_any_tab(unsafe { win.as_ref() }) {
-            win_unclose_buffer(unsafe { &mut *(win) }, &mut bufref);
+    if !valid_tabpage(tp.opt()) || g_st().curtab == tp || !tabpage_win_valid(tp.opt(), win.opt()) {
+        if win_valid_any_tab(win.opt()) {
+            win_unclose_buffer(win.borrow_mut(), &mut bufref);
         }
         return false;
     }
-    if unsafe { (*tp).tp_lastwin.borrow().w_floating }
-        && one_window(unsafe { &mut *(win) }, unsafe { tp.as_ref() })
-    {
+    if tp.tp_lastwin.borrow().w_floating && one_window(win.borrow_mut(), tp.opt()) {
         emsg(E_FLOATONLY);
-        if win_valid_any_tab(unsafe { win.as_ref() }) {
-            win_unclose_buffer(unsafe { &mut *(win) }, &mut bufref);
+        if win_valid_any_tab(win.opt()) {
+            win_unclose_buffer(win.borrow_mut(), &mut bufref);
         }
         return false;
     }
@@ -3943,14 +3919,14 @@ pub fn win_close_othertab(
     let mut free_tp_idx: i32 = 0;
 
     if ptr::eq(
-        (unsafe { &mut *(tp) }).tp_firstwin.as_ptr(),
-        (unsafe { &mut *(tp) }).tp_lastwin.as_ptr(),
+        tp.borrow_mut().tp_firstwin.as_ptr(),
+        tp.borrow_mut().tp_lastwin.as_ptr(),
     ) {
-        free_tp_idx = tabpage_index(unsafe { tp.as_ref() });
+        free_tp_idx = tabpage_index(tp.opt());
         let h = tabline_height();
 
         if g_st().first_tabpage == tp {
-            g_st().first_tabpage = (unsafe { (*tp).tp_next.as_ptr() }).into();
+            g_st().first_tabpage = tp.tp_next;
         } else {
             let mut ptp = g_st().first_tabpage.as_ptr();
             while !ptp.is_null() && unsafe { (*ptp).tp_next } != tp {
@@ -3961,7 +3937,7 @@ pub fn win_close_othertab(
                 return false;
             }
 
-            (unsafe { &mut *(ptp) }).tp_next = (unsafe { &mut *(tp) }).tp_next;
+            (unsafe { &mut *(ptp) }).tp_next = tp.borrow_mut().tp_next;
         }
         g_st().redraw_tabline = true;
         if h != tabline_height() {
@@ -3970,28 +3946,28 @@ pub fn win_close_othertab(
     }
 
     if ui_has(K_UIMULTIGRID) {
-        ui_call_win_close(Integer::from((unsafe { &mut *(win) }).w_grid_alloc.handle));
+        ui_call_win_close(Integer::from(win.borrow_mut().w_grid_alloc.handle));
     }
-    if (unsafe { &mut *(win) }).w_floating {
-        ui_comp_remove_grid(&mut (unsafe { &mut *(win) }).w_grid_alloc);
+    if win.borrow_mut().w_floating {
+        ui_comp_remove_grid(&mut win.borrow_mut().w_grid_alloc);
     }
 
-    set_bufref(&mut bufref, unsafe { (*(win)).w_buffer.opt_mut() });
+    set_bufref(&mut bufref, win.w_buffer.opt_mut());
 
-    if !(unsafe { &mut *(win) }).w_buffer.is_null() {
-        (unsafe { &mut *(win) }).buf_mut().b_nwindows -= 1;
+    if !win.borrow_mut().w_buffer.is_null() {
+        win.borrow_mut().buf_mut().b_nwindows -= 1;
     }
 
     let mut dir: i32 = 0;
 
-    win_free_mem(unsafe { &mut *(win) }, &mut dir, unsafe { tp.as_mut() });
+    win_free_mem(win.borrow_mut(), &mut dir, tp.opt_mut());
 
     if !bufref.br_buf.is_null() && bufref_valid(Some(&bufref)) && !bufref.br_buf.terminal.is_null()
     {
         terminal_check_size(bufref.br_buf.terminal.borrow_mut());
     }
     if free_tp_idx > 0 {
-        free_tabpage(unsafe { tp.as_mut() });
+        free_tabpage(tp.opt_mut());
 
         if has_event(EVENT_TABCLOSED) {
             let mut prev_idx = [0u8; NUMBUFLEN];
@@ -4019,7 +3995,7 @@ fn win_free_mem(
     dirp: &mut i32,
     tp_in: Option<&mut TabPageInfo>,
 ) -> Option<&'static mut WinInfoInfo> {
-    let win: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(win_in));
+    let win = crate::globals::GraphPtr::from(win_in);
     let tp: *mut TabPageInfo =
         tp_in.map_or(ptr::null_mut(), |t| std::hint::black_box(ptr::from_mut(t)));
     let wp: *mut WinInfoInfo;
@@ -4029,24 +4005,19 @@ fn win_free_mem(
         tp
     };
 
-    if !(unsafe { &mut *(win) }).w_floating {
-        let frp = (unsafe { &mut *(win) }).w_frame;
+    if !win.borrow_mut().w_floating {
+        let frp = win.borrow_mut().w_frame;
 
-        wp = winframe_remove(
-            unsafe { &mut *(win) },
-            &mut *dirp,
-            unsafe { tp.as_mut() },
-            None,
-        )
-        .map_or(ptr::null_mut(), ptr::from_mut);
+        wp = winframe_remove(win.borrow_mut(), &mut *dirp, unsafe { tp.as_mut() }, None)
+            .map_or(ptr::null_mut(), ptr::from_mut);
 
         drop(unsafe { Box::from_raw(frp.as_ptr()) });
     } else {
         *dirp = b'h' as i32;
 
-        wp = win_float_find_altwin(unsafe { &*(win) }, unsafe { (tp).as_ref() });
+        wp = win_float_find_altwin(win.borrow(), unsafe { (tp).as_ref() });
     }
-    win_free(unsafe { &mut *win }, unsafe { tp.as_mut() });
+    win_free(win.borrow_mut(), unsafe { tp.as_mut() });
 
     if unsafe { (*win_tp).tp_curwin } == win {
         unsafe { (*win_tp).tp_curwin = crate::globals::WinPtr::new(wp) };
@@ -4248,41 +4219,41 @@ pub fn winframe_find_altwin(
 }
 
 fn frame_flatten(frp_in: &mut Frame) {
-    let mut frp: *mut Frame = std::hint::black_box(ptr::from_mut(frp_in));
-    if !(unsafe { &mut *(frp) }).fr_next.is_null() || !(unsafe { &mut *(frp) }).fr_prev.is_null() {
+    let mut frp = crate::globals::GraphPtr::from(frp_in);
+    if !frp.borrow_mut().fr_next.is_null() || !frp.borrow_mut().fr_prev.is_null() {
         return;
     }
 
-    (unsafe { &mut *((*(frp)).fr_parent) }).fr_layout = (unsafe { &mut *(frp) }).fr_layout;
+    frp.fr_parent.borrow_mut().fr_layout = frp.borrow_mut().fr_layout;
 
-    (unsafe { &mut *((*(frp)).fr_parent) }).fr_child = (unsafe { &mut *(frp) }).fr_child;
+    frp.fr_parent.borrow_mut().fr_child = frp.borrow_mut().fr_child;
 
-    let mut frp2 = (unsafe { &mut *(frp) }).fr_child;
+    let mut frp2 = frp.borrow_mut().fr_child;
     while !frp2.is_null() {
-        frp2.borrow_mut().fr_parent = unsafe { (*frp).fr_parent };
+        frp2.borrow_mut().fr_parent = frp.fr_parent;
 
         frp2 = frp2.fr_next;
     }
 
-    (unsafe { &mut *((*(frp)).fr_parent) }).fr_win = (unsafe { &mut *(frp) }).fr_win;
+    frp.fr_parent.borrow_mut().fr_win = frp.borrow_mut().fr_win;
 
-    if !(unsafe { &mut *(frp) }).fr_win.is_null() {
-        (unsafe { &mut *((*(frp)).fr_win) }).w_frame = (unsafe { &mut *(frp) }).fr_parent;
+    if !frp.borrow_mut().fr_win.is_null() {
+        frp.fr_win.borrow_mut().w_frame = frp.borrow_mut().fr_parent;
     }
 
-    frp2 = (unsafe { &mut *(frp) }).fr_parent;
+    frp2 = frp.borrow_mut().fr_parent;
 
     if crate::globals::topframe_mut().fr_child == frp {
         crate::globals::topframe_mut().fr_child = frp2;
     }
 
-    drop(unsafe { Box::from_raw(frp) });
+    drop(unsafe { Box::from_raw(frp.as_ptr()) });
 
-    frp = frp2.fr_parent.as_ptr();
+    frp = frp2.fr_parent;
 
-    if !frp.is_null() && unsafe { (*frp).fr_layout } == frp2.fr_layout {
-        if unsafe { (*frp).fr_child } == frp2 {
-            unsafe { (*frp).fr_child = frp2.fr_child };
+    if !frp.is_null() && frp.fr_layout == frp2.fr_layout {
+        if frp.fr_child == frp2 {
+            frp.fr_child = frp2.fr_child;
         }
 
         debug_assert!(!frp2.fr_child.is_null());
@@ -4294,7 +4265,7 @@ fn frame_flatten(frp_in: &mut Frame) {
         }
         let mut frp3 = frp2.fr_child;
         loop {
-            frp3.fr_parent = crate::globals::FramePtr::new(frp);
+            frp3.fr_parent = frp;
 
             if frp3.fr_next.is_null() {
                 frp3.fr_next = frp2.fr_next;
@@ -4308,7 +4279,7 @@ fn frame_flatten(frp_in: &mut Frame) {
             frp3 = frp3.fr_next;
         }
         if crate::globals::topframe_mut().fr_child == frp2 {
-            crate::globals::topframe_mut().fr_child = crate::globals::FramePtr::new(frp);
+            crate::globals::topframe_mut().fr_child = frp;
         }
 
         drop(unsafe { Box::from_raw(frp2.as_ptr()) });
@@ -4992,8 +4963,8 @@ impl Drop for TabPageInfo {
 
 pub fn free_tabpage(tp: Option<&mut TabPageInfo>) {
     if let Some(tp_ref) = tp {
-        let tp_ptr = std::hint::black_box(ptr::from_mut(tp_ref));
-        drop(unsafe { Box::from_raw(tp_ptr) });
+        let tp_ptr = crate::globals::GraphPtr::from(tp_ref);
+        drop(unsafe { Box::from_raw(tp_ptr.as_ptr()) });
     }
 }
 
@@ -5196,9 +5167,9 @@ pub fn valid_tabpage_win(tpc: &mut TabPageInfo) -> i32 {
 }
 
 pub fn close_tabpage(tab: &mut TabPageInfo) {
-    let tab_ptr: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(tab));
+    let tab_ptr = crate::globals::GraphPtr::from(tab);
     let ptp: *mut TabPageInfo = if g_st().first_tabpage == tab_ptr {
-        g_st().first_tabpage = (unsafe { (*tab_ptr).tp_next.as_ptr() }).into();
+        g_st().first_tabpage = tab_ptr.tp_next;
         g_st().first_tabpage.as_ptr()
     } else {
         let mut prev_tp: Option<&mut TabPageInfo> = None;
@@ -5209,12 +5180,12 @@ pub fn close_tabpage(tab: &mut TabPageInfo) {
             }
         }
         let prev = prev_tp.expect("tabpage in list");
-        prev.tp_next = unsafe { (*tab_ptr).tp_next };
+        prev.tp_next = tab_ptr.tp_next;
         prev
     };
 
     goto_tabpage_tp(unsafe { ptp.as_mut() }, false, false);
-    free_tabpage(unsafe { tab_ptr.as_mut() });
+    free_tabpage(tab_ptr.opt_mut());
 }
 
 pub fn find_tabpage(n: i32) -> Option<&'static mut TabPageInfo> {
@@ -5285,10 +5256,10 @@ fn enter_tabpage(
     trigger_enter_autocmds: bool,
     trigger_leave_autocmds: bool,
 ) {
-    let tp_ptr: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(tp_in));
+    let tp_ptr = crate::globals::GraphPtr::from(tp_in);
     let old_curbuf: *mut FileBuf =
         old_curbuf_in.map_or(ptr::null_mut(), |b| std::hint::black_box(ptr::from_mut(b)));
-    let tp = unsafe { &mut *tp_ptr };
+    let tp = tp_ptr.borrow_mut();
     let old_off = tp.firstwin_mut().w_winrow;
     let next_prevwin = tp.tp_prevwin.as_ptr();
     let old_curtab = curtab_mut();
@@ -5308,7 +5279,7 @@ fn enter_tabpage(
         tabpage_check_windows(unsafe { &mut *old_curtab_ptr });
     }
 
-    let tp_curwin = unsafe { (*tp_ptr).tp_curwin.as_ptr() };
+    let tp_curwin = tp_ptr.tp_curwin.as_ptr();
     win_enter_ext(
         unsafe { &mut *tp_curwin },
         WEE_CURWIN_INVALID
@@ -5470,11 +5441,11 @@ pub fn goto_tabpage_lastused() -> bool {
 }
 
 pub fn goto_tabpage_win(tp_in: &mut TabPageInfo, wp_in: &mut WinInfoInfo) {
-    let tp: *mut TabPageInfo = std::hint::black_box(ptr::from_mut(tp_in));
-    let wp: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(wp_in));
-    goto_tabpage_tp(unsafe { tp.as_mut() }, true, true);
-    if g_st().curtab == tp && win_valid(unsafe { wp.as_ref() }) {
-        win_enter(unsafe { &mut *wp }, true);
+    let tp = crate::globals::GraphPtr::from(tp_in);
+    let wp = crate::globals::GraphPtr::from(wp_in);
+    goto_tabpage_tp(tp.opt_mut(), true, true);
+    if g_st().curtab == tp && win_valid(wp.opt()) {
+        win_enter(wp.borrow_mut(), true);
     }
 }
 
@@ -5555,24 +5526,24 @@ pub fn tabpage_move(nr: i32) {
 }
 
 pub fn win_goto(wp_in: &mut WinInfoInfo) {
-    let wp: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(wp_in));
+    let wp = crate::globals::GraphPtr::from(wp_in);
     if text_or_buf_locked() {
         beep_flush();
         return;
     }
 
-    let wp_ref = unsafe { &mut *(wp) };
+    let wp_ref = wp.borrow_mut();
     if g_st().curbuf != wp_ref.w_buffer {
         reset_visual_and_resel();
     } else if g_st().visual_global.active {
         wp_ref.w_cursor = curwin_mut().w_cursor;
     }
 
-    if !win_valid(unsafe { wp.as_ref() }) {
+    if !win_valid(wp.opt()) {
         return;
     }
 
-    win_enter(unsafe { &mut *wp }, true);
+    win_enter(wp.borrow_mut(), true);
 }
 
 pub fn win_find_tabpage(win: &WinInfoInfo) -> Option<&'static mut TabPageInfo> {
@@ -5727,11 +5698,11 @@ pub fn win_enter(wp: &mut WinInfoInfo, undo_sync: bool) {
 }
 
 fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
-    let wp: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(wp_in));
+    let wp = crate::globals::GraphPtr::from(wp_in);
     let mut other_buffer = false;
     let curwin_invalid = (flags & WEE_CURWIN_INVALID) != 0;
 
-    if ptr::eq(wp, curwin_ptr()) && !curwin_invalid {
+    if wp == curwin_ptr() && !curwin_invalid {
         return;
     }
 
@@ -5740,18 +5711,15 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
     }
 
     if !curwin_invalid && (flags & WEE_TRIGGER_LEAVE_AUTOCMDS) != 0 {
-        if !ptr::eq(
-            (unsafe { &mut *(wp) }).w_buffer.as_ptr(),
-            g_st().curbuf.as_ptr(),
-        ) {
+        if !ptr::eq(wp.borrow_mut().w_buffer.as_ptr(), g_st().curbuf.as_ptr()) {
             apply_autocmds(EVENT_BUFLEAVE, None, None, false, curbuf_opt_mut());
             other_buffer = true;
-            if !win_valid(unsafe { wp.as_ref() }) {
+            if !win_valid(wp.opt()) {
                 return;
             }
         }
         apply_autocmds(EVENT_WINLEAVE, None, None, false, curbuf_opt_mut());
-        if !win_valid(unsafe { wp.as_ref() }) {
+        if !win_valid(wp.opt()) {
             return;
         }
         if aborting() {
@@ -5759,7 +5727,7 @@ fn win_enter_ext(wp_in: &mut WinInfoInfo, flags: i32) {
         }
     }
 
-    let wp = unsafe { &mut *(wp) };
+    let wp = wp.borrow_mut();
     if (flags & WEE_UNDO_SYNC) != 0 && g_st().curbuf != wp.w_buffer {
         u_sync(false);
     }
@@ -5913,8 +5881,8 @@ pub fn update_cwd(cause: CdCause) {
 }
 
 pub fn buf_jump_open_win(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInfo> {
-    let buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_in));
-    if ptr::eq(curwin_mut().w_buffer.as_ptr(), buf) {
+    let buf = crate::globals::GraphPtr::from(buf_in);
+    if curwin_mut().w_buffer == buf {
         win_enter(curwin_mut(), false);
         return unsafe { curwin_ptr().as_mut() };
     }
@@ -5929,8 +5897,8 @@ pub fn buf_jump_open_win(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInf
 }
 
 pub fn buf_jump_open_tab(buf_in: &mut FileBuf) -> Option<&'static mut WinInfoInfo> {
-    let buf: *mut FileBuf = std::hint::black_box(ptr::from_mut(buf_in));
-    if let Some(wp) = buf_jump_open_win(unsafe { &mut *buf }) {
+    let buf = crate::globals::GraphPtr::from(buf_in);
+    if let Some(wp) = buf_jump_open_win(buf.borrow_mut()) {
         return Some(wp);
     }
 
@@ -6002,9 +5970,9 @@ pub fn win_alloc(after_in: Option<&mut WinInfoInfo>, hidden: bool) -> &'static m
 }
 
 pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) {
-    let wp: *mut WinInfoInfo = std::hint::black_box(ptr::from_mut(wp_in));
+    let wp = crate::globals::GraphPtr::from(wp_in);
     {
-        let wp = unsafe { &mut *(wp) };
+        let wp = wp.borrow_mut();
         g_st().window_handles.remove(&wp.handle);
         clear_folding(&mut *wp);
 
@@ -6095,9 +6063,9 @@ pub fn win_free(wp_in: &mut WinInfoInfo, tp: Option<&mut TabPageInfo>) {
     if g_st().autocmd_busy {
         g_st()
             .au_pending_free_win
-            .push(unsafe { Box::from_raw(wp) });
+            .push(unsafe { Box::from_raw(wp.as_ptr()) });
     } else {
-        drop(unsafe { Box::from_raw(wp) });
+        drop(unsafe { Box::from_raw(wp.as_ptr()) });
     }
 
     unblock_autocmds();

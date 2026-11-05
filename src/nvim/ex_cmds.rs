@@ -3238,7 +3238,6 @@ pub fn do_ecmd(
     drop(free_fname);
     retval
 }
-
 fn delbuf_msg(name: Option<std::ffi::CString>) {
     semsg!(
         gettext(c"E143: Autocommands unexpectedly deleted new buffer %s"),

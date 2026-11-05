@@ -1141,12 +1141,12 @@ pub fn tv_list_item_remove(
     l: &mut TvList,
     item_in: &mut Listitem,
 ) -> Option<&'static mut Listitem> {
-    let item = std::hint::black_box(ptr::from_mut(item_in));
-    let next_item = unsafe { (*item).li_next.as_ptr() };
+    let item = crate::globals::GraphPtr::from(item_in);
+    let next_item = item.li_next.as_ptr();
 
-    tv_list_drop_items(l, unsafe { &mut *item }, unsafe { &mut *item });
+    tv_list_drop_items(l, item.borrow_mut(), item.borrow_mut());
 
-    drop(unsafe { Box::from_raw(item) });
+    drop(unsafe { Box::from_raw(item.as_ptr()) });
 
     unsafe { next_item.as_mut() }
 }
@@ -1255,11 +1255,11 @@ pub extern "C" fn tv_list_free(l: Option<&mut TvList>) {
     let Some(l_ref) = l else {
         return;
     };
-    let l_ptr = std::hint::black_box(ptr::from_mut(l_ref));
+    let l_ptr = crate::globals::GraphPtr::from(l_ref);
 
-    tv_list_free_contents(unsafe { &mut *l_ptr });
+    tv_list_free_contents(l_ptr.borrow_mut());
 
-    drop(unsafe { Box::from_raw(l_ptr) });
+    drop(unsafe { Box::from_raw(l_ptr.as_ptr()) });
 }
 
 /// Unreference a list.
@@ -1302,13 +1302,13 @@ pub fn tv_list_drop_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut
 
 /// Like tv_list_drop_items, but also frees all removed items.
 pub fn tv_list_remove_items(l: &mut TvList, item_in: &mut Listitem, item2_in: &mut Listitem) {
-    let item = std::hint::black_box(ptr::from_mut(item_in));
-    let item2 = std::hint::black_box(ptr::from_mut(item2_in));
-    tv_list_drop_items(l, unsafe { &mut *item }, unsafe { &mut *item2 });
+    let item = crate::globals::GraphPtr::from(item_in);
+    let item2 = crate::globals::GraphPtr::from(item2_in);
+    tv_list_drop_items(l, item.borrow_mut(), item2.borrow_mut());
     let mut li = item;
     loop {
-        let nli = unsafe { (*li).li_next.as_ptr() };
-        drop(unsafe { Box::from_raw(li) });
+        let nli = li.li_next;
+        drop(unsafe { Box::from_raw(li.as_ptr()) });
         if li == item2 {
             break;
         }
@@ -2012,10 +2012,10 @@ pub fn tv_list_remove(argvars: &mut [TypVal], rettv: &mut TypVal, arg_errmsg: &C
         return;
     };
     if argvars[2].v_type == VarType::VarUnknown {
-        let item_ptr = std::hint::black_box(ptr::from_mut(item));
-        tv_list_drop_items(l, unsafe { &mut *item_ptr }, unsafe { &mut *item_ptr });
-        *rettv = std::mem::replace(unsafe { &mut (*item_ptr).li_tv }, tv_initial_value());
-        drop(unsafe { Box::from_raw(item_ptr) });
+        let mut item_ptr = crate::globals::GraphPtr::from(item);
+        tv_list_drop_items(l, item_ptr.borrow_mut(), item_ptr.borrow_mut());
+        *rettv = std::mem::replace(&mut item_ptr.li_tv, tv_initial_value());
+        drop(unsafe { Box::from_raw(item_ptr.as_ptr()) });
     } else {
         let end = tv_get_number_chk(&argvars[2], Some(&mut error));
         if error {
@@ -2827,12 +2827,12 @@ pub fn tv_dict_watcher_notify(
     newtv: Option<&TypVal>,
     oldtv: Option<&TypVal>,
 ) {
-    let dict = std::hint::black_box(ptr::from_mut(dict_in));
+    let mut dict = crate::globals::GraphPtr::from(dict_in);
     let mut argv: [TypVal; 3] = [tv_initial_value(); 3];
 
     argv[0].v_type = VarType::VarDict;
     argv[0].v_lock = VAR_UNLOCKED;
-    argv[0].vval = crate::eval::typval::TypvalVval::Dict(crate::globals::GraphPtr::new(dict));
+    argv[0].vval = crate::eval::typval::TypvalVval::Dict(dict);
     argv[1].v_lock = VAR_UNLOCKED;
     tv_set_string(&mut argv[1], Some(key));
     argv[2].v_type = VarType::VarDict;
@@ -2857,24 +2857,20 @@ pub fn tv_dict_watcher_notify(
     }
 
     let mut any_needs_free = false;
-    unsafe {
-        (*dict).dv_refcount += 1;
-    }
+    dict.dv_refcount += 1;
     let key_bytes = key.to_bytes();
-    let len = unsafe { (*dict).watchers.len() };
+    let len = dict.watchers.len();
     for i in 0..len {
         let matches = {
-            let w = unsafe { &(&(*dict).watchers)[i] };
+            let w = &dict.watchers[i];
             !w.busy && tv_dict_watcher_matches(w, key_bytes)
         };
         if matches {
             let mut rettv = tv_initial_value();
-            unsafe {
-                (&mut (*dict).watchers)[i].busy = true;
-            }
-            let mut cb = unsafe { (&(*dict).watchers)[i].callback.clone() };
+            dict.watchers[i].busy = true;
+            let mut cb = dict.watchers[i].callback.clone();
             callback_call(&mut cb, 3, &mut argv, &mut rettv);
-            let w = unsafe { &mut (&mut (*dict).watchers)[i] };
+            let w = &mut dict.watchers[i];
             w.callback = cb;
             w.busy = false;
             tv_clear(&mut rettv);
@@ -2884,11 +2880,9 @@ pub fn tv_dict_watcher_notify(
         }
     }
     if any_needs_free {
-        unsafe {
-            (*dict).watchers.retain(|watcher| !watcher.needs_free);
-        }
+        dict.watchers.retain(|watcher| !watcher.needs_free);
     }
-    tv_dict_unref(unsafe { dict.as_mut() });
+    tv_dict_unref(dict.opt_mut());
 
     for item in argv.iter_mut().skip(1) {
         tv_clear(item);
@@ -2918,11 +2912,11 @@ pub fn tv_dict_item_alloc(key: &CStr) -> &'static mut Dictitem {
 
 /// Free a dictionary item, also clearing the value.
 pub fn tv_dict_item_free(item_in: &mut Dictitem) {
-    let item = std::hint::black_box(ptr::from_mut(item_in));
-    if (unsafe { (*item).di_flags } & DI_FLAGS_ALLOC) != 0 {
-        drop(unsafe { Box::from_raw(item) });
+    let mut item = crate::globals::GraphPtr::from(item_in);
+    if (item.di_flags & DI_FLAGS_ALLOC) != 0 {
+        drop(unsafe { Box::from_raw(item.as_ptr()) });
     } else {
-        tv_clear(unsafe { &mut (*item).di_tv });
+        tv_clear(&mut item.di_tv);
     }
 }
 
@@ -2986,11 +2980,11 @@ pub fn tv_dict_free(d_in: &mut TvDict) {
     if tv_st().tv_in_free_unref_items {
         return;
     }
-    let d = std::hint::black_box(ptr::from_mut(d_in));
+    let d = crate::globals::GraphPtr::from(d_in);
 
-    tv_list_dict_free_dict_inner(unsafe { &mut *d });
+    tv_list_dict_free_dict_inner(d.borrow_mut());
 
-    drop(unsafe { Box::from_raw(d) });
+    drop(unsafe { Box::from_raw(d.as_ptr()) });
 }
 
 #[inline]
@@ -3476,8 +3470,8 @@ pub fn tv_blob_unref(b: Option<&mut TvBlob>) {
     if let Some(b_ref) = b {
         b_ref.bv_refcount -= 1;
         if b_ref.bv_refcount <= 0 {
-            let b_ptr = std::hint::black_box(ptr::from_mut(b_ref));
-            drop(unsafe { Box::from_raw(b_ptr) });
+            let b_ptr = crate::globals::GraphPtr::from(b_ref);
+            drop(unsafe { Box::from_raw(b_ptr.as_ptr()) });
         }
     }
 }

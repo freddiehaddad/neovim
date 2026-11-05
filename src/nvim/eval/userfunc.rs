@@ -1033,8 +1033,8 @@ impl Drop for Funccall {
 /// Handle the last part of returning from a function: free the local hashtable.
 /// Unless it is still in use by a closure.
 fn cleanup_function_call(fc_in: &mut Funccall) {
-    let fc_ptr = std::hint::black_box(ptr::from_mut(fc_in));
-    let fc = unsafe { &mut *fc_ptr };
+    let fc_ptr = crate::globals::GraphPtr::from(fc_in);
+    let fc = fc_ptr.borrow_mut();
     let may_free_fc = fc.fc_refcount <= 0;
     let mut free_fc = true;
 
@@ -1074,12 +1074,12 @@ fn cleanup_function_call(fc_in: &mut Funccall) {
     }
 
     if free_fc {
-        drop(unsafe { Box::from_raw(fc_ptr) });
+        drop(unsafe { Box::from_raw(fc_ptr.as_ptr()) });
     } else {
         fc.fc_caller = crate::globals::GraphPtr::NULL;
         uf_st()
             .previous_funccal
-            .push(RetainedFunccall(unsafe { Box::from_raw(fc_ptr) }));
+            .push(RetainedFunccall(unsafe { Box::from_raw(fc_ptr.as_ptr()) }));
 
         if g_st().want_garbage_collect {
             uf_st().made_copy = 0;
@@ -1173,10 +1173,10 @@ impl Drop for UserFunc {
 }
 
 fn func_clear_free(fp_in: &mut UserFunc, force: bool) {
-    let fp = std::hint::black_box(ptr::from_mut(fp_in));
-    func_clear(unsafe { &mut *fp }, force);
+    let fp = crate::globals::GraphPtr::from(fp_in);
+    func_clear(fp.borrow_mut(), force);
 
-    drop(unsafe { Box::from_raw(fp) });
+    drop(unsafe { Box::from_raw(fp.as_ptr()) });
 }
 
 /// Allocate a `Funccall`, link it in `uf_st().current_funccal` and fill in `fp` and `rettv`.

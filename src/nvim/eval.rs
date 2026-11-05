@@ -4012,13 +4012,10 @@ pub fn partial_unref(pt: Option<&mut TvPartial>) {
     let Some(pt_ref) = pt else {
         return;
     };
-    let pt_ptr = std::hint::black_box(ptr::from_mut(pt_ref));
-    unsafe {
-        (*pt_ptr).pt_refcount -= 1;
-
-        if (*pt_ptr).pt_refcount <= 0 {
-            drop(Box::from_raw(pt_ptr));
-        }
+    let mut pt_ptr = crate::globals::GraphPtr::from(pt_ref);
+    pt_ptr.pt_refcount -= 1;
+    if pt_ptr.pt_refcount <= 0 {
+        drop(unsafe { Box::from_raw(pt_ptr.as_ptr()) });
     }
 }
 
@@ -5169,42 +5166,35 @@ pub fn add_timer_info_all(rettv: &mut TypVal) {
 
 /// Invoked on the main loop.
 pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
-    let timer = std::hint::black_box(ptr::from_mut(timer_in));
+    let mut timer = crate::globals::GraphPtr::from(timer_in);
     let save_did_emsg = g_st().did_emsg;
     let called_emsg_before = g_st().called_emsg;
 
-    if unsafe { (*timer).stopped || (*timer).paused } {
+    if timer.stopped || timer.paused {
         return;
     }
 
-    unsafe {
-        (*timer).refcount += 1;
-    }
+    timer.refcount += 1;
 
-    if unsafe { (*timer).repeat_count } >= 0 {
-        unsafe {
-            (*timer).repeat_count -= 1;
-        }
+    if timer.repeat_count >= 0 {
+        timer.repeat_count -= 1;
 
-        if unsafe { (*timer).repeat_count } == 0 {
-            timer_stop(unsafe { &mut *timer });
+        if timer.repeat_count == 0 {
+            timer_stop(timer.borrow_mut());
         }
     }
 
     let mut argv = [tv_initial_value(), tv_initial_value()];
     argv[0].v_type = VarType::VarNumber;
 
-    argv[0].vval =
-        crate::eval::typval::TypvalVval::Number(Varnumber::from(unsafe { (*timer).timer_id }));
+    argv[0].vval = crate::eval::typval::TypvalVval::Number(Varnumber::from(timer.timer_id));
 
     let mut rettv = tv_initial_value();
 
-    callback_call(unsafe { &mut (*timer).callback }, 1, &mut argv, &mut rettv);
+    callback_call(&mut timer.borrow_mut().callback, 1, &mut argv, &mut rettv);
 
     if g_st().called_emsg > called_emsg_before && g_st().did_emsg != 0 {
-        unsafe {
-            (*timer).emsg_count += 1;
-        }
+        timer.emsg_count += 1;
 
         if g_st().did_throw {
             discard_current_exception();
@@ -5212,18 +5202,17 @@ pub fn timer_due_cb(_tw: &mut TimeWatcher, timer_in: &mut VimTimer) {
     }
     g_st().did_emsg = save_did_emsg;
 
-    if unsafe { (*timer).emsg_count } >= 3 {
-        timer_stop(unsafe { &mut *timer });
+    if timer.emsg_count >= 3 {
+        timer_stop(timer.borrow_mut());
     }
 
     tv_clear(&mut rettv);
 
-    if unsafe { !(*timer).stopped && (*timer).timeout == 0 } {
-        time_watcher_start(unsafe { &mut (*timer).watcher }, 0, 0);
+    if !timer.stopped && timer.timeout == 0 {
+        time_watcher_start(&mut timer.borrow_mut().watcher, 0, 0);
     }
-    timer_decref(unsafe { &mut *timer });
+    timer_decref(timer.borrow_mut());
 }
-
 pub fn timer_start(timeout: i64, repeat_count: i32, callback: Callback) -> u64 {
     let id = eval_st().last_timer_id;
     eval_st().last_timer_id += 1;
@@ -5274,12 +5263,12 @@ pub(crate) fn timer_close_cb(_tw: &mut TimeWatcher, timer: &mut VimTimer) {
 }
 
 fn timer_decref(timer_in: &mut VimTimer) {
-    let timer = std::hint::black_box(ptr::from_mut(timer_in));
+    let mut timer = crate::globals::GraphPtr::from(timer_in);
     unsafe {
-        (*timer).refcount -= 1;
+        timer.refcount -= 1;
 
-        if (*timer).refcount == 0 {
-            drop(Box::from_raw(timer));
+        if timer.refcount == 0 {
+            drop(Box::from_raw(timer.as_ptr()));
         }
     }
 }

@@ -2596,7 +2596,6 @@ pub fn apply_autocmds(
         false,
     )
 }
-
 pub fn apply_autocmds_win(
     event: AuEvent,
     fname: Option<&CStr>,
@@ -3810,7 +3809,7 @@ pub fn do_autocmd_focusgained(gained: bool) {
 }
 
 pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
-    let buf_ptr = std::hint::black_box(ptr::from_mut(buf));
+    let mut buf_ptr = crate::globals::GraphPtr::from(&mut *buf);
     if au_st().ft_recursive > 0 && !force {
         return false;
     }
@@ -3819,15 +3818,13 @@ pub fn do_filetype_autocmd(buf: &mut FileBuf, force: bool) -> bool {
     g_st().secure = 0;
 
     au_st().ft_recursive += 1;
-    unsafe {
-        (*buf_ptr).b_did_filetype = true;
-    }
+    buf_ptr.b_did_filetype = true;
     let ret = apply_autocmds(
         EVENT_FILETYPE,
-        Some(unsafe { (*buf_ptr).b_p_ft.as_cstr() }),
-        unsafe { (*buf_ptr).fname_opt() },
+        Some(buf_ptr.b_p_ft.as_cstr()),
+        buf_ptr.fname_opt(),
         force || au_st().ft_recursive == 1,
-        unsafe { buf_ptr.as_mut() },
+        buf_ptr.opt_mut(),
     );
     au_st().ft_recursive -= 1;
 
